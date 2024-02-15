@@ -181,7 +181,8 @@ const (
 	TEST_COMMANDS_THAT_NEED_INPUT                                            = "fixture-commands-that-need-input"
 	TEST_FIXTURE_PARALLEL_STATE_INIT                                         = "fixture-parallel-state-init"
 	TEST_FIXTURE_GCS_PARALLEL_STATE_INIT                                     = "fixture-gcs-parallel-state-init"
-	TEST_FIXTURE_ASSUME_ROLE                                                 = "fixture-assume-role"
+	TEST_FIXTURE_ASSUME_ROLE                                                 = "fixture-assume-role/external-id"
+	TEST_FIXTURE_ASSUME_ROLE_DURATION                                        = "fixture-assume-role/duration"
 	TEST_FIXTURE_GRAPH                                                       = "fixture-graph"
 	TEST_FIXTURE_SKIP_DEPENDENCIES                                           = "fixture-skip-dependencies"
 	TERRAFORM_BINARY                                                         = "terraform"
@@ -4183,37 +4184,38 @@ func createTmpTerragruntGCSConfig(t *testing.T, templatesPath string, project st
 }
 
 func copyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string, configDestPath string, s3BucketName string, lockTableName string, region string) {
+	copyTerragruntConfigAndFillMapPlaceholders(t, configSrcPath, configDestPath, map[string]string{
+		"__FILL_IN_BUCKET_NAME__":      s3BucketName,
+		"__FILL_IN_LOCK_TABLE_NAME__":  lockTableName,
+		"__FILL_IN_REGION__":           region,
+		"__FILL_IN_LOGS_BUCKET_NAME__": s3BucketName + "-tf-state-logs",
+	})
+}
+
+func copyTerragruntConfigAndFillMapPlaceholders(t *testing.T, configSrcPath string, configDestPath string, placeholders map[string]string) {
 	contents, err := util.ReadFileAsString(configSrcPath)
 	if err != nil {
 		t.Fatalf("Error reading Terragrunt config at %s: %v", configSrcPath, err)
 	}
 
-	contents = strings.ReplaceAll(contents, "__FILL_IN_BUCKET_NAME__", s3BucketName)
-	contents = strings.ReplaceAll(contents, "__FILL_IN_LOCK_TABLE_NAME__", lockTableName)
-	contents = strings.ReplaceAll(contents, "__FILL_IN_REGION__", region)
-	contents = strings.ReplaceAll(contents, "__FILL_IN_LOGS_BUCKET_NAME__", s3BucketName+"-tf-state-logs")
-
+	// iterate over placeholders and replace placeholders
+	for k, v := range placeholders {
+		contents = strings.ReplaceAll(contents, k, v)
+	}
 	if err := os.WriteFile(configDestPath, []byte(contents), 0444); err != nil {
 		t.Fatalf("Error writing temp Terragrunt config to %s: %v", configDestPath, err)
 	}
 }
 
 func copyTerragruntGCSConfigAndFillPlaceholders(t *testing.T, configSrcPath string, configDestPath string, project string, location string, gcsBucketName string) {
-	contents, err := util.ReadFileAsString(configSrcPath)
-	if err != nil {
-		t.Fatalf("Error reading Terragrunt config at %s: %v", configSrcPath, err)
-	}
-
-	contents = strings.ReplaceAll(contents, "__FILL_IN_PROJECT__", project)
-	contents = strings.ReplaceAll(contents, "__FILL_IN_LOCATION__", location)
-	contents = strings.ReplaceAll(contents, "__FILL_IN_BUCKET_NAME__", gcsBucketName)
-
 	email := os.Getenv("GOOGLE_IDENTITY_EMAIL")
-	contents = strings.ReplaceAll(contents, "__FILL_IN_GCP_EMAIL__", email)
 
-	if err := os.WriteFile(configDestPath, []byte(contents), 0444); err != nil {
-		t.Fatalf("Error writing temp Terragrunt config to %s: %v", configDestPath, err)
-	}
+	copyTerragruntConfigAndFillMapPlaceholders(t, configSrcPath, configDestPath, map[string]string{
+		"__FILL_IN_PROJECT__":     project,
+		"__FILL_IN_LOCATION__":    location,
+		"__FILL_IN_BUCKET_NAME__": gcsBucketName,
+		"__FILL_IN_GCP_EMAIL__":   email,
+	})
 }
 
 // Returns a unique (ish) id we can attach to resources and tfstate files so they don't conflict with each other
@@ -6686,6 +6688,52 @@ func TestTerragruntSkipDependenciesWithSkipFlag(t *testing.T) {
 	assert.Error(t, err)
 	_, err = os.Stat(util.JoinPath(tmpEnvPath, TEST_FIXTURE_SKIP_DEPENDENCIES, "second", "test_file.txt"))
 	assert.Error(t, err)
+}
+
+func TestTerragruntAssumeRoleDuration(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_ASSUME_ROLE_DURATION)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_ASSUME_ROLE_DURATION)
+
+	originalTerragruntConfigPath := util.JoinPath(TEST_FIXTURE_ASSUME_ROLE_DURATION, "terragrunt.hcl")
+	tmpTerragruntConfigFile := util.JoinPath(testPath, "terragrunt.hcl")
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+
+	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
+
+	copyTerragruntConfigAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
+		"__FILL_IN_BUCKET_NAME__":      s3BucketName,
+		"__FILL_IN_REGION__":           TERRAFORM_REMOTE_STATE_S3_REGION,
+		"__FILL_IN_LOGS_BUCKET_NAME__": s3BucketName + "-tf-state-logs",
+		"__FILL_IN_ASSUME_ROLE__":      assumeRole,
+	})
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply  -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
+	fmt.Printf(output)
+	assert.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
+
+	// run one more time to check that no init is performed
+
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply  -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	output = fmt.Sprintf("%s %s", stderr.String(), stdout.String())
+	assert.NotContains(t, output, "Initializing the backend...")
+	assert.NotContains(t, output, "has been successfully initialized!")
+	assert.Contains(t, output, "No changes. Your infrastructure matches the configuration.")
 }
 
 func prepareGraphFixture(t *testing.T) string {
