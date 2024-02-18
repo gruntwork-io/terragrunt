@@ -46,6 +46,7 @@ type Dependency struct {
 
 	// Used to store the rendered outputs for use when the config is imported or read with `read_terragrunt_config`
 	RenderedOutputs *cty.Value `cty:"outputs"`
+	Inputs          *cty.Value `cty:"inputs"`
 }
 
 // DeepMerge will deep merge two Dependency configs, updating the target. Deep merge for Dependency configs is defined
@@ -181,7 +182,23 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 	for _, dep := range decodedDependency.Dependencies {
 		depPath := getCleanedTargetConfigPath(dep.ConfigPath, ctx.TerragruntOptions.TerragruntConfigPath)
 		if dep.isEnabled() && util.FileExists(depPath) {
-			depConfig, err := PartialParseConfigFile(ctx.WithDecodeList(TerragruntFlags), depPath, nil)
+			file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(depPath)
+			if err != nil {
+				return nil, err
+			}
+
+			depEvalContext, err := createTerragruntEvalContext(ctx, depPath)
+			if err != nil {
+				return nil, err
+			}
+
+			terragruntConfigFile, err := decodeAsTerragruntConfigFile(ctx.WithTrackInclude(nil), file, depEvalContext)
+			if err != nil {
+				return nil, err
+			}
+			dep.Inputs = terragruntConfigFile.Inputs
+
+			depConfig, err := TerragruntConfigFromPartialConfig(ctx.WithDecodeList(TerragruntFlags), file, nil)
 			if err == nil {
 				if depConfig.Skip {
 					ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
@@ -190,8 +207,8 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 			} else {
 				ctx.TerragruntOptions.Logger.Warnf("Error reading partial config  for dependency %s: %v", dep.Name, err)
 			}
-
 		}
+
 		updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
 	}
 	decodedDependency = updatedDependencies
@@ -208,6 +225,7 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 	if err := checkForDependencyBlockCycles(ctx, file.ConfigPath, decodedDependency); err != nil {
 		return nil, err
 	}
+
 	return dependencyBlocksToCtyValue(ctx, decodedDependency.Dependencies)
 }
 
@@ -332,6 +350,10 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, dependencyConfigs []Depende
 			if dependencyConfig.RenderedOutputs != nil {
 				paths = append(paths, dependencyConfig.ConfigPath)
 				dependencyEncodingMap["outputs"] = *dependencyConfig.RenderedOutputs
+			}
+
+			if dependencyConfig.Inputs != nil {
+				dependencyEncodingMap["inputs"] = *dependencyConfig.Inputs
 			}
 
 			// Once the dependency is encoded into a map, we need to convert to a cty.Value again so that it can be fed to

@@ -65,6 +65,7 @@ const (
 	TEST_FIXTURE_OUTPUT_ALL                                                  = "fixture-output-all"
 	TEST_FIXTURE_OUTPUT_FROM_REMOTE_STATE                                    = "fixture-output-from-remote-state"
 	TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY                                      = "fixture-output-from-dependency"
+	TEST_FIXTURE_INPUTS_FROM_DEPENDENCY                                      = "fixture-inputs-from-dependency"
 	TEST_FIXTURE_STDOUT                                                      = "fixture-download/stdout-test"
 	TEST_FIXTURE_EXTRA_ARGS_PATH                                             = "fixture-extra-args/"
 	TEST_FIXTURE_ENV_VARS_BLOCK_PATH                                         = "fixture-env-vars-block/"
@@ -939,6 +940,24 @@ func TestTerragruntOutputFromDependency(t *testing.T) {
 
 	output := stderr.String()
 	assert.NotContains(t, output, "invalid character")
+}
+
+func TestTerragruntInputsFromDependency(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
+	appTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY, "app")
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output foo --terragrunt-non-interactive --terragrunt-working-dir %s", appTerragruntPath), &stdout, &stderr)
+
+	output := stdout.String()
+	expected := fmt.Sprintf("%q\n", "dependency-input-foo-value")
+	assert.Equal(t, expected, output)
 }
 
 func TestTerragruntValidateAllCommand(t *testing.T) {
