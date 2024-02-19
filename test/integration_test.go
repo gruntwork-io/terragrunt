@@ -946,13 +946,15 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
-	appTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY, "app")
+	rootTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
+	appTerragruntPath := util.JoinPath(rootTerragruntPath, "app")
 
 	var (
 		stdout bytes.Buffer
 		stderr bytes.Buffer
 	)
 
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootTerragruntPath))
 	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output foo --terragrunt-non-interactive --terragrunt-working-dir %s", appTerragruntPath), &stdout, &stderr)
 
 	output := stdout.String()
@@ -5271,6 +5273,7 @@ func TestRenderJsonWithMockOutputs(t *testing.T) {
 				"mock_outputs_merge_with_state":           nil,
 				"name":                                    "module",
 				"outputs":                                 nil,
+				"inputs":                                  nil,
 				"skip":                                    nil,
 			},
 		},
@@ -5432,6 +5435,7 @@ func TestRenderJsonMetadataDepenency(t *testing.T) {
 				"mock_outputs_merge_with_state":           nil,
 				"name":                                    "dep",
 				"outputs":                                 nil,
+				"inputs":                                  nil,
 				"skip":                                    nil,
 				"enabled":                                 nil,
 			},
@@ -5449,6 +5453,7 @@ func TestRenderJsonMetadataDepenency(t *testing.T) {
 				"mock_outputs_merge_with_state":           nil,
 				"name":                                    "dep2",
 				"outputs":                                 nil,
+				"inputs":                                  nil,
 				"skip":                                    nil,
 			},
 		},

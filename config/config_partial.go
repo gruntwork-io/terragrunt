@@ -6,6 +6,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/gocty"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
@@ -22,6 +23,7 @@ const (
 	TerraformBlock
 	TerraformSource
 	TerragruntFlags
+	TerragruntInputs
 	TerragruntVersionConstraints
 	RemoteStateBlock
 )
@@ -36,6 +38,12 @@ type terragruntIncludeMultiple struct {
 type terragruntDependencies struct {
 	Dependencies *ModuleDependencies `hcl:"dependencies,block"`
 	Remain       hcl.Body            `hcl:",remain"`
+}
+
+// terragruntInputs is a struct that can be used to only decode the inputs block.
+type terragruntInputs struct {
+	Inputs *cty.Value `hcl:"inputs,attr"`
+	Remain hcl.Body   `hcl:",remain"`
 }
 
 // terragruntTerraform is a struct that can be used to only decode the terraform block
@@ -281,6 +289,39 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			}
 			if decoded.IamRole != nil {
 				output.IamRole = *decoded.IamRole
+			}
+
+		case TerragruntInputs:
+			decoded := terragruntInputs{}
+			err := file.Decode(&decoded, evalParsingContext)
+			// in case of render-json command and inputs reference error, we update the inputs with default value
+			if diagErr, ok := errors.Unwrap(err).(hcl.Diagnostics); ok && isRenderJsonCommand(ctx) && isAttributeAccessError(diagErr) {
+				ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
+				// update unknown inputs with default value
+				updatedValue := map[string]cty.Value{}
+				for key, value := range decoded.Inputs.AsValueMap() {
+					if value.IsKnown() {
+						updatedValue[key] = value
+					} else {
+						updatedValue[key] = cty.StringVal("")
+					}
+				}
+				value, err := gocty.ToCtyValue(updatedValue, decoded.Inputs.Type())
+				if err != nil {
+					return nil, err
+				}
+				decoded.Inputs = &value
+			}
+			if err != nil {
+				return nil, err
+			}
+
+			if decoded.Inputs != nil {
+				inputs, err := parseCtyValueToMap(*decoded.Inputs)
+				if err != nil {
+					return nil, err
+				}
+				output.Inputs = inputs
 			}
 
 		case TerragruntVersionConstraints:

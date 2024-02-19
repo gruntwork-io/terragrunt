@@ -187,23 +187,19 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 				return nil, err
 			}
 
-			depEvalContext, err := createTerragruntEvalContext(ctx, depPath)
-			if err != nil {
-				return nil, err
-			}
-
-			terragruntConfigFile, err := decodeAsTerragruntConfigFile(ctx.WithTrackInclude(nil), file, depEvalContext)
-			if err != nil {
-				return nil, err
-			}
-			dep.Inputs = terragruntConfigFile.Inputs
-
-			depConfig, err := TerragruntConfigFromPartialConfig(ctx.WithDecodeList(TerragruntFlags), file, nil)
+			depConfig, err := TerragruntConfigFromPartialConfig(ctx.WithDecodeList(TerragruntFlags, TerragruntInputs), file, nil)
 			if err == nil {
 				if depConfig.Skip {
 					ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
 					dep.Enabled = new(bool)
 				}
+
+				inputsCty, err := convertToCtyWithJson(depConfig.Inputs)
+				if err != nil {
+					return nil, err
+				}
+				dep.Inputs = &inputsCty
+
 			} else {
 				ctx.TerragruntOptions.Logger.Warnf("Error reading partial config  for dependency %s: %v", dep.Name, err)
 			}
