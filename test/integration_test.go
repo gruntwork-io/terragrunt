@@ -955,11 +955,18 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 	)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootTerragruntPath))
-	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output foo --terragrunt-non-interactive --terragrunt-working-dir %s", appTerragruntPath), &stdout, &stderr)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --terragrunt-non-interactive --terragrunt-working-dir %s", appTerragruntPath), &stdout, &stderr)
+
+	expectedOutpus := map[string]string{
+		"bar": "dependency-parent-bar-value",
+		"baz": "dependency-include-input-baz-value",
+		"foo": "dependency-input-foo-value",
+	}
 
 	output := stdout.String()
-	expected := fmt.Sprintf("%q\n", "dependency-input-foo-value")
-	assert.Equal(t, expected, output)
+	for key, value := range expectedOutpus {
+		assert.Contains(t, output, fmt.Sprintf("%s = %q\n", key, value))
+	}
 }
 
 func TestTerragruntValidateAllCommand(t *testing.T) {
