@@ -1,6 +1,6 @@
 variable "foo" {
-  type        = string
-  default     = "app-foo-value"
+  type    = string
+  default = "app-foo-value"
 }
 
 output "foo" {
@@ -9,8 +9,8 @@ output "foo" {
 }
 
 variable "bar" {
-  type        = string
-  default     = "app-bar-value"
+  type    = string
+  default = "app-bar-value"
 }
 
 output "bar" {
@@ -19,8 +19,8 @@ output "bar" {
 }
 
 variable "baz" {
-  type        = string
-  default     = "app-baz-value"
+  type    = string
+  default = "app-baz-value"
 }
 
 output "baz" {
