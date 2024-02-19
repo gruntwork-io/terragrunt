@@ -6582,7 +6582,7 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
 
-			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt graph destroy --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
+			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-graph destroy --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
 			assert.NoError(t, err)
 			output := fmt.Sprintf("%v\n%v\n", stdout.String(), stderr.String())
 
@@ -6632,7 +6632,7 @@ func TestTerragruntApplyGraph(t *testing.T) {
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
 
-			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt graph apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
+			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-graph apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
 			assert.NoError(t, err)
 			output := fmt.Sprintf("%v\n%v\n", stdout.String(), stderr.String())
 
@@ -6656,7 +6656,7 @@ func TestTerragruntGraphNonTerraformCommandExecution(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt graph render-json --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-graph render-json --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
 	assert.NoError(t, err)
 
 	// check that terragrunt_rendered.json is created in mod1/mod2/mod3
