@@ -6,7 +6,6 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/gocty"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
@@ -38,12 +37,6 @@ type terragruntIncludeMultiple struct {
 type terragruntDependencies struct {
 	Dependencies *ModuleDependencies `hcl:"dependencies,block"`
 	Remain       hcl.Body            `hcl:",remain"`
-}
-
-// terragruntInputs is a struct that can be used to only decode the inputs block.
-type terragruntInputs struct {
-	Inputs *cty.Value `hcl:"inputs,attr"`
-	Remain hcl.Body   `hcl:",remain"`
 }
 
 // terragruntTerraform is a struct that can be used to only decode the terraform block
@@ -92,6 +85,12 @@ type terragruntDependency struct {
 type terragruntRemoteState struct {
 	RemoteState *remoteStateConfigFile `hcl:"remote_state,block"`
 	Remain      hcl.Body               `hcl:",remain"`
+}
+
+// terragruntInputs is a struct that can be used to only decode the inputs block.
+type terragruntInputs struct {
+	Inputs *cty.Value `hcl:"inputs,attr"`
+	Remain hcl.Body   `hcl:",remain"`
 }
 
 // DecodeBaseBlocks takes in a parsed HCL2 file and decodes the base blocks. Base blocks are blocks that should always
@@ -293,27 +292,21 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 		case TerragruntInputs:
 			decoded := terragruntInputs{}
-			err := file.Decode(&decoded, evalParsingContext)
-			// in case of render-json command and inputs reference error, we update the inputs with default value
-			if diagErr, ok := errors.Unwrap(err).(hcl.Diagnostics); ok && isRenderJsonCommand(ctx) && isAttributeAccessError(diagErr) {
-				ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
-				// update unknown inputs with default value
-				updatedValue := map[string]cty.Value{}
-				for key, value := range decoded.Inputs.AsValueMap() {
-					if value.IsKnown() {
-						updatedValue[key] = value
-					} else {
-						updatedValue[key] = cty.StringVal("")
-					}
+
+			if err := file.Decode(&decoded, evalParsingContext); err != nil {
+				diagErr, ok := errors.Unwrap(err).(hcl.Diagnostics)
+
+				// in case of render-json command and inputs reference error, we update the inputs with default value
+				if !ok || !isRenderJsonCommand(ctx) || !isAttributeAccessError(diagErr) {
+					return nil, err
 				}
-				value, err := gocty.ToCtyValue(updatedValue, decoded.Inputs.Type())
+				ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
+
+				inputs, err := updateUnknownCtyValValues(decoded.Inputs)
 				if err != nil {
 					return nil, err
 				}
-				decoded.Inputs = &value
-			}
-			if err != nil {
-				return nil, err
+				decoded.Inputs = inputs
 			}
 
 			if decoded.Inputs != nil {

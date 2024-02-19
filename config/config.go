@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/mitchellh/mapstructure"
-	"github.com/zclconf/go-cty/cty/gocty"
 
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2"
@@ -823,29 +822,23 @@ func setIAMRole(ctx *ParsingContext, file *hclparse.File, includeFromChild *Incl
 
 func decodeAsTerragruntConfigFile(ctx *ParsingContext, file *hclparse.File, evalContext *hcl.EvalContext) (*terragruntConfigFile, error) {
 	terragruntConfig := terragruntConfigFile{}
-	err := file.Decode(&terragruntConfig, evalContext)
-	// in case of render-json command and inputs reference error, we update the inputs with default value
-	if diagErr, ok := errors.Unwrap(err).(hcl.Diagnostics); ok && isRenderJsonCommand(ctx) && isAttributeAccessError(diagErr) {
-		ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
-		// update unknown inputs with default value
-		updatedValue := map[string]cty.Value{}
-		for key, value := range terragruntConfig.Inputs.AsValueMap() {
-			if value.IsKnown() {
-				updatedValue[key] = value
-			} else {
-				updatedValue[key] = cty.StringVal("")
-			}
+
+	if err := file.Decode(&terragruntConfig, evalContext); err != nil {
+		diagErr, ok := errors.Unwrap(err).(hcl.Diagnostics)
+
+		// in case of render-json command and inputs reference error, we update the inputs with default value
+		if !ok || !isRenderJsonCommand(ctx) || !isAttributeAccessError(diagErr) {
+			return nil, err
 		}
-		value, err := gocty.ToCtyValue(updatedValue, terragruntConfig.Inputs.Type())
+		ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
+
+		inputs, err := updateUnknownCtyValValues(terragruntConfig.Inputs)
 		if err != nil {
 			return nil, err
 		}
-		terragruntConfig.Inputs = &value
-		return &terragruntConfig, nil
+		terragruntConfig.Inputs = inputs
 	}
-	if err != nil {
-		return nil, err
-	}
+
 	return &terragruntConfig, nil
 }
 
