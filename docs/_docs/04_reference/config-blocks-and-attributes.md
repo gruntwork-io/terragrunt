@@ -886,7 +886,7 @@ The `dependency` block supports the following arguments:
 - `name` (label): You can define multiple `dependency` blocks in a single terragrunt config. As such, each block needs a
   name to differentiate between the other blocks, which is what the first label of the block is used for. You can
   reference the specific dependency output by the name. E.g if you had a block `dependency "vpc"`, you can reference the
-  outputs of this dependency with the expression `dependency.vpc.outputs`.
+  outputs and inputs of this dependency with the expressions `dependency.vpc.outputs` and `dependency.vpc.inputs`.
 - `config_path` (attribute): Path to a Terragrunt module (folder with a `terragrunt.hcl` file) that should be included
   as a dependency in this configuration.
 - `enabled` (attribute): When `false`, excludes the dependency from execution. Defaults to `true`.
@@ -934,6 +934,7 @@ dependency "rds" {
 }
 
 inputs = {
+  region = dependency.vpn.inputs.region
   vpc_id = dependency.vpc.outputs.vpc_id
   db_url = dependency.rds.outputs.db_url
 }
