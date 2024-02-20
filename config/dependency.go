@@ -181,10 +181,8 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 	for _, dep := range decodedDependency.Dependencies {
 		depPath := getCleanedTargetConfigPath(dep.ConfigPath, ctx.TerragruntOptions.TerragruntConfigPath)
 		if dep.isEnabled() && util.FileExists(depPath) {
-			parseContext := NewParsingContext(ctx, ctx.TerragruntOptions.Clone(dep.ConfigPath)).WithDecodeList(
-				TerragruntFlags,
-			)
-			depConfig, err := PartialParseConfigFile(parseContext, depPath, nil)
+			childCtx := ctx.WithDecodeList(TerragruntFlags).WithTerragruntOptions(cloneTerragruntOptionsForDependency(ctx, depPath))
+			depConfig, err := PartialParseConfigFile(childCtx, depPath, nil)
 			if err == nil {
 				if depConfig.Skip {
 					ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
