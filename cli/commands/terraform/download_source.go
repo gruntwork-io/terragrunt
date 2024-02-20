@@ -130,9 +130,9 @@ func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *te
 	currentVersion, err := terraformSource.EncodeSourceVersion()
 	// if source versions are different or calculating version failed, create file to run init
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
-	if previousVersion != currentVersion || err != nil {
+	if (previousVersion != "" && previousVersion != currentVersion) || err != nil {
+		terragruntOptions.Logger.Debugf("Requesting re-init, source version has changed from %s to %s recently.", previousVersion, currentVersion)
 		initFile := util.JoinPath(terraformSource.WorkingDir, ModuleInitRequiredFile)
-
 		f, createErr := os.Create(initFile)
 		if createErr != nil {
 			return createErr
