@@ -46,6 +46,7 @@ type Dependency struct {
 
 	// Used to store the rendered outputs for use when the config is imported or read with `read_terragrunt_config`
 	RenderedOutputs *cty.Value `cty:"outputs"`
+	Inputs          *cty.Value `cty:"inputs"`
 }
 
 // DeepMerge will deep merge two Dependency configs, updating the target. Deep merge for Dependency configs is defined
@@ -181,17 +182,28 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 	for _, dep := range decodedDependency.Dependencies {
 		depPath := getCleanedTargetConfigPath(dep.ConfigPath, ctx.TerragruntOptions.TerragruntConfigPath)
 		if dep.isEnabled() && util.FileExists(depPath) {
-			depConfig, err := PartialParseConfigFile(ctx.WithDecodeList(TerragruntFlags), depPath, nil)
+			depCtx := ctx.
+				WithDecodeList(TerragruntFlags, TerragruntInputs).
+				WithTerragruntOptions(cloneTerragruntOptionsForDependency(ctx, depPath))
+
+			depConfig, err := PartialParseConfigFile(depCtx, depPath, nil)
 			if err == nil {
 				if depConfig.Skip {
 					ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
 					dep.Enabled = new(bool)
 				}
+
+				inputsCty, err := convertToCtyWithJson(depConfig.Inputs)
+				if err != nil {
+					return nil, err
+				}
+				dep.Inputs = &inputsCty
+
 			} else {
 				ctx.TerragruntOptions.Logger.Warnf("Error reading partial config  for dependency %s: %v", dep.Name, err)
 			}
-
 		}
+
 		updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
 	}
 	decodedDependency = updatedDependencies
@@ -208,6 +220,7 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 	if err := checkForDependencyBlockCycles(ctx, file.ConfigPath, decodedDependency); err != nil {
 		return nil, err
 	}
+
 	return dependencyBlocksToCtyValue(ctx, decodedDependency.Dependencies)
 }
 
@@ -332,6 +345,10 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, dependencyConfigs []Depende
 			if dependencyConfig.RenderedOutputs != nil {
 				paths = append(paths, dependencyConfig.ConfigPath)
 				dependencyEncodingMap["outputs"] = *dependencyConfig.RenderedOutputs
+			}
+
+			if dependencyConfig.Inputs != nil {
+				dependencyEncodingMap["inputs"] = *dependencyConfig.Inputs
 			}
 
 			// Once the dependency is encoded into a map, we need to convert to a cty.Value again so that it can be fed to

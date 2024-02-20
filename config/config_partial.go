@@ -22,6 +22,7 @@ const (
 	TerraformBlock
 	TerraformSource
 	TerragruntFlags
+	TerragruntInputs
 	TerragruntVersionConstraints
 	RemoteStateBlock
 )
@@ -84,6 +85,12 @@ type terragruntDependency struct {
 type terragruntRemoteState struct {
 	RemoteState *remoteStateConfigFile `hcl:"remote_state,block"`
 	Remain      hcl.Body               `hcl:",remain"`
+}
+
+// terragruntInputs is a struct that can be used to only decode the inputs block.
+type terragruntInputs struct {
+	Inputs *cty.Value `hcl:"inputs,attr"`
+	Remain hcl.Body   `hcl:",remain"`
 }
 
 // DecodeBaseBlocks takes in a parsed HCL2 file and decodes the base blocks. Base blocks are blocks that should always
@@ -281,6 +288,33 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			}
 			if decoded.IamRole != nil {
 				output.IamRole = *decoded.IamRole
+			}
+
+		case TerragruntInputs:
+			decoded := terragruntInputs{}
+
+			if err := file.Decode(&decoded, evalParsingContext); err != nil {
+				diagErr, ok := errors.Unwrap(err).(hcl.Diagnostics)
+
+				// in case of render-json command and inputs reference error, we update the inputs with default value
+				if !ok || !isRenderJsonCommand(ctx) || !isAttributeAccessError(diagErr) {
+					return nil, err
+				}
+				ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
+
+				inputs, err := updateUnknownCtyValValues(decoded.Inputs)
+				if err != nil {
+					return nil, err
+				}
+				decoded.Inputs = inputs
+			}
+
+			if decoded.Inputs != nil {
+				inputs, err := parseCtyValueToMap(*decoded.Inputs)
+				if err != nil {
+					return nil, err
+				}
+				output.Inputs = inputs
 			}
 
 		case TerragruntVersionConstraints:

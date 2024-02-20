@@ -65,6 +65,7 @@ const (
 	TEST_FIXTURE_OUTPUT_ALL                                                  = "fixture-output-all"
 	TEST_FIXTURE_OUTPUT_FROM_REMOTE_STATE                                    = "fixture-output-from-remote-state"
 	TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY                                      = "fixture-output-from-dependency"
+	TEST_FIXTURE_INPUTS_FROM_DEPENDENCY                                      = "fixture-inputs-from-dependency"
 	TEST_FIXTURE_STDOUT                                                      = "fixture-download/stdout-test"
 	TEST_FIXTURE_EXTRA_ARGS_PATH                                             = "fixture-extra-args/"
 	TEST_FIXTURE_ENV_VARS_BLOCK_PATH                                         = "fixture-env-vars-block/"
@@ -940,6 +941,33 @@ func TestTerragruntOutputFromDependency(t *testing.T) {
 
 	output := stderr.String()
 	assert.NotContains(t, output, "invalid character")
+}
+
+func TestTerragruntInputsFromDependency(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
+	rootTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
+	appTerragruntPath := util.JoinPath(rootTerragruntPath, "app")
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootTerragruntPath))
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --terragrunt-non-interactive --terragrunt-working-dir %s", appTerragruntPath), &stdout, &stderr)
+
+	expectedOutpus := map[string]string{
+		"bar": "dependency-parent-bar-value",
+		"baz": "dependency-include-input-baz-value",
+		"foo": "dependency-input-foo-value",
+	}
+
+	output := stdout.String()
+	for key, value := range expectedOutpus {
+		assert.Contains(t, output, fmt.Sprintf("%s = %q\n", key, value))
+	}
 }
 
 func TestTerragruntValidateAllCommand(t *testing.T) {
@@ -5254,6 +5282,7 @@ func TestRenderJsonWithMockOutputs(t *testing.T) {
 				"mock_outputs_merge_with_state":           nil,
 				"name":                                    "module",
 				"outputs":                                 nil,
+				"inputs":                                  nil,
 				"skip":                                    nil,
 			},
 		},
@@ -5415,6 +5444,7 @@ func TestRenderJsonMetadataDepenency(t *testing.T) {
 				"mock_outputs_merge_with_state":           nil,
 				"name":                                    "dep",
 				"outputs":                                 nil,
+				"inputs":                                  nil,
 				"skip":                                    nil,
 				"enabled":                                 nil,
 			},
@@ -5432,6 +5462,7 @@ func TestRenderJsonMetadataDepenency(t *testing.T) {
 				"mock_outputs_merge_with_state":           nil,
 				"name":                                    "dep2",
 				"outputs":                                 nil,
+				"inputs":                                  nil,
 				"skip":                                    nil,
 			},
 		},
