@@ -321,7 +321,6 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 					return nil, err
 				}
 				decoded.Inputs = inputs
-
 			}
 
 			if decoded.Inputs != nil {
