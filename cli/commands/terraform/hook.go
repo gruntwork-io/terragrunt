@@ -1,9 +1,12 @@
 package terraform
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
+
+	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -88,7 +91,12 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 	for _, curHook := range hooks {
 		allPreviousErrors := multierror.Append(previousExecErrors, errorsOccured)
 		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors) {
-			err := runHook(terragruntOptions, terragruntConfig, curHook)
+			err := telemetry.Telemetry(terragruntOptions, fmt.Sprintf("hook_%s", curHook.Name), map[string]interface{}{
+				"hook": curHook.Name,
+				"dir":  curHook.WorkingDir,
+			}, func(childCtx context.Context) error {
+				return runHook(terragruntOptions, terragruntConfig, curHook)
+			})
 			if err != nil {
 				errorsOccured = multierror.Append(errorsOccured, err)
 			}

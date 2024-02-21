@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/telemetry"
+
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/hashicorp/go-getter"
@@ -662,23 +664,32 @@ func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*Terrag
 	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
 
 	ctx := NewParsingContext(context.Background(), terragruntOptions)
-	return ParseConfigFile(ctx, terragruntOptions.TerragruntConfigPath, nil)
+	return ParseConfigFile(terragruntOptions, ctx, terragruntOptions.TerragruntConfigPath, nil)
 }
 
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
-func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
-	// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
-	file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
+func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+
+	var config *TerragruntConfig
+	err := telemetry.Telemetry(opts, "parse_config_file", map[string]interface{}{
+		"config_path": configPath,
+	}, func(childCtx context.Context) error {
+		// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
+		file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
+		if err != nil {
+			return err
+		}
+
+		config, err = ParseConfig(ctx, file, includeFromChild)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	config, err := ParseConfig(ctx, file, includeFromChild)
-	if err != nil {
-		return nil, err
-	}
-
 	return config, nil
 }
 

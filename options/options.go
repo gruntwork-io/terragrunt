@@ -59,6 +59,9 @@ const (
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
+	// Context for collection of telemetry data
+	CtxTelemetryCtx context.Context
+
 	// Location of the Terragrunt config file
 	TerragruntConfigPath string
 
@@ -410,6 +413,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
 	// for more info.
 	return &TerragruntOptions{
+		CtxTelemetryCtx:                opts.CtxTelemetryCtx,
 		TerragruntConfigPath:           terragruntConfigPath,
 		OriginalTerragruntConfigPath:   opts.OriginalTerragruntConfigPath,
 		TerraformPath:                  opts.TerraformPath,
