@@ -51,6 +51,7 @@ const (
 	MetadataIamAssumeRoleSessionName    = "iam_assume_role_session_name"
 	MetadataInputs                      = "inputs"
 	MetadataLocals                      = "locals"
+	MetadataLocal                       = "local"
 	MetadataCatalog                     = "catalog"
 	MetadataGenerateConfigs             = "generate"
 	MetadataRetryableErrors             = "retryable_errors"
