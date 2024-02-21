@@ -216,6 +216,15 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 	}
 	output.IsPartial = true
 
+	if ctx.DecodedDependencies == nil {
+		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the process.
+		retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, file)
+		if err != nil {
+			return nil, err
+		}
+		ctx.DecodedDependencies = retrievedOutputs
+	}
+
 	evalParsingContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
 	if err != nil {
 		return nil, err
@@ -307,6 +316,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 					return nil, err
 				}
 				decoded.Inputs = inputs
+
 			}
 
 			if decoded.Inputs != nil {

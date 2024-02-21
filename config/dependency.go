@@ -185,7 +185,6 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 			depCtx := ctx.
 				WithDecodeList(TerragruntFlags, TerragruntInputs).
 				WithTerragruntOptions(cloneTerragruntOptionsForDependency(ctx, depPath))
-
 			depConfig, err := PartialParseConfigFile(depCtx, depPath, nil)
 			if err == nil {
 				if depConfig.Skip {
