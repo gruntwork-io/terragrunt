@@ -79,9 +79,8 @@ func NewModel(module *module.Module, width, height int, previousModel tea.Model,
 			NewButton(ScaffoldButtonName, func(msg tea.Msg) tea.Cmd {
 				quitFn := func(err error) tea.Msg {
 					quitFn(err)
-					return tea.Quit()
+					return clearScreen()
 				}
-				clearScreen()
 				return tea.Exec(command.NewScaffold(opts, module), quitFn)
 			}),
 			NewButton(ViewInBrowserButtonName, func(msg tea.Msg) tea.Cmd {
@@ -182,11 +181,9 @@ func (model Model) footerView() string {
 }
 
 // clearScreen - explicit clear screen to avoid terminal hanging
-func clearScreen() {
-	tea.ClearScrollArea()
-	tea.ExitAltScreen()
-	tea.ClearScreen()
+func clearScreen() tea.Msg {
 	if runtime.GOOS == "darwin" {
 		fmt.Print("\033[H\033[2J\033[3J")
 	}
+	return tea.ClearScreen()
 }
