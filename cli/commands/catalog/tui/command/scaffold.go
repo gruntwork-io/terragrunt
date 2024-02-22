@@ -1,7 +1,6 @@
 package command
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"io"
 
@@ -24,9 +23,6 @@ func NewScaffold(opts *options.TerragruntOptions, module *module.Module) *Scaffo
 
 func (cmd *Scaffold) Run() error {
 	log.Infof("Run Scaffold for the module: %q", cmd.module.TerraformSourcePath())
-	tea.ClearScrollArea()
-	tea.ExitAltScreen()
-	tea.ClearScreen()
 	return scaffold.Run(cmd.terragruntOptions, cmd.module.TerraformSourcePath(), "")
 }
 
