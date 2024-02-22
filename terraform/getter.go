@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/options"
+
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/hashicorp/go-getter"
 	safetemp "github.com/hashicorp/go-safetemp"
@@ -26,10 +28,12 @@ var httpClient = cleanhttp.DefaultClient()
 
 // Constants relevant to the module registry
 const (
-	defaultRegistryDomain = "registry.terraform.io"
-	serviceDiscoveryPath  = "/.well-known/terraform.json"
-	versionQueryKey       = "version"
-	authTokenEnvVarName   = "TG_TF_REGISTRY_TOKEN"
+	defaultRegistryDomain     = "registry.terraform.io"
+	defaultOtRegistryDomain   = "registry.opentofu.org"
+	serviceDiscoveryPath      = "/.well-known/terraform.json"
+	versionQueryKey           = "version"
+	authTokenEnvVarName       = "TG_TF_REGISTRY_TOKEN"
+	defaultRegistryEnvVarName = "TG_TF_DEFAULT_REGISTRY"
 )
 
 // RegistryServicePath is a struct for extracting the modules service path in the Registry.
@@ -65,7 +69,8 @@ type RegistryServicePath struct {
 // over the file detector. We deferred the implementation for that to a future release.
 // GH issue: https://github.com/gruntwork-io/terragrunt/issues/1772
 type RegistryGetter struct {
-	client *getter.Client
+	client            *getter.Client
+	TerragruntOptions *options.TerragruntOptions
 }
 
 // SetClient allows the getter to know what getter client (different from the underlying HTTP client) to use for
@@ -80,6 +85,25 @@ func (tfrGetter *RegistryGetter) Context() context.Context {
 		return context.Background()
 	}
 	return tfrGetter.client.Ctx
+}
+
+// registryDomain returns the default registry domain to use for the getter.
+func (tfrGetter *RegistryGetter) registryDomain() string {
+	if tfrGetter.TerragruntOptions == nil {
+		return defaultRegistryDomain
+	}
+
+	// if is set TG_TF_DEFAULT_REGISTRY env var, use it as default registry
+	if defaultRegistry := os.Getenv(defaultRegistryEnvVarName); defaultRegistry != "" {
+		return defaultRegistry
+	}
+
+	// if binary is set to use OpenTofu registry, use OpenTofu as default registry
+	if tfrGetter.TerragruntOptions.TerraformImplementation == options.OpenTofuImpl {
+		return defaultOtRegistryDomain
+	}
+
+	return defaultRegistryDomain
 }
 
 // ClientMode returns the download mode based on the given URL. Since this getter is designed around the Terraform
@@ -97,7 +121,7 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 
 	registryDomain := srcURL.Host
 	if registryDomain == "" {
-		registryDomain = defaultRegistryDomain
+		registryDomain = tfrGetter.registryDomain()
 	}
 	queryValues := srcURL.Query()
 	modulePath, moduleSubDir := getter.SourceDirSubdir(srcURL.Path)
