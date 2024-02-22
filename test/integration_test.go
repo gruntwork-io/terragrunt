@@ -959,9 +959,11 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --terragrunt-non-interactive --terragrunt-working-dir %s", appTerragruntPath), &stdout, &stderr)
 
 	expectedOutpus := map[string]string{
-		"bar": "dependency-parent-bar-value",
-		"baz": "dependency-include-input-baz-value",
-		"foo": "dependency-input-foo-value",
+		"bar":             "dependency-parent-bar-value",
+		"baz":             "dependency-include-input-baz-value",
+		"foo":             "dependency-input-foo-value",
+		"dep-cluster-id":  "test-id-value",
+		"dep-output-test": "test-value",
 	}
 
 	output := stdout.String()

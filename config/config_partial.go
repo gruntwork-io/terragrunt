@@ -293,6 +293,15 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 		case TerragruntInputs:
 			decoded := terragruntInputs{}
 
+			if _, ok := evalParsingContext.Variables[MetadataDependency]; !ok {
+				// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the process.
+				retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, file)
+				if err != nil {
+					return nil, err
+				}
+				evalParsingContext.Variables[MetadataDependency] = *retrievedOutputs
+			}
+
 			if err := file.Decode(&decoded, evalParsingContext); err != nil {
 				diagErr, ok := errors.Unwrap(err).(hcl.Diagnostics)
 

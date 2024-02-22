@@ -2,12 +2,15 @@ dependencies {
   paths = ["../dependency"]
 }
 
-dependency "test" {
+dependency "dep" {
   config_path = "../dependency"
 }
 
 inputs = {
-  foo = dependency.test.inputs.foo
-  bar = dependency.test.inputs.bar
-  baz = dependency.test.inputs.baz
+  foo = dependency.dep.inputs.foo
+  bar = dependency.dep.inputs.bar
+  baz = dependency.dep.inputs.baz
+
+  dep-output-test = dependency.dep.outputs.test
+  dep-cluster-id  = dependency.dep.outputs.cluster-id
 }
