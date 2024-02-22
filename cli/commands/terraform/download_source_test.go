@@ -235,7 +235,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlOverrideSource(t *testing.T)
 
 	copyFolder(t, "../../../test/fixture-download-source/hello-world-version-remote", downloadDir)
 
-	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, true, "# Hello, World", true)
+	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, true, "# Hello, World", false)
 }
 
 func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) {
