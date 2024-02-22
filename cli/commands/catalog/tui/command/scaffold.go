@@ -1,8 +1,9 @@
 package command
 
 import (
-	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"io"
+
+	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/options"
