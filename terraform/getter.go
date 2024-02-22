@@ -33,7 +33,7 @@ const (
 	serviceDiscoveryPath      = "/.well-known/terraform.json"
 	versionQueryKey           = "version"
 	authTokenEnvVarName       = "TG_TF_REGISTRY_TOKEN"
-	defaultRegistryEnvVarName = "TG_TF_DEFAULT_REGISTRY"
+	defaultRegistryEnvVarName = "TG_TF_DEFAULT_REGISTRY_HOST"
 )
 
 // RegistryServicePath is a struct for extracting the modules service path in the Registry.
@@ -97,12 +97,10 @@ func (tfrGetter *RegistryGetter) registryDomain() string {
 	if defaultRegistry := os.Getenv(defaultRegistryEnvVarName); defaultRegistry != "" {
 		return defaultRegistry
 	}
-
 	// if binary is set to use OpenTofu registry, use OpenTofu as default registry
 	if tfrGetter.TerragruntOptions.TerraformImplementation == options.OpenTofuImpl {
 		return defaultOtRegistryDomain
 	}
-
 	return defaultRegistryDomain
 }
 
