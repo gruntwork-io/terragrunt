@@ -79,9 +79,9 @@ func NewModel(module *module.Module, width, height int, previousModel tea.Model,
 			NewButton(ScaffoldButtonName, func(msg tea.Msg) tea.Cmd {
 				quitFn := func(err error) tea.Msg {
 					quitFn(err)
-					clearScreen()
 					return tea.Quit()
 				}
+				clearScreen()
 				return tea.Exec(command.NewScaffold(opts, module), quitFn)
 			}),
 			NewButton(ViewInBrowserButtonName, func(msg tea.Msg) tea.Cmd {
