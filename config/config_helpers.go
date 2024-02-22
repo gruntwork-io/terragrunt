@@ -188,11 +188,11 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 	}
 	evalCtx.Variables = map[string]cty.Value{}
 	if ctx.Locals != nil {
-		evalCtx.Variables["local"] = *ctx.Locals
+		evalCtx.Variables[MetadataLocal] = *ctx.Locals
 	}
 
 	if ctx.DecodedDependencies != nil {
-		evalCtx.Variables["dependency"] = *ctx.DecodedDependencies
+		evalCtx.Variables[MetadataDependency] = *ctx.DecodedDependencies
 	}
 	if ctx.TrackInclude != nil && len(ctx.TrackInclude.CurrentList) > 0 {
 		// For each include block, check if we want to expose the included config, and if so, add under the include

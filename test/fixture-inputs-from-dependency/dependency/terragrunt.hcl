@@ -6,6 +6,11 @@ include "local" {
   path = "local.hcl"
 }
 
+dependency "cluster" {
+  config_path = "../cluster"
+}
+
 inputs = {
-  foo = "dependency-input-foo-value"
+  foo        = "dependency-input-foo-value"
+  cluster-id = dependency.cluster.outputs.id
 }

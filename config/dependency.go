@@ -177,6 +177,10 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 		return nil, err
 	}
 
+	if err := checkForDependencyBlockCycles(ctx, file.ConfigPath, decodedDependency); err != nil {
+		return nil, err
+	}
+
 	// Mark skipped dependencies as disabled
 	updatedDependencies := terragruntDependency{}
 	for _, dep := range decodedDependency.Dependencies {
@@ -186,8 +190,7 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 				WithDecodeList(TerragruntFlags, TerragruntInputs).
 				WithTerragruntOptions(cloneTerragruntOptionsForDependency(ctx, depPath))
 
-			depConfig, err := PartialParseConfigFile(depCtx, depPath, nil)
-			if err == nil {
+			if depConfig, err := PartialParseConfigFile(depCtx, depPath, nil); err == nil {
 				if depConfig.Skip {
 					ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
 					dep.Enabled = new(bool)
@@ -215,10 +218,6 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 			return nil, err
 		}
 		decodedDependency = *mergedDecodedDependency
-	}
-
-	if err := checkForDependencyBlockCycles(ctx, file.ConfigPath, decodedDependency); err != nil {
-		return nil, err
 	}
 
 	return dependencyBlocksToCtyValue(ctx, decodedDependency.Dependencies)

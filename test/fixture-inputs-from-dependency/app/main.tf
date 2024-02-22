@@ -27,3 +27,23 @@ output "baz" {
   value       = var.baz
   description = "Test baz value"
 }
+
+variable "dep-output-test" {
+  type    = string
+  default = "empty"
+}
+
+output "dep-output-test" {
+  value       = var.dep-output-test
+  description = "Test dep-output-test value"
+}
+
+variable "dep-cluster-id" {
+  type    = string
+  default = "empty"
+}
+
+output "dep-cluster-id" {
+  value       = var.dep-cluster-id
+  description = "Test dep-cluster-id value"
+}
