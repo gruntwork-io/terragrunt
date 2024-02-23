@@ -5,6 +5,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/options"
+
 	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/hashicorp/hcl/v2"
@@ -116,7 +118,9 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 	ctx := NewParsingContext(context.Background(), mockOptionsForTestWithConfigPath(t, filename))
 	ctx.TerragruntOptions.FetchDependencyOutputFromState = true
 	ctx.TerragruntOptions.Env = env.Parse(os.Environ())
-	tfConfig, err := ParseConfigFile(ctx, filename, nil)
+	opts, err := options.NewTerragruntOptionsForTest(filename)
+	require.NoError(t, err)
+	tfConfig, err := ParseConfigFile(opts, ctx, filename, nil)
 	require.NoError(t, err)
 	require.Len(t, tfConfig.TerragruntDependencies, 2)
 	assert.Equal(t, tfConfig.TerragruntDependencies[0].Name, "dependency_1")
