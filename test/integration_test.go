@@ -6657,6 +6657,10 @@ func TestTerragruntSkipDependenciesWithSkipFlag(t *testing.T) {
 
 	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
 
+	assert.NotContains(t, output, "Error reading partial config for dependency")
+	assert.NotContains(t, output, "Call to function \"find_in_parent_folders\" failed")
+	assert.NotContains(t, output, "ParentFileNotFoundError")
+
 	assert.Contains(t, output, "first/terragrunt.hcl due to skip = true")
 	assert.Contains(t, output, "second/terragrunt.hcl due to skip = true")
 	// check that no test_file.txt was created in module directory
