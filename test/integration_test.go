@@ -186,7 +186,6 @@ const (
 	TEST_FIXTURE_ASSUME_ROLE_DURATION                                        = "fixture-assume-role/duration"
 	TEST_FIXTURE_GRAPH                                                       = "fixture-graph"
 	TEST_FIXTURE_SKIP_DEPENDENCIES                                           = "fixture-skip-dependencies"
-	TEST_FIXTURE_ASSUME_ROLE                                                 = "fixture-assume-role"
 	TEST_FIXTURE_INFO_ERROR                                                  = "fixture-terragrunt-info-error"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
