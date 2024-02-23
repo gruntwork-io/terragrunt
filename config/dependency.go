@@ -342,7 +342,9 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, dependencyConfigs []Depende
 				return err
 			}
 			if dependencyConfig.RenderedOutputs != nil {
+				lock.Lock()
 				paths = append(paths, dependencyConfig.ConfigPath)
+				lock.Unlock()
 				dependencyEncodingMap["outputs"] = *dependencyConfig.RenderedOutputs
 			}
 
