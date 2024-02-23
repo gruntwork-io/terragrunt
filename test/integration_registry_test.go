@@ -26,7 +26,7 @@ func TestTerraformRegistryFetchingRootModule(t *testing.T) {
 
 func TestTerraformRegistryFetchingRootShorthandModule(t *testing.T) {
 	t.Parallel()
-	testTerraformRegistryFetching(t, registryFixtureRootShorthandModulePath, "root_null_resource")
+	testTerraformRegistryFetching(t, registryFixtureRootShorthandModulePath+wrappedBinary(), "root_null_resource")
 }
 
 func TestTerraformRegistryFetchingSubdirModule(t *testing.T) {
