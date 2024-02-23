@@ -1,12 +1,17 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/telemetry"
+
+	"github.com/gruntwork-io/terragrunt/cli/commands/graph"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 
@@ -60,8 +65,8 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 		deprecatedCommands(opts),
 		terragruntCommands(opts)...)
 	app.Before = beforeAction(opts)
-	app.CommonBefore = initialSetup(opts)           // all commands run this function before running their own `Action` function
-	app.DefaultCommand = terraform.NewCommand(opts) // by default, if no terragrunt command is specified, run the Terraform command
+	app.CommonBefore = initialSetup(opts)                                   // all commands run this function before running their own `Action` function
+	app.DefaultCommand = telemetryCommand(opts, terraform.NewCommand(opts)) // by default, if no terragrunt command is specified, run the Terraform command
 	app.OsExiter = osExiter
 
 	return app
@@ -70,28 +75,49 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 // This set of commands is also used in unit tests
 func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	cmds := cli.Commands{
-		runall.NewCommand(opts),             // run-all
-		terragruntinfo.NewCommand(opts),     // terragrunt-info
-		validateinputs.NewCommand(opts),     // validate-inputs
-		graphdependencies.NewCommand(opts),  // graph-dependencies
-		hclfmt.NewCommand(opts),             // hclfmt
-		renderjson.NewCommand(opts),         // render-json
-		awsproviderpatch.NewCommand(opts),   // aws-provider-patch
-		outputmodulegroups.NewCommand(opts), // output-module-groups
-		catalog.NewCommand(opts),            // catalog
-		scaffold.NewCommand(opts),           // scaffold
+		telemetryCommand(opts, runall.NewCommand(opts)),             // run-all
+		telemetryCommand(opts, terragruntinfo.NewCommand(opts)),     // terragrunt-info
+		telemetryCommand(opts, validateinputs.NewCommand(opts)),     // validate-inputs
+		telemetryCommand(opts, graphdependencies.NewCommand(opts)),  // graph-dependencies
+		telemetryCommand(opts, hclfmt.NewCommand(opts)),             // hclfmt
+		telemetryCommand(opts, renderjson.NewCommand(opts)),         // render-json
+		telemetryCommand(opts, awsproviderpatch.NewCommand(opts)),   // aws-provider-patch
+		telemetryCommand(opts, outputmodulegroups.NewCommand(opts)), // output-module-groups
+		telemetryCommand(opts, catalog.NewCommand(opts)),            // catalog
+		telemetryCommand(opts, scaffold.NewCommand(opts)),           // scaffold
+		telemetryCommand(opts, graph.NewCommand(opts)),              // graph
 	}
 
 	sort.Sort(cmds)
 
 	// add terraform command `*` after sorting to put the command at the end of the list in the help.
-	cmds.Add(terraform.NewCommand(opts))
+	cmds.Add(telemetryCommand(opts, terraform.NewCommand(opts)))
 
 	return cmds
 }
 
+// Wrap CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just run the command.
+func telemetryCommand(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Command {
+	fn := cmd.Action
+	cmd.Action = func(ctx *cli.Context) error {
+		return telemetry.Telemetry(opts, fmt.Sprintf("%s %s", ctx.Command.Name, opts.TerraformCommand), map[string]interface{}{
+			"terraformCommand": opts.TerraformCommand,
+			"args":             opts.TerraformCliArgs,
+			"dir":              opts.WorkingDir,
+		}, func(childCtx context.Context) error {
+			ctx.Context = childCtx
+			opts.CtxTelemetryCtx = childCtx
+			return fn(ctx)
+		})
+	}
+
+	return cmd
+}
+
 func beforeAction(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
+		// setting current context to the options
+		opts.CtxTelemetryCtx = ctx
 		// show help if the args are not specified.
 		if !ctx.Args().Present() {
 			err := cli.ShowAppHelp(ctx)
@@ -121,7 +147,7 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 		cmdName := ctx.Command.Name
 
 		switch cmdName {
-		case terraform.CommandName, runall.CommandName:
+		case terraform.CommandName, runall.CommandName, graph.CommandName:
 			cmdName = ctx.Args().CommandName()
 		default:
 			args = append([]string{ctx.Command.Name}, args...)

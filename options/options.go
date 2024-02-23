@@ -59,6 +59,9 @@ const (
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
+	// Context for collection of telemetry data
+	CtxTelemetryCtx context.Context
+
 	// Location of the Terragrunt config file
 	TerragruntConfigPath string
 
@@ -260,9 +263,12 @@ type TerragruntOptions struct {
 
 	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
+
+	// Root directory for graph command.
+	GraphRoot string
 }
 
-// IAMOptions represents options that are used by Terragrunt to assume an IAM role.
+// IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
 type IAMRoleOptions struct {
 	// The ARN of an IAM Role to assume. Used when accessing AWS, both internally and through terraform.
 	RoleARN string
@@ -407,6 +413,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
 	// for more info.
 	return &TerragruntOptions{
+		CtxTelemetryCtx:                opts.CtxTelemetryCtx,
 		TerragruntConfigPath:           terragruntConfigPath,
 		OriginalTerragruntConfigPath:   opts.OriginalTerragruntConfigPath,
 		TerraformPath:                  opts.TerraformPath,
@@ -461,6 +468,9 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		TerraformImplementation:        opts.TerraformImplementation,
 		JsonLogFormat:                  opts.JsonLogFormat,
 		TerraformLogsToJson:            opts.TerraformLogsToJson,
+		GraphRoot:                      opts.GraphRoot,
+		ScaffoldVars:                   opts.ScaffoldVars,
+		ScaffoldVarFiles:               opts.ScaffoldVarFiles,
 	}
 }
 

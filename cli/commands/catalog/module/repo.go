@@ -192,7 +192,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 	}
 	repo.cloneURL = sourceUrl.String()
 
-	log.Infof("Cloning repository %q to temprory directory %q", repo.cloneURL, repo.path)
+	log.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
 
 	if err := getter.Get(repo.path, strings.Trim(sourceUrl.String(), "/"), getter.WithContext(ctx)); err != nil {
 		return errors.WithStackTrace(err)

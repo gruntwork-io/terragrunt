@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/gruntwork-io/terragrunt/terraform"
 
@@ -169,7 +172,13 @@ func runTerraform(terragruntOptions *options.TerragruntOptions, target *Target) 
 	}
 
 	if sourceUrl != "" {
-		updatedTerragruntOptions, err = downloadTerraformSource(sourceUrl, terragruntOptions, terragruntConfig)
+		err = telemetry.Telemetry(terragruntOptions, "download_terraform_source", map[string]interface{}{
+			"sourceUrl": sourceUrl,
+		}, func(childCtx context.Context) error {
+			updatedTerragruntOptions, err = downloadTerraformSource(sourceUrl, terragruntOptions, terragruntConfig)
+			return err
+		})
+
 		if err != nil {
 			return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
 		}

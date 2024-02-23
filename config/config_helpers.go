@@ -188,11 +188,11 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 	}
 	evalCtx.Variables = map[string]cty.Value{}
 	if ctx.Locals != nil {
-		evalCtx.Variables["local"] = *ctx.Locals
+		evalCtx.Variables[MetadataLocal] = *ctx.Locals
 	}
 
 	if ctx.DecodedDependencies != nil {
-		evalCtx.Variables["dependency"] = *ctx.DecodedDependencies
+		evalCtx.Variables[MetadataDependency] = *ctx.DecodedDependencies
 	}
 	if ctx.TrackInclude != nil && len(ctx.TrackInclude.CurrentList) > 0 {
 		// For each include block, check if we want to expose the included config, and if so, add under the include
@@ -516,7 +516,7 @@ func getWorkingDir(ctx *ParsingContext) (string, error) {
 		FuncNameGetWorkingDir: wrapVoidToEmptyStringAsFuncImpl(),
 	}
 
-	terragruntConfig, err := ParseConfigFile(ctx, ctx.TerragruntOptions.TerragruntConfigPath, nil)
+	terragruntConfig, err := ParseConfigFile(ctx.TerragruntOptions, ctx, ctx.TerragruntOptions.TerragruntConfigPath, nil)
 	if err != nil {
 		return "", err
 	}
@@ -591,7 +591,7 @@ func readTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *ct
 
 	// We update the ctx of terragruntOptions to the config being read in.
 	ctx = ctx.WithTerragruntOptions(ctx.TerragruntOptions.Clone(targetConfig))
-	config, err := ParseConfigFile(ctx, targetConfig, nil)
+	config, err := ParseConfigFile(ctx.TerragruntOptions, ctx, targetConfig, nil)
 	if err != nil {
 		return cty.NilVal, err
 	}

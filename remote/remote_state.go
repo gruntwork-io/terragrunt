@@ -140,16 +140,28 @@ func terraformStateConfigEqual(existingConfig map[string]interface{}, newConfig 
 		return newConfig == nil
 	}
 
+	existingConfigNonNil := copyExistingNotNullValues(existingConfig, newConfig)
+
+	return reflect.DeepEqual(existingConfigNonNil, newConfig)
+}
+
+// Copy the non-nil values from the existingMap to a new map
+func copyExistingNotNullValues(existingMap map[string]interface{}, newMap map[string]interface{}) map[string]interface{} {
 	existingConfigNonNil := map[string]interface{}{}
-	for existingKey, existingValue := range existingConfig {
-		_, newValueIsSet := newConfig[existingKey]
+	for existingKey, existingValue := range existingMap {
+		newValue, newValueIsSet := newMap[existingKey]
 		if existingValue == nil && !newValueIsSet {
 			continue
 		}
+		// if newValue and existingValue are both maps, we need to recursively copy the non-nil values
+		if existingValueMap, existingValueIsMap := existingValue.(map[string]interface{}); existingValueIsMap {
+			if newValueMap, newValueIsMap := newValue.(map[string]interface{}); newValueIsMap {
+				existingValue = copyExistingNotNullValues(existingValueMap, newValueMap)
+			}
+		}
 		existingConfigNonNil[existingKey] = existingValue
 	}
-
-	return reflect.DeepEqual(existingConfigNonNil, newConfig)
+	return existingConfigNonNil
 }
 
 // Convert the RemoteState config into the format used by the terraform init command
