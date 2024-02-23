@@ -4,6 +4,7 @@ include {
 
 dependency "dependency_1" {
   config_path = "../dep1"
+  skip_outputs = true
   mock_outputs = {
     name = "dummy"
   }
@@ -11,6 +12,7 @@ dependency "dependency_1" {
 
 dependency "dependency_2" {
   config_path = "../dep2"
+  skip_outputs = true
   mock_outputs = {
     name = "dummy"
   }
