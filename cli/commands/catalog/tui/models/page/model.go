@@ -183,6 +183,8 @@ func (model Model) footerView() string {
 // clearScreen - explicit clear screen to avoid terminal hanging
 func clearScreen() tea.Msg {
 	if runtime.GOOS == "darwin" {
+		// Clear screen for macOS with ANSI commands
+		// https://www.unix.com/os-x-apple-/279401-means-clearing-scroll-buffer-osx-terminal.html
 		fmt.Print("\033[H\033[2J\033[3J")
 	}
 	return tea.ClearScreen()
