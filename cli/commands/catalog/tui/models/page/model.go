@@ -5,6 +5,7 @@ package page
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -78,7 +79,7 @@ func NewModel(module *module.Module, width, height int, previousModel tea.Model,
 			NewButton(ScaffoldButtonName, func(msg tea.Msg) tea.Cmd {
 				quitFn := func(err error) tea.Msg {
 					quitFn(err)
-					return nil
+					return clearScreen()
 				}
 				return tea.Exec(command.NewScaffold(opts, module), quitFn)
 			}),
@@ -177,4 +178,14 @@ func (model Model) footerView() string {
 	info = lipgloss.JoinHorizontal(lipgloss.Center, line, info)
 
 	return lipgloss.JoinVertical(lipgloss.Left, info, model.Buttons.View(), model.keys.View())
+}
+
+// clearScreen - explicit clear screen to avoid terminal hanging
+func clearScreen() tea.Msg {
+	if runtime.GOOS == "darwin" {
+		// Clear screen for macOS with ANSI commands
+		// https://www.unix.com/os-x-apple-/279401-means-clearing-scroll-buffer-osx-terminal.html
+		fmt.Print("\033[H\033[2J\033[3J")
+	}
+	return tea.ClearScreen()
 }
