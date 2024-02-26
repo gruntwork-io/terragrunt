@@ -24,6 +24,7 @@ func NewScaffold(opts *options.TerragruntOptions, module *module.Module) *Scaffo
 
 func (cmd *Scaffold) Run() error {
 	log.Infof("Run Scaffold for the module: %q", cmd.module.TerraformSourcePath())
+
 	return scaffold.Run(cmd.terragruntOptions, cmd.module.TerraformSourcePath(), "")
 }
 
