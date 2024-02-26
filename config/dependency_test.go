@@ -1,8 +1,13 @@
 package config
 
 import (
+	"context"
+	"os"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/options"
+
+	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
@@ -105,6 +110,21 @@ dependency "hitchhiker" {
 	defaultAllowedCommands := dependency.MockOutputsAllowedTerraformCommands
 	require.NotNil(t, defaultAllowedCommands)
 	assert.Equal(t, *defaultAllowedCommands, []string{"validate", "apply"})
+}
+func TestParseDependencyBlockMultiple(t *testing.T) {
+	t.Parallel()
+
+	filename := "../test/fixture-regressions/multiple-dependency-load-sync/main/terragrunt.hcl"
+	ctx := NewParsingContext(context.Background(), mockOptionsForTestWithConfigPath(t, filename))
+	ctx.TerragruntOptions.FetchDependencyOutputFromState = true
+	ctx.TerragruntOptions.Env = env.Parse(os.Environ())
+	opts, err := options.NewTerragruntOptionsForTest(filename)
+	require.NoError(t, err)
+	tfConfig, err := ParseConfigFile(opts, ctx, filename, nil)
+	require.NoError(t, err)
+	require.Len(t, tfConfig.TerragruntDependencies, 2)
+	assert.Equal(t, tfConfig.TerragruntDependencies[0].Name, "dependency_1")
+	assert.Equal(t, tfConfig.TerragruntDependencies[1].Name, "dependency_2")
 }
 
 func TestDisabledDependency(t *testing.T) {

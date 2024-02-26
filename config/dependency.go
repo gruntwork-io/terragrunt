@@ -203,7 +203,7 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 				dep.Inputs = &inputsCty
 
 			} else {
-				ctx.TerragruntOptions.Logger.Warnf("Error reading partial config  for dependency %s: %v", dep.Name, err)
+				ctx.TerragruntOptions.Logger.Warnf("Error reading partial config for dependency %s: %v", dep.Name, err)
 			}
 		}
 
@@ -342,7 +342,9 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, dependencyConfigs []Depende
 				return err
 			}
 			if dependencyConfig.RenderedOutputs != nil {
+				lock.Lock()
 				paths = append(paths, dependencyConfig.ConfigPath)
+				lock.Unlock()
 				dependencyEncodingMap["outputs"] = *dependencyConfig.RenderedOutputs
 			}
 
