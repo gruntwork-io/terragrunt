@@ -256,8 +256,8 @@ func getModuleRegistryURLBasePath(ctx context.Context, domain string) (string, e
 	return respJSON.ModulesPath, nil
 }
 
-// getTerraformGetHeader makes an http GET call to the given registry URL and return the contents of the header
-// X-Terraform-Get. This function will return an error if the response does not contain the header.
+// getTerraformGetHeader makes an http GET call to the given registry URL and return the contents of location json
+// body or the header X-Terraform-Get. This function will return an error if the response does not contain the header.
 func getTerraformGetHeader(ctx context.Context, url url.URL) (string, error) {
 	body, header, err := httpGETAndGetResponse(ctx, url)
 	if err != nil {
