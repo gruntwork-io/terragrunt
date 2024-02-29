@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
@@ -12,6 +13,9 @@ import (
 func Run(ctx context.Context, modules module.Modules, opts *options.TerragruntOptions) error {
 	ctx, cancel := context.WithCancelCause(ctx)
 	quitFn := func(err error) {
+		if err == nil {
+			os.Exit(0)
+		}
 		go cancel(err)
 	}
 
