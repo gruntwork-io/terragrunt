@@ -8,6 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/models/page"
 	"github.com/gruntwork-io/terragrunt/options"
+	"os"
 )
 
 const (
@@ -64,6 +65,11 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		rightPadding := 2
 		h, v := lipgloss.NewStyle().Padding(topPadding, rightPadding).GetFrameSize()
 		model.SetSize(msg.Width-h, msg.Height-v)
+
+	case tea.QuitMsg:
+		// handle quit message
+		os.Exit(0)
+		return model, tea.Quit
 
 	case tea.KeyMsg:
 		// Don't match any of the keys below if we're actively filtering.
