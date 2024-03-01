@@ -1,27 +1,16 @@
 package main
 
 import (
-	"log"
-	"net/http"
 	"os"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
-	_ "net/http/pprof" // Register pprof handlers with default mux
 )
 
 // The main entrypoint for Terragrunt
 func main() {
-
-	go func() {
-		log.Println("Starting server on :6060 for pprof")
-		if err := http.ListenAndServe(":6060", nil); err != nil {
-			log.Fatalf("Failed to start server: %v", err)
-		}
-	}()
-
 	defer errors.Recover(checkForErrorsAndExit)
 
 	app := cli.NewApp(os.Stdout, os.Stderr)
