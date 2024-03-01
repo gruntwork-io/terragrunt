@@ -1,6 +1,8 @@
 package list
 
 import (
+	"os"
+
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -8,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/models/page"
 	"github.com/gruntwork-io/terragrunt/options"
-	"os"
 )
 
 const (
