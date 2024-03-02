@@ -187,5 +187,5 @@ func clearScreen() tea.Msg {
 		// https://www.unix.com/os-x-apple-/279401-means-clearing-scroll-buffer-osx-terminal.html
 		fmt.Print("\033[H\033[2J\033[3J")
 	}
-	return tea.ClearScreen()
+	return tea.Quit()
 }

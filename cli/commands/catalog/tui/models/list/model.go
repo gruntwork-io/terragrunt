@@ -1,6 +1,8 @@
 package list
 
 import (
+	"os"
+
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -64,6 +66,11 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		rightPadding := 2
 		h, v := lipgloss.NewStyle().Padding(topPadding, rightPadding).GetFrameSize()
 		model.SetSize(msg.Width-h, msg.Height-v)
+
+	case tea.QuitMsg:
+		// handle quit message
+		os.Exit(0)
+		return model, tea.Quit
 
 	case tea.KeyMsg:
 		// Don't match any of the keys below if we're actively filtering.
