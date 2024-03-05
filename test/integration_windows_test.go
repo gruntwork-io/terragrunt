@@ -146,9 +146,29 @@ func TestWindowsFindParent(t *testing.T) {
 func TestWindowsScaffold(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_FIND_PARENT)
+	// create temp dir
+	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
+	assert.NoError(t, err)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//mysql --terragrunt-working-dir %s", TEST_FIXTURE_FIND_PARENT))
+	runTerragrunt(t, fmt.Sprintf("terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//mysql --terragrunt-working-dir %s", tmpDir))
+
+	// check that terragrunt.hcl was created
+	_, err = os.Stat(filepath.Join(tmpDir, "terragrunt.hcl"))
+	assert.NoError(t, err)
+}
+
+func TestWindowsScaffoldRef(t *testing.T) {
+	t.Parallel()
+
+	// create temp dir
+	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
+	assert.NoError(t, err)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//mysql?ref=v0.7.0 --terragrunt-working-dir %s", tmpDir))
+
+	// check that terragrunt.hcl was created
+	_, err = os.Stat(filepath.Join(tmpDir, "terragrunt.hcl"))
+	assert.NoError(t, err)
 }
 
 func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
