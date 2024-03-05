@@ -143,6 +143,14 @@ func TestWindowsFindParent(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_FIND_PARENT))
 }
 
+func TestWindowsScaffold(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_FIND_PARENT)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//mysql --terragrunt-working-dir %s", TEST_FIXTURE_FIND_PARENT))
+}
+
 func copyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 	if err := os.MkdirAll(targetPath, 0777); err != nil {
 		t.Fatalf("Failed to create temp dir %s due to error %v", targetPath, err)
