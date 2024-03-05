@@ -75,6 +75,7 @@ jobs:
             go test -v ./... -run TestCanonicalPath -timeout 45m
             go test -v ./... -run TestJoinTerraformModulePath -timeout 45m
             go test -v ./... -run TestIncludeInCopy -timeout 45m
+            go test -v ./... -run TestWindowsScaffold -run TestWindowsScaffoldRef -timeout 45m
             go test -tags windows -v -un -run TestWindows ./test -timeout 45m
       - run:
           name: Run go tofu tests
@@ -90,6 +91,7 @@ jobs:
             go test -v ./... -run TestCanonicalPath -timeout 45m
             go test -v ./... -run TestJoinTerraformModulePath -timeout 45m
             go test -v ./... -run TestIncludeInCopy -timeout 45m
+            go test -v ./... -run TestWindowsScaffold -run TestWindowsScaffoldRef -timeout 45m
             go test -tags windows -v -un -run TestWindows ./test -timeout 45m
   # We're running unit tests separately from integration tests - with no parallelization.
   # With heavy parallelization coupled with re-use of test fixtures we've witnessed slight
