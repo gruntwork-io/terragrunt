@@ -294,7 +294,7 @@ type IncludeConfig struct {
 }
 
 func (cfg *IncludeConfig) String() string {
-	return fmt.Sprintf("IncludeConfig{Path = %s, Expose = %v, MergeStrategy = %v}", cfg.Path, cfg.Expose, cfg.MergeStrategy)
+	return fmt.Sprintf("IncludeConfig{Path = %s, Expose = %v, MergeStrategy = %v}", cfg.Path, *cfg.Expose, cfg.MergeStrategy)
 }
 
 func (cfg *IncludeConfig) GetExpose() bool {
@@ -676,6 +676,14 @@ func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, confi
 	err := telemetry.Telemetry(opts, "parse_config_file", map[string]interface{}{
 		"config_path": configPath,
 	}, func(childCtx context.Context) error {
+
+		var cacheKey = fmt.Sprintf("parse-config-%#v-%#v-%#v", configPath, includeFromChild.String(), ctx.PartialParseDecodeList)
+		if cacheConfig, found := terragruntConfigCache.Get(cacheKey); found {
+			ctx.TerragruntOptions.Logger.Debugf("Cache hit for %s", configPath)
+			config = &cacheConfig
+			return nil
+		}
+
 		// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
 		file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
 		if err != nil {
@@ -686,6 +694,7 @@ func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, confi
 		if err != nil {
 			return err
 		}
+		terragruntConfigCache.Put(cacheKey, *config)
 		return nil
 	})
 	if err != nil {
