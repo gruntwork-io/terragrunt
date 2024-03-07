@@ -2,11 +2,14 @@ package configstack
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -169,7 +172,18 @@ func (stack *Stack) CheckForCycles() error {
 // Find all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
 // assemble them into a Stack object that can be applied or destroyed in a single command
 func FindStackInSubfolders(terragruntOptions *options.TerragruntOptions, childTerragruntConfig *config.TerragruntConfig) (*Stack, error) {
-	terragruntConfigFiles, err := config.FindConfigFilesInPath(terragruntOptions.WorkingDir, terragruntOptions)
+	var terragruntConfigFiles []string
+
+	err := telemetry.Telemetry(terragruntOptions, "find_files_in_path", map[string]interface{}{
+		"working_dir": terragruntOptions.WorkingDir,
+	}, func(childCtx context.Context) error {
+		result, err := config.FindConfigFilesInPath(terragruntOptions.WorkingDir, terragruntOptions)
+		if err != nil {
+			return err
+		}
+		terragruntConfigFiles = result
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
