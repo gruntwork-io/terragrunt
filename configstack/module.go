@@ -111,6 +111,9 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 		includedModules = flagIncludedDirs(crossLinkedModules, terragruntOptions)
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	var includedModulesWithExcluded []*TerraformModule
 	err = telemetry.Telemetry(terragruntOptions, "flag_excluded_dirs", map[string]interface{}{
@@ -119,6 +122,9 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 		includedModulesWithExcluded = flagExcludedDirs(includedModules, terragruntOptions)
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	var finalModules []*TerraformModule
 	err = telemetry.Telemetry(terragruntOptions, "flag_modules_that_dont_include", map[string]interface{}{
