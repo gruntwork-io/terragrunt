@@ -79,7 +79,6 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 		"working_dir": terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
 		result, err := resolveExternalDependenciesForModules(modules, map[string]*TerraformModule{}, 0, terragruntOptions, childTerragruntConfig)
-
 		if err != nil {
 			return err
 		}
@@ -129,7 +128,7 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 		if err != nil {
 			return err
 		}
-		crossLinkedModules = result
+		finalModules = result
 		return nil
 	})
 	if err != nil {
