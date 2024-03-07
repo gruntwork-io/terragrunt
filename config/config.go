@@ -676,8 +676,11 @@ func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, confi
 	err := telemetry.Telemetry(opts, "parse_config_file", map[string]interface{}{
 		"config_path": configPath,
 	}, func(childCtx context.Context) error {
-
-		var cacheKey = fmt.Sprintf("parse-config-%#v-%#v-%#v", configPath, includeFromChild.String(), ctx.PartialParseDecodeList)
+		childKey := "nil"
+		if includeFromChild != nil {
+			childKey = includeFromChild.String()
+		}
+		var cacheKey = fmt.Sprintf("parse-config-%#v-%#v-%#v", configPath, childKey, ctx.PartialParseDecodeList)
 		if cacheConfig, found := terragruntConfigCache.Get(cacheKey); found {
 			ctx.TerragruntOptions.Logger.Debugf("Cache hit for %s", configPath)
 			config = &cacheConfig
