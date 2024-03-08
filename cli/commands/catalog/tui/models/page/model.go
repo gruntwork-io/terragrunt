@@ -217,9 +217,7 @@ func ansiTerminalReset() {
 
 // ClearScreenCmd - command to clear the screen
 func ClearScreenCmd() tea.Cmd {
-	return func() tea.Msg {
-		return ClearScreen()
-	}
+	return ClearScreen
 }
 
 // Cmd - wrap a message in a command
