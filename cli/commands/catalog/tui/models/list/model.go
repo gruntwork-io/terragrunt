@@ -61,7 +61,6 @@ func (model Model) Init() tea.Cmd {
 func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	rawMsg := fmt.Sprintf("%T", msg)
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		topPadding := 1
@@ -100,10 +99,13 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	}
-
+	rawMsg := fmt.Sprintf("%T", msg)
 	// handle special case for Exit alt screen
 	if rawMsg == "tea.execMsg" {
-		return model, tea.Sequence(page.Cmd(tea.ClearScreen()), tea.Quit)
+		defer func() {
+			os.Exit(0)
+		}()
+		return model, tea.Sequence(page.Cmd(page.ClearScreenCmd()), tea.Quit)
 	}
 
 	newModel, cmd := model.Model.Update(msg)

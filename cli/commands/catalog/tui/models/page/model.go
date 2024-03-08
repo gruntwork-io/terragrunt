@@ -5,6 +5,8 @@ package page
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"runtime"
 	"strings"
 
@@ -152,6 +154,15 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		model.viewport.Height = msg.Height - lipgloss.Height(model.footerView())
 	}
 
+	rawMsg := fmt.Sprintf("%T", msg)
+	// handle special case for Exit alt screen
+	if rawMsg == "tea.execMsg" {
+		defer func() {
+			os.Exit(0)
+		}()
+		return model, tea.Sequence(Cmd(ClearScreenCmd()), tea.Quit)
+	}
+
 	var viewport viewport.Model
 	viewport, cmd = model.viewport.Update(msg)
 
@@ -187,9 +198,15 @@ func ClearScreen() tea.Msg {
 	if runtime.GOOS == "darwin" {
 		// Clear screen for macOS with ANSI commands
 		// https://www.unix.com/os-x-apple-/279401-means-clearing-scroll-buffer-osx-terminal.html
-		fmt.Print("\033[H\033[2J\033[3J")
+		fmt.Print("\033c")   // Reset the terminal
+		fmt.Print("\033[2J") // Clear the screen
+		fmt.Print("\033[3J") // Clear buffer
+		fmt.Print("\033[H")  // Move the cursor to the home position
+		fmt.Print("\033[0m") // Reset all terminal attributes to their defaults
+		cmd := exec.Command("stty", "sane")
+		_ = cmd.Run()
 	}
-	return tea.Sequence(Cmd(tea.ClearScreen()), Cmd(tea.ExitAltScreen()), Cmd(tea.ClearScrollArea()), tea.Quit)
+	return tea.Sequence(Cmd(tea.ExitAltScreen()), Cmd(tea.ClearScreen()), Cmd(tea.ClearScrollArea()), tea.Quit)
 }
 
 // ClearScreenCmd - command to clear the screen
