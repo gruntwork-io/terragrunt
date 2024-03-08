@@ -70,10 +70,7 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.QuitMsg:
 		// handle quit message
-		defer func() {
-			os.Exit(0)
-		}()
-		return model, tea.Sequence(page.Cmd(tea.ClearScreen()), tea.Quit)
+		return model, tea.Sequence(page.Cmd(page.ClearScreen()), tea.Quit)
 
 	case tea.KeyMsg:
 		// Don't match any of the keys below if we're actively filtering.

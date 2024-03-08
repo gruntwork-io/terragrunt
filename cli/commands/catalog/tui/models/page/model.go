@@ -80,9 +80,8 @@ func NewModel(module *module.Module, width, height int, previousModel tea.Model,
 		Buttons: NewButtons(
 			NewButton(ScaffoldButtonName, func(msg tea.Msg) tea.Cmd {
 				quitFn := func(err error) tea.Msg {
-					cls := ClearScreen()
 					quitFn(err)
-					return cls
+					return ClearScreen()
 				}
 				result := tea.Exec(command.NewScaffold(opts, module), quitFn)
 				return tea.Sequence(result, ClearScreenCmd())
@@ -195,18 +194,25 @@ func (model Model) footerView() string {
 
 // ClearScreen - explicit clear screen to avoid terminal hanging
 func ClearScreen() tea.Msg {
+	ansiTerminalReset()
 	if runtime.GOOS == "darwin" {
-		// Clear screen for macOS with ANSI commands
-		// https://www.unix.com/os-x-apple-/279401-means-clearing-scroll-buffer-osx-terminal.html
-		fmt.Print("\033c")   // Reset the terminal
-		fmt.Print("\033[2J") // Clear the screen
-		fmt.Print("\033[3J") // Clear buffer
-		fmt.Print("\033[H")  // Move the cursor to the home position
-		fmt.Print("\033[0m") // Reset all terminal attributes to their defaults
 		cmd := exec.Command("stty", "sane")
 		_ = cmd.Run()
 	}
+	if runtime.GOOS == "linux" {
+		cmd := exec.Command("reset")
+		_ = cmd.Run()
+	}
 	return tea.Sequence(Cmd(tea.ExitAltScreen()), Cmd(tea.ClearScreen()), Cmd(tea.ClearScrollArea()), tea.Quit)
+}
+
+func ansiTerminalReset() {
+	// https://www.unix.com/os-x-apple-/279401-means-clearing-scroll-buffer-osx-terminal.html
+	fmt.Print("\033c")   // Reset the terminal
+	fmt.Print("\033[2J") // Clear the screen
+	fmt.Print("\033[3J") // Clear buffer
+	fmt.Print("\033[H")  // Move the cursor to the home position
+	fmt.Print("\033[0m") // Reset all terminal attributes to their defaults
 }
 
 // ClearScreenCmd - command to clear the screen
