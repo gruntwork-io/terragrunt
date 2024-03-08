@@ -2,11 +2,12 @@ package tui
 
 import (
 	"context"
+	"os"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/models/list"
 	"github.com/gruntwork-io/terragrunt/options"
-	"os"
 )
 
 func Run(ctx context.Context, modules module.Modules, opts *options.TerragruntOptions) error {
