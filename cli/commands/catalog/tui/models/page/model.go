@@ -82,7 +82,8 @@ func NewModel(module *module.Module, width, height int, previousModel tea.Model,
 					quitFn(err)
 					return cls
 				}
-				return tea.Exec(command.NewScaffold(opts, module), quitFn)
+				result := tea.Exec(command.NewScaffold(opts, module), quitFn)
+				return tea.Sequence(result, ClearScreenCmd())
 			}),
 			NewButton(ViewInBrowserButtonName, func(msg tea.Msg) tea.Cmd {
 				if err := browser.OpenURL(module.URL()); err != nil {
@@ -188,7 +189,7 @@ func ClearScreen() tea.Msg {
 		// https://www.unix.com/os-x-apple-/279401-means-clearing-scroll-buffer-osx-terminal.html
 		fmt.Print("\033[H\033[2J\033[3J")
 	}
-	return tea.Quit()
+	return tea.Sequence(Cmd(tea.ClearScreen()), Cmd(tea.ExitAltScreen()), Cmd(tea.ClearScrollArea()), tea.Quit)
 }
 
 // ClearScreenCmd - command to clear the screen

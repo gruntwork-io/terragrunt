@@ -1,6 +1,9 @@
 package list
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -58,6 +61,7 @@ func (model Model) Init() tea.Cmd {
 func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	rawMsg := fmt.Sprintf("%T", msg)
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		topPadding := 1
@@ -67,7 +71,10 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.QuitMsg:
 		// handle quit message
-		return model, tea.Batch(page.Cmd(tea.ClearScrollArea()), page.Cmd(tea.ClearScreen()), page.Cmd(tea.ExitAltScreen()), tea.Quit, page.ClearScreenCmd())
+		defer func() {
+			os.Exit(0)
+		}()
+		return model, tea.Sequence(page.Cmd(tea.ClearScreen()), tea.Quit)
 
 	case tea.KeyMsg:
 		// Don't match any of the keys below if we're actively filtering.
@@ -92,6 +99,11 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return pageModel, nil
 			}
 		}
+	}
+
+	// handle special case for Exit alt screen
+	if rawMsg == "tea.execMsg" {
+		return model, tea.Sequence(page.Cmd(tea.ClearScreen()), tea.Quit)
 	}
 
 	newModel, cmd := model.Model.Update(msg)
