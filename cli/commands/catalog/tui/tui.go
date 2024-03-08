@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
@@ -13,6 +14,10 @@ func Run(ctx context.Context, modules module.Modules, opts *options.TerragruntOp
 	ctx, cancel := context.WithCancelCause(ctx)
 	quitFn := func(err error) {
 		go cancel(err)
+		if err != nil {
+			// explicit exit from application
+			os.Exit(1)
+		}
 	}
 
 	list := list.NewModel(modules, quitFn, opts)
