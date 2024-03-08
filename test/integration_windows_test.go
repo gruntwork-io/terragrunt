@@ -150,7 +150,7 @@ func TestWindowsScaffold(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
 	assert.NoError(t, err)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//mysql --terragrunt-working-dir %s", tmpDir))
+	runTerragrunt(t, fmt.Sprintf("terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql --terragrunt-working-dir %s", tmpDir))
 
 	// check that terragrunt.hcl was created
 	_, err = os.Stat(filepath.Join(tmpDir, "terragrunt.hcl"))
@@ -164,7 +164,7 @@ func TestWindowsScaffoldRef(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
 	assert.NoError(t, err)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//mysql?ref=v0.7.0 --terragrunt-working-dir %s", tmpDir))
+	runTerragrunt(t, fmt.Sprintf("terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql?ref=v0.7.0 --terragrunt-working-dir %s", tmpDir))
 
 	// check that terragrunt.hcl was created
 	_, err = os.Stat(filepath.Join(tmpDir, "terragrunt.hcl"))
