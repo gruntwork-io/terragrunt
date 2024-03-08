@@ -78,8 +78,9 @@ func NewModel(module *module.Module, width, height int, previousModel tea.Model,
 		Buttons: NewButtons(
 			NewButton(ScaffoldButtonName, func(msg tea.Msg) tea.Cmd {
 				quitFn := func(err error) tea.Msg {
+					cls := ClearScreen()
 					quitFn(err)
-					return clearScreen()
+					return cls
 				}
 				return tea.Exec(command.NewScaffold(opts, module), quitFn)
 			}),
@@ -180,12 +181,26 @@ func (model Model) footerView() string {
 	return lipgloss.JoinVertical(lipgloss.Left, info, model.Buttons.View(), model.keys.View())
 }
 
-// clearScreen - explicit clear screen to avoid terminal hanging
-func clearScreen() tea.Msg {
+// ClearScreen - explicit clear screen to avoid terminal hanging
+func ClearScreen() tea.Msg {
 	if runtime.GOOS == "darwin" {
 		// Clear screen for macOS with ANSI commands
 		// https://www.unix.com/os-x-apple-/279401-means-clearing-scroll-buffer-osx-terminal.html
 		fmt.Print("\033[H\033[2J\033[3J")
 	}
 	return tea.Quit()
+}
+
+// ClearScreenCmd - command to clear the screen
+func ClearScreenCmd() tea.Cmd {
+	return func() tea.Msg {
+		return ClearScreen()
+	}
+}
+
+// Cmd - wrap a message in a command
+func Cmd(msg tea.Msg) tea.Cmd {
+	return func() tea.Msg {
+		return msg
+	}
 }

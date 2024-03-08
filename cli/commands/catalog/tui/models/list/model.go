@@ -1,8 +1,6 @@
 package list
 
 import (
-	"os"
-
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -69,8 +67,7 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.QuitMsg:
 		// handle quit message
-		os.Exit(0)
-		return model, tea.Quit
+		return model, tea.Batch(page.Cmd(tea.ClearScrollArea()), page.Cmd(tea.ClearScreen()), page.Cmd(tea.ExitAltScreen()), tea.Quit, page.ClearScreenCmd())
 
 	case tea.KeyMsg:
 		// Don't match any of the keys below if we're actively filtering.
