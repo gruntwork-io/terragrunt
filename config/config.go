@@ -722,7 +722,13 @@ func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, confi
 		if includeFromChild != nil {
 			childKey = includeFromChild.String()
 		}
-		var cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v", configPath, childKey, ctx.PartialParseDecodeList, opts.WorkingDir)
+		// get current directory
+		dir, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+
+		var cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v", configPath, childKey, ctx.PartialParseDecodeList, opts.WorkingDir, dir)
 		if cacheConfig, found := terragruntConfigCache.Get(cacheKey); found {
 			ctx.TerragruntOptions.Logger.Debugf("Cache hit for %s", configPath)
 			config = cacheConfig.Clone()
