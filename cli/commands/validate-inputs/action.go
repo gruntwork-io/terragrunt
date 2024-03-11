@@ -164,7 +164,8 @@ func getTerraformInputNamesFromEnvVar(opts *options.TerragruntOptions, terragrun
 		tfVarPrefix = fmt.Sprintf(tr.EnvNameTFVarFmt, "")
 	)
 	for envName := range envVars {
-		if inputName := strings.TrimPrefix(envName, tfVarPrefix); inputName != "" {
+		if strings.HasPrefix(envName, tfVarPrefix) {
+			inputName := strings.TrimPrefix(envName, tfVarPrefix)
 			out = append(out, inputName)
 		}
 	}
