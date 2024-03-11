@@ -114,6 +114,37 @@ type TerragruntConfig struct {
 	DependentModulesPath []*string
 }
 
+func (conf *TerragruntConfig) Clone() *TerragruntConfig {
+	// clone all conf struct fields
+
+	return &TerragruntConfig{
+		Catalog:                     conf.Catalog,
+		Terraform:                   conf.Terraform,
+		TerraformBinary:             conf.TerraformBinary,
+		TerraformVersionConstraint:  conf.TerraformVersionConstraint,
+		TerragruntVersionConstraint: conf.TerragruntVersionConstraint,
+		RemoteState:                 conf.RemoteState,
+		Dependencies:                conf.Dependencies,
+		DownloadDir:                 conf.DownloadDir,
+		PreventDestroy:              conf.PreventDestroy,
+		Skip:                        conf.Skip,
+		IamRole:                     conf.IamRole,
+		IamAssumeRoleDuration:       conf.IamAssumeRoleDuration,
+		IamAssumeRoleSessionName:    conf.IamAssumeRoleSessionName,
+		Inputs:                      conf.Inputs,
+		Locals:                      conf.Locals,
+		TerragruntDependencies:      conf.TerragruntDependencies,
+		GenerateConfigs:             conf.GenerateConfigs,
+		RetryableErrors:             conf.RetryableErrors,
+		RetryMaxAttempts:            conf.RetryMaxAttempts,
+		RetrySleepIntervalSec:       conf.RetrySleepIntervalSec,
+		IsPartial:                   conf.IsPartial,
+		ProcessedIncludes:           conf.ProcessedIncludes,
+		FieldsMetadata:              conf.FieldsMetadata,
+		DependentModulesPath:        conf.DependentModulesPath,
+	}
+}
+
 func (conf *TerragruntConfig) String() string {
 	return fmt.Sprintf("TerragruntConfig{Terraform = %v, RemoteState = %v, Dependencies = %v, PreventDestroy = %v}", conf.Terraform, conf.RemoteState, conf.Dependencies, conf.PreventDestroy)
 }
@@ -294,7 +325,18 @@ type IncludeConfig struct {
 }
 
 func (cfg *IncludeConfig) String() string {
-	return fmt.Sprintf("IncludeConfig{Path = %s, Expose = %v, MergeStrategy = %v}", cfg.Path, *cfg.Expose, cfg.MergeStrategy)
+	if cfg == nil {
+		return "IncludeConfig{nil}"
+	}
+	exposeStr := "nil"
+	if cfg.Expose != nil {
+		exposeStr = fmt.Sprintf("%v", *cfg.Expose)
+	}
+	mergeStrategyStr := "nil"
+	if cfg.MergeStrategy != nil {
+		mergeStrategyStr = fmt.Sprintf("%v", cfg.MergeStrategy)
+	}
+	return fmt.Sprintf("IncludeConfig{Path = %v, Expose = %v, MergeStrategy = %v}", cfg.Path, exposeStr, mergeStrategyStr)
 }
 
 func (cfg *IncludeConfig) GetExpose() bool {
@@ -683,7 +725,7 @@ func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, confi
 		var cacheKey = fmt.Sprintf("parse-config-%#v-%#v-%#v", configPath, childKey, ctx.PartialParseDecodeList)
 		if cacheConfig, found := terragruntConfigCache.Get(cacheKey); found {
 			ctx.TerragruntOptions.Logger.Debugf("Cache hit for %s", configPath)
-			config = &cacheConfig
+			config = cacheConfig.Clone()
 			return nil
 		}
 
@@ -697,7 +739,7 @@ func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, confi
 		if err != nil {
 			return err
 		}
-		terragruntConfigCache.Put(cacheKey, *config)
+		terragruntConfigCache.Put(cacheKey, *config.Clone())
 		return nil
 	})
 	if err != nil {
