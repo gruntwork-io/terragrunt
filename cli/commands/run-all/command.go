@@ -35,43 +35,43 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        FlagNameTerragruntProviderCache,
 			Destination: &opts.ProviderCache,
 			EnvVar:      "TERRAGRUNT_PROVIDER_CACHE",
-			Usage:       "",
+			Usage:       "Enables provider caching.",
 		},
 		&cli.GenericFlag[string]{
 			Name:        FlagNameTerragruntProviderCacheDir,
 			Destination: &opts.ProviderCacheDir,
 			EnvVar:      "TERRAGRUNT_PROVIDER_CACHE_DIR",
-			Usage:       "",
+			Usage:       "The path to the cache directory. Default is .terragrunt-cache/provider-cache in the working directory.",
 		},
 		&cli.BoolFlag{
 			Name:        FlagNameTerragruntProviderCompleteLock,
 			Destination: &opts.ProviderCompleteLock,
 			EnvVar:      "TERRAGRUNT_PROVIDER_COMPLETE_LOCK",
-			Usage:       "",
+			Usage:       "Disables terraform 'plugin_cache_may_break_dependency_lock_file' feature.",
 		},
 		&cli.GenericFlag[string]{
 			Name:        FlagNameTerragruntRegistryToken,
 			Destination: &opts.RegistryToken,
 			EnvVar:      "TERRAGRUNT_REGISTRY_TOKEN",
-			Usage:       "",
+			Usage:       "The Token for connecting to the built-in Private Registry server. By default it is generated automatically.",
 		},
 		&cli.GenericFlag[string]{
 			Name:        FlagNameTerragruntRegistryHostname,
 			Destination: &opts.RegistryHostname,
 			EnvVar:      "TERRAGRUNT_REGISTRY_HOSTNAME",
-			Usage:       "",
+			Usage:       "The hostname of the built-in Private Registry server. Default is 'localhsot'.",
 		},
 		&cli.GenericFlag[int]{
 			Name:        FlagNameTerragruntRegistryPort,
 			Destination: &opts.RegistryPort,
 			EnvVar:      "TERRAGRUNT_REGISTRY_PORT",
-			Usage:       "",
+			Usage:       "The port of the built-in Private Registry server. Default is '5758'.",
 		},
 		&cli.SliceFlag[string]{
 			Name:        FlagNameTerragruntRegistryNames,
 			Destination: &opts.RegistryNames,
 			EnvVar:      "TERRAGRUNT_REGISTRY_NAMES",
-			Usage:       "",
+			Usage:       "The list of registries to cache. Default is 'registry.terraform.io'.",
 		})
 	return globalFlags
 }
