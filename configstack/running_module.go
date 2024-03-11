@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/options"
+
+	"github.com/gruntwork-io/terragrunt/telemetry"
+
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/hashicorp/go-multierror"
@@ -57,33 +61,33 @@ func newRunningModule(module *TerraformModule) *runningModule {
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func RunModules(ctx context.Context, modules []*TerraformModule, parallelism int) error {
+func RunModules(opts *options.TerragruntOptions, modules []*TerraformModule, parallelism int) error {
 	runningModules, err := toRunningModules(modules, NormalOrder)
 	if err != nil {
 		return err
 	}
-	return runModules(ctx, runningModules, parallelism)
+	return runModules(opts, runningModules, parallelism)
 }
 
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in the reverse order of their inter-dependencies, using
 // as much concurrency as possible.
-func RunModulesReverseOrder(ctx context.Context, modules []*TerraformModule, parallelism int) error {
+func RunModulesReverseOrder(opts *options.TerragruntOptions, modules []*TerraformModule, parallelism int) error {
 	runningModules, err := toRunningModules(modules, ReverseOrder)
 	if err != nil {
 		return err
 	}
-	return runModules(ctx, runningModules, parallelism)
+	return runModules(opts, runningModules, parallelism)
 }
 
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed without caring for inter-dependencies.
-func RunModulesIgnoreOrder(ctx context.Context, modules []*TerraformModule, parallelism int) error {
+func RunModulesIgnoreOrder(opts *options.TerragruntOptions, modules []*TerraformModule, parallelism int) error {
 	runningModules, err := toRunningModules(modules, IgnoreOrder)
 	if err != nil {
 		return err
 	}
-	return runModules(ctx, runningModules, parallelism)
+	return runModules(opts, runningModules, parallelism)
 }
 
 // Convert the list of modules to a map from module path to a runningModule struct. This struct contains information
@@ -164,7 +168,7 @@ func removeFlagExcluded(modules map[string]*runningModule) map[string]*runningMo
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func runModules(ctx context.Context, modules map[string]*runningModule, parallelism int) error {
+func runModules(opts *options.TerragruntOptions, modules map[string]*runningModule, parallelism int) error {
 	var waitGroup sync.WaitGroup
 	var semaphore = make(chan struct{}, parallelism) // Make a semaphore from a buffered channel
 
@@ -172,7 +176,7 @@ func runModules(ctx context.Context, modules map[string]*runningModule, parallel
 		waitGroup.Add(1)
 		go func(module *runningModule) {
 			defer waitGroup.Done()
-			module.runModuleWhenReady(ctx, semaphore)
+			module.runModuleWhenReady(opts, semaphore)
 		}(module)
 	}
 
@@ -195,14 +199,26 @@ func collectErrors(modules map[string]*runningModule) error {
 }
 
 // Run a module once all of its dependencies have finished executing.
-func (module *runningModule) runModuleWhenReady(ctx context.Context, semaphore chan struct{}) {
-	err := module.waitForDependencies()
+func (module *runningModule) runModuleWhenReady(opts *options.TerragruntOptions, semaphore chan struct{}) {
+
+	err := telemetry.Telemetry(opts, "wait_for_module_ready", map[string]interface{}{
+		"path":             module.Module.Path,
+		"terraformCommand": module.Module.TerragruntOptions.TerraformCommand,
+	}, func(childCtx context.Context) error {
+		return module.waitForDependencies()
+	})
+
 	semaphore <- struct{}{} // Add one to the buffered channel. Will block if parallelism limit is met
 	defer func() {
 		<-semaphore // Remove one from the buffered channel
 	}()
 	if err == nil {
-		err = module.runNow(ctx)
+		err = telemetry.Telemetry(opts, "run_module", map[string]interface{}{
+			"path":             module.Module.Path,
+			"terraformCommand": module.Module.TerragruntOptions.TerraformCommand,
+		}, func(childCtx context.Context) error {
+			return module.runNow()
+		})
 	}
 	module.moduleFinished(err)
 }

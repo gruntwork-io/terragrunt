@@ -9,8 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/telemetry"
+
 	"github.com/mitchellh/mapstructure"
-	"github.com/zclconf/go-cty/cty/gocty"
 
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2"
@@ -50,6 +51,7 @@ const (
 	MetadataIamAssumeRoleSessionName    = "iam_assume_role_session_name"
 	MetadataInputs                      = "inputs"
 	MetadataLocals                      = "locals"
+	MetadataLocal                       = "local"
 	MetadataCatalog                     = "catalog"
 	MetadataGenerateConfigs             = "generate"
 	MetadataRetryableErrors             = "retryable_errors"
@@ -663,23 +665,32 @@ func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*Terrag
 	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
 
 	ctx := NewParsingContext(context.Background(), terragruntOptions)
-	return ParseConfigFile(ctx, terragruntOptions.TerragruntConfigPath, nil)
+	return ParseConfigFile(terragruntOptions, ctx, terragruntOptions.TerragruntConfigPath, nil)
 }
 
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
-func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
-	// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
-	file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
+func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+
+	var config *TerragruntConfig
+	err := telemetry.Telemetry(opts, "parse_config_file", map[string]interface{}{
+		"config_path": configPath,
+	}, func(childCtx context.Context) error {
+		// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
+		file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
+		if err != nil {
+			return err
+		}
+
+		config, err = ParseConfig(ctx, file, includeFromChild)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	config, err := ParseConfig(ctx, file, includeFromChild)
-	if err != nil {
-		return nil, err
-	}
-
 	return config, nil
 }
 
@@ -823,29 +834,23 @@ func setIAMRole(ctx *ParsingContext, file *hclparse.File, includeFromChild *Incl
 
 func decodeAsTerragruntConfigFile(ctx *ParsingContext, file *hclparse.File, evalContext *hcl.EvalContext) (*terragruntConfigFile, error) {
 	terragruntConfig := terragruntConfigFile{}
-	err := file.Decode(&terragruntConfig, evalContext)
-	// in case of render-json command and inputs reference error, we update the inputs with default value
-	if diagErr, ok := errors.Unwrap(err).(hcl.Diagnostics); ok && isRenderJsonCommand(ctx) && isAttributeAccessError(diagErr) {
-		ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
-		// update unknown inputs with default value
-		updatedValue := map[string]cty.Value{}
-		for key, value := range terragruntConfig.Inputs.AsValueMap() {
-			if value.IsKnown() {
-				updatedValue[key] = value
-			} else {
-				updatedValue[key] = cty.StringVal("")
-			}
+
+	if err := file.Decode(&terragruntConfig, evalContext); err != nil {
+		diagErr, ok := errors.Unwrap(err).(hcl.Diagnostics)
+
+		// in case of render-json command and inputs reference error, we update the inputs with default value
+		if !ok || !isRenderJsonCommand(ctx) || !isAttributeAccessError(diagErr) {
+			return nil, err
 		}
-		value, err := gocty.ToCtyValue(updatedValue, terragruntConfig.Inputs.Type())
+		ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
+
+		inputs, err := updateUnknownCtyValValues(terragruntConfig.Inputs)
 		if err != nil {
 			return nil, err
 		}
-		terragruntConfig.Inputs = &value
-		return &terragruntConfig, nil
+		terragruntConfig.Inputs = inputs
 	}
-	if err != nil {
-		return nil, err
-	}
+
 	return &terragruntConfig, nil
 }
 

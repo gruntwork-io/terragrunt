@@ -5,6 +5,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gruntwork-io/go-commons/env"
+
+	"github.com/gruntwork-io/terragrunt/telemetry"
+
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/urfave/cli/v2"
 )
@@ -117,6 +121,24 @@ func (app *App) RunContext(ctx context.Context, arguments []string) (err error) 
 		args := Args(parentCtx.Args().Slice())
 		ctx := newContext(parentCtx.Context, app)
 
+		// configure telemetry integration
+		err := telemetry.InitTelemetry(ctx, &telemetry.TelemetryOptions{
+			Vars:       env.Parse(os.Environ()),
+			AppName:    app.Name,
+			AppVersion: app.Version,
+			Writer:     app.Writer,
+			ErrWriter:  app.ErrWriter,
+		})
+		if err != nil {
+			return err
+		}
+		defer func(ctx context.Context) {
+			err := telemetry.ShutdownTelemetry(ctx)
+			if err != nil {
+				_, _ = app.ErrWriter.Write([]byte(err.Error()))
+			}
+		}(ctx)
+
 		if app.Autocomplete {
 			if err := app.setupAutocomplete(args); err != nil {
 				return app.handleExitCoder(err)
@@ -131,9 +153,7 @@ func (app *App) RunContext(ctx context.Context, arguments []string) (err error) 
 				ctx.shellComplete = true
 			}
 		}
-
-		err := cmd.Run(ctx, args.Normalize(SingleDashFlag))
-		return err
+		return cmd.Run(ctx, args.Normalize(SingleDashFlag))
 	}
 
 	return app.App.RunContext(ctx, arguments)

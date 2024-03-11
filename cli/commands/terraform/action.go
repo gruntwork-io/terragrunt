@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/telemetry"
+
 	"github.com/gruntwork-io/terragrunt/terraform"
 
 	"github.com/gruntwork-io/gruntwork-cli/collections"
@@ -159,7 +161,13 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 	}
 
 	if sourceUrl != "" {
-		updatedTerragruntOptions, err = downloadTerraformSource(ctx, sourceUrl, terragruntOptions, terragruntConfig)
+		err = telemetry.Telemetry(terragruntOptions, "download_terraform_source", map[string]interface{}{
+			"sourceUrl": sourceUrl,
+		}, func(childCtx context.Context) error {
+			updatedTerragruntOptions, err = downloadTerraformSource(ctx, sourceUrl, terragruntOptions, terragruntConfig)
+			return err
+		})
+
 		if err != nil {
 			return err
 		}

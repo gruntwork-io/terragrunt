@@ -2,6 +2,7 @@ package shell
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/url"
@@ -12,11 +13,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/telemetry"
+
 	"github.com/hashicorp/go-version"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
+	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -83,92 +87,108 @@ func RunShellCommandWithOutput(
 	command string,
 	args ...string,
 ) (*CmdOutput, error) {
-	terragruntOptions.Logger.Debugf("Running command: %s %s", command, strings.Join(args, " "))
-	if suppressStdout {
-		terragruntOptions.Logger.Debugf("Command output will be suppressed.")
-	}
-
-	var stdoutBuf bytes.Buffer
-	var stderrBuf bytes.Buffer
-
-	cmd := exec.Command(command, args...)
-
-	// TODO: consider adding prefix from terragruntOptions logger to stdout and stderr
-	cmd.Env = toEnvVarsList(terragruntOptions.Env)
-
-	var errWriter = terragruntOptions.ErrWriter
-	var outWriter = terragruntOptions.Writer
-
-	// redirect output through logger with json wrapping
-	if terragruntOptions.JsonLogFormat && terragruntOptions.TerraformLogsToJson {
-		outWriter = terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args).Writer()
-		errWriter = terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args).WriterLevel(logrus.ErrorLevel)
-	}
-
-	var prefix = ""
-	if terragruntOptions.IncludeModulePrefix {
-		prefix = terragruntOptions.OutputPrefix
-	}
-
+	var output *CmdOutput = nil
+	var commandDir = workingDir
 	if workingDir == "" {
-		cmd.Dir = terragruntOptions.WorkingDir
-	} else {
-		cmd.Dir = workingDir
+		commandDir = terragruntOptions.WorkingDir
 	}
+	err := telemetry.Telemetry(terragruntOptions, fmt.Sprintf("run_%s", command), map[string]interface{}{
+		"command": command,
+		"args":    fmt.Sprintf("%v", args),
+		"dir":     commandDir,
+	}, func(childCtx context.Context) error {
 
-	// Inspired by https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
-	cmdStderr := io.MultiWriter(withPrefix(errWriter, prefix), &stderrBuf)
-	var cmdStdout io.Writer
-	if !suppressStdout {
-		cmdStdout = io.MultiWriter(withPrefix(outWriter, prefix), &stdoutBuf)
-	} else {
-		cmdStdout = io.MultiWriter(&stdoutBuf)
-	}
-
-	// If we need to allocate a ptty for the command, route through the ptty routine. Otherwise, directly call the
-	// command.
-	if allocatePseudoTty {
-		if err := runCommandWithPTTY(terragruntOptions, cmd, cmdStdout, cmdStderr); err != nil {
-			return nil, err
+		// Terrafrom `init` command with the plugin cache directory is not guaranteed to be concurrency safe.
+		// The provider installer's behavior in environments with multiple terraform init calls is undefined.
+		// Thus, terraform `init` commands must be executed sequentially, even if `--terragrunt-parallelism` is greater than 1.
+		if command == "terraform" && collections.ListContainsElement(args, "init") && terraform.IsPluginCacheUsed() {
+			defer terraformInitMutex.Unlock()
+			terraformInitMutex.Lock()
 		}
-	} else {
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = cmdStdout
-		cmd.Stderr = cmdStderr
-		if err := cmd.Start(); err != nil {
-			// bad path, binary not executable, &c
-			return nil, errors.WithStackTrace(err)
-		}
-	}
 
-	// Make sure to forward signals to the subcommand.
-	cmdChannel := make(chan error) // used for closing the signals forwarder goroutine
-	signalChannel := NewSignalsForwarder(forwardSignals, cmd, terragruntOptions.Logger, cmdChannel)
-	defer func(signalChannel *SignalsForwarder) {
-		err := signalChannel.Close()
+		terragruntOptions.Logger.Debugf("Running command: %s %s", command, strings.Join(args, " "))
+		if suppressStdout {
+			terragruntOptions.Logger.Debugf("Command output will be suppressed.")
+		}
+
+		var stdoutBuf bytes.Buffer
+		var stderrBuf bytes.Buffer
+
+		cmd := exec.Command(command, args...)
+
+		// TODO: consider adding prefix from terragruntOptions logger to stdout and stderr
+		cmd.Env = toEnvVarsList(terragruntOptions.Env)
+
+		var errWriter = terragruntOptions.ErrWriter
+		var outWriter = terragruntOptions.Writer
+
+		// redirect output through logger with json wrapping
+		if terragruntOptions.JsonLogFormat && terragruntOptions.TerraformLogsToJson {
+			outWriter = terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args).Writer()
+			errWriter = terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args).WriterLevel(logrus.ErrorLevel)
+		}
+
+		var prefix = ""
+		if terragruntOptions.IncludeModulePrefix {
+			prefix = terragruntOptions.OutputPrefix
+		}
+		cmd.Dir = commandDir
+
+		// Inspired by https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
+		cmdStderr := io.MultiWriter(withPrefix(errWriter, prefix), &stderrBuf)
+		var cmdStdout io.Writer
+		if !suppressStdout {
+			cmdStdout = io.MultiWriter(withPrefix(outWriter, prefix), &stdoutBuf)
+		} else {
+			cmdStdout = io.MultiWriter(&stdoutBuf)
+		}
+
+		// If we need to allocate a ptty for the command, route through the ptty routine. Otherwise, directly call the
+		// command.
+		if allocatePseudoTty {
+			if err := runCommandWithPTTY(terragruntOptions, cmd, cmdStdout, cmdStderr); err != nil {
+				return err
+			}
+		} else {
+			cmd.Stdin = os.Stdin
+			cmd.Stdout = cmdStdout
+			cmd.Stderr = cmdStderr
+			if err := cmd.Start(); err != nil {
+				// bad path, binary not executable, &c
+				return errors.WithStackTrace(err)
+			}
+		}
+
+		// Make sure to forward signals to the subcommand.
+		cmdChannel := make(chan error) // used for closing the signals forwarder goroutine
+		signalChannel := NewSignalsForwarder(forwardSignals, cmd, terragruntOptions.Logger, cmdChannel)
+		defer func(signalChannel *SignalsForwarder) {
+			err := signalChannel.Close()
+			if err != nil {
+				terragruntOptions.Logger.Warnf("Error closing signal channel: %v", err)
+			}
+		}(&signalChannel)
+
+		err := cmd.Wait()
+		cmdChannel <- err
+
+		cmdOutput := CmdOutput{
+			Stdout: stdoutBuf.String(),
+			Stderr: stderrBuf.String(),
+		}
+
 		if err != nil {
-			terragruntOptions.Logger.Warnf("Error closing signal channel: %v", err)
+			err = ProcessExecutionError{
+				Err:        err,
+				StdOut:     stdoutBuf.String(),
+				Stderr:     stderrBuf.String(),
+				WorkingDir: cmd.Dir,
+			}
 		}
-	}(&signalChannel)
-
-	err := cmd.Wait()
-	cmdChannel <- err
-
-	cmdOutput := CmdOutput{
-		Stdout: stdoutBuf.String(),
-		Stderr: stderrBuf.String(),
-	}
-
-	if err != nil {
-		err = ProcessExecutionError{
-			Err:        err,
-			StdOut:     stdoutBuf.String(),
-			Stderr:     stderrBuf.String(),
-			WorkingDir: cmd.Dir,
-		}
-	}
-
-	return &cmdOutput, errors.WithStackTrace(err)
+		output = &cmdOutput
+		return errors.WithStackTrace(err)
+	})
+	return output, err
 }
 
 func toEnvVarsList(envVarsAsMap map[string]string) []string {
