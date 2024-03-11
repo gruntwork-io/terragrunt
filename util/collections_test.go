@@ -155,9 +155,9 @@ func TestRemoveElementFromList(t *testing.T) {
 		element  string
 		expected []string
 	}{
-		{[]string{}, "", []string{}},
-		{[]string{}, "foo", []string{}},
-		{[]string{"foo"}, "foo", []string{}},
+		{[]string{}, "", nil},
+		{[]string{}, "foo", nil},
+		{[]string{"foo"}, "foo", nil},
 		{[]string{"bar"}, "foo", []string{"bar"}},
 		{[]string{"bar", "foo", "baz"}, "foo", []string{"bar", "baz"}},
 		{[]string{"bar", "foo", "baz"}, "nope", []string{"bar", "foo", "baz"}},
@@ -188,9 +188,9 @@ func TestRemoveDuplicatesFromList(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		f := RemoveDuplicatesFromList
+		f := RemoveDuplicatesFromList[[]string]
 		if testCase.reverse {
-			f = RemoveDuplicatesFromListKeepLast
+			f = RemoveDuplicatesFromListKeepLast[[]string]
 		}
 		assert.Equal(t, f(testCase.list), testCase.expected, "For list %v", testCase.list)
 		t.Logf("%v passed", testCase.list)
