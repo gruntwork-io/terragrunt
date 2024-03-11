@@ -12,6 +12,11 @@ func Debug(args ...any) {
 	logger.Debug(args...)
 }
 
+// Trace logs a message at level Trace on the standard logger.
+func Trace(args ...any) {
+	logger.Trace(args...)
+}
+
 // Info logs a message at level Info on the standard logger.
 func Info(args ...any) {
 	logger.Info(args...)
@@ -80,6 +85,11 @@ func Fatalln(args ...any) {
 // Debugf logs a message at level Debug on the standard logger.
 func Debugf(format string, args ...any) {
 	logger.Debugf(format, args...)
+}
+
+// Tracef logs a message at level Trace on the standard logger.
+func Tracef(format string, args ...any) {
+	logger.Tracef(format, args...)
 }
 
 // Infof logs a message at level Info on the standard logger.

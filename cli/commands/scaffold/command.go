@@ -43,7 +43,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				templateUrl = val
 			}
 
-			return Run(opts.OptionsFromContext(ctx), moduleUrl, templateUrl)
+			return Run(ctx, opts.OptionsFromContext(ctx), moduleUrl, templateUrl)
 		},
 	}
 }

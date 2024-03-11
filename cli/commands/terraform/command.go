@@ -5,6 +5,7 @@ import (
 	"github.com/gruntwork-io/gruntwork-cli/collections"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
+	"github.com/gruntwork-io/terragrunt/terraform"
 )
 
 const (
@@ -27,7 +28,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
-		if opts.TerraformCommand == CommandNameDestroy {
+		if opts.TerraformCommand == terraform.CommandNameDestroy {
 			opts.CheckDependentModules = true
 		}
 
@@ -35,6 +36,6 @@ func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 			return errors.WithStackTrace(WrongTerraformCommand(opts.TerraformCommand))
 		}
 
-		return Run(opts.OptionsFromContext(ctx))
+		return Run(ctx, opts.OptionsFromContext(ctx))
 	}
 }

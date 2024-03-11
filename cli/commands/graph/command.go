@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"context"
 	"sort"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands"
@@ -42,18 +43,18 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 }
 
 func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
-	return func(ctx *cli.Context) error {
-		opts.RunTerragrunt = func(opts *options.TerragruntOptions) error {
-			if cmd := ctx.Command.Subcommand(opts.TerraformCommand); cmd != nil {
-				ctx := ctx.WithValue(options.ContextKey, opts)
+	return func(cliCtx *cli.Context) error {
+		opts.RunTerragrunt = func(ctx context.Context, opts *options.TerragruntOptions) error {
+			if cmd := cliCtx.Command.Subcommand(opts.TerraformCommand); cmd != nil {
+				cliCtx := cliCtx.WithValue(options.ContextKey, opts)
 
-				return cmd.Action(ctx)
+				return cmd.Action(cliCtx)
 			}
 
-			return terraform.Run(opts)
+			return terraform.Run(ctx, opts)
 		}
 
-		return Run(opts.OptionsFromContext(ctx))
+		return Run(cliCtx.Context, opts.OptionsFromContext(cliCtx))
 	}
 }
 

@@ -1,6 +1,7 @@
 package configstack
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -56,33 +57,33 @@ func newRunningModule(module *TerraformModule) *runningModule {
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func RunModules(modules []*TerraformModule, parallelism int) error {
+func RunModules(ctx context.Context, modules []*TerraformModule, parallelism int) error {
 	runningModules, err := toRunningModules(modules, NormalOrder)
 	if err != nil {
 		return err
 	}
-	return runModules(runningModules, parallelism)
+	return runModules(ctx, runningModules, parallelism)
 }
 
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in the reverse order of their inter-dependencies, using
 // as much concurrency as possible.
-func RunModulesReverseOrder(modules []*TerraformModule, parallelism int) error {
+func RunModulesReverseOrder(ctx context.Context, modules []*TerraformModule, parallelism int) error {
 	runningModules, err := toRunningModules(modules, ReverseOrder)
 	if err != nil {
 		return err
 	}
-	return runModules(runningModules, parallelism)
+	return runModules(ctx, runningModules, parallelism)
 }
 
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed without caring for inter-dependencies.
-func RunModulesIgnoreOrder(modules []*TerraformModule, parallelism int) error {
+func RunModulesIgnoreOrder(ctx context.Context, modules []*TerraformModule, parallelism int) error {
 	runningModules, err := toRunningModules(modules, IgnoreOrder)
 	if err != nil {
 		return err
 	}
-	return runModules(runningModules, parallelism)
+	return runModules(ctx, runningModules, parallelism)
 }
 
 // Convert the list of modules to a map from module path to a runningModule struct. This struct contains information
@@ -163,7 +164,7 @@ func removeFlagExcluded(modules map[string]*runningModule) map[string]*runningMo
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func runModules(modules map[string]*runningModule, parallelism int) error {
+func runModules(ctx context.Context, modules map[string]*runningModule, parallelism int) error {
 	var waitGroup sync.WaitGroup
 	var semaphore = make(chan struct{}, parallelism) // Make a semaphore from a buffered channel
 
@@ -171,7 +172,7 @@ func runModules(modules map[string]*runningModule, parallelism int) error {
 		waitGroup.Add(1)
 		go func(module *runningModule) {
 			defer waitGroup.Done()
-			module.runModuleWhenReady(semaphore)
+			module.runModuleWhenReady(ctx, semaphore)
 		}(module)
 	}
 
@@ -194,14 +195,14 @@ func collectErrors(modules map[string]*runningModule) error {
 }
 
 // Run a module once all of its dependencies have finished executing.
-func (module *runningModule) runModuleWhenReady(semaphore chan struct{}) {
+func (module *runningModule) runModuleWhenReady(ctx context.Context, semaphore chan struct{}) {
 	err := module.waitForDependencies()
 	semaphore <- struct{}{} // Add one to the buffered channel. Will block if parallelism limit is met
 	defer func() {
 		<-semaphore // Remove one from the buffered channel
 	}()
 	if err == nil {
-		err = module.runNow()
+		err = module.runNow(ctx)
 	}
 	module.moduleFinished(err)
 }
@@ -230,7 +231,7 @@ func (module *runningModule) waitForDependencies() error {
 }
 
 // Run a module right now by executing the RunTerragrunt command of its TerragruntOptions field.
-func (module *runningModule) runNow() error {
+func (module *runningModule) runNow(ctx context.Context) error {
 	module.Status = Running
 
 	if module.Module.AssumeAlreadyApplied {
@@ -238,7 +239,7 @@ func (module *runningModule) runNow() error {
 		return nil
 	} else {
 		module.Module.TerragruntOptions.Logger.Debugf("Running module %s now", module.Module.Path)
-		return module.Module.TerragruntOptions.RunTerragrunt(module.Module.TerragruntOptions)
+		return module.Module.TerragruntOptions.RunTerragrunt(ctx, module.Module.TerragruntOptions)
 	}
 }
 

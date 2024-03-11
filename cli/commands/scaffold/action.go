@@ -1,6 +1,7 @@
 package scaffold
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"os"
@@ -80,7 +81,7 @@ inputs = {
 
 var moduleUrlRegex = regexp.MustCompile(moduleUrlPattern)
 
-func Run(opts *options.TerragruntOptions, moduleUrl, templateUrl string) error {
+func Run(ctx context.Context, opts *options.TerragruntOptions, moduleUrl, templateUrl string) error {
 	// download remote repo to local
 	var dirsToClean []string
 	// clean all temp dirs

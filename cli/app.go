@@ -34,6 +34,7 @@ import (
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 func init() {
@@ -147,6 +148,8 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 		opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
 		opts.Logger = util.CreateLogEntry("", opts.LogLevel)
 		opts.Logger.Logger.SetOutput(ctx.App.ErrWriter)
+
+		log.SetLogger(opts.Logger.Logger)
 
 		// --- Working Dir
 		if opts.WorkingDir == "" {

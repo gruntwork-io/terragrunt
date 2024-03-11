@@ -5,6 +5,7 @@
 package validateinputs
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -22,13 +23,13 @@ import (
 
 const splitCount = 2
 
-func Run(opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	target := terraform.NewTarget(terraform.TargetPointGenerateConfig, runValidateInputs)
 
-	return terraform.RunWithTarget(opts, target)
+	return terraform.RunWithTarget(ctx, opts, target)
 }
 
-func runValidateInputs(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	required, optional, err := tr.ModuleVariables(opts.WorkingDir)
 	if err != nil {
 		return err
@@ -158,10 +159,13 @@ func getTerraformInputNamesFromEnvVar(opts *options.TerragruntOptions, terragrun
 		}
 	}
 
-	out := []string{}
+	var (
+		out         = []string{}
+		tfVarPrefix = fmt.Sprintf(tr.EnvNameTFVarFmt, "")
+	)
 	for envName := range envVars {
-		if strings.HasPrefix(envName, tr.TFVarPrefix) {
-			out = append(out, strings.TrimPrefix(envName, fmt.Sprintf("%s_", tr.TFVarPrefix)))
+		if inputName := strings.TrimPrefix(envName, tfVarPrefix); inputName != "" {
+			out = append(out, inputName)
 		}
 	}
 	return out

@@ -27,6 +27,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/terraform"
+	terraformcmd "github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -316,7 +317,7 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, dependencyConfigs []Depende
 	// various attributes for accessing information about the target config (including the module outputs).
 	dependencyMap := map[string]cty.Value{}
 	lock := sync.Mutex{}
-	dependencyErrGroup, _ := errgroup.WithContext(ctx.Context)
+	dependencyErrGroup, _ := errgroup.WithContext(ctx)
 
 	for _, dependencyConfig := range dependencyConfigs {
 		dependencyConfig := dependencyConfig // https://golang.org/doc/faq#closures_and_goroutines
@@ -662,7 +663,7 @@ func terragruntAlreadyInit(terragruntOptions *options.TerragruntOptions, configP
 			workingDir = filepath.Dir(configPath)
 		}
 	} else {
-		terraformSource, err := terraform.NewSource(sourceUrl, terragruntOptions.DownloadDir, terragruntOptions.WorkingDir, terragruntOptions.Logger)
+		terraformSource, err := terraformcmd.NewSource(sourceUrl, terragruntOptions.DownloadDir, terragruntOptions.WorkingDir, terragruntOptions.Logger)
 		if err != nil {
 			return false, "", err
 		}
@@ -688,7 +689,7 @@ func getTerragruntOutputJsonFromInitFolder(ctx *ParsingContext, terraformWorking
 		return nil, err
 	}
 
-	out, err := shell.RunTerraformCommandWithOutput(targetTGOptions, "output", "-json")
+	out, err := shell.RunTerraformCommandWithOutput(targetTGOptions, terraform.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -782,7 +783,7 @@ func getTerragruntOutputJsonFromRemoteState(
 	runTerraformInitForDependencyOutput(ctx, tempWorkDir, targetConfigPath)
 
 	// Now that the backend is initialized, run terraform output to get the data and return it.
-	out, err := shell.RunTerraformCommandWithOutput(targetTGOptions, "output", "-json")
+	out, err := shell.RunTerraformCommandWithOutput(targetTGOptions, terraform.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -872,7 +873,7 @@ func runTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, 
 	stdoutBufferWriter := bufio.NewWriter(&stdoutBuffer)
 	ctx.TerragruntOptions.Writer = stdoutBufferWriter
 
-	err := ctx.TerragruntOptions.RunTerragrunt(ctx.TerragruntOptions)
+	err := ctx.TerragruntOptions.RunTerragrunt(ctx, ctx.TerragruntOptions)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
@@ -934,7 +935,7 @@ func runTerraformInitForDependencyOutput(ctx *ParsingContext, workingDir string,
 	initTGOptions := cloneTerragruntOptionsForDependency(ctx, targetConfigPath)
 	initTGOptions.WorkingDir = workingDir
 	initTGOptions.ErrWriter = &stderr
-	err := shell.RunTerraformCommand(initTGOptions, "init", "-get=false")
+	err := shell.RunTerraformCommand(initTGOptions, terraform.CommandNameInit, "-get=false")
 	if err != nil {
 		ctx.TerragruntOptions.Logger.Debugf("Ignoring expected error from dependency init call")
 		ctx.TerragruntOptions.Logger.Debugf("Init call stderr:")

@@ -15,11 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
-	"debug",
-	"force-unlock",
-	"state",
-}
+const ContextKey ctxKey = iota
 
 const (
 	DefaultMaxFoldersToCheck = 100
@@ -41,11 +37,22 @@ const (
 	DefaultIAMAssumeRoleDuration = 3600
 
 	minCommandLength = 2
+
+	defaultRegistryHostname = "localhost"
+	defaultRegistryPort     = 5758
 )
 
-const ContextKey ctxKey = iota
+var (
+	DefaultWrappedPath = identifyDefaultWrappedExecutable()
 
-var DefaultWrappedPath = identifyDefaultWrappedExecutable()
+	defaultRegistryNames = []string{"registry.terraform.io"}
+)
+
+var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
+	"debug",
+	"force-unlock",
+	"state",
+}
 
 type ctxKey byte
 
@@ -218,7 +225,7 @@ type TerragruntOptions struct {
 	// in the cli package, which depends on almost all other packages, so we declare it here so that other
 	// packages can use the command without a direct reference back to the cli package (which would create a
 	// circular dependency).
-	RunTerragrunt func(*TerragruntOptions) error
+	RunTerragrunt func(ctx context.Context, opts *TerragruntOptions) error
 
 	// True if terragrunt should run in debug mode, writing terragrunt-debug.tfvars to working folder to help
 	// root-cause issues.
@@ -263,6 +270,14 @@ type TerragruntOptions struct {
 
 	// Root directory for graph command.
 	GraphRoot string
+
+	ProviderCache        bool
+	ProviderCacheDir     string
+	ProviderCompleteLock bool
+	RegistryHostname     string
+	RegistryPort         int
+	RegistryToken        string
+	RegistryNames        []string
 }
 
 // IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
@@ -337,9 +352,12 @@ func NewTerragruntOptions() *TerragruntOptions {
 		TerraformImplementation:        UnknownImpl,
 		JsonLogFormat:                  false,
 		TerraformLogsToJson:            false,
-		RunTerragrunt: func(opts *TerragruntOptions) error {
+		RunTerragrunt: func(ctx context.Context, opts *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
+		RegistryHostname: defaultRegistryHostname,
+		RegistryPort:     defaultRegistryPort,
+		RegistryNames:    defaultRegistryNames,
 	}
 }
 
@@ -467,6 +485,8 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		GraphRoot:                      opts.GraphRoot,
 		ScaffoldVars:                   opts.ScaffoldVars,
 		ScaffoldVarFiles:               opts.ScaffoldVarFiles,
+		ProviderCache:                  opts.ProviderCache,
+		ProviderCompleteLock:           opts.ProviderCompleteLock,
 	}
 }
 

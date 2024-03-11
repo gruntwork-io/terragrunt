@@ -1,6 +1,7 @@
 package runall
 
 import (
+	"context"
 	"sort"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands"
@@ -17,32 +18,89 @@ import (
 
 const (
 	CommandName = "run-all"
+
+	FlagNameTerragruntProviderCache        = "terragrunt-provider-cache"
+	FlagNameTerragruntProviderCacheDir     = "terragrunt-provider-cache-dir"
+	FlagNameTerragruntProviderCompleteLock = "terragrunt-provider-complete-lock"
+	FlagNameTerragruntRegistryHostname     = "terragrunt-registry-hostname"
+	FlagNameTerragruntRegistryPort         = "terragrunt-registry-port"
+	FlagNameTerragruntRegistryToken        = "terragrunt-registry-token"
+	FlagNameTerragruntRegistryNames        = "terragrunt-registry-names"
 )
+
+func NewFlags(opts *options.TerragruntOptions) cli.Flags {
+	globalFlags := commands.NewGlobalFlags(opts)
+	globalFlags.Add(
+		&cli.BoolFlag{
+			Name:        FlagNameTerragruntProviderCache,
+			Destination: &opts.ProviderCache,
+			EnvVar:      "TERRAGRUNT_PROVIDER_CACHE",
+			Usage:       "",
+		},
+		&cli.GenericFlag[string]{
+			Name:        FlagNameTerragruntProviderCacheDir,
+			Destination: &opts.ProviderCacheDir,
+			EnvVar:      "TERRAGRUNT_PROVIDER_CACHE_DIR",
+			Usage:       "",
+		},
+		&cli.BoolFlag{
+			Name:        FlagNameTerragruntProviderCompleteLock,
+			Destination: &opts.ProviderCompleteLock,
+			EnvVar:      "TERRAGRUNT_PROVIDER_COMPLETE_LOCK",
+			Usage:       "",
+		},
+		&cli.GenericFlag[string]{
+			Name:        FlagNameTerragruntRegistryToken,
+			Destination: &opts.RegistryToken,
+			EnvVar:      "TERRAGRUNT_REGISTRY_TOKEN",
+			Usage:       "",
+		},
+		&cli.GenericFlag[string]{
+			Name:        FlagNameTerragruntRegistryHostname,
+			Destination: &opts.RegistryHostname,
+			EnvVar:      "TERRAGRUNT_REGISTRY_HOSTNAME",
+			Usage:       "",
+		},
+		&cli.GenericFlag[int]{
+			Name:        FlagNameTerragruntRegistryPort,
+			Destination: &opts.RegistryPort,
+			EnvVar:      "TERRAGRUNT_REGISTRY_PORT",
+			Usage:       "",
+		},
+		&cli.SliceFlag[string]{
+			Name:        FlagNameTerragruntRegistryNames,
+			Destination: &opts.RegistryNames,
+			EnvVar:      "TERRAGRUNT_REGISTRY_NAMES",
+			Usage:       "",
+		})
+	return globalFlags
+}
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:        CommandName,
 		Usage:       "Run a terraform command against a 'stack' by running the specified command in each subfolder.",
 		Description: "The command will recursively find terragrunt modules in the current directory tree and run the terraform command in dependency order (unless the command is destroy, in which case the command is run in reverse dependency order).",
-		Flags:       commands.NewGlobalFlags(opts),
+		Flags:       NewFlags(opts).Sort(),
 		Subcommands: subCommands(opts).SkipRunning(),
 		Action:      action(opts),
 	}
 }
 
 func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
-	return func(ctx *cli.Context) error {
-		opts.RunTerragrunt = func(opts *options.TerragruntOptions) error {
-			if cmd := ctx.Command.Subcommand(opts.TerraformCommand); cmd != nil {
-				ctx := ctx.WithValue(options.ContextKey, opts)
-
-				return cmd.Action(ctx)
+	return func(cliCtx *cli.Context) error {
+		opts.RunTerragrunt = func(ctx context.Context, opts *options.TerragruntOptions) error {
+			if cmd := cliCtx.Command.Subcommand(opts.TerraformCommand); cmd != nil {
+				cliCtx := cliCtx.WithValue(options.ContextKey, opts)
+				return cmd.Action(cliCtx)
 			}
-
-			return terraform.Run(opts)
+			return terraform.Run(ctx, opts)
 		}
 
-		return Run(opts.OptionsFromContext(ctx))
+		if opts.ProviderCache {
+			return RunWithProviderCache(cliCtx, opts.OptionsFromContext(cliCtx))
+		}
+		return Run(cliCtx, opts.OptionsFromContext(cliCtx))
 	}
 }
 
