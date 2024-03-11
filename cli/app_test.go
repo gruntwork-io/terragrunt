@@ -14,10 +14,11 @@ import (
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	terraformcmd "github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
+	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -449,7 +450,7 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 		deprecatedCommands(opts),
 		terragruntCommands...)
 	app.CommonBefore = initialSetup(opts)
-	app.DefaultCommand = terraform.NewCommand(opts)
+	app.DefaultCommand = terraformcmd.NewCommand(opts)
 	app.DefaultCommand.Action = nil
 	app.OsExiter = osExiter
 

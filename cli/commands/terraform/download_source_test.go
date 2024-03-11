@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/url"
@@ -251,7 +252,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 
 	assert.NoError(t, err)
 
-	err = downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions, terragruntConfig)
+	err = downloadTerraformSourceIfNecessary(context.Background(), terraformSource, terragruntOptions, terragruntConfig)
 	assert.NotNil(t, err)
 	_, ok := errors.Unwrap(err).(DownloadingTerraformSourceErr)
 	assert.True(t, ok)
@@ -364,7 +365,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 
 	assert.NoError(t, err)
 
-	err = downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions, terragruntConfig)
+	err = downloadTerraformSourceIfNecessary(context.Background(), terraformSource, terragruntOptions, terragruntConfig)
 	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	expectedFilePath := util.JoinPath(downloadDir, "main.tf")
