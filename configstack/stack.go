@@ -125,11 +125,11 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 
 	switch {
 	case terragruntOptions.IgnoreDependencyOrder:
-		return RunModulesIgnoreOrder(terragruntOptions, stack.Modules, terragruntOptions.Parallelism)
+		return RunModulesIgnoreOrder(ctx, terragruntOptions, stack.Modules, terragruntOptions.Parallelism)
 	case stackCmd == "destroy":
-		return RunModulesReverseOrder(terragruntOptions, stack.Modules, terragruntOptions.Parallelism)
+		return RunModulesReverseOrder(ctx, terragruntOptions, stack.Modules, terragruntOptions.Parallelism)
 	default:
-		return RunModules(terragruntOptions, stack.Modules, terragruntOptions.Parallelism)
+		return RunModules(ctx, terragruntOptions, stack.Modules, terragruntOptions.Parallelism)
 	}
 }
 

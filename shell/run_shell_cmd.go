@@ -20,7 +20,6 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
-	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -97,15 +96,6 @@ func RunShellCommandWithOutput(
 		"args":    fmt.Sprintf("%v", args),
 		"dir":     commandDir,
 	}, func(childCtx context.Context) error {
-
-		// Terrafrom `init` command with the plugin cache directory is not guaranteed to be concurrency safe.
-		// The provider installer's behavior in environments with multiple terraform init calls is undefined.
-		// Thus, terraform `init` commands must be executed sequentially, even if `--terragrunt-parallelism` is greater than 1.
-		if command == "terraform" && collections.ListContainsElement(args, "init") && terraform.IsPluginCacheUsed() {
-			defer terraformInitMutex.Unlock()
-			terraformInitMutex.Lock()
-		}
-
 		terragruntOptions.Logger.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 		if suppressStdout {
 			terragruntOptions.Logger.Debugf("Command output will be suppressed.")
