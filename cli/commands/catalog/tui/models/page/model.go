@@ -5,9 +5,6 @@ package page
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
-	"runtime"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -156,9 +153,6 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	rawMsg := fmt.Sprintf("%T", msg)
 	// handle special case for Exit alt screen
 	if rawMsg == "tea.execMsg" {
-		defer func() {
-			os.Exit(0)
-		}()
 		return model, tea.Sequence(Cmd(ClearScreenCmd()), tea.Quit)
 	}
 
@@ -194,25 +188,7 @@ func (model Model) footerView() string {
 
 // ClearScreen - explicit clear screen to avoid terminal hanging
 func ClearScreen() tea.Msg {
-	ansiTerminalReset()
-	if runtime.GOOS == "darwin" {
-		cmd := exec.Command("stty", "sane")
-		_ = cmd.Run()
-	}
-	if runtime.GOOS == "linux" {
-		cmd := exec.Command("reset")
-		_ = cmd.Run()
-	}
 	return tea.Sequence(Cmd(tea.ExitAltScreen()), Cmd(tea.ClearScreen()), Cmd(tea.ClearScrollArea()), tea.Quit)
-}
-
-func ansiTerminalReset() {
-	// https://www.unix.com/os-x-apple-/279401-means-clearing-scroll-buffer-osx-terminal.html
-	fmt.Print("\033c")   // Reset the terminal
-	fmt.Print("\033[2J") // Clear the screen
-	fmt.Print("\033[3J") // Clear buffer
-	fmt.Print("\033[H")  // Move the cursor to the home position
-	fmt.Print("\033[0m") // Reset all terminal attributes to their defaults
 }
 
 // ClearScreenCmd - command to clear the screen

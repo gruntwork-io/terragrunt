@@ -2,8 +2,6 @@ package list
 
 import (
 	"fmt"
-	"os"
-
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -99,9 +97,6 @@ func (model Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	rawMsg := fmt.Sprintf("%T", msg)
 	// handle special case for Exit alt screen
 	if rawMsg == "tea.execMsg" {
-		defer func() {
-			os.Exit(0)
-		}()
 		return model, tea.Sequence(page.Cmd(page.ClearScreenCmd()), tea.Quit)
 	}
 
