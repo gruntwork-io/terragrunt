@@ -64,7 +64,7 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 					platformName = controllers.PlatformNameCacheProviderAndArchive
 				}
 
-				if err := runTerraformProvidersLock(ctx, opts, "-platform="+platformName); err != nil {
+				if err := runTerraformProvidersLock(opts, "-platform="+platformName); err != nil {
 					return nil, err
 				}
 				registryServer.WaitForCacheReady(ctx)
@@ -72,7 +72,7 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 				if opts.ProviderCompleteLock && !util.FileExists(filepath.Join(opts.WorkingDir, terraform.TerraformLockFile)) {
 					log.Debugf("Generating Terraform lock file for %q", opts.WorkingDir)
 
-					if err := runTerraformProvidersLock(ctx, opts); err != nil {
+					if err := runTerraformProvidersLock(opts); err != nil {
 						return nil, err
 					}
 				}
@@ -89,7 +89,7 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 	return errGroup.Wait()
 }
 
-func runTerraformProvidersLock(ctx context.Context, opts *options.TerragruntOptions, flags ...string) error {
+func runTerraformProvidersLock(opts *options.TerragruntOptions, flags ...string) error {
 	errWritter := util.NewTrapWriter(opts.ErrWriter, httpStatusCacheProcessingReg)
 
 	lockOpts := opts.Clone(opts.TerragruntConfigPath)

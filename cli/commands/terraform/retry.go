@@ -32,7 +32,7 @@ func (retry *Retry) Run(ctx context.Context, opts *options.TerragruntOptions, ca
 	// Retry the command configurable time with sleep in between
 	for i := 0; i < opts.RetryMaxAttempts; i++ {
 		if out, err := retry.do(ctx, opts, callback); err != nil {
-			if out == nil || !isRetryable(ctx, opts, out) {
+			if out == nil || !isRetryable(opts, out) {
 				opts.Logger.Errorf("%s invocation failed in %s", opts.TerraformImplementation, opts.WorkingDir)
 				return err
 			} else if opts.RetrySleepIntervalSec != 0 {
@@ -62,7 +62,7 @@ func RetryFromContext(ctx context.Context) *Retry {
 }
 
 // isRetryable checks whether there was an error and if the output matches any of the configured RetryableErrors
-func isRetryable(ctx context.Context, opts *options.TerragruntOptions, out *shell.CmdOutput) bool {
+func isRetryable(opts *options.TerragruntOptions, out *shell.CmdOutput) bool {
 	if !opts.AutoRetry {
 		return false
 	}

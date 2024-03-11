@@ -20,6 +20,7 @@ import (
 
 var (
 	defaultBaseCacheDir = filepath.Join(os.TempDir(), "terragrunt-provider-cache")
+	unzipFileMode       = os.FileMode(0000)
 )
 
 // We borrow the "unpack a zip cache into a target directory" logic from
@@ -61,17 +62,19 @@ func (cache *ProviderCache) fetch(ctx context.Context) error {
 		return errors.WithStackTrace(err)
 	}
 	go func() {
-		defer out.Close()
 		// Closing os.Stdin will cause io.Copy to return with error "cache already closed" next time it reads from it.
-		// This will stop donwload process when pressing Ctrl-C.
+		// This will stop download process when pressing Ctrl-C.
 		<-ctx.Done()
+		_ = out.Close()
 	}()
 
 	resp, err := http.Get(cache.DownloadURL.String())
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if _, err := io.Copy(out, resp.Body); err != nil {
 		return errors.WithStackTrace(err)
@@ -112,7 +115,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if !unpackedFound {
-		if err := unzip.Decompress(cache.cacheDir, cache.Filename, true, 0000); err != nil {
+		if err := unzip.Decompress(cache.cacheDir, cache.Filename, true, unzipFileMode); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}

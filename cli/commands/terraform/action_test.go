@@ -147,7 +147,7 @@ func TestErrorRetryableOnStdoutError(t *testing.T) {
 		Stderr: "error is here",
 	}
 
-	retryable := isRetryable(context.Background(), tgOptions, out)
+	retryable := isRetryable(tgOptions, out)
 	require.True(t, retryable, "The error should have retried")
 }
 
@@ -166,7 +166,7 @@ func TestErrorMultipleRetryableOnStderrError(t *testing.T) {
 		Stderr: "error is here",
 	}
 
-	retryable := isRetryable(context.Background(), tgOptions, out)
+	retryable := isRetryable(tgOptions, out)
 	require.True(t, retryable, "The error should have retried")
 }
 
@@ -185,7 +185,7 @@ func TestEmptyRetryablesOnStderrError(t *testing.T) {
 		Stderr: "error is here",
 	}
 
-	retryable := isRetryable(context.Background(), tgOptions, out)
+	retryable := isRetryable(tgOptions, out)
 	require.False(t, retryable, "The error should not have retried, the list of retryable errors was empty")
 }
 
@@ -204,7 +204,7 @@ func TestErrorRetryableOnStderrError(t *testing.T) {
 		Stderr: "error is here",
 	}
 
-	retryable := isRetryable(context.Background(), tgOptions, out)
+	retryable := isRetryable(tgOptions, out)
 	require.True(t, retryable, "The error should have retried")
 }
 
@@ -223,7 +223,7 @@ func TestErrorNotRetryableOnStdoutError(t *testing.T) {
 		Stderr: "",
 	}
 
-	retryable := isRetryable(context.Background(), tgOptions, out)
+	retryable := isRetryable(tgOptions, out)
 	require.False(t, retryable, "The error should not retry")
 }
 
@@ -242,7 +242,7 @@ func TestErrorNotRetryableOnStderrError(t *testing.T) {
 		Stderr: "error is here",
 	}
 
-	retryable := isRetryable(context.Background(), tgOptions, out)
+	retryable := isRetryable(tgOptions, out)
 	require.False(t, retryable, "The error should not retry")
 }
 

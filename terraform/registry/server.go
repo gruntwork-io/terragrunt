@@ -26,9 +26,9 @@ type Server struct {
 func NewServer(config *Config) *Server {
 	providerService := services.NewProviderService()
 
-	// authorization := &handlers.Authorization{
-	// 	Token: token,
-	// }
+	authorization := &handlers.Authorization{
+		Token: config.Token,
+	}
 
 	reverseProxy := &handlers.ReverseProxy{
 		ServerURL: &url.URL{
@@ -43,7 +43,7 @@ func NewServer(config *Config) *Server {
 	}
 
 	providerController := &controllers.ProviderController{
-		//Authorization:          authorization,
+		Authorization:   authorization,
 		ReverseProxy:    reverseProxy,
 		ProviderService: providerService,
 		Downloader:      downloaderController,
@@ -58,8 +58,6 @@ func NewServer(config *Config) *Server {
 
 	v1Group := rootRouter.Group("v1")
 	v1Group.Register(providerController)
-
-	//rootRouter.Echo.Use(middleware.Logger())
 
 	return &Server{
 		ProviderService:    providerService,
