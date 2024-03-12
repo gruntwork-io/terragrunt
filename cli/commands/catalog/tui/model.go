@@ -93,10 +93,6 @@ func newModel(modules module.Modules, opts *options.TerragruntOptions) (model, e
 
 	// Setup the markdown viewer
 	vp := viewport.New(maxWidth, 20)
-	// vp.Style = lipgloss.NewStyle().
-	// 	BorderStyle(lipgloss.RoundedBorder()).
-	// 	BorderForeground(lipgloss.Color("62")).
-	// 	PaddingRight(0)
 
 	// Setup the button bar
 	bs := make([]string, lastBtn)
