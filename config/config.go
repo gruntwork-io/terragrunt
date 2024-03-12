@@ -729,6 +729,7 @@ func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, confi
 		}
 
 		var cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v", configPath, childKey, ctx.PartialParseDecodeList, opts.WorkingDir, dir)
+		opts.Logger.Printf("Cache key: %s", cacheKey)
 		if cacheConfig, found := terragruntConfigCache.Get(cacheKey); found {
 			ctx.TerragruntOptions.Logger.Debugf("Cache hit for %s", configPath)
 			config = cacheConfig.Clone()
