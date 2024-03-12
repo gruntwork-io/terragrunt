@@ -1172,6 +1172,7 @@ generate = local.common.generate
   - [iam\_role](#iam_role)
   - [iam\_assume\_role\_duration](#iam_assume_role_duration)
   - [iam\_assume\_role\_session\_name](#iam_assume_role_session_name)
+  - [iam\_web\_identity\_token(#iam_web_identity_token)
   - [terraform\_binary](#terraform_binary)
   - [terraform\_version\_constraint](#terraform_version_constraint)
   - [terragrunt\_version\_constraint](#terragrunt_version_constraint)
@@ -1326,6 +1327,14 @@ The `iam_assume_role_session_name` attribute can be used to specify the STS sess
 
 The precedence is as follows: `--terragrunt-iam-assume-role-session-name` command line option → `TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME` env variable →
 `iam_assume_role_session_name` attribute of the `terragrunt.hcl` file in the module directory → `iam_assume_role_session_name` attribute of the included
+`terragrunt.hcl`.
+
+### iam_web_identity_token
+
+The `iam_web_identity_token` attribute can be used along with `iam_role` to assume a role using AssumeRoleWithWebIdentity. `iam_web_identity_token` can be set to either the token value (typically using `get_env()`), or the path to a file on disk.
+
+The precedence is as follows: `--terragrunt-iam-web-identity-token` command line option → `TERRRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN` env variable →
+`iam_web_identity_token` attribute of the `terragrunt.hcl` file in the module directory → `iam_web_identity_token` attribute of the included
 `terragrunt.hcl`.
 
 ### terraform_binary

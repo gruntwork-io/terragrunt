@@ -49,6 +49,7 @@ const (
 	MetadataIamRole                     = "iam_role"
 	MetadataIamAssumeRoleDuration       = "iam_assume_role_duration"
 	MetadataIamAssumeRoleSessionName    = "iam_assume_role_session_name"
+	MetadataIamWebIdentityToken         = "iam_web_identity_token"
 	MetadataInputs                      = "inputs"
 	MetadataLocals                      = "locals"
 	MetadataLocal                       = "local"
@@ -94,6 +95,7 @@ type TerragruntConfig struct {
 	IamRole                     string
 	IamAssumeRoleDuration       *int64
 	IamAssumeRoleSessionName    string
+	IamWebIdentityToken         string
 	Inputs                      map[string]interface{}
 	Locals                      map[string]interface{}
 	TerragruntDependencies      []Dependency
@@ -126,6 +128,7 @@ func (conf *TerragruntConfig) GetIAMRoleOptions() options.IAMRoleOptions {
 	configIAMRoleOptions := options.IAMRoleOptions{
 		RoleARN:               conf.IamRole,
 		AssumeRoleSessionName: conf.IamAssumeRoleSessionName,
+		WebIdentityToken:      conf.IamWebIdentityToken,
 	}
 	if conf.IamAssumeRoleDuration != nil {
 		configIAMRoleOptions.AssumeRoleDuration = *conf.IamAssumeRoleDuration
@@ -166,6 +169,7 @@ type terragruntConfigFile struct {
 	IamRole                  *string             `hcl:"iam_role,attr"`
 	IamAssumeRoleDuration    *int64              `hcl:"iam_assume_role_duration,attr"`
 	IamAssumeRoleSessionName *string             `hcl:"iam_assume_role_session_name,attr"`
+	IamWebIdentityToken      *string             `hcl:"iam_web_identity_token,attr"`
 	TerragruntDependencies   []Dependency        `hcl:"dependency,block"`
 
 	// We allow users to configure code generation via blocks:
@@ -1057,6 +1061,11 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	if terragruntConfigFromFile.IamAssumeRoleSessionName != nil {
 		terragruntConfig.IamAssumeRoleSessionName = *terragruntConfigFromFile.IamAssumeRoleSessionName
 		terragruntConfig.SetFieldMetadata(MetadataIamAssumeRoleSessionName, defaultMetadata)
+	}
+
+	if terragruntConfigFromFile.IamWebIdentityToken != nil {
+		terragruntConfig.IamWebIdentityToken = *terragruntConfigFromFile.IamWebIdentityToken
+		terragruntConfig.SetFieldMetadata(MetadataIamWebIdentityToken, defaultMetadata)
 	}
 
 	generateBlocks := []terragruntGenerateBlock{}

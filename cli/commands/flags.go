@@ -22,6 +22,7 @@ const (
 	TerragruntIAMRoleFlagName                        = "terragrunt-iam-role"
 	TerragruntIAMAssumeRoleDurationFlagName          = "terragrunt-iam-assume-role-duration"
 	TerragruntIAMAssumeRoleSessionNameFlagName       = "terragrunt-iam-assume-role-session-name"
+	FlagNameTerragruntIAMWebIdentityToken            = "terragrunt-iam-web-identity-token"
 	TerragruntIgnoreDependencyErrorsFlagName         = "terragrunt-ignore-dependency-errors"
 	TerragruntIgnoreDependencyOrderFlagName          = "terragrunt-ignore-dependency-order"
 	TerragruntIgnoreExternalDependenciesFlagName     = "terragrunt-ignore-external-dependencies"
@@ -157,6 +158,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.IAMRoleOptions.AssumeRoleSessionName,
 			EnvVar:      "TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME",
 			Usage:       "Name for the IAM Assummed Role session. Can also be set via TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME environment variable.",
+		},
+		&cli.GenericFlag[string]{
+			Name:        FlagNameTerragruntIAMWebIdentityToken,
+			Destination: &opts.IAMRoleOptions.WebIdentityToken,
+			EnvVar:      "TERRRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN",
+			Usage:       "For AssumeRoleWithWebIdentity, the WebIdentity token. Can also be set via TERRRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN environment variable",
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntIgnoreDependencyErrorsFlagName,

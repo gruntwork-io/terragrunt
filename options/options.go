@@ -304,6 +304,9 @@ type IAMRoleOptions struct {
 	// The ARN of an IAM Role to assume. Used when accessing AWS, both internally and through terraform.
 	RoleARN string
 
+	// The Web identity token. Used when RoleArn is also set to use AssumeRoleWithWebIdentity instead of AssumeRole.
+	WebIdentityToken string
+
 	// Duration of the STS Session when assuming the role.
 	AssumeRoleDuration int64
 
@@ -324,6 +327,10 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 
 	if source.AssumeRoleSessionName != "" {
 		out.AssumeRoleSessionName = source.AssumeRoleSessionName
+	}
+
+	if source.WebIdentityToken != "" {
+		out.WebIdentityToken = source.WebIdentityToken
 	}
 
 	return out
