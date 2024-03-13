@@ -58,6 +58,7 @@ func updateList(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 					m.selectedModule = selectedModule
 					m.state = pagerState
 				case key.Matches(msg, m.delegateKeys.scaffold):
+					m.state = scaffoldState
 					return m, scaffoldModuleCmd(m, selectedModule)
 				}
 			} else {
@@ -92,6 +93,7 @@ func updatePager(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.pagerKeys.Choose):
 			// Choose changes the action depending on the active button
 			if m.activeButton == scaffoldBtn {
+				m.state = scaffoldState
 				return m, scaffoldModuleCmd(m, m.selectedModule)
 			} else {
 				if err := browser.OpenURL(m.selectedModule.URL()); err != nil {
@@ -100,6 +102,7 @@ func updatePager(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			}
 
 		case key.Matches(msg, m.pagerKeys.Scaffold):
+			m.state = scaffoldState
 			return m, scaffoldModuleCmd(m, m.selectedModule)
 
 		case key.Matches(msg, m.pagerKeys.Quit):
@@ -109,7 +112,6 @@ func updatePager(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		}
 	case buttonbar.ActiveBtnMsg:
 		m.activeButton = button(msg)
-
 	}
 
 	// Handle keyboard and mouse events in the viewport
@@ -161,6 +163,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return updateList(msg, m)
 	case pagerState:
 		return updatePager(msg, m)
+	case scaffoldState:
+		// if we're on the scaffold state, we do nothing and wait for the
+		// scaffoldFinishedMsg message. This prevents further input.
+		return m, nil
 	}
 
 	return m, nil

@@ -24,6 +24,9 @@ func (m model) View() string {
 		s = m.listView()
 	case pagerState:
 		s = m.pagerView()
+	case scaffoldState:
+	default:
+		s = ""
 	}
 
 	return s
