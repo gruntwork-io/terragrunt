@@ -62,3 +62,28 @@ func MustWalkTerraformOutput(value interface{}, path ...string) interface{} {
 	}
 	return found
 }
+
+func Clone(src interface{}) interface{} {
+	srcVal := reflect.ValueOf(src)
+	srcVal = srcVal.Elem()
+	dstVal := reflect.New(srcVal.Type()).Elem()
+	for i := 0; i < srcVal.NumField(); i++ {
+		field := srcVal.Field(i)
+		dstField := dstVal.Field(i)
+		if dstField.CanSet() {
+			switch field.Kind() {
+			case reflect.Struct:
+				dstField.Set(reflect.ValueOf(Clone(field.Addr().Interface())).Elem())
+			case reflect.Slice, reflect.Array:
+				newSlice := reflect.MakeSlice(field.Type(), field.Len(), field.Cap())
+				for j := 0; j < field.Len(); j++ {
+					newSlice.Index(j).Set(reflect.ValueOf(Clone(field.Index(j).Addr().Interface())).Elem())
+				}
+				dstField.Set(newSlice)
+			default:
+				dstField.Set(field)
+			}
+		}
+	}
+	return dstVal.Addr().Interface()
+}
