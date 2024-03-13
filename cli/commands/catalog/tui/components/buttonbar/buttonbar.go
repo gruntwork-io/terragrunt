@@ -94,10 +94,3 @@ func (b *ButtonBar) View() string {
 func (b *ButtonBar) activeBtnCmd() tea.Msg {
 	return ActiveBtnMsg(b.activeButton)
 }
-
-// SelectBtnCmd is a bubbletea command that selects the button at the given index.
-func SelectBtnCmd(button int) tea.Cmd {
-	return func() tea.Msg {
-		return SelectBtnMsg(button)
-	}
-}
