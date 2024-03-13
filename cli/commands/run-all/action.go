@@ -1,10 +1,13 @@
 package runall
 
 import (
+	"context"
+
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/telemetry"
 )
 
 // Known terraform commands that are explicitly not supported in run-all due to the nature of the command. This is
@@ -71,5 +74,10 @@ func RunAllOnStack(opts *options.TerragruntOptions, stack *configstack.Stack) er
 		}
 	}
 
-	return stack.Run(opts)
+	return telemetry.Telemetry(opts, "run_all_on_stack", map[string]interface{}{
+		"terraform_command": opts.TerraformCommand,
+		"working_dir":       opts.WorkingDir,
+	}, func(childCtx context.Context) error {
+		return stack.Run(opts)
+	})
 }
