@@ -10,12 +10,7 @@ import (
 )
 
 func Run(ctx context.Context, modules module.Modules, opts *options.TerragruntOptions) error {
-	model, err := newModel(modules, opts)
-	if err != nil {
-		return err
-	}
-
-	if _, err := tea.NewProgram(model, tea.WithAltScreen(), tea.WithContext(ctx)).Run(); err != nil {
+	if _, err := tea.NewProgram(newModel(modules, opts), tea.WithAltScreen(), tea.WithContext(ctx)).Run(); err != nil {
 		if err := context.Cause(ctx); err == context.Canceled {
 			return nil
 		} else if err != nil {

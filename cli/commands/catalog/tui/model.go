@@ -18,8 +18,7 @@ type sessionState int
 type button int
 
 const (
-	maxWidth = 120
-	title    = "List of Modules"
+	title = "List of Modules"
 
 	titleForegroundColor = "#A8ACB1"
 	titleBackgroundColor = "#1D252F"
@@ -28,7 +27,7 @@ const (
 const (
 	listState sessionState = iota
 	pagerState
-	exitingState
+	scaffoldState
 )
 
 const (
@@ -67,7 +66,7 @@ type model struct {
 	terragruntOptions *options.TerragruntOptions
 }
 
-func newModel(modules module.Modules, opts *options.TerragruntOptions) (model, error) {
+func newModel(modules module.Modules, opts *options.TerragruntOptions) model {
 	var (
 		items        []list.Item
 		listKeys     = newListKeyMap()
@@ -92,7 +91,7 @@ func newModel(modules module.Modules, opts *options.TerragruntOptions) (model, e
 		Padding(0, 1)
 
 	// Setup the markdown viewer
-	vp := viewport.New(maxWidth, 20)
+	vp := viewport.New(0, 0)
 
 	// Setup the button bar
 	bs := make([]string, lastBtn)
@@ -109,7 +108,7 @@ func newModel(modules module.Modules, opts *options.TerragruntOptions) (model, e
 		buttonBar:         bb,
 		pagerKeys:         pagerKeys,
 		terragruntOptions: opts,
-	}, nil
+	}
 }
 
 // Init implements bubbletea.Model.Init
