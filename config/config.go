@@ -692,40 +692,12 @@ func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, confi
 		"config_path": configPath,
 		"working_dir": opts.WorkingDir,
 	}, func(childCtx context.Context) error {
-		childKey := "nil"
-		if includeFromChild != nil {
-			childKey = includeFromChild.String()
-		}
-		decodeListKey := "nil"
-		if ctx.PartialParseDecodeList != nil {
-			decodeListKey = fmt.Sprintf("%v", ctx.PartialParseDecodeList)
-		}
-		// get current directory
-		dir, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-
-		fileInfo, err := os.Stat(configPath)
-		if err != nil {
-			return err // Return zero time on error
-		}
-
-		var cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, opts.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
-
-		opts.Logger.Printf("Cache key: %s", cacheKey)
-		if cacheConfig, found := terragruntConfigCache.Get(cacheKey); found {
-			ctx.TerragruntOptions.Logger.Debugf("Cache hit for %s", configPath)
-			config = cacheConfig.Clone()
-			return nil
-		}
 		// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
 		file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
 		if err != nil {
 			return err
 		}
 		config, err = ParseConfig(ctx, file, includeFromChild)
-		terragruntConfigCache.Put(cacheKey, *config.Clone())
 		if err != nil {
 			return err
 		}
