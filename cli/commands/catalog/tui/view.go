@@ -8,10 +8,10 @@ import (
 )
 
 var (
-	appStyle          = lipgloss.NewStyle().Padding(1, 2)
+	appStyle          = lipgloss.NewStyle().Padding(1, 2) //nolint:gomnd
 	infoPositionStyle = lipgloss.NewStyle().Padding(0, 1).BorderStyle(lipgloss.HiddenBorder())
 	infoLineStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#1D252"))
-	infoHelp          = lipgloss.NewStyle().Padding(2, 0, 0, 2)
+	infoHelp          = lipgloss.NewStyle().Padding(2, 0, 0, 2) //nolint:gomnd
 )
 
 // View is the main view, which just calls the appropriate sub-view and returns a string representation of the TUI
