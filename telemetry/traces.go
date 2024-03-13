@@ -31,7 +31,7 @@ const (
 
 // Trace - collect traces for method execution
 func Trace(opts *options.TerragruntOptions, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
-	ctx := opts.CtxTelemetryCtx
+	ctx := opts.TelemetryCtx
 	if spanExporter == nil || traceProvider == nil || ctx == nil { // invoke function without tracing
 		return fn(ctx)
 	}
