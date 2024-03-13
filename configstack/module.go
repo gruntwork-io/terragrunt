@@ -280,15 +280,36 @@ func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *
 	moduleMap := map[string]*TerraformModule{}
 
 	for _, terragruntConfigPath := range canonicalTerragruntConfigPaths {
-		module, err := resolveTerraformModule(terragruntConfigPath, moduleMap, terragruntOptions, childTerragruntConfig, howTheseModulesWereFound)
+		var module *TerraformModule
+		err := telemetry.Telemetry(terragruntOptions, "resolve_terraform_module", map[string]interface{}{
+			"config_path": terragruntConfigPath,
+			"working_dir": terragruntOptions.WorkingDir,
+		}, func(childCtx context.Context) error {
+			m, err := resolveTerraformModule(terragruntConfigPath, moduleMap, terragruntOptions, childTerragruntConfig, howTheseModulesWereFound)
+			if err != nil {
+				return err
+			}
+			module = m
+			return nil
+		})
 		if err != nil {
 			return moduleMap, err
 		}
-
 		if module != nil {
 			moduleMap[module.Path] = module
-
-			dependencies, err := resolveDependenciesForModule(module, moduleMap, terragruntOptions, childTerragruntConfig, true)
+			var dependencies map[string]*TerraformModule
+			err := telemetry.Telemetry(terragruntOptions, "resolve_dependencies_for_module", map[string]interface{}{
+				"config_path": terragruntConfigPath,
+				"working_dir": terragruntOptions.WorkingDir,
+				"module_path": module.Path,
+			}, func(childCtx context.Context) error {
+				deps, err := resolveDependenciesForModule(module, moduleMap, terragruntOptions, childTerragruntConfig, true)
+				if err != nil {
+					return err
+				}
+				dependencies = deps
+				return nil
+			})
 			if err != nil {
 				return moduleMap, err
 			}

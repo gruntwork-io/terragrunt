@@ -683,6 +683,8 @@ func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*Terrag
 	return ParseConfigFile(terragruntOptions, ctx, terragruntOptions.TerragruntConfigPath, nil)
 }
 
+var hclCache = NewHclCache()
+
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
 func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
@@ -692,10 +694,34 @@ func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, confi
 		"config_path": configPath,
 		"working_dir": opts.WorkingDir,
 	}, func(childCtx context.Context) error {
-		// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
-		file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
+		childKey := "nil"
+		if includeFromChild != nil {
+			childKey = includeFromChild.String()
+		}
+		decodeListKey := "nil"
+		if ctx.PartialParseDecodeList != nil {
+			decodeListKey = fmt.Sprintf("%v", ctx.PartialParseDecodeList)
+		}
+		dir, err := os.Getwd()
 		if err != nil {
 			return err
+		}
+
+		fileInfo, err := os.Stat(configPath)
+		if err != nil {
+			return err
+		}
+		var file *hclparse.File
+		var cacheKey = util.EncodeBase64Sha1(fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, opts.WorkingDir, dir, fileInfo.ModTime().UnixMicro()))
+		if cacheConfig, found := hclCache.Get(cacheKey); found {
+			file = cacheConfig
+		} else {
+			// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
+			file, err = hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
+			if err != nil {
+				return err
+			}
+			hclCache.Put(cacheKey, file)
 		}
 		config, err = ParseConfig(ctx, file, includeFromChild)
 		if err != nil {
