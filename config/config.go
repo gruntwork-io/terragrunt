@@ -738,7 +738,6 @@ func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, confi
 			return err // Return zero time on error
 		}
 
-		var configContent string
 		var cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, opts.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
 
 		opts.Logger.Printf("Cache key: %s", cacheKey)
@@ -749,7 +748,7 @@ func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, confi
 		}
 
 		// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
-		file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromString(configContent, configPath)
+		file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
 		if err != nil {
 			return err
 		}
