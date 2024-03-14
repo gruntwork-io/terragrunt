@@ -61,7 +61,7 @@ type Config struct {
 	ProviderInstallation []*ProviderInstallation          `hcl:"provider_installation"`
 }
 
-// LoadConfig return a new Config instance and loads the default terraform CLI config in order to retrieve `PluginCacheDir` value.
+// LoadConfig return a new Config instance and loads the default/user terraform CLI config in order to retrieve `PluginCacheDir` value.
 // The location of the default config is different for each OS https://developer.hashicorp.com/terraform/cli/config/config-file#locations
 func LoadConfig() (*Config, error) {
 	defaultCfg, diag := cliconfig.LoadConfig()
@@ -109,7 +109,9 @@ func (cfg *Config) AddProviderInstallation(filesystemMethod *ProviderInstallatio
 	cfg.ProviderInstallation = append(cfg.ProviderInstallation, providerInstallation)
 }
 
-func (cfg *Config) SaveConfig(cliConfigFile string) error {
+// Save marshalls and saves CLI config with the given config path.
+// In order to not lose user/default settings, if the user/default CLI config file exists, read the config and place at the top our the config file.
+func (cfg *Config) Save(configPath string) error {
 	hclBytes, err := dethcl.Marshal(cfg)
 	if err != nil {
 		return errors.WithStackTrace(err)
@@ -126,6 +128,7 @@ func (cfg *Config) SaveConfig(cliConfigFile string) error {
 			return errors.WithStackTrace(err)
 		}
 
+		// if `PluginCacheDir` is empty, ensure that it will not be taken from the user/default CLI configuration.
 		if cfg.PluginCacheDir == "" {
 			defaultHCLBytes = configParamNamePluginCacheDirReg.ReplaceAll(defaultHCLBytes, []byte{})
 		}
@@ -133,7 +136,7 @@ func (cfg *Config) SaveConfig(cliConfigFile string) error {
 		hclBytes = append(defaultHCLBytes, hclBytes...)
 	}
 
-	if err := os.WriteFile(cliConfigFile, hclBytes, os.FileMode(0644)); err != nil {
+	if err := os.WriteFile(configPath, hclBytes, os.FileMode(0644)); err != nil {
 		return errors.WithStackTrace(err)
 	}
 

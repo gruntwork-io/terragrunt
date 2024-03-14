@@ -45,7 +45,10 @@ const (
 var (
 	DefaultWrappedPath = identifyDefaultWrappedExecutable()
 
-	defaultRegistryNames = []string{"registry.terraform.io"}
+	defaultRegistryNames = []string{
+		"registry.terraform.io",
+		"registry.opentofu.org",
+	}
 )
 
 var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
