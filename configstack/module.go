@@ -320,8 +320,6 @@ func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *
 	return moduleMap, nil
 }
 
-var existingModules = make(map[string]*TerraformModule)
-
 // Create a TerraformModule struct for the Terraform module specified by the given Terragrunt configuration file path.
 // Note that this method will NOT fill in the Dependencies field of the TerraformModule struct (see the
 // crosslinkDependencies method for that).
@@ -355,13 +353,6 @@ func resolveTerraformModule(terragruntConfigPath string, moduleMap map[string]*T
 	if collections.ListContainsElement(opts.ExcludeDirs, modulePath) {
 		// module is excluded
 		return &TerraformModule{Path: modulePath, TerragruntOptions: opts, FlagExcluded: true}, nil
-	}
-
-	key := fmt.Sprintf("%v-%v-%v", terragruntConfigPath, modulePath, terragruntOptions.WorkingDir)
-	if value, ok := existingModules[key]; ok {
-		value = util.Clone(value).(*TerraformModule)
-		value.TerragruntOptions = opts
-		return value, nil
 	}
 
 	configContext := config.NewParsingContext(context.Background(), opts).WithDecodeList(
@@ -421,9 +412,7 @@ func resolveTerraformModule(terragruntConfigPath string, moduleMap map[string]*T
 		opts.OutputPrefix = fmt.Sprintf("[%v] ", modulePath)
 	}
 
-	m := &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}
-	existingModules[key] = m
-	return util.Clone(m).(*TerraformModule), nil
+	return &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
 }
 
 // Look through the dependencies of the modules in the given map and resolve the "external" dependency paths listed in
@@ -478,12 +467,19 @@ func resolveExternalDependenciesForModules(moduleMap map[string]*TerraformModule
 	return allExternalDependencies, nil
 }
 
+var existingModules = make(map[string]map[string]*TerraformModule)
+
 // resolveDependenciesForModule looks through the dependencies of the given module and resolve the dependency paths listed in the module's config.
 // If `skipExternal` is true, the func returns only dependencies that are inside of the current working directory, which means they are part of the environment the
 // user is trying to apply-all or destroy-all. Note that this method will NOT fill in the Dependencies field of the TerraformModule struct (see the crosslinkDependencies method for that).
 func resolveDependenciesForModule(module *TerraformModule, moduleMap map[string]*TerraformModule, terragruntOptions *options.TerragruntOptions, chilTerragruntConfig *config.TerragruntConfig, skipExternal bool) (map[string]*TerraformModule, error) {
 	if module.Config.Dependencies == nil || len(module.Config.Dependencies.Paths) == 0 {
 		return map[string]*TerraformModule{}, nil
+	}
+
+	key := fmt.Sprintf("%s-%s-%v", module.Path, terragruntOptions.WorkingDir, skipExternal)
+	if value, ok := existingModules[key]; ok {
+		return value, nil
 	}
 
 	externalTerragruntConfigPaths := []string{}
@@ -505,7 +501,12 @@ func resolveDependenciesForModule(module *TerraformModule, moduleMap map[string]
 	}
 
 	howThesePathsWereFound := fmt.Sprintf("dependency of module at '%s'", module.Path)
-	return resolveModules(externalTerragruntConfigPaths, terragruntOptions, chilTerragruntConfig, howThesePathsWereFound)
+	result, err := resolveModules(externalTerragruntConfigPaths, terragruntOptions, chilTerragruntConfig, howThesePathsWereFound)
+	if err != nil {
+		return nil, err
+	}
+	existingModules[key] = result
+	return result, nil
 }
 
 // Confirm with the user whether they want Terragrunt to assume the given dependency of the given module is already
