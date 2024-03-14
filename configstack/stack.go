@@ -281,6 +281,7 @@ func createStackForTerragruntConfigPaths(path string, terragruntConfigPaths []st
 	var stack *Stack
 	err := telemetry.Telemetry(terragruntOptions, "create_stack_for_terragrunt_config_paths", map[string]interface{}{
 		"working_dir": terragruntOptions.WorkingDir,
+		"path":        path,
 	}, func(childCtx context.Context) error {
 
 		if len(terragruntConfigPaths) == 0 {

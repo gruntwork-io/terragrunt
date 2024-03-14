@@ -712,7 +712,7 @@ func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, confi
 			return err
 		}
 		var file *hclparse.File
-		var cacheKey = util.EncodeBase64Sha1(fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, opts.WorkingDir, dir, fileInfo.ModTime().UnixMicro()))
+		var cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, opts.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
 		if cacheConfig, found := hclCache.Get(cacheKey); found {
 			file = cacheConfig
 		} else {

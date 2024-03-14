@@ -63,7 +63,8 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 	err = telemetry.Telemetry(terragruntOptions, "resolve_modules", map[string]interface{}{
 		"working_dir": terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
-		result, err := resolveModules(canonicalTerragruntConfigPaths, terragruntOptions, childTerragruntConfig, howThesePathsWereFound)
+		emptyModules := map[string]*TerraformModule{}
+		result, err := resolveModules(canonicalTerragruntConfigPaths, terragruntOptions, childTerragruntConfig, howThesePathsWereFound, emptyModules)
 		if err != nil {
 			return err
 		}
@@ -276,8 +277,7 @@ func flagModulesThatDontInclude(modules []*TerraformModule, terragruntOptions *o
 // Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents
 // into a TerraformModule struct. Note that this method will NOT fill in the Dependencies field of the TerraformModule
 // struct (see the crosslinkDependencies method for that). Return a map from module path to TerraformModule struct.
-func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions, childTerragruntConfig *config.TerragruntConfig, howTheseModulesWereFound string) (map[string]*TerraformModule, error) {
-	moduleMap := map[string]*TerraformModule{}
+func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions, childTerragruntConfig *config.TerragruntConfig, howTheseModulesWereFound string, moduleMap map[string]*TerraformModule) (map[string]*TerraformModule, error) {
 
 	for _, terragruntConfigPath := range canonicalTerragruntConfigPaths {
 		var module *TerraformModule
@@ -494,7 +494,7 @@ func resolveDependenciesForModule(module *TerraformModule, moduleMap map[string]
 	}
 
 	howThesePathsWereFound := fmt.Sprintf("dependency of module at '%s'", module.Path)
-	return resolveModules(externalTerragruntConfigPaths, terragruntOptions, chilTerragruntConfig, howThesePathsWereFound)
+	return resolveModules(externalTerragruntConfigPaths, terragruntOptions, chilTerragruntConfig, howThesePathsWereFound, moduleMap)
 }
 
 // Confirm with the user whether they want Terragrunt to assume the given dependency of the given module is already

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/hashicorp/hcl/v2"
@@ -134,11 +135,20 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 }
 
 func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *IncludeConfig) (*TerragruntConfig, error) {
-	file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
+	fileInfo, err := os.Stat(configPath)
 	if err != nil {
 		return nil, err
 	}
-
+	var file *hclparse.File
+	var cacheKey = fmt.Sprintf("parse-partial-config-%v-%v", configPath, fileInfo.ModTime().UnixMicro())
+	if cacheConfig, found := hclCache.Get(cacheKey); found {
+		file = cacheConfig
+	} else {
+		file, err = hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return TerragruntConfigFromPartialConfig(ctx, file, include)
 }
 
