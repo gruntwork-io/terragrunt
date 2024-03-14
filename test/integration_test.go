@@ -210,14 +210,19 @@ func TestTerragruntProviderCache(t *testing.T) {
 
 	providers := map[string][]string{
 		"first": []string{
-			"registry.terraform.io/hashicorp/aws/5.36.0",
-			"registry.terraform.io/hashicorp/azurerm/3.95.0",
+			"hashicorp/aws/5.36.0",
+			"hashicorp/azurerm/3.95.0",
 		},
 		"second": []string{
-			"registry.terraform.io/hashicorp/aws/5.40.0",
-			"registry.terraform.io/hashicorp/azurerm/3.95.0",
-			"registry.terraform.io/hashicorp/kubernetes/2.27.0",
+			"hashicorp/aws/5.40.0",
+			"hashicorp/azurerm/3.95.0",
+			"hashicorp/kubernetes/2.27.0",
 		},
+	}
+
+	registryName := "registry.terraform.io"
+	if strings.Contains(wrappedBinary(), "tofu") {
+		registryName = "registry.opentofu.org"
 	}
 
 	for subDir, providers := range providers {
@@ -241,6 +246,7 @@ func TestTerragruntProviderCache(t *testing.T) {
 				var (
 					actualProviderSymlinks   int
 					expectedProviderSymlinks = 1
+					provider                 = path.Join(registryName, provider)
 				)
 
 				providerPath := filepath.Join(subDir, entry.Name(), ".terraform/providers", provider)
