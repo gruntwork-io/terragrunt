@@ -278,7 +278,6 @@ func (stack *Stack) getModuleRunGraph(terraformCommand string) ([][]*TerraformMo
 // Find all the Terraform modules in the folders that contain the given Terragrunt config files and assemble those
 // modules into a Stack object that can be applied or destroyed in a single command
 func createStackForTerragruntConfigPaths(path string, terragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions, childTerragruntConfig *config.TerragruntConfig, howThesePathsWereFound string) (*Stack, error) {
-
 	var stack *Stack
 	err := telemetry.Telemetry(terragruntOptions, "create_stack_for_terragrunt_config_paths", map[string]interface{}{
 		"working_dir": terragruntOptions.WorkingDir,
@@ -292,17 +291,26 @@ func createStackForTerragruntConfigPaths(path string, terragruntConfigPaths []st
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
-
 		stack = &Stack{Path: path, Modules: modules}
-		if err := stack.CheckForCycles(); err != nil {
-			return errors.WithStackTrace(err)
-		}
 
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStackTrace(err)
 	}
+	err = telemetry.Telemetry(terragruntOptions, "check_for_cycles", map[string]interface{}{
+		"working_dir": terragruntOptions.WorkingDir,
+		"stack_path":  stack.Path,
+	}, func(childCtx context.Context) error {
+		if err := stack.CheckForCycles(); err != nil {
+			return errors.WithStackTrace(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
 	return stack, nil
 }
 
