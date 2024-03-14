@@ -35,7 +35,7 @@ func (retry *Retry) Run(ctx context.Context, opts *options.TerragruntOptions, ca
 			if out == nil || !isRetryable(opts, out) {
 				opts.Logger.Errorf("%s invocation failed in %s", opts.TerraformImplementation, opts.WorkingDir)
 				return err
-			} else if opts.RetrySleepIntervalSec != 0 {
+			} else {
 				opts.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", opts.RetrySleepIntervalSec)
 				time.Sleep(opts.RetrySleepIntervalSec)
 			}

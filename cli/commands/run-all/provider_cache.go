@@ -37,6 +37,10 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 		cancel()
 	})
 
+	if opts.RegistryToken == "" {
+		opts.RegistryToken = fmt.Sprintf("x-api-key:%s", uuid.New().String())
+	}
+
 	registryConfig := &registry.Config{
 		Hostname: opts.RegistryHostname,
 		Port:     opts.RegistryPort,
@@ -108,10 +112,6 @@ func prepareProviderCacheEnvironment(opts *options.TerragruntOptions, registryPr
 
 	if err := createLocalCLIConfig(opts, cliConfigFile, registryProviderURL); err != nil {
 		return err
-	}
-
-	if opts.RegistryToken == "" {
-		opts.RegistryToken = fmt.Sprintf("x-api-key:%s", uuid.New().String())
 	}
 
 	for _, registryName := range opts.RegistryNames {
