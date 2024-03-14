@@ -148,6 +148,7 @@ func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *Inc
 		if err != nil {
 			return nil, err
 		}
+		hclCache.Put(cacheKey, file)
 	}
 	return TerragruntConfigFromPartialConfig(ctx, file, include)
 }

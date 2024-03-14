@@ -343,13 +343,6 @@ func resolveTerraformModule(terragruntConfigPath string, moduleMap map[string]*T
 	// from, which is not what any of the modules will want.
 	opts.OriginalTerragruntConfigPath = terragruntConfigPath
 
-	key := fmt.Sprintf("%v-%v", modulePath, terragruntOptions.WorkingDir)
-	if value, ok := existingModules[key]; ok {
-		value = util.Clone(value).(*TerraformModule)
-		value.TerragruntOptions = opts
-		return value, nil
-	}
-
 	// If `childTerragruntConfig.ProcessedIncludes` contains the path `terragruntConfigPath`, then this is a parent config
 	// which implies that `TerragruntConfigPath` must refer to a child configuration file, and the defined `IncludeConfig` must contain the path to the file itself
 	// for the built-in functions `read-terragrunt-config()`, `path_relative_to_include()` to work correctly.
@@ -362,6 +355,13 @@ func resolveTerraformModule(terragruntConfigPath string, moduleMap map[string]*T
 	if collections.ListContainsElement(opts.ExcludeDirs, modulePath) {
 		// module is excluded
 		return &TerraformModule{Path: modulePath, TerragruntOptions: opts, FlagExcluded: true}, nil
+	}
+
+	key := fmt.Sprintf("%v-%v", modulePath, terragruntOptions.WorkingDir)
+	if value, ok := existingModules[key]; ok {
+		value = util.Clone(value).(*TerraformModule)
+		value.TerragruntOptions = opts
+		return value, nil
 	}
 
 	configContext := config.NewParsingContext(context.Background(), opts).WithDecodeList(
@@ -422,7 +422,7 @@ func resolveTerraformModule(terragruntConfigPath string, moduleMap map[string]*T
 	}
 
 	m := &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}
-	existingModules[key] = m
+	//existingModules[key] = m
 	return util.Clone(m).(*TerraformModule), nil
 }
 
