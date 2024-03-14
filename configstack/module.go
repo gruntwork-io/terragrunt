@@ -467,7 +467,7 @@ func resolveExternalDependenciesForModules(moduleMap map[string]*TerraformModule
 	return allExternalDependencies, nil
 }
 
-var existingModules = config.NewCache[map[string]*TerraformModule]()
+var existingModules = config.NewCache[*map[string]*TerraformModule]()
 
 // resolveDependenciesForModule looks through the dependencies of the given module and resolve the dependency paths listed in the module's config.
 // If `skipExternal` is true, the func returns only dependencies that are inside of the current working directory, which means they are part of the environment the
