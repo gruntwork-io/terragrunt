@@ -63,8 +63,8 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 	err = telemetry.Telemetry(terragruntOptions, "resolve_modules", map[string]interface{}{
 		"working_dir": terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
-		emptyModules := map[string]*TerraformModule{}
-		result, err := resolveModules(canonicalTerragruntConfigPaths, terragruntOptions, childTerragruntConfig, howThesePathsWereFound, emptyModules)
+
+		result, err := resolveModules(canonicalTerragruntConfigPaths, terragruntOptions, childTerragruntConfig, howThesePathsWereFound)
 		if err != nil {
 			return err
 		}
@@ -277,8 +277,8 @@ func flagModulesThatDontInclude(modules []*TerraformModule, terragruntOptions *o
 // Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents
 // into a TerraformModule struct. Note that this method will NOT fill in the Dependencies field of the TerraformModule
 // struct (see the crosslinkDependencies method for that). Return a map from module path to TerraformModule struct.
-func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions, childTerragruntConfig *config.TerragruntConfig, howTheseModulesWereFound string, moduleMap map[string]*TerraformModule) (map[string]*TerraformModule, error) {
-
+func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions, childTerragruntConfig *config.TerragruntConfig, howTheseModulesWereFound string) (map[string]*TerraformModule, error) {
+	moduleMap := map[string]*TerraformModule{}
 	for _, terragruntConfigPath := range canonicalTerragruntConfigPaths {
 		var module *TerraformModule
 		err := telemetry.Telemetry(terragruntOptions, "resolve_terraform_module", map[string]interface{}{
@@ -320,6 +320,8 @@ func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *
 	return moduleMap, nil
 }
 
+var existingModules = make(map[string]*TerraformModule)
+
 // Create a TerraformModule struct for the Terraform module specified by the given Terragrunt configuration file path.
 // Note that this method will NOT fill in the Dependencies field of the TerraformModule struct (see the
 // crosslinkDependencies method for that).
@@ -331,6 +333,10 @@ func resolveTerraformModule(terragruntConfigPath string, moduleMap map[string]*T
 
 	if _, ok := moduleMap[modulePath]; ok {
 		return nil, nil
+	}
+	key := fmt.Sprintf("%v-%v", modulePath, terragruntOptions.WorkingDir)
+	if value, ok := existingModules[key]; ok {
+		return util.Clone(value).(*TerraformModule), nil
 	}
 
 	// Clone the options struct so we don't modify the original one. This is especially important as run-all operations
@@ -412,7 +418,9 @@ func resolveTerraformModule(terragruntConfigPath string, moduleMap map[string]*T
 		opts.OutputPrefix = fmt.Sprintf("[%v] ", modulePath)
 	}
 
-	return &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
+	m := &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}
+	existingModules[key] = m
+	return util.Clone(m).(*TerraformModule), nil
 }
 
 // Look through the dependencies of the modules in the given map and resolve the "external" dependency paths listed in
@@ -494,7 +502,7 @@ func resolveDependenciesForModule(module *TerraformModule, moduleMap map[string]
 	}
 
 	howThesePathsWereFound := fmt.Sprintf("dependency of module at '%s'", module.Path)
-	return resolveModules(externalTerragruntConfigPaths, terragruntOptions, chilTerragruntConfig, howThesePathsWereFound, moduleMap)
+	return resolveModules(externalTerragruntConfigPaths, terragruntOptions, chilTerragruntConfig, howThesePathsWereFound)
 }
 
 // Confirm with the user whether they want Terragrunt to assume the given dependency of the given module is already
