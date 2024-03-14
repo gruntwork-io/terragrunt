@@ -477,8 +477,9 @@ func resolveDependenciesForModule(module *TerraformModule, moduleMap map[string]
 		return map[string]*TerraformModule{}, nil
 	}
 
-	key := fmt.Sprintf("%s-%s-%v", module.Path, terragruntOptions.WorkingDir, skipExternal)
+	key := fmt.Sprintf("%s-%s-%v-%v", module.Path, terragruntOptions.WorkingDir, skipExternal, terragruntOptions.TerraformCommand)
 	if value, ok := existingModules[key]; ok {
+		//result := util.Clone(value).(map[string]*TerraformModule)
 		return value, nil
 	}
 
@@ -505,6 +506,8 @@ func resolveDependenciesForModule(module *TerraformModule, moduleMap map[string]
 	if err != nil {
 		return nil, err
 	}
+	//valueToCache := util.Clone(result).(map[string]*TerraformModule)
+
 	existingModules[key] = result
 	return result, nil
 }
