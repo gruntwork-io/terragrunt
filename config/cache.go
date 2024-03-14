@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/config/hclparse"
-
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -113,35 +111,34 @@ func (cache *TerragruntConfigCache) Put(key string, value TerragruntConfig) {
 	cache.Cache[cacheKey] = value
 }
 
-// HclCache - structure to store cached values
-type HclCache struct {
-	Cache map[string]*hclparse.File
+type Cache[V any] struct {
+	Cache map[string]*V
 	Mutex *sync.Mutex
 }
 
-// NewHclCache - create new hcl file cache
-func NewHclCache() *HclCache {
-	return &HclCache{
-		Cache: map[string]*hclparse.File{},
+// NewCache - create new cache with generic type V
+func NewCache[V any]() *Cache[V] {
+	return &Cache[V]{
+		Cache: make(map[string]*V),
 		Mutex: &sync.Mutex{},
 	}
 }
 
-// Get - fetch HCL file from cache
-func (cache *HclCache) Get(key string) (*hclparse.File, bool) {
-	cache.Mutex.Lock()
-	defer cache.Mutex.Unlock()
+// Get - fetch value from cache by key
+func (c *Cache[V]) Get(key string) (*V, bool) {
+	c.Mutex.Lock()
+	defer c.Mutex.Unlock()
 	keyHash := sha256.Sum256([]byte(key))
 	cacheKey := fmt.Sprintf("%x", keyHash)
-	value, found := cache.Cache[cacheKey]
+	value, found := c.Cache[cacheKey]
 	return value, found
 }
 
-// Put - HCL file to cache
-func (cache *HclCache) Put(key string, value *hclparse.File) {
-	cache.Mutex.Lock()
-	defer cache.Mutex.Unlock()
+// Put - put value into cache by key
+func (c *Cache[V]) Put(key string, value *V) {
+	c.Mutex.Lock()
+	defer c.Mutex.Unlock()
 	keyHash := sha256.Sum256([]byte(key))
 	cacheKey := fmt.Sprintf("%x", keyHash)
-	cache.Cache[cacheKey] = value
+	c.Cache[cacheKey] = value
 }

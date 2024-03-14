@@ -467,7 +467,7 @@ func resolveExternalDependenciesForModules(moduleMap map[string]*TerraformModule
 	return allExternalDependencies, nil
 }
 
-var existingModules = make(map[string]map[string]*TerraformModule)
+var existingModules = config.NewCache[map[string]*TerraformModule]()
 
 // resolveDependenciesForModule looks through the dependencies of the given module and resolve the dependency paths listed in the module's config.
 // If `skipExternal` is true, the func returns only dependencies that are inside of the current working directory, which means they are part of the environment the
@@ -478,8 +478,8 @@ func resolveDependenciesForModule(module *TerraformModule, moduleMap map[string]
 	}
 
 	key := fmt.Sprintf("%s-%s-%v-%v", module.Path, terragruntOptions.WorkingDir, skipExternal, terragruntOptions.TerraformCommand)
-	if value, ok := existingModules[key]; ok {
-		return value, nil
+	if value, ok := existingModules.Get(key); ok {
+		return *value, nil
 	}
 
 	externalTerragruntConfigPaths := []string{}
@@ -506,7 +506,7 @@ func resolveDependenciesForModule(module *TerraformModule, moduleMap map[string]
 		return nil, err
 	}
 
-	existingModules[key] = result
+	existingModules.Put(key, &result)
 	return result, nil
 }
 

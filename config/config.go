@@ -114,10 +114,6 @@ type TerragruntConfig struct {
 	DependentModulesPath []*string
 }
 
-func (conf *TerragruntConfig) Clone() *TerragruntConfig {
-	return util.Clone(conf).(*TerragruntConfig)
-}
-
 func (conf *TerragruntConfig) String() string {
 	return fmt.Sprintf("TerragruntConfig{Terraform = %v, RemoteState = %v, Dependencies = %v, PreventDestroy = %v}", conf.Terraform, conf.RemoteState, conf.Dependencies, conf.PreventDestroy)
 }
@@ -683,7 +679,7 @@ func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*Terrag
 	return ParseConfigFile(terragruntOptions, ctx, terragruntOptions.TerragruntConfigPath, nil)
 }
 
-var hclCache = NewHclCache()
+var hclCache = NewCache[hclparse.File]()
 
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
