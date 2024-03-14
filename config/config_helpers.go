@@ -10,15 +10,14 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"go.mozilla.org/sops/v3/cmd/sops/formats"
-
+	"github.com/getsops/sops/v3/cmd/sops/formats"
+	"github.com/getsops/sops/v3/decrypt"
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2"
 	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 	"github.com/zclconf/go-cty/cty/gocty"
-	"go.mozilla.org/sops/v3/decrypt"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
