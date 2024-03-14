@@ -147,10 +147,9 @@ func createLocalCLIConfig(opts *options.TerragruntOptions, cliConfigFile string,
 	providerInstallationIncludes := make([]string, len(opts.RegistryNames))
 
 	for i, registryName := range opts.RegistryNames {
-		host := terraform.NewConfigHost(map[string]any{
+		cfg.AddHost(registryName, map[string]any{
 			"providers.v1": fmt.Sprintf("%s/%s/", registryProviderURL, registryName),
 		})
-		cfg.AddHost(registryName, host)
 
 		providerInstallationIncludes[i] = fmt.Sprintf("%s/*/*", registryName)
 	}

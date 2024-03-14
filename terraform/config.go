@@ -6,6 +6,7 @@ import (
 
 	"github.com/genelet/determined/dethcl"
 	"github.com/gruntwork-io/boilerplate/errors"
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/terraform/command/cliconfig"
 )
 
@@ -13,18 +14,7 @@ var (
 	configParamNamePluginCacheDirReg = regexp.MustCompile(`(?mi)^.*plugin_cache_dir.*$`)
 )
 
-type ConfigHost struct {
-	Services map[string]interface{} `hcl:"services"`
-}
-
-func NewConfigHost(services map[string]any) *ConfigHost {
-	return &ConfigHost{
-		Services: services,
-	}
-}
-
-// ProviderInstallationMethod represents an installation method block inside
-// a provider_installation block.
+// ProviderInstallationMethod represents an installation method block inside a provider_installation block.
 type ProviderInstallationMethod struct {
 	Include []string `hcl:"include"`
 	Exclude []string `hcl:"exclude"`
@@ -58,8 +48,7 @@ func NewProviderInstallationDirect(include, exclude []string) *ProviderInstallat
 	}
 }
 
-// ProviderInstallation is the structure of the "provider_installation"
-// nested block within the CLI configuration.
+// ProviderInstallation is the structure of the "provider_installation" nested block within the CLI configuration.
 type ProviderInstallation struct {
 	FilesystemMirror *ProviderInstallationFilesystemMirror `hcl:"filesystem_mirror"`
 	Direct           *ProviderInstallationDirect           `hcl:"direct"`
@@ -68,26 +57,49 @@ type ProviderInstallation struct {
 type Config struct {
 	*cliconfig.Config `hcl:"-"`
 
-	Hosts                map[string]*ConfigHost  `hcl:"host"`
-	ProviderInstallation []*ProviderInstallation `hcl:"provider_installation"`
+	Hosts                map[string]*cliconfig.ConfigHost `hcl:"host"`
+	ProviderInstallation []*ProviderInstallation          `hcl:"provider_installation"`
 }
 
+// LoadConfig return a new Config instance and loads the default terraform CLI config in order to retrieve `PluginCacheDir` value.
+// The location of the default config is different for each OS https://developer.hashicorp.com/terraform/cli/config/config-file#locations
 func LoadConfig() (*Config, error) {
-	globalCfg, diag := cliconfig.LoadConfig()
+	defaultCfg, diag := cliconfig.LoadConfig()
 	if diag.HasErrors() {
 		return nil, errors.WithStackTrace(diag.Err())
 	}
 
 	return &Config{
-		Config: globalCfg,
-		Hosts:  make(map[string]*ConfigHost),
+		Config: defaultCfg,
+		Hosts:  make(map[string]*cliconfig.ConfigHost),
 	}, nil
 }
 
-func (cfg *Config) AddHost(name string, host *ConfigHost) {
-	cfg.Hosts[name] = host
+// AddHost adds a host (officially undocumented), https://github.com/hashicorp/terraform/issues/28309
+// It gives us opportunity rewrite path to the remote registry and the most important thing is that it works smoothly with HTTP (without HTTPS)
+//
+//	host "registry.terraform.io" {
+//		services = {
+//			"providers.v1" = "http://localhost:5758/v1/providers/registry.terraform.io/",
+//		}
+//	}
+func (cfg *Config) AddHost(name string, services map[string]any) {
+	cfg.Hosts[name] = &cliconfig.ConfigHost{
+		Services: services,
+	}
 }
 
+// AddProviderInstallation adds an installation method, https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation
+//
+//	provider_installation {
+//		filesystem_mirror {
+//			path    = "/usr/share/terraform/providers"
+//			include = ["example.com/*/*"]
+//		}
+//		direct {
+//			exclude = ["example.com/*/*"]
+//		}
+//	}
 func (cfg *Config) AddProviderInstallation(filesystemMethod *ProviderInstallationFilesystemMirror, directMethod *ProviderInstallationDirect) {
 	providerInstallation := &ProviderInstallation{
 		FilesystemMirror: filesystemMethod,
@@ -98,26 +110,28 @@ func (cfg *Config) AddProviderInstallation(filesystemMethod *ProviderInstallatio
 }
 
 func (cfg *Config) SaveConfig(cliConfigFile string) error {
-	globalCLIConfigFile, err := cliconfig.ConfigFile()
+	hclBytes, err := dethcl.Marshal(cfg)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	globalHCLBytes, err := os.ReadFile(globalCLIConfigFile)
+	defaultCLIConfigFile, err := cliconfig.ConfigFile()
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	if cfg.PluginCacheDir == "" {
-		globalHCLBytes = configParamNamePluginCacheDirReg.ReplaceAll(globalHCLBytes, []byte{})
-	}
+	if util.FileExists(defaultCLIConfigFile) {
+		defaultHCLBytes, err := os.ReadFile(defaultCLIConfigFile)
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
 
-	localHCLBytes, err := dethcl.Marshal(cfg)
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
+		if cfg.PluginCacheDir == "" {
+			defaultHCLBytes = configParamNamePluginCacheDirReg.ReplaceAll(defaultHCLBytes, []byte{})
+		}
 
-	hclBytes := append(globalHCLBytes, localHCLBytes...)
+		hclBytes = append(defaultHCLBytes, hclBytes...)
+	}
 
 	if err := os.WriteFile(cliConfigFile, hclBytes, os.FileMode(0644)); err != nil {
 		return errors.WithStackTrace(err)
