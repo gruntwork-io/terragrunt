@@ -357,7 +357,7 @@ func resolveTerraformModule(terragruntConfigPath string, moduleMap map[string]*T
 		return &TerraformModule{Path: modulePath, TerragruntOptions: opts, FlagExcluded: true}, nil
 	}
 
-	key := fmt.Sprintf("%v-%v", modulePath, terragruntOptions.WorkingDir)
+	key := fmt.Sprintf("%v-%v-%v", terragruntConfigPath, modulePath, terragruntOptions.WorkingDir)
 	if value, ok := existingModules[key]; ok {
 		value = util.Clone(value).(*TerraformModule)
 		value.TerragruntOptions = opts
@@ -422,7 +422,7 @@ func resolveTerraformModule(terragruntConfigPath string, moduleMap map[string]*T
 	}
 
 	m := &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}
-	//existingModules[key] = m
+	existingModules[key] = m
 	return util.Clone(m).(*TerraformModule), nil
 }
 
