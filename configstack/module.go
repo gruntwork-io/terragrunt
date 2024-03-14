@@ -334,10 +334,6 @@ func resolveTerraformModule(terragruntConfigPath string, moduleMap map[string]*T
 	if _, ok := moduleMap[modulePath]; ok {
 		return nil, nil
 	}
-	key := fmt.Sprintf("%v-%v", modulePath, terragruntOptions.WorkingDir)
-	if value, ok := existingModules[key]; ok {
-		return util.Clone(value).(*TerraformModule), nil
-	}
 
 	// Clone the options struct so we don't modify the original one. This is especially important as run-all operations
 	// happen concurrently.
@@ -346,6 +342,13 @@ func resolveTerraformModule(terragruntConfigPath string, moduleMap map[string]*T
 	// We need to reset the original path for each module. Otherwise, this path will be set to wherever you ran run-all
 	// from, which is not what any of the modules will want.
 	opts.OriginalTerragruntConfigPath = terragruntConfigPath
+
+	key := fmt.Sprintf("%v-%v", modulePath, terragruntOptions.WorkingDir)
+	if value, ok := existingModules[key]; ok {
+		value = util.Clone(value).(*TerraformModule)
+		value.TerragruntOptions = opts
+		return value, nil
+	}
 
 	// If `childTerragruntConfig.ProcessedIncludes` contains the path `terragruntConfigPath`, then this is a parent config
 	// which implies that `TerragruntConfigPath` must refer to a child configuration file, and the defined `IncludeConfig` must contain the path to the file itself
