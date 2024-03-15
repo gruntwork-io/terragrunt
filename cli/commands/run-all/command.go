@@ -53,7 +53,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        FlagNameTerragruntRegistryToken,
 			Destination: &opts.RegistryToken,
 			EnvVar:      "TERRAGRUNT_REGISTRY_TOKEN",
-			Usage:       "The Token for connecting to the built-in Private Registry server. By default it is generated automatically.",
+			Usage:       "The Token for connecting to the built-in Private Registry server. By default generated automatically.",
 		},
 		&cli.GenericFlag[string]{
 			Name:        FlagNameTerragruntRegistryHostname,
@@ -65,13 +65,13 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        FlagNameTerragruntRegistryPort,
 			Destination: &opts.RegistryPort,
 			EnvVar:      "TERRAGRUNT_REGISTRY_PORT",
-			Usage:       "The port of the built-in Private Registry server. Default is '5758'.",
+			Usage:       "The listening port of the built-in Private Registry server. Default is '5758'.",
 		},
 		&cli.SliceFlag[string]{
 			Name:        FlagNameTerragruntRegistryNames,
 			Destination: &opts.RegistryNames,
 			EnvVar:      "TERRAGRUNT_REGISTRY_NAMES",
-			Usage:       "The list of registries to cache. Default is 'registry.terraform.io'.",
+			Usage:       "The list of registries to cache. Default is ['registry.terraform.io', 'registry.opentofu.org'].",
 		})
 	return globalFlags
 }

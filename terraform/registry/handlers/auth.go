@@ -6,6 +6,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+const AuthorizationApiKeyHeaderName = "x-api-key"
+
 type Authorization struct {
 	Token string
 }

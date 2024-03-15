@@ -23,13 +23,11 @@ var (
 	unzipFileMode       = os.FileMode(0000)
 )
 
-// We borrow the "unpack a zip cache into a target directory" logic from
-// go-getter, even though we're not otherwise using go-getter here.
-// (We don't need the same flexibility as we have for modules, because
-// providers _always_ come from provider registries, which have a very
-// specific protocol and set of expectations.)
+// Borrow the "unpack a zip cache into a target directory" logic from
+// go-getter
 var unzip = getter.ZipDecompressor{}
 
+// Borrow the "unpack a zip cache into a target directory" logic from go-getter
 type ProviderCaches []*ProviderCache
 
 func (providers ProviderCaches) Find(target *models.Provider) *ProviderCache {
@@ -43,14 +41,15 @@ func (providers ProviderCaches) Find(target *models.Provider) *ProviderCache {
 }
 
 type ProviderCache struct {
+	*ProviderService
 	*models.Provider
-	Filename string
 
-	needCacheArchive bool
-	cacheDir         string
-	ready            bool
+	Filename    string
+	providerDir string
+	ready       bool
 }
 
+// fetch donwloads the provider archive from the remote/original registry.
 func (cache *ProviderCache) fetch(ctx context.Context) error {
 	log.Debugf("Fetching provider %q", cache.Provider)
 
@@ -82,15 +81,16 @@ func (cache *ProviderCache) fetch(ctx context.Context) error {
 	return nil
 }
 
+// warmUp checks if the binary file already exists in the cache directory, if not, downloads the archive and unzip it.
 func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	var unpackedFound bool
 
-	if !util.FileExists(cache.cacheDir) {
-		if err := os.MkdirAll(cache.cacheDir, os.ModePerm); err != nil {
+	if !util.FileExists(cache.providerDir) {
+		if err := os.MkdirAll(cache.providerDir, os.ModePerm); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	} else {
-		entries, err := os.ReadDir(cache.cacheDir)
+		entries, err := os.ReadDir(cache.providerDir)
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
@@ -104,7 +104,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 
 	}
 
-	if unpackedFound && !cache.needCacheArchive {
+	if unpackedFound && !cache.cacheProviderArchive {
 		return nil
 	}
 
@@ -115,7 +115,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if !unpackedFound {
-		if err := unzip.Decompress(cache.cacheDir, cache.Filename, true, unzipFileMode); err != nil {
+		if err := unzip.Decompress(cache.providerDir, cache.Filename, true, unzipFileMode); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
@@ -130,25 +130,33 @@ type ProviderService struct {
 
 	cacheMu      sync.RWMutex
 	cacheReadyMu sync.RWMutex
+
+	// If needCacheArchive is true, ensures that not only the unarchived binary is cached, but also its archive. We need acrhives in order to reduce the bandwidth, because `terraform lock provider` always loads providers from a remote registry to create a lock file rather than using a cached one. This is only used when opts.ProviderCompleteLock is true.
+	cacheProviderArchive bool
 }
 
-func NewProviderService() *ProviderService {
+func NewProviderService(cacheProviderArchive bool) *ProviderService {
 	return &ProviderService{
-		baseCacheDir:    defaultBaseCacheDir,
-		providerCacheCh: make(chan *ProviderCache),
+		baseCacheDir:         defaultBaseCacheDir,
+		providerCacheCh:      make(chan *ProviderCache),
+		cacheProviderArchive: cacheProviderArchive,
 	}
 }
 
-func (service *ProviderService) SetProviderCacheDir(baseCacheDir string) {
+// SetCacheDir sets the dir where providers will be cached.
+// It creates the same files tree structure as terraform `plugin_cache_dir` feature.
+func (service *ProviderService) SetCacheDir(baseCacheDir string) {
 	service.baseCacheDir = baseCacheDir
 }
 
-func (service *ProviderService) WaitForCacheReady(ctx context.Context) {
+// WaitForCacheReady blocks the call until all providers are cached.
+func (service *ProviderService) WaitForCacheReady() {
 	service.cacheReadyMu.Lock()
 	defer service.cacheReadyMu.Unlock()
 }
 
-func (service *ProviderService) CacheProvider(provider *models.Provider, needCacheArchive bool) {
+// CacheProvider starts caching the given provider using non-blocking approch.
+func (service *ProviderService) CacheProvider(provider *models.Provider) {
 	service.cacheMu.Lock()
 	defer service.cacheMu.Unlock()
 
@@ -157,16 +165,17 @@ func (service *ProviderService) CacheProvider(provider *models.Provider, needCac
 	}
 
 	cache := &ProviderCache{
-		Provider:         provider,
-		Filename:         filepath.Join(service.baseCacheDir, provider.RegistryName, provider.Namespace, provider.Name, filepath.Base(provider.DownloadURL.Path)),
-		cacheDir:         filepath.Join(service.baseCacheDir, provider.RegistryName, provider.Namespace, provider.Name, provider.Version, fmt.Sprintf("%s_%s", provider.OS, provider.Arch)),
-		needCacheArchive: needCacheArchive,
+		ProviderService: service,
+		Provider:        provider,
+		Filename:        filepath.Join(service.baseCacheDir, provider.RegistryName, provider.Namespace, provider.Name, filepath.Base(provider.DownloadURL.Path)),
+		providerDir:     filepath.Join(service.baseCacheDir, provider.RegistryName, provider.Namespace, provider.Name, provider.Version, fmt.Sprintf("%s_%s", provider.OS, provider.Arch)),
 	}
 
 	service.providerCacheCh <- cache
 	service.providerCaches = append(service.providerCaches, cache)
 }
 
+// GetProviderCache returns the requested provider archive cache, if it exists.
 func (service *ProviderService) GetProviderCache(provider *models.Provider) *ProviderCache {
 	service.cacheMu.RLock()
 	defer service.cacheMu.RUnlock()
@@ -177,6 +186,7 @@ func (service *ProviderService) GetProviderCache(provider *models.Provider) *Pro
 	return nil
 }
 
+// RunCacheWorker is responsible to handle a new caching request and removing temporary files upon completion.
 func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 	if service.baseCacheDir == "" {
 		return errors.Errorf("provider cache directory not specified")

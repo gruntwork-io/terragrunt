@@ -20,15 +20,15 @@ type DiscoveryController struct {
 	Endpointers []Endpointer
 }
 
-// Paths implements router.Controller.Register
+// Register implements router.Controller.Register
 func (controller *DiscoveryController) Register(router *router.Router) {
 	router = router.Group(discoveryPath)
 
+	// Discovery Process
+	// https://developer.hashicorp.com/terraform/internals/remote-service-discovery#discovery-process
 	router.GET("/terraform.json", controller.terraformAction)
 }
 
-// terraformAction represents Terraform Service Endpoints API endpoint.
-// Docs: https://www.terraform.io/internals/remote-service-discovery
 func (controller *DiscoveryController) terraformAction(ctx echo.Context) error {
 	endpoints := make(map[string]any)
 

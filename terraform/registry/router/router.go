@@ -32,6 +32,7 @@ func (router *Router) Prefix() string {
 	return router.prefix
 }
 
+// Register registers controller's endpoints
 func (router *Router) Register(controllers ...Controller) {
 	for _, controller := range controllers {
 		controller.Register(router)

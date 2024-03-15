@@ -17,14 +17,18 @@ import (
 )
 
 const (
+	// name using for the discovery
 	porviderName = "providers.v1"
+	// URL path to this controller
 	providerPath = "/providers"
 
-	PlatformNameCacheProvider           = "cache_provider"
-	PlatformNameCacheProviderAndArchive = "cache_providerandarchive"
+	// The platform name used to request provider caching, e.g `terraform providers block -platform=cache_provider`
+	PlatformNameCacheProvider = "cache_provider"
+	// The status returned when making a request to the caching provider.
+	// It is needed to prevent further loading of providers by terraform, and at the same time make sure that the request was processed successfully.
+	HTTPStatusCacheProvider = http.StatusLocked
 
-	HTTPStatusCacheProcessing = http.StatusLocked
-
+	// Provider's assets consist of three files/URLs: zipped binary, hashes and signature
 	ProviderDownloadURLName         ProviderURLName = "download_url"
 	ProviderSHASumsURLName          ProviderURLName = "shasums_url"
 	ProviderSHASumsSignatureURLName ProviderURLName = "shasums_signature_url"
@@ -50,7 +54,7 @@ type ProviderController struct {
 	basePath string
 }
 
-func (controller *ProviderController) Prefix() string {
+func (controller *ProviderController) Path() string {
 	return controller.basePath
 }
 
@@ -59,7 +63,7 @@ func (controller *ProviderController) Endpoints() map[string]any {
 	return map[string]any{porviderName: controller.basePath}
 }
 
-// Paths implements router.Controller.Register
+// Register implements router.Controller.Register
 func (controller *ProviderController) Register(router *router.Router) {
 	router = router.Group(providerPath)
 	controller.basePath = router.Prefix()
@@ -69,16 +73,18 @@ func (controller *ProviderController) Register(router *router.Router) {
 	}
 
 	// Api should be compliant with the Terraform Registry Protocol for providers.
-	// https://www.terraform.io/docs/internals/provider-registry-protocol.html#find-a-provider-package
+	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms
 
-	// Provider Versions
-	router.GET("/:registry_name/:namespace/:name/versions", controller.versionsAction)
+	// Get All Versions for a Single Provider
+	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-versions-for-a-single-provider
+	router.GET("/:registry_name/:namespace/:name/versions", controller.findVersionsAction)
 
-	// Find a Provider Package
-	router.GET("/:registry_name/:namespace/:name/:version/download/:os/:arch", controller.findProviderAction)
+	// Get All Platforms for a Single Version
+	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-platforms-for-a-single-version
+	router.GET("/:registry_name/:namespace/:name/:version/download/:os/:arch", controller.fincPlatformsAction)
 }
 
-func (controller *ProviderController) versionsAction(ctx echo.Context) error {
+func (controller *ProviderController) findVersionsAction(ctx echo.Context) error {
 	var (
 		registryName = ctx.Param("registry_name")
 		namespace    = ctx.Param("namespace")
@@ -90,11 +96,10 @@ func (controller *ProviderController) versionsAction(ctx echo.Context) error {
 		Namespace:    namespace,
 		Name:         name,
 	}
-
 	return controller.ReverseProxy.NewRequest(ctx, provider.VersionURL())
 }
 
-func (controller *ProviderController) findProviderAction(ctx echo.Context) (err error) {
+func (controller *ProviderController) fincPlatformsAction(ctx echo.Context) (err error) {
 	var (
 		registryName = ctx.Param("registry_name")
 		namespace    = ctx.Param("namespace")
@@ -103,10 +108,9 @@ func (controller *ProviderController) findProviderAction(ctx echo.Context) (err 
 		os           = ctx.Param("os")
 		arch         = ctx.Param("arch")
 
-		proxyURL = controller.Downloader.ProviderURL()
+		proxyURL = controller.Downloader.ProviderProxyURL()
 
-		needCache        bool
-		needCacheArchive bool
+		needCache bool
 	)
 
 	provider := &models.Provider{
@@ -118,11 +122,7 @@ func (controller *ProviderController) findProviderAction(ctx echo.Context) (err 
 		Arch:         arch,
 	}
 
-	switch provider.Platform() {
-	case PlatformNameCacheProviderAndArchive:
-		needCacheArchive = true
-		fallthrough
-	case PlatformNameCacheProvider:
+	if provider.Platform() == PlatformNameCacheProvider {
 		needCache = true
 
 		provider.OS = runtime.GOOS
@@ -169,11 +169,11 @@ func (controller *ProviderController) findProviderAction(ctx echo.Context) (err 
 				}
 
 				if needCache {
-					controller.ProviderService.CacheProvider(provider, needCacheArchive)
-					return ctx.NoContent(HTTPStatusCacheProcessing)
+					controller.ProviderService.CacheProvider(provider)
+					return ctx.NoContent(HTTPStatusCacheProvider)
 				}
 				return nil
 			})
 		}).
-		NewRequest(ctx, provider.PackageURL())
+		NewRequest(ctx, provider.PlatformURL())
 }

@@ -14,18 +14,17 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// Server is a private Terraform registry for provider caching.
 type Server struct {
-	*services.ProviderService
-	providerController *controllers.ProviderController
+	http.Handler
+	config *Config
 
-	config  *Config
-	handler http.Handler
+	providerService    *services.ProviderService
+	providerController *controllers.ProviderController
 }
 
 // NewServer returns a new Server instance.
-func NewServer(config *Config) *Server {
-	providerService := services.NewProviderService()
-
+func NewServer(config *Config, providerService *services.ProviderService) *Server {
 	authorization := &handlers.Authorization{
 		Token: config.Token,
 	}
@@ -60,30 +59,32 @@ func NewServer(config *Config) *Server {
 	v1Group.Register(providerController)
 
 	return &Server{
-		ProviderService:    providerService,
-		providerController: providerController,
-		handler:            rootRouter,
+		Handler:            rootRouter,
 		config:             config,
+		providerService:    providerService,
+		providerController: providerController,
 	}
 }
 
-func (server *Server) ProviderURLPrefix() *url.URL {
+// ProviderURL returns a full URL to the provider controller, e.g. http://localhost:5758/v1/providers
+func (server *Server) ProviderURL() *url.URL {
 	return &url.URL{
 		Scheme: "http",
 		Host:   server.config.Addr(),
-		Path:   server.providerController.Prefix(),
+		Path:   server.providerController.Path(),
 	}
 }
 
+// Run starts the webserver and workers.
 func (server *Server) Run(ctx context.Context) error {
 	log.Infof("Start Private Registry")
 
 	addr := server.config.Addr()
-	srv := &http.Server{Addr: addr, Handler: server.handler}
+	srv := &http.Server{Addr: addr, Handler: server}
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 	errGroup.Go(func() error {
-		return server.ProviderService.RunCacheWorker(ctx)
+		return server.providerService.RunCacheWorker(ctx)
 	})
 	errGroup.Go(func() error {
 		<-ctx.Done()

@@ -93,7 +93,7 @@ func (cfg *Config) AddHost(name string, services map[string]any) {
 //
 //	provider_installation {
 //		filesystem_mirror {
-//			path    = "/usr/share/terraform/providers"
+//			path    = "/path/to/the/global/cache"
 //			include = ["example.com/*/*"]
 //		}
 //		direct {
@@ -110,7 +110,7 @@ func (cfg *Config) AddProviderInstallation(filesystemMethod *ProviderInstallatio
 }
 
 // Save marshalls and saves CLI config with the given config path.
-// In order to not lose user/default settings, if the user/default CLI config file exists, read the config and place at the top our the config file.
+// In order to not lose user/default settings, if the user/default CLI config file exists, read this config and place at the top our the config file.
 func (cfg *Config) Save(configPath string) error {
 	hclBytes, err := dethcl.Marshal(cfg)
 	if err != nil {

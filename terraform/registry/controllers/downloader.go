@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"path"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/registry/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/registry/models"
 	"github.com/gruntwork-io/terragrunt/terraform/registry/router"
@@ -23,13 +24,14 @@ type DownloaderController struct {
 	basePath string
 }
 
-func (controller *DownloaderController) ProviderURL() *url.URL {
+// ProviderProxyURL returns URL for using as a proxy to download remote archives through this controller with caching.
+func (controller *DownloaderController) ProviderProxyURL() *url.URL {
 	proxyURL := *controller.ReverseProxy.ServerURL
 	proxyURL.Path = path.Join(proxyURL.Path, controller.basePath, downloadProviderPath)
 	return &proxyURL
 }
 
-// Paths implements router.Controller.Register
+// Register implements router.Controller.Register
 func (controller *DownloaderController) Register(router *router.Router) {
 	router = router.Group(downloadPath)
 	controller.basePath = router.Prefix()
@@ -53,6 +55,7 @@ func (controller *DownloaderController) downloadProviderAction(ctx echo.Context)
 	}
 
 	if cache := controller.ProviderService.GetProviderCache(provider); cache != nil {
+		log.Debugf("Provider %q uses cached file %q", cache.Provider, cache.Filename)
 		return ctx.File(cache.Filename)
 	}
 
