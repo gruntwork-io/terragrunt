@@ -49,7 +49,7 @@ type ProviderCache struct {
 	ready       bool
 }
 
-// fetch donwloads the provider archive from the remote/original registry.
+// fetch downloads the provider archive from the remote/original registry.
 func (cache *ProviderCache) fetch(ctx context.Context) error {
 	log.Debugf("Fetching provider %q", cache.Provider)
 

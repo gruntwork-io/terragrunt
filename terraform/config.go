@@ -93,7 +93,7 @@ func (cfg *Config) AddHost(name string, services map[string]any) {
 //
 //	provider_installation {
 //		filesystem_mirror {
-//			path    = "/path/to/the/global/cache"
+//			path    = "/path/to/the/provider/cache"
 //			include = ["example.com/*/*"]
 //		}
 //		direct {

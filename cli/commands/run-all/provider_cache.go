@@ -142,9 +142,9 @@ func PrepareProviderCacheEnvironment(opts *options.TerragruntOptions, registryPr
 	return nil
 }
 
-// CreateLocalCLIConfig creates a local CLI configuration that merges the default/user configuration with our Private Regisgry configuration.
+// CreateLocalCLIConfig creates a local CLI configuration that merges the default/user configuration with our Private Registry configuration.
 // If opts.ProviderCacheDir is not specified and CLI config value PluginCacheDir is defined, we assign this path to opts.ProviderCacheDir
-// // We also don't want to use Terraform's `plugin_cache_dir` feature because the cache is populated by our built-in private registry, and to make sure that no Terraform process ever overwrites the global cache, we clear this value.
+// We also don't want to use Terraform's `plugin_cache_dir` feature because the cache is populated by our built-in private registry, and to make sure that no Terraform process ever overwrites the global cache, we clear this value.
 // In order to force Terraform to queries our registry instead of the original one, we use the section:
 //
 //	host "registry.terraform.io" {
@@ -153,11 +153,11 @@ func PrepareProviderCacheEnvironment(opts *options.TerragruntOptions, registryPr
 //		}
 //	}
 //
-// In order to force Terraform to create symlinks from the global cache instead of downloading large binary files, we use the section:
+// In order to force Terraform to create symlinks from the provider cache instead of downloading large binary files, we use the section:
 //
 //	provider_installation {
 //		filesystem_mirror {
-//			path    = "/path/to/the/global/cache"
+//			path    = "/path/to/the/provider/cache"
 //			include = ["example.com/*/*"]
 //		}
 //		direct {
