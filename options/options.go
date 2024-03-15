@@ -277,13 +277,26 @@ type TerragruntOptions struct {
 	// Root directory for graph command.
 	GraphRoot string
 
-	ProviderCache        bool
-	ProviderCacheDir     string
+	// Enables provider cache using the built-in private registry.
+	ProviderCache bool
+
+	// The path to the cache directory
+	ProviderCacheDir string
+
+	// Disables terraform 'plugin_cache_may_break_dependency_lock_file' feature.
 	ProviderCompleteLock bool
-	RegistryHostname     string
-	RegistryPort         int
-	RegistryToken        string
-	RegistryNames        []string
+
+	// The Token for connecting to the built-in Private Registry server.
+	RegistryToken string
+
+	// The hostname of the built-in Private Registry server.
+	RegistryHostname string
+
+	// The listening port of the built-in Private Registry server.
+	RegistryPort int
+
+	// The list of the remote registries to cache.
+	RegistryNames []string
 }
 
 // IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.

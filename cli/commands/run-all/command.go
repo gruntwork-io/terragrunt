@@ -35,7 +35,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        FlagNameTerragruntProviderCache,
 			Destination: &opts.ProviderCache,
 			EnvVar:      "TERRAGRUNT_PROVIDER_CACHE",
-			Usage:       "Enables provider caching.",
+			Usage:       "Enables provider cache using the built-in private registry.",
 		},
 		&cli.GenericFlag[string]{
 			Name:        FlagNameTerragruntProviderCacheDir,
@@ -71,7 +71,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        FlagNameTerragruntRegistryNames,
 			Destination: &opts.RegistryNames,
 			EnvVar:      "TERRAGRUNT_REGISTRY_NAMES",
-			Usage:       "The list of registries to cache. Default is ['registry.terraform.io', 'registry.opentofu.org'].",
+			Usage:       "The list of the remote registries to cache. Default is ['registry.terraform.io', 'registry.opentofu.org'].",
 		})
 	return globalFlags
 }
