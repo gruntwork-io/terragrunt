@@ -40,7 +40,7 @@ var multipleUnderscoresPattern = regexp.MustCompile(`_+`)
 
 // Time - collect time for function execution
 func Time(opts *options.TerragruntOptions, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
-	ctx := opts.CtxTelemetryCtx
+	ctx := opts.TelemetryCtx
 	if ctx == nil || metricExporter == nil {
 		return fn(ctx)
 	}
@@ -65,7 +65,7 @@ func Time(opts *options.TerragruntOptions, name string, attrs map[string]interfa
 
 // Count - add to counter provided value
 func Count(opts *options.TerragruntOptions, name string, value int64) {
-	ctx := opts.CtxTelemetryCtx
+	ctx := opts.TelemetryCtx
 	if ctx == nil || metricExporter == nil {
 		return
 	}
