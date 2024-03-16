@@ -539,7 +539,7 @@ Example:
 Having bellow dependencies:
 [![dependency-graph](/assets/img/collections/documentation/dependency-graph.png){: width="80%" }]({{site.baseurl}}/assets/img/collections/documentation/dependency-graph.png)
 
-Running `terragrunt graph apply` in `eks` module will lead to the following execution order: 
+Running `terragrunt graph apply` in `eks` module will lead to the following execution order:
 ```
 Group 1
 - Module project/eks
@@ -664,6 +664,13 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
 - [terragrunt-json-log](#terragrunt-json-log)
 - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json)
+- [terragrunt-provider-cache](#terragrunt-provider-cache)
+- [terragrunt-provider-cache-dir](#terragrunt-provider-cache-dir)
+- [terragrunt-provider-complete-lock](#terragrunt-provider-complete-lock)
+- [terragrunt-registry-hostname](#terragrunt-registry-hostname)
+- [terragrunt-registry-port](#terragrunt-registry-port)
+- [terragrunt-registry-token](#terragrunt-registry-token)
+- [terragrunt-registry-names](#terragrunt-registry-names)
 
 ### terragrunt-config
 
@@ -1140,3 +1147,66 @@ When this flag is set, Terragrunt will output its logs in JSON format.
 **Environment Variable**: `TERRAGRUNT_TF_JSON_LOG` (set to `true`)
 
 When this flag is set, Terragrunt will wrap Terraform `stdout` and `stderr` in JSON log messages. Works only with `--terragrunt-json-log` flag.
+
+### terragrunt-provider-cache
+
+**CLI Arg**: `--terragrunt-provider-cache`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE`
+**Commands**:
+- [run-all](#run-all)
+
+Enables provider cache using the built-in private registry server.
+
+### terragrunt-provider-cache-dir
+
+**CLI Arg**: `--terragrunt-provider-cache-dir`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_DIR`
+**Commands**:
+- [run-all](#run-all)
+
+The path to the cache directory. Default is `.terragrunt-cache/provider-cache` in the working directory.
+
+### terragrunt-provider-complete-lock
+
+**CLI Arg**: `--terragrunt-provider-complete-lock`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_COMPLETE_LOCK`
+**Commands**:
+- [run-all](#run-all)
+
+Disables Terraform [_plugin_cache_may_break_dependency_lock_file_](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation) feature, which in turn forces Terragrunt to run `terraform providers lock` to generate `.terraform.lock.hcl` files before each `init` command.
+
+### terragrunt-registry-hostname
+
+**CLI Arg**: `--terragrunt-registry-hostname`
+**Environment Variable**: `TERRAGRUNT_REGISTRY_HOSTNAME`
+**Commands**:
+- [run-all](#run-all)
+
+The hostname of the built-in Private Registry server. Default is 'localhsot'.
+
+### terragrunt-registry-port
+
+**CLI Arg**: `--terragrunt-registry-port`
+**Environment Variable**: `TERRAGRUNT_REGISTRY_PORT`
+**Commands**:
+- [run-all](#run-all)
+
+The listening port of the built-in Private Registry server. Default is '5758'.
+
+### terragrunt-registry-token
+
+**CLI Arg**: `--terragrunt-registry-token`
+**Environment Variable**: `TERRAGRUNT_REGISTRY_TOKEN`
+**Commands**:
+- [run-all](#run-all)
+
+The Token for connecting to the built-in Private Registry server. By default generated automatically.
+
+### terragrunt-registry-names
+
+**CLI Arg**: `--terragrunt-registry-names`
+**Environment Variable**: `TERRAGRUNT_REGISTRY_NAMES`
+**Commands**:
+- [run-all](#run-all)
+
+The list of the remote registries to cache. Default is 'registry.terraform.io', 'registry.opentofu.org'.
