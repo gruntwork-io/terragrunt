@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
 )
 
@@ -74,5 +75,10 @@ func RunAllOnStack(ctx context.Context, opts *options.TerragruntOptions, stack *
 		}
 	}
 
-	return stack.Run(ctx, opts)
+	return telemetry.Telemetry(opts, "run_all_on_stack", map[string]interface{}{
+		"terraform_command": opts.TerraformCommand,
+		"working_dir":       opts.WorkingDir,
+	}, func(childCtx context.Context) error {
+		return stack.Run(ctx, opts)
+	})
 }

@@ -1,6 +1,7 @@
-package list
+package tui
 
 import (
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -13,27 +14,26 @@ const (
 	selectedDescBorderForegroundColorDark = "#63C5DA"
 )
 
-type DefaultDelegate struct {
-	list.DefaultDelegate
-}
+func newItemDelegate(keys *delegateKeyMap) list.DefaultDelegate {
+	d := list.NewDefaultDelegate()
 
-type Delegate struct {
-	DefaultDelegate
-	*DelegateKeyMap
-}
-
-func NewDelegate() *Delegate {
-	defaultDelegate := list.NewDefaultDelegate()
-	defaultDelegate.Styles.SelectedTitle.
+	d.Styles.SelectedTitle.
 		Foreground(lipgloss.AdaptiveColor{Dark: selectedTitleForegroundColorDark}).
 		BorderForeground(lipgloss.AdaptiveColor{Dark: selectedTitleBorderForegroundColorDark})
 
-	defaultDelegate.Styles.SelectedDesc = defaultDelegate.Styles.SelectedTitle.Copy().
+	d.Styles.SelectedDesc = d.Styles.SelectedTitle.Copy().
 		Foreground(lipgloss.AdaptiveColor{Dark: selectedDescForegroundColorDark}).
 		BorderForeground(lipgloss.AdaptiveColor{Dark: selectedDescBorderForegroundColorDark})
 
-	return &Delegate{
-		DefaultDelegate: DefaultDelegate{defaultDelegate},
-		DelegateKeyMap:  NewDelegateKeyMap(),
+	help := []key.Binding{keys.choose, keys.scaffold}
+
+	d.ShortHelpFunc = func() []key.Binding {
+		return help
 	}
+
+	d.FullHelpFunc = func() [][]key.Binding {
+		return [][]key.Binding{help}
+	}
+
+	return d
 }

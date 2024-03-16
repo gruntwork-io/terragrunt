@@ -294,7 +294,18 @@ type IncludeConfig struct {
 }
 
 func (cfg *IncludeConfig) String() string {
-	return fmt.Sprintf("IncludeConfig{Path = %s, Expose = %v, MergeStrategy = %v}", cfg.Path, cfg.Expose, cfg.MergeStrategy)
+	if cfg == nil {
+		return "IncludeConfig{nil}"
+	}
+	exposeStr := "nil"
+	if cfg.Expose != nil {
+		exposeStr = fmt.Sprintf("%v", *cfg.Expose)
+	}
+	mergeStrategyStr := "nil"
+	if cfg.MergeStrategy != nil {
+		mergeStrategyStr = fmt.Sprintf("%v", cfg.MergeStrategy)
+	}
+	return fmt.Sprintf("IncludeConfig{Path = %v, Expose = %v, MergeStrategy = %v}", cfg.Path, exposeStr, mergeStrategyStr)
 }
 
 func (cfg *IncludeConfig) GetExpose() bool {
@@ -668,6 +679,8 @@ func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*Terrag
 	return ParseConfigFile(terragruntOptions, ctx, terragruntOptions.TerragruntConfigPath, nil)
 }
 
+var hclCache = NewCache[*hclparse.File]()
+
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
 func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
@@ -675,13 +688,37 @@ func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, confi
 	var config *TerragruntConfig
 	err := telemetry.Telemetry(opts, "parse_config_file", map[string]interface{}{
 		"config_path": configPath,
+		"working_dir": opts.WorkingDir,
 	}, func(childCtx context.Context) error {
-		// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
-		file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
+		childKey := "nil"
+		if includeFromChild != nil {
+			childKey = includeFromChild.String()
+		}
+		decodeListKey := "nil"
+		if ctx.PartialParseDecodeList != nil {
+			decodeListKey = fmt.Sprintf("%v", ctx.PartialParseDecodeList)
+		}
+		dir, err := os.Getwd()
 		if err != nil {
 			return err
 		}
 
+		fileInfo, err := os.Stat(configPath)
+		if err != nil {
+			return err
+		}
+		var file *hclparse.File
+		var cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, opts.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
+		if cacheConfig, found := hclCache.Get(cacheKey); found {
+			file = cacheConfig
+		} else {
+			// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
+			file, err = hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
+			if err != nil {
+				return err
+			}
+			hclCache.Put(cacheKey, file)
+		}
 		config, err = ParseConfig(ctx, file, includeFromChild)
 		if err != nil {
 			return err
@@ -803,7 +840,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 }
 
 // iamRoleCache - store for cached values of IAM roles
-var iamRoleCache = NewIAMRoleOptionsCache()
+var iamRoleCache = NewCache[options.IAMRoleOptions]()
 
 // setIAMRole - extract IAM role details from Terragrunt flags block
 func setIAMRole(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) error {

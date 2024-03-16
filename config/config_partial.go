@@ -142,7 +142,7 @@ func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *Inc
 	return TerragruntConfigFromPartialConfig(ctx, file, include)
 }
 
-var terragruntConfigCache = NewTerragruntConfigCache()
+var terragruntConfigCache = NewCache[TerragruntConfig]()
 
 // Wrapper of PartialParseConfigString which checks for cached configs.
 // filename, configString, includeFromChild and decodeList are used for the cache key,

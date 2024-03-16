@@ -9,7 +9,7 @@ import (
 func TestStringCacheCreation(t *testing.T) {
 	t.Parallel()
 
-	cache := NewStringCache()
+	cache := NewCache[string]()
 
 	assert.NotNil(t, cache.Mutex)
 	assert.NotNil(t, cache.Cache)
@@ -20,7 +20,7 @@ func TestStringCacheCreation(t *testing.T) {
 func TestStringCacheOperation(t *testing.T) {
 	t.Parallel()
 
-	cache := NewStringCache()
+	cache := NewCache[string]()
 
 	value, found := cache.Get("potato")
 
@@ -38,7 +38,7 @@ func TestStringCacheOperation(t *testing.T) {
 func TestTerragruntConfigCacheCreation(t *testing.T) {
 	t.Parallel()
 
-	cache := NewTerragruntConfigCache()
+	cache := NewCache[TerragruntConfig]()
 
 	assert.NotNil(t, cache.Mutex)
 	assert.NotNil(t, cache.Cache)
@@ -51,7 +51,7 @@ func TestTerragruntConfigCacheOperation(t *testing.T) {
 
 	testCacheKey := "super-safe-cache-key"
 
-	cache := NewTerragruntConfigCache()
+	cache := NewCache[TerragruntConfig]()
 
 	actualResult, found := cache.Get(testCacheKey)
 
