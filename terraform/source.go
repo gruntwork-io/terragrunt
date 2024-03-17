@@ -195,7 +195,16 @@ func ToSourceUrl(source string, workingDir string) (*url.URL, error) {
 		return nil, errors.WithStackTrace(err)
 	}
 
-	return parseSourceUrl(rawSourceUrlWithGetter)
+	sourceUrl, err := parseSourceUrl(rawSourceUrlWithGetter)
+	if err != nil {
+		return nil, err
+	}
+
+	// specify git:: scheme for the module URL
+	if strings.HasPrefix(sourceUrl.Scheme, "http") {
+		sourceUrl.Scheme = "git::" + sourceUrl.Scheme
+	}
+	return sourceUrl, nil
 }
 
 // Parse the given source URL into a URL struct. This method can handle source URLs that include go-getter's "forced
