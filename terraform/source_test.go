@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"fmt"
 	"net/url"
 	"testing"
 
@@ -11,13 +12,12 @@ import (
 )
 
 func TestSplitSourceUrl(t *testing.T) {
-
 	t.Parallel()
 
 	testCases := []struct {
 		name               string
 		sourceUrl          string
-		expectedRootRepo   string
+		expectedSo         string
 		expectedModulePath string
 	}{
 		{"root-path-only-no-double-slash", "/foo", "/foo", ""},
@@ -54,8 +54,37 @@ func TestSplitSourceUrl(t *testing.T) {
 			actualRootRepo, actualModulePath, err := SplitSourceUrl(sourceUrl, terragruntOptions.Logger)
 			require.NoError(t, err)
 
-			assert.Equal(t, testCase.expectedRootRepo, actualRootRepo.String())
+			assert.Equal(t, testCase.expectedSo, actualRootRepo.String())
 			assert.Equal(t, testCase.expectedModulePath, actualModulePath)
+		})
+	}
+}
+
+func TestToSourceUrl(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		sourceURL         string
+		workingDir        string
+		expectedSourceURL string
+	}{
+		{"github.com/gruntwork-io/repo-name", "", "git::https://github.com/gruntwork-io/repo-name.git"},
+		{"git@github.com:gruntwork-io/repo-name.git", "", "git::ssh://git@github.com/gruntwork-io/repo-name.git"},
+		{"https://github.com/gruntwork-io/repo-name", "", "git::https://github.com/gruntwork-io/repo-name"},
+		{"git::https://github.com/gruntwork-io/repo-name", "", "git::https://github.com/gruntwork-io/repo-name"},
+		{"https://github.com/gruntwork-io/repo-name//modules/module-name", "", "git::https://github.com/gruntwork-io/repo-name//modules/module-name"},
+	}
+
+	for i, testCase := range testCases {
+		// Save a local copy in scope so all the tests don't run the final item in the loop
+		testCase := testCase
+		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
+			t.Parallel()
+
+			actualSourceURL, err := ToSourceUrl(testCase.sourceURL, testCase.workingDir)
+			require.NoError(t, err)
+
+			assert.Equal(t, testCase.expectedSourceURL, actualSourceURL.String())
 		})
 	}
 }

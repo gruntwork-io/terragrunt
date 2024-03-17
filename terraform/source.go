@@ -200,7 +200,7 @@ func ToSourceUrl(source string, workingDir string) (*url.URL, error) {
 		return nil, err
 	}
 
-	// specify git:: scheme for the module URL
+	// explicitly add prefix git:: for the http scheme to avoid further errors
 	if strings.HasPrefix(sourceUrl.Scheme, "http") {
 		sourceUrl.Scheme = "git::" + sourceUrl.Scheme
 	}
