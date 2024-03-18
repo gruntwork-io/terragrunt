@@ -207,7 +207,7 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 		// --- Terragrunt ConfigPath
 		if opts.TerragruntConfigPath == "" {
 			opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
-		} else if !filepath.IsAbs(opts.TerragruntConfigPath) && cmdName == terraformCmd.CommandName {
+		} else if !filepath.IsAbs(opts.TerragruntConfigPath) && ctx.Command.Name == terraformCmd.CommandName {
 			opts.TerragruntConfigPath = util.JoinPath(opts.WorkingDir, opts.TerragruntConfigPath)
 		}
 
