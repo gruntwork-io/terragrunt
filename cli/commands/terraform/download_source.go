@@ -181,7 +181,7 @@ func readVersionFile(terraformSource *terraform.Source) (string, error) {
 //
 // This creates a closure that returns a function so that we have access to the terragrunt configuration, which is
 // necessary for customizing the behavior of the file getter.
-func updateGetters(terragruntConfig *config.TerragruntConfig) func(*getter.Client) error {
+func updateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) func(*getter.Client) error {
 	return func(client *getter.Client) error {
 		// We copy all the default getters from the go-getter library, but replace the "file" getter. We shallow clone the
 		// getter map here rather than using getter.Getters directly because (a) we shouldn't change the original,
@@ -201,7 +201,9 @@ func updateGetters(terragruntConfig *config.TerragruntConfig) func(*getter.Clien
 		}
 
 		// Load in custom getters that are only supported in Terragrunt
-		client.Getters["tfr"] = &terraform.RegistryGetter{}
+		client.Getters["tfr"] = &terraform.RegistryGetter{
+			TerragruntOptions: terragruntOptions,
+		}
 
 		return nil
 	}
@@ -211,7 +213,7 @@ func updateGetters(terragruntConfig *config.TerragruntConfig) func(*getter.Clien
 func downloadSource(terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	terragruntOptions.Logger.Infof("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
 
-	if err := getter.GetAny(terraformSource.DownloadDir, terraformSource.CanonicalSourceURL.String(), updateGetters(terragruntConfig)); err != nil {
+	if err := getter.GetAny(terraformSource.DownloadDir, terraformSource.CanonicalSourceURL.String(), updateGetters(terragruntOptions, terragruntConfig)); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
