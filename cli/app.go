@@ -145,7 +145,7 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 
 		// --- Args
 		// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
-		args := ctx.Args().Normalize(cli.SingleDashFlag).Slice()
+		args := ctx.Args().Normalize(cli.SingleDashFlag)
 		cmdName := ctx.Command.Name
 
 		switch cmdName {
@@ -156,10 +156,11 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 			// It is important to resolve the alias because the `run-all` relies on terraform command to determine the order, for `destroy` command is used the reverse order.
 			if cmdName == terraform.CommandNameApply && util.ListContainsElement(args, terraform.FlagNameNameDestroy) {
 				cmdName = terraform.CommandNameDestroy
+				args = append([]string{terraform.CommandNameDestroy}, args.Tail()...)
 				args = util.RemoveElementFromList(args, terraform.FlagNameNameDestroy)
 			}
 		default:
-			args = append([]string{ctx.Command.Name}, args...)
+			args = append([]string{cmdName}, args...)
 		}
 
 		opts.TerraformCommand = cmdName
@@ -206,7 +207,7 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 		// --- Terragrunt ConfigPath
 		if opts.TerragruntConfigPath == "" {
 			opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
-		} else if !filepath.IsAbs(opts.TerragruntConfigPath) && ctx.Command.Name == terraformCmd.CommandName {
+		} else if !filepath.IsAbs(opts.TerragruntConfigPath) && cmdName == terraformCmd.CommandName {
 			opts.TerragruntConfigPath = util.JoinPath(opts.WorkingDir, opts.TerragruntConfigPath)
 		}
 

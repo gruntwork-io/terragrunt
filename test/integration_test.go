@@ -283,47 +283,31 @@ func TestTerragruntDestroyOrder(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DESTROY_ORDER)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_ORDER, "app")
 
-	testCases := []struct {
-		applyCmd                   string
-		destroyCmd                 string
-		expectedApplyRegexpMatch   *regexp.Regexp
-		expectedDestroyRegexpMatch *regexp.Regexp
-	}{
-		// test `terraform destroy`
-		{
-			fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath),
-			fmt.Sprintf("terragrunt run-all destroy --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath),
-			regexp.MustCompile(`(?smi)(?:(Module A|Module C).*){2}(?:(Module E|Module D|Module B).*){3}`),
-			regexp.MustCompile(`(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`),
-		},
-		// test `terraform apply -destroy`
-		{
-			fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath),
-			fmt.Sprintf("terragrunt run-all apply -destroy --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath),
-			regexp.MustCompile(`(?smi)(?:(Module A|Module C).*){2}(?:(Module E|Module D|Module B).*){3}`),
-			regexp.MustCompile(`(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`),
-		},
-	}
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
-	for i, testCase := range testCases {
-		// Save a local copy in scope so all the tests don't run the final item in the loop
-		testCase := testCase
-		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
-			showStdout := bytes.Buffer{}
-			showStderr := bytes.Buffer{}
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
 
-			err := runTerragruntCommand(t, testCase.applyCmd, &showStdout, &showStderr)
-			assert.NoError(t, err)
-			assert.Regexp(t, testCase.expectedApplyRegexpMatch, showStdout.String())
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all destroy --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	assert.NoError(t, err)
+	assert.Regexp(t, regexp.MustCompile(`(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`), showStdout.String())
+}
 
-			showStdout = bytes.Buffer{}
-			showStderr = bytes.Buffer{}
+func TestTerragruntApplyDestroyOrder(t *testing.T) {
+	t.Parallel()
 
-			err = runTerragruntCommand(t, testCase.destroyCmd, &showStdout, &showStderr)
-			assert.NoError(t, err)
-			assert.Regexp(t, testCase.expectedDestroyRegexpMatch, showStdout.String())
-		})
-	}
+	cleanupTerraformFolder(t, TEST_FIXTURE_DESTROY_ORDER)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DESTROY_ORDER)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_ORDER, "app")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply -destroy --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	assert.NoError(t, err)
+	assert.Regexp(t, regexp.MustCompile(`(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`), showStdout.String())
 }
 
 func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
