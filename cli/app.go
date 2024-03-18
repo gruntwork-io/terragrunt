@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
+	"github.com/gruntwork-io/terragrunt/terraform"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/graph"
 
@@ -32,7 +33,7 @@ import (
 	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
 	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	terraformCmd "github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -66,8 +67,8 @@ func NewApp(writer io.Writer, errWriter io.Writer) *cli.App {
 		deprecatedCommands(opts),
 		terragruntCommands(opts)...)
 	app.Before = beforeAction(opts)
-	app.CommonBefore = initialSetup(opts)                                   // all commands run this function before running their own `Action` function
-	app.DefaultCommand = telemetryCommand(opts, terraform.NewCommand(opts)) // by default, if no terragrunt command is specified, run the Terraform command
+	app.CommonBefore = initialSetup(opts)                                      // all commands run this function before running their own `Action` function
+	app.DefaultCommand = telemetryCommand(opts, terraformCmd.NewCommand(opts)) // by default, if no terragrunt command is specified, run the Terraform command
 	app.OsExiter = osExiter
 
 	return app
@@ -91,8 +92,8 @@ func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 
 	sort.Sort(cmds)
 
-	// add terraform command `*` after sorting to put the command at the end of the list in the help.
-	cmds.Add(telemetryCommand(opts, terraform.NewCommand(opts)))
+	// add terraformCmd command `*` after sorting to put the command at the end of the list in the help.
+	cmds.Add(telemetryCommand(opts, terraformCmd.NewCommand(opts)))
 
 	return cmds
 }
@@ -148,8 +149,15 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 		cmdName := ctx.Command.Name
 
 		switch cmdName {
-		case terraform.CommandName, runall.CommandName, graph.CommandName:
+		case terraformCmd.CommandName, runall.CommandName, graph.CommandName:
 			cmdName = ctx.Args().CommandName()
+
+			// `terraform apply -destroy` is an alias for `terraform destroy`.
+			// It is important to resolve the alias because the `run-all` relies on terraform command to determine the order, for `destroy` command is used the reverse order.
+			if cmdName == terraform.CommandNameApply && util.ListContainsElement(args, terraform.FlagNameNameDestroy) {
+				cmdName = terraform.CommandNameDestroy
+				args = util.RemoveElementFromList(args, terraform.FlagNameNameDestroy)
+			}
 		default:
 			args = append([]string{ctx.Command.Name}, args...)
 		}
@@ -198,7 +206,7 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 		// --- Terragrunt ConfigPath
 		if opts.TerragruntConfigPath == "" {
 			opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
-		} else if !filepath.IsAbs(opts.TerragruntConfigPath) && ctx.Command.Name == terraform.CommandName {
+		} else if !filepath.IsAbs(opts.TerragruntConfigPath) && ctx.Command.Name == terraformCmd.CommandName {
 			opts.TerragruntConfigPath = util.JoinPath(opts.WorkingDir, opts.TerragruntConfigPath)
 		}
 
@@ -250,7 +258,7 @@ func initialSetup(opts *options.TerragruntOptions) func(ctx *cli.Context) error 
 		opts.OriginalTerraformCommand = opts.TerraformCommand
 		opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
 
-		opts.RunTerragrunt = terraform.Run
+		opts.RunTerragrunt = terraformCmd.Run
 
 		shell.PrepareConsole(opts)
 
