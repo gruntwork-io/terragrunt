@@ -73,6 +73,8 @@ func TestToSourceUrl(t *testing.T) {
 		{"https://github.com/gruntwork-io/repo-name", "", "git::https://github.com/gruntwork-io/repo-name"},
 		{"git::https://github.com/gruntwork-io/repo-name", "", "git::https://github.com/gruntwork-io/repo-name"},
 		{"https://github.com/gruntwork-io/repo-name//modules/module-name", "", "git::https://github.com/gruntwork-io/repo-name//modules/module-name"},
+		{"./foo//bar", "/baz", "file:///baz/foo//bar"},
+		{"git::./foo", "/baz", "git::file:///baz/foo"},
 	}
 
 	for i, testCase := range testCases {
