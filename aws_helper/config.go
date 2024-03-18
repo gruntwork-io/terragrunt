@@ -2,7 +2,6 @@ package aws_helper
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"time"
 
@@ -123,7 +122,7 @@ func (f tokenFetcher) FetchToken(ctx credentials.Context) ([]byte, error) {
 	if _, err := os.Stat(string(f)); err != nil {
 		return []byte(f), nil
 	}
-	token, err := ioutil.ReadFile(string(f))
+	token, err := os.ReadFile(string(f))
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +237,7 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 		if _, err := os.Stat(iamRoleOpts.WebIdentityToken); err != nil {
 			token = iamRoleOpts.WebIdentityToken
 		} else {
-			tb, err := ioutil.ReadFile(iamRoleOpts.WebIdentityToken)
+			tb, err := os.ReadFile(iamRoleOpts.WebIdentityToken)
 			if err != nil {
 				return nil, err
 			}
