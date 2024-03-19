@@ -333,6 +333,20 @@ func resolveTerraformModule(terragruntConfigPath string, moduleMap map[string]*T
 		return nil, nil
 	}
 
+	// in case of strict include, allow only modules that are included in the terragruntOptions.ModulesThatInclude
+	if terragruntOptions.StrictInclude {
+		var found = false
+		for _, includePath := range terragruntOptions.IncludeDirs {
+			if modulePath == includePath {
+				found = true
+				break
+			}
+		}
+		if !found {
+			terragruntOptions.Logger.Debugf("Module %s is not included in the --terragrunt-include-dir and will be skipped.", modulePath)
+			return nil, nil
+		}
+	}
 	// Clone the options struct so we don't modify the original one. This is especially important as run-all operations
 	// happen concurrently.
 	opts := terragruntOptions.Clone(terragruntConfigPath)
