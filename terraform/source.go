@@ -213,11 +213,11 @@ func PrependSourceType(sourceURL *url.URL) *url.URL {
 		prepend           string
 		secondLevelDomain string
 		urlPathExt        = path.Ext(sourceURL.Path)
-		isHTTPPrefix      = strings.HasPrefix(sourceURL.Scheme, "http")
-		isSSHPrefix       = strings.HasPrefix(sourceURL.Scheme, "ssh")
+		hasHTTPPrefix     = strings.HasPrefix(sourceURL.Scheme, "http")
+		hasSSHPrefix      = strings.HasPrefix(sourceURL.Scheme, "ssh")
 	)
 
-	if !isHTTPPrefix && !isSSHPrefix {
+	if !hasHTTPPrefix && !hasSSHPrefix {
 		return sourceURL
 	}
 
@@ -241,7 +241,7 @@ func PrependSourceType(sourceURL *url.URL) *url.URL {
 		}
 	}
 
-	if prepend == "" || (prepend != "git" && isSSHPrefix) {
+	if prepend == "" || (prepend != "git" && hasSSHPrefix) {
 		return sourceURL
 	}
 
