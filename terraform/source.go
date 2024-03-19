@@ -200,8 +200,8 @@ func ToSourceUrl(source string, workingDir string) (*url.URL, error) {
 		return nil, err
 	}
 
-	// explicitly add prefix git:: for the http scheme to avoid further errors
-	if strings.HasPrefix(sourceUrl.Scheme, "http") {
+	// explicitly add prefix git:: for the http(s)/ssh schemes as a protocol by default to avoid further errors
+	if strings.HasPrefix(sourceUrl.Scheme, "http") || strings.HasPrefix(sourceUrl.Scheme, "ssh") {
 		sourceUrl.Scheme = "git::" + sourceUrl.Scheme
 	}
 	return sourceUrl, nil
