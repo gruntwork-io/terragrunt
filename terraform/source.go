@@ -212,7 +212,7 @@ func PrependSourceType(sourceURL *url.URL) *url.URL {
 	var (
 		prepend           string
 		secondLevelDomain string
-		urlPathExt        = path.Ext(sourceURL.Path)
+		pathExt           = path.Ext(sourceURL.Path)
 		hasHTTPPrefix     = strings.HasPrefix(sourceURL.Scheme, "http")
 		hasSSHPrefix      = strings.HasPrefix(sourceURL.Scheme, "ssh")
 	)
@@ -233,7 +233,7 @@ func PrependSourceType(sourceURL *url.URL) *url.URL {
 	case "github.com", "gitlab.com", "bitbucket.org":
 		prepend = "git"
 	default:
-		switch urlPathExt {
+		switch pathExt {
 		case ".git":
 			prepend = "git"
 		case ".hg":
