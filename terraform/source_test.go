@@ -60,22 +60,27 @@ func TestSplitSourceUrl(t *testing.T) {
 	}
 }
 
-func TestToSourceUrl(t *testing.T) {
+func TestPrependSourceType(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		sourceURL         string
-		workingDir        string
 		expectedSourceURL string
 	}{
-		{"github.com/gruntwork-io/repo-name", "", "git::https://github.com/gruntwork-io/repo-name.git"},
-		{"git@github.com:gruntwork-io/repo-name.git", "", "git::ssh://git@github.com/gruntwork-io/repo-name.git"},
-		{"https://github.com/gruntwork-io/repo-name", "", "git::https://github.com/gruntwork-io/repo-name"},
-		{"git::https://github.com/gruntwork-io/repo-name", "", "git::https://github.com/gruntwork-io/repo-name"},
-		{"https://github.com/gruntwork-io/repo-name//modules/module-name", "", "git::https://github.com/gruntwork-io/repo-name//modules/module-name"},
-		{"ssh://github.com/gruntwork-io/repo-name//modules/module-name", "", "git::ssh://github.com/gruntwork-io/repo-name//modules/module-name"},
-		{"./foo//bar", "/baz", "file:///baz/foo//bar"},
-		{"git::./foo", "/baz", "git::file:///baz/foo"},
+		{"github.com/gruntwork-io/repo-name", "github.com/gruntwork-io/repo-name"},
+		{"https://github.com/gruntwork-io/repo-name", "git::https://github.com/gruntwork-io/repo-name"},
+		{"git::https://github.com/gruntwork-io/repo-name", "git::https://github.com/gruntwork-io/repo-name"},
+		{"https://github.com/gruntwork-io/repo-name//modules/module-name", "git::https://github.com/gruntwork-io/repo-name//modules/module-name"},
+		{"ssh://github.com/gruntwork-io/repo-name//modules/module-name", "git::ssh://github.com/gruntwork-io/repo-name//modules/module-name"},
+		{"https://gitlab.com/catamphetamine/libphonenumber-js", "git::https://gitlab.com/catamphetamine/libphonenumber-js"},
+		{"https://bitbucket.org/org_name/repo_name", "git::https://bitbucket.org/org_name/repo_name"},
+		{"https://s3-eu-west-1.amazonaws.com/modules/vpc.zip", "s3::https://s3-eu-west-1.amazonaws.com/modules/vpc.zip"},
+		{"ssh://s3-eu-west-1.amazonaws.com/modules/vpc.zip", "ssh://s3-eu-west-1.amazonaws.com/modules/vpc.zip"},
+		{"https://example.com/vpc-module?archive=zip", "https://example.com/vpc-module?archive=zip"},
+		{"https://git.com/vpc-module.git", "git::https://git.com/vpc-module.git"},
+		{"https://www.googleapis.com/modules/foomodule.zip", "gcs::https://www.googleapis.com/modules/foomodule.zip"},
+		{"hashicorp/consul/aws//modules/consul-cluster", "hashicorp/consul/aws//modules/consul-cluster"},
+		{"http://example.com/vpc.hg?ref=v1.2.0", "hg::http://example.com/vpc.hg?ref=v1.2.0"},
 	}
 
 	for i, testCase := range testCases {
@@ -84,9 +89,10 @@ func TestToSourceUrl(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			actualSourceURL, err := ToSourceUrl(testCase.sourceURL, testCase.workingDir)
+			sourceURL, err := url.Parse(testCase.sourceURL)
 			require.NoError(t, err)
 
+			actualSourceURL := PrependSourceType(sourceURL)
 			assert.Equal(t, testCase.expectedSourceURL, actualSourceURL.String())
 		})
 	}

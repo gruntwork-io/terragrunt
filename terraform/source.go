@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -17,7 +18,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-var forcedRegexp = regexp.MustCompile(`^([A-Za-z0-9]+)::(.+)$`)
+var (
+	forcedRegexp            = regexp.MustCompile(`^([A-Za-z0-9]+)::(.+)$`)
+	secondLevelDomainRegexp = regexp.MustCompile(`(?i)\.?([^.]+\.[^.]+)$`)
+)
 
 const matchCount = 2
 
@@ -200,11 +204,52 @@ func ToSourceUrl(source string, workingDir string) (*url.URL, error) {
 		return nil, err
 	}
 
-	// explicitly add prefix git:: for the http(s)/ssh schemes as a protocol by default to avoid further errors
-	if strings.HasPrefix(sourceUrl.Scheme, "http") || strings.HasPrefix(sourceUrl.Scheme, "ssh") {
-		sourceUrl.Scheme = "git::" + sourceUrl.Scheme
+	return PrependSourceType(sourceUrl), nil
+}
+
+// PrependSourceType prepends one of the "s3, gcs3, hg, git" source type to the http(s)/ssh scheme, if the user has omittied it.
+func PrependSourceType(sourceURL *url.URL) *url.URL {
+	var (
+		prepend           string
+		secondLevelDomain string
+		urlPathExt        = path.Ext(sourceURL.Path)
+		isHTTPPrefix      = strings.HasPrefix(sourceURL.Scheme, "http")
+		isSSHPrefix       = strings.HasPrefix(sourceURL.Scheme, "ssh")
+	)
+
+	if !isHTTPPrefix && !isSSHPrefix {
+		return sourceURL
 	}
-	return sourceUrl, nil
+
+	if parts := secondLevelDomainRegexp.FindStringSubmatch(sourceURL.Hostname()); len(parts) > 1 {
+		secondLevelDomain = parts[1]
+	}
+
+	switch secondLevelDomain {
+	case "amazonaws.com":
+		prepend = "s3"
+	case "googleapis.com":
+		prepend = "gcs"
+	case "github.com", "gitlab.com", "bitbucket.org":
+		prepend = "git"
+	default:
+		switch urlPathExt {
+		case ".git":
+			prepend = "git"
+		case ".hg":
+			prepend = "hg"
+		}
+	}
+
+	if prepend == "" || (prepend != "git" && isSSHPrefix) {
+		return sourceURL
+	}
+
+	// clone url
+	newURL := sourceURL.ResolveReference(&url.URL{})
+	newURL.Scheme = fmt.Sprintf("%s::%s", prepend, sourceURL.Scheme)
+
+	return newURL
 }
 
 // Parse the given source URL into a URL struct. This method can handle source URLs that include go-getter's "forced
