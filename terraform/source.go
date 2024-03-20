@@ -208,6 +208,7 @@ func ToSourceUrl(source string, workingDir string) (*url.URL, error) {
 }
 
 // PrependSourceType prepends one of the "s3, gcs3, hg, git" source type to the http(s)/ssh scheme, if the user has omittied it.
+// The docs describes of this transformation https://developer.hashicorp.com/terraform/language/modules/sources
 func PrependSourceType(sourceURL *url.URL) *url.URL {
 	var (
 		prepend           string
