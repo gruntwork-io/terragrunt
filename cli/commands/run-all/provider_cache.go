@@ -109,6 +109,7 @@ func RunTerraformProvidersLockCommand(opts *options.TerragruntOptions, flags ...
 
 	lockOpts := opts.Clone(opts.TerragruntConfigPath)
 	lockOpts.ErrWriter = errWritter
+	lockOpts.WorkingDir = opts.WorkingDir
 	lockOpts.TerraformCliArgs = []string{terraform.CommandNameProviders, terraform.CommandNameLock}
 	lockOpts.TerraformCliArgs = append(lockOpts.TerraformCliArgs, flags...)
 
