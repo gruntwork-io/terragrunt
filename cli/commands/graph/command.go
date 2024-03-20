@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	CommandName = "graph"
+	CommandName = "run-graph"
 )
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
