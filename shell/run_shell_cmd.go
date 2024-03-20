@@ -13,7 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/hashicorp/go-version"
@@ -97,9 +96,9 @@ func RunShellCommandWithOutput(
 		"args":    fmt.Sprintf("%v", args),
 		"dir":     commandDir,
 	}, func(childCtx context.Context) error {
-		log.Debugf("Running command: %s %s", command, strings.Join(args, " "))
+		terragruntOptions.Logger.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 		if suppressStdout {
-			log.Debugf("Command output will be suppressed.")
+			terragruntOptions.Logger.Debugf("Command output will be suppressed.")
 		}
 
 		var stdoutBuf bytes.Buffer
@@ -115,8 +114,8 @@ func RunShellCommandWithOutput(
 
 		// redirect output through logger with json wrapping
 		if terragruntOptions.JsonLogFormat && terragruntOptions.TerraformLogsToJson {
-			outWriter = terragruntOptions.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args).Writer()
-			errWriter = terragruntOptions.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args).WriterLevel(logrus.ErrorLevel)
+			outWriter = terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args).Writer()
+			errWriter = terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args).WriterLevel(logrus.ErrorLevel)
 		}
 
 		var prefix = ""
@@ -156,7 +155,7 @@ func RunShellCommandWithOutput(
 		defer func(signalChannel *SignalsForwarder) {
 			err := signalChannel.Close()
 			if err != nil {
-				log.Warnf("Error closing signal channel: %v", err)
+				terragruntOptions.Logger.Warnf("Error closing signal channel: %v", err)
 			}
 		}(&signalChannel)
 
@@ -303,7 +302,7 @@ func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (
 	opts.Writer = &stdout
 	opts.ErrWriter = &stderr
 	cmd, err := RunShellCommandWithOutput(opts, path, true, false, "git", "rev-parse", "--show-toplevel")
-	log.Debugf("git show-toplevel result: \n%v\n%v\n", stdout.String(), stderr.String())
+	terragruntOptions.Logger.Debugf("git show-toplevel result: \n%v\n%v\n", stdout.String(), stderr.String())
 	if err != nil {
 		return "", err
 	}
