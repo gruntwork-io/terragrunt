@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -19,8 +18,8 @@ import (
 )
 
 var (
-	forcedRegexp            = regexp.MustCompile(`^([A-Za-z0-9]+)::(.+)$`)
-	secondLevelDomainRegexp = regexp.MustCompile(`(?i)\.?([^.]+\.[^.]+)$`)
+	forcedRegexp     = regexp.MustCompile(`^([A-Za-z0-9]+)::(.+)$`)
+	httpSchemeRegexp = regexp.MustCompile(`(?i)https?://`)
 )
 
 const matchCount = 2
@@ -192,6 +191,9 @@ func NewSource(source string, downloadDir string, workingDir string, logger *log
 // Convert the given source into a URL struct. This method should be able to handle all source URLs that the terraform
 // init command can handle, parsing local file paths, Git paths, and HTTP URLs correctly.
 func ToSourceUrl(source string, workingDir string) (*url.URL, error) {
+	// we need to remove the http(s) scheme to allow `getter.Detect` to add the source type
+	source = httpSchemeRegexp.ReplaceAllString(source, "")
+
 	// The go-getter library is what Terraform's init command uses to download source URLs. Use that library to
 	// parse the URL.
 	rawSourceUrlWithGetter, err := getter.Detect(source, workingDir, getter.Detectors)
@@ -199,58 +201,7 @@ func ToSourceUrl(source string, workingDir string) (*url.URL, error) {
 		return nil, errors.WithStackTrace(err)
 	}
 
-	sourceUrl, err := parseSourceUrl(rawSourceUrlWithGetter)
-	if err != nil {
-		return nil, err
-	}
-
-	return PrependSourceType(sourceUrl), nil
-}
-
-// PrependSourceType prepends one of the "s3, gcs3, hg, git" source type to the http(s)/ssh scheme, if the user has omittied it.
-// The docs describes of this transformation https://developer.hashicorp.com/terraform/language/modules/sources
-func PrependSourceType(sourceURL *url.URL) *url.URL {
-	var (
-		prepend           string
-		secondLevelDomain string
-		pathExt           = path.Ext(sourceURL.Path)
-		hasHTTPPrefix     = strings.HasPrefix(sourceURL.Scheme, "http")
-		hasSSHPrefix      = strings.HasPrefix(sourceURL.Scheme, "ssh")
-	)
-
-	if !hasHTTPPrefix && !hasSSHPrefix {
-		return sourceURL
-	}
-
-	if parts := secondLevelDomainRegexp.FindStringSubmatch(sourceURL.Hostname()); len(parts) > 1 {
-		secondLevelDomain = parts[1]
-	}
-
-	switch secondLevelDomain {
-	case "amazonaws.com":
-		prepend = "s3"
-	case "googleapis.com":
-		prepend = "gcs"
-	case "github.com", "gitlab.com", "bitbucket.org":
-		prepend = "git"
-	default:
-		switch pathExt {
-		case ".git":
-			prepend = "git"
-		case ".hg":
-			prepend = "hg"
-		}
-	}
-
-	if prepend == "" || (prepend != "git" && hasSSHPrefix) {
-		return sourceURL
-	}
-
-	// clone url
-	newURL := sourceURL.ResolveReference(&url.URL{})
-	newURL.Scheme = fmt.Sprintf("%s::%s", prepend, sourceURL.Scheme)
-
-	return newURL
+	return parseSourceUrl(rawSourceUrlWithGetter)
 }
 
 // Parse the given source URL into a URL struct. This method can handle source URLs that include go-getter's "forced
