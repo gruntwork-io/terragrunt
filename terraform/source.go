@@ -17,7 +17,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-var forcedRegexp = regexp.MustCompile(`^([A-Za-z0-9]+)::(.+)$`)
+var (
+	forcedRegexp     = regexp.MustCompile(`^([A-Za-z0-9]+)::(.+)$`)
+	httpSchemeRegexp = regexp.MustCompile(`(?i)https?://`)
+)
 
 const matchCount = 2
 
@@ -188,6 +191,9 @@ func NewSource(source string, downloadDir string, workingDir string, logger *log
 // Convert the given source into a URL struct. This method should be able to handle all source URLs that the terraform
 // init command can handle, parsing local file paths, Git paths, and HTTP URLs correctly.
 func ToSourceUrl(source string, workingDir string) (*url.URL, error) {
+	// we need to remove the http(s) scheme to allow `getter.Detect` to add the source type
+	source = httpSchemeRegexp.ReplaceAllString(source, "")
+
 	// The go-getter library is what Terraform's init command uses to download source URLs. Use that library to
 	// parse the URL.
 	rawSourceUrlWithGetter, err := getter.Detect(source, workingDir, getter.Detectors)
