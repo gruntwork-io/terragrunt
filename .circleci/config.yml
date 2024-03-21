@@ -267,7 +267,7 @@ jobs:
       - run:
           name: Compile and sign the binaries
           command: |
-            sign-binary --install-macos-sign-dependencies --os mac .gon_amd64.hcl
+            sign-binary --macos-gon-version v0.2.5 --install-macos-sign-dependencies --os mac .gon_amd64.hcl
             sign-binary --os mac .gon_arm64.hcl
             echo "Done signing the binary"
 
