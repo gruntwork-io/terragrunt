@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -727,24 +726,6 @@ func (formatter *LogEntriesDropperFormatter) Format(entry *logrus.Entry) ([]byte
 		return formatter.OriginalFormatter.Format(entry)
 	}
 	return []byte(""), nil
-}
-
-// buildDirList - build list of directories from working directory to git top level directory
-func buildDirList(terragruntOptions *options.TerragruntOptions, topLevelDir string) ([]string, error) {
-	var pathsToCheck []string
-	relativePath, err := util.GetPathRelativeTo(topLevelDir, terragruntOptions.WorkingDir)
-	if err != nil {
-		return pathsToCheck, err
-	}
-	// build list of directories from working directory to git top level directory
-	// from which later will be built stacks
-	pathToAdd := terragruntOptions.WorkingDir
-	splits := strings.Split(relativePath, string(os.PathSeparator))
-	for _, path := range splits {
-		pathToAdd = filepath.Join(pathToAdd, path)
-		pathsToCheck = append(pathsToCheck, pathToAdd)
-	}
-	return pathsToCheck, nil
 }
 
 // ListStackDependentModules - build a map with each module and its dependent modules
