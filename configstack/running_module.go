@@ -254,7 +254,7 @@ func (module *runningModule) runNow() error {
 		module.Module.TerragruntOptions.Logger.Debugf("Assuming module %s has already been applied and skipping it", module.Module.Path)
 		return nil
 	} else {
-		module.Module.TerragruntOptions.Logger.Debugf("Running module %s now", module.Module.Path)
+		module.Module.TerragruntOptions.Logger.Infof("Running module %s now", module.Module.Path)
 		return module.Module.TerragruntOptions.RunTerragrunt(module.Module.TerragruntOptions)
 	}
 }
@@ -262,7 +262,7 @@ func (module *runningModule) runNow() error {
 // Record that a module has finished executing and notify all of this module's dependencies
 func (module *runningModule) moduleFinished(moduleErr error) {
 	if moduleErr == nil {
-		module.Module.TerragruntOptions.Logger.Debugf("Module %s has finished successfully!", module.Module.Path)
+		module.Module.TerragruntOptions.Logger.Infof("Module %s has finished successfully!", module.Module.Path)
 	} else {
 		module.Module.TerragruntOptions.Logger.Errorf("Module %s has finished with an error: %v", module.Module.Path, moduleErr)
 	}
