@@ -39,6 +39,17 @@ func ListContainsElement(list []string, element string) bool {
 	return false
 }
 
+// ListContainsAnyElement returns true if the given list contains any of the elements from the second list
+func ListContainsAnyElement(list []string, elements []string) bool {
+	for _, element := range elements {
+		if ListContainsElement(list, element) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // ListContainsSublist returns true if an instance of the sublist can be found in the given list
 func ListContainsSublist(list, sublist []string) bool {
 	// A list cannot contain an empty sublist

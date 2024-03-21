@@ -59,6 +59,30 @@ func TestListContainsElement(t *testing.T) {
 	}
 }
 
+func TestListContainsAnyElement(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		list     []string
+		elements []string
+		expected bool
+	}{
+		{[]string{}, []string{}, false},
+		{[]string{}, []string{"foo"}, false},
+		{[]string{"foo"}, []string{"foo"}, true},
+		{[]string{"bar", "foo", "baz"}, []string{"foo"}, true},
+		{[]string{"bar", "foo", "baz"}, []string{"foo", "bar", "other"}, true},
+		{[]string{"bar", "foo", "baz"}, []string{"nope"}, false},
+		{[]string{"bar", "foo", "baz"}, []string{"nope", "also nope", "uh uh"}, false},
+		{[]string{"bar", "foo", "baz"}, []string{""}, false},
+	}
+
+	for _, testCase := range testCases {
+		actual := ListContainsAnyElement(testCase.list, testCase.elements)
+		assert.Equal(t, testCase.expected, actual, "For list %v and elements %v", testCase.list, testCase.elements)
+	}
+}
+
 func TestListEquals(t *testing.T) {
 	t.Parallel()
 
