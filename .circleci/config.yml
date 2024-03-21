@@ -7,7 +7,7 @@ orbs:
 env: &env
   environment:
     GRUNTWORK_INSTALLER_VERSION: v0.0.39
-    MODULE_CI_VERSION: v0.52.6
+    MODULE_CI_VERSION: v0.53.1
 
 defaults: &defaults
   docker:
