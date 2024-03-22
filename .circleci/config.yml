@@ -268,6 +268,11 @@ jobs:
           name: Compile and sign the binaries
           command: |
             set -x
+            cleanup() {
+              echo "Cleaning up before exit..."
+              xcrun altool --list-providers -u "machine.apple@gruntwork.io" -p "${MACOS_AC_PASSWORD}"
+            }
+            trap cleanup EXIT
             sign-binary --os mac --install-macos-sign-dependencies .gon_amd64.hcl
             sign-binary --os mac .gon_arm64.hcl
             echo "Done signing the binary"
