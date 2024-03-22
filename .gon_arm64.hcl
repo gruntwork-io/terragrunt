@@ -7,8 +7,6 @@ bundle_id = "io.gruntwork.app.terragrunt"
 
 apple_id {
   username = "machine.apple@gruntwork.io"
-  password = "@env:MACOS_AC_PASSWORD"
-  provider = "@env:MACOS_AC_PROVIDER"
 }
 
 sign {
