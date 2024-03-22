@@ -7,7 +7,7 @@ orbs:
 env: &env
   environment:
     GRUNTWORK_INSTALLER_VERSION: v0.0.39
-    MODULE_CI_VERSION: v0.52.6
+    MODULE_CI_VERSION: v0.53.2
 
 defaults: &defaults
   docker:
@@ -267,7 +267,7 @@ jobs:
       - run:
           name: Compile and sign the binaries
           command: |
-            sign-binary --install-macos-sign-dependencies --os mac .gon_amd64.hcl
+            sign-binary --os mac --install-macos-sign-dependencies .gon_amd64.hcl
             sign-binary --os mac .gon_arm64.hcl
             echo "Done signing the binary"
 
