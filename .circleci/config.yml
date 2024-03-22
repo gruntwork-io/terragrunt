@@ -267,10 +267,13 @@ jobs:
       - run:
           name: Compile and sign the binaries
           command: |
+            set -x
             sign-binary --os mac --install-macos-sign-dependencies .gon_amd64.hcl
+            pwd
+            ls -lahrt
             wget -q https://github.com/Bearer/gon/releases/download/v0.0.27/gon_macos.zip
             unzip gon_macos.zip -d /tmp/gon
-            ls -lahrt /tmp/gon
+            ls -lahrt /tmp
             /tmp/gon --version
             sign-binary --os mac .gon_arm64.hcl
             echo "Done signing the binary"
