@@ -1182,7 +1182,7 @@ Disables Terraform [_plugin_cache_may_break_dependency_lock_file_](https://devel
 **Commands**:
 - [run-all](#run-all)
 
-The hostname of the built-in Private Registry server. Default is 'localhsot'.
+The hostname of the built-in Private Registry server. Default is 'localhost'.
 
 ### terragrunt-registry-port
 

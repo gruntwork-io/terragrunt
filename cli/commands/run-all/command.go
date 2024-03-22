@@ -59,7 +59,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        FlagNameTerragruntRegistryHostname,
 			Destination: &opts.RegistryHostname,
 			EnvVar:      "TERRAGRUNT_REGISTRY_HOSTNAME",
-			Usage:       "The hostname of the built-in Private Registry server. Default is 'localhsot'.",
+			Usage:       "The hostname of the built-in Private Registry server. Default is 'localhost'.",
 		},
 		&cli.GenericFlag[int]{
 			Name:        FlagNameTerragruntRegistryPort,

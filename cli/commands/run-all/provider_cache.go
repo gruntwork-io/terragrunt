@@ -47,12 +47,11 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 	}
 
 	provider := services.NewProviderService(opts.ProviderCompleteLock)
-	registryConfig := &registry.Config{
-		Hostname: opts.RegistryHostname,
-		Port:     opts.RegistryPort,
-		Token:    opts.RegistryToken,
-	}
-	registryServer := registry.NewServer(registryConfig, provider)
+	registryServer := registry.NewServer(provider,
+		registry.WithHostname(opts.RegistryHostname),
+		registry.WithPort(opts.RegistryPort),
+		registry.WithToken(opts.RegistryToken),
+	)
 
 	if err := PrepareProviderCacheEnvironment(opts, registryServer.ProviderURL()); err != nil {
 		return err
@@ -71,13 +70,13 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 				log.Debugf("Caching providers for %q", opts.WorkingDir)
 
 				// Before each init, we warm up the global cache to ensure that all necessary providers are cached.
-				// It's low cost operation, because ecause it does not cache the same provider twice, but only new previously non-existent providers.
+				// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
 				if err := RunTerraformProvidersLockCommand(opts, "-platform="+controllers.PlatformNameCacheProvider); err != nil {
 					return nil, err
 				}
 				provider.WaitForCacheReady()
 
-				// Create copmplete terraform lock files. By default this feature is disabled, since it's not superfast.
+				// Create complete terraform lock files. By default this feature is disabled, since it's not superfast.
 				// Instead we use Terraform `TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE` feature, that creates hashes from the local cache.
 				// And since the Terraform developers warn that this feature will be removed soon, it's good to have a workaround.
 				if opts.ProviderCompleteLock && !util.FileExists(filepath.Join(opts.WorkingDir, terraform.TerraformLockFile)) {
@@ -92,10 +91,13 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 			return callback(ctx, opts)
 		},
 	})
-	if err := Run(ctx, opts); err != nil {
+
+	if err := func() error {
+		defer cancel()
+		return Run(ctx, opts)
+	}(); err != nil {
 		return err
 	}
-	cancel()
 
 	return errGroup.Wait()
 }

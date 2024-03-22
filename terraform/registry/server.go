@@ -24,9 +24,11 @@ type Server struct {
 }
 
 // NewServer returns a new Server instance.
-func NewServer(config *Config, providerService *services.ProviderService) *Server {
+func NewServer(providerService *services.ProviderService, opts ...Option) *Server {
+	config := NewConfig(opts...)
+
 	authorization := &handlers.Authorization{
-		Token: config.Token,
+		Token: config.token,
 	}
 
 	reverseProxy := &handlers.ReverseProxy{
@@ -90,7 +92,7 @@ func (server *Server) Run(ctx context.Context) error {
 		<-ctx.Done()
 		log.Infof("Shutting down Private Registry")
 
-		ctx, cancel := context.WithTimeout(ctx, server.config.ShutdownTimeout)
+		ctx, cancel := context.WithTimeout(ctx, server.config.shutdownTimeout)
 		defer cancel()
 
 		srv.SetKeepAlivesEnabled(false)

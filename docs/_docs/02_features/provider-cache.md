@@ -18,7 +18,7 @@ Terraform has provider caching feature [Provider Plugin Cache](https://developer
 
 Let's imagine that your project consists of 50 Terragrunt modules (terragrunt.hcl), each of them uses the same provider `aws`. Without caching, each of them will download the provider from the Internet and stored in its own `.terraform` directory. For clarity, the downloadable archive `terraform-provider-aws_5.36.0_darwin_arm64.zip` has a size of ~100MB, and when unzipped it takes up ~450MB of disk space. It’s easy to calculate that initializing such a project with 50 modules will cost you 5GB of traffic and 22.5GB of free space instead of 100MB and 450MB using the cache.
 
-#### How Terragrunt Porvider` Cache works
+#### How Terragrunt Provider` Cache works
 
 Terragrant has a built-in Private Register. Before running Terraform processes, Terragrunt configures the shell environment to force Terraform to query for providers through the built-in registry, which in turn creates a shared providers cache, by downloading the same provider only once and storing them on disk in a single instance. Then using [Provider Installation](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation) we force Terraform processes to create symlinks to providers from the shared cache instead storing large binary files. To create `.terraform.lock.hcl` files super fast, Terragrunt enables Terraform [_plugin_cache_may_break_dependency_lock_file_](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation) feature, which allows Terraform to generate `.terraform.lock.hcl` files by relying only on provider hashes from the shared cache. Below is what a working directory with cached providers looks like:
 

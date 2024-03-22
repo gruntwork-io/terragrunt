@@ -18,7 +18,7 @@ import (
 
 const (
 	// name using for the discovery
-	porviderName = "providers.v1"
+	providerName = "providers.v1"
 	// URL path to this controller
 	providerPath = "/providers"
 
@@ -60,7 +60,7 @@ func (controller *ProviderController) Path() string {
 
 // Endpoints implements controllers.Endpointer.Endpoints
 func (controller *ProviderController) Endpoints() map[string]any {
-	return map[string]any{porviderName: controller.basePath}
+	return map[string]any{providerName: controller.basePath}
 }
 
 // Register implements router.Controller.Register
