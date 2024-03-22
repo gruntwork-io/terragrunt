@@ -138,9 +138,13 @@ func (c *ExtendedRemoteStateConfigS3) createS3LoggingInput() s3.PutBucketLogging
 		BucketLoggingStatus: &s3.BucketLoggingStatus{
 			LoggingEnabled: &s3.LoggingEnabled{
 				TargetBucket: aws.String(c.AccessLoggingBucketName),
-				TargetPrefix: aws.String(c.AccessLoggingTargetPrefix),
 			},
 		},
+	}
+
+	if c.AccessLoggingTargetPrefix != "" {
+		loggingInput.BucketLoggingStatus.LoggingEnabled.TargetPrefix = aws.String(c.AccessLoggingTargetPrefix)
+
 	}
 
 	if c.AccessLoggingTargetObjectPartitionDateSource != "" {
