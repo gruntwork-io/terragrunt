@@ -263,18 +263,12 @@ jobs:
           command: |
             curl -Ls https://raw.githubusercontent.com/gruntwork-io/gruntwork-installer/master/bootstrap-gruntwork-installer.sh | bash /dev/stdin --version "${GRUNTWORK_INSTALLER_VERSION}"
             gruntwork-install --module-name "gruntwork-module-circleci-helpers" --repo "https://github.com/gruntwork-io/terraform-aws-ci" --tag "${MODULE_CI_VERSION}"
-            gruntwork-install --module-name "sign-binary-helpers" --repo "https://github.com/gruntwork-io/terraform-aws-ci" --tag "${MODULE_CI_VERSION}"
+            gruntwork-install --module-name "sign-binary-helpers" --repo "https://github.com/gruntwork-io/terraform-aws-ci" --branch "gon-version-update"
       - run:
           name: Compile and sign the binaries
           command: |
             set -x
             sign-binary --os mac --install-macos-sign-dependencies .gon_amd64.hcl
-            pwd
-            ls -lahrt
-            wget -q https://github.com/Bearer/gon/releases/download/v0.0.36/gon_macos.zip
-            unzip gon_macos.zip -d /tmp/gon
-            ls -lahrt /tmp
-            /tmp/gon --version
             sign-binary --os mac .gon_arm64.hcl
             echo "Done signing the binary"
 
