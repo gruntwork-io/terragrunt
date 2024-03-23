@@ -13,6 +13,20 @@ defaults: &defaults
   docker:
     - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.21.7-tf1.5-tg39.1-pck1.8-ci50.7
 
+# Install Terraform 1.6 for integration tests
+install_terraform: &install_terraform
+  name: Install Terraform
+  command: |
+    pushd .
+    cd /tmp
+    curl -L "https://releases.hashicorp.com/terraform/1.6.2/terraform_1.6.2_linux_amd64.zip" -o terraform.zip
+    unzip -o terraform.zip
+    sudo install -m 0755 terraform /usr/local/bin/terraform
+    rm -rf terraform
+    rm -rf terraform.zip
+    popd
+    terraform --version
+
 install_tofu: &install_tofu
   name: Install OpenTofu
   command: |
@@ -38,6 +52,24 @@ install_tflint: &install_tflint
     rm -rf tflint.zip
     popd
     tflint --version
+
+run_terratest_log_parser: &run_terratest_log_parser
+  name: Terratest log parser
+  command: terratest_log_parser --testlog logs/integration.log --outputdir logs
+  when: always
+
+run_integration_test: &run_integration_test
+  name: Run integration tests
+  command: |
+    # Make GCP Service Account creds available as a file
+    echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
+    echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
+    # Import test / dev key for SOPS
+    gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
+    mkdir -p logs
+    run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
+  no_output_timeout: 30m
+
 
 version: 2.1
 jobs:
@@ -142,33 +174,12 @@ jobs:
       - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.30.0'
       - run:
           <<: *install_tflint
-
       - run:
-      # Install Terraform 1.6 for integration tests
-          command: |
-            pushd .
-            cd /tmp
-            curl -L "https://releases.hashicorp.com/terraform/1.6.2/terraform_1.6.2_linux_amd64.zip" -o terraform.zip
-            unzip -o terraform.zip
-            sudo install -m 0755 terraform /usr/local/bin/terraform
-            rm -rf terraform
-            rm -rf terraform.zip
-            popd
-            terraform --version
-
-      # Make GCP Service Account creds available as a file
-      - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
-      - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
-      # Import test / dev key for SOPS
+          <<: *install_terraform
       - run:
-          command: |
-            gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
-            mkdir -p logs
-            run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
-          no_output_timeout: 30m
+          <<: *run_integration_test
       - run:
-          command: terratest_log_parser --testlog logs/integration.log --outputdir logs
-          when: always
+          <<: *run_terratest_log_parser
       - store_artifacts:
           path: logs
       - store_test_results:
@@ -184,24 +195,16 @@ jobs:
           <<: *install_tofu
       - run:
           <<: *install_tflint
-      # Make GCP Service Account creds available as a file
-      - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
-      - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
-      # Import test / dev key for SOPS
       - run:
-          command: |
-            gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
-            # remove terraform 
-            sudo rm -f $(which terraform)
-            mkdir -p logs
-            run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
-          no_output_timeout: 30m
+          name: Remove terraform
+          command: sudo rm -f $(which terraform)
+      - run:
+          <<: *run_integration_test
           environment:
             # use tofu as wrapper
             TERRAGRUNT_TFPATH: tofu
       - run:
-          command: terratest_log_parser --testlog logs/integration.log --outputdir logs
-          when: always
+          <<: *run_terratest_log_parser
       - store_artifacts:
           path: logs
       - store_test_results:
@@ -269,7 +272,7 @@ jobs:
           command: |
             export AC_PASSWORD=${MACOS_AC_PASSWORD}
             export AC_PROVIDER=${MACOS_AC_PROVIDER}
-            
+
             sign-binary --os mac --install-macos-sign-dependencies .gon_amd64.hcl
             sign-binary --os mac .gon_arm64.hcl
             echo "Done signing the binary"
