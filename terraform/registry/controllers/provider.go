@@ -81,7 +81,7 @@ func (controller *ProviderController) Register(router *router.Router) {
 
 	// Get All Platforms for a Single Version
 	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-platforms-for-a-single-version
-	router.GET("/:registry_name/:namespace/:name/:version/download/:os/:arch", controller.fincPlatformsAction)
+	router.GET("/:registry_name/:namespace/:name/:version/download/:os/:arch", controller.findPlatformsAction)
 }
 
 func (controller *ProviderController) findVersionsAction(ctx echo.Context) error {
@@ -99,7 +99,7 @@ func (controller *ProviderController) findVersionsAction(ctx echo.Context) error
 	return controller.ReverseProxy.NewRequest(ctx, provider.VersionURL())
 }
 
-func (controller *ProviderController) fincPlatformsAction(ctx echo.Context) (err error) {
+func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err error) {
 	var (
 		registryName = ctx.Param("registry_name")
 		namespace    = ctx.Param("namespace")

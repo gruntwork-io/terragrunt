@@ -37,9 +37,6 @@ const (
 	DefaultIAMAssumeRoleDuration = 3600
 
 	minCommandLength = 2
-
-	defaultRegistryHostname = "localhost"
-	defaultRegistryPort     = 5758
 )
 
 var (
@@ -374,9 +371,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 		RunTerragrunt: func(ctx context.Context, opts *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
-		RegistryHostname: defaultRegistryHostname,
-		RegistryPort:     defaultRegistryPort,
-		RegistryNames:    defaultRegistryNames,
+		RegistryNames: defaultRegistryNames,
 	}
 }
 

@@ -29,8 +29,6 @@ import (
 const (
 	// The default path to the automatically generated local CLI configuration, relative to the `.terragrunt-cache` folder.
 	defaultLocalTerraformCLIFilename = ".terraformrc"
-	// The default path to provider cache directory, relative to the `.terragrunt-cache` folder.
-	defaultProviderCacheDir = "provider-cache"
 )
 
 // HTTPStatusCacheProviderReg is regular expression to determine the success result of the command `terraform lock providers -platform=cache provider`.
@@ -38,12 +36,22 @@ var HTTPStatusCacheProviderReg = regexp.MustCompile(`(?mi)` + strconv.Itoa(contr
 
 func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) error {
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	util.RegisterInterruptHandler(func() {
 		cancel()
 	})
 
 	if opts.RegistryToken == "" {
 		opts.RegistryToken = fmt.Sprintf("%s:%s", handlers.AuthorizationApiKeyHeaderName, uuid.New().String())
+	}
+
+	if opts.RegistryPort == 0 {
+		port, err := util.GetFreePort(opts.RegistryHostname)
+		if err != nil {
+			return err
+		}
+		opts.RegistryPort = port
 	}
 
 	provider := services.NewProviderService(opts.ProviderCompleteLock)
@@ -56,12 +64,9 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 	if err := PrepareProviderCacheEnvironment(opts, registryServer.ProviderURL()); err != nil {
 		return err
 	}
-	provider.SetCacheDir(opts.ProviderCacheDir)
 
-	errGroup, ctx := errgroup.WithContext(ctx)
-	errGroup.Go(func() error {
-		return registryServer.Run(ctx)
-	})
+	log.Debugf("Provider cache dir %q", opts.ProviderCacheDir)
+	provider.SetCacheDir(opts.ProviderCacheDir)
 
 	ctx = terraformcmd.ContextWithRetry(ctx, &terraformcmd.Retry{
 		HookFunc: func(ctx context.Context, opts *options.TerragruntOptions, callback terraformcmd.RetryCallback) (*shell.CmdOutput, error) {
@@ -92,12 +97,14 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 		},
 	})
 
-	if err := func() error {
+	errGroup, ctx := errgroup.WithContext(ctx)
+	errGroup.Go(func() error {
+		return registryServer.Run(ctx)
+	})
+	errGroup.Go(func() error {
 		defer cancel()
 		return Run(ctx, opts)
-	}(); err != nil {
-		return err
-	}
+	})
 
 	return errGroup.Wait()
 }
@@ -177,7 +184,11 @@ func CreateLocalCLIConfig(opts *options.TerragruntOptions, cliConfigFile string,
 		if cfg.PluginCacheDir != "" {
 			opts.ProviderCacheDir = cfg.PluginCacheDir
 		} else {
-			opts.ProviderCacheDir = filepath.Join(opts.DownloadDir, defaultProviderCacheDir)
+			cacheDir, err := util.GetCacheDir()
+			if err != nil {
+				return err
+			}
+			opts.ProviderCacheDir = cacheDir
 		}
 	}
 	cfg.PluginCacheDir = ""

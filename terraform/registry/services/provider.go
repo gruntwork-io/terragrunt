@@ -7,8 +7,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
+	"time"
 
+	"github.com/gofrs/flock"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/registry/models"
@@ -19,8 +22,10 @@ import (
 )
 
 var (
-	defaultBaseCacheDir = filepath.Join(os.TempDir(), "terragrunt-provider-cache")
-	unzipFileMode       = os.FileMode(0000)
+	defaultBaseCacheDir            = filepath.Join(os.TempDir(), "terragrunt-provider-cache")
+	unzipFileMode                  = os.FileMode(0000)
+	waitNextAttepmtToLockProvider  = time.Second * 5
+	maxAttepmtsToLockProviderCache = 60 // equals 5 mins (waitNextAttepmtToLockProvider * 60)
 )
 
 // Borrow the "unpack a zip cache into a target directory" logic from
@@ -44,9 +49,10 @@ type ProviderCache struct {
 	*ProviderService
 	*models.Provider
 
-	Filename    string
-	providerDir string
-	ready       bool
+	Filename     string
+	fileLockName string
+	providerDir  string
+	ready        bool
 }
 
 // fetch downloads the provider archive from the remote/original registry.
@@ -81,6 +87,38 @@ func (cache *ProviderCache) fetch(ctx context.Context) error {
 	return nil
 }
 
+func (cache *ProviderCache) fileLock(ctx context.Context) (*flock.Flock, error) {
+	log.Debugf("Try to lock provider cache %q", cache.Provider)
+
+	var (
+		attepmt  int
+		fileLock = flock.New(cache.fileLockName)
+	)
+
+	for {
+		locked, err := fileLock.TryLock()
+		if err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
+		if locked {
+			return fileLock, nil
+		}
+
+		if attepmt >= maxAttepmtsToLockProviderCache {
+			return nil, errors.Errorf("unable to lock provider cache %q, try removing the lock file %q manually if you are sure no one terragrunt process is running", cache.Provider, cache.fileLockName)
+		}
+		attepmt++
+
+		log.Debugf("Provider %q cache is busy, next (%d of %d) locking attemp in %v", cache.Provider, attepmt, maxAttepmtsToLockProviderCache, waitNextAttepmtToLockProvider)
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(waitNextAttepmtToLockProvider):
+		}
+	}
+}
+
 // warmUp checks if the binary file already exists in the cache directory, if not, downloads the archive and unzip it.
 func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	var unpackedFound bool
@@ -89,19 +127,26 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		if err := os.MkdirAll(cache.providerDir, os.ModePerm); err != nil {
 			return errors.WithStackTrace(err)
 		}
-	} else {
-		entries, err := os.ReadDir(cache.providerDir)
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
+	}
 
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				unpackedFound = true
-				break
-			}
-		}
+	lock, err := cache.fileLock(ctx)
+	if err != nil {
+		return err
+	}
+	log.Debugf("Provider %q cache is locked", cache.Provider)
+	defer log.Debugf("Provider %q cache is released", cache.Provider)
+	defer lock.Unlock()
 
+	entries, err := os.ReadDir(cache.providerDir)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasPrefix(entry.Name(), "terraform-provider") {
+			unpackedFound = true
+			break
+		}
 	}
 
 	if unpackedFound && !cache.cacheProviderArchive {
@@ -119,6 +164,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 			return errors.WithStackTrace(err)
 		}
 	}
+
 	return nil
 }
 
@@ -164,11 +210,15 @@ func (service *ProviderService) CacheProvider(provider *models.Provider) {
 		return
 	}
 
+	filename := filepath.Base(provider.DownloadURL.Path)
+	providerVersionDir := filepath.Join(service.baseCacheDir, provider.RegistryName, provider.Namespace, provider.Name, provider.Version)
+
 	cache := &ProviderCache{
 		ProviderService: service,
 		Provider:        provider,
-		Filename:        filepath.Join(service.baseCacheDir, provider.RegistryName, provider.Namespace, provider.Name, filepath.Base(provider.DownloadURL.Path)),
-		providerDir:     filepath.Join(service.baseCacheDir, provider.RegistryName, provider.Namespace, provider.Name, provider.Version, fmt.Sprintf("%s_%s", provider.OS, provider.Arch)),
+		Filename:        filepath.Join(providerVersionDir, filename),
+		fileLockName:    filepath.Join(providerVersionDir, "terragrunt.lock"),
+		providerDir:     filepath.Join(providerVersionDir, fmt.Sprintf("%s_%s", provider.OS, provider.Arch)),
 	}
 
 	service.providerCacheCh <- cache
@@ -206,7 +256,7 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 				}
 				cache.ready = true
 
-				log.Infof("Provider %q cached", cache.Provider)
+				log.Infof("Provider %q is cached", cache.Provider)
 				return nil
 			})
 		case <-ctx.Done():

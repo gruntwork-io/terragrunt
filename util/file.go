@@ -3,6 +3,7 @@ package util
 import (
 	"encoding/gob"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -625,4 +626,37 @@ func IsDirectoryEmpty(dirPath string) (bool, error) {
 		return false, nil
 	}
 	return true, nil
+}
+
+// GetCacheDir returns the global terragrunt cache directory for the current user.
+func GetCacheDir() (string, error) {
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+	cacheDir = filepath.Join(cacheDir, "terragrunt")
+
+	if !FileExists(cacheDir) {
+		if err := os.MkdirAll(cacheDir, os.ModePerm); err != nil {
+			return "", errors.WithStackTrace(err)
+		}
+	}
+
+	return cacheDir, nil
+}
+
+// GetFreePort asks the kernel for a free open port that is ready to use.
+func GetFreePort(hostname string) (int, error) {
+	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:0", hostname))
+	if err != nil {
+		return 0, errors.WithStackTrace(err)
+	}
+
+	listener, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		return 0, errors.WithStackTrace(err)
+	}
+	defer listener.Close()
+
+	return listener.Addr().(*net.TCPAddr).Port, nil
 }

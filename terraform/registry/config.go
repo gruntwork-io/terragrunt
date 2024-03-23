@@ -7,8 +7,6 @@ import (
 )
 
 const (
-	defaultHostname        = "localhost"
-	defaultPort            = 5758
 	defaultShutdownTimeout = time.Second * 30
 )
 
@@ -25,7 +23,9 @@ func WithHostname(hostname string) Option {
 
 func WithPort(port int) Option {
 	return func(cfg Config) Config {
-		cfg.port = port
+		if port != 0 {
+			cfg.port = port
+		}
 		return cfg
 	}
 }
@@ -46,8 +46,6 @@ type Config struct {
 
 func NewConfig(opts ...Option) *Config {
 	cfg := &Config{
-		hostname:        defaultHostname,
-		port:            defaultPort,
 		shutdownTimeout: defaultShutdownTimeout,
 	}
 
