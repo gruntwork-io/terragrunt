@@ -65,7 +65,6 @@ setup_test_environment: &setup_test_environment
   no_output_timeout: 30m
 
 setup_provider_cache_environment: &setup_provider_cache_environment
-  name: Setup provider cache environment
   environment:
     TERRAGRUNT_PROVIDER_CACHE: "1"
     TERRAGRUNT_PROVIDER_CACHE_DIR: "$(pwd)/provider-cache"
