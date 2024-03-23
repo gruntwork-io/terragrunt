@@ -383,6 +383,22 @@ workflows:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
+      - integration_test_terraform_with_provider_cache:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+      - integration_test_tofu_with_provider_cache:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
       - integration_test_tflint:
           filters:
             tags:
