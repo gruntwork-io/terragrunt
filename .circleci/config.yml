@@ -217,28 +217,6 @@ jobs:
       - store_test_results:
           path: logs
 
-  integration_test_terraform_with_provider_cache:
-    resource_class: large
-    <<: *defaults
-    steps:
-      - checkout
-      - run:
-          <<: *install_terraform
-      - run:
-          <<: *install_tflint
-      - run:
-          <<: *setup_test_environment
-      - run:
-          <<: *setup_provider_cache_environment
-      - run:
-          <<: *run_integration_test_terraform
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
   integration_test_tofu:
     resource_class: large
     <<: *defaults
@@ -259,6 +237,27 @@ jobs:
       - store_test_results:
           path: logs
 
+  integration_test_terraform_with_provider_cache:
+    resource_class: large
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          <<: *install_terraform
+      - run:
+          <<: *install_tflint
+      - run:
+          <<: *setup_test_environment
+      - run:
+          <<: *setup_provider_cache_environment
+          <<: *run_integration_test_terraform
+      - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
   integration_test_tofu_with_provider_cache:
     resource_class: large
     <<: *defaults
@@ -272,7 +271,6 @@ jobs:
           <<: *setup_test_environment
       - run:
           <<: *setup_provider_cache_environment
-      - run:
           <<: *run_integration_test_tofu
       - run:
           <<: *run_terratest_log_parser
