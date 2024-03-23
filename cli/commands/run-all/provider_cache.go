@@ -47,7 +47,7 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 	}
 
 	if opts.RegistryPort == 0 {
-		port, err := util.GetFreePort(opts.RegistryHostname)
+		port, err := util.GetFreePort()
 		if err != nil {
 			return err
 		}
@@ -64,8 +64,6 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 	if err := PrepareProviderCacheEnvironment(opts, registryServer.ProviderURL()); err != nil {
 		return err
 	}
-
-	log.Debugf("Provider cache dir %q", opts.ProviderCacheDir)
 	provider.SetCacheDir(opts.ProviderCacheDir)
 
 	ctx = terraformcmd.ContextWithRetry(ctx, &terraformcmd.Retry{

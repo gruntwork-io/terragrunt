@@ -619,7 +619,9 @@ func IsDirectoryEmpty(dirPath string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer dir.Close()
+	defer func() {
+		_ = dir.Close()
+	}()
 
 	_, err = dir.Readdir(1)
 	if err == nil {
@@ -646,8 +648,8 @@ func GetCacheDir() (string, error) {
 }
 
 // GetFreePort asks the kernel for a free open port that is ready to use.
-func GetFreePort(hostname string) (int, error) {
-	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:0", hostname))
+func GetFreePort() (int, error) {
+	addr, err := net.ResolveTCPAddr("tcp", ":0")
 	if err != nil {
 		return 0, errors.WithStackTrace(err)
 	}

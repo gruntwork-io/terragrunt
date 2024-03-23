@@ -22,7 +22,6 @@ import (
 )
 
 var (
-	defaultBaseCacheDir            = filepath.Join(os.TempDir(), "terragrunt-provider-cache")
 	unzipFileMode                  = os.FileMode(0000)
 	waitNextAttepmtToLockProvider  = time.Second * 5
 	maxAttepmtsToLockProviderCache = 60 // equals 5 mins (waitNextAttepmtToLockProvider * 60)
@@ -109,7 +108,7 @@ func (cache *ProviderCache) fileLock(ctx context.Context) (*flock.Flock, error) 
 		}
 		attepmt++
 
-		log.Debugf("Provider %q cache is busy, next (%d of %d) locking attemp in %v", cache.Provider, attepmt, maxAttepmtsToLockProviderCache, waitNextAttepmtToLockProvider)
+		log.Debugf("Provider %q cache is busy, next (%d of %d) locking attempt in %v", cache.Provider, attepmt, maxAttepmtsToLockProviderCache, waitNextAttepmtToLockProvider)
 
 		select {
 		case <-ctx.Done():
@@ -135,7 +134,9 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 	log.Debugf("Provider %q cache is locked", cache.Provider)
 	defer log.Debugf("Provider %q cache is released", cache.Provider)
-	defer lock.Unlock()
+	defer func() {
+		_ = lock.Unlock()
+	}()
 
 	entries, err := os.ReadDir(cache.providerDir)
 	if err != nil {
@@ -183,7 +184,6 @@ type ProviderService struct {
 
 func NewProviderService(cacheProviderArchive bool) *ProviderService {
 	return &ProviderService{
-		baseCacheDir:         defaultBaseCacheDir,
 		providerCacheCh:      make(chan *ProviderCache),
 		cacheProviderArchive: cacheProviderArchive,
 	}
@@ -192,6 +192,7 @@ func NewProviderService(cacheProviderArchive bool) *ProviderService {
 // SetCacheDir sets the dir where providers will be cached.
 // It creates the same files tree structure as terraform `plugin_cache_dir` feature.
 func (service *ProviderService) SetCacheDir(baseCacheDir string) {
+	log.Debugf("Provider cache dir %q", baseCacheDir)
 	service.baseCacheDir = baseCacheDir
 }
 

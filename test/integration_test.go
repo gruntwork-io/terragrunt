@@ -208,6 +208,9 @@ func TestTerragruntProviderCache(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
+	cacheDir, err := util.GetCacheDir()
+	assert.NoError(t, err)
+
 	providers := map[string][]string{
 		"first": []string{
 			"hashicorp/aws/5.36.0",
@@ -264,7 +267,7 @@ func TestTerragruntProviderCache(t *testing.T) {
 					actualPath, err := os.Readlink(symlinkPath)
 					assert.NoError(t, err)
 
-					expectedPath := filepath.Join(rootPath, ".terragrunt-cache/provider-cache", provider, entry.Name())
+					expectedPath := filepath.Join(cacheDir, provider, entry.Name())
 					assert.Contains(t, actualPath, expectedPath)
 				}
 				assert.Equal(t, expectedProviderSymlinks, actualProviderSymlinks)
