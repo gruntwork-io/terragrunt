@@ -64,6 +64,13 @@ setup_test_environment: &setup_test_environment
     mkdir -p logs
   no_output_timeout: 30m
 
+setup_provider_cache_environment: &setup_provider_cache_environment
+  name: Setup provider cache environment
+  environment:
+    TERRAGRUNT_PROVIDER_CACHE: "1"
+    TERRAGRUNT_PROVIDER_CACHE_DIR: "$(pwd)/provider-cache"
+  no_output_timeout: 30m
+
 run_integration_test_terraform: &run_integration_test_terraform
   name: Run integration tests
   command: |
@@ -210,6 +217,28 @@ jobs:
       - store_test_results:
           path: logs
 
+  integration_test_terraform_with_provider_cache:
+    resource_class: large
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          <<: *install_terraform
+      - run:
+          <<: *install_tflint
+      - run:
+          <<: *setup_test_environment
+      - run:
+          <<: *setup_provider_cache_environment
+      - run:
+          <<: *run_integration_test_terraform
+      - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
   integration_test_tofu:
     resource_class: large
     <<: *defaults
@@ -230,6 +259,29 @@ jobs:
       - store_test_results:
           path: logs
 
+  integration_test_tofu_with_provider_cache:
+    resource_class: large
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          <<: *install_tofu
+      - run:
+          <<: *install_tflint
+      - run:
+          <<: *setup_test_environment
+      - run:
+          <<: *setup_provider_cache_environment
+      - run:
+          <<: *run_integration_test_tofu
+      - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
+  # Run TFLint tests separately as tflint during execution change working directory.
   integration_test_tflint:
     resource_class: large
     <<: *defaults
@@ -242,7 +294,6 @@ jobs:
       - run:
           <<: *setup_test_environment
       - run:
-          # Run TFLint tests separately as tflint during execution change working directory.
           <<: *run_tflint_test
       - run:
           <<: *run_terratest_log_parser
