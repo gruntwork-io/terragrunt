@@ -67,7 +67,6 @@ setup_test_environment: &setup_test_environment
 setup_provider_cache_environment: &setup_provider_cache_environment
   environment:
     TERRAGRUNT_PROVIDER_CACHE: "1"
-    TERRAGRUNT_PROVIDER_CACHE_DIR: "$(pwd)/provider-cache"
   no_output_timeout: 30m
 
 run_integration_test_terraform: &run_integration_test_terraform
