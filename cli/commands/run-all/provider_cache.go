@@ -41,6 +41,8 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 		cancel()
 	})
 
+	errGroup, ctx := errgroup.WithContext(ctx)
+
 	if opts.ProviderCacheDir == "" {
 		cacheDir, err := util.GetCacheDir()
 		if err != nil {
@@ -53,13 +55,16 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 		opts.RegistryToken = fmt.Sprintf("%s:%s", handlers.AuthorizationApiKeyHeaderName, uuid.New().String())
 	}
 
-	registryServer, err := initRegistryServer(ctx, opts)
-	if err != nil {
+	registryServer := registry.NewServer(
+		registry.WithHostname(opts.RegistryHostname),
+		registry.WithPort(opts.RegistryPort),
+		registry.WithToken(opts.RegistryToken),
+		registry.WithProviderCacheDir(opts.ProviderCacheDir),
+		registry.WithProviderCompleteLock(opts.ProviderCompleteLock),
+	)
+	if err := registryServer.Listen(); err != nil {
 		return err
 	}
-	defer func() {
-		_ = registryServer.Close()
-	}()
 
 	if err := prepareProviderCacheEnvironment(opts, registryServer.ProviderURL()); err != nil {
 		return err
@@ -94,7 +99,6 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 		},
 	})
 
-	errGroup, ctx := errgroup.WithContext(ctx)
 	errGroup.Go(func() error {
 		return registryServer.Run(ctx)
 	})
@@ -104,22 +108,6 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 	})
 
 	return errGroup.Wait()
-}
-
-func initRegistryServer(ctx context.Context, opts *options.TerragruntOptions) (*registry.Server, error) {
-	registryServer := registry.NewServer(
-		registry.WithHostname(opts.RegistryHostname),
-		registry.WithPort(opts.RegistryPort),
-		registry.WithToken(opts.RegistryToken),
-		registry.WithProviderCacheDir(opts.ProviderCacheDir),
-		registry.WithProviderCompleteLock(opts.ProviderCompleteLock),
-	)
-
-	if err := registryServer.StartListening(ctx); err != nil {
-		return nil, err
-	}
-
-	return registryServer, nil
 }
 
 // runTerraformProvidersLockCommand runs `terraform providers lock` for two purposes:

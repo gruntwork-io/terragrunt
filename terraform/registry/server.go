@@ -5,8 +5,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"path/filepath"
-	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -14,22 +12,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/terraform/registry/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/registry/router"
 	"github.com/gruntwork-io/terragrunt/terraform/registry/services"
-	"github.com/gruntwork-io/terragrunt/util"
 	"golang.org/x/sync/errgroup"
-)
-
-const (
-	registryPortFilelockName          = "./registry-port.lock"
-	waitNextAttepmtToLockRegistryPort = time.Second * 2
-	maxAttemptsToLockRegistryPort     = 60 // equals 2 mins (waitNextAttepmtToLockRegistryPort * 60)
 )
 
 // Server is a private Terraform registry for provider caching.
 type Server struct {
 	*http.Server
+	config   *Config
 	listener net.Listener
-
-	config *Config
 
 	Provider           *services.ProviderService
 	providerController *controllers.ProviderController
@@ -75,7 +65,7 @@ func NewServer(opts ...Option) *Server {
 	v1Group.Register(providerController)
 
 	return &Server{
-		Server:             &http.Server{Addr: cfg.Addr(), Handler: rootRouter},
+		Server:             &http.Server{Handler: rootRouter},
 		config:             cfg,
 		Provider:           providerService,
 		providerController: providerController,
@@ -91,24 +81,7 @@ func (server *Server) ProviderURL() *url.URL {
 	}
 }
 
-func (server *Server) StartListening(ctx context.Context) error {
-	cacheDir, err := util.GetCacheDir()
-	if err != nil {
-		return err
-	}
-	filelockName := filepath.Join(cacheDir, registryPortFilelockName)
-
-	log.Debug("Try to lock registry port")
-	filelock, err := util.AcquireFileLock(ctx, filelockName, maxAttemptsToLockRegistryPort, waitNextAttepmtToLockRegistryPort)
-	if err != nil {
-		return err
-	}
-	log.Debug("Registry port is locked")
-	defer func() {
-		_ = filelock.Unlock()
-		log.Debug("Registry port is released")
-	}()
-
+func (server *Server) Listen() error {
 	// if the port is undefined, ask the kernel for a free open port that is ready to use
 	addr, err := net.ResolveTCPAddr("tcp", server.config.Addr())
 	if err != nil {
@@ -119,17 +92,12 @@ func (server *Server) StartListening(ctx context.Context) error {
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
+
 	server.Addr = ln.Addr().String()
 	server.listener = ln
+
+	log.Infof("Private Registry started, listening on %q", server.Addr)
 	return nil
-}
-
-func (server *Server) Serve() error {
-	if server.listener != nil {
-		return server.Server.Serve(server.listener)
-	}
-
-	return server.ListenAndServe()
 }
 
 // Run starts the webserver and workers.
@@ -154,8 +122,7 @@ func (server *Server) Run(ctx context.Context) error {
 		return nil
 	})
 
-	log.Infof("Private Registry started, listening on %q", server.Addr)
-	if err := server.Serve(); err != nil && err != http.ErrServerClosed {
+	if err := server.Serve(server.listener); err != nil && err != http.ErrServerClosed {
 		return errors.Errorf("error starting Terrafrom Registry server: %w", err)
 	}
 	defer log.Infof("Private Registry stopped")
