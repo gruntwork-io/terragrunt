@@ -215,26 +215,6 @@ jobs:
       - store_test_results:
           path: logs
 
-  integration_test_tofu:
-    resource_class: large
-    <<: *defaults
-    steps:
-      - checkout
-      - run:
-          <<: *install_tofu
-      - run:
-          <<: *install_tflint
-      - run:
-          <<: *setup_test_environment
-      - run:
-          <<: *run_integration_test_tofu
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
   integration_test_terraform_with_provider_cache:
     resource_class: large
     <<: *defaults
@@ -249,6 +229,26 @@ jobs:
       - run:
           <<: *setup_provider_cache_environment
           <<: *run_integration_test_terraform
+      - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
+  integration_test_tofu:
+    resource_class: large
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          <<: *install_tofu
+      - run:
+          <<: *install_tflint
+      - run:
+          <<: *setup_test_environment
+      - run:
+          <<: *run_integration_test_tofu
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
@@ -297,6 +297,28 @@ jobs:
           path: logs
       - store_test_results:
           path: logs
+
+  integration_test_tflint_with_provider_cache:
+    resource_class: large
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          <<: *install_tofu
+      - run:
+          <<: *install_tflint
+      - run:
+          <<: *setup_test_environment
+      - run:
+          <<: *setup_provider_cache_environment
+          <<: *run_tflint_test
+      - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
   build:
     resource_class: large
     <<: *defaults
@@ -373,7 +395,7 @@ workflows:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
-      - integration_test_tofu:
+      - integration_test_terraform_with_provider_cache:
           filters:
             tags:
               only: /^v.*/
@@ -381,7 +403,7 @@ workflows:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
-      - integration_test_terraform_with_provider_cache:
+      - integration_test_tofu:
           filters:
             tags:
               only: /^v.*/
@@ -398,6 +420,14 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
       - integration_test_tflint:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+      - integration_test_tflint_with_provider_cache:
           filters:
             tags:
               only: /^v.*/
