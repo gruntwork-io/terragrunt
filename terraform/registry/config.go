@@ -37,11 +37,28 @@ func WithToken(token string) Option {
 	}
 }
 
+func WithProviderCacheDir(cacheDir string) Option {
+	return func(cfg Config) Config {
+		cfg.providerCacheDir = cacheDir
+		return cfg
+	}
+}
+
+func WithProviderCompleteLock(completeLock bool) Option {
+	return func(cfg Config) Config {
+		cfg.providerCompleteLock = completeLock
+		return cfg
+	}
+}
+
 type Config struct {
 	hostname        string
 	port            int
 	token           string
 	shutdownTimeout time.Duration
+
+	providerCacheDir     string
+	providerCompleteLock bool
 }
 
 func NewConfig(opts ...Option) *Config {

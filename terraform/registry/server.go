@@ -2,8 +2,11 @@ package registry
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/url"
+	"path/filepath"
+	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -11,30 +14,41 @@ import (
 	"github.com/gruntwork-io/terragrunt/terraform/registry/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/registry/router"
 	"github.com/gruntwork-io/terragrunt/terraform/registry/services"
+	"github.com/gruntwork-io/terragrunt/util"
 	"golang.org/x/sync/errgroup"
+)
+
+const (
+	registryPortFilelockName          = "./registry-port.lock"
+	waitNextAttepmtToLockRegistryPort = time.Second * 2
+	maxAttemptsToLockRegistryPort     = 60 // equals 2 mins (waitNextAttepmtToLockRegistryPort * 60)
 )
 
 // Server is a private Terraform registry for provider caching.
 type Server struct {
-	http.Handler
+	*http.Server
+	listener net.Listener
+
 	config *Config
 
-	providerService    *services.ProviderService
+	Provider           *services.ProviderService
 	providerController *controllers.ProviderController
 }
 
 // NewServer returns a new Server instance.
-func NewServer(providerService *services.ProviderService, opts ...Option) *Server {
-	config := NewConfig(opts...)
+func NewServer(opts ...Option) *Server {
+	cfg := NewConfig(opts...)
+
+	providerService := services.NewProviderService(cfg.providerCacheDir, cfg.providerCompleteLock)
 
 	authorization := &handlers.Authorization{
-		Token: config.token,
+		Token: cfg.token,
 	}
 
 	reverseProxy := &handlers.ReverseProxy{
 		ServerURL: &url.URL{
 			Scheme: "http",
-			Host:   config.Addr(),
+			Host:   cfg.Addr(),
 		},
 	}
 
@@ -61,9 +75,9 @@ func NewServer(providerService *services.ProviderService, opts ...Option) *Serve
 	v1Group.Register(providerController)
 
 	return &Server{
-		Handler:            rootRouter,
-		config:             config,
-		providerService:    providerService,
+		Server:             &http.Server{Addr: cfg.Addr(), Handler: rootRouter},
+		config:             cfg,
+		Provider:           providerService,
 		providerController: providerController,
 	}
 }
@@ -72,21 +86,59 @@ func NewServer(providerService *services.ProviderService, opts ...Option) *Serve
 func (server *Server) ProviderURL() *url.URL {
 	return &url.URL{
 		Scheme: "http",
-		Host:   server.config.Addr(),
+		Host:   server.Addr,
 		Path:   server.providerController.Path(),
 	}
+}
+
+func (server *Server) StartListening(ctx context.Context) error {
+	cacheDir, err := util.GetCacheDir()
+	if err != nil {
+		return err
+	}
+	filelockName := filepath.Join(cacheDir, registryPortFilelockName)
+
+	log.Debug("Try to lock registry port")
+	filelock, err := util.AcquireFileLock(ctx, filelockName, maxAttemptsToLockRegistryPort, waitNextAttepmtToLockRegistryPort)
+	if err != nil {
+		return err
+	}
+	log.Debug("Registry port is locked")
+	defer func() {
+		_ = filelock.Unlock()
+		log.Debug("Registry port is released")
+	}()
+
+	// if the port is undefined, ask the kernel for a free open port that is ready to use
+	addr, err := net.ResolveTCPAddr("tcp", server.config.Addr())
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	ln, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	server.Addr = ln.Addr().String()
+	server.listener = ln
+	return nil
+}
+
+func (server *Server) Serve() error {
+	if server.listener != nil {
+		return server.Server.Serve(server.listener)
+	}
+
+	return server.ListenAndServe()
 }
 
 // Run starts the webserver and workers.
 func (server *Server) Run(ctx context.Context) error {
 	log.Infof("Start Private Registry")
 
-	addr := server.config.Addr()
-	srv := &http.Server{Addr: addr, Handler: server}
-
 	errGroup, ctx := errgroup.WithContext(ctx)
 	errGroup.Go(func() error {
-		return server.providerService.RunCacheWorker(ctx)
+		return server.Provider.RunCacheWorker(ctx)
 	})
 	errGroup.Go(func() error {
 		<-ctx.Done()
@@ -95,15 +147,15 @@ func (server *Server) Run(ctx context.Context) error {
 		ctx, cancel := context.WithTimeout(ctx, server.config.shutdownTimeout)
 		defer cancel()
 
-		srv.SetKeepAlivesEnabled(false)
-		if err := srv.Shutdown(ctx); err != nil {
+		server.SetKeepAlivesEnabled(false)
+		if err := server.Shutdown(ctx); err != nil {
 			return errors.WithStackTrace(err)
 		}
 		return nil
 	})
 
-	log.Infof("Private Registry started, listening on %q", addr)
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	log.Infof("Private Registry started, listening on %q", server.Addr)
+	if err := server.Serve(); err != nil && err != http.ErrServerClosed {
 		return errors.Errorf("error starting Terrafrom Registry server: %w", err)
 	}
 	defer log.Infof("Private Registry stopped")

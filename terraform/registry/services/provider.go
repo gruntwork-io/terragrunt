@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gofrs/flock"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/registry/models"
@@ -22,9 +21,9 @@ import (
 )
 
 var (
-	unzipFileMode                  = os.FileMode(0000)
-	waitNextAttepmtToLockProvider  = time.Second * 5
-	maxAttepmtsToLockProviderCache = 60 // equals 5 mins (waitNextAttepmtToLockProvider * 60)
+	unzipFileMode                      = os.FileMode(0000)
+	waitNextAttepmtToLockProviderCache = time.Second * 5
+	maxAttemptsToLockProviderCache     = 60 // equals 5 mins (waitNextAttepmtToLockProviderCache * 60)
 )
 
 // Borrow the "unpack a zip cache into a target directory" logic from
@@ -49,7 +48,7 @@ type ProviderCache struct {
 	*models.Provider
 
 	Filename     string
-	fileLockName string
+	filelockName string
 	providerDir  string
 	ready        bool
 }
@@ -86,38 +85,6 @@ func (cache *ProviderCache) fetch(ctx context.Context) error {
 	return nil
 }
 
-func (cache *ProviderCache) fileLock(ctx context.Context) (*flock.Flock, error) {
-	log.Debugf("Try to lock provider cache %q", cache.Provider)
-
-	var (
-		attepmt  int
-		fileLock = flock.New(cache.fileLockName)
-	)
-
-	for {
-		locked, err := fileLock.TryLock()
-		if err != nil {
-			return nil, errors.WithStackTrace(err)
-		}
-		if locked {
-			return fileLock, nil
-		}
-
-		if attepmt >= maxAttepmtsToLockProviderCache {
-			return nil, errors.Errorf("unable to lock provider cache %q, try removing the lock file %q manually if you are sure no one terragrunt process is running", cache.Provider, cache.fileLockName)
-		}
-		attepmt++
-
-		log.Debugf("Provider %q cache is busy, next (%d of %d) locking attempt in %v", cache.Provider, attepmt, maxAttepmtsToLockProviderCache, waitNextAttepmtToLockProvider)
-
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(waitNextAttepmtToLockProvider):
-		}
-	}
-}
-
 // warmUp checks if the binary file already exists in the cache directory, if not, downloads the archive and unzip it.
 func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	var unpackedFound bool
@@ -128,14 +95,15 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		}
 	}
 
-	lock, err := cache.fileLock(ctx)
+	log.Debugf("Try to lock provider cache %q", cache.Provider)
+	filelock, err := util.AcquireFileLock(ctx, cache.filelockName, maxAttemptsToLockProviderCache, waitNextAttepmtToLockProviderCache)
 	if err != nil {
 		return err
 	}
 	log.Debugf("Provider %q cache is locked", cache.Provider)
-	defer log.Debugf("Provider %q cache is released", cache.Provider)
 	defer func() {
-		_ = lock.Unlock()
+		_ = filelock.Unlock()
+		log.Debugf("Provider %q cache is released", cache.Provider)
 	}()
 
 	entries, err := os.ReadDir(cache.providerDir)
@@ -182,18 +150,12 @@ type ProviderService struct {
 	cacheProviderArchive bool
 }
 
-func NewProviderService(cacheProviderArchive bool) *ProviderService {
+func NewProviderService(baseCacheDir string, cacheProviderArchive bool) *ProviderService {
 	return &ProviderService{
+		baseCacheDir:         baseCacheDir,
 		providerCacheCh:      make(chan *ProviderCache),
 		cacheProviderArchive: cacheProviderArchive,
 	}
-}
-
-// SetCacheDir sets the dir where providers will be cached.
-// It creates the same files tree structure as terraform `plugin_cache_dir` feature.
-func (service *ProviderService) SetCacheDir(baseCacheDir string) {
-	log.Debugf("Provider cache dir %q", baseCacheDir)
-	service.baseCacheDir = baseCacheDir
 }
 
 // WaitForCacheReady blocks the call until all providers are cached.
@@ -218,7 +180,7 @@ func (service *ProviderService) CacheProvider(provider *models.Provider) {
 		ProviderService: service,
 		Provider:        provider,
 		Filename:        filepath.Join(providerVersionDir, filename),
-		fileLockName:    filepath.Join(providerVersionDir, "terragrunt.lock"),
+		filelockName:    filepath.Join(providerVersionDir, fmt.Sprintf("%s_%s.lock", provider.OS, provider.Arch)),
 		providerDir:     filepath.Join(providerVersionDir, fmt.Sprintf("%s_%s", provider.OS, provider.Arch)),
 	}
 
@@ -242,6 +204,7 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 	if service.baseCacheDir == "" {
 		return errors.Errorf("provider cache directory not specified")
 	}
+	log.Debugf("Provider cache dir %q", service.baseCacheDir)
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 
