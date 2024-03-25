@@ -48,7 +48,7 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 		if err != nil {
 			return err
 		}
-		opts.ProviderCacheDir = cacheDir
+		opts.ProviderCacheDir = filepath.Join(cacheDir, "providers")
 	}
 
 	if opts.RegistryToken == "" {
@@ -65,6 +65,9 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 	if err := registryServer.Listen(); err != nil {
 		return err
 	}
+	defer func() {
+		_ = registryServer.Close()
+	}()
 
 	if err := prepareProviderCacheEnvironment(opts, registryServer.ProviderURL()); err != nil {
 		return err

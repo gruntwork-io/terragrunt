@@ -110,7 +110,7 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err
 
 		proxyURL = controller.Downloader.ProviderProxyURL()
 
-		needCache bool
+		cacheRequest bool
 	)
 
 	provider := &models.Provider{
@@ -123,10 +123,12 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err
 	}
 
 	if provider.Platform() == PlatformNameCacheProvider {
-		needCache = true
+		cacheRequest = true
 
 		provider.OS = runtime.GOOS
 		provider.Arch = runtime.GOARCH
+
+		defer controller.ProviderService.CacheProvider(provider)
 	}
 
 	return controller.ReverseProxy.
@@ -168,8 +170,7 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err
 					body[string(name)] = []byte(link)
 				}
 
-				if needCache {
-					controller.ProviderService.CacheProvider(provider)
+				if cacheRequest {
 					return ctx.NoContent(HTTPStatusCacheProvider)
 				}
 				return nil

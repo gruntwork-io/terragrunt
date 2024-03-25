@@ -43,6 +43,10 @@ func (provider *Provider) Platform() string {
 }
 
 func (provider *Provider) String() string {
+	return provider.Path()
+}
+
+func (provider *Provider) Path() string {
 	return path.Join(provider.RegistryName, provider.Namespace, provider.Name, provider.Version)
 }
 

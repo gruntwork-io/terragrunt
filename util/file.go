@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/gob"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -678,4 +679,34 @@ func AcquireFileLock(ctx context.Context, filename string, maxAttempts int, wait
 		case <-time.After(waitForNextAttempt):
 		}
 	}
+}
+
+// FetchFile downloads the file at the given `downloadURL` to the given `savePath` file.
+func FetchFile(ctx context.Context, downloadURL, savePath string) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	out, err := os.Create(savePath)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	go func() {
+		// Closing os.Stdin will cause io.Copy to return with error "cache already closed" next time it reads from it.
+		// This will stop download process when pressing Ctrl-C.
+		<-ctx.Done()
+		_ = out.Close()
+	}()
+
+	resp, err := http.Get(downloadURL)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if _, err := io.Copy(out, resp.Body); err != nil {
+		return errors.WithStackTrace(err)
+	}
+	return nil
 }

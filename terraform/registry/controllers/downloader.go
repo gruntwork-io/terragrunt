@@ -24,7 +24,7 @@ type DownloaderController struct {
 	basePath string
 }
 
-// ProviderProxyURL returns URL for using as a proxy to download remote archives through this controller with caching.
+// ProviderProxyURL returns URL for using as a proxy to download remote archives through this controller with caching
 func (controller *DownloaderController) ProviderProxyURL() *url.URL {
 	proxyURL := *controller.ReverseProxy.ServerURL
 	proxyURL.Path = path.Join(proxyURL.Path, controller.basePath, downloadProviderPath)
@@ -56,7 +56,7 @@ func (controller *DownloaderController) downloadProviderAction(ctx echo.Context)
 
 	if cache := controller.ProviderService.GetProviderCache(provider); cache != nil {
 		log.Debugf("Provider %q uses cached file %q", cache.Provider, cache.Filename)
-		return ctx.File(cache.Filename)
+		return ctx.File(cache.Filename())
 	}
 
 	return controller.ReverseProxy.NewRequest(ctx, provider.DownloadURL)
