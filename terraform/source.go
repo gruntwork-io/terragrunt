@@ -19,7 +19,7 @@ import (
 
 var (
 	forcedRegexp     = regexp.MustCompile(`^([A-Za-z0-9]+)::(.+)$`)
-	httpSchemeRegexp = regexp.MustCompile(`(?i)https?://`)
+	httpSchemeRegexp = regexp.MustCompile(`(?i)^https?://`)
 )
 
 const matchCount = 2
