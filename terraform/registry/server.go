@@ -31,9 +31,9 @@ func NewServer(opts ...Option) *Server {
 
 	providerService := services.NewProviderService(cfg.providerCacheDir, cfg.providerCompleteLock)
 
-	authorization := &handlers.Authorization{
-		Token: cfg.token,
-	}
+	// authorization := &handlers.Authorization{
+	// 	Token: cfg.token,
+	// }
 
 	reverseProxy := &handlers.ReverseProxy{
 		ServerURL: &url.URL{
@@ -48,7 +48,7 @@ func NewServer(opts ...Option) *Server {
 	}
 
 	providerController := &controllers.ProviderController{
-		Authorization:   authorization,
+		//Authorization:   authorization,
 		ReverseProxy:    reverseProxy,
 		ProviderService: providerService,
 		Downloader:      downloaderController,

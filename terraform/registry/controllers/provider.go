@@ -124,7 +124,6 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err
 
 	if provider.Platform() == PlatformNameCacheProvider {
 		cacheRequest = true
-
 		provider.OS = runtime.GOOS
 		provider.Arch = runtime.GOARCH
 
@@ -139,7 +138,7 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err
 		WithModifyResponse(func(resp *http.Response) error {
 			var body map[string]json.RawMessage
 
-			return handlers.ModifyJSONBody(resp, &body, func() error {
+			err := handlers.ModifyJSONBody(resp, &body, func() error {
 				for _, name := range ProviderURLNames {
 					linkBytes, ok := body[string(name)]
 					if !ok || linkBytes == nil {
@@ -169,12 +168,13 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err
 					link = strconv.Quote(linkURL.String())
 					body[string(name)] = []byte(link)
 				}
-
-				if cacheRequest {
-					return ctx.NoContent(HTTPStatusCacheProvider)
-				}
 				return nil
 			})
+
+			if cacheRequest {
+				return ctx.NoContent(HTTPStatusCacheProvider)
+			}
+			return err
 		}).
 		NewRequest(ctx, provider.PlatformURL())
 }

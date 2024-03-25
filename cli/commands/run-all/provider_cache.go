@@ -77,6 +77,10 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 		HookFunc: func(ctx context.Context, opts *options.TerragruntOptions, callback terraformcmd.RetryCallback) (*shell.CmdOutput, error) {
 			// Use Hook only for the `terraform init` command, which can be run explicitly by the user or Terragrunt's `auto-init` feature.
 			if util.FirstArg(opts.TerraformCliArgs) == terraform.CommandNameInit {
+				if err := runTerraformGetCommand(opts); err != nil {
+					return nil, err
+				}
+
 				log.Debugf("Caching providers for %q", opts.WorkingDir)
 
 				// Before each init, we warm up the global cache to ensure that all necessary providers are cached.
@@ -113,6 +117,18 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 	return errGroup.Wait()
 }
 
+func runTerraformGetCommand(opts *options.TerragruntOptions, flags ...string) error {
+	newOpts := opts.Clone(opts.TerragruntConfigPath)
+	newOpts.WorkingDir = opts.WorkingDir
+	newOpts.TerraformCliArgs = []string{terraform.CommandNameGet}
+	newOpts.TerraformCliArgs = append(newOpts.TerraformCliArgs, flags...)
+
+	if err := shell.RunTerraformCommand(newOpts, newOpts.TerraformCliArgs...); err != nil {
+		return err
+	}
+	return nil
+}
+
 // runTerraformProvidersLockCommand runs `terraform providers lock` for two purposes:
 // 1. First, warm up the global cache
 // 2. To create complete terraform lock files, if `opts.ProviderCompleteLock` is true
@@ -120,14 +136,14 @@ func runTerraformProvidersLockCommand(opts *options.TerragruntOptions, flags ...
 	// We use custom writter in order to trap the log from `terraform providers lock -platform=provider-cache` command, which terraform considers an error, but to us a success.
 	errWritter := util.NewTrapWriter(opts.ErrWriter, HTTPStatusCacheProviderReg)
 
-	lockOpts := opts.Clone(opts.TerragruntConfigPath)
-	lockOpts.ErrWriter = errWritter
-	lockOpts.WorkingDir = opts.WorkingDir
-	lockOpts.TerraformCliArgs = []string{terraform.CommandNameProviders, terraform.CommandNameLock}
-	lockOpts.TerraformCliArgs = append(lockOpts.TerraformCliArgs, flags...)
+	newOpts := opts.Clone(opts.TerragruntConfigPath)
+	newOpts.ErrWriter = errWritter
+	newOpts.WorkingDir = opts.WorkingDir
+	newOpts.TerraformCliArgs = []string{terraform.CommandNameProviders, terraform.CommandNameLock}
+	newOpts.TerraformCliArgs = append(newOpts.TerraformCliArgs, flags...)
 
 	// If the Terraform error matches `HTTPStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process everything as is.
-	if err := shell.RunTerraformCommand(lockOpts, lockOpts.TerraformCliArgs...); err != nil && len(errWritter.Msgs()) == 0 {
+	if err := shell.RunTerraformCommand(newOpts, newOpts.TerraformCliArgs...); err != nil && len(errWritter.Msgs()) == 0 {
 		return err
 	}
 	return nil

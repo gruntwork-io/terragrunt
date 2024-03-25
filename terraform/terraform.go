@@ -17,6 +17,7 @@ const (
 	CommandNameProviders      = "providers"
 	CommandNameState          = "state"
 	CommandNameLock           = "lock"
+	CommandNameGet            = "get"
 	CommandNameTaint          = "taint"
 	CommandNameUntaint        = "untaint"
 	CommandNameConsole        = "console"
