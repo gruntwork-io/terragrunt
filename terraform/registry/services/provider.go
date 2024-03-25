@@ -93,7 +93,9 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 
 	if platformDir := cache.platformDir(); !util.FileExists(platformDir) {
 		if platformPluginDir := cache.platformPluginDir(); util.FileExists(platformPluginDir) {
-			os.Symlink(platformPluginDir, platformDir)
+			if err := os.Symlink(platformPluginDir, platformDir); err != nil {
+				return errors.WithStackTrace(err)
+			}
 			unpackedFound = true
 		} else {
 			if err := os.MkdirAll(platformDir, os.ModePerm); err != nil {
