@@ -117,6 +117,9 @@ func getSTSCredentialsFromIAMRoleOptions(sess *session.Session, iamRoleOptions o
 		if iamRoleOptions.AssumeRoleSessionName != "" {
 			p.RoleSessionName = iamRoleOptions.AssumeRoleSessionName
 		}
+		if iamRoleOptions.ExternalId != "" {
+			p.ExternalID = &iamRoleOptions.ExternalId
+		}
 	})
 	return stscreds.NewCredentials(sess, iamRoleOptions.RoleARN, optFns...)
 }
@@ -188,10 +191,20 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 		sessionDurationSeconds = iamRoleOpts.AssumeRoleDuration
 	}
 
-	input := sts.AssumeRoleInput{
-		RoleArn:         aws.String(iamRoleOpts.RoleARN),
-		RoleSessionName: aws.String(sessionName),
-		DurationSeconds: aws.Int64(sessionDurationSeconds),
+	var input sts.AssumeRoleInput
+	if iamRoleOpts.ExternalId != "" {
+		input = sts.AssumeRoleInput{
+			RoleArn:         aws.String(iamRoleOpts.RoleARN),
+			ExternalId:      aws.String(iamRoleOpts.ExternalId),
+			RoleSessionName: aws.String(sessionName),
+			DurationSeconds: aws.Int64(sessionDurationSeconds),
+		}
+	} else {
+		input = sts.AssumeRoleInput{
+			RoleArn:         aws.String(iamRoleOpts.RoleARN),
+			RoleSessionName: aws.String(sessionName),
+			DurationSeconds: aws.Int64(sessionDurationSeconds),
+		}
 	}
 
 	output, err := stsClient.AssumeRole(&input)

@@ -120,6 +120,12 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
+			[]string{doubleDashed(commands.FlagNameTerragruntExternalId), "your-set-value"},
+			mockOptionsWithExternalId(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, "your-set-value"),
+			nil,
+		},
+
+		{
 			[]string{doubleDashed(commands.FlagNameTerragruntIAMAssumeRoleDuration), "36000"},
 			mockOptionsWithIamAssumeRoleDuration(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, 36000),
 			nil,
@@ -227,6 +233,14 @@ func mockOptionsWithIamRole(t *testing.T, terragruntConfigPath string, workingDi
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
 	opts.OriginalIAMRoleOptions.RoleARN = iamRole
 	opts.IAMRoleOptions.RoleARN = iamRole
+
+	return opts
+}
+
+func mockOptionsWithExternalId(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, externalId string) *options.TerragruntOptions {
+	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
+	opts.OriginalIAMRoleOptions.ExternalId = externalId
+	opts.IAMRoleOptions.ExternalId = externalId
 
 	return opts
 }

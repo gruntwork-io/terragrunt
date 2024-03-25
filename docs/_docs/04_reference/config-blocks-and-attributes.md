@@ -1075,6 +1075,7 @@ generate = local.common.generate
 - [prevent_destroy](#prevent_destroy)
 - [skip](#skip)
 - [iam_role](#iam_role)
+- [external_id](#external_id)
 - [iam_assume_role_duration](#iam_assume_role_duration)
 - [iam_assume_role_session_name](#iam_assume_role_session_name)
 - [terraform_binary](#terraform_binary)
@@ -1210,6 +1211,23 @@ iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 **Notes:**
   * Value of `iam_role` can reference local variables
   * Definitions of `iam_role` included from other HCL files through `include`
+
+### external_id
+
+The `external_id` attribute can be used to specify an ExternalId that Terragrunt should use when assuming a role, prior to invoking Terraform.
+
+The precedence is as follows: `--terragrunt-external-id` command line option → `TERRAGRUNT_EXTERNAL_ID` env variable →
+`external_id` attribute of the `terragrunt.hcl` file in the module directory → `external_id` attribute of the included
+`terragrunt.hcl`.
+
+Example:
+
+```hcl
+external_id = "your-set-value"
+```
+**Notes:**
+* Value of `external_id` can reference local variables
+* Definitions of `external_id` included from other HCL files through `include`
 
 ### iam_assume_role_duration
 

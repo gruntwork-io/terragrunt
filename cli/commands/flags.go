@@ -20,6 +20,7 @@ const (
 	FlagNameTerragruntSourceMap                      = "terragrunt-source-map"
 	FlagNameTerragruntSourceUpdate                   = "terragrunt-source-update"
 	FlagNameTerragruntIAMRole                        = "terragrunt-iam-role"
+	FlagNameTerragruntExternalId                     = "terragrunt-external-id"
 	FlagNameTerragruntIAMAssumeRoleDuration          = "terragrunt-iam-assume-role-duration"
 	FlagNameTerragruntIAMAssumeRoleSessionName       = "terragrunt-iam-assume-role-session-name"
 	FlagNameTerragruntIgnoreDependencyErrors         = "terragrunt-ignore-dependency-errors"
@@ -125,6 +126,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.IAMRoleOptions.RoleARN,
 			EnvVar:      "TERRAGRUNT_IAM_ROLE",
 			Usage:       "Assume the specified IAM role before executing Terraform. Can also be set via the TERRAGRUNT_IAM_ROLE environment variable.",
+		},
+		&cli.GenericFlag[string]{
+			Name:        FlagNameTerragruntExternalId,
+			Destination: &opts.IAMRoleOptions.ExternalId,
+			EnvVar:      "TERRAGRUNT_EXTERNAL_ID",
+			Usage:       "Assume the specified IAM role, together with the given ExternalId, before executing Terraform. Can also be set via the TERRAGRUNT_EXTERNAL_ID environment variable.",
 		},
 		&cli.GenericFlag[int64]{
 			Name:        FlagNameTerragruntIAMAssumeRoleDuration,

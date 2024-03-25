@@ -47,6 +47,7 @@ const (
 	MetadataPreventDestroy              = "prevent_destroy"
 	MetadataSkip                        = "skip"
 	MetadataIamRole                     = "iam_role"
+	MetadataExternalId                  = "external_id"
 	MetadataIamAssumeRoleDuration       = "iam_assume_role_duration"
 	MetadataIamAssumeRoleSessionName    = "iam_assume_role_session_name"
 	MetadataInputs                      = "inputs"
@@ -90,6 +91,7 @@ type TerragruntConfig struct {
 	PreventDestroy              *bool
 	Skip                        bool
 	IamRole                     string
+	ExternalId                  string
 	IamAssumeRoleDuration       *int64
 	IamAssumeRoleSessionName    string
 	Inputs                      map[string]interface{}
@@ -123,6 +125,7 @@ func (conf *TerragruntConfig) String() string {
 func (conf *TerragruntConfig) GetIAMRoleOptions() options.IAMRoleOptions {
 	configIAMRoleOptions := options.IAMRoleOptions{
 		RoleARN:               conf.IamRole,
+		ExternalId:            conf.ExternalId,
 		AssumeRoleSessionName: conf.IamAssumeRoleSessionName,
 	}
 	if conf.IamAssumeRoleDuration != nil {
@@ -162,6 +165,7 @@ type terragruntConfigFile struct {
 	PreventDestroy           *bool               `hcl:"prevent_destroy,attr"`
 	Skip                     *bool               `hcl:"skip,attr"`
 	IamRole                  *string             `hcl:"iam_role,attr"`
+	ExternalId               *string             `hcl:"external_id,attr"`
 	IamAssumeRoleDuration    *int64              `hcl:"iam_assume_role_duration,attr"`
 	IamAssumeRoleSessionName *string             `hcl:"iam_assume_role_session_name,attr"`
 	TerragruntDependencies   []Dependency        `hcl:"dependency,block"`
@@ -1044,6 +1048,11 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	if terragruntConfigFromFile.IamRole != nil {
 		terragruntConfig.IamRole = *terragruntConfigFromFile.IamRole
 		terragruntConfig.SetFieldMetadata(MetadataIamRole, defaultMetadata)
+	}
+
+	if terragruntConfigFromFile.ExternalId != nil {
+		terragruntConfig.ExternalId = *terragruntConfigFromFile.ExternalId
+		terragruntConfig.SetFieldMetadata(MetadataExternalId, defaultMetadata)
 	}
 
 	if terragruntConfigFromFile.IamAssumeRoleDuration != nil {
