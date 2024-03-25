@@ -59,6 +59,7 @@ const (
 	TERRAFORM_REMOTE_STATE_GCP_REGION                                        = "eu"
 	TEST_FIXTURE_PATH                                                        = "fixture/"
 	TEST_FIXTURE_PROVIDER_CACHE                                              = "fixture-provider-cache"
+	TEST_FIXTURE_DESTROY_ORDER                                               = "fixture-destroy-order"
 	TEST_FIXTURE_CODEGEN_PATH                                                = "fixture-codegen"
 	TEST_FIXTURE_GCS_PATH                                                    = "fixture-gcs/"
 	TEST_FIXTURE_GCS_BYO_BUCKET_PATH                                         = "fixture-gcs-byo-bucket/"
@@ -277,6 +278,40 @@ func TestTerragruntProviderCache(t *testing.T) {
 		assert.Equal(t, expectedApps, actualApps)
 	}
 
+}
+
+func TestTerragruntDestroyOrder(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_DESTROY_ORDER)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DESTROY_ORDER)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_ORDER, "app")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all destroy --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	assert.NoError(t, err)
+	assert.Regexp(t, regexp.MustCompile(`(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`), showStdout.String())
+}
+
+func TestTerragruntApplyDestroyOrder(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_DESTROY_ORDER)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DESTROY_ORDER)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_ORDER, "app")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply -destroy --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	assert.NoError(t, err)
+	assert.Regexp(t, regexp.MustCompile(`(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`), showStdout.String())
 }
 
 func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
