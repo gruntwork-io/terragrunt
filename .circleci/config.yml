@@ -227,8 +227,9 @@ jobs:
       - run:
           <<: *setup_test_environment
       - run:
-          <<: *setup_provider_cache_environment
           <<: *run_integration_test_terraform
+          environment:
+            TERRAGRUNT_PROVIDER_CACHE: "1"
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
@@ -268,8 +269,10 @@ jobs:
       - run:
           <<: *setup_test_environment
       - run:
-          <<: *setup_provider_cache_environment
           <<: *run_integration_test_tofu
+          environment:
+            TERRAGRUNT_TFPATH: tofu
+            TERRAGRUNT_PROVIDER_CACHE: "1"
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
