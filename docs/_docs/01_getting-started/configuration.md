@@ -55,7 +55,7 @@ Currently terragrunt parses the config in the following order:
 
 2.  `locals` block
 
-3.  Evaluation of values for `iam_role`, `iam_assume_role_duration`, and `iam_assume_role_session_name` attributes, if defined
+3.  Evaluation of values for `iam_role`, `iam_assume_role_duration`, `iam_assume_role_session_name`, and `iam_web_identity_token` attributes, if defined
 
 4.  `dependencies` block
 

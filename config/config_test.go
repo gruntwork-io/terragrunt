@@ -283,6 +283,25 @@ func TestParseIamAssumeRoleSessionName(t *testing.T) {
 	assert.Equal(t, "terragrunt-iam-assume-role-session-name", terragruntConfig.IamAssumeRoleSessionName)
 }
 
+func TestParseIamWebIdentity(t *testing.T) {
+	t.Parallel()
+	token := "test-token"
+
+	config := fmt.Sprintf(`iam_web_identity_token = "%s"`, token)
+
+	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
+	terragruntConfig, err := ParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Nil(t, terragruntConfig.RemoteState)
+	assert.Nil(t, terragruntConfig.Terraform)
+	assert.Nil(t, terragruntConfig.Dependencies)
+	assert.Nil(t, terragruntConfig.RetryableErrors)
+	assert.Empty(t, terragruntConfig.IamRole)
+	assert.Equal(t, token, terragruntConfig.IamWebIdentityToken)
+}
+
 func TestParseTerragruntConfigDependenciesOnePath(t *testing.T) {
 	t.Parallel()
 
@@ -692,6 +711,7 @@ func TestParseTerragruntConfigEmptyConfig(t *testing.T) {
 	assert.Nil(t, cfg.PreventDestroy)
 	assert.False(t, cfg.Skip)
 	assert.Empty(t, cfg.IamRole)
+	assert.Empty(t, cfg.IamWebIdentityToken)
 	assert.Nil(t, cfg.RetryMaxAttempts)
 	assert.Nil(t, cfg.RetrySleepIntervalSec)
 	assert.Nil(t, cfg.RetryableErrors)
