@@ -64,26 +64,10 @@ setup_test_environment: &setup_test_environment
     mkdir -p logs
   no_output_timeout: 30m
 
-setup_provider_cache_environment: &setup_provider_cache_environment
-  environment:
-    TERRAGRUNT_PROVIDER_CACHE: "1"
-  no_output_timeout: 30m
-
-run_integration_test_terraform: &run_integration_test_terraform
+run_integration_test: &run_integration_test
   name: Run integration tests
   command: |
     run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
-  no_output_timeout: 30m
-
-run_integration_test_tofu: &run_integration_test_tofu
-  name: Run integration tests
-  command: |
-    # Remove terraform
-    sudo rm -f $(which terraform)
-    run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
-  environment:
-    # use tofu as wrapper
-    TERRAGRUNT_TFPATH: tofu
   no_output_timeout: 30m
 
 run_tflint_test: &run_tflint_test
@@ -207,7 +191,7 @@ jobs:
       - run:
           <<: *setup_test_environment
       - run:
-          <<: *run_integration_test_terraform
+          <<: *run_integration_test
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
@@ -227,7 +211,7 @@ jobs:
       - run:
           <<: *setup_test_environment
       - run:
-          <<: *run_integration_test_terraform
+          <<: *run_integration_test
           environment:
             TERRAGRUNT_PROVIDER_CACHE: "1"
       - run:
@@ -249,7 +233,12 @@ jobs:
       - run:
           <<: *setup_test_environment
       - run:
-          <<: *run_integration_test_tofu
+          # Remove terraform
+          sudo rm -f $(which terraform)
+      - run:
+          <<: *run_integration_test
+          environment:
+            TERRAGRUNT_TFPATH: tofu
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
@@ -269,7 +258,10 @@ jobs:
       - run:
           <<: *setup_test_environment
       - run:
-          <<: *run_integration_test_tofu
+          # Remove terraform
+          sudo rm -f $(which terraform)
+      - run:
+          <<: *run_integration_test
           environment:
             TERRAGRUNT_TFPATH: tofu
             TERRAGRUNT_PROVIDER_CACHE: "1"
@@ -293,27 +285,6 @@ jobs:
       - run:
           <<: *setup_test_environment
       - run:
-          <<: *run_tflint_test
-      - run:
-          <<: *run_terratest_log_parser
-      - store_artifacts:
-          path: logs
-      - store_test_results:
-          path: logs
-
-  integration_test_tflint_with_provider_cache:
-    resource_class: large
-    <<: *defaults
-    steps:
-      - checkout
-      - run:
-          <<: *install_tofu
-      - run:
-          <<: *install_tflint
-      - run:
-          <<: *setup_test_environment
-      - run:
-          <<: *setup_provider_cache_environment
           <<: *run_tflint_test
       - run:
           <<: *run_terratest_log_parser
@@ -423,14 +394,6 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
       - integration_test_tflint:
-          filters:
-            tags:
-              only: /^v.*/
-          context:
-            - AWS__PHXDEVOPS__circle-ci-test
-            - GCP__automated-tests
-            - GITHUB__PAT__gruntwork-ci
-      - integration_test_tflint_with_provider_cache:
           filters:
             tags:
               only: /^v.*/
