@@ -80,15 +80,15 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		}
 	}
 
-	log.Debugf("Try to lock provider cache %q", cache.Provider)
+	log.Tracef("Try to lock provider cache %q", cache.Provider)
 	filelock, err := util.AcquireFileLock(ctx, cache.filelockName(), maxAttemptsToLockProviderCache, waitNextAttepmtToLockProviderCache)
 	if err != nil {
 		return err
 	}
-	log.Debugf("Provider %q cache is locked", cache.Provider)
+	log.Tracef("Provider %q cache is locked", cache.Provider)
 	defer func() {
 		_ = filelock.Unlock()
-		log.Debugf("Provider %q cache is released", cache.Provider)
+		log.Tracef("Provider %q cache is released", cache.Provider)
 	}()
 
 	if platformDir := cache.platformDir(); !util.FileExists(platformDir) {
