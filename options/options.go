@@ -273,6 +273,10 @@ type IAMRoleOptions struct {
 	// The ARN of an IAM Role to assume. Used when accessing AWS, both internally and through terraform.
 	RoleARN string
 
+	// The ExternalId to use when assuming RoleARN. Used when accessing AWS, both internally and through terraform.
+	// See: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html
+	ExternalId string
+
 	// Duration of the STS Session when assuming the role.
 	AssumeRoleDuration int64
 
@@ -285,6 +289,10 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 
 	if source.RoleARN != "" {
 		out.RoleARN = source.RoleARN
+	}
+
+	if source.ExternalId != "" {
+		out.ExternalId = source.ExternalId
 	}
 
 	if source.AssumeRoleDuration != 0 {

@@ -25,6 +25,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	output[MetadataTerragruntVersionConstraint] = gostringToCty(config.TerragruntVersionConstraint)
 	output[MetadataDownloadDir] = gostringToCty(config.DownloadDir)
 	output[MetadataIamRole] = gostringToCty(config.IamRole)
+	output[MetadataExternalId] = gostringToCty(config.ExternalId)
 	output[MetadataSkip] = goboolToCty(config.Skip)
 	output[MetadataIamAssumeRoleSessionName] = gostringToCty(config.IamAssumeRoleSessionName)
 

@@ -834,6 +834,15 @@ When passed in, the `*-all` commands continue processing components even if a de
 Assume the specified IAM role ARN before running Terraform or AWS commands. This is a convenient way to use Terragrunt
 and Terraform with multiple AWS accounts.
 
+### terragrunt-external-id
+
+**CLI Arg**: `--terragrunt-external-id`<br/>
+**Environment Variable**: `TERRAGRUNT_EXTERNAL_ID`<br/>
+**Requires an argument**: `--terragrunt-iam-role "your-set-value"`
+
+Assume the specified IAM role ARN, together with ExternalId, before running Terraform or AWS commands.
+This is a convenient way to use Terragrunt and Terraform with multiple AWS accounts.
+
 
 ### terragrunt-iam-assume-role-duration
 
