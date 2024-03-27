@@ -114,11 +114,17 @@ include "root" {
 }
 ```
 
-The function takes an optional `name` parameter that allows you to specify a different filename to search for:
+The function takes an optional `name` parameter that allows you to specify a different path to search for:
 
 ``` hcl
 include "root" {
   path = find_in_parent_folders("some-other-file-name.hcl")
+}
+```
+
+``` hcl
+include "root" {
+  path = find_in_parent_folders("some-folder")
 }
 ```
 
