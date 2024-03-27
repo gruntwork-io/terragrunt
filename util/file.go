@@ -697,7 +697,10 @@ func FetchFile(ctx context.Context, downloadURL, savePath string) error {
 		_ = out.Close()
 	}()
 
-	resp, err := http.Get(downloadURL)
+	client := http.Client{
+		Timeout: 1 * time.Minute,
+	}
+	resp, err := client.Get(downloadURL)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
