@@ -36,7 +36,7 @@ func runRenderJSON(ctx context.Context, opts *options.TerragruntOptions, cfg *co
 		return fmt.Errorf("Terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl.")
 	}
 
-	dependentModules := configstack.FindWhereWorkingDirIsIncluded(opts, cfg)
+	dependentModules := configstack.FindWhereWorkingDirIsIncluded(ctx, opts, cfg)
 	var dependentModulesPath []*string
 	for _, module := range dependentModules {
 		dependentModulesPath = append(dependentModulesPath, &module.Path)

@@ -10,7 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-const retryContextKey ctxKey = iota
+const RetryContextKey ctxKey = iota
 
 type ctxKey byte
 
@@ -48,11 +48,11 @@ func (retry *Retry) Run(ctx context.Context, opts *options.TerragruntOptions, ca
 }
 
 func ContextWithRetry(ctx context.Context, val *Retry) context.Context {
-	return context.WithValue(ctx, retryContextKey, val)
+	return context.WithValue(ctx, RetryContextKey, val)
 }
 
 func RetryFromContext(ctx context.Context) *Retry {
-	if val := ctx.Value(retryContextKey); val != nil {
+	if val := ctx.Value(RetryContextKey); val != nil {
 		if val, ok := val.(*Retry); ok {
 			return val
 		}

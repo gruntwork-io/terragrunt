@@ -284,7 +284,7 @@ func NewHelpFlag(opts *options.TerragruntOptions) cli.Flag {
 				// If the command name is not found, it is most likely a terraform command, show Terraform help.
 				if _, ok := err.(cli.InvalidCommandNameError); ok {
 					terraformHelpCmd := append([]string{cmdName, "-help"}, ctx.Args().Tail()...)
-					return shell.RunTerraformCommand(opts, terraformHelpCmd...)
+					return shell.RunTerraformCommand(ctx, opts, terraformHelpCmd...)
 				}
 
 				return err

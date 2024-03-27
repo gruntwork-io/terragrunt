@@ -1,4 +1,4 @@
-package runall
+package cli
 
 import (
 	"context"
@@ -22,7 +22,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/terraform/registry/controllers"
 	"github.com/gruntwork-io/terragrunt/terraform/registry/handlers"
 	"github.com/gruntwork-io/terragrunt/util"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -33,20 +32,11 @@ const (
 // HTTPStatusCacheProviderReg is regular expression to determine the success result of the command `terraform lock providers -platform=cache provider`.
 var HTTPStatusCacheProviderReg = regexp.MustCompile(`(?mi)` + strconv.Itoa(controllers.HTTPStatusCacheProvider) + `[^a-z0-9]*` + http.StatusText(controllers.HTTPStatusCacheProvider))
 
-func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	util.RegisterInterruptHandler(func() {
-		cancel()
-	})
-
-	errGroup, ctx := errgroup.WithContext(ctx)
-
+func initProviderCacheServer(ctx context.Context, opts *options.TerragruntOptions) (context.Context, *registry.Server, error) {
 	if opts.ProviderCacheDir == "" {
 		cacheDir, err := util.GetCacheDir()
 		if err != nil {
-			return err
+			return nil, nil, err
 		}
 		opts.ProviderCacheDir = filepath.Join(cacheDir, "providers")
 	}
@@ -63,14 +53,11 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 		registry.WithProviderCompleteLock(opts.ProviderCompleteLock),
 	)
 	if err := registryServer.Listen(); err != nil {
-		return err
+		return nil, nil, err
 	}
-	defer func() {
-		_ = registryServer.Close()
-	}()
 
 	if err := prepareProviderCacheEnvironment(opts, registryServer.ProviderURL()); err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	ctx = terraformcmd.ContextWithRetry(ctx, &terraformcmd.Retry{
@@ -78,14 +65,14 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 			// Use Hook only for the `terraform init` command, which can be run explicitly by the user or Terragrunt's `auto-init` feature.
 			if util.FirstArg(opts.TerraformCliArgs) == terraform.CommandNameInit {
 				log.Debugf("Getting terraform modules for %q", opts.WorkingDir)
-				if err := runTerraformCommand(opts, terraform.CommandNameGet); err != nil {
+				if err := runTerraformCommand(ctx, opts, terraform.CommandNameGet); err != nil {
 					return nil, err
 				}
 
 				log.Debugf("Caching terraform providers for %q", opts.WorkingDir)
 				// Before each init, we warm up the global cache to ensure that all necessary providers are cached.
 				// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
-				if err := runTerraformCommand(opts, terraform.CommandNameProviders, terraform.CommandNameLock, "-platform="+controllers.PlatformNameCacheProvider); err != nil {
+				if err := runTerraformCommand(ctx, opts, terraform.CommandNameProviders, terraform.CommandNameLock, "-platform="+controllers.PlatformNameCacheProvider); err != nil {
 					return nil, err
 				}
 				registryServer.Provider.WaitForCacheReady()
@@ -95,7 +82,7 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 					// Create complete terraform lock files. By default this feature is disabled, since it's not superfast.
 					// Instead we use Terraform `TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE` feature, that creates hashes from the local cache.
 					// And since the Terraform developers warn that this feature will be removed soon, it's good to have a workaround.
-					if err := runTerraformCommand(opts, terraform.CommandNameProviders, terraform.CommandNameLock); err != nil {
+					if err := runTerraformCommand(ctx, opts, terraform.CommandNameProviders, terraform.CommandNameLock); err != nil {
 						return nil, err
 					}
 				}
@@ -105,18 +92,10 @@ func RunWithProviderCache(ctx context.Context, opts *options.TerragruntOptions) 
 		},
 	})
 
-	errGroup.Go(func() error {
-		return registryServer.Run(ctx)
-	})
-	errGroup.Go(func() error {
-		defer cancel()
-		return Run(ctx, opts)
-	})
-
-	return errGroup.Wait()
+	return ctx, registryServer, nil
 }
 
-func runTerraformCommand(opts *options.TerragruntOptions, args ...string) error {
+func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, args ...string) error {
 	// We use custom writter in order to trap the log from `terraform providers lock -platform=provider-cache` command, which terraform considers an error, but to us a success.
 	errWritter := util.NewTrapWriter(opts.ErrWriter, HTTPStatusCacheProviderReg)
 
@@ -126,7 +105,7 @@ func runTerraformCommand(opts *options.TerragruntOptions, args ...string) error 
 	cloneOpts.TerraformCliArgs = args
 
 	// If the Terraform error matches `HTTPStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process everything as is.
-	if err := shell.RunTerraformCommand(cloneOpts, cloneOpts.TerraformCliArgs...); err != nil && len(errWritter.Msgs()) == 0 {
+	if err := shell.RunTerraformCommand(ctx, cloneOpts, cloneOpts.TerraformCliArgs...); err != nil && len(errWritter.Msgs()) == 0 {
 		return err
 	}
 	return nil

@@ -84,7 +84,7 @@ func RunWithTarget(ctx context.Context, opts *options.TerragruntOptions, target 
 }
 
 func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOptions, target *Target) error {
-	if err := checkVersionConstraints(terragruntOptions); err != nil {
+	if err := checkVersionConstraints(ctx, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -100,7 +100,7 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 	terragruntOptionsClone := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
 
-	if err := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone, terragruntConfig, nil); err != nil {
+	if err := processHooks(ctx, terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone, terragruntConfig, nil); err != nil {
 		return err
 	}
 
@@ -161,7 +161,7 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 	}
 
 	if sourceUrl != "" {
-		err = telemetry.Telemetry(terragruntOptions, "download_terraform_source", map[string]interface{}{
+		err = telemetry.Telemetry(ctx, terragruntOptions, "download_terraform_source", map[string]interface{}{
 			"sourceUrl": sourceUrl,
 		}, func(childCtx context.Context) error {
 			updatedTerragruntOptions, err = downloadTerraformSource(ctx, sourceUrl, terragruntOptions, terragruntConfig)
@@ -203,7 +203,7 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 	}
 
 	if terragruntOptions.CheckDependentModules {
-		allowDestroy := confirmActionWithDependentModules(terragruntOptions, terragruntConfig)
+		allowDestroy := confirmActionWithDependentModules(ctx, terragruntOptions, terragruntConfig)
 		if !allowDestroy {
 			return nil
 		}
@@ -306,8 +306,8 @@ func runTerragruntWithConfig(ctx context.Context, originalTerragruntOptions *opt
 }
 
 // confirmActionWithDependentModules - Show warning with list of dependent modules from current module before destroy
-func confirmActionWithDependentModules(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) bool {
-	modules := configstack.FindWhereWorkingDirIsIncluded(terragruntOptions, terragruntConfig)
+func confirmActionWithDependentModules(ctx context.Context, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) bool {
+	modules := configstack.FindWhereWorkingDirIsIncluded(ctx, terragruntOptions, terragruntConfig)
 	if len(modules) != 0 {
 		if _, err := terragruntOptions.ErrWriter.Write([]byte("Detected dependent modules:\n")); err != nil {
 			terragruntOptions.Logger.Error(err)
@@ -360,7 +360,7 @@ func shouldCopyLockFile(args []string) bool {
 // errors, run the action, and finally, run the after hooks. Return any errors hit from the hooks or action.
 func runActionWithHooks(ctx context.Context, description string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, action func(ctx context.Context) error) error {
 	var allErrors *multierror.Error
-	beforeHookErrors := processHooks(terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions, terragruntConfig, allErrors)
+	beforeHookErrors := processHooks(ctx, terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions, terragruntConfig, allErrors)
 	allErrors = multierror.Append(allErrors, beforeHookErrors)
 
 	var actionErrors error
@@ -370,8 +370,8 @@ func runActionWithHooks(ctx context.Context, description string, terragruntOptio
 	} else {
 		terragruntOptions.Logger.Errorf("Errors encountered running before_hooks. Not running '%s'.", description)
 	}
-	postHookErrors := processHooks(terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, terragruntConfig, allErrors)
-	errorHookErrors := processErrorHooks(terragruntConfig.Terraform.GetErrorHooks(), terragruntOptions, allErrors)
+	postHookErrors := processHooks(ctx, terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, terragruntConfig, allErrors)
+	errorHookErrors := processErrorHooks(ctx, terragruntConfig.Terraform.GetErrorHooks(), terragruntOptions, allErrors)
 	allErrors = multierror.Append(allErrors, postHookErrors, errorHookErrors)
 
 	return allErrors.ErrorOrNil()
@@ -402,7 +402,7 @@ func runTerraformWithRetry(ctx context.Context, terragruntOptions *options.Terra
 	retry := RetryFromContext(ctx)
 
 	return retry.Run(ctx, terragruntOptions, func(ctx context.Context, terragruntOptions *options.TerragruntOptions) (*shell.CmdOutput, error) {
-		return shell.RunTerraformCommandWithOutput(terragruntOptions, terragruntOptions.TerraformCliArgs...)
+		return shell.RunTerraformCommandWithOutput(ctx, terragruntOptions, terragruntOptions.TerraformCliArgs...)
 	})
 }
 

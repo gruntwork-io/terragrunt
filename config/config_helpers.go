@@ -212,12 +212,12 @@ func getPlatform(ctx *ParsingContext) (string, error) {
 
 // Return the repository root as an absolute path
 func getRepoRoot(ctx *ParsingContext) (string, error) {
-	return shell.GitTopLevelDir(ctx.TerragruntOptions, ctx.TerragruntOptions.WorkingDir)
+	return shell.GitTopLevelDir(ctx, ctx.TerragruntOptions, ctx.TerragruntOptions.WorkingDir)
 }
 
 // Return the path from the repository root
 func getPathFromRepoRoot(ctx *ParsingContext) (string, error) {
-	repoAbsPath, err := shell.GitTopLevelDir(ctx.TerragruntOptions, ctx.TerragruntOptions.WorkingDir)
+	repoAbsPath, err := shell.GitTopLevelDir(ctx, ctx.TerragruntOptions, ctx.TerragruntOptions.WorkingDir)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
@@ -232,7 +232,7 @@ func getPathFromRepoRoot(ctx *ParsingContext) (string, error) {
 
 // Return the path to the repository root
 func getPathToRepoRoot(ctx *ParsingContext) (string, error) {
-	repoAbsPath, err := shell.GitTopLevelDir(ctx.TerragruntOptions, ctx.TerragruntOptions.WorkingDir)
+	repoAbsPath, err := shell.GitTopLevelDir(ctx, ctx.TerragruntOptions, ctx.TerragruntOptions.WorkingDir)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
@@ -347,7 +347,7 @@ func runCommand(ctx *ParsingContext, args []string) (string, error) {
 		return cachedValue, nil
 	}
 
-	cmdOutput, err := shell.RunShellCommandWithOutput(ctx.TerragruntOptions, currentPath, suppressOutput, false, args[0], args[1:]...)
+	cmdOutput, err := shell.RunShellCommandWithOutput(ctx, ctx.TerragruntOptions, currentPath, suppressOutput, false, args[0], args[1:]...)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}

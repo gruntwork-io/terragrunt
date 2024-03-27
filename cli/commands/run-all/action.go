@@ -42,7 +42,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		}
 	}
 
-	stack, err := configstack.FindStackInSubfolders(opts, nil)
+	stack, err := configstack.FindStackInSubfolders(ctx, opts, nil)
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func RunAllOnStack(ctx context.Context, opts *options.TerragruntOptions, stack *
 		}
 	}
 
-	return telemetry.Telemetry(opts, "run_all_on_stack", map[string]interface{}{
+	return telemetry.Telemetry(ctx, opts, "run_all_on_stack", map[string]interface{}{
 		"terraform_command": opts.TerraformCommand,
 		"working_dir":       opts.WorkingDir,
 	}, func(childCtx context.Context) error {

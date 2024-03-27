@@ -87,7 +87,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	}
 }
 
-func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
+func action(opts *options.TerragruntOptions) cli.ActionFunc {
 	return func(cliCtx *cli.Context) error {
 		opts.RunTerragrunt = func(ctx context.Context, opts *options.TerragruntOptions) error {
 			if cmd := cliCtx.Command.Subcommand(opts.TerraformCommand); cmd != nil {
@@ -97,10 +97,7 @@ func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 			return terraform.Run(ctx, opts)
 		}
 
-		if opts.ProviderCache {
-			return RunWithProviderCache(cliCtx, opts.OptionsFromContext(cliCtx))
-		}
-		return Run(cliCtx, opts.OptionsFromContext(cliCtx))
+		return Run(cliCtx.Context, opts.OptionsFromContext(cliCtx))
 	}
 }
 

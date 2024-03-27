@@ -48,37 +48,38 @@ var terraformCommandsThatNeedPty = []string{
 }
 
 // Run the given Terraform command
-func RunTerraformCommand(terragruntOptions *options.TerragruntOptions, args ...string) error {
+func RunTerraformCommand(ctx context.Context, terragruntOptions *options.TerragruntOptions, args ...string) error {
 	needPTY, err := isTerraformCommandThatNeedsPty(args)
 	if err != nil {
 		return err
 	}
 
-	_, err = RunShellCommandWithOutput(terragruntOptions, "", false, needPTY, terragruntOptions.TerraformPath, args...)
+	_, err = RunShellCommandWithOutput(ctx, terragruntOptions, "", false, needPTY, terragruntOptions.TerraformPath, args...)
 	return err
 }
 
 // Run the given shell command
-func RunShellCommand(terragruntOptions *options.TerragruntOptions, command string, args ...string) error {
-	_, err := RunShellCommandWithOutput(terragruntOptions, "", false, false, command, args...)
+func RunShellCommand(ctx context.Context, terragruntOptions *options.TerragruntOptions, command string, args ...string) error {
+	_, err := RunShellCommandWithOutput(ctx, terragruntOptions, "", false, false, command, args...)
 	return err
 }
 
 // Run the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
 // method's caller
-func RunTerraformCommandWithOutput(terragruntOptions *options.TerragruntOptions, args ...string) (*CmdOutput, error) {
+func RunTerraformCommandWithOutput(ctx context.Context, terragruntOptions *options.TerragruntOptions, args ...string) (*CmdOutput, error) {
 	needPTY, err := isTerraformCommandThatNeedsPty(args)
 	if err != nil {
 		return nil, err
 	}
 
-	return RunShellCommandWithOutput(terragruntOptions, "", false, needPTY, terragruntOptions.TerraformPath, args...)
+	return RunShellCommandWithOutput(ctx, terragruntOptions, "", false, needPTY, terragruntOptions.TerraformPath, args...)
 }
 
 // Run the specified shell command with the specified arguments. Connect the command's stdin, stdout, and stderr to
 // the currently running app. The command can be executed in a custom working directory by using the parameter
 // `workingDir`. Terragrunt working directory will be assumed if empty string.
 func RunShellCommandWithOutput(
+	ctx context.Context,
 	terragruntOptions *options.TerragruntOptions,
 	workingDir string,
 	suppressStdout bool,
@@ -91,7 +92,7 @@ func RunShellCommandWithOutput(
 	if workingDir == "" {
 		commandDir = terragruntOptions.WorkingDir
 	}
-	err := telemetry.Telemetry(terragruntOptions, fmt.Sprintf("run_%s", command), map[string]interface{}{
+	err := telemetry.Telemetry(ctx, terragruntOptions, fmt.Sprintf("run_%s", command), map[string]interface{}{
 		"command": command,
 		"args":    fmt.Sprintf("%v", args),
 		"dir":     commandDir,
@@ -291,7 +292,7 @@ type CmdOutput struct {
 }
 
 // GitTopLevelDir - fetch git repository path from passed directory
-func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (string, error) {
+func GitTopLevelDir(ctx context.Context, terragruntOptions *options.TerragruntOptions, path string) (string, error) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	opts, err := options.NewTerragruntOptionsWithConfigPath(path)
@@ -301,7 +302,7 @@ func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (
 	opts.Env = terragruntOptions.Env
 	opts.Writer = &stdout
 	opts.ErrWriter = &stderr
-	cmd, err := RunShellCommandWithOutput(opts, path, true, false, "git", "rev-parse", "--show-toplevel")
+	cmd, err := RunShellCommandWithOutput(ctx, opts, path, true, false, "git", "rev-parse", "--show-toplevel")
 	terragruntOptions.Logger.Debugf("git show-toplevel result: \n%v\n%v\n", stdout.String(), stderr.String())
 	if err != nil {
 		return "", err
@@ -310,7 +311,7 @@ func GitTopLevelDir(terragruntOptions *options.TerragruntOptions, path string) (
 }
 
 // GitRepoTags - fetch git repository tags from passed url
-func GitRepoTags(opts *options.TerragruntOptions, gitRepo *url.URL) ([]string, error) {
+func GitRepoTags(ctx context.Context, opts *options.TerragruntOptions, gitRepo *url.URL) ([]string, error) {
 	repoPath := gitRepo.String()
 	// remove git:: part if present
 	repoPath = strings.TrimPrefix(repoPath, gitPrefix)
@@ -325,7 +326,7 @@ func GitRepoTags(opts *options.TerragruntOptions, gitRepo *url.URL) ([]string, e
 	gitOpts.Writer = &stdout
 	gitOpts.ErrWriter = &stderr
 
-	output, err := RunShellCommandWithOutput(opts, opts.WorkingDir, true, false, "git", "ls-remote", "--tags", repoPath)
+	output, err := RunShellCommandWithOutput(ctx, opts, opts.WorkingDir, true, false, "git", "ls-remote", "--tags", repoPath)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
@@ -341,8 +342,8 @@ func GitRepoTags(opts *options.TerragruntOptions, gitRepo *url.URL) ([]string, e
 }
 
 // GitLastReleaseTag - fetch git repository last release tag
-func GitLastReleaseTag(opts *options.TerragruntOptions, gitRepo *url.URL) (string, error) {
-	tags, err := GitRepoTags(opts, gitRepo)
+func GitLastReleaseTag(ctx context.Context, opts *options.TerragruntOptions, gitRepo *url.URL) (string, error) {
+	tags, err := GitRepoTags(ctx, opts, gitRepo)
 	if err != nil {
 		return "", err
 	}

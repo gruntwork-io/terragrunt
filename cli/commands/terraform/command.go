@@ -1,6 +1,8 @@
 package terraform
 
 import (
+	"fmt"
+
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/gruntwork-cli/collections"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -26,8 +28,10 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	}
 }
 
-func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
+func action(opts *options.TerragruntOptions) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
+		fmt.Printf("---- %p %T %p\n", ctx.Context, ctx.Context, ctx)
+
 		if opts.TerraformCommand == terraform.CommandNameDestroy {
 			opts.CheckDependentModules = true
 		}
@@ -36,6 +40,6 @@ func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 			return errors.WithStackTrace(WrongTerraformCommand(opts.TerraformCommand))
 		}
 
-		return Run(ctx, opts.OptionsFromContext(ctx))
+		return Run(ctx.Context, opts.OptionsFromContext(ctx))
 	}
 }

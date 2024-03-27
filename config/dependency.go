@@ -707,7 +707,7 @@ func getTerragruntOutputJsonFromInitFolder(ctx *ParsingContext, terraformWorking
 		return nil, err
 	}
 
-	out, err := shell.RunTerraformCommandWithOutput(targetTGOptions, terraform.CommandNameOutput, "-json")
+	out, err := shell.RunTerraformCommandWithOutput(ctx, targetTGOptions, terraform.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -801,7 +801,7 @@ func getTerragruntOutputJsonFromRemoteState(
 	runTerraformInitForDependencyOutput(ctx, tempWorkDir, targetConfigPath)
 
 	// Now that the backend is initialized, run terraform output to get the data and return it.
-	out, err := shell.RunTerraformCommandWithOutput(targetTGOptions, terraform.CommandNameOutput, "-json")
+	out, err := shell.RunTerraformCommandWithOutput(ctx, targetTGOptions, terraform.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -953,7 +953,7 @@ func runTerraformInitForDependencyOutput(ctx *ParsingContext, workingDir string,
 	initTGOptions := cloneTerragruntOptionsForDependency(ctx, targetConfigPath)
 	initTGOptions.WorkingDir = workingDir
 	initTGOptions.ErrWriter = &stderr
-	err := shell.RunTerraformCommand(initTGOptions, terraform.CommandNameInit, "-get=false")
+	err := shell.RunTerraformCommand(ctx, initTGOptions, terraform.CommandNameInit, "-get=false")
 	if err != nil {
 		ctx.TerragruntOptions.Logger.Debugf("Ignoring expected error from dependency init call")
 		ctx.TerragruntOptions.Logger.Debugf("Init call stderr:")
