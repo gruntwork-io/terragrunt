@@ -61,29 +61,34 @@ func initProviderCache(ctx context.Context, opts *options.TerragruntOptions) (co
 
 	ctx = shell.ContextWithTerraformCommandHook(ctx,
 		func(ctx context.Context, opts *options.TerragruntOptions, args []string) error {
+			// clear the hook context to prevent a loop
+			ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
+
 			// Use Hook only for the `terraform init` command, which can be run explicitly by the user or Terragrunt's `auto-init` feature.
-			if util.FirstArg(opts.TerraformCliArgs) == terraform.CommandNameInit {
-				log.Debugf("Getting terraform modules for %q", opts.WorkingDir)
-				if err := runTerraformCommand(ctx, opts, terraform.CommandNameGet); err != nil {
-					return err
-				}
+			if util.FirstArg(opts.TerraformCliArgs) != terraform.CommandNameInit {
+				return nil
+			}
 
-				log.Debugf("Caching terraform providers for %q", opts.WorkingDir)
-				// Before each init, we warm up the global cache to ensure that all necessary providers are cached.
-				// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
-				if err := runTerraformCommand(ctx, opts, terraform.CommandNameProviders, terraform.CommandNameLock, "-platform="+controllers.PlatformNameCacheProvider); err != nil {
-					return err
-				}
-				registryServer.Provider.WaitForCacheReady()
+			log.Debugf("Getting terraform modules for %q", opts.WorkingDir)
+			if err := runTerraformCommand(ctx, opts, terraform.CommandNameGet); err != nil {
+				return err
+			}
 
-				if opts.ProviderCompleteLock && !util.FileExists(filepath.Join(opts.WorkingDir, terraform.TerraformLockFile)) {
-					log.Debugf("Generating Terraform lock file for %q", opts.WorkingDir)
-					// Create complete terraform lock files. By default this feature is disabled, since it's not superfast.
-					// Instead we use Terraform `TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE` feature, that creates hashes from the local cache.
-					// And since the Terraform developers warn that this feature will be removed soon, it's good to have a workaround.
-					if err := runTerraformCommand(ctx, opts, terraform.CommandNameProviders, terraform.CommandNameLock); err != nil {
-						return err
-					}
+			log.Debugf("Caching terraform providers for %q", opts.WorkingDir)
+			// Before each init, we warm up the global cache to ensure that all necessary providers are cached.
+			// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
+			if err := runTerraformCommand(ctx, opts, terraform.CommandNameProviders, terraform.CommandNameLock, "-platform="+controllers.PlatformNameCacheProvider); err != nil {
+				return err
+			}
+			registryServer.Provider.WaitForCacheReady()
+
+			if opts.ProviderCompleteLock && !util.FileExists(filepath.Join(opts.WorkingDir, terraform.TerraformLockFile)) {
+				log.Debugf("Generating Terraform lock file for %q", opts.WorkingDir)
+				// Create complete terraform lock files. By default this feature is disabled, since it's not superfast.
+				// Instead we use Terraform `TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE` feature, that creates hashes from the local cache.
+				// And since the Terraform developers warn that this feature will be removed soon, it's good to have a workaround.
+				if err := runTerraformCommand(ctx, opts, terraform.CommandNameProviders, terraform.CommandNameLock); err != nil {
+					return err
 				}
 			}
 
@@ -97,6 +102,10 @@ func initProviderCache(ctx context.Context, opts *options.TerragruntOptions) (co
 func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, args ...string) error {
 	// We use custom writter in order to trap the log from `terraform providers lock -platform=provider-cache` command, which terraform considers an error, but to us a success.
 	errWritter := util.NewTrapWriter(opts.ErrWriter, HTTPStatusCacheProviderReg)
+
+	if util.ListContainsElement(opts.TerraformCliArgs, terraform.FlagNameNoColor) {
+		args = append(args, terraform.FlagNameNoColor)
+	}
 
 	cloneOpts := opts.Clone(opts.TerragruntConfigPath)
 	cloneOpts.ErrWriter = errWritter

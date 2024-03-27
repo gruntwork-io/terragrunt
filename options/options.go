@@ -498,6 +498,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		ScaffoldVarFiles:               opts.ScaffoldVarFiles,
 		ProviderCache:                  opts.ProviderCache,
 		ProviderCompleteLock:           opts.ProviderCompleteLock,
+		DisableLogColors:               opts.DisableLogColors,
 	}
 }
 

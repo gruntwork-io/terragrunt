@@ -96,7 +96,7 @@ func (server *Server) Listen() error {
 	server.Addr = ln.Addr().String()
 	server.listener = ln
 
-	log.Infof("Private Registry started, listening on %q", server.Addr)
+	log.Infof("Private Registry started, listening on %s", server.Addr)
 	return nil
 }
 

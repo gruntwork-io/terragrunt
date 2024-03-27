@@ -610,13 +610,14 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions) *options.T
 // modules at all. Detecting if your downloaded modules are out of date (as opposed to missing entirely) is more
 // complicated and not something we handle at the moment.
 func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error) {
-	modulesPath := util.JoinPath(terragruntOptions.DataDir(), "modules")
-	if util.FileExists(modulesPath) {
-		return false, nil
-	}
 	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, moduleInitRequiredFile)
 	if util.FileExists(moduleNeedInit) {
 		return true, nil
+	}
+
+	modulesPath := util.JoinPath(terragruntOptions.DataDir(), "modules")
+	if util.FileExists(modulesPath) {
+		return false, nil
 	}
 
 	return util.Grep(ModuleRegex, fmt.Sprintf("%s/%s", terragruntOptions.WorkingDir, TerraformExtensionGlob))
