@@ -4,6 +4,7 @@
 package shell
 
 import (
+	"context"
 	goerrors "errors"
 	"fmt"
 	"os"
@@ -132,7 +133,7 @@ func TestRunShellCommandWithOutputInterrupt(t *testing.T) {
 	expectedWait := 5
 
 	go func() {
-		_, err := RunShellCommandWithOutput(terragruntOptions, "", false, false, "../testdata/test_sigint_wait.sh", strconv.Itoa(expectedWait))
+		_, err := RunShellCommandWithOutput(context.Background(), terragruntOptions, "", false, false, "../testdata/test_sigint_wait.sh", strconv.Itoa(expectedWait))
 		errCh <- err
 	}()
 

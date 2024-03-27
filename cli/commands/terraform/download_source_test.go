@@ -404,7 +404,7 @@ func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceU
 		},
 	}
 
-	err = PopulateTerraformVersion(terragruntOptions)
+	err = PopulateTerraformVersion(context.Background(), terragruntOptions)
 	assert.Nil(t, err, "For terraform source %v: %v", terraformSource, err)
 	return terraformSource, terragruntOptions, terragruntConfig, err
 }
