@@ -399,11 +399,35 @@ func setTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, 
 }
 
 func runTerraformWithRetry(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
-	retry := RetryFromContext(ctx)
+	// Retry the command configurable time with sleep in between
+	for i := 0; i < terragruntOptions.RetryMaxAttempts; i++ {
+		if out, err := shell.RunTerraformCommandWithOutput(ctx, terragruntOptions, terragruntOptions.TerraformCliArgs...); err != nil {
+			if out == nil || !isRetryable(terragruntOptions, out) {
+				terragruntOptions.Logger.Errorf("%s invocation failed in %s", terragruntOptions.TerraformImplementation, terragruntOptions.WorkingDir)
+				return err
+			} else {
+				terragruntOptions.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.RetrySleepIntervalSec)
+				select {
+				case <-time.After(terragruntOptions.RetrySleepIntervalSec):
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+		} else {
+			return nil
+		}
+	}
 
-	return retry.Run(ctx, terragruntOptions, func(ctx context.Context, terragruntOptions *options.TerragruntOptions) (*shell.CmdOutput, error) {
-		return shell.RunTerraformCommandWithOutput(ctx, terragruntOptions, terragruntOptions.TerraformCliArgs...)
-	})
+	return errors.WithStackTrace(MaxRetriesExceeded{terragruntOptions})
+}
+
+// isRetryable checks whether there was an error and if the output matches any of the configured RetryableErrors
+func isRetryable(opts *options.TerragruntOptions, out *shell.CmdOutput) bool {
+	if !opts.AutoRetry {
+		return false
+	}
+	// When -json is enabled, Terraform will send all output, errors included, to stdout.
+	return util.MatchesAny(opts.RetryableErrors, out.Stderr) || util.MatchesAny(opts.RetryableErrors, out.Stdout)
 }
 
 // Prepare for running 'terraform init' by initializing remote state storage and adding backend configuration arguments

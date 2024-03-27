@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/go-commons/errors"
-	terraformcmd "github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -32,7 +31,7 @@ const (
 // HTTPStatusCacheProviderReg is regular expression to determine the success result of the command `terraform lock providers -platform=cache provider`.
 var HTTPStatusCacheProviderReg = regexp.MustCompile(`(?mi)` + strconv.Itoa(controllers.HTTPStatusCacheProvider) + `[^a-z0-9]*` + http.StatusText(controllers.HTTPStatusCacheProvider))
 
-func initProviderCacheServer(ctx context.Context, opts *options.TerragruntOptions) (context.Context, *registry.Server, error) {
+func initProviderCache(ctx context.Context, opts *options.TerragruntOptions) (context.Context, *registry.Server, error) {
 	if opts.ProviderCacheDir == "" {
 		cacheDir, err := util.GetCacheDir()
 		if err != nil {
@@ -60,20 +59,20 @@ func initProviderCacheServer(ctx context.Context, opts *options.TerragruntOption
 		return nil, nil, err
 	}
 
-	ctx = terraformcmd.ContextWithRetry(ctx, &terraformcmd.Retry{
-		HookFunc: func(ctx context.Context, opts *options.TerragruntOptions, callback terraformcmd.RetryCallback) (*shell.CmdOutput, error) {
+	ctx = shell.ContextWithTerraformCommandHook(ctx,
+		func(ctx context.Context, opts *options.TerragruntOptions, args []string) error {
 			// Use Hook only for the `terraform init` command, which can be run explicitly by the user or Terragrunt's `auto-init` feature.
 			if util.FirstArg(opts.TerraformCliArgs) == terraform.CommandNameInit {
 				log.Debugf("Getting terraform modules for %q", opts.WorkingDir)
 				if err := runTerraformCommand(ctx, opts, terraform.CommandNameGet); err != nil {
-					return nil, err
+					return err
 				}
 
 				log.Debugf("Caching terraform providers for %q", opts.WorkingDir)
 				// Before each init, we warm up the global cache to ensure that all necessary providers are cached.
 				// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
 				if err := runTerraformCommand(ctx, opts, terraform.CommandNameProviders, terraform.CommandNameLock, "-platform="+controllers.PlatformNameCacheProvider); err != nil {
-					return nil, err
+					return err
 				}
 				registryServer.Provider.WaitForCacheReady()
 
@@ -83,14 +82,14 @@ func initProviderCacheServer(ctx context.Context, opts *options.TerragruntOption
 					// Instead we use Terraform `TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE` feature, that creates hashes from the local cache.
 					// And since the Terraform developers warn that this feature will be removed soon, it's good to have a workaround.
 					if err := runTerraformCommand(ctx, opts, terraform.CommandNameProviders, terraform.CommandNameLock); err != nil {
-						return nil, err
+						return err
 					}
 				}
 			}
 
-			return callback(ctx, opts)
+			return nil
 		},
-	})
+	)
 
 	return ctx, registryServer, nil
 }

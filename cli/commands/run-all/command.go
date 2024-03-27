@@ -4,7 +4,6 @@ import (
 	"context"
 	"sort"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
@@ -28,60 +27,11 @@ const (
 	FlagNameTerragruntRegistryNames        = "terragrunt-registry-names"
 )
 
-func NewFlags(opts *options.TerragruntOptions) cli.Flags {
-	globalFlags := commands.NewGlobalFlags(opts)
-	globalFlags.Add(
-		&cli.BoolFlag{
-			Name:        FlagNameTerragruntProviderCache,
-			Destination: &opts.ProviderCache,
-			EnvVar:      "TERRAGRUNT_PROVIDER_CACHE",
-			Usage:       "Enables provider cache.",
-		},
-		&cli.GenericFlag[string]{
-			Name:        FlagNameTerragruntProviderCacheDir,
-			Destination: &opts.ProviderCacheDir,
-			EnvVar:      "TERRAGRUNT_PROVIDER_CACHE_DIR",
-			Usage:       "The path to the cache directory. Default is .terragrunt-cache/provider-cache in the working directory.",
-		},
-		&cli.BoolFlag{
-			Name:        FlagNameTerragruntProviderCompleteLock,
-			Destination: &opts.ProviderCompleteLock,
-			EnvVar:      "TERRAGRUNT_PROVIDER_COMPLETE_LOCK",
-			Usage:       "Disables terraform 'plugin_cache_may_break_dependency_lock_file' feature.",
-		},
-		&cli.GenericFlag[string]{
-			Name:        FlagNameTerragruntRegistryToken,
-			Destination: &opts.RegistryToken,
-			EnvVar:      "TERRAGRUNT_REGISTRY_TOKEN",
-			Usage:       "The Token for connecting to the built-in Private Registry server. By default generated automatically.",
-		},
-		&cli.GenericFlag[string]{
-			Name:        FlagNameTerragruntRegistryHostname,
-			Destination: &opts.RegistryHostname,
-			EnvVar:      "TERRAGRUNT_REGISTRY_HOSTNAME",
-			Usage:       "The hostname of the built-in Private Registry server. Default is 'localhost'.",
-		},
-		&cli.GenericFlag[int]{
-			Name:        FlagNameTerragruntRegistryPort,
-			Destination: &opts.RegistryPort,
-			EnvVar:      "TERRAGRUNT_REGISTRY_PORT",
-			Usage:       "The listening port of the built-in Private Registry server. Default is '5758'.",
-		},
-		&cli.SliceFlag[string]{
-			Name:        FlagNameTerragruntRegistryNames,
-			Destination: &opts.RegistryNames,
-			EnvVar:      "TERRAGRUNT_REGISTRY_NAMES",
-			Usage:       "The list of the remote registries to cache. Default is 'registry.terraform.io', 'registry.opentofu.org'.",
-		})
-	return globalFlags
-}
-
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:        CommandName,
 		Usage:       "Run a terraform command against a 'stack' by running the specified command in each subfolder.",
 		Description: "The command will recursively find terragrunt modules in the current directory tree and run the terraform command in dependency order (unless the command is destroy, in which case the command is run in reverse dependency order).",
-		Flags:       NewFlags(opts).Sort(),
 		Subcommands: subCommands(opts).SkipRunning(),
 		Action:      action(opts),
 	}

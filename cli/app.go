@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"golang.org/x/sync/errgroup"
@@ -82,9 +83,9 @@ func (app *App) Run(args []string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	util.RegisterInterruptHandler(func() {
+	util.RegisterSignalHandler(func() {
 		cancel()
-	})
+	}, syscall.SIGTERM, syscall.SIGINT)
 
 	// configure telemetry integration
 	err := telemetry.InitTelemetry(ctx, &telemetry.TelemetryOptions{
@@ -98,8 +99,7 @@ func (app *App) Run(args []string) error {
 		return err
 	}
 	defer func(ctx context.Context) {
-		err := telemetry.ShutdownTelemetry(ctx)
-		if err != nil {
+		if err := telemetry.ShutdownTelemetry(ctx); err != nil {
 			_, _ = app.ErrWriter.Write([]byte(err.Error()))
 		}
 	}(ctx)
@@ -141,7 +141,7 @@ func telemetryCommand(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Co
 			"dir":              opts.WorkingDir,
 		}, func(childCtx context.Context) error {
 			ctx.Context = childCtx
-			return wrappedAction(ctx, opts, action)
+			return initialSetup(ctx, opts, action)
 		})
 	}
 	return cmd
@@ -161,7 +161,7 @@ func beforeAction(opts *options.TerragruntOptions) cli.ActionFunc {
 }
 
 // mostly preparing terragrunt options
-func wrappedAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.ActionFunc) error {
+func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.ActionFunc) error {
 	// The env vars are renamed to "..._NO_AUTO_..." in the gobal flags`. These ones are left for backwards compatibility.
 	opts.AutoInit = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_INIT"), opts.AutoInit)
 	opts.AutoRetry = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_RETRY"), opts.AutoRetry)
@@ -283,14 +283,14 @@ func wrappedAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action 
 
 	shell.PrepareConsole(opts)
 
-	// --- Provider Cache
+	// --- Provider cache
 	ctx, cancel := context.WithCancel(cliCtx.Context)
 	defer cancel()
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 
 	if opts.ProviderCache {
-		ctx, server, err := initProviderCacheServer(ctx, opts)
+		ctx, server, err := initProviderCache(ctx, opts)
 		if err != nil {
 			return err
 		}

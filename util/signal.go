@@ -18,12 +18,12 @@ func RegisterSignalInterceptor(cancel context.CancelFunc, sigs ...os.Signal) {
 	}()
 }
 
-// RegisterInterruptHandler registers a handler of interrupt signal from the OS.
+// RegisterSignalHandler registers a handler of interrupt signal from the OS.
 // When signal os.Interrupt is coming, it informs the user about it by calling `notifyFn`.
-func RegisterInterruptHandler(notifyFn func()) {
+func RegisterSignalHandler(notifyFn func(), sigs ...os.Signal) {
 	go func() {
 		ctx, cancel := context.WithCancel(context.Background())
-		RegisterSignalInterceptor(cancel, os.Interrupt)
+		RegisterSignalInterceptor(cancel, sigs...)
 
 		<-ctx.Done()
 		fmt.Print("\r")
