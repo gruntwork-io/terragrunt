@@ -110,7 +110,7 @@ func TestRunShellCommandWithOutputInterrupt(t *testing.T) {
 	expectedWait := 5
 
 	go func() {
-		_, err := RunShellCommandWithOutput(terragruntOptions, "", false, false, "../testdata/test_sigint_wait.bat", strconv.Itoa(expectedWait))
+		_, err := RunShellCommandWithOutput(context.Background(), terragruntOptions, "", false, false, "../testdata/test_sigint_wait.bat", strconv.Itoa(expectedWait))
 		errCh <- err
 	}()
 

@@ -16,7 +16,7 @@ func MatchesAny(regExps []string, s string) bool {
 }
 
 // ListEquals returns true if the two lists are equal
-func ListEquals(a, b []string) bool {
+func ListEquals[S ~[]E, E comparable](a, b S) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -28,8 +28,8 @@ func ListEquals(a, b []string) bool {
 	return true
 }
 
-// Return true if the given list contains the given element
-func ListContainsElement(list []string, element string) bool {
+// ListContainsElement returns true if the given list contains the given element
+func ListContainsElement[S ~[]E, E comparable](list S, element any) bool {
 	for _, item := range list {
 		if item == element {
 			return true
@@ -40,7 +40,7 @@ func ListContainsElement(list []string, element string) bool {
 }
 
 // ListContainsSublist returns true if an instance of the sublist can be found in the given list
-func ListContainsSublist(list, sublist []string) bool {
+func ListContainsSublist[S ~[]E, E comparable](list, sublist S) bool {
 	// A list cannot contain an empty sublist
 	if len(sublist) == 0 {
 		return false
@@ -57,7 +57,7 @@ func ListContainsSublist(list, sublist []string) bool {
 }
 
 // ListHasPrefix returns true if list starts with the given prefix list
-func ListHasPrefix(list, prefix []string) bool {
+func ListHasPrefix[S ~[]E, E comparable](list, prefix S) bool {
 	if len(prefix) == 0 {
 		return false
 	}
@@ -68,8 +68,8 @@ func ListHasPrefix(list, prefix []string) bool {
 }
 
 // Return a copy of the given list with all instances of the given element removed
-func RemoveElementFromList(list []string, element string) []string {
-	out := []string{}
+func RemoveElementFromList[S ~[]E, E comparable](list S, element E) S {
+	var out S
 	for _, item := range list {
 		if item != element {
 			out = append(out, item)
@@ -78,19 +78,28 @@ func RemoveElementFromList(list []string, element string) []string {
 	return out
 }
 
+// RemoveSublistFromList returns a copy of the given list with all instances of the given sublist removed
+func RemoveSublistFromList[S ~[]E, E comparable](list, sublist S) S {
+	var out = list
+	for _, item := range sublist {
+		out = RemoveElementFromList(out, item)
+	}
+	return out
+}
+
 // Returns a copy of the given list with all duplicates removed (keeping the first encountereds)
-func RemoveDuplicatesFromList(list []string) []string {
+func RemoveDuplicatesFromList[S ~[]E, E comparable](list S) S {
 	return removeDuplicatesFromList(list, false)
 }
 
 // Returns a copy of the given list with all duplicates removed (keeping the last encountereds)
-func RemoveDuplicatesFromListKeepLast(list []string) []string {
+func RemoveDuplicatesFromListKeepLast[S ~[]E, E comparable](list S) S {
 	return removeDuplicatesFromList(list, true)
 }
 
-func removeDuplicatesFromList(list []string, keepLast bool) []string {
-	out := make([]string, 0, len(list))
-	present := make(map[string]bool)
+func removeDuplicatesFromList[S ~[]E, E comparable](list S, keepLast bool) S {
+	out := make(S, 0, len(list))
+	present := make(map[E]bool)
 
 	for _, value := range list {
 		if _, ok := present[value]; ok {
@@ -133,28 +142,34 @@ func CloneStringMap(mapToClone map[string]string) map[string]string {
 
 // A convenience method that returns the first item (0th index) in the given list or an empty string if this is an
 // empty list
-func FirstArg(args []string) string {
+func FirstArg[S ~[]E, E comparable](args S) E {
 	if len(args) > 0 {
 		return args[0]
 	}
-	return ""
+
+	var empty E
+	return empty
 }
 
 // A convenience method that returns the second item (1st index) in the given list or an empty string if this is a
 // list that has less than 2 items in it
-func SecondArg(args []string) string {
+func SecondArg[S ~[]E, E comparable](args S) E {
 	if len(args) > 1 {
 		return args[1]
 	}
-	return ""
+
+	var empty E
+	return empty
 }
 
 // A convenience method that returns the last item in the given list or an empty string if this is an empty list
-func LastArg(args []string) string {
+func LastArg[S ~[]E, E comparable](args S) E {
 	if len(args) > 0 {
 		return args[len(args)-1]
 	}
-	return ""
+
+	var empty E
+	return empty
 }
 
 // StringListInsert will insert the given string in to the provided string list at the specified index and return the

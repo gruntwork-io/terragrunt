@@ -141,12 +141,6 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 		return err
 	}
 
-	if ctx.App.CommonBefore != nil {
-		if err = ctx.App.CommonBefore(ctx); err != nil {
-			return ctx.App.handleExitCoder(err)
-		}
-	}
-
 	if cmd.Action != nil {
 		if err = cmd.Action(ctx); err != nil {
 			return ctx.App.handleExitCoder(err)

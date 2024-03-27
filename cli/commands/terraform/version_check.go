@@ -33,7 +33,7 @@ const versionParts = 3
 // - TerraformPath
 // - TerraformVersion
 // TODO: Look into a way to refactor this function to avoid the side effect.
-func checkVersionConstraints(terragruntOptions *options.TerragruntOptions) error {
+func checkVersionConstraints(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
 	configContext := config.NewParsingContext(context.Background(), terragruntOptions).WithDecodeList(config.TerragruntVersionConstraints)
 
 	partialTerragruntConfig, err := config.PartialParseConfigFile(
@@ -50,7 +50,7 @@ func checkVersionConstraints(terragruntOptions *options.TerragruntOptions) error
 	if terragruntOptions.TerraformPath == options.DefaultWrappedPath && partialTerragruntConfig.TerraformBinary != "" {
 		terragruntOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
 	}
-	if err := PopulateTerraformVersion(terragruntOptions); err != nil {
+	if err := PopulateTerraformVersion(ctx, terragruntOptions); err != nil {
 		return err
 	}
 
@@ -71,7 +71,7 @@ func checkVersionConstraints(terragruntOptions *options.TerragruntOptions) error
 }
 
 // Populate the currently installed version of Terraform into the given terragruntOptions
-func PopulateTerraformVersion(terragruntOptions *options.TerragruntOptions) error {
+func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
 	// Discard all log output to make sure we don't pollute stdout or stderr with this extra call to '--version'
 	terragruntOptionsCopy := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	terragruntOptionsCopy.Writer = io.Discard
@@ -87,7 +87,7 @@ func PopulateTerraformVersion(terragruntOptions *options.TerragruntOptions) erro
 		}
 	}
 
-	output, err := shell.RunTerraformCommandWithOutput(terragruntOptionsCopy, "--version")
+	output, err := shell.RunTerraformCommandWithOutput(ctx, terragruntOptionsCopy, "--version")
 	if err != nil {
 		return err
 	}

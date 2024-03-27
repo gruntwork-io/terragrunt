@@ -30,22 +30,19 @@ const (
 )
 
 // Trace - collect traces for method execution
-func Trace(opts *options.TerragruntOptions, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
-	ctx := opts.TelemetryCtx
-	if spanExporter == nil || traceProvider == nil || ctx == nil { // invoke function without tracing
+func Trace(ctx context.Context, opts *options.TerragruntOptions, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
+	if spanExporter == nil || traceProvider == nil { // invoke function without tracing
 		return fn(ctx)
 	}
-	childCtx, span := openSpan(ctx, name, attrs)
-	defer func() {
-		span.End()
-	}()
-	err := fn(childCtx)
-	if err != nil {
+
+	ctx, span := openSpan(ctx, name, attrs)
+	defer span.End()
+
+	if err := fn(ctx); err != nil {
 		// record error in span
 		span.RecordError(err)
 	}
-
-	return err
+	return nil
 }
 
 // configureTraceCollection - configure the traces collection
@@ -130,8 +127,8 @@ func openSpan(ctx context.Context, name string, attrs map[string]interface{}) (c
 	if traceProvider == nil {
 		return ctx, nil
 	}
-	childCtx, span := rootTracer.Start(ctx, name)
+	ctx, span := rootTracer.Start(ctx, name)
 	// convert attrs map to span.SetAttributes
 	span.SetAttributes(mapToAttributes(attrs)...)
-	return childCtx, span
+	return ctx, span
 }

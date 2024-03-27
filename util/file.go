@@ -1,18 +1,23 @@
 package util
 
 import (
+	"context"
 	"encoding/gob"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
+	"github.com/gofrs/flock"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
 	"fmt"
 
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mattn/go-zglob"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/sirupsen/logrus"
@@ -618,11 +623,93 @@ func IsDirectoryEmpty(dirPath string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer dir.Close()
+	defer func() {
+		_ = dir.Close()
+	}()
 
 	_, err = dir.Readdir(1)
 	if err == nil {
 		return false, nil
 	}
 	return true, nil
+}
+
+// GetCacheDir returns the global terragrunt cache directory for the current user.
+func GetCacheDir() (string, error) {
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+	cacheDir = filepath.Join(cacheDir, "terragrunt")
+
+	if !FileExists(cacheDir) {
+		if err := os.MkdirAll(cacheDir, os.ModePerm); err != nil {
+			return "", errors.WithStackTrace(err)
+		}
+	}
+
+	return cacheDir, nil
+}
+
+func AcquireFileLock(ctx context.Context, filename string, maxAttempts int, waitForNextAttempt time.Duration) (*flock.Flock, error) {
+	var (
+		attepmt  int
+		fileLock = flock.New(filename)
+	)
+
+	for {
+		locked, err := fileLock.TryLock()
+		if err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
+		if locked {
+			return fileLock, nil
+		}
+
+		if attepmt >= maxAttempts {
+			return nil, errors.Errorf("unable to lock file %q, try removing file manually if you are sure no one terragrunt process is running", filename)
+		}
+		attepmt++
+
+		log.Debugf("File %q is already locked, next (%d of %d) locking attempt in %v", filename, attepmt, maxAttempts, waitForNextAttempt)
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(waitForNextAttempt):
+		}
+	}
+}
+
+// FetchFile downloads the file at the given `downloadURL` to the given `savePath` file.
+func FetchFile(ctx context.Context, downloadURL, savePath string) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	out, err := os.Create(savePath)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	go func() {
+		// Closing os.Stdin will cause io.Copy to return with error "cache already closed" next time it reads from it.
+		// This will stop download process when pressing Ctrl-C.
+		<-ctx.Done()
+		_ = out.Close()
+	}()
+
+	client := http.Client{
+		Timeout: 1 * time.Minute,
+	}
+	resp, err := client.Get(downloadURL)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if _, err := io.Copy(out, resp.Body); err != nil {
+		return errors.WithStackTrace(err)
+	}
+	return nil
 }

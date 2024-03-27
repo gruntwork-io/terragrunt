@@ -43,6 +43,15 @@ const (
 	FlagNameTerragruntDisableBucketUpdate            = "terragrunt-disable-bucket-update"
 	FlagNameTerragruntDisableCommandValidation       = "terragrunt-disable-command-validation"
 
+	// provider cache flags
+	FlagNameTerragruntProviderCache        = "terragrunt-provider-cache"
+	FlagNameTerragruntProviderCacheDir     = "terragrunt-provider-cache-dir"
+	FlagNameTerragruntProviderCompleteLock = "terragrunt-provider-complete-lock"
+	FlagNameTerragruntRegistryHostname     = "terragrunt-registry-hostname"
+	FlagNameTerragruntRegistryPort         = "terragrunt-registry-port"
+	FlagNameTerragruntRegistryToken        = "terragrunt-registry-token"
+	FlagNameTerragruntRegistryNames        = "terragrunt-registry-names"
+
 	FlagNameHelp    = "help"
 	FlagNameVersion = "version"
 )
@@ -252,6 +261,49 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      "TERRAGRUNT_DISABLE_COMMAND_VALIDATION",
 			Usage:       "When this flag is set, Terragrunt will not validate the terraform command.",
 		},
+		// provider cache flags
+		&cli.BoolFlag{
+			Name:        FlagNameTerragruntProviderCache,
+			Destination: &opts.ProviderCache,
+			EnvVar:      "TERRAGRUNT_PROVIDER_CACHE",
+			Usage:       "Enables provider cache.",
+		},
+		&cli.GenericFlag[string]{
+			Name:        FlagNameTerragruntProviderCacheDir,
+			Destination: &opts.ProviderCacheDir,
+			EnvVar:      "TERRAGRUNT_PROVIDER_CACHE_DIR",
+			Usage:       "The path to the cache directory. Default is .terragrunt-cache/provider-cache in the working directory.",
+		},
+		&cli.BoolFlag{
+			Name:        FlagNameTerragruntProviderCompleteLock,
+			Destination: &opts.ProviderCompleteLock,
+			EnvVar:      "TERRAGRUNT_PROVIDER_COMPLETE_LOCK",
+			Usage:       "Disables terraform 'plugin_cache_may_break_dependency_lock_file' feature.",
+		},
+		&cli.GenericFlag[string]{
+			Name:        FlagNameTerragruntRegistryToken,
+			Destination: &opts.RegistryToken,
+			EnvVar:      "TERRAGRUNT_REGISTRY_TOKEN",
+			Usage:       "The Token for connecting to the built-in Private Registry server. By default generated automatically.",
+		},
+		&cli.GenericFlag[string]{
+			Name:        FlagNameTerragruntRegistryHostname,
+			Destination: &opts.RegistryHostname,
+			EnvVar:      "TERRAGRUNT_REGISTRY_HOSTNAME",
+			Usage:       "The hostname of the built-in Private Registry server. Default is 'localhost'.",
+		},
+		&cli.GenericFlag[int]{
+			Name:        FlagNameTerragruntRegistryPort,
+			Destination: &opts.RegistryPort,
+			EnvVar:      "TERRAGRUNT_REGISTRY_PORT",
+			Usage:       "The listening port of the built-in Private Registry server. Default is '5758'.",
+		},
+		&cli.SliceFlag[string]{
+			Name:        FlagNameTerragruntRegistryNames,
+			Destination: &opts.RegistryNames,
+			EnvVar:      "TERRAGRUNT_REGISTRY_NAMES",
+			Usage:       "The list of the remote registries to cache. Default is 'registry.terraform.io', 'registry.opentofu.org'.",
+		},
 	}
 
 	flags.Sort()
@@ -284,7 +336,7 @@ func NewHelpFlag(opts *options.TerragruntOptions) cli.Flag {
 				// If the command name is not found, it is most likely a terraform command, show Terraform help.
 				if _, ok := err.(cli.InvalidCommandNameError); ok {
 					terraformHelpCmd := append([]string{cmdName, "-help"}, ctx.Args().Tail()...)
-					return shell.RunTerraformCommand(opts, terraformHelpCmd...)
+					return shell.RunTerraformCommand(ctx, opts, terraformHelpCmd...)
 				}
 
 				return err

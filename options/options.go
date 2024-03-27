@@ -15,11 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
-	"debug",
-	"force-unlock",
-	"state",
-}
+const ContextKey ctxKey = iota
 
 const (
 	DefaultMaxFoldersToCheck = 100
@@ -43,9 +39,20 @@ const (
 	minCommandLength = 2
 )
 
-const ContextKey ctxKey = iota
+var (
+	DefaultWrappedPath = identifyDefaultWrappedExecutable()
 
-var DefaultWrappedPath = identifyDefaultWrappedExecutable()
+	defaultRegistryNames = []string{
+		"registry.terraform.io",
+		"registry.opentofu.org",
+	}
+)
+
+var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
+	"debug",
+	"force-unlock",
+	"state",
+}
 
 type ctxKey byte
 
@@ -59,9 +66,6 @@ const (
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
-	// Context for collection of telemetry data
-	TelemetryCtx context.Context
-
 	// Location of the Terragrunt config file
 	TerragruntConfigPath string
 
@@ -221,7 +225,7 @@ type TerragruntOptions struct {
 	// in the cli package, which depends on almost all other packages, so we declare it here so that other
 	// packages can use the command without a direct reference back to the cli package (which would create a
 	// circular dependency).
-	RunTerragrunt func(*TerragruntOptions) error
+	RunTerragrunt func(ctx context.Context, opts *TerragruntOptions) error
 
 	// True if terragrunt should run in debug mode, writing terragrunt-debug.tfvars to working folder to help
 	// root-cause issues.
@@ -266,6 +270,27 @@ type TerragruntOptions struct {
 
 	// Root directory for graph command.
 	GraphRoot string
+
+	// Enables provider cache using the built-in private registry.
+	ProviderCache bool
+
+	// The path to the cache directory
+	ProviderCacheDir string
+
+	// Disables terraform 'plugin_cache_may_break_dependency_lock_file' feature.
+	ProviderCompleteLock bool
+
+	// The Token for connecting to the built-in Private Registry server.
+	RegistryToken string
+
+	// The hostname of the built-in Private Registry server.
+	RegistryHostname string
+
+	// The listening port of the built-in Private Registry server.
+	RegistryPort int
+
+	// The list of the remote registries to cache.
+	RegistryNames []string
 }
 
 // IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
@@ -340,9 +365,10 @@ func NewTerragruntOptions() *TerragruntOptions {
 		TerraformImplementation:        UnknownImpl,
 		JsonLogFormat:                  false,
 		TerraformLogsToJson:            false,
-		RunTerragrunt: func(opts *TerragruntOptions) error {
+		RunTerragrunt: func(ctx context.Context, opts *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
+		RegistryNames: defaultRegistryNames,
 	}
 }
 
@@ -413,7 +439,6 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
 	// for more info.
 	return &TerragruntOptions{
-		TelemetryCtx:                   opts.TelemetryCtx,
 		TerragruntConfigPath:           terragruntConfigPath,
 		OriginalTerragruntConfigPath:   opts.OriginalTerragruntConfigPath,
 		TerraformPath:                  opts.TerraformPath,
@@ -471,6 +496,9 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		GraphRoot:                      opts.GraphRoot,
 		ScaffoldVars:                   opts.ScaffoldVars,
 		ScaffoldVarFiles:               opts.ScaffoldVarFiles,
+		ProviderCache:                  opts.ProviderCache,
+		ProviderCompleteLock:           opts.ProviderCompleteLock,
+		DisableLogColors:               opts.DisableLogColors,
 	}
 }
 

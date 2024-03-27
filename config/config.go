@@ -686,7 +686,7 @@ var hclCache = NewCache[*hclparse.File]()
 func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 
 	var config *TerragruntConfig
-	err := telemetry.Telemetry(opts, "parse_config_file", map[string]interface{}{
+	err := telemetry.Telemetry(ctx, opts, "parse_config_file", map[string]interface{}{
 		"config_path": configPath,
 		"working_dir": opts.WorkingDir,
 	}, func(childCtx context.Context) error {

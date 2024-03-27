@@ -5,6 +5,7 @@ package shell
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"sync"
 	"testing"
@@ -76,7 +77,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 
 	withOptions(terragruntOptions)
 
-	out, err := RunShellCommandWithOutput(terragruntOptions, "", !allocateStdout, false, "../testdata/test_outputs.sh", "same")
+	out, err := RunShellCommandWithOutput(context.Background(), terragruntOptions, "", !allocateStdout, false, "../testdata/test_outputs.sh", "same")
 
 	require.NotNil(t, out, "Should get output")
 	assert.Nil(t, err, "Should have no error")

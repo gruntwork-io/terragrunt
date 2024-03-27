@@ -29,6 +29,7 @@
 package awsproviderpatch
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -49,13 +50,13 @@ import (
 
 const defaultKeyParts = 2
 
-func Run(opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	target := terraform.NewTarget(terraform.TargetPointInitCommand, runAwsProviderPatch)
 
-	return terraform.RunWithTarget(opts, target)
+	return terraform.RunWithTarget(ctx, opts, target)
 }
 
-func runAwsProviderPatch(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func runAwsProviderPatch(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	if len(opts.AwsProviderPatchOverrides) == 0 {
 		return errors.WithStackTrace(MissingOverrideAttrError(FlagNameTerragruntOverrideAttr))
 	}

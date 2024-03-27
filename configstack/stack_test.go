@@ -1,6 +1,7 @@
 package configstack
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,7 +36,7 @@ func TestFindStackInSubfolders(t *testing.T) {
 
 	terragruntOptions.WorkingDir = envFolder
 
-	stack, err := FindStackInSubfolders(terragruntOptions, nil)
+	stack, err := FindStackInSubfolders(context.Background(), terragruntOptions, nil)
 	require.NoError(t, err)
 
 	var modulePaths []string

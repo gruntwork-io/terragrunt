@@ -20,8 +20,6 @@ const (
 )
 
 func Run(ctx context.Context, opts *options.TerragruntOptions, repoURL string) error {
-	log.SetLogger(opts.Logger.Logger)
-
 	repoURLs := []string{repoURL}
 
 	if repoURL == "" {

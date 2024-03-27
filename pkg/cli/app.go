@@ -5,10 +5,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/env"
-
-	"github.com/gruntwork-io/terragrunt/telemetry"
-
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/urfave/cli/v2"
 )
@@ -33,10 +29,6 @@ type App struct {
 	CustomAppVersionTemplate string
 	// Contributor
 	Author string
-	// An action to execute before running the `Action` of the target command.
-	// The difference between `Before` is that `CommonBefore` runs only once for the target command, while `Before` is different for each command and is performed by each command.
-	// Useful when some steps need to to performed for all commands without exception, when all flags are parsed and the context contains the target command.
-	CommonBefore ActionFunc
 	// The function to call when checking for command completions
 	Complete CompleteFunc
 	// An action to execute before any subcommands are run, but after the context is ready
@@ -96,6 +88,13 @@ func (app *App) AddCommands(cmds ...*Command) {
 
 // Run is the entry point to the cli app. Parses the arguments slice and routes to the proper flag/args combination.
 func (app *App) Run(arguments []string) error {
+	return app.RunContext(context.Background(), arguments)
+}
+
+// RunContext is like Run except it takes a Context that will be
+// passed to its commands and sub-commands. Through this, you can
+// propagate timeouts and cancellation requests
+func (app *App) RunContext(ctx context.Context, arguments []string) (err error) {
 	// remove empty args
 	filteredArguments := []string{}
 	for _, arg := range arguments {
@@ -114,24 +113,6 @@ func (app *App) Run(arguments []string) error {
 		args := Args(parentCtx.Args().Slice())
 		ctx := newContext(parentCtx.Context, app)
 
-		// configure telemetry integration
-		err := telemetry.InitTelemetry(ctx, &telemetry.TelemetryOptions{
-			Vars:       env.Parse(os.Environ()),
-			AppName:    app.Name,
-			AppVersion: app.Version,
-			Writer:     app.Writer,
-			ErrWriter:  app.ErrWriter,
-		})
-		if err != nil {
-			return err
-		}
-		defer func(ctx context.Context) {
-			err := telemetry.ShutdownTelemetry(ctx)
-			if err != nil {
-				_, _ = app.ErrWriter.Write([]byte(err.Error()))
-			}
-		}(ctx)
-
 		if app.Autocomplete {
 			if err := app.setupAutocomplete(args); err != nil {
 				return app.handleExitCoder(err)
@@ -149,7 +130,7 @@ func (app *App) Run(arguments []string) error {
 		return cmd.Run(ctx, args.Normalize(SingleDashFlag))
 	}
 
-	return app.App.Run(arguments)
+	return app.App.RunContext(ctx, arguments)
 }
 
 // VisibleFlags returns a slice of the Flags used for help.

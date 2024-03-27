@@ -1,6 +1,7 @@
 package graphdependencies
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -44,7 +45,7 @@ func BenchmarkRunGraphDependencies(b *testing.B) {
 
 			b.ResetTimer()
 			b.StartTimer()
-			err = Run(terragruntOptions)
+			err = Run(context.Background(), terragruntOptions)
 			b.StopTimer()
 			require.NoError(b, err)
 		})
