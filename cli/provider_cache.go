@@ -61,9 +61,6 @@ func initProviderCache(ctx context.Context, opts *options.TerragruntOptions) (co
 
 	ctx = shell.ContextWithTerraformCommandHook(ctx,
 		func(ctx context.Context, opts *options.TerragruntOptions, args []string) error {
-			// clear the hook context to prevent a loop
-			ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
-
 			// Use Hook only for the `terraform init` command, which can be run explicitly by the user or Terragrunt's `auto-init` feature.
 			if util.FirstArg(opts.TerraformCliArgs) != terraform.CommandNameInit {
 				return nil

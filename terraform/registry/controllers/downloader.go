@@ -55,8 +55,8 @@ func (controller *DownloaderController) downloadProviderAction(ctx echo.Context)
 	}
 
 	if cache := controller.ProviderService.GetProviderCache(provider); cache != nil {
-		log.Debugf("Provider %q uses cached file %q", cache.Provider, cache.Filename())
-		return ctx.File(cache.Filename())
+		log.Debugf("Provider %q uses cached file %q", cache.Provider, cache.Archive())
+		return ctx.File(cache.Archive())
 	}
 
 	return controller.ReverseProxy.NewRequest(ctx, provider.DownloadURL)

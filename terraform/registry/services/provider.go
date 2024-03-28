@@ -63,7 +63,7 @@ func (cache *ProviderCache) platformPluginDir() string {
 	return filepath.Join(cache.terraformPluginDir, cache.Provider.Path(), cache.Platform())
 }
 
-func (cache *ProviderCache) Filename() string {
+func (cache *ProviderCache) Archive() string {
 	if cache.DownloadURL == nil {
 		return ""
 	}
@@ -110,7 +110,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return nil
 	}
 
-	if filename := cache.Filename(); !util.FileExists(filename) {
+	if filename := cache.Archive(); !util.FileExists(filename) {
 		log.Debugf("Fetching provider %q", cache.Provider)
 		if err := util.FetchFile(ctx, cache.DownloadURL.String(), filename); err != nil {
 			return err
@@ -118,7 +118,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if !unpackedFound {
-		if err := unzip.Decompress(cache.platformDir(), cache.Filename(), true, unzipFileMode); err != nil {
+		if err := unzip.Decompress(cache.platformDir(), cache.Archive(), true, unzipFileMode); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
@@ -177,7 +177,7 @@ func (service *ProviderService) GetProviderCache(provider *models.Provider) *Pro
 	service.cacheMu.RLock()
 	defer service.cacheMu.RUnlock()
 
-	if cache := service.providerCaches.Find(provider); cache != nil && cache.ready && util.FileExists(cache.Filename()) {
+	if cache := service.providerCaches.Find(provider); cache != nil && cache.ready && util.FileExists(cache.Archive()) {
 		return cache
 	}
 	return nil
@@ -220,9 +220,11 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 			}
 
 			for _, cache := range service.providerCaches {
-				if filename := cache.Filename(); util.FileExists(filename) {
-					if err := os.Remove(filename); err != nil {
-						merr = multierror.Append(merr, errors.WithStackTrace(err))
+				for _, filename := range []string{cache.Archive(), cache.filelockName()} {
+					if util.FileExists(filename) {
+						if err := os.Remove(filename); err != nil {
+							merr = multierror.Append(merr, errors.WithStackTrace(err))
+						}
 					}
 				}
 			}

@@ -49,12 +49,6 @@ var terraformCommandsThatNeedPty = []string{
 
 // Run the given Terraform command
 func RunTerraformCommand(ctx context.Context, terragruntOptions *options.TerragruntOptions, args ...string) error {
-	if fn := TerraformCommandHookFromContext(ctx); fn != nil {
-		if err := fn(ctx, terragruntOptions, args); err != nil {
-			return err
-		}
-	}
-
 	needPTY, err := isTerraformCommandThatNeedsPty(args)
 	if err != nil {
 		return err
@@ -73,12 +67,6 @@ func RunShellCommand(ctx context.Context, terragruntOptions *options.TerragruntO
 // Run the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
 // method's caller
 func RunTerraformCommandWithOutput(ctx context.Context, terragruntOptions *options.TerragruntOptions, args ...string) (*CmdOutput, error) {
-	if fn := TerraformCommandHookFromContext(ctx); fn != nil {
-		if err := fn(ctx, terragruntOptions, args); err != nil {
-			return nil, err
-		}
-	}
-
 	needPTY, err := isTerraformCommandThatNeedsPty(args)
 	if err != nil {
 		return nil, err
@@ -99,6 +87,14 @@ func RunShellCommandWithOutput(
 	command string,
 	args ...string,
 ) (*CmdOutput, error) {
+	if command == terragruntOptions.TerraformPath {
+		if fn := TerraformCommandHookFromContext(ctx); fn != nil {
+			if err := fn(ctx, terragruntOptions, args); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	var output *CmdOutput = nil
 	var commandDir = workingDir
 	if workingDir == "" {

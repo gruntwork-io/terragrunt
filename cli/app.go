@@ -294,10 +294,6 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions, action c
 		if err != nil {
 			return err
 		}
-		defer func() {
-			_ = server.Close()
-		}()
-
 		cliCtx.Context = ctx
 
 		errGroup.Go(func() error {
