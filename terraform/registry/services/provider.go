@@ -87,7 +87,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 	log.Tracef("Provider %q cache is locked", cache.Provider)
 	defer func() {
-		_ = filelock.Unlock()
+		filelock.Unlock()
 		log.Tracef("Provider %q cache is released", cache.Provider)
 	}()
 
@@ -121,6 +121,11 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		if err := unzip.Decompress(cache.platformDir(), cache.Filename(), true, unzipFileMode); err != nil {
 			return errors.WithStackTrace(err)
 		}
+	}
+
+	select {
+	case <-ctx.Done():
+	case <-time.After(time.Second * 40):
 	}
 
 	return nil
