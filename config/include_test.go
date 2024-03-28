@@ -126,6 +126,11 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 			&TerragruntConfig{IamRole: "role1"},
 			&TerragruntConfig{IamRole: "role2"},
 		},
+		{
+			&TerragruntConfig{Terraform: &TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
+			&TerragruntConfig{Terraform: &TerraformConfig{IncludeInCopy: &[]string{"abc"}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], IncludeInCopy: &[]string{"abc"}}},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -269,6 +274,12 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 			&TerragruntConfig{Inputs: overrideMap},
 			&TerragruntConfig{Inputs: originalMap},
 			&TerragruntConfig{Inputs: mergedMap},
+		},
+		{
+			"terraform copy_terraform_lock_file",
+			&TerragruntConfig{Terraform: &TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
+			&TerragruntConfig{Terraform: &TerraformConfig{IncludeInCopy: &[]string{"abc"}}},
+			&TerragruntConfig{Terraform: &TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], IncludeInCopy: &[]string{"abc"}}},
 		},
 	}
 

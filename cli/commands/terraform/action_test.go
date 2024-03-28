@@ -477,3 +477,77 @@ func createTempFile(t *testing.T) string {
 
 	return filepath.ToSlash(tmpFile.Name())
 }
+
+func Test_shouldCopyLockFile(t *testing.T) {
+	type args struct {
+		args            []string
+		terraformConfig *config.TerraformConfig
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			name: "init without terraform config",
+			args: args{
+				args: []string{"init"},
+			},
+			want: true,
+		},
+		{
+			name: "providers lock without terraform config",
+			args: args{
+				args: []string{"providers", "lock"},
+			},
+			want: true,
+		},
+		{
+			name: "providers schema without terraform config",
+			args: args{
+				args: []string{"providers", "schema"},
+			},
+			want: false,
+		},
+		{
+			name: "plan without terraform config",
+			args: args{
+				args: []string{"plan"},
+			},
+			want: false,
+		},
+		{
+			name: "init with empty terraform config",
+			args: args{
+				args:            []string{"init"},
+				terraformConfig: &config.TerraformConfig{},
+			},
+			want: true,
+		},
+		{
+			name: "init with CopyTerraformLockFile enabled",
+			args: args{
+				args: []string{"init"},
+				terraformConfig: &config.TerraformConfig{
+					CopyTerraformLockFile: &[]bool{true}[0],
+				},
+			},
+			want: true,
+		},
+		{
+			name: "init with CopyTerraformLockFile disabled",
+			args: args{
+				args: []string{"init"},
+				terraformConfig: &config.TerraformConfig{
+					CopyTerraformLockFile: &[]bool{false}[0],
+				},
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, shouldCopyLockFile(tt.args.args, tt.args.terraformConfig), "shouldCopyLockFile(%v, %v)", tt.args.args, tt.args.terraformConfig)
+		})
+	}
+}
