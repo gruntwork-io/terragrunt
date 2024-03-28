@@ -17,9 +17,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/terraform"
-	"github.com/gruntwork-io/terragrunt/terraform/proxy"
-	"github.com/gruntwork-io/terragrunt/terraform/proxy/controllers"
-	"github.com/gruntwork-io/terragrunt/terraform/proxy/handlers"
+	"github.com/gruntwork-io/terragrunt/terraform/cache"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/controllers"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -31,7 +31,7 @@ const (
 // HTTPStatusCacheProviderReg is regular expression to determine the success result of the command `terraform lock providers -platform=cache provider`.
 var HTTPStatusCacheProviderReg = regexp.MustCompile(`(?mi)` + strconv.Itoa(controllers.HTTPStatusCacheProvider) + `[^a-z0-9]*` + http.StatusText(controllers.HTTPStatusCacheProvider))
 
-func initProviderCache(ctx context.Context, opts *options.TerragruntOptions) (context.Context, *proxy.Server, error) {
+func initProviderCache(ctx context.Context, opts *options.TerragruntOptions) (context.Context, *cache.Server, error) {
 	if opts.ProviderCacheDir == "" {
 		cacheDir, err := util.GetCacheDir()
 		if err != nil {
@@ -44,12 +44,12 @@ func initProviderCache(ctx context.Context, opts *options.TerragruntOptions) (co
 		opts.RegistryToken = fmt.Sprintf("%s:%s", handlers.AuthorizationApiKeyHeaderName, uuid.New().String())
 	}
 
-	proxyServer := proxy.NewServer(
-		proxy.WithHostname(opts.RegistryHostname),
-		proxy.WithPort(opts.RegistryPort),
-		proxy.WithToken(opts.RegistryToken),
-		proxy.WithProviderCacheDir(opts.ProviderCacheDir),
-		proxy.WithProviderCompleteLock(opts.ProviderCompleteLock),
+	proxyServer := cache.NewServer(
+		cache.WithHostname(opts.RegistryHostname),
+		cache.WithPort(opts.RegistryPort),
+		cache.WithToken(opts.RegistryToken),
+		cache.WithProviderCacheDir(opts.ProviderCacheDir),
+		cache.WithProviderCompleteLock(opts.ProviderCompleteLock),
 	)
 	if err := proxyServer.Listen(ctx); err != nil {
 		return nil, nil, err

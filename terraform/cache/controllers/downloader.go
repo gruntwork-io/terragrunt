@@ -5,10 +5,10 @@ import (
 	"path"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/terraform/proxy/handlers"
-	"github.com/gruntwork-io/terragrunt/terraform/proxy/models"
-	"github.com/gruntwork-io/terragrunt/terraform/proxy/router"
-	"github.com/gruntwork-io/terragrunt/terraform/proxy/services"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
 	"github.com/labstack/echo/v4"
 )
 
@@ -24,11 +24,11 @@ type DownloaderController struct {
 	basePath string
 }
 
-// ProviderProxyURL returns URL for using as a proxy to download remote archives through this controller with caching
+// ProviderProxyURL returns URL for using as a cache to download remote archives through this controller with caching
 func (controller *DownloaderController) ProviderProxyURL() *url.URL {
-	proxyURL := *controller.ReverseProxy.ServerURL
-	proxyURL.Path = path.Join(proxyURL.Path, controller.basePath, downloadProviderPath)
-	return &proxyURL
+	cacheURL := *controller.ReverseProxy.ServerURL
+	cacheURL.Path = path.Join(cacheURL.Path, controller.basePath, downloadProviderPath)
+	return &cacheURL
 }
 
 // Register implements router.Controller.Register

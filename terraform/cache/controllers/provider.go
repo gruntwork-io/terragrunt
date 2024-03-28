@@ -9,10 +9,10 @@ import (
 	"runtime"
 	"strconv"
 
-	"github.com/gruntwork-io/terragrunt/terraform/proxy/handlers"
-	"github.com/gruntwork-io/terragrunt/terraform/proxy/models"
-	"github.com/gruntwork-io/terragrunt/terraform/proxy/router"
-	"github.com/gruntwork-io/terragrunt/terraform/proxy/services"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
 	"github.com/labstack/echo/v4"
 )
 

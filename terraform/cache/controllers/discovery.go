@@ -3,7 +3,7 @@ package controllers
 import (
 	"net/http"
 
-	"github.com/gruntwork-io/terragrunt/terraform/proxy/router"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
 	"github.com/labstack/echo/v4"
 )
 
