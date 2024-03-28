@@ -4759,6 +4759,39 @@ func TestSopsDecryptedCorrectly(t *testing.T) {
 	assert.Contains(t, outputs["ini_value"].Value, "password = potato")
 }
 
+func TestSopsDecryptedCorrectlyRunAll(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_SOPS)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_SOPS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_SOPS)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s/.. --terragrunt-include-dir %s", rootPath, TEST_FIXTURE_SOPS))
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s/.. --terragrunt-include-dir %s", rootPath, TEST_FIXTURE_SOPS), &stdout, &stderr)
+	require.NoError(t, err)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout.String()), &outputs))
+
+	assert.Equal(t, outputs["json_bool_array"].Value, []interface{}{true, false})
+	assert.Equal(t, outputs["json_string_array"].Value, []interface{}{"example_value1", "example_value2"})
+	assert.Equal(t, outputs["json_number"].Value, 1234.56789)
+	assert.Equal(t, outputs["json_string"].Value, "example_value")
+	assert.Equal(t, outputs["json_hello"].Value, "Welcome to SOPS! Edit this file as you please!")
+	assert.Equal(t, outputs["yaml_bool_array"].Value, []interface{}{true, false})
+	assert.Equal(t, outputs["yaml_string_array"].Value, []interface{}{"example_value1", "example_value2"})
+	assert.Equal(t, outputs["yaml_number"].Value, 1234.5679)
+	assert.Equal(t, outputs["yaml_string"].Value, "example_value")
+	assert.Equal(t, outputs["yaml_hello"].Value, "Welcome to SOPS! Edit this file as you please!")
+	assert.Equal(t, outputs["text_value"].Value, "Raw Secret Example")
+	assert.Contains(t, outputs["env_value"].Value, "DB_PASSWORD=tomato")
+	assert.Contains(t, outputs["ini_value"].Value, "password = potato")
+}
+
 func TestTerragruntRunAllCommandPrompt(t *testing.T) {
 	t.Parallel()
 

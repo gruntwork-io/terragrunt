@@ -742,7 +742,7 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
-	canonicalSourceFile, err := util.CanonicalPath(sourceFile, ctx.TerragruntOptions.WorkingDir)
+	canonicalSourceFile, err := util.CanonicalPath(sourceFile, filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath))
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
@@ -751,7 +751,7 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 		return val, nil
 	}
 
-	rawData, err := decrypt.File(sourceFile, format)
+	rawData, err := decrypt.File(canonicalSourceFile, format)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
