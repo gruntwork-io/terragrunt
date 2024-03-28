@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	filelockName                    = "terragrunt/server-port.lock"
+	filelockName                    = "server-port.lock"
 	waitNextAttepmtToLockServerPort = time.Second
 	maxAttemptsToLockServerPort     = 60 // equals 1 min
 )

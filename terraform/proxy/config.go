@@ -7,6 +7,7 @@ import (
 )
 
 const (
+	defaultHostname        = "127.0.0.1"
 	defaultShutdownTimeout = time.Second * 30
 )
 
@@ -63,6 +64,7 @@ type Config struct {
 
 func NewConfig(opts ...Option) *Config {
 	cfg := &Config{
+		hostname:        defaultHostname,
 		shutdownTimeout: defaultShutdownTimeout,
 	}
 
