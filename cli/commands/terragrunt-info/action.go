@@ -10,7 +10,7 @@ import (
 )
 
 func Run(opts *options.TerragruntOptions) error {
-	target := terraform.NewTarget(terraform.TargetPointDownloadSource, runTerragruntInfo)
+	target := terraform.NewTargetWithErrorHandler(terraform.TargetPointDownloadSource, runTerragruntInfo, runErrorTerragruntInfo)
 
 	return terraform.RunWithTarget(opts, target)
 }
@@ -25,7 +25,7 @@ type TerragruntInfoGroup struct {
 	WorkingDir       string
 }
 
-func runTerragruntInfo(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func printTerragruntInfo(opts *options.TerragruntOptions) error {
 	group := TerragruntInfoGroup{
 		ConfigPath:       opts.TerragruntConfigPath,
 		DownloadDir:      opts.DownloadDir,
@@ -40,8 +40,20 @@ func runTerragruntInfo(opts *options.TerragruntOptions, cfg *config.TerragruntCo
 		opts.Logger.Errorf("JSON error marshalling terragrunt-info")
 		return err
 	}
-	fmt.Fprintf(opts.Writer, "%s\n", b)
-
+	if _, err := fmt.Fprintf(opts.Writer, "%s\n", b); err != nil {
+		return err
+	}
 	return nil
+}
 
+func runTerragruntInfo(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+	return printTerragruntInfo(opts)
+}
+
+func runErrorTerragruntInfo(opts *options.TerragruntOptions, cfg *config.TerragruntConfig, err error) error {
+	opts.Logger.Debugf("Fetching terragrunt-info: %v", err)
+	if err := printTerragruntInfo(opts); err != nil {
+		opts.Logger.Errorf("Error printing terragrunt-info: %v", err)
+	}
+	return err
 }
