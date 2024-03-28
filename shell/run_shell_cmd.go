@@ -17,9 +17,6 @@ import (
 
 	"github.com/hashicorp/go-version"
 
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
-
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -31,7 +28,7 @@ import (
 // kill -INT <pid>  # sends SIGINT only to the main process
 // kill -INT -<pid> # sends SIGINT to the process group
 // Since we cannot know how the signal is sent, we should give `terraform` time to gracefully exit if it receives the signal directly from the shell, to avoid sending the second interrupt signal to `terraform`.
-const signalForwardingDelay = time.Second * 30
+const SignalForwardingDelay = time.Second * 30
 
 const (
 	gitPrefix = "git::"
@@ -265,10 +262,8 @@ func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *logrus.Entry,
 		for {
 			select {
 			case s := <-signalChannel:
-				logger.Debugf("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(s.String()), signalForwardingDelay)
-
 				select {
-				case <-time.After(signalForwardingDelay):
+				case <-time.After(SignalForwardingDelay):
 					logger.Debugf("Forward signal %v to terraform.", s)
 					err := c.Process.Signal(s)
 					if err != nil {
