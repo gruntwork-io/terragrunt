@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"golang.org/x/sync/errgroup"
@@ -80,12 +79,12 @@ func NewApp(writer io.Writer, errWriter io.Writer) *App {
 
 func (app *App) Run(args []string) error {
 	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	// ctx, cancel := context.WithCancel(ctx)
+	// defer cancel()
 
-	util.RegisterSignalHandler(func() {
-		cancel()
-	}, syscall.SIGTERM, syscall.SIGINT)
+	// util.RegisterSignalHandler(func() {
+	// 	cancel()
+	// }, syscall.SIGTERM, syscall.SIGINT)
 
 	// configure telemetry integration
 	err := telemetry.InitTelemetry(ctx, &telemetry.TelemetryOptions{
