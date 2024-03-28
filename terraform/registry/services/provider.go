@@ -220,7 +220,7 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 			}
 
 			for _, cache := range service.providerCaches {
-				for _, filename := range []string{cache.Archive(), cache.filelockName()} {
+				for _, filename := range []string{cache.Archive()} {
 					if util.FileExists(filename) {
 						if err := os.Remove(filename); err != nil {
 							merr = multierror.Append(merr, errors.WithStackTrace(err))

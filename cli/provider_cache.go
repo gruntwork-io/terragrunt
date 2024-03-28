@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/go-commons/errors"
@@ -51,9 +52,23 @@ func initProviderCache(ctx context.Context, opts *options.TerragruntOptions) (co
 		registry.WithProviderCacheDir(opts.ProviderCacheDir),
 		registry.WithProviderCompleteLock(opts.ProviderCompleteLock),
 	)
+
+	testCtx, testCancel := context.WithCancel(ctx)
+	defer testCancel()
+
+	go func() {
+		select {
+		case <-testCtx.Done():
+		case <-time.After(time.Second * 30):
+			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to listen")
+			os.Exit(1)
+		}
+	}()
+
 	if err := registryServer.Listen(); err != nil {
 		return nil, nil, err
 	}
+	testCancel()
 
 	if err := prepareProviderCacheEnvironment(opts, registryServer.ProviderURL()); err != nil {
 		return nil, nil, err
