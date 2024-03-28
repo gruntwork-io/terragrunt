@@ -109,7 +109,7 @@ func (server *Server) Listen(ctx context.Context) error {
 
 	log.Trace("Server listen is locked")
 	defer func() {
-		_ = lockfile.Unlock()
+		lockfile.Unlock()
 		log.Tracef("Server listen is released")
 	}()
 

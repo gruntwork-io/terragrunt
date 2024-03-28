@@ -84,7 +84,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 	log.Tracef("Provider %q cache is locked", cache.Provider)
 	defer func() {
-		_ = lockfile.Unlock()
+		lockfile.Unlock()
 		log.Tracef("Provider %q cache is released", cache.Provider)
 	}()
 
