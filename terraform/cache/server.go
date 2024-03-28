@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -92,6 +93,17 @@ func (server *Server) ProviderURL() *url.URL {
 }
 
 func (server *Server) Listen(ctx context.Context) error {
+	debugCtx, debugCancel := context.WithCancel(ctx)
+	defer debugCancel()
+
+	go func() {
+		select {
+		case <-debugCtx.Done():
+		case <-time.After(time.Minute * 2):
+			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to listen")
+		}
+	}()
+
 	cacheDir, err := util.GetCacheDir()
 	if err != nil {
 		return err
@@ -109,7 +121,7 @@ func (server *Server) Listen(ctx context.Context) error {
 
 	log.Trace("Server listen is locked")
 	defer func() {
-		lockfile.Unlock()
+		_ = lockfile.Unlock()
 		log.Tracef("Server listen is released")
 	}()
 

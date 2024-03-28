@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -72,6 +73,17 @@ func (cache *ProviderCache) Archive() string {
 
 // warmUp checks if the binary file already exists in the cache directory, if not, downloads the archive and unzip it.
 func (cache *ProviderCache) warmUp(ctx context.Context) error {
+	debugCtx, debugCancel := context.WithCancel(ctx)
+	defer debugCancel()
+
+	go func() {
+		select {
+		case <-debugCtx.Done():
+		case <-time.After(time.Minute * 4):
+			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to warmup cache")
+		}
+	}()
+
 	var unpackedFound bool
 
 	if err := os.MkdirAll(cache.providerDir(), os.ModePerm); err != nil {
@@ -84,7 +96,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 	log.Tracef("Provider %q cache is locked", cache.Provider)
 	defer func() {
-		lockfile.Unlock()
+		_ = lockfile.Unlock()
 		log.Tracef("Provider %q cache is released", cache.Provider)
 	}()
 

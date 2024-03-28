@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"golang.org/x/sync/errgroup"
@@ -40,6 +41,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
+
+const forceExitAfterReceivingInterruptSignal = time.Minute
 
 func init() {
 	cli.AppVersionTemplate = AppVersionTemplate
@@ -79,6 +82,18 @@ func NewApp(writer io.Writer, errWriter io.Writer) *App {
 
 func (app *App) Run(args []string) error {
 	ctx := context.Background()
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	util.RegisterSignalHandler(func() {
+		log.Info("Interrupt signal received, trying to shutdown gracefully...")
+		cancel()
+
+		time.Sleep(forceExitAfterReceivingInterruptSignal)
+		log.Infof("Failed to shutdown gracefully within %v, force shutdown", forceExitAfterReceivingInterruptSignal)
+		os.Exit(1)
+	}, os.Interrupt)
 
 	// configure telemetry integration
 	err := telemetry.InitTelemetry(ctx, &telemetry.TelemetryOptions{
