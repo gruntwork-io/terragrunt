@@ -9,7 +9,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/terraform/registry/models"
+	"github.com/gruntwork-io/terragrunt/terraform/proxy/models"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/go-multierror"

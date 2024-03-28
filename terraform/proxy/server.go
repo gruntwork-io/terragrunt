@@ -1,4 +1,4 @@
-package registry
+package proxy
 
 import (
 	"context"
@@ -11,10 +11,10 @@ import (
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/terraform/registry/controllers"
-	"github.com/gruntwork-io/terragrunt/terraform/registry/handlers"
-	"github.com/gruntwork-io/terragrunt/terraform/registry/router"
-	"github.com/gruntwork-io/terragrunt/terraform/registry/services"
+	"github.com/gruntwork-io/terragrunt/terraform/proxy/controllers"
+	"github.com/gruntwork-io/terragrunt/terraform/proxy/handlers"
+	"github.com/gruntwork-io/terragrunt/terraform/proxy/router"
+	"github.com/gruntwork-io/terragrunt/terraform/proxy/services"
 	"github.com/gruntwork-io/terragrunt/util"
 	"golang.org/x/sync/errgroup"
 )
@@ -25,7 +25,7 @@ const (
 	maxAttemptsToLockServerPort     = 60 // equals 1 min
 )
 
-// Server is a private Terraform registry for provider caching.
+// Server is a private Terraform proxy for provider caching.
 type Server struct {
 	*http.Server
 	config   *Config
@@ -127,13 +127,13 @@ func (server *Server) Listen(ctx context.Context) error {
 	server.Addr = ln.Addr().String()
 	server.listener = ln
 
-	log.Infof("Private Registry started, listening on %s", server.Addr)
+	log.Infof("Private Proxy started, listening on %s", server.Addr)
 	return nil
 }
 
 // Run starts the webserver and workers.
 func (server *Server) Run(ctx context.Context) error {
-	log.Infof("Start Private Registry")
+	log.Infof("Start Terragrunt Provider Proxy")
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 	errGroup.Go(func() error {
@@ -141,7 +141,7 @@ func (server *Server) Run(ctx context.Context) error {
 	})
 	errGroup.Go(func() error {
 		<-ctx.Done()
-		log.Infof("Shutting down Private Registry")
+		log.Infof("Shutting down Terragrunt Provider Proxy")
 
 		ctx, cancel := context.WithTimeout(ctx, server.config.shutdownTimeout)
 		defer cancel()
@@ -154,9 +154,9 @@ func (server *Server) Run(ctx context.Context) error {
 	})
 
 	if err := server.Serve(server.listener); err != nil && err != http.ErrServerClosed {
-		return errors.Errorf("error starting Terrafrom Registry server: %w", err)
+		return errors.Errorf("error starting Terrafrom Proxy server: %w", err)
 	}
-	defer log.Infof("Private Registry stopped")
+	defer log.Infof("Terragrunt Provider Proxy stopped")
 
 	return errGroup.Wait()
 }

@@ -17,9 +17,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/terraform"
-	"github.com/gruntwork-io/terragrunt/terraform/registry"
-	"github.com/gruntwork-io/terragrunt/terraform/registry/controllers"
-	"github.com/gruntwork-io/terragrunt/terraform/registry/handlers"
+	"github.com/gruntwork-io/terragrunt/terraform/proxy"
+	"github.com/gruntwork-io/terragrunt/terraform/proxy/controllers"
+	"github.com/gruntwork-io/terragrunt/terraform/proxy/handlers"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -31,7 +31,7 @@ const (
 // HTTPStatusCacheProviderReg is regular expression to determine the success result of the command `terraform lock providers -platform=cache provider`.
 var HTTPStatusCacheProviderReg = regexp.MustCompile(`(?mi)` + strconv.Itoa(controllers.HTTPStatusCacheProvider) + `[^a-z0-9]*` + http.StatusText(controllers.HTTPStatusCacheProvider))
 
-func initProviderCache(ctx context.Context, opts *options.TerragruntOptions) (context.Context, *registry.Server, error) {
+func initProviderCache(ctx context.Context, opts *options.TerragruntOptions) (context.Context, *proxy.Server, error) {
 	if opts.ProviderCacheDir == "" {
 		cacheDir, err := util.GetCacheDir()
 		if err != nil {
@@ -44,18 +44,18 @@ func initProviderCache(ctx context.Context, opts *options.TerragruntOptions) (co
 		opts.RegistryToken = fmt.Sprintf("%s:%s", handlers.AuthorizationApiKeyHeaderName, uuid.New().String())
 	}
 
-	registryServer := registry.NewServer(
-		registry.WithHostname(opts.RegistryHostname),
-		registry.WithPort(opts.RegistryPort),
-		registry.WithToken(opts.RegistryToken),
-		registry.WithProviderCacheDir(opts.ProviderCacheDir),
-		registry.WithProviderCompleteLock(opts.ProviderCompleteLock),
+	proxyServer := proxy.NewServer(
+		proxy.WithHostname(opts.RegistryHostname),
+		proxy.WithPort(opts.RegistryPort),
+		proxy.WithToken(opts.RegistryToken),
+		proxy.WithProviderCacheDir(opts.ProviderCacheDir),
+		proxy.WithProviderCompleteLock(opts.ProviderCompleteLock),
 	)
-	if err := registryServer.Listen(ctx); err != nil {
+	if err := proxyServer.Listen(ctx); err != nil {
 		return nil, nil, err
 	}
 
-	if err := prepareProviderCacheEnvironment(opts, registryServer.ProviderURL()); err != nil {
+	if err := prepareProviderCacheEnvironment(opts, proxyServer.ProviderURL()); err != nil {
 		return nil, nil, err
 	}
 
@@ -77,7 +77,7 @@ func initProviderCache(ctx context.Context, opts *options.TerragruntOptions) (co
 			if err := runTerraformCommand(ctx, opts, terraform.CommandNameProviders, terraform.CommandNameLock, "-platform="+controllers.PlatformNameCacheProvider); err != nil {
 				return err
 			}
-			registryServer.Provider.WaitForCacheReady()
+			proxyServer.Provider.WaitForCacheReady()
 
 			if opts.ProviderCompleteLock && !util.FileExists(filepath.Join(opts.WorkingDir, terraform.TerraformLockFile)) {
 				log.Debugf("Generating Terraform lock file for %q", opts.WorkingDir)
@@ -93,7 +93,7 @@ func initProviderCache(ctx context.Context, opts *options.TerragruntOptions) (co
 		},
 	)
 
-	return ctx, registryServer, nil
+	return ctx, proxyServer, nil
 }
 
 func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, args ...string) error {
