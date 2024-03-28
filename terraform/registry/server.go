@@ -5,6 +5,9 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -12,7 +15,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/terraform/registry/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/registry/router"
 	"github.com/gruntwork-io/terragrunt/terraform/registry/services"
+	"github.com/gruntwork-io/terragrunt/util"
 	"golang.org/x/sync/errgroup"
+)
+
+const (
+	filelockName                    = "terragrunt/server-port.lock"
+	waitNextAttepmtToLockServerPort = time.Second
+	maxAttemptsToLockServerPort     = 60 // equals 1 min
 )
 
 // Server is a private Terraform registry for provider caching.
@@ -81,7 +91,28 @@ func (server *Server) ProviderURL() *url.URL {
 	}
 }
 
-func (server *Server) Listen() error {
+func (server *Server) Listen(ctx context.Context) error {
+	cacheDir, err := util.GetCacheDir()
+	if err != nil {
+		return err
+	}
+
+	filelockName := filepath.Join(cacheDir, filelockName)
+	if err := os.MkdirAll(filepath.Dir(filelockName), os.ModePerm); err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	filelock, err := util.AcquireFileLock(ctx, filelockName, maxAttemptsToLockServerPort, waitNextAttepmtToLockServerPort)
+	if err != nil {
+		return err
+	}
+
+	log.Trace("Server listen is locked")
+	defer func() {
+		_ = filelock.Unlock()
+		log.Tracef("Server listen is released")
+	}()
+
 	// if the port is undefined, ask the kernel for a free open port that is ready to use
 	addr, err := net.ResolveTCPAddr("tcp", server.config.Addr())
 	if err != nil {

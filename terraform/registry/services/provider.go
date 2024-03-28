@@ -20,7 +20,7 @@ import (
 var (
 	unzipFileMode                      = os.FileMode(0000)
 	waitNextAttepmtToLockProviderCache = time.Second * 5
-	maxAttemptsToLockProviderCache     = 60 // equals 5 mins (waitNextAttepmtToLockProviderCache * 60)
+	maxAttemptsToLockProviderCache     = 60 // equals 5 mins
 )
 
 // Borrow the "unpack a zip cache into a target directory" logic from
@@ -74,13 +74,10 @@ func (cache *ProviderCache) Archive() string {
 func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	var unpackedFound bool
 
-	if providerDir := cache.providerDir(); !util.FileExists(providerDir) {
-		if err := os.MkdirAll(providerDir, os.ModePerm); err != nil {
-			return errors.WithStackTrace(err)
-		}
+	if err := os.MkdirAll(cache.providerDir(), os.ModePerm); err != nil {
+		return errors.WithStackTrace(err)
 	}
 
-	log.Tracef("Try to lock provider cache %q", cache.Provider)
 	filelock, err := util.AcquireFileLock(ctx, cache.filelockName(), maxAttemptsToLockProviderCache, waitNextAttepmtToLockProviderCache)
 	if err != nil {
 		return err
