@@ -59,7 +59,7 @@ func initProviderCache(ctx context.Context, opts *options.TerragruntOptions) (co
 	go func() {
 		select {
 		case <-testCtx.Done():
-		case <-time.After(time.Second * 30):
+		case <-time.After(time.Second * 60):
 			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to listen")
 			os.Exit(1)
 		}
