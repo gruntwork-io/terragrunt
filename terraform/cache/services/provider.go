@@ -51,7 +51,7 @@ func (cache *ProviderCache) providerDir() string {
 	return filepath.Join(cache.baseCacheDir, cache.Provider.Path())
 }
 
-func (cache *ProviderCache) filelockName() string {
+func (cache *ProviderCache) lockfileName() string {
 	return filepath.Join(cache.baseCacheDir, cache.Provider.Path(), cache.Platform()) + ".lock"
 }
 
@@ -78,13 +78,13 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.WithStackTrace(err)
 	}
 
-	filelock, err := util.AcquireFileLock(ctx, cache.filelockName(), maxAttemptsToLockProviderCache, waitNextAttepmtToLockProviderCache)
+	lockfile, err := util.AcquireLockfile(ctx, cache.lockfileName(), maxAttemptsToLockProviderCache, waitNextAttepmtToLockProviderCache)
 	if err != nil {
 		return err
 	}
 	log.Tracef("Provider %q cache is locked", cache.Provider)
 	defer func() {
-		_ = filelock.Unlock()
+		_ = lockfile.Unlock()
 		log.Tracef("Provider %q cache is released", cache.Provider)
 	}()
 

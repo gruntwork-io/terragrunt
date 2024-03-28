@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	defaultHostname        = "127.0.0.1"
+	defaultHostname        = "localhost"
 	defaultShutdownTimeout = time.Second * 30
 )
 

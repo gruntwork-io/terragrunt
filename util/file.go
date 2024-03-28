@@ -651,7 +651,7 @@ func GetCacheDir() (string, error) {
 	return cacheDir, nil
 }
 
-func AcquireFileLock(ctx context.Context, filename string, maxAttempts int, waitForNextAttempt time.Duration) (*flock.Flock, error) {
+func AcquireLockfile(ctx context.Context, filename string, maxAttempts int, waitForNextAttempt time.Duration) (*flock.Flock, error) {
 	var (
 		attepmt  int
 		fileLock = flock.New(filename)

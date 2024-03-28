@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	filelockName                    = "server-port.lock"
+	serverPortlockfileName          = "cache-server-port.lock"
 	waitNextAttepmtToLockServerPort = time.Second
 	maxAttemptsToLockServerPort     = 60 // equals 1 min
 )
@@ -97,19 +97,19 @@ func (server *Server) Listen(ctx context.Context) error {
 		return err
 	}
 
-	filelockName := filepath.Join(cacheDir, filelockName)
-	if err := os.MkdirAll(filepath.Dir(filelockName), os.ModePerm); err != nil {
+	lockfileName := filepath.Join(cacheDir, serverPortlockfileName)
+	if err := os.MkdirAll(filepath.Dir(lockfileName), os.ModePerm); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	filelock, err := util.AcquireFileLock(ctx, filelockName, maxAttemptsToLockServerPort, waitNextAttepmtToLockServerPort)
+	lockfile, err := util.AcquireLockfile(ctx, lockfileName, maxAttemptsToLockServerPort, waitNextAttepmtToLockServerPort)
 	if err != nil {
 		return err
 	}
 
 	log.Trace("Server listen is locked")
 	defer func() {
-		_ = filelock.Unlock()
+		_ = lockfile.Unlock()
 		log.Tracef("Server listen is released")
 	}()
 
