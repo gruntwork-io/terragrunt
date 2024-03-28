@@ -25,8 +25,7 @@ type ParsingContext struct {
 
 	// DecodedDependencies are references of other terragrunt config. This contains the following attributes that map to
 	// various fields related to that config:
-	// - outputs: The map of outputs from the terraform state obtained by running `terragrunt output` on that target
-	//            config.
+	// - outputs: The map of outputs from the terraform state obtained by running `terragrunt output` on that target config.
 	DecodedDependencies *cty.Value
 
 	// PartialParseDecodeList is the list of sections that are being decoded in the current config. This can be used to

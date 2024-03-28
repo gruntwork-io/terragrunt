@@ -72,7 +72,7 @@ func deprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 			Hidden: true,
 			Action: runFunc(opts),
 		}
-		commands = append(commands, command)
+		commands = append(commands, telemetryCommand(opts, command))
 	}
 
 	return commands

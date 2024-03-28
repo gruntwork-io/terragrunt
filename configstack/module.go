@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/telemetry"
+
 	"github.com/sirupsen/logrus"
 
 	"github.com/gruntwork-io/go-commons/collections"
@@ -57,26 +59,85 @@ func ResolveTerraformModules(terragruntConfigPaths []string, terragruntOptions *
 		return nil, err
 	}
 
-	modules, err := resolveModules(canonicalTerragruntConfigPaths, terragruntOptions, childTerragruntConfig, howThesePathsWereFound)
+	var modules map[string]*TerraformModule
+	err = telemetry.Telemetry(terragruntOptions, "resolve_modules", map[string]interface{}{
+		"working_dir": terragruntOptions.WorkingDir,
+	}, func(childCtx context.Context) error {
+
+		result, err := resolveModules(canonicalTerragruntConfigPaths, terragruntOptions, childTerragruntConfig, howThesePathsWereFound)
+		if err != nil {
+			return err
+		}
+		modules = result
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	externalDependencies, err := resolveExternalDependenciesForModules(modules, map[string]*TerraformModule{}, 0, terragruntOptions, childTerragruntConfig)
+	var externalDependencies map[string]*TerraformModule
+	err = telemetry.Telemetry(terragruntOptions, "resolve_external_dependencies_for_modules", map[string]interface{}{
+		"working_dir": terragruntOptions.WorkingDir,
+	}, func(childCtx context.Context) error {
+		result, err := resolveExternalDependenciesForModules(modules, map[string]*TerraformModule{}, 0, terragruntOptions, childTerragruntConfig)
+		if err != nil {
+			return err
+		}
+		externalDependencies = result
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	crossLinkedModules, err := crosslinkDependencies(mergeMaps(modules, externalDependencies), canonicalTerragruntConfigPaths)
+	var crossLinkedModules []*TerraformModule
+	err = telemetry.Telemetry(terragruntOptions, "crosslink_dependencies", map[string]interface{}{
+		"working_dir": terragruntOptions.WorkingDir,
+	}, func(childCtx context.Context) error {
+		result, err := crosslinkDependencies(mergeMaps(modules, externalDependencies), canonicalTerragruntConfigPaths)
+		if err != nil {
+			return err
+		}
+		crossLinkedModules = result
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	includedModules := flagIncludedDirs(crossLinkedModules, terragruntOptions)
+	var includedModules []*TerraformModule
+	err = telemetry.Telemetry(terragruntOptions, "flag_included_dirs", map[string]interface{}{
+		"working_dir": terragruntOptions.WorkingDir,
+	}, func(childCtx context.Context) error {
+		includedModules = flagIncludedDirs(crossLinkedModules, terragruntOptions)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
 
-	includedModulesWithExcluded := flagExcludedDirs(includedModules, terragruntOptions)
+	var includedModulesWithExcluded []*TerraformModule
+	err = telemetry.Telemetry(terragruntOptions, "flag_excluded_dirs", map[string]interface{}{
+		"working_dir": terragruntOptions.WorkingDir,
+	}, func(childCtx context.Context) error {
+		includedModulesWithExcluded = flagExcludedDirs(includedModules, terragruntOptions)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
 
-	finalModules, err := flagModulesThatDontInclude(includedModulesWithExcluded, terragruntOptions)
+	var finalModules []*TerraformModule
+	err = telemetry.Telemetry(terragruntOptions, "flag_modules_that_dont_include", map[string]interface{}{
+		"working_dir": terragruntOptions.WorkingDir,
+	}, func(childCtx context.Context) error {
+		result, err := flagModulesThatDontInclude(includedModulesWithExcluded, terragruntOptions)
+		if err != nil {
+			return err
+		}
+		finalModules = result
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -218,17 +279,37 @@ func flagModulesThatDontInclude(modules []*TerraformModule, terragruntOptions *o
 // struct (see the crosslinkDependencies method for that). Return a map from module path to TerraformModule struct.
 func resolveModules(canonicalTerragruntConfigPaths []string, terragruntOptions *options.TerragruntOptions, childTerragruntConfig *config.TerragruntConfig, howTheseModulesWereFound string) (map[string]*TerraformModule, error) {
 	moduleMap := map[string]*TerraformModule{}
-
 	for _, terragruntConfigPath := range canonicalTerragruntConfigPaths {
-		module, err := resolveTerraformModule(terragruntConfigPath, moduleMap, terragruntOptions, childTerragruntConfig, howTheseModulesWereFound)
+		var module *TerraformModule
+		err := telemetry.Telemetry(terragruntOptions, "resolve_terraform_module", map[string]interface{}{
+			"config_path": terragruntConfigPath,
+			"working_dir": terragruntOptions.WorkingDir,
+		}, func(childCtx context.Context) error {
+			m, err := resolveTerraformModule(terragruntConfigPath, moduleMap, terragruntOptions, childTerragruntConfig, howTheseModulesWereFound)
+			if err != nil {
+				return err
+			}
+			module = m
+			return nil
+		})
 		if err != nil {
 			return moduleMap, err
 		}
-
 		if module != nil {
 			moduleMap[module.Path] = module
-
-			dependencies, err := resolveDependenciesForModule(module, moduleMap, terragruntOptions, childTerragruntConfig, true)
+			var dependencies map[string]*TerraformModule
+			err := telemetry.Telemetry(terragruntOptions, "resolve_dependencies_for_module", map[string]interface{}{
+				"config_path": terragruntConfigPath,
+				"working_dir": terragruntOptions.WorkingDir,
+				"module_path": module.Path,
+			}, func(childCtx context.Context) error {
+				deps, err := resolveDependenciesForModule(module, moduleMap, terragruntOptions, childTerragruntConfig, true)
+				if err != nil {
+					return err
+				}
+				dependencies = deps
+				return nil
+			})
 			if err != nil {
 				return moduleMap, err
 			}
@@ -386,12 +467,19 @@ func resolveExternalDependenciesForModules(moduleMap map[string]*TerraformModule
 	return allExternalDependencies, nil
 }
 
+var existingModules = config.NewCache[*map[string]*TerraformModule]()
+
 // resolveDependenciesForModule looks through the dependencies of the given module and resolve the dependency paths listed in the module's config.
 // If `skipExternal` is true, the func returns only dependencies that are inside of the current working directory, which means they are part of the environment the
 // user is trying to apply-all or destroy-all. Note that this method will NOT fill in the Dependencies field of the TerraformModule struct (see the crosslinkDependencies method for that).
 func resolveDependenciesForModule(module *TerraformModule, moduleMap map[string]*TerraformModule, terragruntOptions *options.TerragruntOptions, chilTerragruntConfig *config.TerragruntConfig, skipExternal bool) (map[string]*TerraformModule, error) {
 	if module.Config.Dependencies == nil || len(module.Config.Dependencies.Paths) == 0 {
 		return map[string]*TerraformModule{}, nil
+	}
+
+	key := fmt.Sprintf("%s-%s-%v-%v", module.Path, terragruntOptions.WorkingDir, skipExternal, terragruntOptions.TerraformCommand)
+	if value, ok := existingModules.Get(key); ok {
+		return *value, nil
 	}
 
 	externalTerragruntConfigPaths := []string{}
@@ -413,7 +501,13 @@ func resolveDependenciesForModule(module *TerraformModule, moduleMap map[string]
 	}
 
 	howThesePathsWereFound := fmt.Sprintf("dependency of module at '%s'", module.Path)
-	return resolveModules(externalTerragruntConfigPaths, terragruntOptions, chilTerragruntConfig, howThesePathsWereFound)
+	result, err := resolveModules(externalTerragruntConfigPaths, terragruntOptions, chilTerragruntConfig, howThesePathsWereFound)
+	if err != nil {
+		return nil, err
+	}
+
+	existingModules.Put(key, &result)
+	return result, nil
 }
 
 // Confirm with the user whether they want Terragrunt to assume the given dependency of the given module is already
@@ -565,6 +659,7 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 		var hook = NewForceLogLevelHook(logrus.DebugLevel)
 		cfgOptions.Logger.Logger.AddHook(hook)
 
+		// build stack from config directory
 		stack, err := FindStackInSubfolders(cfgOptions, terragruntConfig)
 		if err != nil {
 			// log error as debug since in some cases stack building may fail because parent files can be designed
@@ -573,11 +668,15 @@ func FindWhereWorkingDirIsIncluded(terragruntOptions *options.TerragruntOptions,
 			continue
 		}
 
-		for _, module := range stack.Modules {
-			for _, dep := range module.Dependencies {
-				if dep.Path == terragruntOptions.WorkingDir { // include in dependencies module which have in dependencies WorkingDir
-					matchedModulesMap[module.Path] = module
-					break
+		dependentModules := ListStackDependentModules(stack)
+		deps, found := dependentModules[terragruntOptions.WorkingDir]
+		if found {
+			for _, module := range stack.Modules {
+				for _, dep := range deps {
+					if dep == module.Path {
+						matchedModulesMap[module.Path] = module
+						break
+					}
 				}
 			}
 		}
@@ -649,4 +748,65 @@ func buildDirList(terragruntOptions *options.TerragruntOptions, topLevelDir stri
 		pathsToCheck = append(pathsToCheck, pathToAdd)
 	}
 	return pathsToCheck, nil
+}
+
+// ListStackDependentModules - build a map with each module and its dependent modules
+func ListStackDependentModules(stack *Stack) map[string][]string {
+	// build map of dependent modules
+	// module path -> list of dependent modules
+	var dependentModules = make(map[string][]string)
+
+	// build initial mapping of dependent modules
+	for _, module := range stack.Modules {
+
+		if len(module.Dependencies) != 0 {
+			for _, dep := range module.Dependencies {
+				dependentModules[dep.Path] = util.RemoveDuplicatesFromList(append(dependentModules[dep.Path], module.Path))
+			}
+		}
+	}
+
+	// Floyd–Warshall inspired approach to find dependent modules
+	// merge map slices by key until no more updates are possible
+
+	// Example:
+	// Initial setup:
+	// dependentModules["module1"] = ["module2", "module3"]
+	// dependentModules["module2"] = ["module3"]
+	// dependentModules["module3"] = ["module4"]
+	// dependentModules["module4"] = ["module5"]
+
+	// After first iteration: (module1 += module4, module2 += module4, module3 += module5)
+	// dependentModules["module1"] = ["module2", "module3", "module4"]
+	// dependentModules["module2"] = ["module3", "module4"]
+	// dependentModules["module3"] = ["module4", "module5"]
+	// dependentModules["module4"] = ["module5"]
+
+	// After second iteration: (module1 += module5, module2 += module5)
+	// dependentModules["module1"] = ["module2", "module3", "module4", "module5"]
+	// dependentModules["module2"] = ["module3", "module4", "module5"]
+	// dependentModules["module3"] = ["module4", "module5"]
+	// dependentModules["module4"] = ["module5"]
+
+	// Done, no more updates and in map we have all dependent modules for each module.
+
+	for {
+		noUpdates := true
+		for module, dependents := range dependentModules {
+			for _, dependent := range dependents {
+				initialSize := len(dependentModules[module])
+				// merge without duplicates
+				list := util.RemoveDuplicatesFromList(append(dependentModules[module], dependentModules[dependent]...))
+				list = util.RemoveElementFromList(list, module)
+				dependentModules[module] = list
+				if initialSize != len(dependentModules[module]) {
+					noUpdates = false
+				}
+			}
+		}
+		if noUpdates {
+			break
+		}
+	}
+	return dependentModules
 }
