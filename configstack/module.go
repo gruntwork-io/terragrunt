@@ -409,7 +409,21 @@ func resolveTerraformModule(terragruntConfigPath string, moduleMap map[string]*T
 	}
 
 	if opts.IncludeModulePrefix {
-		opts.OutputPrefix = fmt.Sprintf("[%v] ", modulePath)
+		prefix := modulePath
+		workingDirPath := terragruntOptions.WorkingDir
+
+		// try to convert working dir to absolute path
+		if path, err := filepath.Abs(workingDirPath); err == nil {
+			workingDirPath = path
+		}
+
+		if workingDirPath != modulePath {
+			// try to generate relative path to module to be used as prefix
+			if relativePrefix, err := filepath.Rel(workingDirPath, modulePath); err == nil {
+				prefix = relativePrefix
+			}
+		}
+		opts.OutputPrefix = fmt.Sprintf("[%v] ", prefix)
 	}
 
 	return &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
