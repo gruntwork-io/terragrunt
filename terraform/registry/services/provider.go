@@ -123,11 +123,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		}
 	}
 
-	select {
-	case <-ctx.Done():
-	case <-time.After(time.Second * 40):
-	}
-
 	return nil
 }
 
