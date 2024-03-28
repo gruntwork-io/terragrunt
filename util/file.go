@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/containers/storage/pkg/lockfile"
+	"github.com/gofrs/flock"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
 	"fmt"
@@ -651,19 +651,19 @@ func GetCacheDir() (string, error) {
 	return cacheDir, nil
 }
 
-func AcquireFileLock(ctx context.Context, filename string, maxAttempts int, waitForNextAttempt time.Duration) (*lockfile.LockFile, error) {
+func AcquireFileLock(ctx context.Context, filename string, maxAttempts int, waitForNextAttempt time.Duration) (*flock.Flock, error) {
 	var (
-		attepmt int
+		attepmt  int
+		fileLock = flock.New(filename)
 	)
 
 	for {
-		locked, err := lockfile.GetLockFile(filename)
+		locked, err := fileLock.TryLock()
 		if err != nil {
 			return nil, errors.WithStackTrace(err)
 		}
-		if locked.IsReadWrite() {
-			locked.Lock()
-			return locked, nil
+		if locked {
+			return fileLock, nil
 		}
 
 		if attepmt >= maxAttempts {
@@ -697,10 +697,7 @@ func FetchFile(ctx context.Context, downloadURL, savePath string) error {
 		_ = out.Close()
 	}()
 
-	client := &http.Client{
-		Timeout: 1 * time.Minute,
-	}
-	resp, err := client.Get(downloadURL)
+	resp, err := http.Get(downloadURL)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
