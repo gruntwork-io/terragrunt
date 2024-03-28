@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"fmt"
 	"net/url"
 	"testing"
 
@@ -11,13 +12,12 @@ import (
 )
 
 func TestSplitSourceUrl(t *testing.T) {
-
 	t.Parallel()
 
 	testCases := []struct {
 		name               string
 		sourceUrl          string
-		expectedRootRepo   string
+		expectedSo         string
 		expectedModulePath string
 	}{
 		{"root-path-only-no-double-slash", "/foo", "/foo", ""},
@@ -54,8 +54,41 @@ func TestSplitSourceUrl(t *testing.T) {
 			actualRootRepo, actualModulePath, err := SplitSourceUrl(sourceUrl, terragruntOptions.Logger)
 			require.NoError(t, err)
 
-			assert.Equal(t, testCase.expectedRootRepo, actualRootRepo.String())
+			assert.Equal(t, testCase.expectedSo, actualRootRepo.String())
 			assert.Equal(t, testCase.expectedModulePath, actualModulePath)
+		})
+	}
+}
+
+func TestToSourceUrl(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		sourceURL         string
+		expectedSourceURL string
+	}{
+		{"https://github.com/gruntwork-io/repo-name", "git::https://github.com/gruntwork-io/repo-name.git"},
+		{"git::https://github.com/gruntwork-io/repo-name", "git::https://github.com/gruntwork-io/repo-name"},
+		{"https://github.com/gruntwork-io/repo-name//modules/module-name", "git::https://github.com/gruntwork-io/repo-name.git//modules/module-name"},
+		{"ssh://github.com/gruntwork-io/repo-name//modules/module-name", "ssh://github.com/gruntwork-io/repo-name//modules/module-name"},
+		{"https://gitlab.com/catamphetamine/libphonenumber-js", "git::https://gitlab.com/catamphetamine/libphonenumber-js.git"},
+		{"https://bitbucket.org/atlassian/aws-ecr-push-image", "git::https://bitbucket.org/atlassian/aws-ecr-push-image.git"},
+		{"http://bitbucket.org/atlassian/aws-ecr-push-image", "git::https://bitbucket.org/atlassian/aws-ecr-push-image.git"},
+		{"https://s3-eu-west-1.amazonaws.com/modules/vpc.zip", "s3::https://s3-eu-west-1.amazonaws.com/modules/vpc.zip"},
+		{"https://www.googleapis.com/storage/v1/modules/foomodule.zip", "gcs::https://www.googleapis.com/storage/v1/modules/foomodule.zip"},
+		{"https://www.googleapis.com/storage/v1/modules/foomodule.zip", "gcs::https://www.googleapis.com/storage/v1/modules/foomodule.zip"},
+		{"git::https://name@dev.azure.com/name/project-name/_git/repo-name", "git::https://name@dev.azure.com/name/project-name/_git/repo-name"},
+	}
+
+	for i, testCase := range testCases {
+		// Save a local copy in scope so all the tests don't run the final item in the loop
+		testCase := testCase
+		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
+			t.Parallel()
+
+			actualSourceURL, err := ToSourceUrl(testCase.sourceURL, "")
+			require.NoError(t, err)
+			assert.Equal(t, testCase.expectedSourceURL, actualSourceURL.String())
 		})
 	}
 }

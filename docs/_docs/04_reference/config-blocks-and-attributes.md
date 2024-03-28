@@ -52,7 +52,10 @@ The `terraform` block supports the following arguments:
       you can provide the authentication to Terragrunt as an environment variable with the key `TG_TF_REGISTRY_TOKEN`.
       This token can be any registry API token.
     - The `tfr` protocol supports a shorthand notation where the `REGISTRY_HOST` can be omitted to default to the public
-      registry (`registry.terraform.io`) if you use `tfr:///` (note the three `/`). For example, the following will
+      registry. The default registry depends on the wrapped executable: for Terraform, it is `registry.terraform.io`,
+      and for Opentofu, it is `registry.opentofu.org`. Additionally, if the environment variable `TG_TF_DEFAULT_REGISTRY_HOST`
+      is set, this value will be used as the default registry host instead, overriding the standard defaults for the wrapped executable.
+    - If you use `tfr:///` (note the three `/`). For example, the following will
       fetch the `terraform-aws-modules/vpc/aws` module from the public registry:
       `tfr:///terraform-aws-modules/vpc/aws?version=3.3.0`.
     - You can also use submodules from the registry using `//`. For example, to use the `iam-policy` submodule from the

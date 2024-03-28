@@ -7,7 +7,7 @@ orbs:
 env: &env
   environment:
     GRUNTWORK_INSTALLER_VERSION: v0.0.39
-    MODULE_CI_VERSION: v0.52.6
+    MODULE_CI_VERSION: v0.53.3
 
 defaults: &defaults
   docker:
@@ -75,6 +75,8 @@ jobs:
             go test -v ./... -run TestCanonicalPath -timeout 45m
             go test -v ./... -run TestJoinTerraformModulePath -timeout 45m
             go test -v ./... -run TestIncludeInCopy -timeout 45m
+            go test -v ./... -run TestWindowsScaffold -timeout 45m
+            go test -v ./... -run TestWindowsScaffoldRef -timeout 45m
             go test -tags windows -v -un -run TestWindows ./test -timeout 45m
       - run:
           name: Run go tofu tests
@@ -90,6 +92,8 @@ jobs:
             go test -v ./... -run TestCanonicalPath -timeout 45m
             go test -v ./... -run TestJoinTerraformModulePath -timeout 45m
             go test -v ./... -run TestIncludeInCopy -timeout 45m
+            go test -v ./... -run TestWindowsScaffold -timeout 45m
+            go test -v ./... -run TestWindowsScaffoldRef -timeout 45m
             go test -tags windows -v -un -run TestWindows ./test -timeout 45m
   # We're running unit tests separately from integration tests - with no parallelization.
   # With heavy parallelization coupled with re-use of test fixtures we've witnessed slight
@@ -121,6 +125,7 @@ jobs:
             mkdir -p logs
             go mod tidy
             run-go-tests --parallelism 1 --packages "$(go list ./... | grep -v /test | tr '\n' ' ')"  | tee logs/unit.log
+            go test -run=TestParseDependencyBlockMultiple -race ./config | tee -a logs/unit.log
       - run:
           command: terratest_log_parser --testlog logs/unit.log --outputdir logs
           when: always
@@ -262,7 +267,10 @@ jobs:
       - run:
           name: Compile and sign the binaries
           command: |
-            sign-binary --install-macos-sign-dependencies --os mac .gon_amd64.hcl
+            export AC_PASSWORD=${MACOS_AC_PASSWORD}
+            export AC_PROVIDER=${MACOS_AC_PROVIDER}
+            
+            sign-binary --os mac --install-macos-sign-dependencies .gon_amd64.hcl
             sign-binary --os mac .gon_arm64.hcl
             echo "Done signing the binary"
 
