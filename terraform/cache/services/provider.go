@@ -81,6 +81,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		case <-debugCtx.Done():
 		case <-time.After(time.Minute * 4):
 			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to warmup cache")
+			os.Exit(1)
 		}
 	}()
 
