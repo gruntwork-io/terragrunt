@@ -2,8 +2,6 @@ package util
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -32,10 +30,6 @@ func (lockfile *Lockfile) Unlock() {
 
 func (lockfile *Lockfile) Lock(ctx context.Context, maxAttempts int, waitForNextAttempt time.Duration) error {
 	var attepmt int
-
-	if err := os.MkdirAll(filepath.Dir(lockfile.Path()), os.ModePerm); err != nil {
-		return errors.WithStackTrace(err)
-	}
 
 	log.Tracef("Try to lock file %s", lockfile.Path())
 	for {

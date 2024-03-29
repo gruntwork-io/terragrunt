@@ -44,8 +44,7 @@ type ProviderCache struct {
 	*ProviderService
 	*models.Provider
 
-	lockfile *util.Lockfile
-	ready    bool
+	ready bool
 }
 
 func (cache *ProviderCache) providerDir() string {
@@ -76,15 +75,23 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	var (
 		terraformPluginPlatformDir = cache.terraformPluginPlatformDir()
 		platformDir                = cache.platformDir()
+		providerDir                = cache.providerDir()
 		archiveFilename            = cache.ArchiveFilename()
+		//lockFilename               = cache.lockFilename()
 
-		alreadyCached bool
+		needCacheArchive = cache.needCacheArchive
+		alreadyCached    bool
 	)
 
-	if err := cache.lockfile.Lock(ctx, maxAttemptsLockFile, waitNextAttepmtLockFile); err != nil {
-		return err
+	if err := os.MkdirAll(providerDir, os.ModePerm); err != nil {
+		return errors.WithStackTrace(err)
 	}
-	defer cache.lockfile.Unlock()
+
+	// lockfile, err := util.AcquireLockfile(ctx, lockFilename, maxAttemptsLockFile, waitNextAttepmtLockFile)
+	// if err != nil {
+	// 	return err
+	// }
+	// defer lockfile.Unlock()
 
 	if !util.FileExists(platformDir) {
 		if util.FileExists(terraformPluginPlatformDir) {
@@ -97,20 +104,19 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 			if err := os.MkdirAll(platformDir, os.ModePerm); err != nil {
 				return errors.WithStackTrace(err)
 			}
-			cache.needCacheArchive = true
+			needCacheArchive = true
 		}
 	} else {
 		alreadyCached = true
 	}
 
-	if cache.needCacheArchive && !util.FileExists(archiveFilename) {
+	if needCacheArchive && !util.FileExists(archiveFilename) {
 		if cache.DownloadURL == nil {
 			return errors.Errorf("failed to cache provider %q, the download URL is undefined", cache.Provider)
 		}
 
 		log.Debugf("Fetching provider %s", cache.Provider)
 		if err := util.FetchFile(ctx, cache.DownloadURL.String(), archiveFilename); err != nil {
-			os.Remove(archiveFilename)
 			return err
 		}
 	}
@@ -118,7 +124,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	if !alreadyCached {
 		log.Debugf("Decompress file %s", archiveFilename)
 		if err := unzip.Decompress(platformDir, archiveFilename, true, unzipFileMode); err != nil {
-			os.Remove(platformDir)
 			return errors.WithStackTrace(err)
 		}
 	}
@@ -127,12 +132,16 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 }
 
 func (cache *ProviderCache) removeArchive(ctx context.Context) error {
-	var archiveFilename = cache.ArchiveFilename()
+	var (
+		archiveFilename = cache.ArchiveFilename()
+		//lockFilename    = cache.lockFilename()
+	)
 
-	if err := cache.lockfile.Lock(ctx, maxAttemptsLockFile, waitNextAttepmtLockFile); err != nil {
-		return err
-	}
-	defer cache.lockfile.Unlock()
+	// lockfile, err := util.AcquireLockfile(ctx, lockFilename, maxAttemptsLockFile, waitNextAttepmtLockFile)
+	// if err != nil {
+	// 	return err
+	// }
+	// defer lockfile.Unlock()
 
 	if util.FileExists(archiveFilename) {
 		log.Debugf("Remove archive file %s", archiveFilename)
@@ -185,7 +194,6 @@ func (service *ProviderService) CacheProvider(provider *models.Provider) {
 		ProviderService: service,
 		Provider:        provider,
 	}
-	cache.lockfile = util.NewLockfile(cache.lockFilename())
 
 	service.providerCacheCh <- cache
 	service.providerCaches = append(service.providerCaches, cache)
@@ -228,6 +236,7 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 				defer service.cacheReadyMu.RUnlock()
 
 				if err := cache.warmUp(ctx); err != nil {
+					os.Remove(cache.platformDir())
 					return err
 				}
 				cache.ready = true
@@ -241,28 +250,17 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 
 			merr := &multierror.Error{}
 
-			// if err := errGroup.Wait(); err != nil {
-			// 	merr = multierror.Append(merr, err)
-			// }
-
-			if err := service.ClearCaches(); err != nil {
+			if err := errGroup.Wait(); err != nil {
 				merr = multierror.Append(merr, err)
+			}
+
+			for _, cache := range service.providerCaches {
+				if err := cache.removeArchive(ctx); err != nil {
+					merr = multierror.Append(merr, errors.WithStackTrace(err))
+				}
 			}
 
 			return merr.ErrorOrNil()
 		}
 	}
-}
-
-func (service *ProviderService) ClearCaches() error {
-	merr := &multierror.Error{}
-
-	for _, cache := range service.providerCaches {
-		// if err := cache.removeArchive(ctx); err != nil {
-		// 	merr = multierror.Append(merr, errors.WithStackTrace(err))
-		// }
-		cache.lockfile.Unlock()
-	}
-
-	return merr.ErrorOrNil()
 }
