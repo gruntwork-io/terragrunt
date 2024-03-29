@@ -44,7 +44,8 @@ type ProviderCache struct {
 	*ProviderService
 	*models.Provider
 
-	ready bool
+	lockfile *util.Lockfile
+	ready    bool
 }
 
 func (cache *ProviderCache) providerDir() string {
@@ -75,17 +76,15 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	var (
 		terraformPluginPlatformDir = cache.terraformPluginPlatformDir()
 		platformDir                = cache.platformDir()
-		lockFilename               = cache.lockFilename()
 		archiveFilename            = cache.ArchiveFilename()
 
 		alreadyCached bool
 	)
 
-	lockfile, err := util.AcquireLockfile(ctx, lockFilename, maxAttemptsLockFile, waitNextAttepmtLockFile)
-	if err != nil {
+	if err := cache.lockfile.Lock(ctx, maxAttemptsLockFile, waitNextAttepmtLockFile); err != nil {
 		return err
 	}
-	defer lockfile.Unlock()
+	defer cache.lockfile.Unlock()
 
 	if !util.FileExists(platformDir) {
 		if util.FileExists(terraformPluginPlatformDir) {
@@ -119,7 +118,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	if !alreadyCached {
 		log.Debugf("Decompress file %s", archiveFilename)
 		if err := unzip.Decompress(platformDir, archiveFilename, true, unzipFileMode); err != nil {
-			os.RemoveAll(platformDir)
+			os.Remove(platformDir)
 			return errors.WithStackTrace(err)
 		}
 	}
@@ -128,16 +127,12 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 }
 
 func (cache *ProviderCache) removeArchive(ctx context.Context) error {
-	var (
-		lockFilename    = cache.lockFilename()
-		archiveFilename = cache.ArchiveFilename()
-	)
+	var archiveFilename = cache.ArchiveFilename()
 
-	lockfile, err := util.AcquireLockfile(ctx, lockFilename, maxAttemptsLockFile, waitNextAttepmtLockFile)
-	if err != nil {
+	if err := cache.lockfile.Lock(ctx, maxAttemptsLockFile, waitNextAttepmtLockFile); err != nil {
 		return err
 	}
-	defer lockfile.Unlock()
+	defer cache.lockfile.Unlock()
 
 	if util.FileExists(archiveFilename) {
 		log.Debugf("Remove archive file %s", archiveFilename)
@@ -190,6 +185,7 @@ func (service *ProviderService) CacheProvider(provider *models.Provider) {
 		ProviderService: service,
 		Provider:        provider,
 	}
+	cache.lockfile = util.NewLockfile(cache.lockFilename())
 
 	service.providerCacheCh <- cache
 	service.providerCaches = append(service.providerCaches, cache)
@@ -244,9 +240,10 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 			}
 
 			for _, cache := range service.providerCaches {
-				if err := cache.removeArchive(ctx); err != nil {
-					merr = multierror.Append(merr, errors.WithStackTrace(err))
-				}
+				// if err := cache.removeArchive(ctx); err != nil {
+				// 	merr = multierror.Append(merr, errors.WithStackTrace(err))
+				// }
+				cache.lockfile.Unlock()
 			}
 
 			return merr.ErrorOrNil()

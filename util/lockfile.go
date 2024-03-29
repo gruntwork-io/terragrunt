@@ -11,10 +11,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-var lockfiles []*Lockfile
-
 type Lockfile struct {
 	*flock.Flock
+}
+
+func NewLockfile(filename string) *Lockfile {
+	return &Lockfile{
+		flock.New(filename),
+	}
 }
 
 func (lockfile *Lockfile) Unlock() {
@@ -26,43 +30,38 @@ func (lockfile *Lockfile) Unlock() {
 	lockfile.Flock.Unlock() //nolint:errcheck
 }
 
-func AcquireLockfile(ctx context.Context, filename string, maxAttempts int, waitForNextAttempt time.Duration) (*Lockfile, error) {
-	var (
-		attepmt  int
-		fileLock = flock.New(filename)
-	)
+func (lockfile *Lockfile) Lock(ctx context.Context, maxAttempts int, waitForNextAttempt time.Duration) error {
+	var attepmt int
 
-	if err := os.MkdirAll(filepath.Dir(filename), os.ModePerm); err != nil {
-		return nil, errors.WithStackTrace(err)
+	if err := os.MkdirAll(filepath.Dir(lockfile.Path()), os.ModePerm); err != nil {
+		return errors.WithStackTrace(err)
 	}
 
-	log.Tracef("Try to lock file %s", filename)
+	log.Tracef("Try to lock file %s", lockfile.Path())
 	for {
-		if locked, err := fileLock.TryLock(); err != nil {
-			return nil, errors.WithStackTrace(err)
+		if locked, err := lockfile.Flock.TryLock(); err != nil {
+			return errors.WithStackTrace(err)
 		} else if locked {
-			log.Tracef("Locked file %s", filename)
-			lockfile := &Lockfile{fileLock}
-			lockfiles = append(lockfiles, lockfile)
-			return lockfile, nil
+			log.Tracef("Locked file %s", lockfile.Path())
+			return nil
 		}
 
 		if attepmt >= maxAttempts {
-			return nil, errors.Errorf("unable to lock file %q, try removing file manually if you are sure no one terragrunt process is running", filename)
+			return errors.Errorf("unable to lock file %q, try removing file manually if you are sure no one terragrunt process is running", lockfile.Path())
 		}
 		attepmt++
-		log.Tracef("File %q is already locked, next (%d of %d) locking attempt in %v", filename, attepmt, maxAttempts, waitForNextAttempt)
+		log.Tracef("File %q is already locked, next (%d of %d) locking attempt in %v", lockfile.Path(), attepmt, maxAttempts, waitForNextAttempt)
 
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return ctx.Err()
 		case <-time.After(waitForNextAttempt):
 		}
 	}
 }
 
-func UnlockAllLockfiles() {
-	for _, lockfile := range lockfiles {
-		lockfile.Unlock()
-	}
+func AcquireLockfile(ctx context.Context, filename string, maxAttempts int, waitForNextAttempt time.Duration) (*Lockfile, error) {
+	lockfile := NewLockfile(filename)
+	err := lockfile.Lock(ctx, maxAttempts, waitForNextAttempt)
+	return lockfile, err
 }
