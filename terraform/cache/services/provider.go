@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -73,6 +72,9 @@ func (cache *ProviderCache) ArchiveFilename() string {
 
 // warmUp checks if the binary file already exists in the cache directory, if not, downloads the archive and unzip it.
 func (cache *ProviderCache) warmUp(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	debugCtx, debugCancel := context.WithCancel(ctx)
 	defer debugCancel()
 
@@ -81,7 +83,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		select {
 		case <-debugCtx.Done():
 		case <-time.After(time.Minute * 4):
-			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to warmup cache", step, cache.Provider)
+			log.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to warmup cache", step, cache.Provider)
 			time.Sleep(time.Minute * 4)
 			os.Exit(1)
 		}
@@ -102,8 +104,8 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.WithStackTrace(err)
 	}
 
-	step = 1
 	log.Debugf("Try to lock file %s", lockFilename)
+	step = 1
 	lockfile, err := util.AcquireLockfile(ctx, lockFilename, maxAttemptsLockFile, waitNextAttepmtLockFile)
 	if err != nil {
 		return err
@@ -111,6 +113,17 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 
 	step = 2
 	log.Debugf("Locked file %s", lockFilename)
+	go func() {
+		select {
+		case <-ctx.Done():
+		case <-time.After(time.Minute * 2):
+			step = 11
+			cancel()
+			lockfile.Unlock() //nolint:errcheck
+			log.Debugf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Released file %s", lockFilename)
+		}
+	}()
+
 	defer func() {
 		step = 10
 		lockfile.Unlock() //nolint:errcheck
