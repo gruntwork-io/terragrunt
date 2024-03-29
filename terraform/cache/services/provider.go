@@ -78,12 +78,11 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	debugCtx, debugCancel := context.WithCancel(ctx)
 	defer debugCancel()
 
-	var step int
 	go func() {
 		select {
 		case <-debugCtx.Done():
 		case <-time.After(time.Minute * 4):
-			log.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to warmup cache", step, cache.Provider)
+			log.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to warmup cache", cache.Provider)
 			time.Sleep(time.Minute * 4)
 			os.Exit(1)
 		}
@@ -104,35 +103,23 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.WithStackTrace(err)
 	}
 
-	log.Debugf("Try to lock file %s", lockFilename)
-	step = 1
 	lockfile, err := util.AcquireLockfile(ctx, lockFilename, maxAttemptsLockFile, waitNextAttepmtLockFile)
 	if err != nil {
 		return err
 	}
+	defer lockfile.Unlock()
 
-	step = 2
-	log.Debugf("Locked file %s", lockFilename)
-	defer func() {
-		step = 10
-		lockfile.Unlock() //nolint:errcheck
-		log.Debugf("Released file %s", lockFilename)
-	}()
-
-	step = 3
 	if !util.FileExists(platformDir) {
 		if util.FileExists(terraformPluginProviderDir) {
 			log.Debugf("Create symlink file %s to %s", platformDir, terraformPluginProviderDir)
 			if err := os.Symlink(terraformPluginProviderDir, platformDir); err != nil {
 				return errors.WithStackTrace(err)
 			}
-			step = 4
 			unpackedFound = true
 		} else {
 			if err := os.MkdirAll(platformDir, os.ModePerm); err != nil {
 				return errors.WithStackTrace(err)
 			}
-			step = 5
 		}
 	} else {
 		unpackedFound = true
@@ -143,22 +130,18 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if !util.FileExists(archiveFilename) {
-		step = 6
 		log.Debugf("Fetching provider %s", cache.Provider)
 		ctx, _ := context.WithTimeout(ctx, time.Minute*3)
 		if err := util.FetchFile(ctx, cache.DownloadURL.String(), archiveFilename); err != nil {
 			return err
 		}
-		step = 7
 	}
 
 	if !unpackedFound {
-		step = 8
 		log.Debugf("Decompress file %s", archiveFilename)
 		if err := unzip.Decompress(platformDir, archiveFilename, true, unzipFileMode); err != nil {
 			return errors.WithStackTrace(err)
 		}
-		step = 9
 	}
 
 	// select {
@@ -175,17 +158,11 @@ func (cache *ProviderCache) removeArchive(ctx context.Context) error {
 		archiveFilename = cache.ArchiveFilename()
 	)
 
-	log.Debugf("Try to lock file %s", lockFilename)
 	lockfile, err := util.AcquireLockfile(ctx, lockFilename, maxAttemptsLockFile, waitNextAttepmtLockFile)
 	if err != nil {
 		return err
 	}
-	log.Debugf("Locked file %s", lockFilename)
-
-	defer func() {
-		lockfile.Unlock() //nolint:errcheck
-		log.Debugf("Released file %s", lockFilename)
-	}()
+	defer lockfile.Unlock()
 
 	if util.FileExists(archiveFilename) {
 		log.Debugf("Remove archive file %s", archiveFilename)

@@ -11,13 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofrs/flock"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
 	"fmt"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mattn/go-zglob"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/sirupsen/logrus"
@@ -649,34 +647,6 @@ func GetCacheDir() (string, error) {
 	}
 
 	return cacheDir, nil
-}
-
-func AcquireLockfile(ctx context.Context, filename string, maxAttempts int, waitForNextAttempt time.Duration) (*flock.Flock, error) {
-	var (
-		attepmt  int
-		fileLock = flock.New(filename)
-	)
-
-	for {
-		if locked, err := fileLock.TryLock(); err != nil {
-			return nil, errors.WithStackTrace(err)
-		} else if locked {
-			return fileLock, nil
-		}
-
-		if attepmt >= maxAttempts {
-			return nil, errors.Errorf("unable to lock file %q, try removing file manually if you are sure no one terragrunt process is running", filename)
-		}
-		attepmt++
-
-		log.Debugf("File %q is already locked, next (%d of %d) locking attempt in %v", filename, attepmt, maxAttempts, waitForNextAttempt)
-
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(waitForNextAttempt):
-		}
-	}
 }
 
 // FetchFile downloads the file from the given `downloadURL` into the specified `saveToFile` file.
