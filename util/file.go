@@ -683,27 +683,26 @@ func AcquireLockfile(ctx context.Context, filename string, maxAttempts int, wait
 
 // FetchFile downloads the file at the given `downloadURL` to the given `savePath` file.
 func FetchFile(ctx context.Context, downloadURL, savePath string) error {
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithTimeout(ctx, time.Minute*2)
 	defer cancel()
 
 	out, err := os.Create(savePath)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
-	go func() {
-		// Closing os.Stdin will cause io.Copy to return with error "cache already closed" next time it reads from it.
-		// This will stop download process when pressing Ctrl-C.
-		<-ctx.Done()
-		_ = out.Close()
-	}()
+	defer out.Close() //nolint:errcheck
 
-	resp, err := http.Get(downloadURL)
+	req, err := http.NewRequestWithContext(ctx, "GET", downloadURL, nil)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+	client := &http.Client{}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
 
 	if _, err := io.Copy(out, resp.Body); err != nil {
 		return errors.WithStackTrace(err)

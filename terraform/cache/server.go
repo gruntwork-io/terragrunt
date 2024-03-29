@@ -105,13 +105,13 @@ func (server *Server) Listen(ctx context.Context) error {
 	server.Addr = ln.Addr().String()
 	server.listener = ln
 
-	log.Infof("Private Cache started, listening on %s", server.Addr)
+	log.Infof("Terragrunt Cache server is listening on %s", server.Addr)
 	return nil
 }
 
 // Run starts the webserver and workers.
 func (server *Server) Run(ctx context.Context) error {
-	log.Infof("Start Terragrunt Provider Cache")
+	log.Infof("Start Terragrunt Cache server")
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 	errGroup.Go(func() error {
@@ -119,7 +119,7 @@ func (server *Server) Run(ctx context.Context) error {
 	})
 	errGroup.Go(func() error {
 		<-ctx.Done()
-		log.Infof("Shutting down Terragrunt Provider Cache")
+		log.Infof("Shutting down Terragrunt Cache server...")
 
 		ctx, cancel := context.WithTimeout(ctx, server.config.shutdownTimeout)
 		defer cancel()
@@ -132,9 +132,9 @@ func (server *Server) Run(ctx context.Context) error {
 	})
 
 	if err := server.Serve(server.listener); err != nil && err != http.ErrServerClosed {
-		return errors.Errorf("error starting Terrafrom Cache server: %w", err)
+		return errors.Errorf("error starting terragrunt cache server: %w", err)
 	}
-	defer log.Infof("Terragrunt Provider Cache stopped")
+	defer log.Infof("Terragrunt Cache server stopped")
 
 	return errGroup.Wait()
 }

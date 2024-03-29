@@ -45,7 +45,7 @@ import (
 )
 
 // forced shutdown interval after receiving an interrupt signal
-const forceExitInterval = time.Minute * 5
+const forceExitInterval = shell.SignalForwardingDelay * 2
 
 func init() {
 	cli.AppVersionTemplate = AppVersionTemplate
