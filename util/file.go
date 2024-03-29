@@ -681,9 +681,6 @@ func AcquireLockfile(ctx context.Context, filename string, maxAttempts int, wait
 
 // FetchFile downloads the file from the given `downloadURL` into the specified `saveToFile` file.
 func FetchFile(ctx context.Context, downloadURL, saveToFile string) error {
-	ctx, cancel := context.WithTimeout(ctx, time.Minute*5)
-	defer cancel()
-
 	req, err := http.NewRequestWithContext(ctx, "GET", downloadURL, nil)
 	if err != nil {
 		return errors.WithStackTrace(err)

@@ -52,7 +52,7 @@ func (cache *ProviderCache) providerDir() string {
 	return filepath.Join(cache.baseCacheDir, cache.Provider.Path())
 }
 
-func (cache *ProviderCache) lockfileName() string {
+func (cache *ProviderCache) lockFilename() string {
 	return filepath.Join(cache.baseCacheDir, cache.Provider.Path(), cache.Platform()) + ".lock"
 }
 
@@ -60,11 +60,11 @@ func (cache *ProviderCache) platformDir() string {
 	return filepath.Join(cache.baseCacheDir, cache.Provider.Path(), cache.Platform())
 }
 
-func (cache *ProviderCache) platformPluginDir() string {
+func (cache *ProviderCache) terraformPluginProviderDir() string {
 	return filepath.Join(cache.terraformPluginDir, cache.Provider.Path(), cache.Platform())
 }
 
-func (cache *ProviderCache) Archive() string {
+func (cache *ProviderCache) ArchiveFilename() string {
 	if cache.DownloadURL == nil {
 		return ""
 	}
@@ -76,61 +76,86 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	debugCtx, debugCancel := context.WithCancel(ctx)
 	defer debugCancel()
 
+	var step int
+
 	go func() {
 		select {
 		case <-debugCtx.Done():
 		case <-time.After(time.Minute * 10):
-			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to warmup cache")
+			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to warmup cache", step)
 			os.Exit(1)
 		}
 	}()
 
-	var unpackedFound bool
+	var (
+		terraformPluginProviderDir = cache.terraformPluginProviderDir()
+		providerDir                = cache.providerDir()
+		platformDir                = cache.platformDir()
+		lockFilename               = cache.lockFilename()
+		archiveFilename            = cache.ArchiveFilename()
 
-	if err := os.MkdirAll(cache.providerDir(), os.ModePerm); err != nil {
+		unpackedFound bool
+	)
+
+	log.Tracef("Create provider cache directory %s", providerDir)
+	if err := os.MkdirAll(providerDir, os.ModePerm); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	lockfile, err := util.AcquireLockfile(ctx, cache.lockfileName(), maxAttemptsToLockProviderCache, waitNextAttepmtToLockProviderCache)
+	step = 1
+	log.Tracef("Try to lock file %s", lockFilename)
+	lockfile, err := util.AcquireLockfile(ctx, lockFilename, maxAttemptsToLockProviderCache, waitNextAttepmtToLockProviderCache)
 	if err != nil {
 		return err
 	}
-	log.Tracef("Provider %q cache is locked", cache.Provider)
+	step = 2
+	log.Tracef("Locked file %s", lockFilename)
 	defer func() {
+		step = 10
 		lockfile.Unlock() //nolint:errcheck
-		log.Tracef("Provider %q cache is released", cache.Provider)
+		log.Tracef("Released file %s", lockFilename)
 	}()
 
-	if platformDir := cache.platformDir(); !util.FileExists(platformDir) {
-		if platformPluginDir := cache.platformPluginDir(); util.FileExists(platformPluginDir) {
-			if err := os.Symlink(platformPluginDir, platformDir); err != nil {
+	step = 3
+	if !util.FileExists(platformDir) {
+		if util.FileExists(terraformPluginProviderDir) {
+			log.Tracef("Create symlink file %s to %s", platformDir, terraformPluginProviderDir)
+			if err := os.Symlink(terraformPluginProviderDir, platformDir); err != nil {
 				return errors.WithStackTrace(err)
 			}
+			step = 4
 			unpackedFound = true
 		} else {
 			if err := os.MkdirAll(platformDir, os.ModePerm); err != nil {
 				return errors.WithStackTrace(err)
 			}
+			step = 5
 		}
 	} else {
 		unpackedFound = true
 	}
 
-	if (unpackedFound && !cache.cacheProviderArchive) || cache.DownloadURL == nil {
+	if (unpackedFound && !cache.cacheArchive) || cache.DownloadURL == nil {
 		return nil
 	}
 
-	if filename := cache.Archive(); !util.FileExists(filename) {
-		log.Debugf("Fetching provider %q", cache.Provider)
-		if err := util.FetchFile(ctx, cache.DownloadURL.String(), filename); err != nil {
+	if !util.FileExists(archiveFilename) {
+		step = 6
+		log.Debugf("Fetching provider %s", cache.Provider)
+		ctx, _ := context.WithTimeout(ctx, time.Minute*3)
+		if err := util.FetchFile(ctx, cache.DownloadURL.String(), archiveFilename); err != nil {
 			return err
 		}
+		step = 7
 	}
 
 	if !unpackedFound {
-		if err := unzip.Decompress(cache.platformDir(), cache.Archive(), true, unzipFileMode); err != nil {
+		step = 8
+		log.Tracef("Decompress file %s", archiveFilename)
+		if err := unzip.Decompress(platformDir, archiveFilename, true, unzipFileMode); err != nil {
 			return errors.WithStackTrace(err)
 		}
+		step = 9
 	}
 
 	// select {
@@ -151,15 +176,15 @@ type ProviderService struct {
 	cacheReadyMu sync.RWMutex
 
 	// If needCacheArchive is true, ensures that not only the unarchived binary is cached, but also its archive. We need acrhives in order to reduce the bandwidth, because `terraform lock provider` always loads providers from a remote registry to create a lock file rather than using a cached one. This is only used when opts.ProviderCompleteLock is true.
-	cacheProviderArchive bool
-	terraformPluginDir   string
+	cacheArchive       bool
+	terraformPluginDir string
 }
 
-func NewProviderService(baseCacheDir string, cacheProviderArchive bool) *ProviderService {
+func NewProviderService(baseCacheDir string, cacheArchive bool) *ProviderService {
 	return &ProviderService{
-		baseCacheDir:         baseCacheDir,
-		providerCacheCh:      make(chan *ProviderCache),
-		cacheProviderArchive: cacheProviderArchive,
+		baseCacheDir:    baseCacheDir,
+		providerCacheCh: make(chan *ProviderCache),
+		cacheArchive:    cacheArchive,
 	}
 }
 
@@ -192,7 +217,7 @@ func (service *ProviderService) GetProviderCache(provider *models.Provider) *Pro
 	service.cacheMu.RLock()
 	defer service.cacheMu.RUnlock()
 
-	if cache := service.providerCaches.Find(provider); cache != nil && cache.ready && util.FileExists(cache.Archive()) {
+	if cache := service.providerCaches.Find(provider); cache != nil && cache.ready && util.FileExists(cache.ArchiveFilename()) {
 		return cache
 	}
 	return nil
@@ -235,7 +260,7 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 			}
 
 			for _, cache := range service.providerCaches {
-				for _, filename := range []string{cache.Archive()} {
+				for _, filename := range []string{cache.ArchiveFilename()} {
 					if util.FileExists(filename) {
 						if err := os.Remove(filename); err != nil {
 							merr = multierror.Append(merr, errors.WithStackTrace(err))
