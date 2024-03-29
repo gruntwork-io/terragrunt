@@ -23,7 +23,7 @@ import (
 const (
 	serverPortlockfileName          = "cache-server-port.lock"
 	waitNextAttepmtToLockServerPort = time.Second
-	maxAttemptsToLockServerPort     = 60 // equals 1 min
+	maxAttemptsToLockServerPort     = 120 // equals 1 min
 )
 
 // Server is a private Terraform cache for provider caching.
@@ -99,7 +99,7 @@ func (server *Server) Listen(ctx context.Context) error {
 	go func() {
 		select {
 		case <-debugCtx.Done():
-		case <-time.After(time.Minute * 2):
+		case <-time.After(time.Minute * 1):
 			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to listen")
 		}
 	}()
@@ -138,6 +138,7 @@ func (server *Server) Listen(ctx context.Context) error {
 
 	server.Addr = ln.Addr().String()
 	server.listener = ln
+	debugCancel()
 
 	log.Infof("Private Cache started, listening on %s", server.Addr)
 	return nil
