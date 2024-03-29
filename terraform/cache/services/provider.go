@@ -77,21 +77,21 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		platformDir                = cache.platformDir()
 		providerDir                = cache.providerDir()
 		archiveFilename            = cache.ArchiveFilename()
-		//lockFilename               = cache.lockFilename()
+		lockFilename               = cache.lockFilename()
+		needCacheArchive           = cache.needCacheArchive
 
-		needCacheArchive = cache.needCacheArchive
-		alreadyCached    bool
+		alreadyCached bool
 	)
 
 	if err := os.MkdirAll(providerDir, os.ModePerm); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	// lockfile, err := util.AcquireLockfile(ctx, lockFilename, maxAttemptsLockFile, waitNextAttepmtLockFile)
-	// if err != nil {
-	// 	return err
-	// }
-	// defer lockfile.Unlock()
+	lockfile, err := util.AcquireLockfile(ctx, lockFilename, maxAttemptsLockFile, waitNextAttepmtLockFile)
+	if err != nil {
+		return err
+	}
+	defer lockfile.Unlock()
 
 	if !util.FileExists(platformDir) {
 		if util.FileExists(terraformPluginPlatformDir) {
@@ -134,14 +134,14 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 func (cache *ProviderCache) removeArchive(ctx context.Context) error {
 	var (
 		archiveFilename = cache.ArchiveFilename()
-		//lockFilename    = cache.lockFilename()
+		lockFilename    = cache.lockFilename()
 	)
 
-	// lockfile, err := util.AcquireLockfile(ctx, lockFilename, maxAttemptsLockFile, waitNextAttepmtLockFile)
-	// if err != nil {
-	// 	return err
-	// }
-	// defer lockfile.Unlock()
+	lockfile, err := util.AcquireLockfile(ctx, lockFilename, maxAttemptsLockFile, waitNextAttepmtLockFile)
+	if err != nil {
+		return err
+	}
+	defer lockfile.Unlock()
 
 	if util.FileExists(archiveFilename) {
 		log.Debugf("Remove archive file %s", archiveFilename)
