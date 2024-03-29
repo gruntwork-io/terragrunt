@@ -125,18 +125,11 @@ func (server *Server) Listen(ctx context.Context) error {
 		log.Tracef("Server listen is released")
 	}()
 
-	// if the port is undefined, ask the kernel for a free open port that is ready to use
-	addr, err := net.ResolveTCPAddr("tcp", server.config.Addr())
+	ln, err := net.Listen("tcp", server.config.Addr())
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 	debugCancel()
-
-	ln, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-
 	server.Addr = ln.Addr().String()
 	server.listener = ln
 
