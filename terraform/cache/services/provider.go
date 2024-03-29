@@ -75,19 +75,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	debugCtx, debugCancel := context.WithCancel(ctx)
-	defer debugCancel()
-
-	go func() {
-		select {
-		case <-debugCtx.Done():
-		case <-time.After(time.Minute * 4):
-			log.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to warmup cache", cache.Provider)
-			time.Sleep(time.Minute * 4)
-			os.Exit(1)
-		}
-	}()
-
 	var (
 		terraformPluginProviderDir = cache.terraformPluginProviderDir()
 		providerDir                = cache.providerDir()

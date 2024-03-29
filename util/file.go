@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
@@ -656,9 +655,7 @@ func FetchFile(ctx context.Context, downloadURL, saveToFile string) error {
 		return errors.WithStackTrace(err)
 	}
 
-	resp, err := (&http.Client{
-		Timeout: time.Minute * 3,
-	}).Do(req)
+	resp, err := (&http.Client{}).Do(req)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
