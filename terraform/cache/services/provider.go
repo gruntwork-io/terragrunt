@@ -180,6 +180,34 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	return nil
 }
 
+func (cache *ProviderCache) removeArchive(ctx context.Context) error {
+	var (
+		lockFilename    = cache.lockFilename()
+		archiveFilename = cache.ArchiveFilename()
+	)
+
+	log.Debugf("Try to lock file %s", lockFilename)
+	lockfile, err := util.AcquireLockfile(ctx, lockFilename, maxAttemptsLockFile, waitNextAttepmtLockFile)
+	if err != nil {
+		return err
+	}
+	log.Debugf("Locked file %s", lockFilename)
+
+	defer func() {
+		lockfile.Unlock() //nolint:errcheck
+		log.Debugf("Released file %s", lockFilename)
+	}()
+
+	if util.FileExists(archiveFilename) {
+		log.Debugf("Remove archive file %s", archiveFilename)
+		if err := os.Remove(archiveFilename); err != nil {
+			return errors.WithStackTrace(err)
+		}
+	}
+
+	return nil
+}
+
 type ProviderService struct {
 	baseCacheDir string
 
@@ -274,12 +302,8 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 			}
 
 			for _, cache := range service.providerCaches {
-				for _, filename := range []string{cache.ArchiveFilename()} {
-					if util.FileExists(filename) {
-						if err := os.Remove(filename); err != nil {
-							merr = multierror.Append(merr, errors.WithStackTrace(err))
-						}
-					}
+				if err := cache.removeArchive(ctx); err != nil {
+					merr = multierror.Append(merr, errors.WithStackTrace(err))
 				}
 			}
 
