@@ -2,12 +2,9 @@ package cache
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"net/url"
-	"os"
-	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -85,23 +82,11 @@ func (server *Server) ProviderURL() *url.URL {
 }
 
 func (server *Server) Listen(ctx context.Context) error {
-	debugCtx, debugCancel := context.WithCancel(ctx)
-	defer debugCancel()
-
-	go func() {
-		select {
-		case <-debugCtx.Done():
-		case <-time.After(time.Minute * 1):
-			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to listen")
-			os.Exit(1)
-		}
-	}()
-
 	ln, err := net.Listen("tcp", server.config.Addr())
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
-	debugCancel()
+
 	server.Addr = ln.Addr().String()
 	server.listener = ln
 

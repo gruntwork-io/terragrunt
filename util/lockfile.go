@@ -2,6 +2,8 @@ package util
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -20,7 +22,7 @@ func (lockfile *Lockfile) Unlock() {
 		return
 	}
 
-	log.Debugf("Unlock file %s", lockfile.Path())
+	log.Tracef("Unlock file %s", lockfile.Path())
 	lockfile.Flock.Unlock() //nolint:errcheck
 }
 
@@ -30,12 +32,16 @@ func AcquireLockfile(ctx context.Context, filename string, maxAttempts int, wait
 		fileLock = flock.New(filename)
 	)
 
-	log.Debugf("Try to lock file %s", filename)
+	if err := os.MkdirAll(filepath.Dir(filename), os.ModePerm); err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
+	log.Tracef("Try to lock file %s", filename)
 	for {
 		if locked, err := fileLock.TryLock(); err != nil {
 			return nil, errors.WithStackTrace(err)
 		} else if locked {
-			log.Debugf("Locked file %s", filename)
+			log.Tracef("Locked file %s", filename)
 			lockfile := &Lockfile{fileLock}
 			lockfiles = append(lockfiles, lockfile)
 			return lockfile, nil
@@ -45,8 +51,7 @@ func AcquireLockfile(ctx context.Context, filename string, maxAttempts int, wait
 			return nil, errors.Errorf("unable to lock file %q, try removing file manually if you are sure no one terragrunt process is running", filename)
 		}
 		attepmt++
-
-		log.Debugf("File %q is already locked, next (%d of %d) locking attempt in %v", filename, attepmt, maxAttempts, waitForNextAttempt)
+		log.Tracef("File %q is already locked, next (%d of %d) locking attempt in %v", filename, attepmt, maxAttempts, waitForNextAttempt)
 
 		select {
 		case <-ctx.Done():

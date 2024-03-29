@@ -84,8 +84,6 @@ func NewApp(writer io.Writer, errWriter io.Writer) *App {
 }
 
 func (app *App) Run(args []string) error {
-	defer util.UnlockAllLockfiles()
-
 	ctx := context.Background()
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -312,10 +310,6 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions, action c
 		errGroup.Go(func() error {
 			return server.Run(ctx)
 		})
-	}
-
-	if action == nil {
-		return nil
 	}
 
 	// --- Run action

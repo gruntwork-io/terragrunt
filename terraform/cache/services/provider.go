@@ -59,7 +59,7 @@ func (cache *ProviderCache) platformDir() string {
 	return filepath.Join(cache.baseCacheDir, cache.Provider.Path(), cache.Platform())
 }
 
-func (cache *ProviderCache) terraformPluginProviderDir() string {
+func (cache *ProviderCache) terraformPluginPlatformDir() string {
 	return filepath.Join(cache.terraformPluginDir, cache.Provider.Path(), cache.Platform())
 }
 
@@ -76,19 +76,13 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	defer cancel()
 
 	var (
-		terraformPluginProviderDir = cache.terraformPluginProviderDir()
-		providerDir                = cache.providerDir()
+		terraformPluginPlatformDir = cache.terraformPluginPlatformDir()
 		platformDir                = cache.platformDir()
 		lockFilename               = cache.lockFilename()
 		archiveFilename            = cache.ArchiveFilename()
 
-		unpackedFound bool
+		alreadyCached bool
 	)
-
-	log.Debugf("Create provider cache directory %s", providerDir)
-	if err := os.MkdirAll(providerDir, os.ModePerm); err != nil {
-		return errors.WithStackTrace(err)
-	}
 
 	lockfile, err := util.AcquireLockfile(ctx, lockFilename, maxAttemptsLockFile, waitNextAttepmtLockFile)
 	if err != nil {
@@ -97,26 +91,27 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	defer lockfile.Unlock()
 
 	if !util.FileExists(platformDir) {
-		if util.FileExists(terraformPluginProviderDir) {
-			log.Debugf("Create symlink file %s to %s", platformDir, terraformPluginProviderDir)
-			if err := os.Symlink(terraformPluginProviderDir, platformDir); err != nil {
+		if util.FileExists(terraformPluginPlatformDir) {
+			log.Debugf("Create symlink file %s to %s", platformDir, terraformPluginPlatformDir)
+			if err := os.Symlink(terraformPluginPlatformDir, platformDir); err != nil {
 				return errors.WithStackTrace(err)
 			}
-			unpackedFound = true
+			alreadyCached = true
 		} else {
 			if err := os.MkdirAll(platformDir, os.ModePerm); err != nil {
 				return errors.WithStackTrace(err)
 			}
+			cache.needArchive = true
 		}
 	} else {
-		unpackedFound = true
+		alreadyCached = true
 	}
 
-	if (unpackedFound && !cache.cacheArchive) || cache.DownloadURL == nil {
-		return nil
-	}
+	if cache.needArchive && !util.FileExists(archiveFilename) {
+		if cache.DownloadURL == nil {
+			return errors.Errorf("failed to cache provider %q, the download URL is undefined", cache.Provider)
+		}
 
-	if !util.FileExists(archiveFilename) {
 		log.Debugf("Fetching provider %s", cache.Provider)
 		ctx, _ := context.WithTimeout(ctx, time.Minute*3)
 		if err := util.FetchFile(ctx, cache.DownloadURL.String(), archiveFilename); err != nil {
@@ -124,17 +119,12 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		}
 	}
 
-	if !unpackedFound {
+	if !alreadyCached {
 		log.Debugf("Decompress file %s", archiveFilename)
 		if err := unzip.Decompress(platformDir, archiveFilename, true, unzipFileMode); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
-
-	// select {
-	// case <-ctx.Done():
-	// case <-time.After(time.Second * 30):
-	// }
 
 	return nil
 }
@@ -171,15 +161,15 @@ type ProviderService struct {
 	cacheReadyMu sync.RWMutex
 
 	// If needCacheArchive is true, ensures that not only the unarchived binary is cached, but also its archive. We need acrhives in order to reduce the bandwidth, because `terraform lock provider` always loads providers from a remote registry to create a lock file rather than using a cached one. This is only used when opts.ProviderCompleteLock is true.
-	cacheArchive       bool
+	needArchive        bool
 	terraformPluginDir string
 }
 
-func NewProviderService(baseCacheDir string, cacheArchive bool) *ProviderService {
+func NewProviderService(baseCacheDir string, needArchive bool) *ProviderService {
 	return &ProviderService{
 		baseCacheDir:    baseCacheDir,
 		providerCacheCh: make(chan *ProviderCache),
-		cacheArchive:    cacheArchive,
+		needArchive:     needArchive,
 	}
 }
 
@@ -245,6 +235,7 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 				cache.ready = true
 
 				log.Infof("Provider %q is cached", cache.Provider)
+
 				return nil
 			})
 		case <-ctx.Done():
