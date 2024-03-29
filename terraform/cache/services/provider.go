@@ -91,7 +91,10 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer lockfile.Unlock()
+	defer func() {
+		lockfile.Unlock()
+		os.Remove(lockfile.Path()) //nolint:errcheck
+	}()
 
 	if !util.FileExists(platformDir) {
 		if util.FileExists(terraformPluginPlatformDir) {
@@ -236,7 +239,6 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 				cache.ready = true
 
 				log.Infof("Provider %q is cached", cache.Provider)
-
 				return nil
 			})
 		case <-ctx.Done():
