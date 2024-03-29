@@ -6,8 +6,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
@@ -16,14 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
-	"github.com/gruntwork-io/terragrunt/util"
 	"golang.org/x/sync/errgroup"
-)
-
-const (
-	serverPortlockfileName          = "cache-server-port.lock"
-	waitNextAttepmtToLockServerPort = time.Second
-	maxAttemptsToLockServerPort     = 120 // equals 1 min
 )
 
 // Server is a private Terraform cache for provider caching.
@@ -102,27 +93,6 @@ func (server *Server) Listen(ctx context.Context) error {
 		case <-time.After(time.Minute * 1):
 			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to listen")
 		}
-	}()
-
-	cacheDir, err := util.GetCacheDir()
-	if err != nil {
-		return err
-	}
-
-	lockfileName := filepath.Join(cacheDir, serverPortlockfileName)
-	if err := os.MkdirAll(filepath.Dir(lockfileName), os.ModePerm); err != nil {
-		return errors.WithStackTrace(err)
-	}
-
-	lockfile, err := util.AcquireLockfile(ctx, lockfileName, maxAttemptsToLockServerPort, waitNextAttepmtToLockServerPort)
-	if err != nil {
-		return err
-	}
-
-	log.Trace("Server listen is locked")
-	defer func() {
-		_ = lockfile.Unlock()
-		log.Tracef("Server listen is released")
 	}()
 
 	ln, err := net.Listen("tcp", server.config.Addr())
