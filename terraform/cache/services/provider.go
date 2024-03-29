@@ -122,7 +122,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if !alreadyCached {
-		log.Debugf("Decompress file %s", archiveFilename)
+		log.Debugf("Decompress provider archive %s", archiveFilename)
 		if err := unzip.Decompress(platformDir, archiveFilename, true, unzipFileMode); err != nil {
 			return errors.WithStackTrace(err)
 		}
@@ -137,7 +137,7 @@ func (cache *ProviderCache) removeArchive(ctx context.Context) error {
 	)
 
 	if cache.needCacheArchive && util.FileExists(archiveFilename) {
-		log.Debugf("Remove archive file %s", archiveFilename)
+		log.Tracef("Remove provider cache archive %s", archiveFilename)
 		if err := os.Remove(archiveFilename); err != nil {
 			return errors.WithStackTrace(err)
 		}
@@ -230,7 +230,7 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 				defer service.cacheReadyMu.RUnlock()
 
 				if err := cache.warmUp(ctx); err != nil {
-					os.Remove(cache.platformDir())
+					os.Remove(cache.platformDir()) //nolint:errcheck
 					return err
 				}
 				cache.ready = true
