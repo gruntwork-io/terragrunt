@@ -142,20 +142,6 @@ jobs:
       - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.30.0'
       - run:
           <<: *install_tflint
-
-      - run:
-      # Install Terraform 1.6 for integration tests
-          command: |
-            pushd .
-            cd /tmp
-            curl -L "https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip" -o terraform.zip
-            unzip -o terraform.zip
-            sudo install -m 0755 terraform /usr/local/bin/terraform
-            rm -rf terraform
-            rm -rf terraform.zip
-            popd
-            terraform --version
-
       # Make GCP Service Account creds available as a file
       - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
       - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
