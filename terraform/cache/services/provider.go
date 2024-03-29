@@ -113,17 +113,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 
 	step = 2
 	log.Debugf("Locked file %s", lockFilename)
-	go func() {
-		select {
-		case <-ctx.Done():
-		case <-time.After(time.Minute * 2):
-			step = 11
-			cancel()
-			lockfile.Unlock() //nolint:errcheck
-			log.Debugf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Released file %s", lockFilename)
-		}
-	}()
-
 	defer func() {
 		step = 10
 		lockfile.Unlock() //nolint:errcheck

@@ -686,7 +686,9 @@ func FetchFile(ctx context.Context, downloadURL, saveToFile string) error {
 		return errors.WithStackTrace(err)
 	}
 
-	resp, err := (&http.Client{}).Do(req)
+	resp, err := (&http.Client{
+		Timeout: time.Minute * 3,
+	}).Do(req)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
