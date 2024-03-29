@@ -130,12 +130,12 @@ func (server *Server) Listen(ctx context.Context) error {
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
+	debugCancel()
 
 	ln, err := net.ListenTCP("tcp", addr)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
-	debugCancel()
 
 	server.Addr = ln.Addr().String()
 	server.listener = ln
