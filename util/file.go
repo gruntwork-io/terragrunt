@@ -658,11 +658,9 @@ func AcquireLockfile(ctx context.Context, filename string, maxAttempts int, wait
 	)
 
 	for {
-		locked, err := fileLock.TryLock()
-		if err != nil {
+		if locked, err := fileLock.TryLock(); err != nil {
 			return nil, errors.WithStackTrace(err)
-		}
-		if locked {
+		} else if locked {
 			return fileLock, nil
 		}
 
@@ -681,28 +679,27 @@ func AcquireLockfile(ctx context.Context, filename string, maxAttempts int, wait
 	}
 }
 
-// FetchFile downloads the file at the given `downloadURL` to the given `savePath` file.
-func FetchFile(ctx context.Context, downloadURL, savePath string) error {
-	ctx, cancel := context.WithTimeout(ctx, time.Minute*2)
+// FetchFile downloads the file from the given `downloadURL` into the specified `saveToFile` file.
+func FetchFile(ctx context.Context, downloadURL, saveToFile string) error {
+	ctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 	defer cancel()
-
-	out, err := os.Create(savePath)
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-	defer out.Close() //nolint:errcheck
 
 	req, err := http.NewRequestWithContext(ctx, "GET", downloadURL, nil)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
-	client := &http.Client{}
 
-	resp, err := client.Do(req)
+	resp, err := (&http.Client{}).Do(req)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 	defer resp.Body.Close() //nolint:errcheck
+
+	out, err := os.Create(saveToFile)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	defer out.Close() //nolint:errcheck
 
 	if _, err := io.Copy(out, resp.Body); err != nil {
 		return errors.WithStackTrace(err)

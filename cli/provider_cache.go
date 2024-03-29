@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/terraform/cache/controllers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/util"
+	"golang.org/x/exp/maps"
 )
 
 const (
@@ -55,9 +56,11 @@ func initProviderCache(ctx context.Context, opts *options.TerragruntOptions) (co
 		return nil, nil, err
 	}
 
-	if err := prepareProviderCacheEnvironment(opts, proxyServer.ProviderURL()); err != nil {
+	cliConfigFile := filepath.Join(opts.DownloadDir, defaultLocalTerraformCLIFilename)
+	if err := createLocalCLIConfig(opts, cliConfigFile, proxyServer.ProviderURL()); err != nil {
 		return nil, nil, err
 	}
+	opts.Env = providerCacheEnvironment(opts, cliConfigFile)
 
 	ctx = shell.ContextWithTerraformCommandHook(ctx,
 		func(ctx context.Context, opts *options.TerragruntOptions, args []string) error {
@@ -116,27 +119,23 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 	return nil
 }
 
-// prepareProviderCacheEnvironment creates a local CLI config and defines Terraform envs.
-func prepareProviderCacheEnvironment(opts *options.TerragruntOptions, registryProviderURL *url.URL) error {
-	cliConfigFile := filepath.Join(opts.DownloadDir, defaultLocalTerraformCLIFilename)
-
-	if err := createLocalCLIConfig(opts, cliConfigFile, registryProviderURL); err != nil {
-		return err
-	}
+func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile string) map[string]string {
+	envs := make(map[string]string)
+	maps.Copy(envs, opts.Env)
 
 	for _, registryName := range opts.RegistryNames {
 		envName := fmt.Sprintf(terraform.EnvNameTFTokenFmt, strings.ReplaceAll(registryName, ".", "_"))
-		opts.Env[envName] = opts.RegistryToken
+		envs[envName] = opts.RegistryToken
 	}
 
 	if !opts.ProviderCompleteLock {
-		opts.Env[terraform.EnvNameTFPluginCacheMayBreakDependencyLockFile] = "1"
+		envs[terraform.EnvNameTFPluginCacheMayBreakDependencyLockFile] = "1"
 	}
 
-	opts.Env[terraform.EnvNameTFCLIConfigFile] = cliConfigFile
-	opts.Env[terraform.EnvNameTFPluginCacheDir] = ""
+	envs[terraform.EnvNameTFCLIConfigFile] = cliConfigFile
+	envs[terraform.EnvNameTFPluginCacheDir] = ""
 
-	return nil
+	return envs
 }
 
 // createLocalCLIConfig creates a local CLI configuration that merges the default/user configuration with our Private Registry configuration.
