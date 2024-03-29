@@ -80,9 +80,9 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	go func() {
 		select {
 		case <-debugCtx.Done():
-		case <-time.After(time.Minute * 3):
+		case <-time.After(time.Minute * 4):
 			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to warmup cache", step, cache.Provider)
-			time.Sleep(time.Minute * 5)
+			time.Sleep(time.Minute * 4)
 			os.Exit(1)
 		}
 	}()
