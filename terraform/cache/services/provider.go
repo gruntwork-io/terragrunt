@@ -19,9 +19,9 @@ import (
 )
 
 var (
-	unzipFileMode                      = os.FileMode(0000)
-	waitNextAttepmtToLockProviderCache = time.Second * 5
-	maxAttemptsToLockProviderCache     = 60 // equals 5 mins
+	unzipFileMode           = os.FileMode(0000)
+	waitNextAttepmtLockFile = time.Second * 5
+	maxAttemptsLockFile     = 60 // equals 5 mins
 )
 
 // Borrow the "unpack a zip cache into a target directory" logic from
@@ -77,6 +77,15 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	defer debugCancel()
 
 	var step int
+	go func() {
+		select {
+		case <-debugCtx.Done():
+		case <-time.After(time.Minute * 3):
+			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to warmup cache", step, cache.Provider)
+			time.Sleep(time.Minute * 5)
+			os.Exit(1)
+		}
+	}()
 
 	var (
 		terraformPluginProviderDir = cache.terraformPluginProviderDir()
@@ -95,17 +104,10 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 
 	step = 1
 	log.Tracef("Try to lock file %s", lockFilename)
-	lockfile, err := util.AcquireLockfile(ctx, lockFilename, maxAttemptsToLockProviderCache, waitNextAttepmtToLockProviderCache)
+	lockfile, err := util.AcquireLockfile(ctx, lockFilename, maxAttemptsLockFile, waitNextAttepmtLockFile)
 	if err != nil {
 		return err
 	}
-	go func() {
-		select {
-		case <-debugCtx.Done():
-		case <-time.After(time.Minute * 5):
-			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to warmup cache", step)
-		}
-	}()
 
 	step = 2
 	log.Tracef("Locked file %s", lockFilename)
