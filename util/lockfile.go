@@ -1,7 +1,12 @@
 package util
 
 import (
+	"context"
+	"time"
+
 	"github.com/gofrs/flock"
+	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 type Lockfile struct {
@@ -14,43 +19,48 @@ func NewLockfile(filename string) *Lockfile {
 	}
 }
 
-// func (lockfile *Lockfile) Unlock() {
-// 	if !lockfile.Locked() {
-// 		return
-// 	}
+func (lockfile *Lockfile) Unlock() {
+	if !lockfile.Locked() {
+		return
+	}
 
-// 	log.Tracef("Unlock file %s", lockfile.Path())
-// 	lockfile.Flock.Unlock() //nolint:errcheck
-// }
+	log.Tracef("Unlock file %s", lockfile.Path())
+	lockfile.Flock.Unlock() //nolint:errcheck
+}
 
-// func (lockfile *Lockfile) Lock(ctx context.Context, retryDelay time.Duration) error {
-// 	var attepmt int
+func (lockfile *Lockfile) Lock(ctx context.Context, maxRetries int, retryDelay time.Duration) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 
-// 	log.Tracef("Try to lock file %s", lockfile.Path())
-// 	for {
-// 		if locked, err := lockfile.Flock.TryLockContext(ctx, retryDelay); err != nil {
-// 			return errors.WithStackTrace(err)
-// 		} else if locked {
-// 			log.Tracef("Locked file %s", lockfile.Path())
-// 			return nil
-// 		}
+	var repeat int
 
-// 		if attepmt >= maxAttempts {
-// 			return errors.Errorf("unable to lock file %q, try removing file manually if you are sure no one terragrunt process is running", lockfile.Path())
-// 		}
-// 		attepmt++
-// 		log.Tracef("File %q is already locked, next (%d of %d) locking attempt in %v", lockfile.Path(), attepmt, maxAttempts, waitForNextAttempt)
+	log.Tracef("Try to lock file %s", lockfile.Path())
+	for {
+		if locked, err := lockfile.Flock.TryLock(); err != nil {
+			return errors.WithStackTrace(err)
+		} else if locked {
+			log.Tracef("Locked file %s", lockfile.Path())
+			return nil
+		}
 
-// 		select {
-// 		case <-ctx.Done():
-// 			return ctx.Err()
-// 		case <-time.After(waitForNextAttempt):
-// 		}
-// 	}
-// }
+		if repeat >= maxRetries {
+			return errors.Errorf("unable to lock file %q, try removing file manually if you are sure no one terragrunt process is running", lockfile.Path())
+		}
+		repeat++
+		log.Tracef("File %q is already locked, next (%d of %d) lock attempt in %v", lockfile.Path(), repeat, maxRetries, retryDelay)
 
-// func AcquireLockfile(ctx context.Context, filename string, maxAttempts int, waitForNextAttempt time.Duration) (*Lockfile, error) {
-// 	lockfile := NewLockfile(filename)
-// 	err := lockfile.Lock(ctx, maxAttempts, waitForNextAttempt)
-// 	return lockfile, err
-// }
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(retryDelay):
+			// try again
+		}
+	}
+}
+
+func AcquireLockfile(ctx context.Context, filename string, maxRetries int, retryDelay time.Duration) (*Lockfile, error) {
+	lockfile := NewLockfile(filename)
+	err := lockfile.Lock(ctx, maxRetries, retryDelay)
+	return lockfile, err
+}

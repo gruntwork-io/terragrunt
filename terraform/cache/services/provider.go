@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gofrs/flock"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
@@ -19,9 +18,9 @@ import (
 )
 
 var (
-	unzipFileMode           = os.FileMode(0000)
-	waitNextAttepmtLockFile = time.Second * 5
-	maxAttemptsLockFile     = 60 // equals 5 mins
+	unzipFileMode      = os.FileMode(0000)
+	retryDelayLockfile = time.Second * 5
+	maxRetriesLockfile = 60 // equals 5 mins
 )
 
 // Borrow the "unpack a zip cache into a target directory" logic from
@@ -79,8 +78,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		platformDir                = cache.platformDir()
 		providerDir                = cache.providerDir()
 		archiveFilename            = cache.ArchiveFilename()
-		lcokfileName               = cache.lockFilename()
-		lockfile                   = flock.New(lcokfileName)
+		lockfileName               = cache.lockFilename()
 
 		alreadyCached bool
 	)
@@ -89,10 +87,9 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.WithStackTrace(err)
 	}
 
-	if locked, err := lockfile.TryLockContext(ctx, waitNextAttepmtLockFile); err != nil {
+	lockfile, err := util.AcquireLockfile(ctx, lockfileName, maxRetriesLockfile, retryDelayLockfile)
+	if err != nil {
 		return err
-	} else if !locked {
-		return errors.Errorf("filed to lock file %q", lcokfileName)
 	}
 	defer lockfile.Unlock()
 
@@ -139,7 +136,7 @@ func (cache *ProviderCache) removeArchive(ctx context.Context) error {
 		archiveFilename = cache.ArchiveFilename()
 	)
 
-	if util.FileExists(archiveFilename) {
+	if cache.needCacheArchive && util.FileExists(archiveFilename) {
 		log.Debugf("Remove archive file %s", archiveFilename)
 		if err := os.Remove(archiveFilename); err != nil {
 			return errors.WithStackTrace(err)
@@ -252,10 +249,8 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 			}
 
 			for _, cache := range service.providerCaches {
-				if cache.needCacheArchive {
-					if err := cache.removeArchive(ctx); err != nil {
-						merr = multierror.Append(merr, errors.WithStackTrace(err))
-					}
+				if err := cache.removeArchive(ctx); err != nil {
+					merr = multierror.Append(merr, errors.WithStackTrace(err))
 				}
 			}
 
