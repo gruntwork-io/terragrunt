@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gofrs/flock"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
@@ -44,7 +45,8 @@ type ProviderCache struct {
 	*ProviderService
 	*models.Provider
 
-	ready bool
+	needCacheArchive bool
+	ready            bool
 }
 
 func (cache *ProviderCache) providerDir() string {
@@ -77,8 +79,8 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		platformDir                = cache.platformDir()
 		providerDir                = cache.providerDir()
 		archiveFilename            = cache.ArchiveFilename()
-		lockFilename               = cache.lockFilename()
-		needCacheArchive           = cache.needCacheArchive
+		lcokfileName               = cache.lockFilename()
+		lockfile                   = flock.New(lcokfileName)
 
 		alreadyCached bool
 	)
@@ -87,9 +89,10 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.WithStackTrace(err)
 	}
 
-	lockfile, err := util.AcquireLockfile(ctx, lockFilename, maxAttemptsLockFile, waitNextAttepmtLockFile)
-	if err != nil {
+	if locked, err := lockfile.TryLockContext(ctx, waitNextAttepmtLockFile); err != nil {
 		return err
+	} else if !locked {
+		return errors.Errorf("filed to lock file %q", lcokfileName)
 	}
 	defer lockfile.Unlock()
 
@@ -104,13 +107,13 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 			if err := os.MkdirAll(platformDir, os.ModePerm); err != nil {
 				return errors.WithStackTrace(err)
 			}
-			needCacheArchive = true
+			cache.needCacheArchive = true
 		}
 	} else {
 		alreadyCached = true
 	}
 
-	if needCacheArchive && !util.FileExists(archiveFilename) {
+	if cache.needCacheArchive && !util.FileExists(archiveFilename) {
 		if cache.DownloadURL == nil {
 			return errors.Errorf("failed to cache provider %q, the download URL is undefined", cache.Provider)
 		}
@@ -134,14 +137,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 func (cache *ProviderCache) removeArchive(ctx context.Context) error {
 	var (
 		archiveFilename = cache.ArchiveFilename()
-		lockFilename    = cache.lockFilename()
 	)
-
-	lockfile, err := util.AcquireLockfile(ctx, lockFilename, maxAttemptsLockFile, waitNextAttepmtLockFile)
-	if err != nil {
-		return err
-	}
-	defer lockfile.Unlock()
 
 	if util.FileExists(archiveFilename) {
 		log.Debugf("Remove archive file %s", archiveFilename)
@@ -191,8 +187,9 @@ func (service *ProviderService) CacheProvider(provider *models.Provider) {
 	}
 
 	cache := &ProviderCache{
-		ProviderService: service,
-		Provider:        provider,
+		ProviderService:  service,
+		Provider:         provider,
+		needCacheArchive: service.needCacheArchive,
 	}
 
 	service.providerCacheCh <- cache
@@ -255,8 +252,10 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 			}
 
 			for _, cache := range service.providerCaches {
-				if err := cache.removeArchive(ctx); err != nil {
-					merr = multierror.Append(merr, errors.WithStackTrace(err))
+				if cache.needCacheArchive {
+					if err := cache.removeArchive(ctx); err != nil {
+						merr = multierror.Append(merr, errors.WithStackTrace(err))
+					}
 				}
 			}
 
