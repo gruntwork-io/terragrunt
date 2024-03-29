@@ -218,7 +218,11 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 	errGroup, ctx := errgroup.WithContext(ctx)
 	for {
 		select {
-		case cache := <-service.providerCacheCh:
+		case cache, ok := <-service.providerCacheCh:
+			if !ok {
+				return nil
+			}
+
 			errGroup.Go(func() error {
 				service.cacheReadyMu.RLock()
 				defer service.cacheReadyMu.RUnlock()
@@ -233,20 +237,32 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 				return nil
 			})
 		case <-ctx.Done():
+			close(service.providerCacheCh)
+
 			merr := &multierror.Error{}
 
-			if err := errGroup.Wait(); err != nil {
-				merr = multierror.Append(merr, err)
-			}
+			// if err := errGroup.Wait(); err != nil {
+			// 	merr = multierror.Append(merr, err)
+			// }
 
-			for _, cache := range service.providerCaches {
-				// if err := cache.removeArchive(ctx); err != nil {
-				// 	merr = multierror.Append(merr, errors.WithStackTrace(err))
-				// }
-				cache.lockfile.Unlock()
+			if err := service.ClearCaches(); err != nil {
+				merr = multierror.Append(merr, err)
 			}
 
 			return merr.ErrorOrNil()
 		}
 	}
+}
+
+func (service *ProviderService) ClearCaches() error {
+	merr := &multierror.Error{}
+
+	for _, cache := range service.providerCaches {
+		// if err := cache.removeArchive(ctx); err != nil {
+		// 	merr = multierror.Append(merr, errors.WithStackTrace(err))
+		// }
+		cache.lockfile.Unlock()
+	}
+
+	return merr.ErrorOrNil()
 }
