@@ -4,28 +4,29 @@ import (
 	"context"
 	"time"
 
-	"github.com/gofrs/flock"
+	"github.com/alexflint/go-filemutex"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 type Lockfile struct {
-	*flock.Flock
+	lock     *filemutex.FileMutex
+	filename string
 }
 
 func NewLockfile(filename string) *Lockfile {
 	return &Lockfile{
-		flock.New(filename),
+		filename: filename,
 	}
 }
 
-func (lockfile *Lockfile) Unlock() {
-	if !lockfile.Locked() {
-		return
-	}
+func (lockfile *Lockfile) Path() string {
+	return lockfile.filename
+}
 
+func (lockfile *Lockfile) Unlock() {
 	log.Tracef("Unlock file %s", lockfile.Path())
-	lockfile.Flock.Unlock() //nolint:errcheck
+	lockfile.lock.Unlock() //nolint:errcheck
 }
 
 func (lockfile *Lockfile) Lock(ctx context.Context, maxRetries int, retryDelay time.Duration) error {
@@ -35,11 +36,19 @@ func (lockfile *Lockfile) Lock(ctx context.Context, maxRetries int, retryDelay t
 
 	var repeat int
 
+	lock, err := filemutex.New(lockfile.Path())
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	lockfile.lock = lock
+
 	log.Tracef("Try to lock file %s", lockfile.Path())
 	for {
-		if locked, err := lockfile.Flock.TryLock(); err != nil {
-			return errors.WithStackTrace(err)
-		} else if locked {
+		if err := lock.TryLock(); err != nil {
+			if err != filemutex.AlreadyLocked {
+				return errors.WithStackTrace(err)
+			}
+		} else {
 			log.Tracef("Locked file %s", lockfile.Path())
 			return nil
 		}

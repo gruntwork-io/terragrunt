@@ -91,10 +91,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		lockfile.Unlock()
-		os.Remove(lockfile.Path()) //nolint:errcheck
-	}()
+	defer lockfile.Unlock()
 
 	if !util.FileExists(platformDir) {
 		if util.FileExists(terraformPluginPlatformDir) {
@@ -130,6 +127,8 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 			return errors.WithStackTrace(err)
 		}
 	}
+
+	time.Sleep(time.Second * 30)
 
 	return nil
 }
