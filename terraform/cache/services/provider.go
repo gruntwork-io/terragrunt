@@ -72,9 +72,6 @@ func (cache *ProviderCache) ArchiveFilename() string {
 
 // warmUp checks if the binary file already exists in the cache directory, if not, downloads the archive and unzip it.
 func (cache *ProviderCache) warmUp(ctx context.Context) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	var (
 		terraformPluginPlatformDir = cache.terraformPluginPlatformDir()
 		platformDir                = cache.platformDir()
@@ -101,20 +98,20 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 			if err := os.MkdirAll(platformDir, os.ModePerm); err != nil {
 				return errors.WithStackTrace(err)
 			}
-			cache.needArchive = true
+			cache.needCacheArchive = true
 		}
 	} else {
 		alreadyCached = true
 	}
 
-	if cache.needArchive && !util.FileExists(archiveFilename) {
+	if cache.needCacheArchive && !util.FileExists(archiveFilename) {
 		if cache.DownloadURL == nil {
 			return errors.Errorf("failed to cache provider %q, the download URL is undefined", cache.Provider)
 		}
 
 		log.Debugf("Fetching provider %s", cache.Provider)
-		ctx, _ := context.WithTimeout(ctx, time.Minute*3)
 		if err := util.FetchFile(ctx, cache.DownloadURL.String(), archiveFilename); err != nil {
+			os.Remove(archiveFilename)
 			return err
 		}
 	}
@@ -122,6 +119,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	if !alreadyCached {
 		log.Debugf("Decompress file %s", archiveFilename)
 		if err := unzip.Decompress(platformDir, archiveFilename, true, unzipFileMode); err != nil {
+			os.RemoveAll(platformDir)
 			return errors.WithStackTrace(err)
 		}
 	}
@@ -161,15 +159,15 @@ type ProviderService struct {
 	cacheReadyMu sync.RWMutex
 
 	// If needCacheArchive is true, ensures that not only the unarchived binary is cached, but also its archive. We need acrhives in order to reduce the bandwidth, because `terraform lock provider` always loads providers from a remote registry to create a lock file rather than using a cached one. This is only used when opts.ProviderCompleteLock is true.
-	needArchive        bool
+	needCacheArchive   bool
 	terraformPluginDir string
 }
 
-func NewProviderService(baseCacheDir string, needArchive bool) *ProviderService {
+func NewProviderService(baseCacheDir string, needCacheArchive bool) *ProviderService {
 	return &ProviderService{
-		baseCacheDir:    baseCacheDir,
-		providerCacheCh: make(chan *ProviderCache),
-		needArchive:     needArchive,
+		baseCacheDir:     baseCacheDir,
+		providerCacheCh:  make(chan *ProviderCache),
+		needCacheArchive: needCacheArchive,
 	}
 }
 
