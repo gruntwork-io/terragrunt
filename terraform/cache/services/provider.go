@@ -97,30 +97,30 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		unpackedFound bool
 	)
 
-	log.Tracef("Create provider cache directory %s", providerDir)
+	log.Debugf("Create provider cache directory %s", providerDir)
 	if err := os.MkdirAll(providerDir, os.ModePerm); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
 	step = 1
-	log.Tracef("Try to lock file %s", lockFilename)
+	log.Debugf("Try to lock file %s", lockFilename)
 	lockfile, err := util.AcquireLockfile(ctx, lockFilename, maxAttemptsLockFile, waitNextAttepmtLockFile)
 	if err != nil {
 		return err
 	}
 
 	step = 2
-	log.Tracef("Locked file %s", lockFilename)
+	log.Debugf("Locked file %s", lockFilename)
 	defer func() {
 		step = 10
 		lockfile.Unlock() //nolint:errcheck
-		log.Tracef("Released file %s", lockFilename)
+		log.Debugf("Released file %s", lockFilename)
 	}()
 
 	step = 3
 	if !util.FileExists(platformDir) {
 		if util.FileExists(terraformPluginProviderDir) {
-			log.Tracef("Create symlink file %s to %s", platformDir, terraformPluginProviderDir)
+			log.Debugf("Create symlink file %s to %s", platformDir, terraformPluginProviderDir)
 			if err := os.Symlink(terraformPluginProviderDir, platformDir); err != nil {
 				return errors.WithStackTrace(err)
 			}
@@ -152,7 +152,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 
 	if !unpackedFound {
 		step = 8
-		log.Tracef("Decompress file %s", archiveFilename)
+		log.Debugf("Decompress file %s", archiveFilename)
 		if err := unzip.Decompress(platformDir, archiveFilename, true, unzipFileMode); err != nil {
 			return errors.WithStackTrace(err)
 		}
