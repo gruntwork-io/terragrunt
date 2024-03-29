@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
@@ -93,7 +92,6 @@ func (server *Server) Listen(ctx context.Context) error {
 		case <-debugCtx.Done():
 		case <-time.After(time.Minute * 1):
 			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to listen")
-			os.Exit(1)
 		}
 	}()
 
