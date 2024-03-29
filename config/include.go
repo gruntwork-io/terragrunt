@@ -89,7 +89,7 @@ func parseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*T
 		return PartialParseConfigFile(ctx, includePath, includedConfig)
 	}
 
-	return ParseConfigFile(ctx, includePath, includedConfig)
+	return ParseConfigFile(ctx.TerragruntOptions, ctx, includePath, includedConfig)
 }
 
 // handleInclude merges the included config into the current config depending on the merge strategy specified by the

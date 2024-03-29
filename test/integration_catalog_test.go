@@ -106,7 +106,7 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 	assert.Equal(t, 1, len(cfg.Inputs))
 	_, found := cfg.Inputs["vpc_id"]
 	assert.True(t, found)
-	assert.Contains(t, *cfg.Terraform.Source, "git::https://github.com/gruntwork-io/terraform-fake-modules//modules/aws/aurora?ref=v0.0.5")
+	assert.Contains(t, *cfg.Terraform.Source, "git::https://github.com/gruntwork-io/terraform-fake-modules.git//modules/aws/aurora?ref=v0.0.5")
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt init --terragrunt-non-interactive --terragrunt-working-dir %s", opts.WorkingDir))
 }

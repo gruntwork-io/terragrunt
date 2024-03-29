@@ -10,15 +10,14 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"go.mozilla.org/sops/v3/cmd/sops/formats"
-
+	"github.com/getsops/sops/v3/cmd/sops/formats"
+	"github.com/getsops/sops/v3/decrypt"
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2"
 	tflang "github.com/hashicorp/terraform/lang"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 	"github.com/zclconf/go-cty/cty/gocty"
-	"go.mozilla.org/sops/v3/decrypt"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
@@ -188,11 +187,11 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 	}
 	evalCtx.Variables = map[string]cty.Value{}
 	if ctx.Locals != nil {
-		evalCtx.Variables["local"] = *ctx.Locals
+		evalCtx.Variables[MetadataLocal] = *ctx.Locals
 	}
 
 	if ctx.DecodedDependencies != nil {
-		evalCtx.Variables["dependency"] = *ctx.DecodedDependencies
+		evalCtx.Variables[MetadataDependency] = *ctx.DecodedDependencies
 	}
 	if ctx.TrackInclude != nil && len(ctx.TrackInclude.CurrentList) > 0 {
 		// For each include block, check if we want to expose the included config, and if so, add under the include
@@ -307,7 +306,7 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 
 // runCommandCache - cache of evaluated `run_cmd` invocations
 // see: https://github.com/gruntwork-io/terragrunt/issues/1427
-var runCommandCache = NewStringCache()
+var runCommandCache = NewCache[string]()
 
 // runCommand is a helper function that runs a command and returns the stdout as the interporation
 // for each `run_cmd` in locals section, function is called twice
@@ -516,7 +515,7 @@ func getWorkingDir(ctx *ParsingContext) (string, error) {
 		FuncNameGetWorkingDir: wrapVoidToEmptyStringAsFuncImpl(),
 	}
 
-	terragruntConfig, err := ParseConfigFile(ctx, ctx.TerragruntOptions.TerragruntConfigPath, nil)
+	terragruntConfig, err := ParseConfigFile(ctx.TerragruntOptions, ctx, ctx.TerragruntOptions.TerragruntConfigPath, nil)
 	if err != nil {
 		return "", err
 	}
@@ -591,7 +590,7 @@ func readTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *ct
 
 	// We update the ctx of terragruntOptions to the config being read in.
 	ctx = ctx.WithTerragruntOptions(ctx.TerragruntOptions.Clone(targetConfig))
-	config, err := ParseConfigFile(ctx, targetConfig, nil)
+	config, err := ParseConfigFile(ctx.TerragruntOptions, ctx, targetConfig, nil)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -725,7 +724,7 @@ func getModulePathFromSourceUrl(sourceUrl string) (string, error) {
 //
 // The cache keys are the canonical paths to the encrypted files, and the values are the
 // plain-text result of the decrypt operation.
-var sopsCache = NewStringCache()
+var sopsCache = NewCache[string]()
 
 // decrypts and returns sops encrypted utf-8 yaml or json data as a string
 func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {

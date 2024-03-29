@@ -496,7 +496,10 @@ func testToRunningModules(t *testing.T, modules []*TerraformModule, order Depend
 func TestRunModulesNoModules(t *testing.T) {
 	t.Parallel()
 
-	err := RunModules([]*TerraformModule{}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModules(opts, []*TerraformModule{}, options.DefaultParallelism)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 }
 
@@ -511,7 +514,10 @@ func TestRunModulesOneModuleSuccess(t *testing.T) {
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
-	err := RunModules([]*TerraformModule{moduleA}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModules(opts, []*TerraformModule{moduleA}, options.DefaultParallelism)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	assert.True(t, aRan)
 }
@@ -528,7 +534,10 @@ func TestRunModulesOneModuleAssumeAlreadyRan(t *testing.T) {
 		AssumeAlreadyApplied: true,
 	}
 
-	err := RunModules([]*TerraformModule{moduleA}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModules(opts, []*TerraformModule{moduleA}, options.DefaultParallelism)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	assert.False(t, aRan)
 }
@@ -544,7 +553,10 @@ func TestRunModulesReverseOrderOneModuleSuccess(t *testing.T) {
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
-	err := RunModulesReverseOrder([]*TerraformModule{moduleA}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModulesReverseOrder(opts, []*TerraformModule{moduleA}, options.DefaultParallelism)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	assert.True(t, aRan)
 }
@@ -560,7 +572,10 @@ func TestRunModulesIgnoreOrderOneModuleSuccess(t *testing.T) {
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
-	err := RunModulesIgnoreOrder([]*TerraformModule{moduleA}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModulesIgnoreOrder(opts, []*TerraformModule{moduleA}, options.DefaultParallelism)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 	assert.True(t, aRan)
 }
@@ -577,7 +592,10 @@ func TestRunModulesOneModuleError(t *testing.T) {
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", expectedErrA, &aRan),
 	}
 
-	err := RunModules([]*TerraformModule{moduleA}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModules(opts, []*TerraformModule{moduleA}, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA)
 	assert.True(t, aRan)
 }
@@ -594,7 +612,10 @@ func TestRunModulesReverseOrderOneModuleError(t *testing.T) {
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", expectedErrA, &aRan),
 	}
 
-	err := RunModulesReverseOrder([]*TerraformModule{moduleA}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModulesReverseOrder(opts, []*TerraformModule{moduleA}, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA)
 	assert.True(t, aRan)
 }
@@ -611,7 +632,10 @@ func TestRunModulesIgnoreOrderOneModuleError(t *testing.T) {
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", expectedErrA, &aRan),
 	}
 
-	err := RunModulesIgnoreOrder([]*TerraformModule{moduleA}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModulesIgnoreOrder(opts, []*TerraformModule{moduleA}, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA)
 	assert.True(t, aRan)
 }
@@ -643,7 +667,10 @@ func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModules(opts, []*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -678,7 +705,10 @@ func TestRunModulesMultipleModulesNoDependenciesSuccessNoParallelism(t *testing.
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC}, 1)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModules(opts, []*TerraformModule{moduleA, moduleB, moduleC}, 1)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -713,7 +743,10 @@ func TestRunModulesReverseOrderMultipleModulesNoDependenciesSuccess(t *testing.T
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	err := RunModulesReverseOrder([]*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModulesReverseOrder(opts, []*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -748,7 +781,10 @@ func TestRunModulesIgnoreOrderMultipleModulesNoDependenciesSuccess(t *testing.T)
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	err := RunModulesIgnoreOrder([]*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModulesIgnoreOrder(opts, []*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -784,7 +820,10 @@ func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
+	opts, optsErr := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, optsErr)
+
+	err := RunModules(opts, []*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB)
 
 	assert.True(t, aRan)
@@ -822,7 +861,10 @@ func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", expectedErrC, &cRan),
 	}
 
-	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModules(opts, []*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA, expectedErrB, expectedErrC)
 
 	assert.True(t, aRan)
@@ -857,7 +899,10 @@ func TestRunModulesMultipleModulesWithDependenciesSuccess(t *testing.T) {
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModules(opts, []*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -901,7 +946,10 @@ func TestRunModulesMultipleModulesWithDependenciesWithAssumeAlreadyRanSuccess(t 
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "d", nil, &dRan),
 	}
 
-	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC, moduleD}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModules(opts, []*TerraformModule{moduleA, moduleB, moduleC, moduleD}, options.DefaultParallelism)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -937,7 +985,10 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesSuccess(t *testing
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	err := RunModulesReverseOrder([]*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModulesReverseOrder(opts, []*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -972,7 +1023,10 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesSuccess(t *testing.
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	err := RunModulesIgnoreOrder([]*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModulesIgnoreOrder(opts, []*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
 	assert.Nil(t, err, "Unexpected error: %v", err)
 
 	assert.True(t, aRan)
@@ -1010,7 +1064,10 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 
 	expectedErrC := DependencyFinishedWithError{moduleC, moduleB, expectedErrB}
 
-	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModules(opts, []*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB, expectedErrC)
 
 	assert.True(t, aRan)
@@ -1052,7 +1109,10 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErro
 		TerragruntOptions: terragruntOptionsC,
 	}
 
-	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModules(opts, []*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB)
 
 	assert.True(t, aRan)
@@ -1090,7 +1150,10 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *test
 
 	expectedErrA := DependencyFinishedWithError{moduleA, moduleB, expectedErrB}
 
-	err := RunModulesReverseOrder([]*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModulesReverseOrder(opts, []*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB, expectedErrA)
 
 	assert.False(t, aRan)
@@ -1126,7 +1189,10 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesOneFailure(t *testi
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	err := RunModulesIgnoreOrder([]*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModulesIgnoreOrder(opts, []*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB)
 
 	assert.True(t, aRan)
@@ -1165,7 +1231,10 @@ func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T)
 	expectedErrB := DependencyFinishedWithError{moduleB, moduleA, expectedErrA}
 	expectedErrC := DependencyFinishedWithError{moduleC, moduleB, expectedErrB}
 
-	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModules(opts, []*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA, expectedErrB, expectedErrC)
 
 	assert.True(t, aRan)
@@ -1201,7 +1270,10 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesMultipleFailures(t 
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	err := RunModulesIgnoreOrder([]*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModulesIgnoreOrder(opts, []*TerraformModule{moduleA, moduleB, moduleC}, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA)
 
 	assert.True(t, aRan)
@@ -1260,7 +1332,10 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testin
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "f", nil, &fRan),
 	}
 
-	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModules(opts, []*TerraformModule{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF}, options.DefaultParallelism)
 	assert.Nil(t, err)
 
 	assert.True(t, aRan)
@@ -1335,7 +1410,10 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 	expectedErrD := DependencyFinishedWithError{moduleD, moduleC, expectedErrC}
 	expectedErrF := DependencyFinishedWithError{moduleF, moduleD, expectedErrD}
 
-	err := RunModules([]*TerraformModule{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF, moduleG}, options.DefaultParallelism)
+	opts, err := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, err)
+
+	err = RunModules(opts, []*TerraformModule{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF, moduleG}, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrC, expectedErrD, expectedErrF)
 
 	assert.True(t, aRan)
@@ -1402,7 +1480,10 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 	expectedErrB := DependencyFinishedWithError{moduleB, moduleC, expectedErrC}
 	expectedErrA := DependencyFinishedWithError{moduleA, moduleB, expectedErrB}
 
-	err := RunModulesReverseOrder([]*TerraformModule{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF}, options.DefaultParallelism)
+	opts, optsErr := options.NewTerragruntOptionsForTest("")
+	assert.NoError(t, optsErr)
+
+	err := RunModulesReverseOrder(opts, []*TerraformModule{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF}, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrC, expectedErrB, expectedErrA)
 
 	assert.False(t, aRan)
