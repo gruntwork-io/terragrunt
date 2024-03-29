@@ -230,7 +230,7 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 				defer service.cacheReadyMu.RUnlock()
 
 				if err := cache.warmUp(ctx); err != nil {
-					os.Remove(cache.platformDir()) //nolint:errcheck
+					os.RemoveAll(cache.platformDir()) //nolint:errcheck
 					return err
 				}
 				cache.ready = true
