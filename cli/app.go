@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -45,7 +44,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-const forceExitAfterReceivingInterruptSignal = time.Minute
+// forced shutdown interval after receiving an interrupt signal
+const forceExitInterval = time.Minute * 5
 
 func init() {
 	cli.AppVersionTemplate = AppVersionTemplate
@@ -93,10 +93,10 @@ func (app *App) Run(args []string) error {
 		log.Infof("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(signal.String()), shell.SignalForwardingDelay)
 		cancel()
 
-		time.Sleep(forceExitAfterReceivingInterruptSignal)
-		log.Infof("Failed to gracefully shutdown within %v, force shutting down...", forceExitAfterReceivingInterruptSignal)
+		time.Sleep(forceExitInterval)
+		log.Infof("Failed to gracefully shutdown within %v, force shutting down...", forceExitInterval)
 		os.Exit(1)
-	}, syscall.SIGTERM, syscall.SIGINT)
+	}, shell.InterruptSignals...)
 
 	// configure telemetry integration
 	err := telemetry.InitTelemetry(ctx, &telemetry.TelemetryOptions{

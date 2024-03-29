@@ -56,7 +56,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	cmdChannel := make(chan error)
 	runChannel := make(chan error)
 
-	signalChannel := NewSignalsForwarder(forwardSignals, cmd, terragruntOptions.Logger, cmdChannel)
+	signalChannel := NewSignalsForwarder(InterruptSignals, cmd, terragruntOptions.Logger, cmdChannel)
 	defer signalChannel.Close()
 
 	go func() {
@@ -90,7 +90,7 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 	cmdChannel := make(chan error)
 	runChannel := make(chan error)
 
-	signalChannel := NewSignalsForwarder(forwardSignals, cmd, terragruntOptions.Logger, cmdChannel)
+	signalChannel := NewSignalsForwarder(InterruptSignals, cmd, terragruntOptions.Logger, cmdChannel)
 	defer signalChannel.Close()
 
 	go func() {
