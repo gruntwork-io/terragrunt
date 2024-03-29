@@ -135,10 +135,10 @@ func (server *Server) Listen(ctx context.Context) error {
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
+	debugCancel()
 
 	server.Addr = ln.Addr().String()
 	server.listener = ln
-	debugCancel()
 
 	log.Infof("Private Cache started, listening on %s", server.Addr)
 	return nil
