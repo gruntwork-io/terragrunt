@@ -78,14 +78,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 
 	var step int
 
-	go func() {
-		select {
-		case <-debugCtx.Done():
-		case <-time.After(time.Minute * 5):
-			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to warmup cache", step)
-		}
-	}()
-
 	var (
 		terraformPluginProviderDir = cache.terraformPluginProviderDir()
 		providerDir                = cache.providerDir()
@@ -107,6 +99,14 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	go func() {
+		select {
+		case <-debugCtx.Done():
+		case <-time.After(time.Minute * 5):
+			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to warmup cache", step)
+		}
+	}()
+
 	step = 2
 	log.Tracef("Locked file %s", lockFilename)
 	defer func() {
