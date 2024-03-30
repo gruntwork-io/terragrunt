@@ -1,13 +1,10 @@
 package services
 
 import (
-	"archive/zip"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -15,56 +12,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/go-getter/v2"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/terraform/command/cliconfig"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
-
-func decompress(archivePath, dst string) error {
-	archive, err := zip.OpenReader(archivePath)
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-	defer archive.Close()
-
-	for _, f := range archive.File {
-		filePath := filepath.Join(dst, f.Name)
-		fmt.Println("unzipping file ", filePath)
-
-		if !strings.HasPrefix(filePath, filepath.Clean(dst)+string(os.PathSeparator)) {
-			return errors.Errorf("invalid file path")
-		}
-		if f.FileInfo().IsDir() {
-			fmt.Println("creating directory...")
-			os.MkdirAll(filePath, os.ModePerm)
-			continue
-		}
-
-		if err := os.MkdirAll(filepath.Dir(filePath), os.ModePerm); err != nil {
-			return errors.WithStackTrace(err)
-		}
-
-		dstFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
-
-		fileInArchive, err := f.Open()
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
-
-		if _, err := io.Copy(dstFile, fileInArchive); err != nil {
-			return errors.WithStackTrace(err)
-		}
-
-		dstFile.Close()
-		fileInArchive.Close()
-	}
-
-	return nil
-}
 
 var (
 	unzipFileMode = os.FileMode(0000)
@@ -75,6 +28,10 @@ var (
 	retryDelayFetchFile = time.Second * 2
 	maxRetriesFetchFile = 30
 )
+
+// Borrow the "unpack a zip cache into a target directory" logic from
+// go-getter
+var unzip = getter.ZipDecompressor{}
 
 type ProviderCaches []*ProviderCache
 
@@ -234,7 +191,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		if !util.FileExists(archiveFilename) {
 			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! file does not exist for decompressing warmUp", step, archiveFilename)
 		}
-		if err := decompress(archiveFilename, platformDir); err != nil {
+		if err := unzip.Decompress(platformDir, archiveFilename, true, unzipFileMode); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
@@ -365,11 +322,11 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 				merr = multierror.Append(merr, err)
 			}
 
-			for _, cache := range service.providerCaches {
-				if err := cache.removeArchive(); err != nil {
-					merr = multierror.Append(merr, errors.WithStackTrace(err))
-				}
-			}
+			// for _, cache := range service.providerCaches {
+			// 	if err := cache.removeArchive(); err != nil {
+			// 		merr = multierror.Append(merr, errors.WithStackTrace(err))
+			// 	}
+			// }
 
 			return merr.ErrorOrNil()
 		}
