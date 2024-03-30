@@ -2,9 +2,11 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -108,6 +110,18 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if !alreadyCached {
+		debugCtx, debugCancel := context.WithCancel(ctx)
+		defer debugCancel()
+
+		go func() {
+			select {
+			case <-debugCtx.Done():
+			case <-time.After(time.Minute * 5):
+				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to decompress file", archiveFilename)
+				os.Exit(1)
+			}
+		}()
+
 		log.Debugf("Decompress provider archive %s", archiveFilename)
 		if err := unzip.Decompress(platformDir, archiveFilename, true, unzipFileMode); err != nil {
 			return errors.WithStackTrace(err)

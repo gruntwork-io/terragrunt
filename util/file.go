@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
@@ -650,6 +651,18 @@ func GetCacheDir() (string, error) {
 
 // FetchFile downloads the file from the given `downloadURL` into the specified `saveToFile` file.
 func FetchFile(ctx context.Context, downloadURL, saveToFile string) error {
+	debugCtx, debugCancel := context.WithCancel(ctx)
+	defer debugCancel()
+
+	go func() {
+		select {
+		case <-debugCtx.Done():
+		case <-time.After(time.Minute * 5):
+			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to fetch file", downloadURL)
+			os.Exit(1)
+		}
+	}()
+
 	req, err := http.NewRequestWithContext(ctx, "GET", downloadURL, nil)
 	if err != nil {
 		return errors.WithStackTrace(err)
