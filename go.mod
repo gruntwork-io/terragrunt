@@ -64,6 +64,7 @@ require (
 	github.com/gruntwork-io/boilerplate v0.5.11
 	github.com/gruntwork-io/go-commons v0.17.1
 	github.com/gruntwork-io/gruntwork-cli v0.7.0
+	github.com/hashicorp/go-getter/v2 v2.2.1
 	github.com/labstack/echo/v4 v4.11.4
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/pkg/errors v0.9.1

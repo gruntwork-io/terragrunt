@@ -48,7 +48,7 @@ func (lockfile *Lockfile) Lock(ctx context.Context, maxRetries int, retryDelay t
 			return errors.Errorf("unable to lock file %q, try removing file manually", lockfile.Path())
 		}
 		attempt++
-		log.Tracef("File %q is already locked, next (%d of %d) lock attempt in %v", lockfile.Path(), attempt, maxRetries, retryDelay)
+		log.Tracef("Unable to lock file %q, next (%d of %d) attempt in %v", lockfile.Path(), attempt, maxRetries, retryDelay)
 
 		select {
 		case <-ctx.Done():

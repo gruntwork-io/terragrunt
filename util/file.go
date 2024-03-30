@@ -1,15 +1,12 @@
 package util
 
 import (
-	"context"
 	"encoding/gob"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 
@@ -647,41 +644,4 @@ func GetCacheDir() (string, error) {
 	}
 
 	return cacheDir, nil
-}
-
-// FetchFile downloads the file from the given `downloadURL` into the specified `saveToFile` file.
-func FetchFile(ctx context.Context, downloadURL, saveToFile string) error {
-	debugCtx, debugCancel := context.WithCancel(ctx)
-	defer debugCancel()
-
-	go func() {
-		select {
-		case <-debugCtx.Done():
-		case <-time.After(time.Minute * 5):
-			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to fetch file", downloadURL)
-			os.Exit(1)
-		}
-	}()
-
-	req, err := http.NewRequestWithContext(ctx, "GET", downloadURL, nil)
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-
-	resp, err := (&http.Client{}).Do(req)
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-	defer resp.Body.Close() //nolint:errcheck
-
-	out, err := os.Create(saveToFile)
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-	defer out.Close() //nolint:errcheck
-
-	if _, err := io.Copy(out, resp.Body); err != nil {
-		return errors.WithStackTrace(err)
-	}
-	return nil
 }

@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -12,7 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/hashicorp/go-getter"
+	"github.com/hashicorp/go-getter/v2"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/terraform/command/cliconfig"
 	"golang.org/x/sync/errgroup"
@@ -20,9 +19,16 @@ import (
 
 var (
 	unzipFileMode = os.FileMode(0000)
+
+	retryDelayLockFile = time.Second * 5
+	maxRetriesLockFile = 60
+
+	retryDelayFetchFile = time.Second * 2
+	maxRetriesFetchFile = 3
 )
 
-// Borrow the "unpack a zip cache into a target directory" logic from go-getter
+// Borrow the "unpack a zip cache into a target directory" logic from
+// go-getter
 var unzip = getter.ZipDecompressor{}
 
 type ProviderCaches []*ProviderCache
@@ -49,12 +55,16 @@ func (cache *ProviderCache) providerDir() string {
 	return filepath.Join(cache.baseCacheDir, cache.Provider.Path())
 }
 
-func (cache *ProviderCache) providerPlatformDir() string {
-	return filepath.Join(cache.baseCacheDir, cache.Provider.Path(), cache.Provider.Platform())
+func (cache *ProviderCache) lockFilename() string {
+	return filepath.Join(cache.baseCacheDir, cache.Provider.Path(), cache.Platform()) + ".lock"
 }
 
-func (cache *ProviderCache) pluginPorviderPlatformDir() string {
-	return filepath.Join(cache.terraformPluginDir, cache.Provider.Path(), cache.Provider.Platform())
+func (cache *ProviderCache) platformDir() string {
+	return filepath.Join(cache.baseCacheDir, cache.Provider.Path(), cache.Platform())
+}
+
+func (cache *ProviderCache) pluginProviderPlatformDir() string {
+	return filepath.Join(cache.terraformPluginDir, cache.Provider.Path(), cache.Platform())
 }
 
 func (cache *ProviderCache) ArchiveFilename() string {
@@ -67,10 +77,11 @@ func (cache *ProviderCache) ArchiveFilename() string {
 // warmUp checks if the binary file already exists in the cache directory, if not, downloads the archive and unzip it.
 func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	var (
-		pluginPorviderPlatformDir = cache.pluginPorviderPlatformDir()
-		providerPlatformDir       = cache.providerPlatformDir()
+		pluginProviderPlatformDir = cache.pluginProviderPlatformDir()
+		platformDir               = cache.platformDir()
 		providerDir               = cache.providerDir()
 		archiveFilename           = cache.ArchiveFilename()
+		lockfileName              = cache.lockFilename()
 
 		alreadyCached bool
 	)
@@ -79,15 +90,21 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.WithStackTrace(err)
 	}
 
-	if !util.FileExists(providerPlatformDir) {
-		if util.FileExists(pluginPorviderPlatformDir) {
-			log.Debugf("Create symlink file %s to %s", providerPlatformDir, pluginPorviderPlatformDir)
-			if err := os.Symlink(pluginPorviderPlatformDir, providerPlatformDir); err != nil {
+	lockfile, err := util.AcquireLockfile(ctx, lockfileName, maxRetriesLockFile, retryDelayLockFile)
+	if err != nil {
+		return err
+	}
+	defer lockfile.Unlock()
+
+	if !util.FileExists(platformDir) {
+		if util.FileExists(pluginProviderPlatformDir) {
+			log.Debugf("Create symlink file %s to %s", platformDir, pluginProviderPlatformDir)
+			if err := os.Symlink(pluginProviderPlatformDir, platformDir); err != nil {
 				return errors.WithStackTrace(err)
 			}
 			alreadyCached = true
 		} else {
-			if err := os.MkdirAll(providerPlatformDir, os.ModePerm); err != nil {
+			if err := os.MkdirAll(platformDir, os.ModePerm); err != nil {
 				return errors.WithStackTrace(err)
 			}
 			cache.needCacheArchive = true
@@ -102,42 +119,16 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		}
 
 		log.Debugf("Fetching provider %s", cache.Provider)
-		if err := util.FetchFile(ctx, cache.DownloadURL.String(), archiveFilename); err != nil {
+		if err := util.FetchFileWithRetry(ctx, cache.DownloadURL.String(), archiveFilename, maxRetriesFetchFile, retryDelayFetchFile); err != nil {
 			return err
 		}
 	}
 
 	if !alreadyCached {
-		fi, err := os.Stat(archiveFilename)
-		if err != nil {
-			return err
-		}
-		startSize := fi.Size()
-
-		debugCtx, debugCancel := context.WithCancel(ctx)
-		defer debugCancel()
-
-		go func() {
-			select {
-			case <-debugCtx.Done():
-			case <-time.After(time.Minute * 5):
-				var endSize int64
-				fi, err := os.Stat(archiveFilename)
-				if err == nil {
-					endSize = fi.Size()
-				}
-
-				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to decompress file", archiveFilename, startSize, endSize)
-				os.Exit(1)
-			}
-		}()
-
 		log.Debugf("Decompress provider archive %s", archiveFilename)
-		if err := unzip.Decompress(providerPlatformDir, archiveFilename, true, unzipFileMode); err != nil {
-			debugCancel()
+		if err := unzip.Decompress(platformDir, archiveFilename, true, unzipFileMode); err != nil {
 			return errors.WithStackTrace(err)
 		}
-		debugCancel()
 	}
 
 	return nil
@@ -241,7 +232,7 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 				defer service.cacheReadyMu.RUnlock()
 
 				if err := cache.warmUp(ctx); err != nil {
-					os.RemoveAll(cache.providerPlatformDir()) //nolint:errcheck
+					os.RemoveAll(cache.platformDir()) //nolint:errcheck
 					return err
 				}
 				cache.ready = true
