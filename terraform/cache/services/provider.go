@@ -1,10 +1,13 @@
 package services
 
 import (
+	"archive/zip"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,12 +15,56 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/terraform/command/cliconfig"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
+
+func decompress(archivePath, dst string) error {
+	archive, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	defer archive.Close()
+
+	for _, f := range archive.File {
+		filePath := filepath.Join(dst, f.Name)
+		fmt.Println("unzipping file ", filePath)
+
+		if !strings.HasPrefix(filePath, filepath.Clean(dst)+string(os.PathSeparator)) {
+			return errors.Errorf("invalid file path")
+		}
+		if f.FileInfo().IsDir() {
+			fmt.Println("creating directory...")
+			os.MkdirAll(filePath, os.ModePerm)
+			continue
+		}
+
+		if err := os.MkdirAll(filepath.Dir(filePath), os.ModePerm); err != nil {
+			return errors.WithStackTrace(err)
+		}
+
+		dstFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+
+		fileInArchive, err := f.Open()
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+
+		if _, err := io.Copy(dstFile, fileInArchive); err != nil {
+			return errors.WithStackTrace(err)
+		}
+
+		dstFile.Close()
+		fileInArchive.Close()
+	}
+
+	return nil
+}
 
 var (
 	unzipFileMode = os.FileMode(0000)
@@ -89,6 +136,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.WithStackTrace(err)
 	}
 
+	var step int
 	debugCtx, debugCancel := context.WithCancel(ctx)
 	defer debugCancel()
 
@@ -96,12 +144,13 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		select {
 		case <-debugCtx.Done():
 		case <-time.After(time.Minute * 12):
-			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed lock warmUp", archiveFilename)
+			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed lock warmUp", step, archiveFilename)
 			time.Sleep(time.Second * 30)
 			os.Exit(1)
 		}
 	}()
 
+	step = 1
 	if err := util.DoWithRetry(ctx, fmt.Sprintf("Lock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
 		return lockfile.Lock()
 	}); err != nil {
@@ -112,12 +161,12 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 			select {
 			case <-debugCtx.Done():
 			case <-time.After(time.Minute * 2):
-				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed unlock warmUp", archiveFilename)
+				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed unlock warmUp", step, archiveFilename)
 				time.Sleep(time.Second * 30)
 				os.Exit(1)
 			}
 		}()
-
+		step = 6
 		util.DoWithRetry(ctx, fmt.Sprintf("Unlock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error { //nolint:errcheck
 			return lockfile.Unlock()
 		})
@@ -129,21 +178,18 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 				select {
 				case <-debugCtx.Done():
 				case <-time.After(time.Minute * 9):
-					fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed symlink warmUp", archiveFilename)
+					fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed symlink warmUp", step, archiveFilename)
 					time.Sleep(time.Second * 30)
 					os.Exit(1)
 				}
 			}()
-
+			step = 2
 			log.Debugf("Create symlink file %s to %s", platformDir, pluginProviderPlatformDir)
 			if err := os.Symlink(pluginProviderPlatformDir, platformDir); err != nil {
 				return errors.WithStackTrace(err)
 			}
 			alreadyCached = true
 		} else {
-			if err := os.MkdirAll(platformDir, os.ModePerm); err != nil {
-				return errors.WithStackTrace(err)
-			}
 			cache.needCacheArchive = true
 		}
 	} else {
@@ -159,12 +205,12 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 			select {
 			case <-debugCtx.Done():
 			case <-time.After(time.Minute * 8):
-				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed fetch warmUp", archiveFilename)
+				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed fetch warmUp", step, archiveFilename)
 				time.Sleep(time.Second * 30)
 				os.Exit(1)
 			}
 		}()
-
+		step = 3
 		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider with retry %q", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func() error {
 			return util.FetchFile(ctx, cache.DownloadURL.String(), archiveFilename)
 		}); err != nil {
@@ -177,18 +223,18 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 			select {
 			case <-debugCtx.Done():
 			case <-time.After(time.Minute * 5):
-				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed decompress warmUp", archiveFilename)
+				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed decompress warmUp", step, archiveFilename)
 				time.Sleep(time.Second * 30)
 				os.Exit(1)
 			}
 		}()
-
+		step = 4
 		log.Debugf("Decompress provider archive %s", archiveFilename)
 
-		// Borrow the "unpack a zip cache into a target directory" logic from
-		// go-getter
-		var unzip = getter.ZipDecompressor{}
-		if err := unzip.Decompress(platformDir, archiveFilename, true, unzipFileMode); err != nil {
+		if !util.FileExists(archiveFilename) {
+			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! file does not exist for decompressing warmUp", step, archiveFilename)
+		}
+		if err := decompress(archiveFilename, platformDir); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
@@ -197,12 +243,12 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		select {
 		case <-debugCtx.Done():
 		case <-time.After(time.Minute * 3):
-			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed return warmUp", archiveFilename)
+			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed return warmUp", step, archiveFilename)
 			time.Sleep(time.Second * 30)
 			os.Exit(1)
 		}
 	}()
-
+	step = 5
 	return nil
 }
 

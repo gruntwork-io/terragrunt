@@ -38,7 +38,7 @@ func FetchFile(ctx context.Context, downloadURL, saveToFile string) error {
 	if written, err := io.Copy(out, resp.Body); err != nil {
 		return errors.WithStackTrace(err)
 	} else if written != resp.ContentLength {
-		return errors.Errorf("filed to fetch %s, original size %d, but fetched size %d", downloadURL, resp.ContentLength, written)
+		return errors.Errorf("failed to fetch %s, original size %d but fetched size %d", downloadURL, resp.ContentLength, written)
 	}
 	return nil
 }
