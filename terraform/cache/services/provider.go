@@ -202,12 +202,10 @@ func (service *ProviderService) CacheProvider(ctx context.Context, provider *mod
 	}
 	service.providerCaches = append(service.providerCaches, cache)
 
-	go func() {
-		select {
-		case <-ctx.Done():
-		case service.providerCacheWarmUpCh <- cache:
-		}
-	}()
+	select {
+	case <-ctx.Done():
+	case service.providerCacheWarmUpCh <- cache:
+	}
 }
 
 // GetProviderCache returns the requested provider archive cache, if it exists.
