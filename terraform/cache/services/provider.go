@@ -98,9 +98,21 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}); err != nil {
 		return err
 	}
-	defer util.DoWithRetry(ctx, fmt.Sprintf("Unlock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
+	defer util.DoWithRetry(ctx, fmt.Sprintf("Unlock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error { //nolint:errcheck
 		return lockfile.Unlock()
-	}) //nolint:errcheck
+	})
+
+	debugCtx, debugCancel := context.WithCancel(ctx)
+	defer debugCancel()
+
+	go func() {
+		select {
+		case <-debugCtx.Done():
+		case <-time.After(time.Minute * 5):
+			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed unlock warmUp", archiveFilename)
+			os.Exit(1)
+		}
+	}()
 
 	if !util.FileExists(platformDir) {
 		if util.FileExists(pluginProviderPlatformDir) {
@@ -137,18 +149,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 			return errors.WithStackTrace(err)
 		}
 	}
-
-	debugCtx, debugCancel := context.WithCancel(ctx)
-	defer debugCancel()
-
-	go func() {
-		select {
-		case <-debugCtx.Done():
-		case <-time.After(time.Minute * 5):
-			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed unlock warmUp", archiveFilename)
-			os.Exit(1)
-		}
-	}()
 
 	return nil
 }
