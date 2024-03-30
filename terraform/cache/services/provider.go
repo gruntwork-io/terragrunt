@@ -22,11 +22,11 @@ import (
 var (
 	unzipFileMode = os.FileMode(0000)
 
-	retryDelayLockFile = time.Second * 5
-	maxRetriesLockFile = 60
+	retryDelayLockFile = time.Second * 2
+	maxRetriesLockFile = 30
 
 	retryDelayFetchFile = time.Second * 2
-	maxRetriesFetchFile = 3
+	maxRetriesFetchFile = 30
 )
 
 // Borrow the "unpack a zip cache into a target directory" logic from
