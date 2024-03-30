@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -18,9 +17,7 @@ import (
 )
 
 var (
-	unzipFileMode      = os.FileMode(0000)
-	retryDelayLockfile = time.Second * 5
-	maxRetriesLockfile = 60 // equals 5 mins
+	unzipFileMode = os.FileMode(0000)
 )
 
 // Borrow the "unpack a zip cache into a target directory" logic from
