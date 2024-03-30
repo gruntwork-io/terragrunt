@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -125,10 +126,36 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if !alreadyCached {
+		fi, err := os.Stat(archiveFilename)
+		if err != nil {
+			return err
+		}
+		startSize := fi.Size()
+
+		debugCtx, debugCancel := context.WithCancel(ctx)
+		defer debugCancel()
+
+		go func() {
+			select {
+			case <-debugCtx.Done():
+			case <-time.After(time.Minute * 5):
+				var endSize int64
+				fi, err := os.Stat(archiveFilename)
+				if err == nil {
+					endSize = fi.Size()
+				}
+
+				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to decompress file", archiveFilename, startSize, endSize)
+				os.Exit(1)
+			}
+		}()
+
 		log.Debugf("Decompress provider archive %s", archiveFilename)
 		if err := unzip.Decompress(platformDir, archiveFilename, true, unzipFileMode); err != nil {
+			debugCancel()
 			return errors.WithStackTrace(err)
 		}
+		debugCancel()
 	}
 
 	return nil
