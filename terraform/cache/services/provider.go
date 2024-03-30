@@ -111,9 +111,21 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}); err != nil {
 		return err
 	}
-	defer util.DoWithRetry(ctx, fmt.Sprintf("Unlock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error { //nolint:errcheck
-		return lockfile.Unlock()
-	})
+	defer func() {
+		go func() {
+			select {
+			case <-debugCtx.Done():
+			case <-time.After(time.Minute * 2):
+				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed unlock warmUp", archiveFilename)
+				time.Sleep(time.Second * 30)
+				os.Exit(1)
+			}
+		}()
+
+		util.DoWithRetry(ctx, fmt.Sprintf("Unlock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error { //nolint:errcheck
+			return lockfile.Unlock()
+		})
+	}()
 
 	if !util.FileExists(platformDir) {
 		if util.FileExists(pluginProviderPlatformDir) {
@@ -137,6 +149,16 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 			return errors.Errorf("unable to cache provider %q, the download URL is undefined", cache.Provider)
 		}
 
+		go func() {
+			select {
+			case <-debugCtx.Done():
+			case <-time.After(time.Minute * 8):
+				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed fetch warmUp", archiveFilename)
+				time.Sleep(time.Second * 30)
+				os.Exit(1)
+			}
+		}()
+
 		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider with retry %q", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func() error {
 			return util.FetchFile(ctx, cache.DownloadURL.String(), archiveFilename)
 		}); err != nil {
@@ -145,20 +167,27 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if !alreadyCached {
+		go func() {
+			select {
+			case <-debugCtx.Done():
+			case <-time.After(time.Minute * 5):
+				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed decompress warmUp", archiveFilename)
+				time.Sleep(time.Second * 30)
+				os.Exit(1)
+			}
+		}()
+
 		log.Debugf("Decompress provider archive %s", archiveFilename)
 		if err := unzip.Decompress(platformDir, archiveFilename, true, unzipFileMode); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
 
-	ddebugCtx, ddebugCancel := context.WithCancel(ctx)
-	defer ddebugCancel()
-
 	go func() {
 		select {
-		case <-ddebugCtx.Done():
-		case <-time.After(time.Minute * 1):
-			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed unlock warmUp", archiveFilename)
+		case <-debugCtx.Done():
+		case <-time.After(time.Minute * 3):
+			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed return warmUp", archiveFilename)
 			time.Sleep(time.Second * 30)
 			os.Exit(1)
 		}
