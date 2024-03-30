@@ -124,8 +124,10 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 
 		log.Debugf("Decompress provider archive %s", archiveFilename)
 		if err := unzip.Decompress(platformDir, archiveFilename, true, unzipFileMode); err != nil {
+			debugCancel()
 			return errors.WithStackTrace(err)
 		}
+		debugCancel()
 	}
 
 	return nil
