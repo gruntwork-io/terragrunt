@@ -157,7 +157,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	go func() {
 		select {
 		case <-ddebugCtx.Done():
-		case <-time.After(time.Minute * 6):
+		case <-time.After(time.Minute * 1):
 			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed unlock warmUp", archiveFilename)
 			time.Sleep(time.Second * 30)
 			os.Exit(1)
