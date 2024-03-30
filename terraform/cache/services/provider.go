@@ -128,12 +128,10 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		}
 	}
 
-	time.Sleep(time.Second * 30)
-
 	return nil
 }
 
-func (cache *ProviderCache) removeArchive(ctx context.Context) error {
+func (cache *ProviderCache) removeArchive() error {
 	var (
 		archiveFilename = cache.ArchiveFilename()
 	)
@@ -250,7 +248,7 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 			}
 
 			for _, cache := range service.providerCaches {
-				if err := cache.removeArchive(ctx); err != nil {
+				if err := cache.removeArchive(); err != nil {
 					merr = multierror.Append(merr, errors.WithStackTrace(err))
 				}
 			}
