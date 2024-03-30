@@ -78,7 +78,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		platformDir                = cache.platformDir()
 		providerDir                = cache.providerDir()
 		archiveFilename            = cache.ArchiveFilename()
-		lockfileName               = cache.lockFilename()
 
 		alreadyCached bool
 	)
@@ -86,12 +85,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	if err := os.MkdirAll(providerDir, os.ModePerm); err != nil {
 		return errors.WithStackTrace(err)
 	}
-
-	lockfile, err := util.AcquireLockfile(ctx, lockfileName, maxRetriesLockfile, retryDelayLockfile)
-	if err != nil {
-		return err
-	}
-	defer lockfile.Unlock()
 
 	if !util.FileExists(platformDir) {
 		if util.FileExists(terraformPluginPlatformDir) {

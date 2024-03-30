@@ -33,10 +33,10 @@ func (lockfile *Lockfile) Lock(ctx context.Context, maxRetries int, retryDelay t
 		return ctx.Err()
 	}
 
-	var repeat int
+	var attempt int
 
-	log.Tracef("Try to lock file %s", lockfile.Path())
 	for {
+		log.Tracef("Try to lock file %s", lockfile.Path())
 		if locked, err := lockfile.Flock.TryLock(); err != nil {
 			return errors.WithStackTrace(err)
 		} else if locked {
@@ -44,11 +44,11 @@ func (lockfile *Lockfile) Lock(ctx context.Context, maxRetries int, retryDelay t
 			return nil
 		}
 
-		if repeat >= maxRetries {
+		if attempt >= maxRetries {
 			return errors.Errorf("unable to lock file %q, try removing file manually", lockfile.Path())
 		}
-		repeat++
-		log.Tracef("File %q is already locked, next (%d of %d) lock attempt in %v", lockfile.Path(), repeat, maxRetries, retryDelay)
+		attempt++
+		log.Tracef("File %q is already locked, next (%d of %d) lock attempt in %v", lockfile.Path(), attempt, maxRetries, retryDelay)
 
 		select {
 		case <-ctx.Done():
