@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
 )
@@ -16,7 +17,9 @@ func FetchFile(ctx context.Context, downloadURL, saveToFile string) error {
 		return errors.WithStackTrace(err)
 	}
 
-	resp, err := (&http.Client{}).Do(req)
+	resp, err := (&http.Client{
+		Timeout: time.Minute * 1,
+	}).Do(req)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
