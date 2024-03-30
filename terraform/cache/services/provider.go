@@ -22,11 +22,9 @@ var (
 	unzipFileMode = os.FileMode(0000)
 )
 
-// Borrow the "unpack a zip cache into a target directory" logic from
-// go-getter
+// Borrow the "unpack a zip cache into a target directory" logic from go-getter
 var unzip = getter.ZipDecompressor{}
 
-// Borrow the "unpack a zip cache into a target directory" logic from go-getter
 type ProviderCaches []*ProviderCache
 
 func (providers ProviderCaches) Find(target *models.Provider) *ProviderCache {
@@ -51,12 +49,12 @@ func (cache *ProviderCache) providerDir() string {
 	return filepath.Join(cache.baseCacheDir, cache.Provider.Path())
 }
 
-func (cache *ProviderCache) platformDir() string {
-	return filepath.Join(cache.baseCacheDir, cache.Provider.Path(), cache.Platform())
+func (cache *ProviderCache) providerPlatformDir() string {
+	return filepath.Join(cache.baseCacheDir, cache.Provider.Path(), cache.Provider.Platform())
 }
 
-func (cache *ProviderCache) terraformPluginPlatformDir() string {
-	return filepath.Join(cache.terraformPluginDir, cache.Provider.Path(), cache.Platform())
+func (cache *ProviderCache) pluginPorviderPlatformDir() string {
+	return filepath.Join(cache.terraformPluginDir, cache.Provider.Path(), cache.Provider.Platform())
 }
 
 func (cache *ProviderCache) ArchiveFilename() string {
@@ -69,10 +67,10 @@ func (cache *ProviderCache) ArchiveFilename() string {
 // warmUp checks if the binary file already exists in the cache directory, if not, downloads the archive and unzip it.
 func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	var (
-		terraformPluginPlatformDir = cache.terraformPluginPlatformDir()
-		platformDir                = cache.platformDir()
-		providerDir                = cache.providerDir()
-		archiveFilename            = cache.ArchiveFilename()
+		pluginPorviderPlatformDir = cache.pluginPorviderPlatformDir()
+		providerPlatformDir       = cache.providerPlatformDir()
+		providerDir               = cache.providerDir()
+		archiveFilename           = cache.ArchiveFilename()
 
 		alreadyCached bool
 	)
@@ -81,15 +79,15 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.WithStackTrace(err)
 	}
 
-	if !util.FileExists(platformDir) {
-		if util.FileExists(terraformPluginPlatformDir) {
-			log.Debugf("Create symlink file %s to %s", platformDir, terraformPluginPlatformDir)
-			if err := os.Symlink(terraformPluginPlatformDir, platformDir); err != nil {
+	if !util.FileExists(providerPlatformDir) {
+		if util.FileExists(pluginPorviderPlatformDir) {
+			log.Debugf("Create symlink file %s to %s", providerPlatformDir, pluginPorviderPlatformDir)
+			if err := os.Symlink(pluginPorviderPlatformDir, providerPlatformDir); err != nil {
 				return errors.WithStackTrace(err)
 			}
 			alreadyCached = true
 		} else {
-			if err := os.MkdirAll(platformDir, os.ModePerm); err != nil {
+			if err := os.MkdirAll(providerPlatformDir, os.ModePerm); err != nil {
 				return errors.WithStackTrace(err)
 			}
 			cache.needCacheArchive = true
@@ -110,6 +108,12 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if !alreadyCached {
+		fi, err := os.Stat(archiveFilename)
+		if err != nil {
+			return err
+		}
+		startSize := fi.Size()
+
 		debugCtx, debugCancel := context.WithCancel(ctx)
 		defer debugCancel()
 
@@ -117,13 +121,19 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 			select {
 			case <-debugCtx.Done():
 			case <-time.After(time.Minute * 5):
-				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to decompress file", archiveFilename)
+				var endSize int64
+				fi, err := os.Stat(archiveFilename)
+				if err == nil {
+					endSize = fi.Size()
+				}
+
+				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed to decompress file", archiveFilename, startSize, endSize)
 				os.Exit(1)
 			}
 		}()
 
 		log.Debugf("Decompress provider archive %s", archiveFilename)
-		if err := unzip.Decompress(platformDir, archiveFilename, true, unzipFileMode); err != nil {
+		if err := unzip.Decompress(providerPlatformDir, archiveFilename, true, unzipFileMode); err != nil {
 			debugCancel()
 			return errors.WithStackTrace(err)
 		}
@@ -151,8 +161,8 @@ func (cache *ProviderCache) removeArchive() error {
 type ProviderService struct {
 	baseCacheDir string
 
-	providerCaches  ProviderCaches
-	providerCacheCh chan *ProviderCache
+	providerCaches        ProviderCaches
+	providerCacheWarmUpCh chan *ProviderCache
 
 	cacheMu      sync.RWMutex
 	cacheReadyMu sync.RWMutex
@@ -164,9 +174,9 @@ type ProviderService struct {
 
 func NewProviderService(baseCacheDir string, needCacheArchive bool) *ProviderService {
 	return &ProviderService{
-		baseCacheDir:     baseCacheDir,
-		providerCacheCh:  make(chan *ProviderCache),
-		needCacheArchive: needCacheArchive,
+		baseCacheDir:          baseCacheDir,
+		providerCacheWarmUpCh: make(chan *ProviderCache),
+		needCacheArchive:      needCacheArchive,
 	}
 }
 
@@ -177,7 +187,7 @@ func (service *ProviderService) WaitForCacheReady() {
 }
 
 // CacheProvider starts caching the given provider using non-blocking approch.
-func (service *ProviderService) CacheProvider(provider *models.Provider) {
+func (service *ProviderService) CacheProvider(ctx context.Context, provider *models.Provider) {
 	service.cacheMu.Lock()
 	defer service.cacheMu.Unlock()
 
@@ -190,9 +200,14 @@ func (service *ProviderService) CacheProvider(provider *models.Provider) {
 		Provider:         provider,
 		needCacheArchive: service.needCacheArchive,
 	}
-
-	service.providerCacheCh <- cache
 	service.providerCaches = append(service.providerCaches, cache)
+
+	go func() {
+		select {
+		case <-ctx.Done():
+		case service.providerCacheWarmUpCh <- cache:
+		}
+	}()
 }
 
 // GetProviderCache returns the requested provider archive cache, if it exists.
@@ -222,17 +237,13 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 	errGroup, ctx := errgroup.WithContext(ctx)
 	for {
 		select {
-		case cache, ok := <-service.providerCacheCh:
-			if !ok {
-				return nil
-			}
-
+		case cache := <-service.providerCacheWarmUpCh:
 			errGroup.Go(func() error {
 				service.cacheReadyMu.RLock()
 				defer service.cacheReadyMu.RUnlock()
 
 				if err := cache.warmUp(ctx); err != nil {
-					os.RemoveAll(cache.platformDir()) //nolint:errcheck
+					os.RemoveAll(cache.providerPlatformDir()) //nolint:errcheck
 					return err
 				}
 				cache.ready = true
@@ -241,8 +252,6 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 				return nil
 			})
 		case <-ctx.Done():
-			close(service.providerCacheCh)
-
 			merr := &multierror.Error{}
 
 			if err := errGroup.Wait(); err != nil {

@@ -127,7 +127,7 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err
 		provider.OS = runtime.GOOS
 		provider.Arch = runtime.GOARCH
 
-		defer controller.ProviderService.CacheProvider(provider)
+		defer controller.ProviderService.CacheProvider(ctx.Request().Context(), provider)
 	}
 
 	return controller.ReverseProxy.
