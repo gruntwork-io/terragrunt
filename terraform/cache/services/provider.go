@@ -12,7 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/hashicorp/go-getter/v2"
+	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/terraform/command/cliconfig"
 	"github.com/sirupsen/logrus"
@@ -28,10 +28,6 @@ var (
 	retryDelayFetchFile = time.Second * 2
 	maxRetriesFetchFile = 30
 )
-
-// Borrow the "unpack a zip cache into a target directory" logic from
-// go-getter
-var unzip = getter.ZipDecompressor{}
 
 type ProviderCaches []*ProviderCache
 
@@ -99,7 +95,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	go func() {
 		select {
 		case <-debugCtx.Done():
-		case <-time.After(time.Minute * 10):
+		case <-time.After(time.Minute * 12):
 			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed lock warmUp", archiveFilename)
 			time.Sleep(time.Second * 30)
 			os.Exit(1)
@@ -129,6 +125,16 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 
 	if !util.FileExists(platformDir) {
 		if util.FileExists(pluginProviderPlatformDir) {
+			go func() {
+				select {
+				case <-debugCtx.Done():
+				case <-time.After(time.Minute * 9):
+					fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed symlink warmUp", archiveFilename)
+					time.Sleep(time.Second * 30)
+					os.Exit(1)
+				}
+			}()
+
 			log.Debugf("Create symlink file %s to %s", platformDir, pluginProviderPlatformDir)
 			if err := os.Symlink(pluginProviderPlatformDir, platformDir); err != nil {
 				return errors.WithStackTrace(err)
@@ -178,6 +184,10 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		}()
 
 		log.Debugf("Decompress provider archive %s", archiveFilename)
+
+		// Borrow the "unpack a zip cache into a target directory" logic from
+		// go-getter
+		var unzip = getter.ZipDecompressor{}
 		if err := unzip.Decompress(platformDir, archiveFilename, true, unzipFileMode); err != nil {
 			return errors.WithStackTrace(err)
 		}
