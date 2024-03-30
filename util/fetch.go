@@ -37,7 +37,7 @@ func FetchFile(ctx context.Context, downloadURL, saveToFile string) error {
 	if written, err := io.Copy(out, resp.Body); err != nil {
 		return errors.WithStackTrace(err)
 	} else if written != resp.ContentLength {
-		errors.Errorf("file fetched incompletely, remote size %d, but fetched size %d", resp.ContentLength, written)
+		return errors.Errorf("filed to fetch %s, original size %d, but fetched size %d", downloadURL, resp.ContentLength, written)
 	}
 	return nil
 }
@@ -52,7 +52,7 @@ func FetchFileWithRetry(ctx context.Context, downloadURL, saveToFile string, max
 		}
 
 		retry++
-		log.Tracef("%v, next (%d of %d) attempt in %v", err, retry, maxRetries, retryDelay)
+		log.Tracef("%v, next (%d of %d) retry in %v", err, retry, maxRetries, retryDelay)
 
 		select {
 		case <-ctx.Done():
