@@ -49,10 +49,6 @@ func (cache *ProviderCache) providerDir() string {
 	return filepath.Join(cache.baseCacheDir, cache.Provider.Path())
 }
 
-func (cache *ProviderCache) lockFilename() string {
-	return filepath.Join(cache.baseCacheDir, cache.Provider.Path(), cache.Platform()) + ".lock"
-}
-
 func (cache *ProviderCache) platformDir() string {
 	return filepath.Join(cache.baseCacheDir, cache.Provider.Path(), cache.Platform())
 }
