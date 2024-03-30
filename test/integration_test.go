@@ -206,7 +206,10 @@ func TestTerragruntProviderCache(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PROVIDER_CACHE)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PROVIDER_CACHE)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	cacheDir, err := util.GetCacheDir()
+	assert.NoError(t, err)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-dir %s --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", cacheDir, rootPath))
 
 	providers := map[string][]string{
 		"first": []string{
@@ -4176,7 +4179,7 @@ func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwri
 	args := strings.Split(command, " ")
 	t.Log(args)
 
-	if os.Getenv("TERRAGRUNT_PROVIDER_CACHE_UNIQUE_DIR") == "1" {
+	if os.Getenv("TERRAGRUNT_PROVIDER_CACHE_UNIQUE_DIR") == "1" && !strings.Contains(command, "terragrunt-provider-cache-dir") {
 		dir, err := os.MkdirTemp("", "*")
 		assert.NoError(t, err)
 		args = append(args, "--terragrunt-provider-cache-dir", dir)
