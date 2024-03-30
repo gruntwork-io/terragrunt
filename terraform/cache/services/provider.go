@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/go-getter/v2"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/terraform/command/cliconfig"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -92,12 +93,12 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.WithStackTrace(err)
 	}
 
-	if err := util.DoWithRetry(ctx, fmt.Sprintf("Lock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, func() error {
+	if err := util.DoWithRetry(ctx, fmt.Sprintf("Lock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
 		return lockfile.Lock()
 	}); err != nil {
 		return err
 	}
-	defer util.DoWithRetry(ctx, fmt.Sprintf("Unlock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, func() error {
+	defer util.DoWithRetry(ctx, fmt.Sprintf("Unlock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
 		return lockfile.Unlock()
 	}) //nolint:errcheck
 
@@ -120,10 +121,10 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 
 	if cache.needCacheArchive && !util.FileExists(archiveFilename) {
 		if cache.DownloadURL == nil {
-			return errors.Errorf("failed to cache provider %q, the download URL is undefined", cache.Provider)
+			return errors.Errorf("unable to cache provider %q, the download URL is undefined", cache.Provider)
 		}
 
-		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider with retry %q", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, func() error {
+		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider with retry %q", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func() error {
 			return util.FetchFile(ctx, cache.DownloadURL.String(), archiveFilename)
 		}); err != nil {
 			return err
@@ -158,7 +159,7 @@ func (cache *ProviderCache) removeArchive() error {
 	)
 
 	if cache.needCacheArchive && util.FileExists(archiveFilename) {
-		log.Tracef("Remove provider cache archive %s", archiveFilename)
+		log.Debugf("Remove provider cache archive %s", archiveFilename)
 		if err := os.Remove(archiveFilename); err != nil {
 			return errors.WithStackTrace(err)
 		}

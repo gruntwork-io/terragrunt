@@ -3,7 +3,6 @@ package util
 import (
 	"github.com/gofrs/flock"
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 type Lockfile struct {
@@ -17,12 +16,10 @@ func NewLockfile(filename string) *Lockfile {
 }
 
 func (lockfile *Lockfile) Unlock() error {
-	if !lockfile.Locked() {
-		return nil
+	if err := lockfile.Flock.Unlock(); err != nil {
+		return errors.WithStackTrace(err)
 	}
-
-	log.Tracef("Unlock file %s", lockfile.Path())
-	return lockfile.Flock.Unlock() //nolint:errcheck
+	return nil
 }
 
 func (lockfile *Lockfile) Lock() error {
@@ -31,7 +28,6 @@ func (lockfile *Lockfile) Lock() error {
 	} else if !locked {
 		return errors.Errorf("unable to lock file %s", lockfile.Path())
 	}
-
 	return nil
 }
 

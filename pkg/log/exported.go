@@ -1,6 +1,10 @@
 package log
 
-import "github.com/sirupsen/logrus"
+import (
+	"fmt"
+
+	"github.com/sirupsen/logrus"
+)
 
 // WithError adds an error to log entry, using the value defined in ErrorKey as key.
 func WithError(err error) *logrus.Entry {
@@ -120,4 +124,10 @@ func Panicf(format string, args ...any) {
 // Fatalf logs a message at level Fatal on the standard logger then the process will exit with status set to 1.
 func Fatalf(format string, args ...any) {
 	logger.Fatalf(format, args...)
+}
+
+func Logf(level logrus.Level, format string, args ...interface{}) {
+	if logger.IsLevelEnabled(level) {
+		logger.Log(level, fmt.Sprintf(format, args...))
+	}
 }

@@ -6,18 +6,19 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/sirupsen/logrus"
 )
 
 // DoWithRetry runs the specified action. If it returns a value, return that value. If it returns an error, sleep for
 // sleepBetweenRetries and try again, up to a maximum of maxRetries retries. If maxRetries is exceeded, return a
 // MaxRetriesExceeded error.
-func DoWithRetry(ctx context.Context, actionDescription string, maxRetries int, sleepBetweenRetries time.Duration, action func() error) error {
+func DoWithRetry(ctx context.Context, actionDescription string, maxRetries int, sleepBetweenRetries time.Duration, logLevel logrus.Level, action func() error) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
 
 	for i := 0; i <= maxRetries; i++ {
-		log.Debug(actionDescription)
+		log.Logf(logLevel, actionDescription)
 
 		err := action()
 		if err == nil {
