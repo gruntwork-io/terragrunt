@@ -17,7 +17,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/mitchellh/mapstructure"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jwt"
 	"google.golang.org/api/option"
@@ -162,7 +161,7 @@ func gcsConfigValuesEqual(config map[string]interface{}, existingBackend *Terraf
 
 // Initialize the remote state GCS bucket specified in the given config. This function will validate the config
 // parameters, create the GCS bucket if it doesn't already exist, and check that versioning is enabled.
-func (gcsInitializer GCSInitializer) Initialize(remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {
+func (gcsInitializer GCSInitializer) Initialize(ctx context.Context, remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {
 	gcsConfigExtended, err := parseExtendedGCSConfig(remoteState.Config)
 	if err != nil {
 		return err
@@ -183,7 +182,7 @@ func (gcsInitializer GCSInitializer) Initialize(remoteState *RemoteState, terrag
 
 		// If bucket is specified and skip_bucket_creation is false then check if Bucket needs to be created
 		if !gcsConfigExtended.SkipBucketCreation && gcsConfig.Bucket != "" {
-			if err := createGCSBucketIfNecessary(gcsClient, gcsConfigExtended, terragruntOptions); err != nil {
+			if err := createGCSBucketIfNecessary(ctx, gcsClient, gcsConfigExtended, terragruntOptions); err != nil {
 				return err
 			}
 		}
@@ -252,7 +251,7 @@ func validateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS) error {
 
 // If the bucket specified in the given config doesn't already exist, prompt the user to create it, and if the user
 // confirms, create the bucket and enable versioning for it.
-func createGCSBucketIfNecessary(gcsClient *storage.Client, config *ExtendedRemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
+func createGCSBucketIfNecessary(ctx context.Context, gcsClient *storage.Client, config *ExtendedRemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
 	if !DoesGCSBucketExist(gcsClient, &config.remoteStateConfigGCS) {
 		terragruntOptions.Logger.Debugf("Remote state GCS bucket %s does not exist. Attempting to create it", config.remoteStateConfigGCS.Bucket)
 
@@ -280,7 +279,7 @@ func createGCSBucketIfNecessary(gcsClient *storage.Client, config *ExtendedRemot
 			// To avoid any eventual consistency issues with creating a GCS bucket we use a retry loop.
 			description := fmt.Sprintf("Create GCS bucket %s", config.remoteStateConfigGCS.Bucket)
 
-			return util.DoWithRetry(description, gcpMaxRetries, gcpSleepBetweenRetries, terragruntOptions.Logger, logrus.DebugLevel, func() error {
+			return util.DoWithRetry(ctx, description, gcpMaxRetries, gcpSleepBetweenRetries, func() error {
 				return CreateGCSBucketWithVersioning(gcsClient, config, terragruntOptions)
 			})
 		}

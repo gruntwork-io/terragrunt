@@ -5,10 +5,8 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // FetchFile downloads the file from the given `downloadURL` into the specified `saveToFile` file.
@@ -40,25 +38,4 @@ func FetchFile(ctx context.Context, downloadURL, saveToFile string) error {
 		return errors.Errorf("filed to fetch %s, original size %d, but fetched size %d", downloadURL, resp.ContentLength, written)
 	}
 	return nil
-}
-
-func FetchFileWithRetry(ctx context.Context, downloadURL, saveToFile string, maxRetries int, retryDelay time.Duration) error {
-	var retry int
-
-	for {
-		err := FetchFile(ctx, downloadURL, saveToFile)
-		if err == nil || retry >= maxRetries {
-			return err
-		}
-
-		retry++
-		log.Tracef("%v, next (%d of %d) retry in %v", err, retry, maxRetries, retryDelay)
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(retryDelay):
-			// try again
-		}
-	}
 }

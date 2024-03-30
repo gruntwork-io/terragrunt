@@ -4179,12 +4179,6 @@ func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwri
 	args := strings.Split(command, " ")
 	t.Log(args)
 
-	if os.Getenv("TERRAGRUNT_PROVIDER_CACHE_UNIQUE_DIR") == "1" && !strings.Contains(command, "terragrunt-provider-cache-dir") {
-		dir, err := os.MkdirTemp("", "*")
-		assert.NoError(t, err)
-		args = append(args, "--terragrunt-provider-cache-dir", dir)
-	}
-
 	app := cli.NewApp(writer, errwriter)
 	return app.Run(args)
 }

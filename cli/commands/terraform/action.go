@@ -256,7 +256,7 @@ func runTerragruntWithConfig(ctx context.Context, originalTerragruntOptions *opt
 	}
 
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) == terraform.CommandNameInit {
-		if err := prepareInitCommand(terragruntOptions, terragruntConfig); err != nil {
+		if err := prepareInitCommand(ctx, terragruntOptions, terragruntConfig); err != nil {
 			return err
 		}
 	} else {
@@ -432,7 +432,7 @@ func isRetryable(opts *options.TerragruntOptions, out *shell.CmdOutput) bool {
 
 // Prepare for running 'terraform init' by initializing remote state storage and adding backend configuration arguments
 // to the TerraformCliArgs
-func prepareInitCommand(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+func prepareInitCommand(ctx context.Context, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	if terragruntConfig.RemoteState != nil {
 		// Initialize the remote state if necessary  (e.g. create S3 bucket and DynamoDB table)
 		remoteStateNeedsInit, err := remoteStateNeedsInit(terragruntConfig.RemoteState, terragruntOptions)
@@ -440,7 +440,7 @@ func prepareInitCommand(terragruntOptions *options.TerragruntOptions, terragrunt
 			return err
 		}
 		if remoteStateNeedsInit {
-			if err := terragruntConfig.RemoteState.Initialize(terragruntOptions); err != nil {
+			if err := terragruntConfig.RemoteState.Initialize(ctx, terragruntOptions); err != nil {
 				return err
 			}
 		}
