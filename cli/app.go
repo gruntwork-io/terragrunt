@@ -315,7 +315,10 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions, action c
 	// --- Run action
 	errGroup.Go(func() error {
 		defer cancel()
-		return action(cliCtx)
+		if action != nil {
+			return action(cliCtx)
+		}
+		return nil
 	})
 
 	return errGroup.Wait()

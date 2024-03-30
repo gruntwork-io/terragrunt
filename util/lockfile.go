@@ -36,8 +36,8 @@ func (lockfile *Lockfile) Lock(ctx context.Context, maxRetries int, retryDelay t
 
 	var repeat int
 
-	log.Tracef("Try to lock file %s", lockfile.Path())
 	for {
+		log.Tracef("Try to lock file %s", lockfile.Path())
 		lock, err := filemutex.New(lockfile.Path())
 		if err != nil {
 			return errors.WithStackTrace(err)
