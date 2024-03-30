@@ -93,15 +93,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.WithStackTrace(err)
 	}
 
-	if err := util.DoWithRetry(ctx, fmt.Sprintf("Lock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
-		return lockfile.Lock()
-	}); err != nil {
-		return err
-	}
-	defer util.DoWithRetry(ctx, fmt.Sprintf("Unlock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error { //nolint:errcheck
-		return lockfile.Unlock()
-	})
-
 	debugCtx, debugCancel := context.WithCancel(ctx)
 	defer debugCancel()
 
@@ -113,6 +104,15 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 			os.Exit(1)
 		}
 	}()
+
+	if err := util.DoWithRetry(ctx, fmt.Sprintf("Lock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
+		return lockfile.Lock()
+	}); err != nil {
+		return err
+	}
+	defer util.DoWithRetry(ctx, fmt.Sprintf("Unlock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error { //nolint:errcheck
+		return lockfile.Unlock()
+	})
 
 	if !util.FileExists(platformDir) {
 		if util.FileExists(pluginProviderPlatformDir) {
