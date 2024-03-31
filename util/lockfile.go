@@ -1,38 +1,34 @@
 package util
 
 import (
-	"github.com/alexflint/go-filemutex"
+	"github.com/gofrs/flock"
 	"github.com/gruntwork-io/go-commons/errors"
 )
 
 type Lockfile struct {
-	mutex    *filemutex.FileMutex
-	filename string
+	*flock.Flock
 }
 
 func NewLockfile(filename string) *Lockfile {
 	return &Lockfile{
-		filename: filename,
+		flock.New(filename),
 	}
 }
 
 func (lockfile *Lockfile) Unlock() error {
-	if err := lockfile.mutex.Unlock(); err != nil {
+	if err := lockfile.Flock.Unlock(); err != nil {
 		return errors.WithStackTrace(err)
 	}
 	return nil
 }
 
 func (lockfile *Lockfile) TryLock() error {
-	mutex, err := filemutex.New(lockfile.filename)
-	if err != nil {
+	if locked, err := lockfile.Flock.TryLock(); err != nil {
 		return errors.WithStackTrace(err)
+	} else if !locked {
+		return errors.Errorf("unable to lock file %s", lockfile.Path())
 	}
-	lockfile.mutex = mutex
 
-	if err := mutex.Lock(); err != nil {
-		return errors.WithStackTrace(err)
-	}
 	return nil
 }
 

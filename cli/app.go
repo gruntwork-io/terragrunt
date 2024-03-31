@@ -8,12 +8,9 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/graph"
 
@@ -89,14 +86,14 @@ func (app *App) Run(args []string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	shell.RegisterSignalHandler(func(signal os.Signal) {
-		log.Infof("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(signal.String()), shell.SignalForwardingDelay)
-		cancel()
+	// shell.RegisterSignalHandler(func(signal os.Signal) {
+	// 	log.Infof("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(signal.String()), shell.SignalForwardingDelay)
+	// 	cancel()
 
-		time.Sleep(forceExitInterval)
-		log.Infof("Failed to gracefully shutdown within %v, force shutting down...", forceExitInterval)
-		os.Exit(1)
-	}, shell.InterruptSignals...)
+	// 	time.Sleep(forceExitInterval)
+	// 	log.Infof("Failed to gracefully shutdown within %v, force shutting down...", forceExitInterval)
+	// 	os.Exit(1)
+	// }, shell.InterruptSignals...)
 
 	// configure telemetry integration
 	err := telemetry.InitTelemetry(ctx, &telemetry.TelemetryOptions{
