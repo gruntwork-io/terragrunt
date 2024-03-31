@@ -13,6 +13,24 @@ defaults: &defaults
   docker:
     - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.21.7-tf1.5-tg39.1-pck1.8-ci50.7
 
+testDefaults: &testDefaults
+  machine:
+    enabled: true
+    image: ubuntu-2004:202111-02
+
+install_golang: &install_golang
+  name: Install Golang
+  command: |
+    sudo apt-get update -y
+    cd /tmp
+    wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
+    sudo tar -xvf go1.21.0.linux-amd64.tar.gz
+    sudo mv go /usr/local
+    export GOROOT=/usr/local/go
+    export GOPATH=$HOME/go
+    export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
+    source ~/.profile
+
 # Install Terraform 1.6 for integration tests
 install_terraform: &install_terraform
   name: Install Terraform
@@ -201,9 +219,11 @@ jobs:
 
   integration_test_terraform_with_provider_cache:
     resource_class: large
-    <<: *defaults
+    <<: *testDefaults
     steps:
       - checkout
+      - run:
+          <<: *install_golang
       - run:
           <<: *install_terraform
       - run:
@@ -248,9 +268,11 @@ jobs:
 
   integration_test_tofu_with_provider_cache:
     resource_class: large
-    <<: *defaults
+    <<: *testDefaults
     steps:
       - checkout
+      - run:
+          <<: *install_golang
       - run:
           <<: *install_tofu
       - run:
