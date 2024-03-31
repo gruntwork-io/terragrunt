@@ -59,7 +59,6 @@ require (
 	github.com/genelet/determined v1.10.2
 	github.com/getsops/sops/v3 v3.8.1
 	github.com/gitsight/go-vcsurl v1.0.1
-	github.com/gofrs/flock v0.8.1
 	github.com/google/uuid v1.5.0
 	github.com/gruntwork-io/boilerplate v0.5.11
 	github.com/gruntwork-io/go-commons v0.17.1

@@ -204,6 +204,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		}
 	}()
 	step = 5
+
 	return nil
 }
 

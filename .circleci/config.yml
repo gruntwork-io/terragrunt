@@ -13,22 +13,6 @@ defaults: &defaults
   docker:
     - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.21.7-tf1.5-tg39.1-pck1.8-ci50.7
 
-testDefaults: &testDefaults
-  machine:
-    enabled: true
-    image: ubuntu-2204:2024.01.2
-
-  environment:
-    GRUNTWORK_INSTALLER_VERSION: v0.0.39
-    MODULE_CI_VERSION: v0.53.3
-
-install_golang: &install_golang
-  name: Install Golang
-  command: |
-    curl -Ls https://raw.githubusercontent.com/gruntwork-io/gruntwork-installer/master/bootstrap-gruntwork-installer.sh | bash /dev/stdin --version "${GRUNTWORK_INSTALLER_VERSION}"
-    gruntwork-install --module-name "gruntwork-module-circleci-helpers" --repo "https://github.com/gruntwork-io/terraform-aws-ci" --tag "${MODULE_CI_VERSION}"
-    gruntwork-install --module-name "sign-binary-helpers" --repo "https://github.com/gruntwork-io/terraform-aws-ci" --tag "${MODULE_CI_VERSION}"
-
 # Install Terraform 1.6 for integration tests
 install_terraform: &install_terraform
   name: Install Terraform
@@ -217,11 +201,9 @@ jobs:
 
   integration_test_terraform_with_provider_cache:
     resource_class: large
-    <<: *testDefaults
+    <<: *defaults
     steps:
       - checkout
-      - run:
-          <<: *install_golang
       - run:
           <<: *install_terraform
       - run:
@@ -266,11 +248,9 @@ jobs:
 
   integration_test_tofu_with_provider_cache:
     resource_class: large
-    <<: *testDefaults
+    <<: *defaults
     steps:
       - checkout
-      - run:
-          <<: *install_golang
       - run:
           <<: *install_tofu
       - run:
