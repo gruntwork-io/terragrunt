@@ -89,54 +89,15 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.WithStackTrace(err)
 	}
 
-	var step int
-	debugCtx, debugCancel := context.WithCancel(ctx)
-	defer debugCancel()
-
-	go func() {
-		select {
-		case <-debugCtx.Done():
-		case <-time.After(time.Minute * 12):
-			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed lock warmUp", step, archiveFilename)
-			time.Sleep(time.Second * 30)
-			os.Exit(1)
-		}
-	}()
-
-	step = 1
 	if err := util.DoWithRetry(ctx, fmt.Sprintf("Lock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
 		return lockfile.TryLock()
 	}); err != nil {
 		return err
 	}
-	defer func() {
-		go func() {
-			select {
-			case <-debugCtx.Done():
-			case <-time.After(time.Minute * 2):
-				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed unlock warmUp", step, archiveFilename)
-				time.Sleep(time.Second * 30)
-				os.Exit(1)
-			}
-		}()
-		step = 6
-		util.DoWithRetry(ctx, fmt.Sprintf("Unlock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error { //nolint:errcheck
-			return lockfile.Unlock()
-		})
-	}()
+	defer lockfile.Unlock() //nolint:errcheck
 
 	if !util.FileExists(platformDir) {
 		if util.FileExists(pluginProviderPlatformDir) {
-			go func() {
-				select {
-				case <-debugCtx.Done():
-				case <-time.After(time.Minute * 9):
-					fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed symlink warmUp", step, archiveFilename)
-					time.Sleep(time.Second * 30)
-					os.Exit(1)
-				}
-			}()
-			step = 2
 			log.Debugf("Create symlink file %s to %s", platformDir, pluginProviderPlatformDir)
 			if err := os.Symlink(pluginProviderPlatformDir, platformDir); err != nil {
 				return errors.WithStackTrace(err)
@@ -154,16 +115,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 			return errors.Errorf("unable to cache provider %q, the download URL is undefined", cache.Provider)
 		}
 
-		go func() {
-			select {
-			case <-debugCtx.Done():
-			case <-time.After(time.Minute * 8):
-				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed fetch warmUp", step, archiveFilename)
-				time.Sleep(time.Second * 30)
-				os.Exit(1)
-			}
-		}()
-		step = 3
 		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider with retry %q", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func() error {
 			return util.FetchFile(ctx, cache.DownloadURL.String(), archiveFilename)
 		}); err != nil {
@@ -172,16 +123,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if !alreadyCached {
-		go func() {
-			select {
-			case <-debugCtx.Done():
-			case <-time.After(time.Minute * 5):
-				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed decompress warmUp", step, archiveFilename)
-				time.Sleep(time.Second * 30)
-				os.Exit(1)
-			}
-		}()
-		step = 4
 		log.Debugf("Decompress provider archive %s", archiveFilename)
 
 		zip, err := fastzip.NewExtractor(archiveFilename, platformDir)
@@ -194,17 +135,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 			return errors.WithStackTrace(err)
 		}
 	}
-
-	go func() {
-		select {
-		case <-debugCtx.Done():
-		case <-time.After(time.Minute * 3):
-			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed return warmUp", step, archiveFilename)
-			time.Sleep(time.Second * 30)
-			os.Exit(1)
-		}
-	}()
-	step = 5
 
 	return nil
 }
