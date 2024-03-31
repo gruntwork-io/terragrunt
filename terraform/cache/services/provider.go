@@ -177,7 +177,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if !alreadyCached {
-		time.Sleep(time.Second)
+		time.Sleep(time.Second * 5)
 		go func() {
 			select {
 			case <-debugCtx.Done():
