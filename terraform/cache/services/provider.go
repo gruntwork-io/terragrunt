@@ -45,8 +45,7 @@ type ProviderCache struct {
 	*ProviderService
 	*models.Provider
 
-	needCacheArchive bool
-	ready            bool
+	ready bool
 }
 
 func (cache *ProviderCache) providerDir() string {
@@ -79,9 +78,11 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		platformDir               = cache.platformDir()
 		providerDir               = cache.providerDir()
 		archiveFilename           = cache.ArchiveFilename()
-		lockfileName              = cache.lockFilename()
+		needCacheArchive          = cache.needCacheArchive
 
-		lockfile      = util.NewLockfile(lockfileName)
+		// lockfileName = cache.lockFilename()
+		// lockfile     = util.NewLockfile(lockfileName)
+
 		alreadyCached bool
 	)
 
@@ -89,34 +90,12 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.WithStackTrace(err)
 	}
 
-	var step int
-	debugCtx, debugCancel := context.WithCancel(ctx)
-	defer debugCancel()
-
-	go func() {
-		select {
-		case <-debugCtx.Done():
-		case <-time.After(time.Minute * 12):
-			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed lock warmUp", step, archiveFilename)
-			time.Sleep(time.Second * 30)
-			os.Exit(1)
-		}
-	}()
-
-	step = 1
-	if err := util.DoWithRetry(ctx, fmt.Sprintf("Lock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
-		return lockfile.TryLock()
-	}); err != nil {
-		return err
-	}
-	defer func() {
-		err := lockfile.Unlock() //nolint:errcheck
-		if err != nil {
-			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed unlock warmUp", step, archiveFilename, err)
-			time.Sleep(time.Second * 30)
-			os.Exit(1)
-		}
-	}()
+	// if err := util.DoWithRetry(ctx, fmt.Sprintf("Lock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
+	// 	return lockfile.TryLock()
+	// }); err != nil {
+	// 	return err
+	// }
+	// defer lockfile.Unlock() //nolint:errcheck
 
 	if !util.FileExists(platformDir) {
 		if util.FileExists(pluginProviderPlatformDir) {
@@ -126,13 +105,13 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 			}
 			alreadyCached = true
 		} else {
-			cache.needCacheArchive = true
+			needCacheArchive = true
 		}
 	} else {
 		alreadyCached = true
 	}
 
-	if cache.needCacheArchive && !util.FileExists(archiveFilename) {
+	if needCacheArchive && !util.FileExists(archiveFilename) {
 		if cache.DownloadURL == nil {
 			return errors.Errorf("unable to cache provider %q, the download URL is undefined", cache.Provider)
 		}
@@ -145,16 +124,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if !alreadyCached {
-		go func() {
-			select {
-			case <-debugCtx.Done():
-			case <-time.After(time.Minute * 5):
-				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed decompress warmUp", step, archiveFilename)
-				time.Sleep(time.Second * 30)
-				os.Exit(1)
-			}
-		}()
-		step = 4
 		log.Debugf("Decompress provider archive %s", archiveFilename)
 
 		zip, err := fastzip.NewExtractor(archiveFilename, platformDir)
@@ -172,11 +141,9 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 }
 
 func (cache *ProviderCache) removeArchive() error {
-	var (
-		archiveFilename = cache.ArchiveFilename()
-	)
+	archiveFilename := cache.ArchiveFilename()
 
-	if cache.needCacheArchive && util.FileExists(archiveFilename) {
+	if !cache.needCacheArchive && util.FileExists(archiveFilename) {
 		log.Debugf("Remove provider cache archive %s", archiveFilename)
 		if err := os.Remove(archiveFilename); err != nil {
 			return errors.WithStackTrace(err)
@@ -224,9 +191,8 @@ func (service *ProviderService) CacheProvider(ctx context.Context, provider *mod
 	}
 
 	cache := &ProviderCache{
-		ProviderService:  service,
-		Provider:         provider,
-		needCacheArchive: service.needCacheArchive,
+		ProviderService: service,
+		Provider:        provider,
 	}
 	service.providerCaches = append(service.providerCaches, cache)
 
@@ -269,7 +235,7 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 				defer service.cacheReadyMu.RUnlock()
 
 				if err := cache.warmUp(ctx); err != nil {
-					// os.RemoveAll(cache.platformDir()) //nolint:errcheck
+					os.RemoveAll(cache.platformDir()) //nolint:errcheck
 					return err
 				}
 				cache.ready = true
@@ -284,11 +250,11 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 				merr = multierror.Append(merr, err)
 			}
 
-			// for _, cache := range service.providerCaches {
-			// 	if err := cache.removeArchive(); err != nil {
-			// 		merr = multierror.Append(merr, errors.WithStackTrace(err))
-			// 	}
-			// }
+			for _, cache := range service.providerCaches {
+				if err := cache.removeArchive(); err != nil {
+					merr = multierror.Append(merr, errors.WithStackTrace(err))
+				}
+			}
 
 			return merr.ErrorOrNil()
 		}
