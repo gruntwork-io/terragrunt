@@ -214,7 +214,6 @@ jobs:
           <<: *run_integration_test
           environment:
             TERRAGRUNT_PROVIDER_CACHE: "1"
-            TERRAGRUNT_PROVIDER_CACHE_UNIQUE_DIR: "1"
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
@@ -266,7 +265,6 @@ jobs:
           environment:
             TERRAGRUNT_TFPATH: tofu
             TERRAGRUNT_PROVIDER_CACHE: "1"
-            TERRAGRUNT_PROVIDER_CACHE_UNIQUE_DIR: "1"
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
