@@ -18,13 +18,8 @@ func NewLockfile(filename string) *Lockfile {
 }
 
 func (lockfile *Lockfile) Unlock() error {
-	if err := lockfile.fd.Close(); err != nil {
-		return errors.WithStackTrace(err)
-	}
-	if err := os.Remove(lockfile.filename); err != nil {
-		return errors.WithStackTrace(err)
-	}
-	return nil
+	lockfile.fd.Close()
+	return os.Remove(lockfile.filename)
 }
 
 func (lockfile *Lockfile) TryLock() error {

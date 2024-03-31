@@ -112,7 +112,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	defer func() {
 		err := lockfile.Unlock() //nolint:errcheck
 		if err != nil {
-			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed unlock warmUp", step, archiveFilename)
+			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed unlock warmUp", step, archiveFilename, err)
 			time.Sleep(time.Second * 30)
 			os.Exit(1)
 		}
