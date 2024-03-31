@@ -20,10 +20,7 @@ testDefaults: &testDefaults
 
   environment:
     GRUNTWORK_INSTALLER_VERSION: v0.0.39
-    TERRATEST_LOG_PARSER_VERSION: v0.40.6
-    MODULE_CI_VERSION: v0.53.4
-    GOLANG_VERSION: 1.19.3
-    GO111MODULE: auto
+    MODULE_CI_VERSION: v0.53.3
 
 install_golang: &install_golang
   name: Install Golang
@@ -37,8 +34,9 @@ install_golang: &install_golang
     export GOPATH=$HOME/go
     export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
     source ~/.profile
-    curl -Ls https://raw.githubusercontent.com/gruntwork-io/gruntwork-installer/${GRUNTWORK_INSTALLER_VERSION}/bootstrap-gruntwork-installer.sh | bash /dev/stdin --version ${GRUNTWORK_INSTALLER_VERSION}
-    gruntwork-install --module-name "gruntwork-module-circleci-helpers" --repo "https://github.com/gruntwork-io/module-ci" --tag "${MODULE_CI_VERSION}"
+    curl -Ls https://raw.githubusercontent.com/gruntwork-io/gruntwork-installer/master/bootstrap-gruntwork-installer.sh | bash /dev/stdin --version "${GRUNTWORK_INSTALLER_VERSION}"
+    gruntwork-install --module-name "gruntwork-module-circleci-helpers" --repo "https://github.com/gruntwork-io/terraform-aws-ci" --tag "${MODULE_CI_VERSION}"
+    gruntwork-install --module-name "sign-binary-helpers" --repo "https://github.com/gruntwork-io/terraform-aws-ci" --tag "${MODULE_CI_VERSION}"
 
 # Install Terraform 1.6 for integration tests
 install_terraform: &install_terraform
