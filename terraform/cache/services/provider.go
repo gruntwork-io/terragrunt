@@ -154,7 +154,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if cache.needCacheArchive && !util.FileExists(archiveFilename) {
-		time.Sleep(time.Second * 5)
 		if cache.DownloadURL == nil {
 			return errors.Errorf("unable to cache provider %q, the download URL is undefined", cache.Provider)
 		}
@@ -177,7 +176,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if !alreadyCached {
-		//time.Sleep(time.Second * 10)
+		time.Sleep(time.Second * 5)
 
 		if !util.FileExists(archiveFilename) {
 			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! file does not exist for decompressing warmUp", step, archiveFilename)
