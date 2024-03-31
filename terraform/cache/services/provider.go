@@ -154,6 +154,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if cache.needCacheArchive && !util.FileExists(archiveFilename) {
+		time.Sleep(time.Second * 5)
 		if cache.DownloadURL == nil {
 			return errors.Errorf("unable to cache provider %q, the download URL is undefined", cache.Provider)
 		}
@@ -332,11 +333,11 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 				merr = multierror.Append(merr, err)
 			}
 
-			// for _, cache := range service.providerCaches {
-			// 	if err := cache.removeArchive(); err != nil {
-			// 		merr = multierror.Append(merr, errors.WithStackTrace(err))
-			// 	}
-			// }
+			for _, cache := range service.providerCaches {
+				if err := cache.removeArchive(); err != nil {
+					merr = multierror.Append(merr, errors.WithStackTrace(err))
+				}
+			}
 
 			return merr.ErrorOrNil()
 		}
