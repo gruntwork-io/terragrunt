@@ -23,6 +23,7 @@ type Server struct {
 
 	Provider           *services.ProviderService
 	providerController *controllers.ProviderController
+	reverseProxy       *handlers.ReverseProxy
 }
 
 // NewServer returns a new Server instance.
@@ -35,12 +36,7 @@ func NewServer(opts ...Option) *Server {
 	// 	Token: cfg.token,
 	// }
 
-	reverseProxy := &handlers.ReverseProxy{
-		ServerURL: &url.URL{
-			Scheme: "http",
-			Host:   cfg.Addr(),
-		},
-	}
+	reverseProxy := &handlers.ReverseProxy{}
 
 	downloaderController := &controllers.DownloaderController{
 		ReverseProxy:    reverseProxy,
@@ -69,6 +65,7 @@ func NewServer(opts ...Option) *Server {
 		config:             cfg,
 		Provider:           providerService,
 		providerController: providerController,
+		reverseProxy:       reverseProxy,
 	}
 }
 
@@ -97,6 +94,11 @@ func (server *Server) Listen(ctx context.Context) error {
 // Run starts the webserver and workers.
 func (server *Server) Run(ctx context.Context) error {
 	log.Infof("Start Terragrunt Cache server")
+
+	server.reverseProxy.ServerURL = &url.URL{
+		Scheme: "http",
+		Host:   server.Addr,
+	}
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 	errGroup.Go(func() error {
