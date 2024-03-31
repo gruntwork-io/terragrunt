@@ -3,32 +3,38 @@ package util
 import (
 	"os"
 
+	"github.com/gofrs/flock"
 	"github.com/gruntwork-io/go-commons/errors"
 )
 
 type Lockfile struct {
-	filename string
-	fd       *os.File
+	*flock.Flock
 }
 
 func NewLockfile(filename string) *Lockfile {
 	return &Lockfile{
-		filename: filename,
+		flock.New(filename),
 	}
 }
 
 func (lockfile *Lockfile) Unlock() error {
-	lockfile.fd.Close()
-	os.Remove(lockfile.filename)
+	if err := lockfile.Flock.Unlock(); err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	if err := os.Remove(lockfile.Path()); err != nil {
+		return errors.WithStackTrace(err)
+	}
+
 	return nil
 }
 
 func (lockfile *Lockfile) TryLock() error {
-	fd, err := os.OpenFile(lockfile.filename, os.O_RDONLY|os.O_CREATE|os.O_EXCL, 0666)
-	if err != nil {
+	if locked, err := lockfile.Flock.TryLock(); err != nil {
 		return errors.WithStackTrace(err)
+	} else if !locked {
+		return errors.Errorf("unable to lock file %s", lockfile.Path())
 	}
-	lockfile.fd = fd
 
 	return nil
 }

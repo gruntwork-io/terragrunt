@@ -23,7 +23,7 @@ var (
 	unzipFileMode = os.FileMode(0000)
 
 	retryDelayLockFile = time.Second * 5
-	maxRetriesLockFile = 30
+	maxRetriesLockFile = 60
 
 	retryDelayFetchFile = time.Second * 2
 	maxRetriesFetchFile = 30
@@ -113,22 +113,21 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}); err != nil {
 		return err
 	}
-	defer lockfile.Unlock() //nolint:errcheck
-	// func() {
-	// 	go func() {
-	// 		select {
-	// 		case <-debugCtx.Done():
-	// 		case <-time.After(time.Minute * 2):
-	// 			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed unlock warmUp", step, archiveFilename)
-	// 			time.Sleep(time.Second * 30)
-	// 			os.Exit(1)
-	// 		}
-	// 	}()
-	// 	step = 6
-	// 	util.DoWithRetry(ctx, fmt.Sprintf("Unlock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error { //nolint:errcheck
-	// 		return lockfile.Unlock()
-	// 	})
-	// }()
+	defer func() {
+		go func() {
+			select {
+			case <-debugCtx.Done():
+			case <-time.After(time.Minute * 2):
+				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed unlock warmUp", step, archiveFilename)
+				time.Sleep(time.Second * 30)
+				os.Exit(1)
+			}
+		}()
+		step = 6
+		util.DoWithRetry(ctx, fmt.Sprintf("Unlock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error { //nolint:errcheck
+			return lockfile.Unlock()
+		})
+	}()
 
 	if !util.FileExists(platformDir) {
 		if util.FileExists(pluginProviderPlatformDir) {
@@ -205,6 +204,8 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		}
 	}()
 	step = 5
+
+	time.Sleep(time.Second * 20)
 
 	return nil
 }
