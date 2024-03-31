@@ -30,7 +30,7 @@ func (lockfile *Lockfile) TryLock() error {
 	}
 	lockfile.mutex = mutex
 
-	if err := mutex.TryLock(); err != nil {
+	if err := mutex.Lock(); err != nil {
 		return errors.WithStackTrace(err)
 	}
 	return nil
