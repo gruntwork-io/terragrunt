@@ -16,7 +16,7 @@ defaults: &defaults
 testDefaults: &testDefaults
   machine:
     enabled: true
-    image: ubuntu-2004:202111-02
+    image: ubuntu-2204:2024.01.2
 
   environment:
     GRUNTWORK_INSTALLER_VERSION: v0.0.39
