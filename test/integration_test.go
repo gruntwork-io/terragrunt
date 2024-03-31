@@ -267,256 +267,256 @@ func TestTerragruntProviderCache(t *testing.T) {
 
 }
 
-// func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
+	t.Parallel()
 
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_NO_BACKEND)
-// 	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_NO_BACKEND)
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_NO_BACKEND)
+	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_NO_BACKEND)
 
-// 	var (
-// 		stdout bytes.Buffer
-// 		stderr bytes.Buffer
-// 	)
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
 
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
-// 	output := stdout.String()
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	output := stdout.String()
 
-// 	if err != nil {
-// 		t.Errorf("Did not expect to get error: %s", err.Error())
-// 	}
+	if err != nil {
+		t.Errorf("Did not expect to get error: %s", err.Error())
+	}
 
-// 	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
-// 	// With no source, `init-from-module` should not execute
-// 	assert.NotContains(t, output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE", "Hooks on init-from-module command executed when no source was specified")
-// }
+	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
+	// With no source, `init-from-module` should not execute
+	assert.NotContains(t, output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE", "Hooks on init-from-module command executed when no source was specified")
+}
 
-// func TestTerragruntInitHookNoSourceWithBackend(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntInitHookNoSourceWithBackend(t *testing.T) {
+	t.Parallel()
 
-// 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_WITH_BACKEND)
-// 	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_WITH_BACKEND)
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_WITH_BACKEND)
+	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_WITH_BACKEND)
 
-// 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 
-// 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
-// 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", TERRAFORM_REMOTE_STATE_S3_REGION)
+	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", TERRAFORM_REMOTE_STATE_S3_REGION)
 
-// 	var (
-// 		stdout bytes.Buffer
-// 		stderr bytes.Buffer
-// 	)
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
 
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
-// 	output := stdout.String()
-// 	if err != nil {
-// 		t.Errorf("Did not expect to get error: %s", err.Error())
-// 	}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	output := stdout.String()
+	if err != nil {
+		t.Errorf("Did not expect to get error: %s", err.Error())
+	}
 
-// 	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
-// 	// With no source, `init-from-module` should not execute
-// 	assert.NotContains(t, output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE", "Hooks on init-from-module command executed when no source was specified")
-// }
+	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
+	// With no source, `init-from-module` should not execute
+	assert.NotContains(t, output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE", "Hooks on init-from-module command executed when no source was specified")
+}
 
-// func TestTerragruntInitHookWithSourceNoBackend(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntInitHookWithSourceNoBackend(t *testing.T) {
+	t.Parallel()
 
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
-// 	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
+	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
 
-// 	var (
-// 		stdout bytes.Buffer
-// 		stderr bytes.Buffer
-// 	)
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
 
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", rootPath), &stdout, &stderr)
-// 	logBufferContentsLineByLine(t, stdout, "apply stdout")
-// 	logBufferContentsLineByLine(t, stderr, "apply stderr")
-// 	output := stdout.String()
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", rootPath), &stdout, &stderr)
+	logBufferContentsLineByLine(t, stdout, "apply stdout")
+	logBufferContentsLineByLine(t, stderr, "apply stderr")
+	output := stdout.String()
 
-// 	if err != nil {
-// 		t.Errorf("Did not expect to get error: %s", err.Error())
-// 	}
+	if err != nil {
+		t.Errorf("Did not expect to get error: %s", err.Error())
+	}
 
-// 	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE\n"), "Hooks on init command executed more than once")
-// 	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE\n"), "Hooks on init-from-module command executed more than once")
-// }
+	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE\n"), "Hooks on init command executed more than once")
+	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE\n"), "Hooks on init-from-module command executed more than once")
+}
 
-// func TestTerragruntInitHookWithSourceWithBackend(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntInitHookWithSourceWithBackend(t *testing.T) {
+	t.Parallel()
 
-// 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_WITH_BACKEND)
-// 	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_WITH_BACKEND)
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_WITH_BACKEND)
+	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_WITH_BACKEND)
 
-// 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 
-// 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
-// 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", TERRAFORM_REMOTE_STATE_S3_REGION)
+	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", TERRAFORM_REMOTE_STATE_S3_REGION)
 
-// 	var (
-// 		stdout bytes.Buffer
-// 		stderr bytes.Buffer
-// 	)
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
 
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
-// 	output := stdout.String()
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	output := stdout.String()
 
-// 	if err != nil {
-// 		t.Errorf("Did not expect to get error: %s", err.Error())
-// 	}
+	if err != nil {
+		t.Errorf("Did not expect to get error: %s", err.Error())
+	}
 
-// 	// `init` hook should execute only once
-// 	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
-// 	// `init-from-module` hook should execute only once
-// 	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE"), "Hooks on init-from-module command executed more than once")
-// }
+	// `init` hook should execute only once
+	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
+	// `init-from-module` hook should execute only once
+	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE"), "Hooks on init-from-module command executed more than once")
+}
 
-// func TestTerragruntHookRunAllApply(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntHookRunAllApply(t *testing.T) {
+	t.Parallel()
 
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_ALL_PATH)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_ALL_PATH)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_ALL_PATH)
-// 	beforeOnlyPath := util.JoinPath(rootPath, "before-only")
-// 	afterOnlyPath := util.JoinPath(rootPath, "after-only")
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_ALL_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_ALL_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_ALL_PATH)
+	beforeOnlyPath := util.JoinPath(rootPath, "before-only")
+	afterOnlyPath := util.JoinPath(rootPath, "after-only")
 
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
-// 	_, beforeErr := os.ReadFile(beforeOnlyPath + "/file.out")
-// 	assert.NoError(t, beforeErr)
-// 	_, afterErr := os.ReadFile(afterOnlyPath + "/file.out")
-// 	assert.NoError(t, afterErr)
-// }
+	_, beforeErr := os.ReadFile(beforeOnlyPath + "/file.out")
+	assert.NoError(t, beforeErr)
+	_, afterErr := os.ReadFile(afterOnlyPath + "/file.out")
+	assert.NoError(t, afterErr)
+}
 
-// func TestTerragruntHookApplyAll(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntHookApplyAll(t *testing.T) {
+	t.Parallel()
 
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_ALL_PATH)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_ALL_PATH)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_ALL_PATH)
-// 	beforeOnlyPath := util.JoinPath(rootPath, "before-only")
-// 	afterOnlyPath := util.JoinPath(rootPath, "after-only")
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_ALL_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_ALL_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_ALL_PATH)
+	beforeOnlyPath := util.JoinPath(rootPath, "before-only")
+	afterOnlyPath := util.JoinPath(rootPath, "after-only")
 
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all -auto-approve --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all -auto-approve --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
-// 	_, beforeErr := os.ReadFile(beforeOnlyPath + "/file.out")
-// 	assert.NoError(t, beforeErr)
-// 	_, afterErr := os.ReadFile(afterOnlyPath + "/file.out")
-// 	assert.NoError(t, afterErr)
-// }
+	_, beforeErr := os.ReadFile(beforeOnlyPath + "/file.out")
+	assert.NoError(t, beforeErr)
+	_, afterErr := os.ReadFile(afterOnlyPath + "/file.out")
+	assert.NoError(t, afterErr)
+}
 
-// func TestTerragruntBeforeHook(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntBeforeHook(t *testing.T) {
+	t.Parallel()
 
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH)
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH)
 
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
-// 	_, exception := os.ReadFile(rootPath + "/file.out")
+	_, exception := os.ReadFile(rootPath + "/file.out")
 
-// 	assert.NoError(t, exception)
-// }
+	assert.NoError(t, exception)
+}
 
-// func TestTerragruntHookWorkingDir(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntHookWorkingDir(t *testing.T) {
+	t.Parallel()
 
-// 	fixturePath := "fixture-hooks/working_dir"
-// 	cleanupTerraformFolder(t, fixturePath)
-// 	tmpEnvPath := copyEnvironment(t, fixturePath)
-// 	rootPath := util.JoinPath(tmpEnvPath, fixturePath)
+	fixturePath := "fixture-hooks/working_dir"
+	cleanupTerraformFolder(t, fixturePath)
+	tmpEnvPath := copyEnvironment(t, fixturePath)
+	rootPath := util.JoinPath(tmpEnvPath, fixturePath)
 
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
-// }
+	runTerragrunt(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+}
 
-// func TestTerragruntAfterHook(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntAfterHook(t *testing.T) {
+	t.Parallel()
 
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH)
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH)
 
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
-// 	_, exception := os.ReadFile(rootPath + "/file.out")
+	_, exception := os.ReadFile(rootPath + "/file.out")
 
-// 	assert.NoError(t, exception)
-// }
+	assert.NoError(t, exception)
+}
 
-// func TestTerragruntBeforeAndAfterHook(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntBeforeAndAfterHook(t *testing.T) {
+	t.Parallel()
 
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
 
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 
-// 	_, beforeException := os.ReadFile(rootPath + "/before.out")
-// 	_, afterException := os.ReadFile(rootPath + "/after.out")
+	_, beforeException := os.ReadFile(rootPath + "/before.out")
+	_, afterException := os.ReadFile(rootPath + "/after.out")
 
-// 	output := stdout.String()
+	output := stdout.String()
 
-// 	if err != nil {
-// 		t.Errorf("Did not expect to get error: %s", err.Error())
-// 	}
+	if err != nil {
+		t.Errorf("Did not expect to get error: %s", err.Error())
+	}
 
-// 	assert.Equal(t, 0, strings.Count(output, "BEFORE_TERRAGRUNT_READ_CONFIG"), "terragrunt-read-config before_hook should not be triggered")
-// 	t.Logf("output: %s", output)
+	assert.Equal(t, 0, strings.Count(output, "BEFORE_TERRAGRUNT_READ_CONFIG"), "terragrunt-read-config before_hook should not be triggered")
+	t.Logf("output: %s", output)
 
-// 	assert.Equal(t, 1, strings.Count(output, "AFTER_TERRAGRUNT_READ_CONFIG"), "Hooks on terragrunt-read-config command executed more than once")
+	assert.Equal(t, 1, strings.Count(output, "AFTER_TERRAGRUNT_READ_CONFIG"), "Hooks on terragrunt-read-config command executed more than once")
 
-// 	assert.NoError(t, beforeException)
-// 	assert.NoError(t, afterException)
-// }
+	assert.NoError(t, beforeException)
+	assert.NoError(t, afterException)
+}
 
-// func TestTerragruntBeforeAfterAndErrorMergeHook(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntBeforeAfterAndErrorMergeHook(t *testing.T) {
+	t.Parallel()
 
-// 	childPath := util.JoinPath(TEST_FIXTURE_HOOKS_BEFORE_AFTER_AND_ERROR_MERGE_PATH, qaMyAppRelPath)
-// 	cleanupTerraformFolder(t, childPath)
+	childPath := util.JoinPath(TEST_FIXTURE_HOOKS_BEFORE_AFTER_AND_ERROR_MERGE_PATH, qaMyAppRelPath)
+	cleanupTerraformFolder(t, childPath)
 
-// 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-// 	t.Logf("bucketName: %s", s3BucketName)
-// 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	t.Logf("bucketName: %s", s3BucketName)
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 
-// 	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_HOOKS_BEFORE_AFTER_AND_ERROR_MERGE_PATH, qaMyAppRelPath, s3BucketName, config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath)
+	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, TEST_FIXTURE_HOOKS_BEFORE_AFTER_AND_ERROR_MERGE_PATH, qaMyAppRelPath, s3BucketName, config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath)
 
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath), &stdout, &stderr)
-// 	assert.ErrorContains(t, err, "executable file not found in $PATH")
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath), &stdout, &stderr)
+	assert.ErrorContains(t, err, "executable file not found in $PATH")
 
-// 	_, beforeException := os.ReadFile(childPath + "/before.out")
-// 	_, beforeChildException := os.ReadFile(childPath + "/before-child.out")
-// 	_, beforeOverriddenParentException := os.ReadFile(childPath + "/before-parent.out")
-// 	_, afterException := os.ReadFile(childPath + "/after.out")
-// 	_, afterParentException := os.ReadFile(childPath + "/after-parent.out")
-// 	_, errorHookParentException := os.ReadFile(childPath + "/error-hook-parent.out")
-// 	_, errorHookChildException := os.ReadFile(childPath + "/error-hook-child.out")
-// 	_, errorHookOverridenParentException := os.ReadFile(childPath + "/error-hook-merge-parent.out")
+	_, beforeException := os.ReadFile(childPath + "/before.out")
+	_, beforeChildException := os.ReadFile(childPath + "/before-child.out")
+	_, beforeOverriddenParentException := os.ReadFile(childPath + "/before-parent.out")
+	_, afterException := os.ReadFile(childPath + "/after.out")
+	_, afterParentException := os.ReadFile(childPath + "/after-parent.out")
+	_, errorHookParentException := os.ReadFile(childPath + "/error-hook-parent.out")
+	_, errorHookChildException := os.ReadFile(childPath + "/error-hook-child.out")
+	_, errorHookOverridenParentException := os.ReadFile(childPath + "/error-hook-merge-parent.out")
 
-// 	assert.NoError(t, beforeException)
-// 	assert.NoError(t, beforeChildException)
-// 	assert.NoError(t, afterException)
-// 	assert.NoError(t, afterParentException)
-// 	assert.NoError(t, errorHookParentException)
-// 	assert.NoError(t, errorHookChildException)
+	assert.NoError(t, beforeException)
+	assert.NoError(t, beforeChildException)
+	assert.NoError(t, afterException)
+	assert.NoError(t, afterParentException)
+	assert.NoError(t, errorHookParentException)
+	assert.NoError(t, errorHookChildException)
 
-// 	// PathError because no file found
-// 	assert.Error(t, beforeOverriddenParentException)
-// 	assert.Error(t, errorHookOverridenParentException)
-// }
+	// PathError because no file found
+	assert.Error(t, beforeOverriddenParentException)
+	assert.Error(t, errorHookOverridenParentException)
+}
 
 // func TestTerragruntSkipOnError(t *testing.T) {
 // 	t.Parallel()
