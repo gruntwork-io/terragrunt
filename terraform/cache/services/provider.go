@@ -83,9 +83,9 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		platformDir               = cache.platformDir()
 		providerDir               = cache.providerDir()
 		archiveFilename           = cache.ArchiveFilename()
-		lockfileName              = cache.lockFilename()
+		// lockfileName              = cache.lockFilename()
 
-		lockfile      = util.NewLockfile(lockfileName)
+		// lockfile      = util.NewLockfile(lockfileName)
 		alreadyCached bool
 	)
 
@@ -108,11 +108,11 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}()
 
 	step = 1
-	if err := util.DoWithRetry(ctx, fmt.Sprintf("Lock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
-		return lockfile.Lock()
-	}); err != nil {
-		return err
-	}
+	// if err := util.DoWithRetry(ctx, fmt.Sprintf("Lock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
+	// 	return lockfile.Lock()
+	// }); err != nil {
+	// 	return err
+	// }
 	defer func() {
 		go func() {
 			select {
@@ -124,9 +124,9 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 			}
 		}()
 		step = 6
-		util.DoWithRetry(ctx, fmt.Sprintf("Unlock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error { //nolint:errcheck
-			return lockfile.Unlock()
-		})
+		// util.DoWithRetry(ctx, fmt.Sprintf("Unlock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error { //nolint:errcheck
+		// 	return lockfile.Unlock()
+		// })
 	}()
 
 	if !util.FileExists(platformDir) {
