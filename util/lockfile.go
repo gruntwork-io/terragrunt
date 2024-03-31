@@ -18,20 +18,21 @@ func NewLockfile(filename string) *Lockfile {
 }
 
 func (lockfile *Lockfile) Unlock() error {
-	os.Remove(lockfile.filename) //nolint:errcheck
+	if err := lockfile.fd.Close(); err != nil {
+		return errors.WithStackTrace(err)
+	}
+	if err := os.Remove(lockfile.filename); err != nil {
+		return errors.WithStackTrace(err)
+	}
 	return nil
 }
 
 func (lockfile *Lockfile) TryLock() error {
-	if FileExists(lockfile.filename) {
-		return errors.Errorf("file is already locked")
-	}
-
-	file, err := os.Create(lockfile.filename)
+	fd, err := os.OpenFile(lockfile.filename, os.O_RDONLY|os.O_CREATE|os.O_EXCL, 0666)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
-	defer file.Close() //nolint:errcheck
+	lockfile.fd = fd
 
 	return nil
 }

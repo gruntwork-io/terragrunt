@@ -89,12 +89,34 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.WithStackTrace(err)
 	}
 
+	var step int
+	debugCtx, debugCancel := context.WithCancel(ctx)
+	defer debugCancel()
+
+	go func() {
+		select {
+		case <-debugCtx.Done():
+		case <-time.After(time.Minute * 12):
+			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed lock warmUp", step, archiveFilename)
+			time.Sleep(time.Second * 30)
+			os.Exit(1)
+		}
+	}()
+
+	step = 1
 	if err := util.DoWithRetry(ctx, fmt.Sprintf("Lock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
 		return lockfile.TryLock()
 	}); err != nil {
 		return err
 	}
-	defer lockfile.Unlock() //nolint:errcheck
+	defer func() {
+		err := lockfile.Unlock() //nolint:errcheck
+		if err != nil {
+			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed unlock warmUp", step, archiveFilename)
+			time.Sleep(time.Second * 30)
+			os.Exit(1)
+		}
+	}()
 
 	if !util.FileExists(platformDir) {
 		if util.FileExists(pluginProviderPlatformDir) {
@@ -123,6 +145,16 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if !alreadyCached {
+		go func() {
+			select {
+			case <-debugCtx.Done():
+			case <-time.After(time.Minute * 5):
+				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed decompress warmUp", step, archiveFilename)
+				time.Sleep(time.Second * 30)
+				os.Exit(1)
+			}
+		}()
+		step = 4
 		log.Debugf("Decompress provider archive %s", archiveFilename)
 
 		zip, err := fastzip.NewExtractor(archiveFilename, platformDir)
@@ -237,7 +269,7 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 				defer service.cacheReadyMu.RUnlock()
 
 				if err := cache.warmUp(ctx); err != nil {
-					os.RemoveAll(cache.platformDir()) //nolint:errcheck
+					// os.RemoveAll(cache.platformDir()) //nolint:errcheck
 					return err
 				}
 				cache.ready = true
