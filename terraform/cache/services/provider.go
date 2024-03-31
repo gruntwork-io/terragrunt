@@ -205,8 +205,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}()
 	step = 5
 
-	time.Sleep(time.Second * 20)
-
 	return nil
 }
 
