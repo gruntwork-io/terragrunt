@@ -25,15 +25,6 @@ testDefaults: &testDefaults
 install_golang: &install_golang
   name: Install Golang
   command: |
-    sudo apt-get update -y
-    cd /tmp
-    wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
-    sudo tar -xvf go1.21.0.linux-amd64.tar.gz
-    sudo mv go /usr/local
-    export GOROOT=/usr/local/go
-    export GOPATH=$HOME/go
-    export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
-    source ~/.profile
     curl -Ls https://raw.githubusercontent.com/gruntwork-io/gruntwork-installer/master/bootstrap-gruntwork-installer.sh | bash /dev/stdin --version "${GRUNTWORK_INSTALLER_VERSION}"
     gruntwork-install --module-name "gruntwork-module-circleci-helpers" --repo "https://github.com/gruntwork-io/terraform-aws-ci" --tag "${MODULE_CI_VERSION}"
     gruntwork-install --module-name "sign-binary-helpers" --repo "https://github.com/gruntwork-io/terraform-aws-ci" --tag "${MODULE_CI_VERSION}"
