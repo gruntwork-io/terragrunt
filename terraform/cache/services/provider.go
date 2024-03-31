@@ -176,24 +176,15 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if !alreadyCached {
-		time.Sleep(time.Second * 5)
-
 		if !util.FileExists(archiveFilename) {
 			fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! file does not exist for decompressing warmUp", step, archiveFilename)
 		}
-
-		fi, err := os.Stat(archiveFilename)
-		if err != nil {
-			return err
-		}
-		// get the size
-		size := fi.Size()
 
 		go func() {
 			select {
 			case <-debugCtx.Done():
 			case <-time.After(time.Minute * 5):
-				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed decompress warmUp", step, archiveFilename, size)
+				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! failed decompress warmUp", step, archiveFilename)
 				time.Sleep(time.Second * 30)
 				os.Exit(1)
 			}
