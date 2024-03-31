@@ -109,7 +109,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 
 	step = 1
 	if err := util.DoWithRetry(ctx, fmt.Sprintf("Lock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
-		return lockfile.Lock()
+		return lockfile.TryLock()
 	}); err != nil {
 		return err
 	}
@@ -176,6 +176,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if !alreadyCached {
+		time.Sleep(time.Second)
 		go func() {
 			select {
 			case <-debugCtx.Done():
