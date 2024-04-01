@@ -97,7 +97,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return lockfile.TryLock()
 	}); err != nil {
 		return errors.Errorf("unable to acquiring lock file %s (already locked?) try removing the file manually: %w", lockfileName, err)
-
 	}
 	defer lockfile.Unlock() //nolint:errcheck
 
@@ -138,8 +137,19 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	return nil
 }
 
-func (cache *ProviderCache) removeArchive() error {
-	archiveFilename := cache.ArchiveFilename()
+func (cache *ProviderCache) removeArchive(ctx context.Context) error {
+	var (
+		archiveFilename = cache.ArchiveFilename()
+		lockfileName    = cache.lockFilename()
+		lockfile        = util.NewLockfile(lockfileName)
+	)
+
+	if err := util.DoWithRetry(ctx, fmt.Sprintf("Acquiring lock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
+		return lockfile.TryLock()
+	}); err != nil {
+		return errors.Errorf("unable to acquiring lock file %s (already locked?) try removing the file manually: %w", lockfileName, err)
+	}
+	defer lockfile.Unlock() //nolint:errcheck
 
 	if !cache.needCacheArchive && util.FileExists(archiveFilename) {
 		log.Debugf("Remove provider cache archive %s", archiveFilename)
@@ -249,7 +259,7 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 			}
 
 			for _, cache := range service.providerCaches {
-				if err := cache.removeArchive(); err != nil {
+				if err := cache.removeArchive(ctx); err != nil {
 					merr = multierror.Append(merr, errors.WithStackTrace(err))
 				}
 			}
