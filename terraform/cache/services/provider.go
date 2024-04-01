@@ -91,12 +91,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.WithStackTrace(err)
 	}
 
-	lockfile, err := cache.acquireLockFile(ctx)
-	if err != nil {
-		return err
-	}
-	defer lockfile.Unlock() //nolint:errcheck
-
 	if !util.FileExists(platformDir) {
 		if util.FileExists(pluginProviderPlatformDir) {
 			log.Debugf("Create symlink file %s to %s", platformDir, pluginProviderPlatformDir)
@@ -243,6 +237,12 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 			errGroup.Go(func() error {
 				service.cacheReadyMu.RLock()
 				defer service.cacheReadyMu.RUnlock()
+
+				lockfile, err := cache.acquireLockFile(ctx)
+				if err != nil {
+					return err
+				}
+				defer lockfile.Unlock() //nolint:errcheck
 
 				if err := cache.warmUp(ctx); err != nil {
 					os.RemoveAll(cache.platformDir()) //nolint:errcheck
