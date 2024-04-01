@@ -21,6 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -689,358 +690,358 @@ func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
 	validateDynamoDBTableExistsAndIsTagged(t, TERRAFORM_REMOTE_STATE_S3_REGION, lockTableName, expectedDynamoDBTableTags)
 }
 
-// // Regression test to ensure that `accesslogging_bucket_name` and `accesslogging_target_prefix` are taken into account
-// // & the TargetLogs bucket is set to a new S3 bucket, different from the origin S3 bucket
-// // & the logs objects are prefixed with the `accesslogging_target_prefix` value
-// func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetPrefix(t *testing.T) {
-// 	t.Parallel()
-
-// 	examplePath := filepath.Join(TEST_FIXTURE_REGRESSIONS, "accesslogging-bucket/with-target-prefix-input")
-// 	cleanupTerraformFolder(t, examplePath)
-
-// 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-// 	s3BucketLogsName := fmt.Sprintf("%s-tf-state-logs", s3BucketName)
-// 	s3BucketLogsTargetPrefix := "logs/"
-// 	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
-
-// 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-// 	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
-
-// 	tmpTerragruntConfigPath := createTmpTerragruntConfig(
-// 		t,
-// 		examplePath,
-// 		s3BucketName,
-// 		lockTableName,
-// 		"remote_terragrunt.hcl",
-// 	)
-
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, examplePath))
-
-// 	targetLoggingBucket := terraws.GetS3BucketLoggingTarget(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-// 	targetLoggingBucketPrefix := terraws.GetS3BucketLoggingTargetPrefix(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-
-// 	assert.Equal(t, s3BucketLogsName, targetLoggingBucket)
-// 	assert.Equal(t, s3BucketLogsTargetPrefix, targetLoggingBucketPrefix)
-
-// 	encryptionConfig, err := bucketEncryption(t, TERRAFORM_REMOTE_STATE_S3_REGION, targetLoggingBucket)
-// 	assert.NoError(t, err)
-// 	assert.NotNil(t, encryptionConfig)
-// 	assert.NotNil(t, encryptionConfig.ServerSideEncryptionConfiguration)
-// 	for _, rule := range encryptionConfig.ServerSideEncryptionConfiguration.Rules {
-// 		if rule.ApplyServerSideEncryptionByDefault != nil {
-// 			if rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
-// 				assert.Equal(t, s3.ServerSideEncryptionAes256, *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
-// 			}
-// 		}
-// 	}
-
-// 	policy, err := bucketPolicy(t, TERRAFORM_REMOTE_STATE_S3_REGION, targetLoggingBucket)
-// 	assert.NoError(t, err)
-// 	assert.NotNil(t, policy.Policy)
-
-// 	policyInBucket, err := aws_helper.UnmarshalPolicy(*policy.Policy)
-// 	assert.NoError(t, err)
-// 	enforceSSE := false
-// 	for _, statement := range policyInBucket.Statement {
-// 		if statement.Sid == remote.SidEnforcedTLSPolicy {
-// 			enforceSSE = true
-// 		}
-// 	}
-// 	assert.True(t, enforceSSE)
-// }
-
-// // Regression test to ensure that `accesslogging_bucket_name` is taken into account
-// // & when no `accesslogging_target_prefix` provided, then **default** value is used for TargetPrefix
-// func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithDefaultTargetPrefix(t *testing.T) {
-// 	t.Parallel()
-
-// 	examplePath := filepath.Join(TEST_FIXTURE_REGRESSIONS, "accesslogging-bucket/no-target-prefix-input")
-// 	cleanupTerraformFolder(t, examplePath)
-
-// 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-// 	s3BucketLogsName := fmt.Sprintf("%s-tf-state-logs", s3BucketName)
-// 	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
-
-// 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-// 	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
-
-// 	tmpTerragruntConfigPath := createTmpTerragruntConfig(
-// 		t,
-// 		examplePath,
-// 		s3BucketName,
-// 		lockTableName,
-// 		"remote_terragrunt.hcl",
-// 	)
-
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, examplePath))
-
-// 	targetLoggingBucket := terraws.GetS3BucketLoggingTarget(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-// 	targetLoggingBucketPrefix := terraws.GetS3BucketLoggingTargetPrefix(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-
-// 	encryptionConfig, err := bucketEncryption(t, TERRAFORM_REMOTE_STATE_S3_REGION, targetLoggingBucket)
-// 	assert.NoError(t, err)
-// 	assert.NotNil(t, encryptionConfig)
-// 	assert.NotNil(t, encryptionConfig.ServerSideEncryptionConfiguration)
-// 	for _, rule := range encryptionConfig.ServerSideEncryptionConfiguration.Rules {
-// 		if rule.ApplyServerSideEncryptionByDefault != nil {
-// 			if rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
-// 				assert.Equal(t, s3.ServerSideEncryptionAes256, *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
-// 			}
-// 		}
-// 	}
+// Regression test to ensure that `accesslogging_bucket_name` and `accesslogging_target_prefix` are taken into account
+// & the TargetLogs bucket is set to a new S3 bucket, different from the origin S3 bucket
+// & the logs objects are prefixed with the `accesslogging_target_prefix` value
+func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetPrefix(t *testing.T) {
+	t.Parallel()
+
+	examplePath := filepath.Join(TEST_FIXTURE_REGRESSIONS, "accesslogging-bucket/with-target-prefix-input")
+	cleanupTerraformFolder(t, examplePath)
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	s3BucketLogsName := fmt.Sprintf("%s-tf-state-logs", s3BucketName)
+	s3BucketLogsTargetPrefix := "logs/"
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+
+	tmpTerragruntConfigPath := createTmpTerragruntConfig(
+		t,
+		examplePath,
+		s3BucketName,
+		lockTableName,
+		"remote_terragrunt.hcl",
+	)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, examplePath))
+
+	targetLoggingBucket := terraws.GetS3BucketLoggingTarget(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	targetLoggingBucketPrefix := terraws.GetS3BucketLoggingTargetPrefix(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+
+	assert.Equal(t, s3BucketLogsName, targetLoggingBucket)
+	assert.Equal(t, s3BucketLogsTargetPrefix, targetLoggingBucketPrefix)
+
+	encryptionConfig, err := bucketEncryption(t, TERRAFORM_REMOTE_STATE_S3_REGION, targetLoggingBucket)
+	assert.NoError(t, err)
+	assert.NotNil(t, encryptionConfig)
+	assert.NotNil(t, encryptionConfig.ServerSideEncryptionConfiguration)
+	for _, rule := range encryptionConfig.ServerSideEncryptionConfiguration.Rules {
+		if rule.ApplyServerSideEncryptionByDefault != nil {
+			if rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
+				assert.Equal(t, s3.ServerSideEncryptionAes256, *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
+			}
+		}
+	}
+
+	policy, err := bucketPolicy(t, TERRAFORM_REMOTE_STATE_S3_REGION, targetLoggingBucket)
+	assert.NoError(t, err)
+	assert.NotNil(t, policy.Policy)
+
+	policyInBucket, err := aws_helper.UnmarshalPolicy(*policy.Policy)
+	assert.NoError(t, err)
+	enforceSSE := false
+	for _, statement := range policyInBucket.Statement {
+		if statement.Sid == remote.SidEnforcedTLSPolicy {
+			enforceSSE = true
+		}
+	}
+	assert.True(t, enforceSSE)
+}
+
+// Regression test to ensure that `accesslogging_bucket_name` is taken into account
+// & when no `accesslogging_target_prefix` provided, then **default** value is used for TargetPrefix
+func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithDefaultTargetPrefix(t *testing.T) {
+	t.Parallel()
+
+	examplePath := filepath.Join(TEST_FIXTURE_REGRESSIONS, "accesslogging-bucket/no-target-prefix-input")
+	cleanupTerraformFolder(t, examplePath)
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	s3BucketLogsName := fmt.Sprintf("%s-tf-state-logs", s3BucketName)
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+
+	tmpTerragruntConfigPath := createTmpTerragruntConfig(
+		t,
+		examplePath,
+		s3BucketName,
+		lockTableName,
+		"remote_terragrunt.hcl",
+	)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, examplePath))
+
+	targetLoggingBucket := terraws.GetS3BucketLoggingTarget(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	targetLoggingBucketPrefix := terraws.GetS3BucketLoggingTargetPrefix(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+
+	encryptionConfig, err := bucketEncryption(t, TERRAFORM_REMOTE_STATE_S3_REGION, targetLoggingBucket)
+	assert.NoError(t, err)
+	assert.NotNil(t, encryptionConfig)
+	assert.NotNil(t, encryptionConfig.ServerSideEncryptionConfiguration)
+	for _, rule := range encryptionConfig.ServerSideEncryptionConfiguration.Rules {
+		if rule.ApplyServerSideEncryptionByDefault != nil {
+			if rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
+				assert.Equal(t, s3.ServerSideEncryptionAes256, *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
+			}
+		}
+	}
 
-// 	assert.Equal(t, s3BucketLogsName, targetLoggingBucket)
-// 	assert.Equal(t, remote.DefaultS3BucketAccessLoggingTargetPrefix, targetLoggingBucketPrefix)
-// }
+	assert.Equal(t, s3BucketLogsName, targetLoggingBucket)
+	assert.Equal(t, remote.DefaultS3BucketAccessLoggingTargetPrefix, targetLoggingBucketPrefix)
+}
 
-// func TestTerragruntWorksWithGCSBackend(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntWorksWithGCSBackend(t *testing.T) {
+	t.Parallel()
 
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GCS_PATH)
+	cleanupTerraformFolder(t, TEST_FIXTURE_GCS_PATH)
 
-// 	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
-// 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-// 	gcsBucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
+	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	gcsBucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 
-// 	defer deleteGCSBucket(t, gcsBucketName)
+	defer deleteGCSBucket(t, gcsBucketName)
 
-// 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_PATH, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, TEST_FIXTURE_GCS_PATH))
+	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_PATH, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, TEST_FIXTURE_GCS_PATH))
 
-// 	var expectedGCSLabels = map[string]string{
-// 		"owner": "terragrunt_test",
-// 		"name":  "terraform_state_storage"}
-// 	validateGCSBucketExistsAndIsLabeled(t, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, expectedGCSLabels)
-// }
+	var expectedGCSLabels = map[string]string{
+		"owner": "terragrunt_test",
+		"name":  "terraform_state_storage"}
+	validateGCSBucketExistsAndIsLabeled(t, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, expectedGCSLabels)
+}
 
-// func TestTerragruntWorksWithExistingGCSBucket(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntWorksWithExistingGCSBucket(t *testing.T) {
+	t.Parallel()
 
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GCS_BYO_BUCKET_PATH)
+	cleanupTerraformFolder(t, TEST_FIXTURE_GCS_BYO_BUCKET_PATH)
 
-// 	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
-// 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-// 	gcsBucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
+	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	gcsBucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 
-// 	defer deleteGCSBucket(t, gcsBucketName)
+	defer deleteGCSBucket(t, gcsBucketName)
 
-// 	// manually create the GCS bucket outside the US (default) to test Terragrunt works correctly with an existing bucket.
-// 	location := TERRAFORM_REMOTE_STATE_GCP_REGION
-// 	createGCSBucket(t, project, location, gcsBucketName)
+	// manually create the GCS bucket outside the US (default) to test Terragrunt works correctly with an existing bucket.
+	location := TERRAFORM_REMOTE_STATE_GCP_REGION
+	createGCSBucket(t, project, location, gcsBucketName)
 
-// 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_BYO_BUCKET_PATH, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, TEST_FIXTURE_GCS_BYO_BUCKET_PATH))
+	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_BYO_BUCKET_PATH, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, TEST_FIXTURE_GCS_BYO_BUCKET_PATH))
 
-// 	validateGCSBucketExistsAndIsLabeled(t, location, gcsBucketName, nil)
-// }
+	validateGCSBucketExistsAndIsLabeled(t, location, gcsBucketName, nil)
+}
 
-// func TestTerragruntWorksWithSingleJsonConfig(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntWorksWithSingleJsonConfig(t *testing.T) {
+	t.Parallel()
 
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_CONFIG_SINGLE_JSON_PATH)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_CONFIG_SINGLE_JSON_PATH)
-
-// 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_CONFIG_SINGLE_JSON_PATH)
+	cleanupTerraformFolder(t, TEST_FIXTURE_CONFIG_SINGLE_JSON_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_CONFIG_SINGLE_JSON_PATH)
+
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_CONFIG_SINGLE_JSON_PATH)
 
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootTerragruntConfigPath))
-// }
+	runTerragrunt(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootTerragruntConfigPath))
+}
 
-// func TestTerragruntWorksWithNonDefaultConfigNamesAndRunAllCommand(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntWorksWithNonDefaultConfigNamesAndRunAllCommand(t *testing.T) {
+	t.Parallel()
 
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_CONFIG_WITH_NON_DEFAULT_NAMES)
-// 	tmpEnvPath = path.Join(tmpEnvPath, TEST_FIXTURE_CONFIG_WITH_NON_DEFAULT_NAMES)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_CONFIG_WITH_NON_DEFAULT_NAMES)
+	tmpEnvPath = path.Join(tmpEnvPath, TEST_FIXTURE_CONFIG_WITH_NON_DEFAULT_NAMES)
 
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
 
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-config main.hcl --terragrunt-non-interactive --terragrunt-working-dir %s", tmpEnvPath), &stdout, &stderr)
-// 	require.NoError(t, err)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-config main.hcl --terragrunt-non-interactive --terragrunt-working-dir %s", tmpEnvPath), &stdout, &stderr)
+	require.NoError(t, err)
 
-// 	out := stdout.String()
-// 	assert.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
-// 	assert.Equal(t, 1, strings.Count(out, "dependency_hcl"))
-// 	assert.Equal(t, 1, strings.Count(out, "common_hcl"))
-// }
+	out := stdout.String()
+	assert.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
+	assert.Equal(t, 1, strings.Count(out, "dependency_hcl"))
+	assert.Equal(t, 1, strings.Count(out, "common_hcl"))
+}
 
-// func TestTerragruntWorksWithNonDefaultConfigNames(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntWorksWithNonDefaultConfigNames(t *testing.T) {
+	t.Parallel()
 
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_CONFIG_WITH_NON_DEFAULT_NAMES)
-// 	tmpEnvPath = path.Join(tmpEnvPath, TEST_FIXTURE_CONFIG_WITH_NON_DEFAULT_NAMES)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_CONFIG_WITH_NON_DEFAULT_NAMES)
+	tmpEnvPath = path.Join(tmpEnvPath, TEST_FIXTURE_CONFIG_WITH_NON_DEFAULT_NAMES)
 
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
 
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-config main.hcl --terragrunt-non-interactive --terragrunt-working-dir %s", filepath.Join(tmpEnvPath, "app")), &stdout, &stderr)
-// 	require.NoError(t, err)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-config main.hcl --terragrunt-non-interactive --terragrunt-working-dir %s", filepath.Join(tmpEnvPath, "app")), &stdout, &stderr)
+	require.NoError(t, err)
 
-// 	out := stdout.String()
-// 	assert.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
-// 	assert.Equal(t, 1, strings.Count(out, "dependency_hcl"))
-// 	assert.Equal(t, 1, strings.Count(out, "common_hcl"))
-// }
+	out := stdout.String()
+	assert.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
+	assert.Equal(t, 1, strings.Count(out, "dependency_hcl"))
+	assert.Equal(t, 1, strings.Count(out, "common_hcl"))
+}
 
-// func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
+func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_FAILED_TERRAFORM)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_FAILED_TERRAFORM)
+	cleanupTerraformFolder(t, TEST_FIXTURE_FAILED_TERRAFORM)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_FAILED_TERRAFORM)
 
-// 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "fixture-failure")
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "fixture-failure")
 
-// 	cmd := fmt.Sprintf("terragrunt plan-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootTerragruntConfigPath)
-// 	var (
-// 		stdout bytes.Buffer
-// 		stderr bytes.Buffer
-// 	)
-// 	// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
-// 	if err := runTerragruntCommand(t, cmd, &stdout, &stderr); err == nil {
-// 		t.Fatalf("Failed to properly fail command: %v. The terraform should be bad", cmd)
-// 	}
-// 	output := stdout.String()
-// 	errOutput := stderr.String()
-// 	fmt.Printf("STDERR is %s.\n STDOUT is %s", errOutput, output)
-// 	assert.True(t, strings.Contains(errOutput, "missingvar1") || strings.Contains(output, "missingvar1"))
-// 	assert.True(t, strings.Contains(errOutput, "missingvar2") || strings.Contains(output, "missingvar2"))
-// }
+	cmd := fmt.Sprintf("terragrunt plan-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootTerragruntConfigPath)
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
+	if err := runTerragruntCommand(t, cmd, &stdout, &stderr); err == nil {
+		t.Fatalf("Failed to properly fail command: %v. The terraform should be bad", cmd)
+	}
+	output := stdout.String()
+	errOutput := stderr.String()
+	fmt.Printf("STDERR is %s.\n STDOUT is %s", errOutput, output)
+	assert.True(t, strings.Contains(errOutput, "missingvar1") || strings.Contains(output, "missingvar1"))
+	assert.True(t, strings.Contains(errOutput, "missingvar2") || strings.Contains(output, "missingvar2"))
+}
 
-// func TestTerragruntGraphDependenciesCommand(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntGraphDependenciesCommand(t *testing.T) {
+	t.Parallel()
 
-// 	// this test doesn't even run plan, it exits right after the stack was created
-// 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	// this test doesn't even run plan, it exits right after the stack was created
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GRAPH_DEPENDENCIES)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GRAPH_DEPENDENCIES)
 
-// 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH_DEPENDENCIES, config.DefaultTerragruntConfigPath)
-// 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH_DEPENDENCIES, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
-// 	environmentPath := fmt.Sprintf("%s/%s/root", tmpEnvPath, TEST_FIXTURE_GRAPH_DEPENDENCIES)
+	environmentPath := fmt.Sprintf("%s/%s/root", tmpEnvPath, TEST_FIXTURE_GRAPH_DEPENDENCIES)
 
-// 	var (
-// 		stdout bytes.Buffer
-// 		stderr bytes.Buffer
-// 	)
-// 	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt graph-dependencies --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
-// 	output := stdout.String()
-// 	assert.True(t, strings.Contains(output, strings.TrimSpace(`
-// digraph {
-// 	"backend-app" ;
-// 	"backend-app" -> "mysql";
-// 	"backend-app" -> "redis";
-// 	"backend-app" -> "vpc";
-// 	"frontend-app" ;
-// 	"frontend-app" -> "backend-app";
-// 	"frontend-app" -> "vpc";
-// 	"mysql" ;
-// 	"mysql" -> "vpc";
-// 	"redis" ;
-// 	"redis" -> "vpc";
-// 	"vpc" ;
-// }
-// 	`)))
-// }
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt graph-dependencies --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
+	output := stdout.String()
+	assert.True(t, strings.Contains(output, strings.TrimSpace(`
+digraph {
+	"backend-app" ;
+	"backend-app" -> "mysql";
+	"backend-app" -> "redis";
+	"backend-app" -> "vpc";
+	"frontend-app" ;
+	"frontend-app" -> "backend-app";
+	"frontend-app" -> "vpc";
+	"mysql" ;
+	"mysql" -> "vpc";
+	"redis" ;
+	"redis" -> "vpc";
+	"vpc" ;
+}
+	`)))
+}
 
-// func TestTerragruntRunAllCommand(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntRunAllCommand(t *testing.T) {
+	t.Parallel()
 
-// 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-// 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_ALL)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_ALL)
 
-// 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL, config.DefaultTerragruntConfigPath)
-// 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
-// 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL)
+	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL)
 
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath))
-// }
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath))
+}
 
-// func TestTerragruntOutputAllCommand(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntOutputAllCommand(t *testing.T) {
+	t.Parallel()
 
-// 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-// 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_ALL)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_ALL)
 
-// 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL, config.DefaultTerragruntConfigPath)
-// 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
-// 	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL)
+	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, TEST_FIXTURE_OUTPUT_ALL)
 
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath))
 
-// 	var (
-// 		stdout bytes.Buffer
-// 		stderr bytes.Buffer
-// 	)
-// 	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
-// 	output := stdout.String()
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
+	output := stdout.String()
 
-// 	assert.True(t, strings.Contains(output, "app1 output"))
-// 	assert.True(t, strings.Contains(output, "app2 output"))
-// 	assert.True(t, strings.Contains(output, "app3 output"))
+	assert.True(t, strings.Contains(output, "app1 output"))
+	assert.True(t, strings.Contains(output, "app2 output"))
+	assert.True(t, strings.Contains(output, "app3 output"))
 
-// 	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
-// }
+	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
+}
 
-// func TestTerragruntOutputFromDependency(t *testing.T) {
-// 	// t.Parallel() cannot be used together with t.Setenv()
+func TestTerragruntOutputFromDependency(t *testing.T) {
+	// t.Parallel() cannot be used together with t.Setenv()
 
-// 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-// 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY)
 
-// 	rootTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY)
-// 	depTerragruntConfigPath := util.JoinPath(rootTerragruntPath, "dependency", config.DefaultTerragruntConfigPath)
+	rootTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY)
+	depTerragruntConfigPath := util.JoinPath(rootTerragruntPath, "dependency", config.DefaultTerragruntConfigPath)
 
-// 	copyTerragruntConfigAndFillPlaceholders(t, depTerragruntConfigPath, depTerragruntConfigPath, s3BucketName, "not-used", TERRAFORM_REMOTE_STATE_S3_REGION)
+	copyTerragruntConfigAndFillPlaceholders(t, depTerragruntConfigPath, depTerragruntConfigPath, s3BucketName, "not-used", TERRAFORM_REMOTE_STATE_S3_REGION)
 
-// 	var (
-// 		stdout bytes.Buffer
-// 		stderr bytes.Buffer
-// 	)
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
 
-// 	t.Setenv("AWS_CSM_ENABLED", "true")
+	t.Setenv("AWS_CSM_ENABLED", "true")
 
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", rootTerragruntPath), &stdout, &stderr)
-// 	assert.NoError(t, err)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", rootTerragruntPath), &stdout, &stderr)
+	assert.NoError(t, err)
 
-// 	output := stderr.String()
-// 	assert.NotContains(t, output, "invalid character")
-// }
+	output := stderr.String()
+	assert.NotContains(t, output, "invalid character")
+}
 
-// func TestTerragruntInputsFromDependency(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntInputsFromDependency(t *testing.T) {
+	t.Parallel()
 
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
-// 	rootTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
-// 	appTerragruntPath := util.JoinPath(rootTerragruntPath, "app")
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
+	rootTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
+	appTerragruntPath := util.JoinPath(rootTerragruntPath, "app")
 
-// 	var (
-// 		stdout bytes.Buffer
-// 		stderr bytes.Buffer
-// 	)
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
 
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootTerragruntPath))
-// 	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --terragrunt-non-interactive --terragrunt-working-dir %s", appTerragruntPath), &stdout, &stderr)
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootTerragruntPath))
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --terragrunt-non-interactive --terragrunt-working-dir %s", appTerragruntPath), &stdout, &stderr)
 
-// 	expectedOutpus := map[string]string{
-// 		"bar":             "dependency-parent-bar-value",
-// 		"baz":             "dependency-include-input-baz-value",
-// 		"foo":             "dependency-input-foo-value",
-// 		"dep-cluster-id":  "test-id-value",
-// 		"dep-output-test": "test-value",
-// 	}
+	expectedOutpus := map[string]string{
+		"bar":             "dependency-parent-bar-value",
+		"baz":             "dependency-include-input-baz-value",
+		"foo":             "dependency-input-foo-value",
+		"dep-cluster-id":  "test-id-value",
+		"dep-output-test": "test-value",
+	}
 
-// 	output := stdout.String()
-// 	for key, value := range expectedOutpus {
-// 		assert.Contains(t, output, fmt.Sprintf("%s = %q\n", key, value))
-// 	}
-// }
+	output := stdout.String()
+	for key, value := range expectedOutpus {
+		assert.Contains(t, output, fmt.Sprintf("%s = %q\n", key, value))
+	}
+}
 
 // func TestTerragruntValidateAllCommand(t *testing.T) {
 // 	t.Parallel()
@@ -5792,122 +5793,122 @@ func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
 // 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", tmpEnvPath))
 // }
 
-// func TestTerragruntAssumeRole(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntAssumeRole(t *testing.T) {
+	t.Parallel()
 
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_ASSUME_ROLE)
-// 	cleanupTerraformFolder(t, tmpEnvPath)
-// 	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_ASSUME_ROLE)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_ASSUME_ROLE)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_ASSUME_ROLE)
 
-// 	originalTerragruntConfigPath := util.JoinPath(TEST_FIXTURE_ASSUME_ROLE, "terragrunt.hcl")
-// 	tmpTerragruntConfigFile := util.JoinPath(testPath, "terragrunt.hcl")
-// 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-// 	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
-// 	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-2")
+	originalTerragruntConfigPath := util.JoinPath(TEST_FIXTURE_ASSUME_ROLE, "terragrunt.hcl")
+	tmpTerragruntConfigFile := util.JoinPath(testPath, "terragrunt.hcl")
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-2")
 
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt validate-inputs -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt validate-inputs -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testPath))
 
-// 	// validate generated backend.tf
-// 	backendFile := filepath.Join(testPath, "backend.tf")
-// 	assert.FileExists(t, backendFile)
+	// validate generated backend.tf
+	backendFile := filepath.Join(testPath, "backend.tf")
+	assert.FileExists(t, backendFile)
 
-// 	content, err := files.ReadFileAsString(backendFile)
-// 	assert.NoError(t, err)
+	content, err := files.ReadFileAsString(backendFile)
+	assert.NoError(t, err)
 
-// 	opts, err := options.NewTerragruntOptionsForTest(testPath)
-// 	assert.NoError(t, err)
+	opts, err := options.NewTerragruntOptionsForTest(testPath)
+	assert.NoError(t, err)
 
-// 	identityARN, err := aws_helper.GetAWSIdentityArn(nil, opts)
-// 	assert.NoError(t, err)
+	identityARN, err := aws_helper.GetAWSIdentityArn(nil, opts)
+	assert.NoError(t, err)
 
-// 	assert.Contains(t, content, "role_arn     = \""+identityARN+"\"")
-// 	assert.Contains(t, content, "external_id  = \"external_id_123\"")
-// 	assert.Contains(t, content, "session_name = \"session_name_example\"")
-// }
+	assert.Contains(t, content, "role_arn     = \""+identityARN+"\"")
+	assert.Contains(t, content, "external_id  = \"external_id_123\"")
+	assert.Contains(t, content, "session_name = \"session_name_example\"")
+}
 
-// func TestTerragruntUpdatePolicy(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntUpdatePolicy(t *testing.T) {
+	t.Parallel()
 
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PATH)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PATH)
-// 	cleanupTerraformFolder(t, rootPath)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PATH)
+	cleanupTerraformFolder(t, rootPath)
 
-// 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-// 	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
 
-// 	err := createS3BucketE(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-// 	assert.NoError(t, err)
+	err := createS3BucketE(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	assert.NoError(t, err)
 
-// 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-// 	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
 
-// 	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, rootPath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
+	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, rootPath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 
-// 	// check that there is no policy on created bucket
-// 	_, err = bucketPolicy(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-// 	assert.Error(t, err)
+	// check that there is no policy on created bucket
+	_, err = bucketPolicy(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	assert.Error(t, err)
 
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, rootPath))
 
-// 	// check that policy is created
-// 	_, err = bucketPolicy(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-// 	assert.NoError(t, err)
-// }
+	// check that policy is created
+	_, err = bucketPolicy(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	assert.NoError(t, err)
+}
 
-// func TestTerragruntDestroyGraph(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntDestroyGraph(t *testing.T) {
+	t.Parallel()
 
-// 	testCases := []struct {
-// 		path               string
-// 		expectedModules    []string
-// 		notExpectedModules []string
-// 	}{
-// 		{
-// 			path:               "eks",
-// 			expectedModules:    []string{"eks-service-3-v3", "eks-service-3-v2", "eks-service-3", "eks-service-4", "eks-service-5", "eks-service-2-v2", "eks-service-2", "eks-service-1"},
-// 			notExpectedModules: []string{"lambda", "lambda-service-1", "lambda-service-2"},
-// 		},
-// 		{
-// 			path:               "services/lambda-service-1",
-// 			expectedModules:    []string{"lambda-service-2"},
-// 			notExpectedModules: []string{"lambda"},
-// 		},
-// 		{
-// 			path:               "services/eks-service-3",
-// 			expectedModules:    []string{"eks-service-3-v2", "eks-service-4", "eks-service-3-v3"},
-// 			notExpectedModules: []string{"eks", "eks-service-1", "eks-service-2"},
-// 		},
-// 		{
-// 			path:               "services/lambda-service-2",
-// 			expectedModules:    []string{"services/lambda-service-2"},
-// 			notExpectedModules: []string{"services/lambda-service-1", "lambda"},
-// 		},
-// 	}
+	testCases := []struct {
+		path               string
+		expectedModules    []string
+		notExpectedModules []string
+	}{
+		{
+			path:               "eks",
+			expectedModules:    []string{"eks-service-3-v3", "eks-service-3-v2", "eks-service-3", "eks-service-4", "eks-service-5", "eks-service-2-v2", "eks-service-2", "eks-service-1"},
+			notExpectedModules: []string{"lambda", "lambda-service-1", "lambda-service-2"},
+		},
+		{
+			path:               "services/lambda-service-1",
+			expectedModules:    []string{"lambda-service-2"},
+			notExpectedModules: []string{"lambda"},
+		},
+		{
+			path:               "services/eks-service-3",
+			expectedModules:    []string{"eks-service-3-v2", "eks-service-4", "eks-service-3-v3"},
+			notExpectedModules: []string{"eks", "eks-service-1", "eks-service-2"},
+		},
+		{
+			path:               "services/lambda-service-2",
+			expectedModules:    []string{"services/lambda-service-2"},
+			notExpectedModules: []string{"services/lambda-service-1", "lambda"},
+		},
+	}
 
-// 	for _, testCase := range testCases {
-// 		testCase := testCase
+	for _, testCase := range testCases {
+		testCase := testCase
 
-// 		t.Run(testCase.path, func(t *testing.T) {
-// 			tmpEnvPath := prepareGraphFixture(t)
-// 			tmpModulePath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH, testCase.path)
+		t.Run(testCase.path, func(t *testing.T) {
+			tmpEnvPath := prepareGraphFixture(t)
+			tmpModulePath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH, testCase.path)
 
-// 			stdout := bytes.Buffer{}
-// 			stderr := bytes.Buffer{}
+			stdout := bytes.Buffer{}
+			stderr := bytes.Buffer{}
 
-// 			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt graph destroy --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
-// 			assert.NoError(t, err)
-// 			output := fmt.Sprintf("%v\n%v\n", stdout.String(), stderr.String())
+			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt graph destroy --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
+			assert.NoError(t, err)
+			output := fmt.Sprintf("%v\n%v\n", stdout.String(), stderr.String())
 
-// 			for _, module := range testCase.expectedModules {
-// 				assert.Containsf(t, output, "/"+module+"\n", "Expected module %s to be in output", module)
-// 			}
+			for _, module := range testCase.expectedModules {
+				assert.Containsf(t, output, "/"+module+"\n", "Expected module %s to be in output", module)
+			}
 
-// 			for _, module := range testCase.notExpectedModules {
-// 				assert.NotContainsf(t, output, "/"+module+"\n", "Expected module %s must not to be in output", module)
-// 			}
-// 		})
-// 	}
-// }
+			for _, module := range testCase.notExpectedModules {
+				assert.NotContainsf(t, output, "/"+module+"\n", "Expected module %s must not to be in output", module)
+			}
+		})
+	}
+}
 
 func TestTerragruntApplyGraph(t *testing.T) {
 	t.Parallel()
