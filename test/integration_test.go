@@ -6417,16 +6417,6 @@ func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
 }
 
 func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
-	// // This test cannot be run using Terragrunt Provider Cache because it causes the flock files to be locked forever, which in turn blocks other TGs (processes).
-	// // We use flock files to prevent multiple TGs from caching the same provider in parallel in a shared cache, which causes to conflicts.
-	// if envProviderCache := os.Getenv(commands.EnvVarNameTerragruntProviderCache); envProviderCache != "" {
-	// 	providerCache, err := strconv.ParseBool(envProviderCache)
-	// 	require.NoError(t, err)
-	// 	if providerCache {
-	// 		return
-	// 	}
-	// }
-
 	t.Parallel()
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_EXTERNAL_DEPENDENCY)
