@@ -48,7 +48,8 @@ type ProviderCache struct {
 	*ProviderService
 	*models.Provider
 
-	ready bool
+	archiveCached bool
+	ready         bool
 }
 
 func (cache *ProviderCache) providerDir() string {
@@ -56,7 +57,7 @@ func (cache *ProviderCache) providerDir() string {
 }
 
 func (cache *ProviderCache) lockFilename() string {
-	return filepath.Join(cache.baseCacheDir, cache.Provider.Path(), cache.Platform()) + ".lock"
+	return filepath.Join(cache.baseCacheDir, fmt.Sprintf("%s-%s-%s-%s-%s.lock", cache.Provider.RegistryName, cache.Provider.Namespace, cache.Provider.Name, cache.Provider.Version, cache.Platform()))
 }
 
 func (cache *ProviderCache) platformDir() string {
@@ -120,6 +121,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		}); err != nil {
 			return err
 		}
+		cache.archiveCached = true
 	}
 
 	if !alreadyCached {
@@ -136,13 +138,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 func (cache *ProviderCache) removeArchive() error {
 	var archiveFilename = cache.ArchiveFilename()
 
-	lockfile, err := cache.acquireLockFile(context.Background())
-	if err != nil {
-		return err
-	}
-	defer lockfile.Unlock() //nolint:errcheck
-
-	if !cache.needCacheArchive && util.FileExists(archiveFilename) {
+	if !cache.needCacheArchive && cache.archiveCached && util.FileExists(archiveFilename) {
 		log.Debugf("Remove provider cache archive %s", archiveFilename)
 		if err := os.Remove(archiveFilename); err != nil {
 			return errors.WithStackTrace(err)
