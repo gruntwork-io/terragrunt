@@ -4832,324 +4832,324 @@ func TestRenderJsonMetadataDepenency(t *testing.T) {
 	assert.Equal(t, string(serializedExpectedDependency), string(serializedDependency))
 }
 
-// func TestRenderJsonMetadataTerraform(t *testing.T) {
-// 	t.Parallel()
-
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_METADATA)
-// 	cleanupTerraformFolder(t, tmpEnvPath)
-// 	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "terraform-remote-state", "app")
-
-// 	commonHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "terraform-remote-state", "common", "terraform.hcl")
-// 	remoteStateHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "terraform-remote-state", "common", "remote_state.hcl")
-// 	var terragruntMetadata = map[string]interface{}{
-// 		"found_in_file": commonHcl,
-// 	}
-// 	var remoteMetadata = map[string]interface{}{
-// 		"found_in_file": remoteStateHcl,
-// 	}
-
-// 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
-
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
-
-// 	jsonBytes, err := os.ReadFile(jsonOut)
-// 	require.NoError(t, err)
-
-// 	var renderedJson = map[string]interface{}{}
-// 	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
-
-// 	var terraform = renderedJson[config.MetadataTerraform]
-// 	var expectedTerraform = map[string]interface{}{
-// 		"metadata": terragruntMetadata,
-// 		"value": map[string]interface{}{
-// 			"after_hook":      map[string]interface{}{},
-// 			"before_hook":     map[string]interface{}{},
-// 			"error_hook":      map[string]interface{}{},
-// 			"extra_arguments": map[string]interface{}{},
-// 			"include_in_copy": nil,
-// 			"source":          "../terraform",
-// 		},
-// 	}
-
-// 	// compare fields by serialization in json since map from "value" field is not deterministic
-// 	serializedTerraform, err := json.Marshal(terraform)
-// 	assert.NoError(t, err)
-
-// 	serializedExpectedTerraform, err := json.Marshal(expectedTerraform)
-// 	assert.NoError(t, err)
-
-// 	assert.Equal(t, string(serializedExpectedTerraform), string(serializedTerraform))
-
-// 	var remoteState = renderedJson[config.MetadataRemoteState]
-// 	var expectedRemoteState = map[string]interface{}{
-// 		"metadata": remoteMetadata,
-// 		"value": map[string]interface{}{
-// 			"backend": "s3",
-// 			"config": map[string]interface{}{
-// 				"bucket": "mybucket",
-// 				"key":    "path/to/my/key",
-// 				"region": "us-east-1",
-// 			},
-// 			"disable_dependency_optimization": false,
-// 			"disable_init":                    false,
-// 			"generate":                        nil,
-// 		},
-// 	}
-
-// 	// compare fields by serialization in json since map from "value" field is not deterministic
-// 	serializedRemoteState, err := json.Marshal(remoteState)
-// 	assert.NoError(t, err)
-
-// 	serializedExpectedRemoteState, err := json.Marshal(expectedRemoteState)
-// 	assert.NoError(t, err)
-
-// 	assert.Equal(t, string(serializedExpectedRemoteState), string(serializedRemoteState))
-// }
-
-// func TestTerragruntRenderJsonHelp(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
-// 	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
-
-// 	showStdout := bytes.Buffer{}
-// 	showStderr := bytes.Buffer{}
-
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt render-json --help --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
-// 	assert.Nil(t, err)
-
-// 	logBufferContentsLineByLine(t, showStdout, "show stdout")
+func TestRenderJsonMetadataTerraform(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_METADATA)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "terraform-remote-state", "app")
+
+	commonHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "terraform-remote-state", "common", "terraform.hcl")
+	remoteStateHcl := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "terraform-remote-state", "common", "remote_state.hcl")
+	var terragruntMetadata = map[string]interface{}{
+		"found_in_file": commonHcl,
+	}
+	var remoteMetadata = map[string]interface{}{
+		"found_in_file": remoteStateHcl,
+	}
+
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+
+	jsonBytes, err := os.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	var terraform = renderedJson[config.MetadataTerraform]
+	var expectedTerraform = map[string]interface{}{
+		"metadata": terragruntMetadata,
+		"value": map[string]interface{}{
+			"after_hook":      map[string]interface{}{},
+			"before_hook":     map[string]interface{}{},
+			"error_hook":      map[string]interface{}{},
+			"extra_arguments": map[string]interface{}{},
+			"include_in_copy": nil,
+			"source":          "../terraform",
+		},
+	}
+
+	// compare fields by serialization in json since map from "value" field is not deterministic
+	serializedTerraform, err := json.Marshal(terraform)
+	assert.NoError(t, err)
+
+	serializedExpectedTerraform, err := json.Marshal(expectedTerraform)
+	assert.NoError(t, err)
+
+	assert.Equal(t, string(serializedExpectedTerraform), string(serializedTerraform))
+
+	var remoteState = renderedJson[config.MetadataRemoteState]
+	var expectedRemoteState = map[string]interface{}{
+		"metadata": remoteMetadata,
+		"value": map[string]interface{}{
+			"backend": "s3",
+			"config": map[string]interface{}{
+				"bucket": "mybucket",
+				"key":    "path/to/my/key",
+				"region": "us-east-1",
+			},
+			"disable_dependency_optimization": false,
+			"disable_init":                    false,
+			"generate":                        nil,
+		},
+	}
+
+	// compare fields by serialization in json since map from "value" field is not deterministic
+	serializedRemoteState, err := json.Marshal(remoteState)
+	assert.NoError(t, err)
+
+	serializedExpectedRemoteState, err := json.Marshal(expectedRemoteState)
+	assert.NoError(t, err)
+
+	assert.Equal(t, string(serializedExpectedRemoteState), string(serializedRemoteState))
+}
+
+func TestTerragruntRenderJsonHelp(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
+	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt render-json --help --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	assert.Nil(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
 
-// 	output := showStdout.String()
-
-// 	assert.Contains(t, output, "terragrunt render-json")
-// 	assert.Contains(t, output, "--with-metadata")
-// }
-
-// func TestStartsWith(t *testing.T) {
-// 	t.Parallel()
+	output := showStdout.String()
+
+	assert.Contains(t, output, "terragrunt render-json")
+	assert.Contains(t, output, "--with-metadata")
+}
+
+func TestStartsWith(t *testing.T) {
+	t.Parallel()
 
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_STARTSWITH)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_STARTSWITH)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STARTSWITH)
+	cleanupTerraformFolder(t, TEST_FIXTURE_STARTSWITH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_STARTSWITH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STARTSWITH)
 
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
-// 	// verify expected outputs are not empty
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
 
-// 	require.NoError(
-// 		t,
-// 		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
-// 	)
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
 
-// 	outputs := map[string]TerraformOutput{}
+	outputs := map[string]TerraformOutput{}
 
-// 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
-// 	validateOutput(t, outputs, "startswith1", true)
-// 	validateOutput(t, outputs, "startswith2", false)
-// 	validateOutput(t, outputs, "startswith3", true)
-// 	validateOutput(t, outputs, "startswith4", false)
-// 	validateOutput(t, outputs, "startswith5", true)
-// 	validateOutput(t, outputs, "startswith6", false)
-// 	validateOutput(t, outputs, "startswith7", true)
-// 	validateOutput(t, outputs, "startswith8", false)
-// 	validateOutput(t, outputs, "startswith9", false)
-// }
-
-// func TestTimeCmp(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_TIMECMP)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_TIMECMP)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_TIMECMP)
-
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
-
-// 	// verify expected outputs are not empty
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-
-// 	require.NoError(
-// 		t,
-// 		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
-// 	)
-
-// 	outputs := map[string]TerraformOutput{}
-
-// 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-
-// 	validateOutput(t, outputs, "timecmp1", float64(0))
-// 	validateOutput(t, outputs, "timecmp2", float64(0))
-// 	validateOutput(t, outputs, "timecmp3", float64(1))
-// 	validateOutput(t, outputs, "timecmp4", float64(-1))
-// 	validateOutput(t, outputs, "timecmp5", float64(-1))
-// 	validateOutput(t, outputs, "timecmp6", float64(1))
-// }
-
-// func TestTimeCmpInvalidTimestamp(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP)
+	validateOutput(t, outputs, "startswith1", true)
+	validateOutput(t, outputs, "startswith2", false)
+	validateOutput(t, outputs, "startswith3", true)
+	validateOutput(t, outputs, "startswith4", false)
+	validateOutput(t, outputs, "startswith5", true)
+	validateOutput(t, outputs, "startswith6", false)
+	validateOutput(t, outputs, "startswith7", true)
+	validateOutput(t, outputs, "startswith8", false)
+	validateOutput(t, outputs, "startswith9", false)
+}
+
+func TestTimeCmp(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_TIMECMP)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_TIMECMP)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_TIMECMP)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+
+	validateOutput(t, outputs, "timecmp1", float64(0))
+	validateOutput(t, outputs, "timecmp2", float64(0))
+	validateOutput(t, outputs, "timecmp3", float64(1))
+	validateOutput(t, outputs, "timecmp4", float64(-1))
+	validateOutput(t, outputs, "timecmp5", float64(-1))
+	validateOutput(t, outputs, "timecmp6", float64(1))
+}
+
+func TestTimeCmpInvalidTimestamp(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP)
 
-// 	// verify expected outputs are not empty
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
 
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
-
-// 	expectedError := `not a valid RFC3339 timestamp: missing required time introducer 'T'`
-// 	require.ErrorContains(t, err, expectedError)
-// }
-
-// func TestEndsWith(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_ENDSWITH)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_ENDSWITH)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_ENDSWITH)
-
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
-
-// 	// verify expected outputs are not empty
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-
-// 	require.NoError(
-// 		t,
-// 		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
-// 	)
-
-// 	outputs := map[string]TerraformOutput{}
-
-// 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-
-// 	validateOutput(t, outputs, "endswith1", true)
-// 	validateOutput(t, outputs, "endswith2", false)
-// 	validateOutput(t, outputs, "endswith3", true)
-// 	validateOutput(t, outputs, "endswith4", false)
-// 	validateOutput(t, outputs, "endswith5", true)
-// 	validateOutput(t, outputs, "endswith6", false)
-// 	validateOutput(t, outputs, "endswith7", true)
-// 	validateOutput(t, outputs, "endswith8", false)
-// 	validateOutput(t, outputs, "endswith9", false)
-// }
-
-// func TestMockOutputsMergeWithState(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_REGRESSIONS)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_REGRESSIONS)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_REGRESSIONS, "mocks-merge-with-state")
-
-// 	modulePath := util.JoinPath(rootPath, "module")
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir %s", modulePath), &stdout, &stderr)
-// 	logBufferContentsLineByLine(t, stdout, "module-executed")
-// 	require.NoError(t, err)
-
-// 	deepMapPath := util.JoinPath(rootPath, "deep-map")
-// 	stdout = bytes.Buffer{}
-// 	stderr = bytes.Buffer{}
-// 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir %s", deepMapPath), &stdout, &stderr)
-// 	logBufferContentsLineByLine(t, stdout, "deep-map-executed")
-// 	require.NoError(t, err)
-
-// 	shallowPath := util.JoinPath(rootPath, "shallow")
-// 	stdout = bytes.Buffer{}
-// 	stderr = bytes.Buffer{}
-// 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir %s", shallowPath), &stdout, &stderr)
-// 	logBufferContentsLineByLine(t, stdout, "shallow-map-executed")
-// 	require.NoError(t, err)
-// }
-
-// func TestRenderJsonMetadataDepenencyModulePrefix(t *testing.T) {
-// 	t.Parallel()
-
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_METADATA)
-// 	cleanupTerraformFolder(t, tmpEnvPath)
-// 	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "dependency", "app")
-
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all render-json --terragrunt-include-module-prefix --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", tmpDir))
-// }
-
-// func TestTerragruntValidateModulePrefix(t *testing.T) {
-// 	t.Parallel()
-
-// 	fixturePath := TEST_FIXTURE_INCLUDE_PARENT
-// 	cleanupTerraformFolder(t, fixturePath)
-// 	tmpEnvPath := copyEnvironment(t, fixturePath)
-// 	rootPath := util.JoinPath(tmpEnvPath, fixturePath)
-
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all validate --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
-// }
-
-// func TestInitFailureModulePrefix(t *testing.T) {
-// 	t.Parallel()
-
-// 	initTestCase := TEST_FIXTURE_INIT_ERROR
-
-// 	cleanupTerraformFolder(t, initTestCase)
-// 	cleanupTerragruntFolder(t, initTestCase)
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-// 	require.Error(
-// 		t,
-// 		runTerragruntCommand(t, fmt.Sprintf("terragrunt init -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", initTestCase), &stdout, &stderr),
-// 	)
-// 	logBufferContentsLineByLine(t, stderr, "init")
-// 	assert.Contains(t, stderr.String(), "[fixture-init-error] Error")
-// }
-
-// func TestDependencyOutputModulePrefix(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "integration")
-
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
-
-// 	// verify expected output 42
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-
-// 	app3Path := util.JoinPath(rootPath, "app3")
-// 	require.NoError(
-// 		t,
-// 		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", app3Path), &stdout, &stderr),
-// 	)
-// 	// validate that output is valid json
-// 	outputs := map[string]TerraformOutput{}
-// 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-// 	assert.Equal(t, int(outputs["z"].Value.(float64)), 42)
-// }
-
-// func TestErrorExplaining(t *testing.T) {
-// 	t.Parallel()
-
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INIT_ERROR)
-// 	initTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_ERROR)
-
-// 	cleanupTerraformFolder(t, initTestCase)
-// 	cleanupTerragruntFolder(t, initTestCase)
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", initTestCase), &stdout, &stderr)
-// 	assert.Error(t, err)
-
-// 	explanation := shell.ExplainError(err)
-// 	assert.Contains(t, explanation, "Check your credentials and permissions")
-// }
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+
+	expectedError := `not a valid RFC3339 timestamp: missing required time introducer 'T'`
+	require.ErrorContains(t, err, expectedError)
+}
+
+func TestEndsWith(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_ENDSWITH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_ENDSWITH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_ENDSWITH)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+
+	validateOutput(t, outputs, "endswith1", true)
+	validateOutput(t, outputs, "endswith2", false)
+	validateOutput(t, outputs, "endswith3", true)
+	validateOutput(t, outputs, "endswith4", false)
+	validateOutput(t, outputs, "endswith5", true)
+	validateOutput(t, outputs, "endswith6", false)
+	validateOutput(t, outputs, "endswith7", true)
+	validateOutput(t, outputs, "endswith8", false)
+	validateOutput(t, outputs, "endswith9", false)
+}
+
+func TestMockOutputsMergeWithState(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_REGRESSIONS)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_REGRESSIONS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_REGRESSIONS, "mocks-merge-with-state")
+
+	modulePath := util.JoinPath(rootPath, "module")
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir %s", modulePath), &stdout, &stderr)
+	logBufferContentsLineByLine(t, stdout, "module-executed")
+	require.NoError(t, err)
+
+	deepMapPath := util.JoinPath(rootPath, "deep-map")
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir %s", deepMapPath), &stdout, &stderr)
+	logBufferContentsLineByLine(t, stdout, "deep-map-executed")
+	require.NoError(t, err)
+
+	shallowPath := util.JoinPath(rootPath, "shallow")
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir %s", shallowPath), &stdout, &stderr)
+	logBufferContentsLineByLine(t, stdout, "shallow-map-executed")
+	require.NoError(t, err)
+}
+
+func TestRenderJsonMetadataDepenencyModulePrefix(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_RENDER_JSON_METADATA)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "dependency", "app")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all render-json --terragrunt-include-module-prefix --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", tmpDir))
+}
+
+func TestTerragruntValidateModulePrefix(t *testing.T) {
+	t.Parallel()
+
+	fixturePath := TEST_FIXTURE_INCLUDE_PARENT
+	cleanupTerraformFolder(t, fixturePath)
+	tmpEnvPath := copyEnvironment(t, fixturePath)
+	rootPath := util.JoinPath(tmpEnvPath, fixturePath)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all validate --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+}
+
+func TestInitFailureModulePrefix(t *testing.T) {
+	t.Parallel()
+
+	initTestCase := TEST_FIXTURE_INIT_ERROR
+
+	cleanupTerraformFolder(t, initTestCase)
+	cleanupTerragruntFolder(t, initTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	require.Error(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt init -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", initTestCase), &stdout, &stderr),
+	)
+	logBufferContentsLineByLine(t, stderr, "init")
+	assert.Contains(t, stderr.String(), "[fixture-init-error] Error")
+}
+
+func TestDependencyOutputModulePrefix(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "integration")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// verify expected output 42
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	app3Path := util.JoinPath(rootPath, "app3")
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", app3Path), &stdout, &stderr),
+	)
+	// validate that output is valid json
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	assert.Equal(t, int(outputs["z"].Value.(float64)), 42)
+}
+
+func TestErrorExplaining(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INIT_ERROR)
+	initTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_ERROR)
+
+	cleanupTerraformFolder(t, initTestCase)
+	cleanupTerragruntFolder(t, initTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", initTestCase), &stdout, &stderr)
+	assert.Error(t, err)
+
+	explanation := shell.ExplainError(err)
+	assert.Contains(t, explanation, "Check your credentials and permissions")
+}
 
 // func TestExplainingMissingCredentials(t *testing.T) {
 // 	// no parallel because we need to set env vars
