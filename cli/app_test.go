@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -361,7 +360,7 @@ func TestTerragruntVersion(t *testing.T) {
 		app := NewApp(output, os.Stderr)
 		app.Version = version
 
-		err := app.Run(context.Background(), testCase.args)
+		err := app.Run(testCase.args)
 		require.NoError(t, err, testCase)
 
 		assert.Contains(t, output.String(), version)
@@ -388,7 +387,7 @@ func TestTerragruntHelp(t *testing.T) {
 	for _, testCase := range testCases {
 		output := &bytes.Buffer{}
 		app := NewApp(output, os.Stderr)
-		err := app.Run(context.Background(), testCase.args)
+		err := app.Run(testCase.args)
 		require.NoError(t, err, testCase)
 
 		assert.Contains(t, output.String(), testCase.expected)
@@ -413,7 +412,7 @@ func TestTerraformHelp(t *testing.T) {
 	for _, testCase := range testCases {
 		output := &bytes.Buffer{}
 		app := NewApp(output, os.Stderr)
-		err := app.Run(context.Background(), testCase.args)
+		err := app.Run(testCase.args)
 		require.NoError(t, err)
 
 		expectedRegex, err := regexp.Compile(testCase.expected)
@@ -431,7 +430,7 @@ func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
 	output := &bytes.Buffer{}
 	app.Writer = output
 
-	err := app.Run(context.Background(), []string{"terragrunt", "plan", "help"})
+	err := app.Run([]string{"terragrunt", "plan", "help"})
 	require.Error(t, err)
 }
 
@@ -504,7 +503,7 @@ func TestAutocomplete(t *testing.T) {
 		app := NewApp(output, os.Stderr)
 		app.Commands = app.Commands.Filter([]string{"aws-provider-patch", "graph-dependencies", "hclfmt", "output-module-groups", "render-json", "run-all", "terragrunt-info", "validate-inputs"})
 
-		err := app.Run(context.Background(), []string{"terragrunt"})
+		err := app.Run([]string{"terragrunt"})
 		require.NoError(t, err)
 
 		assert.Contains(t, output.String(), strings.Join(testCase.expectedCompletes, "\n"))
