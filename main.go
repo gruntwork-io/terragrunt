@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 
 	"github.com/gruntwork-io/go-commons/errors"
@@ -14,7 +15,7 @@ func main() {
 	defer errors.Recover(checkForErrorsAndExit)
 
 	app := cli.NewApp(os.Stdout, os.Stderr)
-	err := app.Run(os.Args)
+	err := app.Run(context.Background(), os.Args)
 
 	checkForErrorsAndExit(err)
 }

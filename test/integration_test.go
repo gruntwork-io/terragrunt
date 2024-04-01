@@ -40,7 +40,6 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/cli"
-	"github.com/gruntwork-io/terragrunt/cli/commands"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
@@ -4176,11 +4175,15 @@ func removeFolder(t *testing.T, path string) {
 }
 
 func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {
+	return runTerragruntCommandWithContext(t, context.Background(), command, writer, errwriter)
+}
+
+func runTerragruntCommandWithContext(t *testing.T, ctx context.Context, command string, writer io.Writer, errwriter io.Writer) error {
 	args := strings.Split(command, " ")
 	t.Log(args)
 
 	app := cli.NewApp(writer, errwriter)
-	return app.Run(args)
+	return app.Run(ctx, args)
 }
 
 func runTerragruntVersionCommand(t *testing.T, ver string, command string, writer io.Writer, errwriter io.Writer) error {
@@ -6414,15 +6417,15 @@ func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
 }
 
 func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
-	// This test cannot be run using Terragrunt Provider Cache because it causes the flock files to be locked forever, which in turn blocks other TGs (processes).
-	// We use flock files to prevent multiple TGs from caching the same provider in parallel in a shared cache, which causes to conflicts.
-	if envProviderCache := os.Getenv(commands.EnvVarNameTerragruntProviderCache); envProviderCache != "" {
-		providerCache, err := strconv.ParseBool(envProviderCache)
-		require.NoError(t, err)
-		if providerCache {
-			return
-		}
-	}
+	// // This test cannot be run using Terragrunt Provider Cache because it causes the flock files to be locked forever, which in turn blocks other TGs (processes).
+	// // We use flock files to prevent multiple TGs from caching the same provider in parallel in a shared cache, which causes to conflicts.
+	// if envProviderCache := os.Getenv(commands.EnvVarNameTerragruntProviderCache); envProviderCache != "" {
+	// 	providerCache, err := strconv.ParseBool(envProviderCache)
+	// 	require.NoError(t, err)
+	// 	if providerCache {
+	// 		return
+	// 	}
+	// }
 
 	t.Parallel()
 
@@ -6447,7 +6450,10 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	oldStdout := os.Stderr
 	os.Stderr = w
 
-	err = runTerragruntCommand(t, fmt.Sprintf("trragrunt destroy --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err = runTerragruntCommandWithContext(t, ctx, fmt.Sprintf("trragrunt destroy --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	os.Stderr = oldStdout
 	assert.NoError(t, w.Close())
 

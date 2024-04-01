@@ -83,9 +83,7 @@ func NewApp(writer io.Writer, errWriter io.Writer) *App {
 	return &App{app}
 }
 
-func (app *App) Run(args []string) error {
-	ctx := context.Background()
-
+func (app *App) Run(ctx context.Context, args []string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
