@@ -119,11 +119,11 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 
 	for name, configPath := range localsConfigPaths {
 		opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		ctx := config.NewParsingContext(context.Background(), opts)
 		cfg, err := config.PartialParseConfigFile(ctx, configPath, nil)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		localsConfigs[name] = map[string]interface{}{
 			"dependencies":                  interface{}(nil),

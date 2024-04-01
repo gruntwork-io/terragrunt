@@ -1337,7 +1337,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testin
 	assert.NoError(t, err)
 
 	err = RunModules(context.Background(), opts, []*TerraformModule{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF}, options.DefaultParallelism)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	assert.True(t, aRan)
 	assert.True(t, bRan)

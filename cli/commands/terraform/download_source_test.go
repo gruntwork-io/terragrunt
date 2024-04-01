@@ -253,7 +253,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 	assert.NoError(t, err)
 
 	err = downloadTerraformSourceIfNecessary(context.Background(), terraformSource, terragruntOptions, terragruntConfig)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	_, ok := errors.Unwrap(err).(DownloadingTerraformSourceErr)
 	assert.True(t, ok)
 }
@@ -268,11 +268,11 @@ func TestInvalidModulePath(t *testing.T) {
 	copyFolder(t, "../../../test/fixture-download-source/hello-world-version-remote", downloadDir)
 
 	terraformSource, _, _, err := createConfig(t, canonicalUrl, downloadDir, false)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	terraformSource.WorkingDir += "/not-existing-path"
 
 	err = validateWorkingDir(terraformSource)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	_, ok := errors.Unwrap(err).(WorkingDirNotFound)
 	assert.True(t, ok)
 }
@@ -287,11 +287,11 @@ func TestDownloadInvalidPathToFilePath(t *testing.T) {
 	copyFolder(t, "../../../test/fixture-download-source/hello-world-version-remote", downloadDir)
 
 	terraformSource, _, _, err := createConfig(t, canonicalUrl, downloadDir, false)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	terraformSource.WorkingDir += "/main.tf"
 
 	err = validateWorkingDir(terraformSource)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	_, ok := errors.Unwrap(err).(WorkingDirNotDir)
 	assert.True(t, ok)
 }
