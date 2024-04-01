@@ -93,10 +93,10 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.WithStackTrace(err)
 	}
 
-	if err := util.DoWithRetry(ctx, fmt.Sprintf("Lock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
+	if err := util.DoWithRetry(ctx, fmt.Sprintf("Acquiring lock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
 		return lockfile.TryLock()
 	}); err != nil {
-		return errors.Errorf("unable to lock the file %s, try removing the file manually, %w", lockfileName, err)
+		return errors.Errorf("unable to acquiring lock file %s (already locked?) try removing the file manually: %w", lockfileName, err)
 
 	}
 	defer lockfile.Unlock() //nolint:errcheck
