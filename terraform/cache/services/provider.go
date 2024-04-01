@@ -91,6 +91,12 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.WithStackTrace(err)
 	}
 
+	lockfile, err := cache.acquireLockFile(ctx)
+	if err != nil {
+		return err
+	}
+	defer lockfile.Unlock() //nolint:errcheck
+
 	if !util.FileExists(platformDir) {
 		if util.FileExists(pluginProviderPlatformDir) {
 			log.Debugf("Create symlink file %s to %s", platformDir, pluginProviderPlatformDir)
@@ -113,6 +119,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider with retry %q", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func() error {
 			return util.FetchFile(ctx, cache.DownloadURL.String(), archiveFilename)
 		}); err != nil {
+			os.Remove(archiveFilename) //nolint:errcheck
 			return err
 		}
 		cache.archiveCached = true
@@ -238,14 +245,7 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 				service.cacheReadyMu.RLock()
 				defer service.cacheReadyMu.RUnlock()
 
-				lockfile, err := cache.acquireLockFile(ctx)
-				if err != nil {
-					return err
-				}
-				defer lockfile.Unlock() //nolint:errcheck
-
 				if err := cache.warmUp(ctx); err != nil {
-					os.RemoveAll(cache.platformDir()) //nolint:errcheck
 					return err
 				}
 				cache.ready = true
