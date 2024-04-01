@@ -6758,7 +6758,3 @@ func wrappedBinary() string {
 func isTerraform() bool {
 	return wrappedBinary() == TERRAFORM_BINARY
 }
-
-func isOpentofu() bool {
-	return wrappedBinary() == TOFU_BINARY
-}
