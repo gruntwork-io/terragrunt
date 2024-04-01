@@ -5639,50 +5639,50 @@ func TestTerragruntHandleEmptyStateFile(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testPath))
 }
 
-// func TestRenderJsonDependentModulesTerraform(t *testing.T) {
-// 	t.Parallel()
+func TestRenderJsonDependentModulesTerraform(t *testing.T) {
+	t.Parallel()
 
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DESTROY_WARNING)
-// 	cleanupTerraformFolder(t, tmpEnvPath)
-// 	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "vpc")
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DESTROY_WARNING)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "vpc")
 
-// 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
 
-// 	jsonBytes, err := os.ReadFile(jsonOut)
-// 	require.NoError(t, err)
+	jsonBytes, err := os.ReadFile(jsonOut)
+	require.NoError(t, err)
 
-// 	var renderedJson = map[string]interface{}{}
-// 	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
 
-// 	var dependentModules = renderedJson[config.MetadataDependentModules].([]interface{})
-// 	// check if value list contains app-v1 and app-v2
-// 	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v1"))
-// 	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v2"))
-// }
+	var dependentModules = renderedJson[config.MetadataDependentModules].([]interface{})
+	// check if value list contains app-v1 and app-v2
+	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v1"))
+	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v2"))
+}
 
-// func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
-// 	t.Parallel()
+func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
+	t.Parallel()
 
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DESTROY_WARNING)
-// 	cleanupTerraformFolder(t, tmpEnvPath)
-// 	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "vpc")
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DESTROY_WARNING)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "vpc")
 
-// 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
 
-// 	jsonBytes, err := os.ReadFile(jsonOut)
-// 	require.NoError(t, err)
+	jsonBytes, err := os.ReadFile(jsonOut)
+	require.NoError(t, err)
 
-// 	var renderedJson = map[string]map[string]interface{}{}
+	var renderedJson = map[string]map[string]interface{}{}
 
-// 	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
 
-// 	dependentModules := renderedJson[config.MetadataDependentModules]["value"].([]interface{})
-// 	// check if value list contains app-v1 and app-v2
-// 	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v1"))
-// 	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v2"))
-// }
+	dependentModules := renderedJson[config.MetadataDependentModules]["value"].([]interface{})
+	// check if value list contains app-v1 and app-v2
+	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v1"))
+	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v2"))
+}
 
 // func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 // 	t.Parallel()
@@ -5727,20 +5727,20 @@ func TestTerragruntHandleEmptyStateFile(t *testing.T) {
 // 	require.NotContains(t, captured, "/tmp/external1")
 // }
 
-// func TestTerragruntInvokeTerraformTests(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntInvokeTerraformTests(t *testing.T) {
+	t.Parallel()
 
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_TF_TEST)
-// 	cleanupTerraformFolder(t, tmpEnvPath)
-// 	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_TF_TEST)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_TF_TEST)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_TF_TEST)
 
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
 
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt test --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
-// 	require.NoError(t, err)
-// 	require.Contains(t, stdout.String(), "1 passed, 0 failed")
-// }
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt test --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	require.NoError(t, err)
+	require.Contains(t, stdout.String(), "1 passed, 0 failed")
+}
 
 // func TestTerragruntCommandsThatNeedInput(t *testing.T) {
 // 	t.Parallel()
