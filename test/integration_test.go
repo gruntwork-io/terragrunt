@@ -21,6 +21,7 @@ import (
 
 	terraws "github.com/gruntwork-io/terratest/modules/aws"
 	"github.com/gruntwork-io/terratest/modules/git"
+	"github.com/hashicorp/go-multierror"
 
 	"cloud.google.com/go/storage"
 	"github.com/aws/aws-sdk-go/aws"
@@ -36,6 +37,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	"github.com/gruntwork-io/terragrunt/config"
 	terragruntDynamoDb "github.com/gruntwork-io/terragrunt/dynamodb"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -1554,1445 +1556,1445 @@ func TestPreventDestroyApply(t *testing.T) {
 	}
 }
 
-// func TestPreventDestroyDependencies(t *testing.T) {
-// 	t.Parallel()
-
-// 	// Populate module paths.
-// 	moduleNames := []string{
-// 		"module-a",
-// 		"module-b",
-// 		"module-c",
-// 		"module-d",
-// 		"module-e",
-// 	}
-// 	modulePaths := make(map[string]string, len(moduleNames))
-// 	for _, moduleName := range moduleNames {
-// 		modulePaths[moduleName] = util.JoinPath(TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES, moduleName)
-// 	}
-
-// 	// Cleanup all modules directories.
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES)
-// 	for _, modulePath := range modulePaths {
-// 		cleanupTerraformFolder(t, modulePath)
-// 	}
-
-// 	var (
-// 		applyAllStdout bytes.Buffer
-// 		applyAllStderr bytes.Buffer
-// 	)
-
-// 	// Apply and destroy all modules.
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES), &applyAllStdout, &applyAllStderr)
-// 	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
-// 	logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
-
-// 	if err != nil {
-// 		t.Fatalf("apply-all in TestPreventDestroyDependencies failed with error: %v. Full std", err)
-// 	}
-
-// 	var (
-// 		destroyAllStdout bytes.Buffer
-// 		destroyAllStderr bytes.Buffer
-// 	)
-
-// 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES), &destroyAllStdout, &destroyAllStderr)
-// 	logBufferContentsLineByLine(t, destroyAllStdout, "destroy-all stdout")
-// 	logBufferContentsLineByLine(t, destroyAllStderr, "destroy-all stderr")
-
-// 	if assert.Error(t, err) {
-// 		underlying := errors.Unwrap(err)
-// 		assert.IsType(t, &multierror.Error{}, underlying)
-// 	}
-
-// 	// Check that modules C, D and E were deleted and modules A and B weren't.
-// 	for moduleName, modulePath := range modulePaths {
-// 		var (
-// 			showStdout bytes.Buffer
-// 			showStderr bytes.Buffer
-// 		)
-
-// 		err = runTerragruntCommand(t, fmt.Sprintf("terragrunt show --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), &showStdout, &showStderr)
-// 		logBufferContentsLineByLine(t, showStdout, fmt.Sprintf("show stdout for %s", modulePath))
-// 		logBufferContentsLineByLine(t, showStderr, fmt.Sprintf("show stderr for %s", modulePath))
-
-// 		assert.NoError(t, err)
-// 		output := showStdout.String()
-// 		switch moduleName {
-// 		case "module-a":
-// 			assert.Contains(t, output, "Hello, Module A")
-// 		case "module-b":
-// 			assert.Contains(t, output, "Hello, Module B")
-// 		case "module-c":
-// 			assert.NotContains(t, output, "Hello, Module C")
-// 		case "module-d":
-// 			assert.NotContains(t, output, "Hello, Module D")
-// 		case "module-e":
-// 			assert.NotContains(t, output, "Hello, Module E")
-// 		}
-// 	}
-// }
-
-// func TestInputsPassedThroughCorrectly(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
-
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
-// 	require.NoError(t, err)
-
-// 	outputs := map[string]TerraformOutput{}
-// 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-// 	validateInputs(t, outputs)
-// }
-
-// func TestNoAutoInit(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_REGRESSIONS)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_REGRESSIONS)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_REGRESSIONS, "skip-init")
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-no-auto-init --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
-// 	logBufferContentsLineByLine(t, stdout, "no force apply stdout")
-// 	logBufferContentsLineByLine(t, stderr, "no force apply stderr")
-// 	require.Error(t, err)
-// 	require.Contains(t, stderr.String(), "This module is not yet installed.")
-// }
-
-// func TestLocalsParsing(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCALS_CANONICAL)
-
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCALS_CANONICAL))
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCALS_CANONICAL), &stdout, &stderr)
-// 	require.NoError(t, err)
-
-// 	outputs := map[string]TerraformOutput{}
-// 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-
-// 	assert.Equal(t, outputs["data"].Value, "Hello world\n")
-// 	assert.Equal(t, outputs["answer"].Value, float64(42))
-// }
-
-// func TestLocalsInInclude(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCALS_IN_INCLUDE)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_LOCALS_IN_INCLUDE)
-// 	childPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_LOCALS_IN_INCLUDE, TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH)
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve -no-color --terragrunt-non-interactive --terragrunt-working-dir %s", childPath))
-
-// 	// Check the outputs of the dir functions referenced in locals to make sure they return what is expected
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-
-// 	require.NoError(
-// 		t,
-// 		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr),
-// 	)
-
-// 	outputs := map[string]TerraformOutput{}
-// 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-
-// 	assert.Equal(
-// 		t,
-// 		filepath.Join(tmpEnvPath, TEST_FIXTURE_LOCALS_IN_INCLUDE),
-// 		outputs["parent_terragrunt_dir"].Value,
-// 	)
-// 	assert.Equal(
-// 		t,
-// 		childPath,
-// 		outputs["terragrunt_dir"].Value,
-// 	)
-// 	assert.Equal(
-// 		t,
-// 		"apply",
-// 		outputs["terraform_command"].Value,
-// 	)
-// 	assert.Equal(
-// 		t,
-// 		"[\"apply\",\"-auto-approve\",\"-no-color\"]",
-// 		outputs["terraform_cli_args"].Value,
-// 	)
-// }
-
-// func TestUndefinedLocalsReferenceBreaks(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL)
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL), os.Stdout, os.Stderr)
-// 	assert.Error(t, err)
-// }
-
-// func TestUndefinedLocalsReferenceToInputsBreaks(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL_BUT_INPUT)
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL_BUT_INPUT), os.Stdout, os.Stderr)
-// 	assert.Error(t, err)
-// }
-
-// func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
-// 	t.Parallel()
-
-// 	// Populate module paths.
-// 	moduleNames := []string{
-// 		"module-a",
-// 		"module-b",
-// 		"module-c",
-// 	}
-// 	modulePaths := make(map[string]string, len(moduleNames))
-// 	for _, moduleName := range moduleNames {
-// 		modulePaths[moduleName] = util.JoinPath(TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES, moduleName)
-// 	}
-
-// 	// Cleanup all modules directories.
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES)
-// 	for _, modulePath := range modulePaths {
-// 		cleanupTerraformFolder(t, modulePath)
-// 	}
-
-// 	var (
-// 		applyAllStdout bytes.Buffer
-// 		applyAllStderr bytes.Buffer
-// 	)
-
-// 	// Apply and destroy all modules.
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES), &applyAllStdout, &applyAllStderr)
-// 	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
-// 	logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
-
-// 	if err != nil {
-// 		t.Fatalf("apply-all in TestPreventDestroyDependenciesIncludedConfig failed with error: %v. Full std", err)
-// 	}
-
-// 	var (
-// 		destroyAllStdout bytes.Buffer
-// 		destroyAllStderr bytes.Buffer
-// 	)
-
-// 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES), &destroyAllStdout, &destroyAllStderr)
-// 	logBufferContentsLineByLine(t, destroyAllStdout, "destroy-all stdout")
-// 	logBufferContentsLineByLine(t, destroyAllStderr, "destroy-all stderr")
-
-// 	if assert.Error(t, err) {
-// 		underlying := errors.Unwrap(err)
-// 		assert.IsType(t, &multierror.Error{}, underlying)
-// 	}
-
-// 	// Check that modules C, D and E were deleted and modules A and B weren't.
-// 	for moduleName, modulePath := range modulePaths {
-// 		var (
-// 			showStdout bytes.Buffer
-// 			showStderr bytes.Buffer
-// 		)
-
-// 		err = runTerragruntCommand(t, fmt.Sprintf("terragrunt show --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), &showStdout, &showStderr)
-// 		logBufferContentsLineByLine(t, showStdout, fmt.Sprintf("show stdout for %s", modulePath))
-// 		logBufferContentsLineByLine(t, showStderr, fmt.Sprintf("show stderr for %s", modulePath))
-
-// 		assert.NoError(t, err)
-// 		output := showStdout.String()
-// 		switch moduleName {
-// 		case "module-a":
-// 			assert.Contains(t, output, "Hello, Module A")
-// 		case "module-b":
-// 			assert.Contains(t, output, "Hello, Module B")
-// 		case "module-c":
-// 			assert.NotContains(t, output, "Hello, Module C")
-// 		}
-// 	}
-// }
-
-// func TestTerragruntMissingDependenciesFail(t *testing.T) {
-// 	t.Parallel()
-
-// 	generateTestCase := TEST_FIXTURE_MISSING_DEPENDENCE
-// 	cleanupTerraformFolder(t, generateTestCase)
-// 	cleanupTerragruntFolder(t, generateTestCase)
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
-// 	require.Error(t, err)
-// 	parsedError, ok := errors.Unwrap(err).(config.DependencyDirNotFoundError)
-// 	assert.True(t, ok)
-// 	assert.True(t, len(parsedError.Dir) == 1)
-// 	assert.Contains(t, parsedError.Dir[0], "hl3-release")
-// }
-
-// func TestTerragruntExcludeExternalDependencies(t *testing.T) {
-// 	t.Parallel()
-
-// 	excludedModule := "module-a"
-// 	includedModule := "module-b"
-
-// 	modules := []string{
-// 		excludedModule,
-// 		includedModule,
-// 	}
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_EXTERNAL_DEPENDENCE)
-// 	for _, module := range modules {
-// 		cleanupTerraformFolder(t, util.JoinPath(TEST_FIXTURE_EXTERNAL_DEPENDENCE, module))
-// 	}
-
-// 	var (
-// 		applyAllStdout bytes.Buffer
-// 		applyAllStderr bytes.Buffer
-// 	)
-
-// 	rootPath := copyEnvironment(t, TEST_FIXTURE_EXTERNAL_DEPENDENCE)
-// 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_EXTERNAL_DEPENDENCE, includedModule)
-
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-ignore-external-dependencies --terragrunt-working-dir %s", modulePath), &applyAllStdout, &applyAllStderr)
-// 	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
-// 	logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
-// 	applyAllStdoutString := applyAllStdout.String()
-
-// 	if err != nil {
-// 		t.Errorf("Did not expect to get error: %s", err.Error())
-// 	}
-
-// 	assert.Contains(t, applyAllStdoutString, fmt.Sprintf("Hello World, %s", includedModule))
-// 	assert.NotContains(t, applyAllStdoutString, fmt.Sprintf("Hello World, %s", excludedModule))
-// }
-
-// func TestApplySkipTrue(t *testing.T) {
-// 	t.Parallel()
-
-// 	rootPath := copyEnvironment(t, TEST_FIXTURE_SKIP)
-// 	rootPath = util.JoinPath(rootPath, TEST_FIXTURE_SKIP, "skip-true")
-
-// 	showStdout := bytes.Buffer{}
-// 	showStderr := bytes.Buffer{}
-
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir %s --var person=Hobbs", rootPath), &showStdout, &showStderr)
-// 	logBufferContentsLineByLine(t, showStdout, "show stdout")
-// 	logBufferContentsLineByLine(t, showStderr, "show stderr")
-
-// 	stdout := showStdout.String()
-// 	stderr := showStderr.String()
-
-// 	assert.Nil(t, err)
-// 	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixture-skip/skip-true/terragrunt.hcl due to skip = true."), stderr)
-// 	assert.NotContains(t, stdout, "hello, Hobbs")
-// }
-
-// func TestApplySkipFalse(t *testing.T) {
-// 	t.Parallel()
-
-// 	rootPath := copyEnvironment(t, TEST_FIXTURE_SKIP)
-// 	rootPath = util.JoinPath(rootPath, TEST_FIXTURE_SKIP, "skip-false")
-
-// 	showStdout := bytes.Buffer{}
-// 	showStderr := bytes.Buffer{}
-
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
-// 	logBufferContentsLineByLine(t, showStdout, "show stdout")
-// 	logBufferContentsLineByLine(t, showStderr, "show stderr")
-
-// 	stderr := showStderr.String()
-// 	stdout := showStdout.String()
-
-// 	assert.Nil(t, err)
-// 	assert.Contains(t, stdout, "hello, Hobbs")
-// 	assert.NotContains(t, stderr, "Skipping terragrunt module")
-// }
-
-// func TestApplyAllSkipTrue(t *testing.T) {
-// 	t.Parallel()
-
-// 	rootPath := copyEnvironment(t, TEST_FIXTURE_SKIP)
-// 	rootPath = util.JoinPath(rootPath, TEST_FIXTURE_SKIP, "skip-true")
-
-// 	showStdout := bytes.Buffer{}
-// 	showStderr := bytes.Buffer{}
-
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level info", rootPath), &showStdout, &showStderr)
-// 	logBufferContentsLineByLine(t, showStdout, "show stdout")
-// 	logBufferContentsLineByLine(t, showStderr, "show stderr")
-
-// 	stdout := showStdout.String()
-// 	stderr := showStderr.String()
-
-// 	assert.Nil(t, err)
-// 	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixture-skip/skip-true/terragrunt.hcl due to skip = true."), stderr)
-// 	assert.Contains(t, stdout, "hello, Ernie")
-// 	assert.Contains(t, stdout, "hello, Bert")
-// }
-
-// func TestApplyAllSkipFalse(t *testing.T) {
-// 	t.Parallel()
-
-// 	rootPath := copyEnvironment(t, TEST_FIXTURE_SKIP)
-// 	rootPath = util.JoinPath(rootPath, TEST_FIXTURE_SKIP, "skip-false")
-
-// 	showStdout := bytes.Buffer{}
-// 	showStderr := bytes.Buffer{}
-
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
-// 	logBufferContentsLineByLine(t, showStdout, "show stdout")
-// 	logBufferContentsLineByLine(t, showStderr, "show stderr")
-
-// 	stdout := showStdout.String()
-// 	stderr := showStderr.String()
-
-// 	assert.Nil(t, err)
-// 	assert.Contains(t, stdout, "hello, Hobbs")
-// 	assert.Contains(t, stdout, "hello, Ernie")
-// 	assert.Contains(t, stdout, "hello, Bert")
-// 	assert.NotContains(t, stderr, "Skipping terragrunt module")
-// }
-
-// func TestTerragruntInfo(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND_SUPPRESS_HOOK_STDOUT)
-// 	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND_SUPPRESS_HOOK_STDOUT)
-
-// 	showStdout := bytes.Buffer{}
-// 	showStderr := bytes.Buffer{}
-
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
-// 	assert.Nil(t, err)
-
-// 	logBufferContentsLineByLine(t, showStdout, "show stdout")
-
-// 	var dat terragruntinfo.TerragruntInfoGroup
-// 	errUnmarshal := json.Unmarshal(showStdout.Bytes(), &dat)
-// 	assert.Nil(t, errUnmarshal)
-
-// 	assert.Equal(t, dat.DownloadDir, fmt.Sprintf("%s/%s", rootPath, TERRAGRUNT_CACHE))
-// 	assert.Equal(t, dat.TerraformBinary, wrappedBinary())
-// 	assert.Equal(t, dat.IamRole, "")
-// }
-
-// // Test case for yamldecode bug: https://github.com/gruntwork-io/terragrunt/issues/834
-// func TestYamlDecodeRegressions(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_REGRESSIONS)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_REGRESSIONS)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_REGRESSIONS, "yamldecode")
-
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
-
-// 	// Check the output of yamldecode and make sure it doesn't parse the string incorrectly
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-
-// 	require.NoError(
-// 		t,
-// 		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
-// 	)
-
-// 	outputs := map[string]TerraformOutput{}
-// 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-// 	assert.Equal(t, outputs["test1"].Value, "003")
-// 	assert.Equal(t, outputs["test2"].Value, "1.00")
-// 	assert.Equal(t, outputs["test3"].Value, "0ba")
-// }
-
-// // We test the path with remote_state blocks by:
-// // - Applying all modules initially
-// // - Deleting the local state of the nested deep dependency
-// // - Running apply on the root module
-// // If output optimization is working, we should still get the same correct output even though the state of the upmost
-// // module has been destroyed.
-// func TestDependencyOutputOptimization(t *testing.T) {
-// 	expectOutputLogs := []string{
-// 		`Running command: ` + wrappedBinary() + ` init -get=false prefix=\[.*fixture-get-output/nested-optimization/dep\]`,
-// 	}
-// 	dependencyOutputOptimizationTest(t, "nested-optimization", true, expectOutputLogs)
-// }
-
-// func TestDependencyOutputOptimizationSkipInit(t *testing.T) {
-// 	expectOutputLogs := []string{
-// 		`Detected module .*nested-optimization/dep/terragrunt.hcl is already init-ed. Retrieving outputs directly from working directory. prefix=\[.*fixture-get-output/nested-optimization/dep\]`,
-// 	}
-// 	dependencyOutputOptimizationTest(t, "nested-optimization", false, expectOutputLogs)
-// }
-
-// func TestDependencyOutputOptimizationNoGenerate(t *testing.T) {
-// 	expectOutputLogs := []string{
-// 		`Running command: ` + wrappedBinary() + ` init -get=false prefix=\[.*fixture-get-output/nested-optimization-nogen/dep\]`,
-// 	}
-// 	dependencyOutputOptimizationTest(t, "nested-optimization-nogen", true, expectOutputLogs)
-// }
-
-// func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit bool, expectedOutputLogs []string) {
-// 	t.Parallel()
-
-// 	expectedOutput := `They said, "No, The answer is 42"`
-// 	generatedUniqueId := uniqueId()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, moduleName)
-// 	rootTerragruntConfigPath := filepath.Join(rootPath, config.DefaultTerragruntConfigPath)
-// 	livePath := filepath.Join(rootPath, "live")
-// 	deepDepPath := filepath.Join(rootPath, "deepdep")
-// 	depPath := filepath.Join(rootPath, "dep")
-
-// 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(generatedUniqueId))
-// 	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(generatedUniqueId))
-// 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-// 	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
-// 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
-
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
-
-// 	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
-// 	// This is only a problem during testing, where the process is shared across terragrunt runs.
-// 	config.ClearOutputCache()
-
-// 	// verify expected output
-// 	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", livePath))
-// 	require.NoError(t, err)
-
-// 	outputs := map[string]TerraformOutput{}
-// 	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
-// 	assert.Equal(t, expectedOutput, outputs["output"].Value)
-
-// 	// If we want to force reinit, delete the relevant .terraform directories
-// 	if forceInit {
-// 		cleanupTerraformFolder(t, depPath)
-// 	}
-
-// 	// Now delete the deepdep state and verify still works (note we need to bust the cache again)
-// 	config.ClearOutputCache()
-// 	require.NoError(t, os.Remove(filepath.Join(deepDepPath, "terraform.tfstate")))
-// 	reout, reerr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", livePath))
-// 	require.NoError(t, err)
-
-// 	require.NoError(t, json.Unmarshal([]byte(reout), &outputs))
-// 	assert.Equal(t, expectedOutput, outputs["output"].Value)
-
-// 	for _, logRegexp := range expectedOutputLogs {
-// 		re, err := regexp.Compile(logRegexp)
-// 		require.NoError(t, err)
-// 		matches := re.FindAllString(reerr, -1)
-// 		assert.Greater(t, len(matches), 0)
-// 	}
-// }
-
-// func TestDependencyOutputOptimizationDisableTest(t *testing.T) {
-// 	t.Parallel()
-
-// 	expectedOutput := `They said, "No, The answer is 42"`
-// 	generatedUniqueId := uniqueId()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "nested-optimization-disable")
-// 	rootTerragruntConfigPath := filepath.Join(rootPath, config.DefaultTerragruntConfigPath)
-// 	livePath := filepath.Join(rootPath, "live")
-// 	deepDepPath := filepath.Join(rootPath, "deepdep")
-
-// 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(generatedUniqueId))
-// 	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(generatedUniqueId))
-// 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-// 	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
-// 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
-
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
-
-// 	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
-// 	// This is only a problem during testing, where the process is shared across terragrunt runs.
-// 	config.ClearOutputCache()
-
-// 	// verify expected output
-// 	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", livePath))
-// 	require.NoError(t, err)
-
-// 	outputs := map[string]TerraformOutput{}
-// 	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
-// 	assert.Equal(t, expectedOutput, outputs["output"].Value)
-
-// 	// Now delete the deepdep state and verify it no longer works, because it tries to fetch the deepdep dependency
-// 	config.ClearOutputCache()
-// 	require.NoError(t, os.Remove(filepath.Join(deepDepPath, "terraform.tfstate")))
-// 	require.NoError(t, os.RemoveAll(filepath.Join(deepDepPath, ".terraform")))
-// 	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", livePath))
-// 	require.Error(t, err)
-// }
-
-// func TestDependencyOutput(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "integration")
-
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
-
-// 	// verify expected output 42
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-
-// 	app3Path := util.JoinPath(rootPath, "app3")
-// 	require.NoError(
-// 		t,
-// 		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", app3Path), &stdout, &stderr),
-// 	)
-
-// 	outputs := map[string]TerraformOutput{}
-// 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-// 	assert.Equal(t, int(outputs["z"].Value.(float64)), 42)
-// }
-
-// func TestDependencyOutputErrorBeforeApply(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "integration")
-// 	app3Path := filepath.Join(rootPath, "app3")
-
-// 	showStdout := bytes.Buffer{}
-// 	showStderr := bytes.Buffer{}
-
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", app3Path), &showStdout, &showStderr)
-// 	assert.Error(t, err)
-// 	// Verify that we fail because the dependency is not applied yet
-// 	assert.Contains(t, err.Error(), "has not been applied yet")
-
-// 	logBufferContentsLineByLine(t, showStdout, "show stdout")
-// 	logBufferContentsLineByLine(t, showStderr, "show stderr")
-// }
-
-// func TestDependencyOutputSkipOutputs(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "integration")
-// 	emptyPath := filepath.Join(rootPath, "empty")
-
-// 	showStdout := bytes.Buffer{}
-// 	showStderr := bytes.Buffer{}
-
-// 	// Test that even if the dependency (app1) is not applied, using skip_outputs will skip pulling the outputs so there
-// 	// will be no errors.
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", emptyPath), &showStdout, &showStderr)
-// 	assert.NoError(t, err)
-
-// 	logBufferContentsLineByLine(t, showStdout, "show stdout")
-// 	logBufferContentsLineByLine(t, showStderr, "show stderr")
-// }
-
-// func TestDependencyOutputSkipOutputsWithMockOutput(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs")
-// 	dependent3Path := filepath.Join(rootPath, "dependent3")
-
-// 	showStdout := bytes.Buffer{}
-// 	showStderr := bytes.Buffer{}
-
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", dependent3Path), &showStdout, &showStderr)
-// 	assert.NoError(t, err)
-
-// 	logBufferContentsLineByLine(t, showStdout, "show stdout")
-// 	logBufferContentsLineByLine(t, showStderr, "show stderr")
-
-// 	// verify expected output when mocks are used: The answer is 0
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-// 	require.NoError(
-// 		t,
-// 		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", dependent3Path), &stdout, &stderr),
-// 	)
-// 	outputs := map[string]TerraformOutput{}
-// 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-// 	assert.Equal(t, outputs["truth"].Value, "The answer is 0")
-
-// 	// Now apply-all so that the dependency is applied, and verify it still uses the mock output
-// 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
-// 	assert.NoError(t, err)
-
-// 	logBufferContentsLineByLine(t, showStdout, "show stdout")
-// 	logBufferContentsLineByLine(t, showStderr, "show stderr")
-
-// 	// verify expected output when mocks are used: The answer is 0
-// 	stdout = bytes.Buffer{}
-// 	stderr = bytes.Buffer{}
-// 	require.NoError(
-// 		t,
-// 		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", dependent3Path), &stdout, &stderr),
-// 	)
-// 	outputs = map[string]TerraformOutput{}
-// 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-// 	assert.Equal(t, outputs["truth"].Value, "The answer is 0")
-// }
-
-// // Test that when you have a mock_output on a dependency, the dependency will use the mock as the output instead
-// // of erroring out.
-// func TestDependencyMockOutput(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs")
-// 	dependent1Path := filepath.Join(rootPath, "dependent1")
-
-// 	showStdout := bytes.Buffer{}
-// 	showStderr := bytes.Buffer{}
-
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", dependent1Path), &showStdout, &showStderr)
-// 	assert.NoError(t, err)
-
-// 	logBufferContentsLineByLine(t, showStdout, "show stdout")
-// 	logBufferContentsLineByLine(t, showStderr, "show stderr")
-
-// 	// verify expected output when mocks are used: The answer is 0
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-// 	require.NoError(
-// 		t,
-// 		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", dependent1Path), &stdout, &stderr),
-// 	)
-// 	outputs := map[string]TerraformOutput{}
-// 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-// 	assert.Equal(t, outputs["truth"].Value, "The answer is 0")
-
-// 	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
-// 	// This is only a problem during testing, where the process is shared across terragrunt runs.
-// 	config.ClearOutputCache()
-
-// 	// Now apply-all so that the dependency is applied, and verify it uses the dependency output
-// 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
-// 	assert.NoError(t, err)
-
-// 	logBufferContentsLineByLine(t, showStdout, "show stdout")
-// 	logBufferContentsLineByLine(t, showStderr, "show stderr")
-
-// 	// verify expected output when mocks are used: The answer is 0
-// 	stdout = bytes.Buffer{}
-// 	stderr = bytes.Buffer{}
-// 	require.NoError(
-// 		t,
-// 		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", dependent1Path), &stdout, &stderr),
-// 	)
-// 	outputs = map[string]TerraformOutput{}
-// 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-// 	assert.Equal(t, outputs["truth"].Value, "The answer is 42")
-// }
-
-// // Test default behavior when mock_outputs_merge_with_state is not set. It should behave, as before this parameter was added
-// // It will fail on any command if the parent state is not applied, because the state of the parent exists and it alread has an output
-// // but not the newly added output.
-// func TestDependencyMockOutputMergeWithStateDefault(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-with-state", "merge-with-state-default", "live")
-// 	parentPath := filepath.Join(rootPath, "parent")
-// 	childPath := filepath.Join(rootPath, "child")
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", parentPath), &stdout, &stderr)
-// 	assert.NoError(t, err)
-// 	logBufferContentsLineByLine(t, stdout, "plan stdout")
-// 	logBufferContentsLineByLine(t, stderr, "plan stderr")
-
-// 	// Verify we have the default behavior if mock_outputs_merge_with_state is not set
-// 	stdout.Reset()
-// 	stderr.Reset()
-// 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
-// 	assert.Error(t, err)
-// 	// Verify that we fail because the dependency is not applied yet, and the new attribute is not available and in
-// 	// this case, mocked outputs are not used.
-// 	assert.Contains(t, err.Error(), "This object does not have an attribute named \"test_output2\"")
-
-// 	logBufferContentsLineByLine(t, stdout, "plan stdout")
-// 	logBufferContentsLineByLine(t, stderr, "plan stderr")
-
-// }
-
-// // Test when mock_outputs_merge_with_state is explicitly set to false. It should behave, as before this parameter was added
-// // It will fail on any command if the parent state is not applied, because the state of the parent exists and it alread has an output
-// // but not the newly added output.
-// func TestDependencyMockOutputMergeWithStateFalse(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-with-state", "merge-with-state-false", "live")
-// 	parentPath := filepath.Join(rootPath, "parent")
-// 	childPath := filepath.Join(rootPath, "child")
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", parentPath), &stdout, &stderr)
-// 	assert.NoError(t, err)
-// 	logBufferContentsLineByLine(t, stdout, "plan stdout")
-// 	logBufferContentsLineByLine(t, stderr, "plan stderr")
-
-// 	// Verify we have the default behavior if mock_outputs_merge_with_state is set to false
-// 	stdout.Reset()
-// 	stderr.Reset()
-// 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
-// 	assert.Error(t, err)
-// 	// Verify that we fail because the dependency is not applied yet, and the new attribute is not available and in
-// 	// this case, mocked outputs are not used.
-// 	assert.Contains(t, err.Error(), "This object does not have an attribute named \"test_output2\"")
-
-// 	logBufferContentsLineByLine(t, stdout, "plan stdout")
-// 	logBufferContentsLineByLine(t, stderr, "plan stderr")
-// }
-
-// // Test when mock_outputs_merge_with_state is explicitly set to true.
-// // It will mock the newly added output from the parent as it was not already applied to the state.
-// func TestDependencyMockOutputMergeWithStateTrue(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-with-state", "merge-with-state-true", "live")
-// 	parentPath := filepath.Join(rootPath, "parent")
-// 	childPath := filepath.Join(rootPath, "child")
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", parentPath), &stdout, &stderr)
-// 	assert.NoError(t, err)
-// 	logBufferContentsLineByLine(t, stdout, "plan stdout")
-// 	logBufferContentsLineByLine(t, stderr, "plan stderr")
-
-// 	// Verify mocked outputs are used if mock_outputs_merge_with_state is set to true and some output in the parent are not applied yet.
-// 	stdout.Reset()
-// 	stderr.Reset()
-// 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
-// 	assert.NoError(t, err)
-
-// 	logBufferContentsLineByLine(t, stdout, "apply stdout")
-// 	logBufferContentsLineByLine(t, stderr, "apply stderr")
-// 	// Now check the outputs to make sure they are as expected
-// 	stdout.Reset()
-// 	stderr.Reset()
-
-// 	require.NoError(
-// 		t,
-// 		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr),
-// 	)
-
-// 	outputs := map[string]TerraformOutput{}
-// 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-
-// 	assert.Equal(t, outputs["test_output1_from_parent"].Value, "value1")
-// 	assert.Equal(t, outputs["test_output2_from_parent"].Value, "fake-data2")
-
-// 	logBufferContentsLineByLine(t, stdout, "output stdout")
-// 	logBufferContentsLineByLine(t, stderr, "output stderr")
-// }
-
-// // Test when mock_outputs_merge_with_state is explicitly set to true, but using an unallowed command. It should ignore
-// // the mock output.
-// func TestDependencyMockOutputMergeWithStateTrueNotAllowed(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-with-state", "merge-with-state-true-validate-only", "live")
-// 	parentPath := filepath.Join(rootPath, "parent")
-// 	childPath := filepath.Join(rootPath, "child")
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", parentPath), &stdout, &stderr)
-// 	assert.NoError(t, err)
-// 	logBufferContentsLineByLine(t, stdout, "plan stdout")
-// 	logBufferContentsLineByLine(t, stderr, "plan stderr")
-
-// 	// Verify mocked outputs are used if mock_outputs_merge_with_state is set to true with an allowed command and some
-// 	// output in the parent are not applied yet.
-// 	stdout.Reset()
-// 	stderr.Reset()
-// 	require.NoError(
-// 		t,
-// 		runTerragruntCommand(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr),
-// 	)
-
-// 	// ... but not when an unallowed command is used
-// 	require.Error(
-// 		t,
-// 		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr),
-// 	)
-// }
-
-// // Test when mock_outputs_merge_with_state is explicitly set to true.
-// // Mock should not be used as the parent state was already fully applied.
-// func TestDependencyMockOutputMergeWithStateNoOverride(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-with-state", "merge-with-state-no-override", "live")
-// 	parentPath := filepath.Join(rootPath, "parent")
-// 	childPath := filepath.Join(rootPath, "child")
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", parentPath), &stdout, &stderr)
-// 	assert.NoError(t, err)
-// 	logBufferContentsLineByLine(t, stdout, "show stdout")
-// 	logBufferContentsLineByLine(t, stderr, "show stderr")
-
-// 	// Verify mocked outputs are not used if mock_outputs_merge_with_state is set to true and all outputs in the parent have been applied.
-// 	stdout.Reset()
-// 	stderr.Reset()
-// 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
-// 	assert.NoError(t, err)
-
-// 	// Now check the outputs to make sure they are as expected
-// 	stdout.Reset()
-// 	stderr.Reset()
-
-// 	require.NoError(
-// 		t,
-// 		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr),
-// 	)
-
-// 	outputs := map[string]TerraformOutput{}
-// 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-
-// 	assert.Equal(t, outputs["test_output1_from_parent"].Value, "value1")
-// 	assert.Equal(t, outputs["test_output2_from_parent"].Value, "value2")
-
-// 	logBufferContentsLineByLine(t, stdout, "show stdout")
-// 	logBufferContentsLineByLine(t, stderr, "show stderr")
-// }
-
-// // Test when mock_outputs_merge_strategy_with_state or mock_outputs_merge_with_state is not set, the default is no_merge
-// func TestDependencyMockOutputMergeStrategyWithStateDefault(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-default", "live")
-// 	childPath := filepath.Join(rootPath, "child")
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
-// 	assert.Error(t, err)
-// 	assert.Contains(t, err.Error(), "This object does not have an attribute named \"test_output_list_string\"")
-// 	logBufferContentsLineByLine(t, stdout, "apply stdout")
-// 	logBufferContentsLineByLine(t, stderr, "apply stderr")
-// }
-
-// // Test when mock_outputs_merge_with_state = "false" that MergeStrategyType is set to no_merge
-// func TestDependencyMockOutputMergeStrategyWithStateCompatFalse(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-compat-false", "live")
-// 	childPath := filepath.Join(rootPath, "child")
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
-// 	assert.Error(t, err)
-// 	assert.Contains(t, err.Error(), "This object does not have an attribute named \"test_output_list_string\"")
-// 	logBufferContentsLineByLine(t, stdout, "apply stdout")
-// 	logBufferContentsLineByLine(t, stderr, "apply stderr")
-// }
-
-// // Test when mock_outputs_merge_with_state = "true" that MergeStrategyType is set to shallow
-// func TestDependencyMockOutputMergeStrategyWithStateCompatTrue(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-compat-true", "live")
-// 	childPath := filepath.Join(rootPath, "child")
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
-// 	assert.NoError(t, err)
-// 	logBufferContentsLineByLine(t, stdout, "apply stdout")
-// 	logBufferContentsLineByLine(t, stderr, "apply stderr")
-
-// 	stdout.Reset()
-// 	stderr.Reset()
-
-// 	require.NoError(t, runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr))
-// 	outputs := map[string]TerraformOutput{}
-// 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-// 	logBufferContentsLineByLine(t, stdout, "output stdout")
-// 	logBufferContentsLineByLine(t, stderr, "output stderr")
-
-// 	assert.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
-// 	assert.Equal(t, "map_root1_sub1_value", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "map_root1", "map_root1_sub1", "value"))
-// 	assert.Equal(t, nil, util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "not_in_state", "abc", "value"))
-// 	assert.Equal(t, "fake-list-data", util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "0"))
-// 	assert.Equal(t, nil, util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "1"))
-// }
-
-// // Test when both mock_outputs_merge_with_state and mock_outputs_merge_strategy_with_state are set, mock_outputs_merge_strategy_with_state is used
-// func TestDependencyMockOutputMergeStrategyWithStateCompatConflict(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-compat-true", "live")
-// 	childPath := filepath.Join(rootPath, "child")
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
-// 	assert.NoError(t, err)
-// 	logBufferContentsLineByLine(t, stdout, "apply stdout")
-// 	logBufferContentsLineByLine(t, stderr, "apply stderr")
-
-// 	stdout.Reset()
-// 	stderr.Reset()
-
-// 	require.NoError(t, runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr))
-// 	outputs := map[string]TerraformOutput{}
-// 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-// 	logBufferContentsLineByLine(t, stdout, "output stdout")
-// 	logBufferContentsLineByLine(t, stderr, "output stderr")
-
-// 	assert.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
-// 	assert.Equal(t, "map_root1_sub1_value", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "map_root1", "map_root1_sub1", "value"))
-// 	assert.Equal(t, nil, util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "not_in_state", "abc", "value"))
-// 	assert.Equal(t, "fake-list-data", util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "0"))
-// 	assert.Equal(t, nil, util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "1"))
-// }
-
-// // Test when mock_outputs_merge_strategy_with_state = "no_merge" that mocks are not merged into the current state
-// func TestDependencyMockOutputMergeStrategyWithStateNoMerge(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-no-merge", "live")
-// 	childPath := filepath.Join(rootPath, "child")
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
-// 	assert.Error(t, err)
-// 	assert.Contains(t, err.Error(), "This object does not have an attribute named \"test_output_list_string\"")
-// 	logBufferContentsLineByLine(t, stdout, "apply stdout")
-// 	logBufferContentsLineByLine(t, stderr, "apply stderr")
-// }
-
-// // Test when mock_outputs_merge_strategy_with_state = "shallow" that only top level outputs are merged.
-// // Lists or keys in existing maps will not be merged
-// func TestDependencyMockOutputMergeStrategyWithStateShallow(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-shallow", "live")
-// 	childPath := filepath.Join(rootPath, "child")
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
-// 	assert.NoError(t, err)
-// 	logBufferContentsLineByLine(t, stdout, "apply stdout")
-// 	logBufferContentsLineByLine(t, stderr, "apply stderr")
-
-// 	stdout.Reset()
-// 	stderr.Reset()
-
-// 	require.NoError(t, runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr))
-// 	outputs := map[string]TerraformOutput{}
-// 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-// 	logBufferContentsLineByLine(t, stdout, "output stdout")
-// 	logBufferContentsLineByLine(t, stderr, "output stderr")
-
-// 	assert.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
-// 	assert.Equal(t, "map_root1_sub1_value", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "map_root1", "map_root1_sub1", "value"))
-// 	assert.Equal(t, nil, util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "not_in_state", "abc", "value"))
-// 	assert.Equal(t, "fake-list-data", util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "0"))
-// 	assert.Equal(t, nil, util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "1"))
-// }
-
-// // Test when mock_outputs_merge_strategy_with_state = "deep" that the existing state is deeply merged into the mocks
-// // so that the existing state overwrites the mocks. This allows child modules to use new dependency outputs before the
-// // dependency has been applied
-// func TestDependencyMockOutputMergeStrategyWithStateDeepMapOnly(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-deep-map-only", "live")
-// 	childPath := filepath.Join(rootPath, "child")
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
-// 	assert.NoError(t, err)
-// 	logBufferContentsLineByLine(t, stdout, "apply stdout")
-// 	logBufferContentsLineByLine(t, stderr, "apply stderr")
-
-// 	stdout.Reset()
-// 	stderr.Reset()
-
-// 	require.NoError(t, runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr))
-// 	outputs := map[string]TerraformOutput{}
-// 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-// 	logBufferContentsLineByLine(t, stdout, "output stdout")
-// 	logBufferContentsLineByLine(t, stderr, "output stderr")
-
-// 	assert.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
-// 	assert.Equal(t, "fake-abc", outputs["test_output2_from_parent"].Value)
-// 	assert.Equal(t, "map_root1_sub1_value", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "map_root1", "map_root1_sub1", "value"))
-// 	assert.Equal(t, "fake-abc", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "not_in_state", "abc", "value"))
-// 	assert.Equal(t, "a", util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "0"))
-// 	assert.Equal(t, nil, util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "1"))
-// }
-
-// // Test that when you have a mock_output on a dependency, the dependency will use the mock as the output instead
-// // of erroring out when running an allowed command.
-// func TestDependencyMockOutputRestricted(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs")
-// 	dependent2Path := filepath.Join(rootPath, "dependent2")
-
-// 	showStdout := bytes.Buffer{}
-// 	showStderr := bytes.Buffer{}
-
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", dependent2Path), &showStdout, &showStderr)
-// 	assert.Error(t, err)
-// 	// Verify that we fail because the dependency is not applied yet
-// 	assert.Contains(t, err.Error(), "has not been applied yet")
-
-// 	logBufferContentsLineByLine(t, showStdout, "show stdout")
-// 	logBufferContentsLineByLine(t, showStderr, "show stderr")
-
-// 	// Verify we can run when using one of the allowed commands
-// 	showStdout.Reset()
-// 	showStderr.Reset()
-// 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-working-dir %s", dependent2Path), &showStdout, &showStderr)
-// 	assert.NoError(t, err)
-
-// 	logBufferContentsLineByLine(t, showStdout, "show stdout")
-// 	logBufferContentsLineByLine(t, showStderr, "show stderr")
-
-// 	// Verify that validate-all works as well.
-// 	showStdout.Reset()
-// 	showStderr.Reset()
-// 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt validate-all --terragrunt-non-interactive --terragrunt-working-dir %s", dependent2Path), &showStdout, &showStderr)
-// 	assert.NoError(t, err)
-
-// 	logBufferContentsLineByLine(t, showStdout, "show stdout")
-// 	logBufferContentsLineByLine(t, showStderr, "show stderr")
-
-// 	showStdout.Reset()
-// 	showStderr.Reset()
-// 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt validate-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
-// 	assert.NoError(t, err)
-
-// 	logBufferContentsLineByLine(t, showStdout, "show stdout")
-// 	logBufferContentsLineByLine(t, showStderr, "show stderr")
-// }
-
-// func TestDependencyOutputTypeConversion(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
-// 	tmpEnvPath := copyEnvironment(t, ".")
-
-// 	inputsPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "type-conversion")
-
-// 	// First apply the inputs module
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", inputsPath))
-
-// 	// Then apply the outputs module
-// 	showStdout := bytes.Buffer{}
-// 	showStderr := bytes.Buffer{}
-// 	assert.NoError(
-// 		t,
-// 		runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr),
-// 	)
-
-// 	logBufferContentsLineByLine(t, showStdout, "show stdout")
-// 	logBufferContentsLineByLine(t, showStderr, "show stderr")
-
-// 	// Now check the outputs to make sure they are as expected
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-
-// 	require.NoError(
-// 		t,
-// 		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
-// 	)
-
-// 	outputs := map[string]TerraformOutput{}
-// 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-
-// 	assert.Equal(t, outputs["bool"].Value, true)
-// 	assert.Equal(t, outputs["list_bool"].Value, []interface{}{true, false})
-// 	assert.Equal(t, outputs["list_number"].Value, []interface{}{1.0, 2.0, 3.0})
-// 	assert.Equal(t, outputs["list_string"].Value, []interface{}{"a", "b", "c"})
-// 	assert.Equal(t, outputs["map_bool"].Value, map[string]interface{}{"foo": true, "bar": false, "baz": true})
-// 	assert.Equal(t, outputs["map_number"].Value, map[string]interface{}{"foo": 42.0, "bar": 12345.0})
-// 	assert.Equal(t, outputs["map_string"].Value, map[string]interface{}{"foo": "bar"})
-// 	assert.Equal(t, outputs["number"].Value, 42.0)
-// 	assert.Equal(t, outputs["object"].Value, map[string]interface{}{"list": []interface{}{1.0, 2.0, 3.0}, "map": map[string]interface{}{"foo": "bar"}, "num": 42.0, "str": "string"})
-// 	assert.Equal(t, outputs["string"].Value, "string")
-// 	assert.Equal(t, outputs["from_env"].Value, "default")
-// }
-
-// // Regression testing for https://github.com/gruntwork-io/terragrunt/issues/1102: Ordering keys from
-// // maps to avoid random placements when terraform file is generated.
-// func TestOrderedMapOutputRegressions1102(t *testing.T) {
-// 	t.Parallel()
-// 	generateTestCase := filepath.Join(TEST_FIXTURE_GET_OUTPUT, "regression-1102")
-
-// 	cleanupTerraformFolder(t, generateTestCase)
-// 	cleanupTerragruntFolder(t, generateTestCase)
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-// 	command := fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase)
-// 	path := filepath.Join(generateTestCase, "backend.tf")
-
-// 	// runs terragrunt for the first time and checks the output "backend.tf" file.
-// 	require.NoError(
-// 		t,
-// 		runTerragruntCommand(t, command, &stdout, &stderr),
-// 	)
-// 	expected, _ := os.ReadFile(path)
-// 	require.Contains(t, string(expected), "local")
-
-// 	// runs terragrunt again. All the outputs must be
-// 	// equal to the first run.
-// 	for i := 0; i < 20; i++ {
-// 		require.NoError(
-// 			t,
-// 			runTerragruntCommand(t, command, &stdout, &stderr),
-// 		)
-// 		actual, _ := os.ReadFile(path)
-// 		require.Equal(t, expected, actual)
-// 	}
-// }
-
-// // Test that we get the expected error message about dependency cycles when there is a cycle in the dependency chain
-// func TestDependencyOutputCycleHandling(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-
-// 	testCases := []string{
-// 		"aa",
-// 		"aba",
-// 		"abca",
-// 		"abcda",
-// 	}
-
-// 	for _, testCase := range testCases {
-// 		// Capture range variable into forloop so that the binding is consistent across runs.
-// 		testCase := testCase
-
-// 		t.Run(testCase, func(t *testing.T) {
-// 			t.Parallel()
-
-// 			tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 			rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "cycle", testCase)
-// 			fooPath := util.JoinPath(rootPath, "foo")
-
-// 			planStdout := bytes.Buffer{}
-// 			planStderr := bytes.Buffer{}
-// 			err := runTerragruntCommand(
-// 				t,
-// 				fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", fooPath),
-// 				&planStdout,
-// 				&planStderr,
-// 			)
-// 			logBufferContentsLineByLine(t, planStdout, "plan stdout")
-// 			logBufferContentsLineByLine(t, planStderr, "plan stderr")
-// 			assert.Error(t, err)
-// 			assert.True(t, strings.Contains(err.Error(), "Found a dependency cycle between modules"))
-// 		})
-// 	}
-// }
-
-// // Regression testing for https://github.com/gruntwork-io/terragrunt/issues/854: Referencing a dependency that is a
-// // subdirectory of the current config, which includes an `include` block has problems resolving the correct relative
-// // path.
-// func TestDependencyOutputRegression854(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "regression-854", "root")
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-// 	err := runTerragruntCommand(
-// 		t,
-// 		fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath),
-// 		&stdout,
-// 		&stderr,
-// 	)
-// 	logBufferContentsLineByLine(t, stdout, "stdout")
-// 	logBufferContentsLineByLine(t, stderr, "stderr")
-// 	require.NoError(t, err)
-// }
-
-// // Regression testing for https://github.com/gruntwork-io/terragrunt/issues/906
-// func TestDependencyOutputSameOutputConcurrencyRegression(t *testing.T) {
-// 	t.Parallel()
-
-// 	// Use func to isolate each test run to a single s3 bucket that is deleted. We run the test multiple times
-// 	// because the underlying error we are trying to test against is nondeterministic, and thus may not always work
-// 	// the first time.
-// 	testCase := func() {
-// 		cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 		tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 		rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "regression-906")
-
-// 		// Make sure to fill in the s3 bucket to the config. Also ensure the bucket is deleted before the next for
-// 		// loop call.
-// 		s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s%s", strings.ToLower(uniqueId()), strings.ToLower(uniqueId()))
-// 		defer deleteS3BucketWithRetry(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-// 		commonDepConfigPath := util.JoinPath(rootPath, "common-dep", "terragrunt.hcl")
-// 		copyTerragruntConfigAndFillPlaceholders(t, commonDepConfigPath, commonDepConfigPath, s3BucketName, "not-used", "not-used")
-
-// 		stdout := bytes.Buffer{}
-// 		stderr := bytes.Buffer{}
-// 		err := runTerragruntCommand(
-// 			t,
-// 			fmt.Sprintf("terragrunt apply-all --terragrunt-source-update --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath),
-// 			&stdout,
-// 			&stderr,
-// 		)
-// 		logBufferContentsLineByLine(t, stdout, "stdout")
-// 		logBufferContentsLineByLine(t, stderr, "stderr")
-// 		require.NoError(t, err)
-// 	}
-
-// 	for i := 0; i < 3; i++ {
-// 		testCase()
-// 		// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
-// 		// This is only a problem during testing, where the process is shared across terragrunt runs.
-// 		config.ClearOutputCache()
-// 	}
-// }
-
-// // Regression testing for bug where terragrunt output runs on dependency blocks are done in the terragrunt-cache for the
-// // child, not the parent.
-// func TestDependencyOutputCachePathBug(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "localstate", "live")
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-// 	err := runTerragruntCommand(
-// 		t,
-// 		fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath),
-// 		&stdout,
-// 		&stderr,
-// 	)
-// 	logBufferContentsLineByLine(t, stdout, "stdout")
-// 	logBufferContentsLineByLine(t, stderr, "stderr")
-// 	require.NoError(t, err)
-// }
-
-// func TestDependencyOutputWithTerragruntSource(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "regression-1124", "live")
-// 	modulePath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "regression-1124", "modules")
-
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
-// 	err := runTerragruntCommand(
-// 		t,
-// 		fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", rootPath, modulePath),
-// 		&stdout,
-// 		&stderr,
-// 	)
-// 	logBufferContentsLineByLine(t, stdout, "stdout")
-// 	logBufferContentsLineByLine(t, stderr, "stderr")
-// 	require.NoError(t, err)
-// }
-
-// func TestDependencyOutputWithHooks(t *testing.T) {
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "regression-1273")
-// 	depPathFileOut := util.JoinPath(rootPath, "dep", "file.out")
-// 	mainPath := util.JoinPath(rootPath, "main")
-// 	mainPathFileOut := util.JoinPath(mainPath, "file.out")
-
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
-// 	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
-// 	// This is only a problem during testing, where the process is shared across terragrunt runs.
-// 	config.ClearOutputCache()
-
-// 	// The file should exist in the first run.
-// 	assert.True(t, util.FileExists(depPathFileOut))
-// 	assert.False(t, util.FileExists(mainPathFileOut))
-
-// 	// Now delete file and run just main again. It should NOT create file.out.
-// 	require.NoError(t, os.Remove(depPathFileOut))
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", mainPath))
-// 	assert.False(t, util.FileExists(depPathFileOut))
-// 	assert.False(t, util.FileExists(mainPathFileOut))
-// }
-
-// func TestDeepDependencyOutputWithMock(t *testing.T) {
-// 	// Test that the terraform command flows through for mock output retrieval to deeper dependencies. Previously the
-// 	// terraform command was being overwritten, so by the time the deep dependency retrieval runs, it was replaced with
-// 	// "output" instead of the original one.
-
-// 	t.Parallel()
-
-// 	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
-// 	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "nested-mocks", "live")
-
-// 	// Since we haven't applied anything, this should only succeed if mock outputs are used.
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
-// }
+func TestPreventDestroyDependencies(t *testing.T) {
+	t.Parallel()
+
+	// Populate module paths.
+	moduleNames := []string{
+		"module-a",
+		"module-b",
+		"module-c",
+		"module-d",
+		"module-e",
+	}
+	modulePaths := make(map[string]string, len(moduleNames))
+	for _, moduleName := range moduleNames {
+		modulePaths[moduleName] = util.JoinPath(TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES, moduleName)
+	}
+
+	// Cleanup all modules directories.
+	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES)
+	for _, modulePath := range modulePaths {
+		cleanupTerraformFolder(t, modulePath)
+	}
+
+	var (
+		applyAllStdout bytes.Buffer
+		applyAllStderr bytes.Buffer
+	)
+
+	// Apply and destroy all modules.
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES), &applyAllStdout, &applyAllStderr)
+	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
+	logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
+
+	if err != nil {
+		t.Fatalf("apply-all in TestPreventDestroyDependencies failed with error: %v. Full std", err)
+	}
+
+	var (
+		destroyAllStdout bytes.Buffer
+		destroyAllStderr bytes.Buffer
+	)
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES), &destroyAllStdout, &destroyAllStderr)
+	logBufferContentsLineByLine(t, destroyAllStdout, "destroy-all stdout")
+	logBufferContentsLineByLine(t, destroyAllStderr, "destroy-all stderr")
+
+	if assert.Error(t, err) {
+		underlying := errors.Unwrap(err)
+		assert.IsType(t, &multierror.Error{}, underlying)
+	}
+
+	// Check that modules C, D and E were deleted and modules A and B weren't.
+	for moduleName, modulePath := range modulePaths {
+		var (
+			showStdout bytes.Buffer
+			showStderr bytes.Buffer
+		)
+
+		err = runTerragruntCommand(t, fmt.Sprintf("terragrunt show --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), &showStdout, &showStderr)
+		logBufferContentsLineByLine(t, showStdout, fmt.Sprintf("show stdout for %s", modulePath))
+		logBufferContentsLineByLine(t, showStderr, fmt.Sprintf("show stderr for %s", modulePath))
+
+		assert.NoError(t, err)
+		output := showStdout.String()
+		switch moduleName {
+		case "module-a":
+			assert.Contains(t, output, "Hello, Module A")
+		case "module-b":
+			assert.Contains(t, output, "Hello, Module B")
+		case "module-c":
+			assert.NotContains(t, output, "Hello, Module C")
+		case "module-d":
+			assert.NotContains(t, output, "Hello, Module D")
+		case "module-e":
+			assert.NotContains(t, output, "Hello, Module E")
+		}
+	}
+}
+
+func TestInputsPassedThroughCorrectly(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	require.NoError(t, err)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	validateInputs(t, outputs)
+}
+
+func TestNoAutoInit(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_REGRESSIONS)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_REGRESSIONS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_REGRESSIONS, "skip-init")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-no-auto-init --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	logBufferContentsLineByLine(t, stdout, "no force apply stdout")
+	logBufferContentsLineByLine(t, stderr, "no force apply stderr")
+	require.Error(t, err)
+	require.Contains(t, stderr.String(), "This module is not yet installed.")
+}
+
+func TestLocalsParsing(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_LOCALS_CANONICAL)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCALS_CANONICAL))
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCALS_CANONICAL), &stdout, &stderr)
+	require.NoError(t, err)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+
+	assert.Equal(t, outputs["data"].Value, "Hello world\n")
+	assert.Equal(t, outputs["answer"].Value, float64(42))
+}
+
+func TestLocalsInInclude(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_LOCALS_IN_INCLUDE)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_LOCALS_IN_INCLUDE)
+	childPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_LOCALS_IN_INCLUDE, TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH)
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve -no-color --terragrunt-non-interactive --terragrunt-working-dir %s", childPath))
+
+	// Check the outputs of the dir functions referenced in locals to make sure they return what is expected
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+
+	assert.Equal(
+		t,
+		filepath.Join(tmpEnvPath, TEST_FIXTURE_LOCALS_IN_INCLUDE),
+		outputs["parent_terragrunt_dir"].Value,
+	)
+	assert.Equal(
+		t,
+		childPath,
+		outputs["terragrunt_dir"].Value,
+	)
+	assert.Equal(
+		t,
+		"apply",
+		outputs["terraform_command"].Value,
+	)
+	assert.Equal(
+		t,
+		"[\"apply\",\"-auto-approve\",\"-no-color\"]",
+		outputs["terraform_cli_args"].Value,
+	)
+}
+
+func TestUndefinedLocalsReferenceBreaks(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL), os.Stdout, os.Stderr)
+	assert.Error(t, err)
+}
+
+func TestUndefinedLocalsReferenceToInputsBreaks(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL_BUT_INPUT)
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL_BUT_INPUT), os.Stdout, os.Stderr)
+	assert.Error(t, err)
+}
+
+func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
+	t.Parallel()
+
+	// Populate module paths.
+	moduleNames := []string{
+		"module-a",
+		"module-b",
+		"module-c",
+	}
+	modulePaths := make(map[string]string, len(moduleNames))
+	for _, moduleName := range moduleNames {
+		modulePaths[moduleName] = util.JoinPath(TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES, moduleName)
+	}
+
+	// Cleanup all modules directories.
+	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES)
+	for _, modulePath := range modulePaths {
+		cleanupTerraformFolder(t, modulePath)
+	}
+
+	var (
+		applyAllStdout bytes.Buffer
+		applyAllStderr bytes.Buffer
+	)
+
+	// Apply and destroy all modules.
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES), &applyAllStdout, &applyAllStderr)
+	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
+	logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
+
+	if err != nil {
+		t.Fatalf("apply-all in TestPreventDestroyDependenciesIncludedConfig failed with error: %v. Full std", err)
+	}
+
+	var (
+		destroyAllStdout bytes.Buffer
+		destroyAllStderr bytes.Buffer
+	)
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES), &destroyAllStdout, &destroyAllStderr)
+	logBufferContentsLineByLine(t, destroyAllStdout, "destroy-all stdout")
+	logBufferContentsLineByLine(t, destroyAllStderr, "destroy-all stderr")
+
+	if assert.Error(t, err) {
+		underlying := errors.Unwrap(err)
+		assert.IsType(t, &multierror.Error{}, underlying)
+	}
+
+	// Check that modules C, D and E were deleted and modules A and B weren't.
+	for moduleName, modulePath := range modulePaths {
+		var (
+			showStdout bytes.Buffer
+			showStderr bytes.Buffer
+		)
+
+		err = runTerragruntCommand(t, fmt.Sprintf("terragrunt show --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), &showStdout, &showStderr)
+		logBufferContentsLineByLine(t, showStdout, fmt.Sprintf("show stdout for %s", modulePath))
+		logBufferContentsLineByLine(t, showStderr, fmt.Sprintf("show stderr for %s", modulePath))
+
+		assert.NoError(t, err)
+		output := showStdout.String()
+		switch moduleName {
+		case "module-a":
+			assert.Contains(t, output, "Hello, Module A")
+		case "module-b":
+			assert.Contains(t, output, "Hello, Module B")
+		case "module-c":
+			assert.NotContains(t, output, "Hello, Module C")
+		}
+	}
+}
+
+func TestTerragruntMissingDependenciesFail(t *testing.T) {
+	t.Parallel()
+
+	generateTestCase := TEST_FIXTURE_MISSING_DEPENDENCE
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir %s", generateTestCase), &stdout, &stderr)
+	require.Error(t, err)
+	parsedError, ok := errors.Unwrap(err).(config.DependencyDirNotFoundError)
+	assert.True(t, ok)
+	assert.True(t, len(parsedError.Dir) == 1)
+	assert.Contains(t, parsedError.Dir[0], "hl3-release")
+}
+
+func TestTerragruntExcludeExternalDependencies(t *testing.T) {
+	t.Parallel()
+
+	excludedModule := "module-a"
+	includedModule := "module-b"
+
+	modules := []string{
+		excludedModule,
+		includedModule,
+	}
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_EXTERNAL_DEPENDENCE)
+	for _, module := range modules {
+		cleanupTerraformFolder(t, util.JoinPath(TEST_FIXTURE_EXTERNAL_DEPENDENCE, module))
+	}
+
+	var (
+		applyAllStdout bytes.Buffer
+		applyAllStderr bytes.Buffer
+	)
+
+	rootPath := copyEnvironment(t, TEST_FIXTURE_EXTERNAL_DEPENDENCE)
+	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_EXTERNAL_DEPENDENCE, includedModule)
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-ignore-external-dependencies --terragrunt-working-dir %s", modulePath), &applyAllStdout, &applyAllStderr)
+	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
+	logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
+	applyAllStdoutString := applyAllStdout.String()
+
+	if err != nil {
+		t.Errorf("Did not expect to get error: %s", err.Error())
+	}
+
+	assert.Contains(t, applyAllStdoutString, fmt.Sprintf("Hello World, %s", includedModule))
+	assert.NotContains(t, applyAllStdoutString, fmt.Sprintf("Hello World, %s", excludedModule))
+}
+
+func TestApplySkipTrue(t *testing.T) {
+	t.Parallel()
+
+	rootPath := copyEnvironment(t, TEST_FIXTURE_SKIP)
+	rootPath = util.JoinPath(rootPath, TEST_FIXTURE_SKIP, "skip-true")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir %s --var person=Hobbs", rootPath), &showStdout, &showStderr)
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	stdout := showStdout.String()
+	stderr := showStderr.String()
+
+	assert.Nil(t, err)
+	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixture-skip/skip-true/terragrunt.hcl due to skip = true."), stderr)
+	assert.NotContains(t, stdout, "hello, Hobbs")
+}
+
+func TestApplySkipFalse(t *testing.T) {
+	t.Parallel()
+
+	rootPath := copyEnvironment(t, TEST_FIXTURE_SKIP)
+	rootPath = util.JoinPath(rootPath, TEST_FIXTURE_SKIP, "skip-false")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	stderr := showStderr.String()
+	stdout := showStdout.String()
+
+	assert.Nil(t, err)
+	assert.Contains(t, stdout, "hello, Hobbs")
+	assert.NotContains(t, stderr, "Skipping terragrunt module")
+}
+
+func TestApplyAllSkipTrue(t *testing.T) {
+	t.Parallel()
+
+	rootPath := copyEnvironment(t, TEST_FIXTURE_SKIP)
+	rootPath = util.JoinPath(rootPath, TEST_FIXTURE_SKIP, "skip-true")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level info", rootPath), &showStdout, &showStderr)
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	stdout := showStdout.String()
+	stderr := showStderr.String()
+
+	assert.Nil(t, err)
+	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixture-skip/skip-true/terragrunt.hcl due to skip = true."), stderr)
+	assert.Contains(t, stdout, "hello, Ernie")
+	assert.Contains(t, stdout, "hello, Bert")
+}
+
+func TestApplyAllSkipFalse(t *testing.T) {
+	t.Parallel()
+
+	rootPath := copyEnvironment(t, TEST_FIXTURE_SKIP)
+	rootPath = util.JoinPath(rootPath, TEST_FIXTURE_SKIP, "skip-false")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	stdout := showStdout.String()
+	stderr := showStderr.String()
+
+	assert.Nil(t, err)
+	assert.Contains(t, stdout, "hello, Hobbs")
+	assert.Contains(t, stdout, "hello, Ernie")
+	assert.Contains(t, stdout, "hello, Bert")
+	assert.NotContains(t, stderr, "Skipping terragrunt module")
+}
+
+func TestTerragruntInfo(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND_SUPPRESS_HOOK_STDOUT)
+	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND_SUPPRESS_HOOK_STDOUT)
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	assert.Nil(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+
+	var dat terragruntinfo.TerragruntInfoGroup
+	errUnmarshal := json.Unmarshal(showStdout.Bytes(), &dat)
+	assert.Nil(t, errUnmarshal)
+
+	assert.Equal(t, dat.DownloadDir, fmt.Sprintf("%s/%s", rootPath, TERRAGRUNT_CACHE))
+	assert.Equal(t, dat.TerraformBinary, wrappedBinary())
+	assert.Equal(t, dat.IamRole, "")
+}
+
+// Test case for yamldecode bug: https://github.com/gruntwork-io/terragrunt/issues/834
+func TestYamlDecodeRegressions(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_REGRESSIONS)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_REGRESSIONS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_REGRESSIONS, "yamldecode")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// Check the output of yamldecode and make sure it doesn't parse the string incorrectly
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	assert.Equal(t, outputs["test1"].Value, "003")
+	assert.Equal(t, outputs["test2"].Value, "1.00")
+	assert.Equal(t, outputs["test3"].Value, "0ba")
+}
+
+// We test the path with remote_state blocks by:
+// - Applying all modules initially
+// - Deleting the local state of the nested deep dependency
+// - Running apply on the root module
+// If output optimization is working, we should still get the same correct output even though the state of the upmost
+// module has been destroyed.
+func TestDependencyOutputOptimization(t *testing.T) {
+	expectOutputLogs := []string{
+		`Running command: ` + wrappedBinary() + ` init -get=false prefix=\[.*fixture-get-output/nested-optimization/dep\]`,
+	}
+	dependencyOutputOptimizationTest(t, "nested-optimization", true, expectOutputLogs)
+}
+
+func TestDependencyOutputOptimizationSkipInit(t *testing.T) {
+	expectOutputLogs := []string{
+		`Detected module .*nested-optimization/dep/terragrunt.hcl is already init-ed. Retrieving outputs directly from working directory. prefix=\[.*fixture-get-output/nested-optimization/dep\]`,
+	}
+	dependencyOutputOptimizationTest(t, "nested-optimization", false, expectOutputLogs)
+}
+
+func TestDependencyOutputOptimizationNoGenerate(t *testing.T) {
+	expectOutputLogs := []string{
+		`Running command: ` + wrappedBinary() + ` init -get=false prefix=\[.*fixture-get-output/nested-optimization-nogen/dep\]`,
+	}
+	dependencyOutputOptimizationTest(t, "nested-optimization-nogen", true, expectOutputLogs)
+}
+
+func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit bool, expectedOutputLogs []string) {
+	t.Parallel()
+
+	expectedOutput := `They said, "No, The answer is 42"`
+	generatedUniqueId := uniqueId()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, moduleName)
+	rootTerragruntConfigPath := filepath.Join(rootPath, config.DefaultTerragruntConfigPath)
+	livePath := filepath.Join(rootPath, "live")
+	deepDepPath := filepath.Join(rootPath, "deepdep")
+	depPath := filepath.Join(rootPath, "dep")
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(generatedUniqueId))
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(generatedUniqueId))
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
+	// This is only a problem during testing, where the process is shared across terragrunt runs.
+	config.ClearOutputCache()
+
+	// verify expected output
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", livePath))
+	require.NoError(t, err)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+	assert.Equal(t, expectedOutput, outputs["output"].Value)
+
+	// If we want to force reinit, delete the relevant .terraform directories
+	if forceInit {
+		cleanupTerraformFolder(t, depPath)
+	}
+
+	// Now delete the deepdep state and verify still works (note we need to bust the cache again)
+	config.ClearOutputCache()
+	require.NoError(t, os.Remove(filepath.Join(deepDepPath, "terraform.tfstate")))
+	reout, reerr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", livePath))
+	require.NoError(t, err)
+
+	require.NoError(t, json.Unmarshal([]byte(reout), &outputs))
+	assert.Equal(t, expectedOutput, outputs["output"].Value)
+
+	for _, logRegexp := range expectedOutputLogs {
+		re, err := regexp.Compile(logRegexp)
+		require.NoError(t, err)
+		matches := re.FindAllString(reerr, -1)
+		assert.Greater(t, len(matches), 0)
+	}
+}
+
+func TestDependencyOutputOptimizationDisableTest(t *testing.T) {
+	t.Parallel()
+
+	expectedOutput := `They said, "No, The answer is 42"`
+	generatedUniqueId := uniqueId()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "nested-optimization-disable")
+	rootTerragruntConfigPath := filepath.Join(rootPath, config.DefaultTerragruntConfigPath)
+	livePath := filepath.Join(rootPath, "live")
+	deepDepPath := filepath.Join(rootPath, "deepdep")
+
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(generatedUniqueId))
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(generatedUniqueId))
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
+	// This is only a problem during testing, where the process is shared across terragrunt runs.
+	config.ClearOutputCache()
+
+	// verify expected output
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", livePath))
+	require.NoError(t, err)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+	assert.Equal(t, expectedOutput, outputs["output"].Value)
+
+	// Now delete the deepdep state and verify it no longer works, because it tries to fetch the deepdep dependency
+	config.ClearOutputCache()
+	require.NoError(t, os.Remove(filepath.Join(deepDepPath, "terraform.tfstate")))
+	require.NoError(t, os.RemoveAll(filepath.Join(deepDepPath, ".terraform")))
+	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", livePath))
+	require.Error(t, err)
+}
+
+func TestDependencyOutput(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "integration")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+
+	// verify expected output 42
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	app3Path := util.JoinPath(rootPath, "app3")
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", app3Path), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	assert.Equal(t, int(outputs["z"].Value.(float64)), 42)
+}
+
+func TestDependencyOutputErrorBeforeApply(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "integration")
+	app3Path := filepath.Join(rootPath, "app3")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", app3Path), &showStdout, &showStderr)
+	assert.Error(t, err)
+	// Verify that we fail because the dependency is not applied yet
+	assert.Contains(t, err.Error(), "has not been applied yet")
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+}
+
+func TestDependencyOutputSkipOutputs(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "integration")
+	emptyPath := filepath.Join(rootPath, "empty")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	// Test that even if the dependency (app1) is not applied, using skip_outputs will skip pulling the outputs so there
+	// will be no errors.
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", emptyPath), &showStdout, &showStderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+}
+
+func TestDependencyOutputSkipOutputsWithMockOutput(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs")
+	dependent3Path := filepath.Join(rootPath, "dependent3")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", dependent3Path), &showStdout, &showStderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	// verify expected output when mocks are used: The answer is 0
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", dependent3Path), &stdout, &stderr),
+	)
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	assert.Equal(t, outputs["truth"].Value, "The answer is 0")
+
+	// Now apply-all so that the dependency is applied, and verify it still uses the mock output
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	// verify expected output when mocks are used: The answer is 0
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", dependent3Path), &stdout, &stderr),
+	)
+	outputs = map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	assert.Equal(t, outputs["truth"].Value, "The answer is 0")
+}
+
+// Test that when you have a mock_output on a dependency, the dependency will use the mock as the output instead
+// of erroring out.
+func TestDependencyMockOutput(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs")
+	dependent1Path := filepath.Join(rootPath, "dependent1")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", dependent1Path), &showStdout, &showStderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	// verify expected output when mocks are used: The answer is 0
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", dependent1Path), &stdout, &stderr),
+	)
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	assert.Equal(t, outputs["truth"].Value, "The answer is 0")
+
+	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
+	// This is only a problem during testing, where the process is shared across terragrunt runs.
+	config.ClearOutputCache()
+
+	// Now apply-all so that the dependency is applied, and verify it uses the dependency output
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	// verify expected output when mocks are used: The answer is 0
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", dependent1Path), &stdout, &stderr),
+	)
+	outputs = map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	assert.Equal(t, outputs["truth"].Value, "The answer is 42")
+}
+
+// Test default behavior when mock_outputs_merge_with_state is not set. It should behave, as before this parameter was added
+// It will fail on any command if the parent state is not applied, because the state of the parent exists and it alread has an output
+// but not the newly added output.
+func TestDependencyMockOutputMergeWithStateDefault(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-with-state", "merge-with-state-default", "live")
+	parentPath := filepath.Join(rootPath, "parent")
+	childPath := filepath.Join(rootPath, "child")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", parentPath), &stdout, &stderr)
+	assert.NoError(t, err)
+	logBufferContentsLineByLine(t, stdout, "plan stdout")
+	logBufferContentsLineByLine(t, stderr, "plan stderr")
+
+	// Verify we have the default behavior if mock_outputs_merge_with_state is not set
+	stdout.Reset()
+	stderr.Reset()
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	assert.Error(t, err)
+	// Verify that we fail because the dependency is not applied yet, and the new attribute is not available and in
+	// this case, mocked outputs are not used.
+	assert.Contains(t, err.Error(), "This object does not have an attribute named \"test_output2\"")
+
+	logBufferContentsLineByLine(t, stdout, "plan stdout")
+	logBufferContentsLineByLine(t, stderr, "plan stderr")
+
+}
+
+// Test when mock_outputs_merge_with_state is explicitly set to false. It should behave, as before this parameter was added
+// It will fail on any command if the parent state is not applied, because the state of the parent exists and it alread has an output
+// but not the newly added output.
+func TestDependencyMockOutputMergeWithStateFalse(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-with-state", "merge-with-state-false", "live")
+	parentPath := filepath.Join(rootPath, "parent")
+	childPath := filepath.Join(rootPath, "child")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", parentPath), &stdout, &stderr)
+	assert.NoError(t, err)
+	logBufferContentsLineByLine(t, stdout, "plan stdout")
+	logBufferContentsLineByLine(t, stderr, "plan stderr")
+
+	// Verify we have the default behavior if mock_outputs_merge_with_state is set to false
+	stdout.Reset()
+	stderr.Reset()
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	assert.Error(t, err)
+	// Verify that we fail because the dependency is not applied yet, and the new attribute is not available and in
+	// this case, mocked outputs are not used.
+	assert.Contains(t, err.Error(), "This object does not have an attribute named \"test_output2\"")
+
+	logBufferContentsLineByLine(t, stdout, "plan stdout")
+	logBufferContentsLineByLine(t, stderr, "plan stderr")
+}
+
+// Test when mock_outputs_merge_with_state is explicitly set to true.
+// It will mock the newly added output from the parent as it was not already applied to the state.
+func TestDependencyMockOutputMergeWithStateTrue(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-with-state", "merge-with-state-true", "live")
+	parentPath := filepath.Join(rootPath, "parent")
+	childPath := filepath.Join(rootPath, "child")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", parentPath), &stdout, &stderr)
+	assert.NoError(t, err)
+	logBufferContentsLineByLine(t, stdout, "plan stdout")
+	logBufferContentsLineByLine(t, stderr, "plan stderr")
+
+	// Verify mocked outputs are used if mock_outputs_merge_with_state is set to true and some output in the parent are not applied yet.
+	stdout.Reset()
+	stderr.Reset()
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, stdout, "apply stdout")
+	logBufferContentsLineByLine(t, stderr, "apply stderr")
+	// Now check the outputs to make sure they are as expected
+	stdout.Reset()
+	stderr.Reset()
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+
+	assert.Equal(t, outputs["test_output1_from_parent"].Value, "value1")
+	assert.Equal(t, outputs["test_output2_from_parent"].Value, "fake-data2")
+
+	logBufferContentsLineByLine(t, stdout, "output stdout")
+	logBufferContentsLineByLine(t, stderr, "output stderr")
+}
+
+// Test when mock_outputs_merge_with_state is explicitly set to true, but using an unallowed command. It should ignore
+// the mock output.
+func TestDependencyMockOutputMergeWithStateTrueNotAllowed(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-with-state", "merge-with-state-true-validate-only", "live")
+	parentPath := filepath.Join(rootPath, "parent")
+	childPath := filepath.Join(rootPath, "child")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", parentPath), &stdout, &stderr)
+	assert.NoError(t, err)
+	logBufferContentsLineByLine(t, stdout, "plan stdout")
+	logBufferContentsLineByLine(t, stderr, "plan stderr")
+
+	// Verify mocked outputs are used if mock_outputs_merge_with_state is set to true with an allowed command and some
+	// output in the parent are not applied yet.
+	stdout.Reset()
+	stderr.Reset()
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr),
+	)
+
+	// ... but not when an unallowed command is used
+	require.Error(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr),
+	)
+}
+
+// Test when mock_outputs_merge_with_state is explicitly set to true.
+// Mock should not be used as the parent state was already fully applied.
+func TestDependencyMockOutputMergeWithStateNoOverride(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-with-state", "merge-with-state-no-override", "live")
+	parentPath := filepath.Join(rootPath, "parent")
+	childPath := filepath.Join(rootPath, "child")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", parentPath), &stdout, &stderr)
+	assert.NoError(t, err)
+	logBufferContentsLineByLine(t, stdout, "show stdout")
+	logBufferContentsLineByLine(t, stderr, "show stderr")
+
+	// Verify mocked outputs are not used if mock_outputs_merge_with_state is set to true and all outputs in the parent have been applied.
+	stdout.Reset()
+	stderr.Reset()
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	// Now check the outputs to make sure they are as expected
+	stdout.Reset()
+	stderr.Reset()
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+
+	assert.Equal(t, outputs["test_output1_from_parent"].Value, "value1")
+	assert.Equal(t, outputs["test_output2_from_parent"].Value, "value2")
+
+	logBufferContentsLineByLine(t, stdout, "show stdout")
+	logBufferContentsLineByLine(t, stderr, "show stderr")
+}
+
+// Test when mock_outputs_merge_strategy_with_state or mock_outputs_merge_with_state is not set, the default is no_merge
+func TestDependencyMockOutputMergeStrategyWithStateDefault(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-default", "live")
+	childPath := filepath.Join(rootPath, "child")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "This object does not have an attribute named \"test_output_list_string\"")
+	logBufferContentsLineByLine(t, stdout, "apply stdout")
+	logBufferContentsLineByLine(t, stderr, "apply stderr")
+}
+
+// Test when mock_outputs_merge_with_state = "false" that MergeStrategyType is set to no_merge
+func TestDependencyMockOutputMergeStrategyWithStateCompatFalse(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-compat-false", "live")
+	childPath := filepath.Join(rootPath, "child")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "This object does not have an attribute named \"test_output_list_string\"")
+	logBufferContentsLineByLine(t, stdout, "apply stdout")
+	logBufferContentsLineByLine(t, stderr, "apply stderr")
+}
+
+// Test when mock_outputs_merge_with_state = "true" that MergeStrategyType is set to shallow
+func TestDependencyMockOutputMergeStrategyWithStateCompatTrue(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-compat-true", "live")
+	childPath := filepath.Join(rootPath, "child")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	assert.NoError(t, err)
+	logBufferContentsLineByLine(t, stdout, "apply stdout")
+	logBufferContentsLineByLine(t, stderr, "apply stderr")
+
+	stdout.Reset()
+	stderr.Reset()
+
+	require.NoError(t, runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr))
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	logBufferContentsLineByLine(t, stdout, "output stdout")
+	logBufferContentsLineByLine(t, stderr, "output stderr")
+
+	assert.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
+	assert.Equal(t, "map_root1_sub1_value", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "map_root1", "map_root1_sub1", "value"))
+	assert.Equal(t, nil, util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "not_in_state", "abc", "value"))
+	assert.Equal(t, "fake-list-data", util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "0"))
+	assert.Equal(t, nil, util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "1"))
+}
+
+// Test when both mock_outputs_merge_with_state and mock_outputs_merge_strategy_with_state are set, mock_outputs_merge_strategy_with_state is used
+func TestDependencyMockOutputMergeStrategyWithStateCompatConflict(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-compat-true", "live")
+	childPath := filepath.Join(rootPath, "child")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	assert.NoError(t, err)
+	logBufferContentsLineByLine(t, stdout, "apply stdout")
+	logBufferContentsLineByLine(t, stderr, "apply stderr")
+
+	stdout.Reset()
+	stderr.Reset()
+
+	require.NoError(t, runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr))
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	logBufferContentsLineByLine(t, stdout, "output stdout")
+	logBufferContentsLineByLine(t, stderr, "output stderr")
+
+	assert.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
+	assert.Equal(t, "map_root1_sub1_value", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "map_root1", "map_root1_sub1", "value"))
+	assert.Equal(t, nil, util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "not_in_state", "abc", "value"))
+	assert.Equal(t, "fake-list-data", util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "0"))
+	assert.Equal(t, nil, util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "1"))
+}
+
+// Test when mock_outputs_merge_strategy_with_state = "no_merge" that mocks are not merged into the current state
+func TestDependencyMockOutputMergeStrategyWithStateNoMerge(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-no-merge", "live")
+	childPath := filepath.Join(rootPath, "child")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "This object does not have an attribute named \"test_output_list_string\"")
+	logBufferContentsLineByLine(t, stdout, "apply stdout")
+	logBufferContentsLineByLine(t, stderr, "apply stderr")
+}
+
+// Test when mock_outputs_merge_strategy_with_state = "shallow" that only top level outputs are merged.
+// Lists or keys in existing maps will not be merged
+func TestDependencyMockOutputMergeStrategyWithStateShallow(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-shallow", "live")
+	childPath := filepath.Join(rootPath, "child")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	assert.NoError(t, err)
+	logBufferContentsLineByLine(t, stdout, "apply stdout")
+	logBufferContentsLineByLine(t, stderr, "apply stderr")
+
+	stdout.Reset()
+	stderr.Reset()
+
+	require.NoError(t, runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr))
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	logBufferContentsLineByLine(t, stdout, "output stdout")
+	logBufferContentsLineByLine(t, stderr, "output stderr")
+
+	assert.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
+	assert.Equal(t, "map_root1_sub1_value", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "map_root1", "map_root1_sub1", "value"))
+	assert.Equal(t, nil, util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "not_in_state", "abc", "value"))
+	assert.Equal(t, "fake-list-data", util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "0"))
+	assert.Equal(t, nil, util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "1"))
+}
+
+// Test when mock_outputs_merge_strategy_with_state = "deep" that the existing state is deeply merged into the mocks
+// so that the existing state overwrites the mocks. This allows child modules to use new dependency outputs before the
+// dependency has been applied
+func TestDependencyMockOutputMergeStrategyWithStateDeepMapOnly(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs-merge-strategy-with-state", "merge-strategy-with-state-deep-map-only", "live")
+	childPath := filepath.Join(rootPath, "child")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	assert.NoError(t, err)
+	logBufferContentsLineByLine(t, stdout, "apply stdout")
+	logBufferContentsLineByLine(t, stderr, "apply stderr")
+
+	stdout.Reset()
+	stderr.Reset()
+
+	require.NoError(t, runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", childPath), &stdout, &stderr))
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	logBufferContentsLineByLine(t, stdout, "output stdout")
+	logBufferContentsLineByLine(t, stderr, "output stderr")
+
+	assert.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
+	assert.Equal(t, "fake-abc", outputs["test_output2_from_parent"].Value)
+	assert.Equal(t, "map_root1_sub1_value", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "map_root1", "map_root1_sub1", "value"))
+	assert.Equal(t, "fake-abc", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "not_in_state", "abc", "value"))
+	assert.Equal(t, "a", util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "0"))
+	assert.Equal(t, nil, util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "1"))
+}
+
+// Test that when you have a mock_output on a dependency, the dependency will use the mock as the output instead
+// of erroring out when running an allowed command.
+func TestDependencyMockOutputRestricted(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "mock-outputs")
+	dependent2Path := filepath.Join(rootPath, "dependent2")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", dependent2Path), &showStdout, &showStderr)
+	assert.Error(t, err)
+	// Verify that we fail because the dependency is not applied yet
+	assert.Contains(t, err.Error(), "has not been applied yet")
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	// Verify we can run when using one of the allowed commands
+	showStdout.Reset()
+	showStderr.Reset()
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-working-dir %s", dependent2Path), &showStdout, &showStderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	// Verify that validate-all works as well.
+	showStdout.Reset()
+	showStderr.Reset()
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt validate-all --terragrunt-non-interactive --terragrunt-working-dir %s", dependent2Path), &showStdout, &showStderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	showStdout.Reset()
+	showStderr.Reset()
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt validate-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	assert.NoError(t, err)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+}
+
+func TestDependencyOutputTypeConversion(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
+	tmpEnvPath := copyEnvironment(t, ".")
+
+	inputsPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "type-conversion")
+
+	// First apply the inputs module
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", inputsPath))
+
+	// Then apply the outputs module
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+	assert.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr),
+	)
+
+	logBufferContentsLineByLine(t, showStdout, "show stdout")
+	logBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	// Now check the outputs to make sure they are as expected
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+
+	assert.Equal(t, outputs["bool"].Value, true)
+	assert.Equal(t, outputs["list_bool"].Value, []interface{}{true, false})
+	assert.Equal(t, outputs["list_number"].Value, []interface{}{1.0, 2.0, 3.0})
+	assert.Equal(t, outputs["list_string"].Value, []interface{}{"a", "b", "c"})
+	assert.Equal(t, outputs["map_bool"].Value, map[string]interface{}{"foo": true, "bar": false, "baz": true})
+	assert.Equal(t, outputs["map_number"].Value, map[string]interface{}{"foo": 42.0, "bar": 12345.0})
+	assert.Equal(t, outputs["map_string"].Value, map[string]interface{}{"foo": "bar"})
+	assert.Equal(t, outputs["number"].Value, 42.0)
+	assert.Equal(t, outputs["object"].Value, map[string]interface{}{"list": []interface{}{1.0, 2.0, 3.0}, "map": map[string]interface{}{"foo": "bar"}, "num": 42.0, "str": "string"})
+	assert.Equal(t, outputs["string"].Value, "string")
+	assert.Equal(t, outputs["from_env"].Value, "default")
+}
+
+// Regression testing for https://github.com/gruntwork-io/terragrunt/issues/1102: Ordering keys from
+// maps to avoid random placements when terraform file is generated.
+func TestOrderedMapOutputRegressions1102(t *testing.T) {
+	t.Parallel()
+	generateTestCase := filepath.Join(TEST_FIXTURE_GET_OUTPUT, "regression-1102")
+
+	cleanupTerraformFolder(t, generateTestCase)
+	cleanupTerragruntFolder(t, generateTestCase)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	command := fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase)
+	path := filepath.Join(generateTestCase, "backend.tf")
+
+	// runs terragrunt for the first time and checks the output "backend.tf" file.
+	require.NoError(
+		t,
+		runTerragruntCommand(t, command, &stdout, &stderr),
+	)
+	expected, _ := os.ReadFile(path)
+	require.Contains(t, string(expected), "local")
+
+	// runs terragrunt again. All the outputs must be
+	// equal to the first run.
+	for i := 0; i < 20; i++ {
+		require.NoError(
+			t,
+			runTerragruntCommand(t, command, &stdout, &stderr),
+		)
+		actual, _ := os.ReadFile(path)
+		require.Equal(t, expected, actual)
+	}
+}
+
+// Test that we get the expected error message about dependency cycles when there is a cycle in the dependency chain
+func TestDependencyOutputCycleHandling(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+
+	testCases := []string{
+		"aa",
+		"aba",
+		"abca",
+		"abcda",
+	}
+
+	for _, testCase := range testCases {
+		// Capture range variable into forloop so that the binding is consistent across runs.
+		testCase := testCase
+
+		t.Run(testCase, func(t *testing.T) {
+			t.Parallel()
+
+			tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+			rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "cycle", testCase)
+			fooPath := util.JoinPath(rootPath, "foo")
+
+			planStdout := bytes.Buffer{}
+			planStderr := bytes.Buffer{}
+			err := runTerragruntCommand(
+				t,
+				fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", fooPath),
+				&planStdout,
+				&planStderr,
+			)
+			logBufferContentsLineByLine(t, planStdout, "plan stdout")
+			logBufferContentsLineByLine(t, planStderr, "plan stderr")
+			assert.Error(t, err)
+			assert.True(t, strings.Contains(err.Error(), "Found a dependency cycle between modules"))
+		})
+	}
+}
+
+// Regression testing for https://github.com/gruntwork-io/terragrunt/issues/854: Referencing a dependency that is a
+// subdirectory of the current config, which includes an `include` block has problems resolving the correct relative
+// path.
+func TestDependencyOutputRegression854(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "regression-854", "root")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(
+		t,
+		fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath),
+		&stdout,
+		&stderr,
+	)
+	logBufferContentsLineByLine(t, stdout, "stdout")
+	logBufferContentsLineByLine(t, stderr, "stderr")
+	require.NoError(t, err)
+}
+
+// Regression testing for https://github.com/gruntwork-io/terragrunt/issues/906
+func TestDependencyOutputSameOutputConcurrencyRegression(t *testing.T) {
+	t.Parallel()
+
+	// Use func to isolate each test run to a single s3 bucket that is deleted. We run the test multiple times
+	// because the underlying error we are trying to test against is nondeterministic, and thus may not always work
+	// the first time.
+	testCase := func() {
+		cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+		tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+		rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "regression-906")
+
+		// Make sure to fill in the s3 bucket to the config. Also ensure the bucket is deleted before the next for
+		// loop call.
+		s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s%s", strings.ToLower(uniqueId()), strings.ToLower(uniqueId()))
+		defer deleteS3BucketWithRetry(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+		commonDepConfigPath := util.JoinPath(rootPath, "common-dep", "terragrunt.hcl")
+		copyTerragruntConfigAndFillPlaceholders(t, commonDepConfigPath, commonDepConfigPath, s3BucketName, "not-used", "not-used")
+
+		stdout := bytes.Buffer{}
+		stderr := bytes.Buffer{}
+		err := runTerragruntCommand(
+			t,
+			fmt.Sprintf("terragrunt apply-all --terragrunt-source-update --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath),
+			&stdout,
+			&stderr,
+		)
+		logBufferContentsLineByLine(t, stdout, "stdout")
+		logBufferContentsLineByLine(t, stderr, "stderr")
+		require.NoError(t, err)
+	}
+
+	for i := 0; i < 3; i++ {
+		testCase()
+		// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
+		// This is only a problem during testing, where the process is shared across terragrunt runs.
+		config.ClearOutputCache()
+	}
+}
+
+// Regression testing for bug where terragrunt output runs on dependency blocks are done in the terragrunt-cache for the
+// child, not the parent.
+func TestDependencyOutputCachePathBug(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "localstate", "live")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(
+		t,
+		fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath),
+		&stdout,
+		&stderr,
+	)
+	logBufferContentsLineByLine(t, stdout, "stdout")
+	logBufferContentsLineByLine(t, stderr, "stderr")
+	require.NoError(t, err)
+}
+
+func TestDependencyOutputWithTerragruntSource(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "regression-1124", "live")
+	modulePath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "regression-1124", "modules")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(
+		t,
+		fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", rootPath, modulePath),
+		&stdout,
+		&stderr,
+	)
+	logBufferContentsLineByLine(t, stdout, "stdout")
+	logBufferContentsLineByLine(t, stderr, "stderr")
+	require.NoError(t, err)
+}
+
+func TestDependencyOutputWithHooks(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "regression-1273")
+	depPathFileOut := util.JoinPath(rootPath, "dep", "file.out")
+	mainPath := util.JoinPath(rootPath, "main")
+	mainPathFileOut := util.JoinPath(mainPath, "file.out")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
+	// This is only a problem during testing, where the process is shared across terragrunt runs.
+	config.ClearOutputCache()
+
+	// The file should exist in the first run.
+	assert.True(t, util.FileExists(depPathFileOut))
+	assert.False(t, util.FileExists(mainPathFileOut))
+
+	// Now delete file and run just main again. It should NOT create file.out.
+	require.NoError(t, os.Remove(depPathFileOut))
+	runTerragrunt(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", mainPath))
+	assert.False(t, util.FileExists(depPathFileOut))
+	assert.False(t, util.FileExists(mainPathFileOut))
+}
+
+func TestDeepDependencyOutputWithMock(t *testing.T) {
+	// Test that the terraform command flows through for mock output retrieval to deeper dependencies. Previously the
+	// terraform command was being overwritten, so by the time the deep dependency retrieval runs, it was replaced with
+	// "output" instead of the original one.
+
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_OUTPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
+	rootPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "nested-mocks", "live")
+
+	// Since we haven't applied anything, this should only succeed if mock outputs are used.
+	runTerragrunt(t, fmt.Sprintf("terragrunt validate --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+}
 
 // func TestAWSGetCallerIdentityFunctions(t *testing.T) {
 // 	t.Parallel()
