@@ -1230,7 +1230,7 @@ func TestExitCode(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan -detailed-exitcode --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), os.Stdout, os.Stderr)
 
 	exitCode, exitCodeErr := shell.GetExitCode(err)
-	assert.Nil(t, exitCodeErr)
+	assert.NoError(t, exitCodeErr)
 	assert.Equal(t, 2, exitCode)
 }
 
@@ -1242,7 +1242,7 @@ func TestAutoRetryBasicRerun(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Contains(t, out.String(), "Apply complete!")
 }
 
@@ -1254,7 +1254,7 @@ func TestAutoRetrySkip(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	assert.NotContains(t, out.String(), "Apply complete!")
 }
 
@@ -1265,10 +1265,10 @@ func TestPlanfileOrder(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_PLANFILE_ORDER)
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s", modulePath), os.Stdout, os.Stderr)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-working-dir %s", modulePath), os.Stdout, os.Stderr)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestAutoRetryExhaustRetries(t *testing.T) {
@@ -1279,7 +1279,7 @@ func TestAutoRetryExhaustRetries(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_EXHAUST)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	assert.Contains(t, out.String(), "Failed to load backend")
 	assert.NotContains(t, out.String(), "Apply complete!")
 }
@@ -1292,7 +1292,7 @@ func TestAutoRetryCustomRetryableErrors(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Contains(t, out.String(), "My own little error")
 	assert.Contains(t, out.String(), "Apply complete!")
 }
@@ -1338,7 +1338,7 @@ func TestAutoRetryFlagWithRecoverableError(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	assert.NotContains(t, out.String(), "Apply complete!")
 }
 
@@ -1349,7 +1349,7 @@ func TestAutoRetryEnvVarWithRecoverableError(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	assert.NotContains(t, out.String(), "Apply complete!")
 }
 
@@ -1361,7 +1361,7 @@ func TestAutoRetryApplyAllDependentModuleRetries(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_APPLY_ALL_RETRIES)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	s := out.String()
 	assert.Contains(t, s, "app1 output")
 	assert.Contains(t, s, "app2 output")
@@ -1379,7 +1379,7 @@ func TestAutoRetryConfigurableRetries(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), stdout, stderr)
 	sleeps := regexp.MustCompile("Sleeping 0s before retrying.").FindAllStringIndex(stderr.String(), -1)
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 4, len(sleeps)) // 5 retries, so 4 sleeps
 	assert.Contains(t, stdout.String(), "Apply complete!")
 }
@@ -1405,7 +1405,7 @@ func TestAutoRetryConfigurableRetriesErrors(t *testing.T) {
 			modulePath := util.JoinPath(rootPath, tc.fixture)
 
 			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), stdout, stderr)
-			assert.NotNil(t, err)
+			assert.Error(t, err)
 			assert.NotContains(t, stdout.String(), "Apply complete!")
 			assert.Contains(t, err.Error(), tc.errorMessage)
 		})
