@@ -29,7 +29,7 @@ func DoWithRetry(ctx context.Context, actionDescription string, maxRetries int, 
 			return err
 		}
 
-		log.Errorf("%s returned an error: %s. Sleeping for %s and will try again. Attempt %d of %d.", actionDescription, err.Error(), sleepBetweenRetries)
+		log.Errorf("%s returned an error: %s. Sleeping for %s and will try again. Attempt %d of %d.", actionDescription, err.Error(), sleepBetweenRetries, i, maxRetries)
 
 		select {
 		case <-ctx.Done():

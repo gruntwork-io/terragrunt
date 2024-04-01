@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	goerrors "errors"
 	"fmt"
 	"io"
 	"os"
@@ -117,7 +118,10 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		}
 	}(ctx)
 
-	return app.App.RunContext(ctx, args)
+	if err := app.App.RunContext(ctx, args); err != nil && !goerrors.Is(err, context.Canceled) {
+		return err
+	}
+	return nil
 }
 
 // This set of commands is also used in unit tests
