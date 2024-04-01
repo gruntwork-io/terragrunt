@@ -5742,71 +5742,71 @@ func TestTerragruntInvokeTerraformTests(t *testing.T) {
 	require.Contains(t, stdout.String(), "1 passed, 0 failed")
 }
 
-// func TestTerragruntCommandsThatNeedInput(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntCommandsThatNeedInput(t *testing.T) {
+	t.Parallel()
 
-// 	tmpEnvPath := copyEnvironment(t, TEST_COMMANDS_THAT_NEED_INPUT)
-// 	cleanupTerraformFolder(t, tmpEnvPath)
-// 	testPath := util.JoinPath(tmpEnvPath, TEST_COMMANDS_THAT_NEED_INPUT)
+	tmpEnvPath := copyEnvironment(t, TEST_COMMANDS_THAT_NEED_INPUT)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_COMMANDS_THAT_NEED_INPUT)
 
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
 
-// 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
-// 	require.NoError(t, err)
-// 	require.Contains(t, stdout.String(), "Apply complete")
-// }
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	require.NoError(t, err)
+	require.Contains(t, stdout.String(), "Apply complete")
+}
 
-// func TestTerragruntParallelStateInit(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntParallelStateInit(t *testing.T) {
+	t.Parallel()
 
-// 	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")
-// 	if err != nil {
-// 		assert.NoError(t, err)
-// 	}
-// 	for i := 0; i < 20; i++ {
-// 		err := util.CopyFolderContents(TEST_FIXTURE_PARALLEL_STATE_INIT, tmpEnvPath, ".terragrunt-test", nil)
-// 		assert.NoError(t, err)
-// 		err = os.Rename(
-// 			path.Join(tmpEnvPath, "template"),
-// 			path.Join(tmpEnvPath, "app"+strconv.Itoa(i)))
-// 		assert.NoError(t, err)
-// 	}
+	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")
+	if err != nil {
+		assert.NoError(t, err)
+	}
+	for i := 0; i < 20; i++ {
+		err := util.CopyFolderContents(TEST_FIXTURE_PARALLEL_STATE_INIT, tmpEnvPath, ".terragrunt-test", nil)
+		assert.NoError(t, err)
+		err = os.Rename(
+			path.Join(tmpEnvPath, "template"),
+			path.Join(tmpEnvPath, "app"+strconv.Itoa(i)))
+		assert.NoError(t, err)
+	}
 
-// 	originalTerragruntConfigPath := util.JoinPath(TEST_FIXTURE_PARALLEL_STATE_INIT, "terragrunt.hcl")
-// 	tmpTerragruntConfigFile := util.JoinPath(tmpEnvPath, "terragrunt.hcl")
-// 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-// 	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
-// 	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-2")
+	originalTerragruntConfigPath := util.JoinPath(TEST_FIXTURE_PARALLEL_STATE_INIT, "terragrunt.hcl")
+	tmpTerragruntConfigFile := util.JoinPath(tmpEnvPath, "terragrunt.hcl")
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
+	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-2")
 
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", tmpEnvPath))
-// }
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", tmpEnvPath))
+}
 
-// func TestTerragruntGCSParallelStateInit(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntGCSParallelStateInit(t *testing.T) {
+	t.Parallel()
 
-// 	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")
-// 	if err != nil {
-// 		assert.NoError(t, err)
-// 	}
-// 	for i := 0; i < 20; i++ {
-// 		err := util.CopyFolderContents(TEST_FIXTURE_GCS_PARALLEL_STATE_INIT, tmpEnvPath, ".terragrunt-test", nil)
-// 		assert.NoError(t, err)
-// 		err = os.Rename(
-// 			path.Join(tmpEnvPath, "template"),
-// 			path.Join(tmpEnvPath, "app"+strconv.Itoa(i)))
-// 		assert.NoError(t, err)
-// 	}
+	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")
+	if err != nil {
+		assert.NoError(t, err)
+	}
+	for i := 0; i < 20; i++ {
+		err := util.CopyFolderContents(TEST_FIXTURE_GCS_PARALLEL_STATE_INIT, tmpEnvPath, ".terragrunt-test", nil)
+		assert.NoError(t, err)
+		err = os.Rename(
+			path.Join(tmpEnvPath, "template"),
+			path.Join(tmpEnvPath, "app"+strconv.Itoa(i)))
+		assert.NoError(t, err)
+	}
 
-// 	tmpTerragruntConfigFile := util.JoinPath(tmpEnvPath, "terragrunt.hcl")
-// 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-// 	gcsBucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-// 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_PARALLEL_STATE_INIT, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
-// 	err = util.CopyFile(tmpTerragruntGCSConfigPath, tmpTerragruntConfigFile)
-// 	assert.NoError(t, err)
+	tmpTerragruntConfigFile := util.JoinPath(tmpEnvPath, "terragrunt.hcl")
+	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	gcsBucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_PARALLEL_STATE_INIT, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
+	err = util.CopyFile(tmpTerragruntGCSConfigPath, tmpTerragruntConfigFile)
+	assert.NoError(t, err)
 
-// 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", tmpEnvPath))
-// }
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", tmpEnvPath))
+}
 
 func TestTerragruntAssumeRole(t *testing.T) {
 	t.Parallel()
