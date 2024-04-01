@@ -978,10 +978,6 @@ github.com/ryanuber/go-glob v1.0.0 h1:iQh3xXAumdQ+4Ufa5b25cRpC5TYKlno6hsv6Cb3pkB
 github.com/ryanuber/go-glob v1.0.0/go.mod h1:807d1WSdnB0XRJzKNil9Om6lcp/3a0v4qIHxIXzX/Yc=
 github.com/sahilm/fuzzy v0.1.0 h1:FzWGaw2Opqyu+794ZQ9SYifWv2EIXpwP4q8dY1kDAwI=
 github.com/sahilm/fuzzy v0.1.0/go.mod h1:VFvziUEIMCrT6A6tw2RFIXPXXmzXbOsSHF0DOI8ZK9Y=
-github.com/saracen/fastzip v0.1.11 h1:NnExbTEJbya7148cov09BCxwfur9tQ5BQ1QyQH6XleA=
-github.com/saracen/fastzip v0.1.11/go.mod h1:/lN5BiU451/OZMS+hfhVsSDj/RNrxYmO9EYxCtMrFrY=
-github.com/saracen/zipextra v0.0.0-20220303013732-0187cb0159ea h1:8czYLkvzZRE+AElIQeDffQdgR+CC3wKEFILYU/1PeX4=
-github.com/saracen/zipextra v0.0.0-20220303013732-0187cb0159ea/go.mod h1:hnzuad9d2wdd3z8fC6UouHQK5qZxqv3F/E6MMzXc7q0=
 github.com/satori/go.uuid v1.2.0/go.mod h1:dA0hQrYB0VpLJoorglMZABFdXlWrHn1NEOzdhQKdks0=
 github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529/go.mod h1:DxrIzT+xaE7yg65j358z/aeFdxmN0P9QXhEzd20vsDc=
 github.com/sergi/go-diff v1.0.0/go.mod h1:0CfEIISq7TuYL3j771MWULgwwjU+GofnZX9QAmXWZgo=

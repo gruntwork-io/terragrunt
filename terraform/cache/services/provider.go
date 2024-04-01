@@ -12,9 +12,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/go-getter/v2"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/terraform/command/cliconfig"
-	"github.com/saracen/fastzip"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
@@ -28,6 +28,9 @@ var (
 	retryDelayFetchFile = time.Second * 2
 	maxRetriesFetchFile = 30
 )
+
+// Borrow the "unpack a zip cache into a target directory" logic from go-getter
+var unzip = getter.ZipDecompressor{}
 
 type ProviderCaches []*ProviderCache
 
@@ -93,7 +96,8 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	if err := util.DoWithRetry(ctx, fmt.Sprintf("Lock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
 		return lockfile.TryLock()
 	}); err != nil {
-		return err
+		return errors.Errorf("unable to lock the file %s, try removing the file manually, %w", lockfileName, err)
+
 	}
 	defer lockfile.Unlock() //nolint:errcheck
 
@@ -126,13 +130,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	if !alreadyCached {
 		log.Debugf("Decompress provider archive %s", archiveFilename)
 
-		zip, err := fastzip.NewExtractor(archiveFilename, platformDir)
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
-		defer zip.Close()
-
-		if err = zip.Extract(ctx); err != nil {
+		if err := unzip.Decompress(platformDir, archiveFilename, true, unzipFileMode); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
