@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	terraws "github.com/gruntwork-io/terratest/modules/aws"
+
 	"cloud.google.com/go/storage"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
