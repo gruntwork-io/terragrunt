@@ -40,6 +40,7 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/cli"
+	"github.com/gruntwork-io/terragrunt/cli/commands"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
@@ -197,12 +198,6 @@ const (
 	qaMyAppRelPath  = "qa/my-app"
 	fixtureDownload = "fixture-download"
 )
-
-type TerraformOutput struct {
-	Sensitive bool
-	Type      interface{}
-	Value     interface{}
-}
 
 func TestTerragruntProviderCache(t *testing.T) {
 	t.Parallel()
@@ -1120,6 +1115,53 @@ func TestTerragruntOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *tes
 	assert.True(t, strings.Contains(output, "app2 output"))
 }
 
+func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules int, timeToDeployEachModule time.Duration) (string, int, error) {
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	// copy the template `numberOfModules` times into the app
+	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir due to error: %v", err)
+	}
+	for i := 0; i < numberOfModules; i++ {
+		err := util.CopyFolderContents(TEST_FIXTURE_PARALLELISM, tmpEnvPath, ".terragrunt-test", nil)
+		if err != nil {
+			return "", 0, err
+		}
+		err = os.Rename(
+			path.Join(tmpEnvPath, "template"),
+			path.Join(tmpEnvPath, "app"+strconv.Itoa(i)))
+		if err != nil {
+			return "", 0, err
+		}
+	}
+
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
+
+	environmentPath := tmpEnvPath
+
+	// forces plugin download & initialization (no parallelism control)
+	runTerragrunt(t, fmt.Sprintf("terragrunt plan-all --terragrunt-non-interactive --terragrunt-working-dir %s -var sleep_seconds=%d", environmentPath, timeToDeployEachModule/time.Second))
+	// apply all with parallelism set
+	// NOTE: we can't run just apply-all and not plan-all because the time to initialize the plugins skews the results of the test
+	testStart := int(time.Now().Unix())
+	t.Logf("apply-all start time = %d, %s", testStart, time.Now().Format(time.RFC3339))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-parallelism %d --terragrunt-non-interactive --terragrunt-working-dir %s -var sleep_seconds=%d", parallelism, environmentPath, timeToDeployEachModule/time.Second))
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+	// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
+	if err != nil {
+		return "", 0, err
+	}
+
+	return stdout.String(), testStart, nil
+}
+
 func TestTerragruntStackCommands(t *testing.T) {
 	// It seems that disabling parallel test execution helps avoid the CircleCi error: “NoSuchBucket Policy: The bucket policy does not exist.”
 	// t.Parallel()
@@ -1640,6 +1682,20 @@ func TestPreventDestroyDependencies(t *testing.T) {
 	}
 }
 
+func validateInputs(t *testing.T, outputs map[string]TerraformOutput) {
+	assert.Equal(t, outputs["bool"].Value, true)
+	assert.Equal(t, outputs["list_bool"].Value, []interface{}{true, false})
+	assert.Equal(t, outputs["list_number"].Value, []interface{}{1.0, 2.0, 3.0})
+	assert.Equal(t, outputs["list_string"].Value, []interface{}{"a", "b", "c"})
+	assert.Equal(t, outputs["map_bool"].Value, map[string]interface{}{"foo": true, "bar": false, "baz": true})
+	assert.Equal(t, outputs["map_number"].Value, map[string]interface{}{"foo": 42.0, "bar": 12345.0})
+	assert.Equal(t, outputs["map_string"].Value, map[string]interface{}{"foo": "bar"})
+	assert.Equal(t, outputs["number"].Value, 42.0)
+	assert.Equal(t, outputs["object"].Value, map[string]interface{}{"list": []interface{}{1.0, 2.0, 3.0}, "map": map[string]interface{}{"foo": "bar"}, "num": 42.0, "str": "string"})
+	assert.Equal(t, outputs["string"].Value, "string")
+	assert.Equal(t, outputs["from_env"].Value, "default")
+}
+
 func TestInputsPassedThroughCorrectly(t *testing.T) {
 	t.Parallel()
 
@@ -1751,6 +1807,12 @@ func TestUndefinedLocalsReferenceToInputsBreaks(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL_BUT_INPUT)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL_BUT_INPUT), os.Stdout, os.Stderr)
 	assert.Error(t, err)
+}
+
+type TerraformOutput struct {
+	Sensitive bool
+	Type      interface{}
+	Value     interface{}
 }
 
 func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
@@ -3603,6 +3665,15 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 	)
 }
 
+func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
+	t.Helper()
+	t.Logf("[%s] Full contents of %s:", t.Name(), label)
+	lines := strings.Split(out.String(), "\n")
+	for _, line := range lines {
+		t.Logf("[%s] %s", t.Name(), line)
+	}
+}
+
 func TestTerragruntGenerateBlockSkip(t *testing.T) {
 	t.Parallel()
 
@@ -4075,6 +4146,664 @@ func TestLogFailingDependencies(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, output, wrappedBinary()+" invocation failed in fixture-broken-dependency/dependency")
+}
+
+func cleanupTerraformFolder(t *testing.T, templatesPath string) {
+	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE))
+	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE_BACKUP))
+	removeFile(t, util.JoinPath(templatesPath, terragruntDebugFile))
+	removeFolder(t, util.JoinPath(templatesPath, TERRAFORM_FOLDER))
+}
+
+func cleanupTerragruntFolder(t *testing.T, templatesPath string) {
+	removeFolder(t, util.JoinPath(templatesPath, TERRAGRUNT_CACHE))
+}
+
+func removeFile(t *testing.T, path string) {
+	if util.FileExists(path) {
+		if err := os.Remove(path); err != nil {
+			t.Fatalf("Error while removing %s: %v", path, err)
+		}
+	}
+}
+
+func removeFolder(t *testing.T, path string) {
+	if util.FileExists(path) {
+		if err := os.RemoveAll(path); err != nil {
+			t.Fatalf("Error while removing %s: %v", path, err)
+		}
+	}
+}
+
+func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {
+	args := strings.Split(command, " ")
+	t.Log(args)
+
+	app := cli.NewApp(writer, errwriter)
+	return app.Run(args)
+}
+
+func runTerragruntVersionCommand(t *testing.T, ver string, command string, writer io.Writer, errwriter io.Writer) error {
+	version.Version = ver
+	return runTerragruntCommand(t, command, writer, errwriter)
+}
+
+func runTerragrunt(t *testing.T, command string) {
+	runTerragruntRedirectOutput(t, command, os.Stdout, os.Stderr)
+}
+
+func runTerragruntCommandWithOutput(t *testing.T, command string) (string, string, error) {
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, command, &stdout, &stderr)
+	logBufferContentsLineByLine(t, stdout, "stdout")
+	logBufferContentsLineByLine(t, stderr, "stderr")
+	return stdout.String(), stderr.String(), err
+}
+
+func runTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer, errwriter io.Writer) {
+	if err := runTerragruntCommand(t, command, writer, errwriter); err != nil {
+		stdout := "(see log output above)"
+		if stdoutAsBuffer, stdoutIsBuffer := writer.(*bytes.Buffer); stdoutIsBuffer {
+			stdout = stdoutAsBuffer.String()
+		}
+
+		stderr := "(see log output above)"
+		if stderrAsBuffer, stderrIsBuffer := errwriter.(*bytes.Buffer); stderrIsBuffer {
+			stderr = stderrAsBuffer.String()
+		}
+
+		t.Fatalf("Failed to run Terragrunt command '%s' due to error: %s\n\nStdout: %s\n\nStderr: %s", command, errors.PrintErrorWithStackTrace(err), stdout, stderr)
+	}
+}
+
+func copyEnvironment(t *testing.T, environmentPath string) string {
+	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir due to error: %v", err)
+	}
+
+	t.Logf("Copying %s to %s", environmentPath, tmpDir)
+
+	require.NoError(t, util.CopyFolderContents(environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", nil))
+
+	return tmpDir
+}
+
+func createTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string, childRelPath string, s3BucketName string, parentConfigFileName string, childConfigFileName string) string {
+	tmpDir, err := os.MkdirTemp("", "terragrunt-parent-child-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir due to error: %v", err)
+	}
+
+	childDestPath := util.JoinPath(tmpDir, childRelPath)
+
+	if err := os.MkdirAll(childDestPath, 0777); err != nil {
+		t.Fatalf("Failed to create temp dir %s due to error %v", childDestPath, err)
+	}
+
+	parentTerragruntSrcPath := util.JoinPath(parentPath, parentConfigFileName)
+	parentTerragruntDestPath := util.JoinPath(tmpDir, parentConfigFileName)
+	copyTerragruntConfigAndFillPlaceholders(t, parentTerragruntSrcPath, parentTerragruntDestPath, s3BucketName, "not-used", "not-used")
+
+	childTerragruntSrcPath := util.JoinPath(util.JoinPath(parentPath, childRelPath), childConfigFileName)
+	childTerragruntDestPath := util.JoinPath(childDestPath, childConfigFileName)
+	copyTerragruntConfigAndFillPlaceholders(t, childTerragruntSrcPath, childTerragruntDestPath, s3BucketName, "not-used", "not-used")
+
+	return childTerragruntDestPath
+}
+
+func createTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName string, lockTableName string, configFileName string) string {
+	tmpFolder, err := os.MkdirTemp("", "terragrunt-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp folder due to error: %v", err)
+	}
+
+	tmpTerragruntConfigFile := util.JoinPath(tmpFolder, configFileName)
+	originalTerragruntConfigPath := util.JoinPath(templatesPath, configFileName)
+	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "not-used")
+
+	return tmpTerragruntConfigFile
+}
+
+func createTmpTerragruntConfigContent(t *testing.T, contents string, configFileName string) string {
+	tmpFolder, err := os.MkdirTemp("", "terragrunt-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp folder due to error: %v", err)
+	}
+
+	tmpTerragruntConfigFile := util.JoinPath(tmpFolder, configFileName)
+
+	if err := os.WriteFile(tmpTerragruntConfigFile, []byte(contents), 0444); err != nil {
+		t.Fatalf("Error writing temp Terragrunt config to %s: %v", tmpTerragruntConfigFile, err)
+	}
+
+	return tmpTerragruntConfigFile
+}
+
+func createTmpTerragruntGCSConfig(t *testing.T, templatesPath string, project string, location string, gcsBucketName string, configFileName string) string {
+	tmpFolder, err := os.MkdirTemp("", "terragrunt-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp folder due to error: %v", err)
+	}
+
+	tmpTerragruntConfigFile := util.JoinPath(tmpFolder, configFileName)
+	originalTerragruntConfigPath := util.JoinPath(templatesPath, configFileName)
+	copyTerragruntGCSConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, project, location, gcsBucketName)
+
+	return tmpTerragruntConfigFile
+}
+
+func copyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string, configDestPath string, s3BucketName string, lockTableName string, region string) {
+	copyTerragruntConfigAndFillMapPlaceholders(t, configSrcPath, configDestPath, map[string]string{
+		"__FILL_IN_BUCKET_NAME__":      s3BucketName,
+		"__FILL_IN_LOCK_TABLE_NAME__":  lockTableName,
+		"__FILL_IN_REGION__":           region,
+		"__FILL_IN_LOGS_BUCKET_NAME__": s3BucketName + "-tf-state-logs",
+	})
+}
+
+func copyTerragruntConfigAndFillMapPlaceholders(t *testing.T, configSrcPath string, configDestPath string, placeholders map[string]string) {
+	contents, err := util.ReadFileAsString(configSrcPath)
+	if err != nil {
+		t.Fatalf("Error reading Terragrunt config at %s: %v", configSrcPath, err)
+	}
+
+	// iterate over placeholders and replace placeholders
+	for k, v := range placeholders {
+		contents = strings.ReplaceAll(contents, k, v)
+	}
+	if err := os.WriteFile(configDestPath, []byte(contents), 0444); err != nil {
+		t.Fatalf("Error writing temp Terragrunt config to %s: %v", configDestPath, err)
+	}
+}
+
+func copyTerragruntGCSConfigAndFillPlaceholders(t *testing.T, configSrcPath string, configDestPath string, project string, location string, gcsBucketName string) {
+	email := os.Getenv("GOOGLE_IDENTITY_EMAIL")
+
+	copyTerragruntConfigAndFillMapPlaceholders(t, configSrcPath, configDestPath, map[string]string{
+		"__FILL_IN_PROJECT__":     project,
+		"__FILL_IN_LOCATION__":    location,
+		"__FILL_IN_BUCKET_NAME__": gcsBucketName,
+		"__FILL_IN_GCP_EMAIL__":   email,
+	})
+}
+
+// Returns a unique (ish) id we can attach to resources and tfstate files so they don't conflict with each other
+// Uses base 62 to generate a 6 character string that's unlikely to collide with the handful of tests we run in
+// parallel. Based on code here: http://stackoverflow.com/a/9543797/483528
+func uniqueId() string {
+	const BASE_62_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	const UNIQUE_ID_LENGTH = 6 // Should be good for 62^6 = 56+ billion combinations
+
+	var out bytes.Buffer
+
+	for i := 0; i < UNIQUE_ID_LENGTH; i++ {
+		out.WriteByte(BASE_62_CHARS[rand.Intn(len(BASE_62_CHARS))])
+	}
+
+	return out.String()
+}
+
+// Check that the S3 Bucket of the given name and region exists. Terragrunt should create this bucket during the test.
+// Also check if bucket got tagged properly and that public access is disabled completely.
+func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketName string, expectedTags map[string]string) {
+	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
+	if err != nil {
+		t.Fatalf("Error creating mockOptions: %v", err)
+	}
+
+	sessionConfig := &aws_helper.AwsSessionConfig{
+		Region: awsRegion,
+	}
+
+	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
+	if err != nil {
+		t.Fatalf("Error creating S3 client: %v", err)
+	}
+
+	remoteStateConfig := remote.RemoteStateConfigS3{Bucket: bucketName, Region: awsRegion}
+	assert.True(t, remote.DoesS3BucketExist(s3Client, &remoteStateConfig.Bucket), "Terragrunt failed to create remote state S3 bucket %s", bucketName)
+
+	if expectedTags != nil {
+		assertS3Tags(expectedTags, bucketName, s3Client, t)
+	}
+
+	assertS3PublicAccessBlocks(t, s3Client, bucketName)
+}
+
+// Check that the DynamoDB table of the given name and region exists. Terragrunt should create this table during the test.
+// Also check if table got tagged properly
+func validateDynamoDBTableExistsAndIsTagged(t *testing.T, awsRegion string, tableName string, expectedTags map[string]string) {
+	client := createDynamoDbClientForTest(t, awsRegion)
+
+	var description, err = client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
+
+	if err != nil {
+		// This is a ResourceNotFoundException in case the table does not exist
+		t.Fatal(err)
+	}
+
+	var tags, err2 = client.ListTagsOfResource(&dynamodb.ListTagsOfResourceInput{ResourceArn: description.Table.TableArn})
+
+	if err2 != nil {
+		t.Fatal(err2)
+	}
+
+	var actualTags = make(map[string]string)
+
+	for _, element := range tags.Tags {
+		actualTags[*element.Key] = *element.Value
+	}
+
+	assert.Equal(t, expectedTags, actualTags, "Did not find expected tags on dynamo table.")
+}
+
+func assertS3Tags(expectedTags map[string]string, bucketName string, client *s3.S3, t *testing.T) {
+
+	var in = s3.GetBucketTaggingInput{}
+	in.SetBucket(bucketName)
+
+	var tags, err2 = client.GetBucketTagging(&in)
+
+	if err2 != nil {
+		t.Fatal(err2)
+	}
+
+	var actualTags = make(map[string]string)
+
+	for _, element := range tags.TagSet {
+		actualTags[*element.Key] = *element.Value
+	}
+
+	assert.Equal(t, expectedTags, actualTags, "Did not find expected tags on s3 bucket.")
+}
+
+func assertS3PublicAccessBlocks(t *testing.T, client *s3.S3, bucketName string) {
+	resp, err := client.GetPublicAccessBlock(
+		&s3.GetPublicAccessBlockInput{Bucket: aws.String(bucketName)},
+	)
+	require.NoError(t, err)
+
+	publicAccessBlockConfig := resp.PublicAccessBlockConfiguration
+	assert.True(t, aws.BoolValue(publicAccessBlockConfig.BlockPublicAcls))
+	assert.True(t, aws.BoolValue(publicAccessBlockConfig.BlockPublicPolicy))
+	assert.True(t, aws.BoolValue(publicAccessBlockConfig.IgnorePublicAcls))
+	assert.True(t, aws.BoolValue(publicAccessBlockConfig.RestrictPublicBuckets))
+}
+
+// createS3BucketE create test S3 bucket.
+func createS3BucketE(t *testing.T, awsRegion string, bucketName string) error {
+	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
+	if err != nil {
+		t.Logf("Error creating mockOptions: %v", err)
+		return err
+	}
+
+	sessionConfig := &aws_helper.AwsSessionConfig{
+		Region: awsRegion,
+	}
+
+	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
+	if err != nil {
+		t.Logf("Error creating S3 client: %v", err)
+		return err
+	}
+
+	t.Logf("Creating test s3 bucket %s", bucketName)
+	if _, err := s3Client.CreateBucket(&s3.CreateBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+		t.Logf("Failed to create S3 bucket %s: %v", bucketName, err)
+		return err
+	}
+	return nil
+}
+
+// deleteS3BucketWithRetry will attempt to delete the specified S3 bucket, retrying up to 3 times if there are errors to
+// handle eventual consistency issues.
+func deleteS3BucketWithRetry(t *testing.T, awsRegion string, bucketName string) {
+	for i := 0; i < 3; i++ {
+		err := deleteS3BucketE(t, awsRegion, bucketName)
+		if err == nil {
+			return
+		}
+
+		t.Logf("Error deleting s3 bucket %s. Sleeping for 10 seconds before retrying.", bucketName)
+		time.Sleep(10 * time.Second)
+	}
+	t.Fatalf("Max retries attempting to delete s3 bucket %s in region %s", bucketName, awsRegion)
+}
+
+// Delete the specified S3 bucket to clean up after a test
+func deleteS3Bucket(t *testing.T, awsRegion string, bucketName string) {
+	require.NoError(t, deleteS3BucketE(t, awsRegion, bucketName))
+}
+func deleteS3BucketE(t *testing.T, awsRegion string, bucketName string) error {
+	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
+	if err != nil {
+		t.Logf("Error creating mockOptions: %v", err)
+		return err
+	}
+
+	sessionConfig := &aws_helper.AwsSessionConfig{
+		Region: awsRegion,
+	}
+
+	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
+	if err != nil {
+		t.Logf("Error creating S3 client: %v", err)
+		return err
+	}
+
+	t.Logf("Deleting test s3 bucket %s", bucketName)
+
+	out, err := s3Client.ListObjectVersions(&s3.ListObjectVersionsInput{Bucket: aws.String(bucketName)})
+	if err != nil {
+		t.Logf("Failed to list object versions in s3 bucket %s: %v", bucketName, err)
+		return err
+	}
+
+	objectIdentifiers := []*s3.ObjectIdentifier{}
+	for _, version := range out.Versions {
+		objectIdentifiers = append(objectIdentifiers, &s3.ObjectIdentifier{
+			Key:       version.Key,
+			VersionId: version.VersionId,
+		})
+	}
+
+	if len(objectIdentifiers) > 0 {
+		deleteInput := &s3.DeleteObjectsInput{
+			Bucket: aws.String(bucketName),
+			Delete: &s3.Delete{Objects: objectIdentifiers},
+		}
+		if _, err := s3Client.DeleteObjects(deleteInput); err != nil {
+			t.Logf("Error deleting all versions of all objects in bucket %s: %v", bucketName, err)
+			return err
+		}
+	}
+
+	if _, err := s3Client.DeleteBucket(&s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+		t.Logf("Failed to delete S3 bucket %s: %v", bucketName, err)
+		return err
+	}
+	return nil
+}
+
+func bucketEncryption(t *testing.T, awsRegion string, bucketName string) (*s3.GetBucketEncryptionOutput, error) {
+	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
+	if err != nil {
+		t.Logf("Error creating mockOptions: %v", err)
+		return nil, err
+	}
+
+	sessionConfig := &aws_helper.AwsSessionConfig{
+		Region: awsRegion,
+	}
+
+	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
+	if err != nil {
+		t.Logf("Error creating S3 client: %v", err)
+		return nil, err
+	}
+
+	input := &s3.GetBucketEncryptionInput{Bucket: aws.String(bucketName)}
+	output, err := s3Client.GetBucketEncryption(input)
+	if err != nil {
+		return nil, nil
+	}
+
+	return output, nil
+}
+
+func bucketPolicy(t *testing.T, awsRegion string, bucketName string) (*s3.GetBucketPolicyOutput, error) {
+	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
+	if err != nil {
+		t.Logf("Error creating mockOptions: %v", err)
+		return nil, err
+	}
+
+	sessionConfig := &aws_helper.AwsSessionConfig{
+		Region: awsRegion,
+	}
+
+	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
+	if err != nil {
+		return nil, err
+	}
+	policyOutput, err := s3Client.GetBucketPolicy(&s3.GetBucketPolicyInput{
+		Bucket: aws.String(bucketName),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return policyOutput, nil
+}
+
+// Create an authenticated client for DynamoDB
+func createDynamoDbClient(awsRegion, awsProfile string, iamRoleArn string) (*dynamodb.DynamoDB, error) {
+	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
+	if err != nil {
+		return nil, err
+	}
+
+	sessionConfig := &aws_helper.AwsSessionConfig{
+		Region:  awsRegion,
+		Profile: awsProfile,
+		RoleArn: iamRoleArn,
+	}
+
+	session, err := aws_helper.CreateAwsSession(sessionConfig, mockOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	return dynamodb.New(session), nil
+}
+
+func createDynamoDbClientForTest(t *testing.T, awsRegion string) *dynamodb.DynamoDB {
+	client, err := createDynamoDbClient(awsRegion, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return client
+}
+
+func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
+	client := createDynamoDbClientForTest(t, awsRegion)
+	err := terragruntDynamoDb.DeleteTable(tableName, client)
+	assert.NoError(t, err)
+}
+
+// Check that the GCS Bucket of the given name and location exists. Terragrunt should create this bucket during the test.
+// Also check if bucket got labeled properly.
+func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketName string, expectedLabels map[string]string) {
+	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
+
+	gcsClient, err := remote.CreateGCSClient(remoteStateConfig)
+	if err != nil {
+		t.Fatalf("Error creating GCS client: %v", err)
+	}
+
+	// verify the bucket exists
+	assert.True(t, remote.DoesGCSBucketExist(gcsClient, &remoteStateConfig), "Terragrunt failed to create remote state GCS bucket %s", bucketName)
+
+	// verify the bucket location
+	ctx := context.Background()
+	bucket := gcsClient.Bucket(bucketName)
+	attrs, err := bucket.Attrs(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, strings.ToUpper(location), attrs.Location, "Did not find GCS bucket in expected location.")
+
+	if expectedLabels != nil {
+		assertGCSLabels(t, expectedLabels, bucketName, gcsClient)
+	}
+}
+
+// gcsObjectAttrs returns the attributes of the specified object in the bucket
+func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage.ObjectAttrs {
+	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
+
+	gcsClient, err := remote.CreateGCSClient(remoteStateConfig)
+	if err != nil {
+		t.Fatalf("Error creating GCS client: %v", err)
+	}
+
+	ctx := context.Background()
+	bucket := gcsClient.Bucket(bucketName)
+
+	handle := bucket.Object(objectName)
+	attrs, err := handle.Attrs(ctx)
+	if err != nil {
+		t.Fatalf("Error reading object attributes %s %v", objectName, err)
+	}
+	return attrs
+}
+
+func assertGCSLabels(t *testing.T, expectedLabels map[string]string, bucketName string, client *storage.Client) {
+	ctx := context.Background()
+	bucket := client.Bucket(bucketName)
+
+	attrs, err := bucket.Attrs(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var actualLabels = make(map[string]string)
+
+	for key, value := range attrs.Labels {
+		actualLabels[key] = value
+	}
+
+	assert.Equal(t, expectedLabels, actualLabels, "Did not find expected labels on GCS bucket.")
+}
+
+// Create the specified GCS bucket
+func createGCSBucket(t *testing.T, projectID string, location string, bucketName string) {
+	var gcsConfig remote.RemoteStateConfigGCS
+	gcsClient, err := remote.CreateGCSClient(gcsConfig)
+	if err != nil {
+		t.Fatalf("Error creating GCS client: %v", err)
+	}
+
+	t.Logf("Creating test GCS bucket %s in project %s, location %s", bucketName, projectID, location)
+
+	ctx := context.Background()
+	bucket := gcsClient.Bucket(bucketName)
+
+	bucketAttrs := &storage.BucketAttrs{
+		Location:          location,
+		VersioningEnabled: true,
+	}
+
+	if err := bucket.Create(ctx, projectID, bucketAttrs); err != nil {
+		t.Fatalf("Failed to create GCS bucket %s: %v", bucketName, err)
+	}
+}
+
+// Delete the specified GCS bucket to clean up after a test
+func deleteGCSBucket(t *testing.T, bucketName string) {
+	var gcsConfig remote.RemoteStateConfigGCS
+	gcsClient, err := remote.CreateGCSClient(gcsConfig)
+	if err != nil {
+		t.Fatalf("Error creating GCS client: %v", err)
+	}
+
+	t.Logf("Deleting test GCS bucket %s", bucketName)
+
+	ctx := context.Background()
+
+	// List all objects including their versions in the bucket
+	bucket := gcsClient.Bucket(bucketName)
+	q := &storage.Query{
+		Versions: true,
+	}
+	it := bucket.Objects(ctx, q)
+	for {
+		objectAttrs, err := it.Next()
+
+		if err == iterator.Done {
+			break
+		}
+
+		if err != nil {
+			t.Fatalf("Failed to list objects and versions in GCS bucket %s: %v", bucketName, err)
+		}
+
+		// purge the object version
+		if err := bucket.Object(objectAttrs.Name).Generation(objectAttrs.Generation).Delete(ctx); err != nil {
+			t.Fatalf("Failed to delete GCS bucket object %s: %v", objectAttrs.Name, err)
+		}
+	}
+
+	// remote empty bucket
+	if err := bucket.Delete(ctx); err != nil {
+		t.Fatalf("Failed to delete GCS bucket %s: %v", bucketName, err)
+	}
+}
+
+func fileIsInFolder(t *testing.T, name string, path string) bool {
+	found := false
+	err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+		assert.NoError(t, err)
+		if filepath.Base(path) == name {
+			found = true
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	return found
+}
+
+func runValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath string, includeModulePaths []string, strictInclude bool) []string {
+	cmd_parts := []string{
+		"terragrunt", "run-all", "validate",
+		"--terragrunt-non-interactive",
+		"--terragrunt-log-level", "debug",
+		"--terragrunt-working-dir", rootModulePath,
+	}
+
+	for _, module := range includeModulePaths {
+		cmd_parts = append(cmd_parts, "--terragrunt-include-dir", module)
+	}
+
+	if strictInclude {
+		cmd_parts = append(cmd_parts, "--terragrunt-strict-include")
+	}
+
+	cmd := strings.Join(cmd_parts, " ")
+
+	validateAllStdout := bytes.Buffer{}
+	validateAllStderr := bytes.Buffer{}
+	err := runTerragruntCommand(
+		t,
+		cmd,
+		&validateAllStdout,
+		&validateAllStderr,
+	)
+	logBufferContentsLineByLine(t, validateAllStdout, "validate-all stdout")
+	logBufferContentsLineByLine(t, validateAllStderr, "validate-all stderr")
+	require.NoError(t, err)
+
+	require.NoError(t, err)
+
+	includedModulesRegexp, err := regexp.Compile(
+		fmt.Sprintf(
+			`=> Module %s/(.+) \(excluded: (true|false)`,
+			rootModulePath,
+		),
+	)
+	require.NoError(t, err)
+	matches := includedModulesRegexp.FindAllStringSubmatch(validateAllStderr.String(), -1)
+	includedModules := []string{}
+	for _, match := range matches {
+		if match[2] == "false" {
+			includedModules = append(includedModules, match[1])
+		}
+	}
+	sort.Strings(includedModules)
+	return includedModules
 }
 
 // sops decrypting for inputs
@@ -5684,48 +6413,56 @@ func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
 	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v2"))
 }
 
-// func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
-// 	t.Parallel()
+func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
+	// This test cannot be run using Terragrunt Provider Cache because it causes the flock files to be locked forever, which in turn blocks other TGs (processes).
+	// We use flock files to prevent multiple TGs from caching the same provider in parallel in a shared cache, which causes to conflicts.
+	providerCache, err := strconv.ParseBool(os.Getenv(commands.EnvVarNameTerragruntProviderCache))
+	require.NoError(t, err)
+	if providerCache {
+		return
+	}
 
-// 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_EXTERNAL_DEPENDENCY)
-// 	cleanupTerraformFolder(t, tmpEnvPath)
-// 	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_EXTERNAL_DEPENDENCY)
+	t.Parallel()
 
-// 	t.Cleanup(func() {
-// 		os.RemoveAll(filepath.ToSlash("/tmp/external-46521694"))
-// 	})
-// 	assert.NoError(t, os.Mkdir(filepath.ToSlash("/tmp/external-46521694"), 0755))
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_EXTERNAL_DEPENDENCY)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_EXTERNAL_DEPENDENCY)
 
-// 	output, err := exec.Command("git", "init", tmpEnvPath).CombinedOutput()
-// 	if err != nil {
-// 		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
-// 	}
+	t.Cleanup(func() {
+		os.RemoveAll(filepath.ToSlash("/tmp/external-46521694"))
+	})
+	assert.NoError(t, os.Mkdir(filepath.ToSlash("/tmp/external-46521694"), 0755))
 
-// 	stdout := bytes.Buffer{}
-// 	stderr := bytes.Buffer{}
+	output, err := exec.Command("git", "init", tmpEnvPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
+	}
 
-// 	r, w, _ := os.Pipe()
-// 	oldStdout := os.Stderr
-// 	os.Stderr = w
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
 
-// 	err = runTerragruntCommand(t, fmt.Sprintf("trragrunt destroy --terragrunt-working-dir %s", testPath), &stdout, &stderr)
-// 	os.Stderr = oldStdout
-// 	assert.NoError(t, w.Close())
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stderr
+	os.Stderr = w
 
-// 	capturedOutput := make(chan string)
-// 	go func() {
-// 		var buf bytes.Buffer
-// 		_, e := io.Copy(&buf, r)
-// 		assert.NoError(t, e)
-// 		capturedOutput <- buf.String()
-// 	}()
+	err = runTerragruntCommand(t, fmt.Sprintf("trragrunt destroy --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	os.Stderr = oldStdout
+	assert.NoError(t, w.Close())
 
-// 	captured := <-capturedOutput
+	capturedOutput := make(chan string)
+	go func() {
+		var buf bytes.Buffer
+		_, e := io.Copy(&buf, r)
+		assert.NoError(t, e)
+		capturedOutput <- buf.String()
+	}()
 
-// 	require.NoError(t, err)
-// 	require.NotContains(t, captured, "Should Terragrunt apply the external dependency?")
-// 	require.NotContains(t, captured, "/tmp/external1")
-// }
+	captured := <-capturedOutput
+
+	require.NoError(t, err)
+	require.NotContains(t, captured, "Should Terragrunt apply the external dependency?")
+	require.NotContains(t, captured, "/tmp/external1")
+}
 
 func TestTerragruntInvokeTerraformTests(t *testing.T) {
 	t.Parallel()
@@ -6065,664 +6802,6 @@ func TestTerragruntAssumeRoleDuration(t *testing.T) {
 	assert.Contains(t, output, "no changes are needed.")
 }
 
-func cleanupTerraformFolder(t *testing.T, templatesPath string) {
-	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE))
-	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE_BACKUP))
-	removeFile(t, util.JoinPath(templatesPath, terragruntDebugFile))
-	removeFolder(t, util.JoinPath(templatesPath, TERRAFORM_FOLDER))
-}
-
-func cleanupTerragruntFolder(t *testing.T, templatesPath string) {
-	removeFolder(t, util.JoinPath(templatesPath, TERRAGRUNT_CACHE))
-}
-
-func removeFile(t *testing.T, path string) {
-	if util.FileExists(path) {
-		if err := os.Remove(path); err != nil {
-			t.Fatalf("Error while removing %s: %v", path, err)
-		}
-	}
-}
-
-func removeFolder(t *testing.T, path string) {
-	if util.FileExists(path) {
-		if err := os.RemoveAll(path); err != nil {
-			t.Fatalf("Error while removing %s: %v", path, err)
-		}
-	}
-}
-
-func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {
-	args := strings.Split(command, " ")
-	t.Log(args)
-
-	app := cli.NewApp(writer, errwriter)
-	return app.Run(args)
-}
-
-func runTerragruntVersionCommand(t *testing.T, ver string, command string, writer io.Writer, errwriter io.Writer) error {
-	version.Version = ver
-	return runTerragruntCommand(t, command, writer, errwriter)
-}
-
-func runTerragrunt(t *testing.T, command string) {
-	runTerragruntRedirectOutput(t, command, os.Stdout, os.Stderr)
-}
-
-func runTerragruntCommandWithOutput(t *testing.T, command string) (string, string, error) {
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, command, &stdout, &stderr)
-	logBufferContentsLineByLine(t, stdout, "stdout")
-	logBufferContentsLineByLine(t, stderr, "stderr")
-	return stdout.String(), stderr.String(), err
-}
-
-func runTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer, errwriter io.Writer) {
-	if err := runTerragruntCommand(t, command, writer, errwriter); err != nil {
-		stdout := "(see log output above)"
-		if stdoutAsBuffer, stdoutIsBuffer := writer.(*bytes.Buffer); stdoutIsBuffer {
-			stdout = stdoutAsBuffer.String()
-		}
-
-		stderr := "(see log output above)"
-		if stderrAsBuffer, stderrIsBuffer := errwriter.(*bytes.Buffer); stderrIsBuffer {
-			stderr = stderrAsBuffer.String()
-		}
-
-		t.Fatalf("Failed to run Terragrunt command '%s' due to error: %s\n\nStdout: %s\n\nStderr: %s", command, errors.PrintErrorWithStackTrace(err), stdout, stderr)
-	}
-}
-
-func copyEnvironment(t *testing.T, environmentPath string) string {
-	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir due to error: %v", err)
-	}
-
-	t.Logf("Copying %s to %s", environmentPath, tmpDir)
-
-	require.NoError(t, util.CopyFolderContents(environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", nil))
-
-	return tmpDir
-}
-
-func createTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string, childRelPath string, s3BucketName string, parentConfigFileName string, childConfigFileName string) string {
-	tmpDir, err := os.MkdirTemp("", "terragrunt-parent-child-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir due to error: %v", err)
-	}
-
-	childDestPath := util.JoinPath(tmpDir, childRelPath)
-
-	if err := os.MkdirAll(childDestPath, 0777); err != nil {
-		t.Fatalf("Failed to create temp dir %s due to error %v", childDestPath, err)
-	}
-
-	parentTerragruntSrcPath := util.JoinPath(parentPath, parentConfigFileName)
-	parentTerragruntDestPath := util.JoinPath(tmpDir, parentConfigFileName)
-	copyTerragruntConfigAndFillPlaceholders(t, parentTerragruntSrcPath, parentTerragruntDestPath, s3BucketName, "not-used", "not-used")
-
-	childTerragruntSrcPath := util.JoinPath(util.JoinPath(parentPath, childRelPath), childConfigFileName)
-	childTerragruntDestPath := util.JoinPath(childDestPath, childConfigFileName)
-	copyTerragruntConfigAndFillPlaceholders(t, childTerragruntSrcPath, childTerragruntDestPath, s3BucketName, "not-used", "not-used")
-
-	return childTerragruntDestPath
-}
-
-func createTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName string, lockTableName string, configFileName string) string {
-	tmpFolder, err := os.MkdirTemp("", "terragrunt-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp folder due to error: %v", err)
-	}
-
-	tmpTerragruntConfigFile := util.JoinPath(tmpFolder, configFileName)
-	originalTerragruntConfigPath := util.JoinPath(templatesPath, configFileName)
-	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "not-used")
-
-	return tmpTerragruntConfigFile
-}
-
-func createTmpTerragruntConfigContent(t *testing.T, contents string, configFileName string) string {
-	tmpFolder, err := os.MkdirTemp("", "terragrunt-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp folder due to error: %v", err)
-	}
-
-	tmpTerragruntConfigFile := util.JoinPath(tmpFolder, configFileName)
-
-	if err := os.WriteFile(tmpTerragruntConfigFile, []byte(contents), 0444); err != nil {
-		t.Fatalf("Error writing temp Terragrunt config to %s: %v", tmpTerragruntConfigFile, err)
-	}
-
-	return tmpTerragruntConfigFile
-}
-
-func createTmpTerragruntGCSConfig(t *testing.T, templatesPath string, project string, location string, gcsBucketName string, configFileName string) string {
-	tmpFolder, err := os.MkdirTemp("", "terragrunt-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp folder due to error: %v", err)
-	}
-
-	tmpTerragruntConfigFile := util.JoinPath(tmpFolder, configFileName)
-	originalTerragruntConfigPath := util.JoinPath(templatesPath, configFileName)
-	copyTerragruntGCSConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, project, location, gcsBucketName)
-
-	return tmpTerragruntConfigFile
-}
-
-func copyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string, configDestPath string, s3BucketName string, lockTableName string, region string) {
-	copyTerragruntConfigAndFillMapPlaceholders(t, configSrcPath, configDestPath, map[string]string{
-		"__FILL_IN_BUCKET_NAME__":      s3BucketName,
-		"__FILL_IN_LOCK_TABLE_NAME__":  lockTableName,
-		"__FILL_IN_REGION__":           region,
-		"__FILL_IN_LOGS_BUCKET_NAME__": s3BucketName + "-tf-state-logs",
-	})
-}
-
-func copyTerragruntConfigAndFillMapPlaceholders(t *testing.T, configSrcPath string, configDestPath string, placeholders map[string]string) {
-	contents, err := util.ReadFileAsString(configSrcPath)
-	if err != nil {
-		t.Fatalf("Error reading Terragrunt config at %s: %v", configSrcPath, err)
-	}
-
-	// iterate over placeholders and replace placeholders
-	for k, v := range placeholders {
-		contents = strings.ReplaceAll(contents, k, v)
-	}
-	if err := os.WriteFile(configDestPath, []byte(contents), 0444); err != nil {
-		t.Fatalf("Error writing temp Terragrunt config to %s: %v", configDestPath, err)
-	}
-}
-
-func copyTerragruntGCSConfigAndFillPlaceholders(t *testing.T, configSrcPath string, configDestPath string, project string, location string, gcsBucketName string) {
-	email := os.Getenv("GOOGLE_IDENTITY_EMAIL")
-
-	copyTerragruntConfigAndFillMapPlaceholders(t, configSrcPath, configDestPath, map[string]string{
-		"__FILL_IN_PROJECT__":     project,
-		"__FILL_IN_LOCATION__":    location,
-		"__FILL_IN_BUCKET_NAME__": gcsBucketName,
-		"__FILL_IN_GCP_EMAIL__":   email,
-	})
-}
-
-// Returns a unique (ish) id we can attach to resources and tfstate files so they don't conflict with each other
-// Uses base 62 to generate a 6 character string that's unlikely to collide with the handful of tests we run in
-// parallel. Based on code here: http://stackoverflow.com/a/9543797/483528
-func uniqueId() string {
-	const BASE_62_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-	const UNIQUE_ID_LENGTH = 6 // Should be good for 62^6 = 56+ billion combinations
-
-	var out bytes.Buffer
-
-	for i := 0; i < UNIQUE_ID_LENGTH; i++ {
-		out.WriteByte(BASE_62_CHARS[rand.Intn(len(BASE_62_CHARS))])
-	}
-
-	return out.String()
-}
-
-// Check that the S3 Bucket of the given name and region exists. Terragrunt should create this bucket during the test.
-// Also check if bucket got tagged properly and that public access is disabled completely.
-func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketName string, expectedTags map[string]string) {
-	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
-	if err != nil {
-		t.Fatalf("Error creating mockOptions: %v", err)
-	}
-
-	sessionConfig := &aws_helper.AwsSessionConfig{
-		Region: awsRegion,
-	}
-
-	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
-	if err != nil {
-		t.Fatalf("Error creating S3 client: %v", err)
-	}
-
-	remoteStateConfig := remote.RemoteStateConfigS3{Bucket: bucketName, Region: awsRegion}
-	assert.True(t, remote.DoesS3BucketExist(s3Client, &remoteStateConfig.Bucket), "Terragrunt failed to create remote state S3 bucket %s", bucketName)
-
-	if expectedTags != nil {
-		assertS3Tags(expectedTags, bucketName, s3Client, t)
-	}
-
-	assertS3PublicAccessBlocks(t, s3Client, bucketName)
-}
-
-// Check that the DynamoDB table of the given name and region exists. Terragrunt should create this table during the test.
-// Also check if table got tagged properly
-func validateDynamoDBTableExistsAndIsTagged(t *testing.T, awsRegion string, tableName string, expectedTags map[string]string) {
-	client := createDynamoDbClientForTest(t, awsRegion)
-
-	var description, err = client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
-
-	if err != nil {
-		// This is a ResourceNotFoundException in case the table does not exist
-		t.Fatal(err)
-	}
-
-	var tags, err2 = client.ListTagsOfResource(&dynamodb.ListTagsOfResourceInput{ResourceArn: description.Table.TableArn})
-
-	if err2 != nil {
-		t.Fatal(err2)
-	}
-
-	var actualTags = make(map[string]string)
-
-	for _, element := range tags.Tags {
-		actualTags[*element.Key] = *element.Value
-	}
-
-	assert.Equal(t, expectedTags, actualTags, "Did not find expected tags on dynamo table.")
-}
-
-func assertS3Tags(expectedTags map[string]string, bucketName string, client *s3.S3, t *testing.T) {
-
-	var in = s3.GetBucketTaggingInput{}
-	in.SetBucket(bucketName)
-
-	var tags, err2 = client.GetBucketTagging(&in)
-
-	if err2 != nil {
-		t.Fatal(err2)
-	}
-
-	var actualTags = make(map[string]string)
-
-	for _, element := range tags.TagSet {
-		actualTags[*element.Key] = *element.Value
-	}
-
-	assert.Equal(t, expectedTags, actualTags, "Did not find expected tags on s3 bucket.")
-}
-
-func assertS3PublicAccessBlocks(t *testing.T, client *s3.S3, bucketName string) {
-	resp, err := client.GetPublicAccessBlock(
-		&s3.GetPublicAccessBlockInput{Bucket: aws.String(bucketName)},
-	)
-	require.NoError(t, err)
-
-	publicAccessBlockConfig := resp.PublicAccessBlockConfiguration
-	assert.True(t, aws.BoolValue(publicAccessBlockConfig.BlockPublicAcls))
-	assert.True(t, aws.BoolValue(publicAccessBlockConfig.BlockPublicPolicy))
-	assert.True(t, aws.BoolValue(publicAccessBlockConfig.IgnorePublicAcls))
-	assert.True(t, aws.BoolValue(publicAccessBlockConfig.RestrictPublicBuckets))
-}
-
-// createS3BucketE create test S3 bucket.
-func createS3BucketE(t *testing.T, awsRegion string, bucketName string) error {
-	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
-	if err != nil {
-		t.Logf("Error creating mockOptions: %v", err)
-		return err
-	}
-
-	sessionConfig := &aws_helper.AwsSessionConfig{
-		Region: awsRegion,
-	}
-
-	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
-	if err != nil {
-		t.Logf("Error creating S3 client: %v", err)
-		return err
-	}
-
-	t.Logf("Creating test s3 bucket %s", bucketName)
-	if _, err := s3Client.CreateBucket(&s3.CreateBucketInput{Bucket: aws.String(bucketName)}); err != nil {
-		t.Logf("Failed to create S3 bucket %s: %v", bucketName, err)
-		return err
-	}
-	return nil
-}
-
-// deleteS3BucketWithRetry will attempt to delete the specified S3 bucket, retrying up to 3 times if there are errors to
-// handle eventual consistency issues.
-func deleteS3BucketWithRetry(t *testing.T, awsRegion string, bucketName string) {
-	for i := 0; i < 3; i++ {
-		err := deleteS3BucketE(t, awsRegion, bucketName)
-		if err == nil {
-			return
-		}
-
-		t.Logf("Error deleting s3 bucket %s. Sleeping for 10 seconds before retrying.", bucketName)
-		time.Sleep(10 * time.Second)
-	}
-	t.Fatalf("Max retries attempting to delete s3 bucket %s in region %s", bucketName, awsRegion)
-}
-
-// Delete the specified S3 bucket to clean up after a test
-func deleteS3Bucket(t *testing.T, awsRegion string, bucketName string) {
-	require.NoError(t, deleteS3BucketE(t, awsRegion, bucketName))
-}
-func deleteS3BucketE(t *testing.T, awsRegion string, bucketName string) error {
-	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
-	if err != nil {
-		t.Logf("Error creating mockOptions: %v", err)
-		return err
-	}
-
-	sessionConfig := &aws_helper.AwsSessionConfig{
-		Region: awsRegion,
-	}
-
-	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
-	if err != nil {
-		t.Logf("Error creating S3 client: %v", err)
-		return err
-	}
-
-	t.Logf("Deleting test s3 bucket %s", bucketName)
-
-	out, err := s3Client.ListObjectVersions(&s3.ListObjectVersionsInput{Bucket: aws.String(bucketName)})
-	if err != nil {
-		t.Logf("Failed to list object versions in s3 bucket %s: %v", bucketName, err)
-		return err
-	}
-
-	objectIdentifiers := []*s3.ObjectIdentifier{}
-	for _, version := range out.Versions {
-		objectIdentifiers = append(objectIdentifiers, &s3.ObjectIdentifier{
-			Key:       version.Key,
-			VersionId: version.VersionId,
-		})
-	}
-
-	if len(objectIdentifiers) > 0 {
-		deleteInput := &s3.DeleteObjectsInput{
-			Bucket: aws.String(bucketName),
-			Delete: &s3.Delete{Objects: objectIdentifiers},
-		}
-		if _, err := s3Client.DeleteObjects(deleteInput); err != nil {
-			t.Logf("Error deleting all versions of all objects in bucket %s: %v", bucketName, err)
-			return err
-		}
-	}
-
-	if _, err := s3Client.DeleteBucket(&s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
-		t.Logf("Failed to delete S3 bucket %s: %v", bucketName, err)
-		return err
-	}
-	return nil
-}
-
-func bucketEncryption(t *testing.T, awsRegion string, bucketName string) (*s3.GetBucketEncryptionOutput, error) {
-	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
-	if err != nil {
-		t.Logf("Error creating mockOptions: %v", err)
-		return nil, err
-	}
-
-	sessionConfig := &aws_helper.AwsSessionConfig{
-		Region: awsRegion,
-	}
-
-	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
-	if err != nil {
-		t.Logf("Error creating S3 client: %v", err)
-		return nil, err
-	}
-
-	input := &s3.GetBucketEncryptionInput{Bucket: aws.String(bucketName)}
-	output, err := s3Client.GetBucketEncryption(input)
-	if err != nil {
-		return nil, nil
-	}
-
-	return output, nil
-}
-
-func bucketPolicy(t *testing.T, awsRegion string, bucketName string) (*s3.GetBucketPolicyOutput, error) {
-	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
-	if err != nil {
-		t.Logf("Error creating mockOptions: %v", err)
-		return nil, err
-	}
-
-	sessionConfig := &aws_helper.AwsSessionConfig{
-		Region: awsRegion,
-	}
-
-	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
-	if err != nil {
-		return nil, err
-	}
-	policyOutput, err := s3Client.GetBucketPolicy(&s3.GetBucketPolicyInput{
-		Bucket: aws.String(bucketName),
-	})
-	if err != nil {
-		return nil, err
-	}
-	return policyOutput, nil
-}
-
-// Create an authenticated client for DynamoDB
-func createDynamoDbClient(awsRegion, awsProfile string, iamRoleArn string) (*dynamodb.DynamoDB, error) {
-	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
-	if err != nil {
-		return nil, err
-	}
-
-	sessionConfig := &aws_helper.AwsSessionConfig{
-		Region:  awsRegion,
-		Profile: awsProfile,
-		RoleArn: iamRoleArn,
-	}
-
-	session, err := aws_helper.CreateAwsSession(sessionConfig, mockOptions)
-	if err != nil {
-		return nil, err
-	}
-
-	return dynamodb.New(session), nil
-}
-
-func createDynamoDbClientForTest(t *testing.T, awsRegion string) *dynamodb.DynamoDB {
-	client, err := createDynamoDbClient(awsRegion, "", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return client
-}
-
-func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
-	client := createDynamoDbClientForTest(t, awsRegion)
-	err := terragruntDynamoDb.DeleteTable(tableName, client)
-	assert.NoError(t, err)
-}
-
-// Check that the GCS Bucket of the given name and location exists. Terragrunt should create this bucket during the test.
-// Also check if bucket got labeled properly.
-func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketName string, expectedLabels map[string]string) {
-	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
-
-	gcsClient, err := remote.CreateGCSClient(remoteStateConfig)
-	if err != nil {
-		t.Fatalf("Error creating GCS client: %v", err)
-	}
-
-	// verify the bucket exists
-	assert.True(t, remote.DoesGCSBucketExist(gcsClient, &remoteStateConfig), "Terragrunt failed to create remote state GCS bucket %s", bucketName)
-
-	// verify the bucket location
-	ctx := context.Background()
-	bucket := gcsClient.Bucket(bucketName)
-	attrs, err := bucket.Attrs(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	assert.Equal(t, strings.ToUpper(location), attrs.Location, "Did not find GCS bucket in expected location.")
-
-	if expectedLabels != nil {
-		assertGCSLabels(t, expectedLabels, bucketName, gcsClient)
-	}
-}
-
-// gcsObjectAttrs returns the attributes of the specified object in the bucket
-func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage.ObjectAttrs {
-	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
-
-	gcsClient, err := remote.CreateGCSClient(remoteStateConfig)
-	if err != nil {
-		t.Fatalf("Error creating GCS client: %v", err)
-	}
-
-	ctx := context.Background()
-	bucket := gcsClient.Bucket(bucketName)
-
-	handle := bucket.Object(objectName)
-	attrs, err := handle.Attrs(ctx)
-	if err != nil {
-		t.Fatalf("Error reading object attributes %s %v", objectName, err)
-	}
-	return attrs
-}
-
-func assertGCSLabels(t *testing.T, expectedLabels map[string]string, bucketName string, client *storage.Client) {
-	ctx := context.Background()
-	bucket := client.Bucket(bucketName)
-
-	attrs, err := bucket.Attrs(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var actualLabels = make(map[string]string)
-
-	for key, value := range attrs.Labels {
-		actualLabels[key] = value
-	}
-
-	assert.Equal(t, expectedLabels, actualLabels, "Did not find expected labels on GCS bucket.")
-}
-
-// Create the specified GCS bucket
-func createGCSBucket(t *testing.T, projectID string, location string, bucketName string) {
-	var gcsConfig remote.RemoteStateConfigGCS
-	gcsClient, err := remote.CreateGCSClient(gcsConfig)
-	if err != nil {
-		t.Fatalf("Error creating GCS client: %v", err)
-	}
-
-	t.Logf("Creating test GCS bucket %s in project %s, location %s", bucketName, projectID, location)
-
-	ctx := context.Background()
-	bucket := gcsClient.Bucket(bucketName)
-
-	bucketAttrs := &storage.BucketAttrs{
-		Location:          location,
-		VersioningEnabled: true,
-	}
-
-	if err := bucket.Create(ctx, projectID, bucketAttrs); err != nil {
-		t.Fatalf("Failed to create GCS bucket %s: %v", bucketName, err)
-	}
-}
-
-// Delete the specified GCS bucket to clean up after a test
-func deleteGCSBucket(t *testing.T, bucketName string) {
-	var gcsConfig remote.RemoteStateConfigGCS
-	gcsClient, err := remote.CreateGCSClient(gcsConfig)
-	if err != nil {
-		t.Fatalf("Error creating GCS client: %v", err)
-	}
-
-	t.Logf("Deleting test GCS bucket %s", bucketName)
-
-	ctx := context.Background()
-
-	// List all objects including their versions in the bucket
-	bucket := gcsClient.Bucket(bucketName)
-	q := &storage.Query{
-		Versions: true,
-	}
-	it := bucket.Objects(ctx, q)
-	for {
-		objectAttrs, err := it.Next()
-
-		if err == iterator.Done {
-			break
-		}
-
-		if err != nil {
-			t.Fatalf("Failed to list objects and versions in GCS bucket %s: %v", bucketName, err)
-		}
-
-		// purge the object version
-		if err := bucket.Object(objectAttrs.Name).Generation(objectAttrs.Generation).Delete(ctx); err != nil {
-			t.Fatalf("Failed to delete GCS bucket object %s: %v", objectAttrs.Name, err)
-		}
-	}
-
-	// remote empty bucket
-	if err := bucket.Delete(ctx); err != nil {
-		t.Fatalf("Failed to delete GCS bucket %s: %v", bucketName, err)
-	}
-}
-
-func fileIsInFolder(t *testing.T, name string, path string) bool {
-	found := false
-	err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
-		assert.NoError(t, err)
-		if filepath.Base(path) == name {
-			found = true
-		}
-		return nil
-	})
-	require.NoError(t, err)
-	return found
-}
-
-func runValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath string, includeModulePaths []string, strictInclude bool) []string {
-	cmd_parts := []string{
-		"terragrunt", "run-all", "validate",
-		"--terragrunt-non-interactive",
-		"--terragrunt-log-level", "debug",
-		"--terragrunt-working-dir", rootModulePath,
-	}
-
-	for _, module := range includeModulePaths {
-		cmd_parts = append(cmd_parts, "--terragrunt-include-dir", module)
-	}
-
-	if strictInclude {
-		cmd_parts = append(cmd_parts, "--terragrunt-strict-include")
-	}
-
-	cmd := strings.Join(cmd_parts, " ")
-
-	validateAllStdout := bytes.Buffer{}
-	validateAllStderr := bytes.Buffer{}
-	err := runTerragruntCommand(
-		t,
-		cmd,
-		&validateAllStdout,
-		&validateAllStderr,
-	)
-	logBufferContentsLineByLine(t, validateAllStdout, "validate-all stdout")
-	logBufferContentsLineByLine(t, validateAllStderr, "validate-all stderr")
-	require.NoError(t, err)
-
-	require.NoError(t, err)
-
-	includedModulesRegexp, err := regexp.Compile(
-		fmt.Sprintf(
-			`=> Module %s/(.+) \(excluded: (true|false)`,
-			rootModulePath,
-		),
-	)
-	require.NoError(t, err)
-	matches := includedModulesRegexp.FindAllStringSubmatch(validateAllStderr.String(), -1)
-	includedModules := []string{}
-	for _, match := range matches {
-		if match[2] == "false" {
-			includedModules = append(includedModules, match[1])
-		}
-	}
-	sort.Strings(includedModules)
-	return includedModules
-}
-
 func prepareGraphFixture(t *testing.T) string {
 	t.Helper()
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GRAPH)
@@ -6755,74 +6834,4 @@ func wrappedBinary() string {
 		return TOFU_BINARY
 	}
 	return value
-}
-
-func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
-	t.Helper()
-	t.Logf("[%s] Full contents of %s:", t.Name(), label)
-	lines := strings.Split(out.String(), "\n")
-	for _, line := range lines {
-		t.Logf("[%s] %s", t.Name(), line)
-	}
-}
-
-func validateInputs(t *testing.T, outputs map[string]TerraformOutput) {
-	assert.Equal(t, outputs["bool"].Value, true)
-	assert.Equal(t, outputs["list_bool"].Value, []interface{}{true, false})
-	assert.Equal(t, outputs["list_number"].Value, []interface{}{1.0, 2.0, 3.0})
-	assert.Equal(t, outputs["list_string"].Value, []interface{}{"a", "b", "c"})
-	assert.Equal(t, outputs["map_bool"].Value, map[string]interface{}{"foo": true, "bar": false, "baz": true})
-	assert.Equal(t, outputs["map_number"].Value, map[string]interface{}{"foo": 42.0, "bar": 12345.0})
-	assert.Equal(t, outputs["map_string"].Value, map[string]interface{}{"foo": "bar"})
-	assert.Equal(t, outputs["number"].Value, 42.0)
-	assert.Equal(t, outputs["object"].Value, map[string]interface{}{"list": []interface{}{1.0, 2.0, 3.0}, "map": map[string]interface{}{"foo": "bar"}, "num": 42.0, "str": "string"})
-	assert.Equal(t, outputs["string"].Value, "string")
-	assert.Equal(t, outputs["from_env"].Value, "default")
-}
-
-func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules int, timeToDeployEachModule time.Duration) (string, int, error) {
-	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-
-	// copy the template `numberOfModules` times into the app
-	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir due to error: %v", err)
-	}
-	for i := 0; i < numberOfModules; i++ {
-		err := util.CopyFolderContents(TEST_FIXTURE_PARALLELISM, tmpEnvPath, ".terragrunt-test", nil)
-		if err != nil {
-			return "", 0, err
-		}
-		err = os.Rename(
-			path.Join(tmpEnvPath, "template"),
-			path.Join(tmpEnvPath, "app"+strconv.Itoa(i)))
-		if err != nil {
-			return "", 0, err
-		}
-	}
-
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
-
-	environmentPath := tmpEnvPath
-
-	// forces plugin download & initialization (no parallelism control)
-	runTerragrunt(t, fmt.Sprintf("terragrunt plan-all --terragrunt-non-interactive --terragrunt-working-dir %s -var sleep_seconds=%d", environmentPath, timeToDeployEachModule/time.Second))
-	// apply all with parallelism set
-	// NOTE: we can't run just apply-all and not plan-all because the time to initialize the plugins skews the results of the test
-	testStart := int(time.Now().Unix())
-	t.Logf("apply-all start time = %d, %s", testStart, time.Now().Format(time.RFC3339))
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-parallelism %d --terragrunt-non-interactive --terragrunt-working-dir %s -var sleep_seconds=%d", parallelism, environmentPath, timeToDeployEachModule/time.Second))
-
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-	// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
-	if err != nil {
-		return "", 0, err
-	}
-
-	return stdout.String(), testStart, nil
 }

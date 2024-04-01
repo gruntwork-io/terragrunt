@@ -45,6 +45,7 @@ const (
 
 	// provider cache flags
 	FlagNameTerragruntProviderCache        = "terragrunt-provider-cache"
+	EnvVarNameTerragruntProviderCache      = "TERRAGRUNT_PROVIDER_CACHE"
 	FlagNameTerragruntProviderCacheDir     = "terragrunt-provider-cache-dir"
 	FlagNameTerragruntProviderCompleteLock = "terragrunt-provider-complete-lock"
 	FlagNameTerragruntRegistryHostname     = "terragrunt-registry-hostname"
@@ -265,7 +266,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 		&cli.BoolFlag{
 			Name:        FlagNameTerragruntProviderCache,
 			Destination: &opts.ProviderCache,
-			EnvVar:      "TERRAGRUNT_PROVIDER_CACHE",
+			EnvVar:      EnvVarNameTerragruntProviderCache,
 			Usage:       "Enables provider cache.",
 		},
 		&cli.GenericFlag[string]{
