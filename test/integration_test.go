@@ -6159,6 +6159,7 @@ func TestTerragruntPrintAwsErrors(t *testing.T) {
 	assert.Error(t, err)
 	message := fmt.Sprintf("%v", err.Error())
 	assert.True(t, strings.Contains(message, "AllAccessDisabled: All access to this object has been disabled") || strings.Contains(message, "BucketRegionError: incorrect region"))
+	assert.Contains(t, message, s3BucketName)
 }
 
 func TestTerragruntErrorWhenStateBucketIsInDifferentRegion(t *testing.T) {

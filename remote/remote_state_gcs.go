@@ -385,7 +385,7 @@ func CreateGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteStateConfi
 	}
 
 	err := bucket.Create(ctx, projectID, bucketAttrs)
-	return errors.WithStackTrace(err)
+	return errors.WithStackTraceAndPrefix(err, "Error creating GCS bucket %s", config.remoteStateConfigGCS.Bucket)
 }
 
 // GCP is eventually consistent, so after creating a GCS bucket, this method can be used to wait until the information
