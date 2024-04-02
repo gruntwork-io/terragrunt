@@ -436,7 +436,7 @@ func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
 
 func runAppTest(args []string, opts *options.TerragruntOptions) (*options.TerragruntOptions, error) {
 	testAction := func(cliCtx *cli.Context) error {
-		return initialSetup(cliCtx, opts, nil)
+		return initialSetup(cliCtx, opts)
 	}
 
 	terragruntCommands := terragruntCommands(opts)
