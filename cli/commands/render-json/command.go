@@ -27,6 +27,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 		},
 		&cli.BoolFlag{
 			Name:        FlagNameDisableDependentModules,
+			EnvVar:      "TERRAGRUNT_JSON_DISABLE_DEPENDENT_MODULES",
 			Destination: &opts.JsonDisableDependentModules,
 			Usage:       "Disable identification of dependent modules rendering json config.",
 		},
