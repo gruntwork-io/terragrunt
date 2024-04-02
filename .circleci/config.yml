@@ -13,20 +13,6 @@ defaults: &defaults
   docker:
     - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.21.7-tf1.5-tg39.1-pck1.8-ci50.7
 
-# Install Terraform 1.6 for integration tests
-install_terraform: &install_terraform
-  name: Install Terraform
-  command: |
-    pushd .
-    cd /tmp
-    curl -L "https://releases.hashicorp.com/terraform/1.6.2/terraform_1.6.2_linux_amd64.zip" -o terraform.zip
-    unzip -o terraform.zip
-    sudo install -m 0755 terraform /usr/local/bin/terraform
-    rm -rf terraform
-    rm -rf terraform.zip
-    popd
-    terraform --version
-
 install_tofu: &install_tofu
   name: Install OpenTofu
   command: |
@@ -185,8 +171,6 @@ jobs:
     steps:
       - checkout
       - run:
-          <<: *install_terraform
-      - run:
           <<: *install_tflint
       - run:
           <<: *setup_test_environment
@@ -204,8 +188,6 @@ jobs:
     <<: *defaults
     steps:
       - checkout
-      - run:
-          <<: *install_terraform
       - run:
           <<: *install_tflint
       - run:

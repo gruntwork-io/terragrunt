@@ -6239,6 +6239,7 @@ func TestTerragruntPrintAwsErrors(t *testing.T) {
 	assert.Error(t, err)
 	message := fmt.Sprintf("%v", err.Error())
 	assert.True(t, strings.Contains(message, "AllAccessDisabled: All access to this object has been disabled") || strings.Contains(message, "BucketRegionError: incorrect region"))
+	assert.Contains(t, message, s3BucketName)
 }
 
 func TestTerragruntErrorWhenStateBucketIsInDifferentRegion(t *testing.T) {
@@ -6468,6 +6469,10 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 
 func TestTerragruntInvokeTerraformTests(t *testing.T) {
 	t.Parallel()
+	if isTerraform() {
+		t.Skip("Not compatible with Terraform 1.5.x")
+		return
+	}
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_TF_TEST)
 	cleanupTerraformFolder(t, tmpEnvPath)
@@ -6763,6 +6768,10 @@ func TestTerragruntSkipDependenciesWithSkipFlag(t *testing.T) {
 
 func TestTerragruntAssumeRoleDuration(t *testing.T) {
 	t.Parallel()
+	if isTerraform() {
+		t.Skip("New assume role duration config not supported by Terraform 1.5.x")
+		return
+	}
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_ASSUME_ROLE_DURATION)
 	cleanupTerraformFolder(t, tmpEnvPath)
@@ -6836,4 +6845,8 @@ func wrappedBinary() string {
 		return TOFU_BINARY
 	}
 	return value
+}
+
+func isTerraform() bool {
+	return wrappedBinary() == TERRAFORM_BINARY
 }
