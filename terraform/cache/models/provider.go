@@ -38,11 +38,15 @@ func (provider *Provider) PlatformURL() *url.URL {
 	}
 }
 
+func (provider *Provider) String() string {
+	return path.Join(provider.RegistryName, provider.Namespace, provider.Name, provider.Version)
+}
+
 func (provider *Provider) Platform() string {
 	return fmt.Sprintf("%s_%s", provider.OS, provider.Arch)
 }
 
-func (provider *Provider) String() string {
+func (provider *Provider) Filename() string {
 	return fmt.Sprintf("%s-%s-%s-%s-%s", provider.RegistryName, provider.Namespace, provider.Name, provider.Version, provider.Platform())
 }
 

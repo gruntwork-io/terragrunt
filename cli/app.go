@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
+	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -158,7 +159,11 @@ func telemetryCommand(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Co
 			"dir":              opts.WorkingDir,
 		}, func(childCtx context.Context) error {
 			ctx.Context = childCtx
-			return initialSetup(ctx, opts, action)
+			if err := initialSetup(ctx, opts); err != nil {
+				return err
+			}
+
+			return run(ctx, opts, action)
 		})
 	}
 	return cmd
@@ -177,8 +182,42 @@ func beforeAction(opts *options.TerragruntOptions) cli.ActionFunc {
 	}
 }
 
+func run(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.ActionFunc) error {
+	ctx, cancel := context.WithCancel(cliCtx.Context)
+	defer cancel()
+
+	errGroup, ctx := errgroup.WithContext(ctx)
+
+	// --- Run provider cache server
+	if opts.ProviderCache {
+		server, err := InitProviderCacheServer(opts)
+		if err != nil {
+			return err
+		}
+
+		cliCtx.Context = shell.ContextWithTerraformCommandHook(ctx, server.TerraformCommandHookFunc)
+		maps.Copy(opts.Env, server.Env)
+
+		errGroup.Go(func() error {
+			return server.Run(ctx)
+		})
+	}
+
+	// --- Run command action
+	errGroup.Go(func() error {
+		defer cancel()
+
+		if action != nil {
+			return action(cliCtx)
+		}
+		return nil
+	})
+
+	return errGroup.Wait()
+}
+
 // mostly preparing terragrunt options
-func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.ActionFunc) error {
+func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	// The env vars are renamed to "..._NO_AUTO_..." in the gobal flags`. These ones are left for backwards compatibility.
 	opts.AutoInit = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_INIT"), opts.AutoInit)
 	opts.AutoRetry = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_RETRY"), opts.AutoRetry)
@@ -300,34 +339,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions, action c
 
 	shell.PrepareConsole(opts)
 
-	// --- Provider cache
-	ctx, cancel := context.WithCancel(cliCtx.Context)
-	defer cancel()
-
-	errGroup, ctx := errgroup.WithContext(ctx)
-
-	if opts.ProviderCache {
-		ctx, server, err := initProviderCache(ctx, opts)
-		if err != nil {
-			return err
-		}
-		cliCtx.Context = ctx
-
-		errGroup.Go(func() error {
-			return server.Run(ctx)
-		})
-	}
-
-	// --- Run action
-	errGroup.Go(func() error {
-		defer cancel()
-		if action != nil {
-			return action(cliCtx)
-		}
-		return nil
-	})
-
-	return errGroup.Wait()
+	return nil
 }
 
 func osExiter(exitCode int) {

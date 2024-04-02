@@ -62,7 +62,7 @@ func (cache *ProviderCache) pluginProviderDir() string {
 }
 
 func (cache *ProviderCache) lockFilename() string {
-	return filepath.Join(cache.baseArchiveDir, cache.Provider.String()+".lock")
+	return filepath.Join(cache.baseArchiveDir, cache.Provider.Filename()+".lock")
 }
 
 func (cache *ProviderCache) downloadURL() string {
@@ -73,7 +73,7 @@ func (cache *ProviderCache) downloadURL() string {
 }
 
 func (cache *ProviderCache) ArchiveFilename() string {
-	return filepath.Join(cache.baseArchiveDir, cache.Provider.String()+path.Ext(cache.downloadURL()))
+	return filepath.Join(cache.baseArchiveDir, cache.Provider.Filename()+path.Ext(cache.downloadURL()))
 }
 
 // warmUp checks if the binary file already exists in the cache directory, if not, downloads the archive and unzip it.
@@ -85,7 +85,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		archiveFilename   = cache.ArchiveFilename()
 		needCacheArchive  = cache.needCacheArchive
 
-		alreadyCached bool
+		unpackedCached bool
 	)
 
 	if err := os.MkdirAll(filepath.Dir(providerDir), os.ModePerm); err != nil {
@@ -98,16 +98,16 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 			if err := os.Symlink(pluginProviderDir, providerDir); err != nil {
 				return errors.WithStackTrace(err)
 			}
-			alreadyCached = true
+			unpackedCached = true
 		} else {
 			needCacheArchive = true
 		}
 	} else {
-		alreadyCached = true
+		unpackedCached = true
 	}
 
 	if needCacheArchive && downloadURL != "" && !util.FileExists(archiveFilename) {
-		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider with retry %q", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func() error {
+		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %q", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func() error {
 			return util.FetchFile(ctx, downloadURL, archiveFilename)
 		}); err != nil {
 			os.Remove(archiveFilename) //nolint:errcheck
@@ -116,8 +116,8 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		cache.archiveCached = true
 	}
 
-	if !alreadyCached {
-		log.Debugf("Decompress provider archive %s", archiveFilename)
+	if !unpackedCached {
+		log.Debugf("Unpack provider archive %s", archiveFilename)
 
 		if err := unzip.Decompress(providerDir, archiveFilename, true, unzipFileMode); err != nil {
 			return errors.WithStackTrace(err)
@@ -131,7 +131,7 @@ func (cache *ProviderCache) removeArchive() error {
 	var archiveFilename = cache.ArchiveFilename()
 
 	if !cache.needCacheArchive && cache.archiveCached && util.FileExists(archiveFilename) {
-		log.Debugf("Remove provider cache archive %s", archiveFilename)
+		log.Debugf("Remove provider cached archive %s", archiveFilename)
 		if err := os.Remove(archiveFilename); err != nil {
 			return errors.WithStackTrace(err)
 		}
@@ -150,21 +150,20 @@ func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile
 		return nil, errors.WithStackTrace(err)
 	}
 
-	if err := util.DoWithRetry(ctx, fmt.Sprintf("Acquiring lock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
+	if err := util.DoWithRetry(ctx, fmt.Sprintf("Acquiring lock file %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
 		return lockfile.TryLock()
 	}); err != nil {
-		return nil, errors.Errorf("unable to acquire lock file %s (already locked?) try removing the file manually: %w", lockfileName, err)
+		return nil, errors.Errorf("unable to acquire lock file %s (already locked?) try to remove the file manually: %w", lockfileName, err)
 	}
 
 	return lockfile, nil
 }
 
 type ProviderService struct {
-	// We cannot store any other file types in this dir other than unpacked providers because tofu considers any file to be a provider.
-	// https://github.com/opentofu/opentofu/blob/bdab86962fdd0a2106a744d7f8f1d3d3e7bc893e/internal/getproviders/filesystem_search.go#L27
+	// The path to store unpacked providers. The file structure is the same as terraform plugin cache dir.
 	baseCacheDir string
 
-	// Since we cannot store archive files together with unpacked providers, we need a separate dir. (read the comment above)
+	// The path to store archive providers that are retrieved from the source registry and cached to reduce traffic.
 	baseArchiveDir string
 
 	providerCaches        ProviderCaches
@@ -236,6 +235,20 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 		return errors.Errorf("provider archive directory not specified")
 	}
 	log.Debugf("Provider archive dir %q", service.baseArchiveDir)
+
+	if service.baseCacheDir == service.baseArchiveDir {
+		// We can only store uncompressed provider files in `baseCacheDir` because tofu considers any files there as providers.
+		// https://github.com/opentofu/opentofu/blob/bdab86962fdd0a2106a744d7f8f1d3d3e7bc893e/internal/getproviders/filesystem_search.go#L27
+		return errors.Errorf("the same directory is used for both unarchived and archived provider files")
+	}
+
+	if err := os.MkdirAll(service.baseCacheDir, os.ModePerm); err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	if err := os.MkdirAll(service.baseArchiveDir, os.ModePerm); err != nil {
+		return errors.WithStackTrace(err)
+	}
 
 	configDir, err := cliconfig.ConfigDir()
 	if err != nil {

@@ -32,9 +32,9 @@ func NewServer(opts ...Option) *Server {
 
 	providerService := services.NewProviderService(cfg.providerCacheDir, cfg.providerArchiveDir, cfg.providerCompleteLock)
 
-	// authorization := &handlers.Authorization{
-	// 	Token: cfg.token,
-	// }
+	authorization := &handlers.Authorization{
+		Token: cfg.token,
+	}
 
 	reverseProxy := &handlers.ReverseProxy{}
 
@@ -44,7 +44,7 @@ func NewServer(opts ...Option) *Server {
 	}
 
 	providerController := &controllers.ProviderController{
-		//Authorization:   authorization,
+		Authorization:   authorization,
 		ReverseProxy:    reverseProxy,
 		ProviderService: providerService,
 		Downloader:      downloaderController,
@@ -78,7 +78,7 @@ func (server *Server) ProviderURL() *url.URL {
 	}
 }
 
-func (server *Server) Listen(ctx context.Context) error {
+func (server *Server) Listen() error {
 	ln, err := net.Listen("tcp", server.config.Addr())
 	if err != nil {
 		return errors.WithStackTrace(err)
