@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	goerrors "errors"
 	"fmt"
 	"os"
 	"path"
@@ -281,12 +282,12 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 		case <-ctx.Done():
 			merr := &multierror.Error{}
 
-			if err := errGroup.Wait(); err != nil {
+			if err := errGroup.Wait(); err != nil && !goerrors.Is(err, context.Canceled) {
 				merr = multierror.Append(merr, err)
 			}
 
 			for _, cache := range service.providerCaches {
-				if err := cache.removeArchive(); err != nil {
+				if err := cache.removeArchive(); err != nil && !goerrors.Is(err, context.Canceled) {
 					merr = multierror.Append(merr, errors.WithStackTrace(err))
 				}
 			}
