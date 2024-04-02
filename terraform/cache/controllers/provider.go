@@ -157,6 +157,7 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err
 					}
 
 					if name == ProviderDownloadURLName {
+						// clone URL
 						provider.DownloadURL = linkURL.ResolveReference(new(url.URL))
 					}
 

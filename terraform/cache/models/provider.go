@@ -43,7 +43,7 @@ func (provider *Provider) Platform() string {
 }
 
 func (provider *Provider) String() string {
-	return provider.Path()
+	return fmt.Sprintf("%s-%s-%s-%s-%s", provider.RegistryName, provider.Namespace, provider.Name, provider.Version, provider.Platform())
 }
 
 func (provider *Provider) Path() string {

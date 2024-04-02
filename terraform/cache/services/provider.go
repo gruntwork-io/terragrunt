@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sync"
 	"time"
@@ -53,54 +54,48 @@ type ProviderCache struct {
 }
 
 func (cache *ProviderCache) providerDir() string {
-	return filepath.Join(cache.baseCacheDir, cache.Provider.Path())
-}
-
-func (cache *ProviderCache) lockFilename() string {
-	return filepath.Join(cache.baseCacheDir, fmt.Sprintf("%s-%s-%s-%s-%s.lock", cache.Provider.RegistryName, cache.Provider.Namespace, cache.Provider.Name, cache.Provider.Version, cache.Platform()))
-}
-
-func (cache *ProviderCache) platformDir() string {
 	return filepath.Join(cache.baseCacheDir, cache.Provider.Path(), cache.Platform())
 }
 
-func (cache *ProviderCache) pluginProviderPlatformDir() string {
+func (cache *ProviderCache) pluginProviderDir() string {
 	return filepath.Join(cache.terraformPluginDir, cache.Provider.Path(), cache.Platform())
 }
 
-func (cache *ProviderCache) ArchiveFilename() string {
+func (cache *ProviderCache) lockFilename() string {
+	return filepath.Join(cache.baseArchiveDir, cache.Provider.String()+".lock")
+}
+
+func (cache *ProviderCache) downloadURL() string {
 	if cache.DownloadURL == nil {
 		return ""
 	}
-	return filepath.Join(cache.baseCacheDir, cache.Provider.Path(), filepath.Base(cache.DownloadURL.Path))
+	return cache.DownloadURL.String()
+}
+
+func (cache *ProviderCache) ArchiveFilename() string {
+	return filepath.Join(cache.baseArchiveDir, cache.Provider.String()+path.Ext(cache.downloadURL()))
 }
 
 // warmUp checks if the binary file already exists in the cache directory, if not, downloads the archive and unzip it.
 func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	var (
-		pluginProviderPlatformDir = cache.pluginProviderPlatformDir()
-		platformDir               = cache.platformDir()
-		providerDir               = cache.providerDir()
-		archiveFilename           = cache.ArchiveFilename()
-		needCacheArchive          = cache.needCacheArchive
+		pluginProviderDir = cache.pluginProviderDir()
+		providerDir       = cache.providerDir()
+		downloadURL       = cache.downloadURL()
+		archiveFilename   = cache.ArchiveFilename()
+		needCacheArchive  = cache.needCacheArchive
 
 		alreadyCached bool
 	)
 
-	if err := os.MkdirAll(providerDir, os.ModePerm); err != nil {
+	if err := os.MkdirAll(filepath.Dir(providerDir), os.ModePerm); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	lockfile, err := cache.acquireLockFile(ctx)
-	if err != nil {
-		return err
-	}
-	defer lockfile.Unlock() //nolint:errcheck
-
-	if !util.FileExists(platformDir) {
-		if util.FileExists(pluginProviderPlatformDir) {
-			log.Debugf("Create symlink file %s to %s", platformDir, pluginProviderPlatformDir)
-			if err := os.Symlink(pluginProviderPlatformDir, platformDir); err != nil {
+	if !util.FileExists(providerDir) {
+		if util.FileExists(pluginProviderDir) {
+			log.Debugf("Create symlink file %s to %s", providerDir, pluginProviderDir)
+			if err := os.Symlink(pluginProviderDir, providerDir); err != nil {
 				return errors.WithStackTrace(err)
 			}
 			alreadyCached = true
@@ -111,13 +106,9 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		alreadyCached = true
 	}
 
-	if needCacheArchive && !util.FileExists(archiveFilename) {
-		if cache.DownloadURL == nil {
-			return errors.Errorf("unable to cache provider %q, the download URL is undefined", cache.Provider)
-		}
-
+	if needCacheArchive && downloadURL != "" && !util.FileExists(archiveFilename) {
 		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider with retry %q", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func() error {
-			return util.FetchFile(ctx, cache.DownloadURL.String(), archiveFilename)
+			return util.FetchFile(ctx, downloadURL, archiveFilename)
 		}); err != nil {
 			os.Remove(archiveFilename) //nolint:errcheck
 			return err
@@ -128,7 +119,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	if !alreadyCached {
 		log.Debugf("Decompress provider archive %s", archiveFilename)
 
-		if err := unzip.Decompress(platformDir, archiveFilename, true, unzipFileMode); err != nil {
+		if err := unzip.Decompress(providerDir, archiveFilename, true, unzipFileMode); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
@@ -155,6 +146,10 @@ func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile
 		lockfile     = util.NewLockfile(lockfileName)
 	)
 
+	if err := os.MkdirAll(filepath.Dir(lockfileName), os.ModePerm); err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
 	if err := util.DoWithRetry(ctx, fmt.Sprintf("Acquiring lock file with retry %s", lockfileName), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
 		return lockfile.TryLock()
 	}); err != nil {
@@ -165,7 +160,12 @@ func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile
 }
 
 type ProviderService struct {
+	// We cannot store any other file types in this dir other than unpacked providers because tofu considers any file to be a provider.
+	// https://github.com/opentofu/opentofu/blob/bdab86962fdd0a2106a744d7f8f1d3d3e7bc893e/internal/getproviders/filesystem_search.go#L27
 	baseCacheDir string
+
+	// Since we cannot store archive files together with unpacked providers, we need a separate dir. (read the comment above)
+	baseArchiveDir string
 
 	providerCaches        ProviderCaches
 	providerCacheWarmUpCh chan *ProviderCache
@@ -178,9 +178,10 @@ type ProviderService struct {
 	terraformPluginDir string
 }
 
-func NewProviderService(baseCacheDir string, needCacheArchive bool) *ProviderService {
+func NewProviderService(baseCacheDir, baseArchiveDir string, needCacheArchive bool) *ProviderService {
 	return &ProviderService{
 		baseCacheDir:          baseCacheDir,
+		baseArchiveDir:        baseArchiveDir,
 		providerCacheWarmUpCh: make(chan *ProviderCache),
 		needCacheArchive:      needCacheArchive,
 	}
@@ -231,6 +232,11 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 	}
 	log.Debugf("Provider cache dir %q", service.baseCacheDir)
 
+	if service.baseArchiveDir == "" {
+		return errors.Errorf("provider archive directory not specified")
+	}
+	log.Debugf("Provider archive dir %q", service.baseArchiveDir)
+
 	configDir, err := cliconfig.ConfigDir()
 	if err != nil {
 		return errors.WithStackTrace(err)
@@ -244,6 +250,12 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 			errGroup.Go(func() error {
 				service.cacheReadyMu.RLock()
 				defer service.cacheReadyMu.RUnlock()
+
+				lockfile, err := cache.acquireLockFile(ctx)
+				if err != nil {
+					return err
+				}
+				defer lockfile.Unlock() //nolint:errcheck
 
 				if err := cache.warmUp(ctx); err != nil {
 					return err

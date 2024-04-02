@@ -274,8 +274,11 @@ type TerragruntOptions struct {
 	// Enables provider cache using the built-in private registry.
 	ProviderCache bool
 
-	// The path to the cache directory
+	// The path to store the unpacked provider. The file structure of which is the same as terraform plugin cache dir.
 	ProviderCacheDir string
+
+	// The path to store archive providers that are retrieved from the source registry and cached to reduce traffic.
+	ProviderArchiveDir string
 
 	// Disables terraform 'plugin_cache_may_break_dependency_lock_file' feature.
 	ProviderCompleteLock bool

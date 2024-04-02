@@ -33,12 +33,25 @@ const (
 var HTTPStatusCacheProviderReg = regexp.MustCompile(`(?mi)` + strconv.Itoa(controllers.HTTPStatusCacheProvider) + `[^a-z0-9]*` + http.StatusText(controllers.HTTPStatusCacheProvider))
 
 func initProviderCache(ctx context.Context, opts *options.TerragruntOptions) (context.Context, *cache.Server, error) {
+	cacheDir, err := util.GetCacheDir()
+	if err != nil {
+		return nil, nil, err
+	}
+
 	if opts.ProviderCacheDir == "" {
-		cacheDir, err := util.GetCacheDir()
-		if err != nil {
-			return nil, nil, err
-		}
 		opts.ProviderCacheDir = filepath.Join(cacheDir, "providers")
+	}
+
+	if err := os.MkdirAll(opts.ProviderCacheDir, os.ModePerm); err != nil {
+		return nil, nil, errors.WithStackTrace(err)
+	}
+
+	if opts.ProviderArchiveDir == "" {
+		opts.ProviderArchiveDir = filepath.Join(cacheDir, "archives")
+	}
+
+	if err := os.MkdirAll(opts.ProviderArchiveDir, os.ModePerm); err != nil {
+		return nil, nil, errors.WithStackTrace(err)
 	}
 
 	if opts.RegistryToken == "" {
@@ -50,6 +63,7 @@ func initProviderCache(ctx context.Context, opts *options.TerragruntOptions) (co
 		cache.WithPort(opts.RegistryPort),
 		cache.WithToken(opts.RegistryToken),
 		cache.WithProviderCacheDir(opts.ProviderCacheDir),
+		cache.WithProviderArchiveDir(opts.ProviderArchiveDir),
 		cache.WithProviderCompleteLock(opts.ProviderCompleteLock),
 	)
 	if err := proxyServer.Listen(ctx); err != nil {

@@ -30,7 +30,7 @@ type Server struct {
 func NewServer(opts ...Option) *Server {
 	cfg := NewConfig(opts...)
 
-	providerService := services.NewProviderService(cfg.providerCacheDir, cfg.providerCompleteLock)
+	providerService := services.NewProviderService(cfg.providerCacheDir, cfg.providerArchiveDir, cfg.providerCompleteLock)
 
 	// authorization := &handlers.Authorization{
 	// 	Token: cfg.token,

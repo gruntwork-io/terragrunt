@@ -45,6 +45,13 @@ func WithProviderCacheDir(cacheDir string) Option {
 	}
 }
 
+func WithProviderArchiveDir(archiveDir string) Option {
+	return func(cfg Config) Config {
+		cfg.providerArchiveDir = archiveDir
+		return cfg
+	}
+}
+
 func WithProviderCompleteLock(completeLock bool) Option {
 	return func(cfg Config) Config {
 		cfg.providerCompleteLock = completeLock
@@ -59,6 +66,7 @@ type Config struct {
 	shutdownTimeout time.Duration
 
 	providerCacheDir     string
+	providerArchiveDir   string
 	providerCompleteLock bool
 }
 
