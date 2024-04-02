@@ -38,7 +38,7 @@ func printTerragruntInfo(opts *options.TerragruntOptions) error {
 	b, err := json.MarshalIndent(group, "", "  ")
 	if err != nil {
 		opts.Logger.Errorf("JSON error marshalling terragrunt-info")
-		return err
+		return errors.WithStackTrace(err)
 	}
 	if _, err := fmt.Fprintf(opts.Writer, "%s\n", b); err != nil {
 		return err
