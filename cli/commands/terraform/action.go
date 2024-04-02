@@ -408,9 +408,10 @@ func runTerraformWithRetry(ctx context.Context, terragruntOptions *options.Terra
 			} else {
 				terragruntOptions.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.RetrySleepIntervalSec)
 				select {
-				case <-time.After(terragruntOptions.RetrySleepIntervalSec):
 				case <-ctx.Done():
 					return ctx.Err()
+				case <-time.After(terragruntOptions.RetrySleepIntervalSec):
+					// try again
 				}
 			}
 		} else {

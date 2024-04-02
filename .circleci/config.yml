@@ -180,7 +180,7 @@ jobs:
           path: logs
 
   integration_test_terraform:
-    resource_class: large
+    resource_class: xlarge
     <<: *defaults
     steps:
       - checkout
@@ -200,7 +200,7 @@ jobs:
           path: logs
 
   integration_test_terraform_with_provider_cache:
-    resource_class: large
+    resource_class: xlarge
     <<: *defaults
     steps:
       - checkout
@@ -222,7 +222,7 @@ jobs:
           path: logs
 
   integration_test_tofu:
-    resource_class: large
+    resource_class: xlarge
     <<: *defaults
     steps:
       - checkout
@@ -247,7 +247,7 @@ jobs:
           path: logs
 
   integration_test_tofu_with_provider_cache:
-    resource_class: large
+    resource_class: xlarge
     <<: *defaults
     steps:
       - checkout
