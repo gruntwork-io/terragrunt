@@ -41,7 +41,7 @@ func printTerragruntInfo(opts *options.TerragruntOptions) error {
 		return errors.WithStackTrace(err)
 	}
 	if _, err := fmt.Fprintf(opts.Writer, "%s\n", b); err != nil {
-		return err
+		return errors.WithStackTrace(err)
 	}
 	return nil
 }
