@@ -273,13 +273,13 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        TerragruntProviderCacheFlagName,
 			Destination: &opts.ProviderCache,
 			EnvVar:      TerragruntProviderCacheEnvVarName,
-			Usage:       "Enables provider cache.",
+			Usage:       "Enables provider caching.",
 		},
 		&cli.GenericFlag[string]{
 			Name:        TerragruntProviderCacheDirFlagName,
 			Destination: &opts.ProviderCacheDir,
 			EnvVar:      TerragruntProviderCacheDirEnvVarName,
-			Usage:       "The path to the cache directory. Default is .terragrunt-cache/provider-cache in the working directory.",
+			Usage:       "The path to the cache directory. By default, 'terragrunt/providers' folder in the user cache directory.",
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntProviderCompleteLockFlagName,
@@ -291,25 +291,25 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        TerragruntProviderCacheTokenFlagName,
 			Destination: &opts.ProviderCacheToken,
 			EnvVar:      TerragruntProviderCacheTokenEnvVarName,
-			Usage:       "The Token for connecting to the built-in Private Registry server. By default generated automatically.",
+			Usage:       "The Token for authentication on the built-in Terragrunt Cache server. By default, assigned automatically.",
 		},
 		&cli.GenericFlag[string]{
 			Name:        TerragruntProviderCacheHostnameFlagName,
 			Destination: &opts.ProviderCacheHostname,
 			EnvVar:      TerragruntProviderCacheHostnameEnvVarName,
-			Usage:       "The hostname of the built-in Private Registry server. Default is 'localhost'.",
+			Usage:       "The hostname of the built-in Terragrunt Cache server. By default, 'localhost'.",
 		},
 		&cli.GenericFlag[int]{
 			Name:        TerragruntProviderCachePortFlagName,
 			Destination: &opts.ProviderCachePort,
 			EnvVar:      TerragruntProviderCachePortEnvVarName,
-			Usage:       "The listening port of the built-in Private Registry server. Default is '5758'.",
+			Usage:       "The port of the built-in Terragrunt Cache server. By default, assigned automatically.",
 		},
 		&cli.SliceFlag[string]{
 			Name:        TerragruntProviderCacheRegistryNamesFlagName,
 			Destination: &opts.ProviderCacheRegistryNames,
 			EnvVar:      TerragruntProviderCacheRegistryNamesEnvVarName,
-			Usage:       "The list of the remote registries to cache. Default is 'registry.terraform.io', 'registry.opentofu.org'.",
+			Usage:       "The list of remote registries to cached by Terragrunt Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'.",
 		},
 	}
 

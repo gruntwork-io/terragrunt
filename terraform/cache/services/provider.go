@@ -77,9 +77,9 @@ func (cache *ProviderCache) ArchiveFilename() string {
 	return filepath.Join(cache.baseArchiveDir, cache.Provider.Filename()+path.Ext(cache.downloadURL()))
 }
 
-// warmUp checks if the binary file already exists in the cache directory, if not:
-// 1. Checks if there's the provider in the user plugins directory, located at %APPDATA%\terraform.d\plugins on Windows and ~/.terraform.d/plugins on other systems. If so, create a symlink to this folder. (Some providers are not available for darwin_arm64, in this case we can use https://github.com/kreuzwerker/m1-terraform-provider-helper which compiles and saves providers to the user plugins directory)
-// 2. Downloads the archive from the original registry, unpacks and stores it into the cache directory.
+// warmUp checks if the required provider already exists in the cache directory, if not:
+// 1. Checks if the required provider exists in the user plugins directory, located at %APPDATA%\terraform.d\plugins on Windows and ~/.terraform.d/plugins on other systems. If so, creates a symlink to this folder. (Some providers are not available for darwin_arm64, in this case we can use https://github.com/kreuzwerker/m1-terraform-provider-helper which compiles and saves providers to the user plugins directory)
+// 2. Downloads the provider from the original registry, unpacks and saves it into the cache directory.
 func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	var (
 		pluginProviderDir = cache.pluginProviderDir()

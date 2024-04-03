@@ -1155,7 +1155,7 @@ When this flag is set, Terragrunt will wrap Terraform `stdout` and `stderr` in J
 **Commands**:
 - [run-all](#run-all)
 
-Enables provider cache using the built-in private registry server.
+Enables provider caching. This forces Terraform to make provider requests through the built-in Provider Cache server.
 
 ### terragrunt-provider-cache-dir
 
@@ -1164,49 +1164,49 @@ Enables provider cache using the built-in private registry server.
 **Commands**:
 - [run-all](#run-all)
 
-The path to the cache directory. Default is `.terragrunt-cache/provider-cache` in the working directory.
+The path to the cache directory. By default, `terragrunt/providers` folder in the user cache directory: `$HOME/.cache` on Unix systems, `$HOME/Library/Caches` on Darwin, `%LocalAppData%` on Windows. The file structure of the cache directory is identical to the Terraform [plugin_cache_dir](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache) directory.
 
-### terragrunt-provider-complete-lock
+### terragrunt-provider-cache-complete-lock
 
-**CLI Arg**: `--terragrunt-provider-complete-lock`
-**Environment Variable**: `TERRAGRUNT_PROVIDER_COMPLETE_LOCK`
+**CLI Arg**: `--terragrunt-provider-cache-complete-lock`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_COMPLETE_LOCK`
 **Commands**:
 - [run-all](#run-all)
 
-Disables Terraform [_plugin_cache_may_break_dependency_lock_file_](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation) feature, which in turn forces Terragrunt to run `terraform providers lock` to generate `.terraform.lock.hcl` files before each `init` command.
+Disables Terraform [_plugin_cache_may_break_dependency_lock_file_](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation) feature. When this feature is enabled, Terraform generates `.terraform.lock.hcl` files based on the files in the cache directory. If the flag is set Terragrunt disable this feature and before each `init` command runs `terraform providers lock` to generate complete `.terraform.lock.hcl`, which in turn downloads providers from the original registry, which is not fast.
 
-### terragrunt-registry-hostname
+### terragrunt-provider-cache-hostname
 
-**CLI Arg**: `--terragrunt-registry-hostname`
-**Environment Variable**: `TERRAGRUNT_REGISTRY_HOSTNAME`
+**CLI Arg**: `--terragrunt-provider-cache-hostname`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_HOSTNAME`
 **Commands**:
 - [run-all](#run-all)
 
-The hostname of the built-in Private Registry server. Default is 'localhost'.
+The hostname of the built-in Terragrunt Cache server. By default, 'localhost'.
 
-### terragrunt-registry-port
+### terragrunt-provider-cache-port
 
-**CLI Arg**: `--terragrunt-registry-port`
-**Environment Variable**: `TERRAGRUNT_REGISTRY_PORT`
+**CLI Arg**: `--terragrunt-provider-cache-port`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_PORT`
 **Commands**:
 - [run-all](#run-all)
 
-The listening port of the built-in Private Registry server. Default is '5758'.
+The port of the built-in Terragrunt Cache server. By default, assigned automatically.
 
-### terragrunt-registry-token
+### terragrunt-provider-cache-token
 
-**CLI Arg**: `--terragrunt-registry-token`
-**Environment Variable**: `TERRAGRUNT_REGISTRY_TOKEN`
+**CLI Arg**: `--terragrunt-provider-cache-token`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_TOKEN`
 **Commands**:
 - [run-all](#run-all)
 
-The Token for connecting to the built-in Private Registry server. By default generated automatically.
+The Token for authentication on the built-in Terragrunt Cache server. By default, assigned automatically.
 
-### terragrunt-registry-names
+### terragrunt-provider-cache-registry-names
 
-**CLI Arg**: `--terragrunt-registry-names`
-**Environment Variable**: `TERRAGRUNT_REGISTRY_NAMES`
+**CLI Arg**: `--terragrunt-provider-cache-registry-names`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES`
 **Commands**:
 - [run-all](#run-all)
 
-The list of the remote registries to cache. Default is 'registry.terraform.io', 'registry.opentofu.org'.
+The list of remote registries to cached by Terragrunt Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'.
