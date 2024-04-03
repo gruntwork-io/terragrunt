@@ -42,7 +42,7 @@ const (
 var (
 	DefaultWrappedPath = identifyDefaultWrappedExecutable()
 
-	defaultRegistryNames = []string{
+	defaultProviderCacheRegistryNames = []string{
 		"registry.terraform.io",
 		"registry.opentofu.org",
 	}
@@ -278,22 +278,22 @@ type TerragruntOptions struct {
 	ProviderCacheDir string
 
 	// The path to store archive providers that are retrieved from the source registry and cached to reduce traffic.
-	ProviderArchiveDir string
+	ProviderCacheArchiveDir string
 
 	// Disables terraform 'plugin_cache_may_break_dependency_lock_file' feature.
-	ProviderCompleteLock bool
+	ProviderCacheCompleteLock bool
 
 	// The Token for connecting to the built-in Private Registry server.
-	RegistryToken string
+	ProviderCacheToken string
 
 	// The hostname of the built-in Private Registry server.
-	RegistryHostname string
+	ProviderCacheHostname string
 
 	// The listening port of the built-in Private Registry server.
-	RegistryPort int
+	ProviderCachePort int
 
 	// The list of the remote registries to cache.
-	RegistryNames []string
+	ProviderCacheRegistryNames []string
 }
 
 // IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
@@ -371,7 +371,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 		RunTerragrunt: func(ctx context.Context, opts *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
-		RegistryNames: defaultRegistryNames,
+		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
 	}
 }
 
@@ -500,7 +500,9 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		ScaffoldVars:                   opts.ScaffoldVars,
 		ScaffoldVarFiles:               opts.ScaffoldVarFiles,
 		ProviderCache:                  opts.ProviderCache,
-		ProviderCompleteLock:           opts.ProviderCompleteLock,
+		ProviderCacheDir:               opts.ProviderCacheDir,
+		ProviderCacheArchiveDir:        opts.ProviderCacheArchiveDir,
+		ProviderCacheCompleteLock:      opts.ProviderCacheCompleteLock,
 		DisableLogColors:               opts.DisableLogColors,
 	}
 }

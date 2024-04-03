@@ -24,8 +24,8 @@ import (
 )
 
 const (
-	// The default path to the automatically generated local CLI configuration, relative to the `.terragrunt-cache` folder.
-	defaultLocalTerraformCLIFilename = ".terraformrc"
+	// The path to the automatically generated local CLI configuration, relative to the `.terragrunt-cache` folder.
+	localTerraformCLIFilename = ".terraformrc"
 )
 
 // HTTPStatusCacheProviderReg is regular expression to determine the success result of the command `terraform lock providers -platform=cache provider`.
@@ -46,27 +46,27 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCacheSer
 		opts.ProviderCacheDir = filepath.Join(cacheDir, "providers")
 	}
 
-	if opts.ProviderArchiveDir == "" {
-		opts.ProviderArchiveDir = filepath.Join(cacheDir, "archives")
+	if opts.ProviderCacheArchiveDir == "" {
+		opts.ProviderCacheArchiveDir = filepath.Join(cacheDir, "archives")
 	}
 
-	if opts.RegistryToken == "" {
-		opts.RegistryToken = fmt.Sprintf("%s:%s", handlers.AuthorizationApiKeyHeaderName, uuid.New().String())
+	if opts.ProviderCacheToken == "" {
+		opts.ProviderCacheToken = fmt.Sprintf("%s:%s", handlers.AuthorizationApiKeyHeaderName, uuid.New().String())
 	}
 
 	server := cache.NewServer(
-		cache.WithHostname(opts.RegistryHostname),
-		cache.WithPort(opts.RegistryPort),
-		cache.WithToken(opts.RegistryToken),
+		cache.WithHostname(opts.ProviderCacheHostname),
+		cache.WithPort(opts.ProviderCachePort),
+		cache.WithToken(opts.ProviderCacheToken),
 		cache.WithProviderCacheDir(opts.ProviderCacheDir),
-		cache.WithProviderArchiveDir(opts.ProviderArchiveDir),
-		cache.WithProviderCompleteLock(opts.ProviderCompleteLock),
+		cache.WithProviderArchiveDir(opts.ProviderCacheArchiveDir),
+		cache.WithProviderCompleteLock(opts.ProviderCacheCompleteLock),
 	)
 	if err := server.Listen(); err != nil {
 		return nil, err
 	}
 
-	cliConfigFile := filepath.Join(opts.DownloadDir, defaultLocalTerraformCLIFilename)
+	cliConfigFile := filepath.Join(opts.DownloadDir, localTerraformCLIFilename)
 	if err := createLocalCLIConfig(opts, cliConfigFile, server.ProviderURL()); err != nil {
 		return nil, err
 	}
@@ -80,12 +80,12 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCacheSer
 func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile string) map[string]string {
 	envs := make(map[string]string)
 
-	for _, registryName := range opts.RegistryNames {
+	for _, registryName := range opts.ProviderCacheRegistryNames {
 		envName := fmt.Sprintf(terraform.EnvNameTFTokenFmt, strings.ReplaceAll(registryName, ".", "_"))
-		envs[envName] = opts.RegistryToken
+		envs[envName] = opts.ProviderCacheToken
 	}
 
-	if !opts.ProviderCompleteLock {
+	if !opts.ProviderCacheCompleteLock {
 		envs[terraform.EnvNameTFPluginCacheMayBreakDependencyLockFile] = "1"
 	}
 
@@ -95,7 +95,7 @@ func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile str
 	return envs
 }
 
-func (server *ProviderCacheServer) TerraformCommandHookFunc(ctx context.Context, opts *options.TerragruntOptions, args []string) error {
+func (server *ProviderCacheServer) TerraformCommandHook(ctx context.Context, opts *options.TerragruntOptions, args []string) error {
 	// Use Hook only for the `terraform init` command, which can be run explicitly by the user or Terragrunt's `auto-init` feature.
 	if util.FirstArg(opts.TerraformCliArgs) != terraform.CommandNameInit {
 		return nil
@@ -114,7 +114,7 @@ func (server *ProviderCacheServer) TerraformCommandHookFunc(ctx context.Context,
 	}
 	server.Provider.WaitForCacheReady()
 
-	if opts.ProviderCompleteLock && !util.FileExists(filepath.Join(opts.WorkingDir, terraform.TerraformLockFile)) {
+	if opts.ProviderCacheCompleteLock && !util.FileExists(filepath.Join(opts.WorkingDir, terraform.TerraformLockFile)) {
 		log.Debugf("Generating Terraform lock file for %q", opts.WorkingDir)
 		// Create complete terraform lock files. By default this feature is disabled, since it's not superfast.
 		// Instead we use Terraform `TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE` feature, that creates hashes from the local cache.
@@ -176,9 +176,9 @@ func createLocalCLIConfig(opts *options.TerragruntOptions, cliConfigFile string,
 	}
 	cfg.PluginCacheDir = ""
 
-	providerInstallationIncludes := make([]string, len(opts.RegistryNames))
+	providerInstallationIncludes := make([]string, len(opts.ProviderCacheRegistryNames))
 
-	for i, registryName := range opts.RegistryNames {
+	for i, registryName := range opts.ProviderCacheRegistryNames {
 		cfg.AddHost(registryName, map[string]any{
 			"providers.v1": fmt.Sprintf("%s/%s/", registryProviderURL, registryName),
 		})

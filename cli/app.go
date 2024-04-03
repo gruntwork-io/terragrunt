@@ -79,7 +79,7 @@ func NewApp(writer io.Writer, errWriter io.Writer) *App {
 		deprecatedCommands(opts),
 		terragruntCommands(opts)...)
 	app.Before = beforeAction(opts)
-	app.DefaultCommand = telemetryCommand(opts, terraform.NewCommand(opts)) // by default, if no terragrunt command is specified, run the Terraform command
+	app.DefaultCommand = telemetryCommand(opts, terraform.NewCommand(opts)) // by default, if no terragrunt command is specified, runAction the Terraform command
 	app.OsExiter = osExiter
 
 	return &App{app}
@@ -128,7 +128,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 // This set of commands is also used in unit tests
 func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	cmds := cli.Commands{
-		telemetryCommand(opts, runall.NewCommand(opts)),             // run-all
+		telemetryCommand(opts, runall.NewCommand(opts)),             // runAction-all
 		telemetryCommand(opts, terragruntinfo.NewCommand(opts)),     // terragrunt-info
 		telemetryCommand(opts, validateinputs.NewCommand(opts)),     // validate-inputs
 		telemetryCommand(opts, graphdependencies.NewCommand(opts)),  // graph-dependencies
@@ -149,7 +149,7 @@ func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	return cmds
 }
 
-// Wrap CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just run the command.
+// Wrap CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
 func telemetryCommand(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Command {
 	action := cmd.Action
 	cmd.Action = func(ctx *cli.Context) error {
@@ -163,7 +163,7 @@ func telemetryCommand(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Co
 				return err
 			}
 
-			return run(ctx, opts, action)
+			return runAction(ctx, opts, action)
 		})
 	}
 	return cmd
@@ -182,7 +182,7 @@ func beforeAction(opts *options.TerragruntOptions) cli.ActionFunc {
 	}
 }
 
-func run(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.ActionFunc) error {
+func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.ActionFunc) error {
 	ctx, cancel := context.WithCancel(cliCtx.Context)
 	defer cancel()
 
@@ -195,7 +195,7 @@ func run(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.Action
 			return err
 		}
 
-		cliCtx.Context = shell.ContextWithTerraformCommandHook(ctx, server.TerraformCommandHookFunc)
+		cliCtx.Context = shell.ContextWithTerraformCommandHook(ctx, server.TerraformCommandHook)
 		maps.Copy(opts.Env, server.Env)
 
 		errGroup.Go(func() error {
