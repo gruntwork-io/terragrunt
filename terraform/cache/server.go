@@ -78,6 +78,7 @@ func (server *Server) ProviderURL() *url.URL {
 	}
 }
 
+// Listen starts listening to the given configuration address. It also automatically chooses a free port if not explicitly specified.
 func (server *Server) Listen() error {
 	ln, err := net.Listen("tcp", server.config.Addr())
 	if err != nil {
@@ -89,6 +90,10 @@ func (server *Server) Listen() error {
 
 	log.Infof("Terragrunt Cache server is listening on %s", server.Addr)
 	return nil
+}
+
+func (server *Server) Close() error {
+	return server.listener.Close()
 }
 
 // Run starts the webserver and workers.

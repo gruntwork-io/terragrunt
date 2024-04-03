@@ -420,7 +420,28 @@ func TestTerragruntOutputJson(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-json-log --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	assert.Error(t, err)
 
-	assert.Contains(t, stderr.String(), "Downloading Terraform configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=v0.9.9")
+	var msgs []string
+
+	// for windows OS
+	output := bytes.ReplaceAll(stderr.Bytes(), []byte("\r\n"), []byte("\n"))
+
+	multipeJSONs := bytes.Split(output, []byte("\n"))
+	for _, jsonBytes := range multipeJSONs {
+		if len(jsonBytes) == 0 {
+			continue
+		}
+
+		var output map[string]interface{}
+
+		err = json.Unmarshal(jsonBytes, &output)
+		assert.NoError(t, err)
+
+		msg, ok := output["msg"].(string)
+		assert.True(t, ok)
+		msgs = append(msgs, msg)
+	}
+
+	assert.Contains(t, strings.Join(msgs, ""), "Downloading Terraform configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=v0.9.9")
 }
 
 func TestTerragruntTerraformOutputJson(t *testing.T) {

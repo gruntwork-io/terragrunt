@@ -21,14 +21,14 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-var (
+const (
 	unzipFileMode = os.FileMode(0000)
 
 	retryDelayLockFile = time.Second * 5
 	maxRetriesLockFile = 60
 
 	retryDelayFetchFile = time.Second * 2
-	maxRetriesFetchFile = 30
+	maxRetriesFetchFile = 5
 )
 
 // Borrow the "unpack a zip cache into a target directory" logic from go-getter
@@ -77,14 +77,16 @@ func (cache *ProviderCache) ArchiveFilename() string {
 	return filepath.Join(cache.baseArchiveDir, cache.Provider.Filename()+path.Ext(cache.downloadURL()))
 }
 
-// warmUp checks if the binary file already exists in the cache directory, if not, downloads the archive and unzip it.
+// warmUp checks if the binary file already exists in the cache directory, if not:
+// 1. Checks if there's the provider in the user plugins directory, located at %APPDATA%\terraform.d\plugins on Windows and ~/.terraform.d/plugins on other systems. If so, create a symlink to this folder. (Some providers are not available for darwin_arm64, in this case we can use https://github.com/kreuzwerker/m1-terraform-provider-helper which compiles and saves providers to the user plugins directory)
+// 2. Downloads the archive from the original registry, unpacks and stores it into the cache directory.
 func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	var (
 		pluginProviderDir = cache.pluginProviderDir()
 		providerDir       = cache.providerDir()
 		downloadURL       = cache.downloadURL()
 		archiveFilename   = cache.ArchiveFilename()
-		needCacheArchive  = cache.needCacheArchive
+		needCacheArchives = cache.needCacheArchives
 
 		unpackedCached bool
 	)
@@ -101,13 +103,13 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 			}
 			unpackedCached = true
 		} else {
-			needCacheArchive = true
+			needCacheArchives = true
 		}
 	} else {
 		unpackedCached = true
 	}
 
-	if needCacheArchive && downloadURL != "" && !util.FileExists(archiveFilename) {
+	if needCacheArchives && downloadURL != "" && !util.FileExists(archiveFilename) {
 		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %q", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func() error {
 			return util.FetchFile(ctx, downloadURL, archiveFilename)
 		}); err != nil {
@@ -131,7 +133,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 func (cache *ProviderCache) removeArchive() error {
 	var archiveFilename = cache.ArchiveFilename()
 
-	if !cache.needCacheArchive && cache.archiveCached && util.FileExists(archiveFilename) {
+	if !cache.needCacheArchives && cache.archiveCached && util.FileExists(archiveFilename) {
 		log.Debugf("Remove provider cached archive %s", archiveFilename)
 		if err := os.Remove(archiveFilename); err != nil {
 			return errors.WithStackTrace(err)
@@ -173,17 +175,17 @@ type ProviderService struct {
 	cacheMu      sync.RWMutex
 	cacheReadyMu sync.RWMutex
 
-	// If needCacheArchive is true, ensures that not only the unarchived binary is cached, but also its archive. We need acrhives in order to reduce the bandwidth, because `terraform lock provider` always loads providers from a remote registry to create a lock file rather than using a cached one. This is only used when opts.ProviderCompleteLock is true.
-	needCacheArchive   bool
+	// If needCacheArchives is true, ensures that not only the unarchived binary is cached, but also its archive. We need acrhives in order to reduce the bandwidth, because `terraform lock provider` always loads providers from a remote registry to create a lock file rather than using a cached one. This is only used when opts.ProviderCompleteLock is true.
+	needCacheArchives  bool
 	terraformPluginDir string
 }
 
-func NewProviderService(baseCacheDir, baseArchiveDir string, needCacheArchive bool) *ProviderService {
+func NewProviderService(baseCacheDir, baseArchiveDir string, needCacheArchives bool) *ProviderService {
 	return &ProviderService{
 		baseCacheDir:          baseCacheDir,
 		baseArchiveDir:        baseArchiveDir,
 		providerCacheWarmUpCh: make(chan *ProviderCache),
-		needCacheArchive:      needCacheArchive,
+		needCacheArchives:     needCacheArchives,
 	}
 }
 
@@ -193,7 +195,7 @@ func (service *ProviderService) WaitForCacheReady() {
 	defer service.cacheReadyMu.Unlock()
 }
 
-// CacheProvider starts caching the given provider using non-blocking approch.
+// CacheProvider starts caching the given provider using non-blocking approach.
 func (service *ProviderService) CacheProvider(ctx context.Context, provider *models.Provider) {
 	service.cacheMu.Lock()
 	defer service.cacheMu.Unlock()
@@ -265,6 +267,7 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 				service.cacheReadyMu.RLock()
 				defer service.cacheReadyMu.RUnlock()
 
+				// We need to use a locking mechanism between Terragrunt processes to prevent simultaneous write access to the same provider.
 				lockfile, err := cache.acquireLockFile(ctx)
 				if err != nil {
 					return err

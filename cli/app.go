@@ -188,12 +188,13 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 
-	// --- Run provider cache server
+	// Run provider cache server
 	if opts.ProviderCache {
 		server, err := InitProviderCacheServer(opts)
 		if err != nil {
 			return err
 		}
+		defer server.Close() //nolint:errcheck
 
 		cliCtx.Context = shell.ContextWithTerraformCommandHook(ctx, server.TerraformCommandHook)
 		maps.Copy(opts.Env, server.Env)
@@ -203,7 +204,7 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 		})
 	}
 
-	// --- Run command action
+	// Run command action
 	errGroup.Go(func() error {
 		defer cancel()
 

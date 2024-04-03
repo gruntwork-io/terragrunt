@@ -43,7 +43,7 @@ const (
 	TerragruntDisableBucketUpdateFlagName            = "terragrunt-disable-bucket-update"
 	TerragruntDisableCommandValidationFlagName       = "terragrunt-disable-command-validation"
 
-	// provider cache flags
+	// provider cache flags/envs
 	TerragruntProviderCacheFlagName                = "terragrunt-provider-cache"
 	TerragruntProviderCacheEnvVarName              = "TERRAGRUNT_PROVIDER_CACHE"
 	TerragruntProviderCacheDirFlagName             = "terragrunt-provider-cache-dir"
@@ -54,9 +54,9 @@ const (
 	TerragruntProviderCacheHostnameEnvVarName      = "TERRAGRUNT_PROVIDER_CACHE_HOSTNAME"
 	TerragruntProviderCachePortFlagName            = "terragrunt-provider-cache-port"
 	TerragruntProviderCachePortEnvVarName          = "TERRAGRUNT_PROVIDER_CACHE_PORT"
-	TerragruntPorviderCacheTokenFlagName           = "terragrunt-provider-cache-token"
+	TerragruntProviderCacheTokenFlagName           = "terragrunt-provider-cache-token"
 	TerragruntProviderCacheTokenEnvVarName         = "TERRAGRUNT_PROVIDER_CACHE_TOKEN"
-	TerragruntProviderCacheRegistryNamesFlagName   = "terragrunt-provider-cache-names"
+	TerragruntProviderCacheRegistryNamesFlagName   = "terragrunt-provider-cache-registry-names"
 	TerragruntProviderCacheRegistryNamesEnvVarName = "TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES"
 
 	HelpFlagName    = "help"
@@ -288,7 +288,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "Disables terraform 'plugin_cache_may_break_dependency_lock_file' feature.",
 		},
 		&cli.GenericFlag[string]{
-			Name:        TerragruntPorviderCacheTokenFlagName,
+			Name:        TerragruntProviderCacheTokenFlagName,
 			Destination: &opts.ProviderCacheToken,
 			EnvVar:      TerragruntProviderCacheTokenEnvVarName,
 			Usage:       "The Token for connecting to the built-in Private Registry server. By default generated automatically.",

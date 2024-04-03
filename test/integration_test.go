@@ -224,9 +224,9 @@ func TestTerragruntProviderCache(t *testing.T) {
 		},
 	}
 
-	registryName := "registry.terraform.io"
-	if strings.Contains(wrappedBinary(), "tofu") {
-		registryName = "registry.opentofu.org"
+	registryName := "registry.opentofu.org"
+	if isTerraform() {
+		registryName = "registry.terraform.io"
 	}
 
 	for subDir, providers := range providers {

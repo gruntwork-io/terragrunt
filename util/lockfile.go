@@ -18,6 +18,9 @@ func NewLockfile(filename string) *Lockfile {
 }
 
 func (lockfile *Lockfile) Unlock() error {
+	if lockfile.Flock == nil {
+		return nil
+	}
 	if err := lockfile.Flock.Unlock(); err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -34,10 +37,4 @@ func (lockfile *Lockfile) TryLock() error {
 		return errors.Errorf("unable to lock file %s", lockfile.Path())
 	}
 	return nil
-}
-
-func AcquireLockfile(filename string) (*Lockfile, error) {
-	lockfile := NewLockfile(filename)
-	err := lockfile.TryLock()
-	return lockfile, err
 }

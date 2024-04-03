@@ -7,7 +7,7 @@ import (
 )
 
 // RegisterSignalHandler registers a handler of interrupt signal from the OS.
-// When signal the given `sigs` is receiving, it calls the given callback func `notifyFn`.
+// When signal is receiving, it calls the given callback func `notifyFn`.
 func RegisterSignalHandler(notifyFn func(os.Signal), sigs ...os.Signal) {
 	go func() {
 		sigCh := make(chan os.Signal, 1)

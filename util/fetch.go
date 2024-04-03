@@ -12,7 +12,7 @@ import (
 
 // FetchFile downloads the file from the given `downloadURL` into the specified `saveToFile` file.
 func FetchFile(ctx context.Context, downloadURL, saveToFile string) error {
-	req, err := http.NewRequestWithContext(ctx, "GET", downloadURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL, nil)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}

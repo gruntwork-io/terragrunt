@@ -1,3 +1,6 @@
+// Config provides methods to create a terraform [CLI config file](https://developer.hashicorp.com/terraform/cli/config/config-file).
+// The main purpose of which is to create a configuration that forces terraform processes to send requests to our cache server rather than directly to the source registry.
+
 package terraform
 
 import (
