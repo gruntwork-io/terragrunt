@@ -224,8 +224,5 @@ func createLocalCLIConfig(opts *options.TerragruntOptions, cliConfigFile string,
 		}
 	}
 
-	if err := cfg.Save(cliConfigFile); err != nil {
-		return err
-	}
-	return nil
+	return cfg.Save(cliConfigFile)
 }
