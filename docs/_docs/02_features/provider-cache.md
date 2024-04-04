@@ -115,43 +115,9 @@ terragrunt apply
      * [TF_CLI_CONFIG_FILE](https://developer.hashicorp.com/terraform/cli/config/environment-variables#tf_plugin_cache_dir) sets to use just created local CLI config `.terragrunt-cache/.terraformrc`
      * [TF_TOKEN_*](https://developer.hashicorp.com/terraform/cli/config/config-file#environment-variable-credentials) sets per-remote-registry tokens for authentication to Terragrunt Cache Server.
 * Call `terraform providers lock -platform=cache_provider` before each `terragrunt init`.
-* When Terragurn Cache Server receives a `providers lock` request with the `-platform=cache_provider` arg, it starts caching that provider and returns HTTP status _429 Locked_.
-* Terragrunt waits until the requested providers appear in the cache directory.
-* Terragrunt runs `terragrunt init`, which in turn finds providers in the cache directory and creates symlinks to them.
-
-
-##### What a working directory with cached providers looks like
-
-```
-├── $HOME/.cache/terragrunt
-│   └── providers
-│       └── registry.terraform.io
-│           └── hashicorp
-│               ├── aws
-│               │   └── 5.36.0
-│               │       └── darwin_arm64
-│               │           └── terraform-provider-aws_v5.36.0_x5
-├── app1
-│   ├── .terraform
-│   │   └── providers
-│   │       └── registry.terraform.io
-│   │           └── hashicorp
-│   │               ├── aws
-│   │               │   └── 5.36.0
-│   │               │       └── darwin_arm64 -> $HOME/.cache/terragrunt/providers/registry.terraform.io/hashicorp/aws/5.36.0/darwin
-│   ├── .terraform.lock.hcl
-│   ├── main.tf
-│   └── terragrunt.hcl
-├── app2
-│   ├── .terraform
-│   │   └── providers
-│   │       └── registry.terraform.io
-│   │           └── hashicorp
-│   │               ├── aws
-│   │               │   └── 5.36.0
-│   │               │       └── darwin_arm64 -> $HOME/.cache/terragrunt/providers/registry.terraform.io/hashicorp/aws/5.36.0/darwin
-│   ├── .terraform.lock.hcl
-│   ├── main.tf
-│   └── terragrunt.hcl
-
-```
+* When cache server receives the request `providers lock -platform=cache_provider`, it returns HTTP status _429 Locked_ and starts caching the provider (for any other requests, cache Server acts as a proxy):
+  * Create the lock file by flock to prevent multiple cache servers from creating a cache for the same provider at the same time.
+  * Create symlink if the required provider exists in the user plugins directory, located at %APPDATA%\terraform.d\plugins on Windows and ~/.terraform.d/plugins on other systems. if not, download the provider from the remote registry, unpack and store into the cache directory.
+  * Remove the lock file.
+* Having received the response _429 Locked from the cache server, starts waiting until all providers are cached.
+* Run `terragrunt init`, which in turn finds providers in the cache directory and creates symlinks to them.
