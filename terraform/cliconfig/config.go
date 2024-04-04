@@ -5,7 +5,7 @@ import (
 	"regexp"
 
 	"github.com/genelet/determined/dethcl"
-	"github.com/gruntwork-io/boilerplate/errors"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/hashicorp/terraform/command/cliconfig"
 )
 

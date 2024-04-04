@@ -3,7 +3,7 @@ package cliconfig
 import (
 	"os"
 
-	"github.com/gruntwork-io/boilerplate/errors"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/terraform/command/cliconfig"
 	"github.com/hashicorp/terraform/tfdiags"
