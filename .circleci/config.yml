@@ -134,7 +134,7 @@ jobs:
       - store_test_results:
           path: logs
 
-  integration_test_terraform:
+  integration_test_terraform_1_5:
     resource_class: large
     <<: *defaults
     steps:
@@ -142,6 +142,45 @@ jobs:
       - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.30.0'
       - run:
           <<: *install_tflint
+      # Make GCP Service Account creds available as a file
+      - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
+      - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
+      # Import test / dev key for SOPS
+      - run:
+          command: |
+            gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
+            mkdir -p logs
+            run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
+          no_output_timeout: 30m
+      - run:
+          command: terratest_log_parser --testlog logs/integration.log --outputdir logs
+          when: always
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
+  integration_test_terraform_latest:
+    resource_class: large
+    <<: *defaults
+    steps:
+      - checkout
+      - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.30.0'
+      - run:
+          <<: *install_tflint
+      - run:
+          # Install Terraform which is not available in the default image
+          command: |
+            pushd .
+            cd /tmp
+            export TERRAFORM_VERSION=1.7.5
+            curl -L "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o terraform.zip
+            unzip -o terraform.zip
+            sudo install -m 0755 terraform /usr/local/bin/terraform
+            rm -rf terraform
+            rm -rf terraform.zip
+            popd
+            terraform --version
       # Make GCP Service Account creds available as a file
       - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
       - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
@@ -292,7 +331,15 @@ workflows:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
-      - integration_test_terraform:
+      - integration_test_terraform_1_5:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+      - integration_test_terraform_latest:
           filters:
             tags:
               only: /^v.*/
