@@ -1,0 +1,46 @@
+package cliconfig
+
+import (
+	"os"
+
+	"github.com/gruntwork-io/boilerplate/errors"
+	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/terraform/command/cliconfig"
+	"github.com/hashicorp/terraform/tfdiags"
+)
+
+// The user configuration is read as raw data and stored at the top of the saved configuration file.
+// The location of the default config is different for each OS https://developer.hashicorp.com/terraform/cli/config/config-file#locations
+func LoadUserConfig() (*Config, error) {
+	return loadUserConfig(cliconfig.ConfigFile, cliconfig.LoadConfig)
+}
+
+func loadUserConfig(
+	configFileFn func() (string, error),
+	loadConfigFn func() (*cliconfig.Config, tfdiags.Diagnostics),
+) (*Config, error) {
+	var rawHCL []byte
+
+	configFile, err := configFileFn()
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
+	if util.FileExists(configFile) {
+		rawHCL, err = os.ReadFile(configFile)
+		if err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
+	}
+
+	cfg, diag := loadConfigFn()
+	if diag.HasErrors() {
+		return nil, diag.Err()
+	}
+
+	return &Config{
+		rawHCL:         rawHCL,
+		PluginCacheDir: cfg.PluginCacheDir,
+		Hosts:          make(map[string]*cliconfig.ConfigHost),
+	}, nil
+}

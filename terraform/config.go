@@ -1,6 +1,3 @@
-// Config provides methods to create a terraform [CLI config file](https://developer.hashicorp.com/terraform/cli/config/config-file).
-// The main purpose of which is to create a configuration that forces terraform processes to send requests to our cache server rather than directly to the source registry.
-
 package terraform
 
 import (
@@ -14,18 +11,14 @@ import (
 )
 
 var (
-	configParamNamePluginCacheDirReg = regexp.MustCompile(`(?mi)^.*plugin_cache_dir.*$`)
+	// matches the line starting with `plugin_cache_dir =`
+	configParamPluginCacheDirReg = regexp.MustCompile(`(?mi)^\s*plugin_cache_dir\s*=\s*(.*?)\s*$`)
 )
 
-// ProviderInstallationMethod represents an installation method block inside a provider_installation block.
-type ProviderInstallationMethod struct {
-	Include []string `hcl:"include"`
-	Exclude []string `hcl:"exclude"`
-}
-
-type ProviderInstallationFilesystemMirror struct {
-	Location string `hcl:"path"`
-	*ProviderInstallationMethod
+type Configer interface {
+	// In order to not lose the user default config, the loaded user config will be added at the top of the saved config file.
+	// The location of the default config is different for each OS https://developer.hashicorp.com/terraform/cli/config/config-file#locations
+	LoadConfig() (*Config, error)
 }
 
 func NewProviderInstallationFilesystemMirror(location string, include, exclude []string) *ProviderInstallationFilesystemMirror {
@@ -57,24 +50,59 @@ type ProviderInstallation struct {
 	Direct           *ProviderInstallationDirect           `hcl:"direct"`
 }
 
-type Config struct {
-	*cliconfig.Config `hcl:"-"`
+// ProviderInstallationMethod represents an installation method block inside a provider_installation block.
+type ProviderInstallationMethod struct {
+	Include []string `hcl:"include"`
+	Exclude []string `hcl:"exclude"`
+}
 
+type ProviderInstallationFilesystemMirror struct {
+	Location string `hcl:"path"`
+	*ProviderInstallationMethod
+}
+
+// Config provides methods to create a terraform [CLI config file](https://developer.hashicorp.com/terraform/cli/config/config-file).
+// The main purpose of which is to create a local config that will inherit the default user CLI config and adding new settings that will force Terraform to make requests through a Terragrunt Cache server and use the provider cache directory.
+type Config struct {
+	rawHCL []byte
+
+	PluginCacheDir       string                           `hcl:"plugin_cache_dir"`
 	Hosts                map[string]*cliconfig.ConfigHost `hcl:"host"`
 	ProviderInstallation []*ProviderInstallation          `hcl:"provider_installation"`
 }
 
-// LoadConfig return a new Config instance and loads the default/user terraform CLI config in order to retrieve `PluginCacheDir` value.
+// In order to not lose the user default config, the loaded user config will be added at the top of the saved config file.
 // The location of the default config is different for each OS https://developer.hashicorp.com/terraform/cli/config/config-file#locations
-func LoadConfig() (*Config, error) {
-	defaultCfg, diag := cliconfig.LoadConfig()
+type userConfiger struct{}
+
+// In order to not lose the user default config, the loaded user config will be added at the top of the saved config file.
+// The location of the default config is different for each OS https://developer.hashicorp.com/terraform/cli/config/config-file#locations
+func (*userConfiger) LoadConfig() (*Config, error) {
+	var rawHCL []byte
+
+	configFile, err := cliconfig.ConfigFile()
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
+	if util.FileExists(configFile) {
+		rawHCL, err = os.ReadFile(configFile)
+		if err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
+		// Since there is a `PluginCacheDir` in our Config structure, remove it from the raw HCL config to prevent repetition in the saved configuration file.
+		rawHCL = configParamPluginCacheDirReg.ReplaceAll(rawHCL, []byte{})
+	}
+
+	cfg, diag := cliconfig.LoadConfig()
 	if diag.HasErrors() {
-		return nil, errors.WithStackTrace(diag.Err())
+		return nil, diag.Err()
 	}
 
 	return &Config{
-		Config: defaultCfg,
-		Hosts:  make(map[string]*cliconfig.ConfigHost),
+		rawHCL:         rawHCL,
+		PluginCacheDir: cfg.PluginCacheDir,
+		Hosts:          make(map[string]*cliconfig.ConfigHost),
 	}, nil
 }
 
@@ -113,33 +141,21 @@ func (cfg *Config) AddProviderInstallation(filesystemMethod *ProviderInstallatio
 }
 
 // Save marshalls and saves CLI config with the given config path.
-// In order to not lose user/default settings, if the user/default CLI config file exists, read this config and place at the top our the config file.
 func (cfg *Config) Save(configPath string) error {
-	hclBytes, err := dethcl.Marshal(cfg)
+	newHCL := cfg.rawHCL
+
+	// if `PluginCacheDir` is empty, ensure that it will not be taken from the user/default CLI configuration.
+	if cfg.PluginCacheDir == "" {
+		newHCL = configParamPluginCacheDirReg.ReplaceAll(newHCL, []byte{})
+	}
+
+	currentHCL, err := dethcl.Marshal(cfg)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
+	newHCL = append(newHCL, currentHCL...)
 
-	defaultCLIConfigFile, err := cliconfig.ConfigFile()
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-
-	if util.FileExists(defaultCLIConfigFile) {
-		defaultHCLBytes, err := os.ReadFile(defaultCLIConfigFile)
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
-
-		// if `PluginCacheDir` is empty, ensure that it will not be taken from the user/default CLI configuration.
-		if cfg.PluginCacheDir == "" {
-			defaultHCLBytes = configParamNamePluginCacheDirReg.ReplaceAll(defaultHCLBytes, []byte{})
-		}
-
-		hclBytes = append(defaultHCLBytes, hclBytes...)
-	}
-
-	if err := os.WriteFile(configPath, hclBytes, os.FileMode(0644)); err != nil {
+	if err := os.WriteFile(configPath, newHCL, os.FileMode(0644)); err != nil {
 		return errors.WithStackTrace(err)
 	}
 

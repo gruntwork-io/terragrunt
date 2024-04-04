@@ -20,6 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/terraform/cache"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/controllers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
+	"github.com/gruntwork-io/terragrunt/terraform/cliconfig"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -28,11 +29,13 @@ const (
 	localTerraformCLIFilename = ".terraformrc"
 )
 
-// HTTPStatusCacheProviderReg is regular expression to determine the success result of the command `terraform lock providers -platform=cache provider`.
-// The reg matches if the text contains "423 Locked", for example:
-//
-// - registry.terraform.io/hashicorp/template: could not query provider registry for registry.terraform.io/hashicorp/template: 423 Locked.
-var HTTPStatusCacheProviderReg = regexp.MustCompile(`(?mi)` + strconv.Itoa(controllers.HTTPStatusCacheProvider) + `[^a-z0-9]*` + http.StatusText(controllers.HTTPStatusCacheProvider))
+var (
+	// HTTPStatusCacheProviderReg is regular expression to determine the success result of the command `terraform lock providers -platform=cache provider`.
+	// The reg matches if the text contains "423 Locked", for example:
+	//
+	// - registry.terraform.io/hashicorp/template: could not query provider registry for registry.terraform.io/hashicorp/template: 423 Locked.
+	HTTPStatusCacheProviderReg = regexp.MustCompile(`(?mi)` + strconv.Itoa(controllers.HTTPStatusCacheProvider) + `[^a-z0-9]*` + http.StatusText(controllers.HTTPStatusCacheProvider))
+)
 
 type ProviderCacheServer struct {
 	*cache.Server
@@ -197,7 +200,7 @@ func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile str
 //
 // This func doesn't change the default CLI config file, only creates a new one at the given path `cliConfigFile`. Ultimately, we can assign this path to `TF_CLI_CONFIG_FILE`.
 func createLocalCLIConfig(opts *options.TerragruntOptions, cliConfigFile string, registryProviderURL *url.URL) error {
-	cfg, err := terraform.LoadConfig()
+	cfg, err := cliconfig.LoadUserConfig()
 	if err != nil {
 		return err
 	}
@@ -214,8 +217,8 @@ func createLocalCLIConfig(opts *options.TerragruntOptions, cliConfigFile string,
 	}
 
 	cfg.AddProviderInstallation(
-		terraform.NewProviderInstallationFilesystemMirror(opts.ProviderCacheDir, providerInstallationIncludes, nil),
-		terraform.NewProviderInstallationDirect(providerInstallationIncludes, nil),
+		cliconfig.NewProviderInstallationFilesystemMirror(opts.ProviderCacheDir, providerInstallationIncludes, nil),
+		cliconfig.NewProviderInstallationDirect(providerInstallationIncludes, nil),
 	)
 
 	if cfgDir := filepath.Dir(cliConfigFile); !util.FileExists(cfgDir) {
