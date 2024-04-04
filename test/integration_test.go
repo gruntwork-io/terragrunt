@@ -188,6 +188,7 @@ const (
 	TEST_FIXTURE_ASSUME_ROLE_DURATION                                        = "fixture-assume-role/duration"
 	TEST_FIXTURE_GRAPH                                                       = "fixture-graph"
 	TEST_FIXTURE_SKIP_DEPENDENCIES                                           = "fixture-skip-dependencies"
+	TEST_FIXTURE_INFO_ERROR                                                  = "fixture-terragrunt-info-error"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -6392,6 +6393,26 @@ func TestRenderJsonDependentModulesTerraform(t *testing.T) {
 	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v2"))
 }
 
+func TestRenderJsonDisableDependentModulesTerraform(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DESTROY_WARNING)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "vpc")
+
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-json-disable-dependent-modules --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+
+	jsonBytes, err := os.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	_, found := renderedJson[config.MetadataDependentModules].([]interface{})
+	assert.False(t, found)
+}
+
 func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
 	t.Parallel()
 
@@ -6826,6 +6847,25 @@ func prepareGraphFixture(t *testing.T) string {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
 	assert.NoError(t, err)
 	return tmpEnvPath
+}
+
+func TestTerragruntInfoError(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INFO_ERROR)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INFO_ERROR, "module-b")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	assert.Error(t, err)
+
+	// parse stdout json as TerragruntInfoGroup
+	var output terragruntinfo.TerragruntInfoGroup
+	err = json.Unmarshal(stdout.Bytes(), &output)
+	assert.NoError(t, err)
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {

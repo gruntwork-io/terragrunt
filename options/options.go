@@ -271,6 +271,9 @@ type TerragruntOptions struct {
 	// Root directory for graph command.
 	GraphRoot string
 
+	// Disable listing of dependent modules in render json output
+	JsonDisableDependentModules bool
+
 	// Enables provider cache using the built-in private registry.
 	ProviderCache bool
 
@@ -368,6 +371,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 		TerraformImplementation:        UnknownImpl,
 		JsonLogFormat:                  false,
 		TerraformLogsToJson:            false,
+		JsonDisableDependentModules:    false,
 		RunTerragrunt: func(ctx context.Context, opts *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
@@ -499,6 +503,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		GraphRoot:                      opts.GraphRoot,
 		ScaffoldVars:                   opts.ScaffoldVars,
 		ScaffoldVarFiles:               opts.ScaffoldVarFiles,
+		JsonDisableDependentModules:    opts.JsonDisableDependentModules,
 		ProviderCache:                  opts.ProviderCache,
 		ProviderCacheDir:               opts.ProviderCacheDir,
 		ProviderCacheArchiveDir:        opts.ProviderCacheArchiveDir,
