@@ -41,8 +41,7 @@ By default, cached providers are stored in `terragrunt/providers` folder, which 
 * `$HOME/Library/Caches/terragrunt/providers` on Darwin
 * `%LocalAppData%\terragrunt\providers` on Windows
 
-The file structure of the cache directory is identical to the Terraform [plugin_cache_dir](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache) directory.
-If you already have cached providers by Terraform [plugin_cache_dir](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache) or want to store them in a different directory, you can override this path with your own using the flag [`terragrunt-provider-cache-dir`](https://terragrunt.gruntwork.io/docs /link/cli-options/#terragrunt-provider-cache-dir):
+The file structure of the cache directory is identical to the Terraform [plugin_cache_dir](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache) directory. If you already have a directory with providers cached by Terraform [plugin_cache_dir](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache), you can set this path using the flag [`terragrunt-provider-cache-dir`](https://terragrunt.gruntwork.io/docs /link/cli-options/#terragrunt-provider-cache-dir), to make cache server reuse them.
 
 ``` shell
 terragrunt plan \
@@ -82,7 +81,7 @@ Since Terragrunt Cache is essentially a Private Registry server that accepts req
 * Server Port [`terragrunt-provider-cache-port`](https://terragrunt.gruntwork.io/docs/reference/cli-options/#terragrunt-provider-cache-port), assigned automatically  every time you launch the Terragurnt.
 * Server Token [`terragrunt-provider-cache-token`](https://terragrunt.gruntwork.io/docs/reference/cli-options/#terragrunt-provider-cache-token), generated automatically every time you launch  the Terragurnt.
 
-To enhance security, Terragrunt uses token-based authentication between Terragrunt Cache Server and the Terraform to prevent unauthorized connections from third-party applications. You can set your own token using any text, there are no requirements. For example:
+To enhance security, the cache server has authentication to prevent unauthorized connections from third-party applications. You can set your own token using any character set.
 
 ``` shell
 terragrunt apply \
