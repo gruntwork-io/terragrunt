@@ -88,8 +88,6 @@ func TestConfig(t *testing.T) {
 			}
 			testCase.config.SetProviderInstallation(testCase.filesystemMethod, testCase.directMethod)
 
-			fmt.Println(configFile)
-
 			err = testCase.config.Save(configFile)
 			assert.NoError(t, err)
 

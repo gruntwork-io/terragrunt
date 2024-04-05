@@ -127,8 +127,8 @@ func (server *ProviderCacheServer) TerraformCommandHook(ctx context.Context, opt
 }
 
 func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, args ...string) error {
-	// We use custom writter in order to trap the log from `terraform providers lock -platform=provider-cache` command, which terraform considers an error, but to us a success.
-	errWritter := util.NewTrapWriter(opts.ErrWriter, HTTPStatusCacheProviderReg)
+	// We use custom writer in order to trap the log from `terraform providers lock -platform=provider-cache` command, which terraform considers an error, but to us a success.
+	errWriter := util.NewTrapWriter(opts.ErrWriter, HTTPStatusCacheProviderReg)
 
 	// add -no-color flag if the user specified it in the CLI
 	if util.ListContainsElement(opts.TerraformCliArgs, terraform.FlagNameNoColor) {
@@ -136,12 +136,12 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 	}
 
 	cloneOpts := opts.Clone(opts.TerragruntConfigPath)
-	cloneOpts.ErrWriter = errWritter
+	cloneOpts.ErrWriter = errWriter
 	cloneOpts.WorkingDir = opts.WorkingDir
 	cloneOpts.TerraformCliArgs = args
 
 	// If the Terraform error matches `HTTPStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process the error as is.
-	if err := shell.RunTerraformCommand(ctx, cloneOpts, cloneOpts.TerraformCliArgs...); err != nil && len(errWritter.Msgs()) == 0 {
+	if err := shell.RunTerraformCommand(ctx, cloneOpts, cloneOpts.TerraformCliArgs...); err != nil && len(errWriter.Msgs()) == 0 {
 		return err
 	}
 	return nil

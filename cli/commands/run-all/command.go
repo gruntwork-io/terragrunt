@@ -17,14 +17,6 @@ import (
 
 const (
 	CommandName = "run-all"
-
-	FlagNameTerragruntProviderCache        = "terragrunt-provider-cache"
-	FlagNameTerragruntProviderCacheDir     = "terragrunt-provider-cache-dir"
-	FlagNameTerragruntProviderCompleteLock = "terragrunt-provider-complete-lock"
-	FlagNameTerragruntRegistryHostname     = "terragrunt-registry-hostname"
-	FlagNameTerragruntRegistryPort         = "terragrunt-registry-port"
-	FlagNameTerragruntRegistryToken        = "terragrunt-registry-token"
-	FlagNameTerragruntRegistryNames        = "terragrunt-registry-names"
 )
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
