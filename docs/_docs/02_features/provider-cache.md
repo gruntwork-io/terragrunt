@@ -103,21 +103,27 @@ terragrunt apply
 
 ### How Terragrunt Provider Caching works
 
-##### Description of the step-by-step:
-
 * Run Terragurn Provider Cache server on localhost.
 * Configure Terraform instances to use the cache server as a remote registry:
-  * Create local CLI config file `.terragrunt-cache/.terraformrc` that inherits a default Terraform [CLI config file](https://developer.hashicorp.com/terraform/cli/config/config-file) with additional sections:
-     * [provider-installation](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation) forces first, try to find the required provider in the cache directory and create symlinks to them, otherwise, request it from the remote registry.
-     * [host](https://github.com/hashicorp/terraform/issues/28309) forces to make all requests through the Terragrunt Cache Server, which is somewhat of a proxy.
+  * Create local CLI config file `.terragrunt-cache/.terraformrc` that contains the user configuration from the Terraform [CLI config file](https://developer.hashicorp.com/terraform/cli/config/config-file) with additional sections:
+     * [provider-installation](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation) forces Terraform to look for for the required providers in the cache directory and create symbolic links to them, if not found, then request them from the remote registry.
+     * [host](https://github.com/hashicorp/terraform/issues/28309) forces Terraform to make all provider requests through the cache server.
   * Set environment variables:
-     * [TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE](https://developer.hashicorp.com/terraform/cli/config/config-file#allowing-the-provider-plugin-cache-to-break-the-dependency-lock-file) allows to generate `.terraform.lock.hcl` files based only on providers from the cache directory.
+     * [TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE](https://developer.hashicorp.com/terraform/cli/config/config-file#allowing-the-provider-plugin-cache-to-break-the-dependency-lock-file) allows to generate `.terraform.lock.hcl` files based only on provider hashes from the cache directory.
      * [TF_CLI_CONFIG_FILE](https://developer.hashicorp.com/terraform/cli/config/environment-variables#tf_plugin_cache_dir) sets to use just created local CLI config `.terragrunt-cache/.terraformrc`
-     * [TF_TOKEN_*](https://developer.hashicorp.com/terraform/cli/config/config-file#environment-variable-credentials) sets per-remote-registry tokens for authentication to Terragrunt Cache Server.
-* Call `terraform providers lock -platform=cache_provider` before each `terragrunt init`.
-* When cache server receives the request `providers lock -platform=cache_provider`, it returns HTTP status _429 Locked_ and starts caching the provider (for any other requests, cache Server acts as a proxy):
-  * Create the lock file by flock to prevent multiple cache servers from creating a cache for the same provider at the same time.
-  * Create symlink if the required provider exists in the user plugins directory, located at %APPDATA%\terraform.d\plugins on Windows and ~/.terraform.d/plugins on other systems. if not, download the provider from the remote registry, unpack and store into the cache directory.
-  * Remove the lock file.
-* Having received the response _429 Locked from the cache server, starts waiting until all providers are cached.
+     * [TF_TOKEN_*](https://developer.hashicorp.com/terraform/cli/config/config-file#environment-variable-credentials) sets per-remote-registry tokens for authentication to cache server.
+* Call `terraform providers lock -platform=cache_provider`. When the cache server receives this request, it returns HTTP status _429 Locked_ and starts caching the provider (for any other requests, cache server acts as a proxy):
+  * Create the [lock file](https://en.wikipedia.org/wiki/File_locking) to prevent multiple cache servers from overwriting the same provider cache.
+  * Download the provider from the remote registry, unpack and store into the cache directory or [create a symlink](#Why Cache Server creates symlinks to providers from the user plugins directory) if the required provider exists in the user plugins directory.
+  * Remove the [lock file](https://en.wikipedia.org/wiki/File_locking).
+* Receive the response _429 Locked_ from the cache server, wait until all providers are cached.
+* If the [`terragrunt-provider-cache-complete-lock`](https://terragrunt.gruntwork.io/docs/reference/cli-options/#terragrunt-provider-cache-complete-lock) flag is set, call `terraform providers lock` to generate a complete `.terraform.lock.hcl` file.
 * Run `terragrunt init`, which in turn finds providers in the cache directory and creates symlinks to them.
+
+#### Reusing providers from the user plugins directory
+
+In official registers, some plugins for some operating systems may not exist. Thus, the cache server will not be able to download the requested plugin. A workaround could be to compile the plugin from source code and save it into the user plugins directory:
+* %APPDATA%\terraform.d\plugins on Windows
+* ~/.terraform.d/plugins on other systems
+
+As an example, plugin `template v2.2.0` for `darwin-arm64`, see [Template v2.2.0 does not have a package available - Mac M1](https://discuss.hashicorp.com/t/template-v2-2-0-does-not-have-a-package-available-mac-m1/35099), and the solution for it [https://github.com/kreuzwerker/m1-terraform-provider-helper](https://github.com/kreuzwerker/m1-terraform-provider-helper)
