@@ -21,7 +21,7 @@ type Config struct {
 
 	PluginCacheDir       string                           `hcl:"plugin_cache_dir"`
 	Hosts                map[string]*cliconfig.ConfigHost `hcl:"host"`
-	ProviderInstallation []*ProviderInstallation          `hcl:"provider_installation"`
+	ProviderInstallation *ProviderInstallation            `hcl:"provider_installation"`
 }
 
 // AddHost adds a host (officially undocumented), https://github.com/hashicorp/terraform/issues/28309
@@ -33,12 +33,15 @@ type Config struct {
 //		}
 //	}
 func (cfg *Config) AddHost(name string, services map[string]any) {
+	if cfg.Hosts == nil {
+		cfg.Hosts = make(map[string]*cliconfig.ConfigHost)
+	}
 	cfg.Hosts[name] = &cliconfig.ConfigHost{
 		Services: services,
 	}
 }
 
-// AddProviderInstallation adds an installation method, https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation
+// SetProviderInstallation sets an installation method, https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation
 //
 //	provider_installation {
 //		filesystem_mirror {
@@ -49,25 +52,28 @@ func (cfg *Config) AddHost(name string, services map[string]any) {
 //			exclude = ["example.com/*/*"]
 //		}
 //	}
-func (cfg *Config) AddProviderInstallation(filesystemMethod *ProviderInstallationFilesystemMirror, directMethod *ProviderInstallationDirect) {
+func (cfg *Config) SetProviderInstallation(filesystemMethod *ProviderInstallationFilesystemMirror, directMethod *ProviderInstallationDirect) {
+	if filesystemMethod == nil && directMethod == nil {
+		return
+	}
 	providerInstallation := &ProviderInstallation{
 		FilesystemMirror: filesystemMethod,
 		Direct:           directMethod,
 	}
-	cfg.ProviderInstallation = append(cfg.ProviderInstallation, providerInstallation)
+	cfg.ProviderInstallation = providerInstallation
 }
 
 // Save marshalls and saves CLI config with the given config path.
 func (cfg *Config) Save(configPath string) error {
-	inheritHCL := cfg.rawHCL
-	// Since `Config` structure already has `plugin_cache_dir`, remove it from the raw HCL config to prevent repetition in the saved file.
-	inheritHCL = configParamPluginCacheDirReg.ReplaceAll(inheritHCL, []byte{})
+	rawHCL := cfg.rawHCL
+	// Since `Config` structure already has `plugin_cache_dir`, remove it from the raw HCL config to prevent repeating in the saved file.
+	rawHCL = configParamPluginCacheDirReg.ReplaceAll(rawHCL, []byte{})
 
 	newHCL, err := dethcl.Marshal(cfg)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
-	newHCL = append(inheritHCL, newHCL...)
+	newHCL = append(rawHCL, newHCL...)
 
 	if err := os.WriteFile(configPath, newHCL, os.FileMode(0644)); err != nil {
 		return errors.WithStackTrace(err)

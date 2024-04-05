@@ -41,6 +41,5 @@ func loadUserConfig(
 	return &Config{
 		rawHCL:         rawHCL,
 		PluginCacheDir: cfg.PluginCacheDir,
-		Hosts:          make(map[string]*cliconfig.ConfigHost),
 	}, nil
 }

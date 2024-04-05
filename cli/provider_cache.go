@@ -216,7 +216,7 @@ func createLocalCLIConfig(opts *options.TerragruntOptions, cliConfigFile string,
 		providerInstallationIncludes[i] = fmt.Sprintf("%s/*/*", registryName)
 	}
 
-	cfg.AddProviderInstallation(
+	cfg.SetProviderInstallation(
 		cliconfig.NewProviderInstallationFilesystemMirror(opts.ProviderCacheDir, providerInstallationIncludes, nil),
 		cliconfig.NewProviderInstallationDirect(providerInstallationIncludes, nil),
 	)
