@@ -186,6 +186,7 @@ const (
 	TEST_FIXTURE_ASSUME_ROLE_DURATION                                        = "fixture-assume-role/duration"
 	TEST_FIXTURE_GRAPH                                                       = "fixture-graph"
 	TEST_FIXTURE_SKIP_DEPENDENCIES                                           = "fixture-skip-dependencies"
+	TEST_FIXTURE_INFO_ERROR                                                  = "fixture-terragrunt-info-error"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -6158,6 +6159,7 @@ func TestTerragruntPrintAwsErrors(t *testing.T) {
 	assert.Error(t, err)
 	message := fmt.Sprintf("%v", err.Error())
 	assert.True(t, strings.Contains(message, "AllAccessDisabled: All access to this object has been disabled") || strings.Contains(message, "BucketRegionError: incorrect region"))
+	assert.Contains(t, message, s3BucketName)
 }
 
 func TestTerragruntErrorWhenStateBucketIsInDifferentRegion(t *testing.T) {
@@ -6309,6 +6311,26 @@ func TestRenderJsonDependentModulesTerraform(t *testing.T) {
 	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v2"))
 }
 
+func TestRenderJsonDisableDependentModulesTerraform(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DESTROY_WARNING)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "vpc")
+
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-json-disable-dependent-modules --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+
+	jsonBytes, err := os.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	_, found := renderedJson[config.MetadataDependentModules].([]interface{})
+	assert.False(t, found)
+}
+
 func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
 	t.Parallel()
 
@@ -6377,6 +6399,10 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 
 func TestTerragruntInvokeTerraformTests(t *testing.T) {
 	t.Parallel()
+	if isTerraform() {
+		t.Skip("Not compatible with Terraform 1.5.x")
+		return
+	}
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_TF_TEST)
 	cleanupTerraformFolder(t, tmpEnvPath)
@@ -6672,6 +6698,10 @@ func TestTerragruntSkipDependenciesWithSkipFlag(t *testing.T) {
 
 func TestTerragruntAssumeRoleDuration(t *testing.T) {
 	t.Parallel()
+	if isTerraform() {
+		t.Skip("New assume role duration config not supported by Terraform 1.5.x")
+		return
+	}
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_ASSUME_ROLE_DURATION)
 	cleanupTerraformFolder(t, tmpEnvPath)
@@ -6727,6 +6757,25 @@ func prepareGraphFixture(t *testing.T) string {
 	return tmpEnvPath
 }
 
+func TestTerragruntInfoError(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INFO_ERROR)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INFO_ERROR, "module-b")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	assert.Error(t, err)
+
+	// parse stdout json as TerragruntInfoGroup
+	var output terragruntinfo.TerragruntInfoGroup
+	err = json.Unmarshal(stdout.Bytes(), &output)
+	assert.NoError(t, err)
+}
+
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
 	t.Helper()
 	output, hasPlatform := outputs[key]
@@ -6745,4 +6794,8 @@ func wrappedBinary() string {
 		return TOFU_BINARY
 	}
 	return value
+}
+
+func isTerraform() bool {
+	return wrappedBinary() == TERRAFORM_BINARY
 }

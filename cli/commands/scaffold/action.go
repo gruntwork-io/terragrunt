@@ -35,7 +35,7 @@ const (
 	// refParam - ?ref param from url
 	refParam = "ref"
 
-	moduleUrlPattern = `git::([^:]+)://([^/]+)(/.*)`
+	moduleUrlPattern = `(?:git|hg|s3|gcs)::([^:]+)://([^/]+)(/.*)`
 	moduleUrlParts   = 4
 
 	defaultBoilerplateConfig = `
