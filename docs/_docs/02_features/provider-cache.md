@@ -105,9 +105,9 @@ terragrunt apply
 
 * Run Terragurn Provider Cache server on localhost.
 * Configure Terraform instances to use the cache server as a remote registry:
-  * Create local CLI config file `.terragrunt-cache/.terraformrc` that contains the user configuration from the Terraform [CLI config file](https://developer.hashicorp.com/terraform/cli/config/config-file) with additional sections:
+  * Create local CLI config file `.terragrunt-cache/.terraformrc` that concatenates the user configuration from the Terraform [CLI config file](https://developer.hashicorp.com/terraform/cli/config/config-file) with additional sections:
      * [provider-installation](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation) forces Terraform to look for for the required providers in the cache directory and create symbolic links to them, if not found, then request them from the remote registry.
-     * [host](https://github.com/hashicorp/terraform/issues/28309) forces Terraform to make all provider requests through the cache server.
+     * [host](https://github.com/hashicorp/terraform/issues/28309) forces Terraform to [forward](#How forwarding Terraform requests through the cache server works) all provider requests through the cache server.
   * Set environment variables:
      * [TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE](https://developer.hashicorp.com/terraform/cli/config/config-file#allowing-the-provider-plugin-cache-to-break-the-dependency-lock-file) allows to generate `.terraform.lock.hcl` files based only on provider hashes from the cache directory.
      * [TF_CLI_CONFIG_FILE](https://developer.hashicorp.com/terraform/cli/config/environment-variables#tf_plugin_cache_dir) sets to use just created local CLI config `.terragrunt-cache/.terraformrc`
@@ -127,3 +127,7 @@ In official registers, some plugins for some operating systems may not exist. Th
 * ~/.terraform.d/plugins on other systems
 
 As an example, plugin `template v2.2.0` for `darwin-arm64`, see [Template v2.2.0 does not have a package available - Mac M1](https://discuss.hashicorp.com/t/template-v2-2-0-does-not-have-a-package-available-mac-m1/35099), and the solution for it [https://github.com/kreuzwerker/m1-terraform-provider-helper](https://github.com/kreuzwerker/m1-terraform-provider-helper)
+
+#### How forwarding Terraform requests through the cache server works
+
+Terraform has the official documented setting [network_mirror](https://developer.hashicorp.com/terraform/cli/config/config-file#network_mirror), that works great, but has one significant drawback for the local cache server - the need to use https connections with a trusted certificate. Luckily, there is another way - using the undocumented setting [host](https://github.com/hashicorp/terraform/issues/28309).
