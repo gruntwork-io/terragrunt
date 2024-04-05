@@ -40,7 +40,7 @@ The officially supported versions are:
 **Note 1:** Terragrunt lists support for BSL versions of Terraform (>= 1.6.x) and core IaC functionality will work as expected.
 However, support for BSL Terraform-specific features is not guaranteed even if that version is in this table.
 
-**Note 2:** these are the versions that are officially tested in the CI process. In practice, the version
+**Note 2:** This table lists versions that are officially tested in the CI process. In practice, the version
 compatibility is more relaxed than documented above. For example, we've found that Terraform 0.13 works with any version
 above 0.19.0, and we've also found that terraform 0.11 works with any version above 0.19.18 as well.
 
