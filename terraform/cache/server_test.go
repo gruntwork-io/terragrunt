@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
@@ -136,6 +137,8 @@ func TestServer(t *testing.T) {
 				require.NoError(t, err)
 				assert.Regexp(t, testCase.expectedBodyReg, string(body))
 			}
+
+			time.Sleep(time.Second)
 
 			server.Provider.WaitForCacheReady()
 
