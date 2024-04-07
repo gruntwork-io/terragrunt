@@ -2,6 +2,7 @@ package cliconfig
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -42,4 +43,13 @@ func loadUserConfig(
 		rawHCL:         rawHCL,
 		PluginCacheDir: cfg.PluginCacheDir,
 	}, nil
+}
+
+func UserProviderDir() (string, error) {
+	configDir, err := cliconfig.ConfigDir()
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	return filepath.Join(configDir, "plugins"), nil
 }

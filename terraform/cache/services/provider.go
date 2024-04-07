@@ -16,7 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-getter/v2"
 	"github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/terraform/command/cliconfig"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
@@ -58,8 +57,8 @@ func (cache *ProviderCache) providerDir() string {
 	return filepath.Join(cache.baseCacheDir, cache.Provider.Path(), cache.Platform())
 }
 
-func (cache *ProviderCache) pluginProviderDir() string {
-	return filepath.Join(cache.terraformPluginDir, cache.Provider.Path(), cache.Platform())
+func (cache *ProviderCache) userProviderDir() string {
+	return filepath.Join(cache.baseUserProviderDir, cache.Provider.Path(), cache.Platform())
 }
 
 func (cache *ProviderCache) lockFilename() string {
@@ -82,7 +81,7 @@ func (cache *ProviderCache) ArchiveFilename() string {
 // 2. Downloads the provider from the original registry, unpacks and saves it into the cache directory.
 func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	var (
-		pluginProviderDir = cache.pluginProviderDir()
+		userProviderDir   = cache.userProviderDir()
 		providerDir       = cache.providerDir()
 		downloadURL       = cache.downloadURL()
 		archiveFilename   = cache.ArchiveFilename()
@@ -96,9 +95,9 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if !util.FileExists(providerDir) {
-		if util.FileExists(pluginProviderDir) {
-			log.Debugf("Create symlink file %s to %s", providerDir, pluginProviderDir)
-			if err := os.Symlink(pluginProviderDir, providerDir); err != nil {
+		if util.FileExists(userProviderDir) {
+			log.Debugf("Create symlink file %s to %s", providerDir, userProviderDir)
+			if err := os.Symlink(userProviderDir, providerDir); err != nil {
 				return errors.WithStackTrace(err)
 			}
 			unpackedCached = true
@@ -169,6 +168,9 @@ type ProviderService struct {
 	// The path to store archive providers that are retrieved from the source registry and cached to reduce traffic.
 	baseArchiveDir string
 
+	// the user plugins directory, by default: %APPDATA%\terraform.d\plugins on Windows, ~/.terraform.d/plugins on other systems.
+	baseUserProviderDir string
+
 	providerCaches        ProviderCaches
 	providerCacheWarmUpCh chan *ProviderCache
 
@@ -176,14 +178,14 @@ type ProviderService struct {
 	cacheReadyMu sync.RWMutex
 
 	// If needCacheArchives is true, ensures that not only the unarchived binary is cached, but also its archive. We need acrhives in order to reduce the bandwidth, because `terraform lock provider` always loads providers from a remote registry to create a lock file rather than using a cached one. This is only used when opts.ProviderCompleteLock is true.
-	needCacheArchives  bool
-	terraformPluginDir string
+	needCacheArchives bool
 }
 
-func NewProviderService(baseCacheDir, baseArchiveDir string, needCacheArchives bool) *ProviderService {
+func NewProviderService(baseCacheDir, baseArchiveDir, baseUserProviderDir string, needCacheArchives bool) *ProviderService {
 	return &ProviderService{
 		baseCacheDir:          baseCacheDir,
 		baseArchiveDir:        baseArchiveDir,
+		baseUserProviderDir:   baseUserProviderDir,
 		providerCacheWarmUpCh: make(chan *ProviderCache),
 		needCacheArchives:     needCacheArchives,
 	}
@@ -252,12 +254,6 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 	if err := os.MkdirAll(service.baseArchiveDir, os.ModePerm); err != nil {
 		return errors.WithStackTrace(err)
 	}
-
-	configDir, err := cliconfig.ConfigDir()
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-	service.terraformPluginDir = filepath.Join(configDir, "plugins")
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 	for {

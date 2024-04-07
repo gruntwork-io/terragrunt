@@ -66,10 +66,16 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCacheSer
 		opts.ProviderCacheToken = fmt.Sprintf("%s:%s", handlers.AuthorizationApiKeyHeaderName, opts.ProviderCacheToken)
 	}
 
+	userProviderDir, err := cliconfig.UserProviderDir()
+	if err != nil {
+		return nil, err
+	}
+
 	server := cache.NewServer(
 		cache.WithHostname(opts.ProviderCacheHostname),
 		cache.WithPort(opts.ProviderCachePort),
 		cache.WithToken(opts.ProviderCacheToken),
+		cache.WithUserProviderDir(userProviderDir),
 		cache.WithProviderCacheDir(opts.ProviderCacheDir),
 		cache.WithProviderArchiveDir(opts.ProviderCacheArchiveDir),
 		cache.WithProviderCompleteLock(opts.ProviderCacheCompleteLock),

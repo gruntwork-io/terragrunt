@@ -29,9 +29,6 @@ func TestConfig(t *testing.T) {
 				"registry.terraform.io": map[string]any{
 					"providers.v1": "http://localhost:5758/v1/providers/registry.terraform.io/",
 				},
-				"registry.opentofu.org": map[string]any{
-					"providers.v1": "http://localhost:5758/v1/providers/registry.opentofu.org/",
-				},
 			},
 			config: &Config{
 				rawHCL: []byte(`
@@ -43,11 +40,6 @@ func TestConfig(t *testing.T) {
   host "registry.terraform.io" {
     services  = {
       providers.v1 = "http://localhost:5758/v1/providers/registry.terraform.io/"
-    }
-  }
-  host "registry.opentofu.org" {
-    services  = {
-      providers.v1 = "http://localhost:5758/v1/providers/registry.opentofu.org/"
     }
   }
   provider_installation {
