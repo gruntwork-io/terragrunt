@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -626,13 +625,10 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, terragruntOptions *optio
 	var pathsToCheck []string
 	var matchedModulesMap = make(map[string]*TerraformModule)
 
-	gitTopLevelDir, err := shell.GitTopLevelDir(ctx, terragruntOptions, terragruntOptions.WorkingDir)
-	useIncludes := err != nil // fallback to includes git top level directory detection failed
-	if err == nil {
-		pathsToCheck, err = buildDirList(terragruntOptions, gitTopLevelDir)
-		useIncludes = err != nil // fallback to includes if directory list building failed
-	}
-	if useIncludes { // detection failed, trying to use include directories as source for stacks
+	if gitTopLevelDir, err := shell.GitTopLevelDir(ctx, terragruntOptions, terragruntOptions.WorkingDir); err == nil {
+		pathsToCheck = append(pathsToCheck, gitTopLevelDir)
+	} else {
+		// detection failed, trying to use include directories as source for stacks
 		uniquePaths := make(map[string]bool)
 		for _, includePath := range terragruntConfig.ProcessedIncludes {
 			uniquePaths[filepath.Dir(includePath.Path)] = true
@@ -730,24 +726,6 @@ func (formatter *LogEntriesDropperFormatter) Format(entry *logrus.Entry) ([]byte
 		return formatter.OriginalFormatter.Format(entry)
 	}
 	return []byte(""), nil
-}
-
-// buildDirList - build list of directories from working directory to git top level directory
-func buildDirList(terragruntOptions *options.TerragruntOptions, topLevelDir string) ([]string, error) {
-	var pathsToCheck []string
-	relativePath, err := util.GetPathRelativeTo(topLevelDir, terragruntOptions.WorkingDir)
-	if err != nil {
-		return pathsToCheck, err
-	}
-	// build list of directories from working directory to git top level directory
-	// from which later will be built stacks
-	pathToAdd := terragruntOptions.WorkingDir
-	splits := strings.Split(relativePath, string(os.PathSeparator))
-	for _, path := range splits {
-		pathToAdd = filepath.Join(pathToAdd, path)
-		pathsToCheck = append(pathsToCheck, pathToAdd)
-	}
-	return pathsToCheck, nil
 }
 
 // ListStackDependentModules - build a map with each module and its dependent modules

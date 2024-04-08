@@ -417,7 +417,12 @@ func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3, terragruntOpt
 	}
 
 	if !config.Encrypt {
-		terragruntOptions.Logger.Warnf("Encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!", config.Bucket)
+		msg := fmt.Sprintf("Encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!", config.Bucket)
+		if extendedConfig.SkipBucketSSEncryption {
+			terragruntOptions.Logger.Debug(msg)
+		} else {
+			terragruntOptions.Logger.Warn(msg)
+		}
 	}
 
 	return nil
