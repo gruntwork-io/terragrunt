@@ -293,8 +293,6 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 			}
 
 			for _, cache := range service.providerCaches {
-				close(cache.started)
-
 				if err := cache.removeArchive(); err != nil && !goerrors.Is(err, context.Canceled) {
 					merr = multierror.Append(merr, errors.WithStackTrace(err))
 				}
