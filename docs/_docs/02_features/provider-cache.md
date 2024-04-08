@@ -121,12 +121,12 @@ terragrunt apply
 
 #### Reusing providers from the user plugins directory
 
-In official registers, some plugins for some operating systems may not exist. Thus, the cache server will not be able to download the requested plugin. A workaround could be to compile the plugin from source code and save it into the user plugins directory:
+Some plugins for some operating systems may not be available in the remote registries. Thus, the cache server will not be able to download the requested provider. As an example, plugin `template v2.2.0` for `darwin-arm64`, see [Template v2.2.0 does not have a package available - Mac M1](https://discuss.hashicorp.com/t/template-v2-2-0-does-not-have-a-package-available-mac-m1/35099). The workaround is to compile the plugin from source code and put it into the user plugins directory or use the automated solution [https://github.com/kreuzwerker/m1-terraform-provider-helper](https://github.com/kreuzwerker/m1-terraform-provider-helper). For this reason, the cache server first tries to create a symlink from the user's plugin directory if the required provider already exists there:
+
 * %APPDATA%\terraform.d\plugins on Windows
 * ~/.terraform.d/plugins on other systems
 
-As an example, plugin `template v2.2.0` for `darwin-arm64`, see [Template v2.2.0 does not have a package available - Mac M1](https://discuss.hashicorp.com/t/template-v2-2-0-does-not-have-a-package-available-mac-m1/35099), and the solution for it [https://github.com/kreuzwerker/m1-terraform-provider-helper](https://github.com/kreuzwerker/m1-terraform-provider-helper)
 
 #### How forwarding Terraform requests through the cache server works
 
-Terraform has the official documented setting [network_mirror](https://developer.hashicorp.com/terraform/cli/config/config-file#network_mirror), that works great, but has one significant drawback for the local cache server - the need to use https connections with a trusted certificate. Luckily, there is another way - using the undocumented setting [host](https://github.com/hashicorp/terraform/issues/28309).
+Terraform has an official documented setting [network_mirror](https://developer.hashicorp.com/terraform/cli/config/config-file#network_mirror), that works great, but has one major drawback for the local cache server - the need to use https connection with a trusted certificate. Fortunately, there is another way - using the undocumented [host](https://github.com/hashicorp/terraform/issues/28309) setting, which allows Terraform to create connections to the caching server over HTTP.
