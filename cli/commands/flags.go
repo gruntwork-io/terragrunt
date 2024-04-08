@@ -43,21 +43,21 @@ const (
 	TerragruntDisableBucketUpdateFlagName            = "terragrunt-disable-bucket-update"
 	TerragruntDisableCommandValidationFlagName       = "terragrunt-disable-command-validation"
 
-	// provider cache flags/envs
-	TerragruntProviderCacheFlagName                = "terragrunt-provider-cache"
-	TerragruntProviderCacheEnvVarName              = "TERRAGRUNT_PROVIDER_CACHE"
-	TerragruntProviderCacheDirFlagName             = "terragrunt-provider-cache-dir"
-	TerragruntProviderCacheDirEnvVarName           = "TERRAGRUNT_PROVIDER_CACHE_DIR"
-	TerragruntProviderCompleteLockFlagName         = "terragrunt-provider-cache-complete-lock"
-	TerragruntProviderCacheCompleteLockEnvVarName  = "TERRAGRUNT_PROVIDER_CACHE_COMPLETE_LOCK"
-	TerragruntProviderCacheHostnameFlagName        = "terragrunt-provider-cache-hostname"
-	TerragruntProviderCacheHostnameEnvVarName      = "TERRAGRUNT_PROVIDER_CACHE_HOSTNAME"
-	TerragruntProviderCachePortFlagName            = "terragrunt-provider-cache-port"
-	TerragruntProviderCachePortEnvVarName          = "TERRAGRUNT_PROVIDER_CACHE_PORT"
-	TerragruntProviderCacheTokenFlagName           = "terragrunt-provider-cache-token"
-	TerragruntProviderCacheTokenEnvVarName         = "TERRAGRUNT_PROVIDER_CACHE_TOKEN"
-	TerragruntProviderCacheRegistryNamesFlagName   = "terragrunt-provider-cache-registry-names"
-	TerragruntProviderCacheRegistryNamesEnvVarName = "TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES"
+	// Terragrunt Provider Cache flags/envs
+	TerragruntProviderCacheFlagName                         = "terragrunt-provider-cache"
+	TerragruntProviderCacheEnvVarName                       = "TERRAGRUNT_PROVIDER_CACHE"
+	TerragruntProviderCacheDirFlagName                      = "terragrunt-provider-cache-dir"
+	TerragruntProviderCacheDirEnvVarName                    = "TERRAGRUNT_PROVIDER_CACHE_DIR"
+	TerragruntProviderCacheDisablePartialLockFileFlagName   = "terragrunt-provider-cache-disable-partial-lock-file"
+	TerragruntProviderCacheDisablePartialLockFileEnvVarName = "TERRAGRUNT_PROVIDER_CACHE_DISABLE_PARTIAL_LOCK_FILE"
+	TerragruntProviderCacheHostnameFlagName                 = "terragrunt-provider-cache-hostname"
+	TerragruntProviderCacheHostnameEnvVarName               = "TERRAGRUNT_PROVIDER_CACHE_HOSTNAME"
+	TerragruntProviderCachePortFlagName                     = "terragrunt-provider-cache-port"
+	TerragruntProviderCachePortEnvVarName                   = "TERRAGRUNT_PROVIDER_CACHE_PORT"
+	TerragruntProviderCacheTokenFlagName                    = "terragrunt-provider-cache-token"
+	TerragruntProviderCacheTokenEnvVarName                  = "TERRAGRUNT_PROVIDER_CACHE_TOKEN"
+	TerragruntProviderCacheRegistryNamesFlagName            = "terragrunt-provider-cache-registry-names"
+	TerragruntProviderCacheRegistryNamesEnvVarName          = "TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES"
 
 	HelpFlagName    = "help"
 	VersionFlagName = "version"
@@ -268,48 +268,48 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      "TERRAGRUNT_DISABLE_COMMAND_VALIDATION",
 			Usage:       "When this flag is set, Terragrunt will not validate the terraform command.",
 		},
-		// provider cache flags
+		// Terragrunt Provider Cache flags
 		&cli.BoolFlag{
 			Name:        TerragruntProviderCacheFlagName,
 			Destination: &opts.ProviderCache,
 			EnvVar:      TerragruntProviderCacheEnvVarName,
-			Usage:       "Enables provider caching.",
+			Usage:       "Enables Terragrunt's provider caching.",
 		},
 		&cli.GenericFlag[string]{
 			Name:        TerragruntProviderCacheDirFlagName,
 			Destination: &opts.ProviderCacheDir,
 			EnvVar:      TerragruntProviderCacheDirEnvVarName,
-			Usage:       "The path to the cache directory. By default, 'terragrunt/providers' folder in the user cache directory.",
+			Usage:       "The path to the Terragrunt provider cache directory. By default, 'terragrunt/providers' folder in the user cache directory.",
 		},
 		&cli.BoolFlag{
-			Name:        TerragruntProviderCompleteLockFlagName,
-			Destination: &opts.ProviderCacheCompleteLock,
-			EnvVar:      TerragruntProviderCacheCompleteLockEnvVarName,
-			Usage:       "Disables terraform 'plugin_cache_may_break_dependency_lock_file' feature.",
+			Name:        TerragruntProviderCacheDisablePartialLockFileFlagName,
+			Destination: &opts.ProviderCacheDisablePartialLockFile,
+			EnvVar:      TerragruntProviderCacheDisablePartialLockFileEnvVarName,
+			Usage:       "Don't use 'plugin_cache_may_break_dependency_lock_file' with Terragrunt provider caching. Provider downloads for modules without lock files will be much slower.",
 		},
 		&cli.GenericFlag[string]{
 			Name:        TerragruntProviderCacheTokenFlagName,
 			Destination: &opts.ProviderCacheToken,
 			EnvVar:      TerragruntProviderCacheTokenEnvVarName,
-			Usage:       "The Token for authentication on the built-in Terragrunt Cache server. By default, assigned automatically.",
+			Usage:       "The Token for authentication to the Terragrunt Provider Cache server. By default, assigned automatically.",
 		},
 		&cli.GenericFlag[string]{
 			Name:        TerragruntProviderCacheHostnameFlagName,
 			Destination: &opts.ProviderCacheHostname,
 			EnvVar:      TerragruntProviderCacheHostnameEnvVarName,
-			Usage:       "The hostname of the built-in Terragrunt Cache server. By default, 'localhost'.",
+			Usage:       "The hostname of the Terragrunt Provider Cache server. By default, 'localhost'.",
 		},
 		&cli.GenericFlag[int]{
 			Name:        TerragruntProviderCachePortFlagName,
 			Destination: &opts.ProviderCachePort,
 			EnvVar:      TerragruntProviderCachePortEnvVarName,
-			Usage:       "The port of the built-in Terragrunt Cache server. By default, assigned automatically.",
+			Usage:       "The port of the Terragrunt Provider Cache server. By default, assigned automatically.",
 		},
 		&cli.SliceFlag[string]{
 			Name:        TerragruntProviderCacheRegistryNamesFlagName,
 			Destination: &opts.ProviderCacheRegistryNames,
 			EnvVar:      TerragruntProviderCacheRegistryNamesEnvVarName,
-			Usage:       "The list of remote registries to cached by Terragrunt Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'.",
+			Usage:       "The list of remote registries to cached by Terragrunt Provider Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'.",
 		},
 	}
 

@@ -78,7 +78,7 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCacheSer
 		cache.WithUserProviderDir(userProviderDir),
 		cache.WithProviderCacheDir(opts.ProviderCacheDir),
 		cache.WithProviderArchiveDir(opts.ProviderCacheArchiveDir),
-		cache.WithProviderCompleteLock(opts.ProviderCacheCompleteLock),
+		cache.WithDisablePartialLockFile(opts.ProviderCacheDisablePartialLockFile),
 	)
 
 	// We need to start listening earlier (not during web server startup) in order to determine/reserve a free port, which we then use in the CLI config file.
@@ -119,7 +119,7 @@ func (server *ProviderCacheServer) TerraformCommandHook(ctx context.Context, opt
 	}
 	server.Provider.WaitForCacheReady()
 
-	if opts.ProviderCacheCompleteLock && !util.FileExists(filepath.Join(opts.WorkingDir, terraform.TerraformLockFile)) {
+	if opts.ProviderCacheDisablePartialLockFile && !util.FileExists(filepath.Join(opts.WorkingDir, terraform.TerraformLockFile)) {
 		log.Debugf("Generating Terraform lock file for %q", opts.WorkingDir)
 		// Create complete terraform lock files. By default this feature is disabled, since it's not superfast.
 		// Instead we use Terraform `TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE` feature, that creates hashes from the local cache.
@@ -164,7 +164,7 @@ func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile str
 		envs[envName] = opts.ProviderCacheToken
 	}
 
-	if !opts.ProviderCacheCompleteLock {
+	if !opts.ProviderCacheDisablePartialLockFile {
 		// By using `TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE` we force terraform to generate `.terraform.lock.hcl` only based on cached files, otherwise it downloads three files (provider zip archive, SHA256SUMS, sig) from the original registry to calculate hashes.
 		// https://developer.hashicorp.com/terraform/cli/config/config-file#allowing-the-provider-plugin-cache-to-break-the-dependency-lock-file
 		envs[terraform.EnvNameTFPluginCacheMayBreakDependencyLockFile] = "1"
@@ -181,7 +181,7 @@ func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile str
 }
 
 // createLocalCLIConfig creates a local CLI configuration that merges the default/user configuration with our Private Registry configuration.
-// We don't want to use Terraform's `plugin_cache_dir` feature because the cache is populated by our built-in private registry, and to make sure that no Terraform process ever overwrites the global cache, we clear this value.
+// We don't want to use Terraform's `plugin_cache_dir` feature because the cache is populated by our Terragrunt Provider Cache server, and to make sure that no Terraform process ever overwrites the global cache, we clear this value.
 // In order to force Terraform to queries our registry instead of the original one, we use the section below.
 // https://github.com/hashicorp/terraform/issues/28309 (officially undocumented)
 //

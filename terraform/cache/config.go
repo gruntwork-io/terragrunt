@@ -59,9 +59,9 @@ func WithUserProviderDir(userProviderDir string) Option {
 	}
 }
 
-func WithProviderCompleteLock(completeLock bool) Option {
+func WithDisablePartialLockFile(completeLock bool) Option {
 	return func(cfg Config) Config {
-		cfg.providerCompleteLock = completeLock
+		cfg.disablePartialLockFile = completeLock
 		return cfg
 	}
 }
@@ -72,10 +72,10 @@ type Config struct {
 	token           string
 	shutdownTimeout time.Duration
 
-	userProviderDir      string
-	providerCacheDir     string
-	providerArchiveDir   string
-	providerCompleteLock bool
+	userProviderDir        string
+	providerCacheDir       string
+	providerArchiveDir     string
+	disablePartialLockFile bool
 }
 
 func NewConfig(opts ...Option) *Config {

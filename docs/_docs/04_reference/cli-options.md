@@ -1165,7 +1165,7 @@ When this flag is set, Terragrunt will wrap Terraform `stdout` and `stderr` in J
 **Commands**:
 - [run-all](#run-all)
 
-Enables provider caching. This forces Terraform to make provider requests through the built-in Provider Cache server.
+Enables Terragrunt's provider caching. This forces Terraform to make provider requests through the Terragrunt Provider Cache server. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
 
 ### terragrunt-provider-cache-dir
 
@@ -1174,16 +1174,16 @@ Enables provider caching. This forces Terraform to make provider requests throug
 **Commands**:
 - [run-all](#run-all)
 
-The path to the cache directory. By default, `terragrunt/providers` folder in the user cache directory: `$HOME/.cache` on Unix systems, `$HOME/Library/Caches` on Darwin, `%LocalAppData%` on Windows. The file structure of the cache directory is identical to the Terraform [plugin_cache_dir](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache) directory.
+The path to the Terragrunt provider cache directory. By default, `terragrunt/providers` folder in the user cache directory: `$HOME/.cache` on Unix systems, `$HOME/Library/Caches` on Darwin, `%LocalAppData%` on Windows. The file structure of the cache directory is identical to the Terraform [plugin_cache_dir](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache) directory. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
 
-### terragrunt-provider-cache-complete-lock
+### terragrunt-provider-cache-disable-partial-lock-file
 
-**CLI Arg**: `--terragrunt-provider-cache-complete-lock`
-**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_COMPLETE_LOCK`
+**CLI Arg**: `--terragrunt-provider-cache-disable-partial-lock-file`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_DISABLE_PARTIAL_LOCK_FILE`
 **Commands**:
 - [run-all](#run-all)
 
-Disables Terraform [_plugin_cache_may_break_dependency_lock_file_](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation) feature. When this feature is enabled, Terraform generates `.terraform.lock.hcl` files based on the files in the cache directory. If the flag is set Terragrunt disable this feature and before each `init` command runs `terraform providers lock` to generate complete `.terraform.lock.hcl`, which in turn downloads providers from the original registry, which is not fast.
+By default, Terraform does _not_ use the cache for modules without a lock file. This results in lots of extra provider downloading. To work around this, for modules without a lock file, Terragurnt provider caching enables the [_plugin_cache_may_break_dependency_lock_file_](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation) feature, which allows Terraform to generate a partial lock file if it finds the providers it needs in the cache. This avoids lots of unnecessary provider downloads, but results in partial lock files. If you wish to disable this feature, set this flag flag, and Terragrunt will run `terraform providers lock` before `init` for modules without lock files, which will generate a complete lock file, but at the cost of more provider downloads. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
 
 ### terragrunt-provider-cache-hostname
 
@@ -1192,7 +1192,7 @@ Disables Terraform [_plugin_cache_may_break_dependency_lock_file_](https://devel
 **Commands**:
 - [run-all](#run-all)
 
-The hostname of the built-in Terragrunt Cache server. By default, 'localhost'.
+The hostname of the Terragrunt Provider Cache server. By default, 'localhost'. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
 
 ### terragrunt-provider-cache-port
 
@@ -1201,7 +1201,7 @@ The hostname of the built-in Terragrunt Cache server. By default, 'localhost'.
 **Commands**:
 - [run-all](#run-all)
 
-The port of the built-in Terragrunt Cache server. By default, assigned automatically.
+The port of the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
 
 ### terragrunt-provider-cache-token
 
@@ -1210,7 +1210,7 @@ The port of the built-in Terragrunt Cache server. By default, assigned automatic
 **Commands**:
 - [run-all](#run-all)
 
-The Token for authentication on the built-in Terragrunt Cache server. By default, assigned automatically.
+The Token for authentication on the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
 
 ### terragrunt-provider-cache-registry-names
 
@@ -1219,4 +1219,4 @@ The Token for authentication on the built-in Terragrunt Cache server. By default
 **Commands**:
 - [run-all](#run-all)
 
-The list of remote registries to cached by Terragrunt Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'.
+The list of remote registries to cached by Terragrunt Provider Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
