@@ -49,8 +49,9 @@ type ProviderCache struct {
 	*ProviderService
 	*models.Provider
 
-	archiveCached bool
-	ready         bool
+	startingCached chan struct{}
+	archiveCached  bool
+	ready          bool
 }
 
 func (cache *ProviderCache) providerDir() string {
@@ -209,12 +210,15 @@ func (service *ProviderService) CacheProvider(ctx context.Context, provider *mod
 	cache := &ProviderCache{
 		ProviderService: service,
 		Provider:        provider,
+		startingCached:  make(chan struct{}, 1),
 	}
 	service.providerCaches = append(service.providerCaches, cache)
 
 	select {
 	case <-ctx.Done():
 	case service.providerCacheWarmUpCh <- cache:
+		// We need to wait for caching to start and only then release the client (Terraform) request. Otherwise, the client may call `WaitForCacheReady()` faster than `service.ReadyMuReady` will be lock.
+		<-cache.startingCached
 	}
 }
 
@@ -262,6 +266,8 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 			errGroup.Go(func() error {
 				service.cacheReadyMu.RLock()
 				defer service.cacheReadyMu.RUnlock()
+
+				cache.startingCached <- struct{}{}
 
 				// We need to use a locking mechanism between Terragrunt processes to prevent simultaneous write access to the same provider.
 				lockfile, err := cache.acquireLockFile(ctx)
