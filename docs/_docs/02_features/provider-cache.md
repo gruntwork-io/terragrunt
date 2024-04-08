@@ -81,7 +81,7 @@ terragrunt apply
 * Configure Terraform instances to use the Terragrunt Provider Cache server as a remote registry:
   * Create local CLI config file `.terragrunt-cache/.terraformrc` that concatenates the user configuration from the Terraform [CLI config file](https://developer.hashicorp.com/terraform/cli/config/config-file) with additional sections:
      * [provider-installation](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation) forces Terraform to look for for the required providers in the cache directory and create symbolic links to them, if not found, then request them from the remote registry.
-     * [host](https://github.com/hashicorp/terraform/issues/28309) forces Terraform to [forward](#how-forwarding-terraform-requests-through-the-cache-server-works) all provider requests through the Terragrunt Provider Cache server.
+     * [host](https://github.com/hashicorp/terraform/issues/28309) forces Terraform to [forward](#how-forwarding-terraform-requests-through-the-terragrunt-Provider-cache-works) all provider requests through the Terragrunt Provider Cache server.
   * Set environment variables:
      * [TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE](https://developer.hashicorp.com/terraform/cli/config/config-file#allowing-the-provider-plugin-cache-to-break-the-dependency-lock-file) allows to generate `.terraform.lock.hcl` files based only on provider hashes from the cache directory.
      * [TF_CLI_CONFIG_FILE](https://developer.hashicorp.com/terraform/cli/config/environment-variables#tf_plugin_cache_dir) sets to use just created local CLI config `.terragrunt-cache/.terraformrc`
