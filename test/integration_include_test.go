@@ -118,13 +118,17 @@ func TestTerragruntRunAllModulesThatIncludeRestrictsSet(t *testing.T) {
 func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	t.Parallel()
 
+	rootPath := copyEnvironment(t, includeRunAllFixturePath)
+	modulePath := util.JoinPath(rootPath, includeRunAllFixturePath)
+	cleanupTerraformFolder(t, modulePath)
+
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(
 		t,
 		fmt.Sprintf(
 			"terragrunt run-all plan --terragrunt-non-interactive --terragrunt-include-module-prefix --terragrunt-working-dir %s",
-			includeRunAllFixturePath,
+			modulePath,
 		),
 		&stdout,
 		&stderr,
