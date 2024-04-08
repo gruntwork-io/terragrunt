@@ -207,11 +207,10 @@ func TestTerragruntProviderCache(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PROVIDER_CACHE)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PROVIDER_CACHE)
 
-	cacheDir, err := util.GetCacheDir()
-	assert.NoError(t, err)
-	providerCacheDir := filepath.Join(cacheDir, "providers")
+	cacheDir, err := os.MkdirTemp("", "*")
+	require.NoError(t, err)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-dir %s --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", cacheDir, rootPath))
 
 	providers := map[string][]string{
 		"first": []string{
@@ -269,7 +268,7 @@ func TestTerragruntProviderCache(t *testing.T) {
 					actualPath, err := os.Readlink(symlinkPath)
 					assert.NoError(t, err)
 
-					expectedPath := filepath.Join(providerCacheDir, provider, entry.Name())
+					expectedPath := filepath.Join(cacheDir, provider, entry.Name())
 					assert.Contains(t, actualPath, expectedPath)
 				}
 				assert.Equal(t, expectedProviderSymlinks, actualProviderSymlinks)
