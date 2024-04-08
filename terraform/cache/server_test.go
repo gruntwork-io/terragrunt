@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
@@ -25,8 +26,7 @@ func createFakeProvider(t *testing.T, cacheDir, relativePath string) string {
 	require.NoError(t, err)
 	defer file.Close()
 
-	// fill null data to 100000000b (~100mb)
-	err = file.Truncate(1e8)
+	err = file.Sync()
 	require.NoError(t, err)
 
 	return relativePath
@@ -138,6 +138,8 @@ func TestServer(t *testing.T) {
 			}
 
 			server.Provider.WaitForCacheReady()
+
+			time.Sleep(time.Second)
 
 			if testCase.expectedCachePath != "" {
 				assert.FileExists(t, filepath.Join(providerCacheDir, testCase.expectedCachePath))
