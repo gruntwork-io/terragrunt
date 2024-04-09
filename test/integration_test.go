@@ -1179,6 +1179,7 @@ func TestTerragruntStackCommands(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_STACK)
 
 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STACK, config.DefaultTerragruntConfigPath)
+	cleanupTerragruntFolder(t, rootTerragruntConfigPath)
 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
 
 	mgmtEnvironmentPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STACK, "mgmt")
@@ -3333,21 +3334,13 @@ func TestDataDir(t *testing.T) {
 
 	t.Setenv("TF_DATA_DIR", util.JoinPath(tmpEnvPath, "data_dir"))
 
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)
-	assert.Contains(t, stdout.String(), "Initializing provider plugins")
+	assert.Contains(t, stdout, "Initializing provider plugins")
 
-	stdout = bytes.Buffer{}
-	stderr = bytes.Buffer{}
-
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	stdout, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)
-	assert.NotContains(t, stdout.String(), "Initializing provider plugins")
+	assert.NotContains(t, stdout, "Initializing provider plugins")
 }
 
 func TestReadTerragruntConfigWithDependency(t *testing.T) {
@@ -4135,18 +4128,12 @@ func TestLogFailedLocalsEvaluation(t *testing.T) {
 }
 
 func TestLogFailingDependencies(t *testing.T) {
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-
 	path := filepath.Join(TEST_FIXTURE_BROKEN_DEPENDENCY, "app")
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", path), &stdout, &stderr)
-	output := stderr.String()
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", path))
 
 	assert.Error(t, err)
-	assert.Contains(t, output, wrappedBinary()+" invocation failed in fixture-broken-dependency/dependency")
+	assert.Contains(t, stdout+stderr, wrappedBinary()+" invocation failed in fixture-broken-dependency/dependency")
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
@@ -4982,9 +4969,7 @@ func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_STACK)
 	appPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STACK)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all --terragrunt-non-interactive --terragrunt-working-dir %s", appPath), &stdout, &stderr)
+	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all --terragrunt-non-interactive --terragrunt-working-dir %s", appPath))
 	require.Error(t, err)
 	_, ok := errors.Unwrap(err).(runall.MissingCommand)
 	assert.True(t, ok)

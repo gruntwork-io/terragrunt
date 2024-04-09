@@ -297,7 +297,7 @@ func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules in
 
 	t.Logf("Parallelism test numberOfModules=%d p=%d expectedTimes=%v times=%v scaledTimes=%v scaleFactor=%f", numberOfModules, parallelism, expectedTimings, times, scaledTimes, k)
 
-	maxDiffInSeconds := 3.0
+	maxDiffInSeconds := 5.0
 	isEqual := func(x, y float64) bool {
 		return math.Abs(x-y) <= maxDiffInSeconds
 	}

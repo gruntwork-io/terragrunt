@@ -21,4 +21,5 @@ var DEFAULT_RETRYABLE_ERRORS = []string{
 	"(?s).*ssh_exchange_identification.*Connection closed by remote host.*",
 	"(?s).*Client\\.Timeout exceeded while awaiting headers.*",
 	"(?s).*Could not download module.*The requested URL returned error: 429.*",
+	"(?s).*net/http: TLS.*handshake timeout.*",
 }
