@@ -448,7 +448,7 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 	return nil
 }
 
-// fetchDependencyMap - return from configuration map with dependency_name: path
+// fetchDependencyPaths - return from configuration map with dependency_name: path
 func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 	var m = make(map[string]string)
 	if config == nil {
@@ -799,7 +799,7 @@ func updateBareIncludeBlockJSON(fileBytes []byte) ([]byte, bool, error) {
 	return nil, false, errors.WithStackTrace(IncludeIsNotABlockErr{parsed: includeBlock})
 }
 
-// updateBareIncludeInParsedJSON replaces the include attribute into a block with the label "" in the json. Note that we
+// updateSingleBareIncludeInParsedJSON replaces the include attribute into a block with the label "" in the json. Note that we
 // can directly assign to the map with the single "" key without worrying about the possibility of other include blocks
 // since we will only call this function if there is only one include block, and that is a bare block with no labels.
 func updateSingleBareIncludeInParsedJSON(parsed map[string]interface{}, newVal interface{}) ([]byte, bool, error) {

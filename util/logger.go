@@ -82,7 +82,7 @@ func CreateLogEntry(prefix string, level logrus.Level) *logrus.Entry {
 	return logger.WithFields(fields)
 }
 
-// CreateLoggerWithWriter Create a logger around the given output stream and prefix
+// CreateLogEntryWithWriter Create a logger around the given output stream and prefix
 func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Level, hooks logrus.LevelHooks) *logrus.Entry {
 	if prefix != "" {
 		prefix = fmt.Sprintf("[%s] ", prefix)
