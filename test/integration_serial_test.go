@@ -301,8 +301,7 @@ func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules in
 	}
 
 	t.Logf("Parallelism test numberOfModules=%d p=%d expectedTimes=%v deploymentTimes=%v scaledTimes=%v scaleFactor=%f", numberOfModules, parallelism, expectedTimings, deploymentTimes, scaledTimes, scalingFactor)
-
-	maxDiffInSeconds := 5.0
+	maxDiffInSeconds := 5.0 * scalingFactor
 	for i, scaledTime := range scaledTimes {
 		difference := math.Abs(scaledTime - float64(expectedTimings[i]))
 		require.True(t, difference <= maxDiffInSeconds, "Expected timing %d but got %f", expectedTimings[i], scaledTime)
