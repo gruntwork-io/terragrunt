@@ -126,8 +126,6 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err
 		cacheRequest = true
 		provider.OS = runtime.GOOS
 		provider.Arch = runtime.GOARCH
-
-		defer controller.ProviderService.CacheProvider(ctx.Request().Context(), provider)
 	}
 
 	return controller.ReverseProxy.
@@ -139,6 +137,10 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err
 			var body map[string]json.RawMessage
 
 			err := handlers.ModifyJSONBody(resp, &body, func() error {
+				if resp.StatusCode != http.StatusOK {
+					return nil
+				}
+
 				for _, name := range ProviderURLNames {
 					linkBytes, ok := body[string(name)]
 					if !ok || linkBytes == nil {
@@ -173,6 +175,7 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err
 			})
 
 			if cacheRequest {
+				controller.ProviderService.CacheProvider(ctx.Request().Context(), provider)
 				return ctx.NoContent(HTTPStatusCacheProvider)
 			}
 			return err

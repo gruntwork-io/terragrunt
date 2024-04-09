@@ -212,12 +212,12 @@ func (service *ProviderService) CacheProvider(ctx context.Context, provider *mod
 		Provider:        provider,
 		started:         make(chan struct{}, 1),
 	}
-	service.providerCaches = append(service.providerCaches, cache)
 
 	select {
 	case service.providerCacheWarmUpCh <- cache:
 		// We need to wait for caching to start and only then release the client (Terraform) request. Otherwise, the client may call `WaitForCacheReady()` faster than `service.ReadyMuReady` will be lock.
 		<-cache.started
+		service.providerCaches = append(service.providerCaches, cache)
 	case <-ctx.Done():
 		// quit
 	}
