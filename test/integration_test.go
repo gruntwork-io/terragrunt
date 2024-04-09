@@ -209,7 +209,7 @@ func TestTerragruntProviderCache(t *testing.T) {
 
 	cacheDir, err := util.GetCacheDir()
 	assert.NoError(t, err)
-	providerCacheDir := filepath.Join(cacheDir, "terragrunt-provider-cache-test")
+	providerCacheDir := filepath.Join(cacheDir, "provider-cache-test")
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-dir %s --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, rootPath))
 
