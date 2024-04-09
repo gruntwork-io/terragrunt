@@ -221,7 +221,7 @@ func tfArgumentsToTflintVar(terragruntOptions *options.TerragruntOptions, hook c
 	return variables, nil
 }
 
-// findTflintConfigInProjects looks for a .tflint.hcl file in the current folder or it's parents.
+// findTflintConfigInProject looks for a .tflint.hcl file in the current folder or it's parents.
 func findTflintConfigInProject(terragruntOptions *options.TerragruntOptions) (string, error) {
 	previousDir := terragruntOptions.WorkingDir
 
