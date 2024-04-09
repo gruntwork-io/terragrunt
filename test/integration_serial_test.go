@@ -304,7 +304,7 @@ func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules in
 	for i := 0; i < len(times); i++ {
 		// it's impossible to know when will the first test finish however once a test finishes
 		// we know that all the other times are relative to the first one
-		assert.True(t, isEqual(scaledTimes[i], float64(expectedTimings[i])))
+		assert.True(t, isEqual(scaledTimes[i], float64(expectedTimings[i])), "Expected %d but got %f", expectedTimings[i], scaledTimes[i])
 	}
 }
 
