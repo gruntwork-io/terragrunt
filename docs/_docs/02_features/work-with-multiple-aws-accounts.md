@@ -50,3 +50,27 @@ iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 Terragrunt will resolve the value of the option by first looking for the cli argument, then looking for the environment variable, then defaulting to the value specified in the config file.
 
 Terragrunt will call the `sts assume-role` API on your behalf and expose the credentials it gets back as environment variables when running Terraform. The advantage of this approach is that you can store your AWS credentials in a secret store and never write them to disk in plaintext, you get fresh credentials on every run of Terragrunt, without the complexity of calling `assume-role` yourself, and you don’t have to modify your Terraform code or backend configuration at all.
+
+### Configuring Terragrunt to assume an IAM role with ExternalId
+
+More: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html
+
+You might be in a situation where you need to use ExternalIds when assuming an IAM role. Besides the IAM role itself, Terragrunt can be configured to attach an ExternalId when assuming said role.
+
+``` bash
+terragrunt apply --terragrunt-external-id "your-set-value"
+```
+
+Alternatively, you can set the `TERRAGRUNT_EXTERNAL_ID` environment variable:
+
+``` bash
+export TERRAGRUNT_EXTERNAL_ID="your-set-value"
+terragrunt apply
+```
+
+Additionally, you can specify an `external_id` property in the terragrunt config:
+
+``` hcl
+iam_role    = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+external_id = "your-set-value"
+```
