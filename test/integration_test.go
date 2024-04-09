@@ -207,10 +207,11 @@ func TestTerragruntProviderCache(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PROVIDER_CACHE)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PROVIDER_CACHE)
 
-	cacheDir, err := os.MkdirTemp("", "*")
-	require.NoError(t, err)
+	cacheDir, err := util.GetCacheDir()
+	assert.NoError(t, err)
+	providerCacheDir := filepath.Join(cacheDir, "terragrunt-provider-cache-test")
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-dir %s --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", cacheDir, rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-dir %s --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, rootPath))
 
 	providers := map[string][]string{
 		"first": []string{
@@ -268,7 +269,7 @@ func TestTerragruntProviderCache(t *testing.T) {
 					actualPath, err := os.Readlink(symlinkPath)
 					assert.NoError(t, err)
 
-					expectedPath := filepath.Join(cacheDir, provider, entry.Name())
+					expectedPath := filepath.Join(providerCacheDir, provider, entry.Name())
 					assert.Contains(t, actualPath, expectedPath)
 				}
 				assert.Equal(t, expectedProviderSymlinks, actualProviderSymlinks)
@@ -1179,7 +1180,6 @@ func TestTerragruntStackCommands(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_STACK)
 
 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STACK, config.DefaultTerragruntConfigPath)
-	cleanupTerragruntFolder(t, rootTerragruntConfigPath)
 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
 
 	mgmtEnvironmentPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STACK, "mgmt")
@@ -3334,13 +3334,21 @@ func TestDataDir(t *testing.T) {
 
 	t.Setenv("TF_DATA_DIR", util.JoinPath(tmpEnvPath, "data_dir"))
 
-	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
-	require.NoError(t, err)
-	assert.Contains(t, stdout, "Initializing provider plugins")
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
 
-	stdout, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
 	require.NoError(t, err)
-	assert.NotContains(t, stdout, "Initializing provider plugins")
+	assert.Contains(t, stdout.String(), "Initializing provider plugins")
+
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	require.NoError(t, err)
+	assert.NotContains(t, stdout.String(), "Initializing provider plugins")
 }
 
 func TestReadTerragruntConfigWithDependency(t *testing.T) {
@@ -4128,12 +4136,18 @@ func TestLogFailedLocalsEvaluation(t *testing.T) {
 }
 
 func TestLogFailingDependencies(t *testing.T) {
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
 	path := filepath.Join(TEST_FIXTURE_BROKEN_DEPENDENCY, "app")
 
-	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", path))
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", path), &stdout, &stderr)
+	output := stderr.String()
 
 	assert.Error(t, err)
-	assert.Contains(t, stdout+stderr, wrappedBinary()+" invocation failed in fixture-broken-dependency/dependency")
+	assert.Contains(t, output, wrappedBinary()+" invocation failed in fixture-broken-dependency/dependency")
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
@@ -4969,7 +4983,9 @@ func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_STACK)
 	appPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_STACK)
 
-	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all --terragrunt-non-interactive --terragrunt-working-dir %s", appPath))
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all --terragrunt-non-interactive --terragrunt-working-dir %s", appPath), &stdout, &stderr)
 	require.Error(t, err)
 	_, ok := errors.Unwrap(err).(runall.MissingCommand)
 	assert.True(t, ok)
