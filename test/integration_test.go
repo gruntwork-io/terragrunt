@@ -1186,17 +1186,13 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 	t.Logf("apply-all start time = %d, %s", testStart, time.Now().Format(time.RFC3339))
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-parallelism %d --terragrunt-non-interactive --terragrunt-working-dir %s -var sleep_seconds=%d", parallelism, environmentPath, timeToDeployEachModule/time.Second))
 
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
 	// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath), &stdout, &stderr)
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath))
 	if err != nil {
 		return "", 0, err
 	}
 
-	return stdout.String(), testStart, nil
+	return stdout, testStart, nil
 }
 
 func TestTerragruntStackCommands(t *testing.T) {
