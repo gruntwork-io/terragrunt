@@ -139,14 +139,14 @@ func TestTFRGetterSubModule(t *testing.T) {
 func TestBuildRequestUrlFullPath(t *testing.T) {
 	t.Parallel()
 	requestUrl, err := buildRequestUrl("gruntwork.io", "https://gruntwork.io/registry/modules/v1/", "/tfr-project/terraform-aws-tfr", "6.6.6")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "https://gruntwork.io/registry/modules/v1/tfr-project/terraform-aws-tfr/6.6.6/download", requestUrl.String())
 }
 
 func TestBuildRequestUrlRelativePath(t *testing.T) {
 	t.Parallel()
 	requestUrl, err := buildRequestUrl("gruntwork.io", "/registry/modules/v1", "/tfr-project/terraform-aws-tfr", "6.6.6")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "https://gruntwork.io/registry/modules/v1/tfr-project/terraform-aws-tfr/6.6.6/download", requestUrl.String())
 
 }

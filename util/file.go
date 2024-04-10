@@ -618,11 +618,30 @@ func IsDirectoryEmpty(dirPath string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer dir.Close()
+	defer func() {
+		_ = dir.Close()
+	}()
 
 	_, err = dir.Readdir(1)
 	if err == nil {
 		return false, nil
 	}
 	return true, nil
+}
+
+// GetCacheDir returns the global terragrunt cache directory for the current user.
+func GetCacheDir() (string, error) {
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+	cacheDir = filepath.Join(cacheDir, "terragrunt")
+
+	if !FileExists(cacheDir) {
+		if err := os.MkdirAll(cacheDir, os.ModePerm); err != nil {
+			return "", errors.WithStackTrace(err)
+		}
+	}
+
+	return cacheDir, nil
 }

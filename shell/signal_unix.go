@@ -8,4 +8,4 @@ import (
 	"syscall"
 )
 
-var forwardSignals []os.Signal = []os.Signal{syscall.SIGTERM, syscall.SIGINT}
+var InterruptSignals []os.Signal = []os.Signal{syscall.SIGTERM, syscall.SIGINT}

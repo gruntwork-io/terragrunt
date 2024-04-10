@@ -22,14 +22,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gruntwork-io/go-commons/files"
-
 	"cloud.google.com/go/storage"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/go-commons/version"
 	terraws "github.com/gruntwork-io/terratest/modules/aws"
 	"github.com/gruntwork-io/terratest/modules/git"
@@ -41,6 +40,7 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/cli"
+	"github.com/gruntwork-io/terragrunt/cli/commands"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
@@ -189,6 +189,7 @@ const (
 	TEST_FIXTURE_ASSUME_ROLE_DURATION                                        = "fixture-assume-role/duration"
 	TEST_FIXTURE_GRAPH                                                       = "fixture-graph"
 	TEST_FIXTURE_SKIP_DEPENDENCIES                                           = "fixture-skip-dependencies"
+	TEST_FIXTURE_INFO_ERROR                                                  = "fixture-terragrunt-info-error"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -207,7 +208,11 @@ func TestTerragruntProviderCache(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PROVIDER_CACHE)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PROVIDER_CACHE)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	cacheDir, err := util.GetCacheDir()
+	assert.NoError(t, err)
+	providerCacheDir := filepath.Join(cacheDir, "provider-cache-test")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-dir %s --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, rootPath))
 
 	providers := map[string][]string{
 		"first": []string{
@@ -221,9 +226,9 @@ func TestTerragruntProviderCache(t *testing.T) {
 		},
 	}
 
-	registryName := "registry.terraform.io"
-	if strings.Contains(wrappedBinary(), "tofu") {
-		registryName = "registry.opentofu.org"
+	registryName := "registry.opentofu.org"
+	if isTerraform() {
+		registryName = "registry.terraform.io"
 	}
 
 	for subDir, providers := range providers {
@@ -265,7 +270,7 @@ func TestTerragruntProviderCache(t *testing.T) {
 					actualPath, err := os.Readlink(symlinkPath)
 					assert.NoError(t, err)
 
-					expectedPath := filepath.Join(rootPath, ".terragrunt-cache/provider-cache", provider, entry.Name())
+					expectedPath := filepath.Join(providerCacheDir, provider, entry.Name())
 					assert.Contains(t, actualPath, expectedPath)
 				}
 				assert.Equal(t, expectedProviderSymlinks, actualProviderSymlinks)
@@ -1262,7 +1267,7 @@ func TestExitCode(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan -detailed-exitcode --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), os.Stdout, os.Stderr)
 
 	exitCode, exitCodeErr := shell.GetExitCode(err)
-	assert.Nil(t, exitCodeErr)
+	assert.NoError(t, exitCodeErr)
 	assert.Equal(t, 2, exitCode)
 }
 
@@ -1274,7 +1279,7 @@ func TestAutoRetryBasicRerun(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Contains(t, out.String(), "Apply complete!")
 }
 
@@ -1286,7 +1291,7 @@ func TestAutoRetrySkip(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	assert.NotContains(t, out.String(), "Apply complete!")
 }
 
@@ -1297,10 +1302,10 @@ func TestPlanfileOrder(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_PLANFILE_ORDER)
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-working-dir %s", modulePath), os.Stdout, os.Stderr)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-working-dir %s", modulePath), os.Stdout, os.Stderr)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestAutoRetryExhaustRetries(t *testing.T) {
@@ -1311,7 +1316,7 @@ func TestAutoRetryExhaustRetries(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_EXHAUST)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	assert.Contains(t, out.String(), "Failed to load backend")
 	assert.NotContains(t, out.String(), "Apply complete!")
 }
@@ -1324,7 +1329,7 @@ func TestAutoRetryCustomRetryableErrors(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Contains(t, out.String(), "My own little error")
 	assert.Contains(t, out.String(), "Apply complete!")
 }
@@ -1357,7 +1362,7 @@ func TestAutoRetryCustomRetryableErrorsFailsWhenRetryableErrorsNotSet(t *testing
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS_NOT_SET)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	assert.Contains(t, out.String(), "My own little error")
 	assert.NotContains(t, out.String(), "Apply complete!")
 }
@@ -1370,7 +1375,7 @@ func TestAutoRetryFlagWithRecoverableError(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	assert.NotContains(t, out.String(), "Apply complete!")
 }
 
@@ -1381,7 +1386,7 @@ func TestAutoRetryEnvVarWithRecoverableError(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_RERUN)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 	assert.NotContains(t, out.String(), "Apply complete!")
 }
 
@@ -1393,7 +1398,7 @@ func TestAutoRetryApplyAllDependentModuleRetries(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_AUTO_RETRY_APPLY_ALL_RETRIES)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), out, os.Stderr)
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	s := out.String()
 	assert.Contains(t, s, "app1 output")
 	assert.Contains(t, s, "app2 output")
@@ -1411,7 +1416,7 @@ func TestAutoRetryConfigurableRetries(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), stdout, stderr)
 	sleeps := regexp.MustCompile("Sleeping 0s before retrying.").FindAllStringIndex(stderr.String(), -1)
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 4, len(sleeps)) // 5 retries, so 4 sleeps
 	assert.Contains(t, stdout.String(), "Apply complete!")
 }
@@ -1437,7 +1442,7 @@ func TestAutoRetryConfigurableRetriesErrors(t *testing.T) {
 			modulePath := util.JoinPath(rootPath, tc.fixture)
 
 			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), stdout, stderr)
-			assert.NotNil(t, err)
+			assert.Error(t, err)
 			assert.NotContains(t, stdout.String(), "Apply complete!")
 			assert.Contains(t, err.Error(), tc.errorMessage)
 		})
@@ -1989,7 +1994,7 @@ func TestApplySkipTrue(t *testing.T) {
 	stdout := showStdout.String()
 	stderr := showStderr.String()
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixture-skip/skip-true/terragrunt.hcl due to skip = true."), stderr)
 	assert.NotContains(t, stdout, "hello, Hobbs")
 }
@@ -2010,7 +2015,7 @@ func TestApplySkipFalse(t *testing.T) {
 	stderr := showStderr.String()
 	stdout := showStdout.String()
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Contains(t, stdout, "hello, Hobbs")
 	assert.NotContains(t, stderr, "Skipping terragrunt module")
 }
@@ -2031,7 +2036,7 @@ func TestApplyAllSkipTrue(t *testing.T) {
 	stdout := showStdout.String()
 	stderr := showStderr.String()
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixture-skip/skip-true/terragrunt.hcl due to skip = true."), stderr)
 	assert.Contains(t, stdout, "hello, Ernie")
 	assert.Contains(t, stdout, "hello, Bert")
@@ -2053,7 +2058,7 @@ func TestApplyAllSkipFalse(t *testing.T) {
 	stdout := showStdout.String()
 	stderr := showStderr.String()
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Contains(t, stdout, "hello, Hobbs")
 	assert.Contains(t, stdout, "hello, Ernie")
 	assert.Contains(t, stdout, "hello, Bert")
@@ -2071,13 +2076,13 @@ func TestTerragruntInfo(t *testing.T) {
 	showStderr := bytes.Buffer{}
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 
 	var dat terragruntinfo.TerragruntInfoGroup
 	errUnmarshal := json.Unmarshal(showStdout.Bytes(), &dat)
-	assert.Nil(t, errUnmarshal)
+	assert.NoError(t, errUnmarshal)
 
 	assert.Equal(t, dat.DownloadDir, fmt.Sprintf("%s/%s", rootPath, TERRAGRUNT_CACHE))
 	assert.Equal(t, dat.TerraformBinary, wrappedBinary())
@@ -5678,7 +5683,7 @@ func TestTerragruntRenderJsonHelp(t *testing.T) {
 	showStderr := bytes.Buffer{}
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt render-json --help --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 
@@ -6271,6 +6276,7 @@ func TestTerragruntPrintAwsErrors(t *testing.T) {
 	assert.Error(t, err)
 	message := fmt.Sprintf("%v", err.Error())
 	assert.True(t, strings.Contains(message, "AllAccessDisabled: All access to this object has been disabled") || strings.Contains(message, "BucketRegionError: incorrect region"))
+	assert.Contains(t, message, s3BucketName)
 }
 
 func TestTerragruntErrorWhenStateBucketIsInDifferentRegion(t *testing.T) {
@@ -6422,6 +6428,26 @@ func TestRenderJsonDependentModulesTerraform(t *testing.T) {
 	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v2"))
 }
 
+func TestRenderJsonDisableDependentModulesTerraform(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DESTROY_WARNING)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "vpc")
+
+	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-json-disable-dependent-modules --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
+
+	jsonBytes, err := os.ReadFile(jsonOut)
+	require.NoError(t, err)
+
+	var renderedJson = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+
+	_, found := renderedJson[config.MetadataDependentModules].([]interface{})
+	assert.False(t, found)
+}
+
 func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
 	t.Parallel()
 
@@ -6446,6 +6472,16 @@ func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
 }
 
 func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
+	// This test cannot be run using Terragrunt Provider Cache because it causes the flock files to be locked forever, which in turn blocks other TGs (processes).
+	// We use flock files to prevent multiple TGs from caching the same provider in parallel in a shared cache, which causes to conflicts.
+	if envProviderCache := os.Getenv(commands.TerragruntProviderCacheEnvVarName); envProviderCache != "" {
+		providerCache, err := strconv.ParseBool(envProviderCache)
+		require.NoError(t, err)
+		if providerCache {
+			return
+		}
+	}
+
 	t.Parallel()
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_EXTERNAL_DEPENDENCY)
@@ -6490,6 +6526,10 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 
 func TestTerragruntInvokeTerraformTests(t *testing.T) {
 	t.Parallel()
+	if isTerraform() {
+		t.Skip("Not compatible with Terraform 1.5.x")
+		return
+	}
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_TF_TEST)
 	cleanupTerraformFolder(t, tmpEnvPath)
@@ -6785,6 +6825,10 @@ func TestTerragruntSkipDependenciesWithSkipFlag(t *testing.T) {
 
 func TestTerragruntAssumeRoleDuration(t *testing.T) {
 	t.Parallel()
+	if isTerraform() {
+		t.Skip("New assume role duration config not supported by Terraform 1.5.x")
+		return
+	}
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_ASSUME_ROLE_DURATION)
 	cleanupTerraformFolder(t, tmpEnvPath)
@@ -6840,6 +6884,25 @@ func prepareGraphFixture(t *testing.T) string {
 	return tmpEnvPath
 }
 
+func TestTerragruntInfoError(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INFO_ERROR)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INFO_ERROR, "module-b")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	assert.Error(t, err)
+
+	// parse stdout json as TerragruntInfoGroup
+	var output terragruntinfo.TerragruntInfoGroup
+	err = json.Unmarshal(stdout.Bytes(), &output)
+	assert.NoError(t, err)
+}
+
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
 	t.Helper()
 	output, hasPlatform := outputs[key]
@@ -6858,4 +6921,8 @@ func wrappedBinary() string {
 		return TOFU_BINARY
 	}
 	return value
+}
+
+func isTerraform() bool {
+	return wrappedBinary() == TERRAFORM_BINARY
 }

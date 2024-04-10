@@ -26,7 +26,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	}
 }
 
-func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
+func action(opts *options.TerragruntOptions) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
 		if opts.TerraformCommand == terraform.CommandNameDestroy {
 			opts.CheckDependentModules = true
@@ -36,6 +36,6 @@ func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
 			return errors.WithStackTrace(WrongTerraformCommand(opts.TerraformCommand))
 		}
 
-		return Run(ctx, opts.OptionsFromContext(ctx))
+		return Run(ctx.Context, opts.OptionsFromContext(ctx))
 	}
 }

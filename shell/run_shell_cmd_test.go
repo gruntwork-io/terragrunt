@@ -2,6 +2,7 @@ package shell
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -15,10 +16,10 @@ func TestRunShellCommand(t *testing.T) {
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
-	cmd := RunShellCommand(terragruntOptions, "terraform", "--version")
+	cmd := RunShellCommand(context.Background(), terragruntOptions, "terraform", "--version")
 	assert.Nil(t, cmd)
 
-	cmd = RunShellCommand(terragruntOptions, "terraform", "not-a-real-command")
+	cmd = RunShellCommand(context.Background(), terragruntOptions, "terraform", "not-a-real-command")
 	assert.Error(t, cmd)
 }
 
@@ -34,7 +35,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	terragruntOptions.Writer = stdout
 	terragruntOptions.ErrWriter = stderr
 
-	cmd := RunShellCommand(terragruntOptions, "terraform", "--version")
+	cmd := RunShellCommand(context.Background(), terragruntOptions, "terraform", "--version")
 	assert.Nil(t, cmd)
 
 	assert.True(t, strings.Contains(stdout.String(), "Terraform"), "Output directed to stdout")
@@ -47,7 +48,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	terragruntOptions.Writer = stderr
 	terragruntOptions.ErrWriter = stderr
 
-	cmd = RunShellCommand(terragruntOptions, "terraform", "--version")
+	cmd = RunShellCommand(context.Background(), terragruntOptions, "terraform", "--version")
 	assert.Nil(t, cmd)
 
 	assert.True(t, strings.Contains(stderr.String(), "Terraform"), "Output directed to stderr")

@@ -17,6 +17,7 @@ const (
 	CommandNameProviders      = "providers"
 	CommandNameState          = "state"
 	CommandNameLock           = "lock"
+	CommandNameGet            = "get"
 	CommandNameTaint          = "taint"
 	CommandNameUntaint        = "untaint"
 	CommandNameConsole        = "console"
@@ -24,7 +25,7 @@ const (
 
 	FlagNameNoColor = "-no-color"
 	// `apply -destroy` alias for `destroy`
-	FlagNameNameDestroy = "-destroy"
+	FlagNameDestroy = "-destroy"
 
 	EnvNameTFCLIConfigFile                         = "TF_CLI_CONFIG_FILE"
 	EnvNameTFPluginCacheDir                        = "TF_PLUGIN_CACHE_DIR"

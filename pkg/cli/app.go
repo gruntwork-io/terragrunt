@@ -5,10 +5,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/env"
-
-	"github.com/gruntwork-io/terragrunt/telemetry"
-
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/urfave/cli/v2"
 )
@@ -33,10 +29,6 @@ type App struct {
 	CustomAppVersionTemplate string
 	// Contributor
 	Author string
-	// An action to execute before running the `Action` of the target command.
-	// The difference between `Before` is that `CommonBefore` runs only once for the target command, while `Before` is different for each command and is performed by each command.
-	// Useful when some steps need to to performed for all commands without exception, when all flags are parsed and the context contains the target command.
-	CommonBefore ActionFunc
 	// The function to call when checking for command completions
 	Complete CompleteFunc
 	// An action to execute before any subcommands are run, but after the context is ready
@@ -120,24 +112,6 @@ func (app *App) RunContext(ctx context.Context, arguments []string) (err error) 
 
 		args := Args(parentCtx.Args().Slice())
 		ctx := newContext(parentCtx.Context, app)
-
-		// configure telemetry integration
-		err := telemetry.InitTelemetry(ctx, &telemetry.TelemetryOptions{
-			Vars:       env.Parse(os.Environ()),
-			AppName:    app.Name,
-			AppVersion: app.Version,
-			Writer:     app.Writer,
-			ErrWriter:  app.ErrWriter,
-		})
-		if err != nil {
-			return err
-		}
-		defer func(ctx context.Context) {
-			err := telemetry.ShutdownTelemetry(ctx)
-			if err != nil {
-				_, _ = app.ErrWriter.Write([]byte(err.Error()))
-			}
-		}(ctx)
 
 		if app.Autocomplete {
 			if err := app.setupAutocomplete(args); err != nil {

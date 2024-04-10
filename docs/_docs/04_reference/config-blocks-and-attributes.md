@@ -52,7 +52,10 @@ The `terraform` block supports the following arguments:
       you can provide the authentication to Terragrunt as an environment variable with the key `TG_TF_REGISTRY_TOKEN`.
       This token can be any registry API token.
     - The `tfr` protocol supports a shorthand notation where the `REGISTRY_HOST` can be omitted to default to the public
-      registry (`registry.terraform.io`) if you use `tfr:///` (note the three `/`). For example, the following will
+      registry. The default registry depends on the wrapped executable: for Terraform, it is `registry.terraform.io`,
+      and for Opentofu, it is `registry.opentofu.org`. Additionally, if the environment variable `TG_TF_DEFAULT_REGISTRY_HOST`
+      is set, this value will be used as the default registry host instead, overriding the standard defaults for the wrapped executable.
+    - If you use `tfr:///` (note the three `/`). For example, the following will
       fetch the `terraform-aws-modules/vpc/aws` module from the public registry:
       `tfr:///terraform-aws-modules/vpc/aws?version=3.3.0`.
     - You can also use submodules from the registry using `//`. For example, to use the `iam-policy` submodule from the
@@ -377,7 +380,7 @@ For the `s3` backend, the following additional properties are supported in the `
 - `region` - (Optional) The region of the S3 bucket.
 - `profile` - (Optional) This is the AWS profile name as set in the shared credentials file.
 - `endpoint` - (Optional) A custom endpoint for the S3 API.
-- `encrypt` - (Optional) Whether to enable server side encryption of the state file.
+- `encrypt` - (Optional) Whether to enable server side encryption of the state file. If disabled, a log warning will be issued in the console output to notify the user. If `skip_bucket_ssencryption` is enabled, the log will be written as a debug log.
 - `role_arn` - (Optional) The role to be assumed.
 - `shared_credentials_file` - (Optional) This is the path to the shared credentials file. If this is not set and a profile is specified, `~/.aws/credentials` will be used.
 - `external_id` - (Optional) The external ID to use when assuming the role.

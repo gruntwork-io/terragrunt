@@ -43,7 +43,7 @@ func TestParseTerraformStateLocal(t *testing.T) {
 
 	actualTerraformState, err := parseTerraformState([]byte(stateFile))
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, expectedTerraformState, actualTerraformState)
 	assert.False(t, actualTerraformState.IsRemote())
 }
@@ -100,7 +100,7 @@ func TestParseTerraformStateRemote(t *testing.T) {
 
 	actualTerraformState, err := parseTerraformState([]byte(stateFile))
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, expectedTerraformState, actualTerraformState)
 	assert.True(t, actualTerraformState.IsRemote())
 }
@@ -287,7 +287,7 @@ func TestParseTerraformStateRemoteFull(t *testing.T) {
 
 	actualTerraformState, err := parseTerraformState([]byte(stateFile))
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, expectedTerraformState, actualTerraformState)
 	assert.True(t, actualTerraformState.IsRemote())
 }
@@ -301,7 +301,7 @@ func TestParseTerraformStateEmpty(t *testing.T) {
 
 	actualTerraformState, err := parseTerraformState([]byte(stateFile))
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, expectedTerraformState, actualTerraformState)
 	assert.False(t, actualTerraformState.IsRemote())
 }
@@ -314,7 +314,7 @@ func TestParseTerraformStateInvalid(t *testing.T) {
 	actualTerraformState, err := parseTerraformState([]byte(stateFile))
 
 	assert.Nil(t, actualTerraformState)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 
 	underlyingErr := errors.Unwrap(err)
 	_, isSyntaxErr := underlyingErr.(*json.SyntaxError)

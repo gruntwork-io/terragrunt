@@ -37,15 +37,12 @@ const (
 	DefaultIAMAssumeRoleDuration = 3600
 
 	minCommandLength = 2
-
-	defaultRegistryHostname = "localhost"
-	defaultRegistryPort     = 5758
 )
 
 var (
 	DefaultWrappedPath = identifyDefaultWrappedExecutable()
 
-	defaultRegistryNames = []string{
+	defaultProviderCacheRegistryNames = []string{
 		"registry.terraform.io",
 		"registry.opentofu.org",
 	}
@@ -69,9 +66,6 @@ const (
 
 // TerragruntOptions represents options that configure the behavior of the Terragrunt program
 type TerragruntOptions struct {
-	// Context for collection of telemetry data
-	TelemetryCtx context.Context
-
 	// Location of the Terragrunt config file
 	TerragruntConfigPath string
 
@@ -277,26 +271,32 @@ type TerragruntOptions struct {
 	// Root directory for graph command.
 	GraphRoot string
 
-	// Enables provider cache using the built-in private registry.
+	// Disable listing of dependent modules in render json output
+	JsonDisableDependentModules bool
+
+	// Enables Terragrunt's provider caching.
 	ProviderCache bool
 
-	// The path to the cache directory
+	// The path to store unpacked providers. The file structure is the same as terraform plugin cache dir.
 	ProviderCacheDir string
 
-	// Disables terraform 'plugin_cache_may_break_dependency_lock_file' feature.
-	ProviderCompleteLock bool
+	// The path to store archive providers that are retrieved from the source registry and cached to reduce traffic.
+	ProviderCacheArchiveDir string
 
-	// The Token for connecting to the built-in Private Registry server.
-	RegistryToken string
+	// Don't use 'plugin_cache_may_break_dependency_lock_file' with Terragrunt provider caching.
+	ProviderCacheDisablePartialLockFile bool
 
-	// The hostname of the built-in Private Registry server.
-	RegistryHostname string
+	// The Token for authentication to the Terragrunt Provider Cache server.
+	ProviderCacheToken string
 
-	// The listening port of the built-in Private Registry server.
-	RegistryPort int
+	// The hostname of the Terragrunt Provider Cache server.
+	ProviderCacheHostname string
 
-	// The list of the remote registries to cache.
-	RegistryNames []string
+	// The port of the Terragrunt Provider Cache server.
+	ProviderCachePort int
+
+	// The list of remote registries to cached by Terragrunt Provider Cache server.
+	ProviderCacheRegistryNames []string
 }
 
 // IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
@@ -371,12 +371,11 @@ func NewTerragruntOptions() *TerragruntOptions {
 		TerraformImplementation:        UnknownImpl,
 		JsonLogFormat:                  false,
 		TerraformLogsToJson:            false,
+		JsonDisableDependentModules:    false,
 		RunTerragrunt: func(ctx context.Context, opts *TerragruntOptions) error {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
-		RegistryHostname: defaultRegistryHostname,
-		RegistryPort:     defaultRegistryPort,
-		RegistryNames:    defaultRegistryNames,
+		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
 	}
 }
 
@@ -447,66 +446,69 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
 	// for more info.
 	return &TerragruntOptions{
-		TelemetryCtx:                   opts.TelemetryCtx,
-		TerragruntConfigPath:           terragruntConfigPath,
-		OriginalTerragruntConfigPath:   opts.OriginalTerragruntConfigPath,
-		TerraformPath:                  opts.TerraformPath,
-		OriginalTerraformCommand:       opts.OriginalTerraformCommand,
-		TerraformCommand:               opts.TerraformCommand,
-		TerraformVersion:               opts.TerraformVersion,
-		TerragruntVersion:              opts.TerragruntVersion,
-		AutoInit:                       opts.AutoInit,
-		RunAllAutoApprove:              opts.RunAllAutoApprove,
-		NonInteractive:                 opts.NonInteractive,
-		TerraformCliArgs:               util.CloneStringList(opts.TerraformCliArgs),
-		WorkingDir:                     workingDir,
-		Logger:                         util.CreateLogEntryWithWriter(opts.ErrWriter, workingDir, opts.LogLevel, opts.Logger.Logger.Hooks),
-		LogLevel:                       opts.LogLevel,
-		ValidateStrict:                 opts.ValidateStrict,
-		Env:                            util.CloneStringMap(opts.Env),
-		Source:                         opts.Source,
-		SourceMap:                      opts.SourceMap,
-		SourceUpdate:                   opts.SourceUpdate,
-		DownloadDir:                    opts.DownloadDir,
-		Debug:                          opts.Debug,
-		OriginalIAMRoleOptions:         opts.OriginalIAMRoleOptions,
-		IAMRoleOptions:                 opts.IAMRoleOptions,
-		IgnoreDependencyErrors:         opts.IgnoreDependencyErrors,
-		IgnoreDependencyOrder:          opts.IgnoreDependencyOrder,
-		IgnoreExternalDependencies:     opts.IgnoreExternalDependencies,
-		IncludeExternalDependencies:    opts.IncludeExternalDependencies,
-		Writer:                         opts.Writer,
-		ErrWriter:                      opts.ErrWriter,
-		MaxFoldersToCheck:              opts.MaxFoldersToCheck,
-		AutoRetry:                      opts.AutoRetry,
-		RetryMaxAttempts:               opts.RetryMaxAttempts,
-		RetrySleepIntervalSec:          opts.RetrySleepIntervalSec,
-		RetryableErrors:                util.CloneStringList(opts.RetryableErrors),
-		ExcludeDirs:                    opts.ExcludeDirs,
-		IncludeDirs:                    opts.IncludeDirs,
-		ModulesThatInclude:             opts.ModulesThatInclude,
-		Parallelism:                    opts.Parallelism,
-		StrictInclude:                  opts.StrictInclude,
-		RunTerragrunt:                  opts.RunTerragrunt,
-		AwsProviderPatchOverrides:      opts.AwsProviderPatchOverrides,
-		HclFile:                        opts.HclFile,
-		JSONOut:                        opts.JSONOut,
-		Check:                          opts.Check,
-		CheckDependentModules:          opts.CheckDependentModules,
-		FetchDependencyOutputFromState: opts.FetchDependencyOutputFromState,
-		UsePartialParseConfigCache:     opts.UsePartialParseConfigCache,
-		OutputPrefix:                   opts.OutputPrefix,
-		IncludeModulePrefix:            opts.IncludeModulePrefix,
-		FailIfBucketCreationRequired:   opts.FailIfBucketCreationRequired,
-		DisableBucketUpdate:            opts.DisableBucketUpdate,
-		TerraformImplementation:        opts.TerraformImplementation,
-		JsonLogFormat:                  opts.JsonLogFormat,
-		TerraformLogsToJson:            opts.TerraformLogsToJson,
-		GraphRoot:                      opts.GraphRoot,
-		ScaffoldVars:                   opts.ScaffoldVars,
-		ScaffoldVarFiles:               opts.ScaffoldVarFiles,
-		ProviderCache:                  opts.ProviderCache,
-		ProviderCompleteLock:           opts.ProviderCompleteLock,
+		TerragruntConfigPath:                terragruntConfigPath,
+		OriginalTerragruntConfigPath:        opts.OriginalTerragruntConfigPath,
+		TerraformPath:                       opts.TerraformPath,
+		OriginalTerraformCommand:            opts.OriginalTerraformCommand,
+		TerraformCommand:                    opts.TerraformCommand,
+		TerraformVersion:                    opts.TerraformVersion,
+		TerragruntVersion:                   opts.TerragruntVersion,
+		AutoInit:                            opts.AutoInit,
+		RunAllAutoApprove:                   opts.RunAllAutoApprove,
+		NonInteractive:                      opts.NonInteractive,
+		TerraformCliArgs:                    util.CloneStringList(opts.TerraformCliArgs),
+		WorkingDir:                          workingDir,
+		Logger:                              util.CreateLogEntryWithWriter(opts.ErrWriter, workingDir, opts.LogLevel, opts.Logger.Logger.Hooks),
+		LogLevel:                            opts.LogLevel,
+		ValidateStrict:                      opts.ValidateStrict,
+		Env:                                 util.CloneStringMap(opts.Env),
+		Source:                              opts.Source,
+		SourceMap:                           opts.SourceMap,
+		SourceUpdate:                        opts.SourceUpdate,
+		DownloadDir:                         opts.DownloadDir,
+		Debug:                               opts.Debug,
+		OriginalIAMRoleOptions:              opts.OriginalIAMRoleOptions,
+		IAMRoleOptions:                      opts.IAMRoleOptions,
+		IgnoreDependencyErrors:              opts.IgnoreDependencyErrors,
+		IgnoreDependencyOrder:               opts.IgnoreDependencyOrder,
+		IgnoreExternalDependencies:          opts.IgnoreExternalDependencies,
+		IncludeExternalDependencies:         opts.IncludeExternalDependencies,
+		Writer:                              opts.Writer,
+		ErrWriter:                           opts.ErrWriter,
+		MaxFoldersToCheck:                   opts.MaxFoldersToCheck,
+		AutoRetry:                           opts.AutoRetry,
+		RetryMaxAttempts:                    opts.RetryMaxAttempts,
+		RetrySleepIntervalSec:               opts.RetrySleepIntervalSec,
+		RetryableErrors:                     util.CloneStringList(opts.RetryableErrors),
+		ExcludeDirs:                         opts.ExcludeDirs,
+		IncludeDirs:                         opts.IncludeDirs,
+		ModulesThatInclude:                  opts.ModulesThatInclude,
+		Parallelism:                         opts.Parallelism,
+		StrictInclude:                       opts.StrictInclude,
+		RunTerragrunt:                       opts.RunTerragrunt,
+		AwsProviderPatchOverrides:           opts.AwsProviderPatchOverrides,
+		HclFile:                             opts.HclFile,
+		JSONOut:                             opts.JSONOut,
+		Check:                               opts.Check,
+		CheckDependentModules:               opts.CheckDependentModules,
+		FetchDependencyOutputFromState:      opts.FetchDependencyOutputFromState,
+		UsePartialParseConfigCache:          opts.UsePartialParseConfigCache,
+		OutputPrefix:                        opts.OutputPrefix,
+		IncludeModulePrefix:                 opts.IncludeModulePrefix,
+		FailIfBucketCreationRequired:        opts.FailIfBucketCreationRequired,
+		DisableBucketUpdate:                 opts.DisableBucketUpdate,
+		TerraformImplementation:             opts.TerraformImplementation,
+		JsonLogFormat:                       opts.JsonLogFormat,
+		TerraformLogsToJson:                 opts.TerraformLogsToJson,
+		GraphRoot:                           opts.GraphRoot,
+		ScaffoldVars:                        opts.ScaffoldVars,
+		ScaffoldVarFiles:                    opts.ScaffoldVarFiles,
+		JsonDisableDependentModules:         opts.JsonDisableDependentModules,
+		ProviderCache:                       opts.ProviderCache,
+		ProviderCacheDir:                    opts.ProviderCacheDir,
+		ProviderCacheArchiveDir:             opts.ProviderCacheArchiveDir,
+		ProviderCacheDisablePartialLockFile: opts.ProviderCacheDisablePartialLockFile,
+		DisableLogColors:                    opts.DisableLogColors,
 	}
 }
 

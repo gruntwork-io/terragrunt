@@ -31,7 +31,7 @@ func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.Ter
 	// if destroy-graph-root is empty, use git to find top level dir.
 	// may cause issues if in the same repo exist unrelated modules which will generate errors when scanning.
 	if rootDir == "" {
-		gitRoot, err := shell.GitTopLevelDir(opts, opts.WorkingDir)
+		gitRoot, err := shell.GitTopLevelDir(ctx, opts, opts.WorkingDir)
 		if err != nil {
 			return err
 		}
@@ -41,7 +41,7 @@ func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.Ter
 	rootOptions := opts.Clone(rootDir)
 	rootOptions.WorkingDir = rootDir
 
-	stack, err := configstack.FindStackInSubfolders(rootOptions, nil)
+	stack, err := configstack.FindStackInSubfolders(ctx, rootOptions, nil)
 	if err != nil {
 		return err
 	}

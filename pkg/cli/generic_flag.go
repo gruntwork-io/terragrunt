@@ -10,7 +10,7 @@ import (
 )
 
 type GenericType interface {
-	string | int | int64
+	string | int | int64 | uint
 }
 
 type GenericFlag[T GenericType] struct {
@@ -180,6 +180,13 @@ func (val *genericType[T]) Set(str string) error {
 			return errors.Errorf("error parse: %w", err)
 		}
 		*dest = int(v)
+
+	case *uint:
+		v, err := strconv.ParseUint(str, 10, 64)
+		if err != nil {
+			return errors.Errorf("error parse: %w", err)
+		}
+		*dest = uint(v)
 
 	case *int64:
 		v, err := strconv.ParseInt(str, 0, 64)

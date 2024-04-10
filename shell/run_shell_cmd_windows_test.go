@@ -46,12 +46,12 @@ func TestExitCodeWindows(t *testing.T) {
 		err := cmd.Run()
 
 		if i == 0 {
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 		} else {
 			assert.Error(t, err)
 		}
 		retCode, err := GetExitCode(err)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, i, retCode)
 	}
 
@@ -94,7 +94,7 @@ func TestNewSignalsForwarderWaitWindows(t *testing.T) {
 	// Since we can't send an interrupt on Windows, our test script won't handle it gracefully and exit after the expected wait time,
 	// so this part of the test process cannot be done on Windows
 	// retCode, err := GetExitCode(err)
-	// assert.Nil(t, err)
+	// assert.NoError(t, err)
 	// assert.Equal(t, retCode, expectedWait)
 	// assert.WithinDuration(t, start.Add(time.Duration(expectedWait)*time.Second), time.Now(), time.Second,
 	// 	"Expected to wait 5 (+/-1) seconds after SIGINT")
@@ -110,7 +110,7 @@ func TestRunShellCommandWithOutputInterrupt(t *testing.T) {
 	expectedWait := 5
 
 	go func() {
-		_, err := RunShellCommandWithOutput(terragruntOptions, "", false, false, "../testdata/test_sigint_wait.bat", strconv.Itoa(expectedWait))
+		_, err := RunShellCommandWithOutput(context.Background(), terragruntOptions, "", false, false, "../testdata/test_sigint_wait.bat", strconv.Itoa(expectedWait))
 		errCh <- err
 	}()
 
