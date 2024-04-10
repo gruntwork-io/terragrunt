@@ -144,7 +144,7 @@ func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 
 	sort.Sort(cmds)
 
-	// add terraformCmd command `*` after sorting to put the command at the end of the list in the help.
+	// add terraform command `*` after sorting to put the command at the end of the list in the help.
 	cmds.Add(telemetryCommand(opts, terraformCmd.NewCommand(opts)))
 
 	return cmds

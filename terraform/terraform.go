@@ -24,7 +24,7 @@ const (
 	CommandNameForceUnlock    = "force-unlock"
 
 	FlagNameNoColor = "-no-color"
-	// `apply -destroy` alias for `destroy`
+	// `apply -destroy` is alias for `destroy`
 	FlagNameDestroy = "-destroy"
 
 	EnvNameTFCLIConfigFile                         = "TF_CLI_CONFIG_FILE"
