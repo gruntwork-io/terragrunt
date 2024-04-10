@@ -1,6 +1,7 @@
 package remote
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -285,7 +286,7 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 
 // Initialize the remote state S3 bucket specified in the given config. This function will validate the config
 // parameters, create the S3 bucket if it doesn't already exist, and check that versioning is enabled.
-func (s3Initializer S3Initializer) Initialize(remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {
+func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {
 
 	s3ConfigExtended, err := ParseExtendedS3Config(remoteState.Config)
 	if err != nil {
@@ -311,7 +312,7 @@ func (s3Initializer S3Initializer) Initialize(remoteState *RemoteState, terragru
 			return errors.WithStackTrace(err)
 		}
 
-		if err := createS3BucketIfNecessary(s3Client, s3ConfigExtended, terragruntOptions); err != nil {
+		if err := createS3BucketIfNecessary(ctx, s3Client, s3ConfigExtended, terragruntOptions); err != nil {
 			return errors.WithStackTrace(err)
 		}
 
@@ -429,7 +430,7 @@ func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3, terragruntOpt
 
 // If the bucket specified in the given config doesn't already exist, prompt the user to create it, and if the user
 // confirms, create the bucket and enable versioning for it.
-func createS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+func createS3BucketIfNecessary(ctx context.Context, s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	if DoesS3BucketExist(s3Client, &config.remoteStateConfigS3.Bucket) {
 		return nil
 	}
@@ -452,7 +453,7 @@ func createS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 		// been performed should be a no-op.
 		description := fmt.Sprintf("Create S3 bucket with retry %s", config.remoteStateConfigS3.Bucket)
 
-		return util.DoWithRetry(description, s3MaxRetries, s3SleepBetweenRetries, terragruntOptions.Logger, logrus.DebugLevel, func() error {
+		return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, logrus.DebugLevel, func() error {
 			err := CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client, config, terragruntOptions)
 			if err != nil {
 				if isBucketCreationErrorRetriable(err) {

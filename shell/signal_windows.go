@@ -7,4 +7,4 @@ import (
 	"os"
 )
 
-var forwardSignals []os.Signal = []os.Signal{}
+var InterruptSignals []os.Signal = []os.Signal{}

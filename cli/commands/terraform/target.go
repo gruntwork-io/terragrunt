@@ -1,6 +1,8 @@
 package terraform
 
 import (
+	"context"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -14,7 +16,7 @@ const (
 
 type TargetPointType byte
 
-type TargetCallbackType func(opts *options.TerragruntOptions, config *config.TerragruntConfig) error
+type TargetCallbackType func(ctx context.Context, opts *options.TerragruntOptions, config *config.TerragruntConfig) error
 
 type TargetErrorCallbackType func(opts *options.TerragruntOptions, config *config.TerragruntConfig, e error) error
 
@@ -77,8 +79,8 @@ func (target *Target) isPoint(point TargetPointType) bool {
 	return target.point == point
 }
 
-func (target *Target) runCallback(opts *options.TerragruntOptions, config *config.TerragruntConfig) error {
-	return target.callbackFunc(opts, config)
+func (target *Target) runCallback(ctx context.Context, opts *options.TerragruntOptions, config *config.TerragruntConfig) error {
+	return target.callbackFunc(ctx, opts, config)
 }
 
 func (target *Target) runErrorCallback(opts *options.TerragruntOptions, config *config.TerragruntConfig, e error) error {

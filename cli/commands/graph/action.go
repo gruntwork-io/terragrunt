@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"context"
 	"fmt"
 
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
@@ -14,13 +15,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 )
 
-func Run(opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	target := terraform.NewTarget(terraform.TargetPointParseConfig, graph)
 
-	return terraform.RunWithTarget(opts, target)
+	return terraform.RunWithTarget(ctx, opts, target)
 }
 
-func graph(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	if cfg == nil {
 		return fmt.Errorf("Terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl.")
 	}
@@ -30,7 +31,7 @@ func graph(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error 
 	// if destroy-graph-root is empty, use git to find top level dir.
 	// may cause issues if in the same repo exist unrelated modules which will generate errors when scanning.
 	if rootDir == "" {
-		gitRoot, err := shell.GitTopLevelDir(opts, opts.WorkingDir)
+		gitRoot, err := shell.GitTopLevelDir(ctx, opts, opts.WorkingDir)
 		if err != nil {
 			return err
 		}
@@ -40,7 +41,7 @@ func graph(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error 
 	rootOptions := opts.Clone(rootDir)
 	rootOptions.WorkingDir = rootDir
 
-	stack, err := configstack.FindStackInSubfolders(rootOptions, nil)
+	stack, err := configstack.FindStackInSubfolders(ctx, rootOptions, nil)
 	if err != nil {
 		return err
 	}
@@ -59,5 +60,5 @@ func graph(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error 
 		}
 	}
 
-	return runall.RunAllOnStack(opts, stack)
+	return runall.RunAllOnStack(ctx, opts, stack)
 }

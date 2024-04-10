@@ -1,6 +1,7 @@
 package terragruntinfo
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -11,10 +12,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-func Run(opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	target := terraform.NewTargetWithErrorHandler(terraform.TargetPointDownloadSource, runTerragruntInfo, runErrorTerragruntInfo)
 
-	return terraform.RunWithTarget(opts, target)
+	return terraform.RunWithTarget(ctx, opts, target)
 }
 
 // Struct is output as JSON by 'terragrunt-info':
@@ -48,7 +49,7 @@ func printTerragruntInfo(opts *options.TerragruntOptions) error {
 	return nil
 }
 
-func runTerragruntInfo(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func runTerragruntInfo(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	return printTerragruntInfo(opts)
 }
 

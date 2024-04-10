@@ -539,7 +539,7 @@ Example:
 Having bellow dependencies:
 [![dependency-graph](/assets/img/collections/documentation/dependency-graph.png){: width="80%" }]({{site.baseurl}}/assets/img/collections/documentation/dependency-graph.png)
 
-Running `terragrunt graph apply` in `eks` module will lead to the following execution order: 
+Running `terragrunt graph apply` in `eks` module will lead to the following execution order:
 ```
 Group 1
 - Module project/eks
@@ -665,6 +665,13 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
 - [terragrunt-json-log](#terragrunt-json-log)
 - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json)
+- [terragrunt-provider-cache](#terragrunt-provider-cache)
+- [terragrunt-provider-cache-dir](#terragrunt-provider-cache-dir)
+- [terragrunt-provider-complete-lock](#terragrunt-provider-complete-lock)
+- [terragrunt-registry-hostname](#terragrunt-registry-hostname)
+- [terragrunt-registry-port](#terragrunt-registry-port)
+- [terragrunt-registry-token](#terragrunt-registry-token)
+- [terragrunt-registry-names](#terragrunt-registry-names)
 
 ### terragrunt-config
 
@@ -1150,3 +1157,66 @@ When this flag is set, Terragrunt will output its logs in JSON format.
 **Environment Variable**: `TERRAGRUNT_TF_JSON_LOG` (set to `true`)
 
 When this flag is set, Terragrunt will wrap Terraform `stdout` and `stderr` in JSON log messages. Works only with `--terragrunt-json-log` flag.
+
+### terragrunt-provider-cache
+
+**CLI Arg**: `--terragrunt-provider-cache`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE`
+**Commands**:
+- [run-all](#run-all)
+
+Enables Terragrunt's provider caching. This forces Terraform to make provider requests through the Terragrunt Provider Cache server. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
+
+### terragrunt-provider-cache-dir
+
+**CLI Arg**: `--terragrunt-provider-cache-dir`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_DIR`
+**Commands**:
+- [run-all](#run-all)
+
+The path to the Terragrunt provider cache directory. By default, `terragrunt/providers` folder in the user cache directory: `$HOME/.cache` on Unix systems, `$HOME/Library/Caches` on Darwin, `%LocalAppData%` on Windows. The file structure of the cache directory is identical to the Terraform [plugin_cache_dir](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache) directory. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
+
+### terragrunt-provider-cache-disable-partial-lock-file
+
+**CLI Arg**: `--terragrunt-provider-cache-disable-partial-lock-file`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_DISABLE_PARTIAL_LOCK_FILE`
+**Commands**:
+- [run-all](#run-all)
+
+By default, Terraform does _not_ use the cache for modules without a lock file. This results in lots of extra provider downloading. To work around this, for modules without a lock file, Terragurnt provider caching enables the [_plugin_cache_may_break_dependency_lock_file_](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation) feature, which allows Terraform to generate a partial lock file if it finds the providers it needs in the cache. This avoids lots of unnecessary provider downloads, but results in partial lock files. If you wish to disable this feature, set this flag flag, and Terragrunt will run `terraform providers lock` before `init` for modules without lock files, which will generate a complete lock file, but at the cost of more provider downloads. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
+
+### terragrunt-provider-cache-hostname
+
+**CLI Arg**: `--terragrunt-provider-cache-hostname`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_HOSTNAME`
+**Commands**:
+- [run-all](#run-all)
+
+The hostname of the Terragrunt Provider Cache server. By default, 'localhost'. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
+
+### terragrunt-provider-cache-port
+
+**CLI Arg**: `--terragrunt-provider-cache-port`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_PORT`
+**Commands**:
+- [run-all](#run-all)
+
+The port of the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
+
+### terragrunt-provider-cache-token
+
+**CLI Arg**: `--terragrunt-provider-cache-token`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_TOKEN`
+**Commands**:
+- [run-all](#run-all)
+
+The Token for authentication on the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
+
+### terragrunt-provider-cache-registry-names
+
+**CLI Arg**: `--terragrunt-provider-cache-registry-names`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES`
+**Commands**:
+- [run-all](#run-all)
+
+The list of remote registries to cached by Terragrunt Provider Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.

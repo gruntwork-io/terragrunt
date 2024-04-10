@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
+	"github.com/gruntwork-io/terragrunt/terraform"
 )
 
 // The following commands are DEPRECATED
@@ -35,11 +35,11 @@ var replaceDeprecatedCommandsFuncs = map[string]replaceDeprecatedCommandFuncType
 	CommandNameOutputAll:   replaceDeprecatedCommandFunc(runall.CommandName, terraform.CommandNameOutput),
 }
 
-type replaceDeprecatedCommandFuncType func(opts *options.TerragruntOptions) func(ctx *cli.Context) error
+type replaceDeprecatedCommandFuncType func(opts *options.TerragruntOptions) cli.ActionFunc
 
 // replaceDeprecatedCommandFunc returns the `Action` function of the replacement command that is assigned to the deprecated command.
 func replaceDeprecatedCommandFunc(terragruntCommandName, terraformCommandName string) replaceDeprecatedCommandFuncType {
-	return func(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
+	return func(opts *options.TerragruntOptions) cli.ActionFunc {
 		return func(ctx *cli.Context) error {
 			command := ctx.App.Commands.Get(terragruntCommandName)
 			args := append([]string{terraformCommandName}, ctx.Args().Slice()...)

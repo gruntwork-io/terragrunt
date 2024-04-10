@@ -13,6 +13,21 @@ defaults: &defaults
   docker:
     - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.21.7-tf1.5-tg39.1-pck1.8-ci50.7
 
+# Install Terraform which is not available in the default image
+install_terraform_latest: &install_terraform_latest
+  name: Install the latest Terraform
+  command: |
+    pushd .
+    cd /tmp
+    export TERRAFORM_VERSION=1.7.5
+    curl -L "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o terraform.zip
+    unzip -o terraform.zip
+    sudo install -m 0755 terraform /usr/local/bin/terraform
+    rm -rf terraform
+    rm -rf terraform.zip
+    popd
+    terraform --version
+
 install_tofu: &install_tofu
   name: Install OpenTofu
   command: |
@@ -27,7 +42,7 @@ install_tofu: &install_tofu
     tofu --version
 
 install_tflint: &install_tflint
-  name: Install Tflint
+  name: Install TFlint
   command: |
     pushd .
     cd /tmp
@@ -38,6 +53,37 @@ install_tflint: &install_tflint
     rm -rf tflint.zip
     popd
     tflint --version
+
+setup_test_environment: &setup_test_environment
+  name: Setup integration tests environment
+  command: |
+    # Make GCP Service Account creds available as a file
+    echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
+    echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
+    # Import test / dev key for SOPS
+    gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
+    mkdir -p logs
+  no_output_timeout: 30m
+
+run_integration_test: &run_integration_test
+  name: Run integration tests
+  command: |
+    run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
+  no_output_timeout: 30m
+
+run_tflint_test: &run_tflint_test
+  name: Run TFlint tests
+  command: |
+    run-go-tests --packages "-tags tflint -run TestTflint ./test" | tee logs/integration.log
+  no_output_timeout: 30m
+
+run_terratest_log_parser: &run_terratest_log_parser
+  name: Terratest log parser
+  command: |
+    gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.30.0'
+    terratest_log_parser --testlog logs/integration.log --outputdir logs
+  when: always
+
 
 version: 2.1
 jobs:
@@ -135,134 +181,135 @@ jobs:
           path: logs
 
   integration_test_terraform_1_5:
-    resource_class: large
+    resource_class: xlarge
     <<: *defaults
     steps:
       - checkout
-      - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.30.0'
       - run:
           <<: *install_tflint
-      # Make GCP Service Account creds available as a file
-      - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
-      - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
-      # Import test / dev key for SOPS
       - run:
-          command: |
-            gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
-            mkdir -p logs
-            run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
-          no_output_timeout: 30m
+          <<: *setup_test_environment
       - run:
-          command: terratest_log_parser --testlog logs/integration.log --outputdir logs
-          when: always
+          <<: *run_integration_test
+      - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
+  integration_test_terraform_with_provider_cache:
+    resource_class: xlarge
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          <<: *install_tflint
+      - run:
+          <<: *setup_test_environment
+      - run:
+          <<: *run_integration_test
+          environment:
+            TERRAGRUNT_PROVIDER_CACHE: "1"
+      - run:
+          <<: *run_terratest_log_parser
       - store_artifacts:
           path: logs
       - store_test_results:
           path: logs
 
   integration_test_terraform_latest:
-    resource_class: large
+    resource_class: xlarge
     <<: *defaults
     steps:
       - checkout
-      - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.30.0'
+      - run:
+          <<: *install_terraform_latest
       - run:
           <<: *install_tflint
       - run:
-          # Install Terraform which is not available in the default image
-          command: |
-            pushd .
-            cd /tmp
-            export TERRAFORM_VERSION=1.7.5
-            curl -L "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o terraform.zip
-            unzip -o terraform.zip
-            sudo install -m 0755 terraform /usr/local/bin/terraform
-            rm -rf terraform
-            rm -rf terraform.zip
-            popd
-            terraform --version
-      # Make GCP Service Account creds available as a file
-      - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
-      - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
-      # Import test / dev key for SOPS
+          <<: *setup_test_environment
       - run:
-          command: |
-            gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
-            mkdir -p logs
-            run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
-          no_output_timeout: 30m
+          <<: *run_integration_test
       - run:
-          command: terratest_log_parser --testlog logs/integration.log --outputdir logs
-          when: always
+          <<: *run_terratest_log_parser
       - store_artifacts:
           path: logs
       - store_test_results:
           path: logs
 
   integration_test_tofu:
-    resource_class: large
+    resource_class: xlarge
     <<: *defaults
     steps:
       - checkout
-      - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.30.0'
       - run:
           <<: *install_tofu
       - run:
           <<: *install_tflint
-      # Make GCP Service Account creds available as a file
-      - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
-      - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
-      # Import test / dev key for SOPS
       - run:
-          command: |
-            gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
-            # remove terraform
-            sudo rm -f $(which terraform)
-            mkdir -p logs
-            run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
-          no_output_timeout: 30m
+          <<: *setup_test_environment
+      - run:
+          # Remove terraform
+          sudo rm -f $(which terraform)
+      - run:
+          <<: *run_integration_test
           environment:
-            # use tofu as wrapper
             TERRAGRUNT_TFPATH: tofu
       - run:
-          command: terratest_log_parser --testlog logs/integration.log --outputdir logs
-          when: always
+          <<: *run_terratest_log_parser
       - store_artifacts:
           path: logs
       - store_test_results:
           path: logs
 
+  integration_test_tofu_with_provider_cache:
+    resource_class: xlarge
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          <<: *install_tofu
+      - run:
+          <<: *install_tflint
+      - run:
+          <<: *setup_test_environment
+      - run:
+          # Remove terraform
+          sudo rm -f $(which terraform)
+      - run:
+          <<: *run_integration_test
+          environment:
+            TERRAGRUNT_TFPATH: tofu
+            TERRAGRUNT_PROVIDER_CACHE: "1"
+      - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
+  # Run TFLint tests separately as tflint during execution change working directory.
   integration_test_tflint:
     resource_class: large
     <<: *defaults
     steps:
       - checkout
-      - run: gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.30.0'
       - run:
           <<: *install_tofu
       - run:
           <<: *install_tflint
-      # Make GCP Service Account creds available as a file
-      - run: echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
-      - run: echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
-      # Import test / dev key for SOPS
       - run:
-          command: |
-            gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
-          no_output_timeout: 30m
-      # Run TFLint tests separately as tflint during execution change working directory.
+          <<: *setup_test_environment
       - run:
-          command: |
-            mkdir -p logs
-            run-go-tests --packages "-tags tflint -run TestTflint ./test" | tee logs/integration.log
-          no_output_timeout: 30m
+          <<: *run_tflint_test
       - run:
-          command: terratest_log_parser --testlog logs/integration.log --outputdir logs
-          when: always
+          <<: *run_terratest_log_parser
       - store_artifacts:
           path: logs
       - store_test_results:
           path: logs
+
   build:
     resource_class: large
     <<: *defaults
@@ -294,7 +341,7 @@ jobs:
           command: |
             export AC_PASSWORD=${MACOS_AC_PASSWORD}
             export AC_PROVIDER=${MACOS_AC_PROVIDER}
-            
+
             sign-binary --os mac --install-macos-sign-dependencies .gon_amd64.hcl
             sign-binary --os mac .gon_arm64.hcl
             echo "Done signing the binary"
@@ -347,7 +394,23 @@ workflows:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
+      - integration_test_terraform_with_provider_cache:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
       - integration_test_tofu:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+      - integration_test_tofu_with_provider_cache:
           filters:
             tags:
               only: /^v.*/
