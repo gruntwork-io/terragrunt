@@ -23,6 +23,8 @@ The officially supported versions are:
 
 | Terraform Version | Terragrunt Version                                                                                                                                    |
 |-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1.7.x             | >= [0.56.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.56.0)                                                                          |
+| 1.6.x             | >= [0.53.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.53.0)                                                                          |
 | 1.5.x             | >= [0.48.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.48.0)                                                                          |
 | 1.4.x             | >= [0.45.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.45.0)                                                                          |
 | 1.3.x             | >= [0.40.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.40.0)                                                                          |
@@ -35,7 +37,10 @@ The officially supported versions are:
 | 0.12.x            | [0.19.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.19.0) - [0.24.4](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.24.4) |
 | 0.11.x            | [0.14.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.14.0) - [0.18.7](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.18.7) |
 
-However, note that these are the versions that are officially tested in the CI process. In practice, the version
+**Note 1:** Terragrunt lists support for BSL versions of Terraform (>= 1.6.x) and core IaC functionality will work as expected.
+However, support for BSL Terraform-specific features is not guaranteed even if that version is in this table.
+
+**Note 2:** This table lists versions that are officially tested in the CI process. In practice, the version
 compatibility is more relaxed than documented above. For example, we've found that Terraform 0.13 works with any version
 above 0.19.0, and we've also found that terraform 0.11 works with any version above 0.19.18 as well.
 
