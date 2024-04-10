@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
+	"github.com/gruntwork-io/terragrunt/terraform"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -103,16 +104,14 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 	// This is not ideal, but until we have a better way of handling interactivity with run-all, we take the evil of
 	// having a global prompt (managed in cli/cli_app.go) be the gate keeper.
 	switch stackCmd {
-	case "apply", "destroy":
+	case terraform.CommandNameApply, terraform.CommandNameDestroy:
 		// to support potential positional args in the args list, we append the input=false arg after the first element,
 		// which is the target command.
 		if terragruntOptions.RunAllAutoApprove {
 			terragruntOptions.TerraformCliArgs = util.StringListInsert(terragruntOptions.TerraformCliArgs, "-auto-approve", 1)
 		}
 		stack.syncTerraformCliArgs(terragruntOptions)
-	}
-
-	if stackCmd == "plan" {
+	case terraform.CommandNamePlan:
 		// We capture the out stream for each module
 		errorStreams := make([]bytes.Buffer, len(stack.Modules))
 		for n, module := range stack.Modules {
@@ -128,7 +127,7 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 	switch {
 	case terragruntOptions.IgnoreDependencyOrder:
 		return RunModulesIgnoreOrder(ctx, terragruntOptions, stack.Modules, terragruntOptions.Parallelism)
-	case stackCmd == "destroy":
+	case stackCmd == terraform.CommandNameDestroy:
 		return RunModulesReverseOrder(ctx, terragruntOptions, stack.Modules, terragruntOptions.Parallelism)
 	default:
 		return RunModules(ctx, terragruntOptions, stack.Modules, terragruntOptions.Parallelism)
@@ -207,7 +206,7 @@ func (stack *Stack) getModuleRunGraph(terraformCommand string) ([][]*TerraformMo
 	var moduleRunGraph map[string]*runningModule
 	var graphErr error
 	switch terraformCommand {
-	case "destroy":
+	case terraform.CommandNameDestroy:
 		moduleRunGraph, graphErr = toRunningModules(stack.Modules, ReverseOrder)
 	default:
 		moduleRunGraph, graphErr = toRunningModules(stack.Modules, NormalOrder)
