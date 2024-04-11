@@ -1173,12 +1173,12 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 	environmentPath := tmpEnvPath
 
 	// forces plugin download & initialization (no parallelism control)
-	runTerragrunt(t, fmt.Sprintf("terragrunt plan-all --terragrunt-non-interactive --terragrunt-working-dir %s -var sleep_seconds=%d", environmentPath, timeToDeployEachModule/time.Second))
+	runTerragrunt(t, fmt.Sprintf("terragrunt plan-all -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s -var sleep_seconds=%d", environmentPath, timeToDeployEachModule/time.Second))
 	// apply all with parallelism set
 	// NOTE: we can't run just apply-all and not plan-all because the time to initialize the plugins skews the results of the test
 	testStart := int(time.Now().Unix())
 	t.Logf("apply-all start time = %d, %s", testStart, time.Now().Format(time.RFC3339))
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-parallelism %d --terragrunt-non-interactive --terragrunt-working-dir %s -var sleep_seconds=%d", parallelism, environmentPath, timeToDeployEachModule/time.Second))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all -no-color --terragrunt-include-module-prefix --terragrunt-parallelism %d --terragrunt-non-interactive --terragrunt-working-dir %s -var sleep_seconds=%d", parallelism, environmentPath, timeToDeployEachModule/time.Second))
 
 	// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
 	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output-all -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", environmentPath))
