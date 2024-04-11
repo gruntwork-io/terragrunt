@@ -476,3 +476,35 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 		assert.NotNil(t, output["time"])
 	}
 }
+
+func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {
+	testCases := []struct {
+		arg string
+	}{
+		{"--terragrunt-json-log"},
+		{"--terragrunt-json-log --terragrunt-tf-logs-to-json"},
+		{"--terragrunt-include-module-prefix"},
+		{"--terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-include-module-prefix"},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(fmt.Sprintf("terragrunt output with %s", testCase.arg), func(t *testing.T) {
+
+			s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+			defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+
+			tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY)
+
+			rootTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY)
+			depTerragruntConfigPath := util.JoinPath(rootTerragruntPath, "dependency", config.DefaultTerragruntConfigPath)
+
+			copyTerragruntConfigAndFillPlaceholders(t, depTerragruntConfigPath, depTerragruntConfigPath, s3BucketName, "not-used", TERRAFORM_REMOTE_STATE_S3_REGION)
+
+			stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s %s", rootTerragruntPath, testCase.arg))
+			assert.NoError(t, err)
+
+			output := fmt.Sprintf("%s %s", stderr, stdout)
+			assert.NotContains(t, output, "invalid character")
+		})
+	}
+}
