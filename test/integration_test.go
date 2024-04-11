@@ -1186,7 +1186,7 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 		return "", 0, err
 	}
 
-	return stdout.String(), testStart, nil
+	return stdout, testStart, nil
 }
 
 func TestTerragruntStackCommands(t *testing.T) {
