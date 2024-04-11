@@ -290,12 +290,9 @@ func TestTerragruntDestroyOrder(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
-	showStdout := bytes.Buffer{}
-	showStderr := bytes.Buffer{}
-
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all destroy --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all destroy --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 	assert.NoError(t, err)
-	assert.Regexp(t, regexp.MustCompile(`(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`), showStdout.String())
+	assert.Regexp(t, regexp.MustCompile(`(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`), stdout)
 }
 
 func TestTerragruntApplyDestroyOrder(t *testing.T) {
@@ -307,12 +304,9 @@ func TestTerragruntApplyDestroyOrder(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 
-	showStdout := bytes.Buffer{}
-	showStderr := bytes.Buffer{}
-
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply -destroy --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &showStdout, &showStderr)
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -destroy --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 	assert.NoError(t, err)
-	assert.Regexp(t, regexp.MustCompile(`(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`), showStdout.String())
+	assert.Regexp(t, regexp.MustCompile(`(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`), stdout)
 }
 
 func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
@@ -1192,7 +1186,7 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 		return "", 0, err
 	}
 
-	return stdout, testStart, nil
+	return stdout.String(), testStart, nil
 }
 
 func TestTerragruntStackCommands(t *testing.T) {
