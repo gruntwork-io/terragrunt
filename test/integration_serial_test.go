@@ -265,21 +265,21 @@ func TestTerragruntLogLevelEnvVarUnparsableLogsErrorButContinues(t *testing.T) {
 // with all the other tests as the system load could impact the duration in which the parallel terragrunt goroutines
 // run.
 
-func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules int, timeToDeployEachModule time.Duration, expectedTimings []int) {
-	output, testStart, err := testRemoteFixtureParallelism(t, parallelism, numberOfModules, timeToDeployEachModule)
+func testTerragruntParallelism(t *testing.T, key string, parallelism int, numberOfModules int, timeToDeployEachModule time.Duration, expectedTimings []int) {
+	output, testStart, err := testRemoteFixtureParallelism(t, key, parallelism, numberOfModules, timeToDeployEachModule)
 	require.NoError(t, err)
 
 	// parse output and sort the times, the regex captures a string in the format time.RFC3339 emitted by terraform's timestamp function
 	regex, err := regexp.Compile(`out = "([-:\w]+)"`)
-	require.NoError(t, err)
+	require.NoError(t, err, key)
 
 	matches := regex.FindAllStringSubmatch(output, -1)
-	require.Equal(t, numberOfModules, len(matches))
+	require.Equal(t, numberOfModules, len(matches), key)
 
 	var deploymentTimes []int
 	for _, match := range matches {
 		parsedTime, err := time.Parse(time.RFC3339, match[1])
-		require.NoError(t, err)
+		require.NoError(t, err, key)
 		deploymentTime := int(parsedTime.Unix()) - testStart
 		deploymentTimes = append(deploymentTimes, deploymentTime)
 	}
@@ -304,7 +304,7 @@ func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules in
 	maxDiffInSeconds := 5.0 * scalingFactor
 	for i, scaledTime := range scaledTimes {
 		difference := math.Abs(scaledTime - float64(expectedTimings[i]))
-		require.True(t, difference <= maxDiffInSeconds, "Expected timing %d but got %f", expectedTimings[i], scaledTime)
+		require.True(t, difference <= maxDiffInSeconds, "Test: %s Expected timing %d but got %f", key, expectedTimings[i], scaledTime)
 	}
 }
 
@@ -320,10 +320,8 @@ func TestTerragruntParallelism(t *testing.T) {
 		{5, 10, 5 * time.Second, []int{5, 5, 5, 5, 5, 5, 5, 5, 5, 5}},
 	}
 	for _, tc := range testCases {
-		tc := tc // shadow and force execution with this case
-		t.Run(fmt.Sprintf("parallelism=%d numberOfModules=%d timeToDeployEachModule=%v expectedTimings=%v", tc.parallelism, tc.numberOfModules, tc.timeToDeployEachModule, tc.expectedTimings), func(t *testing.T) {
-			testTerragruntParallelism(t, tc.parallelism, tc.numberOfModules, tc.timeToDeployEachModule, tc.expectedTimings)
-		})
+		key := fmt.Sprintf("parallelism=%d numberOfModules=%d timeToDeployEachModule=%v expectedTimings=%v", tc.parallelism, tc.numberOfModules, tc.timeToDeployEachModule, tc.expectedTimings)
+		testTerragruntParallelism(t, key, tc.parallelism, tc.numberOfModules, tc.timeToDeployEachModule, tc.expectedTimings)
 	}
 }
 

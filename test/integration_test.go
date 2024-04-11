@@ -1146,13 +1146,13 @@ func TestTerragruntOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *tes
 	assert.True(t, strings.Contains(output, "app2 output"))
 }
 
-func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules int, timeToDeployEachModule time.Duration) (string, int, error) {
+func testRemoteFixtureParallelism(t *testing.T, key string, parallelism int, numberOfModules int, timeToDeployEachModule time.Duration) (string, int, error) {
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 
 	// copy the template `numberOfModules` times into the app
 	tmpEnvPath, err := os.MkdirTemp("", fmt.Sprintf("terragrunt-test-%d-", parallelism))
 	if err != nil {
-		t.Fatalf("Failed to create temp dir due to error: %v", err)
+		t.Fatalf("test: %s Failed to create temp dir due to error: %v", key, err)
 	}
 	for i := 0; i < numberOfModules; i++ {
 		err := util.CopyFolderContents(TEST_FIXTURE_PARALLELISM, tmpEnvPath, ".terragrunt-test", nil)

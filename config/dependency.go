@@ -888,11 +888,6 @@ func setupTerragruntOptionsForBareTerraform(ctx *ParsingContext, workingDir stri
 func runTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, error) {
 	// Update the stdout buffer so we can capture the output
 	var stdoutBuffer bytes.Buffer
-	// save and restore current buffer
-	buffer := ctx.TerragruntOptions.Writer
-	defer func() {
-		ctx.TerragruntOptions.Writer = buffer
-	}()
 	stdoutBufferWriter := bufio.NewWriter(&stdoutBuffer)
 	ctx.TerragruntOptions.Writer = stdoutBufferWriter
 
