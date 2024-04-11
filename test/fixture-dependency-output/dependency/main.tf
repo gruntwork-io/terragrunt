@@ -1,4 +1,4 @@
-output result {
+output "result" {
 
   value = "42"
 }
