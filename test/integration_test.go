@@ -6929,7 +6929,6 @@ func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {
 			assert.NotContains(t, output, "invalid character")
 		})
 	}
-
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
