@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -22,11 +23,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/cliconfig"
 	"github.com/gruntwork-io/terragrunt/util"
+	"golang.org/x/exp/maps"
 )
 
 const (
 	// The path to the automatically generated local CLI configuration, relative to the `.terragrunt-cache` folder.
-	localTerraformCLIFilename = ".terraformrc"
+	mainLocalCLIFilename    = ".terraformrc"
+	preInitLocalCLIFilename = ".terraformrc_pre_init"
 )
 
 var (
@@ -39,7 +42,8 @@ var (
 
 type ProviderCacheServer struct {
 	*cache.Server
-	Env map[string]string
+	Env        map[string]string
+	preInitEnv map[string]string
 }
 
 func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCacheServer, error) {
@@ -86,16 +90,19 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCacheSer
 		return nil, err
 	}
 
-	cliConfigFile := filepath.Join(opts.DownloadDir, localTerraformCLIFilename)
-	if err := createLocalCLIConfig(opts, cliConfigFile, server.ProviderURL()); err != nil {
+	mainCLIConfigFile := filepath.Join(opts.DownloadDir, mainLocalCLIFilename)
+	preInitCLIConfigFile := filepath.Join(opts.DownloadDir, preInitLocalCLIFilename)
+
+	if err := createLocalCLIConfigs(opts, mainCLIConfigFile, preInitCLIConfigFile, server.ProviderURL()); err != nil {
 		// to release the allocated port
 		server.Close() //nolint:errcheck
 		return nil, err
 	}
 
 	return &ProviderCacheServer{
-		Server: server,
-		Env:    providerCacheEnvironment(opts, cliConfigFile),
+		Server:     server,
+		Env:        providerCacheEnvironment(opts, mainCLIConfigFile),
+		preInitEnv: providerCacheEnvironment(opts, preInitCLIConfigFile),
 	}, nil
 }
 
@@ -105,16 +112,14 @@ func (server *ProviderCacheServer) TerraformCommandHook(ctx context.Context, opt
 		return nil
 	}
 
-	log.Debugf("Getting terraform modules for %q", opts.WorkingDir)
-	if err := runTerraformCommand(ctx, opts, terraform.CommandNameGet); err != nil {
-		return err
-	}
+	// To prevent a loop when using the `init` command.
+	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
 
 	log.Debugf("Caching terraform providers for %q", opts.WorkingDir)
 	// Before each init, we warm up the global cache to ensure that all necessary providers are cached.
 	// To do this we are using 'terraform providers lock' to force TF to request all the providers from our TG server, and that's how we know what providers TF needs, and can load them into the cache.
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
-	if err := runTerraformCommand(ctx, opts, terraform.CommandNameProviders, terraform.CommandNameLock, "-platform="+controllers.PlatformNameCacheProvider); err != nil {
+	if err := runTerraformCommand(ctx, opts, args, server.preInitEnv); err != nil {
 		return err
 	}
 	server.Provider.WaitForCacheReady()
@@ -124,7 +129,7 @@ func (server *ProviderCacheServer) TerraformCommandHook(ctx context.Context, opt
 		// Create complete terraform lock files. By default this feature is disabled, since it's not superfast.
 		// Instead we use Terraform `TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE` feature, that creates hashes from the local cache.
 		// And since the Terraform developers warn that this feature will be removed soon, it's good to have a workaround.
-		if err := runTerraformCommand(ctx, opts, terraform.CommandNameProviders, terraform.CommandNameLock); err != nil {
+		if err := runTerraformCommand(ctx, opts, []string{terraform.CommandNameProviders, terraform.CommandNameLock}, nil); err != nil {
 			return err
 		}
 	}
@@ -132,7 +137,7 @@ func (server *ProviderCacheServer) TerraformCommandHook(ctx context.Context, opt
 	return nil
 }
 
-func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, args ...string) error {
+func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, args []string, envs map[string]string) error {
 	// We use custom writer in order to trap the log from `terraform providers lock -platform=provider-cache` command, which terraform considers an error, but to us a success.
 	errWriter := util.NewTrapWriter(opts.ErrWriter, HTTPStatusCacheProviderReg)
 
@@ -142,9 +147,14 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 	}
 
 	cloneOpts := opts.Clone(opts.TerragruntConfigPath)
+	cloneOpts.Writer = io.Discard
 	cloneOpts.ErrWriter = errWriter
 	cloneOpts.WorkingDir = opts.WorkingDir
 	cloneOpts.TerraformCliArgs = args
+
+	if envs != nil {
+		maps.Copy(cloneOpts.Env, envs)
+	}
 
 	// If the Terraform error matches `HTTPStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process the error as is.
 	if err := shell.RunTerraformCommand(ctx, cloneOpts, cloneOpts.TerraformCliArgs...); err != nil && len(errWriter.Msgs()) == 0 {
@@ -180,7 +190,7 @@ func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile str
 	return envs
 }
 
-// createLocalCLIConfig creates a local CLI configuration that merges the default/user configuration with our Private Registry configuration.
+// localCLIsConfig creates a local CLI configuration that merges the default/user configuration with our Private Registry configuration.
 // We don't want to use Terraform's `plugin_cache_dir` feature because the cache is populated by our Terragrunt Provider Cache server, and to make sure that no Terraform process ever overwrites the global cache, we clear this value.
 // In order to force Terraform to queries our registry instead of the original one, we use the section below.
 // https://github.com/hashicorp/terraform/issues/28309 (officially undocumented)
@@ -205,7 +215,7 @@ func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile str
 //	}
 //
 // This func doesn't change the default CLI config file, only creates a new one at the given path `cliConfigFile`. Ultimately, we can assign this path to `TF_CLI_CONFIG_FILE`.
-func createLocalCLIConfig(opts *options.TerragruntOptions, cliConfigFile string, registryProviderURL *url.URL) error {
+func createLocalCLIConfigs(opts *options.TerragruntOptions, mainCLIFile, preInitCLIFile string, registryProviderURL *url.URL) error {
 	cfg, err := cliconfig.LoadUserConfig()
 	if err != nil {
 		return err
@@ -222,16 +232,39 @@ func createLocalCLIConfig(opts *options.TerragruntOptions, cliConfigFile string,
 		providerInstallationIncludes[i] = fmt.Sprintf("%s/*/*", registryName)
 	}
 
+	// main CLI config file
+
 	cfg.SetProviderInstallation(
 		cliconfig.NewProviderInstallationFilesystemMirror(opts.ProviderCacheDir, providerInstallationIncludes, nil),
 		cliconfig.NewProviderInstallationDirect(providerInstallationIncludes, nil),
 	)
 
-	if cfgDir := filepath.Dir(cliConfigFile); !util.FileExists(cfgDir) {
+	if cfgDir := filepath.Dir(mainCLIFile); !util.FileExists(cfgDir) {
 		if err := os.MkdirAll(cfgDir, os.ModePerm); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
 
-	return cfg.Save(cliConfigFile)
+	if err := cfg.Save(mainCLIFile); err != nil {
+		return err
+	}
+
+	// pre init CLI config file
+
+	cfg.SetProviderInstallation(
+		nil,
+		cliconfig.NewProviderInstallationDirect(nil, nil),
+	)
+
+	if cfgDir := filepath.Dir(preInitCLIFile); !util.FileExists(cfgDir) {
+		if err := os.MkdirAll(cfgDir, os.ModePerm); err != nil {
+			return errors.WithStackTrace(err)
+		}
+	}
+
+	if err := cfg.Save(preInitCLIFile); err != nil {
+		return err
+	}
+
+	return nil
 }

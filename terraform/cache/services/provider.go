@@ -73,6 +73,10 @@ func (cache *ProviderCache) downloadURL() string {
 	return cache.DownloadURL.String()
 }
 
+func (cache *ProviderCache) IsReady() bool {
+	return cache.ready
+}
+
 func (cache *ProviderCache) ArchiveFilename() string {
 	return filepath.Join(cache.baseArchiveDir, cache.Provider.Filename()+path.Ext(cache.downloadURL()))
 }
@@ -199,12 +203,12 @@ func (service *ProviderService) WaitForCacheReady() {
 }
 
 // CacheProvider starts caching the given provider using non-blocking approach.
-func (service *ProviderService) CacheProvider(ctx context.Context, provider *models.Provider) {
+func (service *ProviderService) CacheProvider(ctx context.Context, provider *models.Provider) *ProviderCache {
 	service.cacheMu.Lock()
 	defer service.cacheMu.Unlock()
 
 	if cache := service.providerCaches.Find(provider); cache != nil {
-		return
+		return cache
 	}
 
 	cache := &ProviderCache{
@@ -221,6 +225,8 @@ func (service *ProviderService) CacheProvider(ctx context.Context, provider *mod
 	case <-ctx.Done():
 		// quit
 	}
+
+	return cache
 }
 
 // GetProviderCache returns the requested provider archive cache, if it exists.
