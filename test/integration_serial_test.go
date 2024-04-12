@@ -319,9 +319,9 @@ func TestTerragruntParallelism(t *testing.T) {
 		{3, 10, 5 * time.Second, []int{5, 5, 5, 10, 10, 10, 15, 15, 15, 20}},
 		{5, 10, 5 * time.Second, []int{5, 5, 5, 5, 5, 5, 5, 5, 5, 5}},
 	}
-	for i, tc := range testCases {
+	for _, tc := range testCases {
 		// set a random env var to ensure that the tests didn't cache execution
-		os.Setenv("random_var", fmt.Sprintf("parallel_test %d", i))
+		os.Setenv(fmt.Sprintf("random_var_%v", time.Now().UnixNano()), fmt.Sprintf("parallel_test %v", time.Now().UnixNano()))
 		key := fmt.Sprintf("parallelism=%d numberOfModules=%d timeToDeployEachModule=%v expectedTimings=%v", tc.parallelism, tc.numberOfModules, tc.timeToDeployEachModule, tc.expectedTimings)
 		testTerragruntParallelism(t, key, tc.parallelism, tc.numberOfModules, tc.timeToDeployEachModule, tc.expectedTimings)
 	}
