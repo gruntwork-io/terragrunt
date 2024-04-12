@@ -117,7 +117,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %q", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func() error {
 			return util.FetchFile(ctx, downloadURL, archiveFilename)
 		}); err != nil {
-			os.Remove(archiveFilename) //nolint:errcheck
 			return err
 		}
 		cache.archiveCached = true
@@ -271,6 +270,11 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 		select {
 		case cache := <-service.providerCacheWarmUpCh:
 			errGroup.Go(func() error {
+				var (
+					providerDir     = cache.providerDir()
+					archiveFilename = cache.ArchiveFilename()
+				)
+
 				service.cacheReadyMu.RLock()
 				defer service.cacheReadyMu.RUnlock()
 
@@ -284,6 +288,8 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 				defer lockfile.Unlock() //nolint:errcheck
 
 				if err := cache.warmUp(ctx); err != nil {
+					os.Remove(providerDir)     //nolint:errcheck
+					os.Remove(archiveFilename) //nolint:errcheck
 					return err
 				}
 				cache.ready = true

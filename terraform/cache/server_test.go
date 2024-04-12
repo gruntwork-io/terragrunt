@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 func createFakeProvider(t *testing.T, cacheDir, relativePath string) string {
@@ -141,14 +142,15 @@ func TestServer(t *testing.T) {
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
+			errGroup, ctx := errgroup.WithContext(ctx)
+
 			server := NewServer(testCase.opts...)
 			err = server.Listen()
 			require.NoError(t, err)
 
-			go func() {
-				err = server.Run(ctx)
-				require.NoError(t, err)
-			}()
+			errGroup.Go(func() error {
+				return server.Run(ctx)
+			})
 
 			urlPath := server.ProviderURL()
 
@@ -177,6 +179,10 @@ func TestServer(t *testing.T) {
 			if testCase.expectedCachePath != "" {
 				assert.FileExists(t, filepath.Join(providerCacheDir, testCase.expectedCachePath))
 			}
+
+			cancel()
+			err = errGroup.Wait()
+			require.NoError(t, err)
 		})
 	}
 
