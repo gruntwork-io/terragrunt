@@ -629,7 +629,7 @@ func getTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, 
 		return nil, err
 	}
 
-	// targetTGOptions.TerraformLogsToJson = false
+	targetTGOptions.TerraformLogsToJson = false
 
 	ctx = ctx.WithTerragruntOptions(targetTGOptions)
 
