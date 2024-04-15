@@ -630,7 +630,7 @@ func getTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, 
 	}
 
 	targetTGOptions.TerraformLogsToJson = false
-	targetTGOptions.IncludeModulePrefix = false
+	//targetTGOptions.IncludeModulePrefix = false
 
 	ctx = ctx.WithTerragruntOptions(targetTGOptions)
 
