@@ -6,7 +6,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"path"
-	"runtime"
 	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
@@ -109,8 +108,6 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err
 		arch         = ctx.Param("arch")
 
 		proxyURL = controller.Downloader.ProviderProxyURL()
-
-		cacheRequest bool
 	)
 
 	provider := &models.Provider{
@@ -120,12 +117,6 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err
 		Version:      version,
 		OS:           os,
 		Arch:         arch,
-	}
-
-	if provider.Platform() == PlatformNameCacheProvider {
-		cacheRequest = true
-		provider.OS = runtime.GOOS
-		provider.Arch = runtime.GOARCH
 	}
 
 	return controller.ReverseProxy.
@@ -174,8 +165,7 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err
 				return nil
 			})
 
-			if cacheRequest {
-				controller.ProviderService.CacheProvider(ctx.Request().Context(), provider)
+			if cache := controller.ProviderService.CacheProvider(ctx.Request().Context(), provider); !cache.IsReady() {
 				return ctx.NoContent(HTTPStatusCacheProvider)
 			}
 			return err

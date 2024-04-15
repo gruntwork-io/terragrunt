@@ -73,6 +73,10 @@ func (cache *ProviderCache) downloadURL() string {
 	return cache.DownloadURL.String()
 }
 
+func (cache *ProviderCache) IsReady() bool {
+	return cache.ready
+}
+
 func (cache *ProviderCache) ArchiveFilename() string {
 	return filepath.Join(cache.baseArchiveDir, cache.Provider.Filename()+path.Ext(cache.downloadURL()))
 }
@@ -113,7 +117,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %q", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func() error {
 			return util.FetchFile(ctx, downloadURL, archiveFilename)
 		}); err != nil {
-			os.Remove(archiveFilename) //nolint:errcheck
 			return err
 		}
 		cache.archiveCached = true
@@ -199,12 +202,12 @@ func (service *ProviderService) WaitForCacheReady() {
 }
 
 // CacheProvider starts caching the given provider using non-blocking approach.
-func (service *ProviderService) CacheProvider(ctx context.Context, provider *models.Provider) {
+func (service *ProviderService) CacheProvider(ctx context.Context, provider *models.Provider) *ProviderCache {
 	service.cacheMu.Lock()
 	defer service.cacheMu.Unlock()
 
 	if cache := service.providerCaches.Find(provider); cache != nil {
-		return
+		return cache
 	}
 
 	cache := &ProviderCache{
@@ -221,6 +224,8 @@ func (service *ProviderService) CacheProvider(ctx context.Context, provider *mod
 	case <-ctx.Done():
 		// quit
 	}
+
+	return cache
 }
 
 // GetProviderCache returns the requested provider archive cache, if it exists.
@@ -265,6 +270,11 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 		select {
 		case cache := <-service.providerCacheWarmUpCh:
 			errGroup.Go(func() error {
+				var (
+					providerDir     = cache.providerDir()
+					archiveFilename = cache.ArchiveFilename()
+				)
+
 				service.cacheReadyMu.RLock()
 				defer service.cacheReadyMu.RUnlock()
 
@@ -278,6 +288,8 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 				defer lockfile.Unlock() //nolint:errcheck
 
 				if err := cache.warmUp(ctx); err != nil {
+					os.Remove(providerDir)     //nolint:errcheck
+					os.Remove(archiveFilename) //nolint:errcheck
 					return err
 				}
 				cache.ready = true
