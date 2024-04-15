@@ -630,6 +630,8 @@ func getTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, 
 	}
 	ctx = ctx.WithTerragruntOptions(targetTGOptions)
 
+	// targetTGOptions.TerraformLogsToJson = false
+
 	// First attempt to parse the `remote_state` blocks without parsing/getting dependency outputs. If this is possible,
 	// proceed to routine that fetches remote state directly. Otherwise, fallback to calling `terragrunt output`
 	// directly.
