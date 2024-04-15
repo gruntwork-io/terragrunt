@@ -127,7 +127,7 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err
 		WithModifyResponse(func(resp *http.Response) error {
 			var body map[string]json.RawMessage
 
-			err := handlers.ModifyJSONBody(resp, &body, func() error {
+			handlers.ModifyJSONBody(resp, &body, func() error { //nolint:errcheck
 				if resp.StatusCode != http.StatusOK {
 					return nil
 				}
@@ -162,13 +162,12 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err
 					link = strconv.Quote(linkURL.String())
 					body[string(name)] = []byte(link)
 				}
+
 				return nil
 			})
 
-			if cache := controller.ProviderService.CacheProvider(ctx.Request().Context(), provider); !cache.IsReady() {
-				return ctx.NoContent(HTTPStatusCacheProvider)
-			}
-			return err
+			controller.ProviderService.CacheProvider(ctx.Request().Context(), provider)
+			return ctx.NoContent(HTTPStatusCacheProvider)
 		}).
 		NewRequest(ctx, provider.PlatformURL())
 }

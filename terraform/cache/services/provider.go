@@ -73,10 +73,6 @@ func (cache *ProviderCache) downloadURL() string {
 	return cache.DownloadURL.String()
 }
 
-func (cache *ProviderCache) IsReady() bool {
-	return cache.ready
-}
-
 func (cache *ProviderCache) ArchiveFilename() string {
 	return filepath.Join(cache.baseArchiveDir, cache.Provider.Filename()+path.Ext(cache.downloadURL()))
 }

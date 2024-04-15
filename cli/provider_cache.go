@@ -230,16 +230,10 @@ func createLocalCLIConfigs(opts *options.TerragruntOptions, mainCLIFile, preInit
 	}
 	cfg.PluginCacheDir = ""
 
-	providerInstallationIncludes := make([]string, len(opts.ProviderCacheRegistryNames))
+	var providerInstallationIncludes []string
 
-	for i, registryName := range opts.ProviderCacheRegistryNames {
-		cfg.AddHost(registryName, map[string]any{
-			"providers.v1": fmt.Sprintf("%s/%s/", registryProviderURL, registryName),
-			// Since Terragrunt Provider Cache only caches providers, we need to route module requests to the original registry.
-			"modules.v1": fmt.Sprintf("https://%s/v1/modules", registryName),
-		})
-
-		providerInstallationIncludes[i] = fmt.Sprintf("%s/*/*", registryName)
+	for _, registryName := range opts.ProviderCacheRegistryNames {
+		providerInstallationIncludes = append(providerInstallationIncludes, fmt.Sprintf("%s/*/*", registryName))
 	}
 
 	// main CLI config file
@@ -260,6 +254,14 @@ func createLocalCLIConfigs(opts *options.TerragruntOptions, mainCLIFile, preInit
 	}
 
 	// pre init CLI config file
+
+	for _, registryName := range opts.ProviderCacheRegistryNames {
+		cfg.AddHost(registryName, map[string]any{
+			"providers.v1": fmt.Sprintf("%s/%s/", registryProviderURL, registryName),
+			// Since Terragrunt Provider Cache only caches providers, we need to route module requests to the original registry.
+			"modules.v1": fmt.Sprintf("https://%s/v1/modules", registryName),
+		})
+	}
 
 	cfg.SetProviderInstallation(
 		nil,
