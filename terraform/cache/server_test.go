@@ -96,6 +96,77 @@ func TestServer(t *testing.T) {
 					expectedStatusCode: http.StatusLocked,
 				},
 			},
+			expectedCachePath: "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
+		},
+		{
+			opts: opts,
+			requests: []request{
+				{
+					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
+					expectedStatusCode: http.StatusLocked,
+				},
+			},
+			expectedCachePath: "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
+		},
+		{
+			opts: opts,
+			requests: []request{
+				{
+					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
+					expectedStatusCode: http.StatusLocked,
+				},
+			},
+			expectedCachePath: "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
+		},
+		{
+			opts: opts,
+			requests: []request{
+				{
+					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
+					expectedStatusCode: http.StatusLocked,
+				},
+			},
+			expectedCachePath: "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
+		},
+		{
+			opts: opts,
+			requests: []request{
+				{
+					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
+					expectedStatusCode: http.StatusLocked,
+				},
+			},
+			expectedCachePath: "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
+		},
+		{
+			opts: opts,
+			requests: []request{
+				{
+					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
+					expectedStatusCode: http.StatusLocked,
+				},
+			},
+			expectedCachePath: "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
+		},
+		{
+			opts: opts,
+			requests: []request{
+				{
+					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
+					expectedStatusCode: http.StatusLocked,
+				},
+			},
+			expectedCachePath: "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
+		},
+		{
+			opts: opts,
+			requests: []request{
+				{
+					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
+					expectedStatusCode: http.StatusLocked,
+				},
+			},
+			expectedCachePath: "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
 		},
 		{
 			opts: opts,
@@ -105,6 +176,7 @@ func TestServer(t *testing.T) {
 					expectedStatusCode: http.StatusLocked,
 				},
 			},
+			expectedCachePath: "registry.terraform.io/hashicorp/template/2.2.0/linux_amd64/terraform-provider-template_v2.2.0_x4",
 		},
 		{
 			opts: opts,
