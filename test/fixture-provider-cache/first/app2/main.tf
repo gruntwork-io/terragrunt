@@ -13,5 +13,5 @@ terraform {
 
 
 module "naming" {
-  source  = "cloudposse/label/null"
+  source = "cloudposse/label/null"
 }
