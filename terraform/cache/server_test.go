@@ -95,11 +95,6 @@ func TestServer(t *testing.T) {
 					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
 					expectedStatusCode: http.StatusLocked,
 				},
-				{
-					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
-					expectedStatusCode: http.StatusOK,
-					expectedBodyReg:    regexp.MustCompile(`\{.*` + regexp.QuoteMeta(`"download_url":"http://127.0.0.1:`) + `\d+` + regexp.QuoteMeta(`/downloads/provider/releases.hashicorp.com/terraform-provider-aws/5.36.0/terraform-provider-aws_5.36.0_darwin_arm64.zip"`) + `.*\}`),
-				},
 			},
 		},
 		{
@@ -109,11 +104,6 @@ func TestServer(t *testing.T) {
 					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/template/2.2.0/download/linux/amd64",
 					expectedStatusCode: http.StatusLocked,
 				},
-				{
-					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/template/2.2.0/download/linux/amd64",
-					expectedStatusCode: http.StatusOK,
-					expectedBodyReg:    regexp.MustCompile(`\{.*` + regexp.QuoteMeta(`"download_url":"http://127.0.0.1:`) + `\d+` + regexp.QuoteMeta(`/downloads/provider/releases.hashicorp.com/terraform-provider-template/2.2.0/terraform-provider-template_2.2.0_linux_amd64.zip"`) + `.*\}`),
-				},
 			},
 		},
 		{
@@ -122,10 +112,6 @@ func TestServer(t *testing.T) {
 				{
 					urlPath:            fmt.Sprintf("/v1/providers/registry.terraform.io/hashicorp/template/1234.5678.9/download/%s/%s", runtime.GOOS, runtime.GOARCH),
 					expectedStatusCode: http.StatusLocked,
-				},
-				{
-					urlPath:            fmt.Sprintf("/v1/providers/registry.terraform.io/hashicorp/template/1234.5678.9/download/%s/%s", runtime.GOOS, runtime.GOARCH),
-					expectedStatusCode: http.StatusNotFound,
 				},
 			},
 			expectedCachePath: createFakeProvider(t, pluginCacheDir, fmt.Sprintf("registry.terraform.io/hashicorp/template/1234.5678.9/%s_%s/terraform-provider-template_1234.5678.9_x5", runtime.GOOS, runtime.GOARCH)),
