@@ -6255,7 +6255,7 @@ func TestTerragruntPrintAwsErrors(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_S3_ERRORS)
 	cleanupTerraformFolder(t, rootPath)
 
-	s3BucketName := "test"
+	s3BucketName := "test-tg-2023-01"
 	lockTableName := fmt.Sprintf("terragrunt-test-locks-%s", strings.ToLower(uniqueId()))
 
 	tmpTerragruntConfigFile := util.JoinPath(rootPath, "terragrunt.hcl")
@@ -6265,7 +6265,7 @@ func TestTerragruntPrintAwsErrors(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigFile, rootPath), &stdout, &stderr)
-	assert.Error(t, err)
+	require.Error(t, err)
 	message := fmt.Sprintf("%v", err.Error())
 	assert.True(t, strings.Contains(message, "AllAccessDisabled: All access to this object has been disabled") || strings.Contains(message, "BucketRegionError: incorrect region"))
 	assert.Contains(t, message, s3BucketName)
