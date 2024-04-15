@@ -54,8 +54,16 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCacheSer
 		opts.ProviderCacheDir = filepath.Join(cacheDir, "providers")
 	}
 
+	if opts.ProviderCacheDir, err = filepath.Abs(opts.ProviderCacheDir); err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
 	if opts.ProviderCacheArchiveDir == "" {
 		opts.ProviderCacheArchiveDir = filepath.Join(cacheDir, "archives")
+	}
+
+	if opts.ProviderCacheArchiveDir, err = filepath.Abs(opts.ProviderCacheArchiveDir); err != nil {
+		return nil, errors.WithStackTrace(err)
 	}
 
 	if opts.ProviderCacheToken == "" {
