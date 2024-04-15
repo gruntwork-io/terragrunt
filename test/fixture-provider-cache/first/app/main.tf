@@ -10,3 +10,8 @@ terraform {
     }
   }
 }
+
+module "naming" {
+  source  = "cloudposse/label/null"
+  version = "0.25.0"
+}
