@@ -629,8 +629,8 @@ func getTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, 
 		return nil, err
 	}
 
-	//targetTGOptions.TerraformLogsToJson = false
-	//targetTGOptions.IncludeModulePrefix = false
+	targetTGOptions.TerraformLogsToJson = false
+	targetTGOptions.IncludeModulePrefix = false
 
 	ctx = ctx.WithTerragruntOptions(targetTGOptions)
 
@@ -894,18 +894,6 @@ func runTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, 
 	var stdoutBuffer bytes.Buffer
 	stdoutBufferWriter := bufio.NewWriter(&stdoutBuffer)
 	ctx.TerragruntOptions.Writer = stdoutBufferWriter
-	// Save original settings
-	//currentTerraformLogsToJson := ctx.TerragruntOptions.TerraformLogsToJson
-	//currentIncludeModulePrefix := ctx.TerragruntOptions.IncludeModulePrefix
-	//
-	//// reset the settings after the run
-	//defer func() {
-	//	ctx.TerragruntOptions.TerraformLogsToJson = currentTerraformLogsToJson
-	//	ctx.TerragruntOptions.IncludeModulePrefix = currentIncludeModulePrefix
-	//}()
-	// Disable json wrapping to allow reading of outputs
-	//ctx.TerragruntOptions.TerraformLogsToJson = false
-	//ctx.TerragruntOptions.IncludeModulePrefix = false
 
 	err := ctx.TerragruntOptions.RunTerragrunt(ctx, ctx.TerragruntOptions)
 	if err != nil {
