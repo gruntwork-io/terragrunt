@@ -478,6 +478,10 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 }
 
 func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {
+	// no parallel test execution since JSON output is global
+	defer func() {
+		util.DisableJsonFormat()
+	}()
 	testCases := []struct {
 		arg string
 	}{
