@@ -628,7 +628,6 @@ func getTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, 
 	if err != nil {
 		return nil, err
 	}
-
 	ctx = ctx.WithTerragruntOptions(targetTGOptions)
 
 	// First attempt to parse the `remote_state` blocks without parsing/getting dependency outputs. If this is possible,
