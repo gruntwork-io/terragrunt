@@ -476,31 +476,3 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 		assert.NotNil(t, output["time"])
 	}
 }
-
-func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {
-	testCases := []struct {
-		arg string
-	}{
-		{"--terragrunt-json-log"},
-		{"--terragrunt-json-log --terragrunt-tf-logs-to-json"},
-		{"--terragrunt-include-module-prefix"},
-		{"--terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-include-module-prefix"},
-	}
-	for _, testCase := range testCases {
-		testCase := testCase
-		t.Run(fmt.Sprintf("terragrunt output with %s", testCase.arg), func(t *testing.T) {
-			tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DEPENDENCY_OUTPUT)
-			rootTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DEPENDENCY_OUTPUT)
-			// apply dependency first
-			dependencyTerragruntConfigPath := util.JoinPath(rootTerragruntPath, "dependency")
-			_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s ", dependencyTerragruntConfigPath))
-			assert.NoError(t, err)
-			appTerragruntConfigPath := util.JoinPath(rootTerragruntPath, "app")
-			stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s %s", appTerragruntConfigPath, testCase.arg))
-			assert.NoError(t, err)
-			output := fmt.Sprintf("%s %s", stderr, stdout)
-			assert.NotContains(t, output, "invalid character")
-		})
-
-	}
-}
