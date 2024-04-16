@@ -1,15 +1,16 @@
 package terraform
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
-	goerrors "github.com/go-errors/errors"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -141,7 +142,12 @@ func TestErrorRetryableOnStdoutError(t *testing.T) {
 	tgOptions.RetryableErrors = retryableErrors
 	tgOptions.AutoRetry = true
 
-	retryable := isRetryable("error is here", "", errors.WithStackTrace(goerrors.New("dummy error")), tgOptions)
+	out := &shell.CmdOutput{
+		Stdout: "",
+		Stderr: "error is here",
+	}
+
+	retryable := isRetryable(tgOptions, out)
 	require.True(t, retryable, "The error should have retried")
 }
 
@@ -155,7 +161,12 @@ func TestErrorMultipleRetryableOnStderrError(t *testing.T) {
 	tgOptions.RetryableErrors = retryableErrors
 	tgOptions.AutoRetry = true
 
-	retryable := isRetryable("", "error is here", errors.WithStackTrace(goerrors.New("dummy error")), tgOptions)
+	out := &shell.CmdOutput{
+		Stdout: "",
+		Stderr: "error is here",
+	}
+
+	retryable := isRetryable(tgOptions, out)
 	require.True(t, retryable, "The error should have retried")
 }
 
@@ -169,7 +180,12 @@ func TestEmptyRetryablesOnStderrError(t *testing.T) {
 	tgOptions.RetryableErrors = retryableErrors
 	tgOptions.AutoRetry = true
 
-	retryable := isRetryable("", "error is here", errors.WithStackTrace(goerrors.New("dummy error")), tgOptions)
+	out := &shell.CmdOutput{
+		Stdout: "",
+		Stderr: "error is here",
+	}
+
+	retryable := isRetryable(tgOptions, out)
 	require.False(t, retryable, "The error should not have retried, the list of retryable errors was empty")
 }
 
@@ -183,7 +199,12 @@ func TestErrorRetryableOnStderrError(t *testing.T) {
 	tgOptions.RetryableErrors = retryableErrors
 	tgOptions.AutoRetry = true
 
-	retryable := isRetryable("", "error is here", errors.WithStackTrace(goerrors.New("dummy error")), tgOptions)
+	out := &shell.CmdOutput{
+		Stdout: "",
+		Stderr: "error is here",
+	}
+
+	retryable := isRetryable(tgOptions, out)
 	require.True(t, retryable, "The error should have retried")
 }
 
@@ -197,7 +218,12 @@ func TestErrorNotRetryableOnStdoutError(t *testing.T) {
 	tgOptions.RetryableErrors = retryableErrors
 	tgOptions.AutoRetry = true
 
-	retryable := isRetryable("error is here", "", errors.WithStackTrace(goerrors.New("dummy error")), tgOptions)
+	out := &shell.CmdOutput{
+		Stdout: "error is here",
+		Stderr: "",
+	}
+
+	retryable := isRetryable(tgOptions, out)
 	require.False(t, retryable, "The error should not retry")
 }
 
@@ -211,35 +237,12 @@ func TestErrorNotRetryableOnStderrError(t *testing.T) {
 	tgOptions.RetryableErrors = retryableErrors
 	tgOptions.AutoRetry = true
 
-	retryable := isRetryable("", "error is here", errors.WithStackTrace(goerrors.New("dummy error")), tgOptions)
-	require.False(t, retryable, "The error should not retry")
-}
+	out := &shell.CmdOutput{
+		Stdout: "",
+		Stderr: "error is here",
+	}
 
-func TestErrorNotRetryableOnStderrWithoutError(t *testing.T) {
-	t.Parallel()
-
-	tgOptions, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
-	retryableErrors := []string{".*"}
-	tgOptions.RetryableErrors = retryableErrors
-	tgOptions.AutoRetry = true
-
-	retryable := isRetryable("", "error is here", nil, tgOptions)
-	require.False(t, retryable, "The error should not retry")
-}
-
-func TestAutoRetryFalseDisablesRetry(t *testing.T) {
-	t.Parallel()
-
-	tgOptions, err := options.NewTerragruntOptionsForTest("")
-	require.NoError(t, err)
-
-	retryableErrors := []string{".*"}
-	tgOptions.RetryableErrors = retryableErrors
-	tgOptions.AutoRetry = false
-
-	retryable := isRetryable("", "error is here", nil, tgOptions)
+	retryable := isRetryable(tgOptions, out)
 	require.False(t, retryable, "The error should not retry")
 }
 
@@ -251,7 +254,7 @@ func TestTerragruntHandlesCatastrophicTerraformFailure(t *testing.T) {
 
 	// Use a path that doesn't exist to induce error
 	tgOptions.TerraformPath = "i-dont-exist"
-	err = runTerraformWithRetry(tgOptions)
+	err = runTerraformWithRetry(context.Background(), tgOptions)
 	require.Error(t, err)
 }
 

@@ -4,6 +4,7 @@
 package shell
 
 import (
+	"context"
 	goerrors "errors"
 	"fmt"
 	"os"
@@ -25,12 +26,12 @@ func TestExitCodeUnix(t *testing.T) {
 		err := cmd.Run()
 
 		if i == 0 {
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 		} else {
 			assert.Error(t, err)
 		}
 		retCode, err := GetExitCode(err)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, i, retCode)
 	}
 
@@ -55,7 +56,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	cmdChannel := make(chan error)
 	runChannel := make(chan error)
 
-	signalChannel := NewSignalsForwarder(forwardSignals, cmd, terragruntOptions.Logger, cmdChannel)
+	signalChannel := NewSignalsForwarder(InterruptSignals, cmd, terragruntOptions.Logger, cmdChannel)
 	defer signalChannel.Close()
 
 	go func() {
@@ -69,7 +70,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	cmdChannel <- err
 	assert.Error(t, err)
 	retCode, err := GetExitCode(err)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, retCode, expectedWait)
 	assert.WithinDuration(t, time.Now(), start.Add(time.Duration(expectedWait)*time.Second), time.Second,
 		"Expected to wait 5 (+/-1) seconds after SIGINT")
@@ -89,7 +90,7 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 	cmdChannel := make(chan error)
 	runChannel := make(chan error)
 
-	signalChannel := NewSignalsForwarder(forwardSignals, cmd, terragruntOptions.Logger, cmdChannel)
+	signalChannel := NewSignalsForwarder(InterruptSignals, cmd, terragruntOptions.Logger, cmdChannel)
 	defer signalChannel.Close()
 
 	go func() {
@@ -117,7 +118,7 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 	cmdChannel <- err
 	assert.Error(t, err)
 	retCode, err := GetExitCode(err)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.True(t, retCode <= interrupts, "Subprocess received wrong number of signals")
 	assert.Equal(t, retCode, expectedInterrupts, "Subprocess didn't receive multiple signals")
 }
@@ -132,7 +133,7 @@ func TestRunShellCommandWithOutputInterrupt(t *testing.T) {
 	expectedWait := 5
 
 	go func() {
-		_, err := RunShellCommandWithOutput(terragruntOptions, "", false, false, "../testdata/test_sigint_wait.sh", strconv.Itoa(expectedWait))
+		_, err := RunShellCommandWithOutput(context.Background(), terragruntOptions, "", false, false, "../testdata/test_sigint_wait.sh", strconv.Itoa(expectedWait))
 		errCh <- err
 	}()
 

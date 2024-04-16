@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -26,7 +27,7 @@ func TestResolveTerraformModulesNoPaths(t *testing.T) {
 	configPaths := []string{}
 	expected := []*TerraformModule{}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -48,7 +49,7 @@ func TestResolveTerraformModulesOneModuleNoDependencies(t *testing.T) {
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath}
 	expected := []*TerraformModule{moduleA}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -70,7 +71,7 @@ func TestResolveTerraformModulesOneJsonModuleNoDependencies(t *testing.T) {
 	configPaths := []string{"../test/fixture-modules/json-module-a/" + config.DefaultTerragruntJsonConfigPath}
 	expected := []*TerraformModule{moduleA}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -95,7 +96,7 @@ func TestResolveTerraformModulesOneModuleWithIncludesNoDependencies(t *testing.T
 	configPaths := []string{"../test/fixture-modules/module-b/module-b-child/" + config.DefaultTerragruntConfigPath}
 	expected := []*TerraformModule{moduleB}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -118,11 +119,11 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 
 	for name, configPath := range localsConfigPaths {
 		opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		ctx := config.NewParsingContext(context.Background(), opts)
 		cfg, err := config.PartialParseConfigFile(ctx, configPath, nil)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		localsConfigs[name] = map[string]interface{}{
 			"dependencies":                  interface{}(nil),
@@ -179,7 +180,7 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 	mockOptions, _ := options.NewTerragruntOptionsForTest("running_module_test")
 	mockOptions.OriginalTerragruntConfigPath = childConfigPath
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, childTerragruntConfig, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, mockOptions, childTerragruntConfig, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -204,7 +205,7 @@ func TestResolveTerraformModulesOneJsonModuleWithIncludesNoDependencies(t *testi
 	configPaths := []string{"../test/fixture-modules/json-module-b/module-b-child/" + config.DefaultTerragruntJsonConfigPath}
 	expected := []*TerraformModule{moduleB}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -229,7 +230,7 @@ func TestResolveTerraformModulesOneHclModuleWithIncludesNoDependencies(t *testin
 	configPaths := []string{"../test/fixture-modules/hcl-module-b/module-b-child/" + config.DefaultTerragruntConfigPath}
 	expected := []*TerraformModule{moduleB}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -263,7 +264,7 @@ func TestResolveTerraformModulesTwoModulesWithDependencies(t *testing.T) {
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath}
 	expected := []*TerraformModule{moduleA, moduleC}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -297,7 +298,7 @@ func TestResolveTerraformModulesJsonModulesWithHclDependencies(t *testing.T) {
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/json-module-c/" + config.DefaultTerragruntJsonConfigPath}
 	expected := []*TerraformModule{moduleA, moduleC}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -331,7 +332,7 @@ func TestResolveTerraformModulesHclModulesWithJsonDependencies(t *testing.T) {
 	configPaths := []string{"../test/fixture-modules/json-module-a/" + config.DefaultTerragruntJsonConfigPath, "../test/fixture-modules/hcl-module-c/" + config.DefaultTerragruntConfigPath}
 	expected := []*TerraformModule{moduleA, moduleC}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -362,7 +363,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, opts, nil, mockHowThesePathsWereFound)
 
 	// construct the expected list
 	moduleA.FlagExcluded = true
@@ -410,7 +411,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-abba/" + config.DefaultTerragruntConfigPath}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, opts, nil, mockHowThesePathsWereFound)
 
 	// construct the expected list
 	moduleA.FlagExcluded = true
@@ -452,7 +453,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-abba/" + config.DefaultTerragruntConfigPath}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, opts, nil, mockHowThesePathsWereFound)
 	// construct the expected list
 	moduleA.FlagExcluded = true
 	moduleAbba.FlagExcluded = true
@@ -486,7 +487,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithNoDepe
 
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, opts, nil, mockHowThesePathsWereFound)
 
 	// construct the expected list
 	moduleC.FlagExcluded = true
@@ -527,7 +528,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, opts, nil, mockHowThesePathsWereFound)
 
 	// construct the expected list
 	moduleA.FlagExcluded = false
@@ -568,7 +569,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithNoDepe
 
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, opts, nil, mockHowThesePathsWereFound)
 
 	// construct the expected list
 	moduleC.FlagExcluded = true
@@ -617,7 +618,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-f/" + config.DefaultTerragruntConfigPath}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, opts, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, opts, nil, mockHowThesePathsWereFound)
 
 	// construct the expected list
 	moduleF.FlagExcluded = true
@@ -681,7 +682,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-b/module-b-child/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-d/" + config.DefaultTerragruntConfigPath}
 	expected := []*TerraformModule{moduleA, moduleB, moduleC, moduleD}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -740,7 +741,7 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/json-module-b/module-b-child/" + config.DefaultTerragruntJsonConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/json-module-d/" + config.DefaultTerragruntJsonConfigPath}
 	expected := []*TerraformModule{moduleA, moduleB, moduleC, moduleD}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -791,7 +792,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-b/module-b-child/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-e/module-e-child/" + config.DefaultTerragruntConfigPath}
 	expected := []*TerraformModule{moduleA, moduleB, moduleE}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -825,7 +826,7 @@ func TestResolveTerraformModulesMultipleModulesWithExternalDependencies(t *testi
 	configPaths := []string{"../test/fixture-modules/module-g/" + config.DefaultTerragruntConfigPath}
 	expected := []*TerraformModule{moduleF, moduleG}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -883,7 +884,7 @@ func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t 
 	configPaths := []string{"../test/fixture-modules/module-j/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-k/" + config.DefaultTerragruntConfigPath}
 	expected := []*TerraformModule{moduleH, moduleI, moduleJ, moduleK}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	require.NoError(t, actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -893,7 +894,7 @@ func TestResolveTerraformModulesInvalidPaths(t *testing.T) {
 
 	configPaths := []string{"../test/fixture-modules/module-missing-dependency/" + config.DefaultTerragruntConfigPath}
 
-	_, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
+	_, actualErr := ResolveTerraformModules(context.Background(), configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	require.Error(t, actualErr)
 
 	underlying, ok := errors.Unwrap(actualErr).(ErrorProcessingModule)
@@ -909,7 +910,7 @@ func TestResolveTerraformModuleNoTerraformConfig(t *testing.T) {
 	configPaths := []string{"../test/fixture-modules/module-l/" + config.DefaultTerragruntConfigPath}
 	expected := []*TerraformModule{}
 
-	actualModules, actualErr := ResolveTerraformModules(configPaths, mockOptions, nil, mockHowThesePathsWereFound)
+	actualModules, actualErr := ResolveTerraformModules(context.Background(), configPaths, mockOptions, nil, mockHowThesePathsWereFound)
 	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
@@ -951,4 +952,81 @@ func TestLogReductionHook(t *testing.T) {
 	assert.Contains(t, firstLogEntry, "level=error")
 	assert.Contains(t, secondLogEntry, "level=error")
 
+}
+
+func TestBasicDependency(t *testing.T) {
+	moduleC := &TerraformModule{Path: "C", Dependencies: []*TerraformModule{}}
+	moduleB := &TerraformModule{Path: "B", Dependencies: []*TerraformModule{moduleC}}
+	moduleA := &TerraformModule{Path: "A", Dependencies: []*TerraformModule{moduleB}}
+
+	stack := &Stack{
+		Path:    "test-stack",
+		Modules: []*TerraformModule{moduleA, moduleB, moduleC},
+	}
+
+	expected := map[string][]string{
+		"B": {"A"},
+		"C": {"B", "A"},
+	}
+
+	result := ListStackDependentModules(stack)
+
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("Expected %v, got %v", expected, result)
+	}
+}
+func TestNestedDependencies(t *testing.T) {
+	moduleD := &TerraformModule{Path: "D", Dependencies: []*TerraformModule{}}
+	moduleC := &TerraformModule{Path: "C", Dependencies: []*TerraformModule{moduleD}}
+	moduleB := &TerraformModule{Path: "B", Dependencies: []*TerraformModule{moduleC}}
+	moduleA := &TerraformModule{Path: "A", Dependencies: []*TerraformModule{moduleB}}
+
+	// Create a mock stack
+	stack := &Stack{
+		Path:    "nested-stack",
+		Modules: []*TerraformModule{moduleA, moduleB, moduleC, moduleD},
+	}
+
+	// Expected result
+	expected := map[string][]string{
+		"B": {"A"},
+		"C": {"B", "A"},
+		"D": {"C", "B", "A"},
+	}
+
+	// Run the function
+	result := ListStackDependentModules(stack)
+
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("Expected %v, got %v", expected, result)
+	}
+}
+
+func TestCircularDependencies(t *testing.T) {
+	// Mock modules with circular dependencies
+	moduleA := &TerraformModule{Path: "A"}
+	moduleB := &TerraformModule{Path: "B"}
+	moduleC := &TerraformModule{Path: "C"}
+
+	moduleA.Dependencies = []*TerraformModule{moduleB}
+	moduleB.Dependencies = []*TerraformModule{moduleC}
+	moduleC.Dependencies = []*TerraformModule{moduleA} // Circular dependency
+
+	stack := &Stack{
+		Path:    "circular-stack",
+		Modules: []*TerraformModule{moduleA, moduleB, moduleC},
+	}
+
+	expected := map[string][]string{
+		"A": {"C", "B"},
+		"B": {"A", "C"},
+		"C": {"B", "A"},
+	}
+
+	// Run the function
+	result := ListStackDependentModules(stack)
+
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("Expected %v, got %v", expected, result)
+	}
 }

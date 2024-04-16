@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -31,13 +32,13 @@ const tfLintConfig = ".tflint.hcl"
 //
 // See the NewTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
 // runs of Terragrunt to avoid downloading everything from scratch every time.
-func downloadTerraformSource(source string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (*options.TerragruntOptions, error) {
+func downloadTerraformSource(ctx context.Context, source string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (*options.TerragruntOptions, error) {
 	terraformSource, err := terraform.NewSource(source, terragruntOptions.DownloadDir, terragruntOptions.WorkingDir, terragruntOptions.Logger)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := downloadTerraformSourceIfNecessary(terraformSource, terragruntOptions, terragruntConfig); err != nil {
+	if err := downloadTerraformSourceIfNecessary(ctx, terraformSource, terragruntOptions, terragruntConfig); err != nil {
 		return nil, err
 	}
 
@@ -61,9 +62,9 @@ func downloadTerraformSource(source string, terragruntOptions *options.Terragrun
 }
 
 // Download the specified TerraformSource if the latest code hasn't already been downloaded.
-func downloadTerraformSourceIfNecessary(terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+func downloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	if terragruntOptions.SourceUpdate {
-		terragruntOptions.Logger.Debugf("The --%s flag is set, so deleting the temporary folder %s before downloading source.", commands.FlagNameTerragruntSourceUpdate, terraformSource.DownloadDir)
+		terragruntOptions.Logger.Debugf("The --%s flag is set, so deleting the temporary folder %s before downloading source.", commands.TerragruntSourceUpdateFlagName, terraformSource.DownloadDir)
 		if err := os.RemoveAll(terraformSource.DownloadDir); err != nil {
 			return errors.WithStackTrace(err)
 		}
@@ -96,8 +97,8 @@ func downloadTerraformSourceIfNecessary(terraformSource *terraform.Source, terra
 	// options struct, set the command to the value the hooks are expecting, and run the download action surrounded by
 	// before and after hooks (if any).
 	terragruntOptionsForDownload := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
-	terragruntOptionsForDownload.TerraformCommand = CommandNameInitFromModule
-	downloadErr := runActionWithHooks("download source", terragruntOptionsForDownload, terragruntConfig, func() error {
+	terragruntOptionsForDownload.TerraformCommand = terraform.CommandNameInitFromModule
+	downloadErr := runActionWithHooks(ctx, "download source", terragruntOptionsForDownload, terragruntConfig, func(ctx context.Context) error {
 		return downloadSource(terraformSource, terragruntOptions, terragruntConfig)
 	})
 
@@ -181,7 +182,7 @@ func readVersionFile(terraformSource *terraform.Source) (string, error) {
 //
 // This creates a closure that returns a function so that we have access to the terragrunt configuration, which is
 // necessary for customizing the behavior of the file getter.
-func updateGetters(terragruntConfig *config.TerragruntConfig) func(*getter.Client) error {
+func updateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) func(*getter.Client) error {
 	return func(client *getter.Client) error {
 		// We copy all the default getters from the go-getter library, but replace the "file" getter. We shallow clone the
 		// getter map here rather than using getter.Getters directly because (a) we shouldn't change the original,
@@ -201,7 +202,9 @@ func updateGetters(terragruntConfig *config.TerragruntConfig) func(*getter.Clien
 		}
 
 		// Load in custom getters that are only supported in Terragrunt
-		client.Getters["tfr"] = &terraform.RegistryGetter{}
+		client.Getters["tfr"] = &terraform.RegistryGetter{
+			TerragruntOptions: terragruntOptions,
+		}
 
 		return nil
 	}
@@ -211,7 +214,7 @@ func updateGetters(terragruntConfig *config.TerragruntConfig) func(*getter.Clien
 func downloadSource(terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	terragruntOptions.Logger.Infof("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
 
-	if err := getter.GetAny(terraformSource.DownloadDir, terraformSource.CanonicalSourceURL.String(), updateGetters(terragruntConfig)); err != nil {
+	if err := getter.GetAny(terraformSource.DownloadDir, terraformSource.CanonicalSourceURL.String(), updateGetters(terragruntOptions, terragruntConfig)); err != nil {
 		return errors.WithStackTrace(err)
 	}
 

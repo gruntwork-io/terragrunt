@@ -1,6 +1,7 @@
 package configstack
 
 import (
+	"context"
 	"sort"
 	"testing"
 
@@ -170,7 +171,7 @@ func optionsWithMockTerragruntCommand(t *testing.T, terragruntConfigPath string,
 	if err != nil {
 		t.Fatalf("Error creating terragrunt options for test %v", err)
 	}
-	opts.RunTerragrunt = func(_ *options.TerragruntOptions) error {
+	opts.RunTerragrunt = func(_ context.Context, _ *options.TerragruntOptions) error {
 		*executed = true
 		return toReturnFromTerragruntCommand
 	}

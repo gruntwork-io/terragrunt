@@ -3,6 +3,7 @@
 package tflint
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -27,7 +28,7 @@ const (
 )
 
 // RunTflintWithOpts runs tflint with the given options and returns an error if there are any issues.
-func RunTflintWithOpts(opts *options.TerragruntOptions, config *config.TerragruntConfig, hook config.Hook) error {
+func RunTflintWithOpts(ctx context.Context, opts *options.TerragruntOptions, config *config.TerragruntConfig, hook config.Hook) error {
 	// try to fetch configuration file from hook parameters
 	configFile := tflintConfigFilePath(hook.Execute)
 	if configFile == "" {
@@ -65,7 +66,7 @@ func RunTflintWithOpts(opts *options.TerragruntOptions, config *config.Terragrun
 	initArgs := []string{"tflint", "--init", "--config", configFile, "--chdir", opts.WorkingDir}
 	if externalTfLint {
 		opts.Logger.Debugf("Running external tflint init with args %v", initArgs)
-		_, err := shell.RunShellCommandWithOutput(opts, opts.WorkingDir, false, false,
+		_, err := shell.RunShellCommandWithOutput(ctx, opts, opts.WorkingDir, false, false,
 			initArgs[0], initArgs[1:]...)
 		if err != nil {
 			return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
@@ -89,7 +90,7 @@ func RunTflintWithOpts(opts *options.TerragruntOptions, config *config.Terragrun
 
 	if externalTfLint {
 		opts.Logger.Debugf("Running external tflint with args %v", args)
-		_, err := shell.RunShellCommandWithOutput(opts, opts.WorkingDir, false, false,
+		_, err := shell.RunShellCommandWithOutput(ctx, opts, opts.WorkingDir, false, false,
 			args[0], args[1:]...)
 		if err != nil {
 			return errors.WithStackTrace(ErrorRunningTflint{args: args})
@@ -221,7 +222,7 @@ func tfArgumentsToTflintVar(terragruntOptions *options.TerragruntOptions, hook c
 	return variables, nil
 }
 
-// findTflintConfigInProjects looks for a .tflint.hcl file in the current folder or it's parents.
+// findTflintConfigInProject looks for a .tflint.hcl file in the current folder or it's parents.
 func findTflintConfigInProject(terragruntOptions *options.TerragruntOptions) (string, error) {
 	previousDir := terragruntOptions.WorkingDir
 

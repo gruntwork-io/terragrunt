@@ -2,6 +2,7 @@
 package remote
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"sync"
@@ -44,7 +45,7 @@ type RemoteStateInitializer interface {
 	NeedsInitialization(remoteState *RemoteState, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error)
 
 	// Initialize the remote state
-	Initialize(remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error
+	Initialize(ctx context.Context, remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error
 
 	// Return the config that should be passed on to terraform via -backend-config cmd line param
 	// Allows the Backends to filter and/or modify the configuration given from the user
@@ -73,11 +74,11 @@ func (remoteState *RemoteState) Validate() error {
 
 // Perform any actions necessary to initialize the remote state before it's used for storage. For example, if you're
 // using S3 or GCS for remote state storage, this may create the bucket if it doesn't exist already.
-func (remoteState *RemoteState) Initialize(terragruntOptions *options.TerragruntOptions) error {
+func (remoteState *RemoteState) Initialize(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Debugf("Initializing remote state for the %s backend", remoteState.Backend)
 	initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]
 	if hasInitializer {
-		return initializer.Initialize(remoteState, terragruntOptions)
+		return initializer.Initialize(ctx, remoteState, terragruntOptions)
 	}
 
 	return nil
@@ -140,16 +141,28 @@ func terraformStateConfigEqual(existingConfig map[string]interface{}, newConfig 
 		return newConfig == nil
 	}
 
+	existingConfigNonNil := copyExistingNotNullValues(existingConfig, newConfig)
+
+	return reflect.DeepEqual(existingConfigNonNil, newConfig)
+}
+
+// Copy the non-nil values from the existingMap to a new map
+func copyExistingNotNullValues(existingMap map[string]interface{}, newMap map[string]interface{}) map[string]interface{} {
 	existingConfigNonNil := map[string]interface{}{}
-	for existingKey, existingValue := range existingConfig {
-		_, newValueIsSet := newConfig[existingKey]
+	for existingKey, existingValue := range existingMap {
+		newValue, newValueIsSet := newMap[existingKey]
 		if existingValue == nil && !newValueIsSet {
 			continue
 		}
+		// if newValue and existingValue are both maps, we need to recursively copy the non-nil values
+		if existingValueMap, existingValueIsMap := existingValue.(map[string]interface{}); existingValueIsMap {
+			if newValueMap, newValueIsMap := newValue.(map[string]interface{}); newValueIsMap {
+				existingValue = copyExistingNotNullValues(existingValueMap, newValueMap)
+			}
+		}
 		existingConfigNonNil[existingKey] = existingValue
 	}
-
-	return reflect.DeepEqual(existingConfigNonNil, newConfig)
+	return existingConfigNonNil
 }
 
 // Convert the RemoteState config into the format used by the terraform init command

@@ -7,6 +7,7 @@
 package renderjson
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -24,26 +25,27 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-func Run(opts *options.TerragruntOptions) error {
+func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	target := terraform.NewTarget(terraform.TargetPointParseConfig, runRenderJSON)
 
-	return terraform.RunWithTarget(opts, target)
+	return terraform.RunWithTarget(ctx, opts, target)
 }
 
-func runRenderJSON(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func runRenderJSON(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	if cfg == nil {
 		return fmt.Errorf("Terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl.")
 	}
 
-	dependentModules := configstack.FindWhereWorkingDirIsIncluded(opts, cfg)
-	var dependentModulesPath []*string
-	for _, module := range dependentModules {
-		dependentModulesPath = append(dependentModulesPath, &module.Path)
+	if !opts.JsonDisableDependentModules {
+		dependentModules := configstack.FindWhereWorkingDirIsIncluded(ctx, opts, cfg)
+		var dependentModulesPath []*string
+		for _, module := range dependentModules {
+			dependentModulesPath = append(dependentModulesPath, &module.Path)
+		}
+
+		cfg.DependentModulesPath = dependentModulesPath
+		cfg.SetFieldMetadata(config.MetadataDependentModules, map[string]interface{}{config.FoundInFile: opts.TerragruntConfigPath})
 	}
-
-	cfg.DependentModulesPath = dependentModulesPath
-	cfg.SetFieldMetadata(config.MetadataDependentModules, map[string]interface{}{config.FoundInFile: opts.TerragruntConfigPath})
-
 	var terragruntConfigCty cty.Value
 
 	if opts.RenderJsonWithMetadata {

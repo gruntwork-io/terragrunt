@@ -1,6 +1,7 @@
 package scaffold
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"os"
@@ -35,7 +36,7 @@ const (
 	// refParam - ?ref param from url
 	refParam = "ref"
 
-	moduleUrlPattern = `git::([^:]+)://([^/]+)(/.*)`
+	moduleUrlPattern = `(?:git|hg|s3|gcs)::([^:]+)://([^/]+)(/.*)`
 	moduleUrlParts   = 4
 
 	defaultBoilerplateConfig = `
@@ -80,7 +81,7 @@ inputs = {
 
 var moduleUrlRegex = regexp.MustCompile(moduleUrlPattern)
 
-func Run(opts *options.TerragruntOptions, moduleUrl, templateUrl string) error {
+func Run(ctx context.Context, opts *options.TerragruntOptions, moduleUrl, templateUrl string) error {
 	// download remote repo to local
 	var dirsToClean []string
 	// clean all temp dirs
@@ -118,7 +119,7 @@ func Run(opts *options.TerragruntOptions, moduleUrl, templateUrl string) error {
 	}
 
 	// parse module url
-	moduleUrl, err = parseModuleUrl(opts, vars, moduleUrl)
+	moduleUrl, err = parseModuleUrl(ctx, opts, vars, moduleUrl)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -136,7 +137,7 @@ func Run(opts *options.TerragruntOptions, moduleUrl, templateUrl string) error {
 	opts.Logger.Debugf("Parsed %d required variables and %d optional variables", len(requiredVariables), len(optionalVariables))
 
 	// prepare boilerplate files to render Terragrunt files
-	boilerplateDir, err := prepareBoilerplateFiles(opts, templateUrl, tempDir)
+	boilerplateDir, err := prepareBoilerplateFiles(ctx, opts, templateUrl, tempDir)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -175,7 +176,7 @@ func Run(opts *options.TerragruntOptions, moduleUrl, templateUrl string) error {
 }
 
 // prepareBoilerplateFiles prepares boilerplate files.
-func prepareBoilerplateFiles(opts *options.TerragruntOptions, templateUrl string, tempDir string) (string, error) {
+func prepareBoilerplateFiles(ctx context.Context, opts *options.TerragruntOptions, templateUrl string, tempDir string) (string, error) {
 	// identify template url
 	templateDir := ""
 	if templateUrl != "" {
@@ -184,7 +185,7 @@ func prepareBoilerplateFiles(opts *options.TerragruntOptions, templateUrl string
 		if err != nil {
 			return "", errors.WithStackTrace(err)
 		}
-		parsedTemplateUrl, err = rewriteTemplateUrl(opts, parsedTemplateUrl)
+		parsedTemplateUrl, err = rewriteTemplateUrl(ctx, opts, parsedTemplateUrl)
 		if err != nil {
 			return "", errors.WithStackTrace(err)
 		}
@@ -250,7 +251,7 @@ func parseVariables(opts *options.TerragruntOptions, moduleDir string) ([]*confi
 }
 
 // parseModuleUrl - parse module url and rewrite it if required
-func parseModuleUrl(opts *options.TerragruntOptions, vars map[string]interface{}, moduleUrl string) (string, error) {
+func parseModuleUrl(ctx context.Context, opts *options.TerragruntOptions, vars map[string]interface{}, moduleUrl string) (string, error) {
 	parsedModuleUrl, err := terraform.ToSourceUrl(moduleUrl, opts.WorkingDir)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
@@ -264,7 +265,7 @@ func parseModuleUrl(opts *options.TerragruntOptions, vars map[string]interface{}
 	}
 
 	// add ref to module url, if required
-	parsedModuleUrl, err = addRefToModuleUrl(opts, parsedModuleUrl, vars)
+	parsedModuleUrl, err = addRefToModuleUrl(ctx, opts, parsedModuleUrl, vars)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
@@ -313,7 +314,7 @@ func rewriteModuleUrl(opts *options.TerragruntOptions, vars map[string]interface
 
 // rewriteTemplateUrl rewrites template url with reference to tag
 // github.com/denis256/terragrunt-tests.git//scaffold/base-template => github.com/denis256/terragrunt-tests.git//scaffold/base-template?ref=v0.53.8
-func rewriteTemplateUrl(opts *options.TerragruntOptions, parsedTemplateUrl *url.URL) (*url.URL, error) {
+func rewriteTemplateUrl(ctx context.Context, opts *options.TerragruntOptions, parsedTemplateUrl *url.URL) (*url.URL, error) {
 	var updatedTemplateUrl = parsedTemplateUrl
 	var templateParams = updatedTemplateUrl.Query()
 	ref := templateParams.Get(refParam)
@@ -322,7 +323,7 @@ func rewriteTemplateUrl(opts *options.TerragruntOptions, parsedTemplateUrl *url.
 		if err != nil {
 			return nil, errors.WithStackTrace(err)
 		}
-		tag, err := shell.GitLastReleaseTag(opts, rootSourceUrl)
+		tag, err := shell.GitLastReleaseTag(ctx, opts, rootSourceUrl)
 		if err != nil || tag == "" {
 			opts.Logger.Warnf("Failed to find last release tag for URL %s, so will not add a ref param to the URL", rootSourceUrl)
 		} else {
@@ -334,7 +335,7 @@ func rewriteTemplateUrl(opts *options.TerragruntOptions, parsedTemplateUrl *url.
 }
 
 // addRefToModuleUrl adds ref to module url if is passed through variables or find it from git tags
-func addRefToModuleUrl(opts *options.TerragruntOptions, parsedModuleUrl *url.URL, vars map[string]interface{}) (*url.URL, error) {
+func addRefToModuleUrl(ctx context.Context, opts *options.TerragruntOptions, parsedModuleUrl *url.URL, vars map[string]interface{}) (*url.URL, error) {
 	var moduleUrl = parsedModuleUrl
 	// append ref to source url, if is passed through variables or find it from git tags
 	params := moduleUrl.Query()
@@ -352,7 +353,7 @@ func addRefToModuleUrl(opts *options.TerragruntOptions, parsedModuleUrl *url.URL
 			return nil, errors.WithStackTrace(err)
 		}
 
-		tag, err := shell.GitLastReleaseTag(opts, rootSourceUrl)
+		tag, err := shell.GitLastReleaseTag(ctx, opts, rootSourceUrl)
 		if err != nil || tag == "" {
 			opts.Logger.Warnf("Failed to find last release tag for %s", rootSourceUrl)
 		} else {

@@ -1,6 +1,8 @@
 package terraform
 
 import (
+	"context"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -14,7 +16,9 @@ const (
 
 type TargetPointType byte
 
-type TargetCallbackType func(opts *options.TerragruntOptions, config *config.TerragruntConfig) error
+type TargetCallbackType func(ctx context.Context, opts *options.TerragruntOptions, config *config.TerragruntConfig) error
+
+type TargetErrorCallbackType func(opts *options.TerragruntOptions, config *config.TerragruntConfig, e error) error
 
 // Since most terragrunt CLI commands like `render-json`, `aws-provider-patch` ...  require preparatory steps, such as `generate configuration` which is already coded in `terraform.runTerraform` and com;licated to extracted into a separate function due to some steps that can be called recursively in case of nested configuration or dependencies.
 // Target struct helps to run `terraform.runTerraform` func up to the certain logic point, and the runs target's callback func and returns the flow.
@@ -51,8 +55,9 @@ type TargetCallbackType func(opts *options.TerragruntOptions, config *config.Ter
 */
 
 type Target struct {
-	point        TargetPointType
-	callbackFunc TargetCallbackType
+	point             TargetPointType
+	callbackFunc      TargetCallbackType
+	errorCallbackFunc TargetErrorCallbackType
 }
 
 func NewTarget(point TargetPointType, callbackFunc TargetCallbackType) *Target {
@@ -62,10 +67,25 @@ func NewTarget(point TargetPointType, callbackFunc TargetCallbackType) *Target {
 	}
 }
 
+func NewTargetWithErrorHandler(point TargetPointType, callbackFunc TargetCallbackType, errorCallbackFunc TargetErrorCallbackType) *Target {
+	return &Target{
+		point:             point,
+		callbackFunc:      callbackFunc,
+		errorCallbackFunc: errorCallbackFunc,
+	}
+}
+
 func (target *Target) isPoint(point TargetPointType) bool {
 	return target.point == point
 }
 
-func (target *Target) runCallback(opts *options.TerragruntOptions, config *config.TerragruntConfig) error {
-	return target.callbackFunc(opts, config)
+func (target *Target) runCallback(ctx context.Context, opts *options.TerragruntOptions, config *config.TerragruntConfig) error {
+	return target.callbackFunc(ctx, opts, config)
+}
+
+func (target *Target) runErrorCallback(opts *options.TerragruntOptions, config *config.TerragruntConfig, e error) error {
+	if target.errorCallbackFunc == nil {
+		return e
+	}
+	return target.errorCallbackFunc(opts, config, e)
 }

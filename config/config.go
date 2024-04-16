@@ -9,8 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/telemetry"
+
 	"github.com/mitchellh/mapstructure"
-	"github.com/zclconf/go-cty/cty/gocty"
 
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2"
@@ -50,6 +51,7 @@ const (
 	MetadataIamAssumeRoleSessionName    = "iam_assume_role_session_name"
 	MetadataInputs                      = "inputs"
 	MetadataLocals                      = "locals"
+	MetadataLocal                       = "local"
 	MetadataCatalog                     = "catalog"
 	MetadataGenerateConfigs             = "generate"
 	MetadataRetryableErrors             = "retryable_errors"
@@ -292,7 +294,18 @@ type IncludeConfig struct {
 }
 
 func (cfg *IncludeConfig) String() string {
-	return fmt.Sprintf("IncludeConfig{Path = %s, Expose = %v, MergeStrategy = %v}", cfg.Path, cfg.Expose, cfg.MergeStrategy)
+	if cfg == nil {
+		return "IncludeConfig{nil}"
+	}
+	exposeStr := "nil"
+	if cfg.Expose != nil {
+		exposeStr = fmt.Sprintf("%v", *cfg.Expose)
+	}
+	mergeStrategyStr := "nil"
+	if cfg.MergeStrategy != nil {
+		mergeStrategyStr = fmt.Sprintf("%v", cfg.MergeStrategy)
+	}
+	return fmt.Sprintf("IncludeConfig{Path = %v, Expose = %v, MergeStrategy = %v}", cfg.Path, exposeStr, mergeStrategyStr)
 }
 
 func (cfg *IncludeConfig) GetExpose() bool {
@@ -665,23 +678,58 @@ func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*Terrag
 	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
 
 	ctx := NewParsingContext(context.Background(), terragruntOptions)
-	return ParseConfigFile(ctx, terragruntOptions.TerragruntConfigPath, nil)
+	return ParseConfigFile(terragruntOptions, ctx, terragruntOptions.TerragruntConfigPath, nil)
 }
+
+var hclCache = NewCache[*hclparse.File]()
 
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
-func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
-	// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
-	file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
+func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+
+	var config *TerragruntConfig
+	err := telemetry.Telemetry(ctx, opts, "parse_config_file", map[string]interface{}{
+		"config_path": configPath,
+		"working_dir": opts.WorkingDir,
+	}, func(childCtx context.Context) error {
+		childKey := "nil"
+		if includeFromChild != nil {
+			childKey = includeFromChild.String()
+		}
+		decodeListKey := "nil"
+		if ctx.PartialParseDecodeList != nil {
+			decodeListKey = fmt.Sprintf("%v", ctx.PartialParseDecodeList)
+		}
+		dir, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+
+		fileInfo, err := os.Stat(configPath)
+		if err != nil {
+			return err
+		}
+		var file *hclparse.File
+		var cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, opts.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
+		if cacheConfig, found := hclCache.Get(cacheKey); found {
+			file = cacheConfig
+		} else {
+			// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
+			file, err = hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
+			if err != nil {
+				return err
+			}
+			hclCache.Put(cacheKey, file)
+		}
+		config, err = ParseConfig(ctx, file, includeFromChild)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	config, err := ParseConfig(ctx, file, includeFromChild)
-	if err != nil {
-		return nil, err
-	}
-
 	return config, nil
 }
 
@@ -794,7 +842,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 }
 
 // iamRoleCache - store for cached values of IAM roles
-var iamRoleCache = NewIAMRoleOptionsCache()
+var iamRoleCache = NewCache[options.IAMRoleOptions]()
 
 // setIAMRole - extract IAM role details from Terragrunt flags block
 func setIAMRole(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) error {
@@ -825,29 +873,23 @@ func setIAMRole(ctx *ParsingContext, file *hclparse.File, includeFromChild *Incl
 
 func decodeAsTerragruntConfigFile(ctx *ParsingContext, file *hclparse.File, evalContext *hcl.EvalContext) (*terragruntConfigFile, error) {
 	terragruntConfig := terragruntConfigFile{}
-	err := file.Decode(&terragruntConfig, evalContext)
-	// in case of render-json command and inputs reference error, we update the inputs with default value
-	if diagErr, ok := errors.Unwrap(err).(hcl.Diagnostics); ok && isRenderJsonCommand(ctx) && isAttributeAccessError(diagErr) {
-		ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
-		// update unknown inputs with default value
-		updatedValue := map[string]cty.Value{}
-		for key, value := range terragruntConfig.Inputs.AsValueMap() {
-			if value.IsKnown() {
-				updatedValue[key] = value
-			} else {
-				updatedValue[key] = cty.StringVal("")
-			}
+
+	if err := file.Decode(&terragruntConfig, evalContext); err != nil {
+		diagErr, ok := errors.Unwrap(err).(hcl.Diagnostics)
+
+		// in case of render-json command and inputs reference error, we update the inputs with default value
+		if !ok || !isRenderJsonCommand(ctx) || !isAttributeAccessError(diagErr) {
+			return nil, err
 		}
-		value, err := gocty.ToCtyValue(updatedValue, terragruntConfig.Inputs.Type())
+		ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
+
+		inputs, err := updateUnknownCtyValValues(terragruntConfig.Inputs)
 		if err != nil {
 			return nil, err
 		}
-		terragruntConfig.Inputs = &value
-		return &terragruntConfig, nil
+		terragruntConfig.Inputs = inputs
 	}
-	if err != nil {
-		return nil, err
-	}
+
 	return &terragruntConfig, nil
 }
 

@@ -312,3 +312,23 @@ func includeConfigAsCtyVal(ctx *ParsingContext, includeConfig IncludeConfig) (ct
 	}
 	return cty.NilVal, nil
 }
+
+// updateUnknownCtyValValues updates unknown values with default value
+func updateUnknownCtyValValues(value *cty.Value) (*cty.Value, error) {
+	updatedValue := map[string]cty.Value{}
+
+	for key, value := range value.AsValueMap() {
+		if value.IsKnown() {
+			updatedValue[key] = value
+		} else {
+			updatedValue[key] = cty.StringVal("")
+		}
+	}
+
+	res, err := gocty.ToCtyValue(updatedValue, value.Type())
+	if err != nil {
+		return nil, err
+	}
+
+	return &res, nil
+}

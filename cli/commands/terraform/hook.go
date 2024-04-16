@@ -1,9 +1,12 @@
 package terraform
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
+
+	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -13,7 +16,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-func processErrorHooks(hooks []config.ErrorHook, terragruntOptions *options.TerragruntOptions, previousExecErrors *multierror.Error) error {
+func processErrorHooks(ctx context.Context, hooks []config.ErrorHook, terragruntOptions *options.TerragruntOptions, previousExecErrors *multierror.Error) error {
 	if len(hooks) == 0 || previousExecErrors.ErrorOrNil() == nil {
 		return nil
 	}
@@ -61,6 +64,7 @@ func processErrorHooks(hooks []config.ErrorHook, terragruntOptions *options.Terr
 			actionParams := curHook.Execute[1:]
 
 			_, possibleError := shell.RunShellCommandWithOutput(
+				ctx,
 				terragruntOptions,
 				workingDir,
 				suppressStdout,
@@ -76,7 +80,7 @@ func processErrorHooks(hooks []config.ErrorHook, terragruntOptions *options.Terr
 	return errorsOccured.ErrorOrNil()
 }
 
-func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, previousExecErrors *multierror.Error) error {
+func processHooks(ctx context.Context, hooks []config.Hook, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, previousExecErrors *multierror.Error) error {
 	if len(hooks) == 0 {
 		return nil
 	}
@@ -88,7 +92,12 @@ func processHooks(hooks []config.Hook, terragruntOptions *options.TerragruntOpti
 	for _, curHook := range hooks {
 		allPreviousErrors := multierror.Append(previousExecErrors, errorsOccured)
 		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors) {
-			err := runHook(terragruntOptions, terragruntConfig, curHook)
+			err := telemetry.Telemetry(ctx, terragruntOptions, fmt.Sprintf("hook_%s", curHook.Name), map[string]interface{}{
+				"hook": curHook.Name,
+				"dir":  curHook.WorkingDir,
+			}, func(childCtx context.Context) error {
+				return runHook(ctx, terragruntOptions, terragruntConfig, curHook)
+			})
 			if err != nil {
 				errorsOccured = multierror.Append(errorsOccured, err)
 			}
@@ -111,7 +120,7 @@ func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOption
 	return isCommandInHook && (!hasErrors || (hook.RunOnError != nil && *hook.RunOnError))
 }
 
-func runHook(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, curHook config.Hook) error {
+func runHook(ctx context.Context, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, curHook config.Hook) error {
 	terragruntOptions.Logger.Infof("Executing hook: %s", curHook.Name)
 	workingDir := ""
 	if curHook.WorkingDir != nil {
@@ -127,11 +136,12 @@ func runHook(terragruntOptions *options.TerragruntOptions, terragruntConfig *con
 	actionParams := curHook.Execute[1:]
 
 	if actionToExecute == "tflint" {
-		if err := executeTFLint(terragruntOptions, terragruntConfig, curHook, workingDir); err != nil {
+		if err := executeTFLint(ctx, terragruntOptions, terragruntConfig, curHook, workingDir); err != nil {
 			return err
 		}
 	} else {
 		_, possibleError := shell.RunShellCommandWithOutput(
+			ctx,
 			terragruntOptions,
 			workingDir,
 			suppressStdout,
@@ -146,13 +156,13 @@ func runHook(terragruntOptions *options.TerragruntOptions, terragruntConfig *con
 	return nil
 }
 
-func executeTFLint(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, curHook config.Hook, workingDir string) error {
+func executeTFLint(ctx context.Context, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, curHook config.Hook, workingDir string) error {
 	// fetching source code changes lock since tflint is not thread safe
 	rawActualLock, _ := sourceChangeLocks.LoadOrStore(workingDir, &sync.Mutex{})
 	actualLock := rawActualLock.(*sync.Mutex)
 	actualLock.Lock()
 	defer actualLock.Unlock()
-	err := tflint.RunTflintWithOpts(terragruntOptions, terragruntConfig, curHook)
+	err := tflint.RunTflintWithOpts(ctx, terragruntOptions, terragruntConfig, curHook)
 	if err != nil {
 		terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
 		return err

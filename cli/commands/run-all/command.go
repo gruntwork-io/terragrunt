@@ -1,9 +1,9 @@
 package runall
 
 import (
+	"context"
 	"sort"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
@@ -24,25 +24,22 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Name:        CommandName,
 		Usage:       "Run a terraform command against a 'stack' by running the specified command in each subfolder.",
 		Description: "The command will recursively find terragrunt modules in the current directory tree and run the terraform command in dependency order (unless the command is destroy, in which case the command is run in reverse dependency order).",
-		Flags:       commands.NewGlobalFlags(opts),
 		Subcommands: subCommands(opts).SkipRunning(),
 		Action:      action(opts),
 	}
 }
 
-func action(opts *options.TerragruntOptions) func(ctx *cli.Context) error {
-	return func(ctx *cli.Context) error {
-		opts.RunTerragrunt = func(opts *options.TerragruntOptions) error {
-			if cmd := ctx.Command.Subcommand(opts.TerraformCommand); cmd != nil {
-				ctx := ctx.WithValue(options.ContextKey, opts)
-
-				return cmd.Action(ctx)
+func action(opts *options.TerragruntOptions) cli.ActionFunc {
+	return func(cliCtx *cli.Context) error {
+		opts.RunTerragrunt = func(ctx context.Context, opts *options.TerragruntOptions) error {
+			if cmd := cliCtx.Command.Subcommand(opts.TerraformCommand); cmd != nil {
+				cliCtx := cliCtx.WithValue(options.ContextKey, opts)
+				return cmd.Action(cliCtx)
 			}
-
-			return terraform.Run(opts)
+			return terraform.Run(ctx, opts)
 		}
 
-		return Run(opts.OptionsFromContext(ctx))
+		return Run(cliCtx.Context, opts.OptionsFromContext(cliCtx))
 	}
 }
 

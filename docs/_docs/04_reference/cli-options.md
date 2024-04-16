@@ -39,6 +39,7 @@ Terragrunt supports the following CLI commands:
   - [output-module-groups](#output-module-groups)
   - [scaffold](#scaffold)
   - [catalog](#catalog)
+  - [graph](#graph)
 
 ### All Terraform built-in commands
 
@@ -528,6 +529,97 @@ Launch the user interface for searching and managing your module catalog.
 
 More details in [catalog section](https://terragrunt.gruntwork.io/docs/features/catalog/).
 
+### graph
+
+Run the provided terraform command against the graph of dependencies for the module in the current working directory. The graph consists of all modules that depend on the module in the current working directory via a `depends_on` or `dependencies` block, plus all the modules that depend on those modules, and all the modules that depend on those modules, and so on, recursively up the tree, up to the Git repository root, or the path specified via the optional `--graph-root` argument.
+
+The Command will be executed following the order of dependencies: so it'll run on the module in the current working directory first, then on modules that depend on it directly, then on the modules that depend on those modules, and so on. Note that if the command is `destroy`, it will execute in the opposite order of the dependencies.
+
+Example:
+Having bellow dependencies:
+[![dependency-graph](/assets/img/collections/documentation/dependency-graph.png){: width="80%" }]({{site.baseurl}}/assets/img/collections/documentation/dependency-graph.png)
+
+Running `terragrunt graph apply` in `eks` module will lead to the following execution order:
+```
+Group 1
+- Module project/eks
+
+Group 2
+- Module project/services/eks-service-1
+- Module project/services/eks-service-2
+
+Group 3
+- Module project/services/eks-service-2-v2
+- Module project/services/eks-service-3
+- Module project/services/eks-service-5
+
+Group 4
+- Module project/services/eks-service-3-v2
+- Module project/services/eks-service-4
+
+Group 5
+- Module project/services/eks-service-3-v3
+```
+Notes:
+* `lambda` modules aren't included in the graph, because they are not dependent on `eks` module.
+* execution is from bottom up based on dependencies
+
+Running `terragrunt graph destroy` in `eks` module will lead to the following execution order:
+```
+Group 1
+- Module project/services/eks-service-2-v2
+- Module project/services/eks-service-3-v3
+- Module project/services/eks-service-4
+- Module project/services/eks-service-5
+
+Group 2
+- Module project/services/eks-service-3-v2
+
+Group 3
+- Module project/services/eks-service-3
+
+Group 4
+- Module project/services/eks-service-1
+- Module project/services/eks-service-2
+
+Group 5
+- Module project/eks
+```
+Notes:
+* execution is in reverse order, first are destroyed "top" modules and in the end `eks`
+* `lambda` modules aren't affected at all
+
+Running `terragrunt graph apply` in `services/eks-service-3`:
+```
+Group 1
+- Module project/services/eks-service-3
+
+Group 2
+- Module project/services/eks-service-3-v2
+- Module project/services/eks-service-4
+
+Group 3
+- Module project/services/eks-service-3-v3
+
+```
+Notes:
+* in execution are included only services dependent from `eks-service-3`
+
+Running `terragrunt graph destroy` in `services/eks-service-3`:
+```
+Group 1
+- Module project/services/eks-service-3-v3
+- Module project/services/eks-service-4
+
+Group 2
+- Module project/services/eks-service-3-v2
+
+Group 3
+- Module project/services/eks-service-3
+```
+Notes:
+* destroy will be executed only on subset of services dependent from `eks-service-3`
+
 ## CLI options
 
 Terragrunt forwards all options to Terraform. The only exceptions are `--version` and arguments that start with the
@@ -563,6 +655,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
 - [terragrunt-override-attr](#terragrunt-override-attr)
 - [terragrunt-json-out](#terragrunt-json-out)
+- [terragrunt-json-disable-dependent-modules](#terragrunt-json-disable-dependent-modules)
 - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
 - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
 - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
@@ -570,6 +663,15 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
 - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
 - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
+- [terragrunt-json-log](#terragrunt-json-log)
+- [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json)
+- [terragrunt-provider-cache](#terragrunt-provider-cache)
+- [terragrunt-provider-cache-dir](#terragrunt-provider-cache-dir)
+- [terragrunt-provider-complete-lock](#terragrunt-provider-complete-lock)
+- [terragrunt-registry-hostname](#terragrunt-registry-hostname)
+- [terragrunt-registry-port](#terragrunt-registry-port)
+- [terragrunt-registry-token](#terragrunt-registry-token)
+- [terragrunt-registry-names](#terragrunt-registry-names)
 
 ### terragrunt-config
 
@@ -920,6 +1022,15 @@ block by specifying `<BLOCK>.<ATTR>`, where `<BLOCK>` is the block name: e.g., `
 
 When passed in, render the json representation in this file.
 
+### terragrunt-json-disable-dependent-modules
+
+**CLI Arg**: `--terragrunt-json-disable-dependent-modules`
+**Requires an argument**: `--terragrunt-json-disable-dependent-modules`
+**Commands**:
+- [render-json](#render-json)
+
+When the `--terragrunt-json-disable-dependent-modules` flag is included in the command, the process of identifying dependent modules will be disabled during JSON rendering.
+This lead to a faster rendering process, but the output will not include any dependent modules.
 
 ### terragrunt-modules-that-include
 
@@ -1032,3 +1143,80 @@ When this flag is set, Terragrunt does not update the remote state bucket, which
 **Environment Variable**: `TERRAGRUNT_DISABLE_COMMAND_VALIDATION` (set to `true`)
 
 When this flag is set, Terragrunt will not validate the terraform command, which can be useful when need to use non-existent commands in hooks.
+
+### terragrunt-json-log
+
+**CLI Arg**: `--terragrunt-json-log`
+**Environment Variable**: `TERRAGRUNT_JSON_LOG` (set to `true`)
+
+When this flag is set, Terragrunt will output its logs in JSON format.
+
+### terragrunt-tf-logs-to-json
+
+**CLI Arg**: `--terragrunt-tf-logs-to-json`
+**Environment Variable**: `TERRAGRUNT_TF_JSON_LOG` (set to `true`)
+
+When this flag is set, Terragrunt will wrap Terraform `stdout` and `stderr` in JSON log messages. Works only with `--terragrunt-json-log` flag.
+
+### terragrunt-provider-cache
+
+**CLI Arg**: `--terragrunt-provider-cache`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE`
+**Commands**:
+- [run-all](#run-all)
+
+Enables Terragrunt's provider caching. This forces Terraform to make provider requests through the Terragrunt Provider Cache server. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
+
+### terragrunt-provider-cache-dir
+
+**CLI Arg**: `--terragrunt-provider-cache-dir`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_DIR`
+**Commands**:
+- [run-all](#run-all)
+
+The path to the Terragrunt provider cache directory. By default, `terragrunt/providers` folder in the user cache directory: `$HOME/.cache` on Unix systems, `$HOME/Library/Caches` on Darwin, `%LocalAppData%` on Windows. The file structure of the cache directory is identical to the Terraform [plugin_cache_dir](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache) directory. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
+
+### terragrunt-provider-cache-disable-partial-lock-file
+
+**CLI Arg**: `--terragrunt-provider-cache-disable-partial-lock-file`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_DISABLE_PARTIAL_LOCK_FILE`
+**Commands**:
+- [run-all](#run-all)
+
+By default, Terraform does _not_ use the cache for modules without a lock file. This results in lots of extra provider downloading. To work around this, for modules without a lock file, Terragurnt provider caching enables the [_plugin_cache_may_break_dependency_lock_file_](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation) feature, which allows Terraform to generate a partial lock file if it finds the providers it needs in the cache. This avoids lots of unnecessary provider downloads, but results in partial lock files. If you wish to disable this feature, set this flag flag, and Terragrunt will run `terraform providers lock` before `init` for modules without lock files, which will generate a complete lock file, but at the cost of more provider downloads. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
+
+### terragrunt-provider-cache-hostname
+
+**CLI Arg**: `--terragrunt-provider-cache-hostname`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_HOSTNAME`
+**Commands**:
+- [run-all](#run-all)
+
+The hostname of the Terragrunt Provider Cache server. By default, 'localhost'. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
+
+### terragrunt-provider-cache-port
+
+**CLI Arg**: `--terragrunt-provider-cache-port`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_PORT`
+**Commands**:
+- [run-all](#run-all)
+
+The port of the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
+
+### terragrunt-provider-cache-token
+
+**CLI Arg**: `--terragrunt-provider-cache-token`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_TOKEN`
+**Commands**:
+- [run-all](#run-all)
+
+The Token for authentication on the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
+
+### terragrunt-provider-cache-registry-names
+
+**CLI Arg**: `--terragrunt-provider-cache-registry-names`
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES`
+**Commands**:
+- [run-all](#run-all)
+
+The list of remote registries to cached by Terragrunt Provider Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.

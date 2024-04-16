@@ -176,7 +176,9 @@ To ensure that your changes get properly formatted, please install the git pre-c
 
 ### Releasing new versions
 
-To release a new version, just go to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases) and create a new release. The CircleCI job for this repo has been configured to:
+To release a new version, just go to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases) and create a new release. Ensure that the new release uses the **Set as a pre-release** checkbox initially.
+
+The CircleCI job for this repo has been configured to:
 
 1.  Automatically detect new tags.
 
@@ -185,3 +187,5 @@ To release a new version, just go to the [Releases Page](https://github.com/grun
 3.  Upload the binaries to the release in GitHub.
 
 See `.circleci/config.yml` for details.
+
+Follow the CircleCI job to ensure that the binaries are uploaded correctly. Once the job is successful, go back to the release, uncheck the **Set as a pre-release** checkbox and check the **Set as the latest release** checkbox.
