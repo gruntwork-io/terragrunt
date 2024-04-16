@@ -48,145 +48,95 @@ func TestServer(t *testing.T) {
 
 	opts := []Option{WithToken(token), WithProviderArchiveDir(providerArchiveDir), WithProviderCacheDir(providerCacheDir), WithUserProviderDir(pluginCacheDir)}
 
-	type request struct {
+	testGroups := []struct {
+		opts               []Option
 		urlPath            string
 		expectedStatusCode int
 		expectedBodyReg    *regexp.Regexp
-	}
-
-	testGroups := []struct {
-		opts              []Option
-		requests          []request
-		expectedCachePath string
+		expectedCachePath  string
 	}{
 		{
-			opts: opts,
-			requests: []request{
-				{
-					urlPath:            "/.well-known/terraform.json",
-					expectedStatusCode: http.StatusOK,
-					expectedBodyReg:    regexp.MustCompile(regexp.QuoteMeta(`{"providers.v1":"/v1/providers"}`)),
-				},
-			},
+			opts:               opts,
+			urlPath:            "/.well-known/terraform.json",
+			expectedStatusCode: http.StatusOK,
+			expectedBodyReg:    regexp.MustCompile(regexp.QuoteMeta(`{"providers.v1":"/v1/providers"}`)),
 		},
 		{
-			opts: append(opts, WithToken("")),
-			requests: []request{
-				{
-					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/aws/versions",
-					expectedStatusCode: http.StatusUnauthorized,
-				},
-			},
+			opts:               append(opts, WithToken("")),
+			urlPath:            "/v1/providers/cache/registry.terraform.io/hashicorp/aws/versions",
+			expectedStatusCode: http.StatusUnauthorized,
 		},
 		{
-			opts: opts,
-			requests: []request{
-				{
-					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/aws/versions",
-					expectedStatusCode: http.StatusOK,
-					expectedBodyReg:    regexp.MustCompile(regexp.QuoteMeta(`"version":"5.36.0","protocols":["5.0"],"platforms"`)),
-				},
-			},
+			opts:               opts,
+			urlPath:            "/v1/providers/cache/registry.terraform.io/hashicorp/aws/versions",
+			expectedStatusCode: http.StatusOK,
+			expectedBodyReg:    regexp.MustCompile(regexp.QuoteMeta(`"version":"5.36.0","protocols":["5.0"],"platforms"`)),
 		},
 		{
-			opts: opts,
-			requests: []request{
-				{
-					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
-					expectedStatusCode: http.StatusLocked,
-				},
-			},
-			expectedCachePath: "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
+			opts:               opts,
+			urlPath:            "/v1/providers/cache/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
+			expectedStatusCode: http.StatusLocked,
+			expectedCachePath:  "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
 		},
 		{
-			opts: opts,
-			requests: []request{
-				{
-					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
-					expectedStatusCode: http.StatusLocked,
-				},
-			},
-			expectedCachePath: "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
+			opts:               opts,
+			urlPath:            "/v1/providers/cache/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
+			expectedStatusCode: http.StatusLocked,
+			expectedCachePath:  "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
 		},
 		{
-			opts: opts,
-			requests: []request{
-				{
-					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
-					expectedStatusCode: http.StatusLocked,
-				},
-			},
-			expectedCachePath: "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
+			opts:               opts,
+			urlPath:            "/v1/providers/cache/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
+			expectedStatusCode: http.StatusLocked,
+			expectedCachePath:  "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
 		},
 		{
-			opts: opts,
-			requests: []request{
-				{
-					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
-					expectedStatusCode: http.StatusLocked,
-				},
-			},
-			expectedCachePath: "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
+			opts:               opts,
+			urlPath:            "/v1/providers/cache/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
+			expectedStatusCode: http.StatusLocked,
+			expectedCachePath:  "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
 		},
 		{
-			opts: opts,
-			requests: []request{
-				{
-					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
-					expectedStatusCode: http.StatusLocked,
-				},
-			},
-			expectedCachePath: "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
+			opts:               opts,
+			urlPath:            "/v1/providers/cache/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
+			expectedStatusCode: http.StatusLocked,
+			expectedCachePath:  "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
 		},
 		{
-			opts: opts,
-			requests: []request{
-				{
-					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
-					expectedStatusCode: http.StatusLocked,
-				},
-			},
-			expectedCachePath: "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
+			opts:               opts,
+			urlPath:            "/v1/providers/cache/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
+			expectedStatusCode: http.StatusLocked,
+			expectedCachePath:  "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
 		},
 		{
-			opts: opts,
-			requests: []request{
-				{
-					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
-					expectedStatusCode: http.StatusLocked,
-				},
-			},
-			expectedCachePath: "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
+			opts:               opts,
+			urlPath:            "/v1/providers/cache/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
+			expectedStatusCode: http.StatusLocked,
+			expectedCachePath:  "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
 		},
 		{
-			opts: opts,
-			requests: []request{
-				{
-					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
-					expectedStatusCode: http.StatusLocked,
-				},
-			},
-			expectedCachePath: "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
+			opts:               opts,
+			urlPath:            "/v1/providers/cache/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
+			expectedStatusCode: http.StatusLocked,
+			expectedCachePath:  "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
 		},
 		{
-			opts: opts,
-			requests: []request{
-				{
-					urlPath:            "/v1/providers/registry.terraform.io/hashicorp/template/2.2.0/download/linux/amd64",
-					expectedStatusCode: http.StatusLocked,
-				},
-			},
-			expectedCachePath: "registry.terraform.io/hashicorp/template/2.2.0/linux_amd64/terraform-provider-template_v2.2.0_x4",
+			opts:               opts,
+			urlPath:            "/v1/providers/cache/registry.terraform.io/hashicorp/template/2.2.0/download/linux/amd64",
+			expectedStatusCode: http.StatusLocked,
+			expectedCachePath:  "registry.terraform.io/hashicorp/template/2.2.0/linux_amd64/terraform-provider-template_v2.2.0_x4",
 		},
 		{
-			opts: opts,
-			requests: []request{
-				{
-					urlPath:            fmt.Sprintf("/v1/providers/registry.terraform.io/hashicorp/template/1234.5678.9/download/%s/%s", runtime.GOOS, runtime.GOARCH),
-					expectedStatusCode: http.StatusLocked,
-				},
-			},
-			expectedCachePath: createFakeProvider(t, pluginCacheDir, fmt.Sprintf("registry.terraform.io/hashicorp/template/1234.5678.9/%s_%s/terraform-provider-template_1234.5678.9_x5", runtime.GOOS, runtime.GOARCH)),
+			opts:               opts,
+			urlPath:            fmt.Sprintf("/v1/providers/cache/registry.terraform.io/hashicorp/template/1234.5678.9/download/%s/%s", runtime.GOOS, runtime.GOARCH),
+			expectedStatusCode: http.StatusLocked,
+			expectedCachePath:  createFakeProvider(t, pluginCacheDir, fmt.Sprintf("registry.terraform.io/hashicorp/template/1234.5678.9/%s_%s/terraform-provider-template_1234.5678.9_x5", runtime.GOOS, runtime.GOARCH)),
+		},
+		{
+			opts:               opts,
+			urlPath:            "/v1/providers//registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
+			expectedStatusCode: http.StatusOK,
+			expectedBodyReg:    regexp.MustCompile(`\{.*` + regexp.QuoteMeta(`"download_url":"http://127.0.0.1:`) + `\d+` + regexp.QuoteMeta(`/downloads/provider/releases.hashicorp.com/terraform-provider-aws/5.36.0/terraform-provider-aws_5.36.0_darwin_arm64.zip"`) + `.*\}`),
 		},
 	}
 	//
@@ -212,27 +162,25 @@ func TestServer(t *testing.T) {
 
 			urlPath := server.ProviderURL()
 
-			for _, request := range testCase.requests {
-				urlPath.Path = request.urlPath
+			urlPath.Path = testCase.urlPath
 
-				req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlPath.String(), nil)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlPath.String(), nil)
+			require.NoError(t, err)
+			req.Header.Set("Authorization", "Bearer "+token)
+
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			assert.Equal(t, testCase.expectedStatusCode, resp.StatusCode)
+
+			if testCase.expectedBodyReg != nil {
+				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
-				req.Header.Set("Authorization", "Bearer "+token)
-
-				resp, err := http.DefaultClient.Do(req)
-				require.NoError(t, err)
-				defer resp.Body.Close()
-
-				assert.Equal(t, request.expectedStatusCode, resp.StatusCode)
-
-				if request.expectedBodyReg != nil {
-					body, err := io.ReadAll(resp.Body)
-					require.NoError(t, err)
-					assert.Regexp(t, request.expectedBodyReg, string(body))
-				}
-
-				server.Provider.WaitForCacheReady()
+				assert.Regexp(t, testCase.expectedBodyReg, string(body))
 			}
+
+			server.Provider.WaitForCacheReady()
 
 			if testCase.expectedCachePath != "" {
 				assert.FileExists(t, filepath.Join(providerCacheDir, testCase.expectedCachePath))
