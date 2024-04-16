@@ -49,9 +49,9 @@ type ProviderCache struct {
 	*ProviderService
 	*models.Provider
 
-	started       chan struct{}
-	archiveCached bool
-	ready         bool
+	started        chan struct{}
+	archiveFetched bool
+	ready          bool
 }
 
 func (cache *ProviderCache) providerDir() string {
@@ -73,6 +73,10 @@ func (cache *ProviderCache) downloadURL() string {
 	return cache.DownloadURL.String()
 }
 
+func (cache *ProviderCache) IsReady() bool {
+	return cache.ready
+}
+
 func (cache *ProviderCache) ArchiveFilename() string {
 	return filepath.Join(cache.baseArchiveDir, cache.Provider.Filename()+path.Ext(cache.downloadURL()))
 }
@@ -82,48 +86,43 @@ func (cache *ProviderCache) ArchiveFilename() string {
 // 2. Downloads the provider from the original registry, unpacks and saves it into the cache directory.
 func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	var (
-		userProviderDir   = cache.userProviderDir()
-		providerDir       = cache.providerDir()
-		downloadURL       = cache.downloadURL()
-		archiveFilename   = cache.ArchiveFilename()
-		needCacheArchives = cache.needCacheArchives
-
-		unpackedCached bool
+		userProviderDir = cache.userProviderDir()
+		providerDir     = cache.providerDir()
+		downloadURL     = cache.downloadURL()
+		archiveFilename = cache.ArchiveFilename()
 	)
+
+	if util.FileExists(providerDir) {
+		return nil
+	}
 
 	if err := os.MkdirAll(filepath.Dir(providerDir), os.ModePerm); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	if !util.FileExists(providerDir) {
-		if util.FileExists(userProviderDir) {
-			log.Debugf("Create symlink file %s to %s", providerDir, userProviderDir)
-			if err := os.Symlink(userProviderDir, providerDir); err != nil {
-				return errors.WithStackTrace(err)
-			}
-			unpackedCached = true
-		} else {
-			needCacheArchives = true
-		}
-	} else {
-		unpackedCached = true
-	}
-
-	if needCacheArchives && downloadURL != "" && !util.FileExists(archiveFilename) {
-		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %q", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func() error {
-			return util.FetchFile(ctx, downloadURL, archiveFilename)
-		}); err != nil {
-			return err
-		}
-		cache.archiveCached = true
-	}
-
-	if !unpackedCached {
-		log.Debugf("Unpack provider archive %s", archiveFilename)
-
-		if err := unzip.Decompress(providerDir, archiveFilename, true, unzipFileMode); err != nil {
+	if util.FileExists(userProviderDir) {
+		log.Debugf("Create symlink file %s to %s", providerDir, userProviderDir)
+		if err := os.Symlink(userProviderDir, providerDir); err != nil {
 			return errors.WithStackTrace(err)
 		}
+		return nil
+	}
+
+	if downloadURL == "" {
+		return errors.Errorf("download provider url not found")
+	}
+
+	if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %q", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func() error {
+		return util.FetchFile(ctx, downloadURL, archiveFilename)
+	}); err != nil {
+		return err
+	}
+	cache.archiveFetched = true
+
+	log.Debugf("Unpack provider archive %s", archiveFilename)
+
+	if err := unzip.Decompress(providerDir, archiveFilename, true, unzipFileMode); err != nil {
+		return errors.WithStackTrace(err)
 	}
 
 	return nil
@@ -132,7 +131,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 func (cache *ProviderCache) removeArchive() error {
 	var archiveFilename = cache.ArchiveFilename()
 
-	if !cache.needCacheArchives && cache.archiveCached && util.FileExists(archiveFilename) {
+	if cache.archiveFetched && util.FileExists(archiveFilename) {
 		log.Debugf("Remove provider cached archive %s", archiveFilename)
 		if err := os.Remove(archiveFilename); err != nil {
 			return errors.WithStackTrace(err)
@@ -176,18 +175,14 @@ type ProviderService struct {
 
 	cacheMu      sync.RWMutex
 	cacheReadyMu sync.RWMutex
-
-	// If needCacheArchives is true, ensures that not only the unarchived binary is cached, but also its archive. We need acrhives in order to reduce the bandwidth, because `terraform lock provider` always loads providers from a remote registry to create a lock file rather than using a cached one. This is only used when opts.ProviderCompleteLock is true.
-	needCacheArchives bool
 }
 
-func NewProviderService(baseCacheDir, baseArchiveDir, baseUserProviderDir string, needCacheArchives bool) *ProviderService {
+func NewProviderService(baseCacheDir, baseArchiveDir, baseUserProviderDir string) *ProviderService {
 	return &ProviderService{
 		baseCacheDir:          baseCacheDir,
 		baseArchiveDir:        baseArchiveDir,
 		baseUserProviderDir:   baseUserProviderDir,
 		providerCacheWarmUpCh: make(chan *ProviderCache),
-		needCacheArchives:     needCacheArchives,
 	}
 }
 
@@ -288,9 +283,10 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 					os.Remove(archiveFilename) //nolint:errcheck
 					return err
 				}
-				cache.ready = true
 
+				cache.ready = true
 				log.Infof("Provider %q is cached", cache.Provider)
+
 				return nil
 			})
 		case <-ctx.Done():

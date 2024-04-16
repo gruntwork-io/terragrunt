@@ -27,9 +27,12 @@ import (
 )
 
 const (
-	// The path to the automatically generated local CLI configuration, relative to the `.terragrunt-cache` folder.
-	mainLocalCLIFilename    = ".terraformrc"
-	preInitLocalCLIFilename = ".terraformrc_pre_init"
+	// The paths to the automatically generated local CLI configs, relative to the `.terragrunt-cache` folder.
+
+	// contains `provider_installation` sections to reuse already cached providers.
+	mainLocalCLIFilename = ".terraformrc"
+	// contains `host` sections used to make requests through the Terragrunt Provider Cache server to create a provider cache.
+	cacheLocalCLIFilename = ".terraformrc_cache"
 )
 
 var (
@@ -42,8 +45,8 @@ var (
 
 type ProviderCacheServer struct {
 	*cache.Server
-	Env        map[string]string
-	preInitEnv map[string]string
+	Env      map[string]string
+	cacheEnv map[string]string
 }
 
 func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCacheServer, error) {
@@ -99,24 +102,24 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCacheSer
 	}
 
 	mainCLIConfigFile := filepath.Join(opts.DownloadDir, mainLocalCLIFilename)
-	preInitCLIConfigFile := filepath.Join(opts.DownloadDir, preInitLocalCLIFilename)
+	cacheCLIConfigFile := filepath.Join(opts.DownloadDir, cacheLocalCLIFilename)
 
-	if err := createLocalCLIConfigs(opts, mainCLIConfigFile, preInitCLIConfigFile, server.ProviderURL()); err != nil {
+	if err := createLocalCLIConfigs(opts, mainCLIConfigFile, cacheCLIConfigFile, server.ProviderURL()); err != nil {
 		// to release the allocated port
 		server.Close() //nolint:errcheck
 		return nil, err
 	}
 
 	return &ProviderCacheServer{
-		Server:     server,
-		Env:        providerCacheEnvironment(opts, mainCLIConfigFile),
-		preInitEnv: providerCacheEnvironment(opts, preInitCLIConfigFile),
+		Server:   server,
+		Env:      providerCacheEnvironment(opts, mainCLIConfigFile),
+		cacheEnv: providerCacheEnvironment(opts, cacheCLIConfigFile),
 	}, nil
 }
 
 func (server *ProviderCacheServer) TerraformCommandHook(ctx context.Context, opts *options.TerragruntOptions, args []string) error {
 	// Use Hook only for the `terraform init` command, which can be run explicitly by the user or Terragrunt's `auto-init` feature.
-	if util.FirstArg(opts.TerraformCliArgs) != terraform.CommandNameInit {
+	if util.FirstArg(args) != terraform.CommandNameInit {
 		return nil
 	}
 
@@ -127,17 +130,22 @@ func (server *ProviderCacheServer) TerraformCommandHook(ctx context.Context, opt
 	// Before each init, we warm up the global cache to ensure that all necessary providers are cached.
 	// To do this we are using 'terraform providers lock' to force TF to request all the providers from our TG server, and that's how we know what providers TF needs, and can load them into the cache.
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
-	if err := runTerraformCommand(ctx, opts, args, server.preInitEnv); err != nil {
+	if err := runTerraformCommand(ctx, opts, args, server.cacheEnv); err != nil {
 		return err
 	}
 	server.Provider.WaitForCacheReady()
 
 	if opts.ProviderCacheDisablePartialLockFile && !util.FileExists(filepath.Join(opts.WorkingDir, terraform.TerraformLockFile)) {
+		log.Debugf("Getting terraform modules for %q", opts.WorkingDir)
+		if err := runTerraformCommand(ctx, opts, []string{terraform.CommandNameGet}, server.Env); err != nil {
+			return err
+		}
+
 		log.Debugf("Generating Terraform lock file for %q", opts.WorkingDir)
 		// Create complete terraform lock files. By default this feature is disabled, since it's not superfast.
 		// Instead we use Terraform `TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE` feature, that creates hashes from the local cache.
 		// And since the Terraform developers warn that this feature will be removed soon, it's good to have a workaround.
-		if err := runTerraformCommand(ctx, opts, []string{terraform.CommandNameProviders, terraform.CommandNameLock}, nil); err != nil {
+		if err := runTerraformCommand(ctx, opts, []string{terraform.CommandNameProviders, terraform.CommandNameLock}, server.Env); err != nil {
 			return err
 		}
 	}
@@ -198,9 +206,9 @@ func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile str
 	return envs
 }
 
-// localCLIsConfig creates a local CLI configuration that merges the default/user configuration with our Private Registry configuration.
+// localCLIsConfig creates a local CLI configs that merges the default/user configuration with our Private Registry configuration.
 // We don't want to use Terraform's `plugin_cache_dir` feature because the cache is populated by our Terragrunt Provider Cache server, and to make sure that no Terraform process ever overwrites the global cache, we clear this value.
-// In order to force Terraform to queries our registry instead of the original one, we use the section below.
+// In order to force Terraform to queries our cache server instead of the original one, we use the section below.
 // https://github.com/hashicorp/terraform/issues/28309 (officially undocumented)
 //
 //	host "registry.terraform.io" {
@@ -223,7 +231,16 @@ func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile str
 //	}
 //
 // This func doesn't change the default CLI config file, only creates a new one at the given path `cliConfigFile`. Ultimately, we can assign this path to `TF_CLI_CONFIG_FILE`.
-func createLocalCLIConfigs(opts *options.TerragruntOptions, mainCLIFile, preInitCLIFile string, registryProviderURL *url.URL) error {
+func createLocalCLIConfigs(opts *options.TerragruntOptions, mainCLIFile, cacheCLIFile string, registryProviderURL *url.URL) error {
+	if err := createMainCLIConfig(opts, mainCLIFile, registryProviderURL); err != nil {
+		return err
+	}
+
+	return createCacheCLIConfig(opts, cacheCLIFile, registryProviderURL)
+}
+
+// main CLI config file, needs to contain `provider_installation` sections to reuse already cached providers.
+func createMainCLIConfig(opts *options.TerragruntOptions, filename string, registryProviderURL *url.URL) error {
 	cfg, err := cliconfig.LoadUserConfig()
 	if err != nil {
 		return err
@@ -234,30 +251,43 @@ func createLocalCLIConfigs(opts *options.TerragruntOptions, mainCLIFile, preInit
 
 	for _, registryName := range opts.ProviderCacheRegistryNames {
 		providerInstallationIncludes = append(providerInstallationIncludes, fmt.Sprintf("%s/*/*", registryName))
-	}
 
-	// main CLI config file
+		cfg.AddHost(registryName, map[string]any{
+			"providers.v1": fmt.Sprintf("%s//%s/", registryProviderURL, registryName),
+			// Since Terragrunt Provider Cache only caches providers, we need to route module requests to the original registry.
+			"modules.v1": fmt.Sprintf("https://%s/v1/modules", registryName),
+		})
+	}
 
 	cfg.SetProviderInstallation(
 		cliconfig.NewProviderInstallationFilesystemMirror(opts.ProviderCacheDir, providerInstallationIncludes, nil),
 		cliconfig.NewProviderInstallationDirect(providerInstallationIncludes, nil),
 	)
 
-	if cfgDir := filepath.Dir(mainCLIFile); !util.FileExists(cfgDir) {
+	if cfgDir := filepath.Dir(filename); !util.FileExists(cfgDir) {
 		if err := os.MkdirAll(cfgDir, os.ModePerm); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
 
-	if err := cfg.Save(mainCLIFile); err != nil {
+	if err := cfg.Save(filename); err != nil {
 		return err
 	}
 
-	// pre init CLI config file
+	return nil
+}
+
+// cache CLI config file, needs to contain `host` sections used to make requests through the Terragrunt Provider Cache server to create a provider cache.
+func createCacheCLIConfig(opts *options.TerragruntOptions, filename string, registryProviderURL *url.URL) error {
+	cfg, err := cliconfig.LoadUserConfig()
+	if err != nil {
+		return err
+	}
+	cfg.PluginCacheDir = ""
 
 	for _, registryName := range opts.ProviderCacheRegistryNames {
 		cfg.AddHost(registryName, map[string]any{
-			"providers.v1": fmt.Sprintf("%s/%s/", registryProviderURL, registryName),
+			"providers.v1": fmt.Sprintf("%s/%s/%s/", registryProviderURL, controllers.ActionCache, registryName),
 			// Since Terragrunt Provider Cache only caches providers, we need to route module requests to the original registry.
 			"modules.v1": fmt.Sprintf("https://%s/v1/modules", registryName),
 		})
@@ -268,13 +298,13 @@ func createLocalCLIConfigs(opts *options.TerragruntOptions, mainCLIFile, preInit
 		cliconfig.NewProviderInstallationDirect(nil, nil),
 	)
 
-	if cfgDir := filepath.Dir(preInitCLIFile); !util.FileExists(cfgDir) {
+	if cfgDir := filepath.Dir(filename); !util.FileExists(cfgDir) {
 		if err := os.MkdirAll(cfgDir, os.ModePerm); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
 
-	if err := cfg.Save(preInitCLIFile); err != nil {
+	if err := cfg.Save(filename); err != nil {
 		return err
 	}
 

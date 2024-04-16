@@ -27,6 +27,8 @@ const (
 	// It is needed to prevent further loading of providers by terraform, and at the same time make sure that the request was processed successfully.
 	HTTPStatusCacheProvider = http.StatusLocked
 
+	ActionCache = "cache"
+
 	// Provider's assets consist of three files/URLs: zipped binary, hashes and signature
 	ProviderDownloadURLName         ProviderURLName = "download_url"
 	ProviderSHASumsURLName          ProviderURLName = "shasums_url"
@@ -76,11 +78,11 @@ func (controller *ProviderController) Register(router *router.Router) {
 
 	// Get All Versions for a Single Provider
 	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-versions-for-a-single-provider
-	router.GET("/:registry_name/:namespace/:name/versions", controller.findVersionsAction)
+	router.GET("/:action/:registry_name/:namespace/:name/versions", controller.findVersionsAction)
 
 	// Get All Platforms for a Single Version
 	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-platforms-for-a-single-version
-	router.GET("/:registry_name/:namespace/:name/:version/download/:os/:arch", controller.findPlatformsAction)
+	router.GET("/:action/:registry_name/:namespace/:name/:version/download/:os/:arch", controller.findPlatformsAction)
 }
 
 func (controller *ProviderController) findVersionsAction(ctx echo.Context) error {
@@ -106,6 +108,7 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err
 		version      = ctx.Param("version")
 		os           = ctx.Param("os")
 		arch         = ctx.Param("arch")
+		actionCache  = ctx.Param("action") == ActionCache
 
 		proxyURL = controller.Downloader.ProviderProxyURL()
 	)
@@ -166,8 +169,12 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err
 				return nil
 			})
 
-			controller.ProviderService.CacheProvider(ctx.Request().Context(), provider)
-			return ctx.NoContent(HTTPStatusCacheProvider)
+			if actionCache {
+				controller.ProviderService.CacheProvider(ctx.Request().Context(), provider)
+				return ctx.NoContent(HTTPStatusCacheProvider)
+			}
+
+			return err
 		}).
 		NewRequest(ctx, provider.PlatformURL())
 }
