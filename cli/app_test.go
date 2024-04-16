@@ -134,7 +134,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			[]string{doubleDashed(commands.FlagNameTerragruntIAMWebIdentityToken), "web-identity-token"},
+			[]string{doubleDashed(commands.TerragruntIAMWebIdentityTokenFlagName), "web-identity-token"},
 			mockOptionsWithIamWebIdentityToken(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, "web-identity-token"),
 			nil,
 		},
