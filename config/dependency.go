@@ -889,7 +889,13 @@ func runTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, 
 	// Update the stdout buffer so we can capture the output
 	var stdoutBuffer bytes.Buffer
 	stdoutBufferWriter := bufio.NewWriter(&stdoutBuffer)
-	ctx.TerragruntOptions.Writer = stdoutBufferWriter
+
+	newOpts := *ctx.TerragruntOptions
+	// explicit disable json formatting and prefixing to read json output
+	newOpts.TerraformLogsToJson = false
+	newOpts.IncludeModulePrefix = false
+	newOpts.Writer = stdoutBufferWriter
+	ctx = ctx.WithTerragruntOptions(&newOpts)
 
 	err := ctx.TerragruntOptions.RunTerragrunt(ctx, ctx.TerragruntOptions)
 	if err != nil {

@@ -190,6 +190,7 @@ const (
 	TEST_FIXTURE_GRAPH                                                       = "fixture-graph"
 	TEST_FIXTURE_SKIP_DEPENDENCIES                                           = "fixture-skip-dependencies"
 	TEST_FIXTURE_INFO_ERROR                                                  = "fixture-terragrunt-info-error"
+	TEST_FIXTURE_DEPENDENCY_OUTPUT                                           = "fixture-dependency-output"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -6542,12 +6543,9 @@ func TestTerragruntCommandsThatNeedInput(t *testing.T) {
 	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, TEST_COMMANDS_THAT_NEED_INPUT)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", testPath))
 	require.NoError(t, err)
-	require.Contains(t, stdout.String(), "Apply complete")
+	require.Contains(t, stdout, "Apply complete")
 }
 
 func TestTerragruntParallelStateInit(t *testing.T) {
@@ -6700,12 +6698,9 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 			tmpEnvPath := prepareGraphFixture(t)
 			tmpModulePath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH, testCase.path)
 
-			stdout := bytes.Buffer{}
-			stderr := bytes.Buffer{}
-
-			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt graph destroy --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
+			stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt graph destroy --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath))
 			assert.NoError(t, err)
-			output := fmt.Sprintf("%v\n%v\n", stdout.String(), stderr.String())
+			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
 
 			for _, module := range testCase.expectedModules {
 				assert.Containsf(t, output, "/"+module+"\n", "Expected module %s to be in output", module)
