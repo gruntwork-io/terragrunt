@@ -15,6 +15,8 @@ type Provider struct {
 	OS           string
 	Arch         string
 
+	SHA256Sum string
+
 	DownloadURL *url.URL
 }
 

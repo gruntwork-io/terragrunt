@@ -18,8 +18,7 @@ import (
 // Server is a private Terraform cache for provider caching.
 type Server struct {
 	*http.Server
-	config   *Config
-	listener net.Listener
+	config *Config
 
 	Provider           *services.ProviderService
 	providerController *controllers.ProviderController
@@ -79,31 +78,25 @@ func (server *Server) ProviderURL() *url.URL {
 }
 
 // Listen starts listening to the given configuration address. It also automatically chooses a free port if not explicitly specified.
-func (server *Server) Listen() error {
+func (server *Server) Listen() (net.Listener, error) {
 	ln, err := net.Listen("tcp", server.config.Addr())
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return nil, errors.WithStackTrace(err)
 	}
 
-	server.Addr = ln.Addr().String()
-	server.listener = ln
-
 	log.Infof("Terragrunt Cache server is listening on %s", server.Addr)
-	return nil
-}
 
-func (server *Server) Close() error {
-	return server.listener.Close()
+	server.Addr = ln.Addr().String()
+	server.reverseProxy.ServerURL = &url.URL{
+		Scheme: "http",
+		Host:   ln.Addr().String(),
+	}
+	return ln, nil
 }
 
 // Run starts the webserver and workers.
-func (server *Server) Run(ctx context.Context) error {
+func (server *Server) Run(ctx context.Context, ln net.Listener) error {
 	log.Infof("Start Terragrunt Cache server")
-
-	server.reverseProxy.ServerURL = &url.URL{
-		Scheme: "http",
-		Host:   server.Addr,
-	}
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 	errGroup.Go(func() error {
@@ -123,7 +116,7 @@ func (server *Server) Run(ctx context.Context) error {
 		return nil
 	})
 
-	if err := server.Serve(server.listener); err != nil && err != http.ErrServerClosed {
+	if err := server.Serve(ln); err != nil && err != http.ErrServerClosed {
 		return errors.Errorf("error starting terragrunt cache server: %w", err)
 	}
 	defer log.Infof("Terragrunt Cache server stopped")

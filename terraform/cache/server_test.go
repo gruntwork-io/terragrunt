@@ -153,11 +153,12 @@ func TestServer(t *testing.T) {
 			errGroup, ctx := errgroup.WithContext(ctx)
 
 			server := NewServer(testCase.opts...)
-			err = server.Listen()
+			ln, err := server.Listen()
 			require.NoError(t, err)
+			defer ln.Close()
 
 			errGroup.Go(func() error {
-				return server.Run(ctx)
+				return server.Run(ctx, ln)
 			})
 
 			urlPath := server.ProviderURL()
@@ -180,7 +181,7 @@ func TestServer(t *testing.T) {
 				assert.Regexp(t, testCase.expectedBodyReg, string(body))
 			}
 
-			server.Provider.WaitForCacheReady()
+			server.Provider.WaitForCacheReady("")
 
 			if testCase.expectedCachePath != "" {
 				assert.FileExists(t, filepath.Join(providerCacheDir, testCase.expectedCachePath))

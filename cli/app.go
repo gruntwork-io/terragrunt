@@ -13,7 +13,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
-	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -195,13 +194,17 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 		if err != nil {
 			return err
 		}
-		defer server.Close() //nolint:errcheck
+
+		ln, err := server.Listen()
+		if err != nil {
+			return err
+		}
+		defer ln.Close()
 
 		cliCtx.Context = shell.ContextWithTerraformCommandHook(ctx, server.TerraformCommandHook)
-		maps.Copy(opts.Env, server.Env)
 
 		errGroup.Go(func() error {
-			return server.Run(ctx)
+			return server.Run(ctx, ln)
 		})
 	}
 

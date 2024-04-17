@@ -35,22 +35,35 @@ var unzip = getter.ZipDecompressor{}
 
 type ProviderCaches []*ProviderCache
 
-func (providers ProviderCaches) Find(target *models.Provider) *ProviderCache {
-	for _, provider := range providers {
-		if provider.Match(target) {
-			return provider
+func (caches ProviderCaches) Find(target *models.Provider) *ProviderCache {
+	for _, cache := range caches {
+		if cache.Match(target) {
+			return cache
 		}
 	}
 
 	return nil
 }
 
+func (caches ProviderCaches) FindByOwner(owner string) ProviderCaches {
+	var foundCaches ProviderCaches
+
+	for _, cache := range caches {
+		if util.ListContainsElement(cache.owners, owner) {
+			foundCaches = append(foundCaches, cache)
+		}
+	}
+
+	return foundCaches
+}
+
 type ProviderCache struct {
 	*models.Provider
+	owners []string
 
-	started        chan struct{}
-	archiveFetched bool
-	ready          bool
+	started       chan struct{}
+	archiveCached bool
+	ready         bool
 
 	userProviderDir string
 	providerDir     string
@@ -58,16 +71,15 @@ type ProviderCache struct {
 	archiveFilename string
 }
 
-func (cache *ProviderCache) IsReady() bool {
-	return cache.ready
-}
-
 func (cache *ProviderCache) ArchiveFilename() string {
-	fmt.Println("------------------------------", cache.archiveFilename)
 	if util.FileExists(cache.archiveFilename) {
 		return cache.archiveFilename
 	}
 	return ""
+}
+
+func (cache *ProviderCache) addOwner(owner string) {
+	cache.owners = append(cache.owners, owner)
 }
 
 // warmUp checks if the required provider already exists in the cache directory, if not:
@@ -91,7 +103,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if cache.DownloadURL == nil {
-		return errors.Errorf("download provider url not found")
+		return errors.Errorf("provider download url not found")
 	}
 
 	if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %q", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func() error {
@@ -99,7 +111,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}); err != nil {
 		return err
 	}
-	cache.archiveFetched = true
+	cache.archiveCached = true
 
 	log.Debugf("Unpack provider archive %s", cache.archiveFilename)
 
@@ -111,7 +123,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 }
 
 func (cache *ProviderCache) removeArchive() error {
-	if cache.archiveFetched && util.FileExists(cache.archiveFilename) {
+	if cache.archiveCached && util.FileExists(cache.archiveFilename) {
 		log.Debugf("Remove provider cached archive %s", cache.archiveFilename)
 		if err := os.Remove(cache.archiveFilename); err != nil {
 			return errors.WithStackTrace(err)
@@ -164,17 +176,20 @@ func NewProviderService(baseCacheDir, baseArchiveDir, baseUserProviderDir string
 }
 
 // WaitForCacheReady blocks the call until all providers are cached.
-func (service *ProviderService) WaitForCacheReady() {
+func (service *ProviderService) WaitForCacheReady(owner string) ProviderCaches {
 	service.cacheReadyMu.Lock()
 	defer service.cacheReadyMu.Unlock()
+
+	return service.providerCaches.FindByOwner(owner)
 }
 
 // CacheProvider starts caching the given provider using non-blocking approach.
-func (service *ProviderService) CacheProvider(ctx context.Context, provider *models.Provider) *ProviderCache {
+func (service *ProviderService) CacheProvider(ctx context.Context, owner string, provider *models.Provider) *ProviderCache {
 	service.cacheMu.Lock()
 	defer service.cacheMu.Unlock()
 
 	if cache := service.providerCaches.Find(provider); cache != nil {
+		cache.addOwner(owner)
 		return cache
 	}
 
@@ -200,6 +215,7 @@ func (service *ProviderService) CacheProvider(ctx context.Context, provider *mod
 		// quit
 	}
 
+	cache.addOwner(owner)
 	return cache
 }
 
