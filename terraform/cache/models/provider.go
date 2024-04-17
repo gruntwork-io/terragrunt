@@ -6,18 +6,35 @@ import (
 	"path"
 )
 
+// SigningKey represents a key used to sign packages from a registry, along
+// with an optional trust signature from the registry operator. These are
+// both in ASCII armored OpenPGP format.
+type SigningKey struct {
+	ASCIIArmor     string `json:"ascii_armor"`
+	TrustSignature string `json:"trust_signature"`
+}
+
+type SigningKeyList struct {
+	GPGPublicKeys []*SigningKey `json:"gpg_public_keys"`
+}
+
 // Provider represents the details of the Terraform provider.
 type Provider struct {
 	RegistryName string
 	Namespace    string
 	Name         string
 	Version      string
-	OS           string
-	Arch         string
+	Protocols    []string `json:"protocols"`
+	OS           string   `json:"os"`
+	Arch         string   `json:"arch"`
+	DownloadURL  *url.URL `json:"download_url"`
+	Filename     string   `json:"filename"`
+	SHA256Sum    string   `json:"shasum"`
 
-	SHA256Sum string
+	SHA256SumsURL          string `json:"shasums_url"`
+	SHA256SumsSignatureURL string `json:"shasums_signature_url"`
 
-	DownloadURL *url.URL
+	SigningKeys SigningKeyList `json:"signing_keys"`
 }
 
 // VersionURL returns the URL used to query the all Versions for a single provider.
@@ -46,10 +63,6 @@ func (provider *Provider) String() string {
 
 func (provider *Provider) Platform() string {
 	return fmt.Sprintf("%s_%s", provider.OS, provider.Arch)
-}
-
-func (provider *Provider) Filename() string {
-	return fmt.Sprintf("%s-%s-%s-%s-%s", provider.RegistryName, provider.Namespace, provider.Name, provider.Version, provider.Platform())
 }
 
 func (provider *Provider) Path() string {

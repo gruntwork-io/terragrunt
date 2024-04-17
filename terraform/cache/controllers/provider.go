@@ -98,7 +98,7 @@ func (controller *ProviderController) findVersionsAction(ctx echo.Context) error
 	return controller.ReverseProxy.NewRequest(ctx, provider.VersionURL())
 }
 
-func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err error) {
+func (controller *ProviderController) findPlatformsAction(ctx echo.Context) error {
 	var (
 		registryName = ctx.Param("registry_name")
 		namespace    = ctx.Param("namespace")
@@ -128,11 +128,7 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err
 		WithModifyResponse(func(resp *http.Response) error {
 			var body map[string]json.RawMessage
 
-			handlers.ModifyJSONBody(resp, &body, func() error { //nolint:errcheck
-				if resp.StatusCode != http.StatusOK {
-					return nil
-				}
-
+			err := handlers.ModifyJSONBody(resp, &body, func() error { //nolint:errcheck
 				for _, name := range ProviderURLNames {
 					linkBytes, ok := body[string(name)]
 					if !ok || linkBytes == nil {
@@ -164,15 +160,10 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) (err
 					body[string(name)] = []byte(link)
 				}
 
-				shasumBytes, ok := body["shasum"]
-				if ok && shasumBytes != nil {
-					provider.SHA256Sum = string(shasumBytes)
-				}
-
 				return nil
 			})
-
 			if cacheOwner != "" {
+				handlers.ModifyJSONBody(resp, provider, nil)
 				controller.ProviderService.CacheProvider(ctx.Request().Context(), cacheOwner, provider)
 				return ctx.NoContent(HTTPStatusCacheProvider)
 			}

@@ -157,7 +157,7 @@ type ProviderService struct {
 	baseArchiveDir string
 
 	// the user plugins directory, by default: %APPDATA%\terraform.d\plugins on Windows, ~/.terraform.d/plugins on other systems.
-	baseUserProviderDir string
+	baseUserCacheDir string
 
 	providerCaches        ProviderCaches
 	providerCacheWarmUpCh chan *ProviderCache
@@ -166,11 +166,11 @@ type ProviderService struct {
 	cacheReadyMu sync.RWMutex
 }
 
-func NewProviderService(baseCacheDir, baseArchiveDir, baseUserProviderDir string) *ProviderService {
+func NewProviderService(baseCacheDir, baseArchiveDir, baseUserCacheDir string) *ProviderService {
 	return &ProviderService{
 		baseCacheDir:          baseCacheDir,
+		baseUserCacheDir:      baseUserCacheDir,
 		baseArchiveDir:        baseArchiveDir,
-		baseUserProviderDir:   baseUserProviderDir,
 		providerCacheWarmUpCh: make(chan *ProviderCache),
 	}
 }
@@ -193,17 +193,19 @@ func (service *ProviderService) CacheProvider(ctx context.Context, owner string,
 		return cache
 	}
 
+	uniquePackageName := fmt.Sprintf("%s-%s-%s-%s-%s", provider.RegistryName, provider.Namespace, provider.Name, provider.Version, provider.Platform())
+
 	cache := &ProviderCache{
 		Provider: provider,
 		started:  make(chan struct{}, 1),
 
-		userProviderDir: filepath.Join(service.baseUserProviderDir, provider.Path(), provider.Platform()),
+		userProviderDir: filepath.Join(service.baseUserCacheDir, provider.Path(), provider.Platform()),
 		providerDir:     filepath.Join(service.baseCacheDir, provider.Path(), provider.Platform()),
-		lockFilename:    filepath.Join(service.baseArchiveDir, provider.Filename()+".lock"),
+		lockFilename:    filepath.Join(service.baseArchiveDir, fmt.Sprintf("%s.lock", uniquePackageName)),
 	}
 
 	if provider.DownloadURL != nil {
-		cache.archiveFilename = filepath.Join(service.baseArchiveDir, provider.Filename()+path.Ext(provider.DownloadURL.String()))
+		cache.archiveFilename = filepath.Join(service.baseArchiveDir, fmt.Sprintf("%s%s", uniquePackageName, path.Ext(provider.Filename)))
 	}
 
 	select {

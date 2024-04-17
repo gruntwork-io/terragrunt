@@ -8,6 +8,10 @@ import (
 )
 
 func ModifyJSONBody(resp *http.Response, body any, fn func() error) error {
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+
 	buffer := new(bytes.Buffer)
 
 	if _, err := buffer.ReadFrom(resp.Body); err != nil {
@@ -17,6 +21,10 @@ func ModifyJSONBody(resp *http.Response, body any, fn func() error) error {
 	decoder := json.NewDecoder(buffer)
 	if err := decoder.Decode(body); err != nil {
 		return err
+	}
+
+	if fn == nil {
+		return nil
 	}
 
 	if err := fn(); err != nil {
