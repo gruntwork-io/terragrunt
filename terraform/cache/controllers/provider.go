@@ -128,7 +128,11 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) erro
 		WithModifyResponse(func(resp *http.Response) error {
 			var body map[string]json.RawMessage
 
-			err := handlers.ModifyJSONBody(resp, &body, func() error { //nolint:errcheck
+			err := handlers.ModifyJSONBody(resp, &body, func() error {
+				if resp.StatusCode != http.StatusOK {
+					return nil
+				}
+
 				for _, name := range ProviderURLNames {
 					linkBytes, ok := body[string(name)]
 					if !ok || linkBytes == nil {
@@ -162,8 +166,8 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) erro
 
 				return nil
 			})
+
 			if cacheOwner != "" {
-				handlers.ModifyJSONBody(resp, provider, nil)
 				controller.ProviderService.CacheProvider(ctx.Request().Context(), cacheOwner, provider)
 				return ctx.NoContent(HTTPStatusCacheProvider)
 			}
