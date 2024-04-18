@@ -188,12 +188,7 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 		depPath := getCleanedTargetConfigPath(dep.ConfigPath, ctx.TerragruntOptions.TerragruntConfigPath)
 		if dep.isEnabled() && util.FileExists(depPath) {
 			depOpts := cloneTerragruntOptionsForDependency(ctx, depPath)
-
-			depCtx := ctx.
-				WithDecodeList(TerragruntFlags, TerragruntInputs).
-				WithTerragruntOptions(depOpts)
-
-			// fmt.Println("----------------------- ", depPath, depCtx.TerragruntOptions.DownloadDir)
+			depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
 
 			if depConfig, err := PartialParseConfigFile(depCtx, depPath, nil); err == nil {
 				if depConfig.Skip {
