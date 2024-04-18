@@ -193,7 +193,7 @@ func (service *ProviderService) CacheProvider(ctx context.Context, owner string,
 		return cache
 	}
 
-	uniquePackageName := fmt.Sprintf("%s-%s-%s-%s-%s", provider.RegistryName, provider.Namespace, provider.Name, provider.Version, provider.Platform())
+	packageName := fmt.Sprintf("%s-%s-%s-%s-%s", provider.RegistryName, provider.Namespace, provider.Name, provider.Version, provider.Platform())
 
 	cache := &ProviderCache{
 		Provider: provider,
@@ -201,11 +201,11 @@ func (service *ProviderService) CacheProvider(ctx context.Context, owner string,
 
 		userProviderDir: filepath.Join(service.baseUserCacheDir, provider.Path(), provider.Platform()),
 		providerDir:     filepath.Join(service.baseCacheDir, provider.Path(), provider.Platform()),
-		lockFilename:    filepath.Join(service.baseArchiveDir, fmt.Sprintf("%s.lock", uniquePackageName)),
+		lockFilename:    filepath.Join(service.baseArchiveDir, fmt.Sprintf("%s.lock", packageName)),
 	}
 
 	if provider.DownloadURL != nil {
-		cache.archiveFilename = filepath.Join(service.baseArchiveDir, fmt.Sprintf("%s%s", uniquePackageName, path.Ext(provider.Filename)))
+		cache.archiveFilename = filepath.Join(service.baseArchiveDir, fmt.Sprintf("%s%s", packageName, path.Ext(provider.DownloadURL.String())))
 	}
 
 	select {

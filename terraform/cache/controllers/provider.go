@@ -129,10 +129,6 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) erro
 			var body map[string]json.RawMessage
 
 			err := handlers.ModifyJSONBody(resp, &body, func() error {
-				if resp.StatusCode != http.StatusOK {
-					return nil
-				}
-
 				for _, name := range ProviderURLNames {
 					linkBytes, ok := body[string(name)]
 					if !ok || linkBytes == nil {
@@ -168,6 +164,7 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) erro
 			})
 
 			if cacheOwner != "" {
+				handlers.ModifyJSONBody(resp, provider, nil) //nolint:errcheck
 				controller.ProviderService.CacheProvider(ctx.Request().Context(), cacheOwner, provider)
 				return ctx.NoContent(HTTPStatusCacheProvider)
 			}
