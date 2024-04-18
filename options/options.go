@@ -297,6 +297,9 @@ type TerragruntOptions struct {
 
 	// The list of remote registries to cached by Terragrunt Provider Cache server.
 	ProviderCacheRegistryNames []string
+
+	// Folder to store stack state files
+	StackStateFolder string
 }
 
 // IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
@@ -376,6 +379,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
 		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
+		StackStateFolder:           "",
 	}
 }
 
@@ -509,6 +513,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		ProviderCacheArchiveDir:             opts.ProviderCacheArchiveDir,
 		ProviderCacheDisablePartialLockFile: opts.ProviderCacheDisablePartialLockFile,
 		DisableLogColors:                    opts.DisableLogColors,
+		StackStateFolder:                    opts.StackStateFolder,
 	}
 }
 
