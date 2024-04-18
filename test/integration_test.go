@@ -1057,7 +1057,8 @@ func TestTerragruntOutputFromDependency(t *testing.T) {
 }
 
 func TestTerragruntInputsFromDependency(t *testing.T) {
-	t.Parallel()
+	// NOTE: We can't run this test in parallel because there are other tests that also call `config.ClearOutputCache()` to clear global variable
+	// t.Parallel()
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
 	rootTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
