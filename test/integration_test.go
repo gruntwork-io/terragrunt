@@ -1061,22 +1061,27 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
 	rootTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
-	appTerragruntPath := util.JoinPath(rootTerragruntPath, "app")
+	rootPath := util.JoinPath(rootTerragruntPath, "apps")
 
 	var (
 		stdout bytes.Buffer
 		stderr bytes.Buffer
 	)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootTerragruntPath))
-	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --terragrunt-non-interactive --terragrunt-working-dir %s", appTerragruntPath), &stdout, &stderr)
+	var appDir string
+
+	for _, app := range []string{"c", "b", "a"} {
+		appDir = filepath.Join(rootPath, app)
+		runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", appDir))
+		config.ClearOutputCache()
+	}
+
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --terragrunt-non-interactive --terragrunt-working-dir %s", appDir), &stdout, &stderr)
 
 	expectedOutpus := map[string]string{
-		"bar":             "dependency-parent-bar-value",
-		"baz":             "dependency-include-input-baz-value",
-		"foo":             "dependency-input-foo-value",
-		"dep-cluster-id":  "test-id-value",
-		"dep-output-test": "test-value",
+		"bar": "parent-bar",
+		"baz": "b-baz",
+		"foo": "c-foo",
 	}
 
 	output := stdout.String()
