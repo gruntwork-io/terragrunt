@@ -5,11 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gruntwork-io/go-commons/collections"
 	"io"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/gruntwork-io/go-commons/collections"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"

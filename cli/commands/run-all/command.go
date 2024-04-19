@@ -17,7 +17,7 @@ import (
 
 const (
 	CommandName = "run-all"
-	OutFolder   = "out-folder"
+	OutDir      = "terragrunt-out-dir"
 )
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
@@ -34,7 +34,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
 		&cli.GenericFlag[string]{
-			Name:        OutFolder,
+			Name:        OutDir,
 			Destination: &opts.OutputFolder,
 			Usage:       "Directory output files.",
 		},
