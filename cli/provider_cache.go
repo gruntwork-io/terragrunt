@@ -103,16 +103,16 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	var (
 		cliConfigFilename     = filepath.Join(opts.WorkingDir, localCLIFilename)
 		terraformLockFilename = filepath.Join(opts.WorkingDir, terraform.TerraformLockFile)
-		cacheOnwer            = uuid.New().String()
+		cacheRequestID        = uuid.New().String()
 		env                   = providerCacheEnvironment(opts, cliConfigFilename)
 	)
 
 	// Create terraform cli config file that enables provider caching and does not use provider cache dir
-	if err := cache.createLocalCLIConfig(opts, cliConfigFilename, cacheOnwer, false); err != nil {
+	if err := cache.createLocalCLIConfig(opts, cliConfigFilename, cacheRequestID, false); err != nil {
 		return nil, err
 	}
 
-	log.Debugf("Caching terraform providers for %q", opts.WorkingDir)
+	log.Infof("Caching terraform providers for %s", opts.WorkingDir)
 	// Before each init, we warm up the global cache to ensure that all necessary providers are cached.
 	// To do this we are using 'terraform providers lock' to force TF to request all the providers from our TG cache, and that's how we know what providers TF needs, and can load them into the cache.
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
@@ -120,7 +120,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 		return nil, err
 	}
 
-	cache.Provider.WaitForCacheReady(cacheOnwer)
+	cache.Provider.WaitForCacheReady(cacheRequestID)
 
 	// Create terraform cli config file that uses provider cache dir
 	if err := cache.createLocalCLIConfig(opts, cliConfigFilename, "", true); err != nil {
@@ -128,18 +128,19 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	}
 
 	if opts.ProviderCacheDisablePartialLockFile && !util.FileExists(terraformLockFilename) {
-		log.Debugf("Getting terraform modules for %q", opts.WorkingDir)
+		log.Infof("Getting terraform modules for %s", opts.WorkingDir)
 		if err := runTerraformCommand(ctx, opts, []string{terraform.CommandNameGet}, env); err != nil {
 			return nil, err
 		}
 
-		log.Debugf("Generating Terraform lock file for %q", opts.WorkingDir)
+		log.Infof("Generating Terraform lock file for %s", opts.WorkingDir)
 		// Create complete terraform lock files. By default this feature is disabled, since it's not superfast.
 		// Instead we use Terraform `TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE` feature, that creates hashes from the local cache.
 		// And since the Terraform developers warn that this feature will be removed soon, it's good to have a workaround.
 		if err := runTerraformCommand(ctx, opts, []string{terraform.CommandNameProviders, terraform.CommandNameLock}, env); err != nil {
 			return nil, err
 		}
+
 	}
 
 	cloneOpts := opts.Clone(opts.TerragruntConfigPath)
@@ -174,7 +175,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 //	}
 //
 // This func doesn't change the default CLI config file, only creates a new one at the given path `cliConfigFile`. Ultimately, we can assign this path to `TF_CLI_CONFIG_FILE`.
-func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions, filename string, cacheOnwer string, setProviderInstallation bool) error {
+func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions, filename string, cacheRequestID string, setProviderInstallation bool) error {
 	cfg, err := cliconfig.LoadUserConfig()
 	if err != nil {
 		return err
@@ -187,7 +188,7 @@ func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions
 		providerInstallationIncludes = append(providerInstallationIncludes, fmt.Sprintf("%s/*/*", registryName))
 
 		cfg.AddHost(registryName, map[string]any{
-			"providers.v1": fmt.Sprintf("%s/%s/%s/", cache.ProviderURL(), cacheOnwer, registryName),
+			"providers.v1": fmt.Sprintf("%s/%s/%s/", cache.ProviderURL(), cacheRequestID, registryName),
 			// Since Terragrunt Provider Cache only caches providers, we need to route module requests to the original registry.
 			"modules.v1": fmt.Sprintf("https://%s/v1/modules", registryName),
 		})

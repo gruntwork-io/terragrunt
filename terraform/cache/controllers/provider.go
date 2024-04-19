@@ -76,11 +76,11 @@ func (controller *ProviderController) Register(router *router.Router) {
 
 	// Get All Versions for a Single Provider
 	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-versions-for-a-single-provider
-	router.GET("/:cache_onwer/:registry_name/:namespace/:name/versions", controller.findVersionsAction)
+	router.GET("/:cache_request_id/:registry_name/:namespace/:name/versions", controller.findVersionsAction)
 
 	// Get All Platforms for a Single Version
 	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-platforms-for-a-single-version
-	router.GET("/:cache_onwer/:registry_name/:namespace/:name/:version/download/:os/:arch", controller.findPlatformsAction)
+	router.GET("/:cache_request_id/:registry_name/:namespace/:name/:version/download/:os/:arch", controller.findPlatformsAction)
 }
 
 func (controller *ProviderController) findVersionsAction(ctx echo.Context) error {
@@ -100,13 +100,13 @@ func (controller *ProviderController) findVersionsAction(ctx echo.Context) error
 
 func (controller *ProviderController) findPlatformsAction(ctx echo.Context) error {
 	var (
-		registryName = ctx.Param("registry_name")
-		namespace    = ctx.Param("namespace")
-		name         = ctx.Param("name")
-		version      = ctx.Param("version")
-		os           = ctx.Param("os")
-		arch         = ctx.Param("arch")
-		cacheOwner   = ctx.Param("cache_onwer")
+		registryName   = ctx.Param("registry_name")
+		namespace      = ctx.Param("namespace")
+		name           = ctx.Param("name")
+		version        = ctx.Param("version")
+		os             = ctx.Param("os")
+		arch           = ctx.Param("arch")
+		cacheRequestID = ctx.Param("cache_request_id")
 
 		proxyURL = controller.Downloader.ProviderProxyURL()
 	)
@@ -128,7 +128,16 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) erro
 		WithModifyResponse(func(resp *http.Response) error {
 			var body map[string]json.RawMessage
 
-			err := handlers.ModifyJSONBody(resp, &body, func() error {
+			if cacheRequestID != "" {
+				if err := handlers.DecodeJSONBody(resp, provider); err != nil {
+					return err
+				}
+
+				controller.ProviderService.CacheProvider(ctx.Request().Context(), cacheRequestID, provider)
+				return ctx.NoContent(HTTPStatusCacheProvider)
+			}
+
+			return handlers.ModifyJSONBody(resp, &body, func() error {
 				for _, name := range ProviderURLNames {
 					linkBytes, ok := body[string(name)]
 					if !ok || linkBytes == nil {
@@ -146,11 +155,6 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) erro
 						return err
 					}
 
-					if name == ProviderDownloadURLName {
-						// clone URL
-						provider.DownloadURL = linkURL.ResolveReference(new(url.URL))
-					}
-
 					// Modify link to htpp://{localhost_host}/downloads/provider/{remote_host}/{remote_path}
 					linkURL.Path = path.Join(proxyURL.Path, linkURL.Host, linkURL.Path)
 					linkURL.Scheme = proxyURL.Scheme
@@ -162,14 +166,6 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) erro
 
 				return nil
 			})
-
-			if cacheOwner != "" {
-				handlers.ModifyJSONBody(resp, provider, nil) //nolint:errcheck
-				controller.ProviderService.CacheProvider(ctx.Request().Context(), cacheOwner, provider)
-				return ctx.NoContent(HTTPStatusCacheProvider)
-			}
-
-			return err
 		}).
 		NewRequest(ctx, provider.PlatformURL())
 }

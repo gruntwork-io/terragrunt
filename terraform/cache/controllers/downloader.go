@@ -46,20 +46,19 @@ func (controller *DownloaderController) downloadProviderAction(ctx echo.Context)
 		remotePath = ctx.Param("remote_path")
 	)
 
-	provider := &models.Provider{
-		DownloadURL: &url.URL{
-			Scheme: "https",
-			Host:   remoteHost,
-			Path:   "/" + remotePath,
-		},
+	downloadURL := &url.URL{
+		Scheme: "https",
+		Host:   remoteHost,
+		Path:   "/" + remotePath,
 	}
+	provider := &models.Provider{DownloadURL: downloadURL.String()}
 
 	if cache := controller.ProviderService.GetProviderCache(provider); cache != nil {
-		if filename := cache.ArchiveFilename(); filename != "" {
-			log.Debugf("Provider %q uses cached file %q", cache.Provider, filename)
+		if filename := cache.ArchivePath(); filename != "" {
+			log.Debugf("Using cached provider %s", cache.Provider)
 			return ctx.File(filename)
 		}
 	}
 
-	return controller.ReverseProxy.NewRequest(ctx, provider.DownloadURL)
+	return controller.ReverseProxy.NewRequest(ctx, downloadURL)
 }

@@ -4,18 +4,12 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+
+	"github.com/gruntwork-io/terragrunt/terraform/provider"
 )
 
-// SigningKey represents a key used to sign packages from a registry, along
-// with an optional trust signature from the registry operator. These are
-// both in ASCII armored OpenPGP format.
-type SigningKey struct {
-	ASCIIArmor     string `json:"ascii_armor"`
-	TrustSignature string `json:"trust_signature"`
-}
-
 type SigningKeyList struct {
-	GPGPublicKeys []*SigningKey `json:"gpg_public_keys"`
+	GPGPublicKeys []*provider.SigningKey `json:"gpg_public_keys"`
 }
 
 // Provider represents the details of the Terraform provider.
@@ -24,16 +18,17 @@ type Provider struct {
 	Namespace    string
 	Name         string
 	Version      string
-	Protocols    []string `json:"protocols"`
-	OS           string   `json:"os"`
-	Arch         string   `json:"arch"`
-	DownloadURL  *url.URL `json:"download_url"`
-	Filename     string   `json:"filename"`
-	SHA256Sum    string   `json:"shasum"`
+	OS           string
+	Arch         string
 
+	Protocols []string `json:"protocols"`
+	Filename  string   `json:"filename"`
+
+	DownloadURL            string `json:"download_url"`
 	SHA256SumsURL          string `json:"shasums_url"`
 	SHA256SumsSignatureURL string `json:"shasums_signature_url"`
 
+	SHA256Sum   string         `json:"shasum"`
 	SigningKeys SigningKeyList `json:"signing_keys"`
 }
 
@@ -58,7 +53,7 @@ func (provider *Provider) PlatformURL() *url.URL {
 }
 
 func (provider *Provider) String() string {
-	return path.Join(provider.RegistryName, provider.Namespace, provider.Name, provider.Version)
+	return fmt.Sprintf("%s/%s v%s", provider.Namespace, provider.Name, provider.Version)
 }
 
 func (provider *Provider) Platform() string {
@@ -77,7 +72,7 @@ func (provider *Provider) Match(target *Provider) bool {
 		(provider.Version == "" || target.Version == "" || provider.Version == target.Version) &&
 		(provider.OS == "" || target.OS == "" || provider.OS == target.OS) &&
 		(provider.Arch == "" || target.Arch == "" || provider.Arch == target.Arch) &&
-		(provider.DownloadURL == nil || target.DownloadURL == nil || provider.DownloadURL.String() == target.DownloadURL.String()) {
+		(provider.DownloadURL == "" || target.DownloadURL == "" || provider.DownloadURL == target.DownloadURL) {
 		return true
 	}
 	return false

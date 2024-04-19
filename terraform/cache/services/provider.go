@@ -1,7 +1,10 @@
 package services
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	goerrors "errors"
 	"fmt"
 	"os"
@@ -13,6 +16,7 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
+	"github.com/gruntwork-io/terragrunt/terraform/provider"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-getter/v2"
 	"github.com/hashicorp/go-multierror"
@@ -45,11 +49,11 @@ func (caches ProviderCaches) Find(target *models.Provider) *ProviderCache {
 	return nil
 }
 
-func (caches ProviderCaches) FindByOwner(owner string) ProviderCaches {
+func (caches ProviderCaches) FindByRequestID(requestID string) ProviderCaches {
 	var foundCaches ProviderCaches
 
 	for _, cache := range caches {
-		if util.ListContainsElement(cache.owners, owner) {
+		if util.ListContainsElement(cache.requestIDs, requestID) {
 			foundCaches = append(foundCaches, cache)
 		}
 	}
@@ -59,7 +63,7 @@ func (caches ProviderCaches) FindByOwner(owner string) ProviderCaches {
 
 type ProviderCache struct {
 	*models.Provider
-	owners []string
+	requestIDs []string
 
 	started       chan struct{}
 	archiveCached bool
@@ -67,19 +71,51 @@ type ProviderCache struct {
 
 	userProviderDir string
 	providerDir     string
-	lockFilename    string
-	archiveFilename string
+	lockfilePath    string
+	archivePath     string
 }
 
-func (cache *ProviderCache) ArchiveFilename() string {
-	if util.FileExists(cache.archiveFilename) {
-		return cache.archiveFilename
+func (cache *ProviderCache) AuthenticatePackage(ctx context.Context) (*provider.PackageAuthenticationResult, error) {
+	var (
+		checksum  [sha256.Size]byte
+		document  = new(bytes.Buffer)
+		signature = new(bytes.Buffer)
+	)
+
+	if _, err := hex.Decode(checksum[:], []byte(cache.SHA256Sum)); err != nil {
+		return nil, errors.Errorf("registry response includes invalid SHA256 hash %q for provider %q: %w", cache.SHA256Sum, cache.Provider, err)
+	}
+
+	if err := util.Fetch(ctx, cache.SHA256SumsURL, document); err != nil {
+		return nil, fmt.Errorf("failed to retrieve authentication checksums for provider %q: %w", cache.Provider, err)
+	}
+
+	if err := util.Fetch(ctx, cache.SHA256SumsSignatureURL, signature); err != nil {
+		return nil, fmt.Errorf("failed to retrieve cryptographic signature for provider %q: %w", cache.Provider, err)
+	}
+
+	keys := make([]provider.SigningKey, len(cache.SigningKeys.GPGPublicKeys))
+	for i, key := range cache.SigningKeys.GPGPublicKeys {
+		keys[i] = *key
+	}
+
+	providerPackage := provider.PackageAuthenticationAll(
+		provider.NewMatchingChecksumAuthentication(document.Bytes(), cache.Filename, checksum),
+		provider.NewArchiveChecksumAuthentication(checksum),
+		provider.NewSignatureAuthentication(document.Bytes(), signature.Bytes(), keys),
+	)
+	return providerPackage.Authenticate(cache.archivePath)
+}
+
+func (cache *ProviderCache) ArchivePath() string {
+	if util.FileExists(cache.archivePath) {
+		return cache.archivePath
 	}
 	return ""
 }
 
-func (cache *ProviderCache) addOwner(owner string) {
-	cache.owners = append(cache.owners, owner)
+func (cache *ProviderCache) addRequestID(requestID string) {
+	cache.requestIDs = append(cache.requestIDs, requestID)
 }
 
 // warmUp checks if the required provider already exists in the cache directory, if not:
@@ -99,51 +135,57 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		if err := os.Symlink(cache.userProviderDir, cache.providerDir); err != nil {
 			return errors.WithStackTrace(err)
 		}
+		log.Infof("Cached %s from user plugins directory", cache.Provider)
 		return nil
 	}
 
-	if cache.DownloadURL == nil {
-		return errors.Errorf("provider download url not found")
+	if cache.DownloadURL == "" {
+		return errors.Errorf("not found provider download url")
 	}
 
-	if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %q", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func() error {
-		return util.FetchFile(ctx, cache.DownloadURL.String(), cache.archiveFilename)
+	if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %s", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func() error {
+		return util.FetchToFile(ctx, cache.DownloadURL, cache.archivePath)
 	}); err != nil {
 		return err
 	}
 	cache.archiveCached = true
 
-	log.Debugf("Unpack provider archive %s", cache.archiveFilename)
+	log.Debugf("Unpack provider archive %s", cache.archivePath)
 
-	if err := unzip.Decompress(cache.providerDir, cache.archiveFilename, true, unzipFileMode); err != nil {
+	if err := unzip.Decompress(cache.providerDir, cache.archivePath, true, unzipFileMode); err != nil {
 		return errors.WithStackTrace(err)
 	}
+
+	auth, err := cache.AuthenticatePackage(ctx)
+	if err != nil {
+		return err
+	}
+	log.Infof("Cached %s (%s)", cache.Provider, auth)
 
 	return nil
 }
 
 func (cache *ProviderCache) removeArchive() error {
-	if cache.archiveCached && util.FileExists(cache.archiveFilename) {
-		log.Debugf("Remove provider cached archive %s", cache.archiveFilename)
-		if err := os.Remove(cache.archiveFilename); err != nil {
+	if cache.archiveCached && util.FileExists(cache.archivePath) {
+		log.Debugf("Remove provider cached archive %s", cache.archivePath)
+		if err := os.Remove(cache.archivePath); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
-
 	return nil
 }
 
 func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile, error) {
-	lockfile := util.NewLockfile(cache.lockFilename)
+	lockfile := util.NewLockfile(cache.lockfilePath)
 
-	if err := os.MkdirAll(filepath.Dir(cache.lockFilename), os.ModePerm); err != nil {
+	if err := os.MkdirAll(filepath.Dir(cache.lockfilePath), os.ModePerm); err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
 
-	if err := util.DoWithRetry(ctx, fmt.Sprintf("Acquiring lock file %s", cache.lockFilename), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
+	if err := util.DoWithRetry(ctx, fmt.Sprintf("Acquiring lock file %s", cache.lockfilePath), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
 		return lockfile.TryLock()
 	}); err != nil {
-		return nil, errors.Errorf("unable to acquire lock file %s (already locked?) try to remove the file manually: %w", cache.lockFilename, err)
+		return nil, errors.Errorf("unable to acquire lock file %s (already locked?) try to remove the file manually: %w", cache.lockfilePath, err)
 	}
 
 	return lockfile, nil
@@ -176,20 +218,20 @@ func NewProviderService(baseCacheDir, baseArchiveDir, baseUserCacheDir string) *
 }
 
 // WaitForCacheReady blocks the call until all providers are cached.
-func (service *ProviderService) WaitForCacheReady(owner string) ProviderCaches {
+func (service *ProviderService) WaitForCacheReady(requestID string) ProviderCaches {
 	service.cacheReadyMu.Lock()
 	defer service.cacheReadyMu.Unlock()
 
-	return service.providerCaches.FindByOwner(owner)
+	return service.providerCaches.FindByRequestID(requestID)
 }
 
 // CacheProvider starts caching the given provider using non-blocking approach.
-func (service *ProviderService) CacheProvider(ctx context.Context, owner string, provider *models.Provider) *ProviderCache {
+func (service *ProviderService) CacheProvider(ctx context.Context, requestID string, provider *models.Provider) *ProviderCache {
 	service.cacheMu.Lock()
 	defer service.cacheMu.Unlock()
 
 	if cache := service.providerCaches.Find(provider); cache != nil {
-		cache.addOwner(owner)
+		cache.addRequestID(requestID)
 		return cache
 	}
 
@@ -201,23 +243,20 @@ func (service *ProviderService) CacheProvider(ctx context.Context, owner string,
 
 		userProviderDir: filepath.Join(service.baseUserCacheDir, provider.Path(), provider.Platform()),
 		providerDir:     filepath.Join(service.baseCacheDir, provider.Path(), provider.Platform()),
-		lockFilename:    filepath.Join(service.baseArchiveDir, fmt.Sprintf("%s.lock", packageName)),
-	}
-
-	if provider.DownloadURL != nil {
-		cache.archiveFilename = filepath.Join(service.baseArchiveDir, fmt.Sprintf("%s%s", packageName, path.Ext(provider.DownloadURL.String())))
+		lockfilePath:    filepath.Join(service.baseArchiveDir, fmt.Sprintf("%s.lock", packageName)),
+		archivePath:     filepath.Join(service.baseArchiveDir, fmt.Sprintf("%s%s", packageName, path.Ext(provider.Filename))),
 	}
 
 	select {
 	case service.providerCacheWarmUpCh <- cache:
-		// We need to wait for caching to start and only then release the client (Terraform) request. Otherwise, the client may call `WaitForCacheReady()` faster than `service.ReadyMuReady` will be lock.
+		// We need to wait for caching to start and only then release the client (Terraform) requestID. Otherwise, the client may call `WaitForCacheReady()` faster than `service.ReadyMuReady` will be lock.
 		<-cache.started
 		service.providerCaches = append(service.providerCaches, cache)
 	case <-ctx.Done():
 		// quit
 	}
 
-	cache.addOwner(owner)
+	cache.addRequestID(requestID)
 	return cache
 }
 
@@ -232,7 +271,7 @@ func (service *ProviderService) GetProviderCache(provider *models.Provider) *Pro
 	return nil
 }
 
-// RunCacheWorker is responsible to handle a new caching request and removing temporary files upon completion.
+// RunCacheWorker is responsible to handle a new caching requestID and removing temporary files upon completion.
 func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 	if service.baseCacheDir == "" {
 		return errors.Errorf("provider cache directory not specified")
@@ -276,13 +315,11 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 				defer lockfile.Unlock() //nolint:errcheck
 
 				if err := cache.warmUp(ctx); err != nil {
-					os.Remove(cache.providerDir)     //nolint:errcheck
-					os.Remove(cache.archiveFilename) //nolint:errcheck
+					os.Remove(cache.providerDir) //nolint:errcheck
+					os.Remove(cache.archivePath) //nolint:errcheck
 					return err
 				}
-
 				cache.ready = true
-				log.Infof("Provider %q is cached", cache.Provider)
 
 				return nil
 			})
