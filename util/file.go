@@ -645,3 +645,22 @@ func GetCacheDir() (string, error) {
 
 	return cacheDir, nil
 }
+
+// FolderPathAsFile returns a cleaned version of the given folder path that can be used as a file name.
+func FolderPathAsFile(folderPath string) string {
+	invalidChars := "<>:\"/\\|?*"
+
+	for _, char := range invalidChars {
+		folderPath = strings.ReplaceAll(folderPath, string(char), "-")
+	}
+
+	cleanedPath := ""
+	for _, r := range folderPath {
+		if r >= ' ' && r <= '~' {
+			cleanedPath += string(r)
+		}
+	}
+
+	// remove beginning dashes if exists
+	return strings.TrimLeft(cleanedPath, "-")
+}

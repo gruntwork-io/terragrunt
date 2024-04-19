@@ -191,6 +191,7 @@ const (
 	TEST_FIXTURE_SKIP_DEPENDENCIES                                           = "fixture-skip-dependencies"
 	TEST_FIXTURE_INFO_ERROR                                                  = "fixture-terragrunt-info-error"
 	TEST_FIXTURE_DEPENDENCY_OUTPUT                                           = "fixture-dependency-output"
+	TEST_FIXTURE_OUT_DIR                                                     = "fixture-out-dir"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -6859,6 +6860,83 @@ func TestTerragruntInfoError(t *testing.T) {
 	var output terragruntinfo.TerragruntInfoGroup
 	err = json.Unmarshal(stdout.Bytes(), &output)
 	assert.NoError(t, err)
+}
+
+func TestStorePlanFilesRunAllPlanApply(t *testing.T) {
+	t.Parallel()
+
+	// create temporary directory for plan files
+	tmpDir := t.TempDir()
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUT_DIR)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUT_DIR)
+
+	// run plan with output directory
+	_, output, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+
+	assert.Contains(t, output, fmt.Sprintf("Using output file %s", tmpDir))
+
+	// verify that tfplan files are created in the tmpDir, 2 files
+	planFiles, err := os.ReadDir(tmpDir)
+	require.NoError(t, err)
+	assert.Len(t, planFiles, 2)
+
+	// Check that files have tfplan extension
+	for _, file := range planFiles {
+		info, err := file.Info()
+		assert.NoError(t, err)
+		assert.True(t, strings.HasSuffix(info.Name(), ".tfplan"))
+	}
+
+	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+}
+
+func TestStorePlanFilesRunAllDestroy(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUT_DIR)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUT_DIR)
+
+	// plan and apply
+	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+
+	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+
+	// remove all tfstate files from temp directory to prepare destroy
+	files, err := os.ReadDir(tmpDir)
+	require.NoError(t, err)
+	for _, file := range files {
+		if strings.HasSuffix(file.Name(), ".tfstate") {
+			err = os.Remove(filepath.Join(tmpDir, file.Name()))
+			require.NoError(t, err)
+		}
+	}
+
+	// prepare destroy plan
+	_, output, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan -destroy --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+
+	assert.Contains(t, output, fmt.Sprintf("Using output file %s", tmpDir))
+	// verify that tfplan files are created in the tmpDir, 2 files
+	planFiles, err := os.ReadDir(tmpDir)
+	require.NoError(t, err)
+	assert.Len(t, planFiles, 2)
+
+	// Check that files have tfplan extension
+	for _, file := range planFiles {
+		info, err := file.Info()
+		assert.NoError(t, err)
+		assert.True(t, strings.HasSuffix(info.Name(), ".tfplan"))
+	}
+
+	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {

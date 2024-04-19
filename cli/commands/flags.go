@@ -43,6 +43,9 @@ const (
 	TerragruntDisableBucketUpdateFlagName            = "terragrunt-disable-bucket-update"
 	TerragruntDisableCommandValidationFlagName       = "terragrunt-disable-command-validation"
 
+	TerragruntOutDirFlagEnvVarName = "TERRAGRUNT_OUT_DIR"
+	TerragruntOutDirFlagName       = "terragrunt-out-dir"
+
 	// Terragrunt Provider Cache flags/envs
 	TerragruntProviderCacheFlagName                         = "terragrunt-provider-cache"
 	TerragruntProviderCacheEnvVarName                       = "TERRAGRUNT_PROVIDER_CACHE"
