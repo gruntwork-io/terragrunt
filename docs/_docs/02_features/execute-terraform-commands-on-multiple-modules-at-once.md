@@ -348,7 +348,6 @@ To save the plan, use the `--terragrunt-out-dir` flag (or `TERRAGRUNT_OUT_DIR` e
 ```sh
 terragrunt run-all plan --terragrunt-out-dir /tmp/tfplan
 terragrunt run-all apply --terragrunt-out-dir /tmp/tfplan
-terragrunt run-all destroy --terragrunt-out-dir /tmp/tfplan
 ```
 
 For planning a destroy operation, use the following commands:
