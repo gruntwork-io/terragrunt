@@ -174,7 +174,7 @@ func (m matchingChecksumAuthentication) Authenticate(location string) (*PackageA
 	// Decode the ASCII checksum into a byte array for comparison.
 	var gotSHA256Sum [sha256.Size]byte
 	if _, err := hex.Decode(gotSHA256Sum[:], checksum); err != nil {
-		return nil, errors.Errorf("checksum list has invalid SHA256 hash %q: %w", string(checksum), err)
+		return nil, errors.Errorf("checksum list has invalid SHA256 hash %q: %s", string(checksum), err)
 	}
 
 	// If the checksums don't match, authentication fails.
@@ -210,10 +210,10 @@ func (s signatureAuthentication) Authenticate(location string) (*PackageAuthenti
 	// Verify the signature using the HashiCorp public key. If this succeeds, this is an official provider.
 	hashicorpKeyring, err := openpgp.ReadArmoredKeyRing(strings.NewReader(HashicorpPublicKey))
 	if err != nil {
-		return nil, errors.Errorf("error creating HashiCorp keyring: %w", err)
+		return nil, errors.Errorf("error creating HashiCorp keyring: %s", err)
 	}
-	_, err = s.checkDetachedSignature(hashicorpKeyring, bytes.NewReader(s.Document), bytes.NewReader(s.Signature), nil)
-	if err == nil {
+
+	if err := s.checkDetachedSignature(hashicorpKeyring, bytes.NewReader(s.Document), bytes.NewReader(s.Signature), nil); err == nil {
 		return NewPackageAuthenticationResult(officialProvider), nil
 	}
 
@@ -221,22 +221,21 @@ func (s signatureAuthentication) Authenticate(location string) (*PackageAuthenti
 	if signingKey.TrustSignature != "" {
 		hashicorpPartnersKeyring, err := openpgp.ReadArmoredKeyRing(strings.NewReader(HashicorpPartnersKey))
 		if err != nil {
-			return nil, errors.Errorf("error creating HashiCorp Partners keyring: %w", err)
+			return nil, errors.Errorf("error creating HashiCorp Partners keyring: %s", err)
 		}
 
 		authorKey, err := openpgpArmor.Decode(strings.NewReader(signingKey.ASCIIArmor))
 		if err != nil {
-			return nil, errors.Errorf("error decoding signing key: %w", err)
+			return nil, errors.Errorf("error decoding signing key: %s", err)
 		}
 
 		trustSignature, err := openpgpArmor.Decode(strings.NewReader(signingKey.TrustSignature))
 		if err != nil {
-			return nil, errors.Errorf("error decoding trust signature: %w", err)
+			return nil, errors.Errorf("error decoding trust signature: %s", err)
 		}
 
-		_, err = s.checkDetachedSignature(hashicorpPartnersKeyring, authorKey.Body, trustSignature.Body, nil)
-		if err != nil {
-			return nil, errors.Errorf("error verifying trust signature: %w", err)
+		if err := s.checkDetachedSignature(hashicorpPartnersKeyring, authorKey.Body, trustSignature.Body, nil); err != nil {
+			return nil, errors.Errorf("error verifying trust signature: %s", err)
 		}
 
 		return NewPackageAuthenticationResult(partnerProvider), nil
@@ -246,7 +245,7 @@ func (s signatureAuthentication) Authenticate(location string) (*PackageAuthenti
 	return NewPackageAuthenticationResult(communityProvider), nil
 }
 
-func (s signatureAuthentication) checkDetachedSignature(keyring openpgp.KeyRing, signed, signature io.Reader, config *packet.Config) (*openpgp.Entity, error) {
+func (s signatureAuthentication) checkDetachedSignature(keyring openpgp.KeyRing, signed, signature io.Reader, config *packet.Config) error {
 	entity, err := openpgp.CheckDetachedSignature(keyring, signed, signature, config)
 
 	if err == openpgpErrors.ErrKeyExpired {
@@ -255,7 +254,7 @@ func (s signatureAuthentication) checkDetachedSignature(keyring openpgp.KeyRing,
 		}
 		err = nil
 	}
-	return entity, err
+	return err
 }
 
 func (s signatureAuthentication) AcceptableHashes() []Hash {
@@ -271,7 +270,8 @@ func (s signatureAuthentication) AcceptableHashes() []Hash {
 
 		// If this is a checksums file then the first part should be a hex-encoded SHA256 hash, so it should be 64 characters long and contain only hex digits.
 		hashStr := parts[0]
-		if len(hashStr) != 64 {
+		hashLen := 64
+		if len(hashStr) != hashLen {
 			return nil // doesn't look like a checksums file
 		}
 
@@ -291,17 +291,17 @@ func (s signatureAuthentication) findSigningKey() (*SigningKey, error) {
 	for _, key := range s.Keys {
 		keyring, err := openpgp.ReadArmoredKeyRing(strings.NewReader(key.ASCIIArmor))
 		if err != nil {
-			return nil, errors.Errorf("error decoding signing key: %w", err)
+			return nil, errors.Errorf("error decoding signing key: %s", err)
 		}
 
-		if _, err := s.checkDetachedSignature(keyring, bytes.NewReader(s.Document), bytes.NewReader(s.Signature), nil); err != nil {
+		if err := s.checkDetachedSignature(keyring, bytes.NewReader(s.Document), bytes.NewReader(s.Signature), nil); err != nil {
 			// If the signature issuer does not match the the key, keep trying the rest of the provided keys.
 			if err == openpgpErrors.ErrUnknownIssuer {
 				continue
 			}
 
 			// Any other signature error is terminal.
-			return nil, errors.Errorf("error checking signature: %w", err)
+			return nil, errors.Errorf("error checking signature: %s", err)
 		}
 
 		return &key, nil
