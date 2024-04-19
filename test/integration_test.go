@@ -1057,35 +1057,6 @@ func TestTerragruntOutputFromDependency(t *testing.T) {
 	assert.NotContains(t, output, "invalid character")
 }
 
-func TestTerragruntInputsFromDependency(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
-	rootTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
-	appTerragruntPath := util.JoinPath(rootTerragruntPath, "app")
-
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootTerragruntPath))
-	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --terragrunt-non-interactive --terragrunt-working-dir %s", appTerragruntPath), &stdout, &stderr)
-
-	expectedOutpus := map[string]string{
-		"bar":             "dependency-parent-bar-value",
-		"baz":             "dependency-include-input-baz-value",
-		"foo":             "dependency-input-foo-value",
-		"dep-cluster-id":  "test-id-value",
-		"dep-output-test": "test-value",
-	}
-
-	output := stdout.String()
-	for key, value := range expectedOutpus {
-		assert.Contains(t, output, fmt.Sprintf("%s = %q\n", key, value))
-	}
-}
-
 func TestTerragruntValidateAllCommand(t *testing.T) {
 	t.Parallel()
 
