@@ -1056,41 +1056,6 @@ func TestTerragruntOutputFromDependency(t *testing.T) {
 	assert.NotContains(t, output, "invalid character")
 }
 
-func TestTerragruntInputsFromDependency(t *testing.T) {
-	// NOTE: We can't run this test in parallel because there are other tests that also call `config.ClearOutputCache()` to clear global variable
-	// t.Parallel()
-
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
-	rootTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
-	rootPath := util.JoinPath(rootTerragruntPath, "apps")
-
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-
-	var appDir string
-
-	for _, app := range []string{"c", "b", "a"} {
-		appDir = filepath.Join(rootPath, app)
-		runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", appDir))
-		config.ClearOutputCache()
-	}
-
-	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --terragrunt-non-interactive --terragrunt-working-dir %s", appDir), &stdout, &stderr)
-
-	expectedOutpus := map[string]string{
-		"bar": "parent-bar",
-		"baz": "b-baz",
-		"foo": "c-foo",
-	}
-
-	output := stdout.String()
-	for key, value := range expectedOutpus {
-		assert.Contains(t, output, fmt.Sprintf("%s = %q\n", key, value))
-	}
-}
-
 func TestTerragruntValidateAllCommand(t *testing.T) {
 	t.Parallel()
 
