@@ -2,6 +2,7 @@ package runall
 
 import (
 	"context"
+	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"sort"
 
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
@@ -17,7 +18,6 @@ import (
 
 const (
 	CommandName = "run-all"
-	OutDir      = "terragrunt-out-dir"
 )
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
@@ -34,7 +34,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
 		&cli.GenericFlag[string]{
-			Name:        OutDir,
+			Name:        commands.TerragruntOutDirFlagName,
 			Destination: &opts.OutputFolder,
 			Usage:       "Directory output files.",
 		},
