@@ -35,6 +35,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
 		&cli.GenericFlag[string]{
 			Name:        commands.TerragruntOutDirFlagName,
+			EnvVar:      commands.TerragruntOutDirFlagEnvVarName,
 			Destination: &opts.OutputFolder,
 			Usage:       "Directory output files.",
 		},
