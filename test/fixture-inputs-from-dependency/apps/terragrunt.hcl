@@ -1,0 +1,3 @@
+inputs = {
+  bar = "parent-bar"
+}

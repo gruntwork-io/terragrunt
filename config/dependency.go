@@ -187,9 +187,8 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 	for _, dep := range decodedDependency.Dependencies {
 		depPath := getCleanedTargetConfigPath(dep.ConfigPath, ctx.TerragruntOptions.TerragruntConfigPath)
 		if dep.isEnabled() && util.FileExists(depPath) {
-			depCtx := ctx.
-				WithDecodeList(TerragruntFlags, TerragruntInputs).
-				WithTerragruntOptions(cloneTerragruntOptionsForDependency(ctx, depPath))
+			depOpts := cloneTerragruntOptionsForDependency(ctx, depPath)
+			depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
 
 			if depConfig, err := PartialParseConfigFile(depCtx, depPath, nil); err == nil {
 				if depConfig.Skip {
@@ -542,6 +541,7 @@ func getOutputJsonWithCaching(ctx *ParsingContext, targetConfig string) ([]byte,
 func cloneTerragruntOptionsForDependency(ctx *ParsingContext, targetConfigPath string) *options.TerragruntOptions {
 	targetOptions := ctx.TerragruntOptions.Clone(targetConfigPath)
 	targetOptions.OriginalTerragruntConfigPath = targetConfigPath
+	targetOptions.DownloadDir = filepath.Join(filepath.Dir(targetConfigPath), util.TerragruntCacheDir)
 	// Clear IAMRoleOptions in case if it is different from one passed through CLI to allow dependencies to define own iam roles
 	// https://github.com/gruntwork-io/terragrunt/issues/1853#issuecomment-940102676
 	if targetOptions.IAMRoleOptions != targetOptions.OriginalIAMRoleOptions {
@@ -889,7 +889,13 @@ func runTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, 
 	// Update the stdout buffer so we can capture the output
 	var stdoutBuffer bytes.Buffer
 	stdoutBufferWriter := bufio.NewWriter(&stdoutBuffer)
-	ctx.TerragruntOptions.Writer = stdoutBufferWriter
+
+	newOpts := *ctx.TerragruntOptions
+	// explicit disable json formatting and prefixing to read json output
+	newOpts.TerraformLogsToJson = false
+	newOpts.IncludeModulePrefix = false
+	newOpts.Writer = stdoutBufferWriter
+	ctx = ctx.WithTerragruntOptions(&newOpts)
 
 	err := ctx.TerragruntOptions.RunTerragrunt(ctx, ctx.TerragruntOptions)
 	if err != nil {

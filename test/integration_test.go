@@ -190,6 +190,8 @@ const (
 	TEST_FIXTURE_GRAPH                                                       = "fixture-graph"
 	TEST_FIXTURE_SKIP_DEPENDENCIES                                           = "fixture-skip-dependencies"
 	TEST_FIXTURE_INFO_ERROR                                                  = "fixture-terragrunt-info-error"
+	TEST_FIXTURE_DEPENDENCY_OUTPUT                                           = "fixture-dependency-output"
+	TEST_FIXTURE_OUT_DIR                                                     = "fixture-out-dir"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -1052,35 +1054,6 @@ func TestTerragruntOutputFromDependency(t *testing.T) {
 
 	output := stderr.String()
 	assert.NotContains(t, output, "invalid character")
-}
-
-func TestTerragruntInputsFromDependency(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
-	rootTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
-	appTerragruntPath := util.JoinPath(rootTerragruntPath, "app")
-
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootTerragruntPath))
-	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --terragrunt-non-interactive --terragrunt-working-dir %s", appTerragruntPath), &stdout, &stderr)
-
-	expectedOutpus := map[string]string{
-		"bar":             "dependency-parent-bar-value",
-		"baz":             "dependency-include-input-baz-value",
-		"foo":             "dependency-input-foo-value",
-		"dep-cluster-id":  "test-id-value",
-		"dep-output-test": "test-value",
-	}
-
-	output := stdout.String()
-	for key, value := range expectedOutpus {
-		assert.Contains(t, output, fmt.Sprintf("%s = %q\n", key, value))
-	}
 }
 
 func TestTerragruntValidateAllCommand(t *testing.T) {
@@ -6541,12 +6514,9 @@ func TestTerragruntCommandsThatNeedInput(t *testing.T) {
 	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, TEST_COMMANDS_THAT_NEED_INPUT)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir %s", testPath))
 	require.NoError(t, err)
-	require.Contains(t, stdout.String(), "Apply complete")
+	require.Contains(t, stdout, "Apply complete")
 }
 
 func TestTerragruntParallelStateInit(t *testing.T) {
@@ -6699,12 +6669,9 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 			tmpEnvPath := prepareGraphFixture(t)
 			tmpModulePath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH, testCase.path)
 
-			stdout := bytes.Buffer{}
-			stderr := bytes.Buffer{}
-
-			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt graph destroy --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
+			stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt graph destroy --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath))
 			assert.NoError(t, err)
-			output := fmt.Sprintf("%v\n%v\n", stdout.String(), stderr.String())
+			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
 
 			for _, module := range testCase.expectedModules {
 				assert.Containsf(t, output, "/"+module+"\n", "Expected module %s to be in output", module)
@@ -6892,6 +6859,83 @@ func TestTerragruntInfoError(t *testing.T) {
 	var output terragruntinfo.TerragruntInfoGroup
 	err = json.Unmarshal(stdout.Bytes(), &output)
 	assert.NoError(t, err)
+}
+
+func TestStorePlanFilesRunAllPlanApply(t *testing.T) {
+	t.Parallel()
+
+	// create temporary directory for plan files
+	tmpDir := t.TempDir()
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUT_DIR)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUT_DIR)
+
+	// run plan with output directory
+	_, output, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+
+	assert.Contains(t, output, fmt.Sprintf("Using output file %s", tmpDir))
+
+	// verify that tfplan files are created in the tmpDir, 2 files
+	planFiles, err := os.ReadDir(tmpDir)
+	require.NoError(t, err)
+	assert.Len(t, planFiles, 2)
+
+	// Check that files have tfplan extension
+	for _, file := range planFiles {
+		info, err := file.Info()
+		assert.NoError(t, err)
+		assert.True(t, strings.HasSuffix(info.Name(), ".tfplan"))
+	}
+
+	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+}
+
+func TestStorePlanFilesRunAllDestroy(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUT_DIR)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUT_DIR)
+
+	// plan and apply
+	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+
+	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+
+	// remove all tfstate files from temp directory to prepare destroy
+	files, err := os.ReadDir(tmpDir)
+	require.NoError(t, err)
+	for _, file := range files {
+		if strings.HasSuffix(file.Name(), ".tfstate") {
+			err = os.Remove(filepath.Join(tmpDir, file.Name()))
+			require.NoError(t, err)
+		}
+	}
+
+	// prepare destroy plan
+	_, output, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan -destroy --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+
+	assert.Contains(t, output, fmt.Sprintf("Using output file %s", tmpDir))
+	// verify that tfplan files are created in the tmpDir, 2 files
+	planFiles, err := os.ReadDir(tmpDir)
+	require.NoError(t, err)
+	assert.Len(t, planFiles, 2)
+
+	// Check that files have tfplan extension
+	for _, file := range planFiles {
+		info, err := file.Info()
+		assert.NoError(t, err)
+		assert.True(t, strings.HasSuffix(info.Name(), ".tfplan"))
+	}
+
+	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {

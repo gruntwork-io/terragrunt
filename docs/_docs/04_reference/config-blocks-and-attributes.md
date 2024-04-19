@@ -605,7 +605,7 @@ dependency "alb" {
   )
 }
 
-input = {
+inputs = {
   alb_id = dependency.alb.outputs.id
 }
 ```
@@ -662,7 +662,7 @@ dependency "alb" {
   )
 }
 
-input = {
+inputs = {
   vpc_name = dependency.vpc.outputs.name
   alb_id   = dependency.alb.outputs.id
 }

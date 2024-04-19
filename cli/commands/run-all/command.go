@@ -4,6 +4,8 @@ import (
 	"context"
 	"sort"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands"
+
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
@@ -26,6 +28,18 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Description: "The command will recursively find terragrunt modules in the current directory tree and run the terraform command in dependency order (unless the command is destroy, in which case the command is run in reverse dependency order).",
 		Subcommands: subCommands(opts).SkipRunning(),
 		Action:      action(opts),
+		Flags:       NewFlags(opts).Sort(),
+	}
+}
+
+func NewFlags(opts *options.TerragruntOptions) cli.Flags {
+	return cli.Flags{
+		&cli.GenericFlag[string]{
+			Name:        commands.TerragruntOutDirFlagName,
+			EnvVar:      commands.TerragruntOutDirFlagEnvVarName,
+			Destination: &opts.OutputFolder,
+			Usage:       "Directory output files.",
+		},
 	}
 }
 
