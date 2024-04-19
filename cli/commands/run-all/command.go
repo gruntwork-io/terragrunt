@@ -35,8 +35,8 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
 		&cli.GenericFlag[string]{
 			Name:        OutFolder,
-			Destination: &opts.StackStateFolder,
-			Usage:       "Directory to store state folder.",
+			Destination: &opts.OutputFolder,
+			Usage:       "Directory output files.",
 		},
 	}
 }

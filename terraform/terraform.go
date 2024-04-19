@@ -34,6 +34,8 @@ const (
 	EnvNameTFVarFmt                                = "TF_VAR_%s"
 
 	TerraformLockFile = ".terraform.lock.hcl"
+
+	TerraformPlanFileExtension = ".tfplan"
 )
 
 // ModuleVariables will return all the variables defined in the downloaded terraform modules, taking into

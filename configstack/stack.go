@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/gruntwork-io/go-commons/collections"
 	"io"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -194,7 +196,19 @@ func FindStackInSubfolders(ctx context.Context, terragruntOptions *options.Terra
 // Sync the TerraformCliArgs for each module in the stack to match the provided terragruntOptions struct.
 func (stack *Stack) syncTerraformCliArgs(terragruntOptions *options.TerragruntOptions) {
 	for _, module := range stack.Modules {
-		module.TerragruntOptions.TerraformCliArgs = terragruntOptions.TerraformCliArgs
+		module.TerragruntOptions.TerraformCliArgs = collections.MakeCopyOfList(terragruntOptions.TerraformCliArgs)
+
+		// pass output location
+		if module.TerragruntOptions.OutputFolder != "" {
+			planFile := filepath.Join(module.TerragruntOptions.OutputFolder, util.FolderPathAsFile(module.Path)) + terraform.TerraformPlanFileExtension
+			terragruntOptions.Logger.Debugf("Using output file %s for module %s", planFile, module.TerragruntOptions.TerragruntConfigPath)
+			if module.TerragruntOptions.TerraformCommand == terraform.CommandNamePlan {
+				// for plan command add -out=<file> to the terraform cli args
+				module.TerragruntOptions.TerraformCliArgs = util.StringListInsert(module.TerragruntOptions.TerraformCliArgs, fmt.Sprintf("-out=%s", planFile), len(module.TerragruntOptions.TerraformCliArgs))
+			} else {
+				module.TerragruntOptions.TerraformCliArgs = util.StringListInsert(module.TerragruntOptions.TerraformCliArgs, planFile, len(module.TerragruntOptions.TerraformCliArgs))
+			}
+		}
 	}
 }
 
