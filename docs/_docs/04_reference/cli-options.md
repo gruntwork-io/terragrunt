@@ -672,6 +672,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-registry-port](#terragrunt-registry-port)
 - [terragrunt-registry-token](#terragrunt-registry-token)
 - [terragrunt-registry-names](#terragrunt-registry-names)
+- [terragrunt-out-dir](#terragrunt-out-dir)
 
 ### terragrunt-config
 
@@ -1220,3 +1221,12 @@ The Token for authentication on the Terragrunt Provider Cache server. By default
 - [run-all](#run-all)
 
 The list of remote registries to cached by Terragrunt Provider Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
+
+### terragrunt-out-dir
+
+**CLI Arg**: `--terragrunt-out-dir`
+**Environment Variable**: `TERRAGRUNT_OUT_DIR`
+**Commands**:
+- [run-all](#run-all)
+
+Specify the plan output directory for the `*-all` commands. Useful to save plan between runs in a single place.

@@ -343,7 +343,7 @@ terragrunt run-all apply --terragrunt-parallelism 4
 ### Saving terraform plan
 
 Terragrunt enables you to save the execution plan to a designated directory, which is helpful for reviewing and reusing the plan at a later time. 
-To save the plan, use the `--terragrunt-out-dir` flag as demonstrated below:
+To save the plan, use the `--terragrunt-out-dir` flag (or `TERRAGRUNT_OUT_DIR` environment variable) as demonstrated below:
 
 ```sh
 terragrunt run-all plan --terragrunt-out-dir /tmp/tfplan
