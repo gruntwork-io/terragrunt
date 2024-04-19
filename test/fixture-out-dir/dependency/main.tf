@@ -1,5 +1,5 @@
 resource "local_file" "file" {
-  content     = "dependency file"
+  content  = "dependency file"
   filename = "${path.module}/dependency_file.txt"
 }
 

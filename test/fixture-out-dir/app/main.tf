@@ -5,6 +5,6 @@ output "output_value" {
 }
 
 resource "local_file" "app_file" {
-  content     = "app file"
+  content  = "app file"
   filename = "${path.module}/app_file.txt"
 }
