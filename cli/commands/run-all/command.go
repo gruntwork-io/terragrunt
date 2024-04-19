@@ -2,8 +2,9 @@ package runall
 
 import (
 	"context"
-	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"sort"
+
+	"github.com/gruntwork-io/terragrunt/cli/commands"
 
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
