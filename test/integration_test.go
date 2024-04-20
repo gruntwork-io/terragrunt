@@ -6991,6 +6991,33 @@ func TestPlanJsonPlanBinaryRunAll(t *testing.T) {
 
 }
 
+func TestTerragruntRunAllPlanAndShow(t *testing.T) {
+	t.Parallel()
+
+	// create temporary directory for plan files
+	tmpDir := t.TempDir()
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUT_DIR)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUT_DIR)
+
+	// run plan and apply
+	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+
+	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+
+	// run new plan and show
+	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all show --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s -no-color", testPath, tmpDir))
+	require.NoError(t, err)
+
+	// Verify that output contains the plan and not just the actual state output
+	assert.Contains(t, stdout, "No changes. Your infrastructure matches the configuration.")
+}
+
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
 	t.Helper()
 	output, hasPlatform := outputs[key]
