@@ -199,6 +199,7 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 		if err != nil {
 			return err
 		}
+		defer ln.Close() //nolint:errcheck
 
 		cliCtx.Context = shell.ContextWithTerraformCommandHook(ctx, server.TerraformCommandHook)
 
