@@ -217,7 +217,8 @@ func NewProviderService(baseCacheDir, baseArchiveDir, baseUserCacheDir string) *
 	}
 }
 
-// WaitForCacheReady blocks the call until all providers are cached.
+// WaitForCacheReady returns cached providers that were requested by `terraform init` from the cache server, with an  URL containing the given `requestID` value.
+// The function returns the value only when all cache requests have been processed.
 func (service *ProviderService) WaitForCacheReady(requestID string) ProviderCaches {
 	service.cacheReadyMu.Lock()
 	defer service.cacheReadyMu.Unlock()

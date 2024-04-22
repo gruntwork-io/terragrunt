@@ -108,7 +108,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	)
 
 	// Create terraform cli config file that enables provider caching and does not use provider cache dir
-	if err := cache.createLocalCLIConfig(opts, cliConfigFilename, cacheRequestID, false); err != nil {
+	if err := cache.createLocalCLIConfig(opts, cliConfigFilename, cacheRequestID); err != nil {
 		return nil, err
 	}
 
@@ -123,7 +123,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	cache.Provider.WaitForCacheReady(cacheRequestID)
 
 	// Create terraform cli config file that uses provider cache dir
-	if err := cache.createLocalCLIConfig(opts, cliConfigFilename, "", true); err != nil {
+	if err := cache.createLocalCLIConfig(opts, cliConfigFilename, ""); err != nil {
 		return nil, err
 	}
 
@@ -150,7 +150,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	return shell.RunTerraformCommandWithOutput(ctx, cloneOpts, args...)
 }
 
-// createLocalCLIConfig creates a local CLI configs that merges the default/user configuration with our Private Registry configuration.
+// createLocalCLIConfig creates a local CLI config that merges the default/user configuration with our Provider Cache configuration.
 // We don't want to use Terraform's `plugin_cache_dir` feature because the cache is populated by our Terragrunt Provider Cache cache, and to make sure that no Terraform process ever overwrites the global cache, we clear this value.
 // In order to force Terraform to queries our cache cache instead of the original one, we use the section below.
 // https://github.com/hashicorp/terraform/issues/28309 (officially undocumented)
@@ -174,8 +174,12 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 //		}
 //	}
 //
-// This func doesn't change the default CLI config file, only creates a new one at the given path `cliConfigFile`. Ultimately, we can assign this path to `TF_CLI_CONFIG_FILE`.
-func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions, filename string, cacheRequestID string, setProviderInstallation bool) error {
+// This func doesn't change the default CLI config file, only creates a new one at the given path `filename`. Ultimately, we can assign this path to `TF_CLI_CONFIG_FILE`.
+//
+// It creates two types of configuration depending on the `cacheRequestID` variable set.
+// 1. If `cacheRequestID` is set, `terraform init` does _not_ use the provider cache directory, the cache server creates a cache for requested providers and returns HTTP status 423. Since for each module we create the CLI config, using `cacheRequestID` we have opprotuenty later retrieve from the cache server exactly those cached providers that were requested by `terraform init` using this configuration.
+// 2. if `cacheRequestID` is empty, 'terraform init` uses provider cache directory, the cache server acts as a proxy.
+func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions, filename string, cacheRequestID string) error {
 	cfg, err := cliconfig.LoadUserConfig()
 	if err != nil {
 		return err
@@ -194,15 +198,15 @@ func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions
 		})
 	}
 
-	if setProviderInstallation {
-		cfg.SetProviderInstallation(
-			cliconfig.NewProviderInstallationFilesystemMirror(opts.ProviderCacheDir, providerInstallationIncludes, nil),
-			cliconfig.NewProviderInstallationDirect(providerInstallationIncludes, nil),
-		)
-	} else {
+	if cacheRequestID != "" {
 		cfg.SetProviderInstallation(
 			nil,
 			cliconfig.NewProviderInstallationDirect(nil, nil),
+		)
+	} else {
+		cfg.SetProviderInstallation(
+			cliconfig.NewProviderInstallationFilesystemMirror(opts.ProviderCacheDir, providerInstallationIncludes, nil),
+			cliconfig.NewProviderInstallationDirect(providerInstallationIncludes, nil),
 		)
 	}
 

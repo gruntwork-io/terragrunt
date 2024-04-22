@@ -48,7 +48,7 @@ func TestServer(t *testing.T) {
 
 	opts := []Option{WithToken(token), WithProviderArchiveDir(providerArchiveDir), WithProviderCacheDir(providerCacheDir), WithUserProviderDir(pluginCacheDir)}
 
-	testGroups := []struct {
+	testCases := []struct {
 		opts               []Option
 		urlPath            string
 		expectedStatusCode int
@@ -140,7 +140,7 @@ func TestServer(t *testing.T) {
 		},
 	}
 	//
-	for i, testCase := range testGroups {
+	for i, testCase := range testCases {
 		testCase := testCase
 
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
