@@ -176,17 +176,13 @@ func getFields(t reflect.Type, oriValue reflect.Value) ([]*marshalField, error) 
 				if err != nil {
 					return nil, err
 				}
-				for _, v := range mfs {
-					newFields = append(newFields, v)
-				}
+				newFields = append(newFields, mfs...)
 			case reflect.Struct:
 				mfs, err := getFields(typ, oriField)
 				if err != nil {
 					return nil, err
 				}
-				for _, v := range mfs {
-					newFields = append(newFields, v)
-				}
+				newFields = append(newFields, mfs...)
 			default:
 			}
 			continue
@@ -376,7 +372,8 @@ func tag2(old reflect.StructTag) [2]string {
 		if len(tag) >= 5 && strings.ToLower(tag[:5]) == "hcl:\"" {
 			tag = tag[5 : len(tag)-1]
 			two := strings.SplitN(tag, ",", 2)
-			if len(two) == 2 {
+			count := 2
+			if len(two) == count {
 				return [2]string{two[0], two[1]}
 			}
 			return [2]string{two[0], ""}
