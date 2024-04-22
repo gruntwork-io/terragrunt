@@ -4,7 +4,6 @@ import (
 	"os"
 	"regexp"
 
-	"github.com/genelet/determined/dethcl"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/hashicorp/terraform/command/cliconfig"
 )
@@ -69,7 +68,7 @@ func (cfg *Config) Save(configPath string) error {
 	// Since `Config` structure already has `plugin_cache_dir`, remove it from the raw HCL config to prevent repeating in the saved file.
 	rawHCL = configParamPluginCacheDirReg.ReplaceAll(rawHCL, []byte{})
 
-	newHCL, err := dethcl.Marshal(cfg)
+	newHCL, err := Marshal(cfg)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
