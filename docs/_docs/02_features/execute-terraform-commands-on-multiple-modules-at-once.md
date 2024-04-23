@@ -402,6 +402,6 @@ $ tree /tmp/all
 ```
 Notes:
 * The plan for each module will be saved the same hierarchy as the module structure.
-* Plan file name is `tfplan.tfplan` for binary plan and `tfplan.json` for JSON plan.
+* The file name for the plans are `tfplan.tfplan` for the plan binary and `tfplan.json` for the plan JSON.
 * JSON plan files can't be used with `terragrunt run-all apply` command, only binary plan files can be used.
 * Output directories can be combined which will lead to saving both binary and JSON plans.
