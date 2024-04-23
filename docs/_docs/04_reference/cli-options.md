@@ -673,6 +673,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 - [terragrunt-registry-token](#terragrunt-registry-token)
 - [terragrunt-registry-names](#terragrunt-registry-names)
 - [terragrunt-out-dir](#terragrunt-out-dir)
+- [terragrunt-json-out-dir](#terragrunt-json-out-dir)
 
 ### terragrunt-config
 
@@ -1230,3 +1231,12 @@ The list of remote registries to cached by Terragrunt Provider Cache server. By 
 - [run-all](#run-all)
 
 Specify the plan output directory for the `*-all` commands. Useful to save plan between runs in a single place.
+
+### terragrunt-json-out-dir
+
+**CLI Arg**: `--terragrunt-json-out-dir`
+**Environment Variable**: `TERRAGRUNT_JSON_OUT_DIR`
+**Commands**:
+- [run-all](#run-all)
+
+Specify the output directory for the `*-all` commands to store plan in JSON format. Useful to read plan programmatically.

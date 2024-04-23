@@ -342,12 +342,23 @@ terragrunt run-all apply --terragrunt-parallelism 4
 
 ### Saving terraform plan
 
-Terragrunt enables you to save the execution plan to a designated directory, which is helpful for reviewing and reusing the plan at a later time. 
+Terragrunt enables you to save the execution plan to a designated directory in binary or JSON format, which is helpful for reviewing and reusing the plan at a later time. 
 To save the plan, use the `--terragrunt-out-dir` flag (or `TERRAGRUNT_OUT_DIR` environment variable) as demonstrated below:
 
 ```sh
-terragrunt run-all plan --terragrunt-out-dir /tmp/tfplan
-terragrunt run-all apply --terragrunt-out-dir /tmp/tfplan
+$ terragrunt run-all plan --terragrunt-out-dir /tmp/tfplan
+$ tree /tmp/tfplan
+/tmp/tfplan
+├── app1
+│   └── tfplan.tfplan
+├── app2
+│   └── tfplan.tfplan
+├── app3
+│   └── tfplan.tfplan
+└── project-2
+    └── project-2-app1
+        └── tfplan.tfplan
+$ terragrunt run-all apply --terragrunt-out-dir /tmp/tfplan
 ```
 
 For planning a destroy operation, use the following commands:
@@ -356,5 +367,41 @@ terragrunt run-all plan -destroy --terragrunt-out-dir /tmp/tfplan
 terragrunt run-all apply --terragrunt-out-dir /tmp/tfplan
 ```
 
+To save plan in json format use `--terragrunt-json-out-dir` flag (or `TERRAGRUNT_JSON_OUT_DIR` environment variable):
+```sh
+$ terragrunt run-all plan --terragrunt-json-out-dir /tmp/json
+$ tree /tmp/json
+/tmp/json
+├── app1
+│   └── tfplan.json
+├── app2
+│   └── tfplan.json
+├── app3
+│   └── tfplan.json
+└── project-2
+    └── project-2-app1
+        └── tfplan.json
+
+# combine binary and json plans
+$ terragrunt run-all plan --terragrunt-out-dir /tmp/all --terragrunt-json-out-dir /tmp/all
+$ tree /tmp/all
+/tmp/all
+├── app1
+│   ├── tfplan.json
+│   └── tfplan.tfplan
+├── app2
+│   ├── tfplan.json
+│   └── tfplan.tfplan
+├── app3
+│   ├── tfplan.json
+│   └── tfplan.tfplan
+└── project-2
+    └── project-2-app1
+        ├── tfplan.json
+        └── tfplan.tfplan
+```
 Notes:
-* The plan for each module will be saved in a separate file named `tfplan`, with the filename generated based on the module's path.
+* The plan for each module will be saved the same hierarchy as the module structure.
+* Plan file name is `tfplan.tfplan` for binary plan and `tfplan.json` for JSON plan.
+* JSON plan files can't be used with `terragrunt run-all apply` command, only binary plan files can be used.
+* Output directories can be combined which will lead to saving both binary and JSON plans.
