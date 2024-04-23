@@ -1239,4 +1239,4 @@ Specify the plan output directory for the `*-all` commands. Useful to save plans
 **Commands**:
 - [run-all](#run-all)
 
-Specify the output directory for the `*-all` commands to store plan in JSON format. Useful to read plan programmatically.
+Specify the output directory for the `*-all` commands to store plans in JSON format. Useful to read plans programmatically.
