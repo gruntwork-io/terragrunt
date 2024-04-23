@@ -301,7 +301,7 @@ type TerragruntOptions struct {
 	// Folder to store output files.
 	OutputFolder string
 
-	// Folder to store output files.
+	// Folder to store JSON representation of output files.
 	JsonOutputFolder string
 }
 
