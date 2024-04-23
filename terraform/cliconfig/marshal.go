@@ -1,4 +1,4 @@
-// Copyright (c) 2022 Peter Bi
+// This code is copied from project https://github.com/genelet/determined/, which is copyrighted by Peter Bi, under the MIT license.
 
 package cliconfig
 
