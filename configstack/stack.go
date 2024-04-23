@@ -95,10 +95,10 @@ func (stack *Stack) Graph(terragruntOptions *options.TerragruntOptions) {
 func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
 	stackCmd := terragruntOptions.TerraformCommand
 
-	// prepare folder for output
+	// prepare folder for output hierarchy if output folder is set
 	if terragruntOptions.OutputFolder != "" {
 		for _, module := range stack.Modules {
-			planFile := outputPlanFile(terragruntOptions, module)
+			planFile := outputFile(terragruntOptions, module)
 			planDir := filepath.Dir(planFile)
 			if err := os.MkdirAll(planDir, os.ModePerm); err != nil {
 				return err
@@ -225,11 +225,12 @@ func (stack *Stack) syncTerraformCliArgs(terragruntOptions *options.TerragruntOp
 	}
 }
 
+// modulePlanFile - return plan file location, if output folder is set
 func modulePlanFile(terragruntOptions *options.TerragruntOptions, module *TerraformModule) string {
 	planFile := ""
 
 	// set plan file location if output folder is set
-	planFile = outputPlanFile(terragruntOptions, module)
+	planFile = outputFile(terragruntOptions, module)
 
 	planCommand := module.TerragruntOptions.TerraformCommand == terraform.CommandNamePlan || module.TerragruntOptions.TerraformCommand == terraform.CommandNameShow
 
@@ -240,7 +241,8 @@ func modulePlanFile(terragruntOptions *options.TerragruntOptions, module *Terraf
 	return planFile
 }
 
-func outputPlanFile(opts *options.TerragruntOptions, module *TerraformModule) string {
+// outputFile - return plan file location, if output folder is set
+func outputFile(opts *options.TerragruntOptions, module *TerraformModule) string {
 	planFile := ""
 	if opts.OutputFolder != "" {
 		path, _ := filepath.Rel(opts.WorkingDir, module.Path)
@@ -250,8 +252,8 @@ func outputPlanFile(opts *options.TerragruntOptions, module *TerraformModule) st
 	return planFile
 }
 
-// outputJsonPlanFile - return plan JSON file location
-func outputJsonPlanFile(opts *options.TerragruntOptions, module *TerraformModule) string {
+// outputJsonFile - return plan JSON file location, if JSON output folder is set
+func outputJsonFile(opts *options.TerragruntOptions, module *TerraformModule) string {
 	jsonPlanFile := ""
 	if opts.JsonOutputFolder != "" {
 		path, _ := filepath.Rel(opts.WorkingDir, module.Path)

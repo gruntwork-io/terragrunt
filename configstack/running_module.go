@@ -264,7 +264,7 @@ func (module *runningModule) runNow(ctx context.Context, rootOptions *options.Te
 			return err
 		}
 		// convert terragrunt output to json
-		if outputJsonPlanFile(module.Module.TerragruntOptions, module.Module) != "" {
+		if outputJsonFile(module.Module.TerragruntOptions, module.Module) != "" {
 			jsonOptions := module.Module.TerragruntOptions.Clone(module.Module.TerragruntOptions.TerragruntConfigPath)
 			stdout := bytes.Buffer{}
 			jsonOptions.Writer = &stdout
@@ -274,7 +274,7 @@ func (module *runningModule) runNow(ctx context.Context, rootOptions *options.Te
 				return err
 			}
 			// save the json output to the file plan file
-			outputFile := outputJsonPlanFile(rootOptions, module.Module)
+			outputFile := outputJsonFile(rootOptions, module.Module)
 			jsonDir := filepath.Dir(outputFile)
 			if err := os.MkdirAll(jsonDir, os.ModePerm); err != nil {
 				return err
