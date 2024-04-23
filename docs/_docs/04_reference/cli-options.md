@@ -1230,7 +1230,7 @@ The list of remote registries to cached by Terragrunt Provider Cache server. By 
 **Commands**:
 - [run-all](#run-all)
 
-Specify the plan output directory for the `*-all` commands. Useful to save plan between runs in a single place.
+Specify the plan output directory for the `*-all` commands. Useful to save plans between runs in a single place.
 
 ### terragrunt-json-out-dir
 
