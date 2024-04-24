@@ -69,7 +69,7 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 	if opts.ProviderCacheToken == "" {
 		opts.ProviderCacheToken = uuid.New().String()
 	}
-	// Currently, the cache cache only supports the `x-api-key` token.
+	// Currently, the cache server only supports the `x-api-key` token.
 	if !strings.HasPrefix(strings.ToLower(opts.ProviderCacheToken), handlers.AuthorizationApiKeyHeaderName+":") {
 		opts.ProviderCacheToken = fmt.Sprintf("%s:%s", handlers.AuthorizationApiKeyHeaderName, opts.ProviderCacheToken)
 	}
@@ -151,8 +151,8 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 }
 
 // createLocalCLIConfig creates a local CLI config that merges the default/user configuration with our Provider Cache configuration.
-// We don't want to use Terraform's `plugin_cache_dir` feature because the cache is populated by our Terragrunt Provider Cache cache, and to make sure that no Terraform process ever overwrites the global cache, we clear this value.
-// In order to force Terraform to queries our cache cache instead of the original one, we use the section below.
+// We don't want to use Terraform's `plugin_cache_dir` feature because the cache is populated by our Terragrunt Provider cache server, and to make sure that no Terraform process ever overwrites the global cache, we clear this value.
+// In order to force Terraform to queries our cache server instead of the original one, we use the section below.
 // https://github.com/hashicorp/terraform/issues/28309 (officially undocumented)
 //
 //	host "registry.terraform.io" {
@@ -177,8 +177,8 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 // This func doesn't change the default CLI config file, only creates a new one at the given path `filename`. Ultimately, we can assign this path to `TF_CLI_CONFIG_FILE`.
 //
 // It creates two types of configuration depending on the `cacheRequestID` variable set.
-// 1. If `cacheRequestID` is set, `terraform init` does _not_ use the provider cache directory, the cache server creates a cache for requested providers and returns HTTP status 423. Since for each module we create the CLI config, using `cacheRequestID` we have opprotuenty later retrieve from the cache server exactly those cached providers that were requested by `terraform init` using this configuration.
-// 2. if `cacheRequestID` is empty, 'terraform init` uses provider cache directory, the cache server acts as a proxy.
+// 1. If `cacheRequestID` is set, `terraform init` does _not_ use the provider cache directory, the cache server creates a cache for requested providers and returns HTTP status 423. Since for each module we create the CLI config, using `cacheRequestID` we have the opportunity later retrieve from the cache server exactly those cached providers that were requested by `terraform init` using this configuration.
+// 2. If `cacheRequestID` is empty, 'terraform init` uses provider cache directory, the cache server acts as a proxy.
 func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions, filename string, cacheRequestID string) error {
 	cfg, err := cliconfig.LoadUserConfig()
 	if err != nil {
@@ -245,13 +245,13 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 	return nil
 }
 
-// providerCacheEnvironment returns TF_* name/value ENVs, which we use to force terraform processes to make requests through our cache cache (proxy) instead of making direct requests to the origin servers.
+// providerCacheEnvironment returns TF_* name/value ENVs, which we use to force terraform processes to make requests through our cache server (proxy) instead of making direct requests to the origin servers.
 func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile string) map[string]string {
 	envs := make(map[string]string)
 
 	for _, registryName := range opts.ProviderCacheRegistryNames {
 		envName := fmt.Sprintf(terraform.EnvNameTFTokenFmt, strings.ReplaceAll(registryName, ".", "_"))
-		// We use `TF_TOKEN_*` for authentication with our private registry (cache cache).
+		// We use `TF_TOKEN_*` for authentication with our private registry (cache server).
 		// https://developer.hashicorp.com/terraform/cli/config/config-file#environment-variable-credentials
 		envs[envName] = opts.ProviderCacheToken
 	}
