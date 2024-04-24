@@ -22,6 +22,7 @@ const (
 	CommandNameUntaint        = "untaint"
 	CommandNameConsole        = "console"
 	CommandNameForceUnlock    = "force-unlock"
+	CommandNameShow           = "show"
 
 	FlagNameNoColor = "-no-color"
 	// `apply -destroy` is alias for `destroy`
@@ -35,7 +36,8 @@ const (
 
 	TerraformLockFile = ".terraform.lock.hcl"
 
-	TerraformPlanFileExtension = ".tfplan"
+	TerraformPlanFile     = "tfplan.tfplan"
+	TerraformPlanJsonFile = "tfplan.json"
 )
 
 // ModuleVariables will return all the variables defined in the downloaded terraform modules, taking into

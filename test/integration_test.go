@@ -6877,15 +6877,11 @@ func TestStorePlanFilesRunAllPlanApply(t *testing.T) {
 	assert.Contains(t, output, fmt.Sprintf("Using output file %s", tmpDir))
 
 	// verify that tfplan files are created in the tmpDir, 2 files
-	planFiles, err := os.ReadDir(tmpDir)
+	list, err := findFilesWithExtension(tmpDir, ".tfplan")
 	require.NoError(t, err)
-	assert.Len(t, planFiles, 2)
-
-	// Check that files have tfplan extension
-	for _, file := range planFiles {
-		info, err := file.Info()
-		assert.NoError(t, err)
-		assert.True(t, strings.HasSuffix(info.Name(), ".tfplan"))
+	assert.Equal(t, 2, len(list))
+	for _, file := range list {
+		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
 	}
 
 	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
@@ -6908,13 +6904,11 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	require.NoError(t, err)
 
 	// remove all tfstate files from temp directory to prepare destroy
-	files, err := os.ReadDir(tmpDir)
+	list, err := findFilesWithExtension(tmpDir, ".tfplan")
 	require.NoError(t, err)
-	for _, file := range files {
-		if strings.HasSuffix(file.Name(), ".tfstate") {
-			err = os.Remove(filepath.Join(tmpDir, file.Name()))
-			require.NoError(t, err)
-		}
+	assert.Equal(t, 2, len(list))
+	for _, file := range list {
+		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
 	}
 
 	// prepare destroy plan
@@ -6923,19 +6917,77 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 
 	assert.Contains(t, output, fmt.Sprintf("Using output file %s", tmpDir))
 	// verify that tfplan files are created in the tmpDir, 2 files
-	planFiles, err := os.ReadDir(tmpDir)
+	list, err = findFilesWithExtension(tmpDir, ".tfplan")
 	require.NoError(t, err)
-	assert.Len(t, planFiles, 2)
-
-	// Check that files have tfplan extension
-	for _, file := range planFiles {
-		info, err := file.Info()
-		assert.NoError(t, err)
-		assert.True(t, strings.HasSuffix(info.Name(), ".tfplan"))
+	assert.Equal(t, 2, len(list))
+	for _, file := range list {
+		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
 	}
 
 	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
 	require.NoError(t, err)
+}
+
+func TestPlanJsonFilesRunAll(t *testing.T) {
+	t.Parallel()
+
+	// create temporary directory for plan files
+	tmpDir := t.TempDir()
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUT_DIR)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUT_DIR)
+
+	// run plan with output directory
+	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-json-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+
+	// verify that was generated json files with plan data
+	list, err := findFilesWithExtension(tmpDir, ".json")
+	require.NoError(t, err)
+	assert.Equal(t, 2, len(list))
+	for _, file := range list {
+		assert.Equal(t, "tfplan.json", filepath.Base(file))
+		// verify that file is not empty
+		content, err := os.ReadFile(file)
+		require.NoError(t, err)
+		assert.NotEmpty(t, content)
+	}
+
+}
+
+func TestPlanJsonPlanBinaryRunAll(t *testing.T) {
+	t.Parallel()
+
+	// create temporary directory for plan files
+	tmpDir := t.TempDir()
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUT_DIR)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUT_DIR)
+
+	// run plan with output directory
+	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-json-out-dir %s --terragrunt-out-dir %s", testPath, tmpDir, tmpDir))
+	require.NoError(t, err)
+
+	// verify that was generated json files with plan data
+	list, err := findFilesWithExtension(tmpDir, ".json")
+	require.NoError(t, err)
+	assert.Equal(t, 2, len(list))
+	for _, file := range list {
+		assert.Equal(t, "tfplan.json", filepath.Base(file))
+		// verify that file is not empty
+		content, err := os.ReadFile(file)
+		require.NoError(t, err)
+		assert.NotEmpty(t, content)
+	}
+
+	// verify that was generated binary plan files
+	list, err = findFilesWithExtension(tmpDir, ".tfplan")
+	require.NoError(t, err)
+	assert.Equal(t, 2, len(list))
+	for _, file := range list {
+		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
+	}
+
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
@@ -6960,4 +7012,19 @@ func wrappedBinary() string {
 
 func isTerraform() bool {
 	return wrappedBinary() == TERRAFORM_BINARY
+}
+
+func findFilesWithExtension(dir string, ext string) ([]string, error) {
+	var files []string
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && filepath.Ext(path) == ext {
+			files = append(files, path)
+		}
+		return nil
+	})
+
+	return files, err
 }

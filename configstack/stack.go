@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -93,6 +94,17 @@ func (stack *Stack) Graph(terragruntOptions *options.TerragruntOptions) {
 
 func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
 	stackCmd := terragruntOptions.TerraformCommand
+
+	// prepare folder for output hierarchy if output folder is set
+	if terragruntOptions.OutputFolder != "" {
+		for _, module := range stack.Modules {
+			planFile := outputFile(terragruntOptions, module)
+			planDir := filepath.Dir(planFile)
+			if err := os.MkdirAll(planDir, os.ModePerm); err != nil {
+				return err
+			}
+		}
+	}
 
 	// For any command that needs input, run in non-interactive mode to avoid cominglint stdin across multiple
 	// concurrent runs.
@@ -199,9 +211,9 @@ func (stack *Stack) syncTerraformCliArgs(terragruntOptions *options.TerragruntOp
 	for _, module := range stack.Modules {
 		module.TerragruntOptions.TerraformCliArgs = collections.MakeCopyOfList(terragruntOptions.TerraformCliArgs)
 
-		// pass output location
-		if module.TerragruntOptions.OutputFolder != "" {
-			planFile := filepath.Join(module.TerragruntOptions.OutputFolder, util.FolderPathAsFile(module.Path)) + terraform.TerraformPlanFileExtension
+		planFile := modulePlanFile(terragruntOptions, module)
+
+		if planFile != "" {
 			terragruntOptions.Logger.Debugf("Using output file %s for module %s", planFile, module.TerragruntOptions.TerragruntConfigPath)
 			if module.TerragruntOptions.TerraformCommand == terraform.CommandNamePlan {
 				// for plan command add -out=<file> to the terraform cli args
@@ -211,6 +223,44 @@ func (stack *Stack) syncTerraformCliArgs(terragruntOptions *options.TerragruntOp
 			}
 		}
 	}
+}
+
+// modulePlanFile - return plan file location, if output folder is set
+func modulePlanFile(terragruntOptions *options.TerragruntOptions, module *TerraformModule) string {
+	planFile := ""
+
+	// set plan file location if output folder is set
+	planFile = outputFile(terragruntOptions, module)
+
+	planCommand := module.TerragruntOptions.TerraformCommand == terraform.CommandNamePlan || module.TerragruntOptions.TerraformCommand == terraform.CommandNameShow
+
+	// in case if JSON output is enabled, and not specified planFile, save plan in working dir
+	if planCommand && planFile == "" && module.TerragruntOptions.JsonOutputFolder != "" {
+		planFile = terraform.TerraformPlanFile
+	}
+	return planFile
+}
+
+// outputFile - return plan file location, if output folder is set
+func outputFile(opts *options.TerragruntOptions, module *TerraformModule) string {
+	planFile := ""
+	if opts.OutputFolder != "" {
+		path, _ := filepath.Rel(opts.WorkingDir, module.Path)
+		dir := filepath.Join(opts.OutputFolder, path)
+		planFile = filepath.Join(dir, terraform.TerraformPlanFile)
+	}
+	return planFile
+}
+
+// outputJsonFile - return plan JSON file location, if JSON output folder is set
+func outputJsonFile(opts *options.TerragruntOptions, module *TerraformModule) string {
+	jsonPlanFile := ""
+	if opts.JsonOutputFolder != "" {
+		path, _ := filepath.Rel(opts.WorkingDir, module.Path)
+		dir := filepath.Join(opts.JsonOutputFolder, path)
+		jsonPlanFile = filepath.Join(dir, terraform.TerraformPlanJsonFile)
+	}
+	return jsonPlanFile
 }
 
 // getModuleRunGraph converts the module list to a graph that shows the order in which the modules will be

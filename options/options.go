@@ -116,7 +116,7 @@ type TerragruntOptions struct {
 	// Basic log entry
 	Logger *logrus.Entry
 
-	// Disalabe Terragrunt colors
+	// Disable Terragrunt colors
 	DisableLogColors bool
 
 	// Output Terragrunt logs in JSON format
@@ -300,6 +300,9 @@ type TerragruntOptions struct {
 
 	// Folder to store output files.
 	OutputFolder string
+
+	// Folder to store JSON representation of output files.
+	JsonOutputFolder string
 }
 
 // IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
@@ -380,6 +383,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 		},
 		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
 		OutputFolder:               "",
+		JsonOutputFolder:           "",
 	}
 }
 
@@ -516,6 +520,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		ProviderCacheRegistryNames:          opts.ProviderCacheRegistryNames,
 		DisableLogColors:                    opts.DisableLogColors,
 		OutputFolder:                        opts.OutputFolder,
+		JsonOutputFolder:                    opts.JsonOutputFolder,
 	}
 }
 
