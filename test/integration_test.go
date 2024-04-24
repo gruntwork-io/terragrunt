@@ -280,7 +280,6 @@ func TestTerragruntProviderCache(t *testing.T) {
 		}
 		assert.Equal(t, expectedApps, actualApps)
 	}
-
 }
 
 func TestTerragruntDestroyOrder(t *testing.T) {
