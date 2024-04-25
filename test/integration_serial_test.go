@@ -560,3 +560,20 @@ func TestTerragruntProduceTelemetryTracesWithRootSpanAndTraceID(t *testing.T) {
 	assert.Contains(t, output, "\"Name\":\"hook_after_hook_1\"")
 	assert.Contains(t, output, "\"Name\":\"hook_after_hook_2\"")
 }
+
+func TestTerragruntProduceTelemetryInCasOfError(t *testing.T) {
+	t.Setenv("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER", "console")
+	t.Setenv("TRACEPARENT", "00-b2ff2d54551433d53dd807a6c94e81d1-0e6f631d793c718a-01")
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
+
+	output, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt no-existing-command -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	require.Error(t, err)
+
+	assert.Contains(t, output, "\"SpanContext\":{\"TraceID\":\"b2ff2d54551433d53dd807a6c94e81d1\"")
+	assert.Contains(t, output, "\"SpanID\":\"0e6f631d793c718a\"")
+	assert.Contains(t, output, "exception.message")
+	assert.Contains(t, output, "\"Name\":\"exception\"")
+}
