@@ -603,7 +603,7 @@ func identifyDefaultWrappedExecutable() string {
 	if util.IsCommandExecutable(TofuDefaultPath, "-version") {
 		return TofuDefaultPath
 	}
-	// fallback to Tofu if terraform is not available
+	// fallback to Terraform if tofu is not available
 	return TerraformDefaultPath
 }
 
