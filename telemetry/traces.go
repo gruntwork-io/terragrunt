@@ -3,9 +3,10 @@ package telemetry
 import (
 	"context"
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/options"
 	"strconv"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/options"
 
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 
