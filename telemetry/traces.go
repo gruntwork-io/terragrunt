@@ -30,6 +30,8 @@ const (
 	otlpHttpTraceExporterType traceExporterType = "otlpHttp"
 	otlpGrpcTraceExporterType traceExporterType = "otlpGrpc"
 	httpTraceExporterType     traceExporterType = "http"
+
+	traceParentParts = 4
 )
 
 // Trace - collect traces for method execution
@@ -71,7 +73,7 @@ func configureTraceCollection(ctx context.Context, opts *TelemetryOptions) error
 	if traceParent != "" {
 		// parse trace parent values
 		parts := strings.Split(traceParent, "-")
-		if len(parts) != 4 {
+		if len(parts) != traceParentParts {
 			return fmt.Errorf("invalid TRACEPARENT value %s", traceParent)
 		}
 		_, traceIdHex, spanIdHex, traceFlagsStr := parts[0], parts[1], parts[2], parts[3]
