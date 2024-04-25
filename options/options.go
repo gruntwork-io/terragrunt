@@ -600,11 +600,11 @@ func (opts *TerragruntOptions) DataDir() string {
 
 // identifyDefaultWrappedExecutable - return default path used for wrapped executable
 func identifyDefaultWrappedExecutable() string {
-	if util.IsCommandExecutable(TerraformDefaultPath, "-version") {
-		return TerraformDefaultPath
+	if util.IsCommandExecutable(TofuDefaultPath, "-version") {
+		return TofuDefaultPath
 	}
 	// fallback to Tofu if terraform is not available
-	return TofuDefaultPath
+	return TerraformDefaultPath
 }
 
 // Custom error types
