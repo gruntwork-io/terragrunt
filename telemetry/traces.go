@@ -2,7 +2,6 @@ package telemetry
 
 import (
 	"context"
-
 	"github.com/gruntwork-io/terragrunt/options"
 
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -61,6 +60,28 @@ func configureTraceCollection(ctx context.Context, opts *TelemetryOptions) error
 	}
 	otel.SetTracerProvider(traceProvider)
 	rootTracer = traceProvider.Tracer(opts.AppName)
+
+	traceIdHex := traceExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_TRACE_ID"], ""))
+	spanIdHex := traceExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_SPAN_ID"], ""))
+
+	if traceIdHex == "" && spanIdHex == "" {
+		traceID, err := trace.TraceIDFromHex("")
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		spanID, err := trace.SpanIDFromHex("")
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		spanContext := trace.NewSpanContext(trace.SpanContextConfig{
+			TraceID: traceID,
+			SpanID:  spanID,
+			Remote:  true,
+		})
+		parentSpanContext = &spanContext
+	}
+
 	return nil
 }
 
@@ -127,6 +148,12 @@ func openSpan(ctx context.Context, name string, attrs map[string]interface{}) (c
 	if traceProvider == nil {
 		return ctx, nil
 	}
+
+	if parentSpanContext != nil {
+		// create a new context with the parent span context
+		ctx = trace.ContextWithSpanContext(ctx, *parentSpanContext)
+	}
+
 	ctx, span := rootTracer.Start(ctx, name)
 	// convert attrs map to span.SetAttributes
 	span.SetAttributes(mapToAttributes(attrs)...)
