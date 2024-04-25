@@ -40,6 +40,7 @@ func Trace(ctx context.Context, opts *options.TerragruntOptions, name string, at
 	if err := fn(ctx); err != nil {
 		// record error in span
 		span.RecordError(err)
+		return err
 	}
 	return nil
 }
@@ -61,25 +62,22 @@ func configureTraceCollection(ctx context.Context, opts *TelemetryOptions) error
 	otel.SetTracerProvider(traceProvider)
 	rootTracer = traceProvider.Tracer(opts.AppName)
 
-	traceIdHex := traceExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_TRACE_ID"], ""))
-	spanIdHex := traceExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_SPAN_ID"], ""))
+	traceIdHex := env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_TRACE_ID"], "")
+	spanIdHex := env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_SPAN_ID"], "")
 
-	if traceIdHex == "" && spanIdHex == "" {
-		traceID, err := trace.TraceIDFromHex("")
+	if traceIdHex != "" && spanIdHex != "" {
+
+		traceID, err := trace.TraceIDFromHex(traceIdHex)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		spanID, err := trace.SpanIDFromHex("")
+		spanID, err := trace.SpanIDFromHex(spanIdHex)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 
-		spanContext := trace.NewSpanContext(trace.SpanContextConfig{
-			TraceID: traceID,
-			SpanID:  spanID,
-			Remote:  true,
-		})
-		parentSpanContext = &spanContext
+		parentTraceID = &traceID
+		parentSpanID = &spanID
 	}
 
 	return nil
@@ -149,9 +147,16 @@ func openSpan(ctx context.Context, name string, attrs map[string]interface{}) (c
 		return ctx, nil
 	}
 
-	if parentSpanContext != nil {
+	if parentTraceID != nil && parentSpanID != nil {
+		spanContext := trace.NewSpanContext(trace.SpanContextConfig{
+			TraceID:    *parentTraceID,
+			SpanID:     *parentSpanID,
+			Remote:     true,
+			TraceFlags: trace.FlagsSampled,
+		})
+
 		// create a new context with the parent span context
-		ctx = trace.ContextWithSpanContext(ctx, *parentSpanContext)
+		ctx = trace.ContextWithSpanContext(ctx, spanContext)
 	}
 
 	ctx, span := rootTracer.Start(ctx, name)
