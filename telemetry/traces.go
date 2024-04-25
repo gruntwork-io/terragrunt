@@ -2,7 +2,10 @@ package telemetry
 
 import (
 	"context"
+	"fmt"
 	"github.com/gruntwork-io/terragrunt/options"
+	"strconv"
+	"strings"
 
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 
@@ -62,10 +65,23 @@ func configureTraceCollection(ctx context.Context, opts *TelemetryOptions) error
 	otel.SetTracerProvider(traceProvider)
 	rootTracer = traceProvider.Tracer(opts.AppName)
 
-	traceIdHex := env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_TRACE_ID"], "")
-	spanIdHex := env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_SPAN_ID"], "")
+	traceParent := env.GetString(opts.Vars["TRACEPARENT"], "")
 
-	if traceIdHex != "" && spanIdHex != "" {
+	if traceParent != "" {
+		// parse trace parent values
+		parts := strings.Split(traceParent, "-")
+		if len(parts) != 4 {
+			return fmt.Errorf("invalid TRACEPARENT value %s", traceParent)
+		}
+		_, traceIdHex, spanIdHex, traceFlagsStr := parts[0], parts[1], parts[2], parts[3]
+		parsedFlag, err := strconv.Atoi(traceFlagsStr)
+		if err != nil {
+			return fmt.Errorf("invalid trace flags: %w", err)
+		}
+		traceFlags := trace.FlagsSampled
+		if parsedFlag == 0 {
+			traceFlags = 0
+		}
 
 		traceID, err := trace.TraceIDFromHex(traceIdHex)
 		if err != nil {
@@ -78,6 +94,7 @@ func configureTraceCollection(ctx context.Context, opts *TelemetryOptions) error
 
 		parentTraceID = &traceID
 		parentSpanID = &spanID
+		parentTraceFlags = &traceFlags
 	}
 
 	return nil
@@ -152,7 +169,7 @@ func openSpan(ctx context.Context, name string, attrs map[string]interface{}) (c
 			TraceID:    *parentTraceID,
 			SpanID:     *parentSpanID,
 			Remote:     true,
-			TraceFlags: trace.FlagsSampled,
+			TraceFlags: *parentTraceFlags,
 		})
 
 		// create a new context with the parent span context
