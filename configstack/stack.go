@@ -126,6 +126,8 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 			terragruntOptions.TerraformCliArgs = util.StringListInsert(terragruntOptions.TerraformCliArgs, "-auto-approve", 1)
 		}
 		stack.syncTerraformCliArgs(terragruntOptions)
+	case terraform.CommandNameShow:
+		stack.syncTerraformCliArgs(terragruntOptions)
 	case terraform.CommandNamePlan:
 		// We capture the out stream for each module
 		errorStreams := make([]bytes.Buffer, len(stack.Modules))
