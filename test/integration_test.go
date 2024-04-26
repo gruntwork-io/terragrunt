@@ -7029,10 +7029,10 @@ func wrappedBinary() string {
 	value, found := os.LookupEnv("TERRAGRUNT_TFPATH")
 	if !found {
 		// if env variable is not defined, try to check through executing command
-		if util.IsCommandExecutable(TERRAFORM_BINARY, "-version") {
-			return TERRAFORM_BINARY
+		if util.IsCommandExecutable(TOFU_BINARY, "-version") {
+			return TOFU_BINARY
 		}
-		return TOFU_BINARY
+		return TERRAFORM_BINARY
 	}
 	return value
 }
