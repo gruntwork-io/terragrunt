@@ -4,7 +4,13 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+
+	"github.com/gruntwork-io/terragrunt/terraform/provider"
 )
+
+type SigningKeyList struct {
+	GPGPublicKeys []*provider.SigningKey `json:"gpg_public_keys"`
+}
 
 // Provider represents the details of the Terraform provider.
 type Provider struct {
@@ -15,7 +21,15 @@ type Provider struct {
 	OS           string
 	Arch         string
 
-	DownloadURL *url.URL
+	Protocols []string `json:"protocols"`
+	Filename  string   `json:"filename"`
+
+	DownloadURL            string `json:"download_url"`
+	SHA256SumsURL          string `json:"shasums_url"`
+	SHA256SumsSignatureURL string `json:"shasums_signature_url"`
+
+	SHA256Sum   string         `json:"shasum"`
+	SigningKeys SigningKeyList `json:"signing_keys"`
 }
 
 // VersionURL returns the URL used to query the all Versions for a single provider.
@@ -39,15 +53,11 @@ func (provider *Provider) PlatformURL() *url.URL {
 }
 
 func (provider *Provider) String() string {
-	return path.Join(provider.RegistryName, provider.Namespace, provider.Name, provider.Version)
+	return fmt.Sprintf("%s/%s v%s", provider.Namespace, provider.Name, provider.Version)
 }
 
 func (provider *Provider) Platform() string {
 	return fmt.Sprintf("%s_%s", provider.OS, provider.Arch)
-}
-
-func (provider *Provider) Filename() string {
-	return fmt.Sprintf("%s-%s-%s-%s-%s", provider.RegistryName, provider.Namespace, provider.Name, provider.Version, provider.Platform())
 }
 
 func (provider *Provider) Path() string {
@@ -62,7 +72,7 @@ func (provider *Provider) Match(target *Provider) bool {
 		(provider.Version == "" || target.Version == "" || provider.Version == target.Version) &&
 		(provider.OS == "" || target.OS == "" || provider.OS == target.OS) &&
 		(provider.Arch == "" || target.Arch == "" || provider.Arch == target.Arch) &&
-		(provider.DownloadURL == nil || target.DownloadURL == nil || provider.DownloadURL.String() == target.DownloadURL.String()) {
+		(provider.DownloadURL == "" || target.DownloadURL == "" || provider.DownloadURL == target.DownloadURL) {
 		return true
 	}
 	return false

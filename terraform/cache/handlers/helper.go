@@ -7,7 +7,11 @@ import (
 	"net/http"
 )
 
-func ModifyJSONBody(resp *http.Response, body any, fn func() error) error {
+func DecodeJSONBody(resp *http.Response, value any) error {
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+
 	buffer := new(bytes.Buffer)
 
 	if _, err := buffer.ReadFrom(resp.Body); err != nil {
@@ -15,8 +19,30 @@ func ModifyJSONBody(resp *http.Response, body any, fn func() error) error {
 	}
 
 	decoder := json.NewDecoder(buffer)
-	if err := decoder.Decode(body); err != nil {
+	if err := decoder.Decode(value); err != nil {
 		return err
+	}
+	return nil
+}
+
+func ModifyJSONBody(resp *http.Response, value any, fn func() error) error {
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+
+	buffer := new(bytes.Buffer)
+
+	if _, err := buffer.ReadFrom(resp.Body); err != nil {
+		return err
+	}
+
+	decoder := json.NewDecoder(buffer)
+	if err := decoder.Decode(value); err != nil {
+		return err
+	}
+
+	if fn == nil {
+		return nil
 	}
 
 	if err := fn(); err != nil {
@@ -24,7 +50,7 @@ func ModifyJSONBody(resp *http.Response, body any, fn func() error) error {
 	}
 
 	encoder := json.NewEncoder(buffer)
-	if err := encoder.Encode(body); err != nil {
+	if err := encoder.Encode(value); err != nil {
 		return err
 	}
 

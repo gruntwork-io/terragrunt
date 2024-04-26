@@ -86,9 +86,7 @@ func RunShellCommandWithOutput(
 ) (*CmdOutput, error) {
 	if command == terragruntOptions.TerraformPath {
 		if fn := TerraformCommandHookFromContext(ctx); fn != nil {
-			if err := fn(ctx, terragruntOptions, args); err != nil {
-				return nil, err
-			}
+			return fn(ctx, terragruntOptions, args)
 		}
 	}
 

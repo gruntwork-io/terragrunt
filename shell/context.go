@@ -10,7 +10,7 @@ const TerraformCommandContextKey ctxKey = iota
 
 type ctxKey byte
 
-type RunShellCommandFunc func(ctx context.Context, opts *options.TerragruntOptions, args []string) error
+type RunShellCommandFunc func(ctx context.Context, opts *options.TerragruntOptions, args []string) (*CmdOutput, error)
 
 func ContextWithTerraformCommandHook(ctx context.Context, fn RunShellCommandFunc) context.Context {
 	return context.WithValue(ctx, TerraformCommandContextKey, fn)
