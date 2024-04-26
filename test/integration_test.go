@@ -6678,7 +6678,7 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 			}
 
 			for _, module := range testCase.notExpectedModules {
-				assert.NotContainsf(t, output, "/"+module+"\n", "Expected module %s must not to be in output", module)
+				assert.NotContainsf(t, output, "Module "+tmpModulePath+"/"+module+"\n", "Expected module %s must not to be in output", module)
 			}
 		})
 	}
