@@ -151,6 +151,7 @@ const (
 	TEST_FIXTURE_INCLUDE_PARENT                                              = "fixture-include-parent"
 	TEST_FIXTURE_AUTO_INIT                                                   = "fixture-download/init-on-source-change"
 	TEST_FIXTURE_DISJOINT                                                    = "fixture-stack/disjoint"
+	TEST_FIXTURE_DISJOINT_SYMLINKS                                           = "fixture-stack/disjoint-symlinks"
 	TEST_FIXTURE_BROKEN_LOCALS                                               = "fixture-broken-locals"
 	TEST_FIXTURE_BROKEN_DEPENDENCY                                           = "fixture-broken-dependency"
 	TEST_FIXTURE_RENDER_JSON_METADATA                                        = "fixture-render-json-metadata"
@@ -1387,6 +1388,21 @@ func TestTerragruntStackCommandsWithPlanFile(t *testing.T) {
 	cleanupTerraformFolder(t, disjointEnvironmentPath)
 	runTerragrunt(t, fmt.Sprintf("terragrunt plan-all -out=plan.tfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir %s", disjointEnvironmentPath))
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all plan.tfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir %s", disjointEnvironmentPath))
+}
+
+func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DISJOINT_SYMLINKS)
+	disjointSymlinksEnvironmentPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISJOINT_SYMLINKS)
+
+	cleanupTerraformFolder(t, disjointSymlinksEnvironmentPath)
+	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all validate --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir %s", disjointSymlinksEnvironmentPath))
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, fmt.Sprintf("Module %s/a", disjointSymlinksEnvironmentPath))
+	assert.Contains(t, stderr, fmt.Sprintf("Module %s/b", disjointSymlinksEnvironmentPath))
+	assert.Contains(t, stderr, fmt.Sprintf("Module %s/c", disjointSymlinksEnvironmentPath))
 }
 
 func TestInvalidSource(t *testing.T) {
