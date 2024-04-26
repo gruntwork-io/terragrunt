@@ -2,6 +2,9 @@ package telemetry
 
 import (
 	"context"
+	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/options"
 
@@ -27,6 +30,8 @@ const (
 	otlpHttpTraceExporterType traceExporterType = "otlpHttp"
 	otlpGrpcTraceExporterType traceExporterType = "otlpGrpc"
 	httpTraceExporterType     traceExporterType = "http"
+
+	traceParentParts = 4
 )
 
 // Trace - collect traces for method execution
@@ -41,6 +46,7 @@ func Trace(ctx context.Context, opts *options.TerragruntOptions, name string, at
 	if err := fn(ctx); err != nil {
 		// record error in span
 		span.RecordError(err)
+		return err
 	}
 	return nil
 }
@@ -61,6 +67,39 @@ func configureTraceCollection(ctx context.Context, opts *TelemetryOptions) error
 	}
 	otel.SetTracerProvider(traceProvider)
 	rootTracer = traceProvider.Tracer(opts.AppName)
+
+	traceParent := env.GetString(opts.Vars["TRACEPARENT"], "")
+
+	if traceParent != "" {
+		// parse trace parent values
+		parts := strings.Split(traceParent, "-")
+		if len(parts) != traceParentParts {
+			return fmt.Errorf("invalid TRACEPARENT value %s", traceParent)
+		}
+		_, traceIdHex, spanIdHex, traceFlagsStr := parts[0], parts[1], parts[2], parts[3]
+		parsedFlag, err := strconv.Atoi(traceFlagsStr)
+		if err != nil {
+			return fmt.Errorf("invalid trace flags: %w", err)
+		}
+		traceFlags := trace.FlagsSampled
+		if parsedFlag == 0 {
+			traceFlags = 0
+		}
+
+		traceID, err := trace.TraceIDFromHex(traceIdHex)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		spanID, err := trace.SpanIDFromHex(spanIdHex)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		parentTraceID = &traceID
+		parentSpanID = &spanID
+		parentTraceFlags = &traceFlags
+	}
+
 	return nil
 }
 
@@ -127,6 +166,19 @@ func openSpan(ctx context.Context, name string, attrs map[string]interface{}) (c
 	if traceProvider == nil {
 		return ctx, nil
 	}
+
+	if parentTraceID != nil && parentSpanID != nil {
+		spanContext := trace.NewSpanContext(trace.SpanContextConfig{
+			TraceID:    *parentTraceID,
+			SpanID:     *parentSpanID,
+			Remote:     true,
+			TraceFlags: *parentTraceFlags,
+		})
+
+		// create a new context with the parent span context
+		ctx = trace.ContextWithSpanContext(ctx, spanContext)
+	}
+
 	ctx, span := rootTracer.Start(ctx, name)
 	// convert attrs map to span.SetAttributes
 	span.SetAttributes(mapToAttributes(attrs)...)
