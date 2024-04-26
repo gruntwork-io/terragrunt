@@ -267,6 +267,8 @@ func (module *runningModule) runNow(ctx context.Context, rootOptions *options.Te
 		if outputJsonFile(module.Module.TerragruntOptions, module.Module) != "" {
 			jsonOptions := module.Module.TerragruntOptions.Clone(module.Module.TerragruntOptions.TerragruntConfigPath)
 			stdout := bytes.Buffer{}
+			jsonOptions.IncludeModulePrefix = false
+			jsonOptions.TerraformLogsToJson = false
 			jsonOptions.Writer = &stdout
 			jsonOptions.TerraformCommand = terraform.CommandNameShow
 			jsonOptions.TerraformCliArgs = []string{terraform.CommandNameShow, "-json", modulePlanFile(rootOptions, module.Module)}
