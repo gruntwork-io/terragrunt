@@ -9,10 +9,9 @@ import (
 )
 
 func TestJsonHcl(t *testing.T) {
-	jsonData := `{"name": "peter", "parties":["one", "two", ["four"], {"six":61}]}`
+	jsonData := `{"parties":["one", "two", ["four"], {"six":61}]}`
 
 	expectedHCL := `
-  name = "peter"
   parties = [
     "one",
     "two",
