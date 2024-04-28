@@ -6678,7 +6678,7 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 			}
 
 			for _, module := range testCase.notExpectedModules {
-				assert.NotContainsf(t, output, "/"+module+"\n", "Expected module %s must not to be in output", module)
+				assert.NotContainsf(t, output, "Module "+tmpModulePath+"/"+module+"\n", "Expected module %s must not to be in output", module)
 			}
 		})
 	}
@@ -6716,19 +6716,16 @@ func TestTerragruntApplyGraph(t *testing.T) {
 			tmpEnvPath := prepareGraphFixture(t)
 			tmpModulePath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH, testCase.path)
 
-			stdout := bytes.Buffer{}
-			stderr := bytes.Buffer{}
-
-			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt graph apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
+			stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt graph apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath))
 			assert.NoError(t, err)
-			output := fmt.Sprintf("%v\n%v\n", stdout.String(), stderr.String())
+			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
 
 			for _, module := range testCase.expectedModules {
 				assert.Containsf(t, output, "/"+module+"\n", "Expected module %s to be in output", module)
 			}
 
 			for _, module := range testCase.notExpectedModules {
-				assert.NotContainsf(t, output, "/"+module+"\n", "Expected module %s must not to be in output", module)
+				assert.NotContainsf(t, output, "Module "+tmpModulePath+"/"+module+"\n", "Expected module %s must not to be in output", module)
 			}
 		})
 	}
@@ -6990,6 +6987,33 @@ func TestPlanJsonPlanBinaryRunAll(t *testing.T) {
 
 }
 
+func TestTerragruntRunAllPlanAndShow(t *testing.T) {
+	t.Parallel()
+
+	// create temporary directory for plan files
+	tmpDir := t.TempDir()
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUT_DIR)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUT_DIR)
+
+	// run plan and apply
+	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+
+	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+
+	// run new plan and show
+	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
+	require.NoError(t, err)
+
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all show --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s -no-color", testPath, tmpDir))
+	require.NoError(t, err)
+
+	// Verify that output contains the plan and not just the actual state output
+	assert.Contains(t, stdout, "No changes. Your infrastructure matches the configuration.")
+}
+
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
 	t.Helper()
 	output, hasPlatform := outputs[key]
@@ -7002,10 +7026,10 @@ func wrappedBinary() string {
 	value, found := os.LookupEnv("TERRAGRUNT_TFPATH")
 	if !found {
 		// if env variable is not defined, try to check through executing command
-		if util.IsCommandExecutable(TERRAFORM_BINARY, "-version") {
-			return TERRAFORM_BINARY
+		if util.IsCommandExecutable(TOFU_BINARY, "-version") {
+			return TOFU_BINARY
 		}
-		return TOFU_BINARY
+		return TERRAFORM_BINARY
 	}
 	return value
 }
