@@ -51,10 +51,10 @@ func (controller *DownloaderController) downloadProviderAction(ctx echo.Context)
 		Host:   remoteHost,
 		Path:   "/" + remotePath,
 	}
-	provider := &models.Provider{DownloadURL: downloadURL.String()}
+	provider := models.NewProviderFromDownloadURL(downloadURL.String())
 
 	if cache := controller.ProviderService.GetProviderCache(provider); cache != nil {
-		if filename := cache.ArchivePath(); filename != "" {
+		if filename := cache.Filename(); filename != "" {
 			log.Debugf("Using cached provider %s", cache.Provider)
 			return ctx.File(filename)
 		}

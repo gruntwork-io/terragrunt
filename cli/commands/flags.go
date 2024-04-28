@@ -50,20 +50,18 @@ const (
 	TerragruntJsonOutDirFlagName       = "terragrunt-json-out-dir"
 
 	// Terragrunt Provider Cache flags/envs
-	TerragruntProviderCacheFlagName                         = "terragrunt-provider-cache"
-	TerragruntProviderCacheEnvVarName                       = "TERRAGRUNT_PROVIDER_CACHE"
-	TerragruntProviderCacheDirFlagName                      = "terragrunt-provider-cache-dir"
-	TerragruntProviderCacheDirEnvVarName                    = "TERRAGRUNT_PROVIDER_CACHE_DIR"
-	TerragruntProviderCacheDisablePartialLockFileFlagName   = "terragrunt-provider-cache-disable-partial-lock-file"
-	TerragruntProviderCacheDisablePartialLockFileEnvVarName = "TERRAGRUNT_PROVIDER_CACHE_DISABLE_PARTIAL_LOCK_FILE"
-	TerragruntProviderCacheHostnameFlagName                 = "terragrunt-provider-cache-hostname"
-	TerragruntProviderCacheHostnameEnvVarName               = "TERRAGRUNT_PROVIDER_CACHE_HOSTNAME"
-	TerragruntProviderCachePortFlagName                     = "terragrunt-provider-cache-port"
-	TerragruntProviderCachePortEnvVarName                   = "TERRAGRUNT_PROVIDER_CACHE_PORT"
-	TerragruntProviderCacheTokenFlagName                    = "terragrunt-provider-cache-token"
-	TerragruntProviderCacheTokenEnvVarName                  = "TERRAGRUNT_PROVIDER_CACHE_TOKEN"
-	TerragruntProviderCacheRegistryNamesFlagName            = "terragrunt-provider-cache-registry-names"
-	TerragruntProviderCacheRegistryNamesEnvVarName          = "TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES"
+	TerragruntProviderCacheFlagName                = "terragrunt-provider-cache"
+	TerragruntProviderCacheEnvVarName              = "TERRAGRUNT_PROVIDER_CACHE"
+	TerragruntProviderCacheDirFlagName             = "terragrunt-provider-cache-dir"
+	TerragruntProviderCacheDirEnvVarName           = "TERRAGRUNT_PROVIDER_CACHE_DIR"
+	TerragruntProviderCacheHostnameFlagName        = "terragrunt-provider-cache-hostname"
+	TerragruntProviderCacheHostnameEnvVarName      = "TERRAGRUNT_PROVIDER_CACHE_HOSTNAME"
+	TerragruntProviderCachePortFlagName            = "terragrunt-provider-cache-port"
+	TerragruntProviderCachePortEnvVarName          = "TERRAGRUNT_PROVIDER_CACHE_PORT"
+	TerragruntProviderCacheTokenFlagName           = "terragrunt-provider-cache-token"
+	TerragruntProviderCacheTokenEnvVarName         = "TERRAGRUNT_PROVIDER_CACHE_TOKEN"
+	TerragruntProviderCacheRegistryNamesFlagName   = "terragrunt-provider-cache-registry-names"
+	TerragruntProviderCacheRegistryNamesEnvVarName = "TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES"
 
 	HelpFlagName    = "help"
 	VersionFlagName = "version"
@@ -286,12 +284,6 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.ProviderCacheDir,
 			EnvVar:      TerragruntProviderCacheDirEnvVarName,
 			Usage:       "The path to the Terragrunt provider cache directory. By default, 'terragrunt/providers' folder in the user cache directory.",
-		},
-		&cli.BoolFlag{
-			Name:        TerragruntProviderCacheDisablePartialLockFileFlagName,
-			Destination: &opts.ProviderCacheDisablePartialLockFile,
-			EnvVar:      TerragruntProviderCacheDisablePartialLockFileEnvVarName,
-			Usage:       "Don't use 'plugin_cache_may_break_dependency_lock_file' with Terragrunt provider caching. Provider downloads for modules without lock files will be much slower.",
 		},
 		&cli.GenericFlag[string]{
 			Name:        TerragruntProviderCacheTokenFlagName,

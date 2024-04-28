@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
+	"github.com/gruntwork-io/terragrunt/terraform/getproviders"
 	"github.com/labstack/echo/v4"
 )
 
@@ -129,9 +130,12 @@ func (controller *ProviderController) findPlatformsAction(ctx echo.Context) erro
 			var body map[string]json.RawMessage
 
 			if cacheRequestID != "" {
-				if err := handlers.DecodeJSONBody(resp, provider); err != nil {
+				var responseBody = new(getproviders.Package)
+
+				if err := handlers.DecodeJSONBody(resp, responseBody); err != nil {
 					return err
 				}
+				provider.Package = responseBody
 
 				controller.ProviderService.CacheProvider(ctx.Request().Context(), cacheRequestID, provider)
 				return ctx.NoContent(HTTPStatusCacheProvider)

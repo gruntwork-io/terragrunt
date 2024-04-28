@@ -5,31 +5,27 @@ import (
 	"net/url"
 	"path"
 
-	"github.com/gruntwork-io/terragrunt/terraform/provider"
+	"github.com/gruntwork-io/terragrunt/terraform/getproviders"
 )
-
-type SigningKeyList struct {
-	GPGPublicKeys []*provider.SigningKey `json:"gpg_public_keys"`
-}
 
 // Provider represents the details of the Terraform provider.
 type Provider struct {
+	*getproviders.Package
+
 	RegistryName string
 	Namespace    string
 	Name         string
 	Version      string
 	OS           string
 	Arch         string
+}
 
-	Protocols []string `json:"protocols"`
-	Filename  string   `json:"filename"`
-
-	DownloadURL            string `json:"download_url"`
-	SHA256SumsURL          string `json:"shasums_url"`
-	SHA256SumsSignatureURL string `json:"shasums_signature_url"`
-
-	SHA256Sum   string         `json:"shasum"`
-	SigningKeys SigningKeyList `json:"signing_keys"`
+func NewProviderFromDownloadURL(downloadURL string) *Provider {
+	return &Provider{
+		Package: &getproviders.Package{
+			DownloadURL: downloadURL,
+		},
+	}
 }
 
 // VersionURL returns the URL used to query the all Versions for a single provider.
@@ -53,15 +49,15 @@ func (provider *Provider) PlatformURL() *url.URL {
 }
 
 func (provider *Provider) String() string {
-	return fmt.Sprintf("%s/%s v%s", provider.Namespace, provider.Name, provider.Version)
+	return fmt.Sprintf("%s/%s/%s v%s", provider.RegistryName, provider.Namespace, provider.Name, provider.Version)
 }
 
 func (provider *Provider) Platform() string {
 	return fmt.Sprintf("%s_%s", provider.OS, provider.Arch)
 }
 
-func (provider *Provider) Path() string {
-	return path.Join(provider.RegistryName, provider.Namespace, provider.Name, provider.Version)
+func (provider *Provider) Address() string {
+	return path.Join(provider.RegistryName, provider.Namespace, provider.Name)
 }
 
 // Match returns true if all defined provider properties are matched.
