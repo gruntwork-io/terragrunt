@@ -30,18 +30,18 @@ func getAttributeValueAsUnquotedString(attr *hclwrite.Attribute) string {
 func tokensForListPerLine(hashes []Hash) hclwrite.Tokens {
 	// The original TokensForValue implementation does not break line by line for hashes,
 	// so we build a token sequence by ourselves.
-	tokens := hclwrite.Tokens{}
-	tokens = append(tokens, &hclwrite.Token{Type: hclsyntax.TokenOBrack, Bytes: []byte{'['}})
-	tokens = append(tokens, &hclwrite.Token{Type: hclsyntax.TokenNewline, Bytes: []byte{'\n'}})
+	tokens := append(hclwrite.Tokens{},
+		&hclwrite.Token{Type: hclsyntax.TokenOBrack, Bytes: []byte{'['}},
+		&hclwrite.Token{Type: hclsyntax.TokenNewline, Bytes: []byte{'\n'}})
 
 	for _, hash := range hashes {
 		ts := hclwrite.TokensForValue(cty.StringVal(hash.String()))
 		tokens = append(tokens, ts...)
-		tokens = append(tokens, &hclwrite.Token{Type: hclsyntax.TokenComma, Bytes: []byte{','}})
-		tokens = append(tokens, &hclwrite.Token{Type: hclsyntax.TokenNewline, Bytes: []byte{'\n'}})
+		tokens = append(tokens,
+			&hclwrite.Token{Type: hclsyntax.TokenComma, Bytes: []byte{','}},
+			&hclwrite.Token{Type: hclsyntax.TokenNewline, Bytes: []byte{'\n'}})
 	}
 
 	tokens = append(tokens, &hclwrite.Token{Type: hclsyntax.TokenCBrack, Bytes: []byte{']'}})
-
 	return tokens
 }

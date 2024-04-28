@@ -35,13 +35,12 @@ func UpdateLockfile(ctx context.Context, workingDir string, providers Providers)
 	}
 
 	if err := updateLockfile(ctx, file, providers); err != nil {
-
+		return err
 	}
 
 	if err := os.WriteFile(filename, file.Bytes(), 0644); err != nil {
 		return errors.WithStackTrace(err)
 	}
-
 	return nil
 }
 
