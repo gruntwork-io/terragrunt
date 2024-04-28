@@ -280,9 +280,6 @@ type TerragruntOptions struct {
 	// The path to store unpacked providers. The file structure is the same as terraform plugin cache dir.
 	ProviderCacheDir string
 
-	// The path to store archive providers that are retrieved from the source registry and cached to reduce traffic.
-	ProviderCacheArchiveDir string
-
 	// The Token for authentication to the Terragrunt Provider Cache server.
 	ProviderCacheToken string
 
@@ -512,7 +509,6 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		ProviderCache:                  opts.ProviderCache,
 		ProviderCacheToken:             opts.ProviderCacheToken,
 		ProviderCacheDir:               opts.ProviderCacheDir,
-		ProviderCacheArchiveDir:        opts.ProviderCacheArchiveDir,
 		ProviderCacheRegistryNames:     opts.ProviderCacheRegistryNames,
 		DisableLogColors:               opts.DisableLogColors,
 		OutputFolder:                   opts.OutputFolder,

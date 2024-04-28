@@ -7031,7 +7031,7 @@ func wrappedBinary() string {
 		}
 		return TERRAFORM_BINARY
 	}
-	return value
+	return filepath.Base(value)
 }
 
 func isTerraform() bool {

@@ -240,9 +240,6 @@ type ProviderService struct {
 	// The path to store unpacked providers. The file structure is the same as terraform plugin cache dir.
 	baseCacheDir string
 
-	// The path to store archive providers that are retrieved from the source registry and cached to reduce traffic.
-	baseArchiveDir string
-
 	// the user plugins directory, by default: %APPDATA%\terraform.d\plugins on Windows, ~/.terraform.d/plugins on other systems.
 	baseUserCacheDir string
 
@@ -253,11 +250,10 @@ type ProviderService struct {
 	cacheReadyMu sync.RWMutex
 }
 
-func NewProviderService(baseCacheDir, baseArchiveDir, baseUserCacheDir string) *ProviderService {
+func NewProviderService(baseCacheDir, baseUserCacheDir string) *ProviderService {
 	return &ProviderService{
 		baseCacheDir:          baseCacheDir,
 		baseUserCacheDir:      baseUserCacheDir,
-		baseArchiveDir:        baseArchiveDir,
 		providerCacheWarmUpCh: make(chan *ProviderCache),
 	}
 }
@@ -294,8 +290,8 @@ func (service *ProviderService) CacheProvider(ctx context.Context, requestID str
 
 		userProviderDir: filepath.Join(service.baseUserCacheDir, provider.Address(), provider.Version, provider.Platform()),
 		packageDir:      filepath.Join(service.baseCacheDir, provider.Address(), provider.Version, provider.Platform()),
-		lockfilePath:    filepath.Join(service.baseArchiveDir, fmt.Sprintf("%s.lock", packageName)),
-		archivePath:     filepath.Join(service.baseArchiveDir, fmt.Sprintf("%s%s", packageName, path.Ext(provider.Filename))),
+		lockfilePath:    filepath.Join(service.baseCacheDir, fmt.Sprintf("%s.lock", packageName)),
+		archivePath:     filepath.Join(service.baseCacheDir, fmt.Sprintf("%s%s", packageName, path.Ext(provider.Filename))),
 	}
 
 	select {
@@ -329,22 +325,7 @@ func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
 	}
 	log.Debugf("Provider cache dir %q", service.baseCacheDir)
 
-	if service.baseArchiveDir == "" {
-		return errors.Errorf("provider archive directory not specified")
-	}
-	log.Debugf("Provider archive dir %q", service.baseArchiveDir)
-
-	if service.baseCacheDir == service.baseArchiveDir {
-		// We can only store uncompressed provider files in `baseCacheDir` because tofu considers any files there as providers.
-		// https://github.com/opentofu/opentofu/blob/bdab86962fdd0a2106a744d7f8f1d3d3e7bc893e/internal/provider/filesystem_search.go#L27
-		return errors.Errorf("the same directory is used for both unarchived and archived provider files")
-	}
-
 	if err := os.MkdirAll(service.baseCacheDir, os.ModePerm); err != nil {
-		return errors.WithStackTrace(err)
-	}
-
-	if err := os.MkdirAll(service.baseArchiveDir, os.ModePerm); err != nil {
 		return errors.WithStackTrace(err)
 	}
 

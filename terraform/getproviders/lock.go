@@ -15,6 +15,7 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+// UpdateLockfile updates the dependency lock file.
 func UpdateLockfile(ctx context.Context, workingDir string, providers Providers) error {
 	var (
 		filename = filepath.Join(workingDir, terraform.TerraformLockFile)
@@ -44,7 +45,6 @@ func UpdateLockfile(ctx context.Context, workingDir string, providers Providers)
 	return nil
 }
 
-// UpdateLockfile updates the dependency lock file.
 func updateLockfile(ctx context.Context, file *hclwrite.File, providers Providers) error {
 	for _, provider := range providers {
 		providerBlock := file.Body().FirstMatchingBlock("provider", []string{provider.Address()})
