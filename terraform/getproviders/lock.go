@@ -16,7 +16,7 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-// UpdateLockfile updates the dependency lock file.
+// UpdateLockfile updates the dependency lock file. If `.terraform.lock.hcl` does not exist, it will be created, otherwise it will be updated.
 func UpdateLockfile(ctx context.Context, workingDir string, providers Providers) error {
 	var (
 		filename = filepath.Join(workingDir, terraform.TerraformLockFile)

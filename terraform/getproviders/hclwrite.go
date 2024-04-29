@@ -8,10 +8,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-// getAttributeValueAsString returns a value of Attribute as string.
-// There is no way to get value as string directly,
-// so we parses tokens of Attribute and build string representation.
-// The returned value is unquoted.
+// getAttributeValueAsString returns a value of Attribute as string. There is no way to get value as string directly, so we parses tokens of Attribute and build string representation.
 func getAttributeValueAsUnquotedString(attr *hclwrite.Attribute) string {
 	// find TokenEqual
 	expr := attr.Expr()
@@ -28,8 +25,7 @@ func getAttributeValueAsUnquotedString(attr *hclwrite.Attribute) string {
 
 // tokensForListPerLine builds a hclwrite.Tokens for a given hashes, but breaks the line for each element.
 func tokensForListPerLine(hashes []Hash) hclwrite.Tokens {
-	// The original TokensForValue implementation does not break line by line for hashes,
-	// so we build a token sequence by ourselves.
+	// The original TokensForValue implementation does not break line by line for hashes, so we build a token sequence by ourselves.
 	tokens := append(hclwrite.Tokens{},
 		&hclwrite.Token{Type: hclsyntax.TokenOBrack, Bytes: []byte{'['}},
 		&hclwrite.Token{Type: hclsyntax.TokenNewline, Bytes: []byte{'\n'}})
