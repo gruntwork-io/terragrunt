@@ -241,14 +241,24 @@ func TestTerragruntProviderCache(t *testing.T) {
 
 		subDir = filepath.Join(rootPath, subDir)
 
+		expectedLockfile, err := os.ReadFile(filepath.Join(subDir, ".terraform.lock.hcl"))
+		require.NoError(t, err)
+
 		entries, err := os.ReadDir(subDir)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		for _, entry := range entries {
 			if !entry.IsDir() {
 				continue
 			}
 			actualApps++
+
+			appPath := filepath.Join(subDir, entry.Name())
+
+			actualLockfile, err := os.ReadFile(filepath.Join(appPath, ".terraform.lock.hcl"))
+			require.NoError(t, err)
+
+			assert.Equal(t, string(expectedLockfile), string(actualLockfile), "working dir: %s", appPath)
 
 			for _, provider := range providers {
 				var (
@@ -257,7 +267,7 @@ func TestTerragruntProviderCache(t *testing.T) {
 					provider                 = path.Join(registryName, provider)
 				)
 
-				providerPath := filepath.Join(subDir, entry.Name(), ".terraform/providers", provider)
+				providerPath := filepath.Join(appPath, ".terraform/providers", provider)
 				assert.True(t, util.FileExists(providerPath))
 
 				entries, err := os.ReadDir(providerPath)

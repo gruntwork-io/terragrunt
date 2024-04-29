@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -46,6 +47,10 @@ func UpdateLockfile(ctx context.Context, workingDir string, providers Providers)
 }
 
 func updateLockfile(ctx context.Context, file *hclwrite.File, providers Providers) error {
+	sort.Slice(providers, func(i, j int) bool {
+		return providers[i].Address() < providers[j].Address()
+	})
+
 	for _, provider := range providers {
 		providerBlock := file.Body().FirstMatchingBlock("provider", []string{provider.Address()})
 		if providerBlock != nil {
