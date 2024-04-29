@@ -36,7 +36,17 @@ var (
 	// The reg matches if the text contains "423 Locked", for example:
 	//
 	// - registry.terraform.io/hashicorp/template: could not query provider registry for registry.terraform.io/hashicorp/template: 423 Locked.
-	HTTPStatusCacheProviderReg = regexp.MustCompile(`(?mi)` + strconv.Itoa(controllers.HTTPStatusCacheProvider) + `[^a-z0-9]*` + http.StatusText(controllers.HTTPStatusCacheProvider))
+	//
+	// It also will match cases where terminal window is small enough so that terraform splits output in multiple lines, like following:
+	//
+	//    ╷
+	//    │ Error: Failed to install provider
+	//    │
+	//    │ Error while installing snowflake-labs/snowflake v0.89.0: could not query
+	//    │ provider registry for registry.terraform.io/snowflake-labs/snowflake: 423
+	//    │ Locked
+	//    ╵
+	HTTPStatusCacheProviderReg = regexp.MustCompile(`(?smi)` + strconv.Itoa(controllers.HTTPStatusCacheProvider) + `.*` + http.StatusText(controllers.HTTPStatusCacheProvider))
 )
 
 type ProviderCache struct {
