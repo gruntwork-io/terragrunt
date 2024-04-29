@@ -3,8 +3,9 @@ package test
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/util"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 func testRunAllPlan(t *testing.T, args string) (string, string, string, error) {
