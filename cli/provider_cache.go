@@ -32,7 +32,7 @@ const (
 )
 
 var (
-	// HTTPStatusCacheProviderReg is regular expression to determine the success result of the command `terraform lock providers -platform=cache provider`.
+	// HTTPStatusCacheProviderReg is regular expression to determine the success result of the command `terraform init`.
 	// The reg matches if the text contains "423 Locked", for example:
 	//
 	// - registry.terraform.io/hashicorp/template: could not query provider registry for registry.terraform.io/hashicorp/template: 423 Locked.
