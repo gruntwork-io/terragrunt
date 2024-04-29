@@ -399,12 +399,8 @@ func TestTerragruntProduceTelemetryTraces(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	output, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 	assert.NoError(t, err)
-
-	output := stdout.String()
 
 	// check that output have Telemetry json output
 	assert.Contains(t, output, "\"SpanContext\":")
@@ -420,15 +416,11 @@ func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	output, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 	assert.NoError(t, err)
 
 	// sleep for a bit to allow the metrics to be flushed
 	time.Sleep(1 * time.Second)
-
-	output := stdout.String()
 
 	// check that output have Telemetry json output
 	assert.Contains(t, output, "{\"Name\":\"hook_after_hook_2_duration\"")
@@ -446,16 +438,13 @@ func TestTerragruntOutputJson(t *testing.T) {
 	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_NOT_EXISTING_SOURCE)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-json-log --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply --terragrunt-json-log --terragrunt-non-interactive --terragrunt-working-dir %s", testPath))
 	assert.Error(t, err)
 
 	var msgs []string
 
 	// for windows OS
-	output := bytes.ReplaceAll(stderr.Bytes(), []byte("\r\n"), []byte("\n"))
+	output := bytes.ReplaceAll([]byte(stderr), []byte("\r\n"), []byte("\n"))
 
 	multipeJSONs := bytes.Split(output, []byte("\n"))
 	for _, jsonBytes := range multipeJSONs {
@@ -486,16 +475,13 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_ERROR)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --no-color --terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply --no-color --terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-non-interactive --terragrunt-working-dir %s", testPath))
 	assert.Error(t, err)
 
-	assert.Contains(t, stderr.String(), "\"level\":\"info\",\"msg\":\"Initializing the backend...")
+	assert.Contains(t, stderr, "\"level\":\"info\",\"msg\":\"Initializing the backend...")
 
 	// check if output can be extracted in json
-	jsonStrings := strings.Split(stderr.String(), "\n")
+	jsonStrings := strings.Split(stderr, "\n")
 	for _, jsonString := range jsonStrings {
 		if len(jsonString) == 0 {
 			continue
