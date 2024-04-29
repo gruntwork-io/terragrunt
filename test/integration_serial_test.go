@@ -541,6 +541,46 @@ func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {
 	}
 }
 
+func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
+	// no parallel test execution since JSON output is global
+	defer func() {
+		util.DisableJsonFormat()
+	}()
+	testCases := []struct {
+		arg string
+	}{
+		{"--terragrunt-json-log"},
+		{"--terragrunt-json-log --terragrunt-tf-logs-to-json"},
+		{"--terragrunt-include-module-prefix"},
+		{"--terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-include-module-prefix"},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(fmt.Sprintf("terragrunt with %s", testCase.arg), func(t *testing.T) {
+			tmpDir := t.TempDir()
+			_, _, _, err := testRunAllPlan(t, fmt.Sprintf("--terragrunt-json-out-dir %s %s", tmpDir, testCase.arg))
+			require.NoError(t, err)
+			list, err := findFilesWithExtension(tmpDir, ".json")
+			require.NoError(t, err)
+			assert.Equal(t, 2, len(list))
+			for _, file := range list {
+				assert.Equal(t, "tfplan.json", filepath.Base(file))
+				// verify that file is not empty
+				content, err := os.ReadFile(file)
+				require.NoError(t, err)
+				assert.NotEmpty(t, content)
+				// check that produced json is valid and can be unmarshalled
+				var plan map[string]interface{}
+				err = json.Unmarshal(content, &plan)
+				require.NoError(t, err)
+				// check that plan is not empty
+				assert.NotEmpty(t, plan)
+			}
+		})
+
+	}
+}
+
 func TestTerragruntProduceTelemetryTracesWithRootSpanAndTraceID(t *testing.T) {
 	t.Setenv("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER", "console")
 	t.Setenv("TRACEPARENT", "00-b2ff2d54551433d53dd807a6c94e81d1-0e6f631d793c718a-01")
