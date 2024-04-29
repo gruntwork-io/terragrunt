@@ -12,7 +12,7 @@ type Provider interface {
 	// Address returns a source address of the provider. e.g.: registry.terraform.io/hashicorp/aws
 	Address() string
 
-	// version returns a version of the provider. e.g.: 5.36.0
+	// Version returns a version of the provider. e.g.: 5.36.0
 	Version() string
 
 	// DocumentSHA256Sums returns a document with providers hashes for different platforms.
