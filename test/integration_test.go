@@ -241,7 +241,7 @@ func TestTerragruntProviderCache(t *testing.T) {
 
 		subDir = filepath.Join(rootPath, subDir)
 
-		expectedLockfile, err := os.ReadFile(filepath.Join(subDir, ".terraform.lock.hcl"))
+		expectedLockfile, err := os.ReadFile(filepath.Join(subDir, "terraform.lock.hcl"))
 		require.NoError(t, err)
 
 		entries, err := os.ReadDir(subDir)
