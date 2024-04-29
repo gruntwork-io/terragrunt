@@ -146,6 +146,7 @@ provider "registry.terraform.io/hashicorp/template" {
 				_, err = file.WriteString(testCase.initialLockfile)
 				require.NoError(t, err)
 				err = file.Close()
+				require.NoError(t, err)
 			}
 
 			err = UpdateLockfile(context.Background(), workingDir, testCase.providers)

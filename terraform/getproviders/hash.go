@@ -88,7 +88,8 @@ func DocumentHashes(doc []byte) []Hash {
 	sc := bufio.NewScanner(bytes.NewReader(doc))
 	for sc.Scan() {
 		parts := bytes.Fields(sc.Bytes())
-		if len(parts) < 2 {
+		columns := 2
+		if len(parts) != columns {
 			// Doesn't look like a valid sums file line, so we'll assume this whole thing isn't a checksums file.
 			continue
 		}
