@@ -170,6 +170,8 @@ jobs:
           command: |
             mkdir -p logs
             go mod tidy
+            go install github.com/vektra/mockery/v2@v2.36.0
+            go generate ./...
             run-go-tests --parallelism 1 --packages "$(go list ./... | grep -v /test | tr '\n' ' ')"  | tee logs/unit.log
             go test -run=TestParseDependencyBlockMultiple -race ./config | tee -a logs/unit.log
       - run:

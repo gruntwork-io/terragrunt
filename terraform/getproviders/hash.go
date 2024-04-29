@@ -88,9 +88,9 @@ func DocumentHashes(doc []byte) []Hash {
 	sc := bufio.NewScanner(bytes.NewReader(doc))
 	for sc.Scan() {
 		parts := bytes.Fields(sc.Bytes())
-		if len(parts) != 0 && len(parts) < 2 {
+		if len(parts) < 2 {
 			// Doesn't look like a valid sums file line, so we'll assume this whole thing isn't a checksums file.
-			return nil
+			continue
 		}
 
 		// If this is a checksums file then the first part should be a hex-encoded SHA256 hash, so it should be 64 characters long and contain only hex digits.
