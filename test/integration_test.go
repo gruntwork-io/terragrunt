@@ -3675,6 +3675,51 @@ func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
 	}
 }
 
+func TestTerragruntGenerateBlockSkipRemove(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_CODEGEN_PATH)
+	generateTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_CODEGEN_PATH, "remove-file", "skip")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
+	assert.FileExists(t, filepath.Join(generateTestCase, "backend.tf"))
+}
+
+func TestTerragruntGenerateBlockRemove(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_CODEGEN_PATH)
+	generateTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_CODEGEN_PATH, "remove-file", "remove")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
+	assert.NoFileExists(t, filepath.Join(generateTestCase, "backend.tf"))
+}
+
+func TestTerragruntGenerateBlockRemoveTerragruntSuccess(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_CODEGEN_PATH)
+	generateTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_CODEGEN_PATH, "remove-file", "remove_terragrunt")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
+	assert.NoFileExists(t, filepath.Join(generateTestCase, "backend.tf"))
+}
+
+func TestTerragruntGenerateBlockRemoveTerragruntFail(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_CODEGEN_PATH)
+	generateTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_CODEGEN_PATH, "remove-file", "remove_terragrunt_error")
+
+	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
+	require.Error(t, err)
+
+	_, ok := errors.Unwrap(err).(codegen.GenerateFileRemoveError)
+	assert.True(t, ok)
+
+	assert.FileExists(t, filepath.Join(generateTestCase, "backend.tf"))
+}
+
 func TestTerragruntGenerateBlockSkip(t *testing.T) {
 	t.Parallel()
 
