@@ -24,7 +24,7 @@ var runAllDisabledCommands = map[string]string{
 	// certain use cases that are documented here:
 	// - state          : Supporting `state` with run-all could be useful for a mass pull and push operation, which can
 	//                    be done en masse with the use of relative pathing.
-	// - login / logout : Supporting `login` with run-all could be useful when used in conjunction with tfenv and
+	// - login / logout : Supporting `login` with run-all could be useful when used in conjunction with mise and
 	//                    multi-terraform version setups, where multiple terraform versions need to be configured.
 	// - version        : Supporting `version` with run-all could be useful for sanity checking a multi-version setup.
 }
