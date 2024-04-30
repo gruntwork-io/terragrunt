@@ -75,7 +75,7 @@ var (
 		}
 	}
 
-	DefaultDisabledValueStr = codegen.DisabledSkipStr
+	DefaultGenerateBlockIfDisabledValueStr = codegen.DisabledSkipStr
 )
 
 // TerragruntConfig represents a parsed and expanded configuration
@@ -1087,7 +1087,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 		}
 
 		if block.IfDisabled == nil {
-			block.IfDisabled = &DefaultDisabledValueStr
+			block.IfDisabled = &DefaultGenerateBlockIfDisabledValueStr
 		}
 
 		ifDisabled, err := codegen.GenerateConfigDisabledFromString(*block.IfDisabled)

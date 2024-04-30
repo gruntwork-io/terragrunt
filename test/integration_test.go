@@ -3598,6 +3598,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 			"provider": map[string]interface{}{
 				"path":              "provider.tf",
 				"if_exists":         "overwrite_terragrunt",
+				"if_disabled":       "skip",
 				"comment_prefix":    "# ",
 				"disable_signature": false,
 				"disable":           false,
@@ -5495,6 +5496,7 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 				"disable_signature": false,
 				"disable":           false,
 				"if_exists":         "overwrite",
+				"if_disabled":       "skip",
 				"path":              "provider.tf",
 			},
 		},
