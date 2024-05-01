@@ -497,9 +497,6 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 
 func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {
 	// no parallel test execution since JSON output is global
-	defer func() {
-		util.DisableJsonFormat()
-	}()
 	testCases := []struct {
 		arg string
 	}{
@@ -511,6 +508,9 @@ func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(fmt.Sprintf("terragrunt output with %s", testCase.arg), func(t *testing.T) {
+			defer func() {
+				util.DisableJsonFormat()
+			}()
 			tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_DEPENDENCY_OUTPUT)
 			rootTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DEPENDENCY_OUTPUT)
 			// apply dependency first
