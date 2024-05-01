@@ -243,6 +243,8 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 	cloneOpts.ErrWriter = errWriter
 	cloneOpts.WorkingDir = opts.WorkingDir
 	cloneOpts.TerraformCliArgs = args
+	cloneOpts.IncludeModulePrefix = false
+	cloneOpts.JsonLogFormat = false
 
 	if envs != nil {
 		maps.Copy(cloneOpts.Env, envs)
