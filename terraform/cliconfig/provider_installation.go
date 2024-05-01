@@ -1,41 +1,48 @@
 package cliconfig
 
-// ProviderInstallationMethod represents an installation method block inside a provider_installation block.
-type ProviderInstallationMethod struct {
-	Include []string `hcl:"include"`
-	Exclude []string `hcl:"exclude"`
-}
-
 type ProviderInstallationFilesystemMirror struct {
-	Location string `hcl:"path"`
-	*ProviderInstallationMethod
+	Location string    `hcl:"path,attr"`
+	Include  *[]string `hcl:"include,attr"`
+	Exclude  *[]string `hcl:"exclude,attr"`
 }
 
 func NewProviderInstallationFilesystemMirror(location string, include, exclude []string) *ProviderInstallationFilesystemMirror {
-	return &ProviderInstallationFilesystemMirror{
+	res := &ProviderInstallationFilesystemMirror{
 		Location: location,
-		ProviderInstallationMethod: &ProviderInstallationMethod{
-			Include: include,
-			Exclude: exclude,
-		},
 	}
+
+	if len(include) > 0 {
+		res.Include = &include
+	}
+
+	if len(exclude) > 0 {
+		res.Exclude = &exclude
+	}
+
+	return res
 }
 
 type ProviderInstallationDirect struct {
-	*ProviderInstallationMethod
+	Include *[]string `hcl:"include,attr"`
+	Exclude *[]string `hcl:"exclude,attr"`
 }
 
 func NewProviderInstallationDirect(include, exclude []string) *ProviderInstallationDirect {
-	return &ProviderInstallationDirect{
-		ProviderInstallationMethod: &ProviderInstallationMethod{
-			Include: include,
-			Exclude: exclude,
-		},
+	res := new(ProviderInstallationDirect)
+
+	if len(include) > 0 {
+		res.Include = &include
 	}
+
+	if len(exclude) > 0 {
+		res.Exclude = &exclude
+	}
+
+	return res
 }
 
 // ProviderInstallation is the structure of the "provider_installation" nested block within the CLI configuration.
 type ProviderInstallation struct {
-	FilesystemMirror *ProviderInstallationFilesystemMirror `hcl:"filesystem_mirror"`
-	Direct           *ProviderInstallationDirect           `hcl:"direct"`
+	FilesystemMirror *ProviderInstallationFilesystemMirror `hcl:"filesystem_mirror,block"`
+	Direct           *ProviderInstallationDirect           `hcl:"direct,block"`
 }
