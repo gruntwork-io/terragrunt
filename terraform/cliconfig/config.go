@@ -14,9 +14,7 @@ var (
 	configParamPluginCacheDirReg = regexp.MustCompile(`(?mi)^\s*plugin_cache_dir\s*=\s*(.*?)\s*$`)
 )
 
-// ConfigHost is the structure of the "host" nested block within the CLI
-// configuration, which can be used to override the default service host
-// discovery behavior for a particular hostname.
+// ConfigHost is the structure of the "host" nested block within the CLI configuration, which can be used to override the default service host discovery behavior for a particular hostname.
 type ConfigHost struct {
 	Name     string            `hcl:",label"`
 	Services map[string]string `hcl:"services,attr"`
