@@ -74,6 +74,8 @@ var (
 			hclparse.WithFileUpdate(updateBareIncludeBlock),
 		}
 	}
+
+	DefaultGenerateBlockIfDisabledValueStr = codegen.DisabledSkipStr
 )
 
 // TerragruntConfig represents a parsed and expanded configuration
@@ -265,6 +267,7 @@ type terragruntGenerateBlock struct {
 	Name             string  `hcl:",label"`
 	Path             string  `hcl:"path,attr" mapstructure:"path"`
 	IfExists         string  `hcl:"if_exists,attr" mapstructure:"if_exists"`
+	IfDisabled       *string `hcl:"if_disabled,attr" mapstructure:"if_disabled"`
 	CommentPrefix    *string `hcl:"comment_prefix,attr" mapstructure:"comment_prefix"`
 	Contents         string  `hcl:"contents,attr" mapstructure:"contents"`
 	DisableSignature *bool   `hcl:"disable_signature,attr" mapstructure:"disable_signature"`
@@ -1082,11 +1085,23 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 		if err != nil {
 			return nil, err
 		}
+
+		if block.IfDisabled == nil {
+			block.IfDisabled = &DefaultGenerateBlockIfDisabledValueStr
+		}
+
+		ifDisabled, err := codegen.GenerateConfigDisabledFromString(*block.IfDisabled)
+		if err != nil {
+			return nil, err
+		}
+
 		genConfig := codegen.GenerateConfig{
-			Path:        block.Path,
-			IfExists:    ifExists,
-			IfExistsStr: block.IfExists,
-			Contents:    block.Contents,
+			Path:          block.Path,
+			IfExists:      ifExists,
+			IfExistsStr:   block.IfExists,
+			IfDisabled:    ifDisabled,
+			IfDisabledStr: *block.IfDisabled,
+			Contents:      block.Contents,
 		}
 		if block.CommentPrefix == nil {
 			genConfig.CommentPrefix = codegen.DefaultCommentPrefix
