@@ -3598,6 +3598,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 			"provider": map[string]interface{}{
 				"path":              "provider.tf",
 				"if_exists":         "overwrite_terragrunt",
+				"if_disabled":       "skip",
 				"comment_prefix":    "# ",
 				"disable_signature": false,
 				"disable":           false,
@@ -3673,6 +3674,51 @@ func logBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
 	for _, line := range lines {
 		t.Logf("[%s] %s", t.Name(), line)
 	}
+}
+
+func TestTerragruntGenerateBlockSkipRemove(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_CODEGEN_PATH)
+	generateTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_CODEGEN_PATH, "remove-file", "skip")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
+	assert.FileExists(t, filepath.Join(generateTestCase, "backend.tf"))
+}
+
+func TestTerragruntGenerateBlockRemove(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_CODEGEN_PATH)
+	generateTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_CODEGEN_PATH, "remove-file", "remove")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
+	assert.NoFileExists(t, filepath.Join(generateTestCase, "backend.tf"))
+}
+
+func TestTerragruntGenerateBlockRemoveTerragruntSuccess(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_CODEGEN_PATH)
+	generateTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_CODEGEN_PATH, "remove-file", "remove_terragrunt")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
+	assert.NoFileExists(t, filepath.Join(generateTestCase, "backend.tf"))
+}
+
+func TestTerragruntGenerateBlockRemoveTerragruntFail(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_CODEGEN_PATH)
+	generateTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_CODEGEN_PATH, "remove-file", "remove_terragrunt_error")
+
+	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", generateTestCase))
+	require.Error(t, err)
+
+	_, ok := errors.Unwrap(err).(codegen.GenerateFileRemoveError)
+	assert.True(t, ok)
+
+	assert.FileExists(t, filepath.Join(generateTestCase, "backend.tf"))
 }
 
 func TestTerragruntGenerateBlockSkip(t *testing.T) {
@@ -5450,6 +5496,7 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 				"disable_signature": false,
 				"disable":           false,
 				"if_exists":         "overwrite",
+				"if_disabled":       "skip",
 				"path":              "provider.tf",
 			},
 		},
