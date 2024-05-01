@@ -529,9 +529,6 @@ func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {
 
 func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
 	// no parallel test execution since JSON output is global
-	defer func() {
-		util.DisableJsonFormat()
-	}()
 	testCases := []struct {
 		arg string
 	}{
@@ -543,6 +540,9 @@ func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(fmt.Sprintf("terragrunt with %s", testCase.arg), func(t *testing.T) {
+			defer func() {
+				util.DisableJsonFormat()
+			}()
 			tmpDir := t.TempDir()
 			_, _, _, err := testRunAllPlan(t, fmt.Sprintf("--terragrunt-json-out-dir %s %s", tmpDir, testCase.arg))
 			require.NoError(t, err)
