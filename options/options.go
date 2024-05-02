@@ -316,6 +316,9 @@ type TerragruntOptions struct {
 
 	// Options to use engine for running IaC operations.
 	Engine *EngineOptions
+
+	// Option whether to recursively parse module dependencies.
+	RecurseDependencies bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -422,6 +425,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
 		OutputFolder:               "",
 		JsonOutputFolder:           "",
+		RecurseDependencies:        false,
 	}
 }
 
@@ -566,6 +570,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		AuthProviderCmd:                opts.AuthProviderCmd,
 		SkipOutput:                     opts.SkipOutput,
 		Engine:                         cloneEngineOptions(opts.Engine),
+		RecurseDependencies:            opts.RecurseDependencies,
 	}
 }
 

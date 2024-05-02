@@ -44,6 +44,7 @@ const (
 	TerragruntFailOnStateBucketCreationFlagName      = "terragrunt-fail-on-state-bucket-creation"
 	TerragruntDisableBucketUpdateFlagName            = "terragrunt-disable-bucket-update"
 	TerragruntDisableCommandValidationFlagName       = "terragrunt-disable-command-validation"
+	TerragruntRecurseDependenciesFlagName            = "terragrunt-recurse-dependencies"
 
 	TerragruntAuthProviderCmdFlagName   = "terragrunt-auth-provider-cmd"
 	TerragruntAuthProviderCmdEnvVarName = "TERRAGRUNT_AUTH_PROVIDER_CMD"
@@ -168,6 +169,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.IAMRoleOptions.WebIdentityToken,
 			EnvVar:      "TERRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN",
 			Usage:       "For AssumeRoleWithWebIdentity, the WebIdentity token. Can also be set via TERRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN environment variable",
+		},
+		&cli.BoolFlag{
+			Name:        TerragruntRecurseDependenciesFlagName,
+			Destination: &opts.RecurseDependencies,
+			EnvVar:      "TERRAGRUNT_RECURSE_DEPENDENCIES",
+			Usage:       "Recursively parse dependencies of dependencies. By default, disabled",
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntIgnoreDependencyErrorsFlagName,
