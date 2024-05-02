@@ -490,7 +490,6 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 		err = json.Unmarshal([]byte(jsonString), &output)
 		assert.NoErrorf(t, err, "Failed to parse json %s", jsonString)
 		assert.NotNil(t, output["level"])
-		assert.NotNil(t, output["level"])
 		assert.NotNil(t, output["time"])
 	}
 }

@@ -113,13 +113,19 @@ func RunShellCommandWithOutput(
 		// TODO: consider adding prefix from terragruntOptions logger to stdout and stderr
 		cmd.Env = toEnvVarsList(terragruntOptions.Env)
 
-		var errWriter = terragruntOptions.ErrWriter
 		var outWriter = terragruntOptions.Writer
+		var errWriter = terragruntOptions.ErrWriter
 
 		// redirect output through logger with json wrapping
 		if terragruntOptions.JsonLogFormat && terragruntOptions.TerraformLogsToJson {
-			outWriter = util.NewJsonWriter(outWriter, map[string]interface{}{"workingDir": terragruntOptions.WorkingDir, "executedCommandArgs": args, "level": "info"})
-			errWriter = util.NewJsonWriter(errWriter, map[string]interface{}{"workingDir": terragruntOptions.WorkingDir, "executedCommandArgs": args, "level": "error"})
+
+			jsonWriter := terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args)
+			jsonWriter.Logger.Out = outWriter
+			outWriter = jsonWriter.Writer()
+
+			jsonErrorWriter := terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args)
+			jsonErrorWriter.Logger.Out = errWriter
+			errWriter = jsonErrorWriter.WriterLevel(logrus.ErrorLevel)
 		}
 
 		var prefix = ""
