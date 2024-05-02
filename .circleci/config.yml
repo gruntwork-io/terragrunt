@@ -7,11 +7,11 @@ orbs:
 env: &env
   environment:
     GRUNTWORK_INSTALLER_VERSION: v0.0.39
-    MODULE_CI_VERSION: v0.53.3
+    MODULE_CI_VERSION: v0.56.0
 
 defaults: &defaults
   docker:
-    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.21.7-tf1.5-tg39.1-pck1.8-ci50.7
+    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.21.9-tf1.5-tg39.1-pck1.8-ci56.0
 
 # Install Terraform which is not available in the default image
 install_terraform_latest: &install_terraform_latest
