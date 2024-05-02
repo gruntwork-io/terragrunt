@@ -234,7 +234,7 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 	errWriter := util.NewTrapWriter(opts.ErrWriter, HTTPStatusCacheProviderReg)
 
 	// add -no-color flag if the user specified it in the CLI
-	if util.ListContainsElement(opts.TerraformCliArgs, terraform.FlagNameNoColor) {
+	if !util.ListContainsElement(opts.TerraformCliArgs, terraform.FlagNameNoColor) {
 		args = append(args, terraform.FlagNameNoColor)
 	}
 
@@ -243,9 +243,6 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 	cloneOpts.ErrWriter = errWriter
 	cloneOpts.WorkingDir = opts.WorkingDir
 	cloneOpts.TerraformCliArgs = args
-	cloneOpts.IncludeModulePrefix = false
-	cloneOpts.JsonLogFormat = false
-	cloneOpts.TerraformLogsToJson = false
 	if envs != nil {
 		maps.Copy(cloneOpts.Env, envs)
 	}
