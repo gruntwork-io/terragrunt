@@ -3,10 +3,11 @@ package util
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/go-errors/errors"
 	"io"
 	"reflect"
 	"testing"
+
+	"github.com/go-errors/errors"
 )
 
 type MockWriter struct {
@@ -72,27 +73,28 @@ func TestJsonWriter_Write(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range cases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			buf, ok := tc.writer.(*bytes.Buffer)
-			writer := NewJsonWriter(tc.writer, tc.jsonFields)
-			_, err := writer.Write([]byte(tc.input))
-			if (err != nil) != tc.wantErr {
-				t.Errorf("Write() error = %v, wantErr %v", err, tc.wantErr)
+			buf, ok := testCase.writer.(*bytes.Buffer)
+			writer := NewJsonWriter(testCase.writer, testCase.jsonFields)
+			_, err := writer.Write([]byte(testCase.input))
+			if (err != nil) != testCase.wantErr {
+				t.Errorf("Write() error = %v, wantErr %v", err, testCase.wantErr)
 			}
 
-			if ok && tc.checkFields && !tc.wantErr {
+			if ok && testCase.checkFields && !testCase.wantErr {
 				var gotData map[string]interface{}
 				if err := json.Unmarshal(buf.Bytes(), &gotData); err != nil {
 					t.Errorf("Error unmarshaling result: %v", err)
 				}
 
-				if gotMsg, exists := gotData["msg"].(string); !exists || gotMsg != tc.input {
-					t.Errorf("Write() got message = %v, want %v", gotMsg, tc.input)
+				if gotMsg, exists := gotData["msg"].(string); !exists || gotMsg != testCase.input {
+					t.Errorf("Write() got message = %v, want %v", gotMsg, testCase.input)
 				}
 
-				for k, v := range tc.jsonFields {
+				for k, v := range testCase.jsonFields {
 					if gotVal, exists := gotData[k]; !exists || !reflect.DeepEqual(gotVal, v) {
 						t.Errorf("Write() got %v = %v, want %v", k, gotVal, v)
 					}
