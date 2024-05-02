@@ -7,11 +7,11 @@ orbs:
 env: &env
   environment:
     GRUNTWORK_INSTALLER_VERSION: v0.0.39
-    MODULE_CI_VERSION: v0.53.3
+    MODULE_CI_VERSION: v0.56.0
 
 defaults: &defaults
   docker:
-    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.21.7-tf1.5-tg39.1-pck1.8-ci50.7
+    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.21.9-tf1.5-tg39.1-pck1.8-ci56.0
 
 # Install Terraform which is not available in the default image
 install_terraform_latest: &install_terraform_latest
@@ -33,7 +33,7 @@ install_tofu: &install_tofu
   command: |
     pushd .
     cd /tmp
-    curl -L "https://github.com/opentofu/opentofu/releases/download/v1.6.0/tofu_1.6.0_linux_amd64.zip" -o tofu.zip
+    curl -L "https://github.com/opentofu/opentofu/releases/download/v1.7.0/tofu_1.7.0_linux_amd64.zip" -o tofu.zip
     unzip -o tofu.zip
     sudo install -m 0755 tofu /usr/local/bin/tofu
     rm -rf tofu

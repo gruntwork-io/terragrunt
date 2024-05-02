@@ -18,50 +18,57 @@ func TestConfig(t *testing.T) {
 	testCases := []struct {
 		filesystemMethod *ProviderInstallationFilesystemMirror
 		directMethod     *ProviderInstallationDirect
-		hosts            map[string]map[string]any
+		hosts            map[string]map[string]string
 		config           *Config
 		expectedHCL      string
 	}{
 		{
 			filesystemMethod: NewProviderInstallationFilesystemMirror(tempCacheDir, []string{"registry.terraform.io/*/*", "registry.opentofu.org/*/*"}, nil),
 			directMethod:     NewProviderInstallationDirect([]string{"registry.terraform.io/*/*", "registry.opentofu.org/*/*"}, nil),
-			hosts: map[string]map[string]any{
-				"registry.terraform.io": map[string]any{
+			hosts: map[string]map[string]string{
+				"registry.terraform.io": map[string]string{
 					"providers.v1": "http://localhost:5758/v1/providers/registry.terraform.io/",
 				},
 			},
 			config: &Config{
 				rawHCL: []byte(`
-  disable_checkpoint = true
-  plugin_cache_dir   = "path/to/plugin/cache/dir"`),
+disable_checkpoint = true
+plugin_cache_dir   = "path/to/plugin/cache/dir"`),
 			},
 			expectedHCL: `
-  disable_checkpoint = true
-  host "registry.terraform.io" {
-    services  = {
-      providers.v1 = "http://localhost:5758/v1/providers/registry.terraform.io/"
-    }
+disable_checkpoint = true
+plugin_cache_dir = ""
+
+host "registry.terraform.io" {
+  services = {
+    "providers.v1" = "http://localhost:5758/v1/providers/registry.terraform.io/"
   }
-  provider_installation {
-    filesystem_mirror {
-      path    = "` + tempCacheDir + `"
-      include = ["registry.terraform.io/*/*", "registry.opentofu.org/*/*"]
-    }
-    direct {
-      include = ["registry.terraform.io/*/*", "registry.opentofu.org/*/*"]
-    }
-  }`,
+}
+
+provider_installation {
+
+  filesystem_mirror {
+    path    = "` + tempCacheDir + `"
+    include = ["registry.terraform.io/*/*", "registry.opentofu.org/*/*"]
+  }
+
+  direct {
+    include = ["registry.terraform.io/*/*", "registry.opentofu.org/*/*"]
+  }
+}
+`,
 		},
 		{
 			config: &Config{
 				rawHCL: []byte(`
-  disable_checkpoint = true
-  plugin_cache_dir   = "path/to/plugin/cache/dir"`),
+disable_checkpoint = true
+plugin_cache_dir   = "path/to/plugin/cache/dir"`),
 				PluginCacheDir: tempCacheDir,
 			},
 			expectedHCL: `
-  disable_checkpoint = true
-  plugin_cache_dir = "` + tempCacheDir + `"`,
+disable_checkpoint = true
+plugin_cache_dir = "` + tempCacheDir + `"
+`,
 		},
 	}
 
