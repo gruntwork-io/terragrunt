@@ -73,15 +73,10 @@ func (cfg *Config) Save(configPath string) error {
 	// Since `Config` structure already has `plugin_cache_dir`, remove it from the raw HCL config to prevent repeating in the saved file.
 	rawHCL = configParamPluginCacheDirReg.ReplaceAll(rawHCL, []byte{})
 
-	f := hclwrite.NewEmptyFile()
+	file := hclwrite.NewEmptyFile()
 
-	gohcl.EncodeIntoBody(cfg, f.Body())
-
-	// newHCL, err := Marshal(cfg)
-	// if err != nil {
-	// 	return errors.WithStackTrace(err)
-	// }
-	newHCL := append(rawHCL, f.Bytes()...)
+	gohcl.EncodeIntoBody(cfg, file.Body())
+	newHCL := append(rawHCL, file.Bytes()...)
 
 	if err := os.WriteFile(configPath, newHCL, os.FileMode(0644)); err != nil {
 		return errors.WithStackTrace(err)
