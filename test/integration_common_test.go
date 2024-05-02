@@ -1,4 +1,4 @@
-// common test functions for integration tests
+// common integration test functions
 package test
 
 import (
