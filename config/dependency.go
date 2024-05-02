@@ -190,20 +190,25 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 			depOpts := cloneTerragruntOptionsForDependency(ctx, depPath)
 			depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
 
-			if depConfig, err := PartialParseConfigFile(depCtx, depPath, nil); err == nil {
-				if depConfig.Skip {
-					ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
-					dep.Enabled = new(bool)
-				}
+			if depOpts.RecurseDependencies || ctx.TerragruntOptions.RecurseDependencies {
+				ctx.TerragruntOptions.Logger.Debugf("Recursing into dependency %s", dep.Name)
+				if depConfig, err := PartialParseConfigFile(depCtx, depPath, nil); err == nil {
+					if depConfig.Skip {
+						ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
+						dep.Enabled = new(bool)
+					}
 
-				inputsCty, err := convertToCtyWithJson(depConfig.Inputs)
-				if err != nil {
-					return nil, err
-				}
-				dep.Inputs = &inputsCty
+					inputsCty, err := convertToCtyWithJson(depConfig.Inputs)
+					if err != nil {
+						return nil, err
+					}
+					dep.Inputs = &inputsCty
 
+				} else {
+					ctx.TerragruntOptions.Logger.Warnf("Error reading partial config for dependency %s: %v", dep.Name, err)
+				}
 			} else {
-				ctx.TerragruntOptions.Logger.Warnf("Error reading partial config for dependency %s: %v", dep.Name, err)
+				ctx.TerragruntOptions.Logger.Debugf("Not recursing dependency %s due to RecurseDependencies being false", dep.Name)
 			}
 		}
 
@@ -547,6 +552,8 @@ func cloneTerragruntOptionsForDependency(ctx *ParsingContext, targetConfigPath s
 	if targetOptions.IAMRoleOptions != targetOptions.OriginalIAMRoleOptions {
 		targetOptions.IAMRoleOptions = options.IAMRoleOptions{}
 	}
+	// Recurse into depedencies if option was provided. The default is false.
+	targetOptions.RecurseDependencies = ctx.TerragruntOptions.RecurseDependencies
 	return targetOptions
 }
 

@@ -828,6 +828,14 @@ Note that this only performs literal matches on the URL portion. For example, a 
 When passed in, delete the contents of the temporary folder before downloading Terraform source code into it.
 
 
+### terragrunt-recurse-dependences
+
+**CLI Arg**: `--terragrunt-recurse-dependences`<br/>
+**Environment Variable**: `TERRAGRUNT_RECURSE_DEPENDENCIES` (set to `true`)
+
+When passed in, recursively process terragrunt dependencies for the original modules dependencies
+
+
 ### terragrunt-ignore-dependency-errors
 
 **CLI Arg**: `--terragrunt-ignore-dependency-errors`

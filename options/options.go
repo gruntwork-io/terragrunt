@@ -303,6 +303,9 @@ type TerragruntOptions struct {
 
 	// Folder to store JSON representation of output files.
 	JsonOutputFolder string
+
+	// Option whether to recursively parse module dependencies.
+	RecurseDependencies bool
 }
 
 // IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
@@ -384,6 +387,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
 		OutputFolder:               "",
 		JsonOutputFolder:           "",
+		RecurseDependencies:        false,
 	}
 }
 
@@ -521,6 +525,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		DisableLogColors:                    opts.DisableLogColors,
 		OutputFolder:                        opts.OutputFolder,
 		JsonOutputFolder:                    opts.JsonOutputFolder,
+		RecurseDependencies:                 opts.RecurseDependencies,
 	}
 }
 

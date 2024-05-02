@@ -42,6 +42,7 @@ const (
 	TerragruntFailOnStateBucketCreationFlagName      = "terragrunt-fail-on-state-bucket-creation"
 	TerragruntDisableBucketUpdateFlagName            = "terragrunt-disable-bucket-update"
 	TerragruntDisableCommandValidationFlagName       = "terragrunt-disable-command-validation"
+	TerragruntRecurseDependenciesFlagName            = "terragrunt-recurse-dependencies"
 
 	TerragruntOutDirFlagEnvVarName = "TERRAGRUNT_OUT_DIR"
 	TerragruntOutDirFlagName       = "terragrunt-out-dir"
@@ -159,6 +160,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.IAMRoleOptions.AssumeRoleSessionName,
 			EnvVar:      "TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME",
 			Usage:       "Name for the IAM Assummed Role session. Can also be set via TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME environment variable.",
+		},
+		&cli.BoolFlag{
+			Name:        TerragruntRecurseDependenciesFlagName,
+			Destination: &opts.RecurseDependencies,
+			EnvVar:      "TERRAGRUNT_RECURSE_DEPENDENCIES",
+			Usage:       "Recursively parse dependencies of dependencies. By default, disabled",
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntIgnoreDependencyErrorsFlagName,
