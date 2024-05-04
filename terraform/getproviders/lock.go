@@ -92,18 +92,21 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 	// Constraints can contain multiple constraint expressions, including comparison operators, but in the Terragrunt Provider Cache use case, we assume that the required_providers are pinned to a specific version to detect the required version without terraform init, so we can simply specify the constraints attribute as the same as the version. This may differ from what terraform generates, but we expect that it doesn't matter in practice.
 	providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(provider.Version()))
 
-	documentSHA256Sums, err := provider.DocumentSHA256Sums(ctx)
-	if err != nil {
-		return err
-	}
-
 	h1Hash, err := PackageHashV1(provider.PackageDir())
 	if err != nil {
 		return err
 	}
-	zipHashes := DocumentHashes(documentSHA256Sums)
+	hashes := []Hash{h1Hash}
 
-	hashes := append(zipHashes, h1Hash)
+	documentSHA256Sums, err := provider.DocumentSHA256Sums(ctx)
+	if err != nil {
+		return err
+	}
+	if documentSHA256Sums != nil {
+		zipHashes := DocumentHashes(documentSHA256Sums)
+		hashes = append(hashes, zipHashes...)
+	}
+
 	slices.Sort(hashes)
 
 	providerBlock.Body().SetAttributeRaw("hashes", tokensForListPerLine(hashes))

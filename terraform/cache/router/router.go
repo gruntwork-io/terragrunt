@@ -44,7 +44,7 @@ func (router *Router) Use(middlewares ...echo.MiddlewareFunc) {
 	for _, middleware := range middlewares {
 		middleware := func(next echo.HandlerFunc) echo.HandlerFunc {
 			return func(ctx echo.Context) error {
-				if strings.HasPrefix(ctx.Path(), router.prefix) {
+				if strings.HasPrefix(strings.Trim(ctx.Path(), "/"), strings.Trim(router.prefix, "/")) {
 					return middleware(next)(ctx)
 				}
 				return next(ctx)

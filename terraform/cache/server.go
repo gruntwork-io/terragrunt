@@ -12,7 +12,15 @@ import (
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"golang.org/x/sync/errgroup"
+)
+
+const (
+	// The status returned when making a request to the caching provider.
+	// It is needed to prevent further loading of providers by terraform, and at the same time make sure that the request was processed successfully.
+	CacheProviderHTTPStatusCode = http.StatusLocked
 )
 
 // Server is a private Terraform cache for provider caching.
@@ -35,18 +43,18 @@ func NewServer(opts ...Option) *Server {
 		Token: cfg.token,
 	}
 
-	reverseProxy := &handlers.ReverseProxy{}
+	regsitryHanlder := handlers.NewRegistry(providerService, CacheProviderHTTPStatusCode)
+	networkMirrorHandler := handlers.NewNetworkMirror(providerService, CacheProviderHTTPStatusCode)
 
 	downloaderController := &controllers.DownloaderController{
-		ReverseProxy:    reverseProxy,
+		RegistryHandler: regsitryHanlder,
 		ProviderService: providerService,
 	}
 
 	providerController := &controllers.ProviderController{
-		Authorization:   authorization,
-		ReverseProxy:    reverseProxy,
-		ProviderService: providerService,
-		Downloader:      downloaderController,
+		Authorization:        authorization,
+		RegistryHandler:      regsitryHanlder,
+		NetworkMirrorHandler: networkMirrorHandler,
 	}
 
 	discoveryController := &controllers.DiscoveryController{
@@ -58,13 +66,28 @@ func NewServer(opts ...Option) *Server {
 
 	v1Group := rootRouter.Group("v1")
 	v1Group.Register(providerController)
+	rootRouter.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		LogStatus:   true,
+		LogURI:      true,
+		LogError:    true,
+		HandleError: true, // forwards error to the global error handler, so it can decide appropriate status code
+		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+			log := log.WithField("uri", v.URI).WithField("status", v.Status)
+			if v.Error != nil {
+				log.Errorf("Cache server was unable to process the received request, %s", v.Error.Error())
+			} else {
+				log.Tracef("Cache server received request")
+			}
+			return nil
+		},
+	}))
+	rootRouter.Use(handlers.Recover())
 
 	return &Server{
 		Server:             &http.Server{Handler: rootRouter},
 		config:             cfg,
 		Provider:           providerService,
 		providerController: providerController,
-		reverseProxy:       reverseProxy,
 	}
 }
 
@@ -84,19 +107,15 @@ func (server *Server) Listen() (net.Listener, error) {
 		return nil, errors.WithStackTrace(err)
 	}
 
-	log.Infof("Terragrunt Cache server is listening on %s", server.Addr)
-
-	server.Addr = ln.Addr().String()
-	server.reverseProxy.ServerURL = &url.URL{
-		Scheme: "http",
-		Host:   ln.Addr().String(),
-	}
+	log.Infof("Terragrunt Cache server is listening on %s", ln.Addr())
 	return ln, nil
 }
 
 // Run starts the webserver and workers.
 func (server *Server) Run(ctx context.Context, ln net.Listener) error {
 	log.Infof("Start Terragrunt Cache server")
+
+	server.Addr = ln.Addr().String()
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 	errGroup.Go(func() error {

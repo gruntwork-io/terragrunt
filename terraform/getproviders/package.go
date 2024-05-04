@@ -11,6 +11,24 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+var AvailablePlatforms []Platform = []Platform{
+	{OS: "solaris", Arch: "amd64"},
+	{OS: "openbsd", Arch: "386"},
+	{OS: "openbsd", Arch: "arm"},
+	{OS: "openbsd", Arch: "amd64"},
+	{OS: "freebsd", Arch: "386"},
+	{OS: "freebsd", Arch: "arm"},
+	{OS: "freebsd", Arch: "amd64"},
+	{OS: "linux", Arch: "386"},
+	{OS: "linux", Arch: "arm"},
+	{OS: "linux", Arch: "arm64"},
+	{OS: "linux", Arch: "amd64"},
+	{OS: "darwin", Arch: "amd64"},
+	{OS: "darwin", Arch: "arm64"},
+	{OS: "windows", Arch: "386"},
+	{OS: "windows", Arch: "amd64"},
+}
+
 // SigningKey represents a key used to sign packages from a registry, along with an optional trust signature from the registry operator. These are both in ASCII armored OpenPGP format.
 type SigningKey struct {
 	ASCIIArmor     string `json:"ascii_armor"`
@@ -21,19 +39,30 @@ type SigningKeyList struct {
 	GPGPublicKeys []*SigningKey `json:"gpg_public_keys"`
 }
 
+type Version struct {
+	Version   string     `json:"version"`
+	Protocols []string   `json:"protocols"`
+	Platforms []Platform `json:"platforms"`
+}
+
+type Platform struct {
+	OS   string `json:"os"`
+	Arch string `json:"arch"`
+}
+
 // Package represents the details of the Terraform provider.
 type Package struct {
-	Protocols []string `json:"protocols"`
+	Platform
+
+	Protocols []string `json:"protocols,omitempty"`
 	Filename  string   `json:"filename"`
-	OS        string   `json:"os"`
-	Arch      string   `json:"arch"`
 
 	DownloadURL            string `json:"download_url"`
-	SHA256SumsURL          string `json:"shasums_url"`
-	SHA256SumsSignatureURL string `json:"shasums_signature_url"`
+	SHA256SumsURL          string `json:"shasums_url,omitempty"`
+	SHA256SumsSignatureURL string `json:"shasums_signature_url,omitempty"`
 
-	SHA256Sum   string         `json:"shasum"`
-	SigningKeys SigningKeyList `json:"signing_keys"`
+	SHA256Sum   string         `json:"shasum,omitempty"`
+	SigningKeys SigningKeyList `json:"signing_keys,omitempty"`
 }
 
 func (provider *Package) Checksum() ([sha256.Size]byte, error) {

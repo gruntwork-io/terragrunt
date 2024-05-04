@@ -127,11 +127,11 @@ func (cache *ProviderCache) AuthenticatePackage(ctx context.Context) (*getprovid
 		err                error
 	)
 
-	if documentSHA256Sums, err = cache.DocumentSHA256Sums(ctx); err != nil {
+	if documentSHA256Sums, err = cache.DocumentSHA256Sums(ctx); err != nil || documentSHA256Sums == nil {
 		return nil, err
 	}
 
-	if signature, err = cache.Signature(ctx); err != nil {
+	if signature, err = cache.Signature(ctx); err != nil || signature == nil {
 		return nil, err
 	}
 

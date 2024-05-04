@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -18,7 +19,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/terraform/cache"
-	"github.com/gruntwork-io/terragrunt/terraform/cache/controllers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/cliconfig"
 	"github.com/gruntwork-io/terragrunt/terraform/getproviders"
@@ -46,7 +46,7 @@ var (
 	//    │ provider registry for registry.terraform.io/snowflake-labs/snowflake: 423
 	//    │ Locked
 	//    ╵
-	HTTPStatusCacheProviderReg = regexp.MustCompile(`(?smi)` + strconv.Itoa(controllers.HTTPStatusCacheProvider) + `.*` + http.StatusText(controllers.HTTPStatusCacheProvider))
+	HTTPStatusCacheProviderReg = regexp.MustCompile(`(?smi)` + strconv.Itoa(cache.CacheProviderHTTPStatusCode) + `.*` + http.StatusText(cache.CacheProviderHTTPStatusCode))
 )
 
 type ProviderCache struct {
@@ -179,8 +179,12 @@ func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions
 	for _, registryName := range opts.ProviderCacheRegistryNames {
 		providerInstallationIncludes = append(providerInstallationIncludes, fmt.Sprintf("%s/*/*", registryName))
 
+		//networkMirrorURL := "https://mirrors.tencent.com/terraform/"
+		networkMirrorURL := "http://127.0.0.1:7654"
+		//networkMirrorURL := ""
+
 		cfg.AddHost(registryName, map[string]string{
-			"providers.v1": fmt.Sprintf("%s/%s/%s/", cache.ProviderURL(), cacheRequestID, registryName),
+			"providers.v1": fmt.Sprintf("%s/%s/%s/%s/", cache.ProviderURL(), url.QueryEscape(networkMirrorURL), cacheRequestID, registryName),
 			// Since Terragrunt Provider Cache only caches providers, we need to route module requests to the original registry.
 			"modules.v1": fmt.Sprintf("https://%s/v1/modules", registryName),
 		})
