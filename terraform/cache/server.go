@@ -30,7 +30,6 @@ type Server struct {
 
 	Provider           *services.ProviderService
 	providerController *controllers.ProviderController
-	reverseProxy       *handlers.ReverseProxy
 }
 
 // NewServer returns a new Server instance.

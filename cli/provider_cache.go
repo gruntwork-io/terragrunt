@@ -51,9 +51,15 @@ var (
 
 type ProviderCache struct {
 	*cache.Server
+	cliCfg *cliconfig.Config
 }
 
 func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, error) {
+	cliCfg, err := cliconfig.LoadUserConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	cacheDir, err := util.GetCacheDir()
 	if err != nil {
 		return nil, err
@@ -90,7 +96,10 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 		cache.WithProviderCacheDir(opts.ProviderCacheDir),
 	)
 
-	return &ProviderCache{Server: cache}, nil
+	return &ProviderCache{
+		Server: cache,
+		cliCfg: cliCfg,
+	}, nil
 }
 
 func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *options.TerragruntOptions, args []string) (*shell.CmdOutput, error) {
@@ -168,10 +177,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 // 1. If `cacheRequestID` is set, `terraform init` does _not_ use the provider cache directory, the cache server creates a cache for requested providers and returns HTTP status 423. Since for each module we create the CLI config, using `cacheRequestID` we have the opportunity later retrieve from the cache server exactly those cached providers that were requested by `terraform init` using this configuration.
 // 2. If `cacheRequestID` is empty, 'terraform init` uses provider cache directory, the cache server acts as a proxy.
 func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions, filename string, cacheRequestID string) error {
-	cfg, err := cliconfig.LoadUserConfig()
-	if err != nil {
-		return err
-	}
+	cfg := cache.cliCfg.Clone()
 	cfg.PluginCacheDir = ""
 
 	var providerInstallationIncludes []string
@@ -190,13 +196,8 @@ func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions
 		})
 	}
 
-	if cacheRequestID != "" {
-		cfg.SetProviderInstallation(
-			nil,
-			cliconfig.NewProviderInstallationDirect(nil, nil),
-		)
-	} else {
-		cfg.SetProviderInstallation(
+	if cacheRequestID == "" {
+		cfg.AddProviderInstallationMethods(
 			cliconfig.NewProviderInstallationFilesystemMirror(opts.ProviderCacheDir, providerInstallationIncludes, nil),
 			cliconfig.NewProviderInstallationDirect(providerInstallationIncludes, nil),
 		)

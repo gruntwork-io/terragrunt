@@ -44,7 +44,7 @@ func (client *NetworkMirror) GetVersions(ctx echo.Context, networkMirrorURL stri
 		ID: path.Join(provider.RegistryName, provider.Namespace, provider.Name),
 	}
 
-	for version, _ := range respData.Versions {
+	for version := range respData.Versions {
 		versions.Versions = append(versions.Versions, getproviders.Version{
 			Version:   version,
 			Platforms: getproviders.AvailablePlatforms,

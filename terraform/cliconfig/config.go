@@ -30,6 +30,15 @@ type Config struct {
 	ProviderInstallation *ProviderInstallation `hcl:"provider_installation,block"`
 }
 
+func (cfg *Config) Clone() *Config {
+	return &Config{
+		rawHCL:               cfg.rawHCL,
+		PluginCacheDir:       cfg.PluginCacheDir,
+		Hosts:                cfg.Hosts,
+		ProviderInstallation: cfg.ProviderInstallation,
+	}
+}
+
 // AddHost adds a host (officially undocumented), https://github.com/hashicorp/terraform/issues/28309
 // It gives us opportunity rewrite path to the remote registry and the most important thing is that it works smoothly with HTTP (without HTTPS)
 //
@@ -45,7 +54,7 @@ func (cfg *Config) AddHost(name string, services map[string]string) {
 	})
 }
 
-// SetProviderInstallation sets an installation method, https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation
+// AddProviderInstallationMethods adds installation methods, https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation
 //
 //	provider_installation {
 //		filesystem_mirror {
@@ -56,15 +65,11 @@ func (cfg *Config) AddHost(name string, services map[string]string) {
 //			exclude = ["example.com/*/*"]
 //		}
 //	}
-func (cfg *Config) SetProviderInstallation(filesystemMethod *ProviderInstallationFilesystemMirror, directMethod *ProviderInstallationDirect) {
-	if filesystemMethod == nil && directMethod == nil {
-		return
+func (cfg *Config) AddProviderInstallationMethods(methods ...ProviderInstallationMethod) {
+	if cfg.ProviderInstallation == nil {
+		cfg.ProviderInstallation = &ProviderInstallation{}
 	}
-	providerInstallation := &ProviderInstallation{
-		FilesystemMirror: filesystemMethod,
-		Direct:           directMethod,
-	}
-	cfg.ProviderInstallation = providerInstallation
+	cfg.ProviderInstallation.Methods = append(cfg.ProviderInstallation.Methods, methods...)
 }
 
 // Save marshalls and saves CLI config with the given config path.

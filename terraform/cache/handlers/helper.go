@@ -34,7 +34,7 @@ func ResponseBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	buffer := new(bytes.Buffer)
 
