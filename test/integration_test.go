@@ -6991,12 +6991,7 @@ func TestPlanJsonFilesRunAll(t *testing.T) {
 
 	// create temporary directory for plan files
 	tmpDir := t.TempDir()
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUT_DIR)
-	cleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUT_DIR)
-
-	// run plan with output directory
-	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-json-out-dir %s", testPath, tmpDir))
+	_, _, _, err := testRunAllPlan(t, fmt.Sprintf("--terragrunt-json-out-dir %s", tmpDir))
 	require.NoError(t, err)
 
 	// verify that was generated json files with plan data
@@ -7009,6 +7004,12 @@ func TestPlanJsonFilesRunAll(t *testing.T) {
 		content, err := os.ReadFile(file)
 		require.NoError(t, err)
 		assert.NotEmpty(t, content)
+		// check that produced json is valid and can be unmarshalled
+		var plan map[string]interface{}
+		err = json.Unmarshal(content, &plan)
+		require.NoError(t, err)
+		// check that plan is not empty
+		assert.NotEmpty(t, plan)
 	}
 
 }
