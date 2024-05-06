@@ -216,7 +216,7 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 	// We use custom writer in order to trap the log from `terraform providers lock -platform=provider-cache` command, which terraform considers an error, but to us a success.
 	errWriter := util.NewTrapWriter(opts.ErrWriter, HTTPStatusCacheProviderReg)
 
-	// add -no-color flag if the user specified it in the CLI
+	// add -no-color flag to args if it was set in Terragrunt arguments
 	if util.ListContainsElement(opts.TerraformCliArgs, terraform.FlagNameNoColor) {
 		args = append(args, terraform.FlagNameNoColor)
 	}

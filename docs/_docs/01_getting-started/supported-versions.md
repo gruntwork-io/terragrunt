@@ -15,8 +15,8 @@ The officially supported versions are:
 
 | OpenTofu Version | Terragrunt Version                                                           |
 |------------------|------------------------------------------------------------------------------|
-| 1.6.x            | >= [0.52.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.52.0) |
 | 1.7.x            | >= [0.58.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.58.0) |
+| 1.6.x            | >= [0.52.0](https://github.com/gruntwork-io/terragrunt/releases/tag/v0.52.0) |
 
 ## Supported Terraform Versions
 
