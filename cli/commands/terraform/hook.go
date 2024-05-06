@@ -59,16 +59,26 @@ func processErrorHooks(ctx context.Context, hooks []config.ErrorHook, terragrunt
 			if curHook.SuppressStdout != nil && *curHook.SuppressStdout {
 				suppressStdout = true
 			}
+			var tty bool
+			if curHook.TTY != nil {
+				tty = *curHook.TTY
+			}
 
 			actionToExecute := curHook.Execute[0]
 			actionParams := curHook.Execute[1:]
+
+			if curHook.EnvVars != nil {
+				for k, v := range *curHook.EnvVars {
+					terragruntOptions.Env[k] = v
+				}
+			}
 
 			_, possibleError := shell.RunShellCommandWithOutput(
 				ctx,
 				terragruntOptions,
 				workingDir,
 				suppressStdout,
-				false,
+				tty,
 				actionToExecute, actionParams...,
 			)
 			if possibleError != nil {
@@ -134,18 +144,27 @@ func runHook(ctx context.Context, terragruntOptions *options.TerragruntOptions, 
 
 	actionToExecute := curHook.Execute[0]
 	actionParams := curHook.Execute[1:]
+	if curHook.EnvVars != nil {
+		for k, v := range *curHook.EnvVars {
+			terragruntOptions.Env[k] = v
+		}
+	}
 
 	if actionToExecute == "tflint" {
 		if err := executeTFLint(ctx, terragruntOptions, terragruntConfig, curHook, workingDir); err != nil {
 			return err
 		}
 	} else {
+		var tty bool
+		if curHook.TTY != nil {
+			tty = *curHook.TTY
+		}
 		_, possibleError := shell.RunShellCommandWithOutput(
 			ctx,
 			terragruntOptions,
 			workingDir,
 			suppressStdout,
-			false,
+			tty,
 			actionToExecute, actionParams...,
 		)
 		if possibleError != nil {
