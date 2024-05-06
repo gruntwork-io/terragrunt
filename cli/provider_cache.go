@@ -21,6 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/terraform/cache/controllers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/cliconfig"
+	"github.com/gruntwork-io/terragrunt/terraform/getproviders"
 	"github.com/gruntwork-io/terragrunt/util"
 	"golang.org/x/exp/maps"
 )
@@ -31,7 +32,7 @@ const (
 )
 
 var (
-	// HTTPStatusCacheProviderReg is regular expression to determine the success result of the command `terraform lock providers -platform=cache provider`.
+	// HTTPStatusCacheProviderReg is regular expression to determine the success result of the command `terraform init`.
 	// The reg matches if the text contains "423 Locked", for example:
 	//
 	// - registry.terraform.io/hashicorp/template: could not query provider registry for registry.terraform.io/hashicorp/template: 423 Locked.
@@ -68,14 +69,6 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 		return nil, errors.WithStackTrace(err)
 	}
 
-	if opts.ProviderCacheArchiveDir == "" {
-		opts.ProviderCacheArchiveDir = filepath.Join(cacheDir, "archives")
-	}
-
-	if opts.ProviderCacheArchiveDir, err = filepath.Abs(opts.ProviderCacheArchiveDir); err != nil {
-		return nil, errors.WithStackTrace(err)
-	}
-
 	if opts.ProviderCacheToken == "" {
 		opts.ProviderCacheToken = uuid.New().String()
 	}
@@ -95,7 +88,6 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 		cache.WithToken(opts.ProviderCacheToken),
 		cache.WithUserProviderDir(userProviderDir),
 		cache.WithProviderCacheDir(opts.ProviderCacheDir),
-		cache.WithProviderArchiveDir(opts.ProviderCacheArchiveDir),
 	)
 
 	return &ProviderCache{Server: cache}, nil
@@ -111,10 +103,9 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	}
 
 	var (
-		cliConfigFilename     = filepath.Join(opts.WorkingDir, localCLIFilename)
-		terraformLockFilename = filepath.Join(opts.WorkingDir, terraform.TerraformLockFile)
-		cacheRequestID        = uuid.New().String()
-		env                   = providerCacheEnvironment(opts, cliConfigFilename)
+		cliConfigFilename = filepath.Join(opts.WorkingDir, localCLIFilename)
+		cacheRequestID    = uuid.New().String()
+		env               = providerCacheEnvironment(opts, cliConfigFilename)
 	)
 
 	// Create terraform cli config file that enables provider caching and does not use provider cache dir
@@ -130,27 +121,14 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 		return nil, err
 	}
 
-	cache.Provider.WaitForCacheReady(cacheRequestID)
+	caches := cache.Provider.WaitForCacheReady(cacheRequestID)
+	if err := getproviders.UpdateLockfile(ctx, opts.WorkingDir, caches); err != nil {
+		return nil, err
+	}
 
 	// Create terraform cli config file that uses provider cache dir
 	if err := cache.createLocalCLIConfig(opts, cliConfigFilename, ""); err != nil {
 		return nil, err
-	}
-
-	if opts.ProviderCacheDisablePartialLockFile && !util.FileExists(terraformLockFilename) {
-		log.Infof("Getting terraform modules for %s", opts.WorkingDir)
-		if err := runTerraformCommand(ctx, opts, []string{terraform.CommandNameGet}, env); err != nil {
-			return nil, err
-		}
-
-		log.Infof("Generating Terraform lock file for %s", opts.WorkingDir)
-		// Create complete terraform lock files. By default this feature is disabled, since it's not superfast.
-		// Instead we use Terraform `TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE` feature, that creates hashes from the local cache.
-		// And since the Terraform developers warn that this feature will be removed soon, it's good to have a workaround.
-		if err := runTerraformCommand(ctx, opts, []string{terraform.CommandNameProviders, terraform.CommandNameLock}, env); err != nil {
-			return nil, err
-		}
-
 	}
 
 	cloneOpts := opts.Clone(opts.TerragruntConfigPath)
@@ -252,6 +230,7 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 	if err := shell.RunTerraformCommand(ctx, cloneOpts, cloneOpts.TerraformCliArgs...); err != nil && len(errWriter.Msgs()) == 0 {
 		return err
 	}
+
 	return nil
 }
 
@@ -264,12 +243,6 @@ func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile str
 		// We use `TF_TOKEN_*` for authentication with our private registry (cache server).
 		// https://developer.hashicorp.com/terraform/cli/config/config-file#environment-variable-credentials
 		envs[envName] = opts.ProviderCacheToken
-	}
-
-	if !opts.ProviderCacheDisablePartialLockFile {
-		// By using `TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE` we force terraform to generate `.terraform.lock.hcl` only based on cached files, otherwise it downloads three files (provider zip archive, SHA256SUMS, sig) from the original registry to calculate hashes.
-		// https://developer.hashicorp.com/terraform/cli/config/config-file#allowing-the-provider-plugin-cache-to-break-the-dependency-lock-file
-		envs[terraform.EnvNameTFPluginCacheMayBreakDependencyLockFile] = "1"
 	}
 
 	// By using `TF_CLI_CONFIG_FILE` we force terraform to use our auto-generated cli configuration file.

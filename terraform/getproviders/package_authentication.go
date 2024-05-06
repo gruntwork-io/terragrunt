@@ -1,7 +1,6 @@
-package provider
+package getproviders
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
@@ -58,12 +57,6 @@ func (result PackageAuthenticationResult) SignedByAnyParty() bool {
 // ThirdPartySigned returns whether the package was authenticated as signed by a party other than HashiCorp.
 func (result PackageAuthenticationResult) ThirdPartySigned() bool {
 	return result == partnerProvider || result == communityProvider
-}
-
-// SigningKey represents a key used to sign packages from a registry, along with an optional trust signature from the registry operator. These are both in ASCII armored OpenPGP format.
-type SigningKey struct {
-	ASCIIArmor     string `json:"ascii_armor"`
-	TrustSignature string `json:"trust_signature"`
 }
 
 // PackageAuthentication implementation is responsible for authenticating that a package is what its distributor intended to distribute and that it has not been tampered with.
@@ -265,32 +258,7 @@ func (auth signatureAuthentication) checkDetachedSignature(keyring openpgp.KeyRi
 }
 
 func (auth signatureAuthentication) AcceptableHashes() []Hash {
-	var hashes []Hash
-
-	sc := bufio.NewScanner(bytes.NewReader(auth.Document))
-	for sc.Scan() {
-		parts := bytes.Fields(sc.Bytes())
-		if len(parts) != 0 && len(parts) < 2 {
-			// Doesn't look like a valid sums file line, so we'll assume this whole thing isn't a checksums file.
-			return nil
-		}
-
-		// If this is a checksums file then the first part should be a hex-encoded SHA256 hash, so it should be 64 characters long and contain only hex digits.
-		hashStr := parts[0]
-		hashLen := 64
-		if len(hashStr) != hashLen {
-			return nil // doesn't look like a checksums file
-		}
-
-		var gotSHA256Sum [sha256.Size]byte
-		if _, err := hex.Decode(gotSHA256Sum[:], hashStr); err != nil {
-			return nil // doesn't look like a checksums file
-		}
-
-		hashes = append(hashes, HashLegacyZipSHAFromSHA(gotSHA256Sum))
-	}
-
-	return hashes
+	return DocumentHashes(auth.Document)
 }
 
 // findSigningKey attempts to verify the signature using each of the keys returned by the registry. If a valid signature is found, it returns the signing key.

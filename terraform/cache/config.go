@@ -45,13 +45,6 @@ func WithProviderCacheDir(cacheDir string) Option {
 	}
 }
 
-func WithProviderArchiveDir(archiveDir string) Option {
-	return func(cfg Config) Config {
-		cfg.providerArchiveDir = archiveDir
-		return cfg
-	}
-}
-
 func WithUserProviderDir(userProviderDir string) Option {
 	return func(cfg Config) Config {
 		cfg.userProviderDir = userProviderDir
@@ -65,9 +58,8 @@ type Config struct {
 	token           string
 	shutdownTimeout time.Duration
 
-	userProviderDir    string
-	providerCacheDir   string
-	providerArchiveDir string
+	userProviderDir  string
+	providerCacheDir string
 }
 
 func NewConfig(opts ...Option) *Config {

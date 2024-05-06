@@ -40,13 +40,10 @@ func TestServer(t *testing.T) {
 	providerCacheDir, err := os.MkdirTemp("", "*")
 	require.NoError(t, err)
 
-	providerArchiveDir, err := os.MkdirTemp("", "*")
-	require.NoError(t, err)
-
 	pluginCacheDir, err := os.MkdirTemp("", "*")
 	require.NoError(t, err)
 
-	opts := []Option{WithToken(token), WithProviderArchiveDir(providerArchiveDir), WithProviderCacheDir(providerCacheDir), WithUserProviderDir(pluginCacheDir)}
+	opts := []Option{WithToken(token), WithProviderCacheDir(providerCacheDir), WithUserProviderDir(pluginCacheDir)}
 
 	testCases := []struct {
 		opts               []Option

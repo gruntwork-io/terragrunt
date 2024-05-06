@@ -1,4 +1,4 @@
-package provider
+package getproviders
 
 // HashicorpPublicKey is the HashiCorp public key, also available at
 // https://www.hashicorp.com/security

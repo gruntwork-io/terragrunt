@@ -33,6 +33,8 @@ import (
 	terraws "github.com/gruntwork-io/terratest/modules/aws"
 	"github.com/gruntwork-io/terratest/modules/git"
 	"github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/iterator"
@@ -242,13 +244,22 @@ func TestTerragruntProviderCache(t *testing.T) {
 		subDir = filepath.Join(rootPath, subDir)
 
 		entries, err := os.ReadDir(subDir)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		for _, entry := range entries {
 			if !entry.IsDir() {
 				continue
 			}
 			actualApps++
+
+			appPath := filepath.Join(subDir, entry.Name())
+
+			lockfilePath := filepath.Join(appPath, ".terraform.lock.hcl")
+			lockfileContent, err := os.ReadFile(lockfilePath)
+			require.NoError(t, err)
+
+			lockfile, diags := hclwrite.ParseConfig(lockfileContent, lockfilePath, hcl.Pos{Line: 1, Column: 1})
+			require.False(t, diags.HasErrors())
 
 			for _, provider := range providers {
 				var (
@@ -257,7 +268,10 @@ func TestTerragruntProviderCache(t *testing.T) {
 					provider                 = path.Join(registryName, provider)
 				)
 
-				providerPath := filepath.Join(subDir, entry.Name(), ".terraform/providers", provider)
+				providerBlock := lockfile.Body().FirstMatchingBlock("provider", []string{filepath.Dir(provider)})
+				assert.NotNil(t, providerBlock)
+
+				providerPath := filepath.Join(appPath, ".terraform/providers", provider)
 				assert.True(t, util.FileExists(providerPath))
 
 				entries, err := os.ReadDir(providerPath)
@@ -7079,7 +7093,7 @@ func wrappedBinary() string {
 		}
 		return TERRAFORM_BINARY
 	}
-	return value
+	return filepath.Base(value)
 }
 
 func isTerraform() bool {
