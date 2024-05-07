@@ -3,10 +3,11 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/codegen"
-	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"path/filepath"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/codegen"
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
