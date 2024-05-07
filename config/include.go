@@ -3,11 +3,10 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
-	"strings"
-
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"path/filepath"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -827,6 +826,10 @@ func jsonIsIncludeBlock(jsonData interface{}) bool {
 
 // copyFieldsMetadata Copy fields metadata between TerragruntConfig instances.
 func copyFieldsMetadata(sourceConfig *TerragruntConfig, targetConfig *TerragruntConfig) {
+
+	defer targetConfig.FieldsMetadataMutex.Unlock()
+	targetConfig.FieldsMetadataMutex.Lock()
+
 	if sourceConfig.FieldsMetadata != nil {
 		if targetConfig.FieldsMetadata == nil {
 			targetConfig.FieldsMetadata = map[string]map[string]interface{}{}

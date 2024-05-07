@@ -1,6 +1,7 @@
 package config
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/remote"
@@ -284,5 +285,36 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 			}
 			assert.Equal(t, testCase.expected, testCase.target)
 		})
+	}
+}
+
+func TestConcurrentCopyFieldsMetadata(t *testing.T) {
+	sourceConfig := &TerragruntConfig{
+		FieldsMetadata: map[string]map[string]interface{}{
+			"field1": {"key1": "value1", "key2": "value2"},
+			"field2": {"key3": "value3", "key4": "value4"},
+		},
+	}
+
+	targetConfig := &TerragruntConfig{}
+
+	var wg sync.WaitGroup
+	numGoroutines := 100
+
+	wg.Add(numGoroutines)
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+			copyFieldsMetadata(sourceConfig, targetConfig)
+		}()
+	}
+
+	wg.Wait()
+
+	// Optionally, here you can add assertions to check the integrity of the targetConfig
+	// For example, checking if all keys and values have been copied correctly
+	expectedFields := len(sourceConfig.FieldsMetadata)
+	if len(targetConfig.FieldsMetadata) != expectedFields {
+		t.Errorf("Expected %d fields, got %d", expectedFields, len(targetConfig.FieldsMetadata))
 	}
 }
