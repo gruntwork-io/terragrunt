@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"net/url"
+	"net/http"
 
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
@@ -17,30 +17,25 @@ const (
 )
 
 type ProviderController struct {
-	Authorization *handlers.Authorization
+	*router.Router
 
-	RegistryHandler      *handlers.Registry
-	NetworkMirrorHandler *handlers.NetworkMirror
+	DownloaderController router.Controller
 
-	basePath string
-}
-
-func (controller *ProviderController) Path() string {
-	return controller.basePath
+	AuthMiddleware   echo.MiddlewareFunc
+	ProviderHandlers []handlers.ProviderHandler
 }
 
 // Endpoints implements controllers.Endpointer.Endpoints
 func (controller *ProviderController) Endpoints() map[string]any {
-	return map[string]any{providerName: controller.basePath}
+	return map[string]any{providerName: controller.URLPath()}
 }
 
 // Register implements router.Controller.Register
 func (controller *ProviderController) Register(router *router.Router) {
-	router = router.Group(providerPath)
-	controller.basePath = router.Prefix()
+	controller.Router = router.Group(providerPath)
 
-	if controller.Authorization != nil {
-		router.Use(controller.Authorization.MiddlewareFunc())
+	if controller.AuthMiddleware != nil {
+		controller.Use(controller.AuthMiddleware)
 	}
 
 	// Api should be compliant with the Terraform Registry Protocol for providers.
@@ -48,19 +43,18 @@ func (controller *ProviderController) Register(router *router.Router) {
 
 	// Get All Versions for a Single Provider
 	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-versions-for-a-single-provider
-	router.GET("/:network_mirror_url/:cache_request_id/:registry_name/:namespace/:name/versions", controller.getVersionsAction)
+	controller.GET("/:cache_request_id/:registry_name/:namespace/:name/versions", controller.getVersionsAction)
 
 	// Get a Platform
 	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-a-platform
-	router.GET("/:network_mirror_url/:cache_request_id/:registry_name/:namespace/:name/:version/download/:os/:arch", controller.getPlatformsAction)
+	controller.GET("/:cache_request_id/:registry_name/:namespace/:name/:version/download/:os/:arch", controller.getPlatformsAction)
 }
 
 func (controller *ProviderController) getVersionsAction(ctx echo.Context) error {
 	var (
-		networkMirrorURL = ctx.Param("network_mirror_url")
-		registryName     = ctx.Param("registry_name")
-		namespace        = ctx.Param("namespace")
-		name             = ctx.Param("name")
+		registryName = ctx.Param("registry_name")
+		namespace    = ctx.Param("namespace")
+		name         = ctx.Param("name")
 	)
 
 	provider := &models.Provider{
@@ -69,28 +63,23 @@ func (controller *ProviderController) getVersionsAction(ctx echo.Context) error 
 		Name:         name,
 	}
 
-	if networkMirrorURL != "" {
-		networkMirrorURL, err := url.QueryUnescape(networkMirrorURL)
-		if err != nil {
-			return err
+	for _, handler := range controller.ProviderHandlers {
+		if handler.CanHandleProvider(provider) {
+			return handler.GetVersions(ctx, provider)
 		}
-		return controller.NetworkMirrorHandler.GetVersions(ctx, networkMirrorURL, provider)
 	}
-
-	return controller.RegistryHandler.GetVersions(ctx, provider)
-
+	return ctx.NoContent(http.StatusNotFound)
 }
 
 func (controller *ProviderController) getPlatformsAction(ctx echo.Context) (er error) {
 	var (
-		networkMirrorURL = ctx.Param("network_mirror_url")
-		registryName     = ctx.Param("registry_name")
-		namespace        = ctx.Param("namespace")
-		name             = ctx.Param("name")
-		version          = ctx.Param("version")
-		os               = ctx.Param("os")
-		arch             = ctx.Param("arch")
-		cacheRequestID   = ctx.Param("cache_request_id")
+		registryName   = ctx.Param("registry_name")
+		namespace      = ctx.Param("namespace")
+		name           = ctx.Param("name")
+		version        = ctx.Param("version")
+		os             = ctx.Param("os")
+		arch           = ctx.Param("arch")
+		cacheRequestID = ctx.Param("cache_request_id")
 	)
 
 	provider := &models.Provider{
@@ -102,13 +91,10 @@ func (controller *ProviderController) getPlatformsAction(ctx echo.Context) (er e
 		Arch:         arch,
 	}
 
-	if networkMirrorURL != "" {
-		networkMirrorURL, err := url.QueryUnescape(networkMirrorURL)
-		if err != nil {
-			return err
+	for _, handler := range controller.ProviderHandlers {
+		if handler.CanHandleProvider(provider) {
+			return handler.GetPlatfrom(ctx, provider, controller.DownloaderController.URLPath(), cacheRequestID)
 		}
-		return controller.NetworkMirrorHandler.GetPlatfrom(ctx, networkMirrorURL, provider, cacheRequestID)
 	}
-
-	return controller.RegistryHandler.GetPlatfrom(ctx, provider, cacheRequestID)
+	return ctx.NoContent(http.StatusNotFound)
 }

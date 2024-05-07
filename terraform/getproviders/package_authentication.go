@@ -188,11 +188,11 @@ func (auth matchingChecksumAuthentication) Authenticate(location string) (*Packa
 type signatureAuthentication struct {
 	Document  []byte
 	Signature []byte
-	Keys      []SigningKey
+	Keys      map[string]string
 }
 
 // NewSignatureAuthentication returns a PackageAuthentication implementation that verifies the cryptographic signature for a package against any of the provided keys.
-func NewSignatureAuthentication(document, signature []byte, keys []SigningKey) PackageAuthentication {
+func NewSignatureAuthentication(document, signature []byte, keys map[string]string) PackageAuthentication {
 	return signatureAuthentication{
 		Document:  document,
 		Signature: signature,
@@ -202,7 +202,7 @@ func NewSignatureAuthentication(document, signature []byte, keys []SigningKey) P
 
 func (auth signatureAuthentication) Authenticate(location string) (*PackageAuthenticationResult, error) {
 	// Find the key that signed the checksum file. This can fail if there is no valid signature for any of the provided keys.
-	signingKey, err := auth.findSigningKey()
+	asciiArmor, trustSignature, err := auth.findSigningKey()
 	if err != nil {
 		return nil, err
 	}
@@ -218,18 +218,18 @@ func (auth signatureAuthentication) Authenticate(location string) (*PackageAuthe
 	}
 
 	// If the signing key has a trust signature, attempt to verify it with the HashiCorp partners public key.
-	if signingKey.TrustSignature != "" {
+	if trustSignature != "" {
 		hashicorpPartnersKeyring, err := openpgp.ReadArmoredKeyRing(strings.NewReader(HashicorpPartnersKey))
 		if err != nil {
 			return nil, errors.Errorf("error creating HashiCorp Partners keyring: %s", err)
 		}
 
-		authorKey, err := openpgpArmor.Decode(strings.NewReader(signingKey.ASCIIArmor))
+		authorKey, err := openpgpArmor.Decode(strings.NewReader(asciiArmor))
 		if err != nil {
 			return nil, errors.Errorf("error decoding signing key: %s", err)
 		}
 
-		trustSignature, err := openpgpArmor.Decode(strings.NewReader(signingKey.TrustSignature))
+		trustSignature, err := openpgpArmor.Decode(strings.NewReader(trustSignature))
 		if err != nil {
 			return nil, errors.Errorf("error decoding trust signature: %s", err)
 		}
@@ -262,11 +262,11 @@ func (auth signatureAuthentication) AcceptableHashes() []Hash {
 }
 
 // findSigningKey attempts to verify the signature using each of the keys returned by the registry. If a valid signature is found, it returns the signing key.
-func (auth signatureAuthentication) findSigningKey() (*SigningKey, error) {
-	for _, key := range auth.Keys {
-		keyring, err := openpgp.ReadArmoredKeyRing(strings.NewReader(key.ASCIIArmor))
+func (auth signatureAuthentication) findSigningKey() (string, string, error) {
+	for asciiArmor, trustSignature := range auth.Keys {
+		keyring, err := openpgp.ReadArmoredKeyRing(strings.NewReader(asciiArmor))
 		if err != nil {
-			return nil, errors.Errorf("error decoding signing key: %s", err)
+			return "", "", errors.Errorf("error decoding signing key: %s", err)
 		}
 
 		if err := auth.checkDetachedSignature(keyring, bytes.NewReader(auth.Document), bytes.NewReader(auth.Signature), nil); err != nil {
@@ -276,12 +276,12 @@ func (auth signatureAuthentication) findSigningKey() (*SigningKey, error) {
 			}
 
 			// Any other signature error is terminal.
-			return nil, errors.Errorf("error checking signature: %s", err)
+			return "", "", errors.Errorf("error checking signature: %s", err)
 		}
 
-		return &key, nil
+		return asciiArmor, trustSignature, nil
 	}
 
 	// If none of the provided keys issued the signature, this package is unsigned. This is currently a terminal authentication error.
-	return nil, errors.Errorf("authentication signature from unknown issuer")
+	return "", "", errors.Errorf("authentication signature from unknown issuer")
 }

@@ -9,19 +9,13 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/controllers"
-	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/middleware"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 	"golang.org/x/sync/errgroup"
 )
 
-const (
-	// The status returned when making a request to the caching provider.
-	// It is needed to prevent further loading of providers by terraform, and at the same time make sure that the request was processed successfully.
-	CacheProviderHTTPStatusCode = http.StatusLocked
-)
+const AuthorizationApiKeyHeaderName = "x-api-key"
 
 // Server is a private Terraform cache for provider caching.
 type Server struct {
@@ -37,23 +31,16 @@ func NewServer(opts ...Option) *Server {
 	cfg := NewConfig(opts...)
 
 	providerService := services.NewProviderService(cfg.providerCacheDir, cfg.userProviderDir)
-
-	authorization := &handlers.Authorization{
-		Token: cfg.token,
-	}
-
-	regsitryHanlder := handlers.NewRegistry(providerService, CacheProviderHTTPStatusCode)
-	networkMirrorHandler := handlers.NewNetworkMirror(providerService, CacheProviderHTTPStatusCode)
+	authMiddleware := middleware.KeyAuth(AuthorizationApiKeyHeaderName, cfg.token)
 
 	downloaderController := &controllers.DownloaderController{
-		RegistryHandler: regsitryHanlder,
-		ProviderService: providerService,
+		ProviderHandlers: cfg.providerHandlers,
 	}
 
 	providerController := &controllers.ProviderController{
-		Authorization:        authorization,
-		RegistryHandler:      regsitryHanlder,
-		NetworkMirrorHandler: networkMirrorHandler,
+		AuthMiddleware:       authMiddleware,
+		DownloaderController: downloaderController,
+		ProviderHandlers:     cfg.providerHandlers,
 	}
 
 	discoveryController := &controllers.DiscoveryController{
@@ -61,26 +48,12 @@ func NewServer(opts ...Option) *Server {
 	}
 
 	rootRouter := router.New()
+	rootRouter.Use(middleware.Logger())
+	rootRouter.Use(middleware.Recover())
 	rootRouter.Register(discoveryController, downloaderController)
 
 	v1Group := rootRouter.Group("v1")
 	v1Group.Register(providerController)
-	rootRouter.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
-		LogStatus:   true,
-		LogURI:      true,
-		LogError:    true,
-		HandleError: true, // forwards error to the global error handler, so it can decide appropriate status code
-		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
-			log := log.WithField("uri", v.URI).WithField("status", v.Status)
-			if v.Error != nil {
-				log.Errorf("Cache server was unable to process the received request, %s", v.Error.Error())
-			} else {
-				log.Tracef("Cache server received request")
-			}
-			return nil
-		},
-	}))
-	rootRouter.Use(handlers.Recover())
 
 	return &Server{
 		Server:             &http.Server{Handler: rootRouter},
@@ -95,7 +68,7 @@ func (server *Server) ProviderURL() *url.URL {
 	return &url.URL{
 		Scheme: "http",
 		Host:   server.Addr,
-		Path:   server.providerController.Path(),
+		Path:   server.providerController.URLPath(),
 	}
 }
 

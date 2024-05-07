@@ -39,9 +39,25 @@ func loadUserConfig(
 		return nil, diag.Err()
 	}
 
+	var methods []ProviderInstallationMethod
+
+	for _, providerInstallation := range cfg.ProviderInstallation {
+		for _, method := range providerInstallation.Methods {
+			switch location := method.Location.(type) {
+			case cliconfig.ProviderInstallationFilesystemMirror:
+				methods = append(methods, NewProviderInstallationFilesystemMirror(string(location), method.Include, method.Exclude))
+			case cliconfig.ProviderInstallationNetworkMirror:
+				methods = append(methods, NewProviderInstallationNetworkMirror(string(location), method.Include, method.Exclude))
+			default:
+				methods = append(methods, NewProviderInstallationDirect(method.Include, method.Exclude))
+			}
+		}
+	}
+
 	return &Config{
-		rawHCL:         rawHCL,
-		PluginCacheDir: cfg.PluginCacheDir,
+		rawHCL:               rawHCL,
+		PluginCacheDir:       cfg.PluginCacheDir,
+		ProviderInstallation: &ProviderInstallation{Methods: methods},
 	}, nil
 }
 

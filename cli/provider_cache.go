@@ -19,7 +19,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/terraform/cache"
-	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/cliconfig"
 	"github.com/gruntwork-io/terragrunt/terraform/getproviders"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -29,6 +28,10 @@ import (
 const (
 	// The paths to the automatically generated local CLI configs
 	localCLIFilename = ".terraformrc"
+
+	// The status returned when making a request to the caching provider.
+	// It is needed to prevent further loading of providers by terraform, and at the same time make sure that the request was processed successfully.
+	cacheProviderHTTPStatusCode = http.StatusLocked
 )
 
 var (
@@ -46,7 +49,7 @@ var (
 	//    │ provider registry for registry.terraform.io/snowflake-labs/snowflake: 423
 	//    │ Locked
 	//    ╵
-	HTTPStatusCacheProviderReg = regexp.MustCompile(`(?smi)` + strconv.Itoa(cache.CacheProviderHTTPStatusCode) + `.*` + http.StatusText(cache.CacheProviderHTTPStatusCode))
+	HTTPStatusCacheProviderReg = regexp.MustCompile(`(?smi)` + strconv.Itoa(cacheProviderHTTPStatusCode) + `.*` + http.StatusText(cacheProviderHTTPStatusCode))
 )
 
 type ProviderCache struct {
@@ -59,6 +62,11 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 	if err != nil {
 		return nil, err
 	}
+
+	// for _, m := range cliCfg.ProviderInstallation.Methods {
+	// 	fmt.Println("---------------------", m)
+	// }
+	// os.Exit(1)
 
 	cacheDir, err := util.GetCacheDir()
 	if err != nil {
@@ -79,8 +87,8 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 		opts.ProviderCacheToken = uuid.New().String()
 	}
 	// Currently, the cache server only supports the `x-api-key` token.
-	if !strings.HasPrefix(strings.ToLower(opts.ProviderCacheToken), handlers.AuthorizationApiKeyHeaderName+":") {
-		opts.ProviderCacheToken = fmt.Sprintf("%s:%s", handlers.AuthorizationApiKeyHeaderName, opts.ProviderCacheToken)
+	if !strings.HasPrefix(strings.ToLower(opts.ProviderCacheToken), cache.AuthorizationApiKeyHeaderName+":") {
+		opts.ProviderCacheToken = fmt.Sprintf("%s:%s", cache.AuthorizationApiKeyHeaderName, opts.ProviderCacheToken)
 	}
 
 	userProviderDir, err := cliconfig.UserProviderDir()
@@ -186,8 +194,8 @@ func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions
 		providerInstallationIncludes = append(providerInstallationIncludes, fmt.Sprintf("%s/*/*", registryName))
 
 		//networkMirrorURL := "https://mirrors.tencent.com/terraform/"
-		networkMirrorURL := "http://127.0.0.1:7654"
-		//networkMirrorURL := ""
+		//networkMirrorURL := "http://127.0.0.1:7654"
+		networkMirrorURL := ""
 
 		cfg.AddHost(registryName, map[string]string{
 			"providers.v1": fmt.Sprintf("%s/%s/%s/%s/", cache.ProviderURL(), url.QueryEscape(networkMirrorURL), cacheRequestID, registryName),

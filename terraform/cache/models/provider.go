@@ -2,15 +2,68 @@ package models
 
 import (
 	"fmt"
-	"net/url"
 	"path"
-
-	"github.com/gruntwork-io/terragrunt/terraform/getproviders"
 )
+
+type Providers []*Provider
+
+func (providers Providers) Find(target *Provider) *Provider {
+	for _, provider := range providers {
+		if provider.Match(target) {
+			return provider
+		}
+	}
+	return nil
+}
+
+// SigningKey represents a key used to sign packages from a registry, along with an optional trust signature from the registry operator. These are both in ASCII armored OpenPGP format.
+type SigningKey struct {
+	ASCIIArmor     string `json:"ascii_armor"`
+	TrustSignature string `json:"trust_signature"`
+}
+
+type SigningKeyList struct {
+	GPGPublicKeys []*SigningKey `json:"gpg_public_keys"`
+}
+
+func (list SigningKeyList) Keys() map[string]string {
+	keys := make(map[string]string)
+
+	for _, key := range list.GPGPublicKeys {
+		keys[key.ASCIIArmor] = key.TrustSignature
+	}
+	return keys
+}
+
+type Version struct {
+	Version   string     `json:"version"`
+	Protocols []string   `json:"protocols"`
+	Platforms []Platform `json:"platforms"`
+}
+
+type Platform struct {
+	OS   string `json:"os"`
+	Arch string `json:"arch"`
+}
+
+// ResponseBody represents the details of the Terraform provider received from a registry.
+type ResponseBody struct {
+	Platform
+
+	Protocols []string `json:"protocols,omitempty"`
+	Filename  string   `json:"filename"`
+
+	DownloadURL            string `json:"download_url"`
+	SHA256SumsURL          string `json:"shasums_url,omitempty"`
+	SHA256SumsSignatureURL string `json:"shasums_signature_url,omitempty"`
+
+	SHA256Sum   string         `json:"shasum,omitempty"`
+	SigningKeys SigningKeyList `json:"signing_keys,omitempty"`
+}
 
 // Provider represents the details of the Terraform provider.
 type Provider struct {
-	*getproviders.Package
+	*ResponseBody
 
 	RegistryName string
 	Namespace    string
@@ -18,24 +71,6 @@ type Provider struct {
 	Version      string
 	OS           string
 	Arch         string
-}
-
-func NewProviderFromDownloadURL(downloadURL string) *Provider {
-	return &Provider{
-		Package: &getproviders.Package{
-			DownloadURL: downloadURL,
-		},
-	}
-}
-
-// PlatformURL returns the URL used to query the all platforms for a single version.
-// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-a-platform
-func (provider *Provider) PlatformURL() *url.URL {
-	return &url.URL{
-		Scheme: "https",
-		Host:   provider.RegistryName,
-		Path:   path.Join("/v1/providers", provider.Namespace, provider.Name, provider.Version, "download", provider.OS, provider.Arch),
-	}
 }
 
 func (provider *Provider) String() string {
@@ -52,13 +87,14 @@ func (provider *Provider) Address() string {
 
 // Match returns true if all defined provider properties are matched.
 func (provider *Provider) Match(target *Provider) bool {
-	if (provider.RegistryName == "" || target.RegistryName == "" || provider.RegistryName == target.RegistryName) &&
-		(provider.Namespace == "" || target.Namespace == "" || provider.Namespace == target.Namespace) &&
-		(provider.Name == "" || target.Name == "" || provider.Name == target.Name) &&
-		(provider.Version == "" || target.Version == "" || provider.Version == target.Version) &&
-		(provider.OS == "" || target.OS == "" || provider.OS == target.OS) &&
-		(provider.Arch == "" || target.Arch == "" || provider.Arch == target.Arch) &&
-		(provider.DownloadURL == "" || target.DownloadURL == "" || provider.DownloadURL == target.DownloadURL) {
+	registryNameMatch := provider.RegistryName == "" || target.RegistryName == "" || provider.RegistryName == target.RegistryName
+	namespaceMatch := provider.Namespace == "" || target.Namespace == "" || provider.Namespace == target.Namespace
+	nameMatch := provider.Name == "" || target.Name == "" || provider.Name == target.Name
+	osMatch := provider.OS == "" || target.OS == "" || provider.OS == target.OS
+	archMatch := provider.Arch == "" || target.Arch == "" || provider.Arch == target.Arch
+	downloadURLMatch := provider.DownloadURL == "" || target.DownloadURL == "" || provider.DownloadURL == target.DownloadURL
+
+	if registryNameMatch && namespaceMatch && nameMatch && osMatch && archMatch && downloadURLMatch {
 		return true
 	}
 	return false

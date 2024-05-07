@@ -1,35 +1,31 @@
 package controllers
 
 import (
+	"net/http"
 	"net/url"
-	"path"
 
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
-	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
 	"github.com/labstack/echo/v4"
 )
 
 const (
-	downloadPath         = "/downloads"
-	downloadProviderPath = "/provider"
+	downloadPath = "/downloads"
 )
 
 type DownloaderController struct {
-	RegistryHandler *handlers.Registry
-	ProviderService *services.ProviderService
+	*router.Router
 
-	basePath string
+	ProviderHandlers []handlers.ProviderHandler
 }
 
 // Register implements router.Controller.Register
 func (controller *DownloaderController) Register(router *router.Router) {
-	router = router.Group(downloadPath)
-	controller.basePath = router.Prefix()
-	controller.RegistryHandler.SetDownloadURLPath(path.Join(controller.basePath, downloadProviderPath))
+	controller.Router = router.Group(downloadPath)
 
 	// Download provider
-	router.GET(downloadProviderPath+"/:remote_host/:remote_path", controller.downloadProviderAction)
+	controller.GET("/:remote_host/:remote_path", controller.downloadProviderAction)
 }
 
 func (controller *DownloaderController) downloadProviderAction(ctx echo.Context) error {
@@ -38,11 +34,21 @@ func (controller *DownloaderController) downloadProviderAction(ctx echo.Context)
 		remotePath = ctx.Param("remote_path")
 	)
 
-	downloadURL := &url.URL{
+	downloadURL := url.URL{
 		Scheme: "https",
 		Host:   remoteHost,
 		Path:   "/" + remotePath,
 	}
+	provider := &models.Provider{
+		ResponseBody: &models.ResponseBody{
+			DownloadURL: downloadURL.String(),
+		},
+	}
 
-	return controller.RegistryHandler.Download(ctx, downloadURL)
+	for _, handler := range controller.ProviderHandlers {
+		if handler.CanHandleProvider(provider) {
+			return handler.Download(ctx, provider)
+		}
+	}
+	return ctx.NoContent(http.StatusNotFound)
 }

@@ -17,16 +17,18 @@ type Endpointer interface {
 }
 
 type DiscoveryController struct {
+	*router.Router
+
 	Endpointers []Endpointer
 }
 
 // Register implements router.Controller.Register
 func (controller *DiscoveryController) Register(router *router.Router) {
-	router = router.Group(discoveryPath)
+	controller.Router = router.Group(discoveryPath)
 
 	// Discovery Process
 	// https://developer.hashicorp.com/terraform/internals/remote-service-discovery#discovery-process
-	router.GET("/terraform.json", controller.terraformAction)
+	controller.GET("/terraform.json", controller.terraformAction)
 }
 
 func (controller *DiscoveryController) terraformAction(ctx echo.Context) error {

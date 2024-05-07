@@ -4,6 +4,8 @@ import (
 	"net"
 	"strconv"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 )
 
 const (
@@ -52,6 +54,13 @@ func WithUserProviderDir(userProviderDir string) Option {
 	}
 }
 
+func WithProviderHandlers(handlers ...handlers.ProviderHandler) Option {
+	return func(cfg Config) Config {
+		cfg.providerHandlers = handlers
+		return cfg
+	}
+}
+
 type Config struct {
 	hostname        string
 	port            int
@@ -60,6 +69,7 @@ type Config struct {
 
 	userProviderDir  string
 	providerCacheDir string
+	providerHandlers []handlers.ProviderHandler
 }
 
 func NewConfig(opts ...Option) *Config {

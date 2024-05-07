@@ -2,11 +2,7 @@
 
 package getproviders
 
-import (
-	"context"
-)
-
-type Providers []Provider
+import "context"
 
 type Provider interface {
 	// Address returns a source address of the provider. e.g.: registry.terraform.io/hashicorp/aws

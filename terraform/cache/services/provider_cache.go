@@ -139,20 +139,15 @@ func (cache *ProviderCache) AuthenticatePackage(ctx context.Context) (*getprovid
 		return nil, errors.Errorf("registry response includes invalid SHA256 hash %q for provider %q: %w", cache.SHA256Sum, cache.Provider, err)
 	}
 
-	keys := make([]getproviders.SigningKey, len(cache.SigningKeys.GPGPublicKeys))
-	for i, key := range cache.SigningKeys.GPGPublicKeys {
-		keys[i] = *key
-	}
-
 	providerPackage := getproviders.PackageAuthenticationAll(
-		getproviders.NewMatchingChecksumAuthentication(documentSHA256Sums, cache.Package.Filename, checksum),
+		getproviders.NewMatchingChecksumAuthentication(documentSHA256Sums, cache.Filename, checksum),
 		getproviders.NewArchiveChecksumAuthentication(checksum),
-		getproviders.NewSignatureAuthentication(documentSHA256Sums, signature, keys),
+		getproviders.NewSignatureAuthentication(documentSHA256Sums, signature, cache.SigningKeys.Keys()),
 	)
 	return providerPackage.Authenticate(cache.archivePath)
 }
 
-func (cache *ProviderCache) Filename() string {
+func (cache *ProviderCache) ArchivePath() string {
 	if util.FileExists(cache.archivePath) {
 		return cache.archivePath
 	}
@@ -260,11 +255,11 @@ func NewProviderService(baseCacheDir, baseUserCacheDir string) *ProviderService 
 
 // WaitForCacheReady returns cached providers that were requested by `terraform init` from the cache server, with an  URL containing the given `requestID` value.
 // The function returns the value only when all cache requests have been processed.
-func (service *ProviderService) WaitForCacheReady(requestID string) getproviders.Providers {
+func (service *ProviderService) WaitForCacheReady(requestID string) []getproviders.Provider {
 	service.cacheReadyMu.Lock()
 	defer service.cacheReadyMu.Unlock()
 
-	var providers getproviders.Providers
+	var providers []getproviders.Provider
 
 	for _, provider := range service.providerCaches.FindByRequestID(requestID) {
 		providers = append(providers, provider)
