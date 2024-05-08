@@ -2,16 +2,10 @@ package cliconfig
 
 import (
 	"os"
-	"regexp"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclwrite"
-)
-
-var (
-	// matches the line starting with `plugin_cache_dir =`
-	configParamPluginCacheDirReg = regexp.MustCompile(`(?mi)^\s*plugin_cache_dir\s*=\s*(.*?)\s*$`)
 )
 
 // ConfigHost is the structure of the "host" nested block within the CLI configuration, which can be used to override the default service host discovery behavior for a particular hostname.
@@ -20,10 +14,26 @@ type ConfigHost struct {
 	Services map[string]string `hcl:"services,attr"`
 }
 
+// ConfigCredentials is the structure of the "credentials" nested block within the CLI configuration.
+type ConfigCredentials struct {
+	Name  string `hcl:",label"`
+	Token string `hcl:"token"`
+}
+
+// ConfigCredentialsHelper is the structure of the "credentials_helper" nested block within the CLI configuration.
+type ConfigCredentialsHelper struct {
+	Name string   `hcl:",label"`
+	Args []string `hcl:"args"`
+}
+
 // Config provides methods to create a terraform [CLI config file](https://developer.hashicorp.com/terraform/cli/config/config-file).
 // The main purpose of which is to create a local config that will inherit the default user CLI config and adding new sections to force Terraform to send requests through the Terragrunt Cache server and use the provider cache directory.
 type Config struct {
-	rawHCL []byte
+	DisableCheckpoint          bool `hcl:"disable_checkpoint"`
+	DisableCheckpointSignature bool `hcl:"disable_checkpoint_signature"`
+
+	Credentials        []ConfigCredentials      `hcl:"credentials,block"`
+	CredentialsHelpers *ConfigCredentialsHelper `hcl:"credentials_helper,block"`
 
 	PluginCacheDir       string                `hcl:"plugin_cache_dir"`
 	Hosts                []ConfigHost          `hcl:"host,block"`
@@ -31,11 +41,29 @@ type Config struct {
 }
 
 func (cfg *Config) Clone() *Config {
+	var (
+		providerInstallation *ProviderInstallation
+		hosts                []ConfigHost
+	)
+
+	for _, host := range cfg.Hosts {
+		hosts = append(hosts, host)
+	}
+
+	if cfg.ProviderInstallation != nil {
+		providerInstallation = &ProviderInstallation{
+			Methods: cfg.ProviderInstallation.Methods,
+		}
+	}
+
 	return &Config{
-		rawHCL:               cfg.rawHCL,
-		PluginCacheDir:       cfg.PluginCacheDir,
-		Hosts:                cfg.Hosts,
-		ProviderInstallation: cfg.ProviderInstallation,
+		PluginCacheDir:             cfg.PluginCacheDir,
+		DisableCheckpoint:          cfg.DisableCheckpoint,
+		DisableCheckpointSignature: cfg.DisableCheckpointSignature,
+		Credentials:                cfg.Credentials,
+		CredentialsHelpers:         cfg.CredentialsHelpers,
+		Hosts:                      hosts,
+		ProviderInstallation:       providerInstallation,
 	}
 }
 
@@ -74,16 +102,10 @@ func (cfg *Config) AddProviderInstallationMethods(methods ...ProviderInstallatio
 
 // Save marshalls and saves CLI config with the given config path.
 func (cfg *Config) Save(configPath string) error {
-	rawHCL := cfg.rawHCL
-	// Since `Config` structure already has `plugin_cache_dir`, remove it from the raw HCL config to prevent repeating in the saved file.
-	rawHCL = configParamPluginCacheDirReg.ReplaceAll(rawHCL, []byte{})
-
 	file := hclwrite.NewEmptyFile()
-
 	gohcl.EncodeIntoBody(cfg, file.Body())
-	newHCL := append(rawHCL, file.Bytes()...)
 
-	if err := os.WriteFile(configPath, newHCL, os.FileMode(0644)); err != nil {
+	if err := os.WriteFile(configPath, file.Bytes(), os.FileMode(0644)); err != nil {
 		return errors.WithStackTrace(err)
 	}
 

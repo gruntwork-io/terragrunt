@@ -3,9 +3,21 @@ package models
 import (
 	"fmt"
 	"path"
+	"strings"
 )
 
 type Providers []*Provider
+
+func ParseProvidersFromAddresses(addresses ...string) Providers {
+	var prvoiders Providers
+
+	for _, address := range addresses {
+		if provider := ParseProviderFromAddress(address); provider != nil {
+			prvoiders = append(prvoiders, provider)
+		}
+	}
+	return prvoiders
+}
 
 func (providers Providers) Find(target *Provider) *Provider {
 	for _, provider := range providers {
@@ -73,6 +85,31 @@ type Provider struct {
 	Arch         string
 }
 
+func ParseProviderFromAddress(address string) *Provider {
+	parts := strings.Split(address, "/")
+	for i := range parts {
+		if parts[i] == "*" {
+			parts[i] = ""
+		}
+	}
+
+	switch {
+	case len(parts) == 2:
+		return &Provider{
+			Namespace: parts[0],
+			Name:      parts[1],
+		}
+	case len(parts) > 2:
+		return &Provider{
+			RegistryName: parts[0],
+			Namespace:    parts[1],
+			Name:         parts[2],
+		}
+	}
+
+	return nil
+}
+
 func (provider *Provider) String() string {
 	return fmt.Sprintf("%s/%s/%s v%s", provider.RegistryName, provider.Namespace, provider.Name, provider.Version)
 }
@@ -92,7 +129,7 @@ func (provider *Provider) Match(target *Provider) bool {
 	nameMatch := provider.Name == "" || target.Name == "" || provider.Name == target.Name
 	osMatch := provider.OS == "" || target.OS == "" || provider.OS == target.OS
 	archMatch := provider.Arch == "" || target.Arch == "" || provider.Arch == target.Arch
-	downloadURLMatch := provider.DownloadURL == "" || target.DownloadURL == "" || provider.DownloadURL == target.DownloadURL
+	downloadURLMatch := provider.ResponseBody == nil || provider.DownloadURL == "" || target.DownloadURL == "" || provider.DownloadURL == target.DownloadURL
 
 	if registryNameMatch && namespaceMatch && nameMatch && osMatch && archMatch && downloadURLMatch {
 		return true

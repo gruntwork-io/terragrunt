@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
+	"github.com/gruntwork-io/terragrunt/terraform/cliconfig"
 	"github.com/labstack/echo/v4"
 )
 
@@ -35,25 +36,38 @@ type ProviderNetworkMirrorHandler struct {
 	cacheProviderHTTPStatusCode int
 
 	networkMirrorURL string
-	// Include and Exclude are sets of provider matching patterns that together define which providers are eligible to be potentially installed from the corresponding Source.
-	Include, Exclude models.Providers
+	// includeProvider and excludeProvider are sets of provider matching patterns that together define which providers are eligible to be potentially installed from the corresponding Source.
+	includeProvider, excludeProvider models.Providers
 }
 
-func NewProviderNetworkMirrorHandler(providerService *services.ProviderService, cacheProviderHTTPStatusCode int) ProviderHandler {
+func NewProviderNetworkMirrorHandler(providerService *services.ProviderService, cacheProviderHTTPStatusCode int, networkMirror *cliconfig.ProviderInstallationNetworkMirror) ProviderHandler {
+	var includeProvider, excludeProvider models.Providers
+
+	if addrs := networkMirror.Include; addrs != nil {
+		includeProvider = models.ParseProvidersFromAddresses(*addrs...)
+	}
+
+	if addrs := networkMirror.Exclude; addrs != nil {
+		excludeProvider = models.ParseProvidersFromAddresses(*addrs...)
+	}
+
 	return &ProviderNetworkMirrorHandler{
 		Client:                      &http.Client{},
 		providerService:             providerService,
 		cacheProviderHTTPStatusCode: cacheProviderHTTPStatusCode,
+		networkMirrorURL:            networkMirror.URL,
+		includeProvider:             includeProvider,
+		excludeProvider:             excludeProvider,
 	}
 }
 
 // CanHandleProvider implements ProviderHandler.CanHandleProvider
 func (handler *ProviderNetworkMirrorHandler) CanHandleProvider(provider *models.Provider) bool {
 	switch {
-	case handler.Exclude.Find(provider) != nil:
+	case handler.excludeProvider.Find(provider) != nil:
 		return false
-	case len(handler.Include) > 0:
-		return handler.Include.Find(provider) != nil
+	case len(handler.includeProvider) > 0:
+		return handler.includeProvider.Find(provider) != nil
 	default:
 		return true
 	}
@@ -120,10 +134,10 @@ func (handler *ProviderNetworkMirrorHandler) Download(ctx echo.Context, provider
 	return ctx.NoContent(http.StatusNotImplemented)
 }
 
-func (handler *ProviderNetworkMirrorHandler) request(ctx echo.Context, method, reqPath string, value any) error {
+func (handler *ProviderNetworkMirrorHandler) request(ctx echo.Context, networkMirror, reqPath string, value any) error {
 	reqURL := fmt.Sprintf("%s/%s", strings.TrimRight(handler.networkMirrorURL, "/"), reqPath)
 
-	req, err := http.NewRequestWithContext(ctx.Request().Context(), method, reqURL, nil)
+	req, err := http.NewRequestWithContext(ctx.Request().Context(), networkMirror, reqURL, nil)
 	if err != nil {
 		return err
 	}

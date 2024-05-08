@@ -1,11 +1,9 @@
 package cliconfig
 
 import (
-	"os"
 	"path/filepath"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/terraform/command/cliconfig"
 	"github.com/hashicorp/terraform/tfdiags"
 )
@@ -13,33 +11,23 @@ import (
 // The user configuration is read as raw data and stored at the top of the saved configuration file.
 // The location of the default config is different for each OS https://developer.hashicorp.com/terraform/cli/config/config-file#locations
 func LoadUserConfig() (*Config, error) {
-	return loadUserConfig(cliconfig.ConfigFile, cliconfig.LoadConfig)
+	return loadUserConfig(cliconfig.LoadConfig)
 }
 
 func loadUserConfig(
-	configFileFn func() (string, error),
 	loadConfigFn func() (*cliconfig.Config, tfdiags.Diagnostics),
 ) (*Config, error) {
-	var rawHCL []byte
-
-	configFile, err := configFileFn()
-	if err != nil {
-		return nil, errors.WithStackTrace(err)
-	}
-
-	if util.FileExists(configFile) {
-		rawHCL, err = os.ReadFile(configFile)
-		if err != nil {
-			return nil, errors.WithStackTrace(err)
-		}
-	}
-
 	cfg, diag := loadConfigFn()
 	if diag.HasErrors() {
 		return nil, diag.Err()
 	}
 
-	var methods []ProviderInstallationMethod
+	var (
+		methods            []ProviderInstallationMethod
+		hosts              []ConfigHost
+		credentials        []ConfigCredentials
+		credentialsHelpers *ConfigCredentialsHelper
+	)
 
 	for _, providerInstallation := range cfg.ProviderInstallation {
 		for _, method := range providerInstallation.Methods {
@@ -54,10 +42,56 @@ func loadUserConfig(
 		}
 	}
 
+	for name, host := range cfg.Hosts {
+		services := make(map[string]string)
+		if host != nil {
+			for key, val := range host.Services {
+				if val, ok := val.(string); ok {
+					services[key] = val
+				}
+			}
+		}
+
+		host := ConfigHost{Name: name, Services: services}
+		hosts = append(hosts, host)
+	}
+
+	for name, helper := range cfg.CredentialsHelpers {
+		var args []string
+		if helper != nil {
+			args = helper.Args
+		}
+
+		credentialsHelpers = &ConfigCredentialsHelper{
+			Name: name,
+			Args: args,
+		}
+	}
+
+	for name, credential := range cfg.Credentials {
+		var token string
+
+		if val, ok := credential["token"]; ok {
+			if val, ok := val.(string); ok {
+				token = val
+			}
+		}
+
+		credential := ConfigCredentials{
+			Name:  name,
+			Token: token,
+		}
+		credentials = append(credentials, credential)
+	}
+
 	return &Config{
-		rawHCL:               rawHCL,
-		PluginCacheDir:       cfg.PluginCacheDir,
-		ProviderInstallation: &ProviderInstallation{Methods: methods},
+		DisableCheckpoint:          cfg.DisableCheckpoint,
+		DisableCheckpointSignature: cfg.DisableCheckpointSignature,
+		PluginCacheDir:             cfg.PluginCacheDir,
+		Credentials:                credentials,
+		CredentialsHelpers:         credentialsHelpers,
+		ProviderInstallation:       &ProviderInstallation{Methods: methods},
+		Hosts:                      hosts,
 	}, nil
 }
 

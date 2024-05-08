@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
 )
 
 const (
@@ -33,23 +34,17 @@ func WithPort(port int) Option {
 	}
 }
 
-func WithToken(token string) Option {
+func WithToken(authType, authToken string) Option {
 	return func(cfg Config) Config {
-		cfg.token = token
+		cfg.authType = authType
+		cfg.authToken = authToken
 		return cfg
 	}
 }
 
-func WithProviderCacheDir(cacheDir string) Option {
+func WithServices(services ...services.Service) Option {
 	return func(cfg Config) Config {
-		cfg.providerCacheDir = cacheDir
-		return cfg
-	}
-}
-
-func WithUserProviderDir(userProviderDir string) Option {
-	return func(cfg Config) Config {
-		cfg.userProviderDir = userProviderDir
+		cfg.services = services
 		return cfg
 	}
 }
@@ -64,11 +59,11 @@ func WithProviderHandlers(handlers ...handlers.ProviderHandler) Option {
 type Config struct {
 	hostname        string
 	port            int
-	token           string
+	authToken       string
+	authType        string
 	shutdownTimeout time.Duration
 
-	userProviderDir  string
-	providerCacheDir string
+	services         []services.Service
 	providerHandlers []handlers.ProviderHandler
 }
 

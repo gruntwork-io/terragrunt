@@ -313,8 +313,8 @@ func (service *ProviderService) GetProviderCache(provider *models.Provider) *Pro
 	return nil
 }
 
-// RunCacheWorker is responsible to handle a new caching requestID and removing temporary files upon completion.
-func (service *ProviderService) RunCacheWorker(ctx context.Context) error {
+// Run is responsible to handle a new caching requestID and removing temporary files upon completion.
+func (service *ProviderService) Run(ctx context.Context) error {
 	if service.baseCacheDir == "" {
 		return errors.Errorf("provider cache directory not specified")
 	}

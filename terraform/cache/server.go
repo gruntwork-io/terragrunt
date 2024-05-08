@@ -15,14 +15,12 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const AuthorizationApiKeyHeaderName = "x-api-key"
-
 // Server is a private Terraform cache for provider caching.
 type Server struct {
 	*http.Server
 	config *Config
 
-	Provider           *services.ProviderService
+	services           []services.Service
 	providerController *controllers.ProviderController
 }
 
@@ -30,8 +28,7 @@ type Server struct {
 func NewServer(opts ...Option) *Server {
 	cfg := NewConfig(opts...)
 
-	providerService := services.NewProviderService(cfg.providerCacheDir, cfg.userProviderDir)
-	authMiddleware := middleware.KeyAuth(AuthorizationApiKeyHeaderName, cfg.token)
+	authMiddleware := middleware.KeyAuth(cfg.authType, cfg.authToken)
 
 	downloaderController := &controllers.DownloaderController{
 		ProviderHandlers: cfg.providerHandlers,
@@ -58,7 +55,7 @@ func NewServer(opts ...Option) *Server {
 	return &Server{
 		Server:             &http.Server{Handler: rootRouter},
 		config:             cfg,
-		Provider:           providerService,
+		services:           cfg.services,
 		providerController: providerController,
 	}
 }
@@ -78,6 +75,7 @@ func (server *Server) Listen() (net.Listener, error) {
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
+	server.Addr = ln.Addr().String()
 
 	log.Infof("Terragrunt Cache server is listening on %s", ln.Addr())
 	return ln, nil
@@ -87,12 +85,12 @@ func (server *Server) Listen() (net.Listener, error) {
 func (server *Server) Run(ctx context.Context, ln net.Listener) error {
 	log.Infof("Start Terragrunt Cache server")
 
-	server.Addr = ln.Addr().String()
-
 	errGroup, ctx := errgroup.WithContext(ctx)
-	errGroup.Go(func() error {
-		return server.Provider.RunCacheWorker(ctx)
-	})
+	for _, service := range server.services {
+		errGroup.Go(func() error {
+			return service.Run(ctx)
+		})
+	}
 	errGroup.Go(func() error {
 		<-ctx.Done()
 		log.Infof("Shutting down Terragrunt Cache server...")
