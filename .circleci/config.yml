@@ -164,8 +164,8 @@ jobs:
       - run:
           name: generate mocks
           command: |
-            go install github.com/vektra/mockery/v2@v2.36.0
-            go generate ./...
+            make install-mockery
+            make generate-mocks
       - run:
           name: run lint
           command: |
