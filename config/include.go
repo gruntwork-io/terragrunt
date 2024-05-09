@@ -825,11 +825,13 @@ func jsonIsIncludeBlock(jsonData interface{}) bool {
 	return false
 }
 
+var fieldsCopyLocks = util.NewKeyLocks()
+
 // copyFieldsMetadata Copy fields metadata between TerragruntConfig instances.
 func copyFieldsMetadata(sourceConfig *TerragruntConfig, targetConfig *TerragruntConfig) {
 
-	defer targetConfig.FieldsMetadataMutex.Unlock()
-	targetConfig.FieldsMetadataMutex.Lock()
+	fieldsCopyLocks.Lock(targetConfig.String())
+	defer fieldsCopyLocks.Unlock(targetConfig.String())
 
 	if sourceConfig.FieldsMetadata != nil {
 		if targetConfig.FieldsMetadata == nil {

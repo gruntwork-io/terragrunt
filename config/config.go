@@ -3,14 +3,12 @@ package config
 import (
 	"context"
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/telemetry"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
-	"sync"
-
-	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/mitchellh/mapstructure"
 
@@ -111,8 +109,7 @@ type TerragruntConfig struct {
 	ProcessedIncludes IncludeConfigs
 
 	// Map to store fields metadata
-	FieldsMetadata      map[string]map[string]interface{}
-	FieldsMetadataMutex sync.Mutex
+	FieldsMetadata map[string]map[string]interface{}
 
 	// List of dependent modules
 	DependentModulesPath []*string
@@ -949,8 +946,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	terragruntConfig := &TerragruntConfig{
 		IsPartial: false,
 		// Initialize GenerateConfigs so we can append to it
-		GenerateConfigs:     map[string]codegen.GenerateConfig{},
-		FieldsMetadataMutex: sync.Mutex{},
+		GenerateConfigs: map[string]codegen.GenerateConfig{},
 	}
 
 	defaultMetadata := map[string]interface{}{FoundInFile: configPath}

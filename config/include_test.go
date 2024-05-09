@@ -299,7 +299,7 @@ func TestConcurrentCopyFieldsMetadata(t *testing.T) {
 	targetConfig := &TerragruntConfig{}
 
 	var wg sync.WaitGroup
-	numGoroutines := 100
+	numGoroutines := 666
 
 	wg.Add(numGoroutines)
 	for i := 0; i < numGoroutines; i++ {
