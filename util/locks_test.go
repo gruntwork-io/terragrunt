@@ -1,10 +1,11 @@
 package util
 
 import (
-	"github.com/stretchr/testify/require"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewKeyLocks(t *testing.T) {

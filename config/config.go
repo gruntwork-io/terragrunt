@@ -3,12 +3,13 @@ package config
 import (
 	"context"
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/telemetry"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/mitchellh/mapstructure"
 
