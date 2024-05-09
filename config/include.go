@@ -20,6 +20,8 @@ import (
 
 const bareIncludeKey = ""
 
+var fieldsCopyLocks = util.NewKeyLocks()
+
 // Parse the config of the given include, if one is specified
 func parseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
@@ -824,8 +826,6 @@ func jsonIsIncludeBlock(jsonData interface{}) bool {
 	}
 	return false
 }
-
-var fieldsCopyLocks = util.NewKeyLocks()
 
 // copyFieldsMetadata Copy fields metadata between TerragruntConfig instances.
 func copyFieldsMetadata(sourceConfig *TerragruntConfig, targetConfig *TerragruntConfig) {
