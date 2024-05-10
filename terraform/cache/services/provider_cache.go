@@ -139,12 +139,18 @@ func (cache *ProviderCache) AuthenticatePackage(ctx context.Context) (*getprovid
 		return nil, errors.Errorf("registry response includes invalid SHA256 hash %q for provider %q: %w", cache.SHA256Sum, cache.Provider, err)
 	}
 
-	providerPackage := getproviders.PackageAuthenticationAll(
+	checks := []getproviders.PackageAuthentication{
 		getproviders.NewMatchingChecksumAuthentication(documentSHA256Sums, cache.Filename, checksum),
 		getproviders.NewArchiveChecksumAuthentication(checksum),
-		getproviders.NewSignatureAuthentication(documentSHA256Sums, signature, cache.SigningKeys.Keys()),
-	)
-	return providerPackage.Authenticate(cache.archivePath)
+	}
+
+	if len(cache.SigningKeys.Keys()) != 0 {
+		checks = append(checks, getproviders.NewSignatureAuthentication(documentSHA256Sums, signature, cache.SigningKeys.Keys()))
+	} else {
+		log.Warnf("Signature validation was skipped due to the registry not containing GPG keys for the provider %s", cache.Provider)
+	}
+
+	return getproviders.PackageAuthenticationAll(checks...).Authenticate(cache.archivePath)
 }
 
 func (cache *ProviderCache) ArchivePath() string {
@@ -195,6 +201,8 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	if err := unzip.Decompress(cache.packageDir, cache.archivePath, true, unzipFileMode); err != nil {
 		return errors.WithStackTrace(err)
 	}
+
+	//if len(cache.SigningKeys.GPGPublicKeys)
 
 	auth, err := cache.AuthenticatePackage(ctx)
 	if err != nil {

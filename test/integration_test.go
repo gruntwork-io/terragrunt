@@ -216,7 +216,7 @@ func TestTerragruntProviderCache(t *testing.T) {
 	assert.NoError(t, err)
 	providerCacheDir := filepath.Join(cacheDir, "provider-cache-test")
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-dir %s --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, rootPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, rootPath))
 
 	providers := map[string][]string{
 		"first": []string{

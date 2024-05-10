@@ -59,6 +59,8 @@ func DecodeJSONBody(resp *http.Response, value any) error {
 	if err := decoder.Decode(value); err != nil {
 		return err
 	}
+
+	resp.Body = io.NopCloser(buffer)
 	return nil
 }
 
