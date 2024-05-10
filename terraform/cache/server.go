@@ -4,7 +4,6 @@ import (
 	"context"
 	"net"
 	"net/http"
-	"net/url"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -17,18 +16,18 @@ import (
 
 // Server is a private Terraform cache for provider caching.
 type Server struct {
-	*http.Server
+	*router.Router
 	config *Config
 
 	services           []services.Service
-	providerController *controllers.ProviderController
+	ProviderController *controllers.ProviderController
 }
 
 // NewServer returns a new Server instance.
 func NewServer(opts ...Option) *Server {
 	cfg := NewConfig(opts...)
 
-	authMiddleware := middleware.KeyAuth(cfg.authType, cfg.authToken)
+	authMiddleware := middleware.KeyAuth(cfg.token)
 
 	downloaderController := &controllers.DownloaderController{
 		ProviderHandlers: cfg.providerHandlers,
@@ -53,19 +52,10 @@ func NewServer(opts ...Option) *Server {
 	v1Group.Register(providerController)
 
 	return &Server{
-		Server:             &http.Server{Handler: rootRouter},
+		Router:             rootRouter,
 		config:             cfg,
 		services:           cfg.services,
-		providerController: providerController,
-	}
-}
-
-// ProviderURL returns a full URL to the provider controller, e.g. http://localhost:5758/v1/providers
-func (server *Server) ProviderURL() *url.URL {
-	return &url.URL{
-		Scheme: "http",
-		Host:   server.Addr,
-		Path:   server.providerController.URLPath(),
+		ProviderController: providerController,
 	}
 }
 
@@ -75,7 +65,7 @@ func (server *Server) Listen() (net.Listener, error) {
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
-	server.Addr = ln.Addr().String()
+	server.Server.Addr = ln.Addr().String()
 
 	log.Infof("Terragrunt Cache server is listening on %s", ln.Addr())
 	return ln, nil
@@ -98,14 +88,13 @@ func (server *Server) Run(ctx context.Context, ln net.Listener) error {
 		ctx, cancel := context.WithTimeout(ctx, server.config.shutdownTimeout)
 		defer cancel()
 
-		server.SetKeepAlivesEnabled(false)
 		if err := server.Shutdown(ctx); err != nil {
 			return errors.WithStackTrace(err)
 		}
 		return nil
 	})
 
-	if err := server.Serve(ln); err != nil && err != http.ErrServerClosed {
+	if err := server.Server.Serve(ln); err != nil && err != http.ErrServerClosed {
 		return errors.Errorf("error starting terragrunt cache server: %w", err)
 	}
 	defer log.Infof("Terragrunt Cache server stopped")

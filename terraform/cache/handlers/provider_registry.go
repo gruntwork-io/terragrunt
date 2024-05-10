@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
 	"github.com/labstack/echo/v4"
 )
@@ -63,7 +64,7 @@ func (handler *ProviderRegistryHandler) GetVersions(ctx echo.Context, provider *
 }
 
 // GetPlatfrom implements ProviderHandler.GetPlatfrom
-func (handler *ProviderRegistryHandler) GetPlatfrom(ctx echo.Context, provider *models.Provider, downloaderPrefix, cacheRequestID string) error {
+func (handler *ProviderRegistryHandler) GetPlatfrom(ctx echo.Context, provider *models.Provider, downloaderController router.Controller, cacheRequestID string) error {
 	return handler.ReverseProxy.
 		WithModifyResponse(func(resp *http.Response) error {
 			var data map[string]json.RawMessage
@@ -101,9 +102,9 @@ func (handler *ProviderRegistryHandler) GetPlatfrom(ctx echo.Context, provider *
 					}
 
 					// Modify link to htpp://{localhost_host}/downloads/provider/{remote_host}/{remote_path}
-					linkURL.Path = path.Join(downloaderPrefix, linkURL.Host, linkURL.Path)
-					linkURL.Scheme = ctx.Request().URL.Scheme
-					linkURL.Host = ctx.Request().URL.Host
+					linkURL.Path = path.Join(downloaderController.URL().Path, linkURL.Host, linkURL.Path)
+					linkURL.Scheme = downloaderController.URL().Scheme
+					linkURL.Host = downloaderController.URL().Host
 
 					link = strconv.Quote(linkURL.String())
 					data[string(name)] = []byte(link)

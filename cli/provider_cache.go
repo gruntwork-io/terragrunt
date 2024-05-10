@@ -117,7 +117,7 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 	cache := cache.NewServer(
 		cache.WithHostname(opts.ProviderCacheHostname),
 		cache.WithPort(opts.ProviderCachePort),
-		cache.WithToken(apiKeyAuth, opts.ProviderCacheToken),
+		cache.WithToken(opts.ProviderCacheToken),
 		cache.WithServices(providerService),
 		cache.WithProviderHandlers(providerHandlers...),
 	)
@@ -213,7 +213,7 @@ func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions
 		providerInstallationIncludes = append(providerInstallationIncludes, fmt.Sprintf("%s/*/*", registryName))
 
 		cfg.AddHost(registryName, map[string]string{
-			"providers.v1": fmt.Sprintf("%s/%s/%s/", cache.ProviderURL(), cacheRequestID, registryName),
+			"providers.v1": fmt.Sprintf("%s/%s/%s/", cache.ProviderController.URL(), cacheRequestID, registryName),
 			// Since Terragrunt Provider Cache only caches providers, we need to route module requests to the original registry.
 			"modules.v1": fmt.Sprintf("https://%s/v1/modules", registryName),
 		})

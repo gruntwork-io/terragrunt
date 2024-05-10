@@ -1,4 +1,4 @@
-package cache
+package cli
 
 import (
 	"context"
@@ -12,7 +12,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/gruntwork-io/terragrunt/terraform/cache"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -35,7 +37,7 @@ func createFakeProvider(t *testing.T, cacheDir, relativePath string) string {
 func TestServer(t *testing.T) {
 	t.Parallel()
 
-	token := fmt.Sprintf("%s:%s", handlers.AuthorizationApiKeyHeaderName, uuid.New().String())
+	token := fmt.Sprintf("%s:%s", apiKeyAuth, uuid.New().String())
 
 	providerCacheDir, err := os.MkdirTemp("", "*")
 	require.NoError(t, err)
@@ -43,10 +45,10 @@ func TestServer(t *testing.T) {
 	pluginCacheDir, err := os.MkdirTemp("", "*")
 	require.NoError(t, err)
 
-	opts := []Option{WithToken(token), WithProviderCacheDir(providerCacheDir), WithUserProviderDir(pluginCacheDir)}
+	opts := []cache.Option{cache.WithToken(token)}
 
 	testCases := []struct {
-		opts               []Option
+		opts               []cache.Option
 		urlPath            string
 		expectedStatusCode int
 		expectedBodyReg    *regexp.Regexp
@@ -59,7 +61,7 @@ func TestServer(t *testing.T) {
 			expectedBodyReg:    regexp.MustCompile(regexp.QuoteMeta(`{"providers.v1":"/v1/providers"}`)),
 		},
 		{
-			opts:               append(opts, WithToken("")),
+			opts:               append(opts, cache.WithToken("")),
 			urlPath:            "/v1/providers/cache/registry.terraform.io/hashicorp/aws/versions",
 			expectedStatusCode: http.StatusUnauthorized,
 		},
@@ -133,7 +135,7 @@ func TestServer(t *testing.T) {
 			opts:               opts,
 			urlPath:            "/v1/providers//registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
 			expectedStatusCode: http.StatusOK,
-			expectedBodyReg:    regexp.MustCompile(`\{.*` + regexp.QuoteMeta(`"download_url":"http://127.0.0.1:`) + `\d+` + regexp.QuoteMeta(`/downloads/provider/releases.hashicorp.com/terraform-provider-aws/5.36.0/terraform-provider-aws_5.36.0_darwin_arm64.zip"`) + `.*\}`),
+			expectedBodyReg:    regexp.MustCompile(`\{.*` + regexp.QuoteMeta(`"download_url":"http://127.0.0.1:`) + `\d+` + regexp.QuoteMeta(`/downloads/releases.hashicorp.com/terraform-provider-aws/5.36.0/terraform-provider-aws_5.36.0_darwin_arm64.zip"`) + `.*\}`),
 		},
 	}
 	//
@@ -149,7 +151,12 @@ func TestServer(t *testing.T) {
 
 			errGroup, ctx := errgroup.WithContext(ctx)
 
-			server := NewServer(testCase.opts...)
+			providerService := services.NewProviderService(providerCacheDir, pluginCacheDir)
+			providerHandler := handlers.NewProviderRegistryHandler(providerService, cacheProviderHTTPStatusCode)
+
+			testCase.opts = append(testCase.opts, cache.WithServices(providerService), cache.WithProviderHandlers(providerHandler))
+
+			server := cache.NewServer(testCase.opts...)
 			ln, err := server.Listen()
 			require.NoError(t, err)
 			defer ln.Close()
@@ -158,8 +165,7 @@ func TestServer(t *testing.T) {
 				return server.Run(ctx, ln)
 			})
 
-			urlPath := server.ProviderURL()
-
+			urlPath := server.ProviderController.URL()
 			urlPath.Path = testCase.urlPath
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlPath.String(), nil)
@@ -178,7 +184,7 @@ func TestServer(t *testing.T) {
 				assert.Regexp(t, testCase.expectedBodyReg, string(body))
 			}
 
-			server.Provider.WaitForCacheReady("")
+			providerService.WaitForCacheReady("")
 
 			if testCase.expectedCachePath != "" {
 				assert.FileExists(t, filepath.Join(providerCacheDir, testCase.expectedCachePath))

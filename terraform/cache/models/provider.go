@@ -93,13 +93,15 @@ func ParseProviderFromAddress(address string) *Provider {
 		}
 	}
 
+	const twoParts = 2
+
 	switch {
-	case len(parts) == 2:
+	case len(parts) == twoParts:
 		return &Provider{
 			Namespace: parts[0],
 			Name:      parts[1],
 		}
-	case len(parts) > 2:
+	case len(parts) > twoParts:
 		return &Provider{
 			RegistryName: parts[0],
 			Namespace:    parts[1],

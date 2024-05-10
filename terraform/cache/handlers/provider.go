@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
 	"github.com/labstack/echo/v4"
 )
 
@@ -13,7 +14,7 @@ type ProviderHandler interface {
 	GetVersions(ctx echo.Context, provider *models.Provider) error
 
 	// GetPlatfrom serves a request that returns a provider for a specific platform.
-	GetPlatfrom(ctx echo.Context, provider *models.Provider, downloaderPrefix, cacheRequestID string) error
+	GetPlatfrom(ctx echo.Context, provider *models.Provider, downloaderController router.Controller, cacheRequestID string) error
 
 	// Download serves a request to download the target file.
 	Download(ctx echo.Context, provider *models.Provider) error

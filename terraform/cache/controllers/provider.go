@@ -19,6 +19,7 @@ const (
 type ProviderController struct {
 	*router.Router
 
+	Server               http.Server
 	DownloaderController router.Controller
 
 	AuthMiddleware   echo.MiddlewareFunc
@@ -27,7 +28,7 @@ type ProviderController struct {
 
 // Endpoints implements controllers.Endpointer.Endpoints
 func (controller *ProviderController) Endpoints() map[string]any {
-	return map[string]any{providerName: controller.URLPath()}
+	return map[string]any{providerName: controller.URL().Path}
 }
 
 // Register implements router.Controller.Register
@@ -93,7 +94,7 @@ func (controller *ProviderController) getPlatformsAction(ctx echo.Context) (er e
 
 	for _, handler := range controller.ProviderHandlers {
 		if handler.CanHandleProvider(provider) {
-			return handler.GetPlatfrom(ctx, provider, controller.DownloaderController.URLPath(), cacheRequestID)
+			return handler.GetPlatfrom(ctx, provider, controller.DownloaderController, cacheRequestID)
 		}
 	}
 	return ctx.NoContent(http.StatusNotFound)

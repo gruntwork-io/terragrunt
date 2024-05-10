@@ -34,10 +34,9 @@ func WithPort(port int) Option {
 	}
 }
 
-func WithToken(authType, authToken string) Option {
+func WithToken(token string) Option {
 	return func(cfg Config) Config {
-		cfg.authType = authType
-		cfg.authToken = authToken
+		cfg.token = token
 		return cfg
 	}
 }
@@ -59,8 +58,7 @@ func WithProviderHandlers(handlers ...handlers.ProviderHandler) Option {
 type Config struct {
 	hostname        string
 	port            int
-	authToken       string
-	authType        string
+	token           string
 	shutdownTimeout time.Duration
 
 	services         []services.Service

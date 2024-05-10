@@ -1,6 +1,7 @@
 package router
 
 import (
+	"net/url"
 	"path"
 	"strings"
 
@@ -28,8 +29,12 @@ func (router *Router) Group(urlPath string) *Router {
 	}
 }
 
-func (router *Router) URLPath() string {
-	return router.urlPath
+func (router *Router) URL() *url.URL {
+	return &url.URL{
+		Scheme: "http",
+		Host:   router.Server.Addr,
+		Path:   router.urlPath,
+	}
 }
 
 // Register registers controller's endpoints

@@ -7,8 +7,7 @@ import (
 )
 
 type Authorization struct {
-	KeyHeaderName string
-	Token         string
+	Token string
 }
 
 // To enhance security, we use token-based authentication to connect to the cache server in order to prevent unauthorized connections from third-party applications.
@@ -22,10 +21,9 @@ func (auth *Authorization) Validator(bearerToken string, ctx echo.Context) (bool
 }
 
 // KeyAuth returns an KeyAuth middleware.
-func KeyAuth(keyHeaderName, token string) echo.MiddlewareFunc {
+func KeyAuth(token string) echo.MiddlewareFunc {
 	auth := Authorization{
-		KeyHeaderName: keyHeaderName,
-		Token:         token,
+		Token: token,
 	}
 
 	return middleware.KeyAuthWithConfig(middleware.KeyAuthConfig{

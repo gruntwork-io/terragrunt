@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
 	"github.com/gruntwork-io/terragrunt/terraform/cliconfig"
 	"github.com/labstack/echo/v4"
@@ -102,7 +103,7 @@ func (handler *ProviderNetworkMirrorHandler) GetVersions(ctx echo.Context, provi
 }
 
 // GetPlatfrom implements ProviderHandler.GetPlatfrom
-func (handler *ProviderNetworkMirrorHandler) GetPlatfrom(ctx echo.Context, provider *models.Provider, downloaderPrefix, cacheRequestID string) error {
+func (handler *ProviderNetworkMirrorHandler) GetPlatfrom(ctx echo.Context, provider *models.Provider, downloaderController router.Controller, cacheRequestID string) error {
 	if cacheRequestID == "" {
 		// it is impossible to return all platform properties from a network mirror, return 404 status
 		return ctx.NoContent(http.StatusNotFound)
