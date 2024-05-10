@@ -17,7 +17,7 @@ func Logger() echo.MiddlewareFunc {
 			if v.Error != nil {
 				log.Errorf("Cache server was unable to process the received request, %s", v.Error.Error())
 			} else {
-				log.Tracef("Cache server received request")
+				log.Debugf("Cache server received request")
 			}
 			return nil
 		},
