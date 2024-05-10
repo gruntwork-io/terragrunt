@@ -153,8 +153,9 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	// Before each init, we warm up the global cache to ensure that all necessary providers are cached.
 	// To do this we are using 'terraform providers lock' to force TF to request all the providers from our TG cache, and that's how we know what providers TF needs, and can load them into the cache.
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
-	if err := runTerraformCommand(ctx, opts, args, env); err != nil {
-		return nil, err
+	args = append(args, "-sdfsdfsd")
+	if output, err := runTerraformCommand(ctx, opts, args, env); err != nil {
+		return output, err
 	}
 
 	caches := cache.providerService.WaitForCacheReady(cacheRequestID)
@@ -238,7 +239,7 @@ func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions
 	return cfg.Save(filename)
 }
 
-func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, args []string, envs map[string]string) error {
+func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, args []string, envs map[string]string) (*shell.CmdOutput, error) {
 	// We use custom writer in order to trap the log from `terraform providers lock -platform=provider-cache` command, which terraform considers an error, but to us a success.
 	errWriter := util.NewTrapWriter(opts.ErrWriter, HTTPStatusCacheProviderReg)
 
@@ -258,11 +259,11 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 	}
 
 	// If the Terraform error matches `HTTPStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process the error as is.
-	if err := shell.RunTerraformCommand(ctx, cloneOpts, cloneOpts.TerraformCliArgs...); err != nil && len(errWriter.Msgs()) == 0 {
-		return err
+	if output, err := shell.RunTerraformCommandWithOutput(ctx, cloneOpts, cloneOpts.TerraformCliArgs...); err != nil && len(errWriter.Msgs()) == 0 {
+		return output, err
 	}
 
-	return nil
+	return nil, nil
 }
 
 // providerCacheEnvironment returns TF_* name/value ENVs, which we use to force terraform processes to make requests through our cache server (proxy) instead of making direct requests to the origin servers.
