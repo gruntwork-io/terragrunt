@@ -147,6 +147,7 @@ func (cache *ProviderCache) AuthenticatePackage(ctx context.Context) (*getprovid
 	if len(cache.SigningKeys.Keys()) != 0 {
 		checks = append(checks, getproviders.NewSignatureAuthentication(documentSHA256Sums, signature, cache.SigningKeys.Keys()))
 	} else {
+		// `registry.opentofu.org` does not have signatures for some providers.
 		log.Warnf("Signature validation was skipped due to the registry not containing GPG keys for the provider %s", cache.Provider)
 	}
 
@@ -201,8 +202,6 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	if err := unzip.Decompress(cache.packageDir, cache.archivePath, true, unzipFileMode); err != nil {
 		return errors.WithStackTrace(err)
 	}
-
-	//if len(cache.SigningKeys.GPGPublicKeys)
 
 	auth, err := cache.AuthenticatePackage(ctx)
 	if err != nil {
