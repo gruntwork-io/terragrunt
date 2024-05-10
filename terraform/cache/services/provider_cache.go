@@ -235,6 +235,9 @@ type ProviderService struct {
 	// The path to store unpacked providers. The file structure is the same as terraform plugin cache dir.
 	baseCacheDir string
 
+	// The path to a predictable temporary directory for storing provider's archives and lock files.
+	baseTempDir string
+
 	// the user plugins directory, by default: %APPDATA%\terraform.d\plugins on Windows, ~/.terraform.d/plugins on other systems.
 	baseUserCacheDir string
 
@@ -285,8 +288,8 @@ func (service *ProviderService) CacheProvider(ctx context.Context, requestID str
 
 		userProviderDir: filepath.Join(service.baseUserCacheDir, provider.Address(), provider.Version, provider.Platform()),
 		packageDir:      filepath.Join(service.baseCacheDir, provider.Address(), provider.Version, provider.Platform()),
-		lockfilePath:    filepath.Join(service.baseCacheDir, fmt.Sprintf("%s.lock", packageName)),
-		archivePath:     filepath.Join(service.baseCacheDir, fmt.Sprintf("%s%s", packageName, path.Ext(provider.Filename))),
+		lockfilePath:    filepath.Join(service.baseTempDir, fmt.Sprintf("%s.lock", packageName)),
+		archivePath:     filepath.Join(service.baseTempDir, fmt.Sprintf("%s%s", packageName, path.Ext(provider.Filename))),
 	}
 
 	select {
@@ -323,6 +326,12 @@ func (service *ProviderService) Run(ctx context.Context) error {
 	if err := os.MkdirAll(service.baseCacheDir, os.ModePerm); err != nil {
 		return errors.WithStackTrace(err)
 	}
+
+	tempDir, err := util.GetTempDir()
+	if err != nil {
+		return err
+	}
+	service.baseTempDir = filepath.Join(tempDir, "providers")
 
 	errGroup, ctx := errgroup.WithContext(ctx)
 	for {

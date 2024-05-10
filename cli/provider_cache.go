@@ -153,7 +153,6 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	// Before each init, we warm up the global cache to ensure that all necessary providers are cached.
 	// To do this we are using 'terraform providers lock' to force TF to request all the providers from our TG cache, and that's how we know what providers TF needs, and can load them into the cache.
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
-	args = append(args, "-sdfsdfsd")
 	if output, err := runTerraformCommand(ctx, opts, args, env); err != nil {
 		return output, err
 	}
