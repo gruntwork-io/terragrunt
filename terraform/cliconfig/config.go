@@ -46,9 +46,7 @@ func (cfg *Config) Clone() *Config {
 		hosts                []ConfigHost
 	)
 
-	for _, host := range cfg.Hosts {
-		hosts = append(hosts, host)
-	}
+	hosts = append(hosts, cfg.Hosts...)
 
 	if cfg.ProviderInstallation != nil {
 		providerInstallation = &ProviderInstallation{
