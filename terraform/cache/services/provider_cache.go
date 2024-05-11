@@ -240,13 +240,13 @@ func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile
 
 type ProviderService struct {
 	// The path to store unpacked providers. The file structure is the same as terraform plugin cache dir.
-	baseCacheDir string
+	cacheDir string
 
-	// The path to a predictable temporary directory for storing provider's archives and lock files.
-	baseTempDir string
+	// The path to a predictable temporary directory for provider archives and lock files.
+	tempDir string
 
 	// the user plugins directory, by default: %APPDATA%\terraform.d\plugins on Windows, ~/.terraform.d/plugins on other systems.
-	baseUserCacheDir string
+	userCacheDir string
 
 	providerCaches        ProviderCaches
 	providerCacheWarmUpCh chan *ProviderCache
@@ -255,10 +255,10 @@ type ProviderService struct {
 	cacheReadyMu sync.RWMutex
 }
 
-func NewProviderService(baseCacheDir, baseUserCacheDir string) *ProviderService {
+func NewProviderService(cacheDir, userCacheDir string) *ProviderService {
 	return &ProviderService{
-		baseCacheDir:          baseCacheDir,
-		baseUserCacheDir:      baseUserCacheDir,
+		cacheDir:              cacheDir,
+		userCacheDir:          userCacheDir,
 		providerCacheWarmUpCh: make(chan *ProviderCache),
 	}
 }
@@ -293,10 +293,10 @@ func (service *ProviderService) CacheProvider(ctx context.Context, requestID str
 		Provider: provider,
 		started:  make(chan struct{}, 1),
 
-		userProviderDir: filepath.Join(service.baseUserCacheDir, provider.Address(), provider.Version, provider.Platform()),
-		packageDir:      filepath.Join(service.baseCacheDir, provider.Address(), provider.Version, provider.Platform()),
-		lockfilePath:    filepath.Join(service.baseTempDir, fmt.Sprintf("%s.lock", packageName)),
-		archivePath:     filepath.Join(service.baseTempDir, fmt.Sprintf("%s%s", packageName, path.Ext(provider.Filename))),
+		userProviderDir: filepath.Join(service.userCacheDir, provider.Address(), provider.Version, provider.Platform()),
+		packageDir:      filepath.Join(service.cacheDir, provider.Address(), provider.Version, provider.Platform()),
+		lockfilePath:    filepath.Join(service.tempDir, fmt.Sprintf("%s.lock", packageName)),
+		archivePath:     filepath.Join(service.tempDir, fmt.Sprintf("%s%s", packageName, path.Ext(provider.Filename))),
 	}
 
 	select {
@@ -325,12 +325,12 @@ func (service *ProviderService) GetProviderCache(provider *models.Provider) *Pro
 
 // Run is responsible to handle a new caching requestID and removing temporary files upon completion.
 func (service *ProviderService) Run(ctx context.Context) error {
-	if service.baseCacheDir == "" {
+	if service.cacheDir == "" {
 		return errors.Errorf("provider cache directory not specified")
 	}
-	log.Debugf("Provider cache dir %q", service.baseCacheDir)
+	log.Debugf("Provider cache dir %q", service.cacheDir)
 
-	if err := os.MkdirAll(service.baseCacheDir, os.ModePerm); err != nil {
+	if err := os.MkdirAll(service.cacheDir, os.ModePerm); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
@@ -338,8 +338,9 @@ func (service *ProviderService) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	service.baseTempDir = filepath.Join(tempDir, "providers")
+	service.tempDir = filepath.Join(tempDir, "providers")
 
+	merr := &multierror.Error{}
 	errGroup, ctx := errgroup.WithContext(ctx)
 	for {
 		select {
@@ -353,22 +354,22 @@ func (service *ProviderService) Run(ctx context.Context) error {
 				// We need to use a locking mechanism between Terragrunt processes to prevent simultaneous write access to the same provider.
 				lockfile, err := cache.acquireLockFile(ctx)
 				if err != nil {
-					return err
+					merr = multierror.Append(merr, err)
+					return nil
 				}
 				defer lockfile.Unlock() //nolint:errcheck
 
 				if err := cache.warmUp(ctx); err != nil {
 					os.Remove(cache.packageDir)  //nolint:errcheck
 					os.Remove(cache.archivePath) //nolint:errcheck
-					return err
+					merr = multierror.Append(merr, err)
+					return nil
 				}
 				cache.ready = true
 
 				return nil
 			})
 		case <-ctx.Done():
-			merr := &multierror.Error{}
-
 			if err := errGroup.Wait(); err != nil && !goerrors.Is(err, context.Canceled) {
 				merr = multierror.Append(merr, err)
 			}

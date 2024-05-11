@@ -212,6 +212,7 @@ func TestTerragruntProviderCache(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PROVIDER_CACHE)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PROVIDER_CACHE)
 
+	os.TempDir()
 	cacheDir, err := util.GetCacheDir()
 	assert.NoError(t, err)
 	providerCacheDir := filepath.Join(cacheDir, "provider-cache-test")
