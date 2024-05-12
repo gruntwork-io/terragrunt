@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/terraform/cache"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
+	"github.com/gruntwork-io/terragrunt/terraform/cliconfig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -152,7 +153,7 @@ func TestServer(t *testing.T) {
 			errGroup, ctx := errgroup.WithContext(ctx)
 
 			providerService := services.NewProviderService(providerCacheDir, pluginCacheDir)
-			providerHandler := handlers.NewProviderRegistryHandler(providerService, cacheProviderHTTPStatusCode)
+			providerHandler := handlers.NewProviderDirectHandler(providerService, cacheProviderHTTPStatusCode, new(cliconfig.ProviderInstallationDirect))
 
 			testCase.opts = append(testCase.opts, cache.WithServices(providerService), cache.WithProviderHandlers(providerHandler))
 
