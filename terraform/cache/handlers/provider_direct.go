@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
+	"github.com/gruntwork-io/terragrunt/terraform/cliconfig"
 	"github.com/labstack/echo/v4"
 )
 
@@ -32,27 +33,25 @@ var (
 
 type providerURLName string
 
-type ProviderRegistryHandler struct {
+type ProviderDirectHandler struct {
+	*CommonProviderHandler
+
 	*ReverseProxy
 	providerService             *services.ProviderService
 	cacheProviderHTTPStatusCode int
 }
 
-func NewProviderRegistryHandler(providerService *services.ProviderService, cacheProviderHTTPStatusCode int) ProviderHandler {
-	return &ProviderRegistryHandler{
+func NewProviderDirectHandler(providerService *services.ProviderService, cacheProviderHTTPStatusCode int, method *cliconfig.ProviderInstallationDirect) ProviderHandler {
+	return &ProviderDirectHandler{
+		CommonProviderHandler:       NewCommonProviderHandler(method.Include, method.Exclude),
 		ReverseProxy:                &ReverseProxy{},
 		providerService:             providerService,
 		cacheProviderHTTPStatusCode: cacheProviderHTTPStatusCode,
 	}
 }
 
-// CanHandleProvider implements ProviderHandler.CanHandleProvider
-func (handler *ProviderRegistryHandler) CanHandleProvider(provider *models.Provider) bool {
-	return true
-}
-
 // GetVersions implements ProviderHandler.GetVersions
-func (handler *ProviderRegistryHandler) GetVersions(ctx echo.Context, provider *models.Provider) error {
+func (handler *ProviderDirectHandler) GetVersions(ctx echo.Context, provider *models.Provider) error {
 	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-versions-for-a-single-provider
 	reqURL := &url.URL{
 		Scheme: "https",
@@ -64,7 +63,7 @@ func (handler *ProviderRegistryHandler) GetVersions(ctx echo.Context, provider *
 }
 
 // GetPlatfrom implements ProviderHandler.GetPlatfrom
-func (handler *ProviderRegistryHandler) GetPlatfrom(ctx echo.Context, provider *models.Provider, downloaderController router.Controller, cacheRequestID string) error {
+func (handler *ProviderDirectHandler) GetPlatfrom(ctx echo.Context, provider *models.Provider, downloaderController router.Controller, cacheRequestID string) error {
 	return handler.ReverseProxy.
 		WithModifyResponse(func(resp *http.Response) error {
 			var data map[string]json.RawMessage
@@ -118,7 +117,7 @@ func (handler *ProviderRegistryHandler) GetPlatfrom(ctx echo.Context, provider *
 }
 
 // Download implements ProviderHandler.Download
-func (handler *ProviderRegistryHandler) Download(ctx echo.Context, provider *models.Provider) error {
+func (handler *ProviderDirectHandler) Download(ctx echo.Context, provider *models.Provider) error {
 	if cache := handler.providerService.GetProviderCache(provider); cache != nil {
 		if path := cache.ArchivePath(); path != "" {
 			log.Debugf("Download cached provider %s", cache.Provider)
@@ -136,7 +135,7 @@ func (handler *ProviderRegistryHandler) Download(ctx echo.Context, provider *mod
 
 // platformURL returns the URL used to query the all platforms for a single version.
 // https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-a-platform
-func (handler *ProviderRegistryHandler) platformURL(provider *models.Provider) *url.URL {
+func (handler *ProviderDirectHandler) platformURL(provider *models.Provider) *url.URL {
 	return &url.URL{
 		Scheme: "https",
 		Host:   provider.RegistryName,

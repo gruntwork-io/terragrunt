@@ -8,11 +8,11 @@ import (
 
 type Providers []*Provider
 
-func ParseProvidersFromAddresses(addresses ...string) Providers {
+func ParseProviders(strs ...string) Providers {
 	var prvoiders Providers
 
-	for _, address := range addresses {
-		if provider := ParseProviderFromAddress(address); provider != nil {
+	for _, str := range strs {
+		if provider := ParseProvider(str); provider != nil {
 			prvoiders = append(prvoiders, provider)
 		}
 	}
@@ -48,14 +48,26 @@ func (list SigningKeyList) Keys() map[string]string {
 }
 
 type Version struct {
-	Version   string     `json:"version"`
-	Protocols []string   `json:"protocols"`
-	Platforms []Platform `json:"platforms"`
+	Version   string      `json:"version"`
+	Protocols []string    `json:"protocols"`
+	Platforms []*Platform `json:"platforms"`
 }
 
 type Platform struct {
 	OS   string `json:"os"`
 	Arch string `json:"arch"`
+}
+
+func ParsePlatform(str string) *Platform {
+	const twoVals = 2
+
+	if parts := strings.Split(str, "_"); len(parts) == twoVals {
+		return &Platform{
+			OS:   parts[0],
+			Arch: parts[1],
+		}
+	}
+	return nil
 }
 
 // ResponseBody represents the details of the Terraform provider received from a registry.
@@ -85,23 +97,23 @@ type Provider struct {
 	Arch         string
 }
 
-func ParseProviderFromAddress(address string) *Provider {
-	parts := strings.Split(address, "/")
+func ParseProvider(str string) *Provider {
+	parts := strings.Split(str, "/")
 	for i := range parts {
 		if parts[i] == "*" {
 			parts[i] = ""
 		}
 	}
 
-	const twoParts = 2
+	const twoVals = 2
 
 	switch {
-	case len(parts) == twoParts:
+	case len(parts) == twoVals:
 		return &Provider{
 			Namespace: parts[0],
 			Name:      parts[1],
 		}
-	case len(parts) > twoParts:
+	case len(parts) > twoVals:
 		return &Provider{
 			RegistryName: parts[0],
 			Namespace:    parts[1],

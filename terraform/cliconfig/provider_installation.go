@@ -11,6 +11,7 @@ type ProviderInstallation struct {
 //	ProviderInstallationFilesystemMirror: install from a local filesystem mirror
 type ProviderInstallationMethod interface {
 	providerInstallationMethod()
+	AppendExclude(addrs ...string)
 }
 
 type ProviderInstallationDirect struct {
@@ -36,6 +37,13 @@ func NewProviderInstallationDirect(include, exclude []string) *ProviderInstallat
 }
 
 func (ProviderInstallationDirect) providerInstallationMethod() {}
+
+func (method *ProviderInstallationDirect) AppendExclude(addrs ...string) {
+	if method.Exclude == nil {
+		method.Exclude = &[]string{}
+	}
+	*method.Exclude = append(*method.Exclude, addrs...)
+}
 
 type ProviderInstallationFilesystemMirror struct {
 	Name    string    `hcl:",label"`
@@ -63,6 +71,13 @@ func NewProviderInstallationFilesystemMirror(path string, include, exclude []str
 
 func (ProviderInstallationFilesystemMirror) providerInstallationMethod() {}
 
+func (method *ProviderInstallationFilesystemMirror) AppendExclude(addrs ...string) {
+	if method.Exclude == nil {
+		method.Exclude = &[]string{}
+	}
+	*method.Exclude = append(*method.Exclude, addrs...)
+}
+
 type ProviderInstallationNetworkMirror struct {
 	Name    string    `hcl:",label"`
 	URL     string    `hcl:"url,attr"`
@@ -88,3 +103,10 @@ func NewProviderInstallationNetworkMirror(url string, include, exclude []string)
 }
 
 func (ProviderInstallationNetworkMirror) providerInstallationMethod() {}
+
+func (method *ProviderInstallationNetworkMirror) AppendExclude(addrs ...string) {
+	if method.Exclude == nil {
+		method.Exclude = &[]string{}
+	}
+	*method.Exclude = append(*method.Exclude, addrs...)
+}

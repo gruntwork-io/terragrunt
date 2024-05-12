@@ -97,22 +97,21 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 		return nil, err
 	}
 
-	var (
-		providerHandlers []handlers.ProviderHandler
-		filteredMethods  []cliconfig.ProviderInstallationMethod
-	)
+	var providerHandlers []handlers.ProviderHandler
 
 	for _, method := range cliCfg.ProviderInstallation.Methods {
 		switch method := method.(type) {
+		case *cliconfig.ProviderInstallationFilesystemMirror:
+			providerHandlers = append(providerHandlers, handlers.NewProviderFilesystemMirrorHandler(providerService, cacheProviderHTTPStatusCode, method))
 		case *cliconfig.ProviderInstallationNetworkMirror:
 			providerHandlers = append(providerHandlers, handlers.NewProviderNetworkMirrorHandler(providerService, cacheProviderHTTPStatusCode, method))
 		case *cliconfig.ProviderInstallationDirect:
-		default:
-			filteredMethods = append(filteredMethods, method)
+			providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, cacheProviderHTTPStatusCode, method))
+		}
+		for _, registryName := range opts.ProviderCacheRegistryNames {
+			method.AppendExclude(fmt.Sprintf("%s/*/*", registryName))
 		}
 	}
-	providerHandlers = append(providerHandlers, handlers.NewProviderRegistryHandler(providerService, cacheProviderHTTPStatusCode))
-	cliCfg.ProviderInstallation.Methods = filteredMethods
 
 	cache := cache.NewServer(
 		cache.WithHostname(opts.ProviderCacheHostname),

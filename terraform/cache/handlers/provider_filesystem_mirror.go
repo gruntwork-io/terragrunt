@@ -1,10 +1,10 @@
 package handlers
 
 import (
-	"fmt"
+	"encoding/json"
 	"net/http"
-	"path"
-	"strings"
+	"os"
+	"path/filepath"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
@@ -14,36 +14,34 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-type ProviderNetworkMirrorHandler struct {
+type ProviderFilesystemMirrorHandler struct {
 	*CommonProviderHandler
 
-	*http.Client
 	providerService             *services.ProviderService
 	cacheProviderHTTPStatusCode int
 
-	networkMirrorURL string
+	filesystemMirrorPath string
 	// includeProvider and excludeProvider are sets of provider matching patterns that together define which providers are eligible to be potentially installed from the corresponding Source.
 	includeProvider, excludeProvider models.Providers
 }
 
-func NewProviderNetworkMirrorHandler(providerService *services.ProviderService, cacheProviderHTTPStatusCode int, networkMirror *cliconfig.ProviderInstallationNetworkMirror) ProviderHandler {
-	return &ProviderNetworkMirrorHandler{
-		CommonProviderHandler:       NewCommonProviderHandler(networkMirror.Include, networkMirror.Exclude),
-		Client:                      &http.Client{},
+func NewProviderFilesystemMirrorHandler(providerService *services.ProviderService, cacheProviderHTTPStatusCode int, method *cliconfig.ProviderInstallationFilesystemMirror) ProviderHandler {
+	return &ProviderFilesystemMirrorHandler{
+		CommonProviderHandler:       NewCommonProviderHandler(method.Include, method.Exclude),
 		providerService:             providerService,
 		cacheProviderHTTPStatusCode: cacheProviderHTTPStatusCode,
-		networkMirrorURL:            networkMirror.URL,
+		filesystemMirrorPath:        method.Path,
 	}
 }
 
 // GetVersions implements ProviderHandler.GetVersions
-func (handler *ProviderNetworkMirrorHandler) GetVersions(ctx echo.Context, provider *models.Provider) error {
+func (handler *ProviderFilesystemMirrorHandler) GetVersions(ctx echo.Context, provider *models.Provider) error {
 	var mirrorData struct {
 		Versions map[string]struct{} `json:"versions"`
 	}
 
-	reqPath := path.Join(provider.RegistryName, provider.Namespace, provider.Name, "index.json")
-	if err := handler.request(ctx, http.MethodGet, reqPath, &mirrorData); err != nil {
+	filename := filepath.Join(provider.RegistryName, provider.Namespace, provider.Name, "index.json")
+	if err := handler.readMirrorData(filename, &mirrorData); err != nil {
 		return err
 	}
 
@@ -65,9 +63,9 @@ func (handler *ProviderNetworkMirrorHandler) GetVersions(ctx echo.Context, provi
 }
 
 // GetPlatfrom implements ProviderHandler.GetPlatfrom
-func (handler *ProviderNetworkMirrorHandler) GetPlatfrom(ctx echo.Context, provider *models.Provider, downloaderController router.Controller, cacheRequestID string) error {
+func (handler *ProviderFilesystemMirrorHandler) GetPlatfrom(ctx echo.Context, provider *models.Provider, downloaderController router.Controller, cacheRequestID string) error {
 	if cacheRequestID == "" {
-		// it is impossible to return all platform properties from the network mirror, return 404 status
+		// it is impossible to return all platform properties from the filesystem mirror, return 404 status
 		return ctx.NoContent(http.StatusNotFound)
 	}
 
@@ -78,13 +76,15 @@ func (handler *ProviderNetworkMirrorHandler) GetPlatfrom(ctx echo.Context, provi
 		} `json:"archives"`
 	}
 
-	reqPath := path.Join(provider.RegistryName, provider.Namespace, provider.Name, provider.Version+".json")
-	if err := handler.request(ctx, http.MethodGet, reqPath, &mirrorData); err != nil {
+	filename := filepath.Join(provider.RegistryName, provider.Namespace, provider.Name, provider.Version+".json")
+	if err := handler.readMirrorData(filename, &mirrorData); err != nil {
 		return err
 	}
 
 	if archive, ok := mirrorData.Archives[provider.Platform()]; ok {
-		provider.ResponseBody = &models.ResponseBody{DownloadURL: archive.URL}
+		provider.ResponseBody = &models.ResponseBody{
+			DownloadURL: filepath.Join(handler.filesystemMirrorPath, provider.RegistryName, provider.Namespace, provider.Name, archive.URL),
+		}
 	}
 
 	// start caching and return 423 status
@@ -93,22 +93,21 @@ func (handler *ProviderNetworkMirrorHandler) GetPlatfrom(ctx echo.Context, provi
 }
 
 // Download implements ProviderHandler.Download
-func (handler *ProviderNetworkMirrorHandler) Download(ctx echo.Context, provider *models.Provider) error {
+func (handler *ProviderFilesystemMirrorHandler) Download(ctx echo.Context, provider *models.Provider) error {
 	return ctx.NoContent(http.StatusNotImplemented)
 }
 
-func (handler *ProviderNetworkMirrorHandler) request(ctx echo.Context, method, reqPath string, value any) error {
-	reqURL := fmt.Sprintf("%s/%s", strings.TrimRight(handler.networkMirrorURL, "/"), reqPath)
+func (handler *ProviderFilesystemMirrorHandler) readMirrorData(filename string, value any) error {
+	filename = filepath.Join(handler.filesystemMirrorPath, filename)
 
-	req, err := http.NewRequestWithContext(ctx.Request().Context(), method, reqURL, nil)
+	data, err := os.ReadFile(filename)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	resp, err := handler.Client.Do(req)
-	if err != nil {
+	if err := json.Unmarshal(data, value); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	return DecodeJSONBody(resp, value)
+	return nil
 }

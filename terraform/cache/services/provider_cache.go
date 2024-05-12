@@ -190,12 +190,16 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		return errors.Errorf("not found provider download url")
 	}
 
-	if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %s", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func() error {
-		return util.FetchToFile(ctx, cache.DownloadURL, cache.archivePath)
-	}); err != nil {
-		return err
+	if util.FileExists(cache.DownloadURL) {
+		cache.archivePath = cache.DownloadURL
+	} else {
+		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %s", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func() error {
+			return util.FetchToFile(ctx, cache.DownloadURL, cache.archivePath)
+		}); err != nil {
+			return err
+		}
+		cache.archiveCached = true
 	}
-	cache.archiveCached = true
 
 	log.Debugf("Unpack provider archive %s", cache.archivePath)
 
