@@ -20,10 +20,7 @@ type ProviderNetworkMirrorHandler struct {
 	*http.Client
 	providerService             *services.ProviderService
 	cacheProviderHTTPStatusCode int
-
-	networkMirrorURL string
-	// includeProvider and excludeProvider are sets of provider matching patterns that together define which providers are eligible to be potentially installed from the corresponding Source.
-	includeProvider, excludeProvider models.Providers
+	networkMirrorURL            string
 }
 
 func NewProviderNetworkMirrorHandler(providerService *services.ProviderService, cacheProviderHTTPStatusCode int, networkMirror *cliconfig.ProviderInstallationNetworkMirror) ProviderHandler {

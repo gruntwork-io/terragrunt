@@ -19,10 +19,7 @@ type ProviderFilesystemMirrorHandler struct {
 
 	providerService             *services.ProviderService
 	cacheProviderHTTPStatusCode int
-
-	filesystemMirrorPath string
-	// includeProvider and excludeProvider are sets of provider matching patterns that together define which providers are eligible to be potentially installed from the corresponding Source.
-	includeProvider, excludeProvider models.Providers
+	filesystemMirrorPath        string
 }
 
 func NewProviderFilesystemMirrorHandler(providerService *services.ProviderService, cacheProviderHTTPStatusCode int, method *cliconfig.ProviderInstallationFilesystemMirror) ProviderHandler {
