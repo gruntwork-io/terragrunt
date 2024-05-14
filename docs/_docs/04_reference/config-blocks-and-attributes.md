@@ -430,6 +430,7 @@ Example with S3:
 # .
 # ├── terragrunt.hcl
 # └── child
+#     ├── main.tf
 #     └── terragrunt.hcl
 #
 # And the following is defined in the root terragrunt.hcl config that is included in the child, the state file for the
@@ -437,6 +438,7 @@ Example with S3:
 #
 # Note that since we are not using any of the skip args, this will automatically create the S3 bucket
 # "my-terraform-state" and DynamoDB table "my-lock-table" if it does not already exist.
+# terragrunt.hcl
 remote_state {
   backend = "s3"
   config = {
@@ -446,6 +448,16 @@ remote_state {
     encrypt        = true
     dynamodb_table = "my-lock-table"
   }
+}
+
+# child/terragrunt.hcl
+include "root" {
+  path   = find_in_parent_folders()
+}
+
+# child/main.tf
+terraform {
+  backend "s3" {}
 }
 ```
 
@@ -461,6 +473,7 @@ Example with GCS:
 # .
 # ├── terragrunt.hcl
 # └── child
+#     ├── main.tf
 #     └── terragrunt.hcl
 #
 # And the following is defined in the root terragrunt.hcl config that is included in the child, the state file for the
@@ -482,6 +495,16 @@ remote_state {
       name  = "terraform_state_storage"
     }
   }
+}
+
+# child/terragrunt.hcl
+include "root" {
+  path   = find_in_parent_folders()
+}
+
+# child/main.tf
+terraform {
+  backend "gcs" {}
 }
 ```
 
