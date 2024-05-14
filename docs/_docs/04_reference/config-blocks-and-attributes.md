@@ -612,6 +612,11 @@ remote_state {
   }
 }
 
+# region.hcl
+locals {
+  region = "production"
+}
+
 # child/terragrunt.hcl
 include "remote_state" {
   path   = find_in_parent_folders()
@@ -626,7 +631,7 @@ include "region" {
 
 inputs = {
   remote_state_config = include.remote_state.remote_state
-  region              = include.region.region
+  region              = include.region.locals.region
 }
 
 # child/main.tf
