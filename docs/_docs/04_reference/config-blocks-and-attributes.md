@@ -430,6 +430,7 @@ Example with S3:
 # .
 # ├── terragrunt.hcl
 # └── child
+#     ├── main.tf
 #     └── terragrunt.hcl
 #
 # And the following is defined in the root terragrunt.hcl config that is included in the child, the state file for the
@@ -437,6 +438,7 @@ Example with S3:
 #
 # Note that since we are not using any of the skip args, this will automatically create the S3 bucket
 # "my-terraform-state" and DynamoDB table "my-lock-table" if it does not already exist.
+# terragrunt.hcl
 remote_state {
   backend = "s3"
   config = {
@@ -446,6 +448,16 @@ remote_state {
     encrypt        = true
     dynamodb_table = "my-lock-table"
   }
+}
+
+# child/terragrunt.hcl
+include "root" {
+  path   = find_in_parent_folders()
+}
+
+# child/main.tf
+terraform {
+  backend "s3" {}
 }
 ```
 
@@ -461,6 +473,7 @@ Example with GCS:
 # .
 # ├── terragrunt.hcl
 # └── child
+#     ├── main.tf
 #     └── terragrunt.hcl
 #
 # And the following is defined in the root terragrunt.hcl config that is included in the child, the state file for the
@@ -468,6 +481,8 @@ Example with GCS:
 #
 # Note that since we are not using any of the skip args, this will automatically create the GCS bucket
 # "my-terraform-state" if it does not already exist.
+
+# terragrunt.hcl
 remote_state {
   backend = "gcs"
 
@@ -482,6 +497,16 @@ remote_state {
       name  = "terraform_state_storage"
     }
   }
+}
+
+# child/terragrunt.hcl
+include "root" {
+  path   = find_in_parent_folders()
+}
+
+# child/main.tf
+terraform {
+  backend "gcs" {}
 }
 ```
 
@@ -532,7 +557,22 @@ _Single include_
 # .
 # ├── terragrunt.hcl
 # └── child
+#     ├── main.tf
 #     └── terragrunt.hcl
+
+# terragrunt.hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket         = "my-terraform-state"
+    key            = "${path_relative_to_include()}/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "my-lock-table"
+  }
+}
+
+# child/terragrunt.hcl
 include "root" {
   path   = find_in_parent_folders()
   expose = true
@@ -540,6 +580,11 @@ include "root" {
 
 inputs = {
   remote_state_config = include.root.remote_state
+}
+
+# child/main.tf
+terraform {
+  backend "s3" {}
 }
 ```
 
@@ -554,6 +599,25 @@ _Multiple includes_
 # ├── region.hcl
 # └── child
 #     └── terragrunt.hcl
+
+# terragrunt.hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket         = "my-terraform-state"
+    key            = "${path_relative_to_include()}/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "my-lock-table"
+  }
+}
+
+# region.hcl
+locals {
+  region = "production"
+}
+
+# child/terragrunt.hcl
 include "remote_state" {
   path   = find_in_parent_folders()
   expose = true
@@ -567,7 +631,12 @@ include "region" {
 
 inputs = {
   remote_state_config = include.remote_state.remote_state
-  region              = include.region.region
+  region              = include.region.locals.region
+}
+
+# child/main.tf
+terraform {
+  backend "s3" {}
 }
 ```
 
