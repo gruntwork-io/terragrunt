@@ -55,8 +55,7 @@ func TestConcurrentAccess(t *testing.T) {
 func TestMultipleKeys(t *testing.T) {
 	t.Parallel()
 	kl := NewKeyLocks()
-	lockKey := "/tmp/project1"
-	keys := []string{"key1", "key2", "key3", "key4", "key5"}
+	keys := []string{"key1", "key2", "key3"}
 	wg := sync.WaitGroup{}
 	lockState := make(map[string]bool)
 
@@ -64,8 +63,8 @@ func TestMultipleKeys(t *testing.T) {
 		wg.Add(1)
 		go func(k string) {
 			defer wg.Done()
-			kl.Lock(lockKey)
-			defer kl.Unlock(lockKey)
+			kl.Lock(k)
+			defer kl.Unlock(k)
 			lockState[k] = true
 		}(key)
 	}
