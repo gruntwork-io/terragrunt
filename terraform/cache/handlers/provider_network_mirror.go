@@ -86,8 +86,10 @@ func (handler *ProviderNetworkMirrorHandler) GetPlatfrom(ctx echo.Context, provi
 	}
 
 	if archive, ok := mirrorData.Archives[provider.Platform()]; ok {
-		provider.Filename = filepath.Base(archive.URL)
-		provider.ResponseBody = &models.ResponseBody{DownloadURL: archive.URL}
+		provider.ResponseBody = &models.ResponseBody{
+			Filename:    filepath.Base(archive.URL),
+			DownloadURL: archive.URL,
+		}
 	}
 
 	// start caching and return 423 status
