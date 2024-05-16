@@ -19,6 +19,7 @@ import (
 
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -45,11 +46,11 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	require.NoError(t, err)
 	defer cliConfigFilename.Close()
 
-	err = os.Setenv("TF_CLI_CONFIG_FILE", cliConfigFilename.Name())
+	err = os.Setenv(terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
 	require.NoError(t, err)
-	defer os.Unsetenv("TF_CLI_CONFIG_FILE")
+	defer os.Unsetenv(terraform.EnvNameTFCLIConfigFile)
 
-	t.Logf("TF_CLI_CONFIG_FILE=%s", cliConfigFilename.Name())
+	t.Logf("%s=%s", terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
 
 	cliConfigSettings := &CLIConfigSettings{
 		FilesystemMirrorMethods: []CLIConfigProviderInstallationFilesystemMirror{

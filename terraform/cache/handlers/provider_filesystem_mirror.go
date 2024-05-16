@@ -83,8 +83,8 @@ func (handler *ProviderFilesystemMirrorHandler) GetPlatfrom(ctx echo.Context, pr
 	}
 
 	if archive, ok := mirrorData.Archives[provider.Platform()]; ok {
-		provider.Filename = filepath.Base(archive.URL)
 		provider.ResponseBody = &models.ResponseBody{
+			Filename:    filepath.Base(archive.URL),
 			DownloadURL: filepath.Join(handler.filesystemMirrorPath, provider.RegistryName, provider.Namespace, provider.Name, archive.URL),
 		}
 	}
