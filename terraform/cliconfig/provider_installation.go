@@ -36,6 +36,7 @@ func NewProviderInstallationDirect(include, exclude []string) *ProviderInstallat
 	return res
 }
 
+// providerInstallationMethod implements ProviderInstallationMethod.providerInstallationMethod
 func (ProviderInstallationDirect) providerInstallationMethod() {}
 
 func (method *ProviderInstallationDirect) AppendExclude(addrs []string) {
@@ -69,6 +70,7 @@ func NewProviderInstallationFilesystemMirror(path string, include, exclude []str
 	return res
 }
 
+// providerInstallationMethod implements ProviderInstallationMethod.providerInstallationMethod
 func (ProviderInstallationFilesystemMirror) providerInstallationMethod() {}
 
 func (method *ProviderInstallationFilesystemMirror) AppendExclude(addrs []string) {
@@ -102,6 +104,7 @@ func NewProviderInstallationNetworkMirror(url string, include, exclude []string)
 	return res
 }
 
+// providerInstallationMethod implements ProviderInstallationMethod.providerInstallationMethod
 func (ProviderInstallationNetworkMirror) providerInstallationMethod() {}
 
 func (method *ProviderInstallationNetworkMirror) AppendExclude(addrs []string) {

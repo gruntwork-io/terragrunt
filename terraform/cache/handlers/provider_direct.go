@@ -70,8 +70,6 @@ func (handler *ProviderDirectHandler) GetVersions(ctx echo.Context, provider *mo
 func (handler *ProviderDirectHandler) GetPlatfrom(ctx echo.Context, provider *models.Provider, downloaderController router.Controller, cacheRequestID string) error {
 	return handler.ReverseProxy.
 		WithModifyResponse(func(resp *http.Response) error {
-			var data map[string]json.RawMessage
-
 			// start caching and return 423 status
 			if cacheRequestID != "" {
 				var body = new(models.ResponseBody)
@@ -86,35 +84,7 @@ func (handler *ProviderDirectHandler) GetPlatfrom(ctx echo.Context, provider *mo
 			}
 
 			// act as a proxy
-			return ModifyJSONBody(resp, &data, func() error {
-				for _, name := range providerURLNames {
-					linkBytes, ok := data[string(name)]
-					if !ok || linkBytes == nil {
-						continue
-					}
-					link := string(linkBytes)
-
-					link, err := strconv.Unquote(link)
-					if err != nil {
-						return err
-					}
-
-					linkURL, err := url.Parse(link)
-					if err != nil {
-						return err
-					}
-
-					// Modify link to htpp://{localhost_host}/downloads/provider/{remote_host}/{remote_path}
-					linkURL.Path = path.Join(downloaderController.URL().Path, linkURL.Host, linkURL.Path)
-					linkURL.Scheme = downloaderController.URL().Scheme
-					linkURL.Host = downloaderController.URL().Host
-
-					link = strconv.Quote(linkURL.String())
-					data[string(name)] = []byte(link)
-				}
-
-				return nil
-			})
+			return proxyGetVersionsRequest(resp, downloaderController)
 		}).
 		NewRequest(ctx, handler.platformURL(provider))
 
@@ -145,4 +115,39 @@ func (handler *ProviderDirectHandler) platformURL(provider *models.Provider) *ur
 		Host:   provider.RegistryName,
 		Path:   path.Join("/v1/providers", provider.Namespace, provider.Name, provider.Version, "download", provider.OS, provider.Arch),
 	}
+}
+
+// proxyGetVersionsRequest proxies the request to the remote registry and modifies the response to redirect the download URLs to the local server.
+func proxyGetVersionsRequest(resp *http.Response, downloaderController router.Controller) error {
+	var data map[string]json.RawMessage
+
+	return ModifyJSONBody(resp, &data, func() error {
+		for _, name := range providerURLNames {
+			linkBytes, ok := data[string(name)]
+			if !ok || linkBytes == nil {
+				continue
+			}
+			link := string(linkBytes)
+
+			link, err := strconv.Unquote(link)
+			if err != nil {
+				return err
+			}
+
+			linkURL, err := url.Parse(link)
+			if err != nil {
+				return err
+			}
+
+			// Modify link to htpp://{localhost_host}/downloads/provider/{remote_host}/{remote_path}
+			linkURL.Path = path.Join(downloaderController.URL().Path, linkURL.Host, linkURL.Path)
+			linkURL.Scheme = downloaderController.URL().Scheme
+			linkURL.Host = downloaderController.URL().Host
+
+			link = strconv.Quote(linkURL.String())
+			data[string(name)] = []byte(link)
+		}
+
+		return nil
+	})
 }

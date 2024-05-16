@@ -12,6 +12,11 @@ import (
 func TestConfig(t *testing.T) {
 	t.Parallel()
 
+	var (
+		include = []string{"registry.terraform.io/*/*"}
+		exclude = []string{"registry.opentofu.org/*/*"}
+	)
+
 	tempCacheDir, err := os.MkdirTemp("", "*")
 	assert.NoError(t, err)
 
@@ -23,9 +28,9 @@ func TestConfig(t *testing.T) {
 	}{
 		{
 			providerInstallationMethods: []ProviderInstallationMethod{
-				NewProviderInstallationFilesystemMirror(tempCacheDir, []string{"registry.terraform.io/*/*"}, []string{"registry.opentofu.org/*/*"}),
-				NewProviderInstallationNetworkMirror("https://network-mirror.io/providers/", []string{"registry.terraform.io/*/*"}, []string{"registry.opentofu.org/*/*"}),
-				NewProviderInstallationDirect([]string{"registry.terraform.io/*/*"}, []string{"registry.opentofu.org/*/*"}),
+				NewProviderInstallationFilesystemMirror(tempCacheDir, include, exclude),
+				NewProviderInstallationNetworkMirror("https://network-mirror.io/providers/", include, exclude),
+				NewProviderInstallationDirect(include, exclude),
 			},
 			hosts: []ConfigHost{
 				{"registry.terraform.io", map[string]string{"providers.v1": "http://localhost:5758/v1/providers/registry.terraform.io/"}},

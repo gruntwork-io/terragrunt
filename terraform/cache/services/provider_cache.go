@@ -350,27 +350,9 @@ func (service *ProviderService) Run(ctx context.Context) error {
 		select {
 		case cache := <-service.providerCacheWarmUpCh:
 			errGroup.Go(func() error {
-				service.cacheReadyMu.RLock()
-				defer service.cacheReadyMu.RUnlock()
-
-				cache.started <- struct{}{}
-
-				// We need to use a locking mechanism between Terragrunt processes to prevent simultaneous write access to the same provider.
-				lockfile, err := cache.acquireLockFile(ctx)
-				if err != nil {
+				if err := service.startProviderCaching(ctx, cache); err != nil {
 					merr = multierror.Append(merr, err)
-					return nil
 				}
-				defer lockfile.Unlock() //nolint:errcheck
-
-				if err := cache.warmUp(ctx); err != nil {
-					os.Remove(cache.packageDir)  //nolint:errcheck
-					os.Remove(cache.archivePath) //nolint:errcheck
-					merr = multierror.Append(merr, err)
-					return nil
-				}
-				cache.ready = true
-
 				return nil
 			})
 		case <-ctx.Done():
@@ -389,4 +371,27 @@ func (service *ProviderService) Run(ctx context.Context) error {
 			return merr.ErrorOrNil()
 		}
 	}
+}
+
+func (service *ProviderService) startProviderCaching(ctx context.Context, cache *ProviderCache) error {
+	service.cacheReadyMu.RLock()
+	defer service.cacheReadyMu.RUnlock()
+
+	cache.started <- struct{}{}
+
+	// We need to use a locking mechanism between Terragrunt processes to prevent simultaneous write access to the same provider.
+	lockfile, err := cache.acquireLockFile(ctx)
+	if err != nil {
+		return err
+	}
+	defer lockfile.Unlock() //nolint:errcheck
+
+	if err := cache.warmUp(ctx); err != nil {
+		os.Remove(cache.packageDir)  //nolint:errcheck
+		os.Remove(cache.archivePath) //nolint:errcheck
+		return err
+	}
+	cache.ready = true
+
+	return nil
 }
