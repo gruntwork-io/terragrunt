@@ -61,6 +61,18 @@ func (caches ProviderCaches) FindByRequestID(requestID string) ProviderCaches {
 	return foundCaches
 }
 
+func (caches ProviderCaches) removeArchive() error {
+	for _, cache := range caches {
+		if cache.archiveCached && util.FileExists(cache.archivePath) {
+			log.Debugf("Remove provider cached archive %s", cache.archivePath)
+			if err := os.Remove(cache.archivePath); err != nil {
+				return errors.WithStackTrace(err)
+			}
+		}
+	}
+	return nil
+}
+
 type ProviderCache struct {
 	*models.Provider
 	requestIDs []string
@@ -360,12 +372,8 @@ func (service *ProviderService) Run(ctx context.Context) error {
 				merr = multierror.Append(merr, err)
 			}
 
-			for _, cache := range service.providerCaches {
-				close(cache.started)
-
-				if err := cache.removeArchive(); err != nil && !goerrors.Is(err, context.Canceled) {
-					merr = multierror.Append(merr, errors.WithStackTrace(err))
-				}
+			if err := service.providerCaches.removeArchive(); err != nil {
+				merr = multierror.Append(merr, errors.WithStackTrace(err))
 			}
 
 			return merr.ErrorOrNil()

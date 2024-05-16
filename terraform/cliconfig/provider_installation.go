@@ -10,7 +10,6 @@ type ProviderInstallation struct {
 //	ProviderInstallationDirect:           install from the provider's origin registry
 //	ProviderInstallationFilesystemMirror: install from a local filesystem mirror
 type ProviderInstallationMethod interface {
-	providerInstallationMethod()
 	AppendExclude(addrs []string)
 }
 
@@ -35,9 +34,6 @@ func NewProviderInstallationDirect(include, exclude []string) *ProviderInstallat
 
 	return res
 }
-
-// providerInstallationMethod implements ProviderInstallationMethod.providerInstallationMethod
-func (ProviderInstallationDirect) providerInstallationMethod() {}
 
 func (method *ProviderInstallationDirect) AppendExclude(addrs []string) {
 	if method.Exclude == nil {
@@ -70,9 +66,6 @@ func NewProviderInstallationFilesystemMirror(path string, include, exclude []str
 	return res
 }
 
-// providerInstallationMethod implements ProviderInstallationMethod.providerInstallationMethod
-func (ProviderInstallationFilesystemMirror) providerInstallationMethod() {}
-
 func (method *ProviderInstallationFilesystemMirror) AppendExclude(addrs []string) {
 	if method.Exclude == nil {
 		method.Exclude = &[]string{}
@@ -103,9 +96,6 @@ func NewProviderInstallationNetworkMirror(url string, include, exclude []string)
 
 	return res
 }
-
-// providerInstallationMethod implements ProviderInstallationMethod.providerInstallationMethod
-func (ProviderInstallationNetworkMirror) providerInstallationMethod() {}
 
 func (method *ProviderInstallationNetworkMirror) AppendExclude(addrs []string) {
 	if method.Exclude == nil {
