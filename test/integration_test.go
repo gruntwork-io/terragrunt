@@ -60,7 +60,8 @@ const (
 	TERRAFORM_REMOTE_STATE_S3_REGION                                         = "us-west-2"
 	TERRAFORM_REMOTE_STATE_GCP_REGION                                        = "eu"
 	TEST_FIXTURE_PATH                                                        = "fixture/"
-	TEST_FIXTURE_PROVIDER_CACHE                                              = "fixture-provider-cache"
+	TEST_FIXTURE_PROVIDER_CACHE_DIRECT                                       = "fixture-provider-cache/direct"
+	TEST_FIXTURE_PROVIDER_CACHE_FILESYSTEM_MIRROR                            = "fixture-provider-cache/filesystem-mirror"
 	TEST_FIXTURE_DESTROY_ORDER                                               = "fixture-destroy-order"
 	TEST_FIXTURE_CODEGEN_PATH                                                = "fixture-codegen"
 	TEST_FIXTURE_GCS_PATH                                                    = "fixture-gcs/"
@@ -208,14 +209,13 @@ const (
 func TestTerragruntProviderCache(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_PROVIDER_CACHE)
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PROVIDER_CACHE)
-	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PROVIDER_CACHE)
+	cleanupTerraformFolder(t, TEST_FIXTURE_PROVIDER_CACHE_DIRECT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PROVIDER_CACHE_DIRECT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PROVIDER_CACHE_DIRECT)
 
-	os.TempDir()
 	cacheDir, err := util.GetCacheDir()
-	assert.NoError(t, err)
-	providerCacheDir := filepath.Join(cacheDir, "provider-cache-test")
+	require.NoError(t, err)
+	providerCacheDir := filepath.Join(cacheDir, "provider-cache-test-direct")
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, rootPath))
 

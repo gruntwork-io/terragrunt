@@ -149,6 +149,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 		env               = providerCacheEnvironment(opts, cliConfigFilename)
 	)
 
+	fmt.Println("-------------------------------", cliConfigFilename)
 	// Create terraform cli config file that enables provider caching and does not use provider cache dir
 	if err := cache.createLocalCLIConfig(opts, cliConfigFilename, cacheRequestID); err != nil {
 		return nil, err

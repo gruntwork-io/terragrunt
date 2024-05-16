@@ -50,6 +50,10 @@ func NewProviderDirectHandler(providerService *services.ProviderService, cachePr
 	}
 }
 
+func (handler *ProviderDirectHandler) String() string {
+	return "direct handler "
+}
+
 // GetVersions implements ProviderHandler.GetVersions
 func (handler *ProviderDirectHandler) GetVersions(ctx echo.Context, provider *models.Provider) error {
 	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-versions-for-a-single-provider

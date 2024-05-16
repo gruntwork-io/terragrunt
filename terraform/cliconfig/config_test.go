@@ -23,8 +23,9 @@ func TestConfig(t *testing.T) {
 	}{
 		{
 			providerInstallationMethods: []ProviderInstallationMethod{
-				NewProviderInstallationFilesystemMirror(tempCacheDir, []string{"registry.terraform.io/*/*", "registry.opentofu.org/*/*"}, nil),
-				NewProviderInstallationDirect([]string{"registry.terraform.io/*/*", "registry.opentofu.org/*/*"}, nil),
+				NewProviderInstallationFilesystemMirror(tempCacheDir, []string{"registry.terraform.io/*/*"}, []string{"registry.opentofu.org/*/*"}),
+				NewProviderInstallationNetworkMirror("https://network-mirror.io/providers/", []string{"registry.terraform.io/*/*"}, []string{"registry.opentofu.org/*/*"}),
+				NewProviderInstallationDirect([]string{"registry.terraform.io/*/*"}, []string{"registry.opentofu.org/*/*"}),
 			},
 			hosts: []ConfigHost{
 				{"registry.terraform.io", map[string]string{"providers.v1": "http://localhost:5758/v1/providers/registry.terraform.io/"}},
@@ -47,10 +48,17 @@ provider_installation {
 
    "filesystem_mirror" {
     path    = "` + tempCacheDir + `"
-    include = ["registry.terraform.io/*/*", "registry.opentofu.org/*/*"]
+    include = ["registry.terraform.io/*/*"]
+    exclude = ["registry.opentofu.org/*/*"]
+  }
+   "network_mirror" {
+    url     = "https://network-mirror.io/providers/"
+    include = ["registry.terraform.io/*/*"]
+    exclude = ["registry.opentofu.org/*/*"]
   }
    "direct" {
-    include = ["registry.terraform.io/*/*", "registry.opentofu.org/*/*"]
+    include = ["registry.terraform.io/*/*"]
+    exclude = ["registry.opentofu.org/*/*"]
   }
 }
 `,

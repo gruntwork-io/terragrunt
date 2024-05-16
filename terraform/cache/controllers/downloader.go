@@ -47,7 +47,9 @@ func (controller *DownloaderController) downloadProviderAction(ctx echo.Context)
 
 	for _, handler := range controller.ProviderHandlers {
 		if handler.CanHandleProvider(provider) {
-			return handler.Download(ctx, provider)
+			if err := handler.Download(ctx, provider); err == nil {
+				break
+			}
 		}
 	}
 	return ctx.NoContent(http.StatusNotFound)

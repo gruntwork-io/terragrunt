@@ -87,7 +87,7 @@ type ProviderInstallationNetworkMirror struct {
 
 func NewProviderInstallationNetworkMirror(url string, include, exclude []string) *ProviderInstallationNetworkMirror {
 	res := &ProviderInstallationNetworkMirror{
-		Name: "filesystem_mirror",
+		Name: "network_mirror",
 		URL:  url,
 	}
 

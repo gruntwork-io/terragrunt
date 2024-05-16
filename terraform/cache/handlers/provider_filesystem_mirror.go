@@ -31,6 +31,10 @@ func NewProviderFilesystemMirrorHandler(providerService *services.ProviderServic
 	}
 }
 
+func (handler *ProviderFilesystemMirrorHandler) String() string {
+	return "filesystem mirror handler "
+}
+
 // GetVersions implements ProviderHandler.GetVersions
 func (handler *ProviderFilesystemMirrorHandler) GetVersions(ctx echo.Context, provider *models.Provider) error {
 	var mirrorData struct {

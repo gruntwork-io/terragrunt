@@ -66,7 +66,9 @@ func (controller *ProviderController) getVersionsAction(ctx echo.Context) error 
 
 	for _, handler := range controller.ProviderHandlers {
 		if handler.CanHandleProvider(provider) {
-			return handler.GetVersions(ctx, provider)
+			if err := handler.GetVersions(ctx, provider); err == nil {
+				break
+			}
 		}
 	}
 	return ctx.NoContent(http.StatusNotFound)
@@ -94,7 +96,9 @@ func (controller *ProviderController) getPlatformsAction(ctx echo.Context) (er e
 
 	for _, handler := range controller.ProviderHandlers {
 		if handler.CanHandleProvider(provider) {
-			return handler.GetPlatfrom(ctx, provider, controller.DownloaderController, cacheRequestID)
+			if err := handler.GetPlatfrom(ctx, provider, controller.DownloaderController, cacheRequestID); err == nil {
+				break
+			}
 		}
 	}
 	return ctx.NoContent(http.StatusNotFound)

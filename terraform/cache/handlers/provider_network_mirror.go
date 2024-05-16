@@ -33,6 +33,10 @@ func NewProviderNetworkMirrorHandler(providerService *services.ProviderService, 
 	}
 }
 
+func (handler *ProviderNetworkMirrorHandler) String() string {
+	return "network mirror handler "
+}
+
 // GetVersions implements ProviderHandler.GetVersions
 func (handler *ProviderNetworkMirrorHandler) GetVersions(ctx echo.Context, provider *models.Provider) error {
 	var mirrorData struct {
