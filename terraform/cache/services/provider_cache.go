@@ -63,11 +63,8 @@ func (caches ProviderCaches) FindByRequestID(requestID string) ProviderCaches {
 
 func (caches ProviderCaches) removeArchive() error {
 	for _, cache := range caches {
-		if cache.archiveCached && util.FileExists(cache.archivePath) {
-			log.Debugf("Remove provider cached archive %s", cache.archivePath)
-			if err := os.Remove(cache.archivePath); err != nil {
-				return errors.WithStackTrace(err)
-			}
+		if err := cache.removeArchive(); err != nil {
+			return err
 		}
 	}
 	return nil

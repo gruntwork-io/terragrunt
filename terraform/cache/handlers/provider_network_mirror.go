@@ -92,6 +92,10 @@ func (handler *ProviderNetworkMirrorHandler) GetPlatfrom(ctx echo.Context, provi
 		}
 	}
 
+	if provider.ResponseBody == nil {
+		return ctx.NoContent(http.StatusNotFound)
+	}
+
 	// start caching and return 423 status
 	handler.providerService.CacheProvider(ctx.Request().Context(), cacheRequestID, provider)
 	return ctx.NoContent(handler.cacheProviderHTTPStatusCode)
