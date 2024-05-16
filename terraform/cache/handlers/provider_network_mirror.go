@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/errors"
@@ -85,6 +86,7 @@ func (handler *ProviderNetworkMirrorHandler) GetPlatfrom(ctx echo.Context, provi
 	}
 
 	if archive, ok := mirrorData.Archives[provider.Platform()]; ok {
+		provider.Filename = filepath.Base(archive.URL)
 		provider.ResponseBody = &models.ResponseBody{DownloadURL: archive.URL}
 	}
 
