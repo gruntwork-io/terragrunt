@@ -35,7 +35,7 @@ func createFakeProvider(t *testing.T, cacheDir, relativePath string) string {
 	return relativePath
 }
 
-func TestServer(t *testing.T) {
+func TestProviderCache(t *testing.T) {
 	t.Parallel()
 
 	token := fmt.Sprintf("%s:%s", apiKeyAuth, uuid.New().String())
