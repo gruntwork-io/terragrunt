@@ -17,23 +17,22 @@ func NewKeyLocks() *KeyLocks {
 
 // Lock acquires the lock for the given key.
 func (kl *KeyLocks) Lock(key string) {
-	kl.ensureLock(key)
-	kl.locks[key].Lock()
+	kl.masterLock.Lock()
+	lock, ok := kl.locks[key]
+	if !ok {
+		lock = &sync.Mutex{}
+		kl.locks[key] = lock
+	}
+	kl.masterLock.Unlock()
+	lock.Lock()
 }
 
 // Unlock releases the lock for the given key.
 func (kl *KeyLocks) Unlock(key string) {
-	if lock, ok := kl.locks[key]; ok {
-		lock.Unlock()
-	}
-}
-
-// ensureLock checks if a lock exists for the key, and if not, creates one.
-func (kl *KeyLocks) ensureLock(key string) {
 	kl.masterLock.Lock()
 	defer kl.masterLock.Unlock()
 
-	if _, ok := kl.locks[key]; !ok {
-		kl.locks[key] = new(sync.Mutex)
+	if lock, ok := kl.locks[key]; ok {
+		lock.Unlock()
 	}
 }
