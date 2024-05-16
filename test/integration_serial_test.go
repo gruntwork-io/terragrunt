@@ -47,6 +47,7 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 
 	err = os.Setenv("TF_CLI_CONFIG_FILE", cliConfigFilename.Name())
 	require.NoError(t, err)
+	os.Unsetenv("TF_CLI_CONFIG_FILE")
 
 	t.Logf("TF_CLI_CONFIG_FILE=%s", cliConfigFilename.Name())
 
