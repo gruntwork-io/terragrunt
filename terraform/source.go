@@ -191,8 +191,10 @@ func NewSource(source string, downloadDir string, workingDir string, logger *log
 // Convert the given source into a URL struct. This method should be able to handle all source URLs that the terraform
 // init command can handle, parsing local file paths, Git paths, and HTTP URLs correctly.
 func ToSourceUrl(source string, workingDir string) (*url.URL, error) {
-	// we need to remove the http(s) scheme to allow `getter.Detect` to add the source type
-	source = httpSchemeRegexp.ReplaceAllString(source, "")
+	source, err := normalizeSourceURL(source, workingDir)
+	if err != nil {
+		return nil, err
+	}
 
 	// The go-getter library is what Terraform's init command uses to download source URLs. Use that library to
 	// parse the URL.
@@ -202,6 +204,32 @@ func ToSourceUrl(source string, workingDir string) (*url.URL, error) {
 	}
 
 	return parseSourceUrl(rawSourceUrlWithGetter)
+}
+
+// We have to remove the http(s) scheme from the source URL to allow `getter.Detect` to add the source type, but only if the `getter` has a detector for that host.
+func normalizeSourceURL(source string, workingDir string) (string, error) {
+	newSource := httpSchemeRegexp.ReplaceAllString(source, "")
+
+	// We can't use `the getter.Detectors` global variable because we need to exclude `getter.FileDetector` from checking since it is not a URL detector.
+	detectors := []getter.Detector{
+		new(getter.GitHubDetector),
+		new(getter.GitLabDetector),
+		new(getter.GitDetector),
+		new(getter.BitBucketDetector),
+		new(getter.S3Detector),
+		new(getter.GCSDetector),
+	}
+
+	for _, detector := range detectors {
+		_, ok, err := detector.Detect(newSource, workingDir)
+		if err != nil {
+			return source, errors.WithStackTrace(err)
+		}
+		if ok {
+			return newSource, nil
+		}
+	}
+	return source, nil
 }
 
 // Parse the given source URL into a URL struct. This method can handle source URLs that include go-getter's "forced
