@@ -77,6 +77,7 @@ func (handler *ProviderDirectHandler) GetPlatfrom(ctx echo.Context, provider *mo
 				if err := DecodeJSONBody(resp, body); err != nil {
 					return err
 				}
+
 				provider.ResponseBody = body
 
 				handler.providerService.CacheProvider(ctx.Request().Context(), cacheRequestID, provider)

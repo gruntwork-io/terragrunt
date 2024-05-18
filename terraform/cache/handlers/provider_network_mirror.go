@@ -90,9 +90,7 @@ func (handler *ProviderNetworkMirrorHandler) GetPlatfrom(ctx echo.Context, provi
 			Filename:    filepath.Base(archive.URL),
 			DownloadURL: archive.URL,
 		}
-	}
-
-	if provider.ResponseBody == nil {
+	} else {
 		return ctx.NoContent(http.StatusNotFound)
 	}
 
@@ -118,6 +116,7 @@ func (handler *ProviderNetworkMirrorHandler) request(ctx echo.Context, method, r
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
+	defer resp.Body.Close()
 
 	return DecodeJSONBody(resp, value)
 }

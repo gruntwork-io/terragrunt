@@ -87,9 +87,7 @@ func (handler *ProviderFilesystemMirrorHandler) GetPlatfrom(ctx echo.Context, pr
 			Filename:    filepath.Base(archive.URL),
 			DownloadURL: filepath.Join(handler.filesystemMirrorPath, provider.RegistryName, provider.Namespace, provider.Name, archive.URL),
 		}
-	}
-
-	if provider.ResponseBody == nil {
+	} else {
 		return ctx.NoContent(http.StatusNotFound)
 	}
 

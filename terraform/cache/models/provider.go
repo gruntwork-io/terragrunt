@@ -58,18 +58,6 @@ type Platform struct {
 	Arch string `json:"arch"`
 }
 
-func ParsePlatform(str string) *Platform {
-	const twoVals = 2
-
-	if parts := strings.Split(str, "_"); len(parts) == twoVals {
-		return &Platform{
-			OS:   parts[0],
-			Arch: parts[1],
-		}
-	}
-	return nil
-}
-
 // ResponseBody represents the details of the Terraform provider received from a registry.
 type ResponseBody struct {
 	Platform
