@@ -2,6 +2,7 @@ package test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -18,10 +19,50 @@ import (
 
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // NOTE: We don't run these tests in parallel because it modifies the environment variable, so it can affect other tests
+
+func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
+	// In this test we use os.Setenv to set the Terraform env var TF_CLI_CONFIG_FILE.
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_PROVIDER_CACHE_FILESYSTEM_MIRROR)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PROVIDER_CACHE_FILESYSTEM_MIRROR)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PROVIDER_CACHE_FILESYSTEM_MIRROR)
+
+	appPath := filepath.Join(rootPath, "app")
+	filesystemCachePath := filepath.Join(rootPath, "providers")
+
+	cacheDir, err := util.GetCacheDir()
+	require.NoError(t, err)
+	providerCacheDir := filepath.Join(cacheDir, "provider-cache-test-with-filesystem-mirror")
+
+	ctx := context.Background()
+	defer ctx.Done()
+
+	cliConfigFilename, err := os.CreateTemp("", "*")
+	require.NoError(t, err)
+	defer cliConfigFilename.Close()
+
+	err = os.Setenv(terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
+	require.NoError(t, err)
+	defer os.Unsetenv(terraform.EnvNameTFCLIConfigFile)
+
+	t.Logf("%s=%s", terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
+
+	cliConfigSettings := &CLIConfigSettings{
+		FilesystemMirrorMethods: []CLIConfigProviderInstallationFilesystemMirror{
+			{
+				Path: filesystemCachePath,
+			},
+		},
+	}
+	createCLIConfig(t, cliConfigFilename, cliConfigSettings)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-registry-names example.com --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, appPath))
+}
 
 func TestTerragruntInputsFromDependency(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)

@@ -49,12 +49,12 @@ func TestUpdateLockfile(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		providers        Providers
+		providers        []Provider
 		initialLockfile  string
 		expectedLockfile string
 	}{
 		{
-			Providers{
+			[]Provider{
 				mockProviderUpdateLock(t, "registry.terraform.io/hashicorp/aws", "5.37.0"),
 			},
 			``,
@@ -71,7 +71,7 @@ provider "registry.terraform.io/hashicorp/aws" {
 `,
 		},
 		{
-			Providers{
+			[]Provider{
 				mockProviderUpdateLock(t, "registry.terraform.io/hashicorp/aws", "5.36.0"),
 				mockProviderUpdateLock(t, "registry.terraform.io/hashicorp/template", "2.2.0"),
 			},

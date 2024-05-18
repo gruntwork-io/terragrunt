@@ -1,3 +1,5 @@
+//go:generate mockery --name Provider
+
 package getproviders
 
 import (
@@ -5,19 +7,21 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/exp/slices"
 )
 
 // UpdateLockfile updates the dependency lock file. If `.terraform.lock.hcl` does not exist, it will be created, otherwise it will be updated.
-func UpdateLockfile(ctx context.Context, workingDir string, providers Providers) error {
+func UpdateLockfile(ctx context.Context, workingDir string, providers []Provider) error {
 	var (
 		filename = filepath.Join(workingDir, terraform.TerraformLockFile)
 		file     = hclwrite.NewFile()
@@ -46,7 +50,7 @@ func UpdateLockfile(ctx context.Context, workingDir string, providers Providers)
 	return nil
 }
 
-func updateLockfile(ctx context.Context, file *hclwrite.File, providers Providers) error {
+func updateLockfile(ctx context.Context, file *hclwrite.File, providers []Provider) error {
 	sort.Slice(providers, func(i, j int) bool {
 		return providers[i].Address() < providers[j].Address()
 	})
@@ -92,20 +96,57 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 	// Constraints can contain multiple constraint expressions, including comparison operators, but in the Terragrunt Provider Cache use case, we assume that the required_providers are pinned to a specific version to detect the required version without terraform init, so we can simply specify the constraints attribute as the same as the version. This may differ from what terraform generates, but we expect that it doesn't matter in practice.
 	providerBlock.Body().SetAttributeValue("constraints", cty.StringVal(provider.Version()))
 
-	documentSHA256Sums, err := provider.DocumentSHA256Sums(ctx)
-	if err != nil {
-		return err
-	}
-
 	h1Hash, err := PackageHashV1(provider.PackageDir())
 	if err != nil {
 		return err
 	}
-	zipHashes := DocumentHashes(documentSHA256Sums)
+	hashes := []Hash{h1Hash}
 
-	hashes := append(zipHashes, h1Hash)
+	documentSHA256Sums, err := provider.DocumentSHA256Sums(ctx)
+	if err != nil {
+		return err
+	}
+	if documentSHA256Sums != nil {
+		zipHashes := DocumentHashes(documentSHA256Sums)
+		hashes = append(hashes, zipHashes...)
+	}
+
 	slices.Sort(hashes)
 
 	providerBlock.Body().SetAttributeRaw("hashes", tokensForListPerLine(hashes))
 	return nil
+}
+
+// getAttributeValueAsString returns a value of Attribute as string. There is no way to get value as string directly, so we parses tokens of Attribute and build string representation.
+func getAttributeValueAsUnquotedString(attr *hclwrite.Attribute) string {
+	// find TokenEqual
+	expr := attr.Expr()
+	exprTokens := expr.BuildTokens(nil)
+
+	// TokenIdent records SpaceBefore, but we should ignore it here.
+	quotedValue := strings.TrimSpace(string(exprTokens.Bytes()))
+
+	// unquote
+	value := strings.Trim(quotedValue, "\"")
+
+	return value
+}
+
+// tokensForListPerLine builds a hclwrite.Tokens for a given hashes, but breaks the line for each element.
+func tokensForListPerLine(hashes []Hash) hclwrite.Tokens {
+	// The original TokensForValue implementation does not break line by line for hashes, so we build a token sequence by ourselves.
+	tokens := append(hclwrite.Tokens{},
+		&hclwrite.Token{Type: hclsyntax.TokenOBrack, Bytes: []byte{'['}},
+		&hclwrite.Token{Type: hclsyntax.TokenNewline, Bytes: []byte{'\n'}})
+
+	for _, hash := range hashes {
+		ts := hclwrite.TokensForValue(cty.StringVal(hash.String()))
+		tokens = append(tokens, ts...)
+		tokens = append(tokens,
+			&hclwrite.Token{Type: hclsyntax.TokenComma, Bytes: []byte{','}},
+			&hclwrite.Token{Type: hclsyntax.TokenNewline, Bytes: []byte{'\n'}})
+	}
+
+	tokens = append(tokens, &hclwrite.Token{Type: hclsyntax.TokenCBrack, Bytes: []byte{']'}})
+	return tokens
 }

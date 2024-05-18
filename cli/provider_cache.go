@@ -18,8 +18,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/terraform/cache"
-	"github.com/gruntwork-io/terragrunt/terraform/cache/controllers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
 	"github.com/gruntwork-io/terragrunt/terraform/cliconfig"
 	"github.com/gruntwork-io/terragrunt/terraform/getproviders"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -29,6 +29,13 @@ import (
 const (
 	// The paths to the automatically generated local CLI configs
 	localCLIFilename = ".terraformrc"
+
+	// The status returned when making a request to the caching provider.
+	// It is needed to prevent further loading of providers by terraform, and at the same time make sure that the request was processed successfully.
+	cacheProviderHTTPStatusCode = http.StatusLocked
+
+	// Authentication type on the Terragrunt Provider Cache server.
+	apiKeyAuth = "x-api-key"
 )
 
 var (
@@ -46,11 +53,13 @@ var (
 	//    │ provider registry for registry.terraform.io/snowflake-labs/snowflake: 423
 	//    │ Locked
 	//    ╵
-	HTTPStatusCacheProviderReg = regexp.MustCompile(`(?smi)` + strconv.Itoa(controllers.HTTPStatusCacheProvider) + `.*` + http.StatusText(controllers.HTTPStatusCacheProvider))
+	HTTPStatusCacheProviderReg = regexp.MustCompile(`(?smi)` + strconv.Itoa(cacheProviderHTTPStatusCode) + `.*` + http.StatusText(cacheProviderHTTPStatusCode))
 )
 
 type ProviderCache struct {
 	*cache.Server
+	cliCfg          *cliconfig.Config
+	providerService *services.ProviderService
 }
 
 func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, error) {
@@ -73,24 +82,56 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 		opts.ProviderCacheToken = uuid.New().String()
 	}
 	// Currently, the cache server only supports the `x-api-key` token.
-	if !strings.HasPrefix(strings.ToLower(opts.ProviderCacheToken), handlers.AuthorizationApiKeyHeaderName+":") {
-		opts.ProviderCacheToken = fmt.Sprintf("%s:%s", handlers.AuthorizationApiKeyHeaderName, opts.ProviderCacheToken)
+	if !strings.HasPrefix(strings.ToLower(opts.ProviderCacheToken), apiKeyAuth+":") {
+		opts.ProviderCacheToken = fmt.Sprintf("%s:%s", apiKeyAuth, opts.ProviderCacheToken)
 	}
 
 	userProviderDir, err := cliconfig.UserProviderDir()
 	if err != nil {
 		return nil, err
 	}
+	providerService := services.NewProviderService(opts.ProviderCacheDir, userProviderDir)
+
+	cliCfg, err := cliconfig.LoadUserConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		providerHandlers []handlers.ProviderHandler
+		excludeAddrs     []string
+	)
+
+	for _, registryName := range opts.ProviderCacheRegistryNames {
+		excludeAddrs = append(excludeAddrs, fmt.Sprintf("%s/*/*", registryName))
+	}
+
+	for _, method := range cliCfg.ProviderInstallation.Methods {
+		switch method := method.(type) {
+		case *cliconfig.ProviderInstallationFilesystemMirror:
+			providerHandlers = append(providerHandlers, handlers.NewProviderFilesystemMirrorHandler(providerService, cacheProviderHTTPStatusCode, method))
+		case *cliconfig.ProviderInstallationNetworkMirror:
+			providerHandlers = append(providerHandlers, handlers.NewProviderNetworkMirrorHandler(providerService, cacheProviderHTTPStatusCode, method))
+		case *cliconfig.ProviderInstallationDirect:
+			providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, cacheProviderHTTPStatusCode, method))
+		}
+		method.AppendExclude(excludeAddrs)
+	}
+	providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, cacheProviderHTTPStatusCode, new(cliconfig.ProviderInstallationDirect)))
 
 	cache := cache.NewServer(
 		cache.WithHostname(opts.ProviderCacheHostname),
 		cache.WithPort(opts.ProviderCachePort),
 		cache.WithToken(opts.ProviderCacheToken),
-		cache.WithUserProviderDir(userProviderDir),
-		cache.WithProviderCacheDir(opts.ProviderCacheDir),
+		cache.WithServices(providerService),
+		cache.WithProviderHandlers(providerHandlers...),
 	)
 
-	return &ProviderCache{Server: cache}, nil
+	return &ProviderCache{
+		Server:          cache,
+		cliCfg:          cliCfg,
+		providerService: providerService,
+	}, nil
 }
 
 func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *options.TerragruntOptions, args []string) (*shell.CmdOutput, error) {
@@ -117,11 +158,11 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	// Before each init, we warm up the global cache to ensure that all necessary providers are cached.
 	// To do this we are using 'terraform providers lock' to force TF to request all the providers from our TG cache, and that's how we know what providers TF needs, and can load them into the cache.
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
-	if err := runTerraformCommand(ctx, opts, args, env); err != nil {
-		return nil, err
+	if output, err := runTerraformCommand(ctx, opts, args, env); err != nil {
+		return output, err
 	}
 
-	caches := cache.Provider.WaitForCacheReady(cacheRequestID)
+	caches := cache.providerService.WaitForCacheReady(cacheRequestID)
 	if err := getproviders.UpdateLockfile(ctx, opts.WorkingDir, caches); err != nil {
 		return nil, err
 	}
@@ -168,10 +209,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 // 1. If `cacheRequestID` is set, `terraform init` does _not_ use the provider cache directory, the cache server creates a cache for requested providers and returns HTTP status 423. Since for each module we create the CLI config, using `cacheRequestID` we have the opportunity later retrieve from the cache server exactly those cached providers that were requested by `terraform init` using this configuration.
 // 2. If `cacheRequestID` is empty, 'terraform init` uses provider cache directory, the cache server acts as a proxy.
 func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions, filename string, cacheRequestID string) error {
-	cfg, err := cliconfig.LoadUserConfig()
-	if err != nil {
-		return err
-	}
+	cfg := cache.cliCfg.Clone()
 	cfg.PluginCacheDir = ""
 
 	var providerInstallationIncludes []string
@@ -180,23 +218,21 @@ func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions
 		providerInstallationIncludes = append(providerInstallationIncludes, fmt.Sprintf("%s/*/*", registryName))
 
 		cfg.AddHost(registryName, map[string]string{
-			"providers.v1": fmt.Sprintf("%s/%s/%s/", cache.ProviderURL(), cacheRequestID, registryName),
+			"providers.v1": fmt.Sprintf("%s/%s/%s/", cache.ProviderController.URL(), cacheRequestID, registryName),
 			// Since Terragrunt Provider Cache only caches providers, we need to route module requests to the original registry.
 			"modules.v1": fmt.Sprintf("https://%s/v1/modules", registryName),
 		})
 	}
 
-	if cacheRequestID != "" {
-		cfg.SetProviderInstallation(
-			nil,
-			cliconfig.NewProviderInstallationDirect(nil, nil),
-		)
-	} else {
-		cfg.SetProviderInstallation(
+	if cacheRequestID == "" {
+		cfg.AddProviderInstallationMethods(
 			cliconfig.NewProviderInstallationFilesystemMirror(opts.ProviderCacheDir, providerInstallationIncludes, nil),
-			cliconfig.NewProviderInstallationDirect(providerInstallationIncludes, nil),
 		)
 	}
+
+	cfg.AddProviderInstallationMethods(
+		cliconfig.NewProviderInstallationDirect(nil, nil),
+	)
 
 	if cfgDir := filepath.Dir(filename); !util.FileExists(cfgDir) {
 		if err := os.MkdirAll(cfgDir, os.ModePerm); err != nil {
@@ -207,7 +243,7 @@ func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions
 	return cfg.Save(filename)
 }
 
-func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, args []string, envs map[string]string) error {
+func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, args []string, envs map[string]string) (*shell.CmdOutput, error) {
 	// We use custom writer in order to trap the log from `terraform providers lock -platform=provider-cache` command, which terraform considers an error, but to us a success.
 	errWriter := util.NewTrapWriter(opts.ErrWriter, HTTPStatusCacheProviderReg)
 
@@ -227,11 +263,11 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 	}
 
 	// If the Terraform error matches `HTTPStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process the error as is.
-	if err := shell.RunTerraformCommand(ctx, cloneOpts, cloneOpts.TerraformCliArgs...); err != nil && len(errWriter.Msgs()) == 0 {
-		return err
+	if output, err := shell.RunTerraformCommandWithOutput(ctx, cloneOpts, cloneOpts.TerraformCliArgs...); err != nil && len(errWriter.Msgs()) == 0 {
+		return output, err
 	}
 
-	return nil
+	return nil, nil
 }
 
 // providerCacheEnvironment returns TF_* name/value ENVs, which we use to force terraform processes to make requests through our cache server (proxy) instead of making direct requests to the origin servers.

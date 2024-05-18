@@ -259,7 +259,7 @@ func TestSignatureAuthenticate(t *testing.T) {
 		path           string
 		document       []byte
 		signature      string
-		keys           []SigningKey
+		keys           map[string]string
 		expectedResult *PackageAuthenticationResult
 		expectedErr    error
 	}{
@@ -267,7 +267,7 @@ func TestSignatureAuthenticate(t *testing.T) {
 			"testdata/my-package.zip",
 			[]byte(testProviderShaSums),
 			testHashicorpSignatureGoodBase64,
-			[]SigningKey{{ASCIIArmor: HashicorpPublicKey}},
+			map[string]string{HashicorpPublicKey: ""},
 			NewPackageAuthenticationResult(officialProvider),
 			nil,
 		},
@@ -275,7 +275,7 @@ func TestSignatureAuthenticate(t *testing.T) {
 			"testdata/my-package.zip",
 			[]byte("example shasums data"),
 			testHashicorpSignatureGoodBase64,
-			[]SigningKey{{ASCIIArmor: "invalid PGP armor value"}},
+			map[string]string{"invalid PGP armor value": ""},
 			nil,
 			errors.New("error decoding signing key: openpgp: invalid argument: no armored data found"),
 		},
@@ -283,7 +283,7 @@ func TestSignatureAuthenticate(t *testing.T) {
 			"testdata/my-package.zip",
 			[]byte("example shasums data"),
 			testSignatureBadBase64,
-			[]SigningKey{{ASCIIArmor: testAuthorKeyArmor}},
+			map[string]string{testAuthorKeyArmor: ""},
 			nil,
 			errors.New("error checking signature: openpgp: invalid data: signature subpacket truncated"),
 		},
@@ -291,7 +291,7 @@ func TestSignatureAuthenticate(t *testing.T) {
 			"testdata/my-package.zip",
 			[]byte("example shasums data"),
 			testAuthorSignatureGoodBase64,
-			[]SigningKey{{ASCIIArmor: HashicorpPublicKey}},
+			map[string]string{HashicorpPublicKey: ""},
 			nil,
 			errors.New("authentication signature from unknown issuer"),
 		},
@@ -299,7 +299,7 @@ func TestSignatureAuthenticate(t *testing.T) {
 			"testdata/my-package.zip",
 			[]byte("example shasums data"),
 			testAuthorSignatureGoodBase64,
-			[]SigningKey{{ASCIIArmor: testAuthorKeyArmor, TrustSignature: "invalid PGP armor value"}},
+			map[string]string{testAuthorKeyArmor: "invalid PGP armor value"},
 			nil,
 			errors.New("error decoding trust signature: EOF"),
 		},
@@ -307,7 +307,7 @@ func TestSignatureAuthenticate(t *testing.T) {
 			"testdata/my-package.zip",
 			[]byte("example shasums data"),
 			testAuthorSignatureGoodBase64,
-			[]SigningKey{{ASCIIArmor: testAuthorKeyArmor, TrustSignature: testOtherKeyTrustSignatureArmor}},
+			map[string]string{testAuthorKeyArmor: testOtherKeyTrustSignatureArmor},
 			nil,
 			errors.New("error verifying trust signature: openpgp: invalid signature: RSA verification failure"),
 		},
