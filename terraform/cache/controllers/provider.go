@@ -96,7 +96,7 @@ func (controller *ProviderController) getPlatformsAction(ctx echo.Context) (er e
 
 	for _, handler := range controller.ProviderHandlers {
 		if handler.CanHandleProvider(provider) {
-			if err := handler.GetPlatfrom(ctx, provider, controller.DownloaderController, cacheRequestID); err == nil {
+			if err := handler.GetPlatform(ctx, provider, controller.DownloaderController, cacheRequestID); err == nil {
 				break
 			}
 		}

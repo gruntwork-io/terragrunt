@@ -66,8 +66,8 @@ func (handler *ProviderDirectHandler) GetVersions(ctx echo.Context, provider *mo
 	return handler.ReverseProxy.NewRequest(ctx, reqURL)
 }
 
-// GetPlatfrom implements ProviderHandler.GetPlatfrom
-func (handler *ProviderDirectHandler) GetPlatfrom(ctx echo.Context, provider *models.Provider, downloaderController router.Controller, cacheRequestID string) error {
+// GetPlatform implements ProviderHandler.GetPlatform
+func (handler *ProviderDirectHandler) GetPlatform(ctx echo.Context, provider *models.Provider, downloaderController router.Controller, cacheRequestID string) error {
 	return handler.ReverseProxy.
 		WithModifyResponse(func(resp *http.Response) error {
 			// start caching and return 423 status

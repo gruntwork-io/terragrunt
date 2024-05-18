@@ -31,8 +31,8 @@ type ProviderHandler interface {
 	// GetVersions serves a request that returns all versions for a single provider.
 	GetVersions(ctx echo.Context, provider *models.Provider) error
 
-	// GetPlatfrom serves a request that returns a provider for a specific platform.
-	GetPlatfrom(ctx echo.Context, provider *models.Provider, downloaderController router.Controller, cacheRequestID string) error
+	// GetPlatform serves a request that returns a provider for a specific platform.
+	GetPlatform(ctx echo.Context, provider *models.Provider, downloaderController router.Controller, cacheRequestID string) error
 
 	// Download serves a request to download the target file.
 	Download(ctx echo.Context, provider *models.Provider) error

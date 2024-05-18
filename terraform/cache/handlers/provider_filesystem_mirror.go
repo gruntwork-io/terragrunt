@@ -63,8 +63,8 @@ func (handler *ProviderFilesystemMirrorHandler) GetVersions(ctx echo.Context, pr
 	return ctx.JSON(http.StatusOK, versions)
 }
 
-// GetPlatfrom implements ProviderHandler.GetPlatfrom
-func (handler *ProviderFilesystemMirrorHandler) GetPlatfrom(ctx echo.Context, provider *models.Provider, downloaderController router.Controller, cacheRequestID string) error {
+// GetPlatform implements ProviderHandler.GetPlatform
+func (handler *ProviderFilesystemMirrorHandler) GetPlatform(ctx echo.Context, provider *models.Provider, downloaderController router.Controller, cacheRequestID string) error {
 	if cacheRequestID == "" {
 		// it is impossible to return all platform properties from the filesystem mirror, return 404 status
 		return ctx.NoContent(http.StatusNotFound)
