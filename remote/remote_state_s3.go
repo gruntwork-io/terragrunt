@@ -416,15 +416,6 @@ func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3, terragruntOpt
 		return errors.WithStackTrace(MissingRequiredS3RemoteStateConfig("key"))
 	}
 
-	if !config.Encrypt {
-		msg := fmt.Sprintf("Encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!", config.Bucket)
-		if extendedConfig.SkipBucketSSEncryption {
-			terragruntOptions.Logger.Debug(msg)
-		} else {
-			terragruntOptions.Logger.Warn(msg)
-		}
-	}
-
 	return nil
 }
 
@@ -506,11 +497,22 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 	}
 
 	if bucketUpdatesRequired.SSEEncryption {
+		msg := fmt.Sprintf("Encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!", config.remoteStateConfigS3.Bucket)
+
 		if config.SkipBucketSSEncryption {
-			terragruntOptions.Logger.Debugf("Server-Side Encryption is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", config.remoteStateConfigS3.Bucket)
-		} else if err := EnableSSEForS3BucketWide(s3Client, config.remoteStateConfigS3.Bucket, fetchEncryptionAlgorithm(config), config, terragruntOptions); err != nil {
+			terragruntOptions.Logger.Debug(msg)
+			terragruntOptions.Logger.Debugf("Server-Side Encryption enabling is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", config.remoteStateConfigS3.Bucket)
+			return nil
+		} else {
+			terragruntOptions.Logger.Warn(msg)
+		}
+
+		terragruntOptions.Logger.Infof("Enabling Server-Side Encryption for the remote state AWS S3 bucket %s.", config.remoteStateConfigS3.Bucket)
+		if err := EnableSSEForS3BucketWide(s3Client, config.remoteStateConfigS3.Bucket, fetchEncryptionAlgorithm(config), config, terragruntOptions); err != nil {
+			terragruntOptions.Logger.Errorf("Failed to enable Server-Side Encryption for the remote state AWS S3 bucket %s: %v", config.remoteStateConfigS3.Bucket, err)
 			return err
 		}
+		terragruntOptions.Logger.Infof("Successfully enabled Server-Side Encryption for the remote state AWS S3 bucket %s.", config.remoteStateConfigS3.Bucket)
 	}
 
 	if bucketUpdatesRequired.RootAccess {
