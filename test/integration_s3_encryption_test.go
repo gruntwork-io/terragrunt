@@ -124,7 +124,8 @@ func TestTerragruntS3EncryptionWarning(t *testing.T) {
 
 	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, s3SSEKMSFixturePath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 
-	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, s3SSEKMSFixturePath))
+	terragruntCommand := fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, s3SSEKMSFixturePath)
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, terragruntCommand)
 	require.NoError(t, err)
 	output := fmt.Sprintf(stdout, stderr)
 	// check that warning is printed
@@ -140,7 +141,7 @@ func TestTerragruntS3EncryptionWarning(t *testing.T) {
 	assert.Equal(t, s3.ServerSideEncryptionAwsKms, aws.StringValue(sseRule.SSEAlgorithm))
 
 	// check that second warning is not printed
-	stdout, stderr, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, s3SSEKMSFixturePath))
+	stdout, stderr, err = runTerragruntCommandWithOutput(t, terragruntCommand)
 	require.NoError(t, err)
 	output = fmt.Sprintf(stdout, stderr)
 	assert.NotContains(t, output, fmt.Sprintf("Encryption is not enabled on the S3 remote state bucket %s", s3BucketName))
