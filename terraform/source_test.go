@@ -75,7 +75,7 @@ func TestToSourceUrl(t *testing.T) {
 		{"https://gitlab.com/catamphetamine/libphonenumber-js", "git::https://gitlab.com/catamphetamine/libphonenumber-js.git"},
 		{"https://bitbucket.org/atlassian/aws-ecr-push-image", "git::https://bitbucket.org/atlassian/aws-ecr-push-image.git"},
 		{"http://bitbucket.org/atlassian/aws-ecr-push-image", "git::https://bitbucket.org/atlassian/aws-ecr-push-image.git"},
-		{"https://s3-eu-west-1.amazonaws.com/modules/vpc.zip", "s3::https://s3-eu-west-1.amazonaws.com/modules/vpc.zip"},
+		{"https://s3-eu-west-1.amazonaws.com/modules/vpc.zip", "https://s3-eu-west-1.amazonaws.com/modules/vpc.zip"},
 		{"https://www.googleapis.com/storage/v1/modules/foomodule.zip", "gcs::https://www.googleapis.com/storage/v1/modules/foomodule.zip"},
 		{"https://www.googleapis.com/storage/v1/modules/foomodule.zip", "gcs::https://www.googleapis.com/storage/v1/modules/foomodule.zip"},
 		{"git::https://name@dev.azure.com/name/project-name/_git/repo-name", "git::https://name@dev.azure.com/name/project-name/_git/repo-name"},
