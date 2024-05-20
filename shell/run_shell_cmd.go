@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"plugin"
 	"strings"
 	"syscall"
 	"time"
@@ -70,6 +71,40 @@ func RunTerraformCommandWithOutput(ctx context.Context, terragruntOptions *optio
 	}
 
 	return RunShellCommandWithOutput(ctx, terragruntOptions, "", false, needPTY, terragruntOptions.TerraformPath, args...)
+}
+
+// plugin name - plugin path, inline
+var plugins = map[string]string{
+	"shell":     "/tmp/plugin_shell_shared",
+	"terraform": "/tmp/plugin_tofu_shared",
+	"tofu":      "/tmp/plugin_terraform_shared",
+}
+
+var pluginInstances = map[string]plugin.Plugin{}
+
+func init() {
+	// iterate over plugins and save pluginInstances
+	for name, path := range plugins {
+		plug, err := plugin.Open(path)
+		if err != nil {
+			fmt.Println("Error opening plugin:", err)
+			continue
+		}
+
+		symPlugin, err := plug.Lookup("Plugin")
+		if err != nil {
+			fmt.Printf("Error looking up Plugin function: %v", err)
+			continue
+		}
+		pluginFactory, ok := symPlugin.(func() plugin.Plugin)
+
+		if !ok {
+			fmt.Printf("Unexpected type from module symbol")
+			continue
+		}
+		pluginInstances[name] = pluginFactory()
+	}
+
 }
 
 // Run the specified shell command with the specified arguments. Connect the command's stdin, stdout, and stderr to
