@@ -497,8 +497,7 @@ func TestValidateS3Config(t *testing.T) {
 			logger := logrus.New()
 			logger.SetLevel(logrus.DebugLevel)
 			logger.SetOutput(buf)
-			opts := &options.TerragruntOptions{Logger: logrus.NewEntry(logger)}
-			err := validateS3Config(testCase.extendedConfig, opts)
+			err := validateS3Config(testCase.extendedConfig)
 			if err != nil {
 				assert.ErrorIs(t, err, testCase.expectedErr)
 			}

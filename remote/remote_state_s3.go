@@ -293,7 +293,7 @@ func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *
 		return errors.WithStackTrace(err)
 	}
 
-	if err := validateS3Config(s3ConfigExtended, terragruntOptions); err != nil {
+	if err := validateS3Config(s3ConfigExtended); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
@@ -401,7 +401,7 @@ func ParseExtendedS3Config(config map[string]interface{}) (*ExtendedRemoteStateC
 }
 
 // Validate all the parameters of the given S3 remote state configuration
-func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3) error {
 	var config = extendedConfig.remoteStateConfigS3
 
 	if config.Region == "" {
