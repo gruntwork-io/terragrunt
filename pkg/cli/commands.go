@@ -85,3 +85,13 @@ func (commands Commands) Less(i, j int) bool {
 func (commands Commands) Swap(i, j int) {
 	commands[i], commands[j] = commands[j], commands[i]
 }
+
+func (commands Commands) WrapAction(fn func(ctx *Context, action ActionFunc) error) Commands {
+	var wrapped Commands
+
+	for _, cmd := range commands {
+		wrapped.Add(cmd.WrapAction(fn))
+	}
+
+	return wrapped
+}
