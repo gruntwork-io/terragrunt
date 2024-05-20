@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go v1.50.0
 	github.com/creack/pty v1.1.17
 	github.com/fatih/structs v1.1.0
-	github.com/go-errors/errors v1.4.2 // indirect
+	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/gruntwork-io/terratest v0.41.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
@@ -31,7 +31,7 @@ require (
 	golang.org/x/crypto v0.21.0 // indirect
 	golang.org/x/oauth2 v0.15.0
 	golang.org/x/sync v0.5.0
-	golang.org/x/sys v0.18.0
+	golang.org/x/sys v0.20.0
 	google.golang.org/api v0.149.0
 )
 

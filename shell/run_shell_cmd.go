@@ -82,26 +82,37 @@ var plugins = map[string]string{
 
 var pluginInstances = map[string]plugin.Plugin{}
 
-func init() {
+func load() {
+	if len(pluginInstances) > 0 {
+		return
+	}
 	// iterate over plugins and save pluginInstances
 	for name, path := range plugins {
+		fmt.Printf("Loading plugin %s from %s\n", name, path)
 		plug, err := plugin.Open(path)
 		if err != nil {
 			fmt.Println("Error opening plugin:", err)
 			continue
 		}
+		fmt.Printf("Loading plugin %s from %s 1 \n", name, path)
 
 		symPlugin, err := plug.Lookup("Plugin")
 		if err != nil {
 			fmt.Printf("Error looking up Plugin function: %v", err)
 			continue
 		}
+
+		fmt.Printf("Loading plugin %s from %s 2 \n", name, path)
+
 		pluginFactory, ok := symPlugin.(func() plugin.Plugin)
 
 		if !ok {
 			fmt.Printf("Unexpected type from module symbol")
 			continue
 		}
+
+		fmt.Printf("Loading plugin %s from %s 3 \n", name, path)
+
 		pluginInstances[name] = pluginFactory()
 	}
 
@@ -119,6 +130,7 @@ func RunShellCommandWithOutput(
 	command string,
 	args ...string,
 ) (*CmdOutput, error) {
+	load()
 	if command == terragruntOptions.TerraformPath {
 		if fn := TerraformCommandHookFromContext(ctx); fn != nil {
 			return fn(ctx, terragruntOptions, args)
