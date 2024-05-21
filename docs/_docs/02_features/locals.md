@@ -42,9 +42,13 @@ locals {
 Currently you can only reference `locals` defined in the same config file. `terragrunt` does not automatically include
 `locals` defined in the parent config of an `include` block into the current context. If you wish to reuse variables
 globally, consider using `yaml` or `json` files that are included and merged using the `terraform` built in functions
-available to `terragrunt`.
+available to `terragrunt`. Find an example below.
 
-For example, suppose you had the following directory tree:
+Another alternative may be using the option `merge_strategy = "deep"` of the [`include` configuration block](https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-attributes/#include).
+
+**Example for using `yaml` or `json` files:**
+
+Suppose you had the following directory tree:
 
 ```
 .
