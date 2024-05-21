@@ -258,20 +258,20 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 			return nil, errors.WithStackTrace(err)
 		}
 		return resp.Credentials, nil
-	} else {
-		input := sts.AssumeRoleInput{
-			RoleArn:         aws.String(iamRoleOpts.RoleARN),
-			RoleSessionName: aws.String(sessionName),
-			DurationSeconds: aws.Int64(sessionDurationSeconds),
-		}
-
-		output, err := stsClient.AssumeRole(&input)
-		if err != nil {
-			return nil, errors.WithStackTrace(err)
-		}
-
-		return output.Credentials, nil
 	}
+
+	input := sts.AssumeRoleInput{
+		RoleArn:         aws.String(iamRoleOpts.RoleARN),
+		RoleSessionName: aws.String(sessionName),
+		DurationSeconds: aws.Int64(sessionDurationSeconds),
+	}
+
+	output, err := stsClient.AssumeRole(&input)
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
+	return output.Credentials, nil
 }
 
 // Return the AWS caller identity associated with the current set of credentials
