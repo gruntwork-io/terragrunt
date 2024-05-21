@@ -109,6 +109,7 @@ locals {
 ```
 
 ```hcl
+# child/terragrunt.hcl
 locals {
   parent_computed_value = read_terragrunt_config(find_in_parent_folders("computed.hcl"))
   message = "${local.parent_computed_value.computed_value} world!" # <-- Hello world!
