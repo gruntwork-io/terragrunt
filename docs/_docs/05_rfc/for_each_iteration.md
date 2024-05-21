@@ -10,6 +10,8 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
+<!-- markdownlint-disable -->
+
 # RFC: for_each - looping variables to call module multiple times
 
 **STATUS: Won't Implement**

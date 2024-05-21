@@ -84,6 +84,13 @@ run_terratest_log_parser: &run_terratest_log_parser
     terratest_log_parser --testlog logs/integration.log --outputdir logs
   when: always
 
+run_markdownlint: &run_markdownlint
+  name: Run markdownlint
+  command: |
+    npm install -g markdownlint-cli
+    markdownlint \
+    --disable 'MD013' \
+    -- docs
 
 version: 2.1
 jobs:
@@ -315,6 +322,13 @@ jobs:
       - store_test_results:
           path: logs
 
+  run_markdownlint:
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          <<: *run_markdownlint
+
   build:
     resource_class: large
     <<: *defaults
@@ -323,7 +337,8 @@ jobs:
       - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X github.com/gruntwork-io/go-commons/version.Version=$CIRCLE_TAG -extldflags '-static'"
       - persist_to_workspace:
           root: .
-          paths: bin
+          paths: [bin]
+
   deploy:
     <<: *env
     macos:
@@ -363,6 +378,7 @@ jobs:
             brew install coreutils
             cd bin && sha256sum * > SHA256SUMS
       - run: upload-github-release-assets bin/*
+
 workflows:
   version: 2
   build-and-test:
@@ -431,6 +447,10 @@ workflows:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
+      - run_markdownlint:
+          filters:
+            tags:
+              only: /^v.*/
       - build:
           filters:
             tags:

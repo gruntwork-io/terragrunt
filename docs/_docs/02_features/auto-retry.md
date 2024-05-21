@@ -16,9 +16,9 @@ nav_title_link: /docs/
 
 Terraform can fail with transient errors which can be addressed by simply retrying the command again. In the event `terragrunt` finds one of these errors, the command will be re-run again automatically.
 
-**Example**
+### Example
 
-```
+```shell
 $ terragrunt apply
 ...
 Initializing provider plugins...
@@ -29,6 +29,7 @@ Error installing provider "template": error fetching checksums: Get https://rele
 Terragrunt sees this error, and knows it is a transient error that can be addressed by re-running the `apply` command.
 
 Terragrunt has a small list of default known errors built-in. You can override these defaults with your own custom retryable errors in your `terragrunt.hcl` configuration:
+
 ```hcl
 retryable_errors = [
   "a regex to match the error",
@@ -37,6 +38,7 @@ retryable_errors = [
 ```
 
 E.g:
+
 ```hcl
 retryable_errors = [
   "(?s).*Error installing provider.*tcp.*connection reset by peer.*",
