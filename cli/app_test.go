@@ -400,13 +400,15 @@ func TestTerragruntHelp(t *testing.T) {
 func TestTerraformHelp(t *testing.T) {
 	t.Parallel()
 
+	wrappedBinary := options.DefaultWrappedPath
+
 	testCases := []struct {
 		args     []string
 		expected string
 	}{
-		{[]string{"terragrunt", terraform.CommandNamePlan, "--help"}, "Usage: terraform .* plan"},
-		{[]string{"terragrunt", terraform.CommandNameApply, "-help"}, "Usage: terraform .* apply"},
-		{[]string{"terragrunt", terraform.CommandNameApply, "-h"}, "Usage: terraform .* apply"},
+		{[]string{"terragrunt", terraform.CommandNamePlan, "--help"}, "Usage: " + wrappedBinary + " .* plan"},
+		{[]string{"terragrunt", terraform.CommandNameApply, "-help"}, "Usage: " + wrappedBinary + " .* apply"},
+		{[]string{"terragrunt", terraform.CommandNameApply, "-h"}, "Usage: " + wrappedBinary + " .* apply"},
 	}
 
 	for _, testCase := range testCases {
