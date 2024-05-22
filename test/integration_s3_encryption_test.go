@@ -2,10 +2,11 @@ package test
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/util"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
