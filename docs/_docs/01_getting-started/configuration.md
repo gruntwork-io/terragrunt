@@ -30,15 +30,15 @@ Terragrunt also supports [JSON-serialized HCL](https://github.com/hashicorp/hcl/
 
 Terragrunt figures out the path to its config file according to the following rules:
 
-1.  The value of the `--terragrunt-config` command-line option, if specified.
+1. The value of the `--terragrunt-config` command-line option, if specified.
 
-2.  The value of the `TERRAGRUNT_CONFIG` environment variable, if defined.
+2. The value of the `TERRAGRUNT_CONFIG` environment variable, if defined.
 
-3.  A `terragrunt.hcl` file in the current working directory, if it exists.
+3. A `terragrunt.hcl` file in the current working directory, if it exists.
 
-4.  A `terragrunt.hcl.json` file in the current working directory, if it exists.
+4. A `terragrunt.hcl.json` file in the current working directory, if it exists.
 
-5.  If none of these are found, exit with an error.
+5. If none of these are found, exit with an error.
 
 Refer to the following pages for a complete reference of supported features in the terragrunt configuration file:
 
@@ -51,35 +51,35 @@ It is important to be aware of the terragrunt configuration parsing order when u
 
 Currently terragrunt parses the config in the following order:
 
-1.  `include` block
+1. `include` block
 
-2.  `locals` block
+2. `locals` block
 
-3.  Evaluation of values for `iam_role`, `iam_assume_role_duration`, and `iam_assume_role_session_name` attributes, if defined
+3. Evaluation of values for `iam_role`, `iam_assume_role_duration`, and `iam_assume_role_session_name` attributes, if defined
 
-4.  `dependencies` block
+4. `dependencies` block
 
-5.  `dependency` blocks, including calling `terragrunt output` on the dependent modules to retrieve the outputs
+5. `dependency` blocks, including calling `terragrunt output` on the dependent modules to retrieve the outputs
 
-6.  Everything else
+6. Everything else
 
-7.  The config referenced by `include`
+7. The config referenced by `include`
 
-8.  A merge operation between the config referenced by `include` and the current config.
+8. A merge operation between the config referenced by `include` and the current config.
 
 Blocks that are parsed earlier in the process will be made available for use in the parsing of later blocks. Similarly, you cannot use blocks that are parsed later earlier in the process (e.g you can’t reference `dependency` in `locals`, `include`, or `dependencies` blocks).
 
 Note that the parsing order is slightly different when using the `-all` flavors of the command. In the `-all` flavors of the command, Terragrunt parses the configuration twice. In the first pass, it follows the following parsing order:
 
-1.  `include` block of all configurations in the tree
+1. `include` block of all configurations in the tree
 
-2.  `locals` block of all configurations in the tree
+2. `locals` block of all configurations in the tree
 
-3.  `dependency` blocks of all configurations in the tree, but does NOT retrieve the outputs
+3. `dependency` blocks of all configurations in the tree, but does NOT retrieve the outputs
 
-4.  `terraform` block of all configurations in the tree
+4. `terraform` block of all configurations in the tree
 
-5.  `dependencies` block of all configurations in the tree
+5. `dependencies` block of all configurations in the tree
 
 The results of this pass are then used to build the dependency graph of the modules in the tree. Once the graph is constructed, Terragrunt will loop through the modules and run the specified command. It will then revert to the single configuration parsing order specified above for each module as it runs the command.
 
@@ -91,32 +91,34 @@ You can rewrite the hcl files to a canonical format using the `hclfmt` command b
 
 This command will recursively search for hcl files and format all of them under a given directory tree. Consider the following file structure:
 
-    root
+```tree
+root
+├── terragrunt.hcl
+├── prod
+│   └── terragrunt.hcl
+├── dev
+│   └── terragrunt.hcl
+└── qa
     ├── terragrunt.hcl
-    ├── prod
-    │   └── terragrunt.hcl
-    ├── dev
-    │   └── terragrunt.hcl
-    └── qa
-        ├── terragrunt.hcl
-        └── services
-            ├── services.hcl
-            └── service01
-                └── terragrunt.hcl
+    └── services
+        ├── services.hcl
+        └── service01
+            └── terragrunt.hcl
+```
 
 If you run `terragrunt hclfmt` at the `root`, this will update:
 
-  - `root/terragrunt.hcl`
+- `root/terragrunt.hcl`
 
-  - `root/prod/terragrunt.hcl`
+- `root/prod/terragrunt.hcl`
 
-  - `root/dev/terragrunt.hcl`
+- `root/dev/terragrunt.hcl`
 
-  - `root/qa/terragrunt.hcl`
+- `root/qa/terragrunt.hcl`
 
-  - `root/qa/services/services.hcl`
+- `root/qa/services/services.hcl`
 
-  - `root/qa/services/service01/terragrunt.hcl`
+- `root/qa/services/service01/terragrunt.hcl`
 
 You can set `--terragrunt-diff` option. `terragrunt hclfmt --terragrunt-check` will output diff in unified format which can be redirected to your favourite diff tool. `diff` utility must be presented in PATH.
 

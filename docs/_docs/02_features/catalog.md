@@ -40,8 +40,8 @@ catalog {
 }
 ```
 
-
 This will recursively search for Terraform modules in the root of the repo and the `modules` directory and show a table with all the modules. You can then:
+
 1. Search and filter the table: `/` and start typing.
 1. Select a module in the table: use the arrow keys to go up and down and next/previous page.
 1. See the docs for a selected module: `ENTER`.

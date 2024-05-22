@@ -20,9 +20,9 @@ Your AWS user must have an [IAM policy](http://docs.aws.amazon.com/amazondynamod
 
 The following is an example IAM policy for use with Terragrunt. The policy grants the following permissions:
 
-  - all DynamoDB permissions in all regions for tables used by Terragrunt
+- all DynamoDB permissions in all regions for tables used by Terragrunt
 
-  - all S3 permissions for buckets used by Terragrunt
+- all S3 permissions for buckets used by Terragrunt
 
 Before using this policy, make sure to replace `1234567890` with your AWS account id and `terragrunt*` with your organization’s naming convention for AWS resources for Terraform remote state.
 
@@ -110,32 +110,34 @@ When the above is applied to an IAM user it will restrict them to creating the D
 
 If you are only given access to an externally created Bucket you will need at least this IAM policy to be granted to your account:
 
-    {
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Action": [
-                    "s3:GetBucketLocation",
-                    "s3:List*"
-                ],
-                "Resource": [
-                    "arn:aws:s3:::<BucketName>"
-                ],
-                "Effect": "Allow"
-            },
-            {
-                "Action": [
-                    "s3:DeleteObject",
-                    "s3:GetObject",
-                    "s3:PutObject",
-                    "s3:ListBucket"
-                ],
-                "Resource": [
-                    "arn:aws:s3:::<BucketName>/\*"
-                ],
-                "Effect": "Allow"
-            }
-        ]
-    }
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                "s3:GetBucketLocation",
+                "s3:List*"
+            ],
+            "Resource": [
+                "arn:aws:s3:::<BucketName>"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "s3:DeleteObject",
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:ListBucket"
+            ],
+            "Resource": [
+                "arn:aws:s3:::<BucketName>/*"
+            ],
+            "Effect": "Allow"
+        }
+    ]
+}
+```
 
 and you will need to set the flag `skip_bucket_versioning` to true (only bucket owners can check versioning status on an S3 Bucket)
