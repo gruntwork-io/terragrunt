@@ -757,7 +757,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
 
 **CLI Arg**: `--terragrunt-config`<br/>
 **Environment Variable**: `TERRAGRUNT_CONFIG`<br/>
-**Requires an argument**: `--terragrunt-config /path/to/terragrunt.hcl`
+**Requires an argument**: `--terragrunt-config /path/to/terragrunt.hcl`<br/>
 
 A custom path to the `terragrunt.hcl` or `terragrunt.hcl.json` file. The
 default path is `terragrunt.hcl` (preferred) or `terragrunt.hcl.json` in the current directory (see
@@ -768,7 +768,7 @@ explanation). This argument is not used with the `run-all` commands.
 
 **CLI Arg**: `--terragrunt-tfpath`<br/>
 **Environment Variable**: `TERRAGRUNT_TFPATH`<br/>
-**Requires an argument**: `--terragrunt-tfpath /path/to/terraform-binary`
+**Requires an argument**: `--terragrunt-tfpath /path/to/terraform-binary`<br/>
 
 A custom path to the Terraform binary. The default is `terraform` in a directory on your PATH.
 
@@ -779,7 +779,7 @@ configuration values specified in the `terragrunt.hcl` config for both the top l
 ### terragrunt-no-auto-init
 
 **CLI Arg**: `--terragrunt-no-auto-init`<br/>
-**Environment Variable**: `TERRAGRUNT_NO_AUTO_INIT` (set to `true`)
+**Environment Variable**: `TERRAGRUNT_NO_AUTO_INIT` (set to `true`)<br/>
 _(Prior to Terragrunt v0.48.6, this environment variable was called `TERRAGRUNT_AUTO_INIT` (set to `false`), and is still available for backwards compatibility)_
 
 When passed in, don't automatically run `terraform init` when other commands are run (e.g. `terragrunt apply`). Useful
@@ -791,7 +791,7 @@ disabled. See [Auto-Init]({{site.baseurl}}/docs/features/auto-init#auto-init)
 ### terragrunt-no-auto-approve
 
 **CLI Arg**: `--terragrunt-no-auto-approve`<br/>
-**Environment Variable**: `TERRAGRUNT_NO_AUTO_APPROVE` (set to `true`)
+**Environment Variable**: `TERRAGRUNT_NO_AUTO_APPROVE` (set to `true`)<br/>
 _(Prior to Terragrunt v0.48.6, this environment variable was called `TERRAGRUNT_AUTO_APPROVE` (set to `false`), and is still available for backwards compatibility)_
 **Commands**:
 
@@ -804,7 +804,7 @@ with `run-all`. Note that due to the interactive prompts, this flag will also **
 ### terragrunt-no-auto-retry
 
 **CLI Arg**: `--terragrunt-no-auto-retry`<br/>
-**Environment Variable**: `TERRAGRUNT_NO_AUTO_RETRY` (set to `true`)
+**Environment Variable**: `TERRAGRUNT_NO_AUTO_RETRY` (set to `true`)<br/>
 _(Prior to Terragrunt v0.48.6, this environment variable was called `TERRAGRUNT_AUTO_RETRY` (set to `false`), and is still available for backwards compatibility)_
 
 When passed in, don't automatically retry commands which fail with transient errors. See
@@ -813,7 +813,7 @@ When passed in, don't automatically retry commands which fail with transient err
 ### terragrunt-non-interactive
 
 **CLI Arg**: `--terragrunt-non-interactive`<br/>
-**Environment Variable**: `TERRAGRUNT_NON_INTERACTIVE` (set to `true`)
+**Environment Variable**: `TERRAGRUNT_NON_INTERACTIVE` (set to `true`)<br/>
 _(Prior to Terragrunt v0.48.6, this environment variable was called `TF_INPUT` (set to `false`), and is still available for backwards compatibility. NOTE: [TF_INPUT](https://developer.hashicorp.com/terraform/cli/config/environment-variables#tf_input) is native to Terraform!)_
 
 When passed in, don't show interactive user prompts. This will default the answer for all prompts to `yes` except for
@@ -829,7 +829,7 @@ This setting will default to `no` for the following cases:
 
 **CLI Arg**: `--terragrunt-working-dir`<br/>
 **Environment Variable**: `TERRAGRUNT_WORKING_DIR`<br/>
-**Requires an argument**: `--terragrunt-working-dir /path/to/working-directory`
+**Requires an argument**: `--terragrunt-working-dir /path/to/working-directory`<br/>
 
 Set the directory where Terragrunt should execute the `terraform` command. Default is the current working directory.
 Note that for the `run-all` commands, this parameter has a different meaning: Terragrunt will apply or destroy all the
@@ -840,7 +840,7 @@ finds.
 
 **CLI Arg**: `--terragrunt-download-dir`<br/>
 **Environment Variable**: `TERRAGRUNT_DOWNLOAD`<br/>
-**Requires an argument**: `--terragrunt-download-dir /path/to/dir-to-download-terraform-code`
+**Requires an argument**: `--terragrunt-download-dir /path/to/dir-to-download-terraform-code`<br/>
 
 The path where to download Terraform code when using [remote Terraform
 configurations](https://blog.gruntwork.io/terragrunt-how-to-keep-your-terraform-code-dry-and-maintainable-f61ae06959d8).
@@ -850,7 +850,7 @@ Default is `.terragrunt-cache` in the working directory. We recommend adding thi
 
 **CLI Arg**: `--terragrunt-source`<br/>
 **Environment Variable**: `TERRAGRUNT_SOURCE`<br/>
-**Requires an argument**: `--terragrunt-source /path/to/local-terraform-code`
+**Requires an argument**: `--terragrunt-source /path/to/local-terraform-code`<br/>
 
 Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary
 folder. The source should use the same syntax as the [Terraform module
@@ -863,7 +863,7 @@ to the `--terragrunt-source` parameter you passed in.
 
 **CLI Arg**: `--terragrunt-source-map`<br/>
 **Environment Variable**: `TERRAGRUNT_SOURCE_MAP` (encoded as comma separated value, e.g., `source1=dest1,source2=dest2`)<br/>
-**Requires an argument**: `--terragrunt-source-map git::ssh://github.com=/path/to/local-terraform-code`
+**Requires an argument**: `--terragrunt-source-map git::ssh://github.com=/path/to/local-terraform-code`<br/>
 
 Can be supplied multiple times: `--terragrunt-source-map source1=dest1 --terragrunt-source-map source2=dest2`
 
@@ -890,13 +890,13 @@ Note that this only performs literal matches on the URL portion. For example, a 
 ### terragrunt-source-update
 
 **CLI Arg**: `--terragrunt-source-update`<br/>
-**Environment Variable**: `TERRAGRUNT_SOURCE_UPDATE` (set to `true`)
+**Environment Variable**: `TERRAGRUNT_SOURCE_UPDATE` (set to `true`)<br/>
 
 When passed in, delete the contents of the temporary folder before downloading Terraform source code into it.
 
 ### terragrunt-ignore-dependency-errors
 
-**CLI Arg**: `--terragrunt-ignore-dependency-errors`
+**CLI Arg**: `--terragrunt-ignore-dependency-errors`<br/>
 
 When passed in, the `*-all` commands continue processing components even if a dependency fails
 
@@ -904,7 +904,7 @@ When passed in, the `*-all` commands continue processing components even if a de
 
 **CLI Arg**: `--terragrunt-iam-role`<br/>
 **Environment Variable**: `TERRAGRUNT_IAM_ROLE`<br/>
-**Requires an argument**: `--terragrunt-iam-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"`
+**Requires an argument**: `--terragrunt-iam-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"`<br/>
 
 Assume the specified IAM role ARN before running Terraform or AWS commands. This is a convenient way to use Terragrunt
 and Terraform with multiple AWS accounts.
@@ -913,7 +913,7 @@ and Terraform with multiple AWS accounts.
 
 **CLI Arg**: `--terragrunt-iam-assume-role-duration`<br/>
 **Environment Variable**: `TERRAGRUNT_IAM_ASSUME_ROLE_DURATION`<br/>
-**Requires an argument**: `--terragrunt-iam-assume-role-duration 3600`
+**Requires an argument**: `--terragrunt-iam-assume-role-duration 3600`<br/>
 
 Uses the specified duration as the session duration (in seconds) for the STS session which assumes the role defined in `--terragrunt-iam-role`.
 
@@ -921,14 +921,14 @@ Uses the specified duration as the session duration (in seconds) for the STS ses
 
 **CLI Arg**: `--terragrunt-iam-assume-role-session-name`<br/>
 **Environment Variable**: `TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME`<br/>
-**Requires an argument**: `--terragrunt-iam-assume-role-session-name "terragrunt-iam-role-session-name"`
+**Requires an argument**: `--terragrunt-iam-assume-role-session-name "terragrunt-iam-role-session-name"`<br/>
 
 Used as the session name for the STS session which assumes the role defined in `--terragrunt-iam-role`.
 
 ### terragrunt-exclude-dir
 
 **CLI Arg**: `--terragrunt-exclude-dir`<br/>
-**Requires an argument**: `--terragrunt-exclude-dir /path/to/dirs/to/exclude*`
+**Requires an argument**: `--terragrunt-exclude-dir /path/to/dirs/to/exclude*`<br/>
 
 Can be supplied multiple times: `--terragrunt-exclude-dir /path/to/dirs/to/exclude --terragrunt-exclude-dir /another/path/to/dirs/to/exclude`
 
@@ -940,7 +940,7 @@ module, not its dependencies.
 ### terragrunt-include-dir
 
 **CLI Arg**: `--terragrunt-include-dir`<br/>
-**Requires an argument**: `--terragrunt-include-dir /path/to/dirs/to/include*`
+**Requires an argument**: `--terragrunt-include-dir /path/to/dirs/to/include*`<br/>
 
 Can be supplied multiple times: `--terragrunt-include-dir /path/to/dirs/to/include --terragrunt-include-dir /another/path/to/dirs/to/include`
 
@@ -950,7 +950,7 @@ relative from `--terragrunt-working-dir`. Flag can be specified multiple times.
 
 ### terragrunt-strict-include
 
-**CLI Arg**: `--terragrunt-strict-include`
+**CLI Arg**: `--terragrunt-strict-include`<br/>
 
 When passed in, only modules under the directories passed in with [--terragrunt-include-dir](#terragrunt-include-dir)
 will be included. All dependencies of the included directories will be excluded if they are not in the included
@@ -959,19 +959,19 @@ any modules during the execution of the commands.
 
 ### terragrunt-strict-validate
 
-**CLI Arg**: `--terragrunt-strict-validate`
+**CLI Arg**: `--terragrunt-strict-validate`<br/>
 
 When passed in, and running `terragrunt validate-inputs`, enables strict mode for the `validate-inputs` command. When strict mode is enabled, an error will be returned if any variables required by the underlying Terraform configuration are not passed in, OR if any unused variables are passed in. By default, `terragrunt validate-inputs` runs in relaxed mode. In relaxed mode, an error is only returned when a variable required by the underlying Terraform configuration is not passed in.
 
 ### terragrunt-ignore-dependency-order
 
-**CLI Arg**: `--terragrunt-ignore-dependency-order`
+**CLI Arg**: `--terragrunt-ignore-dependency-order`<br/>
 
 When passed in, ignore the depedencies between modules when running `*-all` commands.
 
 ### terragrunt-ignore-external-dependencies
 
-**CLI Arg**: `--terragrunt-ignore-external-dependencies`
+**CLI Arg**: `--terragrunt-ignore-external-dependencies`<br/>
 
 When passed in, don't attempt to include any external dependencies when running `*-all` commands. Note that an external
 dependency is a dependency that is outside the current terragrunt working directory, and is not respective to the
@@ -979,8 +979,8 @@ included directories with `terragrunt-include-dir`.
 
 ### terragrunt-include-external-dependencies
 
-**CLI Arg**: `--terragrunt-include-external-dependencies`
-**Environment Variable**: `TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES`
+**CLI Arg**: `--terragrunt-include-external-dependencies`<br/>
+**Environment Variable**: `TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES`<br/>
 
 When passed in, include any external dependencies when running `*-all` without asking. Note that an external
 dependency is a dependency that is outside the current terragrunt working directory, and is not respective to the
@@ -989,7 +989,7 @@ included directories with `terragrunt-include-dir`.
 ### terragrunt-parallelism
 
 **CLI Arg**: `--terragrunt-parallelism`<br/>
-**Environment Variable**: `TERRAGRUNT_PARALLELISM`
+**Environment Variable**: `TERRAGRUNT_PARALLELISM`<br/>
 
 When passed in, limit the number of modules that are run concurrently to this number during \*-all commands.
 The exception is the `terraform init` command, which is always executed sequentially if the [terraform plugin cache](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache) is used. This is because the terraform plugin cache is not guaranteed to be concurrency safe.
@@ -997,7 +997,7 @@ The exception is the `terraform init` command, which is always executed sequenti
 ### terragrunt-debug
 
 **CLI Arg**: `--terragrunt-debug`<br/>
-**Environment Variable**: `TERRAGRUNT_DEBUG`
+**Environment Variable**: `TERRAGRUNT_DEBUG`<br/>
 
 When passed in, Terragrunt will create a tfvars file that can be used to invoke the terraform module in the same way
 that Terragrunt invokes the module, so that you can debug issues with the terragrunt config. See
@@ -1006,8 +1006,8 @@ that Terragrunt invokes the module, so that you can debug issues with the terrag
 ### terragrunt-log-level
 
 **CLI Arg**: `--terragrunt-log-level`<br/>
-**Environment Variable**: `TERRAGRUNT_LOG_LEVEL`
-**Requires an argument**: `--terragrunt-log-level <LOG_LEVEL>`
+**Environment Variable**: `TERRAGRUNT_LOG_LEVEL`<br/>
+**Requires an argument**: `--terragrunt-log-level <LOG_LEVEL>`<br/>
 
 When passed it, sets logging level for terragrunt. All supported levels are:
 
@@ -1022,7 +1022,7 @@ When passed it, sets logging level for terragrunt. All supported levels are:
 ### terragrunt-no-color
 
 **CLI Arg**: `--terragrunt-no-color`<br/>
-**Environment Variable**: `TERRAGRUNT_NO_COLOR`
+**Environment Variable**: `TERRAGRUNT_NO_COLOR`<br/>
 
 If specified, Terragrunt output won't contain any color.
 
@@ -1031,7 +1031,7 @@ NOTE: This option does not disable Terraform output colors. Use the Terraform [`
 ### terragrunt-check
 
 **CLI Arg**: `--terragrunt-check`<br/>
-**Environment Variable**: `TERRAGRUNT_CHECK` (set to `true`)
+**Environment Variable**: `TERRAGRUNT_CHECK` (set to `true`)<br/>
 **Commands**:
 
 - [hclfmt](#hclfmt)
@@ -1042,7 +1042,7 @@ command to exit with exit code 1 if there are any files that are not formatted.
 ### terragrunt-diff
 
 **CLI Arg**: `--terragrunt-diff`<br/>
-**Environment Variable**: `TERRAGRUNT_DIFF` (set to `true`)
+**Environment Variable**: `TERRAGRUNT_DIFF` (set to `true`)<br/>
 **Commands**:
 
 - [hclfmt](#hclfmt)
@@ -1051,8 +1051,8 @@ When passed in, running `hclfmt` will print diff between original and modified f
 
 ### terragrunt-hclfmt-file
 
-**CLI Arg**: `--terragrunt-hclfmt-file`
-**Requires an argument**: `--terragrunt-hclfmt-file /path/to/terragrunt.hcl`
+**CLI Arg**: `--terragrunt-hclfmt-file`<br/>
+**Requires an argument**: `--terragrunt-hclfmt-file /path/to/terragrunt.hcl`<br/>
 **Commands**:
 
 - [hclfmt](#hclfmt)
@@ -1061,8 +1061,8 @@ When passed in, run `hclfmt` only on specified hcl file.
 
 ### terragrunt-override-attr
 
-**CLI Arg**: `--terragrunt-override-attr`
-**Requires an argument**: `--terragrunt-override-attr ATTR=VALUE`
+**CLI Arg**: `--terragrunt-override-attr`<br/>
+**Requires an argument**: `--terragrunt-override-attr ATTR=VALUE`<br/>
 
 Override the attribute named `ATTR` with the value `VALUE` in a `provider` block as part of the [aws-provider-patch
 command](#aws-provider-patch). May be specified multiple times. Also, `ATTR` can specify attributes within a nested
@@ -1071,8 +1071,8 @@ block by specifying `<BLOCK>.<ATTR>`, where `<BLOCK>` is the block name: e.g., `
 
 ### terragrunt-json-out
 
-**CLI Arg**: `--terragrunt-json-out`
-**Requires an argument**: `--terragrunt-json-out /path/to/terragrunt_rendered.json`
+**CLI Arg**: `--terragrunt-json-out`<br/>
+**Requires an argument**: `--terragrunt-json-out /path/to/terragrunt_rendered.json`<br/>
 **Commands**:
 
 - [render-json](#render-json)
@@ -1081,8 +1081,8 @@ When passed in, render the json representation in this file.
 
 ### terragrunt-json-disable-dependent-modules
 
-**CLI Arg**: `--terragrunt-json-disable-dependent-modules`
-**Requires an argument**: `--terragrunt-json-disable-dependent-modules`
+**CLI Arg**: `--terragrunt-json-disable-dependent-modules`<br/>
+**Requires an argument**: `--terragrunt-json-disable-dependent-modules`<br/>
 **Commands**:
 
 - [render-json](#render-json)
@@ -1092,8 +1092,8 @@ This lead to a faster rendering process, but the output will not include any dep
 
 ### terragrunt-modules-that-include
 
-**CLI Arg**: `--terragrunt-modules-that-include`
-**Requires an argument**: `--terragrunt-modules-that-include /path/to/included-terragrunt.hcl`
+**CLI Arg**: `--terragrunt-modules-that-include`<br/>
+**Requires an argument**: `--terragrunt-modules-that-include /path/to/included-terragrunt.hcl`<br/>
 **Commands**:
 
 - [run-all](#run-all)
@@ -1159,8 +1159,8 @@ directory, or any path passed in to [terragrunt-working-dir](#terragrunt-working
 
 ### terragrunt-fetch-dependency-output-from-state
 
-**CLI Arg**: `--terragrunt-fetch-dependency-output-from-state`
-**Environment Variable**: `TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE` (set to `true`)
+**CLI Arg**: `--terragrunt-fetch-dependency-output-from-state`<br/>
+**Environment Variable**: `TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE` (set to `true`)<br/>
 
 When using many dependencies, this option can speed up the dependency processing by fetching dependency output directly
 from the state file instead of init dependencies and running terraform on them.
@@ -1169,58 +1169,58 @@ Currently only AWS S3 backend is supported.
 
 ### terragrunt-use-partial-parse-config-cache
 
-**CLI Arg**: `--terragrunt-use-partial-parse-config-cache`
-**Environment Variable**: `TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE` (set to `true`)
+**CLI Arg**: `--terragrunt-use-partial-parse-config-cache`<br/>
+**Environment Variable**: `TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE` (set to `true`)<br/>
 
 This flag can be used to drastically decrease time required for parsing Terragrunt files. The effect will only show if a lot of similar includes are expected such as the root terragrunt.hcl include.
 NOTE: This is an experimental feature, use with caution.
 
 ### terragrunt-include-module-prefix
 
-**CLI Arg**: `--terragrunt-include-module-prefix`
-**Environment Variable**: `TERRAGRUNT_INCLUDE_MODULE_PREFIX` (set to `true`)
+**CLI Arg**: `--terragrunt-include-module-prefix`<br/>
+**Environment Variable**: `TERRAGRUNT_INCLUDE_MODULE_PREFIX` (set to `true`)<br/>
 
 When this flag is set output from Terraform sub-commands is prefixed with module path.
 
 ### terragrunt-fail-on-state-bucket-creation
 
-**CLI Arg**: `--terragrunt-fail-on-state-bucket-creation`
-**Environment Variable**: `TERRAGRUNT_FAIL_ON_STATE_BUCKET_CREATION` (set to `true`)
+**CLI Arg**: `--terragrunt-fail-on-state-bucket-creation`<br/>
+**Environment Variable**: `TERRAGRUNT_FAIL_ON_STATE_BUCKET_CREATION` (set to `true`)<br/>
 
 When this flag is set, Terragrunt will fail and exit if it is necessary to create the remote state bucket.
 
 ### terragrunt-disable-bucket-update
 
-**CLI Arg**: `--terragrunt-disable-bucket-update`
-**Environment Variable**: `TERRAGRUNT_DISABLE_BUCKET_UPDATE` (set to `true`)
+**CLI Arg**: `--terragrunt-disable-bucket-update`<br/>
+**Environment Variable**: `TERRAGRUNT_DISABLE_BUCKET_UPDATE` (set to `true`)<br/>
 
 When this flag is set, Terragrunt does not update the remote state bucket, which is useful to set if the state bucket is managed by a third party.
 
 ### terragrunt-disable-command-validation
 
-**CLI Arg**: `--terragrunt-disable-command-validation`
-**Environment Variable**: `TERRAGRUNT_DISABLE_COMMAND_VALIDATION` (set to `true`)
+**CLI Arg**: `--terragrunt-disable-command-validation`<br/>
+**Environment Variable**: `TERRAGRUNT_DISABLE_COMMAND_VALIDATION` (set to `true`)<br/>
 
 When this flag is set, Terragrunt will not validate the terraform command, which can be useful when need to use non-existent commands in hooks.
 
 ### terragrunt-json-log
 
-**CLI Arg**: `--terragrunt-json-log`
-**Environment Variable**: `TERRAGRUNT_JSON_LOG` (set to `true`)
+**CLI Arg**: `--terragrunt-json-log`<br/>
+**Environment Variable**: `TERRAGRUNT_JSON_LOG` (set to `true`)<br/>
 
 When this flag is set, Terragrunt will output its logs in JSON format.
 
 ### terragrunt-tf-logs-to-json
 
-**CLI Arg**: `--terragrunt-tf-logs-to-json`
-**Environment Variable**: `TERRAGRUNT_TF_JSON_LOG` (set to `true`)
+**CLI Arg**: `--terragrunt-tf-logs-to-json`<br/>
+**Environment Variable**: `TERRAGRUNT_TF_JSON_LOG` (set to `true`)<br/>
 
 When this flag is set, Terragrunt will wrap Terraform `stdout` and `stderr` in JSON log messages. Works only with `--terragrunt-json-log` flag.
 
 ### terragrunt-provider-cache
 
-**CLI Arg**: `--terragrunt-provider-cache`
-**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE`
+**CLI Arg**: `--terragrunt-provider-cache`<br/>
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE`<br/>
 **Commands**:
 
 - [run-all](#run-all)
@@ -1229,8 +1229,8 @@ Enables Terragrunt's provider caching. This forces Terraform to make provider re
 
 ### terragrunt-provider-cache-dir
 
-**CLI Arg**: `--terragrunt-provider-cache-dir`
-**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_DIR`
+**CLI Arg**: `--terragrunt-provider-cache-dir`<br/>
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_DIR`<br/>
 **Commands**:
 
 - [run-all](#run-all)
@@ -1239,8 +1239,8 @@ The path to the Terragrunt provider cache directory. By default, `terragrunt/pro
 
 ### terragrunt-provider-cache-disable-partial-lock-file
 
-**CLI Arg**: `--terragrunt-provider-cache-disable-partial-lock-file`
-**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_DISABLE_PARTIAL_LOCK_FILE`
+**CLI Arg**: `--terragrunt-provider-cache-disable-partial-lock-file`<br/>
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_DISABLE_PARTIAL_LOCK_FILE`<br/>
 **Commands**:
 
 - [run-all](#run-all)
@@ -1249,8 +1249,8 @@ By default, Terraform does _not_ use the cache for modules without a lock file. 
 
 ### terragrunt-provider-cache-hostname
 
-**CLI Arg**: `--terragrunt-provider-cache-hostname`
-**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_HOSTNAME`
+**CLI Arg**: `--terragrunt-provider-cache-hostname`<br/>
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_HOSTNAME`<br/>
 **Commands**:
 
 - [run-all](#run-all)
@@ -1259,8 +1259,8 @@ The hostname of the Terragrunt Provider Cache server. By default, 'localhost'. M
 
 ### terragrunt-provider-cache-port
 
-**CLI Arg**: `--terragrunt-provider-cache-port`
-**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_PORT`
+**CLI Arg**: `--terragrunt-provider-cache-port`<br/>
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_PORT`<br/>
 **Commands**:
 
 - [run-all](#run-all)
@@ -1269,8 +1269,8 @@ The port of the Terragrunt Provider Cache server. By default, assigned automatic
 
 ### terragrunt-provider-cache-token
 
-**CLI Arg**: `--terragrunt-provider-cache-token`
-**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_TOKEN`
+**CLI Arg**: `--terragrunt-provider-cache-token`<br/>
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_TOKEN`<br/>
 **Commands**:
 
 - [run-all](#run-all)
@@ -1279,8 +1279,8 @@ The Token for authentication on the Terragrunt Provider Cache server. By default
 
 ### terragrunt-provider-cache-registry-names
 
-**CLI Arg**: `--terragrunt-provider-cache-registry-names`
-**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES`
+**CLI Arg**: `--terragrunt-provider-cache-registry-names`<br/>
+**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES`<br/>
 **Commands**:
 
 - [run-all](#run-all)
@@ -1289,8 +1289,8 @@ The list of remote registries to cached by Terragrunt Provider Cache server. By 
 
 ### terragrunt-out-dir
 
-**CLI Arg**: `--terragrunt-out-dir`
-**Environment Variable**: `TERRAGRUNT_OUT_DIR`
+**CLI Arg**: `--terragrunt-out-dir`<br/>
+**Environment Variable**: `TERRAGRUNT_OUT_DIR`<br/>
 **Commands**:
 
 - [run-all](#run-all)
@@ -1299,8 +1299,8 @@ Specify the plan output directory for the `*-all` commands. Useful to save plans
 
 ### terragrunt-json-out-dir
 
-**CLI Arg**: `--terragrunt-json-out-dir`
-**Environment Variable**: `TERRAGRUNT_JSON_OUT_DIR`
+**CLI Arg**: `--terragrunt-json-out-dir`<br/>
+**Environment Variable**: `TERRAGRUNT_JSON_OUT_DIR`<br/>
 **Commands**:
 
 - [run-all](#run-all)
