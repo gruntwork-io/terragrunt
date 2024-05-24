@@ -26,6 +26,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+// @SONAR_STOP@
+
 // NOTE: We don't run these tests in parallel because it modifies the environment variable, so it can affect other tests
 
 func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
@@ -117,30 +119,62 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 	rootTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
 	rootPath := util.JoinPath(rootTerragruntPath, "apps")
 
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
+	curDir, err := os.Getwd()
+	require.NoError(t, err)
 
-	var appDir string
+	relRootPath, err := filepath.Rel(curDir, rootPath)
+	require.NoError(t, err)
 
-	for _, app := range []string{"c", "b", "a"} {
-		appDir = filepath.Join(rootPath, app)
-		runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", appDir))
-		config.ClearOutputCache()
+	testCases := []struct {
+		rootPath    string
+		downloadDir string
+	}{
+		{
+			rootPath:    rootPath,
+			downloadDir: "",
+		},
+		{
+			rootPath:    relRootPath,
+			downloadDir: filepath.Join(rootTerragruntPath, "download-dir"),
+		},
 	}
 
-	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --terragrunt-non-interactive --terragrunt-working-dir %s", appDir), &stdout, &stderr)
+	for _, testCase := range testCases {
+		var (
+			stdout bytes.Buffer
+			stderr bytes.Buffer
+		)
 
-	expectedOutpus := map[string]string{
-		"bar": "parent-bar",
-		"baz": "b-baz",
-		"foo": "c-foo",
-	}
+		var (
+			appDir  string
+			appDirs = []string{"c", "b", "a"}
+		)
 
-	output := stdout.String()
-	for key, value := range expectedOutpus {
-		assert.Contains(t, output, fmt.Sprintf("%s = %q\n", key, value))
+		for _, app := range appDirs {
+			appDir = filepath.Join(testCase.rootPath, app)
+
+			runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-download-dir=%s", appDir, testCase.downloadDir))
+			config.ClearOutputCache()
+		}
+
+		if testCase.downloadDir != "" {
+			entries, err := os.ReadDir(testCase.downloadDir)
+			require.NoError(t, err)
+			assert.Equal(t, len(appDirs), len(entries))
+		}
+
+		runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --terragrunt-non-interactive --terragrunt-working-dir %s  --terragrunt-download-dir=%s", appDir, testCase.downloadDir), &stdout, &stderr)
+
+		expectedOutpus := map[string]string{
+			"bar": "parent-bar",
+			"baz": "b-baz",
+			"foo": "c-foo",
+		}
+
+		output := stdout.String()
+		for key, value := range expectedOutpus {
+			assert.Contains(t, output, fmt.Sprintf("%s = %q\n", key, value))
+		}
 	}
 }
 
@@ -691,3 +725,5 @@ func TestTerragruntProduceTelemetryInCasOfError(t *testing.T) {
 	assert.Contains(t, output, "exception.message")
 	assert.Contains(t, output, "\"Name\":\"exception\"")
 }
+
+// @SONAR_START@

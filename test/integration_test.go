@@ -55,6 +55,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+// @SONAR_STOP@
+
 // hard-code this to match the test fixture for now
 const (
 	TERRAFORM_REMOTE_STATE_S3_REGION                                         = "us-west-2"
@@ -4189,10 +4191,13 @@ func TestLogFailedLocalsEvaluation(t *testing.T) {
 	)
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", TEST_FIXTURE_BROKEN_LOCALS), &stdout, &stderr)
-	output := stderr.String()
-
 	assert.Error(t, err)
-	assert.Contains(t, output, "Encountered error while evaluating locals in file fixture-broken-locals/terragrunt.hcl")
+
+	testdataDir, err := filepath.Abs(TEST_FIXTURE_BROKEN_LOCALS)
+	require.NoError(t, err)
+
+	output := stderr.String()
+	assert.Contains(t, output, fmt.Sprintf("Encountered error while evaluating locals in file %s", filepath.Join(testdataDir, "terragrunt.hcl")))
 }
 
 func TestLogFailingDependencies(t *testing.T) {
@@ -4204,10 +4209,13 @@ func TestLogFailingDependencies(t *testing.T) {
 	path := filepath.Join(TEST_FIXTURE_BROKEN_DEPENDENCY, "app")
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", path), &stdout, &stderr)
-	output := stderr.String()
-
 	assert.Error(t, err)
-	assert.Contains(t, output, wrappedBinary()+" invocation failed in fixture-broken-dependency/dependency")
+
+	testdataDir, err := filepath.Abs(TEST_FIXTURE_BROKEN_DEPENDENCY)
+	require.NoError(t, err)
+
+	output := stderr.String()
+	assert.Contains(t, output, fmt.Sprintf("%s invocation failed in %s", wrappedBinary(), testdataDir))
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
@@ -7115,3 +7123,5 @@ func findFilesWithExtension(dir string, ext string) ([]string, error) {
 
 	return files, err
 }
+
+// @SONAR_START@
