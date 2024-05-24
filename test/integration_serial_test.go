@@ -135,7 +135,7 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 		},
 		{
 			rootPath:    relRootPath,
-			downloadDir: filepath.Join(rootTerragruntPath, "app-download-dir"),
+			downloadDir: filepath.Join(rootTerragruntPath, "download-dir"),
 		},
 	}
 
