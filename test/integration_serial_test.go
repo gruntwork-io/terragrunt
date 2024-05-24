@@ -117,30 +117,53 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 	rootTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
 	rootPath := util.JoinPath(rootTerragruntPath, "apps")
 
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
+	curDir, err := os.Getwd()
+	require.NoError(t, err)
 
-	var appDir string
+	relRootPath, err := filepath.Rel(curDir, rootPath)
+	require.NoError(t, err)
 
-	for _, app := range []string{"c", "b", "a"} {
-		appDir = filepath.Join(rootPath, app)
-		runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", appDir))
-		config.ClearOutputCache()
+	testCases := []struct {
+		rootPath    string
+		downloadDir string
+	}{
+		{
+			rootPath:    rootPath,
+			downloadDir: "",
+		},
+		{
+			rootPath:    relRootPath,
+			downloadDir: filepath.Join(rootTerragruntPath, "download-dir"),
+		},
 	}
 
-	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --terragrunt-non-interactive --terragrunt-working-dir %s", appDir), &stdout, &stderr)
+	for _, testCase := range testCases {
+		var (
+			stdout bytes.Buffer
+			stderr bytes.Buffer
+		)
 
-	expectedOutpus := map[string]string{
-		"bar": "parent-bar",
-		"baz": "b-baz",
-		"foo": "c-foo",
-	}
+		var appDir string
 
-	output := stdout.String()
-	for key, value := range expectedOutpus {
-		assert.Contains(t, output, fmt.Sprintf("%s = %q\n", key, value))
+		for _, app := range []string{"c", "b", "a"} {
+			appDir = filepath.Join(testCase.rootPath, app)
+
+			runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-download-dir=%s", appDir, testCase.downloadDir))
+			config.ClearOutputCache()
+		}
+
+		runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --terragrunt-non-interactive --terragrunt-working-dir %s  --terragrunt-download-dir=%s", appDir, testCase.downloadDir), &stdout, &stderr)
+
+		expectedOutpus := map[string]string{
+			"bar": "parent-bar",
+			"baz": "b-baz",
+			"foo": "c-foo",
+		}
+
+		output := stdout.String()
+		for key, value := range expectedOutpus {
+			assert.Contains(t, output, fmt.Sprintf("%s = %q\n", key, value))
+		}
 	}
 }
 
