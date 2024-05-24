@@ -143,13 +143,22 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 			stderr bytes.Buffer
 		)
 
-		var appDir string
+		var (
+			appDir  string
+			appDirs = []string{"c", "b", "a"}
+		)
 
-		for _, app := range []string{"c", "b", "a"} {
+		for _, app := range appDirs {
 			appDir = filepath.Join(testCase.rootPath, app)
 
 			runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-download-dir=%s", appDir, testCase.downloadDir))
 			config.ClearOutputCache()
+		}
+
+		if testCase.downloadDir != "" {
+			entries, err := os.ReadDir(testCase.downloadDir)
+			require.NoError(t, err)
+			assert.Equal(t, len(appDirs), len(entries))
 		}
 
 		runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --terragrunt-non-interactive --terragrunt-working-dir %s  --terragrunt-download-dir=%s", appDir, testCase.downloadDir), &stdout, &stderr)
