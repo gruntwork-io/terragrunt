@@ -55,6 +55,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+// @SONAR_STOP@
+
 // hard-code this to match the test fixture for now
 const (
 	TERRAFORM_REMOTE_STATE_S3_REGION                                         = "us-west-2"
@@ -7121,3 +7123,5 @@ func findFilesWithExtension(dir string, ext string) ([]string, error) {
 
 	return files, err
 }
+
+// @SONAR_START@

@@ -26,6 +26,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+// @SONAR_STOP@
+
 // NOTE: We don't run these tests in parallel because it modifies the environment variable, so it can affect other tests
 
 func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
@@ -133,7 +135,7 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 		},
 		{
 			rootPath:    relRootPath,
-			downloadDir: filepath.Join(rootTerragruntPath, "download-dir"),
+			downloadDir: filepath.Join(rootTerragruntPath, "app-download-dir"),
 		},
 	}
 
@@ -723,3 +725,5 @@ func TestTerragruntProduceTelemetryInCasOfError(t *testing.T) {
 	assert.Contains(t, output, "exception.message")
 	assert.Contains(t, output, "\"Name\":\"exception\"")
 }
+
+// @SONAR_START@
