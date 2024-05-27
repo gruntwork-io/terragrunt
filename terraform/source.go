@@ -210,13 +210,14 @@ func ToSourceUrl(source string, workingDir string) (*url.URL, error) {
 func normalizeSourceURL(source string, workingDir string) (string, error) {
 	newSource := httpSchemeRegexp.ReplaceAllString(source, "")
 
-	// We can't use `the getter.Detectors` global variable because we need to exclude `getter.FileDetector` from checking since it is not a URL detector.
+	// We can't use `the getter.Detectors` global variable because we need to exclude from checking:
+	// * `getter.FileDetector` is not a host detector
+	// * `getter.S3Detector` we should not remove `https` from s3 link since this is a public link, and if we remove `https` scheme, `getter.S3Detector` adds `s3::https` which in turn requires credentials.
 	detectors := []getter.Detector{
 		new(getter.GitHubDetector),
 		new(getter.GitLabDetector),
 		new(getter.GitDetector),
 		new(getter.BitBucketDetector),
-		new(getter.S3Detector),
 		new(getter.GCSDetector),
 	}
 

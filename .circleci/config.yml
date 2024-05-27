@@ -11,7 +11,7 @@ env: &env
 
 defaults: &defaults
   docker:
-    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.21.9-tf1.5-tg39.1-pck1.8-ci56.0
+    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.21.9-tf1.5-tg58.8-pck1.8-ci56.0
 
 # Install Terraform which is not available in the default image
 install_terraform_latest: &install_terraform_latest
@@ -84,6 +84,13 @@ run_terratest_log_parser: &run_terratest_log_parser
     terratest_log_parser --testlog logs/integration.log --outputdir logs
   when: always
 
+run_markdownlint: &run_markdownlint
+  name: Run markdownlint
+  command: |
+    markdownlint \
+    --disable 'MD013' \
+    -- \
+    docs
 
 version: 2.1
 jobs:
@@ -315,6 +322,13 @@ jobs:
       - store_test_results:
           path: logs
 
+  run_markdownlint:
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          <<: *run_markdownlint
+
   build:
     resource_class: large
     <<: *defaults
@@ -323,7 +337,8 @@ jobs:
       - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X github.com/gruntwork-io/go-commons/version.Version=$CIRCLE_TAG -extldflags '-static'"
       - persist_to_workspace:
           root: .
-          paths: bin
+          paths: [bin]
+
   deploy:
     <<: *env
     macos:
@@ -363,6 +378,7 @@ jobs:
             brew install coreutils
             cd bin && sha256sum * > SHA256SUMS
       - run: upload-github-release-assets bin/*
+
 workflows:
   version: 2
   build-and-test:
@@ -424,6 +440,14 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
       - integration_test_tflint:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+      - run_markdownlint:
           filters:
             tags:
               only: /^v.*/

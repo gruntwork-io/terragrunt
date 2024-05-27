@@ -15,20 +15,14 @@ const (
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
-		Name:        CommandName,
-		Usage:       "Output groups of modules ordered by command (apply or destroy) as a list of list in JSON (useful for CI use cases).",
-		Subcommands: subCommands(opts),
-		Action:      func(ctx *cli.Context) error { return Run(ctx, opts.OptionsFromContext(ctx)) },
+		Name:  CommandName,
+		Usage: "Output groups of modules ordered by command (apply or destroy) as a list of list in JSON (useful for CI use cases).",
+		Subcommands: cli.Commands{
+			subCommandFunc(SubCommandApply, opts),
+			subCommandFunc(SubCommandDestroy, opts),
+		},
+		Action: func(ctx *cli.Context) error { return Run(ctx, opts.OptionsFromContext(ctx)) },
 	}
-}
-
-func subCommands(opts *options.TerragruntOptions) cli.Commands {
-	cmds := cli.Commands{
-		subCommandFunc(SubCommandApply, opts),
-		subCommandFunc(SubCommandDestroy, opts),
-	}
-
-	return cmds
 }
 
 func subCommandFunc(cmd string, opts *options.TerragruntOptions) *cli.Command {

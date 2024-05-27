@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
+	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	terraformcmd "github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -170,6 +171,11 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		{
 			[]string{doubleDashed(commands.TerragruntDebugFlagName)},
 			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, defaultLogLevel, true),
+			nil,
+		},
+		{
+			[]string{outputmodulegroups.CommandName, outputmodulegroups.SubCommandApply},
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{outputmodulegroups.SubCommandApply}, false, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 	}
@@ -400,13 +406,15 @@ func TestTerragruntHelp(t *testing.T) {
 func TestTerraformHelp(t *testing.T) {
 	t.Parallel()
 
+	wrappedBinary := options.DefaultWrappedPath
+
 	testCases := []struct {
 		args     []string
 		expected string
 	}{
-		{[]string{"terragrunt", terraform.CommandNamePlan, "--help"}, "Usage: terraform .* plan"},
-		{[]string{"terragrunt", terraform.CommandNameApply, "-help"}, "Usage: terraform .* apply"},
-		{[]string{"terragrunt", terraform.CommandNameApply, "-h"}, "Usage: terraform .* apply"},
+		{[]string{"terragrunt", terraform.CommandNamePlan, "--help"}, "Usage: " + wrappedBinary + " .* plan"},
+		{[]string{"terragrunt", terraform.CommandNameApply, "-help"}, "Usage: " + wrappedBinary + " .* apply"},
+		{[]string{"terragrunt", terraform.CommandNameApply, "-h"}, "Usage: " + wrappedBinary + " .* apply"},
 	}
 
 	for _, testCase := range testCases {
@@ -435,14 +443,18 @@ func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
 }
 
 func runAppTest(args []string, opts *options.TerragruntOptions) (*options.TerragruntOptions, error) {
-	testAction := func(cliCtx *cli.Context) error {
-		return initialSetup(cliCtx, opts)
-	}
+	emptyAction := func(ctx *cli.Context) error { return nil }
 
 	terragruntCommands := terragruntCommands(opts)
 	for _, command := range terragruntCommands {
-		command.Action = testAction
+		command.Action = emptyAction
+		for _, cmd := range command.Subcommands {
+			cmd.Action = emptyAction
+		}
 	}
+
+	defaultCommand := terraformcmd.NewCommand(opts)
+	defaultCommand.Action = emptyAction
 
 	app := cli.NewApp()
 	app.Writer = &bytes.Buffer{}
@@ -452,9 +464,8 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 		commands.NewHelpVersionFlags(opts)...)
 	app.Commands = append(
 		deprecatedCommands(opts),
-		terragruntCommands...)
-	app.DefaultCommand = terraformcmd.NewCommand(opts)
-	app.DefaultCommand.Action = testAction
+		terragruntCommands...).WrapAction(wrapWithTelemetry(opts))
+	app.DefaultCommand = defaultCommand.WrapAction(wrapWithTelemetry(opts))
 	app.OsExiter = osExiter
 
 	err := app.Run(append([]string{"--"}, args...))

@@ -15,13 +15,13 @@ nav_title_link: /docs/
 
 When Auto-Init is enabled (the default), terragrunt will automatically call [`terraform init`](https://www.terraform.io/docs/commands/init.html) during other commands (e.g. `terragrunt plan`) when terragrunt detects that:
 
-  - `terraform init` has never been called, or
+- `terraform init` has never been called, or
 
-  - `source` needs to be downloaded, or
+- `source` needs to be downloaded, or
 
-  - exists file `.terragrunt-init-required` in downloaded module directory(`.terragrunt-cache/aaa/bbb/modules/<module>`) or
+- exists file `.terragrunt-init-required` in downloaded module directory(`.terragrunt-cache/aaa/bbb/modules/<module>`) or
 
-  - the modules or remote state used by the module have changed since the previous call to `terraform init`.
+- the modules or remote state used by the module have changed since the previous call to `terraform init`.
 
 As [mentioned]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#extra_arguments-for-init), `extra_arguments` can be configured to allow customization of the `terraform init` command.
 

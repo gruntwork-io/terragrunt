@@ -36,14 +36,15 @@ If you  want the latest version, the recommended installation option is to [down
 
 If you use either Bash or Zsh, you can enable tab completion for Terragrunt commands. To enable autocomplete, first ensure that a config file exists for your chosen shell.
 
-
 For Bash shell.
-``` shell
+
+```shell
 touch ~/.bashrc
 ```
 
 For Zsh shell.
-``` shell
+
+```shell
 touch ~/.zshrc
 ```
 
@@ -54,7 +55,6 @@ terragrunt --install-autocomplete
 ```
 
 Once the autocomplete support is installed, you will need to restart your shell.
-
 
 ### Terragrunt GitHub Action
 

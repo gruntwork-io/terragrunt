@@ -293,7 +293,7 @@ func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *
 		return errors.WithStackTrace(err)
 	}
 
-	if err := validateS3Config(s3ConfigExtended, terragruntOptions); err != nil {
+	if err := validateS3Config(s3ConfigExtended); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
@@ -401,7 +401,7 @@ func ParseExtendedS3Config(config map[string]interface{}) (*ExtendedRemoteStateC
 }
 
 // Validate all the parameters of the given S3 remote state configuration
-func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3) error {
 	var config = extendedConfig.remoteStateConfigS3
 
 	if config.Region == "" {
@@ -414,15 +414,6 @@ func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3, terragruntOpt
 
 	if config.Key == "" {
 		return errors.WithStackTrace(MissingRequiredS3RemoteStateConfig("key"))
-	}
-
-	if !config.Encrypt {
-		msg := fmt.Sprintf("Encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!", config.Bucket)
-		if extendedConfig.SkipBucketSSEncryption {
-			terragruntOptions.Logger.Debug(msg)
-		} else {
-			terragruntOptions.Logger.Warn(msg)
-		}
 	}
 
 	return nil
@@ -506,11 +497,22 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 	}
 
 	if bucketUpdatesRequired.SSEEncryption {
+		msg := fmt.Sprintf("Encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!", config.remoteStateConfigS3.Bucket)
+
 		if config.SkipBucketSSEncryption {
-			terragruntOptions.Logger.Debugf("Server-Side Encryption is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", config.remoteStateConfigS3.Bucket)
-		} else if err := EnableSSEForS3BucketWide(s3Client, config.remoteStateConfigS3.Bucket, fetchEncryptionAlgorithm(config), config, terragruntOptions); err != nil {
+			terragruntOptions.Logger.Debug(msg)
+			terragruntOptions.Logger.Debugf("Server-Side Encryption enabling is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", config.remoteStateConfigS3.Bucket)
+			return nil
+		} else {
+			terragruntOptions.Logger.Warn(msg)
+		}
+
+		terragruntOptions.Logger.Infof("Enabling Server-Side Encryption for the remote state AWS S3 bucket %s.", config.remoteStateConfigS3.Bucket)
+		if err := EnableSSEForS3BucketWide(s3Client, config.remoteStateConfigS3.Bucket, fetchEncryptionAlgorithm(config), config, terragruntOptions); err != nil {
+			terragruntOptions.Logger.Errorf("Failed to enable Server-Side Encryption for the remote state AWS S3 bucket %s: %v", config.remoteStateConfigS3.Bucket, err)
 			return err
 		}
+		terragruntOptions.Logger.Infof("Successfully enabled Server-Side Encryption for the remote state AWS S3 bucket %s.", config.remoteStateConfigS3.Bucket)
 	}
 
 	if bucketUpdatesRequired.RootAccess {

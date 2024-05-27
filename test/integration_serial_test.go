@@ -1,19 +1,26 @@
 package test
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/fs"
 	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -23,10 +30,51 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+// @SONAR_STOP@
+
 // NOTE: We don't run these tests in parallel because it modifies the environment variable, so it can affect other tests
 
 func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	// In this test we use os.Setenv to set the Terraform env var TF_CLI_CONFIG_FILE.
+
+	createFakeProvider := func(t *testing.T, providerDir, providerFile, providerArchive string) {
+		err := os.MkdirAll(providerDir, os.ModePerm)
+		require.NoError(t, err)
+
+		providerFilePath := filepath.Join(providerDir, providerFile)
+
+		file, err := os.Create(providerFilePath)
+		require.NoError(t, err)
+		defer file.Close()
+
+		err = file.Sync()
+		require.NoError(t, err)
+
+		zipFile, err := os.Create(filepath.Join(providerDir, providerArchive))
+		require.NoError(t, err)
+		defer zipFile.Close()
+
+		zipWriter := zip.NewWriter(zipFile)
+		defer zipWriter.Close()
+
+		fileInfo, err := file.Stat()
+		require.NoError(t, err)
+
+		header, err := zip.FileInfoHeader(fileInfo)
+		require.NoError(t, err)
+
+		header.Method = zip.Deflate
+		header.Name = providerFile
+
+		headerWriter, err := zipWriter.CreateHeader(header)
+		require.NoError(t, err)
+
+		_, err = io.Copy(headerWriter, file)
+		require.NoError(t, err)
+
+		err = os.Remove(providerFilePath)
+		require.NoError(t, err)
+	}
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_PROVIDER_CACHE_FILESYSTEM_MIRROR)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PROVIDER_CACHE_FILESYSTEM_MIRROR)
@@ -34,6 +82,12 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 
 	appPath := filepath.Join(rootPath, "app")
 	filesystemCachePath := filepath.Join(rootPath, "providers")
+
+	providerDir := filepath.Join(filesystemCachePath, "example.com/hashicorp/null")
+	providerFile := "terraform-provider-null_v3.2.2_x5"
+	providerArchvie := fmt.Sprintf("terraform-provider-null_3.2.2_%s_%s.zip", runtime.GOOS, runtime.GOARCH)
+
+	createFakeProvider(t, providerDir, providerFile, providerArchvie)
 
 	cacheDir, err := util.GetCacheDir()
 	require.NoError(t, err)
@@ -69,30 +123,62 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 	rootTerragruntPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS_FROM_DEPENDENCY)
 	rootPath := util.JoinPath(rootTerragruntPath, "apps")
 
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
+	curDir, err := os.Getwd()
+	require.NoError(t, err)
 
-	var appDir string
+	relRootPath, err := filepath.Rel(curDir, rootPath)
+	require.NoError(t, err)
 
-	for _, app := range []string{"c", "b", "a"} {
-		appDir = filepath.Join(rootPath, app)
-		runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", appDir))
-		config.ClearOutputCache()
+	testCases := []struct {
+		rootPath    string
+		downloadDir string
+	}{
+		{
+			rootPath:    rootPath,
+			downloadDir: "",
+		},
+		{
+			rootPath:    relRootPath,
+			downloadDir: filepath.Join(rootTerragruntPath, "download-dir"),
+		},
 	}
 
-	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --terragrunt-non-interactive --terragrunt-working-dir %s", appDir), &stdout, &stderr)
+	for _, testCase := range testCases {
+		var (
+			stdout bytes.Buffer
+			stderr bytes.Buffer
+		)
 
-	expectedOutpus := map[string]string{
-		"bar": "parent-bar",
-		"baz": "b-baz",
-		"foo": "c-foo",
-	}
+		var (
+			appDir  string
+			appDirs = []string{"c", "b", "a"}
+		)
 
-	output := stdout.String()
-	for key, value := range expectedOutpus {
-		assert.Contains(t, output, fmt.Sprintf("%s = %q\n", key, value))
+		for _, app := range appDirs {
+			appDir = filepath.Join(testCase.rootPath, app)
+
+			runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-download-dir=%s", appDir, testCase.downloadDir))
+			config.ClearOutputCache()
+		}
+
+		if testCase.downloadDir != "" {
+			entries, err := os.ReadDir(testCase.downloadDir)
+			require.NoError(t, err)
+			assert.Equal(t, len(appDirs), len(entries))
+		}
+
+		runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output --terragrunt-non-interactive --terragrunt-working-dir %s  --terragrunt-download-dir=%s", appDir, testCase.downloadDir), &stdout, &stderr)
+
+		expectedOutpus := map[string]string{
+			"bar": "parent-bar",
+			"baz": "b-baz",
+			"foo": "c-foo",
+		}
+
+		output := stdout.String()
+		for key, value := range expectedOutpus {
+			assert.Contains(t, output, fmt.Sprintf("%s = %q\n", key, value))
+		}
 	}
 }
 
@@ -643,3 +729,95 @@ func TestTerragruntProduceTelemetryInCasOfError(t *testing.T) {
 	assert.Contains(t, output, "exception.message")
 	assert.Contains(t, output, "\"Name\":\"exception\"")
 }
+
+// Since this test launches a large number of terraform processes, which sometimes fails with the message `Failed to write to log, write |1: file already closed`, for stability, we need to run it not parallel.
+func TestTerragruntProviderCache(t *testing.T) {
+	cleanupTerraformFolder(t, TEST_FIXTURE_PROVIDER_CACHE_DIRECT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PROVIDER_CACHE_DIRECT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PROVIDER_CACHE_DIRECT)
+
+	cacheDir, err := util.GetCacheDir()
+	require.NoError(t, err)
+	providerCacheDir := filepath.Join(cacheDir, "provider-cache-test-direct")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, rootPath))
+
+	providers := map[string][]string{
+		"first": []string{
+			"hashicorp/aws/5.36.0",
+			"hashicorp/azurerm/3.95.0",
+		},
+		"second": []string{
+			"hashicorp/aws/5.40.0",
+			"hashicorp/azurerm/3.95.0",
+			"hashicorp/kubernetes/2.27.0",
+		},
+	}
+
+	registryName := "registry.opentofu.org"
+	if isTerraform() {
+		registryName = "registry.terraform.io"
+	}
+
+	for subDir, providers := range providers {
+		var (
+			actualApps   int
+			expectedApps = 10
+		)
+
+		subDir = filepath.Join(rootPath, subDir)
+
+		entries, err := os.ReadDir(subDir)
+		require.NoError(t, err)
+
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			actualApps++
+
+			appPath := filepath.Join(subDir, entry.Name())
+
+			lockfilePath := filepath.Join(appPath, ".terraform.lock.hcl")
+			lockfileContent, err := os.ReadFile(lockfilePath)
+			require.NoError(t, err)
+
+			lockfile, diags := hclwrite.ParseConfig(lockfileContent, lockfilePath, hcl.Pos{Line: 1, Column: 1})
+			require.False(t, diags.HasErrors())
+
+			for _, provider := range providers {
+				var (
+					actualProviderSymlinks   int
+					expectedProviderSymlinks = 1
+					provider                 = path.Join(registryName, provider)
+				)
+
+				providerBlock := lockfile.Body().FirstMatchingBlock("provider", []string{filepath.Dir(provider)})
+				assert.NotNil(t, providerBlock)
+
+				providerPath := filepath.Join(appPath, ".terraform/providers", provider)
+				assert.True(t, util.FileExists(providerPath))
+
+				entries, err := os.ReadDir(providerPath)
+				assert.NoError(t, err)
+
+				for _, entry := range entries {
+					actualProviderSymlinks++
+					assert.Equal(t, fs.ModeSymlink, entry.Type())
+
+					symlinkPath := filepath.Join(providerPath, entry.Name())
+
+					actualPath, err := os.Readlink(symlinkPath)
+					assert.NoError(t, err)
+
+					expectedPath := filepath.Join(providerCacheDir, provider, entry.Name())
+					assert.Contains(t, actualPath, expectedPath)
+				}
+				assert.Equal(t, expectedProviderSymlinks, actualProviderSymlinks)
+			}
+		}
+		assert.Equal(t, expectedApps, actualApps)
+	}
+}
+
+// @SONAR_START@

@@ -10,6 +10,8 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
+<!-- markdownlint-disable -->
+
 # RFC Template
 
 What follows is the legacy template for RFCs. If you would like to submit an RFC, please use the new template, which can be found [here](https://github.com/gruntwork-io/terragrunt/issues/new/choose).

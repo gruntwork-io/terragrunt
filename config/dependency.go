@@ -541,7 +541,13 @@ func getOutputJsonWithCaching(ctx *ParsingContext, targetConfig string) ([]byte,
 func cloneTerragruntOptionsForDependency(ctx *ParsingContext, targetConfigPath string) *options.TerragruntOptions {
 	targetOptions := ctx.TerragruntOptions.Clone(targetConfigPath)
 	targetOptions.OriginalTerragruntConfigPath = targetConfigPath
-	targetOptions.DownloadDir = filepath.Join(filepath.Dir(targetConfigPath), util.TerragruntCacheDir)
+
+	// `needUpdateDownloadDir` is true if `DownloadDir` was not explicitly specified by the user and we need to assign the default download dir, otherwise leave as is.
+	needUpdateDownloadDir := filepath.Join(filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath), util.TerragruntCacheDir) == ctx.TerragruntOptions.DownloadDir
+	if needUpdateDownloadDir {
+		targetOptions.DownloadDir = filepath.Join(filepath.Dir(targetConfigPath), util.TerragruntCacheDir)
+	}
+
 	// Clear IAMRoleOptions in case if it is different from one passed through CLI to allow dependencies to define own iam roles
 	// https://github.com/gruntwork-io/terragrunt/issues/1853#issuecomment-940102676
 	if targetOptions.IAMRoleOptions != targetOptions.OriginalIAMRoleOptions {

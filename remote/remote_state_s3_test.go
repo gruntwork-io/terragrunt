@@ -488,29 +488,6 @@ func TestValidateS3Config(t *testing.T) {
 			},
 			expectedErr: MissingRequiredS3RemoteStateConfig("key"),
 		},
-		{
-			name: "log-warning-skip-bucket-sse-encryption",
-			extendedConfig: &ExtendedRemoteStateConfigS3{
-				remoteStateConfigS3: RemoteStateConfigS3{
-					Region: "us-west-2",
-					Bucket: "state-bucket",
-					Key:    "terraform.tfstate",
-				},
-			},
-			expectedOutput: "level=warning msg=\"Encryption is not enabled",
-		},
-		{
-			name: "log-debug-skip-bucket-sse-encryption",
-			extendedConfig: &ExtendedRemoteStateConfigS3{
-				SkipBucketSSEncryption: true,
-				remoteStateConfigS3: RemoteStateConfigS3{
-					Region: "us-west-2",
-					Bucket: "state-bucket",
-					Key:    "terraform.tfstate",
-				},
-			},
-			expectedOutput: "level=debug msg=\"Encryption is not enabled",
-		},
 	}
 	for _, testCase := range testCases {
 		testCase := testCase
@@ -520,8 +497,7 @@ func TestValidateS3Config(t *testing.T) {
 			logger := logrus.New()
 			logger.SetLevel(logrus.DebugLevel)
 			logger.SetOutput(buf)
-			opts := &options.TerragruntOptions{Logger: logrus.NewEntry(logger)}
-			err := validateS3Config(testCase.extendedConfig, opts)
+			err := validateS3Config(testCase.extendedConfig)
 			if err != nil {
 				assert.ErrorIs(t, err, testCase.expectedErr)
 			}

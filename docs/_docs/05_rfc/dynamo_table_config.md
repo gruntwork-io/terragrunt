@@ -10,6 +10,8 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
+<!-- markdownlint-disable -->
+
 # Allow further customization of Terraform Lock table for S3 Remote State
 
 **STATUS**: In proposal
