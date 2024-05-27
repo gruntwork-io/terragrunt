@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -17,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -724,6 +728,97 @@ func TestTerragruntProduceTelemetryInCasOfError(t *testing.T) {
 	assert.Contains(t, output, "\"SpanID\":\"0e6f631d793c718a\"")
 	assert.Contains(t, output, "exception.message")
 	assert.Contains(t, output, "\"Name\":\"exception\"")
+}
+
+func TestTerragruntProviderCache(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_PROVIDER_CACHE_DIRECT)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PROVIDER_CACHE_DIRECT)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PROVIDER_CACHE_DIRECT)
+
+	cacheDir, err := util.GetCacheDir()
+	require.NoError(t, err)
+	providerCacheDir := filepath.Join(cacheDir, "provider-cache-test-direct")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, rootPath))
+
+	providers := map[string][]string{
+		"first": []string{
+			"hashicorp/aws/5.36.0",
+			"hashicorp/azurerm/3.95.0",
+		},
+		"second": []string{
+			"hashicorp/aws/5.40.0",
+			"hashicorp/azurerm/3.95.0",
+			"hashicorp/kubernetes/2.27.0",
+		},
+	}
+
+	registryName := "registry.opentofu.org"
+	if isTerraform() {
+		registryName = "registry.terraform.io"
+	}
+
+	for subDir, providers := range providers {
+		var (
+			actualApps   int
+			expectedApps = 10
+		)
+
+		subDir = filepath.Join(rootPath, subDir)
+
+		entries, err := os.ReadDir(subDir)
+		require.NoError(t, err)
+
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			actualApps++
+
+			appPath := filepath.Join(subDir, entry.Name())
+
+			lockfilePath := filepath.Join(appPath, ".terraform.lock.hcl")
+			lockfileContent, err := os.ReadFile(lockfilePath)
+			require.NoError(t, err)
+
+			lockfile, diags := hclwrite.ParseConfig(lockfileContent, lockfilePath, hcl.Pos{Line: 1, Column: 1})
+			require.False(t, diags.HasErrors())
+
+			for _, provider := range providers {
+				var (
+					actualProviderSymlinks   int
+					expectedProviderSymlinks = 1
+					provider                 = path.Join(registryName, provider)
+				)
+
+				providerBlock := lockfile.Body().FirstMatchingBlock("provider", []string{filepath.Dir(provider)})
+				assert.NotNil(t, providerBlock)
+
+				providerPath := filepath.Join(appPath, ".terraform/providers", provider)
+				assert.True(t, util.FileExists(providerPath))
+
+				entries, err := os.ReadDir(providerPath)
+				assert.NoError(t, err)
+
+				for _, entry := range entries {
+					actualProviderSymlinks++
+					assert.Equal(t, fs.ModeSymlink, entry.Type())
+
+					symlinkPath := filepath.Join(providerPath, entry.Name())
+
+					actualPath, err := os.Readlink(symlinkPath)
+					assert.NoError(t, err)
+
+					expectedPath := filepath.Join(providerCacheDir, provider, entry.Name())
+					assert.Contains(t, actualPath, expectedPath)
+				}
+				assert.Equal(t, expectedProviderSymlinks, actualProviderSymlinks)
+			}
+		}
+		assert.Equal(t, expectedApps, actualApps)
+	}
 }
 
 // @SONAR_START@
