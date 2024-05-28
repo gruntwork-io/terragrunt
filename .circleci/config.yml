@@ -1,7 +1,7 @@
 orbs:
   # The Windows orb gives us everything we need to start using the Windows executor.
-  win: circleci/windows@2.4.0
-  go: circleci/go@1.7.3
+  win: circleci/windows@5.0
+  go: circleci/go@1.11
 
 # The "sign binary" rubs in a MacOS environment, so it's necessary to download GW's binaries
 env: &env
@@ -342,8 +342,8 @@ jobs:
   deploy:
     <<: *env
     macos:
-      xcode: 14.2.0
-    resource_class: macos.x86.medium.gen2
+      xcode: 15.3.0
+    resource_class: macos.m1.medium.gen1
     steps:
       - checkout
       - attach_workspace:
