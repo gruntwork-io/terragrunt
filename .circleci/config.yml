@@ -372,11 +372,12 @@ jobs:
 
             unzip terragrunt_darwin_arm64.zip
             mv terragrunt_darwin_arm64 bin/
-      - run:
-          name: Run SHA256SUM
-          command: |
-            brew install coreutils
-            cd bin && sha256sum * > SHA256SUMS
+
+            ./bin/terragrunt_darwin_amd64 --version
+            ./bin/terragrunt_darwin_arm64 --version
+
+            codesign -dv --verbose=4 ./bin/terragrunt_darwin_amd64
+            codesign -dv --verbose=4 ./bin/terragrunt_darwin_arm64
 
   deploy:
     <<: *env
