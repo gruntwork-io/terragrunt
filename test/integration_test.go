@@ -59,6 +59,7 @@ const (
 	TERRAFORM_REMOTE_STATE_S3_REGION                                         = "us-west-2"
 	TERRAFORM_REMOTE_STATE_GCP_REGION                                        = "eu"
 	TEST_FIXTURE_PATH                                                        = "fixture/"
+	TEST_FIXTURE_INIT_ONCE                                                   = "fixture-init-once"
 	TEST_FIXTURE_PROVIDER_CACHE_DIRECT                                       = "fixture-provider-cache/direct"
 	TEST_FIXTURE_PROVIDER_CACHE_FILESYSTEM_MIRROR                            = "fixture-provider-cache/filesystem-mirror"
 	TEST_FIXTURE_DESTROY_ORDER                                               = "fixture-destroy-order"
@@ -204,6 +205,28 @@ const (
 	qaMyAppRelPath  = "qa/my-app"
 	fixtureDownload = "fixture-download"
 )
+
+func TestTerragruntInitOnce(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INIT_ONCE)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_ONCE)
+
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "Initializing modules")
+
+	// update the config creation time without changing content
+	cfgPath := filepath.Join(rootPath, "terragrunt.hcl")
+	bytes, err := os.ReadFile(cfgPath)
+	require.NoError(t, err)
+	err = os.WriteFile(cfgPath, bytes, 0644)
+	require.NoError(t, err)
+
+	stdout, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	require.NoError(t, err)
+	assert.NotContains(t, stdout, "Initializing modules", "init command executed more than once")
+}
 
 func TestTerragruntDestroyOrder(t *testing.T) {
 	t.Parallel()
@@ -4837,7 +4860,7 @@ func TestTerragruntRunAllCommandPrompt(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestTerragruntInitOnce(t *testing.T) {
+func TestTerragruntLocalRunOnce(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_RUN_ONCE)
