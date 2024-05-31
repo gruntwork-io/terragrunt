@@ -770,7 +770,7 @@ explanation). This argument is not used with the `run-all` commands.
 **Environment Variable**: `TERRAGRUNT_TFPATH`<br/>
 **Requires an argument**: `--terragrunt-tfpath /path/to/terraform-binary`<br/>
 
-A custom path to the Terraform binary. The default is `terraform` in a directory on your PATH.
+A custom path to the Terraform binary. The default is `tofu` in a directory on your PATH.
 
 **NOTE**: This will override the `terraform` binary that is used by `terragrunt` in all instances, including
 `dependency` lookups. This setting will also override any [terraform_binary]({{site.baseurl}}/docs/reference/config-blocks-and-attributes/#terraform_binary)
