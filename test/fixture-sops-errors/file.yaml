@@ -1,0 +1,22 @@
+sops:
+  kms:
+    - arn: arn:aws:kms:us-east-1:123456789012:key/abcd1234-a123-456a-a12b-a123b4cd56ef
+      created_at: '2024-05-31T12:00:00Z'
+      enc: AQICAHh/wUk47iRfX5z0YYrj2L8dXbIf3+m0XL7B3BQmXU1F3wG8O5k3AoUmK9AekxyAmNndAAAAcTB2BgkqhkiG9w0BBwagZTBjAgEAMGkGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMzjt8jKK8XHdR+NTbAgEQgDtLGz9iI4HhXJTh3x/aRb9nsJhEALwJhHMRUnYtQ==
+  gcp_kms: []
+  azure_kv: []
+  hc_vault: []
+  age: []
+  lastmodified: '2024-05-31T12:00:00Z'
+  mac: ENC[AES256_GCM,data:crypteddata,iv:ivvalue,tag:tagvalue]
+  pgp: []
+  encrypted_regex: ^(data|stringData)$
+  version: 3.7.1
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: example-secret
+  namespace: default
+data:
+  example-key: ENC[AES256_GCM,data:crypteddata,iv:ivvalue,tag:tagvalue]
