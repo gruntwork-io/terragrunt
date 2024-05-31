@@ -756,32 +756,7 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 
 	rawData, err := decrypt.File(sourceFile, format)
 	if err != nil {
-		var errs = &multierror.Error{}
-
-		// workaround to extract original errors from sops library
-		// using reflection extract GroupResults from getDataKeyError
-		// may not be compatible with future versions
-		errValue := reflect.ValueOf(err)
-		if errValue.Kind() == reflect.Ptr {
-			errValue = errValue.Elem()
-		}
-		if errValue.Type().Name() == "getDataKeyError" {
-			groupResultsField := errValue.FieldByName("GroupResults")
-			if groupResultsField.IsValid() && groupResultsField.Kind() == reflect.Slice {
-				for i := 0; i < groupResultsField.Len(); i++ {
-					groupErr := groupResultsField.Index(i)
-					if groupErr.CanInterface() {
-						errs = multierror.Append(errs, groupErr.Interface().(error))
-					}
-				}
-			}
-		}
-
-		// append the original error if no group results were found
-		if errs.Len() == 0 {
-			errs = multierror.Append(errs, err)
-		}
-		return "", errors.WithStackTrace(errs)
+		return "", errors.WithStackTrace(extractSopsErrors(err))
 	}
 
 	if utf8.Valid(rawData) {
@@ -1011,4 +986,34 @@ func ParseAndDecodeVarFile(varFile string, fileContents []byte, out interface{})
 		return nil
 	}
 	return gocty.FromCtyValue(ctyVal, out)
+}
+
+// extractSopsErrors extracts the original errors from the sops library and returns them as a multierror.Error
+func extractSopsErrors(err error) *multierror.Error {
+	var errs = &multierror.Error{}
+
+	// workaround to extract original errors from sops library
+	// using reflection extract GroupResults from getDataKeyError
+	// may not be compatible with future versions
+	errValue := reflect.ValueOf(err)
+	if errValue.Kind() == reflect.Ptr {
+		errValue = errValue.Elem()
+	}
+	if errValue.Type().Name() == "getDataKeyError" {
+		groupResultsField := errValue.FieldByName("GroupResults")
+		if groupResultsField.IsValid() && groupResultsField.Kind() == reflect.Slice {
+			for i := 0; i < groupResultsField.Len(); i++ {
+				groupErr := groupResultsField.Index(i)
+				if groupErr.CanInterface() {
+					errs = multierror.Append(errs, groupErr.Interface().(error))
+				}
+			}
+		}
+	}
+
+	// append the original error if no group results were found
+	if errs.Len() == 0 {
+		errs = multierror.Append(errs, err)
+	}
+	return errs
 }
