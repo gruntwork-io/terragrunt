@@ -39,7 +39,7 @@ const (
 )
 
 var (
-	// HTTPStatusCacheProviderReg is regular expression to determine the success result of the command `terraform init`.
+	// httpStatusCacheProviderReg is a regular expression to determine the success result of the command `terraform init`.
 	// The reg matches if the text contains "423 Locked", for example:
 	//
 	// - registry.terraform.io/hashicorp/template: could not query provider registry for registry.terraform.io/hashicorp/template: 423 Locked.
@@ -53,7 +53,7 @@ var (
 	//    │ provider registry for registry.terraform.io/snowflake-labs/snowflake: 423
 	//    │ Locked
 	//    ╵
-	HTTPStatusCacheProviderReg = regexp.MustCompile(`(?smi)` + strconv.Itoa(cacheProviderHTTPStatusCode) + `.*` + http.StatusText(cacheProviderHTTPStatusCode))
+	httpStatusCacheProviderReg = regexp.MustCompile(`(?smi)` + strconv.Itoa(cacheProviderHTTPStatusCode) + `.*` + http.StatusText(cacheProviderHTTPStatusCode))
 )
 
 type ProviderCache struct {
@@ -138,16 +138,29 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	// To prevent a loop
 	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
 
-	// Use Hook only for the `terraform init` command, which can be run explicitly by the user or Terragrunt's `auto-init` feature.
-	if util.FirstArg(args) != terraform.CommandNameInit {
-		return shell.RunTerraformCommandWithOutput(ctx, opts, args...)
-	}
-
 	var (
 		cliConfigFilename = filepath.Join(opts.WorkingDir, localCLIFilename)
 		cacheRequestID    = uuid.New().String()
 		env               = providerCacheEnvironment(opts, cliConfigFilename)
+		platformArgs      = []string{}
 	)
+
+	// Use Hook only for the `terraform init` command, which can be run explicitly by the user or Terragrunt's `auto-init` feature.
+	switch {
+	case util.FirstArg(args) == terraform.CommandNameInit:
+	case util.FirstArg(args) == terraform.CommandNameProviders && util.SecondArg(args) == terraform.CommandNameLock:
+		var filteredArgs []string
+		for _, arg := range args {
+			if strings.HasPrefix(arg, terraform.FlagNamePlatform) {
+				platformArgs = append(platformArgs, arg)
+			} else {
+				filteredArgs = append(filteredArgs, arg)
+			}
+		}
+		args = filteredArgs
+	default:
+		return shell.RunTerraformCommandWithOutput(ctx, opts, args...)
+	}
 
 	// Create terraform cli config file that enables provider caching and does not use provider cache dir
 	if err := cache.createLocalCLIConfig(opts, cliConfigFilename, cacheRequestID); err != nil {
@@ -158,8 +171,11 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	// Before each init, we warm up the global cache to ensure that all necessary providers are cached.
 	// To do this we are using 'terraform providers lock' to force TF to request all the providers from our TG cache, and that's how we know what providers TF needs, and can load them into the cache.
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
-	if output, err := runTerraformCommand(ctx, opts, args, env); err != nil {
-		return output, err
+
+	for _, arg := range platformArgs {
+		if output, err := runTerraformCommand(ctx, opts, append(args, arg), env); err != nil {
+			return output, err
+		}
 	}
 
 	caches := cache.providerService.WaitForCacheReady(cacheRequestID)
@@ -175,6 +191,10 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	cloneOpts := opts.Clone(opts.TerragruntConfigPath)
 	cloneOpts.WorkingDir = opts.WorkingDir
 	maps.Copy(cloneOpts.Env, env)
+
+	if util.FirstArg(args) == terraform.CommandNameProviders && util.SecondArg(args) == terraform.CommandNameLock {
+		return &shell.CmdOutput{}, nil
+	}
 
 	return shell.RunTerraformCommandWithOutput(ctx, cloneOpts, args...)
 }
@@ -245,7 +265,7 @@ func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions
 
 func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, args []string, envs map[string]string) (*shell.CmdOutput, error) {
 	// We use custom writer in order to trap the log from `terraform providers lock -platform=provider-cache` command, which terraform considers an error, but to us a success.
-	errWriter := util.NewTrapWriter(opts.ErrWriter, HTTPStatusCacheProviderReg)
+	errWriter := util.NewTrapWriter(opts.ErrWriter, httpStatusCacheProviderReg)
 
 	// add -no-color flag to args if it was set in Terragrunt arguments
 	if util.ListContainsElement(opts.TerraformCliArgs, terraform.FlagNameNoColor) {
@@ -262,7 +282,7 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 		maps.Copy(cloneOpts.Env, envs)
 	}
 
-	// If the Terraform error matches `HTTPStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process the error as is.
+	// If the Terraform error matches `httpStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process the error as is.
 	if output, err := shell.RunTerraformCommandWithOutput(ctx, cloneOpts, cloneOpts.TerraformCliArgs...); err != nil && len(errWriter.Msgs()) == 0 {
 		return output, err
 	}
