@@ -139,17 +139,25 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
 
 	var (
-		cliConfigFilename = filepath.Join(opts.WorkingDir, localCLIFilename)
-		cacheRequestID    = uuid.New().String()
-		env               = providerCacheEnvironment(opts, cliConfigFilename)
-		platformArgs      = []string{}
+		cliConfigFilename    = filepath.Join(opts.WorkingDir, localCLIFilename)
+		cacheRequestID       = uuid.New().String()
+		env                  = providerCacheEnvironment(opts, cliConfigFilename)
+		commandsArgs         [][]string
+		skipRunTargetCommand bool
 	)
 
 	// Use Hook only for the `terraform init` command, which can be run explicitly by the user or Terragrunt's `auto-init` feature.
 	switch {
 	case util.FirstArg(args) == terraform.CommandNameInit:
+		// Provider caching for `terraform init` command.
+		commandsArgs = [][]string{args}
 	case util.FirstArg(args) == terraform.CommandNameProviders && util.SecondArg(args) == terraform.CommandNameLock:
-		var filteredArgs []string
+		// Provider caching for `terraform providers lock` command.
+		var (
+			filteredArgs []string
+			platformArgs []string
+		)
+
 		for _, arg := range args {
 			if strings.HasPrefix(arg, terraform.FlagNamePlatform) {
 				platformArgs = append(platformArgs, arg)
@@ -157,7 +165,13 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 				filteredArgs = append(filteredArgs, arg)
 			}
 		}
-		args = filteredArgs
+
+		for _, platformArg := range platformArgs {
+			commandsArgs = append(commandsArgs, append(filteredArgs, platformArg))
+		}
+
+		// Since the Terragrunt provider cache server creates the cache and generates the lock file, we don't need to run the `terraform providers lock ...` command at all.
+		skipRunTargetCommand = true
 	default:
 		return shell.RunTerraformCommandWithOutput(ctx, opts, args...)
 	}
@@ -172,8 +186,8 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	// To do this we are using 'terraform providers lock' to force TF to request all the providers from our TG cache, and that's how we know what providers TF needs, and can load them into the cache.
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
 
-	for _, arg := range platformArgs {
-		if output, err := runTerraformCommand(ctx, opts, append(args, arg), env); err != nil {
+	for _, args := range commandsArgs {
+		if output, err := runTerraformCommand(ctx, opts, args, env); err != nil {
 			return output, err
 		}
 	}
@@ -196,6 +210,9 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 		return &shell.CmdOutput{}, nil
 	}
 
+	if skipRunTargetCommand {
+		return &shell.CmdOutput{}, nil
+	}
 	return shell.RunTerraformCommandWithOutput(ctx, cloneOpts, args...)
 }
 
