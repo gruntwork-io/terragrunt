@@ -81,26 +81,9 @@ func updateLockfile(ctx context.Context, file *hclwrite.File, providers []Provid
 
 // updateProviderBlock updates the provider block in the dependency lock file.
 func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, provider Provider) error {
-	var hashes []Hash
-
-	versionAttr := providerBlock.Body().GetAttribute("version")
-	if versionAttr != nil {
-		// a version attribute found
-		versionVal := getAttributeValueAsUnquotedString(versionAttr)
-		log.Debugf("Check provider version in lock file: address = %s, lock = %s, config = %s", provider.Address(), versionVal, provider.Version())
-		if versionVal == provider.Version() {
-			// if version is equal, get already existing hashes from lock file to merge.
-			if attr := providerBlock.Body().GetAttribute("hashes"); attr != nil {
-				vals, err := getAttributeValueAsSlice(attr)
-				if err != nil {
-					return err
-				}
-
-				for _, val := range vals {
-					hashes = append(hashes, Hash(val))
-				}
-			}
-		}
+	hashes, err := getExistingHashes(providerBlock, provider)
+	if err != nil {
+		return err
 	}
 
 	providerBlock.Body().SetAttributeValue("version", cty.StringVal(provider.Version()))
@@ -134,6 +117,33 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 
 	providerBlock.Body().SetAttributeRaw("hashes", tokensForListPerLine(hashes))
 	return nil
+}
+
+func getExistingHashes(providerBlock *hclwrite.Block, provider Provider) ([]Hash, error) {
+	var hashes []Hash
+
+	versionAttr := providerBlock.Body().GetAttribute("version")
+	if versionAttr != nil {
+		// a version attribute found
+		versionVal := getAttributeValueAsUnquotedString(versionAttr)
+		log.Debugf("Check provider version in lock file: address = %s, lock = %s, config = %s", provider.Address(), versionVal, provider.Version())
+
+		if versionVal == provider.Version() {
+			// if version is equal, get already existing hashes from lock file to merge.
+			if attr := providerBlock.Body().GetAttribute("hashes"); attr != nil {
+				vals, err := getAttributeValueAsSlice(attr)
+				if err != nil {
+					return nil, err
+				}
+
+				for _, val := range vals {
+					hashes = append(hashes, Hash(val))
+				}
+			}
+		}
+	}
+
+	return hashes, nil
 }
 
 // getAttributeValueAsString returns a value of Attribute as string. There is no way to get value as string directly, so we parses tokens of Attribute and build string representation.

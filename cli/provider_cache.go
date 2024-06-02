@@ -153,26 +153,11 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 		commandsArgs = [][]string{args}
 	case util.FirstArg(args) == terraform.CommandNameProviders && util.SecondArg(args) == terraform.CommandNameLock:
 		// Provider caching for `terraform providers lock` command.
-		var (
-			filteredArgs []string
-			platformArgs []string
-		)
-
-		for _, arg := range args {
-			if strings.HasPrefix(arg, terraform.FlagNamePlatform) {
-				platformArgs = append(platformArgs, arg)
-			} else {
-				filteredArgs = append(filteredArgs, arg)
-			}
-		}
-
-		for _, platformArg := range platformArgs {
-			commandsArgs = append(commandsArgs, append(filteredArgs, platformArg))
-		}
-
+		commandsArgs = convertToMultipleCommandsByPlatforms(args)
 		// Since the Terragrunt provider cache server creates the cache and generates the lock file, we don't need to run the `terraform providers lock ...` command at all.
 		skipRunTargetCommand = true
 	default:
+		// skip cache creation for all other commands
 		return shell.RunTerraformCommandWithOutput(ctx, opts, args...)
 	}
 
@@ -326,4 +311,33 @@ func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile str
 	envs[terraform.EnvNameTFPluginCacheDir] = ""
 
 	return envs
+}
+
+// convertToMultipleCommandsByPlatforms converts `providers lock -platform=.. -platform=..` command into multiple commands that include only one platform.
+// for example:
+// `providers lock -platform=linux_amd64 -platform=darwin_arm64 -platform=freebsd_amd64`
+// to
+// `providers lock -platform=linux_amd64`,
+// `providers lock -platform=darwin_arm64`,
+// `providers lock -platform=freebsd_amd64`
+func convertToMultipleCommandsByPlatforms(args []string) [][]string {
+	var (
+		filteredArgs []string
+		platformArgs []string
+		commandsArgs [][]string
+	)
+
+	for _, arg := range args {
+		if strings.HasPrefix(arg, terraform.FlagNamePlatform) {
+			platformArgs = append(platformArgs, arg)
+		} else {
+			filteredArgs = append(filteredArgs, arg)
+		}
+	}
+
+	for _, platformArg := range platformArgs {
+		commandsArgs = append(commandsArgs, append(filteredArgs, platformArg))
+	}
+
+	return commandsArgs
 }

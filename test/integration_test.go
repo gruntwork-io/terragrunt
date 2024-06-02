@@ -229,9 +229,9 @@ func TestTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all providers lock %s  --terragrunt-no-auto-init --terragrunt-provider-cache --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", strings.Join(platformsArgs, " "), providerCacheDir, rootPath))
 
-	providers := map[string]string{
-		"terraform-provider-aws":     "hashicorp/aws/5.36.0",
-		"terraform-provider-azurerm": "hashicorp/azurerm/3.95.0",
+	providers := []string{
+		"hashicorp/aws/5.36.0",
+		"hashicorp/azurerm/3.95.0",
 	}
 
 	registryName := "registry.opentofu.org"
@@ -250,18 +250,18 @@ func TestTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 		lockfile, diags := hclwrite.ParseConfig(lockfileContent, lockfilePath, hcl.Pos{Line: 1, Column: 1})
 		require.False(t, diags.HasErrors())
 
-		for providerFile, providerAddr := range providers {
-			providerAddr := path.Join(registryName, providerAddr)
+		for _, provider := range providers {
+			provider := path.Join(registryName, provider)
 
-			providerBlock := lockfile.Body().FirstMatchingBlock("provider", []string{filepath.Dir(providerAddr)})
+			providerBlock := lockfile.Body().FirstMatchingBlock("provider", []string{filepath.Dir(provider)})
 			assert.NotNil(t, providerBlock)
 
-			providerPath := filepath.Join(providerCacheDir, providerAddr)
+			providerPath := filepath.Join(providerCacheDir, provider)
 			assert.True(t, util.FileExists(providerPath))
 
 			for _, platform := range platforms {
-				platformFile := filepath.Join(providerPath, platform, providerFile)
-				assert.True(t, util.FileExists(platformFile))
+				platformPath := filepath.Join(providerPath, platform)
+				assert.True(t, util.FileExists(platformPath))
 			}
 		}
 	}
