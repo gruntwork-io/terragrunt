@@ -32,6 +32,8 @@ import (
 	terraws "github.com/gruntwork-io/terratest/modules/aws"
 	"github.com/gruntwork-io/terratest/modules/git"
 	"github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/iterator"
@@ -60,6 +62,7 @@ const (
 	TERRAFORM_REMOTE_STATE_GCP_REGION                                        = "eu"
 	TEST_FIXTURE_PATH                                                        = "fixture/"
 	TEST_FIXTURE_INIT_ONCE                                                   = "fixture-init-once"
+	TEST_FIXTURE_PROVIDER_CACHE_MULTIPLE_PLATFORMS                           = "fixture-provider-cache/multiple-platforms"
 	TEST_FIXTURE_PROVIDER_CACHE_DIRECT                                       = "fixture-provider-cache/direct"
 	TEST_FIXTURE_PROVIDER_CACHE_FILESYSTEM_MIRROR                            = "fixture-provider-cache/filesystem-mirror"
 	TEST_FIXTURE_DESTROY_ORDER                                               = "fixture-destroy-order"
@@ -206,6 +209,65 @@ const (
 	qaMyAppRelPath  = "qa/my-app"
 	fixtureDownload = "fixture-download"
 )
+
+func TestTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
+	cleanupTerraformFolder(t, TEST_FIXTURE_PROVIDER_CACHE_MULTIPLE_PLATFORMS)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PROVIDER_CACHE_MULTIPLE_PLATFORMS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PROVIDER_CACHE_MULTIPLE_PLATFORMS)
+
+	cacheDir, err := util.GetCacheDir()
+	require.NoError(t, err)
+	providerCacheDir := filepath.Join(cacheDir, "provider-cache-multiple-platforms")
+
+	var (
+		platforms     = []string{"linux_amd64", "darwin_arm64"}
+		platformsArgs []string
+	)
+
+	for _, platform := range platforms {
+		platformsArgs = append(platformsArgs, fmt.Sprintf("-platform=%s", platform))
+	}
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all providers lock %s  --terragrunt-no-auto-init --terragrunt-provider-cache --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", strings.Join(platformsArgs, " "), providerCacheDir, rootPath))
+
+	providers := []string{
+		"hashicorp/aws/5.36.0",
+		"hashicorp/azurerm/3.95.0",
+	}
+
+	registryName := "registry.opentofu.org"
+	if isTerraform() {
+		registryName = "registry.terraform.io"
+	}
+
+	for _, appName := range []string{"app1", "app2", "app3"} {
+		appPath := filepath.Join(rootPath, appName)
+		assert.True(t, util.FileExists(appPath))
+
+		lockfilePath := filepath.Join(appPath, ".terraform.lock.hcl")
+		lockfileContent, err := os.ReadFile(lockfilePath)
+		require.NoError(t, err)
+
+		lockfile, diags := hclwrite.ParseConfig(lockfileContent, lockfilePath, hcl.Pos{Line: 1, Column: 1})
+		require.False(t, diags.HasErrors())
+		require.NotNil(t, lockfile)
+
+		for _, provider := range providers {
+			provider := path.Join(registryName, provider)
+
+			providerBlock := lockfile.Body().FirstMatchingBlock("provider", []string{filepath.Dir(provider)})
+			assert.NotNil(t, providerBlock)
+
+			providerPath := filepath.Join(providerCacheDir, provider)
+			assert.True(t, util.FileExists(providerPath))
+
+			for _, platform := range platforms {
+				platformPath := filepath.Join(providerPath, platform)
+				assert.True(t, util.FileExists(platformPath))
+			}
+		}
+	}
+}
 
 func TestTerragruntInitOnce(t *testing.T) {
 	t.Parallel()

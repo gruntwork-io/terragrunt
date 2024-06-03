@@ -28,6 +28,9 @@ const (
 	// `apply -destroy` is alias for `destroy`
 	FlagNameDestroy = "-destroy"
 
+	// `platform` is a flag used with the `providers lock` command.
+	FlagNamePlatform = "-platform"
+
 	EnvNameTFCLIConfigFile                         = "TF_CLI_CONFIG_FILE"
 	EnvNameTFPluginCacheDir                        = "TF_PLUGIN_CACHE_DIR"
 	EnvNameTFPluginCacheMayBreakDependencyLockFile = "TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE"
