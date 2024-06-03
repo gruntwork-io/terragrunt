@@ -120,25 +120,27 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 }
 
 func getExistingHashes(providerBlock *hclwrite.Block, provider Provider) ([]Hash, error) {
+	versionAttr := providerBlock.Body().GetAttribute("version")
+	if versionAttr == nil {
+		return nil, nil
+	}
+
 	var hashes []Hash
 
-	versionAttr := providerBlock.Body().GetAttribute("version")
-	if versionAttr != nil {
-		// a version attribute found
-		versionVal := getAttributeValueAsUnquotedString(versionAttr)
-		log.Debugf("Check provider version in lock file: address = %s, lock = %s, config = %s", provider.Address(), versionVal, provider.Version())
+	// a version attribute found
+	versionVal := getAttributeValueAsUnquotedString(versionAttr)
+	log.Debugf("Check provider version in lock file: address = %s, lock = %s, config = %s", provider.Address(), versionVal, provider.Version())
 
-		if versionVal == provider.Version() {
-			// if version is equal, get already existing hashes from lock file to merge.
-			if attr := providerBlock.Body().GetAttribute("hashes"); attr != nil {
-				vals, err := getAttributeValueAsSlice(attr)
-				if err != nil {
-					return nil, err
-				}
+	if versionVal == provider.Version() {
+		// if version is equal, get already existing hashes from lock file to merge.
+		if attr := providerBlock.Body().GetAttribute("hashes"); attr != nil {
+			vals, err := getAttributeValueAsSlice(attr)
+			if err != nil {
+				return nil, err
+			}
 
-				for _, val := range vals {
-					hashes = append(hashes, Hash(val))
-				}
+			for _, val := range vals {
+				hashes = append(hashes, Hash(val))
 			}
 		}
 	}

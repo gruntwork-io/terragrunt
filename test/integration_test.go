@@ -249,6 +249,7 @@ func TestTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 
 		lockfile, diags := hclwrite.ParseConfig(lockfileContent, lockfilePath, hcl.Pos{Line: 1, Column: 1})
 		require.False(t, diags.HasErrors())
+		require.NotNil(t, lockfile)
 
 		for _, provider := range providers {
 			provider := path.Join(registryName, provider)
