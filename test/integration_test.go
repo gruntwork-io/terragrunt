@@ -193,6 +193,8 @@ const (
 	TEST_FIXTURE_GCS_PARALLEL_STATE_INIT                                     = "fixture-gcs-parallel-state-init"
 	TEST_FIXTURE_ASSUME_ROLE                                                 = "fixture-assume-role/external-id"
 	TEST_FIXTURE_ASSUME_ROLE_DURATION                                        = "fixture-assume-role/duration"
+	TEST_FIXTURE_ASSUME_ROLE_WEB_IDENTITY_ENV                                = "fixture-assume-role-web-identity/env-var"
+	TEST_FIXTURE_ASSUME_ROLE_WEB_IDENTITY_FILE                               = "fixture-assume-role-web-identity/file-path"
 	TEST_FIXTURE_GRAPH                                                       = "fixture-graph"
 	TEST_FIXTURE_SKIP_DEPENDENCIES                                           = "fixture-skip-dependencies"
 	TEST_FIXTURE_INFO_ERROR                                                  = "fixture-terragrunt-info-error"
@@ -6885,6 +6887,76 @@ func TestTerragruntAssumeRoleDuration(t *testing.T) {
 	assert.NotContains(t, output, "Initializing the backend...")
 	assert.NotContains(t, output, "has been successfully initialized!")
 	assert.Contains(t, output, "no changes are needed.")
+}
+
+func TestTerragruntAssumeRoleWebIdentityEnv(t *testing.T) {
+	t.Parallel()
+
+	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
+	tokenEnvVar := os.Getenv("AWS_TEST_S3_IDENTITY_TOKEN_VAR")
+	if tokenEnvVar == "" {
+		t.Skip("Missing required env var AWS_TEST_S3_IDENTITY_TOKEN_VAR")
+		return
+	}
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_ASSUME_ROLE_WEB_IDENTITY_ENV)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_ASSUME_ROLE_WEB_IDENTITY_ENV)
+
+	originalTerragruntConfigPath := util.JoinPath(TEST_FIXTURE_ASSUME_ROLE_WEB_IDENTITY_ENV, "terragrunt.hcl")
+	tmpTerragruntConfigFile := util.JoinPath(testPath, "terragrunt.hcl")
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+
+	copyTerragruntConfigAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
+		"__FILL_IN_BUCKET_NAME__":            s3BucketName,
+		"__FILL_IN_REGION__":                 TERRAFORM_REMOTE_STATE_S3_REGION,
+		"__FILL_IN_ASSUME_ROLE__":            assumeRole,
+		"__FILL_IN_IDENTITY_TOKEN_ENV_VAR__": tokenEnvVar,
+	})
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply  -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
+	assert.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
+}
+
+func TestTerragruntAssumeRoleWebIdentityFile(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_ASSUME_ROLE_WEB_IDENTITY_FILE)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_ASSUME_ROLE_WEB_IDENTITY_FILE)
+
+	originalTerragruntConfigPath := util.JoinPath(TEST_FIXTURE_ASSUME_ROLE_WEB_IDENTITY_FILE, "terragrunt.hcl")
+	tmpTerragruntConfigFile := util.JoinPath(testPath, "terragrunt.hcl")
+	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+
+	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
+	tokenEnvVar := os.Getenv("AWS_TEST_S3_IDENTITY_TOKEN_FILE_PATH")
+
+	copyTerragruntConfigAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
+		"__FILL_IN_BUCKET_NAME__":              s3BucketName,
+		"__FILL_IN_REGION__":                   TERRAFORM_REMOTE_STATE_S3_REGION,
+		"__FILL_IN_ASSUME_ROLE__":              assumeRole,
+		"__FILL_IN_IDENTITY_TOKEN_FILE_PATH__": tokenEnvVar,
+	})
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply  -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testPath), &stdout, &stderr)
+	assert.NoError(t, err)
+
+	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
+	assert.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
 }
 
 func prepareGraphFixture(t *testing.T) string {

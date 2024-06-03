@@ -1337,6 +1337,13 @@ The precedence is as follows: `--terragrunt-iam-web-identity-token` command line
 `iam_web_identity_token` attribute of the `terragrunt.hcl` file in the module directory → `iam_web_identity_token` attribute of the included
 `terragrunt.hcl`.
 
+The primary benefit of using AssumeRoleWithWebIdentity over regular AssumeRole is that it enables you to run terragrunt in your CI/CD pipelines wihthout static AWS credentials.
+
+For instructions on how to set this up, see the appropriate documentation for your git provider
+- GitLab: [Configure OpenID Connect in AWS to retrieve temporary credentials](https://docs.gitlab.com/ee/ci/cloud_services/aws/)
+- GitHub: [Configuring OpenID Connect in Amazon Web Services](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services)
+- CircleCI: [Using OpenID Connect tokens in jobs](https://circleci.com/docs/openid-connect-tokens/)
+
 ### terraform_binary
 
 The terragrunt `terraform_binary` string option can be used to override the default terraform binary path (which is
