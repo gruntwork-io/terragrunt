@@ -299,6 +299,23 @@ type TerragruntOptions struct {
 	JsonOutputFolder string
 }
 
+// TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
+type TerragruntOptionsFunc func(*TerragruntOptions)
+
+// WithRoleARN adds the provided role ARN to IamRoleOptions. Used to configure IAM role in
+func WithIAMRoleARN(arn string) TerragruntOptionsFunc {
+	return func(t *TerragruntOptions) {
+		t.IAMRoleOptions.RoleARN = arn
+	}
+}
+
+// WithIAMWebIdentityToken adds the provided WebIdentity token to IamRoleOptions
+func WithIAMWebIdentityToken(token string) TerragruntOptionsFunc {
+	return func(t *TerragruntOptions) {
+		t.IAMRoleOptions.WebIdentityToken = token
+	}
+}
+
 // IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
 type IAMRoleOptions struct {
 	// The ARN of an IAM Role to assume. Used when accessing AWS, both internally and through terraform.
@@ -420,7 +437,7 @@ func GetDefaultIAMAssumeRoleSessionName() string {
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for test usage
-func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOptions, error) {
+func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...TerragruntOptionsFunc) (*TerragruntOptions, error) {
 	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
 	if err != nil {
 		logger := util.CreateLogEntry("", util.GetDefaultLogLevel())
@@ -431,6 +448,10 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOption
 	opts.NonInteractive = true
 	opts.Logger = util.CreateLogEntry("", logrus.DebugLevel)
 	opts.LogLevel = logrus.DebugLevel
+
+	for _, opt := range options {
+		opt(opts)
+	}
 
 	return opts, nil
 }

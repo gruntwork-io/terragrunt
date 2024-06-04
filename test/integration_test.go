@@ -4538,11 +4538,11 @@ func deleteS3BucketWithRetry(t *testing.T, awsRegion string, bucketName string) 
 }
 
 // Delete the specified S3 bucket to clean up after a test
-func deleteS3Bucket(t *testing.T, awsRegion string, bucketName string) {
-	require.NoError(t, deleteS3BucketE(t, awsRegion, bucketName))
+func deleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...options.TerragruntOptionsFunc) {
+	require.NoError(t, deleteS3BucketE(t, awsRegion, bucketName, opts...))
 }
-func deleteS3BucketE(t *testing.T, awsRegion string, bucketName string) error {
-	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
+func deleteS3BucketE(t *testing.T, awsRegion string, bucketName string, opts ...options.TerragruntOptionsFunc) error {
+	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test", opts...)
 	if err != nil {
 		t.Logf("Error creating mockOptions: %v", err)
 		return err
@@ -6907,7 +6907,7 @@ func TestTerragruntAssumeRoleWebIdentityEnv(t *testing.T) {
 	tmpTerragruntConfigFile := util.JoinPath(testPath, "terragrunt.hcl")
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 
-	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName, options.WithIAMRoleARN(os.Getenv(assumeRole)), options.WithIAMWebIdentityToken(os.Getenv(tokenEnvVar)))
 
 	copyTerragruntConfigAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
 		"__FILL_IN_BUCKET_NAME__":            s3BucketName,
@@ -6937,16 +6937,16 @@ func TestTerragruntAssumeRoleWebIdentityFile(t *testing.T) {
 	tmpTerragruntConfigFile := util.JoinPath(testPath, "terragrunt.hcl")
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 
-	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-
 	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
-	tokenEnvVar := os.Getenv("AWS_TEST_S3_IDENTITY_TOKEN_FILE_PATH")
+	tokenFilePath := os.Getenv("AWS_TEST_S3_IDENTITY_TOKEN_FILE_PATH")
+
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName, options.WithIAMRoleARN(assumeRole), options.WithIAMWebIdentityToken(tokenFilePath))
 
 	copyTerragruntConfigAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
 		"__FILL_IN_BUCKET_NAME__":              s3BucketName,
 		"__FILL_IN_REGION__":                   TERRAFORM_REMOTE_STATE_S3_REGION,
 		"__FILL_IN_ASSUME_ROLE__":              assumeRole,
-		"__FILL_IN_IDENTITY_TOKEN_FILE_PATH__": tokenEnvVar,
+		"__FILL_IN_IDENTITY_TOKEN_FILE_PATH__": tokenFilePath,
 	})
 
 	stdout := bytes.Buffer{}
