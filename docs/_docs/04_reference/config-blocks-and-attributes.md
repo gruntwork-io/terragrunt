@@ -37,6 +37,7 @@ The following is a reference of all the supported blocks and attributes in the c
   - [iam\_role](#iam_role)
   - [iam\_assume\_role\_duration](#iam_assume_role_duration)
   - [iam\_assume\_role\_session\_name](#iam_assume_role_session_name)
+  - [iam\_web\_identity\_token](#iam_web_identity_token)
   - [terraform\_binary](#terraform_binary)
   - [terraform\_version\_constraint](#terraform_version_constraint)
   - [terragrunt\_version\_constraint](#terragrunt_version_constraint)
@@ -1172,7 +1173,7 @@ generate = local.common.generate
   - [iam\_role](#iam_role)
   - [iam\_assume\_role\_duration](#iam_assume_role_duration)
   - [iam\_assume\_role\_session\_name](#iam_assume_role_session_name)
-  - [iam\_web\_identity\_token(#iam_web_identity_token)
+  - [iam\_web\_identity\_token](#iam_web_identity_token)
   - [terraform\_binary](#terraform_binary)
   - [terraform\_version\_constraint](#terraform_version_constraint)
   - [terragrunt\_version\_constraint](#terragrunt_version_constraint)
@@ -1339,10 +1340,35 @@ The precedence is as follows: `--terragrunt-iam-web-identity-token` command line
 
 The primary benefit of using AssumeRoleWithWebIdentity over regular AssumeRole is that it enables you to run terragrunt in your CI/CD pipelines wihthout static AWS credentials.
 
-For instructions on how to set this up, see the appropriate documentation for your git provider
+#### Git Provider Configuration
+
+To use AssumeRoleWithWebIdentity in your CI/CD environment, you must first configure an AWS [OpenID Connect
+provider](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html) to trust the OIDC service
+provided by your git provider.
+
+Follow the instructions below for whichever Git provider you use:
 - GitLab: [Configure OpenID Connect in AWS to retrieve temporary credentials](https://docs.gitlab.com/ee/ci/cloud_services/aws/)
 - GitHub: [Configuring OpenID Connect in Amazon Web Services](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services)
 - CircleCI: [Using OpenID Connect tokens in jobs](https://circleci.com/docs/openid-connect-tokens/)
+
+Once you have configured your OpenID Connect Provider and configured the trust policy of your IAM role according to the above instructions, you
+can configure Terragrunt to use the Web Identity Token in the following manner.
+
+If your Git provider provides the OIDC token as an environment variable, pass it in to the `iam_web_identity_token` as follows
+
+```terragrunt
+iam_role = "arn:aws:iam::<AWS account number>:role/<IAM role name>"
+
+iam_web_identity_token = get_env("<variable name>")
+```
+
+If your Git provider provides the OIDC token as a file, simply pass the file path to `iam_web_identity_token`
+
+```terragrunt
+iam_role = "arn:aws:iam::<AWS account number>:role/<IAM role name>"
+
+iam_web_identity_token = "/path/to/token/file" 
+```
 
 ### terraform_binary
 
