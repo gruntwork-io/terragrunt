@@ -106,6 +106,15 @@ Some plugins for some operating systems may not be available in the remote regis
 
 Terraform has an official documented setting [network_mirror](https://developer.hashicorp.com/terraform/cli/config/config-file#network_mirror), that works great, but has one major drawback for the local cache server - the need to use https connection with a trusted certificate. Fortunately, there is another way - using the undocumented [host](https://github.com/hashicorp/terraform/issues/28309) setting, which allows Terraform to create connections to the caching server over HTTP.
 
+#### Provider Cache with `providers lock` command
+
+If you run `providers lock` with enabled Terragrunt Provider Cache, Terragrunt creates the provider cache and generates the lock file on its own, without running `terraform providers lock` at all.
+
+```shell
+terragrunt providers lock -platform=linux_amd64 -platform=darwin_arm64 -platform=freebsd_amd64 \
+--terragrunt-provider-cache
+```
+
 ### Configure the Terragrunt Cache Provider
 
 Since Terragrunt Provider Cache is essentially a Private Registry server that accepts requests from Terraform, downloads and saves providers to the cache directory, there are a few more flags that are unlikely to be needed, but are useful to know about:
