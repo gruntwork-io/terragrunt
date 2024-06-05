@@ -6907,7 +6907,7 @@ func TestTerragruntAssumeRoleWebIdentityEnv(t *testing.T) {
 	tmpTerragruntConfigFile := util.JoinPath(testPath, "terragrunt.hcl")
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 
-	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName, options.WithIAMRoleARN(os.Getenv(assumeRole)), options.WithIAMWebIdentityToken(os.Getenv(tokenEnvVar)))
+	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName, options.WithIAMRoleARN(assumeRole), options.WithIAMWebIdentityToken(os.Getenv(tokenEnvVar)))
 
 	copyTerragruntConfigAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
 		"__FILL_IN_BUCKET_NAME__":            s3BucketName,
