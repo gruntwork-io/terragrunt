@@ -1303,6 +1303,10 @@ Specify the plan output directory for the `*-all` commands. Useful to save plans
 **Environment Variable**: `TERRAGRUNT_JSON_OUT_DIR`<br/>
 **Commands**:
 
+- [run-all](#run-all)
+
+Specify the output directory for the `*-all` commands to store plans in JSON format. Useful to read plans programmatically.
+
 ### terragrunt-auth-provider-cmd
 
 **CLI Arg**: `--terragrunt-auth-provider-cmd`<br/>
