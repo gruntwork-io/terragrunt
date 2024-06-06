@@ -1303,6 +1303,20 @@ Specify the plan output directory for the `*-all` commands. Useful to save plans
 **Environment Variable**: `TERRAGRUNT_JSON_OUT_DIR`<br/>
 **Commands**:
 
-- [run-all](#run-all)
+### terragrunt-auth-provider-cmd
 
-Specify the output directory for the `*-all` commands to store plans in JSON format. Useful to read plans programmatically.
+**CLI Arg**: `--terragrunt-auth-provider-cmd`<br/>
+**Environment Variable**: `TERRAGRUNT_AUTH_PROVIDER_CMD`<br/>
+**Requires an argument**: `--terragrunt-auth-provider-cmd /path/to/executable/file`<br/>
+
+The path to the executable file to obtain authentication credentials. If specified, Terragrunt runs this command for every working directory. The output must be the following JSON string
+
+```json
+{
+  "envs": {
+    "AWS_ACCESS_KEY_ID": "...",
+    "AWS_SECRET_ACCESS_KEY": "...",
+    "AWS_SESSION_TOKEN": "..."
+  }
+}
+```

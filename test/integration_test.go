@@ -4132,8 +4132,7 @@ func TestReadTerragruntAuthProviderCmd(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_AUTH_PROVIDER_CMD)
 	mockPiplinesCmd := filepath.Join(rootPath, "mock-pipelines.sh")
 
-	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all init --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", rootPath, mockPiplinesCmd))
-	assert.Nil(t, err)
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", rootPath, mockPiplinesCmd))
 }
 
 func TestIamRolesLoadingFromDifferentModules(t *testing.T) {

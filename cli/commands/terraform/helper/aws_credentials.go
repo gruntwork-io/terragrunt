@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
 )
 
@@ -28,7 +27,7 @@ func AssumeRoleAndUpdateEnvIfNecessary(ctx context.Context, opts *options.Terrag
 		return err
 	} else if apiCreds != nil {
 		if creds != nil {
-			log.Warnf("AWS credentials obtained using the %s command are overwritten by credentials obtained by assuming the %q role.", opts.AuthProviderCmd, opts.IAMRoleOptions.RoleARN)
+			opts.Logger.Warnf("AWS credentials obtained using the %s command are overwritten by credentials obtained by assuming the %q role.", opts.AuthProviderCmd, opts.IAMRoleOptions.RoleARN)
 		}
 		creds = apiCreds
 	}
@@ -80,7 +79,7 @@ func getAWSCredentialsByRunningProviderCommand(ctx context.Context, opts *option
 	}
 
 	if creds.Envs.AccessKeyID == "" || creds.Envs.SecretAccessKey == "" || creds.Envs.SessionToken == "" {
-		log.Warnf("The command %s completed successfully, but the response contains empty credentials, nothing is being done.", command)
+		opts.Logger.Warnf("The command %s completed successfully, but the response contains empty credentials, nothing is being done.", command)
 		return nil, nil
 	}
 
@@ -97,7 +96,7 @@ func getAWSCredentialsByMakingAPICallsToAmazonSTS(opts *options.TerragruntOption
 		return nil, nil
 	}
 
-	log.Debugf("Assuming IAM role %s with a session duration of %d seconds.", iamRoleOpts.RoleARN, iamRoleOpts.AssumeRoleDuration)
+	opts.Logger.Debugf("Assuming IAM role %s with a session duration of %d seconds.", iamRoleOpts.RoleARN, iamRoleOpts.AssumeRoleDuration)
 	creds, err := aws_helper.AssumeIamRole(iamRoleOpts)
 	if err != nil {
 		return nil, err
