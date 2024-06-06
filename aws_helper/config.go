@@ -214,6 +214,10 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 
 	sess.Handlers.Build.PushFrontNamed(addUserAgent)
 
+	if iamRoleOpts.RoleARN != "" && iamRoleOpts.WebIdentityToken != "" {
+		sess.Config.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(sess, iamRoleOpts)
+	}
+
 	_, err = sess.Config.Credentials.Get()
 	if err != nil {
 		return nil, errors.WithStackTraceAndPrefix(err, "Error finding AWS credentials (did you set the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables?)")
@@ -239,7 +243,7 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 		} else {
 			tb, err := os.ReadFile(iamRoleOpts.WebIdentityToken)
 			if err != nil {
-				return nil, err
+				return nil, errors.WithStackTrace(err)
 			}
 			token = string(tb)
 		}
