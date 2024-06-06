@@ -1347,6 +1347,7 @@ provider](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_cr
 provided by your git provider.
 
 Follow the instructions below for whichever Git provider you use:
+
 - GitLab: [Configure OpenID Connect in AWS to retrieve temporary credentials](https://docs.gitlab.com/ee/ci/cloud_services/aws/)
 - GitHub: [Configuring OpenID Connect in Amazon Web Services](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services)
 - CircleCI: [Using OpenID Connect tokens in jobs](https://circleci.com/docs/openid-connect-tokens/)
