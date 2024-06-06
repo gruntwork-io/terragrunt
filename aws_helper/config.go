@@ -178,7 +178,7 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 		sess.Handlers.Build.PushFrontNamed(addUserAgent)
 		if terragruntOptions.IAMRoleOptions.RoleARN != "" {
 			if terragruntOptions.IAMRoleOptions.WebIdentityToken != "" {
-				terragruntOptions.Logger.Debugf("Assuming role %s with WebIdentity token %s", terragruntOptions.IAMRoleOptions.RoleARN, terragruntOptions.IAMRoleOptions.WebIdentityToken)
+				terragruntOptions.Logger.Debugf("Assuming role %s using WebIdentity token", terragruntOptions.IAMRoleOptions.RoleARN)
 				sess.Config.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(sess, terragruntOptions.IAMRoleOptions)
 			} else {
 				terragruntOptions.Logger.Debugf("Assuming role %s", terragruntOptions.IAMRoleOptions.RoleARN)
