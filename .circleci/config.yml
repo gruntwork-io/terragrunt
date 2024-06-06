@@ -7,7 +7,7 @@ orbs:
 env: &env
   environment:
     GRUNTWORK_INSTALLER_VERSION: v0.0.39
-    MODULE_CI_VERSION: v0.56.0
+    MODULE_CI_VERSION: v0.57.0
 
 defaults: &defaults
   docker:
@@ -343,7 +343,7 @@ jobs:
     <<: *env
     macos:
       xcode: 15.3.0
-    resource_class: macos.x86.medium.gen2
+    resource_class: macos.m1.medium.gen1
     steps:
       - checkout
       - attach_workspace:
@@ -380,7 +380,7 @@ jobs:
     <<: *env
     macos:
       xcode: 15.3.0
-    resource_class: macos.x86.medium.gen2
+    resource_class: macos.m1.medium.gen1
     steps:
       - checkout
       - attach_workspace:
