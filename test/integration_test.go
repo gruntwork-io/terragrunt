@@ -199,6 +199,7 @@ const (
 	TEST_FIXTURE_DEPENDENCY_OUTPUT                                           = "fixture-dependency-output"
 	TEST_FIXTURE_OUT_DIR                                                     = "fixture-out-dir"
 	TEST_FIXTURE_SOPS_ERRORS                                                 = "fixture-sops-errors"
+	TEST_FIXTURE_AUTH_PROVIDER_CMD                                           = "fixture-auth-provider-cmd"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -4121,6 +4122,18 @@ func TestReadTerragruntConfigIamRole(t *testing.T) {
 	assert.Contains(t, output, "666666666666")
 	// Ensure that state file wasn't created with default IAM value
 	assert.True(t, util.FileNotExists(util.JoinPath(TEST_FIXTURE_READ_IAM_ROLE, identityArn+".txt")))
+}
+
+func TestReadTerragruntAuthProviderCmd(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_AUTH_PROVIDER_CMD)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_AUTH_PROVIDER_CMD)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_AUTH_PROVIDER_CMD)
+	mockPiplinesCmd := filepath.Join(rootPath, "mock-pipelines.sh")
+
+	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all init --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", rootPath, mockPiplinesCmd))
+	assert.Nil(t, err)
 }
 
 func TestIamRolesLoadingFromDifferentModules(t *testing.T) {

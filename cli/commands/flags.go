@@ -42,6 +42,7 @@ const (
 	TerragruntFailOnStateBucketCreationFlagName      = "terragrunt-fail-on-state-bucket-creation"
 	TerragruntDisableBucketUpdateFlagName            = "terragrunt-disable-bucket-update"
 	TerragruntDisableCommandValidationFlagName       = "terragrunt-disable-command-validation"
+	TerragruntAuthProviderCmdFlagName                = "terragrunt-auth-provider-cmd"
 
 	TerragruntOutDirFlagEnvVarName = "TERRAGRUNT_OUT_DIR"
 	TerragruntOutDirFlagName       = "terragrunt-out-dir"
@@ -308,6 +309,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.ProviderCacheRegistryNames,
 			EnvVar:      TerragruntProviderCacheRegistryNamesEnvVarName,
 			Usage:       "The list of remote registries to cached by Terragrunt Provider Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'.",
+		},
+		&cli.GenericFlag[string]{
+			Name:        TerragruntAuthProviderCmdFlagName,
+			Destination: &opts.AuthProviderCmd,
+			EnvVar:      "TERRAGRUNT_AUTH_PROVIDER_CMD",
+			Usage:       "Path to the executable file to obtain authentication credentials.",
 		},
 	}
 

@@ -297,6 +297,10 @@ type TerragruntOptions struct {
 
 	// Folder to store JSON representation of output files.
 	JsonOutputFolder string
+
+	// Path to the executable file to obtain authentication credentials.
+	// Terragrunt invokes this command before running tofu operations for each working direcotry.
+	AuthProviderCmd string
 }
 
 // IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
@@ -513,6 +517,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		DisableLogColors:               opts.DisableLogColors,
 		OutputFolder:                   opts.OutputFolder,
 		JsonOutputFolder:               opts.JsonOutputFolder,
+		AuthProviderCmd:                opts.AuthProviderCmd,
 	}
 }
 
