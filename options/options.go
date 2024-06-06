@@ -298,8 +298,8 @@ type TerragruntOptions struct {
 	// Folder to store JSON representation of output files.
 	JsonOutputFolder string
 
-	// Path to the executable file to obtain authentication credentials.
-	// Terragrunt invokes this command before running tofu operations for each working directory.
+	// The path to the authentication command to obtain AWS credentials.
+	// Terragrunt invokes this command before running tofu/terraform operations for each working directory.
 	AuthProviderCmd string
 }
 

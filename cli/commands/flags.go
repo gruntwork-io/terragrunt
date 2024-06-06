@@ -316,7 +316,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        TerragruntAuthProviderCmdFlagName,
 			Destination: &opts.AuthProviderCmd,
 			EnvVar:      TerragruntAuthProviderCmdEnvVarName,
-			Usage:       "Path to the executable file to obtain authentication credentials.",
+			Usage:       "Path to the authentication command to obtain AWS credentials.",
 		},
 	}
 
