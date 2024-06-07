@@ -280,7 +280,7 @@ func createGCSBucketIfNecessary(ctx context.Context, gcsClient *storage.Client, 
 			// To avoid any eventual consistency issues with creating a GCS bucket we use a retry loop.
 			description := fmt.Sprintf("Create GCS bucket %s", config.remoteStateConfigGCS.Bucket)
 
-			return util.DoWithRetry(ctx, description, gcpMaxRetries, gcpSleepBetweenRetries, logrus.DebugLevel, func() error {
+			return util.DoWithRetry(ctx, description, gcpMaxRetries, gcpSleepBetweenRetries, logrus.DebugLevel, func(ctx context.Context) error {
 				return CreateGCSBucketWithVersioning(gcsClient, config, terragruntOptions)
 			})
 		}

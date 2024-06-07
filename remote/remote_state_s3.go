@@ -444,7 +444,7 @@ func createS3BucketIfNecessary(ctx context.Context, s3Client *s3.S3, config *Ext
 		// been performed should be a no-op.
 		description := fmt.Sprintf("Create S3 bucket with retry %s", config.remoteStateConfigS3.Bucket)
 
-		return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, logrus.DebugLevel, func() error {
+		return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, logrus.DebugLevel, func(ctx context.Context) error {
 			err := CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client, config, terragruntOptions)
 			if err != nil {
 				if isBucketCreationErrorRetriable(err) {
