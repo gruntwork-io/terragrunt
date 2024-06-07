@@ -1,26 +1,21 @@
 package plugins
 
 import (
-	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/shell"
-	"os/exec"
+	"context"
+	"github.com/hashicorp/go-plugin"
+	"google.golang.org/grpc"
 )
 
-// RunCmd struct used to send the command to the plugin
-type RunCmd struct {
-	TerragruntOptions *options.TerragruntOptions
-	WorkingDir        string
-	Cmd               *exec.Cmd
-	AllocatePseudoTty bool
+type TerragruntGRPCPlugin struct {
+	plugin.Plugin
+	Impl CommandExecutorServer
 }
 
-// RunCmdResponse command execution response
-type RunCmdResponse struct {
-	Output *shell.CmdOutput
+func (p *TerragruntGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
+	RegisterCommandExecutorServer(s, p.Impl)
+	return nil
 }
 
-// Plugin interface
-type Plugin interface {
-	Init(opts *options.TerragruntOptions) error
-	Run(runCmd *RunCmd) (*RunCmdResponse, error)
+func (p *TerragruntGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
+	return NewCommandExecutorClient(c), nil
 }
