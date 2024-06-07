@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -17,14 +18,14 @@ type TerraformCommandExecutor struct {
 func (c *TerraformCommandExecutor) Init(ctx context.Context, req *pb.InitRequest) (*pb.InitResponse, error) {
 
 	// initialize plugin
-	log.Info("Terraform Running init")
+	log.Infof("Terraform Running init")
 
 	return &pb.InitResponse{ResultCode: 0}, nil
 }
 
 func (c *TerraformCommandExecutor) Run(ctx context.Context, req *pb.RunRequest) (*pb.RunResponse, error) {
-	log.Info("Terraform Running command: %s", req.Command)
-	cmd := exec.Command(req.Command)
+	log.Infof("Terraform Running command: %v %v", req.Command, req.Args)
+	cmd := exec.Command(req.Command, req.Args...)
 	cmd.Dir = req.WorkingDir
 
 	// Set environment variables
@@ -34,10 +35,18 @@ func (c *TerraformCommandExecutor) Run(ctx context.Context, req *pb.RunRequest) 
 	}
 	cmd.Env = append(cmd.Env, env...)
 
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+
 	if req.AllocatePseudoTty {
+		// Here you would allocate a pseudo-TTY if needed
+		// This is just a placeholder as actual implementation might be complex
 	}
-	stdout, err := cmd.Output()
-	stderr := ""
+
+	err := cmd.Run()
+	stdout := stdoutBuf.String()
+	stderr := stderrBuf.String()
 	resultCode := 0
 	if err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {
@@ -48,7 +57,7 @@ func (c *TerraformCommandExecutor) Run(ctx context.Context, req *pb.RunRequest) 
 			resultCode = 1
 		}
 	}
-	return &pb.RunResponse{Stdout: string(stdout), Stderr: stderr, ResultCode: int32(resultCode)}, nil
+	return &pb.RunResponse{Stdout: stdout, Stderr: stderr, ResultCode: int32(resultCode)}, nil
 }
 
 // GRPCServer is used to register the TerraformCommandExecutor with the gRPC server

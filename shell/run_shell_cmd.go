@@ -198,7 +198,8 @@ func RunShellCommandWithOutput(
 		if exists {
 			run, err := p.Run(childCtx, &plugins.RunRequest{
 				// convert args to string
-				Command:           command + " " + strings.Join(args, " "),
+				Command:           command,
+				Args:              args,
 				AllocatePseudoTty: allocatePseudoTty,
 				WorkingDir:        cmd.Dir,
 			})
@@ -214,6 +215,10 @@ func RunShellCommandWithOutput(
 				}
 				return errors.WithStackTrace(err)
 			}
+			// log stdout to cmdStdout and cmdStderr
+			_, err = cmdStdout.Write([]byte(run.Stdout))
+			_, err = cmdStderr.Write([]byte(run.Stderr))
+
 			cmdOutput := CmdOutput{
 				Stdout: run.Stdout,
 				Stderr: run.Stderr,
