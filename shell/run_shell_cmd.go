@@ -4,16 +4,18 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/hashicorp/go-plugin"
+	"google.golang.org/grpc"
 	"io"
 	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
-	"plugin"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/plugins"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/hashicorp/go-version"
@@ -74,46 +76,48 @@ func RunTerraformCommandWithOutput(ctx context.Context, terragruntOptions *optio
 }
 
 // plugin name - plugin path, inline
-var plugins = map[string]string{
-	"shell":     "/tmp/plugin_shell_shared",
-	"terraform": "/tmp/plugin_tofu_shared",
-	"tofu":      "/tmp/plugin_terraform_shared",
+var pluginMap = map[string]string{
+	"terraform": "/projects/gruntwork/terragrunt/plugins/terraform/terraform",
 }
 
-var pluginInstances = map[string]plugin.Plugin{}
+var pluginInstances = map[string]plugins.CommandExecutorClient{}
 
 func load() {
 	if len(pluginInstances) > 0 {
 		return
 	}
 	// iterate over plugins and save pluginInstances
-	for name, path := range plugins {
+	for name, path := range pluginMap {
 		fmt.Printf("Loading plugin %s from %s\n", name, path)
-		plug, err := plugin.Open(path)
+
+		client := plugin.NewClient(&plugin.ClientConfig{
+			HandshakeConfig: plugin.HandshakeConfig{
+				ProtocolVersion:  1,
+				MagicCookieKey:   "plugin",
+				MagicCookieValue: "terragrunt",
+			},
+			Plugins: map[string]plugin.Plugin{
+				name: &plugins.TerragruntGRPCPlugin{},
+			},
+			Cmd: exec.Command(path),
+			GRPCDialOptions: []grpc.DialOption{
+				grpc.WithInsecure(),
+			},
+			AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
+		})
+
+		rpcClient, err := client.Client()
 		if err != nil {
-			fmt.Println("Error opening plugin:", err)
-			continue
+			fmt.Println("Error:", err)
+			os.Exit(1)
 		}
-		fmt.Printf("Loading plugin %s from %s 1 \n", name, path)
-
-		symPlugin, err := plug.Lookup("Plugin")
+		rawClient, err := rpcClient.Dispense(name)
 		if err != nil {
-			fmt.Printf("Error looking up Plugin function: %v", err)
-			continue
+			fmt.Println("Error:", err)
+			os.Exit(1)
 		}
-
-		fmt.Printf("Loading plugin %s from %s 2 \n", name, path)
-
-		pluginFactory, ok := symPlugin.(func() plugin.Plugin)
-
-		if !ok {
-			fmt.Printf("Unexpected type from module symbol")
-			continue
-		}
-
-		fmt.Printf("Loading plugin %s from %s 3 \n", name, path)
-
-		pluginInstances[name] = pluginFactory()
+		terragruntPlugin := rawClient.(plugins.CommandExecutorClient)
+		pluginInstances[name] = terragruntPlugin
 	}
 
 }

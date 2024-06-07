@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	pb "github.com/gruntwork-io/terragrunt/plugins"
 	"github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
@@ -15,10 +16,14 @@ type TerraformCommandExecutor struct {
 
 func (c *TerraformCommandExecutor) Init(ctx context.Context, req *pb.InitRequest) (*pb.InitResponse, error) {
 
+	// initialize plugin
+	log.Info("Terraform Running init")
+
 	return &pb.InitResponse{ResultCode: 0}, nil
 }
 
 func (c *TerraformCommandExecutor) Run(ctx context.Context, req *pb.RunRequest) (*pb.RunResponse, error) {
+	log.Info("Terraform Running command: %s", req.Command)
 	cmd := exec.Command(req.Command)
 	cmd.Dir = req.WorkingDir
 
