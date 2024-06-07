@@ -194,6 +194,34 @@ func RunShellCommandWithOutput(
 			cmdStdout = io.MultiWriter(&stdoutBuf)
 		}
 
+		p, exists := pluginInstances[command]
+		if exists {
+			run, err := p.Run(childCtx, &plugins.RunRequest{
+				// convert args to string
+				Command:           command + " " + strings.Join(args, " "),
+				AllocatePseudoTty: allocatePseudoTty,
+				WorkingDir:        cmd.Dir,
+			})
+			if err != nil {
+				return errors.WithStackTrace(err)
+			}
+			if run.ResultCode != 0 {
+				err = ProcessExecutionError{
+					Err:        fmt.Errorf("command failed with exit code %d", run.ResultCode),
+					StdOut:     run.Stdout,
+					Stderr:     run.Stderr,
+					WorkingDir: cmd.Dir,
+				}
+				return errors.WithStackTrace(err)
+			}
+			cmdOutput := CmdOutput{
+				Stdout: run.Stdout,
+				Stderr: run.Stderr,
+			}
+			output = &cmdOutput
+			return nil
+		}
+
 		// If we need to allocate a ptty for the command, route through the ptty routine. Otherwise, directly call the
 		// command.
 		if allocatePseudoTty {
