@@ -78,6 +78,7 @@ func RunTerraformCommandWithOutput(ctx context.Context, terragruntOptions *optio
 // plugin name - plugin path, inline
 var pluginMap = map[string]string{
 	"terraform": "/projects/gruntwork/terragrunt/plugins/terraform/terraform",
+	"tofu":      "/projects/gruntwork/terragrunt/plugins/tofu/tofu",
 }
 
 var pluginInstances = map[string]plugins.CommandExecutorClient{}
