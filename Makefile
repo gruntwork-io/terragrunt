@@ -50,4 +50,9 @@ install-mockery:
 generate-mocks:
 	go generate ./...
 
+plugins:
+	protoc --go_out=$(pwd)/plugins --go_opt=paths=source_relative plugins.proto
+	protoc --go-grpc_out=$(pwd)/plugins --go-grpc_opt=paths=source_relative plugins.proto
+
+
 .PHONY: help fmtcheck fmt install-fmt-hook clean install-lint run-lint

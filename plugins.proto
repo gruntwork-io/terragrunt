@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package plugins;
+option go_package = "/plugins";
+
+service CommandExecutor {
+  rpc Init(InitRequest) returns (InitResponse);
+  rpc Run(RunRequest) returns (RunResponse);
+}
+
+message InitRequest {
+  string working_dir = 1;
+}
+
+message InitResponse {
+  string stdout = 1;
+  string stderr = 2;
+  int32 result_code = 3;
+}
+
+message RunRequest {
+  string working_dir = 1;
+  string command = 2;
+  bool allocate_pseudo_tty = 3;
+}
+
+message RunResponse {
+  string stdout = 1;
+  string stderr = 2;
+}

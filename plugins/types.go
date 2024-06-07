@@ -19,9 +19,8 @@ type RunCmdResponse struct {
 	Output *shell.CmdOutput
 }
 
+// Plugin interface
 type Plugin interface {
 	Init(opts *options.TerragruntOptions) error
 	Run(runCmd *RunCmd) (*RunCmdResponse, error)
-	Output(opts *options.TerragruntOptions) error
-	Shutdown(opts *options.TerragruntOptions) error
 }

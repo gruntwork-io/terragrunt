@@ -21,8 +21,8 @@ func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: plugin.HandshakeConfig{
 			ProtocolVersion:  1,
-			MagicCookieKey:   "terraform",
-			MagicCookieValue: "terraform",
+			MagicCookieKey:   "Terragrunt",
+			MagicCookieValue: "Terragrunt",
 		},
 		Plugins:    pluginMap,
 		GRPCServer: plugin.DefaultGRPCServer,
