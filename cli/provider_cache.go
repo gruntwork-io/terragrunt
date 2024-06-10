@@ -177,7 +177,11 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 		}
 	}
 
-	caches := cache.providerService.WaitForCacheReady(cacheRequestID)
+	caches, err := cache.providerService.WaitForCacheReady(cacheRequestID)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := getproviders.UpdateLockfile(ctx, opts.WorkingDir, caches); err != nil {
 		return nil, err
 	}

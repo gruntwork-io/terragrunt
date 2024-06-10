@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	goerrors "errors"
 	"fmt"
 	"os"
 	"path"
@@ -79,6 +78,7 @@ type ProviderCache struct {
 	signature          []byte
 	archiveCached      bool
 	ready              bool
+	err                error
 
 	userProviderDir string
 	packageDir      string
@@ -202,7 +202,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	if util.FileExists(cache.DownloadURL) {
 		cache.archivePath = cache.DownloadURL
 	} else {
-		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %s", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func() error {
+		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %s", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func(ctx context.Context) error {
 			return util.FetchToFile(ctx, cache.DownloadURL, cache.archivePath)
 		}); err != nil {
 			return err
@@ -242,7 +242,7 @@ func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile
 		return nil, errors.WithStackTrace(err)
 	}
 
-	if err := util.DoWithRetry(ctx, fmt.Sprintf("Acquiring lock file %s", cache.lockfilePath), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func() error {
+	if err := util.DoWithRetry(ctx, fmt.Sprintf("Acquiring lock file %s", cache.lockfilePath), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func(ctx context.Context) error {
 		return lockfile.TryLock()
 	}); err != nil {
 		return nil, errors.Errorf("unable to acquire lock file %s (already locked?) try to remove the file manually: %w", cache.lockfilePath, err)
@@ -278,16 +278,24 @@ func NewProviderService(cacheDir, userCacheDir string) *ProviderService {
 
 // WaitForCacheReady returns cached providers that were requested by `terraform init` from the cache server, with an  URL containing the given `requestID` value.
 // The function returns the value only when all cache requests have been processed.
-func (service *ProviderService) WaitForCacheReady(requestID string) []getproviders.Provider {
+func (service *ProviderService) WaitForCacheReady(requestID string) ([]getproviders.Provider, error) {
 	service.cacheReadyMu.Lock()
 	defer service.cacheReadyMu.Unlock()
 
-	var providers []getproviders.Provider
+	var (
+		providers []getproviders.Provider
+		merr      = &multierror.Error{}
+	)
 
 	for _, provider := range service.providerCaches.FindByRequestID(requestID) {
-		providers = append(providers, provider)
+		if provider.err != nil {
+			merr = multierror.Append(merr, fmt.Errorf("unable to cache provider: %s, err: %w", provider, provider.err))
+		}
+		if provider.ready {
+			providers = append(providers, provider)
+		}
 	}
-	return providers
+	return providers, merr.ErrorOrNil()
 }
 
 // CacheProvider starts caching the given provider using non-blocking approach.
@@ -365,7 +373,7 @@ func (service *ProviderService) Run(ctx context.Context) error {
 				return nil
 			})
 		case <-ctx.Done():
-			if err := errGroup.Wait(); err != nil && !goerrors.Is(err, context.Canceled) {
+			if err := errGroup.Wait(); err != nil {
 				merr = multierror.Append(merr, err)
 			}
 
@@ -391,10 +399,10 @@ func (service *ProviderService) startProviderCaching(ctx context.Context, cache 
 	}
 	defer lockfile.Unlock() //nolint:errcheck
 
-	if err := cache.warmUp(ctx); err != nil {
+	if cache.err = cache.warmUp(ctx); cache.err != nil {
 		os.Remove(cache.packageDir)  //nolint:errcheck
 		os.Remove(cache.archivePath) //nolint:errcheck
-		return err
+		return cache.err
 	}
 	cache.ready = true
 

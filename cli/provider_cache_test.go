@@ -143,7 +143,8 @@ func TestProviderCache(t *testing.T) {
 				assert.Regexp(t, testCase.expectedBodyReg, string(body))
 			}
 
-			providerService.WaitForCacheReady("")
+			_, err = providerService.WaitForCacheReady("")
+			require.NoError(t, err)
 
 			if testCase.expectedCachePath != "" {
 				assert.FileExists(t, filepath.Join(providerCacheDir, testCase.expectedCachePath))

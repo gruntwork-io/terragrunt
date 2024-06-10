@@ -40,7 +40,6 @@ func checkForErrorsAndExit(err error) {
 		}
 		os.Exit(exitCode)
 	}
-
 }
 
 func printErrorWithStackTrace(err error) string {
