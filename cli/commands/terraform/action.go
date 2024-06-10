@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/helper"
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/gruntwork-io/terragrunt/terraform"
@@ -119,7 +119,7 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 		terragruntOptions.OriginalIAMRoleOptions,
 	)
 
-	if err := helper.AssumeRoleAndUpdateEnvIfNecessary(ctx, terragruntOptions); err != nil {
+	if err := creds.ObtainCredentialsAndUpdateEnvIfNecessary(ctx, terragruntOptions); err != nil {
 		return err
 	}
 
