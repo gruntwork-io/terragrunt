@@ -12,6 +12,7 @@ import (
 
 	"fmt"
 
+	"github.com/edwardrf/symwalk"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/mattn/go-zglob"
 	homedir "github.com/mitchellh/go-homedir"
@@ -599,7 +600,7 @@ func CopyLockFile(sourceFolder string, destinationFolder string, logger *logrus.
 func ListTfFiles(directoryPath string) ([]string, error) {
 	var tfFiles []string
 
-	err := filepath.Walk(directoryPath, func(path string, info os.FileInfo, err error) error {
+	err := symwalk.Walk(directoryPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}

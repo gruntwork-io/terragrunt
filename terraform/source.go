@@ -57,7 +57,7 @@ func (terraformSource Source) EncodeSourceVersion() (string, error) {
 		sourceHash := sha256.New()
 		sourceDir := filepath.Clean(terraformSource.CanonicalSourceURL.Path)
 
-		err := filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+		err := symwalk.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				// If we've encountered an error while walking the tree, give up
 				return err

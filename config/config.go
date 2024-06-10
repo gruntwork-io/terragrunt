@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/edwardrf/symwalk"
+
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/mitchellh/mapstructure"
@@ -604,7 +606,7 @@ func GetDefaultConfigPath(workingDir string) string {
 func FindConfigFilesInPath(rootPath string, terragruntOptions *options.TerragruntOptions) ([]string, error) {
 	configFiles := []string{}
 
-	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
+	err := symwalk.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
