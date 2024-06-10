@@ -405,13 +405,13 @@ func runTerraformWithRetry(ctx context.Context, terragruntOptions *options.Terra
 	for i := 0; i < terragruntOptions.RetryMaxAttempts; i++ {
 		if out, err := shell.RunTerraformCommandWithOutput(ctx, terragruntOptions, terragruntOptions.TerraformCliArgs...); err != nil {
 			if out == nil || !isRetryable(terragruntOptions, out) {
-				terragruntOptions.Logger.Errorf("%s invocation failed in %s", terragruntOptions.TerraformImplementation, terragruntOptions.WorkingDir)
+				terragruntOptions.Logger.WithError(err).Errorf("%s invocation failed in %s", terragruntOptions.TerraformImplementation, terragruntOptions.WorkingDir)
 				return err
 			} else {
 				terragruntOptions.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.RetrySleepIntervalSec)
 				select {
 				case <-ctx.Done():
-					return ctx.Err()
+					return errors.WithStackTrace(ctx.Err())
 				case <-time.After(terragruntOptions.RetrySleepIntervalSec):
 					// try again
 				}
