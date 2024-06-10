@@ -1313,14 +1313,16 @@ Specify the output directory for the `*-all` commands to store plans in JSON for
 **Environment Variable**: `TERRAGRUNT_AUTH_PROVIDER_CMD`<br/>
 **Requires an argument**: `--terragrunt-auth-provider-cmd /path/to/executable/file`<br/>
 
-The path to the executable file to obtain authentication credentials. If specified, Terragrunt runs this command for every working directory. The output must be the following JSON string
+The path to the executable file to obtain authentication credentials. If specified, Terragrunt runs this command for every working directory.
+
+The output must be valid JSON of the following schema:
 
 ```json
 {
-  "envs": {
-    "AWS_ACCESS_KEY_ID": "...",
-    "AWS_SECRET_ACCESS_KEY": "...",
-    "AWS_SESSION_TOKEN": "..."
+  "awsCredentials": {
+    "ACCESS_KEY_ID": "",
+    "SECRET_ACCESS_KEY": "",
+    "SESSION_TOKEN": ""
   }
 }
 ```
