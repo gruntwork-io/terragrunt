@@ -119,6 +119,7 @@ func load() {
 		}
 		terragruntPlugin := rawClient.(plugins.CommandExecutorClient)
 		pluginInstances[name] = terragruntPlugin
+		//TODO: run kill on clients
 	}
 
 }
@@ -197,8 +198,11 @@ func RunShellCommandWithOutput(
 
 		p, exists := pluginInstances[command]
 		if exists {
-			run, err := p.Run(childCtx, &plugins.RunRequest{
-				// convert args to string
+			_, err := p.Init(childCtx, &plugins.InitRequest{})
+			if err != nil {
+				return errors.WithStackTrace(err)
+			}
+			runStream, err := p.Run(childCtx, &plugins.RunRequest{
 				Command:           command,
 				Args:              args,
 				AllocatePseudoTty: allocatePseudoTty,
@@ -207,22 +211,35 @@ func RunShellCommandWithOutput(
 			if err != nil {
 				return errors.WithStackTrace(err)
 			}
-			if run.ResultCode != 0 {
+
+			var resultCode = 0
+			for {
+				runResp, err := runStream.Recv()
+				if err != nil {
+					break
+				}
+				if runResp.Stdout != "" {
+					stdoutBuf.Write([]byte(runResp.Stdout))
+				}
+				if runResp.Stderr != "" {
+					stderrBuf.Write([]byte(runResp.Stderr))
+				}
+				resultCode = int(runResp.ResultCode)
+			}
+
+			if resultCode != 0 {
 				err = ProcessExecutionError{
-					Err:        fmt.Errorf("command failed with exit code %d", run.ResultCode),
-					StdOut:     run.Stdout,
-					Stderr:     run.Stderr,
+					Err:        fmt.Errorf("command failed with exit code %d", resultCode),
+					StdOut:     stdoutBuf.String(),
+					Stderr:     stderrBuf.String(),
 					WorkingDir: cmd.Dir,
 				}
 				return errors.WithStackTrace(err)
 			}
-			// log stdout to cmdStdout and cmdStderr
-			_, err = cmdStdout.Write([]byte(run.Stdout))
-			_, err = cmdStderr.Write([]byte(run.Stderr))
 
 			cmdOutput := CmdOutput{
-				Stdout: run.Stdout,
-				Stderr: run.Stderr,
+				Stdout: stdoutBuf.String(),
+				Stderr: stderrBuf.String(),
 			}
 			output = &cmdOutput
 			return nil

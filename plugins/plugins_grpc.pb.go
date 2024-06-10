@@ -22,8 +22,8 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type CommandExecutorClient interface {
-	Init(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (*InitResponse, error)
-	Run(ctx context.Context, in *RunRequest, opts ...grpc.CallOption) (*RunResponse, error)
+	Init(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (CommandExecutor_InitClient, error)
+	Run(ctx context.Context, in *RunRequest, opts ...grpc.CallOption) (CommandExecutor_RunClient, error)
 }
 
 type commandExecutorClient struct {
@@ -34,30 +34,76 @@ func NewCommandExecutorClient(cc grpc.ClientConnInterface) CommandExecutorClient
 	return &commandExecutorClient{cc}
 }
 
-func (c *commandExecutorClient) Init(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (*InitResponse, error) {
-	out := new(InitResponse)
-	err := c.cc.Invoke(ctx, "/plugins.CommandExecutor/Init", in, out, opts...)
+func (c *commandExecutorClient) Init(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (CommandExecutor_InitClient, error) {
+	stream, err := c.cc.NewStream(ctx, &CommandExecutor_ServiceDesc.Streams[0], "/plugins.CommandExecutor/Init", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &commandExecutorInitClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
 }
 
-func (c *commandExecutorClient) Run(ctx context.Context, in *RunRequest, opts ...grpc.CallOption) (*RunResponse, error) {
-	out := new(RunResponse)
-	err := c.cc.Invoke(ctx, "/plugins.CommandExecutor/Run", in, out, opts...)
+type CommandExecutor_InitClient interface {
+	Recv() (*InitResponse, error)
+	grpc.ClientStream
+}
+
+type commandExecutorInitClient struct {
+	grpc.ClientStream
+}
+
+func (x *commandExecutorInitClient) Recv() (*InitResponse, error) {
+	m := new(InitResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *commandExecutorClient) Run(ctx context.Context, in *RunRequest, opts ...grpc.CallOption) (CommandExecutor_RunClient, error) {
+	stream, err := c.cc.NewStream(ctx, &CommandExecutor_ServiceDesc.Streams[1], "/plugins.CommandExecutor/Run", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &commandExecutorRunClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type CommandExecutor_RunClient interface {
+	Recv() (*RunResponse, error)
+	grpc.ClientStream
+}
+
+type commandExecutorRunClient struct {
+	grpc.ClientStream
+}
+
+func (x *commandExecutorRunClient) Recv() (*RunResponse, error) {
+	m := new(RunResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // CommandExecutorServer is the server API for CommandExecutor service.
 // All implementations must embed UnimplementedCommandExecutorServer
 // for forward compatibility
 type CommandExecutorServer interface {
-	Init(context.Context, *InitRequest) (*InitResponse, error)
-	Run(context.Context, *RunRequest) (*RunResponse, error)
+	Init(*InitRequest, CommandExecutor_InitServer) error
+	Run(*RunRequest, CommandExecutor_RunServer) error
 	mustEmbedUnimplementedCommandExecutorServer()
 }
 
@@ -65,11 +111,11 @@ type CommandExecutorServer interface {
 type UnimplementedCommandExecutorServer struct {
 }
 
-func (UnimplementedCommandExecutorServer) Init(context.Context, *InitRequest) (*InitResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Init not implemented")
+func (UnimplementedCommandExecutorServer) Init(*InitRequest, CommandExecutor_InitServer) error {
+	return status.Errorf(codes.Unimplemented, "method Init not implemented")
 }
-func (UnimplementedCommandExecutorServer) Run(context.Context, *RunRequest) (*RunResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Run not implemented")
+func (UnimplementedCommandExecutorServer) Run(*RunRequest, CommandExecutor_RunServer) error {
+	return status.Errorf(codes.Unimplemented, "method Run not implemented")
 }
 func (UnimplementedCommandExecutorServer) mustEmbedUnimplementedCommandExecutorServer() {}
 
@@ -84,40 +130,46 @@ func RegisterCommandExecutorServer(s grpc.ServiceRegistrar, srv CommandExecutorS
 	s.RegisterService(&CommandExecutor_ServiceDesc, srv)
 }
 
-func _CommandExecutor_Init_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(InitRequest)
-	if err := dec(in); err != nil {
-		return nil, err
+func _CommandExecutor_Init_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(InitRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
 	}
-	if interceptor == nil {
-		return srv.(CommandExecutorServer).Init(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/plugins.CommandExecutor/Init",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CommandExecutorServer).Init(ctx, req.(*InitRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return srv.(CommandExecutorServer).Init(m, &commandExecutorInitServer{stream})
 }
 
-func _CommandExecutor_Run_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RunRequest)
-	if err := dec(in); err != nil {
-		return nil, err
+type CommandExecutor_InitServer interface {
+	Send(*InitResponse) error
+	grpc.ServerStream
+}
+
+type commandExecutorInitServer struct {
+	grpc.ServerStream
+}
+
+func (x *commandExecutorInitServer) Send(m *InitResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _CommandExecutor_Run_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(RunRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
 	}
-	if interceptor == nil {
-		return srv.(CommandExecutorServer).Run(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/plugins.CommandExecutor/Run",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CommandExecutorServer).Run(ctx, req.(*RunRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return srv.(CommandExecutorServer).Run(m, &commandExecutorRunServer{stream})
+}
+
+type CommandExecutor_RunServer interface {
+	Send(*RunResponse) error
+	grpc.ServerStream
+}
+
+type commandExecutorRunServer struct {
+	grpc.ServerStream
+}
+
+func (x *commandExecutorRunServer) Send(m *RunResponse) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 // CommandExecutor_ServiceDesc is the grpc.ServiceDesc for CommandExecutor service.
@@ -126,16 +178,18 @@ func _CommandExecutor_Run_Handler(srv interface{}, ctx context.Context, dec func
 var CommandExecutor_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "plugins.CommandExecutor",
 	HandlerType: (*CommandExecutorServer)(nil),
-	Methods: []grpc.MethodDesc{
+	Methods:     []grpc.MethodDesc{},
+	Streams: []grpc.StreamDesc{
 		{
-			MethodName: "Init",
-			Handler:    _CommandExecutor_Init_Handler,
+			StreamName:    "Init",
+			Handler:       _CommandExecutor_Init_Handler,
+			ServerStreams: true,
 		},
 		{
-			MethodName: "Run",
-			Handler:    _CommandExecutor_Run_Handler,
+			StreamName:    "Run",
+			Handler:       _CommandExecutor_Run_Handler,
+			ServerStreams: true,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
 	Metadata: "plugins/plugins.proto",
 }

@@ -1,10 +1,9 @@
 package main
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	pb "github.com/gruntwork-io/terragrunt/plugins"
 	"github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
@@ -15,16 +14,28 @@ type TerraformCommandExecutor struct {
 	pb.UnimplementedCommandExecutorServer
 }
 
-func (c *TerraformCommandExecutor) Init(ctx context.Context, req *pb.InitRequest) (*pb.InitResponse, error) {
+func (c *TerraformCommandExecutor) Init(req *pb.InitRequest, stream pb.CommandExecutor_InitServer) error {
+	err := stream.Send(&pb.InitResponse{Stdout: "Initialization started", Stderr: "", ResultCode: 0})
+	if err != nil {
+		return err
+	}
 
-	// initialize plugin
-	log.Infof("Terraform Running init")
+	// Stream some metadata as stdout for demonstration
+	for key, value := range req.Metadata {
+		err := stream.Send(&pb.InitResponse{Stdout: fmt.Sprintf("Metadata: %s = %s", key, value), Stderr: "", ResultCode: 0})
+		if err != nil {
+			return err
+		}
+	}
 
-	return &pb.InitResponse{ResultCode: 0}, nil
+	err = stream.Send(&pb.InitResponse{Stdout: "Terraform Initialization completed", Stderr: "", ResultCode: 0})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (c *TerraformCommandExecutor) Run(ctx context.Context, req *pb.RunRequest) (*pb.RunResponse, error) {
-	log.Infof("Terraform Running command: %v %v", req.Command, req.Args)
+func (c *TerraformCommandExecutor) Run(req *pb.RunRequest, stream pb.CommandExecutor_RunServer) error {
 	cmd := exec.Command(req.Command, req.Args...)
 	cmd.Dir = req.WorkingDir
 
@@ -35,29 +46,68 @@ func (c *TerraformCommandExecutor) Run(ctx context.Context, req *pb.RunRequest) 
 	}
 	cmd.Env = append(cmd.Env, env...)
 
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-
-	if req.AllocatePseudoTty {
-		// Here you would allocate a pseudo-TTY if needed
-		// This is just a placeholder as actual implementation might be complex
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		return err
 	}
 
-	err := cmd.Run()
-	stdout := stdoutBuf.String()
-	stderr := stderrBuf.String()
+	if req.AllocatePseudoTty {
+		// Allocate a pseudo-TTY if needed (placeholder, actual implementation might be complex)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	stdoutScanner := bufio.NewScanner(stdoutPipe)
+	stderrScanner := bufio.NewScanner(stderrPipe)
+
+	// Stream stdout
+	go func() {
+		for stdoutScanner.Scan() {
+			err := stream.Send(&pb.RunResponse{
+				Stdout: stdoutScanner.Text(),
+			})
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	// Stream stderr
+	go func() {
+		for stderrScanner.Scan() {
+			err := stream.Send(&pb.RunResponse{
+				Stderr: stderrScanner.Text(),
+			})
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	err = cmd.Wait()
 	resultCode := 0
 	if err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {
-			stderr = string(exitError.Stderr)
 			resultCode = exitError.ExitCode()
 		} else {
-			stderr = err.Error()
 			resultCode = 1
 		}
 	}
-	return &pb.RunResponse{Stdout: stdout, Stderr: stderr, ResultCode: int32(resultCode)}, nil
+
+	err = stream.Send(&pb.RunResponse{
+		ResultCode: int32(resultCode),
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // GRPCServer is used to register the TerraformCommandExecutor with the gRPC server

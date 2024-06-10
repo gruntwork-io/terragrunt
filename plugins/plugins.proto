@@ -4,12 +4,13 @@ package plugins;
 option go_package = "/plugins";
 
 service CommandExecutor {
-  rpc Init(InitRequest) returns (InitResponse);
-  rpc Run(RunRequest) returns (RunResponse);
+  rpc Init(InitRequest) returns (stream InitResponse);
+  rpc Run(RunRequest) returns (stream RunResponse);
 }
 
 message InitRequest {
   string working_dir = 1;
+  map<string, string> metadata = 2;
 }
 
 message InitResponse {
