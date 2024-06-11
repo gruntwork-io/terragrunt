@@ -160,6 +160,11 @@ func gcsConfigValuesEqual(config map[string]interface{}, existingBackend *Terraf
 	return true
 }
 
+// buildInitializerCacheKey returns a unique key for the given GCS config that can be used to cache the initialization
+func (gcsInitializer GCSInitializer) buildInitializerCacheKey(gcsConfig *RemoteStateConfigGCS) string {
+	return gcsConfig.Bucket
+}
+
 // Initialize the remote state GCS bucket specified in the given config. This function will validate the config
 // parameters, create the GCS bucket if it doesn't already exist, and check that versioning is enabled.
 func (gcsInitializer GCSInitializer) Initialize(ctx context.Context, remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {
@@ -174,7 +179,8 @@ func (gcsInitializer GCSInitializer) Initialize(ctx context.Context, remoteState
 
 	var gcsConfig = gcsConfigExtended.remoteStateConfigGCS
 
-	if initialized, hit := initializedRemoteStateCache.Get(gcsConfig.Bucket); initialized && hit {
+	cacheKey := gcsInitializer.buildInitializerCacheKey(&gcsConfig)
+	if initialized, hit := initializedRemoteStateCache.Get(cacheKey); initialized && hit {
 		terragruntOptions.Logger.Debugf("GCS bucket %s has already been confirmed to be initialized, skipping initialization checks", gcsConfig.Bucket)
 		return nil
 	}
@@ -182,7 +188,7 @@ func (gcsInitializer GCSInitializer) Initialize(ctx context.Context, remoteState
 	// ensure that only one goroutine can initialize bucket
 	return stateAccessLock.StateBucketUpdate(gcsConfig.Bucket, func() error {
 		// check if another goroutine has already initialized the bucket
-		if initialized, hit := initializedRemoteStateCache.Get(gcsConfig.Bucket); initialized && hit {
+		if initialized, hit := initializedRemoteStateCache.Get(cacheKey); initialized && hit {
 			terragruntOptions.Logger.Debugf("GCS bucket %s has already been confirmed to be initialized, skipping initialization checks", gcsConfig.Bucket)
 			return nil
 		}
@@ -205,7 +211,7 @@ func (gcsInitializer GCSInitializer) Initialize(ctx context.Context, remoteState
 			}
 		}
 
-		initializedRemoteStateCache.Put(gcsConfig.Bucket, true)
+		initializedRemoteStateCache.Put(cacheKey, true)
 
 		return nil
 	})
