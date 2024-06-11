@@ -49,7 +49,7 @@ func (provider *Provider) GetCredentials(ctx context.Context) (*providers.Creden
 	}
 
 	if output.Stdout == "" {
-		return nil, errors.Errorf("command %s completed successfully, but the response does not contain json string", command)
+		return nil, errors.Errorf("command %s completed successfully, but the response does not contain JSON string", command)
 	}
 
 	resp := &Response{Envs: make(map[string]string)}
