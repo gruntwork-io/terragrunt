@@ -199,6 +199,7 @@ const (
 	TEST_FIXTURE_DEPENDENCY_OUTPUT                                           = "fixture-dependency-output"
 	TEST_FIXTURE_OUT_DIR                                                     = "fixture-out-dir"
 	TEST_FIXTURE_SOPS_ERRORS                                                 = "fixture-sops-errors"
+	TEST_FIXTURE_AUTH_PROVIDER_CMD                                           = "fixture-auth-provider-cmd"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -4121,6 +4122,28 @@ func TestReadTerragruntConfigIamRole(t *testing.T) {
 	assert.Contains(t, output, "666666666666")
 	// Ensure that state file wasn't created with default IAM value
 	assert.True(t, util.FileNotExists(util.JoinPath(TEST_FIXTURE_READ_IAM_ROLE, identityArn+".txt")))
+}
+
+func TestReadTerragruntAuthProviderCmd(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_AUTH_PROVIDER_CMD)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_AUTH_PROVIDER_CMD)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_AUTH_PROVIDER_CMD)
+	appPath := util.JoinPath(rootPath, "app1")
+	mockAuthCmd := filepath.Join(rootPath, "mock-auth-cmd.sh")
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", rootPath, mockAuthCmd))
+
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -json --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", appPath, mockAuthCmd))
+	assert.NoError(t, err)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+
+	assert.Equal(t, outputs["foo-app1"].Value, "app1-bar")
+	assert.Equal(t, outputs["foo-app2"].Value, "app2-bar")
+	assert.Equal(t, outputs["foo-app3"].Value, "app3-bar")
 }
 
 func TestIamRolesLoadingFromDifferentModules(t *testing.T) {

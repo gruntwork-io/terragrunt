@@ -267,25 +267,3 @@ func GetAWSUserID(config *AwsSessionConfig, terragruntOptions *options.Terragrun
 
 	return *identity.UserId, nil
 }
-
-// Assume an IAM role, if one is specified, by making API calls to Amazon STS and setting the environment variables
-// we get back inside of terragruntOptions.Env
-func AssumeRoleAndUpdateEnvIfNecessary(terragruntOptions *options.TerragruntOptions) error {
-	iamRoleOpts := terragruntOptions.IAMRoleOptions
-	if iamRoleOpts.RoleARN == "" {
-		return nil
-	}
-
-	terragruntOptions.Logger.Debugf("Assuming IAM role %s with a session duration of %d seconds.", iamRoleOpts.RoleARN, iamRoleOpts.AssumeRoleDuration)
-	creds, err := AssumeIamRole(iamRoleOpts)
-	if err != nil {
-		return err
-	}
-
-	terragruntOptions.Env["AWS_ACCESS_KEY_ID"] = aws.StringValue(creds.AccessKeyId)
-	terragruntOptions.Env["AWS_SECRET_ACCESS_KEY"] = aws.StringValue(creds.SecretAccessKey)
-	terragruntOptions.Env["AWS_SESSION_TOKEN"] = aws.StringValue(creds.SessionToken)
-	terragruntOptions.Env["AWS_SECURITY_TOKEN"] = aws.StringValue(creds.SessionToken)
-
-	return nil
-}
