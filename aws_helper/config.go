@@ -115,7 +115,7 @@ func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *opt
 
 type tokenFetcher string
 
-// Implements the stscreds.TokenFetcher interface
+// FetchToken Implements the stscreds.TokenFetcher interface.
 // Supports providing a token value or the path to a token on disk
 func (f tokenFetcher) FetchToken(ctx credentials.Context) ([]byte, error) {
 	// Check if token is a raw value
@@ -124,7 +124,7 @@ func (f tokenFetcher) FetchToken(ctx credentials.Context) ([]byte, error) {
 	}
 	token, err := os.ReadFile(string(f))
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStackTrace(err)
 	}
 	return token, nil
 }
@@ -235,47 +235,49 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 		sessionDurationSeconds = iamRoleOpts.AssumeRoleDuration
 	}
 
-	if iamRoleOpts.WebIdentityToken != "" {
-		var token string
-		// Check if value is a raw token or a path to a file with a token
-		if _, err := os.Stat(iamRoleOpts.WebIdentityToken); err != nil {
-			token = iamRoleOpts.WebIdentityToken
-		} else {
-			tb, err := os.ReadFile(iamRoleOpts.WebIdentityToken)
-			if err != nil {
-				return nil, errors.WithStackTrace(err)
-			}
-			token = string(tb)
+	if iamRoleOpts.WebIdentityToken == "" {
+		// Use regular sts AssumeRole
+		input := sts.AssumeRoleInput{
+			RoleArn:         aws.String(iamRoleOpts.RoleARN),
+			RoleSessionName: aws.String(sessionName),
+			DurationSeconds: aws.Int64(sessionDurationSeconds),
 		}
-		input := sts.AssumeRoleWithWebIdentityInput{
-			RoleArn:          aws.String(iamRoleOpts.RoleARN),
-			RoleSessionName:  aws.String(sessionName),
-			WebIdentityToken: aws.String(token),
-			DurationSeconds:  aws.Int64(sessionDurationSeconds),
-		}
-		req, resp := stsClient.AssumeRoleWithWebIdentityRequest(&input)
-		// InvalidIdentityToken error is a temporary error that can occur
-		// when assuming an Role with a JWT web identity token.
-		// N.B: copied from SDK implementation
-		req.RetryErrorCodes = append(req.RetryErrorCodes, sts.ErrCodeInvalidIdentityTokenException)
-		if err := req.Send(); err != nil {
+
+		output, err := stsClient.AssumeRole(&input)
+		if err != nil {
 			return nil, errors.WithStackTrace(err)
 		}
-		return resp.Credentials, nil
+
+		return output.Credentials, nil
 	}
 
-	input := sts.AssumeRoleInput{
-		RoleArn:         aws.String(iamRoleOpts.RoleARN),
-		RoleSessionName: aws.String(sessionName),
-		DurationSeconds: aws.Int64(sessionDurationSeconds),
+	// Use sts AssumeRoleWithWebIdentity
+	var token string
+	// Check if value is a raw token or a path to a file with a token
+	if _, err := os.Stat(iamRoleOpts.WebIdentityToken); err != nil {
+		token = iamRoleOpts.WebIdentityToken
+	} else {
+		tb, err := os.ReadFile(iamRoleOpts.WebIdentityToken)
+		if err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
+		token = string(tb)
 	}
-
-	output, err := stsClient.AssumeRole(&input)
-	if err != nil {
+	input := sts.AssumeRoleWithWebIdentityInput{
+		RoleArn:          aws.String(iamRoleOpts.RoleARN),
+		RoleSessionName:  aws.String(sessionName),
+		WebIdentityToken: aws.String(token),
+		DurationSeconds:  aws.Int64(sessionDurationSeconds),
+	}
+	req, resp := stsClient.AssumeRoleWithWebIdentityRequest(&input)
+	// InvalidIdentityToken error is a temporary error that can occur
+	// when assuming an Role with a JWT web identity token.
+	// N.B: copied from SDK implementation
+	req.RetryErrorCodes = append(req.RetryErrorCodes, sts.ErrCodeInvalidIdentityTokenException)
+	if err := req.Send(); err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
-
-	return output.Credentials, nil
+	return resp.Credentials, nil
 }
 
 // Return the AWS caller identity associated with the current set of credentials
