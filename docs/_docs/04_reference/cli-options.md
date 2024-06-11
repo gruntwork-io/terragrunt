@@ -1325,7 +1325,7 @@ The output must be valid JSON of the following schema:
     "SESSION_TOKEN": ""
   },
   "envs": {
-    "ANY_KEY":""
+    "ANY_KEY": ""
   }
 }
 ```
