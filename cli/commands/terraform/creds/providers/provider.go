@@ -16,8 +16,8 @@ type Credentials struct {
 }
 
 type Provider interface {
-	// Name returns provdier name.
+	// Name returns the name of the provider.
 	Name() string
-	// GetCredentials returns a credentials.
+	// GetCredentials returns a set of credentials.
 	GetCredentials(ctx context.Context) (*Credentials, error)
 }

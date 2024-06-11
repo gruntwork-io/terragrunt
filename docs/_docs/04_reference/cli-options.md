@@ -1311,9 +1311,9 @@ Specify the output directory for the `*-all` commands to store plans in JSON for
 
 **CLI Arg**: `--terragrunt-auth-provider-cmd`<br/>
 **Environment Variable**: `TERRAGRUNT_AUTH_PROVIDER_CMD`<br/>
-**Requires an argument**: `--terragrunt-auth-provider-cmd /path/to/executable/file`<br/>
+**Requires an argument**: `--terragrunt-auth-provider-cmd "command [arguments]"`<br/>
 
-The path to the executable file to obtain authentication credentials. If specified, Terragrunt runs this command for every working directory.
+The command and arguments used to obtain authentication credentials dynamically. If specified, Terragrunt runs this command for every working directory before running the underlying IAC for a `terragrunt.hcl` file.
 
 The output must be valid JSON of the following schema:
 
@@ -1325,7 +1325,7 @@ The output must be valid JSON of the following schema:
     "SESSION_TOKEN": ""
   },
   "envs": {
-    "ANY_KEY":"Any Value"
+    "ANY_KEY":""
   }
 }
 ```

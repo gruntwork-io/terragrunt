@@ -94,7 +94,7 @@ func (creds *AWSCredentials) Envs(opts *options.TerragruntOptions) map[string]st
 	}
 
 	if len(emptyFields) > 0 {
-		opts.Logger.Warnf("The command %s completed successfully, but AWS credentials contains empty values: %s, nothing is being done.", opts.AuthProviderCmd, strings.Join(emptyFields, ", "))
+		opts.Logger.Warnf("The command %s completed successfully, but AWS credentials contains empty required values: %s, nothing is being done.", opts.AuthProviderCmd, strings.Join(emptyFields, ", "))
 		return nil
 	}
 
