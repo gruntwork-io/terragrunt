@@ -4131,11 +4131,11 @@ func TestReadTerragruntAuthProviderCmd(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_AUTH_PROVIDER_CMD)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_AUTH_PROVIDER_CMD)
 	appPath := util.JoinPath(rootPath, "app1")
-	mockPiplinesCmd := filepath.Join(rootPath, "mock-pipelines.sh")
+	mockAuthCmd := filepath.Join(rootPath, "mock-auth-cmd.sh")
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", rootPath, mockPiplinesCmd))
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", rootPath, mockAuthCmd))
 
-	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -json --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", appPath, mockPiplinesCmd))
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -json --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", appPath, mockAuthCmd))
 	assert.NoError(t, err)
 
 	outputs := map[string]TerraformOutput{}

@@ -49,17 +49,13 @@ func (provider *Provider) GetCredentials(ctx context.Context) (*providers.Creden
 	}
 
 	if output.Stdout == "" {
-		return nil, errors.Errorf("the command %s completed successfully, but the response does not contain json string", command)
+		return nil, errors.Errorf("command %s completed successfully, but the response does not contain json string", command)
 	}
 
-	type response struct {
-		AWSCredentials *AWSCredentials   `json:"awsCredentials"`
-		Envs           map[string]string `json:"envs"`
-	}
-	resp := &response{Envs: make(map[string]string)}
+	resp := &Response{Envs: make(map[string]string)}
 
 	if err := json.Unmarshal([]byte(output.Stdout), &resp); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.Errorf("command %s returned a response with invalid JSON format", command)
 	}
 
 	creds := &providers.Credentials{
@@ -76,6 +72,11 @@ func (provider *Provider) GetCredentials(ctx context.Context) (*providers.Creden
 	return creds, nil
 }
 
+type Response struct {
+	AWSCredentials *AWSCredentials   `json:"awsCredentials"`
+	Envs           map[string]string `json:"envs"`
+}
+
 type AWSCredentials struct {
 	AccessKeyID     string `json:"ACCESS_KEY_ID"`
 	SecretAccessKey string `json:"SECRET_ACCESS_KEY"`
@@ -83,20 +84,17 @@ type AWSCredentials struct {
 }
 
 func (creds *AWSCredentials) Envs(opts *options.TerragruntOptions) map[string]string {
-	var emtpyFields []string
+	var emptyFields []string
 
 	if creds.AccessKeyID == "" {
-		emtpyFields = append(emtpyFields, "ACCESS_KEY_ID")
+		emptyFields = append(emptyFields, "ACCESS_KEY_ID")
 	}
 	if creds.SecretAccessKey == "" {
-		emtpyFields = append(emtpyFields, "SECRET_ACCESS_KEY")
-	}
-	if creds.SessionToken == "" {
-		emtpyFields = append(emtpyFields, "SESSION_TOKEN")
+		emptyFields = append(emptyFields, "SECRET_ACCESS_KEY")
 	}
 
-	if len(emtpyFields) > 0 {
-		opts.Logger.Warnf("The command %s completed successfully, but AWS credentials contains empty values: %s, nothing is being done.", opts.AuthProviderCmd, strings.Join(emtpyFields, ", "))
+	if len(emptyFields) > 0 {
+		opts.Logger.Warnf("The command %s completed successfully, but AWS credentials contains empty values: %s, nothing is being done.", opts.AuthProviderCmd, strings.Join(emptyFields, ", "))
 		return nil
 	}
 

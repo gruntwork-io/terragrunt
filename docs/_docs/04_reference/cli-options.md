@@ -1323,6 +1323,29 @@ The output must be valid JSON of the following schema:
     "ACCESS_KEY_ID": "",
     "SECRET_ACCESS_KEY": "",
     "SESSION_TOKEN": ""
+  },
+  "envs": {
+    "ANY_KEY":"Any Value"
   }
 }
 ```
+
+This allows Terragrunt to acquire different credentials at runtime without changing any terragrunt.hcl configuration. You can use this flag to set arbitrary credentials for continuous integration, authentication with providers other than AWS and more.
+
+As long as the standard output of the command passed to terragrunt-auth-provider-cmd results in JSON matching the schema above, corresponding environment variables will be set before Terragrunt begins IAC execution for a terragrunt.hcl file.
+
+The simplest approach to leverage this flag is to write a script that fetches desired credentials, and emits them to STDOUT in the JSON format listed above:
+
+```bash
+#!/usr/bin/env bash
+
+echo -n '{"envs": {"KEY": "a secret"}}'
+```
+
+You can use any technology you'd like, however, as long as Terragrunt can execute it. The expected pattern for using this flag is to populate the values dynamically using a secret store, etc.
+
+Note that more specific configurations (e.g. awsCredentials) take precedence over less specific configurations (e.g. envs).
+
+If you would like to set credentials for AWS with this method, you are encouraged to use awsCredentials instead of envs, as these keys will be validated to conform to the officially supported environment variables expected by the AWS SDK.
+
+Other credential configurations will be supported in the future, but until then, if your provider authenticates via environment variables, you can use the envs field to fetch credentials dynamically from a secret store, etc before Terragrunt executes any IAC.
