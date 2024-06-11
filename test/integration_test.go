@@ -4130,9 +4130,20 @@ func TestReadTerragruntAuthProviderCmd(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_AUTH_PROVIDER_CMD)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_AUTH_PROVIDER_CMD)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_AUTH_PROVIDER_CMD)
+	appPath := util.JoinPath(rootPath, "app1")
 	mockPiplinesCmd := filepath.Join(rootPath, "mock-pipelines.sh")
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", rootPath, mockPiplinesCmd))
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", rootPath, mockPiplinesCmd))
+
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -json --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", appPath, mockPiplinesCmd))
+	assert.NoError(t, err)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+
+	assert.Equal(t, outputs["foo-app1"].Value, "app1-bar")
+	assert.Equal(t, outputs["foo-app2"].Value, "app2-bar")
+	assert.Equal(t, outputs["foo-app3"].Value, "app3-bar")
 }
 
 func TestIamRolesLoadingFromDifferentModules(t *testing.T) {
