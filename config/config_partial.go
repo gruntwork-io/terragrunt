@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -142,7 +143,7 @@ func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *Inc
 	return TerragruntConfigFromPartialConfig(ctx, file, include)
 }
 
-var terragruntConfigCache = NewCache[TerragruntConfig]()
+var terragruntConfigCache = cache.NewCache[TerragruntConfig]()
 
 // Wrapper of PartialParseConfigString which checks for cached configs.
 // filename, configString, includeFromChild and decodeList are used for the cache key,
