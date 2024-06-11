@@ -20,7 +20,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -883,7 +883,7 @@ func setupTerragruntOptionsForBareTerraform(ctx *ParsingContext, workingDir stri
 	targetTGOptions.IAMRoleOptions = options.MergeIAMRoleOptions(iamRoleOpts, targetTGOptions.OriginalIAMRoleOptions)
 
 	// Make sure to assume any roles set by TERRAGRUNT_IAM_ROLE
-	if err := aws_helper.AssumeRoleAndUpdateEnvIfNecessary(targetTGOptions); err != nil {
+	if err := creds.ObtainCredentialsAndUpdateEnvIfNecessary(ctx, targetTGOptions); err != nil {
 		return nil, err
 	}
 	return targetTGOptions, nil
