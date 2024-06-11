@@ -174,8 +174,19 @@ func (gcsInitializer GCSInitializer) Initialize(ctx context.Context, remoteState
 
 	var gcsConfig = gcsConfigExtended.remoteStateConfigGCS
 
+	if initialized, hit := initializedRemoteStateCache.Get(gcsConfig.Bucket); initialized && hit {
+		terragruntOptions.Logger.Debugf("GCS bucket %s has already been confirmed to be initialized, skipping initialization checks", gcsConfig.Bucket)
+		return nil
+	}
+
 	// ensure that only one goroutine can initialize bucket
 	return stateAccessLock.StateBucketUpdate(gcsConfig.Bucket, func() error {
+		// check if another goroutine has already initialized the bucket
+		if initialized, hit := initializedRemoteStateCache.Get(gcsConfig.Bucket); initialized && hit {
+			terragruntOptions.Logger.Debugf("GCS bucket %s has already been confirmed to be initialized, skipping initialization checks", gcsConfig.Bucket)
+			return nil
+		}
+
 		gcsClient, err := CreateGCSClient(gcsConfig)
 		if err != nil {
 			return err
@@ -193,6 +204,9 @@ func (gcsInitializer GCSInitializer) Initialize(ctx context.Context, remoteState
 				return err
 			}
 		}
+
+		initializedRemoteStateCache.Put(gcsConfig.Bucket, true)
+
 		return nil
 	})
 }
