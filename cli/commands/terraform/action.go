@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/gruntwork-io/terragrunt/terraform"
@@ -21,7 +22,6 @@ import (
 	"github.com/mattn/go-zglob"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
@@ -119,7 +119,7 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 		terragruntOptions.OriginalIAMRoleOptions,
 	)
 
-	if err := aws_helper.AssumeRoleAndUpdateEnvIfNecessary(terragruntOptions); err != nil {
+	if err := creds.ObtainCredentialsAndUpdateEnvIfNecessary(ctx, terragruntOptions); err != nil {
 		return err
 	}
 

@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/sirupsen/logrus"
@@ -466,7 +467,7 @@ func resolveExternalDependenciesForModules(ctx context.Context, moduleMap map[st
 	return allExternalDependencies, nil
 }
 
-var existingModules = config.NewCache[*map[string]*TerraformModule]()
+var existingModules = cache.NewCache[*map[string]*TerraformModule]()
 
 // resolveDependenciesForModule looks through the dependencies of the given module and resolve the dependency paths listed in the module's config.
 // If `skipExternal` is true, the func returns only dependencies that are inside of the current working directory, which means they are part of the environment the

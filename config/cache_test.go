@@ -3,42 +3,14 @@ package config
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/stretchr/testify/assert"
 )
-
-func TestStringCacheCreation(t *testing.T) {
-	t.Parallel()
-
-	cache := NewCache[string]()
-
-	assert.NotNil(t, cache.Mutex)
-	assert.NotNil(t, cache.Cache)
-
-	assert.Equal(t, 0, len(cache.Cache))
-}
-
-func TestStringCacheOperation(t *testing.T) {
-	t.Parallel()
-
-	cache := NewCache[string]()
-
-	value, found := cache.Get("potato")
-
-	assert.False(t, found)
-	assert.Empty(t, value)
-
-	cache.Put("potato", "carrot")
-	value, found = cache.Get("potato")
-
-	assert.True(t, found)
-	assert.NotEmpty(t, value)
-	assert.Equal(t, "carrot", value)
-}
 
 func TestTerragruntConfigCacheCreation(t *testing.T) {
 	t.Parallel()
 
-	cache := NewCache[TerragruntConfig]()
+	cache := cache.NewCache[TerragruntConfig]()
 
 	assert.NotNil(t, cache.Mutex)
 	assert.NotNil(t, cache.Cache)
@@ -51,7 +23,7 @@ func TestTerragruntConfigCacheOperation(t *testing.T) {
 
 	testCacheKey := "super-safe-cache-key"
 
-	cache := NewCache[TerragruntConfig]()
+	cache := cache.NewCache[TerragruntConfig]()
 
 	actualResult, found := cache.Get(testCacheKey)
 

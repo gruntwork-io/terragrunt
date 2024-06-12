@@ -284,10 +284,14 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 	return true
 }
 
+// buildInitializerCacheKey returns a unique key for the given S3 config that can be used to cache the initialization
+func (s3Initializer S3Initializer) buildInitializerCacheKey(s3Config *RemoteStateConfigS3) string {
+	return fmt.Sprintf("%s-%s-%s-%s", s3Config.Bucket, s3Config.Region, s3Config.LockTable, s3Config.DynamoDBTable)
+}
+
 // Initialize the remote state S3 bucket specified in the given config. This function will validate the config
 // parameters, create the S3 bucket if it doesn't already exist, and check that versioning is enabled.
 func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {
-
 	s3ConfigExtended, err := ParseExtendedS3Config(remoteState.Config)
 	if err != nil {
 		return errors.WithStackTrace(err)
@@ -299,8 +303,20 @@ func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *
 
 	var s3Config = s3ConfigExtended.remoteStateConfigS3
 
+	cacheKey := s3Initializer.buildInitializerCacheKey(&s3Config)
+	if initialized, hit := initializedRemoteStateCache.Get(cacheKey); initialized && hit {
+		terragruntOptions.Logger.Debugf("S3 bucket %s has already been confirmed to be initialized, skipping initialization checks", s3Config.Bucket)
+		return nil
+	}
+
 	// ensure that only one goroutine can initialize bucket
 	return stateAccessLock.StateBucketUpdate(s3Config.Bucket, func() error {
+		// Check if another goroutine has already initialized the bucket
+		if initialized, hit := initializedRemoteStateCache.Get(cacheKey); initialized && hit {
+			terragruntOptions.Logger.Debugf("S3 bucket %s has already been confirmed to be initialized, skipping initialization checks", s3Config.Bucket)
+			return nil
+		}
+
 		// Display a deprecation warning when the "lock_table" attribute is being used
 		// during initialization.
 		if s3Config.LockTable != "" {
@@ -335,6 +351,9 @@ func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *
 		if err := UpdateLockTableSetSSEncryptionOnIfNecessary(&s3Config, s3ConfigExtended, terragruntOptions); err != nil {
 			return errors.WithStackTrace(err)
 		}
+
+		initializedRemoteStateCache.Put(cacheKey, true)
+
 		return nil
 	})
 }
