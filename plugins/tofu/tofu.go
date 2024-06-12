@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
 	"os/exec"
+	"sync"
 )
 
 type TofuCommandExecutor struct {
@@ -38,12 +39,9 @@ func (c *TofuCommandExecutor) Init(req *pb.InitRequest, stream pb.CommandExecuto
 }
 
 func (c *TofuCommandExecutor) Run(req *pb.RunRequest, stream pb.CommandExecutor_RunServer) error {
-	log.Infof("Run Tofu plugin")
-
 	cmd := exec.Command(req.Command, req.Args...)
 	cmd.Dir = req.WorkingDir
 
-	// Set environment variables
 	env := make([]string, 0, len(req.EnvVars))
 	for key, value := range req.EnvVars {
 		env = append(env, fmt.Sprintf("%s=%s", key, value))
@@ -60,40 +58,53 @@ func (c *TofuCommandExecutor) Run(req *pb.RunRequest, stream pb.CommandExecutor_
 	}
 
 	if req.AllocatePseudoTty {
-		// Allocate a pseudo-TTY
+		// Allocate a pseudo-TTY if needed
 	}
 
-	if err := cmd.Run(); err != nil {
+	if err := cmd.Start(); err != nil {
 		return err
 	}
 
-	stdoutScanner := bufio.NewScanner(stdoutPipe)
-	stderrScanner := bufio.NewScanner(stderrPipe)
+	var wg sync.WaitGroup
+	wg.Add(2)
 
 	// Stream stdout
 	go func() {
+		defer wg.Done()
+		stdoutScanner := bufio.NewScanner(stdoutPipe)
 		for stdoutScanner.Scan() {
 			err := stream.Send(&pb.RunResponse{
 				Stdout: stdoutScanner.Text(),
 			})
 			if err != nil {
+				fmt.Println("Error sending stdout:", err)
 				return
 			}
+		}
+		if err := stdoutScanner.Err(); err != nil {
+			fmt.Println("Error reading stdout:", err)
 		}
 	}()
 
 	// Stream stderr
 	go func() {
+		defer wg.Done()
+		stderrScanner := bufio.NewScanner(stderrPipe)
 		for stderrScanner.Scan() {
 			err := stream.Send(&pb.RunResponse{
 				Stderr: stderrScanner.Text(),
 			})
 			if err != nil {
+				fmt.Println("Error sending stderr:", err)
 				return
 			}
 		}
+		if err := stderrScanner.Err(); err != nil {
+			fmt.Println("Error reading stderr:", err)
+		}
 	}()
 
+	wg.Wait()
 	err = cmd.Wait()
 	resultCode := 0
 	if err != nil {

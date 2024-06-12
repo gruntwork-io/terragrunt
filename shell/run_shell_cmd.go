@@ -216,6 +216,7 @@ func RunShellCommandWithOutput(
 			for {
 				runResp, err := runStream.Recv()
 				if err != nil {
+					terragruntOptions.Logger.Warnf("Run error: %v", err)
 					break
 				}
 				if runResp.Stdout != "" {
