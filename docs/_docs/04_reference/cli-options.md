@@ -75,7 +75,6 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json)
   - [terragrunt-provider-cache](#terragrunt-provider-cache)
   - [terragrunt-provider-cache-dir](#terragrunt-provider-cache-dir)
-  - [terragrunt-provider-cache-disable-partial-lock-file](#terragrunt-provider-cache-disable-partial-lock-file)
   - [terragrunt-provider-cache-hostname](#terragrunt-provider-cache-hostname)
   - [terragrunt-provider-cache-port](#terragrunt-provider-cache-port)
   - [terragrunt-provider-cache-token](#terragrunt-provider-cache-token)
@@ -743,7 +742,6 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
   - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json)
   - [terragrunt-provider-cache](#terragrunt-provider-cache)
   - [terragrunt-provider-cache-dir](#terragrunt-provider-cache-dir)
-  - [terragrunt-provider-cache-disable-partial-lock-file](#terragrunt-provider-cache-disable-partial-lock-file)
   - [terragrunt-provider-cache-hostname](#terragrunt-provider-cache-hostname)
   - [terragrunt-provider-cache-port](#terragrunt-provider-cache-port)
   - [terragrunt-provider-cache-token](#terragrunt-provider-cache-token)
@@ -1236,16 +1234,6 @@ Enables Terragrunt's provider caching. This forces Terraform to make provider re
 - [run-all](#run-all)
 
 The path to the Terragrunt provider cache directory. By default, `terragrunt/providers` folder in the user cache directory: `$HOME/.cache` on Unix systems, `$HOME/Library/Caches` on Darwin, `%LocalAppData%` on Windows. The file structure of the cache directory is identical to the Terraform [plugin_cache_dir](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache) directory. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
-
-### terragrunt-provider-cache-disable-partial-lock-file
-
-**CLI Arg**: `--terragrunt-provider-cache-disable-partial-lock-file`<br/>
-**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_DISABLE_PARTIAL_LOCK_FILE`<br/>
-**Commands**:
-
-- [run-all](#run-all)
-
-By default, Terraform does _not_ use the cache for modules without a lock file. This results in lots of extra provider downloading. To work around this, for modules without a lock file, Terragurnt provider caching enables the [_plugin_cache_may_break_dependency_lock_file_](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation) feature, which allows Terraform to generate a partial lock file if it finds the providers it needs in the cache. This avoids lots of unnecessary provider downloads, but results in partial lock files. If you wish to disable this feature, set this flag flag, and Terragrunt will run `terraform providers lock` before `init` for modules without lock files, which will generate a complete lock file, but at the cost of more provider downloads. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
 
 ### terragrunt-provider-cache-hostname
 
