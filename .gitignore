@@ -14,3 +14,4 @@ vendor
 terragrunt
 .DS_Store
 mocks/
+.go-version

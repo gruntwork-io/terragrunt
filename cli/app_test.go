@@ -134,6 +134,12 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
+			[]string{doubleDashed(commands.TerragruntIAMWebIdentityTokenFlagName), "web-identity-token"},
+			mockOptionsWithIamWebIdentityToken(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, "web-identity-token"),
+			nil,
+		},
+
+		{
 			[]string{doubleDashed(commands.TerragruntConfigFlagName), fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "--terragrunt-non-interactive"},
 			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, true, "", false, false, defaultLogLevel, false),
 			nil,
@@ -251,6 +257,13 @@ func mockOptionsWithIamAssumeRoleSessionName(t *testing.T, terragruntConfigPath 
 	opts.OriginalIAMRoleOptions.AssumeRoleSessionName = iamAssumeRoleSessionName
 	opts.IAMRoleOptions.AssumeRoleSessionName = iamAssumeRoleSessionName
 
+	return opts
+}
+
+func mockOptionsWithIamWebIdentityToken(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, webIdentityToken string) *options.TerragruntOptions {
+	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
+	opts.OriginalIAMRoleOptions.WebIdentityToken = webIdentityToken
+	opts.IAMRoleOptions.WebIdentityToken = webIdentityToken
 	return opts
 }
 
