@@ -303,10 +303,30 @@ type TerragruntOptions struct {
 	AuthProviderCmd string
 }
 
+// TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
+type TerragruntOptionsFunc func(*TerragruntOptions)
+
+// WithRoleARN adds the provided role ARN to IamRoleOptions
+func WithIAMRoleARN(arn string) TerragruntOptionsFunc {
+	return func(t *TerragruntOptions) {
+		t.IAMRoleOptions.RoleARN = arn
+	}
+}
+
+// WithIAMWebIdentityToken adds the provided WebIdentity token to IamRoleOptions
+func WithIAMWebIdentityToken(token string) TerragruntOptionsFunc {
+	return func(t *TerragruntOptions) {
+		t.IAMRoleOptions.WebIdentityToken = token
+	}
+}
+
 // IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
 type IAMRoleOptions struct {
 	// The ARN of an IAM Role to assume. Used when accessing AWS, both internally and through terraform.
 	RoleARN string
+
+	// The Web identity token. Used when RoleArn is also set to use AssumeRoleWithWebIdentity instead of AssumeRole.
+	WebIdentityToken string
 
 	// Duration of the STS Session when assuming the role.
 	AssumeRoleDuration int64
@@ -328,6 +348,10 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 
 	if source.AssumeRoleSessionName != "" {
 		out.AssumeRoleSessionName = source.AssumeRoleSessionName
+	}
+
+	if source.WebIdentityToken != "" {
+		out.WebIdentityToken = source.WebIdentityToken
 	}
 
 	return out
@@ -417,7 +441,7 @@ func GetDefaultIAMAssumeRoleSessionName() string {
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for test usage
-func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOptions, error) {
+func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...TerragruntOptionsFunc) (*TerragruntOptions, error) {
 	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
 	if err != nil {
 		logger := util.CreateLogEntry("", util.GetDefaultLogLevel())
@@ -428,6 +452,10 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOption
 	opts.NonInteractive = true
 	opts.Logger = util.CreateLogEntry("", logrus.DebugLevel)
 	opts.LogLevel = logrus.DebugLevel
+
+	for _, opt := range options {
+		opt(opts)
+	}
 
 	return opts, nil
 }
