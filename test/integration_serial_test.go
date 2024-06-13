@@ -1,12 +1,10 @@
 package test
 
 import (
-	"archive/zip"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/fs"
 	"math"
 	"os"
@@ -37,57 +35,22 @@ import (
 func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	// In this test we use os.Setenv to set the Terraform env var TF_CLI_CONFIG_FILE.
 
-	createFakeProvider := func(t *testing.T, providerDir, providerFile, providerArchive string) {
-		err := os.MkdirAll(providerDir, os.ModePerm)
-		require.NoError(t, err)
-
-		providerFilePath := filepath.Join(providerDir, providerFile)
-
-		file, err := os.Create(providerFilePath)
-		require.NoError(t, err)
-		defer file.Close()
-
-		err = file.Sync()
-		require.NoError(t, err)
-
-		zipFile, err := os.Create(filepath.Join(providerDir, providerArchive))
-		require.NoError(t, err)
-		defer zipFile.Close()
-
-		zipWriter := zip.NewWriter(zipFile)
-		defer zipWriter.Close()
-
-		fileInfo, err := file.Stat()
-		require.NoError(t, err)
-
-		header, err := zip.FileInfoHeader(fileInfo)
-		require.NoError(t, err)
-
-		header.Method = zip.Deflate
-		header.Name = providerFile
-
-		headerWriter, err := zipWriter.CreateHeader(header)
-		require.NoError(t, err)
-
-		_, err = io.Copy(headerWriter, file)
-		require.NoError(t, err)
-
-		err = os.Remove(providerFilePath)
-		require.NoError(t, err)
-	}
-
 	cleanupTerraformFolder(t, TEST_FIXTURE_PROVIDER_CACHE_FILESYSTEM_MIRROR)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PROVIDER_CACHE_FILESYSTEM_MIRROR)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PROVIDER_CACHE_FILESYSTEM_MIRROR)
 
 	appPath := filepath.Join(rootPath, "app")
-	filesystemCachePath := filepath.Join(rootPath, "providers")
+	filesystemMirrorPath := filepath.Join(rootPath, "providers-mirror")
 
-	providerDir := filepath.Join(filesystemCachePath, "example.com/hashicorp/null")
-	providerFile := "terraform-provider-null_v3.2.2_x5"
-	providerArchvie := fmt.Sprintf("terraform-provider-null_3.2.2_%s_%s.zip", runtime.GOOS, runtime.GOARCH)
-
-	createFakeProvider(t, providerDir, providerFile, providerArchvie)
+	fakeProvider := FakeProvider{
+		RegistryName: "example.com",
+		Namespace:    "hashicorp",
+		Name:         "null",
+		Version:      "3.2.2",
+		PlatformOS:   runtime.GOOS,
+		PlatformArch: runtime.GOARCH,
+	}
+	fakeProvider.CreateMirror(t, filesystemMirrorPath)
 
 	cacheDir, err := util.GetCacheDir()
 	require.NoError(t, err)
@@ -109,7 +72,7 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	cliConfigSettings := &CLIConfigSettings{
 		FilesystemMirrorMethods: []CLIConfigProviderInstallationFilesystemMirror{
 			{
-				Path: filesystemCachePath,
+				Path: filesystemMirrorPath,
 			},
 		},
 	}

@@ -142,7 +142,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 		cliConfigFilename    = filepath.Join(opts.WorkingDir, localCLIFilename)
 		cacheRequestID       = uuid.New().String()
 		env                  = providerCacheEnvironment(opts, cliConfigFilename)
-		commandsArgs         [][]string
+		commandsArgs         = convertToMultipleCommandsByPlatforms(args)
 		skipRunTargetCommand bool
 	)
 
@@ -150,10 +150,8 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	switch {
 	case util.FirstArg(args) == terraform.CommandNameInit:
 		// Provider caching for `terraform init` command.
-		commandsArgs = [][]string{args}
 	case util.FirstArg(args) == terraform.CommandNameProviders && util.SecondArg(args) == terraform.CommandNameLock:
 		// Provider caching for `terraform providers lock` command.
-		commandsArgs = convertToMultipleCommandsByPlatforms(args)
 		// Since the Terragrunt provider cache server creates the cache and generates the lock file, we don't need to run the `terraform providers lock ...` command at all.
 		skipRunTargetCommand = true
 	default:
@@ -339,9 +337,12 @@ func convertToMultipleCommandsByPlatforms(args []string) [][]string {
 		}
 	}
 
+	if len(platformArgs) == 0 {
+		return [][]string{args}
+	}
+
 	for _, platformArg := range platformArgs {
 		commandsArgs = append(commandsArgs, append(filteredArgs, platformArg))
 	}
-
 	return commandsArgs
 }
