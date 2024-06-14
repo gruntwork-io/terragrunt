@@ -22,7 +22,7 @@ func Fetch(ctx context.Context, url string, dst io.Writer) error {
 	}
 	req.Header.Add("Accept-Encoding", "gzip")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := (&http.Client{}).Do(req)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}

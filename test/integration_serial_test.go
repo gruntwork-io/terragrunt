@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"math"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -89,8 +90,8 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	appPath := filepath.Join(rootPath, "app")
 	providersMirrorPath := filepath.Join(rootPath, "providers-mirror")
 
-	ctx := context.Background()
-	defer ctx.Done()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	fakeProvider := FakeProvider{
 		RegistryName: "example.com",
@@ -101,6 +102,12 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 		PlatformArch: runtime.GOARCH,
 	}
 	fakeProvider.CreateMirror(t, providersMirrorPath)
+
+	// when we run NetworkMirrorServer, we override the default transport to configure the self-signed certificate, we need to restor, after finishing we need to restore this value
+	defaultTransport := http.DefaultTransport
+	defer func() {
+		http.DefaultTransport = defaultTransport
+	}()
 
 	networkMirrorURL := runNetworkMirrorServer(t, ctx, "/providers/", providersMirrorPath)
 	t.Logf("Provdiers mirror path: %s", providersMirrorPath)

@@ -46,7 +46,7 @@ func testRunAllPlan(t *testing.T, args string) (string, string, string, error) {
 func runNetworkMirrorServer(t *testing.T, ctx context.Context, urlPrefix, providerDir string) *url.URL {
 	serverTLSConf, clientTLSConf := certSetup(t)
 
-	http.DefaultClient.Transport = &http.Transport{
+	http.DefaultTransport = &http.Transport{
 		TLSClientConfig: clientTLSConf,
 	}
 
@@ -61,13 +61,15 @@ func runNetworkMirrorServer(t *testing.T, ctx context.Context, urlPrefix, provid
 	ln, err := tls.Listen("tcp", "localhost:8888", serverTLSConf)
 	require.NoError(t, err)
 
-	go func() {
-		server := (&http.Server{
-			Addr:    ln.Addr().String(),
-			Handler: mux,
-		})
-		server.Serve(ln)
+	server := (&http.Server{
+		Addr:    ln.Addr().String(),
+		Handler: mux,
+	})
 
+	go func() {
+		server.Serve(ln)
+	}()
+	go func() {
 		<-ctx.Done()
 		server.Shutdown(ctx)
 	}()

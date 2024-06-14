@@ -28,7 +28,7 @@ type ProviderNetworkMirrorHandler struct {
 func NewProviderNetworkMirrorHandler(providerService *services.ProviderService, cacheProviderHTTPStatusCode int, networkMirror *cliconfig.ProviderInstallationNetworkMirror) ProviderHandler {
 	return &ProviderNetworkMirrorHandler{
 		CommonProviderHandler:       NewCommonProviderHandler(networkMirror.Include, networkMirror.Exclude),
-		Client:                      http.DefaultClient,
+		Client:                      &http.Client{},
 		providerService:             providerService,
 		cacheProviderHTTPStatusCode: cacheProviderHTTPStatusCode,
 		networkMirrorURL:            networkMirror.URL,
