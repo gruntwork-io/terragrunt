@@ -8,11 +8,11 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
 	"github.com/gruntwork-io/terragrunt/terraform/cliconfig"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/labstack/echo/v4"
 )
 
@@ -123,5 +123,5 @@ func (handler *ProviderNetworkMirrorHandler) request(ctx echo.Context, method, r
 	}
 	defer resp.Body.Close() //nolint:errcheck
 
-	return util.DecodeJSONBody(resp, value)
+	return helpers.DecodeJSONBody(resp, value)
 }
