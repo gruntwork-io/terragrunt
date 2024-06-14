@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
 	"github.com/gruntwork-io/terragrunt/terraform/cliconfig"
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/labstack/echo/v4"
 )
 
@@ -27,7 +28,7 @@ type ProviderNetworkMirrorHandler struct {
 func NewProviderNetworkMirrorHandler(providerService *services.ProviderService, cacheProviderHTTPStatusCode int, networkMirror *cliconfig.ProviderInstallationNetworkMirror) ProviderHandler {
 	return &ProviderNetworkMirrorHandler{
 		CommonProviderHandler:       NewCommonProviderHandler(networkMirror.Include, networkMirror.Exclude),
-		Client:                      &http.Client{},
+		Client:                      http.DefaultClient,
 		providerService:             providerService,
 		cacheProviderHTTPStatusCode: cacheProviderHTTPStatusCode,
 		networkMirrorURL:            networkMirror.URL,
@@ -86,6 +87,10 @@ func (handler *ProviderNetworkMirrorHandler) GetPlatform(ctx echo.Context, provi
 	}
 
 	if archive, ok := mirrorData.Archives[provider.Platform()]; ok {
+		if !strings.HasPrefix(archive.URL, "http") {
+			archive.URL = fmt.Sprintf("%s/%s", strings.TrimRight(handler.networkMirrorURL, "/"), path.Join(provider.RegistryName, provider.Namespace, provider.Name, archive.URL))
+		}
+
 		provider.ResponseBody = &models.ResponseBody{
 			Filename:    filepath.Base(archive.URL),
 			DownloadURL: archive.URL,
@@ -118,5 +123,5 @@ func (handler *ProviderNetworkMirrorHandler) request(ctx echo.Context, method, r
 	}
 	defer resp.Body.Close() //nolint:errcheck
 
-	return DecodeJSONBody(resp, value)
+	return util.DecodeJSONBody(resp, value)
 }
