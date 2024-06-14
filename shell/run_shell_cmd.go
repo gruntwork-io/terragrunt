@@ -216,14 +216,19 @@ func RunShellCommandWithOutput(
 			for {
 				runResp, err := runStream.Recv()
 				if err != nil {
-					terragruntOptions.Logger.Warnf("Run error: %v", err)
 					break
 				}
 				if runResp.Stdout != "" {
-					stdoutBuf.Write([]byte(runResp.Stdout))
+					_, err := cmdStdout.Write([]byte(runResp.Stdout + "\n"))
+					if err != nil {
+						return err
+					}
 				}
 				if runResp.Stderr != "" {
-					stderrBuf.Write([]byte(runResp.Stderr))
+					_, err := cmdStderr.Write([]byte(runResp.Stderr + "\n"))
+					if err != nil {
+						return err
+					}
 				}
 				resultCode = int(runResp.ResultCode)
 			}

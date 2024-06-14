@@ -66,6 +66,8 @@ func (c *TofuCommandExecutor) Run(req *pb.RunRequest, stream pb.CommandExecutor_
 	}
 
 	var wg sync.WaitGroup
+
+	// 2 streams to send stdout and stderr
 	wg.Add(2)
 
 	// Stream stdout
