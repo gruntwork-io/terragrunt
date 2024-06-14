@@ -4,10 +4,13 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"github.com/creack/pty"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	pb "github.com/gruntwork-io/terragrunt/plugins"
 	"github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
+	"io"
+	"os"
 	"os/exec"
 	"sync"
 )
@@ -58,7 +61,24 @@ func (c *TerraformCommandExecutor) Run(req *pb.RunRequest, stream pb.CommandExec
 	}
 
 	if req.AllocatePseudoTty {
-		// Allocate a pseudo-TTY if needed
+		ptmx, err := pty.Start(cmd)
+		if err != nil {
+			log.Errorf("Error allocating pseudo-TTY: %v", err)
+			return err
+		}
+		defer func() { _ = ptmx.Close() }()
+
+		go func() {
+			_, _ = io.Copy(ptmx, os.Stdin)
+		}()
+		go func() {
+			_, _ = io.Copy(os.Stdout, ptmx)
+		}()
+		go func() {
+			_, _ = io.Copy(os.Stderr, ptmx)
+		}()
+	} else {
+		cmd.Stdin = os.Stdin
 	}
 
 	if err := cmd.Start(); err != nil {
