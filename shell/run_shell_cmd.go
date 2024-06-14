@@ -219,19 +219,21 @@ func RunShellCommandWithOutput(
 					break
 				}
 				if runResp.Stdout != "" {
-					_, err := cmdStdout.Write([]byte(runResp.Stdout + "\n"))
+					_, err := cmdStdout.Write([]byte(runResp.Stdout))
 					if err != nil {
 						return err
 					}
 				}
 				if runResp.Stderr != "" {
-					_, err := cmdStderr.Write([]byte(runResp.Stderr + "\n"))
+					_, err := cmdStderr.Write([]byte(runResp.Stderr))
 					if err != nil {
 						return err
 					}
 				}
 				resultCode = int(runResp.ResultCode)
 			}
+
+			terragruntOptions.Logger.Infof("Plugin execution done in %v", cmd.Dir)
 
 			if resultCode != 0 {
 				err = ProcessExecutionError{

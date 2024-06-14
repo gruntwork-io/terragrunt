@@ -8,6 +8,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	pb "github.com/gruntwork-io/terragrunt/plugins"
 	"github.com/hashicorp/go-plugin"
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 	"google.golang.org/grpc"
 	"io"
 	"os"
@@ -93,36 +95,46 @@ func (c *TofuCommandExecutor) Run(req *pb.RunRequest, stream pb.CommandExecutor_
 	// Stream stdout
 	go func() {
 		defer wg.Done()
-		stdoutScanner := bufio.NewScanner(stdoutPipe)
-		for stdoutScanner.Scan() {
-			err := stream.Send(&pb.RunResponse{
-				Stdout: stdoutScanner.Text(),
+		reader := transform.NewReader(stdoutPipe, unicode.UTF8.NewDecoder())
+		bufReader := bufio.NewReader(reader)
+		for {
+			char, _, err := bufReader.ReadRune()
+			if err != nil {
+				if err != io.EOF {
+					log.Errorf("Error reading stdout: %v", err)
+				}
+				break
+			}
+			err = stream.Send(&pb.RunResponse{
+				Stdout: string(char),
 			})
 			if err != nil {
-				fmt.Println("Error sending stdout:", err)
+				log.Errorf("Error sending stdout: %v", err)
 				return
 			}
-		}
-		if err := stdoutScanner.Err(); err != nil {
-			fmt.Println("Error reading stdout:", err)
 		}
 	}()
 
 	// Stream stderr
 	go func() {
 		defer wg.Done()
-		stderrScanner := bufio.NewScanner(stderrPipe)
-		for stderrScanner.Scan() {
-			err := stream.Send(&pb.RunResponse{
-				Stderr: stderrScanner.Text(),
+		reader := transform.NewReader(stderrPipe, unicode.UTF8.NewDecoder())
+		bufReader := bufio.NewReader(reader)
+		for {
+			char, _, err := bufReader.ReadRune()
+			if err != nil {
+				if err != io.EOF {
+					log.Errorf("Error reading stderr: %v", err)
+				}
+				break
+			}
+			err = stream.Send(&pb.RunResponse{
+				Stderr: string(char),
 			})
 			if err != nil {
-				fmt.Println("Error sending stderr:", err)
+				log.Errorf("Error sending stderr: %v", err)
 				return
 			}
-		}
-		if err := stderrScanner.Err(); err != nil {
-			fmt.Println("Error reading stderr:", err)
 		}
 	}()
 
