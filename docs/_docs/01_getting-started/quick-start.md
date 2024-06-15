@@ -15,20 +15,22 @@ Terragrunt is a thin wrapper that provides extra tools for keeping your configur
 
 To use it, you:
 
-1.  [Install Terraform](https://learn.hashicorp.com/terraform/getting-started/install).
+1. [Install Terraform](https://learn.hashicorp.com/terraform/getting-started/install).
 
-2.  [Install Terragrunt]({{site.baseurl}}/docs/getting-started/install/).
+2. [Install Terragrunt]({{site.baseurl}}/docs/getting-started/install/).
 
-3.  Put your Terragrunt configuration in a `terragrunt.hcl` file. You’ll see several example configurations shortly.
+3. Put your Terragrunt configuration in a `terragrunt.hcl` file. You’ll see several example configurations shortly.
 
-4.  Now, instead of running `terraform` directly, you run the same commands with `terragrunt`:
+4. Now, instead of running `terraform` directly, you run the same commands with `terragrunt`:
 
 <!-- end list -->
 
-    terragrunt plan
-    terragrunt apply
-    terragrunt output
-    terragrunt destroy
+```shell
+terragrunt plan
+terragrunt apply
+terragrunt output
+terragrunt destroy
+```
 
 Terragrunt will forward almost all commands, arguments, and options directly to Terraform, but based on the settings in your `terragrunt.hcl` file.
 
@@ -38,8 +40,9 @@ Here is an example configuration you can use to get started. The following confi
 [terraform-aws-modules/vpc](https://registry.terraform.io/modules/terraform-aws-modules/vpc/aws/latest) module from the
 [Terraform Registry](https://registry.terraform.io/):
 
-_terragrunt.hcl_
-```
+### terragrunt.hcl
+
+```hcl
 # Indicate where to source the terraform module from.
 # The URL used here is a shorthand for
 # "tfr://registry.terraform.io/terraform-aws-modules/vpc/aws?version=3.5.0".
@@ -86,7 +89,7 @@ terraform code using the `source` attribute. We indicate that terragrunt should 
 `terraform-aws-modules/vpc/aws` module hosted in the [Public Terraform Registry](https://registry.terraform.io), version
 `3.5.0`. This is indicated by using the `tfr://` protocol in the source URL, which takes the form:
 
-```
+```text
 tfr://REGISTRY_DOMAIN/MODULE?version=VERSION
 ```
 
@@ -111,17 +114,19 @@ registry]({{ site.baseurl }}/docs/reference/config-blocks-and-attributes#a-note-
 
 Terragrunt can help you accomplish the following:
 
-1.  [Keep your backend configuration DRY](#keep-your-backend-configuration-dry)
-
-1.  [Keep your provider configuration DRY](#keep-your-provider-configuration-dry)
-
-1.  [Keep your Terraform CLI arguments DRY](#keep-your-terraform-cli-arguments-dry)
-
-1.  [Promote immutable, versioned Terraform modules across environments](#promote-immutable-versioned-terraform-modules-across-environments)
+- [Introduction](#introduction)
+- [Example](#example)
+  - [terragrunt.hcl](#terragrunthcl)
+- [Key features](#key-features)
+  - [Keep your backend configuration DRY](#keep-your-backend-configuration-dry)
+  - [Keep your provider configuration DRY](#keep-your-provider-configuration-dry)
+  - [Keep your Terraform CLI arguments DRY](#keep-your-terraform-cli-arguments-dry)
+  - [Promote immutable, versioned Terraform modules across environments](#promote-immutable-versioned-terraform-modules-across-environments)
+- [Next steps](#next-steps)
 
 ### Keep your backend configuration DRY
 
-*Terraform* backends allow you to store Terraform state in a shared location that everyone on your team can access, such as an S3 bucket, and provide locking around your state files to protect against race conditions. To use a Terraform backend, you add a `backend` configuration to your Terraform code:
+_Terraform_ backends allow you to store Terraform state in a shared location that everyone on your team can access, such as an S3 bucket, and provide locking around your state files to protect against race conditions. To use a Terraform backend, you add a `backend` configuration to your Terraform code:
 
 ``` hcl
 # stage/frontend-app/main.tf
@@ -152,7 +157,7 @@ terraform {
 }
 ```
 
-That means you have to copy/paste the same `backend` configuration into every one of your Terraform modules. Not only do you have to copy/paste, but you also have to very carefully *not* copy/paste the `key` value so that you don’t have two modules overwriting each other’s state files\! E.g., The `backend` configuration for a `database` module would look nearly identical to the `backend` configuration of the `frontend-app` module, except for a different `key` value:
+That means you have to copy/paste the same `backend` configuration into every one of your Terraform modules. Not only do you have to copy/paste, but you also have to very carefully _not_ copy/paste the `key` value so that you don’t have two modules overwriting each other’s state files\! E.g., The `backend` configuration for a `database` module would look nearly identical to the `backend` configuration of the `frontend-app` module, except for a different `key` value:
 
 ``` hcl
 # stage/mysql/main.tf
@@ -169,22 +174,26 @@ terraform {
 
 Terragrunt allows you to keep your `backend` configuration DRY (“Don’t Repeat Yourself”) by defining it once in a root location and inheriting that configuration in all child modules. Let’s say your Terraform code has the following folder layout:
 
-    stage
-    ├── frontend-app
-    │   └── main.tf
-    └── mysql
-        └── main.tf
+```tree
+stage
+├── frontend-app
+│   └── main.tf
+└── mysql
+    └── main.tf
+```
 
 To use Terragrunt, add a single `terragrunt.hcl` file to the root of your repo, in the `stage` folder, and one `terragrunt.hcl` file in each module folder:
 
-    stage
-    ├── terragrunt.hcl
-    ├── frontend-app
-    │   ├── main.tf
-    │   └── terragrunt.hcl
-    └── mysql
-        ├── main.tf
-        └── terragrunt.hcl
+```tree
+stage
+├── terragrunt.hcl
+├── frontend-app
+│   ├── main.tf
+│   └── terragrunt.hcl
+└── mysql
+    ├── main.tf
+    └── terragrunt.hcl
+```
 
 Now you can define your `backend` configuration just once in the root `terragrunt.hcl` file:
 
@@ -227,8 +236,8 @@ The `find_in_parent_folders()` helper will automatically search up the directory
 Now, [install Terragrunt]({{site.baseurl}}/docs/getting-started/install), and run all the Terraform commands you’re used to, but with `terragrunt` as the command name rather than `terraform` (e.g., `terragrunt apply` instead of `terraform apply`). To deploy the database module, you would run:
 
 ``` bash
-$ cd stage/mysql
-$ terragrunt apply
+cd stage/mysql
+terragrunt apply
 ```
 
 Terragrunt will automatically find the `mysql` module’s `terragrunt.hcl` file, configure the `backend` using the settings from the root `terragrunt.hcl` file, and, thanks to the `path_relative_to_include()` function, will set the `key` to `stage/mysql/terraform.tfstate`. If you run `terragrunt apply` in `stage/frontend-app`, it’ll do the same, except it will set the `key` to `stage/frontend-app/terraform.tfstate`.
@@ -241,7 +250,7 @@ Unifying provider configurations across all your modules can be a pain, especial
 authentication credentials. To configure Terraform to assume an IAM role before calling out to AWS, you need to add a
 `provider` block with the `assume_role` configuration:
 
-```
+```hcl
 # stage/frontend-app/main.tf
 provider "aws" {
   assume_role {
@@ -254,7 +263,7 @@ This code tells Terraform to assume the role `arn:aws:iam::0123456789:role/terra
 APIs to create the resources. Unlike the `backend` configurations, `provider` configurations support variables, so
 typically you will resolve this by making the role configurable in the module:
 
-```
+```hcl
 # stage/frontend-app/main.tf
 variable "assume_role_arn" {
   description = "Role to assume for AWS API calls"
@@ -310,7 +319,6 @@ $ terragrunt apply
 $ find . -name "provider.tf"
 .terragrunt-cache/some-unique-hash/provider.tf
 ```
-
 
 ### Keep your Terraform CLI arguments DRY
 
@@ -385,36 +393,38 @@ One of the most important [lessons we’ve learned from writing hundreds of thou
 
 Therefore, you typically want to break up your infrastructure across multiple modules:
 
-    ├── prod
-    │   ├── app
-    │   │   ├── main.tf
-    │   │   └── outputs.tf
-    │   ├── mysql
-    │   │   ├── main.tf
-    │   │   └── outputs.tf
-    │   └── vpc
-    │       ├── main.tf
-    │       └── outputs.tf
-    ├── qa
-    │   ├── app
-    │   │   ├── main.tf
-    │   │   └── outputs.tf
-    │   ├── mysql
-    │   │   ├── main.tf
-    │   │   └── outputs.tf
-    │   └── vpc
-    │       ├── main.tf
-    │       └── outputs.tf
-    └── stage
-        ├── app
-        │   ├── main.tf
-        │   └── outputs.tf
-        ├── mysql
-        │   ├── main.tf
-        │   └── outputs.tf
-        └── vpc
-            ├── main.tf
-            └── outputs.tf
+```tree
+├── prod
+│   ├── app
+│   │   ├── main.tf
+│   │   └── outputs.tf
+│   ├── mysql
+│   │   ├── main.tf
+│   │   └── outputs.tf
+│   └── vpc
+│       ├── main.tf
+│       └── outputs.tf
+├── qa
+│   ├── app
+│   │   ├── main.tf
+│   │   └── outputs.tf
+│   ├── mysql
+│   │   ├── main.tf
+│   │   └── outputs.tf
+│   └── vpc
+│       ├── main.tf
+│       └── outputs.tf
+└── stage
+    ├── app
+    │   ├── main.tf
+    │   └── outputs.tf
+    ├── mysql
+    │   ├── main.tf
+    │   └── outputs.tf
+    └── vpc
+        ├── main.tf
+        └── outputs.tf
+```
 
 The folder structure above shows how to separate the code for each environment (`prod`, `qa`, `stage`) and for each type of infrastructure (apps, databases, VPCs). However, the downside is that it isn’t DRY. The `.tf` files will contain a LOT of duplication. You can reduce it somewhat by defining all the infrastructure in [reusable Terraform modules](https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d), but even the code to instantiate a module—including configuring the `provider`, `backend`, the module’s input variables, and `output` variables—means you still end up with dozens or hundreds of lines of copy/paste for every module in every environment:
 
@@ -440,7 +450,7 @@ output "url" {
 # ... and so on!
 ```
 
-Terragrunt allows you to define your Terraform code *once* and to promote a versioned, immutable “artifact” of that exact same code from environment to environment. Here’s a quick overview of how.
+Terragrunt allows you to define your Terraform code _once_ and to promote a versioned, immutable “artifact” of that exact same code from environment to environment. Here’s a quick overview of how.
 
 First, create a Git repo called `infrastructure-modules` that has your Terraform code (`.tf` files). This is the exact same Terraform code you just saw above, except that any variables that will differ between environments should be exposed as input variables:
 
@@ -472,34 +482,36 @@ variable "instance_count" {}
 Once this is in place, you can release a new version of this module by creating a Git tag:
 
 ``` bash
-$ git tag -a "v0.0.1" -m "First release of app module"
-$ git push --follow-tags
+git tag -a "v0.0.1" -m "First release of app module"
+git push --follow-tags
 ```
 
 Now, in another Git repo called `infrastructure-live`, you create the same folder structure you had before for all of your environments, but instead of lots of copy/pasted `.tf` files for each module, you have just a single `terragrunt.hcl` file:
 
-    # infrastructure-live
-    ├── prod
-    │   ├── app
-    │   │   └── terragrunt.hcl
-    │   ├── mysql
-    │   │   └── terragrunt.hcl
-    │   └── vpc
-    │       └── terragrunt.hcl
-    ├── qa
-    │   ├── app
-    │   │   └── terragrunt.hcl
-    │   ├── mysql
-    │   │   └── terragrunt.hcl
-    │   └── vpc
-    │       └── terragrunt.hcl
-    └── stage
-        ├── app
-        │   └── terragrunt.hcl
-        ├── mysql
-        │   └── terragrunt.hcl
-        └── vpc
-            └── terragrunt.hcl
+```tree
+# infrastructure-live
+├── prod
+│   ├── app
+│   │   └── terragrunt.hcl
+│   ├── mysql
+│   │   └── terragrunt.hcl
+│   └── vpc
+│       └── terragrunt.hcl
+├── qa
+│   ├── app
+│   │   └── terragrunt.hcl
+│   ├── mysql
+│   │   └── terragrunt.hcl
+│   └── vpc
+│       └── terragrunt.hcl
+└── stage
+    ├── app
+    │   └── terragrunt.hcl
+    ├── mysql
+    │   └── terragrunt.hcl
+    └── vpc
+        └── terragrunt.hcl
+```
 
 The contents of each `terragrunt.hcl` file look something like this:
 
@@ -565,8 +577,8 @@ If at any point you hit a problem, it will only affect the one environment, and 
 
 Now that you’ve seen the basics of Terragrunt, here is some further reading to learn more:
 
-1.  [Use cases]({{site.baseurl}}/docs/#features): Learn about the core use cases Terragrunt supports.
+1. [Use cases]({{site.baseurl}}/docs/#features): Learn about the core use cases Terragrunt supports.
 
-2.  [Documentation]({{site.baseurl}}/docs/): Check out the detailed Terragrunt documentation.
+2. [Documentation]({{site.baseurl}}/docs/): Check out the detailed Terragrunt documentation.
 
-3.  [*Terraform: Up & Running*](https://www.terraformupandrunning.com/): This book is the fastest way to get up and running with Terraform\! Terragrunt is a direct implementation of many of the ideas from this book.
+3. [_Terraform: Up & Running_](https://www.terraformupandrunning.com/): This book is the fastest way to get up and running with Terraform\! Terragrunt is a direct implementation of many of the ideas from this book.

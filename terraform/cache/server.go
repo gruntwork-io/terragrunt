@@ -4,12 +4,11 @@ import (
 	"context"
 	"net"
 	"net/http"
-	"net/url"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/controllers"
-	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/middleware"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
 	"golang.org/x/sync/errgroup"
@@ -17,37 +16,27 @@ import (
 
 // Server is a private Terraform cache for provider caching.
 type Server struct {
-	*http.Server
-	config   *Config
-	listener net.Listener
+	*router.Router
+	config *Config
 
-	Provider           *services.ProviderService
-	providerController *controllers.ProviderController
-	reverseProxy       *handlers.ReverseProxy
+	services           []services.Service
+	ProviderController *controllers.ProviderController
 }
 
 // NewServer returns a new Server instance.
 func NewServer(opts ...Option) *Server {
 	cfg := NewConfig(opts...)
 
-	providerService := services.NewProviderService(cfg.providerCacheDir, cfg.providerArchiveDir, cfg.userProviderDir, cfg.disablePartialLockFile)
-
-	authorization := &handlers.Authorization{
-		Token: cfg.token,
-	}
-
-	reverseProxy := &handlers.ReverseProxy{}
+	authMiddleware := middleware.KeyAuth(cfg.token)
 
 	downloaderController := &controllers.DownloaderController{
-		ReverseProxy:    reverseProxy,
-		ProviderService: providerService,
+		ProviderHandlers: cfg.providerHandlers,
 	}
 
 	providerController := &controllers.ProviderController{
-		Authorization:   authorization,
-		ReverseProxy:    reverseProxy,
-		ProviderService: providerService,
-		Downloader:      downloaderController,
+		AuthMiddleware:       authMiddleware,
+		DownloaderController: downloaderController,
+		ProviderHandlers:     cfg.providerHandlers,
 	}
 
 	discoveryController := &controllers.DiscoveryController{
@@ -55,60 +44,44 @@ func NewServer(opts ...Option) *Server {
 	}
 
 	rootRouter := router.New()
+	rootRouter.Use(middleware.Logger())
+	rootRouter.Use(middleware.Recover())
 	rootRouter.Register(discoveryController, downloaderController)
 
 	v1Group := rootRouter.Group("v1")
 	v1Group.Register(providerController)
 
 	return &Server{
-		Server:             &http.Server{Handler: rootRouter},
+		Router:             rootRouter,
 		config:             cfg,
-		Provider:           providerService,
-		providerController: providerController,
-		reverseProxy:       reverseProxy,
-	}
-}
-
-// ProviderURL returns a full URL to the provider controller, e.g. http://localhost:5758/v1/providers
-func (server *Server) ProviderURL() *url.URL {
-	return &url.URL{
-		Scheme: "http",
-		Host:   server.Addr,
-		Path:   server.providerController.Path(),
+		services:           cfg.services,
+		ProviderController: providerController,
 	}
 }
 
 // Listen starts listening to the given configuration address. It also automatically chooses a free port if not explicitly specified.
-func (server *Server) Listen() error {
+func (server *Server) Listen() (net.Listener, error) {
 	ln, err := net.Listen("tcp", server.config.Addr())
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return nil, errors.WithStackTrace(err)
 	}
+	server.Server.Addr = ln.Addr().String()
 
-	server.Addr = ln.Addr().String()
-	server.listener = ln
-
-	log.Infof("Terragrunt Cache server is listening on %s", server.Addr)
-	return nil
-}
-
-func (server *Server) Close() error {
-	return server.listener.Close()
+	log.Infof("Terragrunt Cache server is listening on %s", ln.Addr())
+	return ln, nil
 }
 
 // Run starts the webserver and workers.
-func (server *Server) Run(ctx context.Context) error {
+func (server *Server) Run(ctx context.Context, ln net.Listener) error {
 	log.Infof("Start Terragrunt Cache server")
 
-	server.reverseProxy.ServerURL = &url.URL{
-		Scheme: "http",
-		Host:   server.Addr,
-	}
-
 	errGroup, ctx := errgroup.WithContext(ctx)
-	errGroup.Go(func() error {
-		return server.Provider.RunCacheWorker(ctx)
-	})
+	for _, service := range server.services {
+		service := service
+		errGroup.Go(func() error {
+			return service.Run(ctx)
+		})
+	}
 	errGroup.Go(func() error {
 		<-ctx.Done()
 		log.Infof("Shutting down Terragrunt Cache server...")
@@ -116,14 +89,13 @@ func (server *Server) Run(ctx context.Context) error {
 		ctx, cancel := context.WithTimeout(ctx, server.config.shutdownTimeout)
 		defer cancel()
 
-		server.SetKeepAlivesEnabled(false)
 		if err := server.Shutdown(ctx); err != nil {
 			return errors.WithStackTrace(err)
 		}
 		return nil
 	})
 
-	if err := server.Serve(server.listener); err != nil && err != http.ErrServerClosed {
+	if err := server.Server.Serve(ln); err != nil && err != http.ErrServerClosed {
 		return errors.Errorf("error starting terragrunt cache server: %w", err)
 	}
 	defer log.Infof("Terragrunt Cache server stopped")

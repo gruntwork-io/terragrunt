@@ -1,9 +1,14 @@
 package configstack
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
+
+	"github.com/gruntwork-io/terragrunt/terraform"
 
 	"github.com/gruntwork-io/terragrunt/options"
 
@@ -217,7 +222,7 @@ func (module *runningModule) runModuleWhenReady(ctx context.Context, opts *optio
 			"path":             module.Module.Path,
 			"terraformCommand": module.Module.TerragruntOptions.TerraformCommand,
 		}, func(childCtx context.Context) error {
-			return module.runNow(ctx)
+			return module.runNow(ctx, opts)
 		})
 	}
 	module.moduleFinished(err)
@@ -247,7 +252,7 @@ func (module *runningModule) waitForDependencies() error {
 }
 
 // Run a module right now by executing the RunTerragrunt command of its TerragruntOptions field.
-func (module *runningModule) runNow(ctx context.Context) error {
+func (module *runningModule) runNow(ctx context.Context, rootOptions *options.TerragruntOptions) error {
 	module.Status = Running
 
 	if module.Module.AssumeAlreadyApplied {
@@ -255,7 +260,33 @@ func (module *runningModule) runNow(ctx context.Context) error {
 		return nil
 	} else {
 		module.Module.TerragruntOptions.Logger.Debugf("Running module %s now", module.Module.Path)
-		return module.Module.TerragruntOptions.RunTerragrunt(ctx, module.Module.TerragruntOptions)
+		if err := module.Module.TerragruntOptions.RunTerragrunt(ctx, module.Module.TerragruntOptions); err != nil {
+			return err
+		}
+		// convert terragrunt output to json
+		if outputJsonFile(module.Module.TerragruntOptions, module.Module) != "" {
+			jsonOptions := module.Module.TerragruntOptions.Clone(module.Module.TerragruntOptions.TerragruntConfigPath)
+			stdout := bytes.Buffer{}
+			jsonOptions.IncludeModulePrefix = false
+			jsonOptions.TerraformLogsToJson = false
+			jsonOptions.OutputPrefix = ""
+			jsonOptions.Writer = &stdout
+			jsonOptions.TerraformCommand = terraform.CommandNameShow
+			jsonOptions.TerraformCliArgs = []string{terraform.CommandNameShow, "-json", modulePlanFile(rootOptions, module.Module)}
+			if err := jsonOptions.RunTerragrunt(ctx, jsonOptions); err != nil {
+				return err
+			}
+			// save the json output to the file plan file
+			outputFile := outputJsonFile(rootOptions, module.Module)
+			jsonDir := filepath.Dir(outputFile)
+			if err := os.MkdirAll(jsonDir, os.ModePerm); err != nil {
+				return err
+			}
+			if err := os.WriteFile(outputFile, stdout.Bytes(), os.ModePerm); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 }
 

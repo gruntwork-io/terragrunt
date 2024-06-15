@@ -284,23 +284,39 @@ func configValuesEqual(config map[string]interface{}, existingBackend *Terraform
 	return true
 }
 
+// buildInitializerCacheKey returns a unique key for the given S3 config that can be used to cache the initialization
+func (s3Initializer S3Initializer) buildInitializerCacheKey(s3Config *RemoteStateConfigS3) string {
+	return fmt.Sprintf("%s-%s-%s-%s", s3Config.Bucket, s3Config.Region, s3Config.LockTable, s3Config.DynamoDBTable)
+}
+
 // Initialize the remote state S3 bucket specified in the given config. This function will validate the config
 // parameters, create the S3 bucket if it doesn't already exist, and check that versioning is enabled.
 func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {
-
 	s3ConfigExtended, err := ParseExtendedS3Config(remoteState.Config)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	if err := validateS3Config(s3ConfigExtended, terragruntOptions); err != nil {
+	if err := validateS3Config(s3ConfigExtended); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
 	var s3Config = s3ConfigExtended.remoteStateConfigS3
 
+	cacheKey := s3Initializer.buildInitializerCacheKey(&s3Config)
+	if initialized, hit := initializedRemoteStateCache.Get(cacheKey); initialized && hit {
+		terragruntOptions.Logger.Debugf("S3 bucket %s has already been confirmed to be initialized, skipping initialization checks", s3Config.Bucket)
+		return nil
+	}
+
 	// ensure that only one goroutine can initialize bucket
 	return stateAccessLock.StateBucketUpdate(s3Config.Bucket, func() error {
+		// Check if another goroutine has already initialized the bucket
+		if initialized, hit := initializedRemoteStateCache.Get(cacheKey); initialized && hit {
+			terragruntOptions.Logger.Debugf("S3 bucket %s has already been confirmed to be initialized, skipping initialization checks", s3Config.Bucket)
+			return nil
+		}
+
 		// Display a deprecation warning when the "lock_table" attribute is being used
 		// during initialization.
 		if s3Config.LockTable != "" {
@@ -335,6 +351,9 @@ func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *
 		if err := UpdateLockTableSetSSEncryptionOnIfNecessary(&s3Config, s3ConfigExtended, terragruntOptions); err != nil {
 			return errors.WithStackTrace(err)
 		}
+
+		initializedRemoteStateCache.Put(cacheKey, true)
+
 		return nil
 	})
 }
@@ -401,7 +420,7 @@ func ParseExtendedS3Config(config map[string]interface{}) (*ExtendedRemoteStateC
 }
 
 // Validate all the parameters of the given S3 remote state configuration
-func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
+func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3) error {
 	var config = extendedConfig.remoteStateConfigS3
 
 	if config.Region == "" {
@@ -414,15 +433,6 @@ func validateS3Config(extendedConfig *ExtendedRemoteStateConfigS3, terragruntOpt
 
 	if config.Key == "" {
 		return errors.WithStackTrace(MissingRequiredS3RemoteStateConfig("key"))
-	}
-
-	if !config.Encrypt {
-		msg := fmt.Sprintf("Encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!", config.Bucket)
-		if extendedConfig.SkipBucketSSEncryption {
-			terragruntOptions.Logger.Debug(msg)
-		} else {
-			terragruntOptions.Logger.Warn(msg)
-		}
 	}
 
 	return nil
@@ -453,7 +463,7 @@ func createS3BucketIfNecessary(ctx context.Context, s3Client *s3.S3, config *Ext
 		// been performed should be a no-op.
 		description := fmt.Sprintf("Create S3 bucket with retry %s", config.remoteStateConfigS3.Bucket)
 
-		return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, logrus.DebugLevel, func() error {
+		return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, logrus.DebugLevel, func(ctx context.Context) error {
 			err := CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client, config, terragruntOptions)
 			if err != nil {
 				if isBucketCreationErrorRetriable(err) {
@@ -506,11 +516,22 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 	}
 
 	if bucketUpdatesRequired.SSEEncryption {
+		msg := fmt.Sprintf("Encryption is not enabled on the S3 remote state bucket %s. Terraform state files may contain secrets, so we STRONGLY recommend enabling encryption!", config.remoteStateConfigS3.Bucket)
+
 		if config.SkipBucketSSEncryption {
-			terragruntOptions.Logger.Debugf("Server-Side Encryption is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", config.remoteStateConfigS3.Bucket)
-		} else if err := EnableSSEForS3BucketWide(s3Client, config.remoteStateConfigS3.Bucket, fetchEncryptionAlgorithm(config), config, terragruntOptions); err != nil {
+			terragruntOptions.Logger.Debug(msg)
+			terragruntOptions.Logger.Debugf("Server-Side Encryption enabling is disabled for the remote state AWS S3 bucket %s using 'skip_bucket_ssencryption' config.", config.remoteStateConfigS3.Bucket)
+			return nil
+		} else {
+			terragruntOptions.Logger.Warn(msg)
+		}
+
+		terragruntOptions.Logger.Infof("Enabling Server-Side Encryption for the remote state AWS S3 bucket %s.", config.remoteStateConfigS3.Bucket)
+		if err := EnableSSEForS3BucketWide(s3Client, config.remoteStateConfigS3.Bucket, fetchEncryptionAlgorithm(config), config, terragruntOptions); err != nil {
+			terragruntOptions.Logger.Errorf("Failed to enable Server-Side Encryption for the remote state AWS S3 bucket %s: %v", config.remoteStateConfigS3.Bucket, err)
 			return err
 		}
+		terragruntOptions.Logger.Infof("Successfully enabled Server-Side Encryption for the remote state AWS S3 bucket %s.", config.remoteStateConfigS3.Bucket)
 	}
 
 	if bucketUpdatesRequired.RootAccess {

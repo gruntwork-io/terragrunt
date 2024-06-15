@@ -35,6 +35,10 @@ var meter otelmetric.Meter
 var metricProvider *metric.MeterProvider
 var metricExporter metric.Exporter
 
+var parentTraceID *trace.TraceID
+var parentSpanID *trace.SpanID
+var parentTraceFlags *trace.TraceFlags
+
 // InitTelemetry - initialize the telemetry provider.
 func InitTelemetry(ctx context.Context, opts *TelemetryOptions) error {
 

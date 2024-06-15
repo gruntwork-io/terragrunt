@@ -132,6 +132,7 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 			"iam_assume_role_duration":      interface{}(nil),
 			"iam_assume_role_session_name":  "",
 			"iam_role":                      "",
+			"iam_web_identity_token":        "",
 			"inputs":                        interface{}(nil),
 			"locals":                        cfg.Locals,
 			"retry_max_attempts":            interface{}(nil),

@@ -22,10 +22,14 @@ const (
 	CommandNameUntaint        = "untaint"
 	CommandNameConsole        = "console"
 	CommandNameForceUnlock    = "force-unlock"
+	CommandNameShow           = "show"
 
 	FlagNameNoColor = "-no-color"
 	// `apply -destroy` is alias for `destroy`
 	FlagNameDestroy = "-destroy"
+
+	// `platform` is a flag used with the `providers lock` command.
+	FlagNamePlatform = "-platform"
 
 	EnvNameTFCLIConfigFile                         = "TF_CLI_CONFIG_FILE"
 	EnvNameTFPluginCacheDir                        = "TF_PLUGIN_CACHE_DIR"
@@ -34,6 +38,9 @@ const (
 	EnvNameTFVarFmt                                = "TF_VAR_%s"
 
 	TerraformLockFile = ".terraform.lock.hcl"
+
+	TerraformPlanFile     = "tfplan.tfplan"
+	TerraformPlanJsonFile = "tfplan.json"
 )
 
 // ModuleVariables will return all the variables defined in the downloaded terraform modules, taking into

@@ -12,48 +12,45 @@ nav_title_link: /docs/
 
 ## Keep your Terraform code DRY
 
+- [Keep your Terraform code DRY](#keep-your-terraform-code-dry)
   - [Motivation](#motivation)
-
   - [Remote Terraform configurations](#remote-terraform-configurations)
-
-  - [How to use remote configurations](#how-to-use-remote-configurations)
-
   - [Achieve DRY Terraform code and immutable infrastructure](#achieve-dry-terraform-code-and-immutable-infrastructure)
-
   - [Working locally](#working-locally)
-
+  - [Working with lock files](#working-with-lock-files)
+  - [Important gotcha: Terragrunt caching](#important-gotcha-terragrunt-caching)
   - [Important gotcha: working with relative file paths](#important-gotcha-working-with-relative-file-paths)
-
   - [Using Terragrunt with private Git repos](#using-terragrunt-with-private-git-repos)
-
   - [DRY common Terraform code with Terragrunt generate blocks](#dry-common-terraform-code-with-terragrunt-generate-blocks)
 
 ### Motivation
 
 Consider the following file structure, which defines three environments (prod, qa, stage) with the same infrastructure in each one (an app, a MySQL database, and a VPC):
 
-    └── live
-        ├── prod
-        │   ├── app
-        │   │   └── main.tf
-        │   ├── mysql
-        │   │   └── main.tf
-        │   └── vpc
-        │       └── main.tf
-        ├── qa
-        │   ├── app
-        │   │   └── main.tf
-        │   ├── mysql
-        │   │   └── main.tf
-        │   └── vpc
-        │       └── main.tf
-        └── stage
-            ├── app
-            │   └── main.tf
-            ├── mysql
-            │   └── main.tf
-            └── vpc
-                └── main.tf
+```tree
+└── live
+    ├── prod
+    │   ├── app
+    │   │   └── main.tf
+    │   ├── mysql
+    │   │   └── main.tf
+    │   └── vpc
+    │       └── main.tf
+    ├── qa
+    │   ├── app
+    │   │   └── main.tf
+    │   ├── mysql
+    │   │   └── main.tf
+    │   └── vpc
+    │       └── main.tf
+    └── stage
+        ├── app
+        │   └── main.tf
+        ├── mysql
+        │   └── main.tf
+        └── vpc
+            └── main.tf
+```
 
 The contents of each environment will be more or less identical, except perhaps for a few settings (e.g. the prod environment may run bigger or more servers). As the size of the infrastructure grows, having to maintain all of this duplicated code between environments becomes more error prone. You can reduce the amount of copy paste using [Terraform modules](https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d), but even the code to instantiate a module and set up input variables, output variables, providers, and remote state can still create a lot of maintenance overhead.
 
@@ -63,13 +60,15 @@ How can you keep your Terraform code [DRY](https://en.wikipedia.org/wiki/Don%27t
 
 Terragrunt has the ability to download remote Terraform configurations. The idea is that you define the Terraform code for your infrastructure just once, in a single repo, called, for example, `modules`:
 
-    └── modules
-        ├── app
-        │   └── main.tf
-        ├── mysql
-        │   └── main.tf
-        └── vpc
-            └── main.tf
+```tree
+└── modules
+    ├── app
+    │   └── main.tf
+    ├── mysql
+    │   └── main.tf
+    └── vpc
+        └── main.tf
+```
 
 This repo contains typical Terraform code, with one difference: anything in your code that should be different between environments should be exposed as an input variable. For example, the `app` module might expose the following variables:
 
@@ -87,28 +86,30 @@ These variables allow you to run smaller/fewer servers in qa and stage to save m
 
 In a separate repo, called, for example, `live`, you define the code for all of your environments, which now consists of just one `terragrunt.hcl` file per component (e.g. `app/terragrunt.hcl`, `mysql/terragrunt.hcl`, etc). This gives you the following file layout:
 
-    └── live
-        ├── prod
-        │   ├── app
-        │   │   └── terragrunt.hcl
-        │   ├── mysql
-        │   │   └── terragrunt.hcl
-        │   └── vpc
-        │       └── terragrunt.hcl
-        ├── qa
-        │   ├── app
-        │   │   └── terragrunt.hcl
-        │   ├── mysql
-        │   │   └── terragrunt.hcl
-        │   └── vpc
-        │       └── terragrunt.hcl
-        └── stage
-            ├── app
-            │   └── terragrunt.hcl
-            ├── mysql
-            │   └── terragrunt.hcl
-            └── vpc
-                └── terragrunt.hcl
+```tree
+└── live
+    ├── prod
+    │   ├── app
+    │   │   └── terragrunt.hcl
+    │   ├── mysql
+    │   │   └── terragrunt.hcl
+    │   └── vpc
+    │       └── terragrunt.hcl
+    ├── qa
+    │   ├── app
+    │   │   └── terragrunt.hcl
+    │   ├── mysql
+    │   │   └── terragrunt.hcl
+    │   └── vpc
+    │       └── terragrunt.hcl
+    └── stage
+        ├── app
+        │   └── terragrunt.hcl
+        ├── mysql
+        │   └── terragrunt.hcl
+        └── vpc
+            └── terragrunt.hcl
+```
 
 Notice how there are no Terraform configurations (`.tf` files) in any of the folders. Instead, each `terragrunt.hcl` file specifies a `terraform { …​ }` block that specifies from where to download the Terraform code, as well as the environment-specific values for the input variables in that Terraform code. For example, `stage/app/terragrunt.hcl` may look like this:
 
@@ -142,18 +143,20 @@ inputs = {
 
 You can now deploy the modules in your `live` repo. For example, to deploy the `app` module in stage, you would do the following:
 
-    cd live/stage/app
-    terragrunt apply
+```bash
+cd live/stage/app
+terragrunt apply
+```
 
 When Terragrunt finds the `terraform` block with a `source` parameter in `live/stage/app/terragrunt.hcl` file, it will:
 
-1.  Download the configurations specified via the `source` parameter into the `--terragrunt-download-dir` folder (by default `.terragrunt-cache` in the working directory, which we recommend adding to `.gitignore`). This downloading is done by using the same [go-getter library](https://github.com/hashicorp/go-getter) Terraform uses, so the `source` parameter supports the exact same syntax as the [module source](https://www.terraform.io/docs/modules/sources.html) parameter, including local file paths, Git URLs, and Git URLs with `ref` parameters (useful for checking out a specific tag, commit, or branch of Git repo). Terragrunt will download all the code in the repo (i.e. the part before the double-slash `//`) so that relative paths work correctly between modules in that repo.
+1. Download the configurations specified via the `source` parameter into the `--terragrunt-download-dir` folder (by default `.terragrunt-cache` in the working directory, which we recommend adding to `.gitignore`). This downloading is done by using the same [go-getter library](https://github.com/hashicorp/go-getter) Terraform uses, so the `source` parameter supports the exact same syntax as the [module source](https://www.terraform.io/docs/modules/sources.html) parameter, including local file paths, Git URLs, and Git URLs with `ref` parameters (useful for checking out a specific tag, commit, or branch of Git repo). Terragrunt will download all the code in the repo (i.e. the part before the double-slash `//`) so that relative paths work correctly between modules in that repo.
 
-2.  Copy all files from the current working directory into the temporary folder.
+2. Copy all files from the current working directory into the temporary folder.
 
-3.  Execute whatever Terraform command you specified in that temporary folder.
+3. Execute whatever Terraform command you specified in that temporary folder.
 
-4.  Pass any variables defined in the `inputs = { …​ }` block as environment variables (prefixed with `TF_VAR_` to your Terraform code. Notice how the `inputs` block in `stage/app/terragrunt.hcl` deploys fewer and smaller instances than prod.
+4. Pass any variables defined in the `inputs = { …​ }` block as environment variables (prefixed with `TF_VAR_` to your Terraform code. Notice how the `inputs` block in `stage/app/terragrunt.hcl` deploys fewer and smaller instances than prod.
 
 Check out the [terragrunt-infrastructure-modules-example](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example) and [terragrunt-infrastructure-live-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example) repos for fully-working sample code that demonstrates this new folder structure.
 
@@ -167,8 +170,10 @@ Just as importantly, since the Terraform module code is now defined in a single 
 
 If you’re testing changes to a local copy of the `modules` repo, you can use the `--terragrunt-source` command-line option or the `TERRAGRUNT_SOURCE` environment variable to override the `source` parameter. This is useful to point Terragrunt at a local checkout of your code so you can do rapid, iterative, make-a-change-and-rerun development:
 
-    cd live/stage/app
-    terragrunt apply --terragrunt-source ../../../modules//app
+```bash
+cd live/stage/app
+terragrunt apply --terragrunt-source ../../../modules//app
+```
 
 *(Note: the double slash (`//`) here too is intentional and required. Terragrunt downloads all the code in the folder before the double-slash into the temporary folder so that relative paths between modules work correctly. Terraform may display a "Terraform initialized in an empty directory" warning, but you can safely ignore it.)*
 
@@ -192,14 +197,14 @@ One of the gotchas with downloading Terraform configurations is that when you ru
 
 In particular:
 
-  - **Command line**: When using file paths on the command line, such as passing an extra `-var-file` argument, you should use absolute paths:
+- **Command line**: When using file paths on the command line, such as passing an extra `-var-file` argument, you should use absolute paths:
 
     ``` bash
     # Use absolute file paths on the CLI!
     terragrunt apply -var-file /foo/bar/extra.tfvars
     ```
 
-  - **Terragrunt configuration**: When using file paths directly in your Terragrunt configuration (`terragrunt.hcl`), such as in an `extra_arguments` block, you can’t use hard-coded absolute file paths, or it won’t work on your teammates' computers. Therefore, you should utilize the Terragrunt built-in function `get_terragrunt_dir()` to use a relative file path:
+- **Terragrunt configuration**: When using file paths directly in your Terragrunt configuration (`terragrunt.hcl`), such as in an `extra_arguments` block, you can’t use hard-coded absolute file paths, or it won’t work on your teammates' computers. Therefore, you should utilize the Terragrunt built-in function `get_terragrunt_dir()` to use a relative file path:
 
     ``` hcl
     terraform {
@@ -239,8 +244,9 @@ Look up the Git repo for your repository to find the proper format.
 
 Note: In automated pipelines, you may need to run the following command for your Git repository prior to calling `terragrunt` to ensure that the ssh host is registered locally, e.g.:
 
-    $ ssh -T -oStrictHostKeyChecking=accept-new git@github.com || true
-
+```bash
+ssh -T -oStrictHostKeyChecking=accept-new git@github.com || true
+```
 
 ### DRY common Terraform code with Terragrunt generate blocks
 
@@ -256,31 +262,33 @@ In this situation, you can use Terragrunt `generate` blocks to generate a tf fil
 provider configuration. Add a root `terragrunt.hcl` file for each of the environments in the file layout for the live
 repo:
 
-    └── live
-        ├── prod
-        │   ├── terragrunt.hcl
-        │   ├── app
-        │   │   └── terragrunt.hcl
-        │   ├── mysql
-        │   │   └── terragrunt.hcl
-        │   └── vpc
-        │       └── terragrunt.hcl
-        ├── qa
-        │   ├── terragrunt.hcl
-        │   ├── app
-        │   │   └── terragrunt.hcl
-        │   ├── mysql
-        │   │   └── terragrunt.hcl
-        │   └── vpc
-        │       └── terragrunt.hcl
-        └── stage
-            ├── terragrunt.hcl
-            ├── app
-            │   └── terragrunt.hcl
-            ├── mysql
-            │   └── terragrunt.hcl
-            └── vpc
-                └── terragrunt.hcl
+```bash
+└── live
+    ├── prod
+    │   ├── terragrunt.hcl
+    │   ├── app
+    │   │   └── terragrunt.hcl
+    │   ├── mysql
+    │   │   └── terragrunt.hcl
+    │   └── vpc
+    │       └── terragrunt.hcl
+    ├── qa
+    │   ├── terragrunt.hcl
+    │   ├── app
+    │   │   └── terragrunt.hcl
+    │   ├── mysql
+    │   │   └── terragrunt.hcl
+    │   └── vpc
+    │       └── terragrunt.hcl
+    └── stage
+        ├── terragrunt.hcl
+        ├── app
+        │   └── terragrunt.hcl
+        ├── mysql
+        │   └── terragrunt.hcl
+        └── vpc
+            └── terragrunt.hcl
+```
 
 Each **root** `terragrunt.hcl` file (the one at the environment level, e.g `prod/terragrunt.hcl`) should define a
 `generate` block to generate the AWS provider configuration to assume the role for that environment. For example,

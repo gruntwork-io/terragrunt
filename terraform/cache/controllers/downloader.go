@@ -1,43 +1,31 @@
 package controllers
 
 import (
+	"net/http"
 	"net/url"
-	"path"
 
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
-	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
 	"github.com/labstack/echo/v4"
 )
 
 const (
-	downloadPath         = "/downloads"
-	downloadProviderPath = "/provider"
+	downloadPath = "/downloads"
 )
 
 type DownloaderController struct {
-	ReverseProxy    *handlers.ReverseProxy
-	ProviderService *services.ProviderService
+	*router.Router
 
-	basePath string
-}
-
-// ProviderProxyURL returns URL for using as a cache to download remote archives through this controller with caching
-func (controller *DownloaderController) ProviderProxyURL() *url.URL {
-	cacheURL := *controller.ReverseProxy.ServerURL
-	cacheURL.Path = path.Join(cacheURL.Path, controller.basePath, downloadProviderPath)
-	return &cacheURL
+	ProviderHandlers []handlers.ProviderHandler
 }
 
 // Register implements router.Controller.Register
 func (controller *DownloaderController) Register(router *router.Router) {
-	router = router.Group(downloadPath)
-	controller.basePath = router.Prefix()
+	controller.Router = router.Group(downloadPath)
 
 	// Download provider
-	router.GET(downloadProviderPath+"/:remote_host/:remote_path", controller.downloadProviderAction)
+	controller.GET("/:remote_host/:remote_path", controller.downloadProviderAction)
 }
 
 func (controller *DownloaderController) downloadProviderAction(ctx echo.Context) error {
@@ -46,20 +34,23 @@ func (controller *DownloaderController) downloadProviderAction(ctx echo.Context)
 		remotePath = ctx.Param("remote_path")
 	)
 
+	downloadURL := url.URL{
+		Scheme: "https",
+		Host:   remoteHost,
+		Path:   "/" + remotePath,
+	}
 	provider := &models.Provider{
-		DownloadURL: &url.URL{
-			Scheme: "https",
-			Host:   remoteHost,
-			Path:   "/" + remotePath,
+		ResponseBody: &models.ResponseBody{
+			DownloadURL: downloadURL.String(),
 		},
 	}
 
-	if cache := controller.ProviderService.GetProviderCache(provider); cache != nil {
-		if filename := cache.ArchiveFilename(); filename != "" {
-			log.Debugf("Provider %q uses cached file %q", cache.Provider, filename)
-			return ctx.File(filename)
+	for _, handler := range controller.ProviderHandlers {
+		if handler.CanHandleProvider(provider) {
+			if err := handler.Download(ctx, provider); err == nil {
+				break
+			}
 		}
 	}
-
-	return controller.ReverseProxy.NewRequest(ctx, provider.DownloadURL)
+	return ctx.NoContent(http.StatusNotFound)
 }

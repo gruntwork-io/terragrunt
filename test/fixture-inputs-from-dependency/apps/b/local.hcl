@@ -1,0 +1,3 @@
+inputs = {
+  baz = "b-baz"
+}

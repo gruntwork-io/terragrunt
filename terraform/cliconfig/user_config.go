@@ -1,11 +1,9 @@
 package cliconfig
 
 import (
-	"os"
 	"path/filepath"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/terraform/command/cliconfig"
 	"github.com/hashicorp/terraform/tfdiags"
 )
@@ -13,35 +11,32 @@ import (
 // The user configuration is read as raw data and stored at the top of the saved configuration file.
 // The location of the default config is different for each OS https://developer.hashicorp.com/terraform/cli/config/config-file#locations
 func LoadUserConfig() (*Config, error) {
-	return loadUserConfig(cliconfig.ConfigFile, cliconfig.LoadConfig)
+	return loadUserConfig(cliconfig.LoadConfig)
 }
 
 func loadUserConfig(
-	configFileFn func() (string, error),
 	loadConfigFn func() (*cliconfig.Config, tfdiags.Diagnostics),
 ) (*Config, error) {
-	var rawHCL []byte
-
-	configFile, err := configFileFn()
-	if err != nil {
-		return nil, errors.WithStackTrace(err)
-	}
-
-	if util.FileExists(configFile) {
-		rawHCL, err = os.ReadFile(configFile)
-		if err != nil {
-			return nil, errors.WithStackTrace(err)
-		}
-	}
-
 	cfg, diag := loadConfigFn()
 	if diag.HasErrors() {
 		return nil, diag.Err()
 	}
 
+	var (
+		installationMethods = getUserProviderInstallationMethods(cfg)
+		hosts               = getUserHosts(cfg)
+		credentialsHelpers  = getUserCredentialsHelpers(cfg)
+		credentials         = getUserCredentials(cfg)
+	)
+
 	return &Config{
-		rawHCL:         rawHCL,
-		PluginCacheDir: cfg.PluginCacheDir,
+		DisableCheckpoint:          cfg.DisableCheckpoint,
+		DisableCheckpointSignature: cfg.DisableCheckpointSignature,
+		PluginCacheDir:             cfg.PluginCacheDir,
+		Credentials:                credentials,
+		CredentialsHelpers:         credentialsHelpers,
+		ProviderInstallation:       &ProviderInstallation{Methods: installationMethods},
+		Hosts:                      hosts,
 	}, nil
 }
 
@@ -52,4 +47,83 @@ func UserProviderDir() (string, error) {
 	}
 
 	return filepath.Join(configDir, "plugins"), nil
+}
+
+func getUserCredentials(cfg *cliconfig.Config) []ConfigCredentials {
+	var credentials []ConfigCredentials
+
+	for name, credential := range cfg.Credentials {
+		var token string
+
+		if val, ok := credential["token"]; ok {
+			if val, ok := val.(string); ok {
+				token = val
+			}
+		}
+
+		credential := ConfigCredentials{
+			Name:  name,
+			Token: token,
+		}
+		credentials = append(credentials, credential)
+	}
+
+	return credentials
+}
+
+func getUserCredentialsHelpers(cfg *cliconfig.Config) *ConfigCredentialsHelper {
+	var credentialsHelpers *ConfigCredentialsHelper
+
+	for name, helper := range cfg.CredentialsHelpers {
+		var args []string
+		if helper != nil {
+			args = helper.Args
+		}
+
+		credentialsHelpers = &ConfigCredentialsHelper{
+			Name: name,
+			Args: args,
+		}
+	}
+
+	return credentialsHelpers
+}
+
+func getUserHosts(cfg *cliconfig.Config) []ConfigHost {
+	var hosts []ConfigHost
+
+	for name, host := range cfg.Hosts {
+		services := make(map[string]string)
+		if host != nil {
+			for key, val := range host.Services {
+				if val, ok := val.(string); ok {
+					services[key] = val
+				}
+			}
+		}
+
+		host := ConfigHost{Name: name, Services: services}
+		hosts = append(hosts, host)
+	}
+
+	return hosts
+}
+
+func getUserProviderInstallationMethods(cfg *cliconfig.Config) []ProviderInstallationMethod {
+	var methods []ProviderInstallationMethod
+
+	for _, providerInstallation := range cfg.ProviderInstallation {
+		for _, method := range providerInstallation.Methods {
+			switch location := method.Location.(type) {
+			case cliconfig.ProviderInstallationFilesystemMirror:
+				methods = append(methods, NewProviderInstallationFilesystemMirror(string(location), method.Include, method.Exclude))
+			case cliconfig.ProviderInstallationNetworkMirror:
+				methods = append(methods, NewProviderInstallationNetworkMirror(string(location), method.Include, method.Exclude))
+			default:
+				methods = append(methods, NewProviderInstallationDirect(method.Include, method.Exclude))
+			}
+		}
+	}
+
+	return methods
 }

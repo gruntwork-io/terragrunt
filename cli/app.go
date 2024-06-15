@@ -13,7 +13,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
-	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -78,9 +77,9 @@ func NewApp(writer io.Writer, errWriter io.Writer) *App {
 		commands.NewHelpVersionFlags(opts)...)
 	app.Commands = append(
 		deprecatedCommands(opts),
-		terragruntCommands(opts)...)
+		terragruntCommands(opts)...).WrapAction(wrapWithTelemetry(opts))
 	app.Before = beforeAction(opts)
-	app.DefaultCommand = telemetryCommand(opts, terraformCmd.NewCommand(opts)) // by default, if no terragrunt command is specified, run the Terraform command
+	app.DefaultCommand = terraformCmd.NewCommand(opts).WrapAction(wrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
 	app.OsExiter = osExiter
 
 	return &App{app}
@@ -129,31 +128,30 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 // This set of commands is also used in unit tests
 func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	cmds := cli.Commands{
-		telemetryCommand(opts, runall.NewCommand(opts)),             // runAction-all
-		telemetryCommand(opts, terragruntinfo.NewCommand(opts)),     // terragrunt-info
-		telemetryCommand(opts, validateinputs.NewCommand(opts)),     // validate-inputs
-		telemetryCommand(opts, graphdependencies.NewCommand(opts)),  // graph-dependencies
-		telemetryCommand(opts, hclfmt.NewCommand(opts)),             // hclfmt
-		telemetryCommand(opts, renderjson.NewCommand(opts)),         // render-json
-		telemetryCommand(opts, awsproviderpatch.NewCommand(opts)),   // aws-provider-patch
-		telemetryCommand(opts, outputmodulegroups.NewCommand(opts)), // output-module-groups
-		telemetryCommand(opts, catalog.NewCommand(opts)),            // catalog
-		telemetryCommand(opts, scaffold.NewCommand(opts)),           // scaffold
-		telemetryCommand(opts, graph.NewCommand(opts)),              // graph
+		runall.NewCommand(opts),             // runAction-all
+		terragruntinfo.NewCommand(opts),     // terragrunt-info
+		validateinputs.NewCommand(opts),     // validate-inputs
+		graphdependencies.NewCommand(opts),  // graph-dependencies
+		hclfmt.NewCommand(opts),             // hclfmt
+		renderjson.NewCommand(opts),         // render-json
+		awsproviderpatch.NewCommand(opts),   // aws-provider-patch
+		outputmodulegroups.NewCommand(opts), // output-module-groups
+		catalog.NewCommand(opts),            // catalog
+		scaffold.NewCommand(opts),           // scaffold
+		graph.NewCommand(opts),              // graph
 	}
 
 	sort.Sort(cmds)
 
 	// add terraform command `*` after sorting to put the command at the end of the list in the help.
-	cmds.Add(telemetryCommand(opts, terraformCmd.NewCommand(opts)))
+	cmds.Add(terraformCmd.NewCommand(opts))
 
 	return cmds
 }
 
 // Wrap CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
-func telemetryCommand(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Command {
-	action := cmd.Action
-	cmd.Action = func(ctx *cli.Context) error {
+func wrapWithTelemetry(opts *options.TerragruntOptions) func(ctx *cli.Context, action cli.ActionFunc) error {
+	return func(ctx *cli.Context, action cli.ActionFunc) error {
 		return telemetry.Telemetry(ctx.Context, opts, fmt.Sprintf("%s %s", ctx.Command.Name, opts.TerraformCommand), map[string]interface{}{
 			"terraformCommand": opts.TerraformCommand,
 			"args":             opts.TerraformCliArgs,
@@ -167,7 +165,6 @@ func telemetryCommand(opts *options.TerragruntOptions, cmd *cli.Command) *cli.Co
 			return runAction(ctx, opts, action)
 		})
 	}
-	return cmd
 }
 
 func beforeAction(opts *options.TerragruntOptions) cli.ActionFunc {
@@ -195,13 +192,17 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 		if err != nil {
 			return err
 		}
-		defer server.Close() //nolint:errcheck
+
+		ln, err := server.Listen()
+		if err != nil {
+			return err
+		}
+		defer ln.Close() //nolint:errcheck
 
 		cliCtx.Context = shell.ContextWithTerraformCommandHook(ctx, server.TerraformCommandHook)
-		maps.Copy(opts.Env, server.Env)
 
 		errGroup.Go(func() error {
-			return server.Run(ctx)
+			return server.Run(ctx, ln)
 		})
 	}
 
@@ -295,6 +296,11 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
 	} else if !filepath.IsAbs(opts.TerragruntConfigPath) && cliCtx.Command.Name == terraformCmd.CommandName {
 		opts.TerragruntConfigPath = util.JoinPath(opts.WorkingDir, opts.TerragruntConfigPath)
+	}
+
+	opts.TerragruntConfigPath, err = filepath.Abs(opts.TerragruntConfigPath)
+	if err != nil {
+		return errors.WithStackTrace(err)
 	}
 
 	opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)

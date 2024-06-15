@@ -10,7 +10,14 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
+<!-- markdownlint-disable -->
+
 # RFC Template
+
+What follows is the legacy template for RFCs. If you would like to submit an RFC, please use the new template, which can be found [here](https://github.com/gruntwork-io/terragrunt/issues/new/choose).
+Future RFCs can be found by searching for RFCs in [the GitHub Issues tab](https://github.com/gruntwork-io/terragrunt/issues?q=is%3Aopen+is%3Aissue+label%3Arfc).
+
+---
 
 This is a template you can use for proposing new major features to Terragrunt. When creating a new RFC, copy this
 template and fill in each respective section.

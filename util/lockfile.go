@@ -24,8 +24,11 @@ func (lockfile *Lockfile) Unlock() error {
 	if err := lockfile.Flock.Unlock(); err != nil {
 		return errors.WithStackTrace(err)
 	}
-	if err := os.Remove(lockfile.Path()); err != nil {
-		return errors.WithStackTrace(err)
+
+	if FileExists(lockfile.Path()) {
+		if err := os.Remove(lockfile.Path()); err != nil {
+			return errors.WithStackTrace(err)
+		}
 	}
 	return nil
 }

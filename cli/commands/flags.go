@@ -22,6 +22,7 @@ const (
 	TerragruntIAMRoleFlagName                        = "terragrunt-iam-role"
 	TerragruntIAMAssumeRoleDurationFlagName          = "terragrunt-iam-assume-role-duration"
 	TerragruntIAMAssumeRoleSessionNameFlagName       = "terragrunt-iam-assume-role-session-name"
+	TerragruntIAMWebIdentityTokenFlagName            = "terragrunt-iam-web-identity-token"
 	TerragruntIgnoreDependencyErrorsFlagName         = "terragrunt-ignore-dependency-errors"
 	TerragruntIgnoreDependencyOrderFlagName          = "terragrunt-ignore-dependency-order"
 	TerragruntIgnoreExternalDependenciesFlagName     = "terragrunt-ignore-external-dependencies"
@@ -43,21 +44,28 @@ const (
 	TerragruntDisableBucketUpdateFlagName            = "terragrunt-disable-bucket-update"
 	TerragruntDisableCommandValidationFlagName       = "terragrunt-disable-command-validation"
 
+	TerragruntAuthProviderCmdFlagName   = "terragrunt-auth-provider-cmd"
+	TerragruntAuthProviderCmdEnvVarName = "TERRAGRUNT_AUTH_PROVIDER_CMD"
+
+	TerragruntOutDirFlagEnvVarName = "TERRAGRUNT_OUT_DIR"
+	TerragruntOutDirFlagName       = "terragrunt-out-dir"
+
+	TerragruntJsonOutDirFlagEnvVarName = "TERRAGRUNT_JSON_OUT_DIR"
+	TerragruntJsonOutDirFlagName       = "terragrunt-json-out-dir"
+
 	// Terragrunt Provider Cache flags/envs
-	TerragruntProviderCacheFlagName                         = "terragrunt-provider-cache"
-	TerragruntProviderCacheEnvVarName                       = "TERRAGRUNT_PROVIDER_CACHE"
-	TerragruntProviderCacheDirFlagName                      = "terragrunt-provider-cache-dir"
-	TerragruntProviderCacheDirEnvVarName                    = "TERRAGRUNT_PROVIDER_CACHE_DIR"
-	TerragruntProviderCacheDisablePartialLockFileFlagName   = "terragrunt-provider-cache-disable-partial-lock-file"
-	TerragruntProviderCacheDisablePartialLockFileEnvVarName = "TERRAGRUNT_PROVIDER_CACHE_DISABLE_PARTIAL_LOCK_FILE"
-	TerragruntProviderCacheHostnameFlagName                 = "terragrunt-provider-cache-hostname"
-	TerragruntProviderCacheHostnameEnvVarName               = "TERRAGRUNT_PROVIDER_CACHE_HOSTNAME"
-	TerragruntProviderCachePortFlagName                     = "terragrunt-provider-cache-port"
-	TerragruntProviderCachePortEnvVarName                   = "TERRAGRUNT_PROVIDER_CACHE_PORT"
-	TerragruntProviderCacheTokenFlagName                    = "terragrunt-provider-cache-token"
-	TerragruntProviderCacheTokenEnvVarName                  = "TERRAGRUNT_PROVIDER_CACHE_TOKEN"
-	TerragruntProviderCacheRegistryNamesFlagName            = "terragrunt-provider-cache-registry-names"
-	TerragruntProviderCacheRegistryNamesEnvVarName          = "TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES"
+	TerragruntProviderCacheFlagName                = "terragrunt-provider-cache"
+	TerragruntProviderCacheEnvVarName              = "TERRAGRUNT_PROVIDER_CACHE"
+	TerragruntProviderCacheDirFlagName             = "terragrunt-provider-cache-dir"
+	TerragruntProviderCacheDirEnvVarName           = "TERRAGRUNT_PROVIDER_CACHE_DIR"
+	TerragruntProviderCacheHostnameFlagName        = "terragrunt-provider-cache-hostname"
+	TerragruntProviderCacheHostnameEnvVarName      = "TERRAGRUNT_PROVIDER_CACHE_HOSTNAME"
+	TerragruntProviderCachePortFlagName            = "terragrunt-provider-cache-port"
+	TerragruntProviderCachePortEnvVarName          = "TERRAGRUNT_PROVIDER_CACHE_PORT"
+	TerragruntProviderCacheTokenFlagName           = "terragrunt-provider-cache-token"
+	TerragruntProviderCacheTokenEnvVarName         = "TERRAGRUNT_PROVIDER_CACHE_TOKEN"
+	TerragruntProviderCacheRegistryNamesFlagName   = "terragrunt-provider-cache-registry-names"
+	TerragruntProviderCacheRegistryNamesEnvVarName = "TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES"
 
 	HelpFlagName    = "help"
 	VersionFlagName = "version"
@@ -153,6 +161,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.IAMRoleOptions.AssumeRoleSessionName,
 			EnvVar:      "TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME",
 			Usage:       "Name for the IAM Assummed Role session. Can also be set via TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME environment variable.",
+		},
+		&cli.GenericFlag[string]{
+			Name:        TerragruntIAMWebIdentityTokenFlagName,
+			Destination: &opts.IAMRoleOptions.WebIdentityToken,
+			EnvVar:      "TERRRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN",
+			Usage:       "For AssumeRoleWithWebIdentity, the WebIdentity token. Can also be set via TERRRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN environment variable",
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntIgnoreDependencyErrorsFlagName,
@@ -281,12 +295,6 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      TerragruntProviderCacheDirEnvVarName,
 			Usage:       "The path to the Terragrunt provider cache directory. By default, 'terragrunt/providers' folder in the user cache directory.",
 		},
-		&cli.BoolFlag{
-			Name:        TerragruntProviderCacheDisablePartialLockFileFlagName,
-			Destination: &opts.ProviderCacheDisablePartialLockFile,
-			EnvVar:      TerragruntProviderCacheDisablePartialLockFileEnvVarName,
-			Usage:       "Don't use 'plugin_cache_may_break_dependency_lock_file' with Terragrunt provider caching. Provider downloads for modules without lock files will be much slower.",
-		},
 		&cli.GenericFlag[string]{
 			Name:        TerragruntProviderCacheTokenFlagName,
 			Destination: &opts.ProviderCacheToken,
@@ -310,6 +318,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.ProviderCacheRegistryNames,
 			EnvVar:      TerragruntProviderCacheRegistryNamesEnvVarName,
 			Usage:       "The list of remote registries to cached by Terragrunt Provider Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'.",
+		},
+		&cli.GenericFlag[string]{
+			Name:        TerragruntAuthProviderCmdFlagName,
+			Destination: &opts.AuthProviderCmd,
+			EnvVar:      TerragruntAuthProviderCmdEnvVarName,
+			Usage:       "The command and arguments that can be used to fetch authentication configurations.",
 		},
 	}
 

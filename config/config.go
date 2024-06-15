@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/mitchellh/mapstructure"
@@ -49,6 +50,7 @@ const (
 	MetadataIamRole                     = "iam_role"
 	MetadataIamAssumeRoleDuration       = "iam_assume_role_duration"
 	MetadataIamAssumeRoleSessionName    = "iam_assume_role_session_name"
+	MetadataIamWebIdentityToken         = "iam_web_identity_token"
 	MetadataInputs                      = "inputs"
 	MetadataLocals                      = "locals"
 	MetadataLocal                       = "local"
@@ -74,6 +76,8 @@ var (
 			hclparse.WithFileUpdate(updateBareIncludeBlock),
 		}
 	}
+
+	DefaultGenerateBlockIfDisabledValueStr = codegen.DisabledSkipStr
 )
 
 // TerragruntConfig represents a parsed and expanded configuration
@@ -92,6 +96,7 @@ type TerragruntConfig struct {
 	IamRole                     string
 	IamAssumeRoleDuration       *int64
 	IamAssumeRoleSessionName    string
+	IamWebIdentityToken         string
 	Inputs                      map[string]interface{}
 	Locals                      map[string]interface{}
 	TerragruntDependencies      []Dependency
@@ -124,6 +129,7 @@ func (conf *TerragruntConfig) GetIAMRoleOptions() options.IAMRoleOptions {
 	configIAMRoleOptions := options.IAMRoleOptions{
 		RoleARN:               conf.IamRole,
 		AssumeRoleSessionName: conf.IamAssumeRoleSessionName,
+		WebIdentityToken:      conf.IamWebIdentityToken,
 	}
 	if conf.IamAssumeRoleDuration != nil {
 		configIAMRoleOptions.AssumeRoleDuration = *conf.IamAssumeRoleDuration
@@ -164,6 +170,7 @@ type terragruntConfigFile struct {
 	IamRole                  *string             `hcl:"iam_role,attr"`
 	IamAssumeRoleDuration    *int64              `hcl:"iam_assume_role_duration,attr"`
 	IamAssumeRoleSessionName *string             `hcl:"iam_assume_role_session_name,attr"`
+	IamWebIdentityToken      *string             `hcl:"iam_web_identity_token,attr"`
 	TerragruntDependencies   []Dependency        `hcl:"dependency,block"`
 
 	// We allow users to configure code generation via blocks:
@@ -265,6 +272,7 @@ type terragruntGenerateBlock struct {
 	Name             string  `hcl:",label"`
 	Path             string  `hcl:"path,attr" mapstructure:"path"`
 	IfExists         string  `hcl:"if_exists,attr" mapstructure:"if_exists"`
+	IfDisabled       *string `hcl:"if_disabled,attr" mapstructure:"if_disabled"`
 	CommentPrefix    *string `hcl:"comment_prefix,attr" mapstructure:"comment_prefix"`
 	Contents         string  `hcl:"contents,attr" mapstructure:"contents"`
 	DisableSignature *bool   `hcl:"disable_signature,attr" mapstructure:"disable_signature"`
@@ -681,7 +689,7 @@ func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*Terrag
 	return ParseConfigFile(terragruntOptions, ctx, terragruntOptions.TerragruntConfigPath, nil)
 }
 
-var hclCache = NewCache[*hclparse.File]()
+var hclCache = cache.NewCache[*hclparse.File]()
 
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
@@ -842,7 +850,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 }
 
 // iamRoleCache - store for cached values of IAM roles
-var iamRoleCache = NewCache[options.IAMRoleOptions]()
+var iamRoleCache = cache.NewCache[options.IAMRoleOptions]()
 
 // setIAMRole - extract IAM role details from Terragrunt flags block
 func setIAMRole(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) error {
@@ -1058,6 +1066,11 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 		terragruntConfig.SetFieldMetadata(MetadataIamAssumeRoleSessionName, defaultMetadata)
 	}
 
+	if terragruntConfigFromFile.IamWebIdentityToken != nil {
+		terragruntConfig.IamWebIdentityToken = *terragruntConfigFromFile.IamWebIdentityToken
+		terragruntConfig.SetFieldMetadata(MetadataIamWebIdentityToken, defaultMetadata)
+	}
+
 	generateBlocks := []terragruntGenerateBlock{}
 	generateBlocks = append(generateBlocks, terragruntConfigFromFile.GenerateBlocks...)
 
@@ -1084,11 +1097,23 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 		if err != nil {
 			return nil, err
 		}
+
+		if block.IfDisabled == nil {
+			block.IfDisabled = &DefaultGenerateBlockIfDisabledValueStr
+		}
+
+		ifDisabled, err := codegen.GenerateConfigDisabledFromString(*block.IfDisabled)
+		if err != nil {
+			return nil, err
+		}
+
 		genConfig := codegen.GenerateConfig{
-			Path:        block.Path,
-			IfExists:    ifExists,
-			IfExistsStr: block.IfExists,
-			Contents:    block.Contents,
+			Path:          block.Path,
+			IfExists:      ifExists,
+			IfExistsStr:   block.IfExists,
+			IfDisabled:    ifDisabled,
+			IfDisabledStr: *block.IfDisabled,
+			Contents:      block.Contents,
 		}
 		if block.CommentPrefix == nil {
 			genConfig.CommentPrefix = codegen.DefaultCommentPrefix

@@ -116,7 +116,7 @@ type TerragruntOptions struct {
 	// Basic log entry
 	Logger *logrus.Entry
 
-	// Disalabe Terragrunt colors
+	// Disable Terragrunt colors
 	DisableLogColors bool
 
 	// Output Terragrunt logs in JSON format
@@ -280,12 +280,6 @@ type TerragruntOptions struct {
 	// The path to store unpacked providers. The file structure is the same as terraform plugin cache dir.
 	ProviderCacheDir string
 
-	// The path to store archive providers that are retrieved from the source registry and cached to reduce traffic.
-	ProviderCacheArchiveDir string
-
-	// Don't use 'plugin_cache_may_break_dependency_lock_file' with Terragrunt provider caching.
-	ProviderCacheDisablePartialLockFile bool
-
 	// The Token for authentication to the Terragrunt Provider Cache server.
 	ProviderCacheToken string
 
@@ -297,12 +291,42 @@ type TerragruntOptions struct {
 
 	// The list of remote registries to cached by Terragrunt Provider Cache server.
 	ProviderCacheRegistryNames []string
+
+	// Folder to store output files.
+	OutputFolder string
+
+	// Folder to store JSON representation of output files.
+	JsonOutputFolder string
+
+	// The command and arguments that can be used to fetch authentication configurations.
+	// Terragrunt invokes this command before running tofu/terraform operations for each working directory.
+	AuthProviderCmd string
+}
+
+// TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
+type TerragruntOptionsFunc func(*TerragruntOptions)
+
+// WithRoleARN adds the provided role ARN to IamRoleOptions
+func WithIAMRoleARN(arn string) TerragruntOptionsFunc {
+	return func(t *TerragruntOptions) {
+		t.IAMRoleOptions.RoleARN = arn
+	}
+}
+
+// WithIAMWebIdentityToken adds the provided WebIdentity token to IamRoleOptions
+func WithIAMWebIdentityToken(token string) TerragruntOptionsFunc {
+	return func(t *TerragruntOptions) {
+		t.IAMRoleOptions.WebIdentityToken = token
+	}
 }
 
 // IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
 type IAMRoleOptions struct {
 	// The ARN of an IAM Role to assume. Used when accessing AWS, both internally and through terraform.
 	RoleARN string
+
+	// The Web identity token. Used when RoleArn is also set to use AssumeRoleWithWebIdentity instead of AssumeRole.
+	WebIdentityToken string
 
 	// Duration of the STS Session when assuming the role.
 	AssumeRoleDuration int64
@@ -324,6 +348,10 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 
 	if source.AssumeRoleSessionName != "" {
 		out.AssumeRoleSessionName = source.AssumeRoleSessionName
+	}
+
+	if source.WebIdentityToken != "" {
+		out.WebIdentityToken = source.WebIdentityToken
 	}
 
 	return out
@@ -376,6 +404,8 @@ func NewTerragruntOptions() *TerragruntOptions {
 			return errors.WithStackTrace(RunTerragruntCommandNotSet)
 		},
 		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
+		OutputFolder:               "",
+		JsonOutputFolder:           "",
 	}
 }
 
@@ -411,7 +441,7 @@ func GetDefaultIAMAssumeRoleSessionName() string {
 }
 
 // Create a new TerragruntOptions object with reasonable defaults for test usage
-func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOptions, error) {
+func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...TerragruntOptionsFunc) (*TerragruntOptions, error) {
 	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
 	if err != nil {
 		logger := util.CreateLogEntry("", util.GetDefaultLogLevel())
@@ -422,6 +452,10 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string) (*TerragruntOption
 	opts.NonInteractive = true
 	opts.Logger = util.CreateLogEntry("", logrus.DebugLevel)
 	opts.LogLevel = logrus.DebugLevel
+
+	for _, opt := range options {
+		opt(opts)
+	}
 
 	return opts, nil
 }
@@ -446,69 +480,72 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
 	// for more info.
 	return &TerragruntOptions{
-		TerragruntConfigPath:                terragruntConfigPath,
-		OriginalTerragruntConfigPath:        opts.OriginalTerragruntConfigPath,
-		TerraformPath:                       opts.TerraformPath,
-		OriginalTerraformCommand:            opts.OriginalTerraformCommand,
-		TerraformCommand:                    opts.TerraformCommand,
-		TerraformVersion:                    opts.TerraformVersion,
-		TerragruntVersion:                   opts.TerragruntVersion,
-		AutoInit:                            opts.AutoInit,
-		RunAllAutoApprove:                   opts.RunAllAutoApprove,
-		NonInteractive:                      opts.NonInteractive,
-		TerraformCliArgs:                    util.CloneStringList(opts.TerraformCliArgs),
-		WorkingDir:                          workingDir,
-		Logger:                              util.CreateLogEntryWithWriter(opts.ErrWriter, workingDir, opts.LogLevel, opts.Logger.Logger.Hooks),
-		LogLevel:                            opts.LogLevel,
-		ValidateStrict:                      opts.ValidateStrict,
-		Env:                                 util.CloneStringMap(opts.Env),
-		Source:                              opts.Source,
-		SourceMap:                           opts.SourceMap,
-		SourceUpdate:                        opts.SourceUpdate,
-		DownloadDir:                         opts.DownloadDir,
-		Debug:                               opts.Debug,
-		OriginalIAMRoleOptions:              opts.OriginalIAMRoleOptions,
-		IAMRoleOptions:                      opts.IAMRoleOptions,
-		IgnoreDependencyErrors:              opts.IgnoreDependencyErrors,
-		IgnoreDependencyOrder:               opts.IgnoreDependencyOrder,
-		IgnoreExternalDependencies:          opts.IgnoreExternalDependencies,
-		IncludeExternalDependencies:         opts.IncludeExternalDependencies,
-		Writer:                              opts.Writer,
-		ErrWriter:                           opts.ErrWriter,
-		MaxFoldersToCheck:                   opts.MaxFoldersToCheck,
-		AutoRetry:                           opts.AutoRetry,
-		RetryMaxAttempts:                    opts.RetryMaxAttempts,
-		RetrySleepIntervalSec:               opts.RetrySleepIntervalSec,
-		RetryableErrors:                     util.CloneStringList(opts.RetryableErrors),
-		ExcludeDirs:                         opts.ExcludeDirs,
-		IncludeDirs:                         opts.IncludeDirs,
-		ModulesThatInclude:                  opts.ModulesThatInclude,
-		Parallelism:                         opts.Parallelism,
-		StrictInclude:                       opts.StrictInclude,
-		RunTerragrunt:                       opts.RunTerragrunt,
-		AwsProviderPatchOverrides:           opts.AwsProviderPatchOverrides,
-		HclFile:                             opts.HclFile,
-		JSONOut:                             opts.JSONOut,
-		Check:                               opts.Check,
-		CheckDependentModules:               opts.CheckDependentModules,
-		FetchDependencyOutputFromState:      opts.FetchDependencyOutputFromState,
-		UsePartialParseConfigCache:          opts.UsePartialParseConfigCache,
-		OutputPrefix:                        opts.OutputPrefix,
-		IncludeModulePrefix:                 opts.IncludeModulePrefix,
-		FailIfBucketCreationRequired:        opts.FailIfBucketCreationRequired,
-		DisableBucketUpdate:                 opts.DisableBucketUpdate,
-		TerraformImplementation:             opts.TerraformImplementation,
-		JsonLogFormat:                       opts.JsonLogFormat,
-		TerraformLogsToJson:                 opts.TerraformLogsToJson,
-		GraphRoot:                           opts.GraphRoot,
-		ScaffoldVars:                        opts.ScaffoldVars,
-		ScaffoldVarFiles:                    opts.ScaffoldVarFiles,
-		JsonDisableDependentModules:         opts.JsonDisableDependentModules,
-		ProviderCache:                       opts.ProviderCache,
-		ProviderCacheDir:                    opts.ProviderCacheDir,
-		ProviderCacheArchiveDir:             opts.ProviderCacheArchiveDir,
-		ProviderCacheDisablePartialLockFile: opts.ProviderCacheDisablePartialLockFile,
-		DisableLogColors:                    opts.DisableLogColors,
+		TerragruntConfigPath:           terragruntConfigPath,
+		OriginalTerragruntConfigPath:   opts.OriginalTerragruntConfigPath,
+		TerraformPath:                  opts.TerraformPath,
+		OriginalTerraformCommand:       opts.OriginalTerraformCommand,
+		TerraformCommand:               opts.TerraformCommand,
+		TerraformVersion:               opts.TerraformVersion,
+		TerragruntVersion:              opts.TerragruntVersion,
+		AutoInit:                       opts.AutoInit,
+		RunAllAutoApprove:              opts.RunAllAutoApprove,
+		NonInteractive:                 opts.NonInteractive,
+		TerraformCliArgs:               util.CloneStringList(opts.TerraformCliArgs),
+		WorkingDir:                     workingDir,
+		Logger:                         util.CreateLogEntryWithWriter(opts.ErrWriter, workingDir, opts.LogLevel, opts.Logger.Logger.Hooks),
+		LogLevel:                       opts.LogLevel,
+		ValidateStrict:                 opts.ValidateStrict,
+		Env:                            util.CloneStringMap(opts.Env),
+		Source:                         opts.Source,
+		SourceMap:                      opts.SourceMap,
+		SourceUpdate:                   opts.SourceUpdate,
+		DownloadDir:                    opts.DownloadDir,
+		Debug:                          opts.Debug,
+		OriginalIAMRoleOptions:         opts.OriginalIAMRoleOptions,
+		IAMRoleOptions:                 opts.IAMRoleOptions,
+		IgnoreDependencyErrors:         opts.IgnoreDependencyErrors,
+		IgnoreDependencyOrder:          opts.IgnoreDependencyOrder,
+		IgnoreExternalDependencies:     opts.IgnoreExternalDependencies,
+		IncludeExternalDependencies:    opts.IncludeExternalDependencies,
+		Writer:                         opts.Writer,
+		ErrWriter:                      opts.ErrWriter,
+		MaxFoldersToCheck:              opts.MaxFoldersToCheck,
+		AutoRetry:                      opts.AutoRetry,
+		RetryMaxAttempts:               opts.RetryMaxAttempts,
+		RetrySleepIntervalSec:          opts.RetrySleepIntervalSec,
+		RetryableErrors:                util.CloneStringList(opts.RetryableErrors),
+		ExcludeDirs:                    opts.ExcludeDirs,
+		IncludeDirs:                    opts.IncludeDirs,
+		ModulesThatInclude:             opts.ModulesThatInclude,
+		Parallelism:                    opts.Parallelism,
+		StrictInclude:                  opts.StrictInclude,
+		RunTerragrunt:                  opts.RunTerragrunt,
+		AwsProviderPatchOverrides:      opts.AwsProviderPatchOverrides,
+		HclFile:                        opts.HclFile,
+		JSONOut:                        opts.JSONOut,
+		Check:                          opts.Check,
+		CheckDependentModules:          opts.CheckDependentModules,
+		FetchDependencyOutputFromState: opts.FetchDependencyOutputFromState,
+		UsePartialParseConfigCache:     opts.UsePartialParseConfigCache,
+		OutputPrefix:                   opts.OutputPrefix,
+		IncludeModulePrefix:            opts.IncludeModulePrefix,
+		FailIfBucketCreationRequired:   opts.FailIfBucketCreationRequired,
+		DisableBucketUpdate:            opts.DisableBucketUpdate,
+		TerraformImplementation:        opts.TerraformImplementation,
+		JsonLogFormat:                  opts.JsonLogFormat,
+		TerraformLogsToJson:            opts.TerraformLogsToJson,
+		GraphRoot:                      opts.GraphRoot,
+		ScaffoldVars:                   opts.ScaffoldVars,
+		ScaffoldVarFiles:               opts.ScaffoldVarFiles,
+		JsonDisableDependentModules:    opts.JsonDisableDependentModules,
+		ProviderCache:                  opts.ProviderCache,
+		ProviderCacheToken:             opts.ProviderCacheToken,
+		ProviderCacheDir:               opts.ProviderCacheDir,
+		ProviderCacheRegistryNames:     opts.ProviderCacheRegistryNames,
+		DisableLogColors:               opts.DisableLogColors,
+		OutputFolder:                   opts.OutputFolder,
+		JsonOutputFolder:               opts.JsonOutputFolder,
+		AuthProviderCmd:                opts.AuthProviderCmd,
 	}
 }
 
@@ -588,11 +625,11 @@ func (opts *TerragruntOptions) DataDir() string {
 
 // identifyDefaultWrappedExecutable - return default path used for wrapped executable
 func identifyDefaultWrappedExecutable() string {
-	if util.IsCommandExecutable(TerraformDefaultPath, "-version") {
-		return TerraformDefaultPath
+	if util.IsCommandExecutable(TofuDefaultPath, "-version") {
+		return TofuDefaultPath
 	}
-	// fallback to Tofu if terraform is not available
-	return TofuDefaultPath
+	// fallback to Terraform if tofu is not available
+	return TerraformDefaultPath
 }
 
 // Custom error types

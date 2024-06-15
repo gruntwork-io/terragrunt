@@ -3,6 +3,7 @@ package terraform
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -74,10 +75,11 @@ func TestToSourceUrl(t *testing.T) {
 		{"https://gitlab.com/catamphetamine/libphonenumber-js", "git::https://gitlab.com/catamphetamine/libphonenumber-js.git"},
 		{"https://bitbucket.org/atlassian/aws-ecr-push-image", "git::https://bitbucket.org/atlassian/aws-ecr-push-image.git"},
 		{"http://bitbucket.org/atlassian/aws-ecr-push-image", "git::https://bitbucket.org/atlassian/aws-ecr-push-image.git"},
-		{"https://s3-eu-west-1.amazonaws.com/modules/vpc.zip", "s3::https://s3-eu-west-1.amazonaws.com/modules/vpc.zip"},
+		{"https://s3-eu-west-1.amazonaws.com/modules/vpc.zip", "https://s3-eu-west-1.amazonaws.com/modules/vpc.zip"},
 		{"https://www.googleapis.com/storage/v1/modules/foomodule.zip", "gcs::https://www.googleapis.com/storage/v1/modules/foomodule.zip"},
 		{"https://www.googleapis.com/storage/v1/modules/foomodule.zip", "gcs::https://www.googleapis.com/storage/v1/modules/foomodule.zip"},
 		{"git::https://name@dev.azure.com/name/project-name/_git/repo-name", "git::https://name@dev.azure.com/name/project-name/_git/repo-name"},
+		{"https://repositry.rnd.net/artifactory/generic-production-iac/tf-auto-azr-iam.2.6.0.zip", "https://repositry.rnd.net/artifactory/generic-production-iac/tf-auto-azr-iam.2.6.0.zip"},
 	}
 
 	for i, testCase := range testCases {
@@ -86,7 +88,7 @@ func TestToSourceUrl(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			actualSourceURL, err := ToSourceUrl(testCase.sourceURL, "")
+			actualSourceURL, err := ToSourceUrl(testCase.sourceURL, os.TempDir())
 			require.NoError(t, err)
 			assert.Equal(t, testCase.expectedSourceURL, actualSourceURL.String())
 		})

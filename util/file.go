@@ -645,3 +645,16 @@ func GetCacheDir() (string, error) {
 
 	return cacheDir, nil
 }
+
+// GetTempDir returns the global terragrunt temp directory.
+func GetTempDir() (string, error) {
+	tempDir := filepath.Join(os.TempDir(), "terragrunt")
+
+	if !FileExists(tempDir) {
+		if err := os.MkdirAll(tempDir, os.ModePerm); err != nil {
+			return "", errors.WithStackTrace(err)
+		}
+	}
+
+	return tempDir, nil
+}

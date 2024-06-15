@@ -3,8 +3,8 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -18,31 +18,51 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/terraform/cache"
-	"github.com/gruntwork-io/terragrunt/terraform/cache/controllers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
 	"github.com/gruntwork-io/terragrunt/terraform/cliconfig"
+	"github.com/gruntwork-io/terragrunt/terraform/getproviders"
 	"github.com/gruntwork-io/terragrunt/util"
+	"golang.org/x/exp/maps"
 )
 
 const (
-	// The path to the automatically generated local CLI configuration, relative to the `.terragrunt-cache` folder.
-	localTerraformCLIFilename = ".terraformrc"
+	// The paths to the automatically generated local CLI configs
+	localCLIFilename = ".terraformrc"
+
+	// The status returned when making a request to the caching provider.
+	// It is needed to prevent further loading of providers by terraform, and at the same time make sure that the request was processed successfully.
+	cacheProviderHTTPStatusCode = http.StatusLocked
+
+	// Authentication type on the Terragrunt Provider Cache server.
+	apiKeyAuth = "x-api-key"
 )
 
 var (
-	// HTTPStatusCacheProviderReg is regular expression to determine the success result of the command `terraform lock providers -platform=cache provider`.
+	// httpStatusCacheProviderReg is a regular expression to determine the success result of the command `terraform init`.
 	// The reg matches if the text contains "423 Locked", for example:
 	//
 	// - registry.terraform.io/hashicorp/template: could not query provider registry for registry.terraform.io/hashicorp/template: 423 Locked.
-	HTTPStatusCacheProviderReg = regexp.MustCompile(`(?mi)` + strconv.Itoa(controllers.HTTPStatusCacheProvider) + `[^a-z0-9]*` + http.StatusText(controllers.HTTPStatusCacheProvider))
+	//
+	// It also will match cases where terminal window is small enough so that terraform splits output in multiple lines, like following:
+	//
+	//    ╷
+	//    │ Error: Failed to install provider
+	//    │
+	//    │ Error while installing snowflake-labs/snowflake v0.89.0: could not query
+	//    │ provider registry for registry.terraform.io/snowflake-labs/snowflake: 423
+	//    │ Locked
+	//    ╵
+	httpStatusCacheProviderReg = regexp.MustCompile(`(?smi)` + strconv.Itoa(cacheProviderHTTPStatusCode) + `.*` + http.StatusText(cacheProviderHTTPStatusCode))
 )
 
-type ProviderCacheServer struct {
+type ProviderCache struct {
 	*cache.Server
-	Env map[string]string
+	cliCfg          *cliconfig.Config
+	providerService *services.ProviderService
 }
 
-func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCacheServer, error) {
+func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, error) {
 	cacheDir, err := util.GetCacheDir()
 	if err != nil {
 		return nil, err
@@ -58,139 +78,136 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCacheSer
 		return nil, errors.WithStackTrace(err)
 	}
 
-	if opts.ProviderCacheArchiveDir == "" {
-		opts.ProviderCacheArchiveDir = filepath.Join(cacheDir, "archives")
-	}
-
-	if opts.ProviderCacheArchiveDir, err = filepath.Abs(opts.ProviderCacheArchiveDir); err != nil {
-		return nil, errors.WithStackTrace(err)
-	}
-
 	if opts.ProviderCacheToken == "" {
 		opts.ProviderCacheToken = uuid.New().String()
 	}
 	// Currently, the cache server only supports the `x-api-key` token.
-	if !strings.HasPrefix(strings.ToLower(opts.ProviderCacheToken), handlers.AuthorizationApiKeyHeaderName+":") {
-		opts.ProviderCacheToken = fmt.Sprintf("%s:%s", handlers.AuthorizationApiKeyHeaderName, opts.ProviderCacheToken)
+	if !strings.HasPrefix(strings.ToLower(opts.ProviderCacheToken), apiKeyAuth+":") {
+		opts.ProviderCacheToken = fmt.Sprintf("%s:%s", apiKeyAuth, opts.ProviderCacheToken)
 	}
 
 	userProviderDir, err := cliconfig.UserProviderDir()
 	if err != nil {
 		return nil, err
 	}
+	providerService := services.NewProviderService(opts.ProviderCacheDir, userProviderDir)
 
-	server := cache.NewServer(
+	cliCfg, err := cliconfig.LoadUserConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		providerHandlers []handlers.ProviderHandler
+		excludeAddrs     []string
+	)
+
+	for _, registryName := range opts.ProviderCacheRegistryNames {
+		excludeAddrs = append(excludeAddrs, fmt.Sprintf("%s/*/*", registryName))
+	}
+
+	for _, method := range cliCfg.ProviderInstallation.Methods {
+		switch method := method.(type) {
+		case *cliconfig.ProviderInstallationFilesystemMirror:
+			providerHandlers = append(providerHandlers, handlers.NewProviderFilesystemMirrorHandler(providerService, cacheProviderHTTPStatusCode, method))
+		case *cliconfig.ProviderInstallationNetworkMirror:
+			providerHandlers = append(providerHandlers, handlers.NewProviderNetworkMirrorHandler(providerService, cacheProviderHTTPStatusCode, method))
+		case *cliconfig.ProviderInstallationDirect:
+			providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, cacheProviderHTTPStatusCode, method))
+		}
+		method.AppendExclude(excludeAddrs)
+	}
+	providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, cacheProviderHTTPStatusCode, new(cliconfig.ProviderInstallationDirect)))
+
+	cache := cache.NewServer(
 		cache.WithHostname(opts.ProviderCacheHostname),
 		cache.WithPort(opts.ProviderCachePort),
 		cache.WithToken(opts.ProviderCacheToken),
-		cache.WithUserProviderDir(userProviderDir),
-		cache.WithProviderCacheDir(opts.ProviderCacheDir),
-		cache.WithProviderArchiveDir(opts.ProviderCacheArchiveDir),
-		cache.WithDisablePartialLockFile(opts.ProviderCacheDisablePartialLockFile),
+		cache.WithServices(providerService),
+		cache.WithProviderHandlers(providerHandlers...),
 	)
 
-	// We need to start listening earlier (not during web server startup) in order to determine/reserve a free port, which we then use in the CLI config file.
-	if err := server.Listen(); err != nil {
-		return nil, err
-	}
-
-	cliConfigFile := filepath.Join(opts.DownloadDir, localTerraformCLIFilename)
-	if err := createLocalCLIConfig(opts, cliConfigFile, server.ProviderURL()); err != nil {
-		// to release the allocated port
-		server.Close() //nolint:errcheck
-		return nil, err
-	}
-
-	return &ProviderCacheServer{
-		Server: server,
-		Env:    providerCacheEnvironment(opts, cliConfigFile),
+	return &ProviderCache{
+		Server:          cache,
+		cliCfg:          cliCfg,
+		providerService: providerService,
 	}, nil
 }
 
-func (server *ProviderCacheServer) TerraformCommandHook(ctx context.Context, opts *options.TerragruntOptions, args []string) error {
+func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *options.TerragruntOptions, args []string) (*shell.CmdOutput, error) {
+	// To prevent a loop
+	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
+
+	var (
+		cliConfigFilename    = filepath.Join(opts.WorkingDir, localCLIFilename)
+		cacheRequestID       = uuid.New().String()
+		env                  = providerCacheEnvironment(opts, cliConfigFilename)
+		commandsArgs         [][]string
+		skipRunTargetCommand bool
+	)
+
 	// Use Hook only for the `terraform init` command, which can be run explicitly by the user or Terragrunt's `auto-init` feature.
-	if util.FirstArg(opts.TerraformCliArgs) != terraform.CommandNameInit {
-		return nil
+	switch {
+	case util.FirstArg(args) == terraform.CommandNameInit:
+		// Provider caching for `terraform init` command.
+		commandsArgs = [][]string{args}
+	case util.FirstArg(args) == terraform.CommandNameProviders && util.SecondArg(args) == terraform.CommandNameLock:
+		// Provider caching for `terraform providers lock` command.
+		commandsArgs = convertToMultipleCommandsByPlatforms(args)
+		// Since the Terragrunt provider cache server creates the cache and generates the lock file, we don't need to run the `terraform providers lock ...` command at all.
+		skipRunTargetCommand = true
+	default:
+		// skip cache creation for all other commands
+		return shell.RunTerraformCommandWithOutput(ctx, opts, args...)
 	}
 
-	log.Debugf("Getting terraform modules for %q", opts.WorkingDir)
-	if err := runTerraformCommand(ctx, opts, terraform.CommandNameGet); err != nil {
-		return err
+	// Create terraform cli config file that enables provider caching and does not use provider cache dir
+	if err := cache.createLocalCLIConfig(opts, cliConfigFilename, cacheRequestID); err != nil {
+		return nil, err
 	}
 
-	log.Debugf("Caching terraform providers for %q", opts.WorkingDir)
+	log.Infof("Caching terraform providers for %s", opts.WorkingDir)
 	// Before each init, we warm up the global cache to ensure that all necessary providers are cached.
-	// To do this we are using 'terraform providers lock' to force TF to request all the providers from our TG server, and that's how we know what providers TF needs, and can load them into the cache.
+	// To do this we are using 'terraform providers lock' to force TF to request all the providers from our TG cache, and that's how we know what providers TF needs, and can load them into the cache.
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
-	if err := runTerraformCommand(ctx, opts, terraform.CommandNameProviders, terraform.CommandNameLock, "-platform="+controllers.PlatformNameCacheProvider); err != nil {
-		return err
-	}
-	server.Provider.WaitForCacheReady()
 
-	if opts.ProviderCacheDisablePartialLockFile && !util.FileExists(filepath.Join(opts.WorkingDir, terraform.TerraformLockFile)) {
-		log.Debugf("Generating Terraform lock file for %q", opts.WorkingDir)
-		// Create complete terraform lock files. By default this feature is disabled, since it's not superfast.
-		// Instead we use Terraform `TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE` feature, that creates hashes from the local cache.
-		// And since the Terraform developers warn that this feature will be removed soon, it's good to have a workaround.
-		if err := runTerraformCommand(ctx, opts, terraform.CommandNameProviders, terraform.CommandNameLock); err != nil {
-			return err
+	for _, args := range commandsArgs {
+		if output, err := runTerraformCommand(ctx, opts, args, env); err != nil {
+			return output, err
 		}
 	}
 
-	return nil
-}
+	caches, err := cache.providerService.WaitForCacheReady(cacheRequestID)
+	if err != nil {
+		return nil, err
+	}
 
-func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, args ...string) error {
-	// We use custom writer in order to trap the log from `terraform providers lock -platform=provider-cache` command, which terraform considers an error, but to us a success.
-	errWriter := util.NewTrapWriter(opts.ErrWriter, HTTPStatusCacheProviderReg)
+	if err := getproviders.UpdateLockfile(ctx, opts.WorkingDir, caches); err != nil {
+		return nil, err
+	}
 
-	// add -no-color flag if the user specified it in the CLI
-	if util.ListContainsElement(opts.TerraformCliArgs, terraform.FlagNameNoColor) {
-		args = append(args, terraform.FlagNameNoColor)
+	// Create terraform cli config file that uses provider cache dir
+	if err := cache.createLocalCLIConfig(opts, cliConfigFilename, ""); err != nil {
+		return nil, err
 	}
 
 	cloneOpts := opts.Clone(opts.TerragruntConfigPath)
-	cloneOpts.ErrWriter = errWriter
 	cloneOpts.WorkingDir = opts.WorkingDir
-	cloneOpts.TerraformCliArgs = args
+	maps.Copy(cloneOpts.Env, env)
 
-	// If the Terraform error matches `HTTPStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process the error as is.
-	if err := shell.RunTerraformCommand(ctx, cloneOpts, cloneOpts.TerraformCliArgs...); err != nil && len(errWriter.Msgs()) == 0 {
-		return err
+	if util.FirstArg(args) == terraform.CommandNameProviders && util.SecondArg(args) == terraform.CommandNameLock {
+		return &shell.CmdOutput{}, nil
 	}
-	return nil
+
+	if skipRunTargetCommand {
+		return &shell.CmdOutput{}, nil
+	}
+	return shell.RunTerraformCommandWithOutput(ctx, cloneOpts, args...)
 }
 
-// providerCacheEnvironment returns TF_* name/value ENVs, which we use to force terraform processes to make requests through our cache server (proxy) instead of making direct requests to the origin servers.
-func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile string) map[string]string {
-	envs := make(map[string]string)
-
-	for _, registryName := range opts.ProviderCacheRegistryNames {
-		envName := fmt.Sprintf(terraform.EnvNameTFTokenFmt, strings.ReplaceAll(registryName, ".", "_"))
-		// We use `TF_TOKEN_*` for authentication with our private registry (cache server).
-		// https://developer.hashicorp.com/terraform/cli/config/config-file#environment-variable-credentials
-		envs[envName] = opts.ProviderCacheToken
-	}
-
-	if !opts.ProviderCacheDisablePartialLockFile {
-		// By using `TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE` we force terraform to generate `.terraform.lock.hcl` only based on cached files, otherwise it downloads three files (provider zip archive, SHA256SUMS, sig) from the original registry to calculate hashes.
-		// https://developer.hashicorp.com/terraform/cli/config/config-file#allowing-the-provider-plugin-cache-to-break-the-dependency-lock-file
-		envs[terraform.EnvNameTFPluginCacheMayBreakDependencyLockFile] = "1"
-	}
-
-	// By using `TF_CLI_CONFIG_FILE` we force terraform to use our auto-generated cli configuration file.
-	// https://developer.hashicorp.com/terraform/cli/config/environment-variables#tf_cli_config_file
-	envs[terraform.EnvNameTFCLIConfigFile] = cliConfigFile
-	// Clear this `TF_PLUGIN_CACHE_DIR` value since we are using our own caching mechanism.
-	// https://developer.hashicorp.com/terraform/cli/config/environment-variables#tf_plugin_cache_dir
-	envs[terraform.EnvNameTFPluginCacheDir] = ""
-
-	return envs
-}
-
-// createLocalCLIConfig creates a local CLI configuration that merges the default/user configuration with our Private Registry configuration.
-// We don't want to use Terraform's `plugin_cache_dir` feature because the cache is populated by our Terragrunt Provider Cache server, and to make sure that no Terraform process ever overwrites the global cache, we clear this value.
-// In order to force Terraform to queries our registry instead of the original one, we use the section below.
+// createLocalCLIConfig creates a local CLI config that merges the default/user configuration with our Provider Cache configuration.
+// We don't want to use Terraform's `plugin_cache_dir` feature because the cache is populated by our Terragrunt Provider cache server, and to make sure that no Terraform process ever overwrites the global cache, we clear this value.
+// In order to force Terraform to queries our cache server instead of the original one, we use the section below.
 // https://github.com/hashicorp/terraform/issues/28309 (officially undocumented)
 //
 //	host "registry.terraform.io" {
@@ -212,36 +229,119 @@ func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile str
 //		}
 //	}
 //
-// This func doesn't change the default CLI config file, only creates a new one at the given path `cliConfigFile`. Ultimately, we can assign this path to `TF_CLI_CONFIG_FILE`.
-func createLocalCLIConfig(opts *options.TerragruntOptions, cliConfigFile string, registryProviderURL *url.URL) error {
-	cfg, err := cliconfig.LoadUserConfig()
-	if err != nil {
-		return err
-	}
+// This func doesn't change the default CLI config file, only creates a new one at the given path `filename`. Ultimately, we can assign this path to `TF_CLI_CONFIG_FILE`.
+//
+// It creates two types of configuration depending on the `cacheRequestID` variable set.
+// 1. If `cacheRequestID` is set, `terraform init` does _not_ use the provider cache directory, the cache server creates a cache for requested providers and returns HTTP status 423. Since for each module we create the CLI config, using `cacheRequestID` we have the opportunity later retrieve from the cache server exactly those cached providers that were requested by `terraform init` using this configuration.
+// 2. If `cacheRequestID` is empty, 'terraform init` uses provider cache directory, the cache server acts as a proxy.
+func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions, filename string, cacheRequestID string) error {
+	cfg := cache.cliCfg.Clone()
 	cfg.PluginCacheDir = ""
 
-	providerInstallationIncludes := make([]string, len(opts.ProviderCacheRegistryNames))
+	var providerInstallationIncludes []string
 
-	for i, registryName := range opts.ProviderCacheRegistryNames {
-		cfg.AddHost(registryName, map[string]any{
-			"providers.v1": fmt.Sprintf("%s/%s/", registryProviderURL, registryName),
+	for _, registryName := range opts.ProviderCacheRegistryNames {
+		providerInstallationIncludes = append(providerInstallationIncludes, fmt.Sprintf("%s/*/*", registryName))
+
+		cfg.AddHost(registryName, map[string]string{
+			"providers.v1": fmt.Sprintf("%s/%s/%s/", cache.ProviderController.URL(), cacheRequestID, registryName),
 			// Since Terragrunt Provider Cache only caches providers, we need to route module requests to the original registry.
 			"modules.v1": fmt.Sprintf("https://%s/v1/modules", registryName),
 		})
-
-		providerInstallationIncludes[i] = fmt.Sprintf("%s/*/*", registryName)
 	}
 
-	cfg.SetProviderInstallation(
-		cliconfig.NewProviderInstallationFilesystemMirror(opts.ProviderCacheDir, providerInstallationIncludes, nil),
-		cliconfig.NewProviderInstallationDirect(providerInstallationIncludes, nil),
+	if cacheRequestID == "" {
+		cfg.AddProviderInstallationMethods(
+			cliconfig.NewProviderInstallationFilesystemMirror(opts.ProviderCacheDir, providerInstallationIncludes, nil),
+		)
+	}
+
+	cfg.AddProviderInstallationMethods(
+		cliconfig.NewProviderInstallationDirect(nil, nil),
 	)
 
-	if cfgDir := filepath.Dir(cliConfigFile); !util.FileExists(cfgDir) {
+	if cfgDir := filepath.Dir(filename); !util.FileExists(cfgDir) {
 		if err := os.MkdirAll(cfgDir, os.ModePerm); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
 
-	return cfg.Save(cliConfigFile)
+	return cfg.Save(filename)
+}
+
+func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, args []string, envs map[string]string) (*shell.CmdOutput, error) {
+	// We use custom writer in order to trap the log from `terraform providers lock -platform=provider-cache` command, which terraform considers an error, but to us a success.
+	errWriter := util.NewTrapWriter(opts.ErrWriter, httpStatusCacheProviderReg)
+
+	// add -no-color flag to args if it was set in Terragrunt arguments
+	if util.ListContainsElement(opts.TerraformCliArgs, terraform.FlagNameNoColor) {
+		args = append(args, terraform.FlagNameNoColor)
+	}
+
+	cloneOpts := opts.Clone(opts.TerragruntConfigPath)
+	cloneOpts.Writer = io.Discard
+	cloneOpts.ErrWriter = errWriter
+	cloneOpts.WorkingDir = opts.WorkingDir
+	cloneOpts.TerraformCliArgs = args
+
+	if envs != nil {
+		maps.Copy(cloneOpts.Env, envs)
+	}
+
+	// If the Terraform error matches `httpStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process the error as is.
+	if output, err := shell.RunTerraformCommandWithOutput(ctx, cloneOpts, cloneOpts.TerraformCliArgs...); err != nil && len(errWriter.Msgs()) == 0 {
+		return output, err
+	}
+
+	return nil, nil
+}
+
+// providerCacheEnvironment returns TF_* name/value ENVs, which we use to force terraform processes to make requests through our cache server (proxy) instead of making direct requests to the origin servers.
+func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile string) map[string]string {
+	envs := make(map[string]string)
+
+	for _, registryName := range opts.ProviderCacheRegistryNames {
+		envName := fmt.Sprintf(terraform.EnvNameTFTokenFmt, strings.ReplaceAll(registryName, ".", "_"))
+		// We use `TF_TOKEN_*` for authentication with our private registry (cache server).
+		// https://developer.hashicorp.com/terraform/cli/config/config-file#environment-variable-credentials
+		envs[envName] = opts.ProviderCacheToken
+	}
+
+	// By using `TF_CLI_CONFIG_FILE` we force terraform to use our auto-generated cli configuration file.
+	// https://developer.hashicorp.com/terraform/cli/config/environment-variables#tf_cli_config_file
+	envs[terraform.EnvNameTFCLIConfigFile] = cliConfigFile
+	// Clear this `TF_PLUGIN_CACHE_DIR` value since we are using our own caching mechanism.
+	// https://developer.hashicorp.com/terraform/cli/config/environment-variables#tf_plugin_cache_dir
+	envs[terraform.EnvNameTFPluginCacheDir] = ""
+
+	return envs
+}
+
+// convertToMultipleCommandsByPlatforms converts `providers lock -platform=.. -platform=..` command into multiple commands that include only one platform.
+// for example:
+// `providers lock -platform=linux_amd64 -platform=darwin_arm64 -platform=freebsd_amd64`
+// to
+// `providers lock -platform=linux_amd64`,
+// `providers lock -platform=darwin_arm64`,
+// `providers lock -platform=freebsd_amd64`
+func convertToMultipleCommandsByPlatforms(args []string) [][]string {
+	var (
+		filteredArgs []string
+		platformArgs []string
+		commandsArgs [][]string
+	)
+
+	for _, arg := range args {
+		if strings.HasPrefix(arg, terraform.FlagNamePlatform) {
+			platformArgs = append(platformArgs, arg)
+		} else {
+			filteredArgs = append(filteredArgs, arg)
+		}
+	}
+
+	for _, platformArg := range platformArgs {
+		commandsArgs = append(commandsArgs, append(filteredArgs, platformArg))
+	}
+
+	return commandsArgs
 }

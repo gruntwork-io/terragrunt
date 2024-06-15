@@ -160,6 +160,11 @@ func gcsConfigValuesEqual(config map[string]interface{}, existingBackend *Terraf
 	return true
 }
 
+// buildInitializerCacheKey returns a unique key for the given GCS config that can be used to cache the initialization
+func (gcsInitializer GCSInitializer) buildInitializerCacheKey(gcsConfig *RemoteStateConfigGCS) string {
+	return gcsConfig.Bucket
+}
+
 // Initialize the remote state GCS bucket specified in the given config. This function will validate the config
 // parameters, create the GCS bucket if it doesn't already exist, and check that versioning is enabled.
 func (gcsInitializer GCSInitializer) Initialize(ctx context.Context, remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {
@@ -174,8 +179,20 @@ func (gcsInitializer GCSInitializer) Initialize(ctx context.Context, remoteState
 
 	var gcsConfig = gcsConfigExtended.remoteStateConfigGCS
 
+	cacheKey := gcsInitializer.buildInitializerCacheKey(&gcsConfig)
+	if initialized, hit := initializedRemoteStateCache.Get(cacheKey); initialized && hit {
+		terragruntOptions.Logger.Debugf("GCS bucket %s has already been confirmed to be initialized, skipping initialization checks", gcsConfig.Bucket)
+		return nil
+	}
+
 	// ensure that only one goroutine can initialize bucket
 	return stateAccessLock.StateBucketUpdate(gcsConfig.Bucket, func() error {
+		// check if another goroutine has already initialized the bucket
+		if initialized, hit := initializedRemoteStateCache.Get(cacheKey); initialized && hit {
+			terragruntOptions.Logger.Debugf("GCS bucket %s has already been confirmed to be initialized, skipping initialization checks", gcsConfig.Bucket)
+			return nil
+		}
+
 		gcsClient, err := CreateGCSClient(gcsConfig)
 		if err != nil {
 			return err
@@ -193,6 +210,9 @@ func (gcsInitializer GCSInitializer) Initialize(ctx context.Context, remoteState
 				return err
 			}
 		}
+
+		initializedRemoteStateCache.Put(cacheKey, true)
+
 		return nil
 	})
 }
@@ -280,7 +300,7 @@ func createGCSBucketIfNecessary(ctx context.Context, gcsClient *storage.Client, 
 			// To avoid any eventual consistency issues with creating a GCS bucket we use a retry loop.
 			description := fmt.Sprintf("Create GCS bucket %s", config.remoteStateConfigGCS.Bucket)
 
-			return util.DoWithRetry(ctx, description, gcpMaxRetries, gcpSleepBetweenRetries, logrus.DebugLevel, func() error {
+			return util.DoWithRetry(ctx, description, gcpMaxRetries, gcpSleepBetweenRetries, logrus.DebugLevel, func(ctx context.Context) error {
 				return CreateGCSBucketWithVersioning(gcsClient, config, terragruntOptions)
 			})
 		}

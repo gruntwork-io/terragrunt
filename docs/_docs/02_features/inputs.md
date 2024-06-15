@@ -26,14 +26,16 @@ inputs = {
 
 Whenever you run a Terragrunt command, Terragrunt will set any inputs you pass in as environment variables. For example, with the `terragrunt.hcl` file above, running `terragrunt apply` is roughly equivalent to:
 
-    $ terragrunt apply
+```bash
+$ terragrunt apply
 
-    # Roughly equivalent to:
+# Roughly equivalent to:
 
-    TF_VAR_instance_type="t2.micro" \
-    TF_VAR_instance_count=10 \
-    TF_VAR_tags='{"Name":"example-app"}' \
-    terraform apply
+TF_VAR_instance_type="t2.micro" \
+TF_VAR_instance_count=10 \
+TF_VAR_tags='{"Name":"example-app"}' \
+terraform apply
+```
 
 Note that Terragrunt will respect any `TF_VAR_xxx` variables you’ve manually set in your environment, ensuring that anything in `inputs` will NOT override anything you’ve already set in your environment.
 
@@ -45,12 +47,12 @@ If the same variable is assigned multiple values, Terraform will use the **last*
 
 Variables are loaded in the following order:
 
-  - Environment variables.
+- Environment variables.
 
-  - `terraform.tfvars` file, if present.
+- `terraform.tfvars` file, if present.
 
-  - `terraform.tfvars.json` file, if present.
+- `terraform.tfvars.json` file, if present.
 
-  - Any `*.auto.tfvars`/`*.auto.tfvars.json` files, processed in order of their filenames.
+- Any `*.auto.tfvars`/`*.auto.tfvars.json` files, processed in order of their filenames.
 
-  - Any `-var`/`-var-file` options on the command line, in the order they are provided.
+- Any `-var`/`-var-file` options on the command line, in the order they are provided.

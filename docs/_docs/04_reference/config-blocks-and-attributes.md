@@ -17,8 +17,31 @@ where `terragrunt.hcl` is mentioned you can always use `terragrunt.hcl.json` ins
 
 The following is a reference of all the supported blocks and attributes in the configuration file:
 
-  - [Blocks](#blocks)
-  - [Attributes](#attributes)
+- [Blocks](#blocks)
+  - [terraform](#terraform)
+    - [A note about using modules from the registry](#a-note-about-using-modules-from-the-registry)
+  - [remote\_state](#remote_state)
+  - [include](#include)
+    - [Single include](#single-include)
+    - [Multiple includes](#multiple-includes)
+    - [Limitations on accessing exposed config](#limitations-on-accessing-exposed-config)
+  - [locals](#locals)
+  - [dependency](#dependency)
+  - [dependencies](#dependencies)
+  - [generate](#generate)
+- [Attributes](#attributes)
+  - [inputs](#inputs)
+  - [download\_dir](#download_dir)
+  - [prevent\_destroy](#prevent_destroy)
+  - [skip](#skip)
+  - [iam\_role](#iam_role)
+  - [iam\_assume\_role\_duration](#iam_assume_role_duration)
+  - [iam\_assume\_role\_session\_name](#iam_assume_role_session_name)
+  - [iam\_web\_identity\_token](#iam_web_identity_token)
+  - [terraform\_binary](#terraform_binary)
+  - [terraform\_version\_constraint](#terraform_version_constraint)
+  - [terragrunt\_version\_constraint](#terragrunt_version_constraint)
+  - [retryable\_errors](#retryable_errors)
 
 ## Blocks
 
@@ -43,28 +66,29 @@ The `terraform` block supports the following arguments:
   for the Terraform registry** (see below note), including local file paths, Git URLs, and Git URLS with `ref`
   parameters. Terragrunt will download all the code in the repo (i.e. the part before the double-slash `//`) so that
   relative paths work correctly between modules in that repo.
-    - The `source` parameter can be configured to pull Terraform modules from any Terraform module registry using
-      the `tfr` protocol. The `tfr` protocol expects URLs to be provided in the format
-      `tfr://REGISTRY_HOST/MODULE_SOURCE?version=VERSION`. For example, to pull the `terraform-aws-modules/vpc/aws`
-      module from the public Terraform registry, you can use the following as the source parameter:
-      `tfr://registry.terraform.io/terraform-aws-modules/vpc/aws?version=3.3.0`.
-    - If you wish to access a private module registry (e.g., [Terraform Cloud/Enterprise](https://www.terraform.io/docs/cloud/registry/index.html)),
-      you can provide the authentication to Terragrunt as an environment variable with the key `TG_TF_REGISTRY_TOKEN`.
-      This token can be any registry API token.
-    - The `tfr` protocol supports a shorthand notation where the `REGISTRY_HOST` can be omitted to default to the public
-      registry. The default registry depends on the wrapped executable: for Terraform, it is `registry.terraform.io`,
-      and for Opentofu, it is `registry.opentofu.org`. Additionally, if the environment variable `TG_TF_DEFAULT_REGISTRY_HOST`
-      is set, this value will be used as the default registry host instead, overriding the standard defaults for the wrapped executable.
-    - If you use `tfr:///` (note the three `/`). For example, the following will
-      fetch the `terraform-aws-modules/vpc/aws` module from the public registry:
-      `tfr:///terraform-aws-modules/vpc/aws?version=3.3.0`.
-    - You can also use submodules from the registry using `//`. For example, to use the `iam-policy` submodule from the
-      registry module
-      [terraform-aws-modules/iam](https://registry.terraform.io/modules/terraform-aws-modules/iam/aws/latest), you can
-      use the following: `tfr:///terraform-aws-modules/iam/aws//modules/iam-policy?version=4.3.0`.
-    - Refer to [A note about using modules from the
-      registry]({{site.baseurl}}/docs/getting-started/quick-start#a-note-about-using-modules-from-the-registry) for more
-      information about using modules from the Terraform Registry with Terragrunt.
+
+  - The `source` parameter can be configured to pull Terraform modules from any Terraform module registry using
+    the `tfr` protocol. The `tfr` protocol expects URLs to be provided in the format
+    `tfr://REGISTRY_HOST/MODULE_SOURCE?version=VERSION`. For example, to pull the `terraform-aws-modules/vpc/aws`
+    module from the public Terraform registry, you can use the following as the source parameter:
+    `tfr://registry.terraform.io/terraform-aws-modules/vpc/aws?version=3.3.0`.
+  - If you wish to access a private module registry (e.g., [Terraform Cloud/Enterprise](https://www.terraform.io/docs/cloud/registry/index.html)),
+    you can provide the authentication to Terragrunt as an environment variable with the key `TG_TF_REGISTRY_TOKEN`.
+    This token can be any registry API token.
+  - The `tfr` protocol supports a shorthand notation where the `REGISTRY_HOST` can be omitted to default to the public
+    registry. The default registry depends on the wrapped executable: for Terraform, it is `registry.terraform.io`,
+    and for Opentofu, it is `registry.opentofu.org`. Additionally, if the environment variable `TG_TF_DEFAULT_REGISTRY_HOST`
+    is set, this value will be used as the default registry host instead, overriding the standard defaults for the wrapped executable.
+  - If you use `tfr:///` (note the three `/`). For example, the following will
+    fetch the `terraform-aws-modules/vpc/aws` module from the public registry:
+    `tfr:///terraform-aws-modules/vpc/aws?version=3.3.0`.
+  - You can also use submodules from the registry using `//`. For example, to use the `iam-policy` submodule from the
+    registry module
+    [terraform-aws-modules/iam](https://registry.terraform.io/modules/terraform-aws-modules/iam/aws/latest), you can
+    use the following: `tfr:///terraform-aws-modules/iam/aws//modules/iam-policy?version=4.3.0`.
+  - Refer to [A note about using modules from the
+    registry]({{site.baseurl}}/docs/getting-started/quick-start#a-note-about-using-modules-from-the-registry) for more
+    information about using modules from the Terraform Registry with Terragrunt.
 
 - `include_in_copy` (attribute): A list of glob patterns (e.g., `["*.txt"]`) that should always be copied into the
   Terraform working directory. When you use the `source` param in your Terragrunt config and run `terragrunt <command>`,
@@ -73,11 +97,12 @@ The `terraform` block supports the following arguments:
   scratch folder. By default, Terragrunt excludes hidden files and folders during the copy step. This feature allows you
   to specify glob patterns of files that should always be copied from the Terragrunt working directory. Additional
   notes:
-    - The path should be specified relative to the source directory.
-    - This list is also used when using a local file source (e.g., `source = "../modules/vpc"`). For example, if your
-      terraform module source contains a hidden file that you want to copy over (e.g., a `.python-version` file), you
-      can specify that in this list to ensure it gets copied over to the scratch copy
-      (e.g., `include_in_copy = [".python-version"]`).
+
+  - The path should be specified relative to the source directory.
+  - This list is also used when using a local file source (e.g., `source = "../modules/vpc"`). For example, if your
+    terraform module source contains a hidden file that you want to copy over (e.g., a `.python-version` file), you
+    can specify that in this list to ensure it gets copied over to the scratch copy
+    (e.g., `include_in_copy = [".python-version"]`).
 
 - `copy_terraform_lock_file` (attribute): In certain use cases, you don't want to check the terraform provider lock 
   file into your source repository from your working directory as described in 
@@ -87,34 +112,36 @@ The `terraform` block supports the following arguments:
 - `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `terraform` CLI. Learn more
   about its usage in the [Keep your CLI flags DRY]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/) use case overview. Supports
   the following arguments:
-    - `arguments` (required) : A list of CLI arguments to pass to `terraform`.
-    - `commands` (required) : A list of `terraform` sub commands that the arguments will be passed to.
-    - `env_vars` (optional) : A map of key value pairs to set as environment variables when calling `terraform`.
-    - `required_var_files` (optional): A list of file paths to terraform vars files (`.tfvars`) that will be passed in to
-      `terraform` as `-var-file=<your file>`.
-    - `optional_var_files` (optional): A list of file paths to terraform vars files (`.tfvars`) that will be passed in to
-      `terraform` like `required_var_files`, only any files that do not exist are ignored.
+
+  - `arguments` (required) : A list of CLI arguments to pass to `terraform`.
+  - `commands` (required) : A list of `terraform` sub commands that the arguments will be passed to.
+  - `env_vars` (optional) : A map of key value pairs to set as environment variables when calling `terraform`.
+  - `required_var_files` (optional): A list of file paths to terraform vars files (`.tfvars`) that will be passed in to
+    `terraform` as `-var-file=<your file>`.
+  - `optional_var_files` (optional): A list of file paths to terraform vars files (`.tfvars`) that will be passed in to
+    `terraform` like `required_var_files`, only any files that do not exist are ignored.
 
 - `before_hook` (block): Nested blocks used to specify command hooks that should be run before `terraform` is called.
   Hooks run from the directory with the terraform module, except for hooks related to `terragrunt-read-config` and
   `init-from-module`. These hooks run in the terragrunt configuration directory (the directory where `terragrunt.hcl`
   lives).
   Supports the following arguments:
-    - `commands` (required) : A list of `terraform` sub commands for which the hook should run before.
-    - `execute` (required) : A list of command and arguments that should be run as the hook. For example, if `execute` is set as
-      `["echo", "Foo"]`, the command `echo Foo` will be run.
-    - `working_dir` (optional) : The path to set as the working directory of the hook. Terragrunt will switch directory
-      to this path prior to running the hook command. Defaults to the terragrunt configuration directory for
-      `terragrunt-read-config` and `init-from-module` hooks, and the terraform module directory for other command hooks.
-    - `run_on_error` (optional) : If set to true, this hook will run even if a previous hook hit an error, or in the
-      case of "after" hooks, if the Terraform command hit an error. Default is false.
-    - `suppress_stdout` (optional) : If set to true, the stdout output of the executed commands will be suppressed. This can be useful when there are scripts relying on terraform's output and any other output would break their parsing.
+
+  - `commands` (required) : A list of `terraform` sub commands for which the hook should run before.
+  - `execute` (required) : A list of command and arguments that should be run as the hook. For example, if `execute` is set as
+    `["echo", "Foo"]`, the command `echo Foo` will be run.
+  - `working_dir` (optional) : The path to set as the working directory of the hook. Terragrunt will switch directory
+    to this path prior to running the hook command. Defaults to the terragrunt configuration directory for
+    `terragrunt-read-config` and `init-from-module` hooks, and the terraform module directory for other command hooks.
+  - `run_on_error` (optional) : If set to true, this hook will run even if a previous hook hit an error, or in the
+    case of "after" hooks, if the Terraform command hit an error. Default is false.
+  - `suppress_stdout` (optional) : If set to true, the stdout output of the executed commands will be suppressed. This can be useful when there are scripts relying on terraform's output and any other output would break their parsing.
 
 - `after_hook` (block): Nested blocks used to specify command hooks that should be run after `terraform` is called.
   Hooks run from the terragrunt configuration directory (the directory where `terragrunt.hcl` lives). Supports the same
   arguments as `before_hook`.
 - `error_hook` (block): Nested blocks used to specify command hooks that run when an error is thrown. The
-error must match one of the expressions listed in the `on_errors` attribute. Error hooks are executed after the before/after hooks.
+  error must match one of the expressions listed in the `on_errors` attribute. Error hooks are executed after the before/after hooks.
 
 In addition to supporting before and after hooks for all terraform commands, the following specialized hooks are also
 supported:
@@ -133,13 +160,12 @@ supported:
   terraform `init` for Auto-Init, use `init` for the command. For example, an `after_hook` for the command
   `init-from-module` will run after terragrunt clones the module, while an `after_hook` for the command `init` will run
   after terragrunt runs `terraform init` on the cloned module.
-    - Hooks for both `init-from-module` and `init` only run if the requisite stage needs to run. That is, if terragrunt
-      detects that the module is already cloned in the terragrunt cache, this stage will be skipped and thus the hooks
-      will not run. Similarly, if terragrunt detects that it does not need to run `init` in the auto init feature, the
-      `init` stage is skipped along with the related hooks.
-    - The working directory for hooks associated with `init-from-module` will run in the terragrunt config directory,
-      while the working directory for hooks associated with `init` will be the terraform module.
-
+  - Hooks for both `init-from-module` and `init` only run if the requisite stage needs to run. That is, if terragrunt
+    detects that the module is already cloned in the terragrunt cache, this stage will be skipped and thus the hooks
+    will not run. Similarly, if terragrunt detects that it does not need to run `init` in the auto init feature, the
+    `init` stage is skipped along with the related hooks.
+  - The working directory for hooks associated with `init-from-module` will run in the terragrunt config directory,
+    while the working directory for hooks associated with `init` will be the terraform module.
 
 Complete Example:
 
@@ -244,34 +270,33 @@ terraform {
 }
 ```
 
-
 #### A note about using modules from the registry
 
 The key design of Terragrunt is to act as a preprocessor to convert **shared service modules** in the registry into a **root
 module**. In Terraform, modules can be loosely categorized into two types:
 
-* **Root Module**: A Terraform module that is designed for running `terraform init` and the other workflow commands
+- **Root Module**: A Terraform module that is designed for running `terraform init` and the other workflow commands
   (`apply`, `plan`, etc). This is the entrypoint module for deploying your infrastructure. Root modules are identified
   by the presence of key blocks that setup configuration about how Terraform behaves, like `backend` blocks (for
   configuring state) and `provider` blocks (for configuring how Terraform interacts with the cloud APIs).
-* **Shared Module**: A Terraform module that is designed to be included in other Terraform modules through `module`
+- **Shared Module**: A Terraform module that is designed to be included in other Terraform modules through `module`
   blocks. These modules are missing many of the key blocks that are required for running the workflow commands of
   terraform.
 
 Terragrunt further distinguishes shared modules between **service modules** and **modules**:
 
-* **Shared Service Module**: A Terraform module that is designed to be standalone and applied directly. These modules
+- **Shared Service Module**: A Terraform module that is designed to be standalone and applied directly. These modules
   are not root modules in that they are still missing the key blocks like `backend` and `provider`, but aside from that
   do not need any additional configuration or composition to deploy. For example, the
   [terraform-aws-modules/vpc](https://registry.terraform.io/modules/terraform-aws-modules/vpc/aws/latest) module can be
   deployed by itself without composing with other modules or resources.
-* **Shared Module**: A Terraform module that is designed to be composed with other modules. That is, these modules must
+- **Shared Module**: A Terraform module that is designed to be composed with other modules. That is, these modules must
   be embedded in another Terraform module and combined with other resources or modules. For example, the
   [consul-security-group-rules
   module](https://registry.terraform.io/modules/hashicorp/consul/aws/latest/submodules/consul-security-group-rules)
 
 Terragrunt started off with features that help directly deploy **Root Modules**, but over the years have implemented
-many features that allow you to turn **Shared Service Modules** into **Root Modules**  by injecting the key configuration
+many features that allow you to turn **Shared Service Modules** into **Root Modules** by injecting the key configuration
 blocks that are necessary for Terraform modules to act as **Root Modules**.
 
 Modules on the Terraform Registry are primarily designed to be used as **Shared Modules**. That is, you won't be able to
@@ -296,8 +321,6 @@ support the transition to root module. Please always file [an issue on the terra
 repository](https://github.com/gruntwork-io/terragrunt/issues) with the module + error message you are encountering,
 instead of the module repository.**
 
-
-
 ### remote_state
 
 The `remote_state` block is used to configure how Terragrunt will set up the remote state configuration of your
@@ -318,38 +341,39 @@ The `remote_state` block supports the following arguments:
 
 - `generate` (attribute): Configure Terragrunt to automatically generate a `.tf` file that configures the remote state
   backend. This is a map that expects two properties:
-    - `path`: The path where the generated file should be written. If a relative path, it'll be relative to the Terragrunt
-      working dir (where the terraform code lives).
-    - `if_exists` (attribute): What to do if a file already exists at `path`. Valid values are: `overwrite` (overwrite the
-      existing file), `overwrite_terragrunt` (overwrite the existing file if it was generated by terragrunt; otherwise,
-      error) `skip` (skip code generation and leave the existing file as-is), `error` (exit with an error).
+
+  - `path`: The path where the generated file should be written. If a relative path, it'll be relative to the Terragrunt
+    working dir (where the terraform code lives).
+  - `if_exists` (attribute): What to do if a file already exists at `path`. Valid values are: `overwrite` (overwrite the
+    existing file), `overwrite_terragrunt` (overwrite the existing file if it was generated by terragrunt; otherwise,
+    error) `skip` (skip code generation and leave the existing file as-is), `error` (exit with an error).
 
 - `config` (attribute): An arbitrary map that is used to fill in the backend configuration in Terraform. All the
   properties will automatically be included in the Terraform backend block (with a few exceptions: see below). For
   example, if you had the following `remote_state` block:
 
-    ```hcl
-    remote_state {
-      backend = "s3"
-      config = {
-        bucket = "mybucket"
-        key    = "path/to/my/key"
-        region = "us-east-1"
-      }
+  ```hcl
+  remote_state {
+    backend = "s3"
+    config = {
+      bucket = "mybucket"
+      key    = "path/to/my/key"
+      region = "us-east-1"
     }
-    ```
+  }
+  ```
 
   This is equivalent to the following `terraform` code:
 
-    ```hcl
-    terraform {
-      backend "s3" {
-        bucket = "mybucket"
-        key    = "path/to/my/key"
-        region = "us-east-1"
-      }
+  ```hcl
+  terraform {
+    backend "s3" {
+      bucket = "mybucket"
+      key    = "path/to/my/key"
+      region = "us-east-1"
     }
-    ```
+  }
+  ```
 
 Note that `remote_state` can also be set as an attribute. This is useful if you want to set `remote_state` dynamically.
 For example, if in `common.hcl` you had:
@@ -403,8 +427,7 @@ For the `s3` backend, the following additional properties are supported in the `
 - `dynamodb_table_tags`: A map of key value pairs to associate as tags on the created DynamoDB remote state lock table.
 - `accesslogging_bucket_tags`: A map of key value pairs to associate as tags on the created S3 bucket to store de access logs.
 - `disable_aws_client_checksums`: When `true`, disable computing and checking checksums on the request and response,
-  such as the CRC32 check for DynamoDB. This can be used to workaround
-  https://github.com/gruntwork-io/terragrunt/issues/1059.
+  such as the CRC32 check for DynamoDB. See [#1059](https://github.com/gruntwork-io/terragrunt/issues/1059) for issue where this is a useful workaround.
 - `accesslogging_bucket_name`: (Optional) When provided as a valid `string`, create an S3 bucket with this name to store the access logs for the S3 bucket used to store Terraform state. If not provided, or string is empty or invalid S3 bucket name, then server access logging for the S3 bucket storing the terraform state will be disabled. **Note:** When access logging is enabled supported encryption for state bucket is only `AES256`. Reference: [S3 server access logging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html)
 - `accesslogging_target_prefix`: (Optional) When provided as a valid `string`, set the `TargetPrefix` for the access log objects in the S3 bucket used to store Terraform state. If set to **empty**`string`, then `TargetPrefix` will be set to **empty** `string`. If attribute is not provided at all, then `TargetPrefix` will be set to **default** value `TFStateLogs/`. This attribute won't take effect if the `accesslogging_bucket_name` attribute is not present.
 - `bucket_sse_algorithm`: (Optional) The algorithm to use for server side encryption of the state bucket. Defaults to `aws:kms`.
@@ -413,7 +436,6 @@ For the `s3` backend, the following additional properties are supported in the `
   - `role_arn` - (Optional) The role to be assumed.
   - `external_id` - (Optional) The external ID to use when assuming the role.
   - `session_name` - (Optional) The session name to use when assuming the role.
-
 
 For the `gcs` backend, the following additional properties are supported in the `config` attribute:
 
@@ -426,7 +448,7 @@ For the `gcs` backend, the following additional properties are supported in the 
 - `gcs_bucket_labels`: A map of key value pairs to associate as labels on the created GCS bucket.
 - `credentials`: Local path to Google Cloud Platform account credentials in JSON format.
 - `access_token`: A temporary [OAuth 2.0 access token] obtained from the Google Authorization server.
-Example with S3:
+  Example with S3:
 
 ```hcl
 # Configure terraform state to be stored in S3, in the bucket "my-terraform-state" in us-east-1 under a key that is
@@ -435,6 +457,7 @@ Example with S3:
 # .
 # ├── terragrunt.hcl
 # └── child
+#     ├── main.tf
 #     └── terragrunt.hcl
 #
 # And the following is defined in the root terragrunt.hcl config that is included in the child, the state file for the
@@ -442,6 +465,7 @@ Example with S3:
 #
 # Note that since we are not using any of the skip args, this will automatically create the S3 bucket
 # "my-terraform-state" and DynamoDB table "my-lock-table" if it does not already exist.
+# terragrunt.hcl
 remote_state {
   backend = "s3"
   config = {
@@ -451,6 +475,16 @@ remote_state {
     encrypt        = true
     dynamodb_table = "my-lock-table"
   }
+}
+
+# child/terragrunt.hcl
+include "root" {
+  path   = find_in_parent_folders()
+}
+
+# child/main.tf
+terraform {
+  backend "s3" {}
 }
 ```
 
@@ -466,6 +500,7 @@ Example with GCS:
 # .
 # ├── terragrunt.hcl
 # └── child
+#     ├── main.tf
 #     └── terragrunt.hcl
 #
 # And the following is defined in the root terragrunt.hcl config that is included in the child, the state file for the
@@ -473,6 +508,8 @@ Example with GCS:
 #
 # Note that since we are not using any of the skip args, this will automatically create the GCS bucket
 # "my-terraform-state" if it does not already exist.
+
+# terragrunt.hcl
 remote_state {
   backend = "gcs"
 
@@ -488,9 +525,17 @@ remote_state {
     }
   }
 }
+
+# child/terragrunt.hcl
+include "root" {
+  path   = find_in_parent_folders()
+}
+
+# child/main.tf
+terraform {
+  backend "gcs" {}
+}
 ```
-
-
 
 ### include
 
@@ -508,7 +553,7 @@ backward compatibility, but is deprecated usage and support may be removed in th
 
 - `name` (label): You can define multiple `include` blocks in a single terragrunt config. Each include block
   must be labeled with a unique name to differentiate it from the other includes. E.g., if you had a block `include
-  "remote" {}`, you can reference the relevant exposed data with the expression `include.remote`.
+"remote" {}`, you can reference the relevant exposed data with the expression `include.remote`.
 - `path` (attribute): Specifies the path to a Terragrunt configuration file (the `parent` config) that should be merged
   with this configuration (the `child` config).
 - `expose` (attribute, optional): Specifies whether or not the included config should be parsed and exposed as a
@@ -520,16 +565,16 @@ backward compatibility, but is deprecated usage and support may be removed in th
 
 **NOTE**: At this time, Terragrunt only supports a single level of `include` blocks. That is, Terragrunt will error out
 if an included config also has an `include` block defined. If you are interested in this feature, please follow
-https://github.com/gruntwork-io/terragrunt/issues/1566 to be notified when nested `include` blocks are supported.
+[#1566](https://github.com/gruntwork-io/terragrunt/issues/1566) to be notified when nested `include` blocks are supported.
 
 **Special case for shallow merge**: When performing a shallow merge, all attributes and blocks are merged shallowly with
 replacement, except for `dependencies` blocks (NOT `dependency` block). `dependencies` blocks are deep merged: that is,
 all the lists of paths from included configurations are concatenated together, rather than replaced in override fashion.
 
-
 Examples:
 
-_Single include_
+#### Single include
+
 ```hcl
 # If you have the following folder structure, and the following contents for ./child/terragrunt.hcl, this will include
 # and merge the items in the terragrunt.hcl file at the root.
@@ -537,7 +582,22 @@ _Single include_
 # .
 # ├── terragrunt.hcl
 # └── child
+#     ├── main.tf
 #     └── terragrunt.hcl
+
+# terragrunt.hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket         = "my-terraform-state"
+    key            = "${path_relative_to_include()}/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "my-lock-table"
+  }
+}
+
+# child/terragrunt.hcl
 include "root" {
   path   = find_in_parent_folders()
   expose = true
@@ -546,9 +606,15 @@ include "root" {
 inputs = {
   remote_state_config = include.root.remote_state
 }
+
+# child/main.tf
+terraform {
+  backend "s3" {}
+}
 ```
 
-_Multiple includes_
+#### Multiple includes
+
 ```hcl
 # If you have the following folder structure, and the following contents for ./child/terragrunt.hcl, this will include
 # and merge the items in the terragrunt.hcl file at the root, while only loading the data in the region.hcl
@@ -559,6 +625,25 @@ _Multiple includes_
 # ├── region.hcl
 # └── child
 #     └── terragrunt.hcl
+
+# terragrunt.hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket         = "my-terraform-state"
+    key            = "${path_relative_to_include()}/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "my-lock-table"
+  }
+}
+
+# region.hcl
+locals {
+  region = "production"
+}
+
+# child/terragrunt.hcl
 include "remote_state" {
   path   = find_in_parent_folders()
   expose = true
@@ -572,11 +657,16 @@ include "region" {
 
 inputs = {
   remote_state_config = include.remote_state.remote_state
-  region              = include.region.region
+  region              = include.region.locals.region
+}
+
+# child/main.tf
+terraform {
+  backend "s3" {}
 }
 ```
 
-**Limitations on accessing exposed config**
+#### Limitations on accessing exposed config
 
 In general, you can access all attributes on `include` when they are exposed (e.g., `include.locals`, `include.inputs`,
 etc).
@@ -584,8 +674,8 @@ etc).
 However, to support `run-all`, Terragrunt is unable to expose all attributes when the included config has a `dependency`
 block. To understand this, consider the following example:
 
-_root terragrunt.hcl_
 ```hcl
+# Root terragrunt.hcl
 dependency "vpc" {
   config_path = "${get_terragrunt_dir()}/../vpc"
 }
@@ -595,8 +685,8 @@ inputs = {
 }
 ```
 
-_child terragrunt.hcl_
 ```hcl
+# Child terragrunt.hcl
 include "root" {
   path   = find_in_parent_folders()
   expose = true
@@ -641,15 +731,15 @@ can access.
 For example, the following alternative configuration is valid even if the alb dependency is still accessing the `inputs`
 attribute from the included config:
 
-_root terragrunt.hcl_
 ```hcl
+# Root terragrunt.hcl
 inputs = {
   vpc_name = "mgmt"
 }
 ```
 
-_child terragrunt.hcl_
 ```hcl
+# Child terragrunt.hcl
 include "root" {
   path   = find_in_parent_folders()
   expose = true
@@ -673,8 +763,6 @@ inputs = {
 }
 ```
 
-
-
 **What is deep merge?**
 
 When the `merge_strategy` for the `include` block is set to `deep`, Terragrunt will perform a deep merge of the included
@@ -689,9 +777,7 @@ config. For Terragrunt config, deep merge is defined as follows:
 
 However, due to internal implementation details, some blocks are not deep mergeable. This will change in the future, but
 for now, terragrunt performs a shallow merge (that is, block definitions in the child completely override the parent
-definition). The following blocks have this limitation:
-    - `remote_state`
-    - `generate`
+definition). The following blocks have this limitation: - `remote_state` - `generate`
 
 Similarly, the `locals` block is deliberately omitted from the merge operation by design. That is, you will not be able
 to access parent config `locals` in the child config, and vice versa in a merge. However, you can access the parent
@@ -700,8 +786,8 @@ locals in child config if you use the `expose` feature.
 Finally, `dependency` blocks have special treatment. When doing a `deep` merge, `dependency` blocks from **both** child
 and parent config are accessible in **both** places. For example, consider the following setup:
 
-_parent config_
 ```hcl
+# Parent config
 dependency "vpc" {
   config_path = "../vpc"
 }
@@ -712,8 +798,8 @@ inputs = {
 }
 ```
 
-_child config_
 ```hcl
+# Child config
 include "root" {
   path           = find_in_parent_folders()
   merge_strategy = "deep"
@@ -734,8 +820,8 @@ child.
 
 Full example:
 
-_parent terragrunt.hcl_
 ```hcl
+# Parent terragrunt.hcl
 remote_state {
   backend = "s3"
   config = {
@@ -772,8 +858,8 @@ inputs = {
 }
 ```
 
-_child terragrunt.hcl_
 ```hcl
+# Child terragrunt.hcl
 include "root" {
   path           = find_in_parent_folders()
   merge_strategy = "deep"
@@ -807,8 +893,8 @@ inputs = {
 }
 ```
 
-_merged terragrunt.hcl_
 ```hcl
+# Merged terragrunt.hcl
 # Child override parent completely due to deep merge limitation
 remote_state {
   backend = "local"
@@ -854,7 +940,6 @@ inputs = {
 }
 ```
 
-
 ### locals
 
 The `locals` block is used to define aliases for Terragrunt expressions that can be referenced within the configuration.
@@ -876,7 +961,6 @@ inputs = {
   name   = "${local.aws_region}-bucket"
 }
 ```
-
 
 ### dependency
 
@@ -953,7 +1037,7 @@ inputs = {
 `dependency` blocks are fetched in parallel at each source level, but will serially parse each recursive dependency. For
 example, consider the following chain of dependencies:
 
-```
+```text
 account --> vpc --> securitygroup --> ecs
                                       ^
                                      /
@@ -980,7 +1064,6 @@ example) provided that the following conditions are met in the immediate depende
 If these conditions are met, terragrunt will only parse out the `remote_state` blocks and use that to pull down the
 state for the target module without parsing the `dependency` blocks, avoiding the recursive dependency retrieval.
 
-
 ### dependencies
 
 The `dependencies` block is used to enumerate all the Terragrunt modules that need to be applied in order for this
@@ -1001,7 +1084,6 @@ dependencies {
 }
 ```
 
-
 ### generate
 
 The `generate` block can be used to arbitrarily generate a file in the terragrunt working directory (where `terraform`
@@ -1018,8 +1100,9 @@ The `generate` block supports the following arguments:
 - `if_exists` (attribute): What to do if a file already exists at `path`. Valid values are: `overwrite` (overwrite the
   existing file), `overwrite_terragrunt` (overwrite the existing file if it was generated by terragrunt; otherwise,
   error) `skip` (skip code generation and leave the existing file as-is), `error` (exit with an error).
+- `if_disabled` (attribute): What to do if a file already exists at `path` and `disable` is set to `true`. Valid values are: `remove` (remove the existing file), `remove_terragrunt` (remove the existing file if it was generated by terragrunt; otherwise, error) `skip` (skip removing and leave the existing file as-is). Defaults to `skip`. Optional.
 - `comment_prefix` (attribute): A prefix that can be used to indicate comments in the generated file. This is used by
-  terragrunt to write out a signature for knowing which files were generated by terragrunt. Defaults to `# `. Optional.
+  terragrunt to write out a signature for knowing which files were generated by terragrunt. Defaults to `#`. Optional.
 - `disable_signature` (attribute): When `true`, disables including a signature in the generated file. This means that
   there will be no difference between `overwrite_terragrunt` and `overwrite` for the `if_exists` setting. Defaults to
   `false`. Optional.
@@ -1075,18 +1158,31 @@ generate = local.common.generate
 
 ## Attributes
 
-- [inputs](#inputs)
-- [download_dir](#download_dir)
-- [prevent_destroy](#prevent_destroy)
-- [skip](#skip)
-- [iam_role](#iam_role)
-- [iam_assume_role_duration](#iam_assume_role_duration)
-- [iam_assume_role_session_name](#iam_assume_role_session_name)
-- [terraform_binary](#terraform_binary)
-- [terraform_version_constraint](#terraform_version_constraint)
-- [terragrunt_version_constraint](#terragrunt_version_constraint)
-- [retryable_errors](#retryable_errors)
-
+- [Blocks](#blocks)
+  - [terraform](#terraform)
+    - [A note about using modules from the registry](#a-note-about-using-modules-from-the-registry)
+  - [remote\_state](#remote_state)
+  - [include](#include)
+    - [Single include](#single-include)
+    - [Multiple includes](#multiple-includes)
+    - [Limitations on accessing exposed config](#limitations-on-accessing-exposed-config)
+  - [locals](#locals)
+  - [dependency](#dependency)
+  - [dependencies](#dependencies)
+  - [generate](#generate)
+- [Attributes](#attributes)
+  - [inputs](#inputs)
+  - [download\_dir](#download_dir)
+  - [prevent\_destroy](#prevent_destroy)
+  - [skip](#skip)
+  - [iam\_role](#iam_role)
+  - [iam\_assume\_role\_duration](#iam_assume_role_duration)
+  - [iam\_assume\_role\_session\_name](#iam_assume_role_session_name)
+  - [iam\_web\_identity\_token](#iam_web_identity_token)
+  - [terraform\_binary](#terraform_binary)
+  - [terraform\_version\_constraint](#terraform_version_constraint)
+  - [terragrunt\_version\_constraint](#terragrunt_version_constraint)
+  - [retryable\_errors](#retryable_errors)
 
 ### inputs
 
@@ -1140,7 +1236,6 @@ inputs = {
 }
 ```
 
-
 ### download_dir
 
 The terragrunt `download_dir` string option can be used to override the default download directory.
@@ -1150,7 +1245,6 @@ The precedence is as follows: `--terragrunt-download-dir` command line option �
 `terragrunt.hcl`.
 
 It supports all terragrunt functions, i.e. `path_relative_from_include()`.
-
 
 ### prevent_destroy
 
@@ -1176,28 +1270,29 @@ module.
 
 Consider the following file structure:
 
-    root
-    ├── terragrunt.hcl
-    ├── prod
-    │   └── terragrunt.hcl
-    ├── dev
-    │   └── terragrunt.hcl
-    └── qa
-        └── terragrunt.hcl
+```tree
+root
+├── terragrunt.hcl
+├── prod
+│   └── terragrunt.hcl
+├── dev
+│   └── terragrunt.hcl
+└── qa
+    └── terragrunt.hcl
+```
 
 In some cases, the root level `terragrunt.hcl` file is solely used to DRY up your Terraform configuration by being
 included in the other `terragrunt.hcl` files. In this case, you do not want the `run-all` commands to process the root
 level `terragrunt.hcl` since it does not define any infrastructure by itself. To make the `run-all` commands skip the
 root level `terragrunt.hcl` file, you can set `skip = true`:
 
-``` hcl
+```hcl
 skip = true
 ```
 
 The `skip` flag must be set explicitly in terragrunt modules that should be skipped. If you set `skip = true` in a
 `terragrunt.hcl` file that is included by another `terragrunt.hcl` file, only the `terragrunt.hcl` file that explicitly
 set `skip = true` will be skipped.
-
 
 ### iam_role
 
@@ -1212,9 +1307,11 @@ Example:
 ```hcl
 iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 ```
+
 **Notes:**
-  * Value of `iam_role` can reference local variables
-  * Definitions of `iam_role` included from other HCL files through `include`
+
+- Value of `iam_role` can reference local variables
+- Definitions of `iam_role` included from other HCL files through `include`
 
 ### iam_assume_role_duration
 
@@ -1238,15 +1335,54 @@ The precedence is as follows: `--terragrunt-iam-assume-role-session-name` comman
 `iam_assume_role_session_name` attribute of the `terragrunt.hcl` file in the module directory → `iam_assume_role_session_name` attribute of the included
 `terragrunt.hcl`.
 
+### iam_web_identity_token
+
+The `iam_web_identity_token` attribute can be used along with `iam_role` to assume a role using AssumeRoleWithWebIdentity. `iam_web_identity_token` can be set to either the token value (typically using `get_env()`), or the path to a file on disk.
+
+The precedence is as follows: `--terragrunt-iam-web-identity-token` command line option → `TERRRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN` env variable →
+`iam_web_identity_token` attribute of the `terragrunt.hcl` file in the module directory → `iam_web_identity_token` attribute of the included
+`terragrunt.hcl`.
+
+The primary benefit of using AssumeRoleWithWebIdentity over regular AssumeRole is that it enables you to run terragrunt in your CI/CD pipelines wihthout static AWS credentials.
+
+#### Git Provider Configuration
+
+To use AssumeRoleWithWebIdentity in your CI/CD environment, you must first configure an AWS [OpenID Connect
+provider](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html) to trust the OIDC service
+provided by your git provider.
+
+Follow the instructions below for whichever Git provider you use:
+
+- GitLab: [Configure OpenID Connect in AWS to retrieve temporary credentials](https://docs.gitlab.com/ee/ci/cloud_services/aws/)
+- GitHub: [Configuring OpenID Connect in Amazon Web Services](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services)
+- CircleCI: [Using OpenID Connect tokens in jobs](https://circleci.com/docs/openid-connect-tokens/)
+
+Once you have configured your OpenID Connect Provider and configured the trust policy of your IAM role according to the above instructions, you
+can configure Terragrunt to use the Web Identity Token in the following manner.
+
+If your Git provider provides the OIDC token as an environment variable, pass it in to the `iam_web_identity_token` as follows
+
+```terragrunt
+iam_role = "arn:aws:iam::<AWS account number>:role/<IAM role name>"
+
+iam_web_identity_token = get_env("<variable name>")
+```
+
+If your Git provider provides the OIDC token as a file, simply pass the file path to `iam_web_identity_token`
+
+```terragrunt
+iam_role = "arn:aws:iam::<AWS account number>:role/<IAM role name>"
+
+iam_web_identity_token = "/path/to/token/file" 
+```
 
 ### terraform_binary
 
 The terragrunt `terraform_binary` string option can be used to override the default terraform binary path (which is
-`terraform`).
+`tofu`).
 
 The precedence is as follows: `--terragrunt-tfpath` command line option → `TERRAGRUNT_TFPATH` env variable →
 `terragrunt.hcl` in the module directory → included `terragrunt.hcl`
-
 
 ### terraform_version_constraint
 

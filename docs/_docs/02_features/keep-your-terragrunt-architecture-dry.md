@@ -12,16 +12,12 @@ nav_title_link: /docs/
 
 ## Keep your Terragrunt Architecture DRY
 
+- [Keep your Terragrunt Architecture DRY](#keep-your-terragrunt-architecture-dry)
   - [Motivation](#motivation)
-
   - [Using include to DRY common Terragrunt config](#using-include-to-dry-common-terragrunt-config)
-
   - [Using exposed includes to override common configurations](#using-exposed-includes-to-override-common-configurations)
-
   - [Using read\_terragrunt\_config to DRY parent configurations](#using-read_terragrunt_config-to-dry-parent-configurations)
-
-  - [Considerations for CI/CD pipelines](#considerations-for-ci-cd-pipelines)
-
+  - [Considerations for CI/CD Pipelines](#considerations-for-cicd-pipelines)
 
 ### Motivation
 
@@ -69,29 +65,31 @@ have Terragrunt configurations that are only relevant to subsets of your module?
 terragrunt file structure, which defines three environments (`prod`, `qa`, and `stage`) with the same infrastructure in
 each one (an app, a MySQL database, and a VPC):
 
-    └── live
-        ├── terragrunt.hcl
-        ├── prod
-        │   ├── app
-        │   │   └── terragrunt.hcl
-        │   ├── mysql
-        │   │   └── terragrunt.hcl
-        │   └── vpc
-        │       └── terragrunt.hcl
-        ├── qa
-        │   ├── app
-        │   │   └── terragrunt.hcl
-        │   ├── mysql
-        │   │   └── terragrunt.hcl
-        │   └── vpc
-        │       └── terragrunt.hcl
-        └── stage
-            ├── app
-            │   └── terragrunt.hcl
-            ├── mysql
-            │   └── terragrunt.hcl
-            └── vpc
-                └── terragrunt.hcl
+```tree
+└── live
+    ├── terragrunt.hcl
+    ├── prod
+    │   ├── app
+    │   │   └── terragrunt.hcl
+    │   ├── mysql
+    │   │   └── terragrunt.hcl
+    │   └── vpc
+    │       └── terragrunt.hcl
+    ├── qa
+    │   ├── app
+    │   │   └── terragrunt.hcl
+    │   ├── mysql
+    │   │   └── terragrunt.hcl
+    │   └── vpc
+    │       └── terragrunt.hcl
+    └── stage
+        ├── app
+        │   └── terragrunt.hcl
+        ├── mysql
+        │   └── terragrunt.hcl
+        └── vpc
+            └── terragrunt.hcl
+```
 
 More often than not, each of the services will look similar across the different environments, only requiring small
 tweaks. For example, the `app/terragrunt.hcl` files may be identical across all three environments except for an
@@ -137,33 +135,35 @@ except for one line, everything in the config is duplicated across `prod`, `qa`,
 To DRY this up, we will introduce a new folder called `_env` which will contain the common configurations across the
 three environments (we prefix with `_` to indicate that this folder doesn't contain deployable configurations):
 
-    └── live
-        ├── terragrunt.hcl
-        ├── _env
-        │   ├── app.hcl
-        │   ├── mysql.hcl
-        │   └── vpc.hcl
-        ├── prod
-        │   ├── app
-        │   │   └── terragrunt.hcl
-        │   ├── mysql
-        │   │   └── terragrunt.hcl
-        │   └── vpc
-        │       └── terragrunt.hcl
-        ├── qa
-        │   ├── app
-        │   │   └── terragrunt.hcl
-        │   ├── mysql
-        │   │   └── terragrunt.hcl
-        │   └── vpc
-        │       └── terragrunt.hcl
-        └── stage
-            ├── app
-            │   └── terragrunt.hcl
-            ├── mysql
-            │   └── terragrunt.hcl
-            └── vpc
-                └── terragrunt.hcl
+```tree
+└── live
+    ├── terragrunt.hcl
+    ├── _env
+    │   ├── app.hcl
+    │   ├── mysql.hcl
+    │   └── vpc.hcl
+    ├── prod
+    │   ├── app
+    │   │   └── terragrunt.hcl
+    │   ├── mysql
+    │   │   └── terragrunt.hcl
+    │   └── vpc
+    │       └── terragrunt.hcl
+    ├── qa
+    │   ├── app
+    │   │   └── terragrunt.hcl
+    │   ├── mysql
+    │   │   └── terragrunt.hcl
+    │   └── vpc
+    │       └── terragrunt.hcl
+    └── stage
+        ├── app
+        │   └── terragrunt.hcl
+        ├── mysql
+        │   └── terragrunt.hcl
+        └── vpc
+            └── terragrunt.hcl
+```
 
 In our example, the contents of `_env/app.hcl` would look like the following:
 
@@ -281,7 +281,6 @@ inputs = {
 }
 ```
 
-
 ### Using read\_terragrunt\_config to DRY parent configurations
 
 In the previous two sections, we covered using `include` to DRY common component configurations through static merges
@@ -321,37 +320,38 @@ configuration by taking advantage of the folder structure, and define the env ba
 
 To do this, we will introduce a new `env.hcl` configuration in each environment:
 
-    └── live
-        ├── terragrunt.hcl
-        ├── _env
-        │   ├── app.hcl
-        │   ├── mysql.hcl
-        │   └── vpc.hcl
-        ├── prod
-        │   ├── env.hcl
-        │   ├── app
-        │   │   └── terragrunt.hcl
-        │   ├── mysql
-        │   │   └── terragrunt.hcl
-        │   └── vpc
-        │       └── terragrunt.hcl
-        ├── qa
-        │   ├── env.hcl
-        │   ├── app
-        │   │   └── terragrunt.hcl
-        │   ├── mysql
-        │   │   └── terragrunt.hcl
-        │   └── vpc
-        │       └── terragrunt.hcl
-        └── stage
-            ├── env.hcl
-            ├── app
-            │   └── terragrunt.hcl
-            ├── mysql
-            │   └── terragrunt.hcl
-            └── vpc
-                └── terragrunt.hcl
-
+```tree
+└── live
+    ├── terragrunt.hcl
+    ├── _env
+    │   ├── app.hcl
+    │   ├── mysql.hcl
+    │   └── vpc.hcl
+    ├── prod
+    │   ├── env.hcl
+    │   ├── app
+    │   │   └── terragrunt.hcl
+    │   ├── mysql
+    │   │   └── terragrunt.hcl
+    │   └── vpc
+    │       └── terragrunt.hcl
+    ├── qa
+    │   ├── env.hcl
+    │   ├── app
+    │   │   └── terragrunt.hcl
+    │   ├── mysql
+    │   │   └── terragrunt.hcl
+    │   └── vpc
+    │       └── terragrunt.hcl
+    └── stage
+        ├── env.hcl
+        ├── app
+        │   └── terragrunt.hcl
+        ├── mysql
+        │   └── terragrunt.hcl
+        └── vpc
+            └── terragrunt.hcl
+```
 
 The `env.hcl` configuration will look like the following:
 
@@ -448,7 +448,7 @@ Alternatively, you can implement a promotion workflow if you have multiple envir
 environments, `qa`, `stage`, and `prod` in order. In this case, you can use `--terragrunt-working-dir` to scope down the
 updates from the common file:
 
-```
+```bash
 # Roll out the change to the qa environment first
 terragrunt run-all plan --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir qa
 terragrunt run-all apply --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir qa
@@ -461,7 +461,7 @@ terragrunt run-all apply --terragrunt-modules-that-include _env/app.hcl --terrag
 ```
 
 This allows you to have flexibility in how changes are rolled out. For example, you can add extra validation stages
-inbetween the roll out to each environment, or add in manual approval between the stages.
+in-between the roll out to each environment, or add in manual approval between the stages.
 
 **NOTE**: If you identify an issue with rolling out the change in a downstream environment, and want to abort, you will
 need to make sure that that environment uses the older version of the common configuration. This is because the common

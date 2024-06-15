@@ -10,6 +10,7 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
+<!-- markdownlint-disable MD025 -->
 # Upgrading to Terragrunt 0.19.x
 
 ## Background
@@ -26,25 +27,24 @@ a `terraform.tfvars` file, but due to item (1) this no longer works with Terrafo
 move to a new file format. This requires a migration, which is unfortunate, but as a nice benefit, item (2)
 gives us a nicer syntax and new functionality!
 
-
-
-
 ## Migration guide
 
 The following sections outline the steps you may need to take in order to migrate from Terragrunt <= v0.18.x
 to Terragrunt 0.19.x and newer:
 
-1. [Move from terraform.tfvars to terragrunt.hcl](#move-from-terraformtfvars-to-terragrunthcl)
-1. [Move input variables into inputs](#move-input-variables-into-inputs)
-1. [Use first-class expressions](#use-first-class-expressions)
-1. [Check attributes vs blocks usage](#check-attributes-vs-blocks-usage)
-1. [Rename a few built-in functions ](#rename-a-few-built-in-functions)
-1. [Use terraform \<0.12](#use-older-terraform)
+- [Upgrading to Terragrunt 0.19.x](#upgrading-to-terragrunt-019x)
+  - [Background](#background)
+  - [Migration guide](#migration-guide)
+    - [Move from terraform.tfvars to terragrunt.hcl](#move-from-terraformtfvars-to-terragrunthcl)
+    - [Move input variables into inputs](#move-input-variables-into-inputs)
+    - [Use first-class expressions](#use-first-class-expressions)
+    - [Check attributes vs blocks usage](#check-attributes-vs-blocks-usage)
+    - [Rename a few built-in functions](#rename-a-few-built-in-functions)
+    - [Use older Terraform](#use-older-terraform)
 
 Check out [this PR in the terragrunt-infrastructure-live-example
 repo](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example/pull/17) for an example of what the code
 changes look like.
-
 
 ### Move from terraform.tfvars to terragrunt.hcl
 
@@ -105,7 +105,6 @@ remote_state {
   }
 }
 ```
-
 
 ### Move input variables into inputs
 
@@ -282,7 +281,6 @@ inputs = {
 }
 ```
 
-
 ### Rename a few built-in functions
 
 Two built-in functions were renamed:
@@ -299,9 +297,6 @@ Although it is not officially supported and not tested, it is still possible to 
 Just install a different version of terraform into a directory of your choice outside of `PATH` and specify path to the binary in `terragrunt.hcl` as `terraform_binary`, plus you need to lower the version check constraint:
 
 ```hcl
-
 terraform_binary = "~/bin/terraform-v11/terraform"
 terraform_version_constraint = ">= 0.11"
-
-
 ```

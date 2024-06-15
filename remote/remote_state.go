@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/codegen"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -29,6 +30,10 @@ type stateAccess struct {
 }
 
 var stateAccessLock = newStateAccess()
+
+// initializedRemoteStateCache is a cache to store the result of a remote state initialization check.
+// This is used to avoid checking to see if remote state needs to be initialized multiple times.
+var initializedRemoteStateCache = cache.NewCache[bool]()
 
 func (remoteState *RemoteState) String() string {
 	return fmt.Sprintf("RemoteState{Backend = %v, DisableInit = %v, DisableDependencyOptimization = %v, Generate = %v, Config = %v}", remoteState.Backend, remoteState.DisableInit, remoteState.DisableDependencyOptimization, remoteState.Generate, remoteState.Config)

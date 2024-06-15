@@ -27,6 +27,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	output[MetadataIamRole] = gostringToCty(config.IamRole)
 	output[MetadataSkip] = goboolToCty(config.Skip)
 	output[MetadataIamAssumeRoleSessionName] = gostringToCty(config.IamAssumeRoleSessionName)
+	output[MetadataIamWebIdentityToken] = gostringToCty(config.IamWebIdentityToken)
 
 	catalogConfigCty, err := catalogConfigAsCty(config.Catalog)
 	if err != nil {

@@ -20,7 +20,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -187,9 +187,8 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 	for _, dep := range decodedDependency.Dependencies {
 		depPath := getCleanedTargetConfigPath(dep.ConfigPath, ctx.TerragruntOptions.TerragruntConfigPath)
 		if dep.isEnabled() && util.FileExists(depPath) {
-			depCtx := ctx.
-				WithDecodeList(TerragruntFlags, TerragruntInputs).
-				WithTerragruntOptions(cloneTerragruntOptionsForDependency(ctx, depPath))
+			depOpts := cloneTerragruntOptionsForDependency(ctx, depPath)
+			depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
 
 			if depConfig, err := PartialParseConfigFile(depCtx, depPath, nil); err == nil {
 				if depConfig.Skip {
@@ -542,6 +541,13 @@ func getOutputJsonWithCaching(ctx *ParsingContext, targetConfig string) ([]byte,
 func cloneTerragruntOptionsForDependency(ctx *ParsingContext, targetConfigPath string) *options.TerragruntOptions {
 	targetOptions := ctx.TerragruntOptions.Clone(targetConfigPath)
 	targetOptions.OriginalTerragruntConfigPath = targetConfigPath
+
+	// `needUpdateDownloadDir` is true if `DownloadDir` was not explicitly specified by the user and we need to assign the default download dir, otherwise leave as is.
+	needUpdateDownloadDir := filepath.Join(filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath), util.TerragruntCacheDir) == ctx.TerragruntOptions.DownloadDir
+	if needUpdateDownloadDir {
+		targetOptions.DownloadDir = filepath.Join(filepath.Dir(targetConfigPath), util.TerragruntCacheDir)
+	}
+
 	// Clear IAMRoleOptions in case if it is different from one passed through CLI to allow dependencies to define own iam roles
 	// https://github.com/gruntwork-io/terragrunt/issues/1853#issuecomment-940102676
 	if targetOptions.IAMRoleOptions != targetOptions.OriginalIAMRoleOptions {
@@ -877,7 +883,7 @@ func setupTerragruntOptionsForBareTerraform(ctx *ParsingContext, workingDir stri
 	targetTGOptions.IAMRoleOptions = options.MergeIAMRoleOptions(iamRoleOpts, targetTGOptions.OriginalIAMRoleOptions)
 
 	// Make sure to assume any roles set by TERRAGRUNT_IAM_ROLE
-	if err := aws_helper.AssumeRoleAndUpdateEnvIfNecessary(targetTGOptions); err != nil {
+	if err := creds.ObtainCredentialsAndUpdateEnvIfNecessary(ctx, targetTGOptions); err != nil {
 		return nil, err
 	}
 	return targetTGOptions, nil
@@ -889,7 +895,13 @@ func runTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, 
 	// Update the stdout buffer so we can capture the output
 	var stdoutBuffer bytes.Buffer
 	stdoutBufferWriter := bufio.NewWriter(&stdoutBuffer)
-	ctx.TerragruntOptions.Writer = stdoutBufferWriter
+
+	newOpts := *ctx.TerragruntOptions
+	// explicit disable json formatting and prefixing to read json output
+	newOpts.TerraformLogsToJson = false
+	newOpts.IncludeModulePrefix = false
+	newOpts.Writer = stdoutBufferWriter
+	ctx = ctx.WithTerragruntOptions(&newOpts)
 
 	err := ctx.TerragruntOptions.RunTerragrunt(ctx, ctx.TerragruntOptions)
 	if err != nil {

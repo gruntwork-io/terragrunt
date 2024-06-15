@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/hashicorp/go-multierror"
 
 	"github.com/getsops/sops/v3/cmd/sops/formats"
 	"github.com/getsops/sops/v3/decrypt"
@@ -22,6 +25,7 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/terraform"
@@ -306,7 +310,7 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 
 // runCommandCache - cache of evaluated `run_cmd` invocations
 // see: https://github.com/gruntwork-io/terragrunt/issues/1427
-var runCommandCache = NewCache[string]()
+var runCommandCache = cache.NewCache[string]()
 
 // runCommand is a helper function that runs a command and returns the stdout as the interporation
 // for each `run_cmd` in locals section, function is called twice
@@ -724,7 +728,7 @@ func getModulePathFromSourceUrl(sourceUrl string) (string, error) {
 //
 // The cache keys are the canonical paths to the encrypted files, and the values are the
 // plain-text result of the decrypt operation.
-var sopsCache = NewCache[string]()
+var sopsCache = cache.NewCache[string]()
 
 // decrypts and returns sops encrypted utf-8 yaml or json data as a string
 func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
@@ -753,7 +757,7 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 
 	rawData, err := decrypt.File(sourceFile, format)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.WithStackTrace(extractSopsErrors(err))
 	}
 
 	if utf8.Valid(rawData) {
@@ -983,4 +987,34 @@ func ParseAndDecodeVarFile(varFile string, fileContents []byte, out interface{})
 		return nil
 	}
 	return gocty.FromCtyValue(ctyVal, out)
+}
+
+// extractSopsErrors extracts the original errors from the sops library and returns them as a multierror.Error
+func extractSopsErrors(err error) *multierror.Error {
+	var errs = &multierror.Error{}
+
+	// workaround to extract original errors from sops library
+	// using reflection extract GroupResults from getDataKeyError
+	// may not be compatible with future versions
+	errValue := reflect.ValueOf(err)
+	if errValue.Kind() == reflect.Ptr {
+		errValue = errValue.Elem()
+	}
+	if errValue.Type().Name() == "getDataKeyError" {
+		groupResultsField := errValue.FieldByName("GroupResults")
+		if groupResultsField.IsValid() && groupResultsField.Kind() == reflect.Slice {
+			for i := 0; i < groupResultsField.Len(); i++ {
+				groupErr := groupResultsField.Index(i)
+				if groupErr.CanInterface() {
+					errs = multierror.Append(errs, groupErr.Interface().(error))
+				}
+			}
+		}
+	}
+
+	// append the original error if no group results were found
+	if errs.Len() == 0 {
+		errs = multierror.Append(errs, err)
+	}
+	return errs
 }
