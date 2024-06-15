@@ -481,7 +481,7 @@ func createTempFile(t *testing.T) string {
 	return filepath.ToSlash(tmpFile.Name())
 }
 
-func Test_shouldCopyLockFile(t *testing.T) {
+func TestShouldCopyLockFile(t *testing.T) {
 	type args struct {
 		args            []string
 		terraformConfig *config.TerraformConfig
