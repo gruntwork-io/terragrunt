@@ -46,7 +46,7 @@ func Fetch(ctx context.Context, url string, dst io.Writer) error {
 	return nil
 }
 
-// Fetch downloads the file from the given `url` into the specified `dst` file.
+// FetchToFile downloads the file from the given `url` into the specified `dst` file.
 func FetchToFile(ctx context.Context, url, dst string) error {
 	file, err := os.Create(dst)
 	if err != nil {

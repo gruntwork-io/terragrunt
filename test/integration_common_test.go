@@ -61,10 +61,10 @@ func runNetworkMirrorServer(t *testing.T, ctx context.Context, urlPrefix, provid
 	ln, err := tls.Listen("tcp", "localhost:8888", serverTLSConf)
 	require.NoError(t, err)
 
-	server := (&http.Server{
+	server := &http.Server{
 		Addr:    ln.Addr().String(),
 		Handler: mux,
-	})
+	}
 
 	go func() {
 		server.Serve(ln)
