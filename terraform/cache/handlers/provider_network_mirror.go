@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
@@ -86,6 +87,10 @@ func (handler *ProviderNetworkMirrorHandler) GetPlatform(ctx echo.Context, provi
 	}
 
 	if archive, ok := mirrorData.Archives[provider.Platform()]; ok {
+		if !strings.HasPrefix(archive.URL, "http") {
+			archive.URL = fmt.Sprintf("%s/%s", strings.TrimRight(handler.networkMirrorURL, "/"), path.Join(provider.RegistryName, provider.Namespace, provider.Name, archive.URL))
+		}
+
 		provider.ResponseBody = &models.ResponseBody{
 			Filename:    filepath.Base(archive.URL),
 			DownloadURL: archive.URL,
@@ -118,5 +123,5 @@ func (handler *ProviderNetworkMirrorHandler) request(ctx echo.Context, method, r
 	}
 	defer resp.Body.Close() //nolint:errcheck
 
-	return DecodeJSONBody(resp, value)
+	return helpers.DecodeJSONBody(resp, value)
 }

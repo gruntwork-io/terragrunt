@@ -1,14 +1,13 @@
 package test
 
 import (
-	"archive/zip"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/fs"
 	"math"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -37,61 +36,24 @@ import (
 func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	// In this test we use os.Setenv to set the Terraform env var TF_CLI_CONFIG_FILE.
 
-	createFakeProvider := func(t *testing.T, providerDir, providerFile, providerArchive string) {
-		err := os.MkdirAll(providerDir, os.ModePerm)
-		require.NoError(t, err)
-
-		providerFilePath := filepath.Join(providerDir, providerFile)
-
-		file, err := os.Create(providerFilePath)
-		require.NoError(t, err)
-		defer file.Close()
-
-		err = file.Sync()
-		require.NoError(t, err)
-
-		zipFile, err := os.Create(filepath.Join(providerDir, providerArchive))
-		require.NoError(t, err)
-		defer zipFile.Close()
-
-		zipWriter := zip.NewWriter(zipFile)
-		defer zipWriter.Close()
-
-		fileInfo, err := file.Stat()
-		require.NoError(t, err)
-
-		header, err := zip.FileInfoHeader(fileInfo)
-		require.NoError(t, err)
-
-		header.Method = zip.Deflate
-		header.Name = providerFile
-
-		headerWriter, err := zipWriter.CreateHeader(header)
-		require.NoError(t, err)
-
-		_, err = io.Copy(headerWriter, file)
-		require.NoError(t, err)
-
-		err = os.Remove(providerFilePath)
-		require.NoError(t, err)
-	}
-
-	cleanupTerraformFolder(t, TEST_FIXTURE_PROVIDER_CACHE_FILESYSTEM_MIRROR)
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PROVIDER_CACHE_FILESYSTEM_MIRROR)
-	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PROVIDER_CACHE_FILESYSTEM_MIRROR)
+	cleanupTerraformFolder(t, TEST_FIXTURE_PROVIDER_CACHE_MIRROR)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PROVIDER_CACHE_MIRROR)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PROVIDER_CACHE_MIRROR)
 
 	appPath := filepath.Join(rootPath, "app")
-	filesystemCachePath := filepath.Join(rootPath, "providers")
+	providersMirrorPath := filepath.Join(rootPath, "providers-mirror")
 
-	providerDir := filepath.Join(filesystemCachePath, "example.com/hashicorp/null")
-	providerFile := "terraform-provider-null_v3.2.2_x5"
-	providerArchvie := fmt.Sprintf("terraform-provider-null_3.2.2_%s_%s.zip", runtime.GOOS, runtime.GOARCH)
+	fakeProvider := FakeProvider{
+		RegistryName: "example.com",
+		Namespace:    "hashicorp",
+		Name:         "null",
+		Version:      "3.2.2",
+		PlatformOS:   runtime.GOOS,
+		PlatformArch: runtime.GOARCH,
+	}
+	fakeProvider.CreateMirror(t, providersMirrorPath)
 
-	createFakeProvider(t, providerDir, providerFile, providerArchvie)
-
-	cacheDir, err := util.GetCacheDir()
-	require.NoError(t, err)
-	providerCacheDir := filepath.Join(cacheDir, "provider-cache-test-with-filesystem-mirror")
+	providerCacheDir := filepath.Join(rootPath, "providers-cache")
 
 	ctx := context.Background()
 	defer ctx.Done()
@@ -109,7 +71,64 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	cliConfigSettings := &CLIConfigSettings{
 		FilesystemMirrorMethods: []CLIConfigProviderInstallationFilesystemMirror{
 			{
-				Path: filesystemCachePath,
+				Path: providersMirrorPath,
+			},
+		},
+	}
+	createCLIConfig(t, cliConfigFilename, cliConfigSettings)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-registry-names example.com --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, appPath))
+}
+
+func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
+	// In this test we use os.Setenv to set the Terraform env var TF_CLI_CONFIG_FILE.
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_PROVIDER_CACHE_MIRROR)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PROVIDER_CACHE_MIRROR)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PROVIDER_CACHE_MIRROR)
+
+	appPath := filepath.Join(rootPath, "app")
+	providersMirrorPath := filepath.Join(rootPath, "providers-mirror")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	fakeProvider := FakeProvider{
+		RegistryName: "example.com",
+		Namespace:    "hashicorp",
+		Name:         "null",
+		Version:      "3.2.2",
+		PlatformOS:   runtime.GOOS,
+		PlatformArch: runtime.GOARCH,
+	}
+	fakeProvider.CreateMirror(t, providersMirrorPath)
+
+	// when we run NetworkMirrorServer, we override the default transport to configure the self-signed certificate, we need to restor, after finishing we need to restore this value
+	defaultTransport := http.DefaultTransport
+	defer func() {
+		http.DefaultTransport = defaultTransport
+	}()
+
+	networkMirrorURL := runNetworkMirrorServer(t, ctx, "/providers/", providersMirrorPath)
+	t.Logf("Provdiers mirror path: %s", providersMirrorPath)
+	t.Logf("Network mirror URL: %s", networkMirrorURL)
+
+	providerCacheDir := filepath.Join(rootPath, "providers-cache")
+
+	cliConfigFilename, err := os.CreateTemp("", "*")
+	require.NoError(t, err)
+	defer cliConfigFilename.Close()
+
+	err = os.Setenv(terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
+	require.NoError(t, err)
+	defer os.Unsetenv(terraform.EnvNameTFCLIConfigFile)
+
+	t.Logf("%s=%s", terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
+
+	cliConfigSettings := &CLIConfigSettings{
+		NetworkMirrorMethods: []CLIConfigProviderInstallationNetworkMirror{
+			{
+				URL: networkMirrorURL.String(),
 			},
 		},
 	}

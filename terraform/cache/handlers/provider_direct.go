@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
@@ -74,7 +75,7 @@ func (handler *ProviderDirectHandler) GetPlatform(ctx echo.Context, provider *mo
 			if cacheRequestID != "" {
 				var body = new(models.ResponseBody)
 
-				if err := DecodeJSONBody(resp, body); err != nil {
+				if err := helpers.DecodeJSONBody(resp, body); err != nil {
 					return err
 				}
 
@@ -122,7 +123,7 @@ func (handler *ProviderDirectHandler) platformURL(provider *models.Provider) *ur
 func proxyGetVersionsRequest(resp *http.Response, downloaderController router.Controller) error {
 	var data map[string]json.RawMessage
 
-	return ModifyJSONBody(resp, &data, func() error {
+	return helpers.ModifyJSONBody(resp, &data, func() error {
 		for _, name := range providerURLNames {
 			linkBytes, ok := data[string(name)]
 			if !ok || linkBytes == nil {
