@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
 	"github.com/gruntwork-io/terragrunt/terraform/getproviders"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -93,7 +94,7 @@ func (cache *ProviderCache) DocumentSHA256Sums(ctx context.Context) ([]byte, err
 
 	var documentSHA256Sums = new(bytes.Buffer)
 
-	if err := util.Fetch(ctx, cache.SHA256SumsURL, documentSHA256Sums); err != nil {
+	if err := helpers.Fetch(ctx, cache.SHA256SumsURL, documentSHA256Sums); err != nil {
 		return nil, fmt.Errorf("failed to retrieve authentication checksums for provider %q: %w", cache.Provider, err)
 	}
 
@@ -108,7 +109,7 @@ func (cache *ProviderCache) Signature(ctx context.Context) ([]byte, error) {
 
 	var signature = new(bytes.Buffer)
 
-	if err := util.Fetch(ctx, cache.SHA256SumsSignatureURL, signature); err != nil {
+	if err := helpers.Fetch(ctx, cache.SHA256SumsSignatureURL, signature); err != nil {
 		return nil, fmt.Errorf("failed to retrieve authentication signature for provider %q: %w", cache.Provider, err)
 	}
 
@@ -203,7 +204,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		cache.archivePath = cache.DownloadURL
 	} else {
 		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %s", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func(ctx context.Context) error {
-			return util.FetchToFile(ctx, cache.DownloadURL, cache.archivePath)
+			return helpers.FetchToFile(ctx, cache.DownloadURL, cache.archivePath)
 		}); err != nil {
 			return err
 		}
