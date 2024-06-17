@@ -30,7 +30,7 @@ install-pre-commit-hook:
 # source. See also: .circleci/config.yml
 build: terragrunt
 terragrunt: $(shell find . \( -type d -name 'vendor' -prune \) \
-                        -o \( -type f -name '*.go'   -print \) ) install-mockery generate-mocks
+                        -o \( -type f -name '*.go'   -print \) ) install-mockery generate-mocks engine
 	set -xe ;\
 	vtag_maybe_extra=$$(git describe --tags --abbrev=12 --dirty --broken) ;\
 	go build -o $@ -ldflags "-X github.com/gruntwork-io/go-commons/version.Version=$${vtag_maybe_extra} -extldflags '-static'" .
@@ -50,4 +50,8 @@ install-mockery:
 generate-mocks:
 	go generate ./...
 
-.PHONY: help fmtcheck fmt install-fmt-hook clean install-lint run-lint
+engine: $(shell find . -name '*.proto')
+	protoc --go_out=. --go_opt=paths=source_relative engine/engine.proto
+	protoc --go-grpc_out=. --go-grpc_opt=paths=source_relative engine/engine.proto
+
+.PHONY: help fmtcheck fmt install-fmt-hook clean install-lint run-lint engine

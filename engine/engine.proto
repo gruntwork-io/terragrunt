@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package engine;
+option go_package = "/engine";
+
+service CommandExecutor {
+  rpc Init(InitRequest) returns (stream InitResponse);
+  rpc Run(RunRequest) returns (stream RunResponse);
+  rpc Shutdown(ShutdownRequest) returns (stream ShutdownResponse);
+}
+
+message InitRequest {
+  map<string, string> meta = 1;
+  string working_dir = 2;
+}
+
+message InitResponse {
+  string stdout = 1;
+  string stderr = 2;
+  int32 result_code = 3;
+}
+
+message ShutdownRequest {
+  map<string, string> meta = 1;
+  string working_dir = 2;
+}
+
+message ShutdownResponse {
+  string stdout = 1;
+  string stderr = 2;
+  int32 result_code = 3;
+}
+
+message RunRequest {
+  map<string, string> meta = 1;
+  string working_dir = 2;
+  string command = 3;
+  repeated string args = 4;
+  bool allocate_pseudo_tty = 5;
+  map<string, string> env_vars = 6;
+}
+
+message RunResponse {
+  string stdout = 1;
+  string stderr = 2;
+  int32 result_code = 3;
+}
