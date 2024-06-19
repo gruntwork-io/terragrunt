@@ -330,7 +330,7 @@ jobs:
           <<: *run_markdownlint
 
   build:
-    resource_class: large
+    resource_class: xlarge
     <<: *defaults
     steps:
       - checkout
