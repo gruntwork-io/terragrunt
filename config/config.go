@@ -104,6 +104,7 @@ type TerragruntConfig struct {
 	RetryableErrors             []string
 	RetryMaxAttempts            *int
 	RetrySleepIntervalSec       *int
+	Engine                      *Engine
 
 	// Fields used for internal tracking
 	// Indicates whether or not this is the result of a partial evaluation
