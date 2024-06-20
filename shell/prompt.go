@@ -42,7 +42,7 @@ func PromptUserForInput(prompt string, terragruntOptions *options.TerragruntOpti
 
 // Prompt the user for a yes/no response and return true if they entered yes.
 func PromptUserForYesNo(prompt string, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	resp, err := PromptUserForInput(fmt.Sprintf("%s (y/n) ", prompt), terragruntOptions)
+	resp, err := PromptUserForInput(fmt.Sprintf("%s (y/N) ", prompt), terragruntOptions)
 
 	if err != nil {
 		return false, errors.WithStackTrace(err)
