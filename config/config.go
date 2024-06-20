@@ -55,6 +55,7 @@ const (
 	MetadataLocals                      = "locals"
 	MetadataLocal                       = "local"
 	MetadataCatalog                     = "catalog"
+	MetadataEngine                      = "engine"
 	MetadataGenerateConfigs             = "generate"
 	MetadataRetryableErrors             = "retryable_errors"
 	MetadataRetryMaxAttempts            = "retry_max_attempts"
@@ -104,7 +105,7 @@ type TerragruntConfig struct {
 	RetryableErrors             []string
 	RetryMaxAttempts            *int
 	RetrySleepIntervalSec       *int
-	Engine                      *Engine
+	Engine                      *EngineConfig
 
 	// Fields used for internal tracking
 	// Indicates whether or not this is the result of a partial evaluation
@@ -203,6 +204,7 @@ type terragruntConfigFile struct {
 	// that have extraneous, unsupported blocks and attributes.
 	Locals  *terragruntLocal          `hcl:"locals,block"`
 	Include []terragruntIncludeIgnore `hcl:"include,block"`
+	Engine  *EngineConfig             `hcl:"engine,block"`
 }
 
 // We use a struct designed to not parse the block, as locals and includes are parsed and decoded using a special

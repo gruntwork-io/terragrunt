@@ -1,7 +1,7 @@
 package config
 
-// Engine represents the structure of the HCL data
-type Engine struct {
+// EngineConfig represents the structure of the HCL data
+type EngineConfig struct {
 	Source  string                 `hcl:"source"`
 	Version string                 `hcl:"version"`
 	Type    string                 `hcl:"type"`
