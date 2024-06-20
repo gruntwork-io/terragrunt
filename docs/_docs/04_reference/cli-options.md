@@ -814,7 +814,7 @@ When passed in, don't automatically retry commands which fail with transient err
 **Environment Variable**: `TERRAGRUNT_NON_INTERACTIVE` (set to `true`)<br/>
 _(Prior to Terragrunt v0.48.6, this environment variable was called `TF_INPUT` (set to `false`), and is still available for backwards compatibility. NOTE: [TF_INPUT](https://developer.hashicorp.com/terraform/cli/config/environment-variables#tf_input) is native to Terraform!)_
 
-When passed in, don't show interactive user prompts. This will default the answer for all prompts to `yes` except for
+When passed in, don't show interactive user prompts. This will default the answer for all Terragrunt (not OpenTofu/Terraform) prompts to `yes` except for
 the listed cases below. This is useful if you need to run Terragrunt in an automated setting (e.g. from a script). May
 also be specified with the [TF_INPUT](https://www.terraform.io/docs/configuration/environment-variables.html#tf_input) environment variable.
 
@@ -822,6 +822,16 @@ This setting will default to `no` for the following cases:
 
 - Prompts related to pulling in external dependencies. You can force include external dependencies using the
   [--terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies) option.
+
+Note that this does not impact the behavior of OpenTofu/Terraform commands invoked by Terragrunt.
+
+e.g.
+
+```bash
+terragrunt --terragrunt-non-interactive apply -auto-approve
+```
+
+Is how you would make Terragrunt apply without any user prompts from Terragrunt or OpenTofu/Terraform.
 
 ### terragrunt-working-dir
 
