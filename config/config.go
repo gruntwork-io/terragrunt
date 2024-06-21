@@ -108,7 +108,7 @@ type TerragruntConfig struct {
 	Engine                      *EngineConfig
 
 	// Fields used for internal tracking
-	// Indicates whether or not this is the result of a partial evaluation
+	// Indicates whether this is the result of a partial evaluation
 	IsPartial bool
 
 	// Map of processed includes

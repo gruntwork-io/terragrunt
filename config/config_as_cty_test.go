@@ -26,6 +26,9 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 		Engine: &EngineConfig{
 			Source:  "github.com/acme/terragrunt-plugin-custom-opentofu",
 			Version: "v0.0.1",
+			Meta: map[string]interface{}{
+				"foo": "bar",
+			},
 		},
 		Catalog: &CatalogConfig{
 			URLs: []string{
