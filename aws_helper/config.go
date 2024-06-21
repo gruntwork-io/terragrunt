@@ -109,9 +109,7 @@ func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *opt
 
 	if iamRoleOptions.RoleARN != "" {
 		sess.Config.Credentials = getSTSCredentialsFromIAMRoleOptions(sess, iamRoleOptions, credentialOptFn)
-	}
-
-	if sess.Config.Credentials == nil {
+	} else {
 		sess.Config.Credentials = getCredentialsFromEnvs(terragruntOptions)
 	}
 
