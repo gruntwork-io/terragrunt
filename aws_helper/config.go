@@ -109,7 +109,10 @@ func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *opt
 
 	if iamRoleOptions.RoleARN != "" {
 		sess.Config.Credentials = getSTSCredentialsFromIAMRoleOptions(sess, iamRoleOptions, credentialOptFn)
+	} else if creds := getCredentialsFromEnvs(terragruntOptions); creds != nil {
+		sess.Config.Credentials = creds
 	}
+
 	return sess, nil
 }
 
@@ -157,6 +160,19 @@ func getSTSCredentialsFromIAMRoleOptions(sess *session.Session, iamRoleOptions o
 		}
 	})
 	return stscreds.NewCredentials(sess, iamRoleOptions.RoleARN, optFns...)
+}
+
+func getCredentialsFromEnvs(opts *options.TerragruntOptions) *credentials.Credentials {
+	var (
+		accessKeyID     = opts.Env["AWS_ACCESS_KEY_ID"]
+		secretAccessKey = opts.Env["AWS_SECRET_ACCESS_KEY"]
+		sessionToken    = opts.Env["AWS_SESSION_TOKEN"]
+	)
+
+	if accessKeyID == "" || secretAccessKey == "" {
+		return nil
+	}
+	return credentials.NewStaticCredentials(accessKeyID, secretAccessKey, sessionToken)
 }
 
 // Returns an AWS session object. The session is configured by either:
