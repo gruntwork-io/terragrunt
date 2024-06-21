@@ -65,6 +65,7 @@ func (provider *Provider) GetCredentials(ctx context.Context) (*providers.Creden
 
 	if resp.AWSCredentials != nil {
 		if envs := resp.AWSCredentials.Envs(provider.terragruntOptions); envs != nil {
+			provider.terragruntOptions.Logger.Debugf("Obtaining AWS credentials from the %s.", provider.Name())
 			maps.Copy(creds.Envs, envs)
 		}
 	}

@@ -202,6 +202,7 @@ const (
 	TEST_FIXTURE_OUT_DIR                                                     = "fixture-out-dir"
 	TEST_FIXTURE_SOPS_ERRORS                                                 = "fixture-sops-errors"
 	TEST_FIXTURE_AUTH_PROVIDER_CMD                                           = "fixture-auth-provider-cmd"
+	TEST_FIXTURE_AUTH_PROVIDER_CMD_REMOTE_STATE                              = "fixture-auth-provider-cmd-remote-state"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -4382,7 +4383,7 @@ func createTmpTerragruntGCSConfig(t *testing.T, templatesPath string, project st
 }
 
 func copyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string, configDestPath string, s3BucketName string, lockTableName string, region string) {
-	copyTerragruntConfigAndFillMapPlaceholders(t, configSrcPath, configDestPath, map[string]string{
+	copyAndFillMapPlaceholders(t, configSrcPath, configDestPath, map[string]string{
 		"__FILL_IN_BUCKET_NAME__":      s3BucketName,
 		"__FILL_IN_LOCK_TABLE_NAME__":  lockTableName,
 		"__FILL_IN_REGION__":           region,
@@ -4390,25 +4391,25 @@ func copyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string,
 	})
 }
 
-func copyTerragruntConfigAndFillMapPlaceholders(t *testing.T, configSrcPath string, configDestPath string, placeholders map[string]string) {
-	contents, err := util.ReadFileAsString(configSrcPath)
+func copyAndFillMapPlaceholders(t *testing.T, srcPath string, destPath string, placeholders map[string]string) {
+	contents, err := util.ReadFileAsString(srcPath)
 	if err != nil {
-		t.Fatalf("Error reading Terragrunt config at %s: %v", configSrcPath, err)
+		t.Fatalf("Error reading file at %s: %v", srcPath, err)
 	}
 
 	// iterate over placeholders and replace placeholders
 	for k, v := range placeholders {
 		contents = strings.ReplaceAll(contents, k, v)
 	}
-	if err := os.WriteFile(configDestPath, []byte(contents), 0444); err != nil {
-		t.Fatalf("Error writing temp Terragrunt config to %s: %v", configDestPath, err)
+	if err := os.WriteFile(destPath, []byte(contents), 0444); err != nil {
+		t.Fatalf("Error writing temp file to %s: %v", destPath, err)
 	}
 }
 
 func copyTerragruntGCSConfigAndFillPlaceholders(t *testing.T, configSrcPath string, configDestPath string, project string, location string, gcsBucketName string) {
 	email := os.Getenv("GOOGLE_IDENTITY_EMAIL")
 
-	copyTerragruntConfigAndFillMapPlaceholders(t, configSrcPath, configDestPath, map[string]string{
+	copyAndFillMapPlaceholders(t, configSrcPath, configDestPath, map[string]string{
 		"__FILL_IN_PROJECT__":     project,
 		"__FILL_IN_LOCATION__":    location,
 		"__FILL_IN_BUCKET_NAME__": gcsBucketName,
@@ -6884,7 +6885,7 @@ func TestTerragruntAssumeRoleDuration(t *testing.T) {
 
 	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
 
-	copyTerragruntConfigAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
+	copyAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
 		"__FILL_IN_BUCKET_NAME__":      s3BucketName,
 		"__FILL_IN_REGION__":           TERRAFORM_REMOTE_STATE_S3_REGION,
 		"__FILL_IN_LOGS_BUCKET_NAME__": s3BucketName + "-tf-state-logs",
@@ -6932,7 +6933,7 @@ func TestTerragruntAssumeRoleWebIdentityEnv(t *testing.T) {
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName, options.WithIAMRoleARN(assumeRole), options.WithIAMWebIdentityToken(os.Getenv(tokenEnvVar)))
 
-	copyTerragruntConfigAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
+	copyAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
 		"__FILL_IN_BUCKET_NAME__":            s3BucketName,
 		"__FILL_IN_REGION__":                 TERRAFORM_REMOTE_STATE_S3_REGION,
 		"__FILL_IN_ASSUME_ROLE__":            assumeRole,
@@ -6965,7 +6966,7 @@ func TestTerragruntAssumeRoleWebIdentityFile(t *testing.T) {
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName, options.WithIAMRoleARN(assumeRole), options.WithIAMWebIdentityToken(tokenFilePath))
 
-	copyTerragruntConfigAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
+	copyAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
 		"__FILL_IN_BUCKET_NAME__":              s3BucketName,
 		"__FILL_IN_REGION__":                   TERRAFORM_REMOTE_STATE_S3_REGION,
 		"__FILL_IN_ASSUME_ROLE__":              assumeRole,
