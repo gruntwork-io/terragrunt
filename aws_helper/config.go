@@ -65,7 +65,6 @@ func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *opt
 		EndpointResolver:        endpoints.ResolverFunc(s3CustResolverFn),
 		S3ForcePathStyle:        aws.Bool(config.S3ForcePathStyle),
 		DisableComputeChecksums: aws.Bool(config.DisableComputeChecksums),
-		Credentials:             getCredentialsFromEnvs(terragruntOptions),
 	}
 
 	var sessionOptions = session.Options{
@@ -111,6 +110,11 @@ func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *opt
 	if iamRoleOptions.RoleARN != "" {
 		sess.Config.Credentials = getSTSCredentialsFromIAMRoleOptions(sess, iamRoleOptions, credentialOptFn)
 	}
+
+	if sess.Config.Credentials == nil {
+		sess.Config.Credentials = getCredentialsFromEnvs(terragruntOptions)
+	}
+
 	return sess, nil
 }
 
