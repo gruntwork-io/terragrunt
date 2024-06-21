@@ -840,8 +840,6 @@ func TestTerragruntProviderCache(t *testing.T) {
 }
 
 func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
-	t.Parallel()
-
 	cleanupTerraformFolder(t, TEST_FIXTURE_AUTH_PROVIDER_CMD_REMOTE_STATE)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_AUTH_PROVIDER_CMD_REMOTE_STATE)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_AUTH_PROVIDER_CMD_REMOTE_STATE)
