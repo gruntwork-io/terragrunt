@@ -415,6 +415,36 @@ jobs:
             brew install coreutils
             cd bin && sha256sum * > SHA256SUMS
       - run: upload-github-release-assets bin/*
+      - run:
+          name: Verify that the linux amd64 asset can be downloaded
+          command: |
+            # For some reason, the linux amd64 asset cannot be downloaded after it's been uploaded successfully sometimes.
+            # As a hacky workaround, we will retry the upload of that one binary if it cannot be downloaded until a better solution is found.
+
+            max_retries=10
+
+            for ((i=0; i<max_retries; i++)); do
+              if ! curl -sILf 'https://github.com/gruntwork-io/terragrunt/releases/latest/download/terragrunt_linux_amd64' > /dev/null; then
+                echo "Failed to download the linux amd64 asset. Retrying..."
+                curl -L -XDELETE \
+                  -H "Accept: application/vnd.github.v3+json" \
+                  -H "Authorization: token $GITHUB_OAUTH_TOKEN"  \
+                  -H "X-GitHub-Api-Version: 2022-11-28" \
+                  "https://api.github.com/repos/gruntwork-io/terragrunt/releases/latest/assets" > /dev/null
+                curl -L -XPOST \
+                  -H "Accept: application/vnd.github.v3+json" \
+                  -H "Authorization: token $GITHUB_OAUTH_TOKEN"  \
+                  -H "X-GitHub-Api-Version: 2022-11-28" \
+                  -H "Content-Type: application/x-executable" \
+                  --data-binary "@bin/terragrunt_linux_amd64" \
+                  "https://uploads.github.com/repos/gruntwork-io/terragrunt/releases/latest/assets?name=terragrunt_linux_amd64" > /dev/null
+              else
+                exit 0
+              fi
+            done
+
+            echo "Failed to download the linux amd64 asset after $max_retries retries. Exiting..."
+            exit 1
 
 workflows:
   version: 2
