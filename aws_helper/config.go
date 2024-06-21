@@ -65,6 +65,7 @@ func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *opt
 		EndpointResolver:        endpoints.ResolverFunc(s3CustResolverFn),
 		S3ForcePathStyle:        aws.Bool(config.S3ForcePathStyle),
 		DisableComputeChecksums: aws.Bool(config.DisableComputeChecksums),
+		Credentials:             getCredentialsFromEnvs(terragruntOptions),
 	}
 
 	var sessionOptions = session.Options{
@@ -157,6 +158,15 @@ func getSTSCredentialsFromIAMRoleOptions(sess *session.Session, iamRoleOptions o
 		}
 	})
 	return stscreds.NewCredentials(sess, iamRoleOptions.RoleARN, optFns...)
+}
+
+func getCredentialsFromEnvs(opts *options.TerragruntOptions) *credentials.Credentials {
+	var (
+		accessKeyID     = opts.Env["AWS_ACCESS_KEY_ID"]
+		secretAccessKey = opts.Env["AWS_SECRET_ACCESS_KEY"]
+		sessionToken    = opts.Env["AWS_SESSION_TOKEN"]
+	)
+	return credentials.NewStaticCredentials(accessKeyID, secretAccessKey, sessionToken)
 }
 
 // Returns an AWS session object. The session is configured by either:
