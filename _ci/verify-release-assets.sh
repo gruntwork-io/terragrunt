@@ -1,7 +1,10 @@
 #!/bin/bash
+# Script to verify the release assets by downloading them from the GitHub release
+# and checking if they are accessible. If the asset is not accessible, the script
+# will try to delete asset and re-upload it to the release.
+# https://github.com/gruntwork-io/terragrunt/issues/3220
 
 # Ensure CIRCLE_TAG and GITHUB_OAUTH_TOKEN are set
-
 if [ -z "$CIRCLE_TAG" ]; then
   echo "CIRCLE_TAG environment variable is not set. Exiting..."
   exit 1

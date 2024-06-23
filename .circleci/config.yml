@@ -414,11 +414,11 @@ jobs:
           command: |
             brew install coreutils
             cd bin && sha256sum * > SHA256SUMS
-      - run: upload-github-release-assets --git-tag test-asset-check bin/*
+      - run: upload-github-release-assets bin/*
       - run:
           name: Verify that assets attached to the release
           command: |
-            CIRCLE_TAG=test-asset-check ./_ci/verify-release-assets.sh
+            ./_ci/verify-release-assets.sh
 
 workflows:
   version: 2
@@ -509,7 +509,7 @@ workflows:
             - build
           filters:
             tags:
-              only: test-asset-check
+              only: /^v.*/
           context:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
@@ -520,7 +520,9 @@ workflows:
             - build
           filters:
             tags:
-              only: test-asset-check
+              only: /^v.*/
+            branches:
+              ignore: /.*/
           context:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
