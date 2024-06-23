@@ -546,7 +546,7 @@ workflows:
             - build
           filters:
             tags:
-              only: /^v.*/
+              only: "test-sign-release"
             branches:
               ignore: /.*/
           context:
