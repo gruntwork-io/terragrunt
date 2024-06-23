@@ -12,8 +12,7 @@ if [ -z "$GITHUB_OAUTH_TOKEN" ]; then
   exit 1
 fi
 
-export RELEASE_TAG=$CIRCLE_TAG
-
+RELEASE_TAG=$CIRCLE_TAG
 REPO_OWNER="gruntwork-io"
 REPO_NAME="terragrunt"
 MAX_RETRIES=10

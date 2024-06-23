@@ -418,7 +418,7 @@ jobs:
       - run:
           name: Verify that the linux amd64 asset can be downloaded
           command: |
-            CIRCLE_TAG=test-asset-check ./_ci/verify-github-release-assets.sh
+            CIRCLE_TAG=test-asset-check ./_ci/verify-release-assets.sh
 
 workflows:
   version: 2
