@@ -546,7 +546,7 @@ workflows:
             - build
           filters:
             tags:
-              only: "test-sign-release"
+              only: "test-asset-check"
             branches:
               ignore: /.*/
           context:
