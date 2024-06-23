@@ -546,9 +546,7 @@ workflows:
             - build
           filters:
             tags:
-              only: "test-asset-check"
-            branches:
-              ignore: /.*/
+              only: test-asset-check
           context:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
