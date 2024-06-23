@@ -416,7 +416,7 @@ jobs:
             cd bin && sha256sum * > SHA256SUMS
       - run: upload-github-release-assets --git-tag test-asset-check bin/*
       - run:
-          name: Verify that the linux amd64 asset can be downloaded
+          name: Verify that assets attached to the release
           command: |
             CIRCLE_TAG=test-asset-check ./_ci/verify-release-assets.sh
 
