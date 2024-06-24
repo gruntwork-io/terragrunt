@@ -12,6 +12,9 @@ import (
 func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 	t.Parallel()
 
+	testTrue := true
+	testFalse := false
+
 	testCases := []struct {
 		config         *TerragruntConfig
 		includedConfig *TerragruntConfig
@@ -109,18 +112,18 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 		},
 		{
 			&TerragruntConfig{},
-			&TerragruntConfig{Skip: true},
-			&TerragruntConfig{Skip: false},
+			&TerragruntConfig{Skip: &testTrue},
+			&TerragruntConfig{Skip: &testTrue},
 		},
 		{
-			&TerragruntConfig{Skip: false},
-			&TerragruntConfig{Skip: true},
-			&TerragruntConfig{Skip: false},
+			&TerragruntConfig{Skip: &testFalse},
+			&TerragruntConfig{Skip: &testTrue},
+			&TerragruntConfig{Skip: &testFalse},
 		},
 		{
-			&TerragruntConfig{Skip: true},
-			&TerragruntConfig{Skip: true},
-			&TerragruntConfig{Skip: true},
+			&TerragruntConfig{Skip: &testTrue},
+			&TerragruntConfig{Skip: &testTrue},
+			&TerragruntConfig{Skip: &testTrue},
 		},
 		{
 			&TerragruntConfig{IamRole: "role2"},
@@ -158,6 +161,9 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 
 func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 	t.Parallel()
+
+	testTrue := true
+	testFalse := false
 
 	// The following maps are convenience vars for setting up deep merge map tests
 	overrideMap := map[string]interface{}{
@@ -242,6 +248,25 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 			&TerragruntConfig{IamRole: "foo"},
 			&TerragruntConfig{IamRole: "bar"},
 			&TerragruntConfig{IamRole: "foo"},
+		},
+		// skip related tests
+		{
+			"skip - preserve target",
+			&TerragruntConfig{},
+			&TerragruntConfig{Skip: &testTrue},
+			&TerragruntConfig{Skip: &testTrue},
+		},
+		{
+			"skip - copy source",
+			&TerragruntConfig{Skip: &testFalse},
+			&TerragruntConfig{Skip: &testTrue},
+			&TerragruntConfig{Skip: &testFalse},
+		},
+		{
+			"skip - still copy source",
+			&TerragruntConfig{Skip: &testTrue},
+			&TerragruntConfig{Skip: &testTrue},
+			&TerragruntConfig{Skip: &testTrue},
 		},
 		// Deep merge dependencies
 		{
