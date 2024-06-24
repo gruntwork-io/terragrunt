@@ -143,6 +143,7 @@ func (conf *TerragruntConfig) GetIAMRoleOptions() options.IAMRoleOptions {
 // terragrunt.hcl)
 type terragruntConfigFile struct {
 	Catalog                     *CatalogConfig   `hcl:"catalog,block"`
+	Engine                      *EngineConfig    `hcl:"engine,block"`
 	Terraform                   *TerraformConfig `hcl:"terraform,block"`
 	TerraformBinary             *string          `hcl:"terraform_binary,attr"`
 	TerraformVersionConstraint  *string          `hcl:"terraform_version_constraint,attr"`
@@ -204,7 +205,6 @@ type terragruntConfigFile struct {
 	// that have extraneous, unsupported blocks and attributes.
 	Locals  *terragruntLocal          `hcl:"locals,block"`
 	Include []terragruntIncludeIgnore `hcl:"include,block"`
-	Engine  *EngineConfig             `hcl:"engine,block"`
 }
 
 // We use a struct designed to not parse the block, as locals and includes are parsed and decoded using a special

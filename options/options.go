@@ -301,6 +301,8 @@ type TerragruntOptions struct {
 	// The command and arguments that can be used to fetch authentication configurations.
 	// Terragrunt invokes this command before running tofu/terraform operations for each working directory.
 	AuthProviderCmd string
+
+	Engine EngineOptions
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -546,6 +548,12 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		OutputFolder:                   opts.OutputFolder,
 		JsonOutputFolder:               opts.JsonOutputFolder,
 		AuthProviderCmd:                opts.AuthProviderCmd,
+		Engine: EngineOptions{
+			Source:  opts.Engine.Source,
+			Version: opts.Engine.Version,
+			Type:    opts.Engine.Type,
+			Meta:    opts.Engine.Meta,
+		},
 	}
 }
 
@@ -630,6 +638,14 @@ func identifyDefaultWrappedExecutable() string {
 	}
 	// fallback to Terraform if tofu is not available
 	return TerraformDefaultPath
+}
+
+// EngineOptions Options for the Terragrunt engine
+type EngineOptions struct {
+	Source  string
+	Version string
+	Type    string
+	Meta    map[string]interface{}
 }
 
 // Custom error types
