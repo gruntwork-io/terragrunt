@@ -415,6 +415,10 @@ jobs:
             brew install coreutils
             cd bin && sha256sum * > SHA256SUMS
       - run: upload-github-release-assets bin/*
+      - run:
+          name: Verify that assets attached to the release
+          command: |
+            ./_ci/verify-release-assets.sh
 
 workflows:
   version: 2
