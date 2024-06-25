@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package plugins;
+option go_package = "/plugins";
+
+service CommandExecutor {
+  rpc Init(InitRequest) returns (stream InitResponse);
+  rpc Run(RunRequest) returns (stream RunResponse);
+}
+
+message InitRequest {
+  string working_dir = 1;
+  map<string, string> metadata = 2;
+}
+
+message InitResponse {
+  string stdout = 1;
+  string stderr = 2;
+  int32 result_code = 3;
+}
+
+message RunRequest {
+  string working_dir = 1;
+  string command = 2;
+  repeated string args = 3;
+  bool allocate_pseudo_tty = 4;
+  map<string, string> env_vars = 5;
+}
+
+message RunResponse {
+  string stdout = 1;
+  string stderr = 2;
+  int32 result_code = 3;
+}

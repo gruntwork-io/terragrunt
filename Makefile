@@ -3,6 +3,8 @@
 
 GOFMT_FILES?=$$(find . -name '*.go' | grep -v vendor)
 
+force: .
+
 help:
 	@echo "Various utilities for managing the terragrunt repository"
 
@@ -49,5 +51,10 @@ install-mockery:
 
 generate-mocks:
 	go generate ./...
+
+plugins: force
+	protoc --go_out=. --go_opt=paths=source_relative plugins/plugins.proto
+	protoc --go-grpc_out=. --go-grpc_opt=paths=source_relative plugins/plugins.proto
+
 
 .PHONY: help fmtcheck fmt install-fmt-hook clean install-lint run-lint

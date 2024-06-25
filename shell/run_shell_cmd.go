@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/hashicorp/go-plugin"
+	"google.golang.org/grpc"
 	"io"
 	"net/url"
 	"os"
@@ -13,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/plugins"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/hashicorp/go-version"
@@ -72,6 +75,55 @@ func RunTerraformCommandWithOutput(ctx context.Context, terragruntOptions *optio
 	return RunShellCommandWithOutput(ctx, terragruntOptions, "", false, needPTY, terragruntOptions.TerraformPath, args...)
 }
 
+// plugin name - plugin path, inline
+var pluginMap = map[string]string{
+	"terraform": "/projects/gruntwork/terragrunt/plugins/terraform/terraform",
+	"tofu":      "/projects/gruntwork/terragrunt/plugins/tofu/tofu",
+}
+
+var pluginInstances = map[string]plugins.CommandExecutorClient{}
+
+func load() {
+	if len(pluginInstances) > 0 {
+		return
+	}
+	// iterate over plugins and save pluginInstances
+	for name, path := range pluginMap {
+		fmt.Printf("Loading plugin %s from %s\n", name, path)
+
+		client := plugin.NewClient(&plugin.ClientConfig{
+			HandshakeConfig: plugin.HandshakeConfig{
+				ProtocolVersion:  1,
+				MagicCookieKey:   "plugin",
+				MagicCookieValue: "terragrunt",
+			},
+			Plugins: map[string]plugin.Plugin{
+				name: &plugins.TerragruntGRPCPlugin{},
+			},
+			Cmd: exec.Command(path),
+			GRPCDialOptions: []grpc.DialOption{
+				grpc.WithInsecure(),
+			},
+			AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
+		})
+
+		rpcClient, err := client.Client()
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		rawClient, err := rpcClient.Dispense(name)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		terragruntPlugin := rawClient.(plugins.CommandExecutorClient)
+		pluginInstances[name] = terragruntPlugin
+		//TODO: run kill on clients
+	}
+
+}
+
 // Run the specified shell command with the specified arguments. Connect the command's stdin, stdout, and stderr to
 // the currently running app. The command can be executed in a custom working directory by using the parameter
 // `workingDir`. Terragrunt working directory will be assumed if empty string.
@@ -84,6 +136,7 @@ func RunShellCommandWithOutput(
 	command string,
 	args ...string,
 ) (*CmdOutput, error) {
+	load()
 	if command == terragruntOptions.TerraformPath {
 		if fn := TerraformCommandHookFromContext(ctx); fn != nil {
 			return fn(ctx, terragruntOptions, args)
@@ -141,6 +194,63 @@ func RunShellCommandWithOutput(
 			cmdStdout = io.MultiWriter(withPrefix(outWriter, prefix), &stdoutBuf)
 		} else {
 			cmdStdout = io.MultiWriter(&stdoutBuf)
+		}
+
+		p, exists := pluginInstances[command]
+		if exists {
+			_, err := p.Init(childCtx, &plugins.InitRequest{})
+			if err != nil {
+				return errors.WithStackTrace(err)
+			}
+			runStream, err := p.Run(childCtx, &plugins.RunRequest{
+				Command:           command,
+				Args:              args,
+				AllocatePseudoTty: allocatePseudoTty,
+				WorkingDir:        cmd.Dir,
+			})
+			if err != nil {
+				return errors.WithStackTrace(err)
+			}
+
+			var resultCode = 0
+			for {
+				runResp, err := runStream.Recv()
+				if err != nil {
+					break
+				}
+				if runResp.Stdout != "" {
+					_, err := cmdStdout.Write([]byte(runResp.Stdout))
+					if err != nil {
+						return err
+					}
+				}
+				if runResp.Stderr != "" {
+					_, err := cmdStderr.Write([]byte(runResp.Stderr))
+					if err != nil {
+						return err
+					}
+				}
+				resultCode = int(runResp.ResultCode)
+			}
+
+			terragruntOptions.Logger.Infof("Plugin execution done in %v", cmd.Dir)
+
+			if resultCode != 0 {
+				err = ProcessExecutionError{
+					Err:        fmt.Errorf("command failed with exit code %d", resultCode),
+					StdOut:     stdoutBuf.String(),
+					Stderr:     stderrBuf.String(),
+					WorkingDir: cmd.Dir,
+				}
+				return errors.WithStackTrace(err)
+			}
+
+			cmdOutput := CmdOutput{
+				Stdout: stdoutBuf.String(),
+				Stderr: stderrBuf.String(),
+			}
+			output = &cmdOutput
+			return nil
 		}
 
 		// If we need to allocate a ptty for the command, route through the ptty routine. Otherwise, directly call the
