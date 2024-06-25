@@ -1,8 +1,10 @@
 package shell
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt-engine-go/engine"
@@ -10,8 +12,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"io"
 	"os/exec"
 )
@@ -27,11 +29,10 @@ type EngineRunOptions struct {
 	Args              []string
 }
 
-func Run(
+func RunEngine(
 	ctx context.Context,
-	runOptions EngineRunOptions,
+	runOptions *EngineRunOptions,
 ) (*CmdOutput, error) {
-
 	terragruntEngine, client, err := createEngine(runOptions.TerragruntOptions)
 	defer client.Kill()
 	if err != nil {
@@ -42,7 +43,7 @@ func Run(
 		return nil, errors.WithStackTrace(err)
 	}
 
-	cmdOutput, err := engineRun(ctx, runOptions, terragruntEngine)
+	cmdOutput, err := run(ctx, runOptions, terragruntEngine)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
@@ -86,7 +87,7 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*engine.Command
 	return &terragruntEngine, client, nil
 }
 
-func engineRun(ctx context.Context, runOptions EngineRunOptions, client *engine.CommandExecutorClient) (*CmdOutput, error) {
+func run(ctx context.Context, runOptions *EngineRunOptions, client *engine.CommandExecutorClient) (*CmdOutput, error) {
 	terragruntOptions := runOptions.TerragruntOptions
 
 	meta, err := convertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
@@ -113,6 +114,12 @@ func engineRun(ctx context.Context, runOptions EngineRunOptions, client *engine.
 
 	stdout := io.MultiWriter(cmdStdout, &stdoutBuf)
 	stderr := io.MultiWriter(cmdStderr, &stderrBuf)
+
+	bufferedStdout := bufio.NewWriter(stdout)
+	bufferedStderr := bufio.NewWriter(stderr)
+
+	defer bufferedStdout.Flush()
+	defer bufferedStderr.Flush()
 
 	var resultCode = 0
 	for {
@@ -149,13 +156,14 @@ func engineRun(ctx context.Context, runOptions EngineRunOptions, client *engine.
 			Stdout: stdoutBuf.String(),
 			Stderr: stderrBuf.String(),
 		}
+
 		return &cmdOutput, nil
 	}
 
 	return nil, nil
 }
 
-func engineInit(ctx context.Context, runOptions EngineRunOptions, client *engine.CommandExecutorClient) error {
+func engineInit(ctx context.Context, runOptions *EngineRunOptions, client *engine.CommandExecutorClient) error {
 	terragruntOptions := runOptions.TerragruntOptions
 	meta, err := convertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
 	if err != nil {
@@ -196,7 +204,7 @@ func engineInit(ctx context.Context, runOptions EngineRunOptions, client *engine
 	return nil
 }
 
-func shutdownEngine(ctx context.Context, runOptions EngineRunOptions, terragruntEngine *engine.CommandExecutorClient) error {
+func shutdownEngine(ctx context.Context, runOptions *EngineRunOptions, terragruntEngine *engine.CommandExecutorClient) error {
 	terragruntOptions := runOptions.TerragruntOptions
 
 	meta, err := convertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
@@ -242,9 +250,17 @@ func convertMetaToProtobuf(meta map[string]interface{}) (map[string]*anypb.Any, 
 		return protoMeta, nil
 	}
 	for key, value := range meta {
-		v, err := anypb.New(value.(proto.Message))
+		jsonData, err := json.Marshal(value)
 		if err != nil {
-			return nil, fmt.Errorf("error packing meta value for key %s: %w", key, err)
+			return nil, fmt.Errorf("error marshaling value to JSON: %v", err)
+		}
+		jsonStructValue, err := structpb.NewValue(string(jsonData))
+		if err != nil {
+			return nil, err
+		}
+		v, err := anypb.New(jsonStructValue)
+		if err != nil {
+			return nil, err
 		}
 		protoMeta[key] = v
 	}
