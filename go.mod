@@ -65,7 +65,9 @@ require (
 	github.com/gruntwork-io/boilerplate v0.5.11
 	github.com/gruntwork-io/go-commons v0.17.1
 	github.com/gruntwork-io/gruntwork-cli v0.7.0
+	github.com/gruntwork-io/terragrunt-engine-go v0.0.0-20240625162137-584a2ee21092
 	github.com/hashicorp/go-getter/v2 v2.2.1
+	github.com/hashicorp/go-plugin v1.6.1
 	github.com/labstack/echo/v4 v4.11.4
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/pkg/errors v0.9.1
@@ -86,6 +88,7 @@ require (
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 	golang.org/x/term v0.21.0
 	golang.org/x/text v0.16.0
+	google.golang.org/grpc v1.64.0
 	gopkg.in/ini.v1 v1.67.0
 )
 
@@ -169,7 +172,6 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.19.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-hclog v1.5.0 // indirect
-	github.com/hashicorp/go-plugin v1.6.1 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.6 // indirect
 	github.com/hashicorp/go-secure-stdlib/strutil v0.1.2 // indirect
@@ -242,7 +244,6 @@ require (
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240318140521-94a12d6c2237 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240617180043-68d350f18fd4 // indirect
-	google.golang.org/grpc v1.64.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
