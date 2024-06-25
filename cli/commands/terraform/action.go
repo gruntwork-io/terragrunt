@@ -97,6 +97,13 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 		return target.runCallback(ctx, terragruntOptions, terragruntConfig)
 	}
 
+	// fetch engine options from the config
+	engine, err := terragruntConfig.EngineOptions()
+	if err != nil {
+		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
+	}
+	terragruntOptions.Engine = engine
+
 	terragruntOptionsClone := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
 

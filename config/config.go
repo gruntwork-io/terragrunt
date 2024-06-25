@@ -1072,6 +1072,11 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 		terragruntConfig.SetFieldMetadata(MetadataIamWebIdentityToken, defaultMetadata)
 	}
 
+	if terragruntConfigFromFile.Engine != nil {
+		terragruntConfig.Engine = terragruntConfigFromFile.Engine
+		terragruntConfig.SetFieldMetadata(MetadataEngine, defaultMetadata)
+	}
+
 	generateBlocks := []terragruntGenerateBlock{}
 	generateBlocks = append(generateBlocks, terragruntConfigFromFile.GenerateBlocks...)
 
@@ -1276,4 +1281,18 @@ func (conf *TerragruntConfig) GetMapFieldMetadata(fieldType, fieldName string) (
 	}
 
 	return result, found
+}
+
+// EngineOptions fetch engine options
+func (conf *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
+	if conf.Engine == nil {
+		return nil, nil
+	}
+	meta, _ := parseCtyValueToMap(*conf.Engine.Meta)
+	return &options.EngineOptions{
+		Source:  conf.Engine.Source,
+		Version: conf.Engine.Version,
+		Type:    conf.Engine.Type,
+		Meta:    meta,
+	}, nil
 }

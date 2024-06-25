@@ -302,7 +302,7 @@ type TerragruntOptions struct {
 	// Terragrunt invokes this command before running tofu/terraform operations for each working directory.
 	AuthProviderCmd string
 
-	Engine EngineOptions
+	Engine *EngineOptions
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -548,12 +548,20 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		OutputFolder:                   opts.OutputFolder,
 		JsonOutputFolder:               opts.JsonOutputFolder,
 		AuthProviderCmd:                opts.AuthProviderCmd,
-		Engine: EngineOptions{
-			Source:  opts.Engine.Source,
-			Version: opts.Engine.Version,
-			Type:    opts.Engine.Type,
-			Meta:    opts.Engine.Meta,
-		},
+		Engine:                         cloneEngineOptions(opts.Engine),
+	}
+}
+
+// cloneEngineOptions creates a deep copy of the given EngineOptions
+func cloneEngineOptions(opts *EngineOptions) *EngineOptions {
+	if opts == nil {
+		return nil
+	}
+	return &EngineOptions{
+		Source:  opts.Source,
+		Version: opts.Version,
+		Type:    opts.Type,
+		Meta:    opts.Meta,
 	}
 }
 

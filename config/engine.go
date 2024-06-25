@@ -1,6 +1,8 @@
 package config
 
-import "github.com/zclconf/go-cty/cty"
+import (
+	"github.com/zclconf/go-cty/cty"
+)
 
 // EngineConfig represents the structure of the HCL data
 type EngineConfig struct {
