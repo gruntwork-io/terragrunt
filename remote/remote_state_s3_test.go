@@ -2,6 +2,7 @@ package remote
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -13,6 +14,109 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCreateS3LoggingInput(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		config        map[string]interface{}
+		loggingInput  s3.PutBucketLoggingInput
+		shouldBeEqual bool
+	}{
+		{
+			"equal-default-prefix-no-partition-date-source",
+			map[string]interface{}{
+				"bucket":                    "source-bucket",
+				"accesslogging_bucket_name": "logging-bucket",
+			},
+			s3.PutBucketLoggingInput{
+				Bucket: aws.String("source-bucket"),
+				BucketLoggingStatus: &s3.BucketLoggingStatus{
+					LoggingEnabled: &s3.LoggingEnabled{
+						TargetBucket: aws.String("logging-bucket"),
+						TargetPrefix: aws.String(DefaultS3BucketAccessLoggingTargetPrefix),
+					},
+				},
+			},
+			true,
+		},
+		{
+			"equal-no-prefix-no-partition-date-source",
+			map[string]interface{}{
+				"bucket":                      "source-bucket",
+				"accesslogging_bucket_name":   "logging-bucket",
+				"accesslogging_target_prefix": "",
+			},
+			s3.PutBucketLoggingInput{
+				Bucket: aws.String("source-bucket"),
+				BucketLoggingStatus: &s3.BucketLoggingStatus{
+					LoggingEnabled: &s3.LoggingEnabled{
+						TargetBucket: aws.String("logging-bucket"),
+					},
+				},
+			},
+			true,
+		},
+		{
+			"equal-custom-prefix-no-partition-date-source",
+			map[string]interface{}{
+				"bucket":                      "source-bucket",
+				"accesslogging_bucket_name":   "logging-bucket",
+				"accesslogging_target_prefix": "custom-prefix/",
+			},
+			s3.PutBucketLoggingInput{
+				Bucket: aws.String("source-bucket"),
+				BucketLoggingStatus: &s3.BucketLoggingStatus{
+					LoggingEnabled: &s3.LoggingEnabled{
+						TargetBucket: aws.String("logging-bucket"),
+						TargetPrefix: aws.String("custom-prefix/"),
+					},
+				},
+			},
+			true,
+		},
+		{
+			"equal-custom-prefix-custom-partition-date-source",
+			map[string]interface{}{
+				"bucket":                    "source-bucket",
+				"accesslogging_bucket_name": "logging-bucket",
+				"accesslogging_target_object_partition_date_source": "EventTime",
+				"accesslogging_target_prefix":                       "custom-prefix/",
+			},
+			s3.PutBucketLoggingInput{
+				Bucket: aws.String("source-bucket"),
+				BucketLoggingStatus: &s3.BucketLoggingStatus{
+					LoggingEnabled: &s3.LoggingEnabled{
+						TargetBucket: aws.String("logging-bucket"),
+						TargetPrefix: aws.String("custom-prefix/"),
+						TargetObjectKeyFormat: &s3.TargetObjectKeyFormat{
+							PartitionedPrefix: &s3.PartitionedPrefix{
+								PartitionDateSource: aws.String("EventTime"),
+							},
+						},
+					},
+				},
+			},
+			true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		// Save the testCase in local scope so all the t.Run calls don't end up with the last item in the list
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			extendedS3Config, _ := ParseExtendedS3Config(testCase.config)
+			createdLoggingInput := extendedS3Config.createS3LoggingInput()
+			actual := reflect.DeepEqual(createdLoggingInput, testCase.loggingInput)
+			if !assert.Equal(t, testCase.shouldBeEqual, actual) {
+				t.Errorf("s3.PutBucketLoggingInput mismatch:\ncreated: %+v\nexpected: %+v", createdLoggingInput, testCase.loggingInput)
+			}
+		})
+	}
+}
 
 func TestConfigValuesEqual(t *testing.T) {
 	t.Parallel()
@@ -81,8 +185,16 @@ func TestConfigValuesEqual(t *testing.T) {
 			true,
 		},
 		{
-			"equal-ignore-accesslogging-bucket-tags",
-			map[string]interface{}{"accesslogging_bucket_tags": []map[string]string{{"foo": "bar"}}},
+			"equal-ignore-accesslogging-options",
+			map[string]interface{}{
+				"accesslogging_bucket_tags":                         []map[string]string{{"foo": "bar"}},
+				"accesslogging_target_object_partition_date_source": "EventTime",
+				"accesslogging_target_prefix":                       "test/",
+				"skip_accesslogging_bucket_acl":                     false,
+				"skip_accesslogging_bucket_enforced_tls":            false,
+				"skip_accesslogging_bucket_public_access_blocking":  false,
+				"skip_accesslogging_bucket_ssencryption":            false,
+			},
 			&TerraformBackend{Type: "s3", Config: map[string]interface{}{}},
 			true,
 		},
@@ -319,19 +431,24 @@ func TestGetTerraformInitArgs(t *testing.T) {
 		{
 			"empty-no-values-all-terragrunt-keys-filtered",
 			map[string]interface{}{
-				"s3_bucket_tags":                     map[string]string{},
-				"dynamodb_table_tags":                map[string]string{},
-				"accesslogging_bucket_tags":          map[string]string{},
-				"skip_bucket_versioning":             true,
-				"skip_bucket_ssencryption":           false,
-				"skip_bucket_root_access":            false,
-				"skip_bucket_enforced_tls":           false,
-				"skip_bucket_public_access_blocking": false,
-				"disable_bucket_update":              true,
-				"enable_lock_table_ssencryption":     true,
-				"disable_aws_client_checksums":       false,
-				"accesslogging_bucket_name":          "test",
-				"accesslogging_target_prefix":        "test",
+				"s3_bucket_tags":                                    map[string]string{},
+				"dynamodb_table_tags":                               map[string]string{},
+				"accesslogging_bucket_tags":                         map[string]string{},
+				"skip_bucket_versioning":                            true,
+				"skip_bucket_ssencryption":                          false,
+				"skip_bucket_root_access":                           false,
+				"skip_bucket_enforced_tls":                          false,
+				"skip_bucket_public_access_blocking":                false,
+				"disable_bucket_update":                             true,
+				"enable_lock_table_ssencryption":                    true,
+				"disable_aws_client_checksums":                      false,
+				"accesslogging_bucket_name":                         "test",
+				"accesslogging_target_object_partition_date_source": "EventTime",
+				"accesslogging_target_prefix":                       "test",
+				"skip_accesslogging_bucket_acl":                     false,
+				"skip_accesslogging_bucket_enforced_tls":            false,
+				"skip_accesslogging_bucket_public_access_blocking":  false,
+				"skip_accesslogging_bucket_ssencryption":            false,
 			},
 			map[string]interface{}{},
 			true,
