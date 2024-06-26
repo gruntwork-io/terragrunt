@@ -1,7 +1,6 @@
 package shell
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -101,6 +100,7 @@ func run(ctx context.Context, runOptions *EngineRunOptions, client *engine.Comma
 		AllocatePseudoTty: runOptions.AllocatePseudoTty,
 		WorkingDir:        runOptions.WorkingDir,
 		Meta:              meta,
+		EnvVars:           runOptions.TerragruntOptions.Env,
 	})
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
@@ -114,12 +114,6 @@ func run(ctx context.Context, runOptions *EngineRunOptions, client *engine.Comma
 
 	stdout := io.MultiWriter(cmdStdout, &stdoutBuf)
 	stderr := io.MultiWriter(cmdStderr, &stderrBuf)
-
-	bufferedStdout := bufio.NewWriter(stdout)
-	bufferedStderr := bufio.NewWriter(stderr)
-
-	defer bufferedStdout.Flush()
-	defer bufferedStderr.Flush()
 
 	var resultCode = 0
 	for {
@@ -140,27 +134,25 @@ func run(ctx context.Context, runOptions *EngineRunOptions, client *engine.Comma
 			}
 		}
 		resultCode = int(runResp.ResultCode)
-		terragruntOptions.Logger.Debugf("Plugin execution done in %v", terragruntOptions.WorkingDir)
+	}
+	terragruntOptions.Logger.Debugf("Plugin execution done in %v", terragruntOptions.WorkingDir)
 
-		if resultCode != 0 {
-			err = ProcessExecutionError{
-				Err:        fmt.Errorf("command failed with exit code %d", resultCode),
-				StdOut:     stdoutBuf.String(),
-				Stderr:     stderrBuf.String(),
-				WorkingDir: terragruntOptions.WorkingDir,
-			}
-			return nil, errors.WithStackTrace(err)
+	if resultCode != 0 {
+		err = ProcessExecutionError{
+			Err:        fmt.Errorf("command failed with exit code %d", resultCode),
+			StdOut:     stdoutBuf.String(),
+			Stderr:     stderrBuf.String(),
+			WorkingDir: terragruntOptions.WorkingDir,
 		}
-
-		cmdOutput := CmdOutput{
-			Stdout: stdoutBuf.String(),
-			Stderr: stderrBuf.String(),
-		}
-
-		return &cmdOutput, nil
+		return nil, errors.WithStackTrace(err)
 	}
 
-	return nil, nil
+	cmdOutput := CmdOutput{
+		Stdout: stdoutBuf.String(),
+		Stderr: stderrBuf.String(),
+	}
+
+	return &cmdOutput, nil
 }
 
 func engineInit(ctx context.Context, runOptions *EngineRunOptions, client *engine.CommandExecutorClient) error {
