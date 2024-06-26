@@ -65,7 +65,7 @@ require (
 	github.com/gruntwork-io/boilerplate v0.5.11
 	github.com/gruntwork-io/go-commons v0.17.1
 	github.com/gruntwork-io/gruntwork-cli v0.7.0
-	github.com/gruntwork-io/terragrunt-engine-go v0.0.0-20240625162137-584a2ee21092
+	github.com/gruntwork-io/terragrunt-engine-go v0.0.0-20240626083632-72b374dde72f
 	github.com/hashicorp/go-getter/v2 v2.2.1
 	github.com/hashicorp/go-plugin v1.6.1
 	github.com/labstack/echo/v4 v4.11.4

@@ -164,6 +164,7 @@ func engineInit(ctx context.Context, runOptions *EngineRunOptions, client *engin
 	terragruntOptions.Logger.Debugf("Running init for engine in %s", runOptions.WorkingDir)
 	result, err := (*client).Init(ctx, &engine.InitRequest{
 		WorkingDir: runOptions.WorkingDir,
+		EnvVars:    runOptions.TerragruntOptions.Env,
 		Meta:       meta,
 	})
 	if err != nil {
@@ -205,6 +206,7 @@ func shutdownEngine(ctx context.Context, runOptions *EngineRunOptions, terragrun
 	}
 	result, err := (*terragruntEngine).Shutdown(ctx, &engine.ShutdownRequest{
 		WorkingDir: runOptions.WorkingDir,
+		EnvVars:    runOptions.TerragruntOptions.Env,
 		Meta:       meta,
 	})
 	if err != nil {
