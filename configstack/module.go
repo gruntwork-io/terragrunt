@@ -382,6 +382,12 @@ func resolveTerraformModule(terragruntConfigPath string, moduleMap map[string]*T
 	}
 	opts.Source = terragruntSource
 
+	engine, err := terragruntConfig.EngineOptions()
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+	opts.Engine = engine
+
 	_, defaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(terragruntOptions.TerragruntConfigPath)
 	if err != nil {
 		return nil, err

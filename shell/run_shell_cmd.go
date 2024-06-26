@@ -143,6 +143,26 @@ func RunShellCommandWithOutput(
 			cmdStdout = io.MultiWriter(&stdoutBuf)
 		}
 
+		useEngine := terragruntOptions.Engine != nil
+		if useEngine && command == terragruntOptions.TerraformPath {
+			terragruntOptions.Logger.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
+			cmdOutput, err := RunEngine(ctx, &EngineRunOptions{
+				TerragruntOptions: terragruntOptions,
+				CmdStdout:         cmdStdout,
+				CmdStderr:         cmdStderr,
+				WorkingDir:        cmd.Dir,
+				SuppressStdout:    suppressStdout,
+				AllocatePseudoTty: allocatePseudoTty,
+				Command:           command,
+				Args:              args,
+			})
+			if err != nil {
+				return errors.WithStackTrace(err)
+			}
+			output = cmdOutput
+			return err
+		}
+
 		// If we need to allocate a ptty for the command, route through the ptty routine. Otherwise, directly call the
 		// command.
 		if allocatePseudoTty {
