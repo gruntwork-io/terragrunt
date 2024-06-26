@@ -2,6 +2,8 @@ package util
 
 import (
 	"errors"
+	"io"
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -11,6 +13,7 @@ import (
 	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -336,5 +339,116 @@ func TestEmptyDir(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, testCase.expectEmpty, emptyValue, "For path %s", testCase.path)
 	}
+}
 
+func TestCopyLockFile(t *testing.T) {
+	logger := logrus.New()
+	logger.Out = io.Discard
+	loggerEntry := logger.WithFields(logrus.Fields{})
+
+	t.Run("SameSourceAndDestination", func(t *testing.T) {
+		sourceFolder := "/path/to/folder"
+		destinationFolder := "/path/to/folder"
+
+		err := CopyLockFile(sourceFolder, destinationFolder, loggerEntry)
+		assert.NoError(t, err)
+	})
+
+	t.Run("SourceLockFileDoesNotExist", func(t *testing.T) {
+		sourceFolder := "/path/to/folder"
+		destinationFolder := "/path/to/destination"
+
+		err := CopyLockFile(sourceFolder, destinationFolder, loggerEntry)
+		assert.NoError(t, err)
+	})
+
+	t.Run("DestinationLockFileDoesNotExist", func(t *testing.T) {
+		sourceFolder := t.TempDir()
+		destinationFolder := t.TempDir()
+
+		sourceLockFilePath := filepath.Join(sourceFolder, TerraformLockFile)
+		destinationLockFilePath := filepath.Join(destinationFolder, TerraformLockFile)
+
+		// Create source lock file
+		err := ioutil.WriteFile(sourceLockFilePath, []byte("lock file contents"), 0644)
+		require.NoError(t, err)
+
+		err = CopyLockFile(sourceFolder, destinationFolder, loggerEntry)
+		assert.NoError(t, err)
+
+		// Verify destination lock file exists
+		_, err = os.Stat(destinationLockFilePath)
+		assert.NoError(t, err)
+
+		// Verify destination lock file contents
+		destinationContents, err := ioutil.ReadFile(destinationLockFilePath)
+		assert.NoError(t, err)
+		assert.Equal(t, []byte("lock file contents"), destinationContents)
+
+		// Clean up
+		err = os.Remove(sourceLockFilePath)
+		assert.NoError(t, err)
+		err = os.Remove(destinationLockFilePath)
+		assert.NoError(t, err)
+	})
+
+	t.Run("SameContents", func(t *testing.T) {
+		sourceFolder := t.TempDir()
+		destinationFolder := t.TempDir()
+
+		sourceLockFilePath := filepath.Join(sourceFolder, TerraformLockFile)
+		destinationLockFilePath := filepath.Join(destinationFolder, TerraformLockFile)
+
+		// Create source lock file
+		err := ioutil.WriteFile(sourceLockFilePath, []byte("lock file contents"), 0644)
+		require.NoError(t, err)
+
+		// Create destination lock file with same contents
+		err = ioutil.WriteFile(destinationLockFilePath, []byte("lock file contents"), 0644)
+		require.NoError(t, err)
+
+		err = CopyLockFile(sourceFolder, destinationFolder, loggerEntry)
+		assert.NoError(t, err)
+
+		// Verify destination lock file contents remain the same
+		destinationContents, err := ioutil.ReadFile(destinationLockFilePath)
+		assert.NoError(t, err)
+		assert.Equal(t, []byte("lock file contents"), destinationContents)
+
+		// Clean up
+		err = os.Remove(sourceLockFilePath)
+		assert.NoError(t, err)
+		err = os.Remove(destinationLockFilePath)
+		assert.NoError(t, err)
+	})
+
+	t.Run("DifferentContents", func(t *testing.T) {
+		sourceFolder := t.TempDir()
+		destinationFolder := t.TempDir()
+
+		sourceLockFilePath := filepath.Join(sourceFolder, TerraformLockFile)
+		destinationLockFilePath := filepath.Join(destinationFolder, TerraformLockFile)
+
+		// Create source lock file
+		err := ioutil.WriteFile(sourceLockFilePath, []byte("lock file contents"), 0644)
+		require.NoError(t, err)
+
+		// Create destination lock file with different contents
+		err = ioutil.WriteFile(destinationLockFilePath, []byte("different contents"), 0644)
+		require.NoError(t, err)
+
+		err = CopyLockFile(sourceFolder, destinationFolder, loggerEntry)
+		assert.NoError(t, err)
+
+		// Verify destination lock file contents are updated
+		destinationContents, err := ioutil.ReadFile(destinationLockFilePath)
+		assert.NoError(t, err)
+		assert.Equal(t, []byte("lock file contents"), destinationContents)
+
+		// Clean up
+		err = os.Remove(sourceLockFilePath)
+		assert.NoError(t, err)
+		err = os.Remove(destinationLockFilePath)
+		assert.NoError(t, err)
+	})
 }
