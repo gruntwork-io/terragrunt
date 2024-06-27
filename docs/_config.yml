@@ -37,7 +37,7 @@ github_username:  https://github.com/gruntwork-io
 # theme: minima
 assets_base_url: '/assets/'
 
-ga_tracker: UA-76462621-6
+gtm_tracker: GTM-5TTJJGTL
 
 theme: null
 
