@@ -10,18 +10,15 @@
 {% endif %}
 
 <!-- Add here more: Google Analytics etc. -->
-{% if site.ga_tracker %}
+{% if site.gtm_tracker %}
 
-<script>
-  window.ga = window.ga || function () { (ga.q = ga.q || []).push(arguments) }; ga.l = +new Date;
-  ga('create', '{{ site.ga_tracker }}', 'auto');
-  ga('require', 'eventTracker');
-  ga('require', 'maxScrollTracker');
-  ga('require', 'outboundFormTracker');
-  ga('require', 'outboundLinkTracker');
-  ga('send', 'pageview');
-</script>
-<script async src="https://www.google-analytics.com/analytics.js"></script>
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+  })(window,document,'script','dataLayer','{{ site.gtm_tracker }}');</script>
+  <!-- End Google Tag Manager -->
 <script async src="https://cdnjs.cloudflare.com/ajax/libs/autotrack/2.4.1/autotrack.js"></script>
 
 <script src="{{site.baseurl}}{{ site.assets_base_url }}js/cookie.js" async></script>
