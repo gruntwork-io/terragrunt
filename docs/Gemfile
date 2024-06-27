@@ -25,5 +25,5 @@ end
 # Performance-booster for watching directories on Windows
 gem "wdm", "~> 0.1.1", :install_if => Gem.win_platform?
 
-gem "nokogiri", "1.16.3", group: :jekyll_plugins
+gem "nokogiri", "1.16.5", group: :jekyll_plugins
 gem "mini_portile2", "2.8.5", group: :jekyll_plugins
