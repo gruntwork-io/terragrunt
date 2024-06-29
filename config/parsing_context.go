@@ -70,3 +70,8 @@ func (ctx ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *ParsingC
 	ctx.TrackInclude = trackInclude
 	return &ctx
 }
+
+func (ctx ParsingContext) WithParseOption(parserOptions []hclparse.Option) *ParsingContext {
+	ctx.ParserOptions = parserOptions
+	return &ctx
+}

@@ -680,11 +680,11 @@ func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOpt
 }
 
 // Read the Terragrunt config file from its default location
-func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*TerragruntConfig, error) {
+func ReadTerragruntConfig(ctx context.Context, terragruntOptions *options.TerragruntOptions, parserOptions ...hclparse.Option) (*TerragruntConfig, error) {
 	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
 
-	ctx := NewParsingContext(context.Background(), terragruntOptions)
-	return ParseConfigFile(terragruntOptions, ctx, terragruntOptions.TerragruntConfigPath, nil)
+	parcingCtx := NewParsingContext(ctx, terragruntOptions).WithParseOption(parserOptions)
+	return ParseConfigFile(terragruntOptions, parcingCtx, terragruntOptions.TerragruntConfigPath, nil)
 }
 
 var hclCache = cache.NewCache[*hclparse.File]()

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/sirupsen/logrus"
@@ -71,14 +72,39 @@ func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *F
 		hclFile, diags = parser.ParseHCL(content, configPath)
 	}
 
-	if diags.HasErrors() {
+	file = &File{
+		Parser:     parser,
+		File:       hclFile,
+		ConfigPath: configPath,
+	}
+
+	if err := parser.diagnosticsError(file, diags); err != nil {
 		log.Warnf("Failed to parse HCL in file %s: %v", configPath, diags)
 		return nil, errors.WithStackTrace(diags)
 	}
 
-	return &File{
-		Parser:     parser,
-		File:       hclFile,
-		ConfigPath: configPath,
-	}, nil
+	return file, nil
+}
+
+func (parser *Parser) diagnosticsError(file *File, diags hcl.Diagnostics) error {
+	if diags == nil || !diags.HasErrors() {
+		return nil
+	}
+
+	if fn := parser.diagnosticsErrorFunc; fn != nil {
+		var err error
+		if diags, err = fn(file, diags); err != nil || diags == nil {
+			return err
+		}
+	}
+
+	if logger := parser.logger; logger != nil {
+		diagsWriter := util.GetDiagnosticsWriter(logger, parser.Parser)
+
+		if err := diagsWriter.WriteDiagnostics(diags); err != nil {
+			return errors.WithStackTrace(err)
+		}
+	}
+
+	return diags
 }

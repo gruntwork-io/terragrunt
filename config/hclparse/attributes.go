@@ -46,7 +46,7 @@ func (attr *Attribute) ValidateIdentifier() error {
 			Subject:  &attr.NameRange,
 		}}
 
-		if err := attr.diagnosticsError(diags); err != nil {
+		if err := attr.diagnosticsError(attr.File, diags); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
@@ -57,7 +57,7 @@ func (attr *Attribute) ValidateIdentifier() error {
 func (attr *Attribute) Value(evalCtx *hcl.EvalContext) (cty.Value, error) {
 	evaluatedVal, diags := attr.Expr.Value(evalCtx)
 
-	if err := attr.diagnosticsError(diags); err != nil {
+	if err := attr.diagnosticsError(attr.File, diags); err != nil {
 		return evaluatedVal, errors.WithStackTrace(err)
 	}
 

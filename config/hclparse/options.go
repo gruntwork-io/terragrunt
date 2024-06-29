@@ -1,6 +1,8 @@
 package hclparse
 
 import (
+	"fmt"
+
 	"github.com/hashicorp/hcl/v2"
 	"github.com/sirupsen/logrus"
 )
@@ -27,6 +29,10 @@ func WithFileUpdate(fn func(*File) error) Option {
 func WithHaltOnErrorOnlyForBlocks(blockNames []string) Option {
 	return func(parser Parser) Parser {
 		parser.diagnosticsErrorFunc = func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
+			if file == nil {
+				return diags, diags
+			}
+
 			for _, sectionName := range blockNames {
 				blocks, err := file.Blocks(sectionName, true)
 				if err != nil {
@@ -46,6 +52,17 @@ func WithHaltOnErrorOnlyForBlocks(blockNames []string) Option {
 				}
 			}
 
+			return nil, nil
+		}
+
+		return parser
+	}
+}
+
+func WithSkipErrors() Option {
+	return func(parser Parser) Parser {
+		parser.diagnosticsErrorFunc = func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
+			fmt.Println("---------------------", diags)
 			return nil, nil
 		}
 

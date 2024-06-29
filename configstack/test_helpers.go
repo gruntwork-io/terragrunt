@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type TerraformModuleByPath []*TerraformModule
+type TerraformModuleByPath TerraformModules
 
 func (byPath TerraformModuleByPath) Len() int           { return len(byPath) }
 func (byPath TerraformModuleByPath) Swap(i, j int)      { byPath[i], byPath[j] = byPath[j], byPath[i] }
@@ -29,7 +29,7 @@ func (byPath RunningModuleByPath) Less(i, j int) bool {
 
 // We can't use assert.Equals on TerraformModule or any data structure that contains it because it contains some
 // fields (e.g. TerragruntOptions) that cannot be compared directly
-func assertModuleListsEqual(t *testing.T, expectedModules []*TerraformModule, actualModules []*TerraformModule, messageAndArgs ...interface{}) {
+func assertModuleListsEqual(t *testing.T, expectedModules TerraformModules, actualModules TerraformModules, messageAndArgs ...interface{}) {
 	if !assert.Equal(t, len(expectedModules), len(actualModules), messageAndArgs...) {
 		t.Logf("%s != %s", expectedModules, actualModules)
 		return

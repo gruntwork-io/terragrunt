@@ -88,7 +88,7 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 		return target.runErrorCallback(terragruntOptions, nil, err)
 	}
 
-	terragruntConfig, err := config.ReadTerragruntConfig(terragruntOptions)
+	terragruntConfig, err := config.ReadTerragruntConfig(ctx, terragruntOptions)
 	if err != nil {
 		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
 	}
