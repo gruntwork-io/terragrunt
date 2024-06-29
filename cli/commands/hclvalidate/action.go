@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
@@ -34,7 +33,7 @@ func Run(ctx context.Context, opts *Options) error {
 		return err
 	}
 
-	os.Exit(1)
+	//os.Exit(1)
 
 	opts.Logger.Debugf("%s", stack.String())
 	if err := stack.LogModuleDeployOrder(opts.Logger, opts.TerraformCommand); err != nil {
