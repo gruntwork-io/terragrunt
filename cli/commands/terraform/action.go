@@ -104,7 +104,7 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
 	}
 
-	if terragruntConfig.Skip {
+	if terragruntConfig.Skip != nil && *terragruntConfig.Skip {
 		terragruntOptions.Logger.Infof(
 			"Skipping terragrunt module %s due to skip = true.",
 			terragruntOptions.TerragruntConfigPath,

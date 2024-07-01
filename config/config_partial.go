@@ -286,7 +286,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				output.PreventDestroy = decoded.PreventDestroy
 			}
 			if decoded.Skip != nil {
-				output.Skip = *decoded.Skip
+				output.Skip = decoded.Skip
 			}
 			if decoded.IamRole != nil {
 				output.IamRole = *decoded.IamRole

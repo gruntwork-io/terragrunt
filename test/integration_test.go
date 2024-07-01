@@ -2013,10 +2013,13 @@ func TestApplyAllSkipTrue(t *testing.T) {
 	stdout := showStdout.String()
 	stderr := showStderr.String()
 
+	// this test is now prepared to handle the case where skip is inherited from the included terragrunt file
+	// meaning the skip-true/resource2 module will be skipped as well and only the skip-true/resource1 module will be applied
+
 	assert.NoError(t, err)
 	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixture-skip/skip-true/terragrunt.hcl due to skip = true."), stderr)
 	assert.Contains(t, stdout, "hello, Ernie")
-	assert.Contains(t, stdout, "hello, Bert")
+	assert.NotContains(t, stdout, "hello, Bert")
 }
 
 func TestApplyAllSkipFalse(t *testing.T) {
