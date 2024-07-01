@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/mitchellh/mapstructure"
@@ -680,23 +681,24 @@ func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOpt
 }
 
 // Read the Terragrunt config file from its default location
-func ReadTerragruntConfig(ctx context.Context, terragruntOptions *options.TerragruntOptions, parserOptions ...hclparse.Option) (*TerragruntConfig, error) {
+func ReadTerragruntConfig(ctx context.Context, terragruntOptions *options.TerragruntOptions, parserOptions []hclparse.Option) (*TerragruntConfig, error) {
 	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
 
-	parcingCtx := NewParsingContext(ctx, terragruntOptions).WithParseOption(append(DefaultParserOptions(terragruntOptions), parserOptions...))
-	return ParseConfigFile(terragruntOptions, parcingCtx, terragruntOptions.TerragruntConfigPath, nil)
+	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
+	parcingCtx := NewParsingContext(ctx, terragruntOptions).WithParseOption(parserOptions)
+	return ParseConfigFile(parcingCtx, terragruntOptions.TerragruntConfigPath, nil)
 }
 
 var hclCache = cache.NewCache[*hclparse.File]()
 
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
-func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 
 	var config *TerragruntConfig
-	err := telemetry.Telemetry(ctx, opts, "parse_config_file", map[string]interface{}{
+	err := telemetry.Telemetry(ctx, ctx.TerragruntOptions, "parse_config_file", map[string]interface{}{
 		"config_path": configPath,
-		"working_dir": opts.WorkingDir,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
 		childKey := "nil"
 		if includeFromChild != nil {
@@ -716,7 +718,7 @@ func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, confi
 			return err
 		}
 		var file *hclparse.File
-		var cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, opts.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
+		var cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, ctx.TerragruntOptions.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
 		if cacheConfig, found := hclCache.Get(cacheKey); found {
 			file = cacheConfig
 		} else {
