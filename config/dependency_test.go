@@ -116,11 +116,12 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 
 	filename := "../test/fixture-regressions/multiple-dependency-load-sync/main/terragrunt.hcl"
 	ctx := NewParsingContext(context.Background(), mockOptionsForTestWithConfigPath(t, filename))
-	ctx.TerragruntOptions.FetchDependencyOutputFromState = true
-	ctx.TerragruntOptions.Env = env.Parse(os.Environ())
 	opts, err := options.NewTerragruntOptionsForTest(filename)
 	require.NoError(t, err)
-	tfConfig, err := ParseConfigFile(opts, ctx, filename, nil)
+	ctx.TerragruntOptions = opts
+	ctx.TerragruntOptions.FetchDependencyOutputFromState = true
+	ctx.TerragruntOptions.Env = env.Parse(os.Environ())
+	tfConfig, err := ParseConfigFile(ctx, filename, nil)
 	require.NoError(t, err)
 	require.Len(t, tfConfig.TerragruntDependencies, 2)
 	assert.Equal(t, tfConfig.TerragruntDependencies[0].Name, "dependency_1")
