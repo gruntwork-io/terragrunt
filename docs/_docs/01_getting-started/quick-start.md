@@ -11,7 +11,7 @@ nav_title_link: /docs/
 
 ## Introduction
 
-Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale. 
+Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.
 
 To use it, you:
 
@@ -121,7 +121,7 @@ Terragrunt can help you accomplish the following:
   - [Keep your backend configuration DRY](#keep-your-backend-configuration-dry)
   - [Keep your provider configuration DRY](#keep-your-provider-configuration-dry)
   - [Keep your Terraform CLI arguments DRY](#keep-your-terraform-cli-arguments-dry)
-  - [Promote immutable, versioned Terraform modules across environments](#promote-immutable-versioned-terraform-modules-across-environments)
+  - [Promote immutable, versioned OpenTofu/Terraform modules across environments](#promote-immutable-versioned-opentofuterraform-modules-across-environments)
 - [Next steps](#next-steps)
 
 ### Keep your backend configuration DRY
