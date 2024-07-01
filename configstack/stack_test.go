@@ -17,8 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var mockHowThesePathsWereFound = "mock-values-for-test"
-
 func TestFindStackInSubfolders(t *testing.T) {
 	t.Parallel()
 

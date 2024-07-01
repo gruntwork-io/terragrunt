@@ -683,7 +683,7 @@ func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOpt
 func ReadTerragruntConfig(ctx context.Context, terragruntOptions *options.TerragruntOptions, parserOptions ...hclparse.Option) (*TerragruntConfig, error) {
 	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
 
-	parcingCtx := NewParsingContext(ctx, terragruntOptions).WithParseOption(parserOptions)
+	parcingCtx := NewParsingContext(ctx, terragruntOptions).WithParseOption(append(DefaultParserOptions(terragruntOptions), parserOptions...))
 	return ParseConfigFile(terragruntOptions, parcingCtx, terragruntOptions.TerragruntConfigPath, nil)
 }
 
