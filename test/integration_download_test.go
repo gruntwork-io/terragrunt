@@ -18,21 +18,23 @@ import (
 )
 
 const (
-	testFixtureLocalDownloadPath          = "fixture-download/local"
-	testFixtureCustomLockFile             = "fixture-download/custom-lock-file"
-	testFixtureRemoteDownloadPath         = "fixture-download/remote"
-	testFixtureInvalidRemoteDownloadPath  = "fixture-download/remote-invalid"
-	testFixtureOverrideDonwloadPath       = "fixture-download/override"
-	testFixtureLocalRelativeDownloadPath  = "fixture-download/local-relative"
-	testFixtureRemoteRelativeDownloadPath = "fixture-download/remote-relative"
-	testFixtureLocalWithBackend           = "fixture-download/local-with-backend"
-	testFixtureLocalWithExcludeDir        = "fixture-download/local-with-exclude-dir"
-	testFixtureLocalWithIncludeDir        = "fixture-download/local-with-include-dir"
-	testFixtureRemoteWithBackend          = "fixture-download/remote-with-backend"
-	testFixtureRemoteModuleInRoot         = "fixture-download/remote-module-in-root"
-	testFixtureLocalMissingBackend        = "fixture-download/local-with-missing-backend"
-	testFixtureLocalWithHiddenFolder      = "fixture-download/local-with-hidden-folder"
-	testFixtureLocalWithAllowedHidden     = "fixture-download/local-with-allowed-hidden"
+	testFixtureLocalDownloadPath              = "fixture-download/local"
+	testFixtureCustomLockFile                 = "fixture-download/custom-lock-file"
+	testFixtureRemoteDownloadPath             = "fixture-download/remote"
+	testFixtureInvalidRemoteDownloadPath      = "fixture-download/remote-invalid"
+	testFixtureOverrideDonwloadPath           = "fixture-download/override"
+	testFixtureLocalRelativeDownloadPath      = "fixture-download/local-relative"
+	testFixtureRemoteRelativeDownloadPath     = "fixture-download/remote-relative"
+	testFixtureLocalWithBackend               = "fixture-download/local-with-backend"
+	testFixtureLocalWithExcludeDir            = "fixture-download/local-with-exclude-dir"
+	testFixtureLocalWithIncludeDir            = "fixture-download/local-with-include-dir"
+	testFixtureRemoteWithBackend              = "fixture-download/remote-with-backend"
+	testFixtureRemoteModuleInRoot             = "fixture-download/remote-module-in-root"
+	testFixtureLocalMissingBackend            = "fixture-download/local-with-missing-backend"
+	testFixtureLocalWithHiddenFolder          = "fixture-download/local-with-hidden-folder"
+	testFixtureLocalWithAllowedHidden         = "fixture-download/local-with-allowed-hidden"
+	testFixtureDisableCopyLockFilePath        = "fixture-download/local-disable-copy-terraform-lock-file"
+	testFixtureIncludeDisableCopyLockFilePath = "fixture-download/local-include-disable-copy-lock-file/module-b"
 )
 
 func TestLocalDownload(t *testing.T) {
@@ -47,6 +49,34 @@ func TestLocalDownload(t *testing.T) {
 
 	// Run a second time to make sure the temporary folder can be reused without errors
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureLocalDownloadPath))
+}
+
+func TestLocalDownloadDisableCopyTerraformLockFile(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureDisableCopyLockFilePath)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureDisableCopyLockFilePath))
+
+	// The terraform lock file should not be copied if `copy_terraform_lock_file = false`
+	assert.NoFileExists(t, util.JoinPath(testFixtureDisableCopyLockFilePath, util.TerraformLockFile))
+
+	// Run a second time to make sure the temporary folder can be reused without errors
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureDisableCopyLockFilePath))
+}
+
+func TestLocalIncludeDisableCopyTerraformLockFile(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureIncludeDisableCopyLockFilePath)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureIncludeDisableCopyLockFilePath))
+
+	// The terraform lock file should not be copied if `copy_terraform_lock_file = false`
+	assert.NoFileExists(t, util.JoinPath(testFixtureIncludeDisableCopyLockFilePath, util.TerraformLockFile))
+
+	// Run a second time to make sure the temporary folder can be reused without errors
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureIncludeDisableCopyLockFilePath))
 }
 
 func TestLocalDownloadWithHiddenFolder(t *testing.T) {
