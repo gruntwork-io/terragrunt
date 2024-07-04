@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds"
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/amazonsts"
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/gruntwork-io/terragrunt/terraform"
@@ -88,6 +90,11 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 		return target.runErrorCallback(terragruntOptions, nil, err)
 	}
 
+	credsGetter := creds.NewGetter()
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, terragruntOptions, externalcmd.NewProvider(terragruntOptions)); err != nil {
+		return err
+	}
+
 	terragruntConfig, err := config.ReadTerragruntConfig(terragruntOptions)
 	if err != nil {
 		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
@@ -119,7 +126,7 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 		terragruntOptions.OriginalIAMRoleOptions,
 	)
 
-	if err := creds.ObtainCredentialsAndUpdateEnvIfNecessary(ctx, terragruntOptions); err != nil {
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, terragruntOptions, amazonsts.NewProvider(terragruntOptions)); err != nil {
 		return err
 	}
 

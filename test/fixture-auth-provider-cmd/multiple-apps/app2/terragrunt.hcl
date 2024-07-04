@@ -1,8 +1,5 @@
-terraform {
-  before_hook "before_hook" {
-    commands = ["init"]
-    execute  = ["./test-creds.sh"]
-  }
+include {
+  path = find_in_parent_folders()
 }
 
 dependency "app3" {

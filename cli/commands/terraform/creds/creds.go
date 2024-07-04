@@ -4,21 +4,22 @@ import (
 	"context"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/amazonsts"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/options"
 	"golang.org/x/exp/maps"
 )
 
-// ObtainCredentialsAndUpdateEnvIfNecessary obtains credentials through different providers and sets them to `opts.Env`.
-func ObtainCredentialsAndUpdateEnvIfNecessary(ctx context.Context, opts *options.TerragruntOptions) error {
-	authProviders := []providers.Provider{
-		externalcmd.NewProvider(opts),
-		amazonsts.NewProvider(opts),
+type Getter struct {
+	obtainedCreds map[string]*providers.Credentials
+}
+
+func NewGetter() *Getter {
+	return &Getter{
+		obtainedCreds: make(map[string]*providers.Credentials),
 	}
+}
 
-	obtainedCreds := make(map[string]*providers.Credentials)
-
+// ObtainAndUpdateEnvIfNecessary obtains credentials through different providers and sets them to `opts.Env`.
+func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, opts *options.TerragruntOptions, authProviders ...providers.Provider) error {
 	for _, provider := range authProviders {
 		creds, err := provider.GetCredentials(ctx)
 		if err != nil {
@@ -28,12 +29,12 @@ func ObtainCredentialsAndUpdateEnvIfNecessary(ctx context.Context, opts *options
 			continue
 		}
 
-		for providerName, prevCreds := range obtainedCreds {
+		for providerName, prevCreds := range getter.obtainedCreds {
 			if prevCreds.Name == creds.Name {
 				opts.Logger.Warnf("%s credentials obtained using %s are overwritten by credentials obtained using %s.", creds.Name, providerName, provider.Name())
 			}
 		}
-		obtainedCreds[provider.Name()] = creds
+		getter.obtainedCreds[provider.Name()] = creds
 
 		maps.Copy(opts.Env, creds.Envs)
 	}
