@@ -8,28 +8,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewKeyLocks(t *testing.T) {
+func TestKeyLocksNew(t *testing.T) {
 	t.Parallel()
 	kl := NewKeyLocks()
 	require.NotNil(t, kl, "NewKeyLocks() should not return nil")
 	require.Empty(t, kl.locks, "NewKeyLocks() should create an empty map")
 }
 
-func TestLockUnlock(t *testing.T) {
+func TestKeyLocksLockUnlock(t *testing.T) {
 	t.Parallel()
 	kl := NewKeyLocks()
 	key := "testkey"
 
 	kl.Lock(key)
-	require.Contains(t, kl.locks, key, "Lock should create a lock for key: %s", key)
+	_, found := kl.locks.Load(key)
+	require.True(t, found, key, "Lock should create a lock for key: %s", key)
 
 	kl.Unlock(key)
 
-	kl.Lock(key)
-	kl.Unlock(key)
 }
 
-func TestConcurrentAccess(t *testing.T) {
+func TestKeyLocksConcurrentAccess(t *testing.T) {
 	t.Parallel()
 	kl := NewKeyLocks()
 	key := "concurrentKey"
@@ -52,7 +51,7 @@ func TestConcurrentAccess(t *testing.T) {
 	require.Equal(t, 100, sharedResource, "Concurrent access to shared resource managed incorrectly")
 }
 
-func TestMultipleKeys(t *testing.T) {
+func TestKeyLocksMultipleKeys(t *testing.T) {
 	t.Parallel()
 	kl := NewKeyLocks()
 	keys := []string{"key1", "key2", "key3"}

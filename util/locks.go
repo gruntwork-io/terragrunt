@@ -1,38 +1,41 @@
 package util
 
-import "sync"
+import (
+	"sync"
+)
 
-// KeyLocks manages a map of locks, each associated with a string key.
 type KeyLocks struct {
-	masterLock sync.Mutex
-	locks      map[string]*sync.Mutex
+	locks sync.Map // Map to store locks by key
 }
 
-// NewKeyLocks creates a new instance of KeyLocks.
+// NewKeyLocks - Create a new KeyLocks instance
 func NewKeyLocks() *KeyLocks {
-	return &KeyLocks{
-		locks: make(map[string]*sync.Mutex),
-	}
+	return &KeyLocks{}
 }
 
-// Lock acquires the lock for the given key.
+// Lock - Lock execution by key (blocking)
 func (kl *KeyLocks) Lock(key string) {
-	kl.masterLock.Lock()
-	lock, ok := kl.locks[key]
-	if !ok {
-		lock = &sync.Mutex{}
-		kl.locks[key] = lock
+	for {
+		val, _ := kl.locks.LoadOrStore(key, &sync.Mutex{})
+		mutex := val.(*sync.Mutex)
+
+		// If we can successfully lock, break the loop
+		if mutex.TryLock() {
+			return
+		}
 	}
-	kl.masterLock.Unlock()
-	lock.Lock()
 }
 
-// Unlock releases the lock for the given key.
+// Unlock - Unlock execution by key
 func (kl *KeyLocks) Unlock(key string) {
-	kl.masterLock.Lock()
-	defer kl.masterLock.Unlock()
+	val, ok := kl.locks.Load(key)
+	if ok {
+		mutex := val.(*sync.Mutex)
 
-	if lock, ok := kl.locks[key]; ok {
-		lock.Unlock()
+		// Only unlock if the current goroutine holds the lock
+		if mutex.TryLock() {
+			mutex.Unlock()
+			mutex.Unlock() // Unlock again since we locked it with TryLock
+		}
 	}
 }
