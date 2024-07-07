@@ -9,9 +9,9 @@ require (
 	github.com/fatih/structs v1.1.0
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
-	github.com/gruntwork-io/terratest v0.41.0
+	github.com/gruntwork-io/terratest v0.46.16
 	github.com/hashicorp/go-cleanhttp v0.5.2
-	github.com/hashicorp/go-getter v1.7.4
+	github.com/hashicorp/go-getter v1.7.5
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-safetemp v1.0.0
 	github.com/hashicorp/go-version v1.6.0
@@ -42,7 +42,7 @@ require (
 	github.com/hashicorp/hcl v1.0.1-vault // indirect
 	github.com/hashicorp/vault/api v1.10.0 // indirect
 	github.com/klauspost/compress v1.17.7 // indirect
-	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
+	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/opencontainers/runc v1.1.12 // indirect
 	github.com/pquerna/otp v1.2.1-0.20191009055518-468c2dd2b58d // indirect
 	github.com/terraform-linters/tflint v0.47.0
@@ -63,10 +63,11 @@ require (
 	github.com/gofrs/flock v0.8.1
 	github.com/google/uuid v1.6.0
 	github.com/gruntwork-io/boilerplate v0.5.11
-	github.com/gruntwork-io/go-commons v0.17.1
+	github.com/gruntwork-io/go-commons v0.17.2
 	github.com/gruntwork-io/gruntwork-cli v0.7.0
 	github.com/hashicorp/go-getter/v2 v2.2.1
 	github.com/labstack/echo/v4 v4.11.4
+	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/pkg/errors v0.9.1
 	github.com/posener/complete v1.2.3
@@ -143,7 +144,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.4.0 // indirect
 	github.com/docker/cli v24.0.0+incompatible // indirect
-	github.com/docker/docker v24.0.9+incompatible // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/getsops/gopgagent v0.0.0-20170926210634-4d7ea76ff71a // indirect
@@ -243,7 +243,7 @@ require (
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	sigs.k8s.io/yaml v1.2.0 // indirect
+	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
 // This is necessary to workaround go modules error with terraform importing vault incorrectly.

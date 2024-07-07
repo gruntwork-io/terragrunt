@@ -9,17 +9,16 @@ import (
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
-	"github.com/sirupsen/logrus"
 )
 
 type Parser struct {
 	*hclparse.Parser
-	logger                *logrus.Entry
-	diagnosticsErrorFunc  func(*File, hcl.Diagnostics) (hcl.Diagnostics, error)
-	fileUpdateHandlerFunc func(*File) error
+	loggerFunc              func(hcl.Diagnostics) error
+	diagnosticsPrintingFunc func(*File, hcl.Diagnostics)
+	diagnosticsErrorFunc    func(*File, hcl.Diagnostics) (hcl.Diagnostics, error)
+	fileUpdateHandlerFunc   func(*File) error
 }
 
 func NewParser() *Parser {
@@ -30,9 +29,8 @@ func NewParser() *Parser {
 
 func (parser *Parser) WithOptions(opts ...Option) *Parser {
 	for _, opt := range opts {
-		*parser = opt(*parser)
+		parser = opt(parser)
 	}
-
 	return parser
 }
 
@@ -87,7 +85,15 @@ func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *F
 }
 
 func (parser *Parser) diagnosticsError(file *File, diags hcl.Diagnostics) error {
-	if diags == nil || !diags.HasErrors() {
+	if diags == nil || len(diags) == 0 {
+		return nil
+	}
+
+	if fn := parser.diagnosticsPrintingFunc; fn != nil {
+		fn(file, diags)
+	}
+
+	if !diags.HasErrors() {
 		return nil
 	}
 
@@ -98,11 +104,9 @@ func (parser *Parser) diagnosticsError(file *File, diags hcl.Diagnostics) error 
 		}
 	}
 
-	if logger := parser.logger; logger != nil {
-		diagsWriter := util.GetDiagnosticsWriter(logger, parser.Parser)
-
-		if err := diagsWriter.WriteDiagnostics(diags); err != nil {
-			return errors.WithStackTrace(err)
+	if fn := parser.loggerFunc; fn != nil {
+		if err := fn(diags); err != nil {
+			return err
 		}
 	}
 

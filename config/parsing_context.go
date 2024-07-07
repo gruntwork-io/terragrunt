@@ -8,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/shell"
 )
 
 // ParsingContext provides various variables that are used throughout all funcs and passed from function to function.
@@ -45,6 +46,8 @@ type ParsingContext struct {
 }
 
 func NewParsingContext(ctx context.Context, opts *options.TerragruntOptions) *ParsingContext {
+	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
+
 	return &ParsingContext{
 		Context:           ctx,
 		TerragruntOptions: opts,

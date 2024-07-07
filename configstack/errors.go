@@ -29,6 +29,10 @@ func (err ErrorProcessingModule) Error() string {
 	return fmt.Sprintf("Error processing module at '%s'. How this module was found: %s. Underlying error: %v", err.ModulePath, err.HowThisModuleWasFound, err.UnderlyingError)
 }
 
+func (err ErrorProcessingModule) Unwrap() error {
+	return err.UnderlyingError
+}
+
 type InfiniteRecursion struct {
 	RecursionLevel int
 	Modules        map[string]*TerraformModule

@@ -13,6 +13,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/collections"
 
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
 
@@ -26,6 +27,7 @@ import (
 // Represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or
 // "spin down" in a single command
 type Stack struct {
+	parserOptions         []hclparse.Option
 	terragruntOptions     *options.TerragruntOptions
 	childTerragruntConfig *config.TerragruntConfig
 	Modules               TerraformModules
@@ -58,16 +60,17 @@ func FindStackInSubfolders(ctx context.Context, terragruntOptions *options.Terra
 }
 
 func NewStack(terragruntOptions *options.TerragruntOptions, opts ...Option) *Stack {
-	return (&Stack{
+	stack := &Stack{
 		terragruntOptions: terragruntOptions,
-	}).WithOptions(opts...)
+		parserOptions:     config.DefaultParserOptions(terragruntOptions),
+	}
+	return stack.WithOptions(opts...)
 }
 
 func (stack *Stack) WithOptions(opts ...Option) *Stack {
 	for _, opt := range opts {
 		*stack = opt(*stack)
 	}
-
 	return stack
 }
 
@@ -328,6 +331,7 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 		}
 
 		modules, err := stack.ResolveTerraformModules(ctx, terragruntConfigPaths)
+
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
@@ -452,6 +456,10 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 func (stack *Stack) resolveModules(ctx context.Context, canonicalTerragruntConfigPaths []string, howTheseModulesWereFound string) (TerraformModulesMap, error) {
 	modulesMap := TerraformModulesMap{}
 	for _, terragruntConfigPath := range canonicalTerragruntConfigPaths {
+		if !util.FileExists(terragruntConfigPath) {
+			return nil, ErrorProcessingModule{UnderlyingError: errors.Errorf("no such file or directory"), ModulePath: terragruntConfigPath, HowThisModuleWasFound: howTheseModulesWereFound}
+		}
+
 		var module *TerraformModule
 		err := telemetry.Telemetry(ctx, stack.terragruntOptions, "resolve_terraform_module", map[string]interface{}{
 			"config_path": terragruntConfigPath,
@@ -527,14 +535,16 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 		return &TerraformModule{Path: modulePath, TerragruntOptions: opts, FlagExcluded: true}, nil
 	}
 
-	parseCtx := config.NewParsingContext(ctx, opts).WithDecodeList(
-		// Need for initializing the modules
-		config.TerraformSource,
+	parseCtx := config.NewParsingContext(ctx, opts).
+		WithParseOption(stack.parserOptions).
+		WithDecodeList(
+			// Need for initializing the modules
+			config.TerraformSource,
 
-		// Need for parsing out the dependencies
-		config.DependenciesBlock,
-		config.DependencyBlock,
-	)
+			// Need for parsing out the dependencies
+			config.DependenciesBlock,
+			config.DependencyBlock,
+		)
 
 	// We only partially parse the config, only using the pieces that we need in this section. This config will be fully
 	// parsed at a later stage right before the action is run. This is to delay interpolation of functions until right

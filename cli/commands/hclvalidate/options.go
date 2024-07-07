@@ -5,8 +5,8 @@ import "github.com/gruntwork-io/terragrunt/options"
 type Options struct {
 	*options.TerragruntOptions
 
-	ShowInvalidConfigPath bool
-	JSONOutput            bool
+	InvalidConfigPath bool
+	JSONOutput        bool
 }
 
 func NewOptions(general *options.TerragruntOptions) *Options {

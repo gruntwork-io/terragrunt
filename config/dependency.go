@@ -112,8 +112,8 @@ func (dependencyConfig Dependency) getMockOutputsMergeStrategy() MergeStrategyTy
 }
 
 // Given a dependency config, we should only attempt to get the outputs if SkipOutputs is nil or false
-func (dependencyConfig Dependency) shouldGetOutputs() bool {
-	return dependencyConfig.isEnabled() && (dependencyConfig.SkipOutputs == nil || !*dependencyConfig.SkipOutputs)
+func (dependencyConfig Dependency) shouldGetOutputs(ctx *ParsingContext) bool {
+	return !ctx.TerragruntOptions.SkipOutput && dependencyConfig.isEnabled() && (dependencyConfig.SkipOutputs == nil || !*dependencyConfig.SkipOutputs)
 }
 
 // isEnabled returns true if the dependency is enabled
@@ -143,7 +143,7 @@ func (dependencyConfig *Dependency) setRenderedOutputs(ctx *ParsingContext) erro
 		return nil
 	}
 
-	if dependencyConfig.shouldGetOutputs() || dependencyConfig.shouldReturnMockOutputs(ctx) {
+	if dependencyConfig.shouldGetOutputs(ctx) || dependencyConfig.shouldReturnMockOutputs(ctx) {
 		outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(ctx, *dependencyConfig)
 		if err != nil {
 			return err
@@ -341,6 +341,7 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, dependencyConfigs []Depende
 			if err := dependencyConfig.setRenderedOutputs(ctx); err != nil {
 				return err
 			}
+
 			if dependencyConfig.RenderedOutputs != nil {
 				lock.Lock()
 				paths = append(paths, dependencyConfig.ConfigPath)
@@ -392,7 +393,8 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, depe
 		ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dependencyConfig.Name)
 		return dependencyConfig.MockOutputs, nil
 	}
-	if dependencyConfig.shouldGetOutputs() {
+
+	if dependencyConfig.shouldGetOutputs(ctx) {
 		outputVal, isEmpty, err := getTerragruntOutput(ctx, dependencyConfig)
 		if err != nil {
 			return nil, err

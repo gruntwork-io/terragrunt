@@ -73,7 +73,7 @@ var (
 
 	DefaultParserOptions = func(opts *options.TerragruntOptions) []hclparse.Option {
 		return []hclparse.Option{
-			hclparse.WithLogger(opts.Logger),
+			hclparse.WithLogger(opts.Logger, opts.DisableLogColors),
 			hclparse.WithFileUpdate(updateBareIncludeBlock),
 		}
 	}
@@ -694,7 +694,6 @@ var hclCache = cache.NewCache[*hclparse.File]()
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
 func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
-
 	var config *TerragruntConfig
 	err := telemetry.Telemetry(ctx, ctx.TerragruntOptions, "parse_config_file", map[string]interface{}{
 		"config_path": configPath,
@@ -890,7 +889,9 @@ func decodeAsTerragruntConfigFile(ctx *ParsingContext, file *hclparse.File, eval
 			return nil, err
 		}
 		ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
+	}
 
+	if terragruntConfig.Inputs != nil {
 		inputs, err := updateUnknownCtyValValues(terragruntConfig.Inputs)
 		if err != nil {
 			return nil, err

@@ -565,7 +565,6 @@ func mergeInputs(childInputs map[string]interface{}, parentInputs map[string]int
 	for key, value := range childInputs {
 		out[key] = value
 	}
-
 	return out
 }
 
