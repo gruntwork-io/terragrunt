@@ -132,7 +132,8 @@ func valueStr(val cty.Value) string {
 		return "false"
 	case ty == cty.Number:
 		bf := val.AsBigFloat()
-		return bf.Text('g', 10)
+		prec := 10
+		return bf.Text('g', prec)
 	case ty == cty.String:
 		return fmt.Sprintf("%q", val.AsString())
 	case ty.IsCollectionType() || ty.IsTupleType():

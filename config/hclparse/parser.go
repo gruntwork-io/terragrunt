@@ -85,7 +85,7 @@ func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *F
 }
 
 func (parser *Parser) diagnosticsError(file *File, diags hcl.Diagnostics) error {
-	if diags == nil || len(diags) == 0 {
+	if len(diags) == 0 {
 		return nil
 	}
 
