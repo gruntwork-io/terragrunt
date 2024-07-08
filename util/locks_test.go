@@ -1,9 +1,10 @@
 package util
 
 import (
-	"github.com/stretchr/testify/require"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestKeyLocksBasic verifies basic locking and unlocking behavior.
