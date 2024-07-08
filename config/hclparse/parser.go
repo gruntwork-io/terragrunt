@@ -1,4 +1,4 @@
-// The package wraps `hclparse.Parser` to be able to handle diagnostic errors from one place, see `diagnosticsError(diags hcl.Diagnostics) error` func.
+// The package wraps `hclparse.Parser` to be able to handle diagnostic errors from one place, see `handleDiagnostics(diags hcl.Diagnostics) error` func.
 // This allows us to halt the process only when certain errors occur, such as skipping all errors not related to the `catalog` block.
 
 package hclparse
@@ -15,10 +15,9 @@ import (
 
 type Parser struct {
 	*hclparse.Parser
-	loggerFunc              func(hcl.Diagnostics) error
-	diagnosticsPrintingFunc func(*File, hcl.Diagnostics)
-	diagnosticsErrorFunc    func(*File, hcl.Diagnostics) (hcl.Diagnostics, error)
-	fileUpdateHandlerFunc   func(*File) error
+	loggerFunc            func(hcl.Diagnostics) error
+	handleDiagnosticsFunc func(*File, hcl.Diagnostics) (hcl.Diagnostics, error)
+	fileUpdateHandlerFunc func(*File) error
 }
 
 func NewParser() *Parser {
@@ -76,7 +75,7 @@ func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *F
 		ConfigPath: configPath,
 	}
 
-	if err := parser.diagnosticsError(file, diags); err != nil {
+	if err := parser.handleDiagnostics(file, diags); err != nil {
 		log.Warnf("Failed to parse HCL in file %s: %v", configPath, diags)
 		return nil, errors.WithStackTrace(diags)
 	}
@@ -84,20 +83,12 @@ func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *F
 	return file, nil
 }
 
-func (parser *Parser) diagnosticsError(file *File, diags hcl.Diagnostics) error {
+func (parser *Parser) handleDiagnostics(file *File, diags hcl.Diagnostics) error {
 	if len(diags) == 0 {
 		return nil
 	}
 
-	if fn := parser.diagnosticsPrintingFunc; fn != nil {
-		fn(file, diags)
-	}
-
-	if !diags.HasErrors() {
-		return nil
-	}
-
-	if fn := parser.diagnosticsErrorFunc; fn != nil {
+	if fn := parser.handleDiagnosticsFunc; fn != nil {
 		var err error
 		if diags, err = fn(file, diags); err != nil || diags == nil {
 			return err

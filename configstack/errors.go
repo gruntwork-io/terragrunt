@@ -67,6 +67,10 @@ func (this DependencyFinishedWithError) ExitStatus() (int, error) {
 	return -1, this
 }
 
+func (err DependencyFinishedWithError) Unwrap() error {
+	return err.Err
+}
+
 type DependencyNotFoundWhileCrossLinking struct {
 	Module     *runningModule
 	Dependency *TerraformModule

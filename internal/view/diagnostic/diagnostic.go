@@ -6,9 +6,9 @@ import (
 
 type Diagnostics []*Diagnostic
 
-func (diags *Diagnostics) Contains(find *Diagnostic) bool {
+func (diags *Diagnostics) Contains(find *hcl.Diagnostic) bool {
 	for _, diag := range *diags {
-		if diag.Summary == find.Summary && diag.Detail == find.Detail {
+		if find.Subject != nil && find.Subject.String() == diag.Range.String() {
 			return true
 		}
 	}

@@ -18,8 +18,8 @@ func Run(ctx context.Context, opts *Options) (er error) {
 	parseOptions := []hclparse.Option{
 		hclparse.WithDiagnosticsHandler(func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
 			for _, hclDiag := range hclDiags {
-				newDiag := diagnostic.NewDiagnostic(file, hclDiag)
-				if !diags.Contains(newDiag) {
+				if !diags.Contains(hclDiag) {
+					newDiag := diagnostic.NewDiagnostic(file, hclDiag)
 					diags = append(diags, newDiag)
 				}
 			}

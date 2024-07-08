@@ -63,7 +63,7 @@ func (file *File) Decode(out interface{}, evalContext *hcl.EvalContext) (err err
 	}
 
 	diags := gohcl.DecodeBody(file.Body, evalContext, out)
-	if err := file.diagnosticsError(file, diags); err != nil {
+	if err := file.HandleDiagnostics(diags); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
@@ -79,7 +79,7 @@ func (file *File) Blocks(name string, isMultipleAllowed bool) ([]*Block, error) 
 	}
 	// We use PartialContent here, because we are only interested in parsing out the catalog block.
 	parsed, _, diags := file.Body.PartialContent(catalogSchema)
-	if err := file.diagnosticsError(file, diags); err != nil {
+	if err := file.HandleDiagnostics(diags); err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
 
@@ -109,7 +109,7 @@ func (file *File) Blocks(name string, isMultipleAllowed bool) ([]*Block, error) 
 func (file *File) JustAttributes() (Attributes, error) {
 	hclAttrs, diags := file.Body.JustAttributes()
 
-	if err := file.diagnosticsError(file, diags); err != nil {
+	if err := file.HandleDiagnostics(diags); err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
 
@@ -120,4 +120,8 @@ func (file *File) JustAttributes() (Attributes, error) {
 	}
 
 	return attrs, nil
+}
+
+func (file *File) HandleDiagnostics(diags hcl.Diagnostics) error {
+	return file.Parser.handleDiagnostics(file, diags)
 }

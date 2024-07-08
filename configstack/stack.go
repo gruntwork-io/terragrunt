@@ -457,7 +457,7 @@ func (stack *Stack) resolveModules(ctx context.Context, canonicalTerragruntConfi
 	modulesMap := TerraformModulesMap{}
 	for _, terragruntConfigPath := range canonicalTerragruntConfigPaths {
 		if !util.FileExists(terragruntConfigPath) {
-			return nil, ErrorProcessingModule{UnderlyingError: errors.Errorf("no such file or directory"), ModulePath: terragruntConfigPath, HowThisModuleWasFound: howTheseModulesWereFound}
+			return nil, ErrorProcessingModule{UnderlyingError: os.ErrNotExist, ModulePath: terragruntConfigPath, HowThisModuleWasFound: howTheseModulesWereFound}
 		}
 
 		var module *TerraformModule
