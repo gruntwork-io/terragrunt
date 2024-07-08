@@ -7,6 +7,7 @@ import (
 
 // TestKeyLocksBasic verifies basic locking and unlocking behavior.
 func TestKeyLocksBasic(t *testing.T) {
+	t.Parallel()
 	kl := NewKeyLocks()
 
 	kl.Lock("key1")
@@ -15,6 +16,7 @@ func TestKeyLocksBasic(t *testing.T) {
 
 // TestKeyLocksConcurrentAccess ensures thread-safe access for multiple keys.
 func TestKeyLocksConcurrentAccess(t *testing.T) {
+	t.Parallel()
 	kl := NewKeyLocks()
 	var wg sync.WaitGroup
 
@@ -32,6 +34,7 @@ func TestKeyLocksConcurrentAccess(t *testing.T) {
 
 // TestKeyLocksStress tests the KeyLocks under high concurrency.
 func TestKeyLocksStress(t *testing.T) {
+	t.Parallel()
 	kl := NewKeyLocks()
 	const numGoroutines = 1000
 	const numOperations = 100
@@ -54,6 +57,7 @@ func TestKeyLocksStress(t *testing.T) {
 
 // TestKeyLocksUnlockWithoutLock checks for safe behavior when unlocking without locking.
 func TestKeyLocksUnlockWithoutLock(t *testing.T) {
+	t.Parallel()
 	kl := NewKeyLocks()
 
 	// Directly calling Unlock should not cause issues
@@ -62,6 +66,7 @@ func TestKeyLocksUnlockWithoutLock(t *testing.T) {
 
 // TestKeyLocksLockUnlockStressWithSharedKey tests a shared key under high concurrent load.
 func TestKeyLocksLockUnlockStressWithSharedKey(t *testing.T) {
+	t.Parallel()
 	kl := NewKeyLocks()
 	const numGoroutines = 100
 	const numOperations = 1000
