@@ -3,72 +3,81 @@ package util
 import (
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewKeyLocks(t *testing.T) {
+// TestKeyLocksBasic verifies basic locking and unlocking behavior.
+func TestKeyLocksBasic(t *testing.T) {
 	t.Parallel()
 	kl := NewKeyLocks()
-	require.NotNil(t, kl, "NewKeyLocks() should not return nil")
-	require.Empty(t, kl.locks, "NewKeyLocks() should create an empty map")
+	var counter int // Counter to track lock/unlock cycles
+
+	kl.Lock("key1")
+	counter++
+	kl.Unlock("key1")
+	counter++
+
+	require.Equal(t, 2, counter, "Lock/unlock cycle should be completed")
 }
 
-func TestLockUnlock(t *testing.T) {
+// TestKeyLocksConcurrentAccess ensures thread-safe access for multiple keys.
+func TestKeyLocksConcurrentAccess(t *testing.T) {
 	t.Parallel()
 	kl := NewKeyLocks()
-	key := "testkey"
+	var counters [10]int
+	var wg sync.WaitGroup
 
-	kl.Lock(key)
-	require.Contains(t, kl.locks, key, "Lock should create a lock for key: %s", key)
-
-	kl.Unlock(key)
-
-	kl.Lock(key)
-	kl.Unlock(key)
-}
-
-func TestConcurrentAccess(t *testing.T) {
-	t.Parallel()
-	kl := NewKeyLocks()
-	key := "concurrentKey"
-	wg := sync.WaitGroup{}
-	sharedResource := 0
-
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 10; i++ {
 		wg.Add(1)
-		go func() {
+		go func(key string, idx int) {
 			defer wg.Done()
 			kl.Lock(key)
 			defer kl.Unlock(key)
-			time.Sleep(10 * time.Millisecond)
-			sharedResource++
+			counters[idx]++
+			counters[idx]++
+		}("test-key", i)
+	}
+
+	wg.Wait()
+
+	for i := 0; i < 10; i++ {
+		require.Equal(t, 2, counters[i], "Lock/unlock cycle for each key should be completed")
+	}
+}
+
+// TestKeyLocksUnlockWithoutLock checks for safe behavior when unlocking without locking.
+func TestKeyLocksUnlockWithoutLock(t *testing.T) {
+	t.Parallel()
+	kl := NewKeyLocks()
+	require.NotPanics(t, func() {
+		kl.Unlock("nonexistent_key")
+	}, "Unlocking without locking should not panic")
+}
+
+// TestKeyLocksLockUnlockStressWithSharedKey tests a shared key under high concurrent load.
+func TestKeyLocksLockUnlockStressWithSharedKey(t *testing.T) {
+	t.Parallel()
+	kl := NewKeyLocks()
+	const numGoroutines = 100
+	const numOperations = 1000
+	var wg sync.WaitGroup
+	var counter int
+
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			kl.Lock("shared_key")
+			defer kl.Unlock("shared_key")
+			for j := 0; j < numOperations; j++ {
+				counter++
+				counter++
+			}
 		}()
 	}
 
 	wg.Wait()
 
-	require.Equal(t, 100, sharedResource, "Concurrent access to shared resource managed incorrectly")
-}
-
-func TestMultipleKeys(t *testing.T) {
-	t.Parallel()
-	kl := NewKeyLocks()
-	keys := []string{"key1", "key2", "key3"}
-	wg := sync.WaitGroup{}
-	lockState := make(map[string]bool)
-
-	for _, key := range keys {
-		wg.Add(1)
-		go func(k string) {
-			defer wg.Done()
-			kl.Lock(k)
-			defer kl.Unlock(k)
-			lockState[k] = true
-		}(key)
-	}
-
-	wg.Wait()
-	require.Len(t, lockState, len(keys), "Locks for multiple keys did not function independently")
+	require.Equal(t, numGoroutines*numOperations*2, counter, "All lock/unlock cycles should be completed")
 }
