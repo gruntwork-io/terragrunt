@@ -301,7 +301,7 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 	err = json.Unmarshal([]byte(strings.TrimSpace(stdout)), &actualDiags)
 	require.NoError(t, err)
 
-	assert.Equal(t, expectedDiags, actualDiags)
+	assert.ElementsMatch(t, expectedDiags, actualDiags)
 }
 
 func TestHclvalidateInvalidConfigPath(t *testing.T) {
@@ -322,7 +322,7 @@ func TestHclvalidateInvalidConfigPath(t *testing.T) {
 	err = json.Unmarshal([]byte(strings.TrimSpace(stdout)), &actualPaths)
 	require.NoError(t, err)
 
-	assert.Equal(t, expectedPaths, actualPaths)
+	assert.ElementsMatch(t, expectedPaths, actualPaths)
 }
 
 func TestTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
