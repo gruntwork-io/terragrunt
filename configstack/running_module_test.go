@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// @SONAR_STOP@
+
 var mockOptions, _ = options.NewTerragruntOptionsForTest("running_module_test")
 
 func TestToRunningModulesNoModules(t *testing.T) {
@@ -780,3 +782,5 @@ func TestRemoveFlagExcludedOneExcludeWithDependencies(t *testing.T) {
 
 	assertRunningModuleMapsEqual(t, expected, actual, true)
 }
+
+// @SONAR_START@
