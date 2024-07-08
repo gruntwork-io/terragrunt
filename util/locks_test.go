@@ -1,10 +1,9 @@
 package util
 
 import (
+	"github.com/stretchr/testify/require"
 	"sync"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 // TestKeyLocksBasic verifies basic locking and unlocking behavior.
@@ -18,7 +17,7 @@ func TestKeyLocksBasic(t *testing.T) {
 	kl.Unlock("key1")
 	counter++
 
-	assert.Equal(t, 2, counter, "Lock/unlock cycle should be completed")
+	require.Equal(t, 2, counter, "Lock/unlock cycle should be completed")
 }
 
 // TestKeyLocksConcurrentAccess ensures thread-safe access for multiple keys.
@@ -42,7 +41,7 @@ func TestKeyLocksConcurrentAccess(t *testing.T) {
 	wg.Wait()
 
 	for i := 0; i < 10; i++ {
-		assert.Equal(t, 2, counters[i], "Lock/unlock cycle for each key should be completed")
+		require.Equal(t, 2, counters[i], "Lock/unlock cycle for each key should be completed")
 	}
 }
 
@@ -50,7 +49,7 @@ func TestKeyLocksConcurrentAccess(t *testing.T) {
 func TestKeyLocksUnlockWithoutLock(t *testing.T) {
 	t.Parallel()
 	kl := NewKeyLocks()
-	assert.NotPanics(t, func() {
+	require.NotPanics(t, func() {
 		kl.Unlock("nonexistent_key")
 	}, "Unlocking without locking should not panic")
 }
@@ -79,5 +78,5 @@ func TestKeyLocksLockUnlockStressWithSharedKey(t *testing.T) {
 
 	wg.Wait()
 
-	assert.Equal(t, numGoroutines*numOperations*2, counter, "All lock/unlock cycles should be completed")
+	require.Equal(t, numGoroutines*numOperations*2, counter, "All lock/unlock cycles should be completed")
 }
