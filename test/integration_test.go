@@ -48,6 +48,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	terragruntDynamoDb "github.com/gruntwork-io/terragrunt/dynamodb"
+	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -61,6 +62,7 @@ const (
 	TERRAFORM_REMOTE_STATE_S3_REGION                                         = "us-west-2"
 	TERRAFORM_REMOTE_STATE_GCP_REGION                                        = "eu"
 	TEST_FIXTURE_PATH                                                        = "fixture/"
+	TEST_FIXTURE_HCLVALIDATE                                                 = "fixture-hclvalidate"
 	TEST_FIXTURE_INIT_ONCE                                                   = "fixture-init-once"
 	TEST_FIXTURE_PROVIDER_CACHE_MULTIPLE_PLATFORMS                           = "fixture-provider-cache/multiple-platforms"
 	TEST_FIXTURE_PROVIDER_CACHE_DIRECT                                       = "fixture-provider-cache/direct"
@@ -213,6 +215,115 @@ const (
 	qaMyAppRelPath  = "qa/my-app"
 	fixtureDownload = "fixture-download"
 )
+
+func TestHclvalidateDiagnostic(t *testing.T) {
+	cleanupTerraformFolder(t, TEST_FIXTURE_HCLVALIDATE)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HCLVALIDATE)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HCLVALIDATE)
+
+	expectedDiags := diagnostic.Diagnostics{
+		&diagnostic.Diagnostic{
+			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
+			Summary:  "Invalid expression",
+			Detail:   "Expected the start of an expression, but found an invalid expression token.",
+			Range: &diagnostic.Range{
+				Filename: filepath.Join(rootPath, "second/a/terragrunt.hcl"),
+				Start:    diagnostic.Pos{Line: 2, Column: 6, Byte: 14},
+				End:      diagnostic.Pos{Line: 3, Column: 1, Byte: 15},
+			},
+			Snippet: &diagnostic.Snippet{
+				Context:              "locals",
+				Code:                 "  t =\n}",
+				StartLine:            2,
+				HighlightStartOffset: 5,
+				HighlightEndOffset:   6,
+			},
+		},
+		&diagnostic.Diagnostic{
+			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
+			Summary:  "Can't evaluate expression",
+			Detail:   "You can only reference to other local variables here, but it looks like you're referencing something else (\"dependency\" is not defined)",
+			Range: &diagnostic.Range{
+				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
+				Start:    diagnostic.Pos{Line: 10, Column: 9, Byte: 118},
+				End:      diagnostic.Pos{Line: 10, Column: 31, Byte: 140},
+			},
+			Snippet: &diagnostic.Snippet{
+				Context:              "locals",
+				Code:                 "  vvv = dependency.a.outputs.z",
+				StartLine:            10,
+				HighlightStartOffset: 8,
+				HighlightEndOffset:   30,
+			},
+		},
+		&diagnostic.Diagnostic{
+			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
+			Summary:  "Can't evaluate expression",
+			Detail:   "You can only reference to other local variables here, but it looks like you're referencing something else (\"dependency\" is not defined)",
+			Range: &diagnostic.Range{
+				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
+				Start:    diagnostic.Pos{Line: 12, Column: 9, Byte: 150},
+				End:      diagnostic.Pos{Line: 12, Column: 21, Byte: 162},
+			},
+			Snippet: &diagnostic.Snippet{
+				Context:              "locals",
+				Code:                 "  ddd = dependency.d",
+				StartLine:            12,
+				HighlightStartOffset: 8,
+				HighlightEndOffset:   20,
+			},
+		},
+		&diagnostic.Diagnostic{
+			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
+			Summary:  "Unsupported attribute",
+			Detail:   "This object does not have an attribute named \"outputs\".",
+			Range: &diagnostic.Range{
+				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
+				Start:    diagnostic.Pos{Line: 6, Column: 19, Byte: 87},
+				End:      diagnostic.Pos{Line: 6, Column: 27, Byte: 95},
+			},
+			Snippet: &diagnostic.Snippet{
+				Context:              "",
+				Code:                 "  c = dependency.a.outputs.z",
+				StartLine:            6,
+				HighlightStartOffset: 18,
+				HighlightEndOffset:   26,
+				Values:               []diagnostic.ExpressionValue{diagnostic.ExpressionValue{Traversal: "dependency.a", Statement: "is object with no attributes"}},
+			},
+		},
+	}
+
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hclvalidate --terragrunt-working-dir %s -json", rootPath))
+	require.NoError(t, err)
+
+	var actualDiags diagnostic.Diagnostics
+
+	err = json.Unmarshal([]byte(strings.TrimSpace(stdout)), &actualDiags)
+	require.NoError(t, err)
+
+	assert.Equal(t, expectedDiags, actualDiags)
+}
+
+func TestHclvalidateInvalidConfigPath(t *testing.T) {
+	cleanupTerraformFolder(t, TEST_FIXTURE_HCLVALIDATE)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HCLVALIDATE)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HCLVALIDATE)
+
+	expectedPaths := []string{
+		filepath.Join(rootPath, "second/a/terragrunt.hcl"),
+		filepath.Join(rootPath, "second/c/terragrunt.hcl"),
+	}
+
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hclvalidate --terragrunt-working-dir %s -json --invalid-config-path", rootPath))
+	require.NoError(t, err)
+
+	var actualPaths []string
+
+	err = json.Unmarshal([]byte(strings.TrimSpace(stdout)), &actualPaths)
+	require.NoError(t, err)
+
+	assert.Equal(t, expectedPaths, actualPaths)
+}
 
 func TestTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_PROVIDER_CACHE_MULTIPLE_PLATFORMS)

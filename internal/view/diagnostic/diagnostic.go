@@ -19,8 +19,8 @@ type Diagnostic struct {
 	Severity DiagnosticSeverity `json:"severity"`
 	Summary  string             `json:"summary"`
 	Detail   string             `json:"detail"`
-	Range    *DiagnosticRange   `json:"range,omitempty"`
-	Snippet  *DiagnosticSnippet `json:"snippet,omitempty"`
+	Range    *Range             `json:"range,omitempty"`
+	Snippet  *Snippet           `json:"snippet,omitempty"`
 }
 
 func NewDiagnostic(file *hcl.File, hclDiag *hcl.Diagnostic) *Diagnostic {
@@ -41,7 +41,7 @@ func NewDiagnostic(file *hcl.File, hclDiag *hcl.Diagnostic) *Diagnostic {
 	}
 	diag.Snippet = NewSnippet(file, hclDiag, highlightRange)
 
-	diag.Range = &DiagnosticRange{
+	diag.Range = &Range{
 		Filename: highlightRange.Filename,
 		Start: Pos{
 			Line:   highlightRange.Start.Line,

@@ -14,14 +14,14 @@ type Pos struct {
 	Byte int `json:"byte"`
 }
 
-// DiagnosticRange represents the filename and position of the diagnostic subject.
-type DiagnosticRange struct {
+// Range represents the filename and position of the diagnostic subject.
+type Range struct {
 	Filename string `json:"filename"`
 	Start    Pos    `json:"start"`
 	End      Pos    `json:"end"`
 }
 
-func (rng DiagnosticRange) String() string {
+func (rng Range) String() string {
 	if rng.Start.Line == rng.End.Line {
 		return fmt.Sprintf(
 			"%s:%d,%d-%d",

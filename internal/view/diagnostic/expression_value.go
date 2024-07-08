@@ -24,19 +24,19 @@ func (m valueMark) GoString() string {
 	return "marks." + string(m)
 }
 
-// DiagnosticExpressionValue represents an HCL traversal string and a statement about its value while the expression was evaluated.
-type DiagnosticExpressionValue struct {
+// ExpressionValue represents an HCL traversal string and a statement about its value while the expression was evaluated.
+type ExpressionValue struct {
 	Traversal string `json:"traversal"`
 	Statement string `json:"statement"`
 }
 
-func DescribeExpressionValues(hclDiag *hcl.Diagnostic) []DiagnosticExpressionValue {
+func DescribeExpressionValues(hclDiag *hcl.Diagnostic) []ExpressionValue {
 	var (
 		expr = hclDiag.Expression
 		ctx  = hclDiag.EvalContext
 
 		vars             = expr.Variables()
-		values           = make([]DiagnosticExpressionValue, 0, len(vars))
+		values           = make([]ExpressionValue, 0, len(vars))
 		seen             = make(map[string]struct{}, len(vars))
 		includeUnknown   = DiagnosticCausedByUnknown(hclDiag)
 		includeSensitive = DiagnosticCausedBySensitive(hclDiag)
@@ -55,7 +55,7 @@ Traversals:
 			if _, exists := seen[traversalStr]; exists {
 				continue Traversals
 			}
-			value := DiagnosticExpressionValue{
+			value := ExpressionValue{
 				Traversal: traversalStr,
 			}
 			switch {

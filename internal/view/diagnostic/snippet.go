@@ -8,10 +8,10 @@ import (
 	"github.com/hashicorp/hcl/v2/hcled"
 )
 
-// DiagnosticSnippet represents source code information about the diagnostic.
-type DiagnosticSnippet struct {
+// Snippet represents source code information about the diagnostic.
+type Snippet struct {
 	// Context is derived from HCL's hcled.ContextString output. This gives a high-level summary of the root context of the diagnostic.
-	Context *string `json:"context"`
+	Context string `json:"context"`
 
 	// Code is a possibly-multi-line string of Terraform configuration, which includes both the diagnostic source and any relevant context as defined by the diagnostic.
 	Code string `json:"code"`
@@ -26,13 +26,13 @@ type DiagnosticSnippet struct {
 	HighlightEndOffset int `json:"highlight_end_offset"`
 
 	// Values is a sorted slice of expression values which may be useful in understanding the source of an error in a complex expression.
-	Values []DiagnosticExpressionValue `json:"values"`
+	Values []ExpressionValue `json:"values"`
 
 	// FunctionCall is information about a function call whose failure is being reported by this diagnostic, if any.
-	FunctionCall *DiagnosticFunctionCall `json:"function_call,omitempty"`
+	FunctionCall *FunctionCall `json:"function_call,omitempty"`
 }
 
-func NewSnippet(file *hcl.File, hclDiag *hcl.Diagnostic, highlightRange hcl.Range) *DiagnosticSnippet {
+func NewSnippet(file *hcl.File, hclDiag *hcl.Diagnostic, highlightRange hcl.Range) *Snippet {
 	snipRange := *hclDiag.Subject
 	if hclDiag.Context != nil {
 		// Show enough of the source code to include both the subject and context ranges, which overlap in all reasonable situations.
@@ -44,15 +44,12 @@ func NewSnippet(file *hcl.File, hclDiag *hcl.Diagnostic, highlightRange hcl.Rang
 		snipRange.End.Column++
 	}
 
-	snippet := &DiagnosticSnippet{
+	snippet := &Snippet{
 		StartLine: hclDiag.Subject.Start.Line,
 	}
 
 	if file != nil && file.Bytes != nil {
-		contextStr := hcled.ContextString(file, hclDiag.Subject.Start.Byte-1)
-		if contextStr != "" {
-			snippet.Context = &contextStr
-		}
+		snippet.Context = hcled.ContextString(file, hclDiag.Subject.Start.Byte-1)
 
 		var codeStartByte int
 		sc := hcl.NewRangeScanner(file.Bytes, hclDiag.Subject.Filename, bufio.ScanLines)

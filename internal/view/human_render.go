@@ -161,8 +161,8 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) string {
 	)
 
 	var contextStr string
-	if snippet.Context != nil {
-		contextStr = fmt.Sprintf(", in %s", *snippet.Context)
+	if snippet.Context != "" {
+		contextStr = fmt.Sprintf(", in %s", snippet.Context)
 	}
 	fmt.Fprintf(buf, "  on %s line %d%s:\n", diag.Range.Filename, diag.Range.Start.Line, contextStr)
 
@@ -213,7 +213,7 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) string {
 		// This is particularly useful for expressions that get evaluated
 		// multiple times with different values, such as blocks using
 		// "count" and "for_each", or within "for" expressions.
-		values := make([]diagnostic.DiagnosticExpressionValue, len(snippet.Values))
+		values := make([]diagnostic.ExpressionValue, len(snippet.Values))
 		copy(values, snippet.Values)
 		sort.Slice(values, func(i, j int) bool {
 			return values[i].Traversal < values[j].Traversal

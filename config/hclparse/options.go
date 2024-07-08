@@ -40,16 +40,12 @@ func WithFileUpdate(fn func(*File) error) Option {
 func WithHaltOnErrorOnlyForBlocks(blockNames []string) Option {
 	return func(parser *Parser) *Parser {
 		parser.handleDiagnosticsFunc = appendHandleDiagnosticsFunc(parser.handleDiagnosticsFunc, func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
-			if !diags.HasErrors() {
+			if file == nil || !diags.HasErrors() {
 				return diags, nil
 			}
 
-			if file == nil {
-				return diags, diags
-			}
-
-			for _, sectionName := range blockNames {
-				blocks, err := file.Blocks(sectionName, true)
+			for _, blockName := range blockNames {
+				blocks, err := file.Blocks(blockName, true)
 				if err != nil {
 					return nil, err
 				}

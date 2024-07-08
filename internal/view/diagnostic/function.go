@@ -86,8 +86,8 @@ func DescribeFunction(name string, f function.Function) *Function {
 	return ret
 }
 
-// DiagnosticFunctionCall represents a function call whose information is being included as part of a diagnostic snippet.
-type DiagnosticFunctionCall struct {
+// FunctionCall represents a function call whose information is being included as part of a diagnostic snippet.
+type FunctionCall struct {
 	// CalledAs is the full name that was used to call this function, potentially including namespace prefixes if the function does not belong to the default function namespace.
 	CalledAs string `json:"called_as"`
 
@@ -95,7 +95,7 @@ type DiagnosticFunctionCall struct {
 	Signature *Function `json:"signature,omitempty"`
 }
 
-func DescribeFunctionCall(hclDiag *hcl.Diagnostic) *DiagnosticFunctionCall {
+func DescribeFunctionCall(hclDiag *hcl.Diagnostic) *FunctionCall {
 	callInfo := ExtraInfo[hclsyntax.FunctionCallDiagExtra](hclDiag)
 	if callInfo == nil || callInfo.CalledFunctionName() == "" {
 		return nil
@@ -113,7 +113,7 @@ func DescribeFunctionCall(hclDiag *hcl.Diagnostic) *DiagnosticFunctionCall {
 		signature = DescribeFunction(baseName, f)
 	}
 
-	return &DiagnosticFunctionCall{
+	return &FunctionCall{
 		CalledAs:  calledAs,
 		Signature: signature,
 	}

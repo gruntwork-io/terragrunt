@@ -2,6 +2,7 @@ package diagnostic
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 )
@@ -27,4 +28,14 @@ func (severity DiagnosticSeverity) String() string {
 
 func (severity DiagnosticSeverity) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf(`"%s"`, severity.String())), nil
+}
+
+func (severity *DiagnosticSeverity) UnmarshalJSON(val []byte) error {
+	switch strings.Trim(string(val), `"`) {
+	case DiagnosticSeverityError:
+		*severity = DiagnosticSeverity(hcl.DiagError)
+	case DiagnosticSeverityWarning:
+		*severity = DiagnosticSeverity(hcl.DiagWarning)
+	}
+	return nil
 }
