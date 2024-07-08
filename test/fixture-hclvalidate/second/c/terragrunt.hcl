@@ -1,5 +1,5 @@
 include "b" {
-  path  = "../../first/b/terragrunt.hcl"
+  path = "../../first/b/terragrunt.hcl"
 }
 
 inputs = {

@@ -245,8 +245,8 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 			Detail:   "You can only reference to other local variables here, but it looks like you're referencing something else (\"dependency\" is not defined)",
 			Range: &diagnostic.Range{
 				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
-				Start:    diagnostic.Pos{Line: 10, Column: 9, Byte: 118},
-				End:      diagnostic.Pos{Line: 10, Column: 31, Byte: 140},
+				Start:    diagnostic.Pos{Line: 10, Column: 9, Byte: 117},
+				End:      diagnostic.Pos{Line: 10, Column: 31, Byte: 139},
 			},
 			Snippet: &diagnostic.Snippet{
 				Context:              "locals",
@@ -262,8 +262,8 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 			Detail:   "You can only reference to other local variables here, but it looks like you're referencing something else (\"dependency\" is not defined)",
 			Range: &diagnostic.Range{
 				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
-				Start:    diagnostic.Pos{Line: 12, Column: 9, Byte: 150},
-				End:      diagnostic.Pos{Line: 12, Column: 21, Byte: 162},
+				Start:    diagnostic.Pos{Line: 12, Column: 9, Byte: 149},
+				End:      diagnostic.Pos{Line: 12, Column: 21, Byte: 161},
 			},
 			Snippet: &diagnostic.Snippet{
 				Context:              "locals",
@@ -279,8 +279,8 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 			Detail:   "This object does not have an attribute named \"outputs\".",
 			Range: &diagnostic.Range{
 				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
-				Start:    diagnostic.Pos{Line: 6, Column: 19, Byte: 87},
-				End:      diagnostic.Pos{Line: 6, Column: 27, Byte: 95},
+				Start:    diagnostic.Pos{Line: 6, Column: 19, Byte: 86},
+				End:      diagnostic.Pos{Line: 6, Column: 27, Byte: 94},
 			},
 			Snippet: &diagnostic.Snippet{
 				Context:              "",
