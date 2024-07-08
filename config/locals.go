@@ -165,7 +165,7 @@ func canEvaluateLocals(expression hcl.Expression, evaluatedLocals map[string]cty
 		switch {
 		case localVar.IsRelative():
 			// This should never happen, but if it does, we can't evaluate this expression.
-			detail = fmt.Sprintf("This caused an impossible condition, tnis is almost certainly a bug in Terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl file that caused this.")
+			detail = "This caused an impossible condition, tnis is almost certainly a bug in Terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl file that caused this."
 
 		case rootName == MetadataInclude:
 			// If the variable is `include`, then we can evaluate it now
