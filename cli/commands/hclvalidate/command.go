@@ -23,7 +23,7 @@ func NewFlags(opts *Options) cli.Flags {
 		&cli.BoolFlag{
 			Name:        InvalidFlagName,
 			EnvVar:      InvalidEnvVarName,
-			Usage:       "Show the list of invalid configuration paths.",
+			Usage:       "Show a list of files with invalid configuration.",
 			Destination: &opts.InvalidConfigPath,
 		},
 		&cli.BoolFlag{
