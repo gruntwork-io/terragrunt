@@ -37,6 +37,8 @@ const (
 	DefaultIAMAssumeRoleDuration = 3600
 
 	minCommandLength = 2
+
+	DefaultExcludesFile = ".terragrunt-excludes"
 )
 
 var (
@@ -191,6 +193,9 @@ type TerragruntOptions struct {
 
 	// RetryableErrors is an array of regular expressions with RE2 syntax (https://github.com/google/re2/wiki/Syntax) that qualify for retrying
 	RetryableErrors []string
+
+	// Path to a file with a list of directories that need  to be excluded when running *-all commands.
+	ExcludesFile string
 
 	// Unix-style glob of directories to exclude when running *-all commands
 	ExcludeDirs []string
@@ -364,6 +369,7 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 func NewTerragruntOptions() *TerragruntOptions {
 	return &TerragruntOptions{
 		TerraformPath:                  DefaultWrappedPath,
+		ExcludesFile:                   DefaultExcludesFile,
 		OriginalTerraformCommand:       "",
 		TerraformCommand:               "",
 		AutoInit:                       true,
@@ -550,6 +556,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		JsonOutputFolder:               opts.JsonOutputFolder,
 		AuthProviderCmd:                opts.AuthProviderCmd,
 		SkipOutput:                     opts.SkipOutput,
+		ExcludesFile:                   opts.ExcludesFile,
 	}
 }
 

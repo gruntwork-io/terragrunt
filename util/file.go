@@ -658,3 +658,36 @@ func GetTempDir() (string, error) {
 
 	return tempDir, nil
 }
+
+// GetExcludeDirsFromFile returns a list of directories from the given filename, where each directory path starts on a new line.
+func GetExcludeDirsFromFile(baseDir, filename string) ([]string, error) {
+	filename, err := CanonicalPath(filename, baseDir)
+	if err != nil {
+		return nil, err
+	}
+
+	if !FileExists(filename) || !IsFile(filename) {
+		return nil, nil
+	}
+
+	str, err := ReadFileAsString(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	var dirs []string
+
+	lines := strings.Split(strings.ReplaceAll(str, "\r\n", "\n"), "\n")
+	for _, line := range lines {
+		dir := strings.TrimSpace(line)
+
+		newDirs, err := GlobCanonicalPath(baseDir, dir)
+		if err != nil {
+			return nil, err
+		}
+
+		dirs = append(dirs, newDirs...)
+	}
+
+	return dirs, nil
+}
