@@ -2,6 +2,7 @@ package shell
 
 import (
 	"context"
+
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/options"

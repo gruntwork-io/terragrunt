@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/engine"
 	"io"
 	"net/url"
 	"os"
@@ -12,6 +11,8 @@ import (
 	"os/signal"
 	"strings"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/engine"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
 

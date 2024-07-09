@@ -2,9 +2,10 @@ package shell
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/util"
 	"regexp"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/gruntwork-cli/collections"
 

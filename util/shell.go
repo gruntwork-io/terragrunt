@@ -2,10 +2,11 @@ package util
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/hashicorp/go-multierror"
 	"os/exec"
 	"syscall"
+
+	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/hashicorp/go-multierror"
 )
 
 // IsCommandExecutable - returns true if a command can be executed without errors.

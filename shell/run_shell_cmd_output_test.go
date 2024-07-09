@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/util"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/options"
@@ -63,7 +65,7 @@ func TestCommandOutputPrefix(t *testing.T) {
 	), true)
 }
 
-func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions), assertResults func(string, *CmdOutput), allocateStdout bool) {
+func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions), assertResults func(string, *util.CmdOutput), allocateStdout bool) {
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
@@ -90,8 +92,8 @@ func assertOutputs(
 	expectedAllOutputs []string,
 	expectedStdOutputs []string,
 	expectedStdErrs []string,
-) func(string, *CmdOutput) {
-	return func(allOutput string, out *CmdOutput) {
+) func(string, *util.CmdOutput) {
+	return func(allOutput string, out *util.CmdOutput) {
 		allOutputs := strings.Split(strings.TrimSpace(allOutput), "\n")
 		assert.Equal(t, expectedAllOutputs, allOutputs)
 

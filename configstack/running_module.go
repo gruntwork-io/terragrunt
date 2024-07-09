@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/util"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/terraform"
 

@@ -5,6 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os/exec"
+
+	"google.golang.org/grpc/credentials/insecure"
+
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt-engine-go/engine"
 	"github.com/gruntwork-io/terragrunt-engine-go/proto"
@@ -14,8 +19,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
-	"io"
-	"os/exec"
 )
 
 type ExecutionOptions struct {
@@ -70,8 +73,7 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 		},
 		Cmd: exec.Command(enginePath),
 		GRPCDialOptions: []grpc.DialOption{
-			// TODO: use alternative for insecure
-			grpc.WithInsecure(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		},
 		AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
 	})

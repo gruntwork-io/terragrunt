@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -142,7 +141,7 @@ func TestErrorRetryableOnStdoutError(t *testing.T) {
 	tgOptions.RetryableErrors = retryableErrors
 	tgOptions.AutoRetry = true
 
-	out := &shell.CmdOutput{
+	out := &util.CmdOutput{
 		Stdout: "",
 		Stderr: "error is here",
 	}
@@ -161,7 +160,7 @@ func TestErrorMultipleRetryableOnStderrError(t *testing.T) {
 	tgOptions.RetryableErrors = retryableErrors
 	tgOptions.AutoRetry = true
 
-	out := &shell.CmdOutput{
+	out := &util.CmdOutput{
 		Stdout: "",
 		Stderr: "error is here",
 	}
@@ -180,7 +179,7 @@ func TestEmptyRetryablesOnStderrError(t *testing.T) {
 	tgOptions.RetryableErrors = retryableErrors
 	tgOptions.AutoRetry = true
 
-	out := &shell.CmdOutput{
+	out := &util.CmdOutput{
 		Stdout: "",
 		Stderr: "error is here",
 	}
@@ -199,7 +198,7 @@ func TestErrorRetryableOnStderrError(t *testing.T) {
 	tgOptions.RetryableErrors = retryableErrors
 	tgOptions.AutoRetry = true
 
-	out := &shell.CmdOutput{
+	out := &util.CmdOutput{
 		Stdout: "",
 		Stderr: "error is here",
 	}
@@ -218,7 +217,7 @@ func TestErrorNotRetryableOnStdoutError(t *testing.T) {
 	tgOptions.RetryableErrors = retryableErrors
 	tgOptions.AutoRetry = true
 
-	out := &shell.CmdOutput{
+	out := &util.CmdOutput{
 		Stdout: "error is here",
 		Stderr: "",
 	}
@@ -237,7 +236,7 @@ func TestErrorNotRetryableOnStderrError(t *testing.T) {
 	tgOptions.RetryableErrors = retryableErrors
 	tgOptions.AutoRetry = true
 
-	out := &shell.CmdOutput{
+	out := &util.CmdOutput{
 		Stdout: "",
 		Stderr: "error is here",
 	}
