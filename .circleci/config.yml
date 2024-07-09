@@ -161,9 +161,6 @@ jobs:
   unit_test:
     <<: *defaults
     steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       # Run pre-commit hooks and fail the build if any hook finds required changes.
       - run:
