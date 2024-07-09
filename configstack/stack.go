@@ -243,79 +243,28 @@ func (stack *Stack) syncTerraformCliArgs(terragruntOptions *options.TerragruntOp
 	}
 }
 
+func (stack *Stack) toRunningModules(terraformCommand string) (runningModules, error) {
+	switch terraformCommand {
+	case terraform.CommandNameDestroy:
+		return stack.Modules.toRunningModules(ReverseOrder)
+	default:
+		return stack.Modules.toRunningModules(NormalOrder)
+	}
+}
+
 // getModuleRunGraph converts the module list to a graph that shows the order in which the modules will be
 // applied/destroyed. The return structure is a list of lists, where the nested list represents modules that can be
 // deployed concurrently, and the outer list indicates the order. This will only include those modules that do NOT have
 // the exclude flag set.
 func (stack *Stack) getModuleRunGraph(terraformCommand string) ([]TerraformModules, error) {
-	var moduleRunGraph runningModules
-	var graphErr error
-	switch terraformCommand {
-	case terraform.CommandNameDestroy:
-		moduleRunGraph, graphErr = stack.Modules.toRunningModules(ReverseOrder)
-	default:
-		moduleRunGraph, graphErr = stack.Modules.toRunningModules(NormalOrder)
-	}
-	if graphErr != nil {
-		return nil, graphErr
+	moduleRunGraph, err := stack.toRunningModules(terraformCommand)
+	if err != nil {
+		return nil, err
 	}
 
 	// Set maxDepth for the graph so that we don't get stuck in an infinite loop.
 	const maxDepth = 1000
-
-	// Walk the graph in run order, capturing which groups will run at each iteration. In each iteration, this pops out
-	// the modules that have no dependencies and captures that as a run group.
-	groups := []TerraformModules{}
-	for len(moduleRunGraph) > 0 && len(groups) < maxDepth {
-		currentIterationDeploy := TerraformModules{}
-
-		// next tracks which modules are being deferred to a later run.
-		next := runningModules{}
-		// removeDep tracks which modules are run in the current iteration so that they need to be removed in the
-		// dependency list for the next iteration. This is separately tracked from currentIterationDeploy for
-		// convenience: this tracks the map key of the Dependencies attribute.
-		var removeDep []string
-
-		// Iterate the modules, looking for those that have no dependencies and select them for "running". In the
-		// process, track those that still need to run in a separate map for further processing.
-		for path, module := range moduleRunGraph {
-			// Anything that is already applied is culled from the graph when running, so we ignore them here as well.
-			switch {
-			case module.Module.AssumeAlreadyApplied:
-				removeDep = append(removeDep, path)
-			case len(module.Dependencies) == 0:
-				currentIterationDeploy = append(currentIterationDeploy, module.Module)
-				removeDep = append(removeDep, path)
-			default:
-				next[path] = module
-			}
-		}
-
-		// Go through the remaining module and remove the dependencies that were selected to run in this current
-		// iteration.
-		for _, module := range next {
-			for _, path := range removeDep {
-				_, hasDep := module.Dependencies[path]
-				if hasDep {
-					delete(module.Dependencies, path)
-				}
-			}
-		}
-
-		// Sort the group by path so that it is easier to read and test.
-		sort.Slice(
-			currentIterationDeploy,
-			func(i, j int) bool {
-				return currentIterationDeploy[i].Path < currentIterationDeploy[j].Path
-			},
-		)
-
-		// Finally, update the trackers so that the next iteration runs.
-		moduleRunGraph = next
-		if len(currentIterationDeploy) > 0 {
-			groups = append(groups, currentIterationDeploy)
-		}
-	}
+	groups := moduleRunGraph.toTerraformModuleGroups(maxDepth)
 	return groups, nil
 }
 

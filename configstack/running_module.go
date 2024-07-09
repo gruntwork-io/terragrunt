@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 
 	"github.com/gruntwork-io/go-commons/errors"
@@ -162,6 +163,65 @@ func (module *runningModule) moduleFinished(moduleErr error) {
 }
 
 type runningModules map[string]*runningModule
+
+func (modules runningModules) toTerraformModuleGroups(maxDepth int) []TerraformModules {
+	// Walk the graph in run order, capturing which groups will run at each iteration. In each iteration, this pops out
+	// the modules that have no dependencies and captures that as a run group.
+	groups := []TerraformModules{}
+
+	for len(modules) > 0 && len(groups) < maxDepth {
+		currentIterationDeploy := TerraformModules{}
+
+		// next tracks which modules are being deferred to a later run.
+		next := runningModules{}
+		// removeDep tracks which modules are run in the current iteration so that they need to be removed in the
+		// dependency list for the next iteration. This is separately tracked from currentIterationDeploy for
+		// convenience: this tracks the map key of the Dependencies attribute.
+		var removeDep []string
+
+		// Iterate the modules, looking for those that have no dependencies and select them for "running". In the
+		// process, track those that still need to run in a separate map for further processing.
+		for path, module := range modules {
+			// Anything that is already applied is culled from the graph when running, so we ignore them here as well.
+			switch {
+			case module.Module.AssumeAlreadyApplied:
+				removeDep = append(removeDep, path)
+			case len(module.Dependencies) == 0:
+				currentIterationDeploy = append(currentIterationDeploy, module.Module)
+				removeDep = append(removeDep, path)
+			default:
+				next[path] = module
+			}
+		}
+
+		// Go through the remaining module and remove the dependencies that were selected to run in this current
+		// iteration.
+		for _, module := range next {
+			for _, path := range removeDep {
+				_, hasDep := module.Dependencies[path]
+				if hasDep {
+					delete(module.Dependencies, path)
+				}
+			}
+		}
+
+		// Sort the group by path so that it is easier to read and test.
+		sort.Slice(
+			currentIterationDeploy,
+			func(i, j int) bool {
+				return currentIterationDeploy[i].Path < currentIterationDeploy[j].Path
+			},
+		)
+
+		// Finally, update the trackers so that the next iteration runs.
+		modules = next
+		if len(currentIterationDeploy) > 0 {
+			groups = append(groups, currentIterationDeploy)
+		}
+	}
+
+	return groups
+}
 
 // Loop through the map of runningModules and for each module M:
 //
