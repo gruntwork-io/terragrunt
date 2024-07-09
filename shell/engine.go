@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt-engine-go/engine"
-	"github.com/gruntwork-io/terragrunt-engine-go/types"
+	"github.com/gruntwork-io/terragrunt-engine-go/proto"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
@@ -54,7 +54,7 @@ func RunEngine(
 	return cmdOutput, nil
 }
 
-func createEngine(terragruntOptions *options.TerragruntOptions) (*engine.CommandExecutorClient, *plugin.Client, error) {
+func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineClient, *plugin.Client, error) {
 	enginePath := terragruntOptions.Engine.Source
 	client := plugin.NewClient(&plugin.ClientConfig{
 		HandshakeConfig: plugin.HandshakeConfig{
@@ -63,7 +63,7 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*engine.Command
 			MagicCookieValue: "terragrunt",
 		},
 		Plugins: map[string]plugin.Plugin{
-			"plugin": &types.TerragruntGRPCEngine{},
+			"plugin": &engine.TerragruntGRPCEngine{},
 		},
 		Cmd: exec.Command(enginePath),
 		GRPCDialOptions: []grpc.DialOption{
@@ -82,11 +82,11 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*engine.Command
 		return nil, nil, errors.WithStackTrace(err)
 	}
 
-	terragruntEngine := rawClient.(engine.CommandExecutorClient)
+	terragruntEngine := rawClient.(proto.EngineClient)
 	return &terragruntEngine, client, nil
 }
 
-func run(ctx context.Context, runOptions *EngineRunOptions, client *engine.CommandExecutorClient) (*CmdOutput, error) {
+func run(ctx context.Context, runOptions *EngineRunOptions, client *proto.EngineClient) (*CmdOutput, error) {
 	terragruntOptions := runOptions.TerragruntOptions
 
 	meta, err := convertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
@@ -94,7 +94,7 @@ func run(ctx context.Context, runOptions *EngineRunOptions, client *engine.Comma
 		return nil, errors.WithStackTrace(err)
 	}
 
-	response, err := (*client).Run(ctx, &engine.RunRequest{
+	response, err := (*client).Run(ctx, &proto.RunRequest{
 		Command:           runOptions.Command,
 		Args:              runOptions.Args,
 		AllocatePseudoTty: runOptions.AllocatePseudoTty,
@@ -155,14 +155,14 @@ func run(ctx context.Context, runOptions *EngineRunOptions, client *engine.Comma
 	return &cmdOutput, nil
 }
 
-func engineInit(ctx context.Context, runOptions *EngineRunOptions, client *engine.CommandExecutorClient) error {
+func engineInit(ctx context.Context, runOptions *EngineRunOptions, client *proto.EngineClient) error {
 	terragruntOptions := runOptions.TerragruntOptions
 	meta, err := convertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 	terragruntOptions.Logger.Debugf("Running init for engine in %s", runOptions.WorkingDir)
-	result, err := (*client).Init(ctx, &engine.InitRequest{
+	result, err := (*client).Init(ctx, &proto.InitRequest{
 		WorkingDir: runOptions.WorkingDir,
 		EnvVars:    runOptions.TerragruntOptions.Env,
 		Meta:       meta,
@@ -197,14 +197,14 @@ func engineInit(ctx context.Context, runOptions *EngineRunOptions, client *engin
 	return nil
 }
 
-func shutdownEngine(ctx context.Context, runOptions *EngineRunOptions, terragruntEngine *engine.CommandExecutorClient) error {
+func shutdownEngine(ctx context.Context, runOptions *EngineRunOptions, terragruntEngine *proto.EngineClient) error {
 	terragruntOptions := runOptions.TerragruntOptions
 
 	meta, err := convertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
-	result, err := (*terragruntEngine).Shutdown(ctx, &engine.ShutdownRequest{
+	result, err := (*terragruntEngine).Shutdown(ctx, &proto.ShutdownRequest{
 		WorkingDir: runOptions.WorkingDir,
 		EnvVars:    runOptions.TerragruntOptions.Env,
 		Meta:       meta,
