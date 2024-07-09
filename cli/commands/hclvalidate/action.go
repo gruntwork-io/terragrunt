@@ -39,18 +39,18 @@ func Run(ctx context.Context, opts *Options) (er error) {
 		return err
 	}
 
-	stackErr := stack.Run(ctx, opts.TerragruntOptions)
-
-	if len(diags) > 0 {
-		if err := writeDiagnostics(opts, diags); err != nil {
-			return err
-		}
+	if err := stack.Run(ctx, opts.TerragruntOptions); err != nil {
+		return nil
 	}
 
-	return stackErr
+	return writeDiagnostics(opts, diags)
 }
 
 func writeDiagnostics(opts *Options, diags diagnostic.Diagnostics) error {
+	if len(diags) == 0 {
+		return nil
+	}
+
 	render := view.NewHumanRender(opts.DisableLogColors)
 	if opts.JSONOutput {
 		render = view.NewJSONRender()
