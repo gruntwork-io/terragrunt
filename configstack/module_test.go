@@ -13,8 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// @SONAR_STOP@
-
 func TestGraph(t *testing.T) {
 	a := &TerraformModule{Path: "a"}
 	b := &TerraformModule{Path: "b"}
@@ -1232,5 +1230,3 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 	assert.True(t, eRan)
 	assert.True(t, fRan)
 }
-
-// @SONAR_START@

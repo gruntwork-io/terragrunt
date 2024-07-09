@@ -17,8 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// @SONAR_STOP@
-
 func TestFindStackInSubfolders(t *testing.T) {
 	t.Parallel()
 
@@ -1180,5 +1178,3 @@ func TestCircularDependencies(t *testing.T) {
 		t.Errorf("Expected %v, got %v", expected, result)
 	}
 }
-
-// @SONAR_START@
