@@ -200,6 +200,8 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 				terragruntOptions.Logger.Debugf("Assuming role %s", terragruntOptions.IAMRoleOptions.RoleARN)
 				sess.Config.Credentials = getSTSCredentialsFromIAMRoleOptions(sess, terragruntOptions.IAMRoleOptions)
 			}
+		} else if creds := getCredentialsFromEnvs(terragruntOptions); creds != nil {
+			sess.Config.Credentials = creds
 		}
 	} else {
 		sess, err = CreateAwsSessionFromConfig(config, terragruntOptions)

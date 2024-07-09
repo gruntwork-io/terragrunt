@@ -1,6 +1,8 @@
 package util
 
-import "sync"
+import (
+	"sync"
+)
 
 // KeyLocks manages a map of locks, each associated with a string key.
 type KeyLocks struct {
@@ -15,15 +17,22 @@ func NewKeyLocks() *KeyLocks {
 	}
 }
 
-// Lock acquires the lock for the given key.
-func (kl *KeyLocks) Lock(key string) {
+// getOrCreateLock retrieves the lock for the given key, creating it if it doesn't exist.
+func (kl *KeyLocks) getOrCreateLock(key string) *sync.Mutex {
 	kl.masterLock.Lock()
+	defer kl.masterLock.Unlock()
+
 	lock, ok := kl.locks[key]
 	if !ok {
 		lock = &sync.Mutex{}
 		kl.locks[key] = lock
 	}
-	kl.masterLock.Unlock()
+	return lock
+}
+
+// Lock acquires the lock for the given key.
+func (kl *KeyLocks) Lock(key string) {
+	lock := kl.getOrCreateLock(key)
 	lock.Lock()
 }
 

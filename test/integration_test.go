@@ -202,7 +202,6 @@ const (
 	TEST_FIXTURE_OUT_DIR                                                     = "fixture-out-dir"
 	TEST_FIXTURE_SOPS_ERRORS                                                 = "fixture-sops-errors"
 	TEST_FIXTURE_AUTH_PROVIDER_CMD                                           = "fixture-auth-provider-cmd"
-	TEST_FIXTURE_AUTH_PROVIDER_CMD_REMOTE_STATE                              = "fixture-auth-provider-cmd-remote-state"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -4241,11 +4240,11 @@ func TestReadTerragruntAuthProviderCmd(t *testing.T) {
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_AUTH_PROVIDER_CMD)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_AUTH_PROVIDER_CMD)
-	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_AUTH_PROVIDER_CMD)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_AUTH_PROVIDER_CMD, "multiple-apps")
 	appPath := util.JoinPath(rootPath, "app1")
-	mockAuthCmd := filepath.Join(rootPath, "mock-auth-cmd.sh")
+	mockAuthCmd := filepath.Join(tmpEnvPath, TEST_FIXTURE_AUTH_PROVIDER_CMD, "mock-auth-cmd.sh")
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", rootPath, mockAuthCmd))
+	runTerragrunt(t, fmt.Sprintf(`terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s`, rootPath, mockAuthCmd))
 
 	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -json --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", appPath, mockAuthCmd))
 	assert.NoError(t, err)
