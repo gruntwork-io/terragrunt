@@ -1094,7 +1094,7 @@ When passed in, run `hclfmt` only on specified hcl file.
 
 - [hclvalidate](#hclvalidate)
 
-When passed in, `hclvalidate` renders the output in the JSON representation.
+When passed in, render the output in the JSON format.
 
 ### terragrunt-hclvalidate-invalid
 
@@ -1104,7 +1104,7 @@ When passed in, `hclvalidate` renders the output in the JSON representation.
 
 - [hclvalidate](#hclvalidate)
 
-When passed in, `hclvalidate` only outputs the paths of invalid configuration files.
+When passed in, output a list of files with invalid configuration.
 
 ### terragrunt-override-attr
 
