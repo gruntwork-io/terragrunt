@@ -57,6 +57,7 @@ func RunEngine(
 
 func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineClient, *plugin.Client, error) {
 	enginePath := terragruntOptions.Engine.Source
+	terragruntOptions.Logger.Debugf("Creating engine %s", enginePath)
 	client := plugin.NewClient(&plugin.ClientConfig{
 		HandshakeConfig: plugin.HandshakeConfig{
 			ProtocolVersion: 1,
