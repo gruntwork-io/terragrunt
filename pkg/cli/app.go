@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"github.com/gruntwork-io/terragrunt/engine"
 	"os"
 	"strings"
 
@@ -112,6 +113,8 @@ func (app *App) RunContext(ctx context.Context, arguments []string) (err error) 
 
 		args := Args(parentCtx.Args().Slice())
 		ctx := newContext(parentCtx.Context, app)
+
+		defer engine.Shutdown(ctx)
 
 		if app.Autocomplete {
 			if err := app.setupAutocomplete(args); err != nil {

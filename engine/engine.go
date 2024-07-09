@@ -6,7 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"strings"
+	"sync"
 
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -21,6 +24,10 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
+var (
+	engineClients = sync.Map{}
+)
+
 type ExecutionOptions struct {
 	TerragruntOptions *options.TerragruntOptions
 	CmdStdout         io.Writer
@@ -32,30 +39,64 @@ type ExecutionOptions struct {
 	Args              []string
 }
 
-func RunEngine(
+type engineInstance struct {
+	terragruntEngine *proto.EngineClient
+	client           *plugin.Client
+	executionOptions *ExecutionOptions
+}
+
+func IsEngineEnabled() bool {
+	switch strings.ToLower(os.Getenv("TG_EXPERIMENTAL_ENGINE")) {
+	case "1", "yes", "true", "on":
+		return true
+	}
+	return false
+}
+
+func Run(
 	ctx context.Context,
 	runOptions *ExecutionOptions,
 ) (*util.CmdOutput, error) {
-	terragruntEngine, client, err := createEngine(runOptions.TerragruntOptions)
-	defer client.Kill()
+	workingDir := runOptions.TerragruntOptions.WorkingDir
+	instance, found := engineClients.Load(workingDir)
+	// initialize engine for working directory
+	if !found {
+		terragruntEngine, client, err := createEngine(runOptions.TerragruntOptions)
+		if err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
+		engineClients.Store(workingDir, &engineInstance{
+			terragruntEngine: terragruntEngine,
+			client:           client,
+			executionOptions: runOptions,
+		})
+		instance, _ = engineClients.Load(workingDir)
+		if err := initialize(ctx, runOptions, terragruntEngine); err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
+	}
+
+	terragruntEngine := instance.(*engineInstance).terragruntEngine
+	cmdOutput, err := invoke(ctx, runOptions, terragruntEngine)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
-	}
-
-	if err := initialize(ctx, runOptions, terragruntEngine); err != nil {
-		return nil, errors.WithStackTrace(err)
-	}
-
-	cmdOutput, err := run(ctx, runOptions, terragruntEngine)
-	if err != nil {
-		return nil, errors.WithStackTrace(err)
-	}
-
-	if err := shutdown(ctx, runOptions, terragruntEngine); err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
 
 	return cmdOutput, nil
+}
+
+func Shutdown(ctx context.Context) {
+	// iterate over all engine instances and shutdown
+	engineClients.Range(func(key, value interface{}) bool {
+		instance := value.(*engineInstance)
+		// invoke shutdown on engine
+		if err := shutdown(ctx, instance.executionOptions, instance.terragruntEngine); err != nil {
+			instance.executionOptions.TerragruntOptions.Logger.Errorf("Error shutting down engine: %v", err)
+		}
+		// kill grpc client
+		instance.client.Kill()
+		return true
+	})
 }
 
 func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineClient, *plugin.Client, error) {
@@ -91,7 +132,7 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 	return &terragruntEngine, client, nil
 }
 
-func run(ctx context.Context, runOptions *ExecutionOptions, client *proto.EngineClient) (*util.CmdOutput, error) {
+func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.EngineClient) (*util.CmdOutput, error) {
 	terragruntOptions := runOptions.TerragruntOptions
 
 	meta, err := convertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
@@ -243,7 +284,6 @@ func shutdown(ctx context.Context, runOptions *ExecutionOptions, terragruntEngin
 	return nil
 }
 
-// TODO: investigate better env vars conversion
 func convertMetaToProtobuf(meta map[string]interface{}) (map[string]*anypb.Any, error) {
 	protoMeta := make(map[string]*anypb.Any)
 	if meta == nil {
