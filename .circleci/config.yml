@@ -9,6 +9,7 @@ env: &env
     GRUNTWORK_INSTALLER_VERSION: v0.0.39
     MODULE_CI_VERSION: v0.57.0
     GOPRIVATE: "github.com/gruntwork-io/*"
+    GIT_SSH_COMMAND: "ssh -i /home/circleci/.ssh/id_rsa_78a64a8391239adcd479c9be8b1903c7 -o IdentitiesOnly=yes"
 
 defaults: &defaults
   steps:
@@ -189,7 +190,6 @@ jobs:
       - run:
           command: |
             mkdir -p logs
-            export GIT_SSH_COMMAND="ssh -i /home/circleci/.ssh/id_rsa_78a64a8391239adcd479c9be8b1903c7 -o IdentitiesOnly=yes"
             go mod tidy
             run-go-tests --parallelism 1 --packages "$(go list ./... | grep -v /test | tr '\n' ' ')"  | tee logs/unit.log
             go test -run=TestParseDependencyBlockMultiple -race ./config | tee -a logs/unit.log
