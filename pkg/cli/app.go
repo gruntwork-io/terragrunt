@@ -2,9 +2,10 @@ package cli
 
 import (
 	"context"
-	"github.com/gruntwork-io/terragrunt/engine"
 	"os"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/engine"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/urfave/cli/v2"
