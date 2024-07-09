@@ -2,6 +2,7 @@ package shell
 
 import (
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/util"
 	"regexp"
 	"strings"
 
@@ -45,7 +46,7 @@ func ExplainError(err error) string {
 		}
 		message := originalError.Error()
 		// extract process output, if it is the case
-		processError, ok := originalError.(ProcessExecutionError)
+		processError, ok := originalError.(util.ProcessExecutionError)
 		if ok {
 			errorOutput := processError.Stderr
 			stdOut := processError.StdOut

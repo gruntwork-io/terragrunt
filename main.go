@@ -30,7 +30,7 @@ func checkForErrorsAndExit(err error) {
 		util.GlobalFallbackLogEntry.Errorf(err.Error())
 
 		// exit with the underlying error code
-		exitCode, exitCodeErr := shell.GetExitCode(err)
+		exitCode, exitCodeErr := util.GetExitCode(err)
 		if exitCodeErr != nil {
 			exitCode = 1
 			util.GlobalFallbackLogEntry.Errorf("Unable to determine underlying exit code, so Terragrunt will exit with error code 1")

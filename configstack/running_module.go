@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/util"
 	"os"
 	"path/filepath"
 	"sync"
@@ -15,7 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -319,7 +319,7 @@ func (err DependencyFinishedWithError) Error() string {
 }
 
 func (this DependencyFinishedWithError) ExitStatus() (int, error) {
-	if exitCode, err := shell.GetExitCode(this.Err); err == nil {
+	if exitCode, err := util.GetExitCode(this.Err); err == nil {
 		return exitCode, nil
 	}
 	return -1, this

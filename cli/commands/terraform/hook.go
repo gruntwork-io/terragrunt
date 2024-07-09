@@ -35,7 +35,7 @@ func processErrorHooks(ctx context.Context, hooks []config.ErrorHook, terragrunt
 				// https://github.com/gruntwork-io/terragrunt/issues/2045
 				originalError := errors.Unwrap(e)
 				if originalError != nil {
-					processError, cast := originalError.(shell.ProcessExecutionError)
+					processError, cast := originalError.(util.ProcessExecutionError)
 					if cast {
 						errorMessage = fmt.Sprintf("%s\n%s", processError.StdOut, processError.Stderr)
 					}

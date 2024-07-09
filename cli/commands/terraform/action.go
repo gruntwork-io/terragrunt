@@ -439,7 +439,7 @@ func runTerraformWithRetry(ctx context.Context, terragruntOptions *options.Terra
 }
 
 // isRetryable checks whether there was an error and if the output matches any of the configured RetryableErrors
-func isRetryable(opts *options.TerragruntOptions, out *shell.CmdOutput) bool {
+func isRetryable(opts *options.TerragruntOptions, out *util.CmdOutput) bool {
 	if !opts.AutoRetry {
 		return false
 	}
