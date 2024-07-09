@@ -11,18 +11,18 @@ import (
 const (
 	CommandName = "hclvalidate"
 
-	InvalidConfigPathFlagName   = "invalid-config-path"
-	InvalidConfigPathEnvVarName = "TERRAGRUNT_INVALID_CONFIG_PATH"
+	InvalidFlagName   = "terragrunt-hclvalidate-invalid"
+	InvalidEnvVarName = "TERRAGRUNT_HCLVALIDATE_INVALID"
 
-	JSONOutputFlagName   = "json"
-	JSONOutputEnvVarName = "TERRAGRUNT_JSON"
+	JSONOutputFlagName   = "terragrunt-hclvalidate-json"
+	JSONOutputEnvVarName = "TERRAGRUNT_HCLVALIDATE_JSON"
 )
 
 func NewFlags(opts *Options) cli.Flags {
 	return cli.Flags{
 		&cli.BoolFlag{
-			Name:        InvalidConfigPathFlagName,
-			EnvVar:      InvalidConfigPathEnvVarName,
+			Name:        InvalidFlagName,
+			EnvVar:      InvalidEnvVarName,
 			Usage:       "Show the list of invalid configuration paths.",
 			Destination: &opts.InvalidConfigPath,
 		},
@@ -40,7 +40,7 @@ func NewCommand(generalOpts *options.TerragruntOptions) *cli.Command {
 
 	return &cli.Command{
 		Name:   CommandName,
-		Usage:  "Recursively find hcl files and validate them.",
+		Usage:  "Find all hcl files from the config stack and validate them.",
 		Flags:  NewFlags(opts).Sort(),
 		Action: func(ctx *cli.Context) error { return Run(ctx, opts) },
 	}

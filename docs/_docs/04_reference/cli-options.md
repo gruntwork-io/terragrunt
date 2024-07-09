@@ -25,6 +25,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [validate-inputs](#validate-inputs)
   - [graph-dependencies](#graph-dependencies)
   - [hclfmt](#hclfmt)
+  - [hclvalidate](#hclvalidate)
   - [aws-provider-patch](#aws-provider-patch)
   - [render-json](#render-json)
   - [output-module-groups](#output-module-groups)
@@ -61,6 +62,8 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-check](#terragrunt-check)
   - [terragrunt-diff](#terragrunt-diff)
   - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
+  - [terragrunt-hclvalidate-json](#terragrunt-hclvalidate-json)
+  - [terragrunt-hclvalidate-invalid](#terragrunt-hclvalidate-invalid)
   - [terragrunt-override-attr](#terragrunt-override-attr)
   - [terragrunt-json-out](#terragrunt-json-out)
   - [terragrunt-json-disable-dependent-modules](#terragrunt-json-disable-dependent-modules)
@@ -97,6 +100,7 @@ Terragrunt supports the following CLI commands:
 - [validate-inputs](#validate-inputs)
 - [graph-dependencies](#graph-dependencies)
 - [hclfmt](#hclfmt)
+- [hclvalidate](#hclvalidate)
 - [aws-provider-patch](#aws-provider-patch)
 - [render-json](#render-json)
 - [output-module-groups](#output-module-groups)
@@ -405,6 +409,19 @@ terragrunt hclfmt
 
 This will recursively search the current working directory for any folders that contain Terragrunt configuration files
 and run the equivalent of `terraform fmt` on them.
+
+### hclvalidate
+
+Find all hcl files from the configuration stack and validate them.
+
+Example:
+
+```bash
+terragrunt hclvalidate
+```
+
+This will search all hcl files from the configuration stack in the current working directory and run the equivalent
+of `terraform validate` on them.
 
 ### aws-provider-patch
 
@@ -728,6 +745,8 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
   - [terragrunt-check](#terragrunt-check)
   - [terragrunt-diff](#terragrunt-diff)
   - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
+  - [terragrunt-hclvalidate-json](#terragrunt-hclvalidate-json)
+  - [terragrunt-hclvalidate-invalid](#terragrunt-hclvalidate-invalid)
   - [terragrunt-override-attr](#terragrunt-override-attr)
   - [terragrunt-json-out](#terragrunt-json-out)
   - [terragrunt-json-disable-dependent-modules](#terragrunt-json-disable-dependent-modules)
@@ -1066,6 +1085,26 @@ When passed in, running `hclfmt` will print diff between original and modified f
 - [hclfmt](#hclfmt)
 
 When passed in, run `hclfmt` only on specified hcl file.
+
+### terragrunt-hclvalidate-json
+
+**CLI Arg**: `--terragrunt-hclvalidate-json`<br/>
+**Environment Variable**: `TERRAGRUNT_HCLVALIDATE_JSON` (set to `true`)<br/>
+**Commands**:
+
+- [hclvalidate](#hclvalidate)
+
+When passed in, `hclvalidate` renders the output in the JSON representation.
+
+### terragrunt-hclvalidate-invalid
+
+**CLI Arg**: `--terragrunt-hclvalidate-invalid`<br/>
+**Environment Variable**: `TERRAGRUNT_HCLVALIDATE_INVALID` (set to `true`)<br/>
+**Commands**:
+
+- [hclvalidate](#hclvalidate)
+
+When passed in, `hclvalidate` only outputs the paths of invalid configuration files.
 
 ### terragrunt-override-attr
 
