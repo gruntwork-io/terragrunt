@@ -337,9 +337,6 @@ jobs:
     resource_class: xlarge
     <<: *defaults
     steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       - run: |
          export GOPRIVATE="github.com/gruntwork-io/*"
@@ -355,9 +352,6 @@ jobs:
       xcode: 15.3.0
     resource_class: macos.m1.medium.gen1
     steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       - attach_workspace:
           at: .
