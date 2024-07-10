@@ -164,6 +164,8 @@ jobs:
       - run:
           name: run precommit
           command: |
+            export GOPRIVATE="github.com/gruntwork-io/*"
+            export GIT_SSH_COMMAND="ssh -i /home/circleci/.ssh/id_rsa_78a64a8391239adcd479c9be8b1903c7 -o IdentitiesOnly=yes"
             # Oct 26, 2019: Install the last known working version of pre-commit. Also, we have to pin the version of
             # transitive dependencies that are being pulled in which released new versions that are no longer compatible
             # with any python < 3.6.
