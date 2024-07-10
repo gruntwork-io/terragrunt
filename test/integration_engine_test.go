@@ -15,10 +15,12 @@ import (
 const (
 	LocalEngineBinaryPath  = "terragrunt-iac-engine-opentofu_v0.0.1"
 	TestFixtureLocalEngine = "fixture-engine/local-engine"
+
+	EnvVarExperimental = "TG_EXPERIMENTAL_ENGINE"
 )
 
 func TestEngineInvocation(t *testing.T) {
-	t.Parallel()
+	t.Setenv(EnvVarExperimental, "1")
 
 	cleanupTerraformFolder(t, TestFixtureLocalEngine)
 	tmpEnvPath := copyEnvironment(t, TestFixtureLocalEngine)
