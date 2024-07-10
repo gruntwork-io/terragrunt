@@ -10,10 +10,6 @@ env: &env
     MODULE_CI_VERSION: v0.57.0
 
 defaults: &defaults
-  steps:
-    - add_ssh_keys:
-        fingerprints:
-          - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
   docker:
     - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.21.9-tf1.5-tg58.8-pck1.8-ci56.0
 
@@ -161,6 +157,9 @@ jobs:
   unit_test:
     <<: *defaults
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       # Run pre-commit hooks and fail the build if any hook finds required changes.
       - run:
@@ -204,6 +203,9 @@ jobs:
     resource_class: xlarge
     <<: *defaults
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       - run:
           <<: *install_tflint
@@ -222,6 +224,9 @@ jobs:
     resource_class: xlarge
     <<: *defaults
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       - run:
           <<: *install_tflint
@@ -242,6 +247,9 @@ jobs:
     resource_class: xlarge
     <<: *defaults
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       - run:
           <<: *install_terraform_latest
@@ -262,6 +270,9 @@ jobs:
     resource_class: xlarge
     <<: *defaults
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       - run:
           <<: *install_tofu
@@ -287,6 +298,9 @@ jobs:
     resource_class: xlarge
     <<: *defaults
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       - run:
           <<: *install_tofu
@@ -314,6 +328,9 @@ jobs:
     resource_class: large
     <<: *defaults
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       - run:
           <<: *install_tofu
@@ -341,6 +358,9 @@ jobs:
     resource_class: xlarge
     <<: *defaults
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       - run: |
          export GOPRIVATE="github.com/gruntwork-io/*"
