@@ -173,11 +173,14 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 
 	stdout := io.MultiWriter(cmdStdout, &stdoutBuf)
 	stderr := io.MultiWriter(cmdStderr, &stderrBuf)
-
+	// read stdout and stderr from engine
 	var resultCode = 0
 	for {
 		runResp, err := response.Recv()
 		if err != nil {
+			break
+		}
+		if runResp == nil {
 			break
 		}
 		if runResp.Stdout != "" {

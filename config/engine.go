@@ -21,3 +21,19 @@ func (c *EngineConfig) Clone() *EngineConfig {
 		Meta:    c.Meta,
 	}
 }
+
+// Merge merges the EngineConfig with another EngineConfig
+func (c *EngineConfig) Merge(engine *EngineConfig) {
+	if engine.Source != "" {
+		c.Source = engine.Source
+	}
+	if engine.Version != "" {
+		c.Version = engine.Version
+	}
+	if engine.Type != "" {
+		c.Type = engine.Type
+	}
+	if engine.Meta != nil {
+		c.Meta = engine.Meta
+	}
+}
