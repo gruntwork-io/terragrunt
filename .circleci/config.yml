@@ -575,6 +575,16 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
             - TERRAGRUNT_ENGINE__circle-ci
+      - integration_test_tofu_engine:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+            - APPLE__OSX__code-signing
+            - TERRAGRUNT_ENGINE__circle-ci
       - run_markdownlint:
           filters:
             tags:
