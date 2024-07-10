@@ -1288,7 +1288,16 @@ func (conf *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 	if conf.Engine == nil {
 		return nil, nil
 	}
-	meta, _ := parseCtyValueToMap(*conf.Engine.Meta)
+	// in case of Meta is null, set empty meta
+	var meta = map[string]interface{}{}
+	if conf.Engine.Meta != nil {
+		parsedMeta, err := parseCtyValueToMap(*conf.Engine.Meta)
+		if err != nil {
+			return nil, err
+		}
+		meta = parsedMeta
+	}
+
 	return &options.EngineOptions{
 		Source:  conf.Engine.Source,
 		Version: conf.Engine.Version,

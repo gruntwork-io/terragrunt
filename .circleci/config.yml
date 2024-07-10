@@ -54,6 +54,17 @@ install_tflint: &install_tflint
     popd
     tflint --version
 
+
+install_tofu_engine: &install_tofu_engine
+  name: Install OpenTofu Engine
+  command: |
+    export REPO="gruntwork-io/terragrunt-engine-opentofu"
+    export TAG="v0.0.1"
+    export ASSET_NAME="terragrunt-iac-engine-opentofu_rpc_v0.0.1_linux_amd64.zip"
+    gh api --header 'Accept: application/octet-stream' "repos/$REPO/releases/assets/$ASSET_ID" --output "$ASSET_NAME"
+    ls -lahrt
+    unzip "$OUTPUT_DIR/$ASSET_NAME" -d "."
+
 setup_test_environment: &setup_test_environment
   name: Setup integration tests environment
   command: |
@@ -320,6 +331,40 @@ jobs:
           environment:
             TERRAGRUNT_TFPATH: tofu
             TERRAGRUNT_PROVIDER_CACHE: "1"
+      - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
+  integration_test_tofu_engine:
+    resource_class: xlarge
+    <<: *defaults
+    steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
+      - checkout
+      - run:
+          <<: *install_tofu
+      - run:
+          <<: *install_tofu_engine
+      - run:
+          <<: *install_tflint
+      - run:
+          <<: *setup_test_environment
+      - run:
+          # Remove terraform
+          sudo rm -f $(which terraform)
+      - run:
+          name: Run engine integration tests
+          command: |
+            run-go-tests --packages "-tags=engine $(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
+          no_output_timeout: 30m
+          environment:
+            TERRAGRUNT_TFPATH: tofu
+            TG_EXPERIMENTAL_ENGINE: "1"
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
