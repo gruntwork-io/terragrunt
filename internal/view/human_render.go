@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/mitchellh/colorstring"
@@ -54,7 +55,11 @@ func (render *HumanRender) Diagnostics(diags diagnostic.Diagnostics) (string, er
 	var buf bytes.Buffer
 
 	for _, diag := range diags {
-		if str := render.Diagnostic(diag); str != "" {
+		str, err := render.Diagnostic(diag)
+		if err != nil {
+			return "", err
+		}
+		if str != "" {
 			buf.WriteString(str)
 			buf.WriteByte('\n')
 		}
@@ -64,7 +69,7 @@ func (render *HumanRender) Diagnostics(diags diagnostic.Diagnostics) (string, er
 }
 
 // Diagnostic formats a single diagnostic message.
-func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) string {
+func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) (string, error) {
 	var buf bytes.Buffer
 
 	// these leftRule* variables are markers for the beginning of the lines
@@ -101,9 +106,15 @@ func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) string {
 	// We don't wrap the summary, since we expect it to be terse, and since
 	// this is where we put the text of a native Go error it may not always
 	// be pure text that lends itself well to word-wrapping.
-	fmt.Fprintf(&buf, render.colorize.Color("[bold]%s[reset]\n\n"), diag.Summary)
+	if _, err := fmt.Fprintf(&buf, render.colorize.Color("[bold]%s[reset]\n\n"), diag.Summary); err != nil {
+		return "", errors.WithStackTrace(err)
+	}
 
-	buf.WriteString(render.SourceSnippets(diag))
+	sourceSnippets, err := render.SourceSnippets(diag)
+	if err != nil {
+		return "", err
+	}
+	buf.WriteString(sourceSnippets)
 
 	if diag.Detail != "" {
 		paraWidth := render.width - leftRuleWidth - 1 // leave room for the left rule
@@ -113,10 +124,14 @@ func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) string {
 				if !strings.HasPrefix(line, " ") {
 					line = wordwrap.WrapString(line, uint(paraWidth))
 				}
-				fmt.Fprintf(&buf, "%s\n", line)
+				if _, err := fmt.Fprintf(&buf, "%s\n", line); err != nil {
+					return "", errors.WithStackTrace(err)
+				}
 			}
 		} else {
-			fmt.Fprintf(&buf, "%s\n", diag.Detail)
+			if _, err := fmt.Fprintf(&buf, "%s\n", diag.Detail); err != nil {
+				return "", errors.WithStackTrace(err)
+			}
 		}
 	}
 
@@ -142,16 +157,16 @@ func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) string {
 	}
 	ruleBuf.WriteString(leftRuleEnd)
 
-	return ruleBuf.String()
+	return ruleBuf.String(), nil
 }
 
-func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) string {
+func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, error) {
 	if diag.Range == nil || diag.Snippet == nil {
 		// This should generally not happen, as long as sources are always
 		// loaded through the main loader. We may load things in other
 		// ways in weird cases, so we'll tolerate it at the expense of
 		// a not-so-helpful error message.
-		return fmt.Sprintf("  on %s line %d:\n  (source code not available)\n", diag.Range.Filename, diag.Range.Start.Line)
+		return fmt.Sprintf("  on %s line %d:\n  (source code not available)\n", diag.Range.Filename, diag.Range.Start.Line), nil
 	}
 
 	var (
@@ -164,7 +179,9 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) string {
 	if snippet.Context != "" {
 		contextStr = fmt.Sprintf(", in %s", snippet.Context)
 	}
-	fmt.Fprintf(buf, "  on %s line %d%s:\n", diag.Range.Filename, diag.Range.Start.Line, contextStr)
+	if _, err := fmt.Fprintf(buf, "  on %s line %d%s:\n", diag.Range.Filename, diag.Range.Start.Line, contextStr); err != nil {
+		return "", errors.WithStackTrace(err)
+	}
 
 	// Split the snippet and render the highlighted section with underlines
 	start := snippet.HighlightStartOffset
@@ -200,11 +217,13 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) string {
 	// Split the snippet into lines and render one at a time
 	lines := strings.Split(code, "\n")
 	for i, line := range lines {
-		fmt.Fprintf(
+		if _, err := fmt.Fprintf(
 			buf, "%4d: %s\n",
 			snippet.StartLine+i,
 			line,
-		)
+		); err != nil {
+			return "", errors.WithStackTrace(err)
+		}
 	}
 
 	if len(snippet.Values) > 0 || (snippet.FunctionCall != nil && snippet.FunctionCall.Signature != nil) {
@@ -222,7 +241,9 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) string {
 		fmt.Fprint(buf, render.colorize.Color("    [dark_gray]├────────────────[reset]\n"))
 		if callInfo := snippet.FunctionCall; callInfo != nil && callInfo.Signature != nil {
 
-			fmt.Fprintf(buf, render.colorize.Color("    [dark_gray]│[reset] while calling [bold]%s[reset]("), callInfo.CalledAs)
+			if _, err := fmt.Fprintf(buf, render.colorize.Color("    [dark_gray]│[reset] while calling [bold]%s[reset]("), callInfo.CalledAs); err != nil {
+				return "", errors.WithStackTrace(err)
+			}
 			for i, param := range callInfo.Signature.Params {
 				if i > 0 {
 					buf.WriteString(", ")
@@ -239,10 +260,12 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) string {
 			buf.WriteString(")\n")
 		}
 		for _, value := range values {
-			fmt.Fprintf(buf, render.colorize.Color("    [dark_gray]│[reset] [bold]%s[reset] %s\n"), value.Traversal, value.Statement)
+			if _, err := fmt.Fprintf(buf, render.colorize.Color("    [dark_gray]│[reset] [bold]%s[reset] %s\n"), value.Traversal, value.Statement); err != nil {
+				return "", errors.WithStackTrace(err)
+			}
 		}
 	}
 	buf.WriteByte('\n')
 
-	return buf.String()
+	return buf.String(), nil
 }

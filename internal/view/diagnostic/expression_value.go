@@ -12,9 +12,6 @@ import (
 const (
 	// Sensitive indicates that this value is marked as sensitive in the context of Terraform.
 	Sensitive = valueMark("Sensitive")
-
-	// TypeType is used to indicate that the value contains a representation of another value's type.
-	TypeType = valueMark("TypeType")
 )
 
 // valueMarks allow creating strictly typed values for use as cty.Value marks.

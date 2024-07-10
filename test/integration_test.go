@@ -214,6 +214,8 @@ const (
 )
 
 func TestHclvalidateDiagnostic(t *testing.T) {
+	t.Parallel()
+
 	cleanupTerraformFolder(t, TEST_FIXTURE_HCLVALIDATE)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_HCLVALIDATE)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HCLVALIDATE)

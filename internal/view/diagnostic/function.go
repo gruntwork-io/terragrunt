@@ -31,7 +31,7 @@ func DescribeFunctionParam(p *function.Parameter) FunctionParam {
 		// Treat any errors as if the function is dynamically typed because it would be weird to get here.
 		ret.Type = json.RawMessage(`"dynamic"`)
 	} else {
-		ret.Type = json.RawMessage(raw)
+		ret.Type = raw
 	}
 
 	return ret
@@ -80,7 +80,7 @@ func DescribeFunction(name string, f function.Function) *Function {
 		// Treat any errors as if the function is dynamically typed because it would be weird to get here.
 		ret.ReturnType = json.RawMessage(`"dynamic"`)
 	} else {
-		ret.ReturnType = json.RawMessage(raw)
+		ret.ReturnType = raw
 	}
 
 	return ret
