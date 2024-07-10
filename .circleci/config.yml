@@ -101,6 +101,9 @@ jobs:
       name: win/default
       size: "large"
     steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       - run:
           name: Install golang
@@ -123,6 +126,7 @@ jobs:
           shell: powershell.exe
           no_output_timeout: 45m
           command: |
+            $env:GIT_SSH_COMMAND="ssh -i /home/circleci/.ssh/id_rsa_78a64a8391239adcd479c9be8b1903c7 -o IdentitiesOnly=yes"
             # We're running this test only on Windows currently to provide a convenient
             # means of reproducing Terragrunt issues that only occur on that platform
             go test -v ./... -run TestWindowsTerragruntSourceMapDebug -timeout 45m
