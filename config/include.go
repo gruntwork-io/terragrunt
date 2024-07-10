@@ -358,7 +358,7 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 	}
 
 	if sourceConfig.Engine != nil {
-		targetConfig.Engine = sourceConfig.Engine
+		targetConfig.Engine = sourceConfig.Engine.Clone()
 	}
 
 	// Skip has to be set specifically in each file that should be skipped

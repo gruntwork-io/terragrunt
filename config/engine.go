@@ -11,3 +11,13 @@ type EngineConfig struct {
 	Type    string     `hcl:"type,attr" cty:"type"`
 	Meta    *cty.Value `hcl:"meta,attr" cty:"meta"`
 }
+
+// Clone returns a copy of the EngineConfig used in deep copy
+func (c *EngineConfig) Clone() *EngineConfig {
+	return &EngineConfig{
+		Source:  c.Source,
+		Version: c.Version,
+		Type:    c.Type,
+		Meta:    c.Meta,
+	}
+}
