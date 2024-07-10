@@ -61,6 +61,7 @@ const (
 	TERRAFORM_REMOTE_STATE_GCP_REGION                                        = "eu"
 	TEST_FIXTURE_PATH                                                        = "fixture/"
 	TEST_FIXTURE_HCLVALIDATE                                                 = "fixture-hclvalidate"
+	TEST_FIXTURE_EXCLUDES_FILE                                               = "fixutre-excludes-file"
 	TEST_FIXTURE_INIT_ONCE                                                   = "fixture-init-once"
 	TEST_FIXTURE_PROVIDER_CACHE_MULTIPLE_PLATFORMS                           = "fixture-provider-cache/multiple-platforms"
 	TEST_FIXTURE_PROVIDER_CACHE_DIRECT                                       = "fixture-provider-cache/direct"
@@ -213,6 +214,43 @@ const (
 	fixtureDownload = "fixture-download"
 )
 
+func TestTerragruntExcludesFile(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_EXCLUDES_FILE, ".terragrunt-excludes")
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_EXCLUDES_FILE)
+
+	testCases := []struct {
+		flags          string
+		expectedOutput []string
+	}{
+		{
+			"",
+			[]string{`value = "b"`, `value = "d"`},
+		},
+		{
+			"--terragrunt-excludes-file ./excludes-file-pass-as-flag",
+			[]string{`value = "a"`, `value = "c"`},
+		},
+	}
+
+	for i, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
+			cleanupTerraformFolder(t, TEST_FIXTURE_EXCLUDES_FILE)
+
+			runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s %s", rootPath, testCase.flags))
+
+			stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all output --terragrunt-non-interactive --terragrunt-working-dir %s %s", rootPath, testCase.flags))
+			require.NoError(t, err)
+
+			actualOutput := strings.Split(strings.TrimSpace(stdout), "\n")
+			assert.ElementsMatch(t, testCase.expectedOutput, actualOutput)
+		})
+	}
+}
+
 func TestHclvalidateDiagnostic(t *testing.T) {
 	t.Parallel()
 
@@ -325,6 +363,8 @@ func TestHclvalidateInvalidConfigPath(t *testing.T) {
 }
 
 func TestTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
+	t.Parallel()
+
 	cleanupTerraformFolder(t, TEST_FIXTURE_PROVIDER_CACHE_MULTIPLE_PLATFORMS)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PROVIDER_CACHE_MULTIPLE_PLATFORMS)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PROVIDER_CACHE_MULTIPLE_PLATFORMS)
@@ -4415,7 +4455,7 @@ func runTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer,
 	}
 }
 
-func copyEnvironment(t *testing.T, environmentPath string) string {
+func copyEnvironment(t *testing.T, environmentPath string, includeInCopy ...string) string {
 	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir due to error: %v", err)
@@ -4423,7 +4463,7 @@ func copyEnvironment(t *testing.T, environmentPath string) string {
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
-	require.NoError(t, util.CopyFolderContents(environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", nil))
+	require.NoError(t, util.CopyFolderContents(environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", includeInCopy))
 
 	return tmpDir
 }

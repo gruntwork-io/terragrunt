@@ -27,6 +27,7 @@ const (
 	TerragruntIgnoreDependencyOrderFlagName          = "terragrunt-ignore-dependency-order"
 	TerragruntIgnoreExternalDependenciesFlagName     = "terragrunt-ignore-external-dependencies"
 	TerragruntIncludeExternalDependenciesFlagName    = "terragrunt-include-external-dependencies"
+	TerragruntExcludesFile                           = "terragrunt-excludes-file"
 	TerragruntExcludeDirFlagName                     = "terragrunt-exclude-dir"
 	TerragruntIncludeDirFlagName                     = "terragrunt-include-dir"
 	TerragruntStrictIncludeFlagName                  = "terragrunt-strict-include"
@@ -194,6 +195,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.Parallelism,
 			EnvVar:      "TERRAGRUNT_PARALLELISM",
 			Usage:       "*-all commands parallelism set to at most N modules",
+		},
+		&cli.GenericFlag[string]{
+			Name:        TerragruntExcludesFile,
+			Destination: &opts.ExcludesFile,
+			EnvVar:      "TERRAGRUNT_EXCLUDES_FILE",
+			Usage:       "Path to a file with a list of directories that need to be excluded when running *-all commands.",
 		},
 		&cli.SliceFlag[string]{
 			Name:        TerragruntExcludeDirFlagName,
