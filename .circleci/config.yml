@@ -67,6 +67,8 @@ setup_test_environment: &setup_test_environment
     # Import test / dev key for SOPS
     gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
     mkdir -p logs
+    export GOPRIVATE="github.com/gruntwork-io/*"
+    export GIT_SSH_COMMAND="ssh -i /home/circleci/.ssh/id_rsa_78a64a8391239adcd479c9be8b1903c7 -o IdentitiesOnly=yes"
   no_output_timeout: 30m
 
 run_integration_test: &run_integration_test
