@@ -60,11 +60,11 @@ func (err ProcessingModuleDependencyError) Error() string {
 	return fmt.Sprintf("Cannot process module %s because one of its dependencies, %s, finished with an error: %s", err.Module, err.Dependency, err.Err)
 }
 
-func (this ProcessingModuleDependencyError) ExitStatus() (int, error) {
-	if exitCode, err := shell.GetExitCode(this.Err); err == nil {
+func (err ProcessingModuleDependencyError) ExitStatus() (int, error) {
+	if exitCode, err := shell.GetExitCode(err.Err); err == nil {
 		return exitCode, nil
 	}
-	return -1, this
+	return -1, err
 }
 
 func (err ProcessingModuleDependencyError) Unwrap() error {
