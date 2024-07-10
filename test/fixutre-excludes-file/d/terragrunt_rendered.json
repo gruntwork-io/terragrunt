@@ -1,0 +1,1 @@
+{"dependencies":null,"download_dir":"","generate":{},"iam_assume_role_duration":null,"iam_assume_role_session_name":"","iam_role":"","iam_web_identity_token":"","inputs":null,"locals":null,"retry_max_attempts":null,"retry_sleep_interval_sec":null,"retryable_errors":null,"skip":false,"terraform_binary":"","terraform_version_constraint":"","terragrunt_version_constraint":""}
