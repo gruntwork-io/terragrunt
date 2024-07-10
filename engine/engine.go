@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-hclog"
 	"io"
 	"os"
 	"os/exec"
@@ -116,7 +117,13 @@ func Shutdown(ctx context.Context) {
 func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineClient, *plugin.Client, error) {
 	enginePath := terragruntOptions.Engine.Source
 	terragruntOptions.Logger.Debugf("Creating engine %s", enginePath)
+
+	logger := hclog.NewInterceptLogger(&hclog.LoggerOptions{
+		Level:  hclog.Debug,
+		Output: terragruntOptions.Logger.Writer(),
+	})
 	client := plugin.NewClient(&plugin.ClientConfig{
+		Logger: logger,
 		HandshakeConfig: plugin.HandshakeConfig{
 			ProtocolVersion:  engineVersion,
 			MagicCookieKey:   engineCookieKey,

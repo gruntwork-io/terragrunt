@@ -35,7 +35,10 @@ func TestEngineInvocation(t *testing.T) {
 	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "terragrunt-iac-engine-opentofu_v0.0.1: plugin address")
+	assert.Contains(t, stdout+" "+stderr, pwd)
+	assert.Contains(t, stderr, LocalEngineBinaryPath+": plugin address: address=")
 	assert.Contains(t, stdout, "Initializing provider plugins...")
 	assert.Contains(t, stdout, "test_input_value_from_terragrunt")
+
+	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
 }
