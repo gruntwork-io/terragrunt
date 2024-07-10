@@ -97,7 +97,7 @@ func (module *runningModule) waitForDependencies() error {
 				module.Module.TerragruntOptions.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too. However, because of --terragrunt-ignore-dependency-errors, module %s will run anyway.", doneDependency.Module.Path, module.Module.Path, module.Module.Path, module.Module.Path)
 			} else {
 				module.Module.TerragruntOptions.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too.", doneDependency.Module.Path, module.Module.Path, module.Module.Path)
-				return DependencyFinishedWithError{module.Module, doneDependency.Module, doneDependency.Err}
+				return ProcessingModuleDependencyError{module.Module, doneDependency.Module, doneDependency.Err}
 			}
 		} else {
 			module.Module.TerragruntOptions.Logger.Debugf("Dependency %s of module %s just finished successfully. Module %s must wait on %d more dependencies.", doneDependency.Module.Path, module.Module.Path, module.Module.Path, len(module.Dependencies))
@@ -234,7 +234,7 @@ func (modules runningModules) crossLinkDependencies(dependencyOrder DependencyOr
 		for _, dependency := range module.Module.Dependencies {
 			runningDependency, hasDependency := modules[dependency.Path]
 			if !hasDependency {
-				return modules, errors.WithStackTrace(DependencyNotFoundWhileCrossLinking{module, dependency})
+				return modules, errors.WithStackTrace(DependencyNotFoundWhileCrossLinkingError{module, dependency})
 			}
 			switch dependencyOrder {
 			case NormalOrder:

@@ -177,7 +177,7 @@ func TestCheckForCycles(t *testing.T) {
 
 	testCases := []struct {
 		modules  TerraformModules
-		expected DependencyCycle
+		expected DependencyCycleError
 	}{
 		{[]*TerraformModule{}, nil},
 		{[]*TerraformModule{a}, nil},
@@ -186,10 +186,10 @@ func TestCheckForCycles(t *testing.T) {
 		{[]*TerraformModule{a, b, f}, nil},
 		{[]*TerraformModule{a, e, g}, nil},
 		{[]*TerraformModule{a, b, c, e, f, g, h}, nil},
-		{[]*TerraformModule{i}, DependencyCycle([]string{"i", "i"})},
-		{[]*TerraformModule{j, k}, DependencyCycle([]string{"j", "k", "j"})},
-		{[]*TerraformModule{l, o, n, m}, DependencyCycle([]string{"l", "m", "n", "o", "l"})},
-		{[]*TerraformModule{a, l, b, o, n, f, m, h}, DependencyCycle([]string{"l", "m", "n", "o", "l"})},
+		{[]*TerraformModule{i}, DependencyCycleError([]string{"i", "i"})},
+		{[]*TerraformModule{j, k}, DependencyCycleError([]string{"j", "k", "j"})},
+		{[]*TerraformModule{l, o, n, m}, DependencyCycleError([]string{"l", "m", "n", "o", "l"})},
+		{[]*TerraformModule{a, l, b, o, n, f, m, h}, DependencyCycleError([]string{"l", "m", "n", "o", "l"})},
 	}
 
 	for _, testCase := range testCases {
@@ -197,7 +197,7 @@ func TestCheckForCycles(t *testing.T) {
 		if testCase.expected == nil {
 			assert.Nil(t, actual)
 		} else if assert.NotNil(t, actual, "For modules %v", testCase.modules) {
-			actualErr := errors.Unwrap(actual).(DependencyCycle)
+			actualErr := errors.Unwrap(actual).(DependencyCycleError)
 			assert.Equal(t, []string(testCase.expected), []string(actualErr), "For modules %v", testCase.modules)
 		}
 	}
@@ -790,7 +790,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	expectedErrC := DependencyFinishedWithError{moduleC, moduleB, expectedErrB}
+	expectedErrC := ProcessingModuleDependencyError{moduleC, moduleB, expectedErrB}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	assert.NoError(t, err)
@@ -878,7 +878,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *test
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	expectedErrA := DependencyFinishedWithError{moduleA, moduleB, expectedErrB}
+	expectedErrA := ProcessingModuleDependencyError{moduleA, moduleB, expectedErrB}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	assert.NoError(t, err)
@@ -960,8 +960,8 @@ func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T)
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	expectedErrB := DependencyFinishedWithError{moduleB, moduleA, expectedErrA}
-	expectedErrC := DependencyFinishedWithError{moduleC, moduleB, expectedErrB}
+	expectedErrB := ProcessingModuleDependencyError{moduleB, moduleA, expectedErrA}
+	expectedErrC := ProcessingModuleDependencyError{moduleC, moduleB, expectedErrB}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	assert.NoError(t, err)
@@ -1142,8 +1142,8 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "large-graph-g", nil, &gRan),
 	}
 
-	expectedErrD := DependencyFinishedWithError{moduleD, moduleC, expectedErrC}
-	expectedErrF := DependencyFinishedWithError{moduleF, moduleD, expectedErrD}
+	expectedErrD := ProcessingModuleDependencyError{moduleD, moduleC, expectedErrC}
+	expectedErrF := ProcessingModuleDependencyError{moduleF, moduleD, expectedErrD}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	assert.NoError(t, err)
@@ -1213,8 +1213,8 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "f", nil, &fRan),
 	}
 
-	expectedErrB := DependencyFinishedWithError{moduleB, moduleC, expectedErrC}
-	expectedErrA := DependencyFinishedWithError{moduleA, moduleB, expectedErrB}
+	expectedErrB := ProcessingModuleDependencyError{moduleB, moduleC, expectedErrC}
+	expectedErrA := ProcessingModuleDependencyError{moduleA, moduleB, expectedErrB}
 
 	opts, optsErr := options.NewTerragruntOptionsForTest("")
 	assert.NoError(t, optsErr)

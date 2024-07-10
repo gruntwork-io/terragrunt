@@ -120,13 +120,13 @@ func assertRunningModulesEqual(t *testing.T, expected *runningModule, actual *ru
 	}
 }
 
-// We can't do a simple IsError comparison for UnrecognizedDependency because that error is a struct that
+// We can't do a simple IsError comparison for UnrecognizedDependencyError because that error is a struct that
 // contains an array, and in Go, trying to compare arrays gives a "comparing uncomparable type
-// configstack.UnrecognizedDependency" panic. Therefore, we have to compare that error more manually.
+// configstack.UnrecognizedDependencyError" panic. Therefore, we have to compare that error more manually.
 func assertErrorsEqual(t *testing.T, expected error, actual error, messageAndArgs ...interface{}) {
 	actual = errors.Unwrap(actual)
-	if expectedUnrecognized, isUnrecognizedDependencyError := expected.(UnrecognizedDependency); isUnrecognizedDependencyError {
-		actualUnrecognized, isUnrecognizedDependencyError := actual.(UnrecognizedDependency)
+	if expectedUnrecognized, isUnrecognizedDependencyError := expected.(UnrecognizedDependencyError); isUnrecognizedDependencyError {
+		actualUnrecognized, isUnrecognizedDependencyError := actual.(UnrecognizedDependencyError)
 		if assert.True(t, isUnrecognizedDependencyError, messageAndArgs...) {
 			assert.Equal(t, expectedUnrecognized, actualUnrecognized, messageAndArgs...)
 		}

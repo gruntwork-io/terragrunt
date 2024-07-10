@@ -406,7 +406,7 @@ func (stack *Stack) resolveModules(ctx context.Context, canonicalTerragruntConfi
 	modulesMap := TerraformModulesMap{}
 	for _, terragruntConfigPath := range canonicalTerragruntConfigPaths {
 		if !util.FileExists(terragruntConfigPath) {
-			return nil, ErrorProcessingModule{UnderlyingError: os.ErrNotExist, ModulePath: terragruntConfigPath, HowThisModuleWasFound: howTheseModulesWereFound}
+			return nil, ProcessingModuleError{UnderlyingError: os.ErrNotExist, ModulePath: terragruntConfigPath, HowThisModuleWasFound: howTheseModulesWereFound}
 		}
 
 		var module *TerraformModule
@@ -504,7 +504,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 		includeConfig,
 	)
 	if err != nil {
-		return nil, errors.WithStackTrace(ErrorProcessingModule{UnderlyingError: err, HowThisModuleWasFound: howThisModuleWasFound, ModulePath: terragruntConfigPath})
+		return nil, errors.WithStackTrace(ProcessingModuleError{UnderlyingError: err, HowThisModuleWasFound: howThisModuleWasFound, ModulePath: terragruntConfigPath})
 	}
 
 	terragruntSource, err := config.GetTerragruntSourceForModule(stack.terragruntOptions.Source, modulePath, terragruntConfig)
@@ -599,7 +599,7 @@ func (stack *Stack) resolveExternalDependenciesForModules(ctx context.Context, m
 
 	// Simple protection from circular dependencies causing a Stack Overflow due to infinite recursion
 	if recursionLevel > maxLevelsOfRecursion {
-		return allExternalDependencies, errors.WithStackTrace(InfiniteRecursion{RecursionLevel: maxLevelsOfRecursion, Modules: modulesToSkip})
+		return allExternalDependencies, errors.WithStackTrace(InfiniteRecursionError{RecursionLevel: maxLevelsOfRecursion, Modules: modulesToSkip})
 	}
 
 	sortedKeys := modulesMap.getSortedKeys()

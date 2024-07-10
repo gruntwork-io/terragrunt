@@ -278,7 +278,7 @@ func checkForDependencyBlockCyclesUsingDFS(
 	}
 
 	if util.ListContainsElement(*currentTraversalPaths, dependencyPath) {
-		return errors.WithStackTrace(DependencyCycle(append(*currentTraversalPaths, dependencyPath)))
+		return errors.WithStackTrace(DependencyCycleError(append(*currentTraversalPaths, dependencyPath)))
 	}
 
 	*currentTraversalPaths = append(*currentTraversalPaths, dependencyPath)

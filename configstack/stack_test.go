@@ -1090,7 +1090,7 @@ func TestResolveTerraformModulesInvalidPaths(t *testing.T) {
 	_, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
 	require.Error(t, actualErr)
 
-	underlying, ok := errors.Unwrap(actualErr).(ErrorProcessingModule)
+	underlying, ok := errors.Unwrap(actualErr).(ProcessingModuleError)
 	require.True(t, ok)
 
 	unwrapped := errors.Unwrap(underlying.UnderlyingError)

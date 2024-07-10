@@ -238,8 +238,8 @@ func (err TerragruntOutputTargetNoOutputs) Error() string {
 	)
 }
 
-type DependencyCycle []string
+type DependencyCycleError []string
 
-func (err DependencyCycle) Error() string {
+func (err DependencyCycleError) Error() string {
 	return fmt.Sprintf("Found a dependency cycle between modules: %s", strings.Join([]string(err), " -> "))
 }

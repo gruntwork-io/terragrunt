@@ -65,7 +65,7 @@ func (module *TerraformModule) checkForCyclesUsingDepthFirstSearch(visitedPaths 
 	}
 
 	if util.ListContainsElement(*currentTraversalPaths, module.Path) {
-		return errors.WithStackTrace(DependencyCycle(append(*currentTraversalPaths, module.Path)))
+		return errors.WithStackTrace(DependencyCycleError(append(*currentTraversalPaths, module.Path)))
 	}
 
 	*currentTraversalPaths = append(*currentTraversalPaths, module.Path)
@@ -175,7 +175,7 @@ func (module *TerraformModule) getDependenciesForModule(modulesMap TerraformModu
 
 		dependencyModule, foundModule := modulesMap[dependencyModulePath]
 		if !foundModule {
-			err := UnrecognizedDependency{
+			err := UnrecognizedDependencyError{
 				ModulePath:            module.Path,
 				DependencyPath:        dependencyPath,
 				TerragruntConfigPaths: terragruntConfigPaths,
