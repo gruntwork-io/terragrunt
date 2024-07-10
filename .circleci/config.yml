@@ -8,7 +8,6 @@ env: &env
   environment:
     GRUNTWORK_INSTALLER_VERSION: v0.0.39
     MODULE_CI_VERSION: v0.57.0
-    GOPRIVATE: "github.com/gruntwork-io/*"
 
 defaults: &defaults
   steps:
@@ -340,6 +339,7 @@ jobs:
     steps:
       - checkout
       - run: |
+         export GOPRIVATE="github.com/gruntwork-io/*"
          export GIT_SSH_COMMAND="ssh -i /home/circleci/.ssh/id_rsa_78a64a8391239adcd479c9be8b1903c7 -o IdentitiesOnly=yes"
          build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X github.com/gruntwork-io/go-commons/version.Version=$CIRCLE_TAG -extldflags '-static'"
       - persist_to_workspace:
