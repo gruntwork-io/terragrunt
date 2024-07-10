@@ -145,6 +145,7 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 	return &terragruntEngine, client, nil
 }
 
+// invoke engine for working directory
 func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.EngineClient) (*util.CmdOutput, error) {
 	terragruntOptions := runOptions.TerragruntOptions
 
@@ -226,8 +227,8 @@ func initialize(ctx context.Context, runOptions *ExecutionOptions, client *proto
 	}
 	terragruntOptions.Logger.Debugf("Running init for engine in %s", runOptions.WorkingDir)
 	request, err := (*client).Init(ctx, &proto.InitRequest{
-		WorkingDir: runOptions.WorkingDir,
 		EnvVars:    runOptions.TerragruntOptions.Env,
+		WorkingDir: runOptions.WorkingDir,
 		Meta:       meta,
 	})
 	if err != nil {
@@ -244,8 +245,8 @@ func initialize(ctx context.Context, runOptions *ExecutionOptions, client *proto
 			return nil, nil
 		}
 		return &outputLine{
-			Stdout: output.Stdout,
 			Stderr: output.Stderr,
+			Stdout: output.Stdout,
 		}, nil
 	})
 }
@@ -260,8 +261,8 @@ func shutdown(ctx context.Context, runOptions *ExecutionOptions, terragruntEngin
 	}
 	request, err := (*terragruntEngine).Shutdown(ctx, &proto.ShutdownRequest{
 		WorkingDir: runOptions.WorkingDir,
-		EnvVars:    runOptions.TerragruntOptions.Env,
 		Meta:       meta,
+		EnvVars:    runOptions.TerragruntOptions.Env,
 	})
 	if err != nil {
 		return errors.WithStackTrace(err)
