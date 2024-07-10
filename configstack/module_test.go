@@ -138,7 +138,6 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 			"retry_max_attempts":            interface{}(nil),
 			"retry_sleep_interval_sec":      interface{}(nil),
 			"retryable_errors":              interface{}(nil),
-			"skip":                          false,
 			"terraform_binary":              "",
 			"terraform_version_constraint":  "",
 			"terragrunt_version_constraint": "",

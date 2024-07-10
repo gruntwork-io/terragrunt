@@ -241,8 +241,9 @@ func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terr
 		targetConfig.TerragruntVersionConstraint = sourceConfig.TerragruntVersionConstraint
 	}
 
-	// Skip has to be set specifically in each file that should be skipped
-	targetConfig.Skip = sourceConfig.Skip
+	if sourceConfig.Skip != nil {
+		targetConfig.Skip = sourceConfig.Skip
+	}
 
 	if sourceConfig.RemoteState != nil {
 		targetConfig.RemoteState = sourceConfig.RemoteState
@@ -353,8 +354,9 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 		targetConfig.TerragruntVersionConstraint = sourceConfig.TerragruntVersionConstraint
 	}
 
-	// Skip has to be set specifically in each file that should be skipped
-	targetConfig.Skip = sourceConfig.Skip
+	if sourceConfig.Skip != nil {
+		targetConfig.Skip = sourceConfig.Skip
+	}
 
 	// Copy only dependencies which doesn't exist in source
 	if sourceConfig.Dependencies != nil {
