@@ -121,7 +121,7 @@ func (stack *Stack) JsonModuleDeployOrder(terraformCommand string) (string, erro
 			jsonGraph[groupNum][j] = module.Path
 		}
 	}
-	j, _ := json.MarshalIndent(jsonGraph, "", "  ")
+	j, err := json.MarshalIndent(jsonGraph, "", "  ")
 	if err != nil {
 		return "", err
 	}
