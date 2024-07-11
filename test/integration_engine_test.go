@@ -4,6 +4,7 @@ package test
 
 import (
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/config"
 	"os"
 	"testing"
 
@@ -19,7 +20,31 @@ const (
 	EnvVarExperimental = "TG_EXPERIMENTAL_ENGINE"
 )
 
-func TestEngineInvocation(t *testing.T) {
+func TestEnginePlan(t *testing.T) {
+	rootPath := setupLocalEngine(t)
+
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, LocalEngineBinaryPath+": plugin address")
+	assert.Contains(t, stderr, "starting plugin:")
+	assert.Contains(t, stderr, "plugin process exited:")
+	assert.Contains(t, stdout, "1 to add, 0 to change, 0 to destroy.")
+}
+
+func TestEngineApply(t *testing.T) {
+	rootPath := setupLocalEngine(t)
+
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, LocalEngineBinaryPath+": plugin address")
+	assert.Contains(t, stderr, "starting plugin:")
+	assert.Contains(t, stderr, "plugin process exited:")
+	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
+}
+
+func setupLocalEngine(t *testing.T) string {
 	t.Setenv(EnvVarExperimental, "1")
 
 	cleanupTerraformFolder(t, TestFixtureLocalEngine)
@@ -30,17 +55,8 @@ func TestEngineInvocation(t *testing.T) {
 	pwd, err := os.Getwd()
 	require.NoError(t, err)
 
-	copyAndFillMapPlaceholders(t, util.JoinPath(TestFixtureLocalEngine, "terragrunt.hcl"), util.JoinPath(rootPath, "terragrunt.hcl"), map[string]string{
+	copyAndFillMapPlaceholders(t, util.JoinPath(TestFixtureLocalEngine, "terragrunt.hcl"), util.JoinPath(rootPath, config.DefaultTerragruntConfigPath), map[string]string{
 		"__engine_source__": pwd + "/../" + LocalEngineBinaryPath,
 	})
-
-	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
-	require.NoError(t, err)
-
-	assert.Contains(t, stdout+" "+stderr, pwd)
-	assert.Contains(t, stderr, LocalEngineBinaryPath+": plugin address: address=")
-	assert.Contains(t, stdout, "Initializing provider plugins...")
-	assert.Contains(t, stdout, "test_input_value_from_terragrunt")
-
-	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
+	return rootPath
 }
