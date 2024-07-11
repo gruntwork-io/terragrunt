@@ -1,5 +1,4 @@
 //go:build engine
-// +build engine
 
 package test
 
