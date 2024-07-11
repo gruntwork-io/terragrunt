@@ -4,9 +4,10 @@ package test
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/config"
 	"os"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/config"
 
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
