@@ -24,9 +24,8 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 	dependentModulesPath := []*string{&testSource}
 	testConfig := TerragruntConfig{
 		Engine: &EngineConfig{
-			Source:  "github.com/acme/terragrunt-plugin-custom-opentofu",
-			Version: "v0.0.1",
-			Meta:    &cty.Value{},
+			Source: "github.com/acme/terragrunt-plugin-custom-opentofu",
+			Meta:   &cty.Value{},
 		},
 		Catalog: &CatalogConfig{
 			URLs: []string{

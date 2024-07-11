@@ -423,10 +423,17 @@ func engineConfigAsCty(config *EngineConfig) (cty.Value, error) {
 		return cty.NilVal, err
 	}
 
+	var v, t string
+	if config.Version != nil {
+		v = *config.Version
+	}
+	if config.Type != nil {
+		t = *config.Type
+	}
 	configCty := ctyEngineConfig{
 		Source:  config.Source,
-		Version: *config.Version,
-		Type:    *config.Type,
+		Version: v,
+		Type:    t,
 		Meta:    ctyMetaVal,
 	}
 
