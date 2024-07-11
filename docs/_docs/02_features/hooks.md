@@ -37,10 +37,32 @@ In this example configuration, whenever Terragrunt runs `terraform apply` or `te
 - After Terragrunt runs `terraform`, it will output `Finished running Terraform`, regardless of whether or not the
   command failed.
 
-Any type of hook passes two environment variables to the running application:
+Any type of hook adds extra environment variables to the hook's run command:
 
 - `TG_CTX_COMMAND`
 - `TG_CTX_HOOK_NAME`
+
+For example:
+
+``` hcl
+terraform {
+  before_hook "test_hook" {
+    commands     = ["apply"]
+    execute      = ["hook.sh"]
+  }
+}
+```
+
+`hook.sh` contains:
+
+``` bash
+#!/bin/sh
+
+echo "COMMAND=${TG_CTX_COMMAND} HOOK_NAME=${TG_CTX_HOOK_NAME}"
+```
+
+In this example, whenever Terragrunt runs `terraform apply`, the `hook.sh` script will print "COMMAND=apply HOOK_NAME=test_hook"
+
 
 You can have multiple before and after hooks. Each hook will execute in the order they are defined. For example:
 
