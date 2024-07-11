@@ -81,3 +81,8 @@ exclude:
   - vendor/gems/
   - vendor/ruby/
   - scripts/
+  - Dockerfile
+  - docker-compose.yml
+  - jekyll-serve.sh
+  - README.md
+
