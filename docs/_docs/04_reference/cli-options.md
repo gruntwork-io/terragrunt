@@ -424,6 +424,22 @@ terragrunt hclvalidate
 This will search all hcl files from the configuration stack in the current working directory and run the equivalent
 of `terraform validate` on them.
 
+For convenience in programmatically parsing these findings, you can also pass the `--terragrunt-hclvalidate-json` flag to output the results in JSON format.
+
+Example:
+
+```bash
+terragrunt hclvalidate --terragrunt-hclvalidate-json
+```
+
+In addition, you can pass the `--terragrunt-hclvalidate-invalid` flag to only output the invalid files, delimited by newlines. This can be especially useful when combined with the [terragrunt-excludes-file](#terragrunt-excludes-file) flag.
+
+Example:
+
+```bash
+terragrunt hclvalidate --terragrunt-hclvalidate-invalid
+```
+
 ### aws-provider-patch
 
 Overwrite settings on nested AWS providers to work around several Terraform bugs. Due to
@@ -963,6 +979,12 @@ Used as the session name for the STS session which assumes the role defined in `
 Path to a file with a list of directories that need to be excluded when running *-all commands, by default `.terragrunt-excludes`. Modules under these directories will be
 excluded during execution of the commands. If a relative path is specified, it should be relative from
 [--terragrunt-working-dir](#terragrunt-working-dir). This will only exclude the module, not its dependencies.
+
+This flag has been designed to integrate nicely with the `hclvalidate` command, which can return a list of invalid files delimited by newlines when passed the `--terragrunt-hclvalidate-invalid` flag. To integrate the two, you can run something like the following using bash process substitution:
+
+```bash
+terragrunt run-all plan --terragrunt-excludes-file <(terragrunt hclvalidate --terragrunt-hclvalidate-invalid)
+```
 
 ### terragrunt-exclude-dir
 
