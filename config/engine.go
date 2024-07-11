@@ -7,8 +7,8 @@ import (
 // EngineConfig represents the structure of the HCL data
 type EngineConfig struct {
 	Source  string     `hcl:"source,attr" cty:"source"`
-	Version string     `hcl:"version,attr" cty:"version"`
-	Type    string     `hcl:"type,attr" cty:"type"`
+	Version *string    `hcl:"version,attr" cty:"version"`
+	Type    *string    `hcl:"type,attr" cty:"type"`
 	Meta    *cty.Value `hcl:"meta,attr" cty:"meta"`
 }
 
@@ -27,10 +27,10 @@ func (c *EngineConfig) Merge(engine *EngineConfig) {
 	if engine.Source != "" {
 		c.Source = engine.Source
 	}
-	if engine.Version != "" {
+	if engine.Version != nil {
 		c.Version = engine.Version
 	}
-	if engine.Type != "" {
+	if engine.Type != nil {
 		c.Type = engine.Type
 	}
 	if engine.Meta != nil {

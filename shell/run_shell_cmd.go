@@ -143,6 +143,9 @@ func RunShellCommandWithOutput(
 			cmdStdout = io.MultiWriter(&stdoutBuf)
 		}
 
+		if command == terragruntOptions.TerraformPath && terragruntOptions.Engine != nil && !engine.IsEngineEnabled() {
+			terragruntOptions.Logger.Debugf("Engine is not enabled, running command directly in %s", commandDir)
+		}
 		useEngine := terragruntOptions.Engine != nil && engine.IsEngineEnabled()
 		// If the engine is enabled and the command is IaC executable, use the engine to run the command.
 		if useEngine && command == terragruntOptions.TerraformPath {

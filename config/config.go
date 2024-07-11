@@ -1307,10 +1307,17 @@ func (conf *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 		meta = parsedMeta
 	}
 
+	var v, t string
+	if conf.Engine.Version != nil {
+		v = *conf.Engine.Version
+	}
+	if conf.Engine.Type != nil {
+		t = *conf.Engine.Type
+	}
 	return &options.EngineOptions{
 		Source:  conf.Engine.Source,
-		Version: conf.Engine.Version,
-		Type:    conf.Engine.Type,
+		Version: v,
+		Type:    t,
 		Meta:    meta,
 	}, nil
 }

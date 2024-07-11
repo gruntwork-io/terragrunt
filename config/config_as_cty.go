@@ -425,8 +425,8 @@ func engineConfigAsCty(config *EngineConfig) (cty.Value, error) {
 
 	configCty := ctyEngineConfig{
 		Source:  config.Source,
-		Version: config.Version,
-		Type:    config.Type,
+		Version: *config.Version,
+		Type:    *config.Type,
 		Meta:    ctyMetaVal,
 	}
 
