@@ -15,7 +15,8 @@ nav_title_link: /docs/
 A new engine configuration block has been released allowing you to customize and configure how your IAC updates orchestrated by Terragrunt!
 
 To try it out, all you need to do is include the following in your `terragrunt.hcl`:
-```
+
+```hcl
 engine {
    source  = "/home/users/iac-engines/terragrunt-iac-engine-opentofu_v0.0.1"
    # Optionally set metadata for the plugin.
@@ -25,13 +26,15 @@ engine {
    }
 }
 ```
+
 Parameters:
+
 * `source`: (Required) The source of the plugin, currently is supported local path.
 * `meta`: (Optional) Block for setting plugin-specific metadata.
 
-Due to the fact that this functionality is still experimental, and not recommended for general production usage, 
-set the following environment variable to opt-in to this functionality:
-```
+Due to the fact that this functionality is still experimental, and not recommended for general production usage, set the following environment variable to opt-in to this functionality:
+
+```sh
 export TG_EXPERIMENTAL_ENGINE=1
 ```
 
