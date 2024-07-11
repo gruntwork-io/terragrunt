@@ -25,7 +25,7 @@ engine {
    }
 }
 ```
-Parameters
+Parameters:
 * `source`: (Required) The source of the plugin, currently is supported local path.
 * `meta`: (Optional) Block for setting plugin-specific metadata.
 
