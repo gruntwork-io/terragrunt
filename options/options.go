@@ -306,6 +306,9 @@ type TerragruntOptions struct {
 	// The command and arguments that can be used to fetch authentication configurations.
 	// Terragrunt invokes this command before running tofu/terraform operations for each working directory.
 	AuthProviderCmd string
+
+	// Allows to skip the output of all dependencies. Intended for use with `hclvalidate` command.
+	SkipOutput bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -553,6 +556,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		OutputFolder:                   opts.OutputFolder,
 		JsonOutputFolder:               opts.JsonOutputFolder,
 		AuthProviderCmd:                opts.AuthProviderCmd,
+		SkipOutput:                     opts.SkipOutput,
 	}
 }
 

@@ -42,7 +42,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		}
 	}
 
-	stack, err := configstack.FindStackInSubfolders(ctx, opts, nil)
+	stack, err := configstack.FindStackInSubfolders(ctx, opts)
 	if err != nil {
 		return err
 	}

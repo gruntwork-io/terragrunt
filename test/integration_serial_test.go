@@ -29,8 +29,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-// @SONAR_STOP@
-
 // NOTE: We don't run these tests in parallel because it modifies the environment variable, so it can affect other tests
 
 func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
@@ -870,5 +868,3 @@ func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", rootPath, mockAuthCmd))
 }
-
-// @SONAR_START@

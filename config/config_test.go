@@ -1356,7 +1356,7 @@ func BenchmarkReadTerragruntConfig(b *testing.B) {
 
 			b.ResetTimer()
 			b.StartTimer()
-			actual, err := ReadTerragruntConfig(terragruntOptions)
+			actual, err := ReadTerragruntConfig(context.Background(), terragruntOptions, DefaultParserOptions(terragruntOptions))
 			b.StopTimer()
 			require.NoError(b, err)
 			require.NotNil(b, actual)

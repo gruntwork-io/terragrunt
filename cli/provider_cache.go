@@ -193,10 +193,6 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	cloneOpts.WorkingDir = opts.WorkingDir
 	maps.Copy(cloneOpts.Env, env)
 
-	if util.FirstArg(args) == terraform.CommandNameProviders && util.SecondArg(args) == terraform.CommandNameLock {
-		return &shell.CmdOutput{}, nil
-	}
-
 	if skipRunTargetCommand {
 		return &shell.CmdOutput{}, nil
 	}

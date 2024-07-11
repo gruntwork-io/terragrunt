@@ -41,11 +41,11 @@ func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.Ter
 	rootOptions := opts.Clone(rootDir)
 	rootOptions.WorkingDir = rootDir
 
-	stack, err := configstack.FindStackInSubfolders(ctx, rootOptions, nil)
+	stack, err := configstack.FindStackInSubfolders(ctx, rootOptions)
 	if err != nil {
 		return err
 	}
-	dependentModules := configstack.ListStackDependentModules(stack)
+	dependentModules := stack.ListStackDependentModules()
 
 	workDir := opts.WorkingDir
 	modulesToInclude := dependentModules[workDir]

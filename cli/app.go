@@ -18,6 +18,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/graph"
+	"github.com/gruntwork-io/terragrunt/cli/commands/hclvalidate"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 
@@ -97,6 +98,11 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		log.Infof("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(signal.String()), shell.SignalForwardingDelay)
 		cancel()
 
+		shell.RegisterSignalHandler(func(signal os.Signal) {
+			log.Infof("Second %s signal received, force shutting down...", cases.Title(language.English).String(signal.String()))
+			os.Exit(1)
+		})
+
 		time.Sleep(forceExitInterval)
 		log.Infof("Failed to gracefully shutdown within %v, force shutting down...", forceExitInterval)
 		os.Exit(1)
@@ -139,6 +145,7 @@ func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 		catalog.NewCommand(opts),            // catalog
 		scaffold.NewCommand(opts),           // scaffold
 		graph.NewCommand(opts),              // graph
+		hclvalidate.NewCommand(opts),        // hclvalidate
 	}
 
 	sort.Sort(cmds)

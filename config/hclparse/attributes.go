@@ -32,6 +32,24 @@ func (attrs Attributes) ValidateIdentifier() error {
 	return nil
 }
 
+func (attrs Attributes) Range() hcl.Range {
+	var rng hcl.Range
+
+	for _, attr := range attrs {
+		rng.Filename = attr.Range.Filename
+
+		if rng.Start.Line > attr.Range.Start.Line || rng.Start.Column > attr.Range.Start.Column {
+			rng.Start = attr.Range.Start
+		}
+
+		if rng.End.Line < attr.Range.End.Line || rng.End.Column < attr.Range.End.Column {
+			rng.End = attr.Range.End
+		}
+	}
+
+	return rng
+}
+
 type Attribute struct {
 	*File
 	*hcl.Attribute
@@ -46,7 +64,7 @@ func (attr *Attribute) ValidateIdentifier() error {
 			Subject:  &attr.NameRange,
 		}}
 
-		if err := attr.diagnosticsError(diags); err != nil {
+		if err := attr.HandleDiagnostics(diags); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
@@ -57,7 +75,7 @@ func (attr *Attribute) ValidateIdentifier() error {
 func (attr *Attribute) Value(evalCtx *hcl.EvalContext) (cty.Value, error) {
 	evaluatedVal, diags := attr.Expr.Value(evalCtx)
 
-	if err := attr.diagnosticsError(diags); err != nil {
+	if err := attr.HandleDiagnostics(diags); err != nil {
 		return evaluatedVal, errors.WithStackTrace(err)
 	}
 

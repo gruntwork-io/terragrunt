@@ -3,24 +3,17 @@ package configstack
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/terraform"
-
-	"github.com/gruntwork-io/terragrunt/options"
-
-	"github.com/gruntwork-io/terragrunt/telemetry"
-
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/telemetry"
+	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/hashicorp/go-multierror"
 )
-
-// Represents the status of a module that we are trying to apply as part of the apply-all or destroy-all command
-type ModuleStatus int
 
 const (
 	Waiting ModuleStatus = iota
@@ -28,6 +21,18 @@ const (
 	Finished
 	channelSize = 1000 // Use a huge buffer to ensure senders are never blocked
 )
+
+const (
+	NormalOrder DependencyOrder = iota
+	ReverseOrder
+	IgnoreOrder
+)
+
+// Represents the status of a module that we are trying to apply as part of the apply-all or destroy-all command
+type ModuleStatus int
+
+// This controls in what order dependencies should be enforced between modules
+type DependencyOrder int
 
 // Represents a module we are trying to "run" (i.e. apply or destroy) as part of the apply-all or destroy-all command
 type runningModule struct {
@@ -39,15 +44,6 @@ type runningModule struct {
 	NotifyWhenDone []*runningModule
 	FlagExcluded   bool
 }
-
-// This controls in what order dependencies should be enforced between modules
-type DependencyOrder int
-
-const (
-	NormalOrder DependencyOrder = iota
-	ReverseOrder
-	IgnoreOrder
-)
 
 // Create a new RunningModule struct for the given module. This will initialize all fields to reasonable defaults,
 // except for the Dependencies and NotifyWhenDone, both of which will be empty. You should fill these using a
@@ -61,146 +57,6 @@ func newRunningModule(module *TerraformModule) *runningModule {
 		NotifyWhenDone: []*runningModule{},
 		FlagExcluded:   module.FlagExcluded,
 	}
-}
-
-// Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
-// TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
-// as much concurrency as possible.
-func RunModules(ctx context.Context, opts *options.TerragruntOptions, modules []*TerraformModule, parallelism int) error {
-	runningModules, err := toRunningModules(modules, NormalOrder)
-	if err != nil {
-		return err
-	}
-	return runModules(ctx, opts, runningModules, parallelism)
-}
-
-// Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
-// TerragruntOptions object. The modules will be executed in the reverse order of their inter-dependencies, using
-// as much concurrency as possible.
-func RunModulesReverseOrder(ctx context.Context, opts *options.TerragruntOptions, modules []*TerraformModule, parallelism int) error {
-	runningModules, err := toRunningModules(modules, ReverseOrder)
-	if err != nil {
-		return err
-	}
-	return runModules(ctx, opts, runningModules, parallelism)
-}
-
-// Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
-// TerragruntOptions object. The modules will be executed without caring for inter-dependencies.
-func RunModulesIgnoreOrder(ctx context.Context, opts *options.TerragruntOptions, modules []*TerraformModule, parallelism int) error {
-	runningModules, err := toRunningModules(modules, IgnoreOrder)
-	if err != nil {
-		return err
-	}
-	return runModules(ctx, opts, runningModules, parallelism)
-}
-
-// Convert the list of modules to a map from module path to a runningModule struct. This struct contains information
-// about executing the module, such as whether it has finished running or not and any errors that happened. Note that
-// this does NOT actually run the module. For that, see the RunModules method.
-func toRunningModules(modules []*TerraformModule, dependencyOrder DependencyOrder) (map[string]*runningModule, error) {
-	runningModules := map[string]*runningModule{}
-	for _, module := range modules {
-		runningModules[module.Path] = newRunningModule(module)
-	}
-
-	crossLinkedModules, err := crossLinkDependencies(runningModules, dependencyOrder)
-	if err != nil {
-		return crossLinkedModules, err
-	}
-
-	return removeFlagExcluded(crossLinkedModules), nil
-}
-
-// Loop through the map of runningModules and for each module M:
-//
-//   - If dependencyOrder is NormalOrder, plug in all the modules M depends on into the Dependencies field and all the
-//     modules that depend on M into the NotifyWhenDone field.
-//   - If dependencyOrder is ReverseOrder, do the reverse.
-//   - If dependencyOrder is IgnoreOrder, do nothing.
-func crossLinkDependencies(modules map[string]*runningModule, dependencyOrder DependencyOrder) (map[string]*runningModule, error) {
-	for _, module := range modules {
-		for _, dependency := range module.Module.Dependencies {
-			runningDependency, hasDependency := modules[dependency.Path]
-			if !hasDependency {
-				return modules, errors.WithStackTrace(DependencyNotFoundWhileCrossLinking{module, dependency})
-			}
-			switch dependencyOrder {
-			case NormalOrder:
-				module.Dependencies[runningDependency.Module.Path] = runningDependency
-				runningDependency.NotifyWhenDone = append(runningDependency.NotifyWhenDone, module)
-			case IgnoreOrder:
-				// Nothing
-			default:
-				runningDependency.Dependencies[module.Module.Path] = module
-				module.NotifyWhenDone = append(module.NotifyWhenDone, runningDependency)
-			}
-		}
-	}
-
-	return modules, nil
-}
-
-// Return a cleaned-up map that only contains modules and dependencies that should not be excluded
-func removeFlagExcluded(modules map[string]*runningModule) map[string]*runningModule {
-	var finalModules = make(map[string]*runningModule)
-
-	for key, module := range modules {
-
-		// Only add modules that should not be excluded
-		if !module.FlagExcluded {
-			finalModules[key] = &runningModule{
-				Module:         module.Module,
-				Dependencies:   make(map[string]*runningModule),
-				DependencyDone: module.DependencyDone,
-				Err:            module.Err,
-				NotifyWhenDone: module.NotifyWhenDone,
-				Status:         module.Status,
-			}
-
-			// Only add dependencies that should not be excluded
-			for path, dependency := range module.Dependencies {
-				if !dependency.FlagExcluded {
-					finalModules[key].Dependencies[path] = dependency
-				}
-			}
-		}
-	}
-
-	return finalModules
-}
-
-// Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
-// TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
-// as much concurrency as possible.
-func runModules(ctx context.Context, opts *options.TerragruntOptions, modules map[string]*runningModule, parallelism int) error {
-	var waitGroup sync.WaitGroup
-	var semaphore = make(chan struct{}, parallelism) // Make a semaphore from a buffered channel
-
-	for _, module := range modules {
-		waitGroup.Add(1)
-		go func(module *runningModule) {
-			defer waitGroup.Done()
-			module.runModuleWhenReady(ctx, opts, semaphore)
-		}(module)
-	}
-
-	waitGroup.Wait()
-
-	return collectErrors(modules)
-}
-
-// Collect the errors from the given modules and return a single error object to represent them, or nil if no errors
-// occurred
-func collectErrors(modules map[string]*runningModule) error {
-	var result *multierror.Error
-	for _, module := range modules {
-		if module.Err != nil {
-			result = multierror.Append(result, module.Err)
-		}
-	}
-
-	return result.ErrorOrNil()
 }
 
 // Run a module once all of its dependencies have finished executing.
@@ -241,7 +97,7 @@ func (module *runningModule) waitForDependencies() error {
 				module.Module.TerragruntOptions.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too. However, because of --terragrunt-ignore-dependency-errors, module %s will run anyway.", doneDependency.Module.Path, module.Module.Path, module.Module.Path, module.Module.Path)
 			} else {
 				module.Module.TerragruntOptions.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too.", doneDependency.Module.Path, module.Module.Path, module.Module.Path)
-				return DependencyFinishedWithError{module.Module, doneDependency.Module, doneDependency.Err}
+				return ProcessingModuleDependencyError{module.Module, doneDependency.Module, doneDependency.Err}
 			}
 		} else {
 			module.Module.TerragruntOptions.Logger.Debugf("Dependency %s of module %s just finished successfully. Module %s must wait on %d more dependencies.", doneDependency.Module.Path, module.Module.Path, module.Module.Path, len(module.Dependencies))
@@ -264,7 +120,7 @@ func (module *runningModule) runNow(ctx context.Context, rootOptions *options.Te
 			return err
 		}
 		// convert terragrunt output to json
-		if outputJsonFile(module.Module.TerragruntOptions, module.Module) != "" {
+		if module.Module.outputJsonFile(module.Module.TerragruntOptions) != "" {
 			jsonOptions := module.Module.TerragruntOptions.Clone(module.Module.TerragruntOptions.TerragruntConfigPath)
 			stdout := bytes.Buffer{}
 			jsonOptions.IncludeModulePrefix = false
@@ -272,12 +128,12 @@ func (module *runningModule) runNow(ctx context.Context, rootOptions *options.Te
 			jsonOptions.OutputPrefix = ""
 			jsonOptions.Writer = &stdout
 			jsonOptions.TerraformCommand = terraform.CommandNameShow
-			jsonOptions.TerraformCliArgs = []string{terraform.CommandNameShow, "-json", modulePlanFile(rootOptions, module.Module)}
+			jsonOptions.TerraformCliArgs = []string{terraform.CommandNameShow, "-json", module.Module.planFile(rootOptions)}
 			if err := jsonOptions.RunTerragrunt(ctx, jsonOptions); err != nil {
 				return err
 			}
 			// save the json output to the file plan file
-			outputFile := outputJsonFile(rootOptions, module.Module)
+			outputFile := module.Module.outputJsonFile(rootOptions)
 			jsonDir := filepath.Dir(outputFile)
 			if err := os.MkdirAll(jsonDir, os.ModePerm); err != nil {
 				return err
@@ -306,30 +162,154 @@ func (module *runningModule) moduleFinished(moduleErr error) {
 	}
 }
 
-// Custom error types
+type runningModules map[string]*runningModule
 
-type DependencyFinishedWithError struct {
-	Module     *TerraformModule
-	Dependency *TerraformModule
-	Err        error
-}
+func (modules runningModules) toTerraformModuleGroups(maxDepth int) []TerraformModules {
+	// Walk the graph in run order, capturing which groups will run at each iteration. In each iteration, this pops out
+	// the modules that have no dependencies and captures that as a run group.
+	groups := []TerraformModules{}
 
-func (err DependencyFinishedWithError) Error() string {
-	return fmt.Sprintf("Cannot process module %s because one of its dependencies, %s, finished with an error: %s", err.Module, err.Dependency, err.Err)
-}
+	for len(modules) > 0 && len(groups) < maxDepth {
+		currentIterationDeploy := TerraformModules{}
 
-func (this DependencyFinishedWithError) ExitStatus() (int, error) {
-	if exitCode, err := shell.GetExitCode(this.Err); err == nil {
-		return exitCode, nil
+		// next tracks which modules are being deferred to a later run.
+		next := runningModules{}
+		// removeDep tracks which modules are run in the current iteration so that they need to be removed in the
+		// dependency list for the next iteration. This is separately tracked from currentIterationDeploy for
+		// convenience: this tracks the map key of the Dependencies attribute.
+		var removeDep []string
+
+		// Iterate the modules, looking for those that have no dependencies and select them for "running". In the
+		// process, track those that still need to run in a separate map for further processing.
+		for path, module := range modules {
+			// Anything that is already applied is culled from the graph when running, so we ignore them here as well.
+			switch {
+			case module.Module.AssumeAlreadyApplied:
+				removeDep = append(removeDep, path)
+			case len(module.Dependencies) == 0:
+				currentIterationDeploy = append(currentIterationDeploy, module.Module)
+				removeDep = append(removeDep, path)
+			default:
+				next[path] = module
+			}
+		}
+
+		// Go through the remaining module and remove the dependencies that were selected to run in this current
+		// iteration.
+		for _, module := range next {
+			for _, path := range removeDep {
+				_, hasDep := module.Dependencies[path]
+				if hasDep {
+					delete(module.Dependencies, path)
+				}
+			}
+		}
+
+		// Sort the group by path so that it is easier to read and test.
+		sort.Slice(
+			currentIterationDeploy,
+			func(i, j int) bool {
+				return currentIterationDeploy[i].Path < currentIterationDeploy[j].Path
+			},
+		)
+
+		// Finally, update the trackers so that the next iteration runs.
+		modules = next
+		if len(currentIterationDeploy) > 0 {
+			groups = append(groups, currentIterationDeploy)
+		}
 	}
-	return -1, this
+
+	return groups
 }
 
-type DependencyNotFoundWhileCrossLinking struct {
-	Module     *runningModule
-	Dependency *TerraformModule
+// Loop through the map of runningModules and for each module M:
+//
+//   - If dependencyOrder is NormalOrder, plug in all the modules M depends on into the Dependencies field and all the
+//     modules that depend on M into the NotifyWhenDone field.
+//   - If dependencyOrder is ReverseOrder, do the reverse.
+//   - If dependencyOrder is IgnoreOrder, do nothing.
+func (modules runningModules) crossLinkDependencies(dependencyOrder DependencyOrder) (runningModules, error) {
+	for _, module := range modules {
+		for _, dependency := range module.Module.Dependencies {
+			runningDependency, hasDependency := modules[dependency.Path]
+			if !hasDependency {
+				return modules, errors.WithStackTrace(DependencyNotFoundWhileCrossLinkingError{module, dependency})
+			}
+			switch dependencyOrder {
+			case NormalOrder:
+				module.Dependencies[runningDependency.Module.Path] = runningDependency
+				runningDependency.NotifyWhenDone = append(runningDependency.NotifyWhenDone, module)
+			case IgnoreOrder:
+				// Nothing
+			default:
+				runningDependency.Dependencies[module.Module.Path] = module
+				module.NotifyWhenDone = append(module.NotifyWhenDone, runningDependency)
+			}
+		}
+	}
+
+	return modules, nil
 }
 
-func (err DependencyNotFoundWhileCrossLinking) Error() string {
-	return fmt.Sprintf("Module %v specifies a dependency on module %v, but could not find that module while cross-linking dependencies. This is most likely a bug in Terragrunt. Please report it.", err.Module, err.Dependency)
+// Return a cleaned-up map that only contains modules and dependencies that should not be excluded
+func (modules runningModules) removeFlagExcluded() map[string]*runningModule {
+	var finalModules = make(map[string]*runningModule)
+
+	for key, module := range modules {
+
+		// Only add modules that should not be excluded
+		if !module.FlagExcluded {
+			finalModules[key] = &runningModule{
+				Module:         module.Module,
+				Dependencies:   make(map[string]*runningModule),
+				DependencyDone: module.DependencyDone,
+				Err:            module.Err,
+				NotifyWhenDone: module.NotifyWhenDone,
+				Status:         module.Status,
+			}
+
+			// Only add dependencies that should not be excluded
+			for path, dependency := range module.Dependencies {
+				if !dependency.FlagExcluded {
+					finalModules[key].Dependencies[path] = dependency
+				}
+			}
+		}
+	}
+
+	return finalModules
+}
+
+// Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
+// TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
+// as much concurrency as possible.
+func (modules runningModules) runModules(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
+	var waitGroup sync.WaitGroup
+	var semaphore = make(chan struct{}, parallelism) // Make a semaphore from a buffered channel
+
+	for _, module := range modules {
+		waitGroup.Add(1)
+		go func(module *runningModule) {
+			defer waitGroup.Done()
+			module.runModuleWhenReady(ctx, opts, semaphore)
+		}(module)
+	}
+
+	waitGroup.Wait()
+
+	return modules.collectErrors()
+}
+
+// Collect the errors from the given modules and return a single error object to represent them, or nil if no errors
+// occurred
+func (modules runningModules) collectErrors() error {
+	var result *multierror.Error
+	for _, module := range modules {
+		if module.Err != nil {
+			result = multierror.Append(result, module.Err)
+		}
+	}
+
+	return result.ErrorOrNil()
 }

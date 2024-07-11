@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/mitchellh/mapstructure"
@@ -72,7 +73,7 @@ var (
 
 	DefaultParserOptions = func(opts *options.TerragruntOptions) []hclparse.Option {
 		return []hclparse.Option{
-			hclparse.WithLogger(opts.Logger),
+			hclparse.WithLogger(opts.Logger, opts.DisableLogColors),
 			hclparse.WithFileUpdate(updateBareIncludeBlock),
 		}
 	}
@@ -680,23 +681,23 @@ func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOpt
 }
 
 // Read the Terragrunt config file from its default location
-func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*TerragruntConfig, error) {
+func ReadTerragruntConfig(ctx context.Context, terragruntOptions *options.TerragruntOptions, parserOptions []hclparse.Option) (*TerragruntConfig, error) {
 	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
 
-	ctx := NewParsingContext(context.Background(), terragruntOptions)
-	return ParseConfigFile(terragruntOptions, ctx, terragruntOptions.TerragruntConfigPath, nil)
+	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
+	parcingCtx := NewParsingContext(ctx, terragruntOptions).WithParseOption(parserOptions)
+	return ParseConfigFile(parcingCtx, terragruntOptions.TerragruntConfigPath, nil)
 }
 
 var hclCache = cache.NewCache[*hclparse.File]()
 
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
-func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
-
+func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	var config *TerragruntConfig
-	err := telemetry.Telemetry(ctx, opts, "parse_config_file", map[string]interface{}{
+	err := telemetry.Telemetry(ctx, ctx.TerragruntOptions, "parse_config_file", map[string]interface{}{
 		"config_path": configPath,
-		"working_dir": opts.WorkingDir,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
 		childKey := "nil"
 		if includeFromChild != nil {
@@ -716,7 +717,7 @@ func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, confi
 			return err
 		}
 		var file *hclparse.File
-		var cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, opts.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
+		var cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, ctx.TerragruntOptions.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
 		if cacheConfig, found := hclCache.Get(cacheKey); found {
 			file = cacheConfig
 		} else {
@@ -888,7 +889,9 @@ func decodeAsTerragruntConfigFile(ctx *ParsingContext, file *hclparse.File, eval
 			return nil, err
 		}
 		ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
+	}
 
+	if terragruntConfig.Inputs != nil {
 		inputs, err := updateUnknownCtyValValues(terragruntConfig.Inputs)
 		if err != nil {
 			return nil, err
@@ -1143,6 +1146,12 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	}
 
 	if ctx.Locals != nil && *ctx.Locals != cty.NilVal {
+		locals, err := updateUnknownCtyValValues(ctx.Locals)
+		if err != nil {
+			return nil, err
+		}
+		ctx.Locals = locals
+
 		localsParsed, err := parseCtyValueToMap(*ctx.Locals)
 		if err != nil {
 			return nil, err

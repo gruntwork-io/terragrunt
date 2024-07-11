@@ -23,7 +23,7 @@ type Block struct {
 func (block *Block) JustAttributes() (Attributes, error) {
 	hclAttrs, diags := block.Body.JustAttributes()
 
-	if err := block.diagnosticsError(diags); err != nil {
+	if err := block.HandleDiagnostics(diags); err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
 

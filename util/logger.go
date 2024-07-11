@@ -96,8 +96,8 @@ func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Leve
 }
 
 // GetDiagnosticsWriter returns a hcl2 parsing diagnostics emitter for the current terminal.
-func GetDiagnosticsWriter(logger *logrus.Entry, parser *hclparse.Parser) hcl.DiagnosticWriter {
-	termColor := term.IsTerminal(int(os.Stderr.Fd()))
+func GetDiagnosticsWriter(logger *logrus.Entry, parser *hclparse.Parser, disableColor bool) hcl.DiagnosticWriter {
+	termColor := !disableColor && term.IsTerminal(int(os.Stderr.Fd()))
 	termWidth, _, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
 		termWidth = 80
@@ -113,7 +113,6 @@ func GetDefaultLogLevel() logrus.Level {
 	if defaultLogLevelStr == "" {
 		return defaultLogLevel
 	}
-
 	return ParseLogLevel(defaultLogLevelStr)
 }
 
