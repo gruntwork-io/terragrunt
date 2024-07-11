@@ -39,8 +39,8 @@ In this example configuration, whenever Terragrunt runs `terraform apply` or `te
 
 Any type of hook passes two environment variables to the running application:
 
-- `TERRAFORM_COMMAND`
-- `TERRAGRUNT_HOOK_NAME`
+- `TG_CTX_COMMAND`
+- `TG_CTX_HOOK_NAME`
 
 You can have multiple before and after hooks. Each hook will execute in the order they are defined. For example:
 
