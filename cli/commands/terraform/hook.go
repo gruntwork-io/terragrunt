@@ -62,6 +62,7 @@ func processErrorHooks(ctx context.Context, hooks []config.ErrorHook, terragrunt
 
 			actionToExecute := curHook.Execute[0]
 			actionParams := curHook.Execute[1:]
+			terragruntOptions = cloneTerragruntOptionsForHook(terragruntOptions, curHook.Name)
 
 			_, possibleError := shell.RunShellCommandWithOutput(
 				ctx,
@@ -134,6 +135,7 @@ func runHook(ctx context.Context, terragruntOptions *options.TerragruntOptions, 
 
 	actionToExecute := curHook.Execute[0]
 	actionParams := curHook.Execute[1:]
+	terragruntOptions = cloneTerragruntOptionsForHook(terragruntOptions, curHook.Name)
 
 	if actionToExecute == "tflint" {
 		if err := executeTFLint(ctx, terragruntOptions, terragruntConfig, curHook, workingDir); err != nil {
@@ -168,4 +170,13 @@ func executeTFLint(ctx context.Context, terragruntOptions *options.TerragruntOpt
 		return err
 	}
 	return nil
+}
+
+func cloneTerragruntOptionsForHook(opts *options.TerragruntOptions, hookName string) *options.TerragruntOptions {
+	newOpts := *opts
+	newOpts.Env = util.CloneStringMap(opts.Env)
+	newOpts.Env["TERRAFORM_COMMAND"] = opts.TerraformCommand
+	newOpts.Env["TERRAGRUNT_HOOK_NAME"] = hookName
+
+	return &newOpts
 }
