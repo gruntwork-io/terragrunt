@@ -5,12 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/go-hclog"
 	"io"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
+
+	"github.com/hashicorp/go-hclog"
 
 	"google.golang.org/grpc/credentials/insecure"
 
