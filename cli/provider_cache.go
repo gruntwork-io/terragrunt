@@ -193,12 +193,8 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	cloneOpts.WorkingDir = opts.WorkingDir
 	maps.Copy(cloneOpts.Env, env)
 
-	if util.FirstArg(args) == terraform.CommandNameProviders && util.SecondArg(args) == terraform.CommandNameLock {
-		return &util.CmdOutput{}, nil
-	}
-
 	if skipRunTargetCommand {
-		return &util.CmdOutput{}, nil
+		return &shell.CmdOutput{}, nil
 	}
 	return shell.RunTerraformCommandWithOutput(ctx, cloneOpts, args...)
 }
@@ -267,7 +263,7 @@ func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions
 	return cfg.Save(filename)
 }
 
-func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, args []string, envs map[string]string) (*util.CmdOutput, error) {
+func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, args []string, envs map[string]string) (*shell.CmdOutput, error) {
 	// We use custom writer in order to trap the log from `terraform providers lock -platform=provider-cache` command, which terraform considers an error, but to us a success.
 	errWriter := util.NewTrapWriter(opts.ErrWriter, httpStatusCacheProviderReg)
 

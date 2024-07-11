@@ -117,7 +117,7 @@ func readConfig(t *testing.T, opts *options.TerragruntOptions) *config.Terragrun
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(opts.WorkingDir, "terragrunt.hcl"))
 	assert.NoError(t, err)
 
-	cfg, err := config.ReadTerragruntConfig(opts)
+	cfg, err := config.ReadTerragruntConfig(context.Background(), opts, config.DefaultParserOptions(opts))
 	assert.NoError(t, err)
 
 	return cfg

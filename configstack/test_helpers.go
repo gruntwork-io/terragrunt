@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type TerraformModuleByPath []*TerraformModule
+type TerraformModuleByPath TerraformModules
 
 func (byPath TerraformModuleByPath) Len() int           { return len(byPath) }
 func (byPath TerraformModuleByPath) Swap(i, j int)      { byPath[i], byPath[j] = byPath[j], byPath[i] }
@@ -29,7 +29,7 @@ func (byPath RunningModuleByPath) Less(i, j int) bool {
 
 // We can't use assert.Equals on TerraformModule or any data structure that contains it because it contains some
 // fields (e.g. TerragruntOptions) that cannot be compared directly
-func assertModuleListsEqual(t *testing.T, expectedModules []*TerraformModule, actualModules []*TerraformModule, messageAndArgs ...interface{}) {
+func assertModuleListsEqual(t *testing.T, expectedModules TerraformModules, actualModules TerraformModules, messageAndArgs ...interface{}) {
 	if !assert.Equal(t, len(expectedModules), len(actualModules), messageAndArgs...) {
 		t.Logf("%s != %s", expectedModules, actualModules)
 		return
@@ -120,13 +120,13 @@ func assertRunningModulesEqual(t *testing.T, expected *runningModule, actual *ru
 	}
 }
 
-// We can't do a simple IsError comparison for UnrecognizedDependency because that error is a struct that
+// We can't do a simple IsError comparison for UnrecognizedDependencyError because that error is a struct that
 // contains an array, and in Go, trying to compare arrays gives a "comparing uncomparable type
-// configstack.UnrecognizedDependency" panic. Therefore, we have to compare that error more manually.
+// configstack.UnrecognizedDependencyError" panic. Therefore, we have to compare that error more manually.
 func assertErrorsEqual(t *testing.T, expected error, actual error, messageAndArgs ...interface{}) {
 	actual = errors.Unwrap(actual)
-	if expectedUnrecognized, isUnrecognizedDependencyError := expected.(UnrecognizedDependency); isUnrecognizedDependencyError {
-		actualUnrecognized, isUnrecognizedDependencyError := actual.(UnrecognizedDependency)
+	if expectedUnrecognized, isUnrecognizedDependencyError := expected.(UnrecognizedDependencyError); isUnrecognizedDependencyError {
+		actualUnrecognized, isUnrecognizedDependencyError := actual.(UnrecognizedDependencyError)
 		if assert.True(t, isUnrecognizedDependencyError, messageAndArgs...) {
 			assert.Equal(t, expectedUnrecognized, actualUnrecognized, messageAndArgs...)
 		}

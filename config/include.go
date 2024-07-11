@@ -91,7 +91,7 @@ func parseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*T
 		return PartialParseConfigFile(ctx, includePath, includedConfig)
 	}
 
-	return ParseConfigFile(ctx.TerragruntOptions, ctx, includePath, includedConfig)
+	return ParseConfigFile(ctx, includePath, includedConfig)
 }
 
 // handleInclude merges the included config into the current config depending on the merge strategy specified by the
@@ -576,7 +576,6 @@ func mergeInputs(childInputs map[string]interface{}, parentInputs map[string]int
 	for key, value := range childInputs {
 		out[key] = value
 	}
-
 	return out
 }
 

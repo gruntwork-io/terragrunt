@@ -1,6 +1,7 @@
 package scaffold
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -81,7 +82,7 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(outputDir, "terragrunt.hcl"))
 	require.NoError(t, err)
 
-	cfg, err := config.ReadTerragruntConfig(opts)
+	cfg, err := config.ReadTerragruntConfig(context.Background(), opts, config.DefaultParserOptions(opts))
 	require.NoError(t, err)
 	require.NotEmpty(t, cfg.Inputs)
 	require.Equal(t, 1, len(cfg.Inputs))

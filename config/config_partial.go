@@ -314,15 +314,15 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 					return nil, err
 				}
 				ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
-
-				inputs, err := updateUnknownCtyValValues(decoded.Inputs)
-				if err != nil {
-					return nil, err
-				}
-				decoded.Inputs = inputs
 			}
 
 			if decoded.Inputs != nil {
+				val, err := updateUnknownCtyValValues(decoded.Inputs)
+				if err != nil {
+					return nil, err
+				}
+				decoded.Inputs = val
+
 				inputs, err := parseCtyValueToMap(*decoded.Inputs)
 				if err != nil {
 					return nil, err

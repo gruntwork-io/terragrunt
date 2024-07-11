@@ -25,6 +25,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [validate-inputs](#validate-inputs)
   - [graph-dependencies](#graph-dependencies)
   - [hclfmt](#hclfmt)
+  - [hclvalidate](#hclvalidate)
   - [aws-provider-patch](#aws-provider-patch)
   - [render-json](#render-json)
   - [output-module-groups](#output-module-groups)
@@ -47,6 +48,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-iam-role](#terragrunt-iam-role)
   - [terragrunt-iam-assume-role-duration](#terragrunt-iam-assume-role-duration)
   - [terragrunt-iam-assume-role-session-name](#terragrunt-iam-assume-role-session-name)
+  - [terragrunt-excludes-file](#terragrunt-excludes-file)
   - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
   - [terragrunt-include-dir](#terragrunt-include-dir)
   - [terragrunt-strict-include](#terragrunt-strict-include)
@@ -61,6 +63,8 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-check](#terragrunt-check)
   - [terragrunt-diff](#terragrunt-diff)
   - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
+  - [terragrunt-hclvalidate-json](#terragrunt-hclvalidate-json)
+  - [terragrunt-hclvalidate-invalid](#terragrunt-hclvalidate-invalid)
   - [terragrunt-override-attr](#terragrunt-override-attr)
   - [terragrunt-json-out](#terragrunt-json-out)
   - [terragrunt-json-disable-dependent-modules](#terragrunt-json-disable-dependent-modules)
@@ -97,6 +101,7 @@ Terragrunt supports the following CLI commands:
 - [validate-inputs](#validate-inputs)
 - [graph-dependencies](#graph-dependencies)
 - [hclfmt](#hclfmt)
+- [hclvalidate](#hclvalidate)
 - [aws-provider-patch](#aws-provider-patch)
 - [render-json](#render-json)
 - [output-module-groups](#output-module-groups)
@@ -406,6 +411,19 @@ terragrunt hclfmt
 This will recursively search the current working directory for any folders that contain Terragrunt configuration files
 and run the equivalent of `terraform fmt` on them.
 
+### hclvalidate
+
+Find all hcl files from the configuration stack and validate them.
+
+Example:
+
+```bash
+terragrunt hclvalidate
+```
+
+This will search all hcl files from the configuration stack in the current working directory and run the equivalent
+of `terraform validate` on them.
+
 ### aws-provider-patch
 
 Overwrite settings on nested AWS providers to work around several Terraform bugs. Due to
@@ -714,6 +732,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
   - [terragrunt-iam-role](#terragrunt-iam-role)
   - [terragrunt-iam-assume-role-duration](#terragrunt-iam-assume-role-duration)
   - [terragrunt-iam-assume-role-session-name](#terragrunt-iam-assume-role-session-name)
+  - [terragrunt-excludes-file](#terragrunt-excludes-file)
   - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
   - [terragrunt-include-dir](#terragrunt-include-dir)
   - [terragrunt-strict-include](#terragrunt-strict-include)
@@ -728,6 +747,8 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
   - [terragrunt-check](#terragrunt-check)
   - [terragrunt-diff](#terragrunt-diff)
   - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
+  - [terragrunt-hclvalidate-json](#terragrunt-hclvalidate-json)
+  - [terragrunt-hclvalidate-invalid](#terragrunt-hclvalidate-invalid)
   - [terragrunt-override-attr](#terragrunt-override-attr)
   - [terragrunt-json-out](#terragrunt-json-out)
   - [terragrunt-json-disable-dependent-modules](#terragrunt-json-disable-dependent-modules)
@@ -933,6 +954,16 @@ Uses the specified duration as the session duration (in seconds) for the STS ses
 
 Used as the session name for the STS session which assumes the role defined in `--terragrunt-iam-role`.
 
+### terragrunt-excludes-file
+
+**CLI Arg**: `--terragrunt-excludes-file`<br/>
+**Environment Variable**: `TERRAGRUNT_EXCLUDES_FILE`<br/>
+**Requires an argument**: `--terragrunt-excludes-file /path/to/file`<br/>
+
+Path to a file with a list of directories that need to be excluded when running *-all commands, by default `.terragrunt-excludes`. Modules under these directories will be
+excluded during execution of the commands. If a relative path is specified, it should be relative from
+[--terragrunt-working-dir](#terragrunt-working-dir). This will only exclude the module, not its dependencies.
+
 ### terragrunt-exclude-dir
 
 **CLI Arg**: `--terragrunt-exclude-dir`<br/>
@@ -1066,6 +1097,26 @@ When passed in, running `hclfmt` will print diff between original and modified f
 - [hclfmt](#hclfmt)
 
 When passed in, run `hclfmt` only on specified hcl file.
+
+### terragrunt-hclvalidate-json
+
+**CLI Arg**: `--terragrunt-hclvalidate-json`<br/>
+**Environment Variable**: `TERRAGRUNT_HCLVALIDATE_JSON` (set to `true`)<br/>
+**Commands**:
+
+- [hclvalidate](#hclvalidate)
+
+When passed in, render the output in the JSON format.
+
+### terragrunt-hclvalidate-invalid
+
+**CLI Arg**: `--terragrunt-hclvalidate-invalid`<br/>
+**Environment Variable**: `TERRAGRUNT_HCLVALIDATE_INVALID` (set to `true`)<br/>
+**Commands**:
+
+- [hclvalidate](#hclvalidate)
+
+When passed in, output a list of files with invalid configuration.
 
 ### terragrunt-override-attr
 
