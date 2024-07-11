@@ -1,0 +1,3 @@
+#!/bin/sh
+
+echo "COMMAND=${TG_CTX_COMMAND} HOOK_NAME=${TG_CTX_HOOK_NAME}"
