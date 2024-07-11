@@ -1,6 +1,6 @@
 ---
 layout: collection-browser-doc
-title: Engine
+title: Terragrunt IAC Engine Plugin System
 category: features
 categories_url: features
 excerpt: Terragrunt IaC engine
@@ -10,7 +10,7 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Engine
+## Terragrunt IAC Engine Plugin System
 
 A new engine configuration block has been released allowing you to customize and configure how your IAC updates orchestrated by Terragrunt!
 
