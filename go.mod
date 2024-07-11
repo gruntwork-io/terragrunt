@@ -61,13 +61,13 @@ require (
 	github.com/getsops/sops/v3 v3.8.1
 	github.com/gitsight/go-vcsurl v1.0.1
 	github.com/gofrs/flock v0.8.1
-	github.com/google/go-github/v55 v55.0.0
 	github.com/google/uuid v1.6.0
 	github.com/gruntwork-io/boilerplate v0.5.11
 	github.com/gruntwork-io/go-commons v0.17.2
 	github.com/gruntwork-io/gruntwork-cli v0.7.0
 	github.com/gruntwork-io/terragrunt-engine-go v0.0.1
 	github.com/hashicorp/go-getter/v2 v2.2.1
+	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-plugin v1.6.1
 	github.com/labstack/echo/v4 v4.11.4
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db
@@ -173,7 +173,6 @@ require (
 	github.com/goware/prefixer v0.0.0-20160118172347-395022866408 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.19.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
-	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.6 // indirect
 	github.com/hashicorp/go-secure-stdlib/strutil v0.1.2 // indirect
