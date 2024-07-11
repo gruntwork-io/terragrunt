@@ -54,7 +54,6 @@ install_tflint: &install_tflint
     popd
     tflint --version
 
-
 install_tofu_engine: &install_tofu_engine
   name: Install OpenTofu Engine
   command: |
@@ -353,8 +352,6 @@ jobs:
           <<: *install_tofu
       - run:
           <<: *install_tofu_engine
-      - run:
-          <<: *install_tflint
       - run:
           <<: *setup_test_environment
       - run:
