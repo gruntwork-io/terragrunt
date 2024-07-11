@@ -63,7 +63,6 @@ echo "COMMAND=${TG_CTX_COMMAND} HOOK_NAME=${TG_CTX_HOOK_NAME}"
 
 In this example, whenever Terragrunt runs `terraform apply`, the `hook.sh` script will print "COMMAND=apply HOOK_NAME=test_hook"
 
-
 You can have multiple before and after hooks. Each hook will execute in the order they are defined. For example:
 
 ``` hcl
