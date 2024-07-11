@@ -310,6 +310,7 @@ type TerragruntOptions struct {
 	// Allows to skip the output of all dependencies. Intended for use with `hclvalidate` command.
 	SkipOutput bool
 
+	// Options to use engine for running IaC operations.
 	Engine *EngineOptions
 }
 

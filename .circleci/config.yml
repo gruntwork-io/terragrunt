@@ -58,12 +58,14 @@ install_tflint: &install_tflint
 install_tofu_engine: &install_tofu_engine
   name: Install OpenTofu Engine
   command: |
+    # Download the OpenTofu Engine binary
     export REPO="gruntwork-io/terragrunt-engine-opentofu"
     export TAG="v0.0.1"
     export ASSET_NAME="terragrunt-iac-engine-opentofu_rpc_v0.0.1_linux_amd64.zip"
-    gh api --header 'Accept: application/octet-stream' "repos/$REPO/releases/assets/$ASSET_ID" --output "$ASSET_NAME"
+    gh release download --repo "${REPO} --pattern "${ASSET_NAME}" "${TAG}"
     ls -lahrt
     unzip "$OUTPUT_DIR/$ASSET_NAME" -d "."
+    ls -lahrt
 
 setup_test_environment: &setup_test_environment
   name: Setup integration tests environment
