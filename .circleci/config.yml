@@ -76,8 +76,6 @@ setup_test_environment: &setup_test_environment
     # Import test / dev key for SOPS
     gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
     mkdir -p logs
-    export GOPRIVATE="github.com/gruntwork-io/*"
-    export GIT_SSH_COMMAND="ssh -i /home/circleci/.ssh/id_rsa_78a64a8391239adcd479c9be8b1903c7 -o IdentitiesOnly=yes"
   no_output_timeout: 30m
 
 run_integration_test: &run_integration_test
@@ -114,9 +112,6 @@ jobs:
       name: win/default
       size: "large"
     steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       - run:
           name: Install golang
@@ -139,7 +134,6 @@ jobs:
           shell: powershell.exe
           no_output_timeout: 45m
           command: |
-            $env:GIT_SSH_COMMAND="ssh -i /home/circleci/.ssh/id_rsa_78a64a8391239adcd479c9be8b1903c7 -o IdentitiesOnly=yes"
             # We're running this test only on Windows currently to provide a convenient
             # means of reproducing Terragrunt issues that only occur on that platform
             go test -v ./... -run TestWindowsTerragruntSourceMapDebug -timeout 45m
@@ -174,16 +168,11 @@ jobs:
   unit_test:
     <<: *defaults
     steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       # Run pre-commit hooks and fail the build if any hook finds required changes.
       - run:
           name: run precommit
           command: |
-            export GOPRIVATE="github.com/gruntwork-io/*"
-            export GIT_SSH_COMMAND="ssh -i /home/circleci/.ssh/id_rsa_78a64a8391239adcd479c9be8b1903c7 -o IdentitiesOnly=yes"
             # Oct 26, 2019: Install the last known working version of pre-commit. Also, we have to pin the version of
             # transitive dependencies that are being pulled in which released new versions that are no longer compatible
             # with any python < 3.6.
@@ -220,9 +209,6 @@ jobs:
     resource_class: xlarge
     <<: *defaults
     steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       - run:
           <<: *install_tflint
@@ -241,9 +227,6 @@ jobs:
     resource_class: xlarge
     <<: *defaults
     steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       - run:
           <<: *install_tflint
@@ -264,9 +247,6 @@ jobs:
     resource_class: xlarge
     <<: *defaults
     steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       - run:
           <<: *install_terraform_latest
@@ -287,9 +267,6 @@ jobs:
     resource_class: xlarge
     <<: *defaults
     steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       - run:
           <<: *install_tofu
@@ -315,9 +292,6 @@ jobs:
     resource_class: xlarge
     <<: *defaults
     steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       - run:
           <<: *install_tofu
@@ -344,9 +318,6 @@ jobs:
     resource_class: xlarge
     <<: *defaults
     steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       - run:
           <<: *install_tofu
@@ -376,9 +347,6 @@ jobs:
     resource_class: large
     <<: *defaults
     steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       - run:
           <<: *install_tofu
@@ -406,13 +374,8 @@ jobs:
     resource_class: xlarge
     <<: *defaults
     steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "SHA256:R1U5ucEcu9pdl4mgfNo7kv7Lm6L4edvDSn9R3auqov4"
       - checkout
       - run: |
-         export GOPRIVATE="github.com/gruntwork-io/*"
-         export GIT_SSH_COMMAND="ssh -i /home/circleci/.ssh/id_rsa_78a64a8391239adcd479c9be8b1903c7 -o IdentitiesOnly=yes"
          build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X github.com/gruntwork-io/go-commons/version.Version=$CIRCLE_TAG -extldflags '-static'"
       - persist_to_workspace:
           root: .

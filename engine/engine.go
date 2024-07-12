@@ -30,11 +30,8 @@ const (
 	engineVersion                   = 1
 	engineCookieKey                 = "engine"
 	engineCookieValue               = "terragrunt"
+	engineClientsKey                = "engineClients"
 	EnableExperimentalEngineEnvName = "TG_EXPERIMENTAL_ENGINE"
-)
-
-var (
-	engineClients = sync.Map{}
 )
 
 type ExecutionOptions struct {
@@ -54,20 +51,15 @@ type engineInstance struct {
 	executionOptions *ExecutionOptions
 }
 
-// IsEngineEnabled returns true if the experimental engine is enabled.
-func IsEngineEnabled() bool {
-	switch strings.ToLower(os.Getenv(EnableExperimentalEngineEnvName)) {
-	case "1", "yes", "true", "on":
-		return true
-	}
-	return false
-}
-
 // Run executes the given command with the experimental engine.
 func Run(
 	ctx context.Context,
 	runOptions *ExecutionOptions,
 ) (*util.CmdOutput, error) {
+	engineClients, err := engineClientsFromContext(ctx)
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
 	workingDir := runOptions.TerragruntOptions.WorkingDir
 	instance, found := engineClients.Load(workingDir)
 	// initialize engine for working directory
@@ -100,12 +92,44 @@ func Run(
 	return cmdOutput, nil
 }
 
-// Shutdown shuts down the experimental engine.
-func Shutdown(ctx context.Context) {
+func ContextWithEngine(ctx context.Context) context.Context {
 	if !IsEngineEnabled() {
-		return
+		return ctx
+	}
+	return context.WithValue(ctx, engineClientsKey, sync.Map{})
+}
+
+func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
+	val := ctx.Value(engineClientsKey)
+	if val == nil {
+		return nil, errors.WithStackTrace(fmt.Errorf("failed to fetch engine clients from context"))
+	}
+	result, ok := val.(*sync.Map)
+	if !ok {
+		return nil, errors.WithStackTrace(fmt.Errorf("failed to cast engine clients from context"))
+	}
+	return result, nil
+}
+
+// IsEngineEnabled returns true if the experimental engine is enabled.
+func IsEngineEnabled() bool {
+	switch strings.ToLower(os.Getenv(EnableExperimentalEngineEnvName)) {
+	case "1", "yes", "true", "on":
+		return true
+	}
+	return false
+}
+
+// Shutdown shuts down the experimental engine.
+func Shutdown(ctx context.Context) error {
+	if !IsEngineEnabled() {
+		return nil
 	}
 	// iterate over all engine instances and shutdown
+	engineClients, err := engineClientsFromContext(ctx)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
 	engineClients.Range(func(key, value interface{}) bool {
 		instance := value.(*engineInstance)
 		instance.executionOptions.TerragruntOptions.Logger.Debugf("Shutting down engine for %s", instance.executionOptions.WorkingDir)
@@ -117,6 +141,7 @@ func Shutdown(ctx context.Context) {
 		instance.client.Kill()
 		return true
 	})
+	return nil
 }
 
 // create engine for working directory

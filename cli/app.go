@@ -94,7 +94,6 @@ func (app *App) Run(args []string) error {
 
 func (app *App) RunContext(ctx context.Context, args []string) error {
 	ctx, cancel := context.WithCancel(ctx)
-	defer engine.Shutdown(ctx)
 	defer cancel()
 
 	shell.RegisterSignalHandler(func(signal os.Signal) {
@@ -124,6 +123,12 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	}
 	defer func(ctx context.Context) {
 		if err := telemetry.ShutdownTelemetry(ctx); err != nil {
+			_, _ = app.ErrWriter.Write([]byte(err.Error()))
+		}
+	}(ctx)
+
+	defer func(ctx context.Context) {
+		if err := engine.Shutdown(ctx); err != nil {
 			_, _ = app.ErrWriter.Write([]byte(err.Error()))
 		}
 	}(ctx)
