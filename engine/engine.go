@@ -96,7 +96,7 @@ func ContextWithEngine(ctx context.Context) context.Context {
 	if !IsEngineEnabled() {
 		return ctx
 	}
-	return context.WithValue(ctx, engineClientsKey, sync.Map{})
+	return context.WithValue(ctx, engineClientsKey, &sync.Map{})
 }
 
 func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
