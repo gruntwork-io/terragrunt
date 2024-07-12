@@ -62,7 +62,7 @@ install_tofu_engine: &install_tofu_engine
     export REPO="gruntwork-io/terragrunt-engine-opentofu"
     export TAG="v0.0.1"
     export ASSET_NAME="terragrunt-iac-engine-opentofu_rpc_${TAG}_linux_amd64.zip"
-    wget -o "engine.zip" "https://github.com/${REPO}/releases/download/${TAG}/${ASSET_NAME}"
+    wget -O "engine.zip" "https://github.com/${REPO}/releases/download/${TAG}/${ASSET_NAME}"
     unzip -o "engine.zip"
     ls -lahrt
 
