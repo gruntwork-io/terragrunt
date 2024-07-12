@@ -27,9 +27,10 @@ import (
 )
 
 const (
-	engineVersion     = 1
-	engineCookieKey   = "engine"
-	engineCookieValue = "terragrunt"
+	engineVersion                   = 1
+	engineCookieKey                 = "engine"
+	engineCookieValue               = "terragrunt"
+	EnableExperimentalEngineEnvName = "TG_EXPERIMENTAL_ENGINE"
 )
 
 var (
@@ -55,7 +56,7 @@ type engineInstance struct {
 
 // IsEngineEnabled returns true if the experimental engine is enabled.
 func IsEngineEnabled() bool {
-	switch strings.ToLower(os.Getenv("TG_EXPERIMENTAL_ENGINE")) {
+	switch strings.ToLower(os.Getenv(EnableExperimentalEngineEnvName)) {
 	case "1", "yes", "true", "on":
 		return true
 	}
@@ -86,7 +87,11 @@ func Run(
 		}
 	}
 
-	terragruntEngine := instance.(*engineInstance).terragruntEngine
+	engInst, ok := instance.(*engineInstance)
+	if !ok {
+		return nil, errors.WithStackTrace(fmt.Errorf("failed to fetch engine instance %s", workingDir))
+	}
+	terragruntEngine := engInst.terragruntEngine
 	cmdOutput, err := invoke(ctx, runOptions, terragruntEngine)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)

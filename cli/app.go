@@ -4,6 +4,7 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/engine"
 	"io"
 	"os"
 	"path/filepath"
@@ -92,6 +93,7 @@ func (app *App) Run(args []string) error {
 
 func (app *App) RunContext(ctx context.Context, args []string) error {
 	ctx, cancel := context.WithCancel(ctx)
+	defer engine.Shutdown(ctx)
 	defer cancel()
 
 	shell.RegisterSignalHandler(func(signal os.Signal) {

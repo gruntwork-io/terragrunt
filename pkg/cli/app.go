@@ -5,8 +5,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/engine"
-
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/urfave/cli/v2"
 )
@@ -114,8 +112,6 @@ func (app *App) RunContext(ctx context.Context, arguments []string) (err error) 
 
 		args := Args(parentCtx.Args().Slice())
 		ctx := newContext(parentCtx.Context, app)
-
-		defer engine.Shutdown(ctx)
 
 		if app.Autocomplete {
 			if err := app.setupAutocomplete(args); err != nil {

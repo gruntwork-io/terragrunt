@@ -109,7 +109,7 @@ func (stack *Stack) LogModuleDeployOrder(logger *logrus.Entry, terraformCommand 
 func (stack *Stack) JsonModuleDeployOrder(terraformCommand string) (string, error) {
 	runGraph, err := stack.getModuleRunGraph(terraformCommand)
 	if err != nil {
-		return "", err
+		return "", errors.WithStackTrace(err)
 	}
 	// Convert the module paths to a string array for JSON marshalling
 	// The index should be the group number, and the value should be an array of module paths
@@ -123,7 +123,7 @@ func (stack *Stack) JsonModuleDeployOrder(terraformCommand string) (string, erro
 	}
 	j, err := json.MarshalIndent(jsonGraph, "", "  ")
 	if err != nil {
-		return "", err
+		return "", errors.WithStackTrace(err)
 	}
 	return string(j), nil
 }
