@@ -27,12 +27,14 @@ import (
 )
 
 const (
-	engineVersion                   = 1
-	engineCookieKey                 = "engine"
-	engineCookieValue               = "terragrunt"
-	engineClientsKey                = "engineClients"
-	EnableExperimentalEngineEnvName = "TG_EXPERIMENTAL_ENGINE"
+	engineVersion                                    = 1
+	engineCookieKey                                  = "engine"
+	engineCookieValue                                = "terragrunt"
+	EnableExperimentalEngineEnvName                  = "TG_EXPERIMENTAL_ENGINE"
+	TerraformCommandContextKey      engineClientsKey = iota
 )
+
+type engineClientsKey byte
 
 type ExecutionOptions struct {
 	TerragruntOptions *options.TerragruntOptions
@@ -96,11 +98,11 @@ func ContextWithEngine(ctx context.Context) context.Context {
 	if !IsEngineEnabled() {
 		return ctx
 	}
-	return context.WithValue(ctx, engineClientsKey, &sync.Map{})
+	return context.WithValue(ctx, TerraformCommandContextKey, &sync.Map{})
 }
 
 func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
-	val := ctx.Value(engineClientsKey)
+	val := ctx.Value(TerraformCommandContextKey)
 	if val == nil {
 		return nil, errors.WithStackTrace(fmt.Errorf("failed to fetch engine clients from context"))
 	}
