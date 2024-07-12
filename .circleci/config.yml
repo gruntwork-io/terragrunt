@@ -58,14 +58,11 @@ install_tofu_engine: &install_tofu_engine
   name: Install OpenTofu Engine
   command: |
     # Download the OpenTofu Engine binary
-    export GH_TOKEN=${GW_GITHUB_OAUTH_TOKEN}
     export REPO="gruntwork-io/terragrunt-engine-opentofu"
     export TAG="v0.0.1"
-    export ASSET_NAME="terragrunt-iac-engine-opentofu_rpc_v0.0.1_linux_amd64.zip"
-    gh release download --repo "${REPO}" --pattern "${ASSET_NAME}" "${TAG}"
-    ls -lahrt
+    export ASSET_NAME="terragrunt-iac-engine-opentofu_rpc_${TAG}_linux_amd64.zip"
+    wget -o "${ASSET_NAME}" "https://github.com/${REPO}/releases/download/${TAG}/${ASSET_NAME}"
     unzip -o "$ASSET_NAME"
-    ls -lahrt
 
 setup_test_environment: &setup_test_environment
   name: Setup integration tests environment
