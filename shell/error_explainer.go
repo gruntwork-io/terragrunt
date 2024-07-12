@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/util"
+
 	"github.com/gruntwork-io/gruntwork-cli/collections"
 
 	"github.com/gruntwork-io/go-commons/errors"
@@ -45,7 +47,7 @@ func ExplainError(err error) string {
 		}
 		message := originalError.Error()
 		// extract process output, if it is the case
-		processError, ok := originalError.(ProcessExecutionError)
+		processError, ok := originalError.(util.ProcessExecutionError)
 		if ok {
 			errorOutput := processError.Stderr
 			stdOut := processError.StdOut

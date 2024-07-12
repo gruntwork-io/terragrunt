@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/engine"
+
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"golang.org/x/sync/errgroup"
@@ -121,6 +123,16 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	}
 	defer func(ctx context.Context) {
 		if err := telemetry.ShutdownTelemetry(ctx); err != nil {
+			_, _ = app.ErrWriter.Write([]byte(err.Error()))
+		}
+	}(ctx)
+
+	// init engine if required
+	if engine.IsEngineEnabled() {
+		ctx = engine.ContextWithEngine(ctx)
+	}
+	defer func(ctx context.Context) {
+		if err := engine.Shutdown(ctx); err != nil {
 			_, _ = app.ErrWriter.Write([]byte(err.Error()))
 		}
 	}(ctx)

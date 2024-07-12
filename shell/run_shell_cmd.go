@@ -10,8 +10,9 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
-	"syscall"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/engine"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
@@ -20,7 +21,6 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/hashicorp/go-multierror"
 	"github.com/sirupsen/logrus"
 )
 
@@ -63,7 +63,7 @@ func RunShellCommand(ctx context.Context, terragruntOptions *options.TerragruntO
 
 // Run the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
 // method's caller
-func RunTerraformCommandWithOutput(ctx context.Context, terragruntOptions *options.TerragruntOptions, args ...string) (*CmdOutput, error) {
+func RunTerraformCommandWithOutput(ctx context.Context, terragruntOptions *options.TerragruntOptions, args ...string) (*util.CmdOutput, error) {
 	needPTY, err := isTerraformCommandThatNeedsPty(args)
 	if err != nil {
 		return nil, err
@@ -83,14 +83,14 @@ func RunShellCommandWithOutput(
 	allocatePseudoTty bool,
 	command string,
 	args ...string,
-) (*CmdOutput, error) {
+) (*util.CmdOutput, error) {
 	if command == terragruntOptions.TerraformPath {
 		if fn := TerraformCommandHookFromContext(ctx); fn != nil {
 			return fn(ctx, terragruntOptions, args)
 		}
 	}
 
-	var output *CmdOutput = nil
+	var output *util.CmdOutput = nil
 	var commandDir = workingDir
 	if workingDir == "" {
 		commandDir = terragruntOptions.WorkingDir
@@ -143,6 +143,30 @@ func RunShellCommandWithOutput(
 			cmdStdout = io.MultiWriter(&stdoutBuf)
 		}
 
+		if command == terragruntOptions.TerraformPath && terragruntOptions.Engine != nil && !engine.IsEngineEnabled() {
+			terragruntOptions.Logger.Debugf("Engine is not enabled, running command directly in %s", commandDir)
+		}
+		useEngine := terragruntOptions.Engine != nil && engine.IsEngineEnabled()
+		// If the engine is enabled and the command is IaC executable, use the engine to run the command.
+		if useEngine && command == terragruntOptions.TerraformPath {
+			terragruntOptions.Logger.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
+			cmdOutput, err := engine.Run(ctx, &engine.ExecutionOptions{
+				TerragruntOptions: terragruntOptions,
+				CmdStdout:         cmdStdout,
+				CmdStderr:         cmdStderr,
+				WorkingDir:        cmd.Dir,
+				SuppressStdout:    suppressStdout,
+				AllocatePseudoTty: allocatePseudoTty,
+				Command:           command,
+				Args:              args,
+			})
+			if err != nil {
+				return errors.WithStackTrace(err)
+			}
+			output = cmdOutput
+			return err
+		}
+
 		// If we need to allocate a ptty for the command, route through the ptty routine. Otherwise, directly call the
 		// command.
 		if allocatePseudoTty {
@@ -172,13 +196,13 @@ func RunShellCommandWithOutput(
 		err := cmd.Wait()
 		cmdChannel <- err
 
-		cmdOutput := CmdOutput{
+		cmdOutput := util.CmdOutput{
 			Stdout: stdoutBuf.String(),
 			Stderr: stderrBuf.String(),
 		}
 
 		if err != nil {
-			err = ProcessExecutionError{
+			err = util.ProcessExecutionError{
 				Err:        err,
 				StdOut:     stdoutBuf.String(),
 				Stderr:     stderrBuf.String(),
@@ -218,35 +242,6 @@ func isTerraformCommandThatNeedsPty(args []string) (bool, error) {
 	return true, nil
 }
 
-// Return the exit code of a command. If the error does not implement iErrorCode or is not an exec.ExitError
-// or *multierror.Error type, the error is returned.
-func GetExitCode(err error) (int, error) {
-	// Interface to determine if we can retrieve an exit status from an error
-	type iErrorCode interface {
-		ExitStatus() (int, error)
-	}
-
-	if exiterr, ok := errors.Unwrap(err).(iErrorCode); ok {
-		return exiterr.ExitStatus()
-	}
-
-	if exiterr, ok := errors.Unwrap(err).(*exec.ExitError); ok {
-		status := exiterr.Sys().(syscall.WaitStatus)
-		return status.ExitStatus(), nil
-	}
-
-	if exiterr, ok := errors.Unwrap(err).(*multierror.Error); ok {
-		for _, err := range exiterr.Errors {
-			exitCode, exitCodeErr := GetExitCode(err)
-			if exitCodeErr == nil {
-				return exitCode, nil
-			}
-		}
-	}
-
-	return 0, err
-}
-
 func withPrefix(writer io.Writer, prefix string) io.Writer {
 	if prefix == "" {
 		return writer
@@ -257,7 +252,7 @@ func withPrefix(writer io.Writer, prefix string) io.Writer {
 
 type SignalsForwarder chan os.Signal
 
-// Forwards signals to a command, waiting for the command to finish.
+// NewSignalsForwarder Forwards signals to a command, waiting for the command to finish.
 func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *logrus.Entry, cmdChannel chan error) SignalsForwarder {
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, signals...)
@@ -291,11 +286,6 @@ func (signalChannel *SignalsForwarder) Close() error {
 	*signalChannel <- nil
 	close(*signalChannel)
 	return nil
-}
-
-type CmdOutput struct {
-	Stdout string
-	Stderr string
 }
 
 // GitTopLevelDir - fetch git repository path from passed directory
@@ -387,21 +377,4 @@ func extractSemVerTags(tags []string) []*version.Version {
 		}
 	}
 	return semverTags
-}
-
-// ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr
-type ProcessExecutionError struct {
-	Err        error
-	StdOut     string
-	Stderr     string
-	WorkingDir string
-}
-
-func (err ProcessExecutionError) Error() string {
-	// Include in error message the working directory where the command was run, so it's easier for the user to
-	return fmt.Sprintf("[%s] %s", err.WorkingDir, err.Err.Error())
-}
-
-func (err ProcessExecutionError) ExitStatus() (int, error) {
-	return GetExitCode(err.Err)
 }

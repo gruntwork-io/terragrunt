@@ -1395,7 +1395,7 @@ func TestExitCode(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_EXIT_CODE)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan -detailed-exitcode --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath), os.Stdout, os.Stderr)
 
-	exitCode, exitCodeErr := shell.GetExitCode(err)
+	exitCode, exitCodeErr := util.GetExitCode(err)
 	assert.NoError(t, exitCodeErr)
 	assert.Equal(t, 2, exitCode)
 }

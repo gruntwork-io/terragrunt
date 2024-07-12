@@ -309,6 +309,9 @@ type TerragruntOptions struct {
 
 	// Allows to skip the output of all dependencies. Intended for use with `hclvalidate` command.
 	SkipOutput bool
+
+	// Options to use engine for running IaC operations.
+	Engine *EngineOptions
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -410,7 +413,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 		TerraformLogsToJson:            false,
 		JsonDisableDependentModules:    false,
 		RunTerragrunt: func(ctx context.Context, opts *TerragruntOptions) error {
-			return errors.WithStackTrace(RunTerragruntCommandNotSet)
+			return errors.WithStackTrace(ErrRunTerragruntCommandNotSet)
 		},
 		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
 		OutputFolder:               "",
@@ -557,6 +560,20 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		JsonOutputFolder:               opts.JsonOutputFolder,
 		AuthProviderCmd:                opts.AuthProviderCmd,
 		SkipOutput:                     opts.SkipOutput,
+		Engine:                         cloneEngineOptions(opts.Engine),
+	}
+}
+
+// cloneEngineOptions creates a deep copy of the given EngineOptions
+func cloneEngineOptions(opts *EngineOptions) *EngineOptions {
+	if opts == nil {
+		return nil
+	}
+	return &EngineOptions{
+		Source:  opts.Source,
+		Version: opts.Version,
+		Type:    opts.Type,
+		Meta:    opts.Meta,
 	}
 }
 
@@ -643,6 +660,14 @@ func identifyDefaultWrappedExecutable() string {
 	return TerraformDefaultPath
 }
 
+// EngineOptions Options for the Terragrunt engine
+type EngineOptions struct {
+	Source  string
+	Version string
+	Type    string
+	Meta    map[string]interface{}
+}
+
 // Custom error types
 
-var RunTerragruntCommandNotSet = fmt.Errorf("The RunTerragrunt option has not been set on this TerragruntOptions object")
+var ErrRunTerragruntCommandNotSet = fmt.Errorf("the RunTerragrunt option has not been set on this TerragruntOptions object")

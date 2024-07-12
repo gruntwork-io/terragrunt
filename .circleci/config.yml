@@ -54,6 +54,17 @@ install_tflint: &install_tflint
     popd
     tflint --version
 
+install_tofu_engine: &install_tofu_engine
+  name: Install OpenTofu Engine
+  command: |
+    # Download the OpenTofu Engine binary
+    set -x
+    export REPO="gruntwork-io/terragrunt-engine-opentofu"
+    export TAG="v0.0.1"
+    export ASSET_NAME="terragrunt-iac-engine-opentofu_rpc_${TAG}_linux_amd64.zip"
+    wget -O "engine.zip" "https://github.com/${REPO}/releases/download/${TAG}/${ASSET_NAME}"
+    unzip -o "engine.zip"
+
 setup_test_environment: &setup_test_environment
   name: Setup integration tests environment
   command: |
@@ -301,6 +312,34 @@ jobs:
       - store_test_results:
           path: logs
 
+  integration_test_tofu_engine:
+    resource_class: xlarge
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          <<: *install_tofu
+      - run:
+          <<: *install_tofu_engine
+      - run:
+          <<: *setup_test_environment
+      - run:
+          # Remove terraform
+          sudo rm -f $(which terraform)
+      - run:
+          name: Run engine integration tests
+          command: |
+            run-go-tests --packages "-tags=engine -run ^TestEngine ./test" | tee logs/integration.log
+          no_output_timeout: 30m
+          environment:
+            TERRAGRUNT_TFPATH: tofu
+      - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
   # Run TFLint tests separately as tflint during execution change working directory.
   integration_test_tflint:
     resource_class: large
@@ -488,6 +527,15 @@ workflows:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
+      - integration_test_tofu_engine:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+            - APPLE__OSX__code-signing
       - run_markdownlint:
           filters:
             tags:

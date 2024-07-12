@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/util"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 )
@@ -40,7 +42,7 @@ func TestExplainError(t *testing.T) {
 	for _, tt := range testCases {
 
 		t.Run(tt.errorOutput, func(t *testing.T) {
-			err := multierror.Append(&multierror.Error{}, ProcessExecutionError{
+			err := multierror.Append(&multierror.Error{}, util.ProcessExecutionError{
 				Err:    fmt.Errorf(""),
 				StdOut: "",
 				Stderr: tt.errorOutput,

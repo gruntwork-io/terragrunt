@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/util"
+
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 )
@@ -30,14 +32,14 @@ func TestExitCodeUnix(t *testing.T) {
 		} else {
 			assert.Error(t, err)
 		}
-		retCode, err := GetExitCode(err)
+		retCode, err := util.GetExitCode(err)
 		assert.NoError(t, err)
 		assert.Equal(t, i, retCode)
 	}
 
 	// assert a non exec.ExitError returns an error
 	err := goerrors.New("This is an explicit error")
-	retCode, retErr := GetExitCode(err)
+	retCode, retErr := util.GetExitCode(err)
 	assert.Error(t, retErr, "An error was expected")
 	assert.Equal(t, err, retErr)
 	assert.Equal(t, 0, retCode)
@@ -69,7 +71,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	err = <-runChannel
 	cmdChannel <- err
 	assert.Error(t, err)
-	retCode, err := GetExitCode(err)
+	retCode, err := util.GetExitCode(err)
 	assert.NoError(t, err)
 	assert.Equal(t, retCode, expectedWait)
 	assert.WithinDuration(t, time.Now(), start.Add(time.Duration(expectedWait)*time.Second), time.Second,
@@ -117,7 +119,7 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 	interrupts, err := interruptAndWaitForProcess()
 	cmdChannel <- err
 	assert.Error(t, err)
-	retCode, err := GetExitCode(err)
+	retCode, err := util.GetExitCode(err)
 	assert.NoError(t, err)
 	assert.True(t, retCode <= interrupts, "Subprocess received wrong number of signals")
 	assert.Equal(t, retCode, expectedInterrupts, "Subprocess didn't receive multiple signals")

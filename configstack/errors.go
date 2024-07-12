@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // Custom error types
@@ -61,7 +61,7 @@ func (err ProcessingModuleDependencyError) Error() string {
 }
 
 func (err ProcessingModuleDependencyError) ExitStatus() (int, error) {
-	if exitCode, err := shell.GetExitCode(err.Err); err == nil {
+	if exitCode, err := util.GetExitCode(err.Err); err == nil {
 		return exitCode, nil
 	}
 	return -1, err

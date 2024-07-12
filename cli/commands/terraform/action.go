@@ -104,6 +104,13 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 		return target.runCallback(ctx, terragruntOptions, terragruntConfig)
 	}
 
+	// fetch engine options from the config
+	engine, err := terragruntConfig.EngineOptions()
+	if err != nil {
+		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
+	}
+	terragruntOptions.Engine = engine
+
 	terragruntOptionsClone := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
 
@@ -432,7 +439,7 @@ func runTerraformWithRetry(ctx context.Context, terragruntOptions *options.Terra
 }
 
 // isRetryable checks whether there was an error and if the output matches any of the configured RetryableErrors
-func isRetryable(opts *options.TerragruntOptions, out *shell.CmdOutput) bool {
+func isRetryable(opts *options.TerragruntOptions, out *util.CmdOutput) bool {
 	if !opts.AutoRetry {
 		return false
 	}
