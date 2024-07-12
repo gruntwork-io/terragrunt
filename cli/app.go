@@ -4,13 +4,14 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/engine"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/engine"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
