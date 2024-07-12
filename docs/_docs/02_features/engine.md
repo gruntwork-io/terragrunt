@@ -29,7 +29,7 @@ engine {
 
 Parameters:
 
-* `source`: (Required) The source of the plugin, currently is supported local path.
+* `source`: (Required) The source of the plugin. Currently, only local paths are supported.
 * `meta`: (Optional) Block for setting plugin-specific metadata.
 
 Due to the fact that this functionality is still experimental, and not recommended for general production usage, set the following environment variable to opt-in to this functionality:
@@ -38,4 +38,4 @@ Due to the fact that this functionality is still experimental, and not recommend
 export TG_EXPERIMENTAL_ENGINE=1
 ```
 
-You can find the OpenTofu engine on Github [terragrunt-engine-opentofu](https://github.com/gruntwork-io/terragrunt-engine-opentofu).
+You can find the OpenTofu Engine on Github [terragrunt-engine-opentofu](https://github.com/gruntwork-io/terragrunt-engine-opentofu).
