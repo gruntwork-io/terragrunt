@@ -29,7 +29,7 @@ engine {
 
 Parameters:
 
-* `source`: (Required) The source of the plugin, currently is supported local path.
+* `source`: (Required) The source of the plugin. Currently, only local paths are supported.
 * `meta`: (Optional) Block for setting plugin-specific metadata.
 
 Due to the fact that this functionality is still experimental, and not recommended for general production usage, set the following environment variable to opt-in to this functionality:
