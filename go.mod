@@ -65,7 +65,7 @@ require (
 	github.com/gruntwork-io/boilerplate v0.5.11
 	github.com/gruntwork-io/go-commons v0.17.2
 	github.com/gruntwork-io/gruntwork-cli v0.7.0
-	github.com/gruntwork-io/terragrunt-engine-go v0.0.1
+	github.com/gruntwork-io/terragrunt-engine-go v0.0.2
 	github.com/hashicorp/go-getter/v2 v2.2.1
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-plugin v1.6.1
@@ -96,7 +96,6 @@ require (
 )
 
 require (
-	cloud.google.com/go/compute v1.25.1 // indirect
 	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	cloud.google.com/go/iam v1.1.6 // indirect
 	cloud.google.com/go/kms v1.15.7 // indirect
@@ -242,7 +241,6 @@ require (
 	go.opentelemetry.io/proto/otlp v1.1.0 // indirect
 	golang.org/x/mod v0.17.0 // indirect
 	golang.org/x/net v0.27.0 // indirect
-	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240528184218-531527333157 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240711142825-46eb208f015d // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
