@@ -315,6 +315,7 @@ jobs:
   integration_test_tofu_engine:
     resource_class: xlarge
     <<: *defaults
+    <<: *env
     steps:
       - checkout
       - run:
