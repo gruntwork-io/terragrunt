@@ -60,9 +60,9 @@ install_tofu_engine: &install_tofu_engine
     # Download the OpenTofu Engine binary
     set -x
     export REPO="gruntwork-io/terragrunt-engine-opentofu"
-    export TAG="v0.0.2"
-    export ASSET_NAME="terragrunt-iac-engine-opentofu_rpc_${TAG}_linux_amd64.zip"
-    wget -O "engine.zip" "https://github.com/${REPO}/releases/download/${TAG}/${ASSET_NAME}"
+    export ENGINE_TAG="v0.0.2"
+    export ASSET_NAME="terragrunt-iac-engine-opentofu_rpc_${ENGINE_TAG}_linux_amd64.zip"
+    wget -O "engine.zip" "https://github.com/${REPO}/releases/download/${ENGINE_TAG}/${ASSET_NAME}"
     unzip -o "engine.zip"
 
 setup_test_environment: &setup_test_environment

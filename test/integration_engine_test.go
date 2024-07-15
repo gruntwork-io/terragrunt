@@ -15,11 +15,12 @@ import (
 )
 
 const (
-	LocalEngineBinaryPath  = "terragrunt-iac-engine-opentofu_v0.0.1"
 	TestFixtureLocalEngine = "fixture-engine/local-engine"
 
 	EnvVarExperimental = "TG_EXPERIMENTAL_ENGINE"
 )
+
+var LocalEngineBinaryPath = "terragrunt-iac-engine-opentofu_" + testEngineVersion()
 
 func TestEnginePlan(t *testing.T) {
 	rootPath := setupLocalEngine(t)
@@ -60,4 +61,13 @@ func setupLocalEngine(t *testing.T) string {
 		"__engine_source__": pwd + "/../" + LocalEngineBinaryPath,
 	})
 	return rootPath
+}
+
+// testEngineVersion returns the version of the engine to be used in the test
+func testEngineVersion() string {
+	value, found := os.LookupEnv("ENGINE_TAG")
+	if !found {
+		return "v0.0.1"
+	}
+	return value
 }
