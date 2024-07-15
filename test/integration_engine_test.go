@@ -65,7 +65,7 @@ func setupLocalEngine(t *testing.T) string {
 
 // testEngineVersion returns the version of the engine to be used in the test
 func testEngineVersion() string {
-	value, found := os.LookupEnv("ENGINE_TAG")
+	value, found := os.LookupEnv("ENGINE_VERSION")
 	if !found {
 		return "v0.0.1"
 	}
