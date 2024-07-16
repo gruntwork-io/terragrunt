@@ -66,7 +66,7 @@ inputs = {
   {{- else }}
   # Description:
     {{- range $line := regexSplit "\n" .Description -1 }}
-    # {{ $line | indent 4 }}
+    # {{ $line | indent 2 }}
     {{- end }}
   {{- end }}
   # Type: {{ .Type }}
@@ -83,7 +83,7 @@ inputs = {
   {{- else }}
   # Description:
     {{- range $line := regexSplit "\n" .Description -1 }}
-    # {{ $line | indent 4 }}
+    # {{ $line | indent 2 }}
     {{- end }}
   {{- end }}
   # Type: {{ .Type }}

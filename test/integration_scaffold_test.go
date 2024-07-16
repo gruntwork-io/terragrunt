@@ -1,11 +1,12 @@
 package test
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -19,6 +20,7 @@ const (
 	TEST_SCAFFOLD_TEMPLATE_MODULE          = "git@github.com:gruntwork-io/terragrunt.git//test/fixture-scaffold/module-with-template"
 	TEST_SCAFFOLD_EXTERNAL_TEMPLATE_MODULE = "git@github.com:gruntwork-io/terragrunt.git//test/fixture-scaffold/external-template"
 	TEST_SCAFFOLD_LOCAL_MODULE             = "fixture-scaffold/scaffold-module"
+	TEST_SCAFFOLD_3RD_PARTY_MODULE         = "git::https://github.com/Azure/terraform-azurerm-avm-res-compute-virtualmachine.git//.?ref=v0.15.0"
 )
 
 func TestScaffoldModule(t *testing.T) {
@@ -27,12 +29,9 @@ func TestScaffoldModule(t *testing.T) {
 	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-scaffold-test")
 	require.NoError(t, err)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, TEST_SCAFFOLD_MODULE), &stdout, &stderr)
+	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, TEST_SCAFFOLD_MODULE))
 	require.NoError(t, err)
-	require.Contains(t, stderr.String(), "Scaffolding completed")
+	require.Contains(t, stderr, "Scaffolding completed")
 	require.FileExists(t, fmt.Sprintf("%s/terragrunt.hcl", tmpEnvPath))
 }
 
@@ -42,12 +41,9 @@ func TestScaffoldModuleShortUrl(t *testing.T) {
 	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-scaffold-test")
 	require.NoError(t, err)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, TEST_SCAFFOLD_MODULE_SHORT), &stdout, &stderr)
+	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, TEST_SCAFFOLD_MODULE_SHORT))
 	require.NoError(t, err)
-	require.Contains(t, stderr.String(), "Scaffolding completed")
+	require.Contains(t, stderr, "Scaffolding completed")
 	// check that find_in_parent_folders is generated in terragrunt.hcl
 	content, err := util.ReadFileAsString(fmt.Sprintf("%s/terragrunt.hcl", tmpEnvPath))
 	require.NoError(t, err)
@@ -60,12 +56,9 @@ func TestScaffoldModuleShortUrlNoRootInclude(t *testing.T) {
 	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-scaffold-test")
 	require.NoError(t, err)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s --var=EnableRootInclude=false", tmpEnvPath, TEST_SCAFFOLD_MODULE_SHORT), &stdout, &stderr)
+	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s --var=EnableRootInclude=false", tmpEnvPath, TEST_SCAFFOLD_MODULE_SHORT))
 	require.NoError(t, err)
-	require.Contains(t, stderr.String(), "Scaffolding completed")
+	require.Contains(t, stderr, "Scaffolding completed")
 	// check that find_in_parent_folders is NOT generated in  terragrunt.hcl
 	content, err := util.ReadFileAsString(fmt.Sprintf("%s/terragrunt.hcl", tmpEnvPath))
 	require.NoError(t, err)
@@ -78,14 +71,11 @@ func TestScaffoldModuleDifferentRevision(t *testing.T) {
 	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-scaffold-test")
 	require.NoError(t, err)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s --var=Ref=v0.53.1", tmpEnvPath, TEST_SCAFFOLD_MODULE_SHORT), &stdout, &stderr)
+	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s --var=Ref=v0.53.1", tmpEnvPath, TEST_SCAFFOLD_MODULE_SHORT))
 
 	require.NoError(t, err)
-	require.Contains(t, stderr.String(), "git::https://github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.1")
-	require.Contains(t, stderr.String(), "Scaffolding completed")
+	require.Contains(t, stderr, "git::https://github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.1")
+	require.Contains(t, stderr, "Scaffolding completed")
 }
 
 func TestScaffoldModuleDifferentRevisionAndSsh(t *testing.T) {
@@ -94,13 +84,10 @@ func TestScaffoldModuleDifferentRevisionAndSsh(t *testing.T) {
 	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-scaffold-test")
 	require.NoError(t, err)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s --var=Ref=v0.53.1 --var=SourceUrlType=git-ssh", tmpEnvPath, TEST_SCAFFOLD_MODULE_SHORT), &stdout, &stderr)
+	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s --var=Ref=v0.53.1 --var=SourceUrlType=git-ssh", tmpEnvPath, TEST_SCAFFOLD_MODULE_SHORT))
 	require.NoError(t, err)
-	require.Contains(t, stderr.String(), "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.1")
-	require.Contains(t, stderr.String(), "Scaffolding completed")
+	require.Contains(t, stderr, "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.1")
+	require.Contains(t, stderr, "Scaffolding completed")
 }
 
 func TestScaffoldModuleSsh(t *testing.T) {
@@ -109,12 +96,9 @@ func TestScaffoldModuleSsh(t *testing.T) {
 	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-scaffold-test")
 	require.NoError(t, err)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, TEST_SCAFFOLD_MODULE_GIT), &stdout, &stderr)
+	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, TEST_SCAFFOLD_MODULE_GIT))
 	require.NoError(t, err)
-	require.Contains(t, stderr.String(), "Scaffolding completed")
+	require.Contains(t, stderr, "Scaffolding completed")
 }
 
 func TestScaffoldModuleTemplate(t *testing.T) {
@@ -123,12 +107,9 @@ func TestScaffoldModuleTemplate(t *testing.T) {
 	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-scaffold-test")
 	require.NoError(t, err)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, TEST_SCAFFOLD_TEMPLATE_MODULE), &stdout, &stderr)
+	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, TEST_SCAFFOLD_TEMPLATE_MODULE))
 	require.NoError(t, err)
-	require.Contains(t, stderr.String(), "Scaffolding completed")
+	require.Contains(t, stderr, "Scaffolding completed")
 	// check that exists file from .boilerplate dir
 	require.FileExists(t, fmt.Sprintf("%s/template-file.txt", tmpEnvPath))
 }
@@ -139,12 +120,9 @@ func TestScaffoldModuleExternalTemplate(t *testing.T) {
 	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-scaffold-test")
 	require.NoError(t, err)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s %s", tmpEnvPath, TEST_SCAFFOLD_MODULE_GIT, TEST_SCAFFOLD_EXTERNAL_TEMPLATE_MODULE), &stdout, &stderr)
+	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s %s", tmpEnvPath, TEST_SCAFFOLD_MODULE_GIT, TEST_SCAFFOLD_EXTERNAL_TEMPLATE_MODULE))
 	require.NoError(t, err)
-	require.Contains(t, stderr.String(), "Scaffolding completed")
+	require.Contains(t, stderr, "Scaffolding completed")
 	// check that exists file from external template
 	require.FileExists(t, fmt.Sprintf("%s/external-template.txt", tmpEnvPath))
 }
@@ -155,10 +133,7 @@ func TestScaffoldErrorNoModuleUrl(t *testing.T) {
 	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-scaffold-test")
 	require.NoError(t, err)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold", tmpEnvPath), &stdout, &stderr)
+	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold", tmpEnvPath))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "No module URL passed")
 }
@@ -178,13 +153,10 @@ SourceUrlType: "git-ssh"
 	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-scaffold-test")
 	require.NoError(t, err)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s --var-file=%s", tmpEnvPath, TEST_SCAFFOLD_MODULE_SHORT, varFile), &stdout, &stderr)
+	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s --var-file=%s", tmpEnvPath, TEST_SCAFFOLD_MODULE_SHORT, varFile))
 	require.NoError(t, err)
-	require.Contains(t, stderr.String(), "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.1")
-	require.Contains(t, stderr.String(), "Scaffolding completed")
+	require.Contains(t, stderr, "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.1")
+	require.Contains(t, stderr, "Scaffolding completed")
 	content, err := util.ReadFileAsString(fmt.Sprintf("%s/terragrunt.hcl", tmpEnvPath))
 	require.NoError(t, err)
 	require.NotContains(t, content, "find_in_parent_folders")
@@ -196,15 +168,34 @@ func TestScaffoldLocalModule(t *testing.T) {
 	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-scaffold-test")
 	require.NoError(t, err)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	// get working directory
 	workingDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, workingDir+"//"+TEST_SCAFFOLD_LOCAL_MODULE), &stdout, &stderr)
+	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, fmt.Sprintf("%s//%s", workingDir, TEST_SCAFFOLD_LOCAL_MODULE)))
 	require.NoError(t, err)
-	require.Contains(t, stderr.String(), "Scaffolding completed")
+	require.Contains(t, stderr, "Scaffolding completed")
 	require.FileExists(t, fmt.Sprintf("%s/terragrunt.hcl", tmpEnvPath))
+}
+
+func TestScaffold3rdPartyModule(t *testing.T) {
+	t.Parallel()
+
+	tmpRoot, err := os.MkdirTemp("", "terragrunt-scaffold-test")
+	require.NoError(t, err)
+	tmpEnvPath := filepath.Join(tmpRoot, "app")
+	err = os.MkdirAll(tmpEnvPath, 0755)
+	assert.NoError(t, err)
+
+	// create "root" terragrunt.hcl
+	err = os.WriteFile(filepath.Join(tmpRoot, "terragrunt.hcl"), []byte(""), 0644)
+	assert.NoError(t, err)
+
+	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, TEST_SCAFFOLD_3RD_PARTY_MODULE))
+	require.NoError(t, err)
+	require.Contains(t, stderr, "Scaffolding completed")
+	require.FileExists(t, fmt.Sprintf("%s/terragrunt.hcl", tmpEnvPath))
+
+	// validate the generated files
+	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s hclvalidate", tmpEnvPath))
+	require.NoError(t, err)
 }
