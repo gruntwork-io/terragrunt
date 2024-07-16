@@ -22,7 +22,10 @@ variable "enabled" {
 
 variable "open_port" {
   type        = number
-  description = "Port to open"
+  description = <<-EOF
+    Port to be opened in the security group
+    Can be a single port or a range
+  EOF
 }
 
 variable "enable_backups" {
