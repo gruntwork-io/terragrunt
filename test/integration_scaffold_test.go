@@ -199,7 +199,11 @@ func TestScaffoldLocalModule(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, TEST_SCAFFOLD_LOCAL_MODULE), &stdout, &stderr)
+	// get working directory
+	workingDir, err := os.Getwd()
+	require.NoError(t, err)
+
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, workingDir+"//"+TEST_SCAFFOLD_LOCAL_MODULE), &stdout, &stderr)
 	require.NoError(t, err)
 	require.Contains(t, stderr.String(), "Scaffolding completed")
 	require.FileExists(t, fmt.Sprintf("%s/terragrunt.hcl", tmpEnvPath))
