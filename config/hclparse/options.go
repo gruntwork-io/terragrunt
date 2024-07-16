@@ -1,19 +1,20 @@
 package hclparse
 
 import (
+	"io"
+
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/sirupsen/logrus"
 )
 
 type Option func(*Parser) *Parser
 
-func WithLogger(logger *logrus.Entry, disableColor bool) Option {
+func WithDiagnosticsWriter(writer io.Writer, disableColor bool) Option {
 	return func(parser *Parser) *Parser {
-		diagsWriter := util.GetDiagnosticsWriter(logger, parser.Parser, disableColor)
+		diagsWriter := util.GetDiagnosticsWriter(writer, parser.Parser, disableColor)
 
-		parser.loggerFunc = func(diags hcl.Diagnostics) error {
+		parser.diagsWriterFunc = func(diags hcl.Diagnostics) error {
 			if !diags.HasErrors() {
 				return nil
 			}

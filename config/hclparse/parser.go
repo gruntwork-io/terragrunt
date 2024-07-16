@@ -15,7 +15,7 @@ import (
 
 type Parser struct {
 	*hclparse.Parser
-	loggerFunc            func(hcl.Diagnostics) error
+	diagsWriterFunc       func(hcl.Diagnostics) error
 	handleDiagnosticsFunc func(*File, hcl.Diagnostics) (hcl.Diagnostics, error)
 	fileUpdateHandlerFunc func(*File) error
 }
@@ -95,7 +95,7 @@ func (parser *Parser) handleDiagnostics(file *File, diags hcl.Diagnostics) error
 		}
 	}
 
-	if fn := parser.loggerFunc; fn != nil {
+	if fn := parser.diagsWriterFunc; fn != nil {
 		if err := fn(diags); err != nil {
 			return err
 		}
