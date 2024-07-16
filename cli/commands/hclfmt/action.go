@@ -131,7 +131,9 @@ func formatTgHCL(opts *options.TerragruntOptions, tgHclFile string) error {
 func checkErrors(logger *logrus.Entry, disableColor bool, contents []byte, tgHclFile string) error {
 	parser := hclparse.NewParser()
 	_, diags := parser.ParseHCL(contents, tgHclFile)
-	diagWriter := util.GetDiagnosticsWriter(logger, parser, disableColor)
+
+	writer := &util.LogWriter{Logger: logger, Level: logrus.ErrorLevel}
+	diagWriter := util.GetDiagnosticsWriter(writer, parser, disableColor)
 	err := diagWriter.WriteDiagnostics(diags)
 	if err != nil {
 		return errors.WithStackTrace(err)

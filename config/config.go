@@ -73,8 +73,10 @@ var (
 	}
 
 	DefaultParserOptions = func(opts *options.TerragruntOptions) []hclparse.Option {
+		writer := &util.LogWriter{Logger: opts.Logger, Level: logrus.ErrorLevel}
+
 		return []hclparse.Option{
-			hclparse.WithLogger(opts.Logger, opts.DisableLogColors),
+			hclparse.WithDiagnosticsWriter(writer, opts.DisableLogColors),
 			hclparse.WithFileUpdate(updateBareIncludeBlock),
 		}
 	}
