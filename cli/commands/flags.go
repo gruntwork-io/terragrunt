@@ -166,8 +166,8 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 		&cli.GenericFlag[string]{
 			Name:        TerragruntIAMWebIdentityTokenFlagName,
 			Destination: &opts.IAMRoleOptions.WebIdentityToken,
-			EnvVar:      "TERRRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN",
-			Usage:       "For AssumeRoleWithWebIdentity, the WebIdentity token. Can also be set via TERRRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN environment variable",
+			EnvVar:      "TERRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN",
+			Usage:       "For AssumeRoleWithWebIdentity, the WebIdentity token. Can also be set via TERRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN environment variable",
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntIgnoreDependencyErrorsFlagName,
