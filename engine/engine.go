@@ -5,9 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-getter"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -66,6 +69,9 @@ func Run(
 	instance, found := engineClients.Load(workingDir)
 	// initialize engine for working directory
 	if !found {
+		if err = DownloadEngine(ctx, runOptions.TerragruntOptions); err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
 		terragruntEngine, client, err := createEngine(runOptions.TerragruntOptions)
 		if err != nil {
 			return nil, errors.WithStackTrace(err)
@@ -99,6 +105,65 @@ func ContextWithEngine(ctx context.Context) context.Context {
 		return ctx
 	}
 	return context.WithValue(ctx, TerraformCommandContextKey, &sync.Map{})
+}
+
+func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error {
+	if !IsEngineEnabled() {
+		return nil
+	}
+	e := opts.Engine
+
+	if strings.HasPrefix(e.Source, "/") {
+		fmt.Println("Plugin path starts with '/', exiting without downloading")
+		return nil
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	platform := runtime.GOOS
+	arch := runtime.GOARCH
+
+	pluginPath := filepath.Join(homeDir, ".cache", "terragrunt", "plugins", "iac-e", e.Type, e.Version, platform, arch)
+	pluginFile := filepath.Join(pluginPath, fmt.Sprintf("terragrunt-iac-e-%s_%s_%s_%s.zip", strings.ReplaceAll(e.Type, "/", "_"), e.Version, platform, arch))
+
+	if err := os.MkdirAll(pluginPath, 0755); err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	if _, err := os.Stat(pluginFile); err == nil {
+		fmt.Println("Plugin already exists at", pluginFile)
+		return nil
+	}
+
+	var downloadURL string
+	if strings.HasPrefix(e.Source, "http") {
+		downloadURL = e.Source
+	} else {
+		engineName := filepath.Base(e.Source)
+		// remove "terragrunt" from engineName if it ends with it
+		if strings.HasPrefix(engineName, "terragrunt-") {
+			engineName = strings.TrimPrefix(engineName, "terragrunt-")
+		}
+		downloadURL = fmt.Sprintf("https://%s/releases/download/%s/terragrunt-iac-%s_%s_%s_%s_%s.zip",
+			e.Source, e.Version, engineName, e.Type, e.Version, platform, arch)
+	}
+
+	client := &getter.Client{
+		Ctx:  ctx,
+		Src:  downloadURL,
+		Dst:  pluginFile,
+		Mode: getter.ClientModeFile,
+	}
+
+	if err := client.Get(); err != nil {
+		return fmt.Errorf("failed to download e from source: %w", err)
+	}
+
+	fmt.Println("Plugin downloaded to", pluginFile)
+	return nil
 }
 
 func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
