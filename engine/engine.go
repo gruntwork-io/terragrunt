@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/hashicorp/go-getter"
+	"github.com/mholt/archiver/v3"
 	"io"
 	"os"
 	"os/exec"
@@ -117,31 +118,28 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 		fmt.Println("Plugin path starts with '/', exiting without downloading")
 		return nil
 	}
-
-	homeDir, err := os.UserHomeDir()
+	pluginFile, err := fetchEnginePath(e)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
+	// fetch pluginPath as parent of pluginFile
+	pluginPath := filepath.Dir(pluginFile)
 
-	platform := runtime.GOOS
-	arch := runtime.GOARCH
-
-	pluginPath := filepath.Join(homeDir, ".cache", "terragrunt", "plugins", "iac-e", e.Type, e.Version, platform, arch)
-	pluginFile := filepath.Join(pluginPath, fmt.Sprintf("terragrunt-iac-e-%s_%s_%s_%s.zip", strings.ReplaceAll(e.Type, "/", "_"), e.Version, platform, arch))
-
-	if err := os.MkdirAll(pluginPath, 0755); err != nil {
+	if err := util.EnsureDirectory(pluginPath); err != nil {
 		return errors.WithStackTrace(err)
 	}
-
-	if _, err := os.Stat(pluginFile); err == nil {
-		fmt.Println("Plugin already exists at", pluginFile)
+	if util.FileExists(pluginFile) {
 		return nil
 	}
+	downloadFile := fmt.Sprintf("%s.download", pluginFile)
 
 	var downloadURL string
 	if strings.HasPrefix(e.Source, "http") {
 		downloadURL = e.Source
 	} else {
+		platform := runtime.GOOS
+		arch := runtime.GOARCH
+
 		engineName := filepath.Base(e.Source)
 		// remove "terragrunt" from engineName if it ends with it
 		if strings.HasPrefix(engineName, "terragrunt-") {
@@ -154,16 +152,56 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 	client := &getter.Client{
 		Ctx:  ctx,
 		Src:  downloadURL,
-		Dst:  pluginFile,
+		Dst:  downloadFile,
 		Mode: getter.ClientModeFile,
 	}
 
 	if err := client.Get(); err != nil {
-		return fmt.Errorf("failed to download e from source: %w", err)
+		return errors.WithStackTrace(err)
 	}
+	opts.Logger.Infof("Plugin downloaded to %s", downloadFile)
+	if isArchiveByHeader(downloadFile) {
+		if err := archiver.Unarchive(downloadFile, pluginPath); err != nil {
+			return errors.WithStackTrace(err)
+		}
+		opts.Logger.Infof("Plugin extracted to %s", pluginPath)
+	} else {
+		// move file directly if it is not an archive
+		if err := os.Rename(downloadFile, pluginFile); err != nil {
+			return errors.WithStackTrace(err)
+		}
 
-	fmt.Println("Plugin downloaded to", pluginFile)
+		opts.Logger.Info("Downloaded file is not an archive, no extraction needed")
+	}
+	opts.Logger.Infof("Plugin available as %s", pluginPath)
 	return nil
+}
+
+func fetchEnginePath(e *options.EngineOptions) (string, error) {
+	if strings.HasPrefix(e.Source, "/") {
+		return e.Source, nil
+	}
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+	platform := runtime.GOOS
+	arch := runtime.GOARCH
+	pluginPath := filepath.Join(homeDir, ".cache", "terragrunt", "plugins", "iac-engine", e.Type, e.Version, platform, arch)
+	pluginFile := filepath.Join(pluginPath, fmt.Sprintf("%s_%s_%s_%s_%s", strings.ReplaceAll(e.Source, "/", "_"), strings.ReplaceAll(e.Type, "/", "_"), e.Version, platform, arch))
+	return pluginFile, nil
+}
+
+// isArchiveByHeader checks if a file is an archive by examining its header.
+func isArchiveByHeader(filePath string) bool {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	archiveType, err := archiver.ByHeader(f)
+	return err == nil && archiveType != nil
 }
 
 func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
@@ -213,7 +251,10 @@ func Shutdown(ctx context.Context) error {
 
 // create engine for working directory
 func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineClient, *plugin.Client, error) {
-	enginePath := terragruntOptions.Engine.Source
+	enginePath, err := fetchEnginePath(terragruntOptions.Engine)
+	if err != nil {
+		return nil, nil, errors.WithStackTrace(err)
+	}
 	terragruntOptions.Logger.Debugf("Creating engine %s", enginePath)
 
 	logger := hclog.NewInterceptLogger(&hclog.LoggerOptions{
