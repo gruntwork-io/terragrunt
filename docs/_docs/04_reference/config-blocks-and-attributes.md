@@ -1334,7 +1334,7 @@ The precedence is as follows: `--terragrunt-iam-assume-role-session-name` comman
 
 The `iam_web_identity_token` attribute can be used along with `iam_role` to assume a role using AssumeRoleWithWebIdentity. `iam_web_identity_token` can be set to either the token value (typically using `get_env()`), or the path to a file on disk.
 
-The precedence is as follows: `--terragrunt-iam-web-identity-token` command line option → `TERRRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN` env variable →
+The precedence is as follows: `--terragrunt-iam-web-identity-token` command line option → `TERRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN` env variable →
 `iam_web_identity_token` attribute of the `terragrunt.hcl` file in the module directory → `iam_web_identity_token` attribute of the included
 `terragrunt.hcl`.
 
