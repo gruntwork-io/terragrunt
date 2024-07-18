@@ -43,6 +43,7 @@ func (provider *Provider) GetCredentials(ctx context.Context) (*providers.Creden
 		args = parts[1:]
 	}
 
+	provider.terragruntOptions.Logger.Infof("Executing %s to obtain Terragrunt credentials", provider.Name())
 	output, err := shell.RunShellCommandWithOutput(ctx, provider.terragruntOptions, "", true, false, command, args...)
 	if err != nil {
 		return nil, err
