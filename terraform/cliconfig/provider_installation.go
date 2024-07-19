@@ -85,6 +85,7 @@ type ProviderInstallationMethod interface {
 	fmt.Stringer
 	AppendInclude(addrs []string)
 	AppendExclude(addrs []string)
+	RemoveExclude(addrs []string)
 }
 
 type ProviderInstallationDirect struct {
@@ -110,6 +111,9 @@ func NewProviderInstallationDirect(include, exclude []string) *ProviderInstallat
 }
 
 func (method *ProviderInstallationDirect) AppendInclude(addrs []string) {
+	if len(addrs) == 0 {
+		return
+	}
 	if method.Include == nil {
 		method.Include = &[]string{}
 	}
@@ -117,10 +121,24 @@ func (method *ProviderInstallationDirect) AppendInclude(addrs []string) {
 }
 
 func (method *ProviderInstallationDirect) AppendExclude(addrs []string) {
+	if len(addrs) == 0 {
+		return
+	}
 	if method.Exclude == nil {
 		method.Exclude = &[]string{}
 	}
 	*method.Exclude = util.RemoveDuplicatesFromList(append(*method.Exclude, addrs...))
+}
+
+func (method *ProviderInstallationDirect) RemoveExclude(addrs []string) {
+	if len(addrs) == 0 || method.Exclude == nil {
+		return
+	}
+	*method.Exclude = util.RemoveSublistFromList(*method.Exclude, addrs)
+
+	if len(*method.Exclude) == 0 {
+		method.Exclude = nil
+	}
 }
 
 func (method *ProviderInstallationDirect) String() string {
@@ -153,6 +171,9 @@ func NewProviderInstallationFilesystemMirror(path string, include, exclude []str
 }
 
 func (method *ProviderInstallationFilesystemMirror) AppendInclude(addrs []string) {
+	if len(addrs) == 0 {
+		return
+	}
 	if method.Include == nil {
 		method.Include = &[]string{}
 	}
@@ -160,10 +181,24 @@ func (method *ProviderInstallationFilesystemMirror) AppendInclude(addrs []string
 }
 
 func (method *ProviderInstallationFilesystemMirror) AppendExclude(addrs []string) {
+	if len(addrs) == 0 {
+		return
+	}
 	if method.Exclude == nil {
 		method.Exclude = &[]string{}
 	}
 	*method.Exclude = util.RemoveDuplicatesFromList(append(*method.Exclude, addrs...))
+}
+
+func (method *ProviderInstallationFilesystemMirror) RemoveExclude(addrs []string) {
+	if len(addrs) == 0 || method.Exclude == nil {
+		return
+	}
+	*method.Exclude = util.RemoveSublistFromList(*method.Exclude, addrs)
+
+	if len(*method.Exclude) == 0 {
+		method.Exclude = nil
+	}
 }
 
 func (method *ProviderInstallationFilesystemMirror) String() string {
@@ -196,6 +231,9 @@ func NewProviderInstallationNetworkMirror(url string, include, exclude []string)
 }
 
 func (method *ProviderInstallationNetworkMirror) AppendInclude(addrs []string) {
+	if len(addrs) == 0 {
+		return
+	}
 	if method.Include == nil {
 		method.Include = &[]string{}
 	}
@@ -203,10 +241,24 @@ func (method *ProviderInstallationNetworkMirror) AppendInclude(addrs []string) {
 }
 
 func (method *ProviderInstallationNetworkMirror) AppendExclude(addrs []string) {
+	if len(addrs) == 0 {
+		return
+	}
 	if method.Exclude == nil {
 		method.Exclude = &[]string{}
 	}
 	*method.Exclude = util.RemoveDuplicatesFromList(append(*method.Exclude, addrs...))
+}
+
+func (method *ProviderInstallationNetworkMirror) RemoveExclude(addrs []string) {
+	if len(addrs) == 0 || method.Exclude == nil {
+		return
+	}
+	*method.Exclude = util.RemoveSublistFromList(*method.Exclude, addrs)
+
+	if len(*method.Exclude) == 0 {
+		method.Exclude = nil
+	}
 }
 
 func (method *ProviderInstallationNetworkMirror) String() string {

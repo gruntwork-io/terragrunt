@@ -69,13 +69,23 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	cliConfigSettings := &CLIConfigSettings{
 		FilesystemMirrorMethods: []CLIConfigProviderInstallationFilesystemMirror{
 			{
-				Path: providersMirrorPath,
+				Path:    providersMirrorPath,
+				Include: []string{"example.com/*/*"},
 			},
 		},
 	}
 	createCLIConfig(t, cliConfigFilename, cliConfigSettings)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-registry-names example.com --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, appPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-registry-names example.com --terragrunt-provider-cache-registry-names registry.terraform.io --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, appPath))
+
+	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { path = "%s" include = ["example.com/*/*"] exclude = ["example.com/*/*", "registry.terraform.io/*/*"] } "filesystem_mirror" { path = "%s" include = ["example.com/*/*", "registry.terraform.io/*/*"] } "direct" { } }`
+	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersMirrorPath, providerCacheDir)
+
+	terraformrcBytes, err := os.ReadFile(filepath.Join(appPath, ".terraformrc"))
+	require.NoError(t, err)
+	terraformrc := strings.Join(strings.Fields(string(terraformrcBytes)), " ")
+
+	assert.Contains(t, terraformrc, expectedProviderInstallation, "%s\n\n%s", terraformrc, expectedProviderInstallation)
 }
 
 func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
@@ -126,13 +136,28 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	cliConfigSettings := &CLIConfigSettings{
 		NetworkMirrorMethods: []CLIConfigProviderInstallationNetworkMirror{
 			{
-				URL: networkMirrorURL.String(),
+				URL:     networkMirrorURL.String(),
+				Include: []string{"example.com/*/*"},
+			},
+		},
+		DirectMethods: []CLIConfigProviderInstallationDirect{
+			{
+				Exclude: []string{"example.com/*/*", "exclude.com/*/*"},
 			},
 		},
 	}
 	createCLIConfig(t, cliConfigFilename, cliConfigSettings)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-registry-names example.com --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, appPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-registry-names example.com --terragrunt-provider-cache-registry-names registry.terraform.io --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, appPath))
+
+	expectedProviderInstallation := `provider_installation { "network_mirror" { url = "%s" include = ["example.com/*/*"] exclude = ["example.com/*/*", "registry.terraform.io/*/*"] } "filesystem_mirror" { path = "%s" include = ["example.com/*/*", "registry.terraform.io/*/*"] } "direct" { exclude = ["exclude.com/*/*"] } }`
+	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), networkMirrorURL.String(), providerCacheDir)
+
+	terraformrcBytes, err := os.ReadFile(filepath.Join(appPath, ".terraformrc"))
+	require.NoError(t, err)
+	terraformrc := strings.Join(strings.Fields(string(terraformrcBytes)), " ")
+
+	assert.Contains(t, terraformrc, expectedProviderInstallation, "%s\n\n%s", terraformrc, expectedProviderInstallation)
 }
 
 func TestTerragruntInputsFromDependency(t *testing.T) {

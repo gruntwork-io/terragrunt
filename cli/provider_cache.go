@@ -105,29 +105,19 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 	for _, registryName := range opts.ProviderCacheRegistryNames {
 		excludeAddrs = append(excludeAddrs, fmt.Sprintf("%s/*/*", registryName))
 	}
-
 	for _, method := range cliCfg.ProviderInstallation.Methods {
-		var (
-			include *[]string
-			exclude = util.RemoveDuplicatesFromList(excludeAddrs)
-		)
-
 		switch method := method.(type) {
 		case *cliconfig.ProviderInstallationFilesystemMirror:
-			include = method.Include
 			providerHandlers = append(providerHandlers, handlers.NewProviderFilesystemMirrorHandler(providerService, cacheProviderHTTPStatusCode, method))
+			method.AppendExclude(excludeAddrs)
 		case *cliconfig.ProviderInstallationNetworkMirror:
-			include = method.Include
 			providerHandlers = append(providerHandlers, handlers.NewProviderNetworkMirrorHandler(providerService, cacheProviderHTTPStatusCode, method))
+			method.AppendExclude(excludeAddrs)
 		case *cliconfig.ProviderInstallationDirect:
 			providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, cacheProviderHTTPStatusCode, method))
+			method.RemoveExclude(excludeAddrs)
 			continue
 		}
-
-		if include != nil {
-			exclude = util.RemoveSublistFromList(exclude, *include)
-		}
-		method.AppendExclude(exclude)
 	}
 	providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, cacheProviderHTTPStatusCode, new(cliconfig.ProviderInstallationDirect)))
 
