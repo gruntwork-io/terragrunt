@@ -1318,7 +1318,7 @@ When this flag is set, Terragrunt will wrap Terraform `stdout` and `stderr` in J
 
 - [run-all](#run-all)
 
-Enables Terragrunt's provider caching. This forces Terraform to make provider requests through the Terragrunt Provider Cache server. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
+Enables Terragrunt's provider caching. This forces Terraform to make provider requests through the Terragrunt Provider Cache server. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-cache/) for context.
 
 ### terragrunt-provider-cache-dir
 
@@ -1328,7 +1328,7 @@ Enables Terragrunt's provider caching. This forces Terraform to make provider re
 
 - [run-all](#run-all)
 
-The path to the Terragrunt provider cache directory. By default, `terragrunt/providers` folder in the user cache directory: `$HOME/.cache` on Unix systems, `$HOME/Library/Caches` on Darwin, `%LocalAppData%` on Windows. The file structure of the cache directory is identical to the Terraform [plugin_cache_dir](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache) directory. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
+The path to the Terragrunt provider cache directory. By default, `terragrunt/providers` folder in the user cache directory: `$HOME/.cache` on Unix systems, `$HOME/Library/Caches` on Darwin, `%LocalAppData%` on Windows. The file structure of the cache directory is identical to the Terraform [plugin_cache_dir](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache) directory. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-cache/) for context.
 
 ### terragrunt-provider-cache-hostname
 
@@ -1338,7 +1338,7 @@ The path to the Terragrunt provider cache directory. By default, `terragrunt/pro
 
 - [run-all](#run-all)
 
-The hostname of the Terragrunt Provider Cache server. By default, 'localhost'. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
+The hostname of the Terragrunt Provider Cache server. By default, 'localhost'. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-cache/) for context.
 
 ### terragrunt-provider-cache-port
 
@@ -1348,7 +1348,7 @@ The hostname of the Terragrunt Provider Cache server. By default, 'localhost'. M
 
 - [run-all](#run-all)
 
-The port of the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
+The port of the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-cache/) for context.
 
 ### terragrunt-provider-cache-token
 
@@ -1358,7 +1358,7 @@ The port of the Terragrunt Provider Cache server. By default, assigned automatic
 
 - [run-all](#run-all)
 
-The Token for authentication on the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
+The Token for authentication on the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-cache/) for context.
 
 ### terragrunt-provider-cache-registry-names
 
@@ -1368,7 +1368,7 @@ The Token for authentication on the Terragrunt Provider Cache server. By default
 
 - [run-all](#run-all)
 
-The list of remote registries to cached by Terragrunt Provider Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-caching/) for context.
+The list of remote registries to cached by Terragrunt Provider Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-cache/) for context.
 
 ### terragrunt-out-dir
 

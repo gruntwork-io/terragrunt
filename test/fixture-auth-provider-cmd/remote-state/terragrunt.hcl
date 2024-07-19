@@ -1,3 +1,7 @@
+locals {
+  aws_account_id = "${get_aws_account_id()}"
+}
+
 remote_state {
   backend = "s3"
   generate = {
