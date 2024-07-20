@@ -2,6 +2,7 @@ package dynamodb
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -182,7 +183,7 @@ type DeleteTableRetryer struct {
 }
 
 func (retryer DeleteTableRetryer) ShouldRetry(req *request.Request) bool {
-	if req.HTTPResponse.StatusCode == 400 {
+	if req.HTTPResponse.StatusCode == http.StatusBadRequest {
 		return true
 	}
 	return retryer.DefaultRetryer.ShouldRetry(req)
