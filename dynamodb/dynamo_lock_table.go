@@ -159,14 +159,19 @@ func tagTableIfTagsGiven(tags map[string]string, tableArn *string, client *dynam
 
 // Delete the given table in DynamoDB
 func DeleteTable(tableName string, dbClient *dynamodb.DynamoDB) error {
+	const (
+		maxRetries    = 5
+		minRetryDelay = time.Second
+	)
+
 	tableCreateDeleteSemaphore.Acquire()
 	defer tableCreateDeleteSemaphore.Release()
 
 	req, _ := dbClient.DeleteTableRequest(&dynamodb.DeleteTableInput{TableName: aws.String(tableName)})
 	// It is not always able to delete a table the first attempt, error: `StatusCode: 400, Attempt to change a resource which is still in use: Table tags are being updated: terragrunt_test_*`
 	req.Retryer = &DeleteTableRetryer{DefaultRetryer: client.DefaultRetryer{
-		NumMaxRetries: 5,
-		MinRetryDelay: time.Second,
+		NumMaxRetries: maxRetries,
+		MinRetryDelay: minRetryDelay,
 	}}
 	return req.Send()
 

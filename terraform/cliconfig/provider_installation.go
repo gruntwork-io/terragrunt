@@ -23,8 +23,8 @@ func (methods ProviderInstallationMethods) Merge(withMethods ...ProviderInstalla
 		for _, withMethod := range remainedWithMethods {
 			var isMerged bool
 
-			if method, ok := method.(*ProviderInstallationFilesystemMirror); ok {
-				if withMethod, ok := withMethod.(*ProviderInstallationFilesystemMirror); ok && method.Path == withMethod.Path {
+			if fsMirrorMethod, ok := method.(*ProviderInstallationFilesystemMirror); ok {
+				if withMethod, ok := withMethod.(*ProviderInstallationFilesystemMirror); ok && fsMirrorMethod.Path == withMethod.Path {
 					if withMethod.Exclude != nil {
 						method.AppendExclude(*withMethod.Exclude)
 					}
@@ -35,8 +35,8 @@ func (methods ProviderInstallationMethods) Merge(withMethods ...ProviderInstalla
 				}
 			}
 
-			if method, ok := method.(*ProviderInstallationNetworkMirror); ok {
-				if withMethod, ok := withMethod.(*ProviderInstallationNetworkMirror); ok && method.URL == withMethod.URL {
+			if netMirrorMethod, ok := method.(*ProviderInstallationNetworkMirror); ok {
+				if withMethod, ok := withMethod.(*ProviderInstallationNetworkMirror); ok && netMirrorMethod.URL == withMethod.URL {
 					if withMethod.Exclude != nil {
 						method.AppendExclude(*withMethod.Exclude)
 					}
@@ -47,7 +47,7 @@ func (methods ProviderInstallationMethods) Merge(withMethods ...ProviderInstalla
 				}
 			}
 
-			if method, ok := method.(*ProviderInstallationDirect); ok {
+			if _, ok := method.(*ProviderInstallationDirect); ok {
 				if withMethod, ok := withMethod.(*ProviderInstallationDirect); ok {
 					if withMethod.Exclude != nil {
 						method.AppendExclude(*withMethod.Exclude)
