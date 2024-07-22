@@ -44,8 +44,18 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	fakeProvider := FakeProvider{
 		RegistryName: "example.com",
 		Namespace:    "hashicorp",
-		Name:         "null",
-		Version:      "3.2.2",
+		Name:         "aws",
+		Version:      "5.59.0",
+		PlatformOS:   runtime.GOOS,
+		PlatformArch: runtime.GOARCH,
+	}
+	fakeProvider.CreateMirror(t, providersMirrorPath)
+
+	fakeProvider = FakeProvider{
+		RegistryName: "example.com",
+		Namespace:    "hashicorp",
+		Name:         "azurerm",
+		Version:      "3.113.0",
 		PlatformOS:   runtime.GOOS,
 		PlatformArch: runtime.GOARCH,
 	}
@@ -88,7 +98,7 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	assert.Contains(t, terraformrc, expectedProviderInstallation, "%s\n\n%s", terraformrc, expectedProviderInstallation)
 }
 
-func TestTerragruntProviderCacheWithMirror(t *testing.T) {
+func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	// In this test we use os.Setenv to set the Terraform env var TF_CLI_CONFIG_FILE.
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_PROVIDER_CACHE_MIRROR)
