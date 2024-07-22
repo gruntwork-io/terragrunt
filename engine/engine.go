@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/go-getter"
-	"github.com/mholt/archiver/v3"
 	"io"
 	"os"
 	"os/exec"
@@ -14,6 +12,9 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+
+	"github.com/hashicorp/go-getter"
+	"github.com/mholt/archiver/v3"
 
 	"github.com/hashicorp/go-hclog"
 
