@@ -73,7 +73,7 @@ func TestEngineRunAllOpentofu(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TestFixtureOpenTofuRunAll)
 	rootPath := util.JoinPath(tmpEnvPath, TestFixtureOpenTofuRunAll)
 
-	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "starting plugin:")
