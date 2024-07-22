@@ -52,6 +52,7 @@ The following is a reference of all the supported blocks and attributes in the c
 - [dependency](#dependency)
 - [dependencies](#dependencies)
 - [generate](#generate)
+- [engine](#engine)
 
 ### terraform
 
@@ -1150,6 +1151,12 @@ locals {
 # Set the generate config dynamically to the generate config in common.hcl
 generate = local.common.generate
 ```
+
+### engine
+
+The `engine` block is used to configure experimental Terragrunt engine configuration.
+More details in [engine section](https://terragrunt.gruntwork.io/docs/features/engine/).
+
 
 ## Attributes
 
