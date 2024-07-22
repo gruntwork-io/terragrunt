@@ -105,7 +105,7 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	netowrkProvider := FakeProvider{
 		RegistryName: "example.com",
 		Namespace:    "network",
-		Name:         "null",
+		Name:         "network",
 		Version:      "3.2.2",
 		PlatformOS:   runtime.GOOS,
 		PlatformArch: runtime.GOARCH,
@@ -115,7 +115,7 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	filesystemProvider := FakeProvider{
 		RegistryName: "example.com",
 		Namespace:    "filesystem",
-		Name:         "null",
+		Name:         "filesystem",
 		Version:      "3.2.2",
 		PlatformOS:   runtime.GOOS,
 		PlatformArch: runtime.GOARCH,
