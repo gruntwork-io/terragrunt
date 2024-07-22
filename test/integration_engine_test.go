@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	TestFixtureLocalEngine = "fixture-engine/local-engine"
+	TestFixtureLocalEngine    = "fixture-engine/local-engine"
+	TestFixtureOpenTofuEngine = "fixture-engine/opentofu-engine"
 
 	EnvVarExperimental = "TG_EXPERIMENTAL_ENGINE"
 )
@@ -43,6 +44,22 @@ func TestEngineApply(t *testing.T) {
 	assert.Contains(t, stderr, LocalEngineBinaryPath+": plugin address")
 	assert.Contains(t, stderr, "starting plugin:")
 	assert.Contains(t, stderr, "plugin process exited:")
+	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
+}
+
+func TestEngineOpentofu(t *testing.T) {
+	t.Setenv(EnvVarExperimental, "1")
+
+	cleanupTerraformFolder(t, TestFixtureOpenTofuEngine)
+	tmpEnvPath := copyEnvironment(t, TestFixtureOpenTofuEngine)
+	rootPath := util.JoinPath(tmpEnvPath, TestFixtureOpenTofuEngine)
+
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "starting plugin:")
+	assert.Contains(t, stderr, "plugin process exited:")
+	assert.Contains(t, stdout, "OpenTofu has been successfully initialized")
 	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
 }
 
