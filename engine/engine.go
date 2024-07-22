@@ -216,7 +216,7 @@ func extractArchive(opts *options.TerragruntOptions, downloadFile string, engine
 		}
 		return nil
 	}
-	// Move all files to the
+	// Move all files to the engine directory
 	for _, file := range files {
 		srcPath := filepath.Join(tempDir, file.Name())
 		dstPath := filepath.Join(path, file.Name())
