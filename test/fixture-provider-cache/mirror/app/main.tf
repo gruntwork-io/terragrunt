@@ -1,7 +1,7 @@
 terraform {
   required_providers {
-    direct = {
-      source  = "hashicorp/null"
+    null = {
+      source = "hashicorp/null"
     }
     network = {
       source  = "example.com/network/null"
