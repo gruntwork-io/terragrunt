@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     null = {
-      source = "hashicorp/null"
+      source = "registry.opentofu.org/hashicorp/null"
     }
     aws = {
       source  = "example.com/hashicorp/aws"
