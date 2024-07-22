@@ -17,6 +17,7 @@ import (
 const (
 	TestFixtureLocalEngine    = "fixture-engine/local-engine"
 	TestFixtureOpenTofuEngine = "fixture-engine/opentofu-engine"
+	TestFixtureOpenTofuRunAll = "fixture-engine/opentofu-run-all"
 
 	EnvVarExperimental = "TG_EXPERIMENTAL_ENGINE"
 )
@@ -61,6 +62,22 @@ func TestEngineOpentofu(t *testing.T) {
 	assert.Contains(t, stderr, "plugin process exited:")
 	assert.Contains(t, stdout, "OpenTofu has been successfully initialized")
 	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
+}
+
+func TestEngineRunAllOpentofu(t *testing.T) {
+	t.Setenv(EnvVarExperimental, "1")
+
+	cleanupTerraformFolder(t, TestFixtureOpenTofuRunAll)
+	tmpEnvPath := copyEnvironment(t, TestFixtureOpenTofuRunAll)
+	rootPath := util.JoinPath(tmpEnvPath, TestFixtureOpenTofuRunAll)
+
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "starting plugin:")
+	assert.Contains(t, stderr, "plugin process exited:")
+	assert.Contains(t, stdout, "OpenTofu has been successfully initialized")
+	assert.Contains(t, stdout, "Your infrastructure matches the configuration.")
 }
 
 func setupLocalEngine(t *testing.T) string {
