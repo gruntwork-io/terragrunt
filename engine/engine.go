@@ -248,9 +248,7 @@ func fileName(e *options.EngineOptions) string {
 	}
 	platform := runtime.GOOS
 	arch := runtime.GOARCH
-	if strings.HasPrefix(engineName, "terragrunt-") {
-		engineName = strings.TrimPrefix(engineName, "terragrunt-")
-	}
+	engineName = strings.TrimPrefix(engineName, "terragrunt-")
 	return fmt.Sprintf("terragrunt-iac-%s_%s_%s_%s_%s", engineName, e.Type, e.Version, platform, arch)
 }
 
