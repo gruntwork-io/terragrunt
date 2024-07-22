@@ -18,7 +18,7 @@ provider_installation {
 {{ if gt (len $method.Include) 0 }}
     include = [{{ range $index, $include := $method.Include }}{{ if $index }},{{ end }}"{{ $include }}"{{ end }}]
 {{ end }}{{ if gt (len $method.Exclude) 0 }}
-    include = [{{ range $index, $exclude := $method.Exclude }}{{ if $index }},{{ end }}"{{ $exclude }}"{{ end }}]
+    exclude = [{{ range $index, $exclude := $method.Exclude }}{{ if $index }},{{ end }}"{{ $exclude }}"{{ end }}]
 {{ end }}
   }
 {{ end }}{{ end }}
@@ -28,7 +28,7 @@ provider_installation {
 {{ if gt (len $method.Include) 0 }}
     include = [{{ range $index, $include := $method.Include }}{{ if $index }},{{ end }}"{{ $include }}"{{ end }}]
 {{ end }}{{ if gt (len $method.Exclude) 0 }}
-    include = [{{ range $index, $exclude := $method.Exclude }}{{ if $index }},{{ end }}"{{ $exclude }}"{{ end }}]
+    exclude = [{{ range $index, $exclude := $method.Exclude }}{{ if $index }},{{ end }}"{{ $exclude }}"{{ end }}]
 {{ end }}
   }
 {{ end }}{{ end }}
@@ -37,7 +37,7 @@ provider_installation {
 {{ if gt (len $method.Include) 0 }}
     include = [{{ range $index, $include := $method.Include }}{{ if $index }},{{ end }}"{{ $include }}"{{ end }}]
 {{ end }}{{ if gt (len $method.Exclude) 0 }}
-    include = [{{ range $index, $exclude := $method.Exclude }}{{ if $index }},{{ end }}"{{ $exclude }}"{{ end }}]
+    exclude = [{{ range $index, $exclude := $method.Exclude }}{{ if $index }},{{ end }}"{{ $exclude }}"{{ end }}]
 {{ end }}
   }
 {{ end }}{{ end }}

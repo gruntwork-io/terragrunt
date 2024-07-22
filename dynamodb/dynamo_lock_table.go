@@ -2,10 +2,13 @@ package dynamodb
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/client"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
@@ -156,12 +159,34 @@ func tagTableIfTagsGiven(tags map[string]string, tableArn *string, client *dynam
 }
 
 // Delete the given table in DynamoDB
-func DeleteTable(tableName string, client *dynamodb.DynamoDB) error {
+func DeleteTable(tableName string, dbClient *dynamodb.DynamoDB) error {
+	const (
+		maxRetries    = 5
+		minRetryDelay = time.Second
+	)
+
 	tableCreateDeleteSemaphore.Acquire()
 	defer tableCreateDeleteSemaphore.Release()
 
-	_, err := client.DeleteTable(&dynamodb.DeleteTableInput{TableName: aws.String(tableName)})
-	return err
+	req, _ := dbClient.DeleteTableRequest(&dynamodb.DeleteTableInput{TableName: aws.String(tableName)})
+	// It is not always able to delete a table the first attempt, error: `StatusCode: 400, Attempt to change a resource which is still in use: Table tags are being updated: terragrunt_test_*`
+	req.Retryer = &DeleteTableRetryer{DefaultRetryer: client.DefaultRetryer{
+		NumMaxRetries: maxRetries,
+		MinRetryDelay: minRetryDelay,
+	}}
+	return req.Send()
+
+}
+
+type DeleteTableRetryer struct {
+	client.DefaultRetryer
+}
+
+func (retryer DeleteTableRetryer) ShouldRetry(req *request.Request) bool {
+	if req.HTTPResponse.StatusCode == http.StatusBadRequest {
+		return true
+	}
+	return retryer.DefaultRetryer.ShouldRetry(req)
 }
 
 // Return true if the given error is the error message returned by AWS when the resource already exists and is being
