@@ -16,57 +16,24 @@ type ProviderInstallation struct {
 type ProviderInstallationMethods []ProviderInstallationMethod
 
 func (methods ProviderInstallationMethods) Merge(withMethods ...ProviderInstallationMethod) ProviderInstallationMethods {
-	for _, method := range methods {
-		remainedWithMethods := withMethods
-		withMethods = ProviderInstallationMethods{}
+	mergedMethods := methods
 
-		for _, withMethod := range remainedWithMethods {
-			var isMerged bool
+	for _, withMethod := range withMethods {
+		var isMerged bool
 
-			if fsMirrorMethod, ok := method.(*ProviderInstallationFilesystemMirror); ok {
-				if withMethod, ok := withMethod.(*ProviderInstallationFilesystemMirror); ok && fsMirrorMethod.Path == withMethod.Path {
-					if withMethod.Exclude != nil {
-						method.AppendExclude(*withMethod.Exclude)
-					}
-					if withMethod.Include != nil {
-						method.AppendInclude(*withMethod.Include)
-					}
-					isMerged = true
-				}
+		for _, method := range methods {
+			if method.Merge(withMethod) {
+				isMerged = true
+				break
 			}
+		}
 
-			if netMirrorMethod, ok := method.(*ProviderInstallationNetworkMirror); ok {
-				if withMethod, ok := withMethod.(*ProviderInstallationNetworkMirror); ok && netMirrorMethod.URL == withMethod.URL {
-					if withMethod.Exclude != nil {
-						method.AppendExclude(*withMethod.Exclude)
-					}
-					if withMethod.Include != nil {
-						method.AppendInclude(*withMethod.Include)
-					}
-					isMerged = true
-				}
-			}
-
-			if _, ok := method.(*ProviderInstallationDirect); ok {
-				if withMethod, ok := withMethod.(*ProviderInstallationDirect); ok {
-					if withMethod.Exclude != nil {
-						method.AppendExclude(*withMethod.Exclude)
-					}
-					if withMethod.Include != nil {
-						method.AppendInclude(*withMethod.Include)
-					}
-					isMerged = true
-				}
-			}
-
-			if !isMerged {
-				withMethods = append(withMethods, withMethod)
-			}
+		if !isMerged {
+			mergedMethods = append(mergedMethods, withMethod)
 		}
 	}
 
-	mergedMethods := append(methods, withMethods...)
-
+	// place the `direct` method at the very end.
 	sort.Slice(mergedMethods, func(i, j int) bool {
 		if _, ok := mergedMethods[j].(*ProviderInstallationDirect); ok {
 			return true
@@ -86,6 +53,7 @@ type ProviderInstallationMethod interface {
 	AppendInclude(addrs []string)
 	AppendExclude(addrs []string)
 	RemoveExclude(addrs []string)
+	Merge(with ProviderInstallationMethod) bool
 }
 
 type ProviderInstallationDirect struct {
@@ -108,6 +76,20 @@ func NewProviderInstallationDirect(include, exclude []string) *ProviderInstallat
 	}
 
 	return res
+}
+
+func (method *ProviderInstallationDirect) Merge(with ProviderInstallationMethod) bool {
+	if with, ok := with.(*ProviderInstallationDirect); ok {
+		if with.Exclude != nil {
+			method.AppendExclude(*with.Exclude)
+		}
+		if with.Include != nil {
+			method.AppendInclude(*with.Include)
+		}
+		return true
+	}
+
+	return false
 }
 
 func (method *ProviderInstallationDirect) AppendInclude(addrs []string) {
@@ -170,6 +152,20 @@ func NewProviderInstallationFilesystemMirror(path string, include, exclude []str
 	return res
 }
 
+func (method *ProviderInstallationFilesystemMirror) Merge(with ProviderInstallationMethod) bool {
+	if with, ok := with.(*ProviderInstallationFilesystemMirror); ok && method.Path == with.Path {
+		if with.Exclude != nil {
+			method.AppendExclude(*with.Exclude)
+		}
+		if with.Include != nil {
+			method.AppendInclude(*with.Include)
+		}
+		return true
+	}
+
+	return false
+}
+
 func (method *ProviderInstallationFilesystemMirror) AppendInclude(addrs []string) {
 	if len(addrs) == 0 {
 		return
@@ -228,6 +224,20 @@ func NewProviderInstallationNetworkMirror(url string, include, exclude []string)
 	}
 
 	return res
+}
+
+func (method *ProviderInstallationNetworkMirror) Merge(with ProviderInstallationMethod) bool {
+	if with, ok := with.(*ProviderInstallationNetworkMirror); ok && method.URL == with.URL {
+		if with.Exclude != nil {
+			method.AppendExclude(*with.Exclude)
+		}
+		if with.Include != nil {
+			method.AppendInclude(*with.Include)
+		}
+		return true
+	}
+
+	return false
 }
 
 func (method *ProviderInstallationNetworkMirror) AppendInclude(addrs []string) {
