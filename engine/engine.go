@@ -121,7 +121,6 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 	e := opts.Engine
 
 	if strings.HasPrefix(e.Source, "/") {
-		fmt.Println("Engine path starts with '/', exiting without downloading")
 		return nil
 	}
 	path, err := enginePath(e)
@@ -179,49 +178,49 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 }
 
 func extractArchive(opts *options.TerragruntOptions, downloadFile string, engineFile string) error {
-	if isArchiveByHeader(downloadFile) {
-		// extract package and process files
-		path := filepath.Dir(engineFile)
-		tempDir, err := os.MkdirTemp(path, "temp-")
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
-		// extract archive
-		if err := archiver.Unarchive(downloadFile, tempDir); err != nil {
-			return errors.WithStackTrace(err)
-		}
-		// process files
-
-		files, err := os.ReadDir(tempDir)
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
-
-		if len(files) == 1 && !files[0].IsDir() {
-			// handle case where archive contains a single file, most of the cases
-			singleFile := filepath.Join(tempDir, files[0].Name())
-			if err := os.Rename(singleFile, engineFile); err != nil {
-				return errors.WithStackTrace(err)
-			}
-		} else {
-			// Move all files to the
-			for _, file := range files {
-				srcPath := filepath.Join(tempDir, file.Name())
-				dstPath := filepath.Join(path, file.Name())
-				if err := os.Rename(srcPath, dstPath); err != nil {
-					return errors.WithStackTrace(err)
-				}
-			}
-		}
-
-		if err := os.RemoveAll(tempDir); err != nil {
-			return errors.WithStackTrace(err)
-		}
-		opts.Logger.Infof("Engine extracted to %s", path)
-	} else {
+	if !isArchiveByHeader(downloadFile) {
 		opts.Logger.Info("Downloaded file is not an archive, no extraction needed")
 		// move file directly if it is not an archive
 		if err := os.Rename(downloadFile, engineFile); err != nil {
+			return errors.WithStackTrace(err)
+		}
+		return nil
+	}
+	// extract package and process files
+	path := filepath.Dir(engineFile)
+	tempDir, err := os.MkdirTemp(path, "temp-")
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			opts.Logger.Warnf("Failed to clean temp dir %s: %v", tempDir, err)
+		}
+	}()
+	// extract archive
+	if err := archiver.Unarchive(downloadFile, tempDir); err != nil {
+		return errors.WithStackTrace(err)
+	}
+	// process files
+	files, err := os.ReadDir(tempDir)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	opts.Logger.Infof("Engine extracted to %s", path)
+
+	if len(files) == 1 && !files[0].IsDir() {
+		// handle case where archive contains a single file, most of the cases
+		singleFile := filepath.Join(tempDir, files[0].Name())
+		if err := os.Rename(singleFile, engineFile); err != nil {
+			return errors.WithStackTrace(err)
+		}
+		return nil
+	}
+	// Move all files to the
+	for _, file := range files {
+		srcPath := filepath.Join(tempDir, file.Name())
+		dstPath := filepath.Join(path, file.Name())
+		if err := os.Rename(srcPath, dstPath); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
@@ -230,7 +229,7 @@ func extractArchive(opts *options.TerragruntOptions, downloadFile string, engine
 
 func enginePath(e *options.EngineOptions) (string, error) {
 	if strings.HasPrefix(e.Source, "/") {
-		return e.Source, nil
+		return filepath.Dir(e.Source), nil
 	}
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -242,9 +241,13 @@ func enginePath(e *options.EngineOptions) (string, error) {
 }
 
 func fileName(e *options.EngineOptions) string {
+	engineName := filepath.Base(e.Source)
+	if strings.HasPrefix(e.Source, "/") {
+		// return file name if source is absolute path
+		return engineName
+	}
 	platform := runtime.GOOS
 	arch := runtime.GOARCH
-	engineName := filepath.Base(e.Source)
 	if strings.HasPrefix(engineName, "terragrunt-") {
 		engineName = strings.TrimPrefix(engineName, "terragrunt-")
 	}
