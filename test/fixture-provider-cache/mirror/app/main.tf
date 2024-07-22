@@ -3,13 +3,13 @@ terraform {
     null = {
       source = "hashicorp/null"
     }
-    network = {
-      source  = "example.com/network/network"
-      version = "3.2.2"
+    aws = {
+      source  = "example.com/hashicorp/aws"
+      version = "5.59.0"
     }
-    filesystem = {
-      source  = "example.com/filesystem/filesystem"
-      version = "3.2.2"
+    azurerm = {
+      source  = "example.com/hashicorp/azurerm"
+      version = "3.113.0"
     }
   }
 }

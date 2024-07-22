@@ -88,7 +88,7 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	assert.Contains(t, terraformrc, expectedProviderInstallation, "%s\n\n%s", terraformrc, expectedProviderInstallation)
 }
 
-func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
+func TestTerragruntProviderCacheWithMirror(t *testing.T) {
 	// In this test we use os.Setenv to set the Terraform env var TF_CLI_CONFIG_FILE.
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_PROVIDER_CACHE_MIRROR)
@@ -104,9 +104,9 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 
 	netowrkProvider := FakeProvider{
 		RegistryName: "example.com",
-		Namespace:    "network",
-		Name:         "network",
-		Version:      "3.2.2",
+		Namespace:    "hashicorp",
+		Name:         "aws",
+		Version:      "5.59.0",
 		PlatformOS:   runtime.GOOS,
 		PlatformArch: runtime.GOARCH,
 	}
@@ -114,9 +114,9 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 
 	filesystemProvider := FakeProvider{
 		RegistryName: "example.com",
-		Namespace:    "filesystem",
-		Name:         "filesystem",
-		Version:      "3.2.2",
+		Namespace:    "hashicorp",
+		Name:         "azurerm",
+		Version:      "3.113.0",
 		PlatformOS:   runtime.GOOS,
 		PlatformArch: runtime.GOARCH,
 	}
@@ -154,13 +154,13 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 		FilesystemMirrorMethods: []CLIConfigProviderInstallationFilesystemMirror{
 			{
 				Path:    providersFilesystemMirrorPath,
-				Include: []string{"example.com/filesystem/*"},
+				Include: []string{"example.com/hashicorp/azurerm"},
 			},
 		},
 		NetworkMirrorMethods: []CLIConfigProviderInstallationNetworkMirror{
 			{
 				URL:     networkMirrorURL.String(),
-				Include: []string{"example.com/network/*"},
+				Include: []string{"example.com/hashicorp/aws"},
 			},
 		},
 	}
@@ -168,7 +168,7 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-registry-names example.com --terragrunt-provider-cache-registry-names registry.terraform.io --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, appPath))
 
-	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { path = "%s" include = ["example.com/filesystem/*"] exclude = ["example.com/*/*", "registry.terraform.io/*/*"] } "network_mirror" { url = "%s" include = ["example.com/network/*"] exclude = ["example.com/*/*", "registry.terraform.io/*/*"] } "filesystem_mirror" { path = "%s" include = ["example.com/*/*", "registry.terraform.io/*/*"] } "direct" { } }`
+	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { path = "%s" include = ["example.com/hashicorp/azurerm"] exclude = ["example.com/*/*", "registry.terraform.io/*/*"] } "network_mirror" { url = "%s" include = ["example.com/hashicorp/aws"] exclude = ["example.com/*/*", "registry.terraform.io/*/*"] } "filesystem_mirror" { path = "%s" include = ["example.com/*/*", "registry.terraform.io/*/*"] } "direct" { } }`
 
 	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersFilesystemMirrorPath, networkMirrorURL.String(), providerCacheDir)
 
