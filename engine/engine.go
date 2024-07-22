@@ -73,6 +73,7 @@ func Run(
 	instance, found := engineClients.Load(workingDir)
 	// initialize engine for working directory
 	if !found {
+		// download engine if not available
 		if err = DownloadEngine(ctx, runOptions.TerragruntOptions); err != nil {
 			return nil, errors.WithStackTrace(err)
 		}

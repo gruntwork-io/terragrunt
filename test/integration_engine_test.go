@@ -5,6 +5,7 @@ package test
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -16,6 +17,7 @@ import (
 
 const (
 	TestFixtureLocalEngine    = "fixture-engine/local-engine"
+	TestFixtureRemoteEngine   = "fixture-engine/remote-engine"
 	TestFixtureOpenTofuEngine = "fixture-engine/opentofu-engine"
 	TestFixtureOpenTofuRunAll = "fixture-engine/opentofu-run-all"
 
@@ -78,6 +80,29 @@ func TestEngineRunAllOpentofu(t *testing.T) {
 	assert.Contains(t, stderr, "plugin process exited:")
 	assert.Contains(t, stdout, "OpenTofu has been successfully initialized")
 	assert.Contains(t, stdout, "Your infrastructure matches the configuration.")
+}
+
+func TestEngineDownloadOverHttp(t *testing.T) {
+	t.Setenv(EnvVarExperimental, "1")
+
+	cleanupTerraformFolder(t, TestFixtureRemoteEngine)
+	tmpEnvPath := copyEnvironment(t, TestFixtureRemoteEngine)
+	rootPath := util.JoinPath(tmpEnvPath, TestFixtureRemoteEngine)
+
+	platform := runtime.GOOS
+	arch := runtime.GOARCH
+
+	copyAndFillMapPlaceholders(t, util.JoinPath(TestFixtureRemoteEngine, "terragrunt.hcl"), util.JoinPath(rootPath, config.DefaultTerragruntConfigPath), map[string]string{
+		"__hardcoded_url__": fmt.Sprintf("https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/v0.0.2/terragrunt-iac-engine-opentofu_rpc_v0.0.2_%s_%s.zip", platform, arch),
+	})
+
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "starting plugin:")
+	assert.Contains(t, stderr, "plugin process exited:")
+	assert.Contains(t, stdout, "OpenTofu has been successfully initialized")
+	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
 }
 
 func setupLocalEngine(t *testing.T) string {
