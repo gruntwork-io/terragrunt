@@ -36,9 +36,11 @@ const (
 	engineCookieValue                                = "terragrunt"
 	EnableExperimentalEngineEnvName                  = "TG_EXPERIMENTAL_ENGINE"
 	TerraformCommandContextKey      engineClientsKey = iota
+	LocksContextKey                 engineLocksKey   = iota
 )
 
 type engineClientsKey byte
+type engineLocksKey byte
 
 type ExecutionOptions struct {
 	TerragruntOptions *options.TerragruntOptions
@@ -105,7 +107,9 @@ func ContextWithEngine(ctx context.Context) context.Context {
 	if !IsEngineEnabled() {
 		return ctx
 	}
-	return context.WithValue(ctx, TerraformCommandContextKey, &sync.Map{})
+	ctx = context.WithValue(ctx, TerraformCommandContextKey, &sync.Map{})
+	ctx = context.WithValue(ctx, LocksContextKey, util.NewKeyLocks())
+	return ctx
 }
 
 func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error {
@@ -142,6 +146,16 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 		downloadURL = fmt.Sprintf("https://%s/releases/download/%s/%s",
 			e.Source, e.Version, name)
 	}
+
+	// lock downloading process for only one instance
+	locks, err := downloadLocksFromContext(ctx)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	// locking by file where engine is downloaded
+	// however, it will not help in case of multiple parallel Terragrunt runs
+	locks.Lock(downloadFile)
+	defer locks.Unlock(downloadFile)
 
 	client := &getter.Client{
 		Ctx:           ctx,
@@ -257,6 +271,18 @@ func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
 		return nil, errors.WithStackTrace(fmt.Errorf("failed to fetch engine clients from context"))
 	}
 	result, ok := val.(*sync.Map)
+	if !ok {
+		return nil, errors.WithStackTrace(fmt.Errorf("failed to cast engine clients from context"))
+	}
+	return result, nil
+}
+
+func downloadLocksFromContext(ctx context.Context) (*util.KeyLocks, error) {
+	val := ctx.Value(LocksContextKey)
+	if val == nil {
+		return nil, errors.WithStackTrace(fmt.Errorf("failed to fetch engine clients from context"))
+	}
+	result, ok := val.(*util.KeyLocks)
 	if !ok {
 		return nil, errors.WithStackTrace(fmt.Errorf("failed to cast engine clients from context"))
 	}
