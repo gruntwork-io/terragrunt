@@ -70,6 +70,7 @@ Parameters:
 * `type`: (Required) Currently, only `rpc` type is supported.
 * `meta`: (Optional) A block for setting plugin-specific metadata. This can include various configuration settings required by the plugin.
 
+
 Engines are cached locally by default to enhance performance and minimize repeated downloads. 
 The cached engines are stored in the following directory:
 
