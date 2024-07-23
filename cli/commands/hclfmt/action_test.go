@@ -280,7 +280,7 @@ func TestHCLFmtStdin(t *testing.T) {
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	// format hcl froms tdin
+	// format hcl from stdin
 	tgOptions.HclFromStdin = true
 	err = Run(tgOptions)
 	require.NoError(t, err)
