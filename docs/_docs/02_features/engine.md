@@ -70,21 +70,19 @@ Parameters:
 * `type`: (Required) Currently, only `rpc` type is supported.
 * `meta`: (Optional) A block for setting plugin-specific metadata. This can include various configuration settings required by the plugin.
 
-Engines are cached locally to improve performance and reduce the need for repeated downloads.
+Engines are cached locally by default to enhance performance and minimize repeated downloads. 
 The cached engines are stored in the following directory:
 
 ```sh
-
 ~/.cache/terragrunt/plugins/iac-engine/rpc/<version>
-
 ```
+
+If you need to use a different path, set the environment variable `TG_ENGINE_CACHE_PATH` accordingly.
 
 Due to the fact that this functionality is still experimental, and not recommended for general production usage, set the following environment variable to opt-in to this functionality:
 
 ```sh
-
 export TG_EXPERIMENTAL_ENGINE=1
-
 ```
 
 You can find the OpenTofu Engine on Github [terragrunt-engine-opentofu](https://github.com/gruntwork-io/terragrunt-engine-opentofu).

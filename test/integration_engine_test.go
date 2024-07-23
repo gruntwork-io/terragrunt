@@ -83,6 +83,32 @@ func TestEngineRunAllOpentofu(t *testing.T) {
 	assert.Contains(t, stdout, "Apply complete!")
 }
 
+func TestEngineRunAllOpentofuCustomPath(t *testing.T) {
+	t.Setenv(EnvVarExperimental, "1")
+
+	// create temporary folder
+	cacheDir := t.TempDir()
+	t.Setenv("TG_ENGINE_CACHE_PATH", cacheDir)
+
+	cleanupTerraformFolder(t, TestFixtureOpenTofuRunAll)
+	tmpEnvPath := copyEnvironment(t, TestFixtureOpenTofuRunAll)
+	rootPath := util.JoinPath(tmpEnvPath, TestFixtureOpenTofuRunAll)
+
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "starting plugin:")
+	assert.Contains(t, stderr, "plugin process exited:")
+	assert.Contains(t, stdout, "OpenTofu has been successfull")
+	assert.Contains(t, stdout, "Tofu Shutdown completed")
+	assert.Contains(t, stdout, "Apply complete!")
+
+	// check if cache folder is not empty
+	files, err := os.ReadDir(cacheDir)
+	require.NoError(t, err)
+	assert.NotEmpty(t, files)
+}
+
 func TestEngineDownloadOverHttp(t *testing.T) {
 	t.Setenv(EnvVarExperimental, "1")
 
