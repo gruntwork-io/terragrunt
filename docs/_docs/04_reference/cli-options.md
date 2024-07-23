@@ -63,6 +63,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-check](#terragrunt-check)
   - [terragrunt-diff](#terragrunt-diff)
   - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
+  - [terragrunt-hclfmt-stdin](#terragrunt-hclfmt-stdin)
   - [terragrunt-hclvalidate-json](#terragrunt-hclvalidate-json)
   - [terragrunt-hclvalidate-invalid](#terragrunt-hclvalidate-invalid)
   - [terragrunt-override-attr](#terragrunt-override-attr)
@@ -763,6 +764,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
   - [terragrunt-check](#terragrunt-check)
   - [terragrunt-diff](#terragrunt-diff)
   - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
+  - [terragrunt-hclfmt-stdin](#terragrunt-hclfmt-stdin)
   - [terragrunt-hclvalidate-json](#terragrunt-hclvalidate-json)
   - [terragrunt-hclvalidate-invalid](#terragrunt-hclvalidate-invalid)
   - [terragrunt-override-attr](#terragrunt-override-attr)
@@ -1118,7 +1120,15 @@ When passed in, running `hclfmt` will print diff between original and modified f
 
 - [hclfmt](#hclfmt)
 
-When passed in, run `hclfmt` only on specified hcl file.
+### terragrunt-hclfmt-stdin
+
+**CLI Arg**: `--terragrunt-hclfmt-stdin`<br/>
+**Environment Variable**: `TERRAGRUNT_HCLFMT_STDIN` (set to `true`)<br/>
+**Commands**:
+
+- [hclfmt](#hclfmt)
+
+When passed in, run `hclfmt` only on hcl passed to `stdin`, result is printed to `stdout`.
 
 ### terragrunt-hclvalidate-json
 
