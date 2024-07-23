@@ -394,8 +394,9 @@ func (modules TerraformModules) flagExcludedDirs(terragruntOptions *options.Terr
 
 // flagIncludedDirs iterates over a module slice and flags all entries not in the list specified via the terragrunt-include-dir CLI flag as excluded.
 func (modules TerraformModules) flagIncludedDirs(terragruntOptions *options.TerragruntOptions) TerraformModules {
-	// If no IncludeDirs is specified return the modules list instantly
-	if len(terragruntOptions.IncludeDirs) == 0 {
+	// If we're not excluding by default, we should include everything by default.
+	// This can happen when a user doesn't set include flags.
+	if !terragruntOptions.ExcludeByDefault {
 		// If we aren't given any include directories, but are given the strict include flag,
 		// return no modules.
 		if terragruntOptions.StrictInclude {
