@@ -126,9 +126,10 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 	e := opts.Engine
 
 	if util.FileExists(e.Source) {
+		// if source is a file, no need to download, exit
 		return nil
 	}
-	path, err := enginePath(e)
+	path, err := engineDir(e)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -136,6 +137,17 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 		return errors.WithStackTrace(err)
 	}
 	localEngineFile := filepath.Join(path, engineFileName(e))
+
+	// lock downloading process for only one instance
+	locks, err := downloadLocksFromContext(ctx)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	// locking by file where engine is downloaded
+	// however, it will not help in case of multiple parallel Terragrunt runs
+	locks.Lock(localEngineFile)
+	defer locks.Unlock(localEngineFile)
+
 	if util.FileExists(localEngineFile) {
 		return nil
 	}
@@ -149,16 +161,6 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 		downloadURL = fmt.Sprintf("https://%s/releases/download/%s/%s",
 			e.Source, e.Version, enginePackageName(e))
 	}
-
-	// lock downloading process for only one instance
-	locks, err := downloadLocksFromContext(ctx)
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
-	// locking by file where engine is downloaded
-	// however, it will not help in case of multiple parallel Terragrunt runs
-	locks.Lock(downloadFile)
-	defer locks.Unlock(downloadFile)
 
 	client := &getter.Client{
 		Ctx:           ctx,
@@ -229,8 +231,8 @@ func extractArchive(opts *options.TerragruntOptions, downloadFile string, engine
 	return nil
 }
 
-// enginePath returns the path for the engine.
-func enginePath(e *options.EngineOptions) (string, error) {
+// engineDir returns the directory path where engine files are stored.
+func engineDir(e *options.EngineOptions) (string, error) {
 	if util.FileExists(e.Source) {
 		return filepath.Dir(e.Source), nil
 	}
@@ -338,7 +340,7 @@ func Shutdown(ctx context.Context) error {
 
 // createEngine create engine for working directory
 func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineClient, *plugin.Client, error) {
-	path, err := enginePath(terragruntOptions.Engine)
+	path, err := engineDir(terragruntOptions.Engine)
 	if err != nil {
 		return nil, nil, errors.WithStackTrace(err)
 	}
