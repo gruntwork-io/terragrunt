@@ -263,9 +263,9 @@ func TestHCLFmtStdin(t *testing.T) {
 	realStdin := os.Stdin
 	realStdout := os.Stdout
 
-	tempStdoutFile, err := os.CreateTemp(os.TempDir(), "stdout-*.hcl")
+	tempStdoutFile, err := os.CreateTemp(t.TempDir(), "stdout.hcl")
+	defer tempStdoutFile.Close()
 	require.NoError(t, err)
-	defer os.Remove(tempStdoutFile.Name())
 
 	os.Stdout = tempStdoutFile
 	defer func() { os.Stdout = realStdout }()
