@@ -80,7 +80,7 @@ func TestEngineRunAllOpentofu(t *testing.T) {
 	assert.Contains(t, stderr, "plugin process exited:")
 	assert.Contains(t, stdout, "OpenTofu has been successfull")
 	assert.Contains(t, stdout, "Tofu Shutdown completed")
-	assert.Contains(t, stdout, "Your infrastructure matches the configuration.")
+	assert.Contains(t, stdout, "Apply complete!")
 }
 
 func TestEngineDownloadOverHttp(t *testing.T) {

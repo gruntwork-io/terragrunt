@@ -36,6 +36,11 @@ const (
 	engineCookieKey                                  = "engine"
 	engineCookieValue                                = "terragrunt"
 	EnableExperimentalEngineEnvName                  = "TG_EXPERIMENTAL_ENGINE"
+	DefaultCacheDir                                  = ".cache"
+	EngineCacheDir                                   = "terragrunt/plugins/iac-engine"
+	PrefixTrim                                       = "terragrunt-"
+	FileNameFormat                                   = "terragrunt-iac-%s_%s_%s_%s_%s"
+	EngineCachePathEnv                               = "TG_ENGINE_CACHE_PATH"
 	TerraformCommandContextKey      engineClientsKey = iota
 	LocksContextKey                 engineLocksKey   = iota
 )
@@ -120,7 +125,7 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 	}
 	e := opts.Engine
 
-	if strings.HasPrefix(e.Source, "/") {
+	if util.FileExists(e.Source) {
 		return nil
 	}
 	path, err := enginePath(e)
@@ -130,22 +135,19 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 	if err := util.EnsureDirectory(path); err != nil {
 		return errors.WithStackTrace(err)
 	}
-	localEngineFile := filepath.Join(path, fileName(e))
-
+	localEngineFile := filepath.Join(path, engineFileName(e))
 	if util.FileExists(localEngineFile) {
 		return nil
 	}
-	downloadFile := filepath.Join(path, packageName(e))
-
+	downloadFile := filepath.Join(path, enginePackageName(e))
 	var downloadURL string
 	if strings.HasPrefix(e.Source, "http") {
 		// if source starts with absolute path, download as is
 		downloadURL = e.Source
 	} else {
-		name := packageName(e)
 		// Archive support documented in https://github.com/hashicorp/go-getter?tab=readme-ov-file#unarchiving
 		downloadURL = fmt.Sprintf("https://%s/releases/download/%s/%s",
-			e.Source, e.Version, name)
+			e.Source, e.Version, enginePackageName(e))
 	}
 
 	// lock downloading process for only one instance
@@ -227,33 +229,40 @@ func extractArchive(opts *options.TerragruntOptions, downloadFile string, engine
 	return nil
 }
 
+// enginePath returns the path for the engine.
 func enginePath(e *options.EngineOptions) (string, error) {
-	if strings.HasPrefix(e.Source, "/") {
+	if util.FileExists(e.Source) {
 		return filepath.Dir(e.Source), nil
 	}
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", errors.WithStackTrace(err)
+	cacheDir := os.Getenv(EngineCachePathEnv)
+	if cacheDir == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", errors.WithStackTrace(err)
+		}
+		cacheDir = filepath.Join(homeDir, DefaultCacheDir)
 	}
 	platform := runtime.GOOS
 	arch := runtime.GOARCH
-	return filepath.Join(homeDir, ".cache", "terragrunt", "plugins", "iac-engine", e.Type, e.Version, platform, arch), nil
+	return filepath.Join(cacheDir, EngineCacheDir, e.Type, e.Version, platform, arch), nil
 }
 
-func fileName(e *options.EngineOptions) string {
+// engineFileName returns the file name for the engine.
+func engineFileName(e *options.EngineOptions) string {
 	engineName := filepath.Base(e.Source)
-	if strings.HasPrefix(e.Source, "/") {
+	if util.FileExists(e.Source) {
 		// return file name if source is absolute path
 		return engineName
 	}
 	platform := runtime.GOOS
 	arch := runtime.GOARCH
-	engineName = strings.TrimPrefix(engineName, "terragrunt-")
-	return fmt.Sprintf("terragrunt-iac-%s_%s_%s_%s_%s", engineName, e.Type, e.Version, platform, arch)
+	engineName = strings.TrimPrefix(engineName, PrefixTrim)
+	return fmt.Sprintf(FileNameFormat, engineName, e.Type, e.Version, platform, arch)
 }
 
-func packageName(e *options.EngineOptions) string {
-	return fmt.Sprintf("%s.zip", fileName(e))
+// enginePackageName returns the package name for the engine.
+func enginePackageName(e *options.EngineOptions) string {
+	return fmt.Sprintf("%s.zip", engineFileName(e))
 }
 
 // isArchiveByHeader checks if a file is an archive by examining its header.
@@ -268,6 +277,7 @@ func isArchiveByHeader(filePath string) bool {
 	return err == nil && archiveType != nil
 }
 
+// engineClientsFromContext returns the engine clients map from the context.
 func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
 	val := ctx.Value(TerraformCommandContextKey)
 	if val == nil {
@@ -280,6 +290,7 @@ func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
 	return result, nil
 }
 
+// downloadLocksFromContext returns the locks map from the context.
 func downloadLocksFromContext(ctx context.Context) (*util.KeyLocks, error) {
 	val := ctx.Value(LocksContextKey)
 	if val == nil {
@@ -325,13 +336,13 @@ func Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// create engine for working directory
+// createEngine create engine for working directory
 func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineClient, *plugin.Client, error) {
 	path, err := enginePath(terragruntOptions.Engine)
 	if err != nil {
 		return nil, nil, errors.WithStackTrace(err)
 	}
-	localEnginePath := filepath.Join(path, fileName(terragruntOptions.Engine))
+	localEnginePath := filepath.Join(path, engineFileName(terragruntOptions.Engine))
 	terragruntOptions.Logger.Debugf("Creating engine %s", localEnginePath)
 
 	logger := hclog.NewInterceptLogger(&hclog.LoggerOptions{
