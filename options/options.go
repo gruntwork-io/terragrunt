@@ -533,6 +533,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		ExcludesFile:                   opts.ExcludesFile,
 		ExcludeDirs:                    opts.ExcludeDirs,
 		IncludeDirs:                    opts.IncludeDirs,
+		ExcludeByDefault:               opts.ExcludeByDefault,
 		ModulesThatInclude:             opts.ModulesThatInclude,
 		Parallelism:                    opts.Parallelism,
 		StrictInclude:                  opts.StrictInclude,
