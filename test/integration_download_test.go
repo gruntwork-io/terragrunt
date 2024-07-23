@@ -329,6 +329,7 @@ func TestIncludeDirs(t *testing.T) {
 		includeArgs           string
 		includedModuleOutputs []string
 	}{
+		{testFixtureLocalWithIncludeDir, "--terragrunt-include-dir xyz", []string{}},
 		{testFixtureLocalWithIncludeDir, "--terragrunt-include-dir */aws", []string{"Module GCE B", "Module GCE C", "Module GCE E"}},
 		{testFixtureLocalWithIncludeDir, "--terragrunt-include-dir production-env --terragrunt-include-dir **/module-gce-c", []string{"Module GCE B", "Module AWS A"}},
 		{testFixtureLocalWithIncludeDir, "--terragrunt-include-dir integration-env/gce/module-gce-b --terragrunt-include-dir integration-env/gce/module-gce-c --terragrunt-include-dir **/module-aws*", []string{"Module GCE E"}},

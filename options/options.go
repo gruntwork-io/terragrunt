@@ -203,6 +203,10 @@ type TerragruntOptions struct {
 	// Unix-style glob of directories to include when running *-all commands
 	IncludeDirs []string
 
+	// If set to true, exclude all directories by default when running *-all commands
+	// Is set automatically if IncludeDirs is set
+	ExcludeByDefault bool
+
 	// If set to true, do not include dependencies when processing IncludeDirs (unless they are in the included dirs)
 	StrictInclude bool
 
