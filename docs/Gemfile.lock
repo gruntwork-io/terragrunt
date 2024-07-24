@@ -246,7 +246,7 @@ GEM
     rb-inotify (0.11.1)
       ffi (~> 1.0)
     ref (2.0.0)
-    rexml (3.3.1)
+    rexml (3.3.2)
       strscan
     rouge (3.30.0)
     rubyzip (2.3.2)
