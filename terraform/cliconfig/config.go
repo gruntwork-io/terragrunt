@@ -91,11 +91,18 @@ func (cfg *Config) AddHost(name string, services map[string]string) {
 //			exclude = ["example.com/*/*"]
 //		}
 //	}
-func (cfg *Config) AddProviderInstallationMethods(newMethods ...ProviderInstallationMethod) {
+func (cfg *Config) MergeProviderInstallationMethods(newMethods ...ProviderInstallationMethod) {
 	if cfg.ProviderInstallation == nil {
 		cfg.ProviderInstallation = &ProviderInstallation{}
 	}
 	cfg.ProviderInstallation.Methods = cfg.ProviderInstallation.Methods.Merge(newMethods...)
+}
+
+func (cfg *Config) AddProviderInstallationMethods(newMethods ...ProviderInstallationMethod) {
+	if cfg.ProviderInstallation == nil {
+		cfg.ProviderInstallation = &ProviderInstallation{}
+	}
+	cfg.ProviderInstallation.Methods = append(newMethods, cfg.ProviderInstallation.Methods...)
 }
 
 // Save marshalls and saves CLI config with the given config path.

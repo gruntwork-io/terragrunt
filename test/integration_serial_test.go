@@ -88,8 +88,8 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-registry-names example.com --terragrunt-provider-cache-registry-names registry.terraform.io --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, appPath))
 
-	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { path = "%s" include = ["example.com/*/*"] exclude = ["example.com/*/*", "registry.terraform.io/*/*"] } "filesystem_mirror" { path = "%s" include = ["example.com/*/*", "registry.terraform.io/*/*"] } "direct" { } }`
-	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersMirrorPath, providerCacheDir)
+	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { path = "%s" include = ["example.com/*/*", "registry.terraform.io/*/*"] } "direct" { } }`
+	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providerCacheDir)
 
 	terraformrcBytes, err := os.ReadFile(filepath.Join(appPath, ".terraformrc"))
 	require.NoError(t, err)
@@ -170,7 +170,7 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 		NetworkMirrorMethods: []CLIConfigProviderInstallationNetworkMirror{
 			{
 				URL:     networkMirrorURL.String(),
-				Include: []string{"example.com/hashicorp/aws"},
+				Exclude: []string{"example.com/hashicorp/azurerm"},
 			},
 		},
 	}
@@ -178,9 +178,8 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-registry-names example.com --terragrunt-provider-cache-registry-names registry.terraform.io --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, appPath))
 
-	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { path = "%s" include = ["example.com/hashicorp/azurerm"] exclude = ["example.com/*/*", "registry.terraform.io/*/*"] } "network_mirror" { url = "%s" include = ["example.com/hashicorp/aws"] exclude = ["example.com/*/*", "registry.terraform.io/*/*"] } "filesystem_mirror" { path = "%s" include = ["example.com/*/*", "registry.terraform.io/*/*"] } "direct" { } }`
-
-	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersFilesystemMirrorPath, networkMirrorURL.String(), providerCacheDir)
+	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { path = "%s" include = ["example.com/*/*", "registry.terraform.io/*/*"] } "direct" { } }`
+	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providerCacheDir)
 
 	terraformrcBytes, err := os.ReadFile(filepath.Join(appPath, ".terraformrc"))
 	require.NoError(t, err)
