@@ -244,7 +244,7 @@ func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions
 		)
 	}
 
-	cfg.MergeProviderInstallationMethods(
+	cfg.AddProviderInstallationMethods(
 		cliconfig.NewProviderInstallationDirect(nil, nil),
 	)
 
