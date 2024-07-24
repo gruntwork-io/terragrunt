@@ -80,7 +80,7 @@ func (cfg *Config) AddHost(name string, services map[string]string) {
 	})
 }
 
-// AddProviderInstallationMethods adds installation methods, https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation
+// AddProviderInstallationMethods merges new installation methods with the current ones, https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation
 //
 //	provider_installation {
 //		filesystem_mirror {
@@ -91,6 +91,7 @@ func (cfg *Config) AddHost(name string, services map[string]string) {
 //			exclude = ["example.com/*/*"]
 //		}
 //	}
+
 func (cfg *Config) AddProviderInstallationMethods(newMethods ...ProviderInstallationMethod) {
 	if cfg.ProviderInstallation == nil {
 		cfg.ProviderInstallation = &ProviderInstallation{}
