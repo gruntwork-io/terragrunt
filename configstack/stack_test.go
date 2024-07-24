@@ -728,6 +728,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithNoDepe
 
 	opts, _ := options.NewTerragruntOptionsForTest("running_module_test")
 	opts.IncludeDirs = []string{canonical(t, "../test/fixture-modules/module-a")}
+	opts.ExcludeByDefault = true
 
 	moduleA := &TerraformModule{
 		Path:         canonical(t, "../test/fixture-modules/module-a"),

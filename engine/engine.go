@@ -8,8 +8,13 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
+
+	"github.com/hashicorp/go-getter"
+	"github.com/mholt/archiver/v3"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -31,10 +36,17 @@ const (
 	engineCookieKey                                  = "engine"
 	engineCookieValue                                = "terragrunt"
 	EnableExperimentalEngineEnvName                  = "TG_EXPERIMENTAL_ENGINE"
+	DefaultCacheDir                                  = ".cache"
+	EngineCacheDir                                   = "terragrunt/plugins/iac-engine"
+	PrefixTrim                                       = "terragrunt-"
+	FileNameFormat                                   = "terragrunt-iac-%s_%s_%s_%s_%s"
+	EngineCachePathEnv                               = "TG_ENGINE_CACHE_PATH"
 	TerraformCommandContextKey      engineClientsKey = iota
+	LocksContextKey                 engineLocksKey   = iota
 )
 
 type engineClientsKey byte
+type engineLocksKey byte
 
 type ExecutionOptions struct {
 	TerragruntOptions *options.TerragruntOptions
@@ -66,6 +78,10 @@ func Run(
 	instance, found := engineClients.Load(workingDir)
 	// initialize engine for working directory
 	if !found {
+		// download engine if not available
+		if err = DownloadEngine(ctx, runOptions.TerragruntOptions); err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
 		terragruntEngine, client, err := createEngine(runOptions.TerragruntOptions)
 		if err != nil {
 			return nil, errors.WithStackTrace(err)
@@ -98,15 +114,191 @@ func ContextWithEngine(ctx context.Context) context.Context {
 	if !IsEngineEnabled() {
 		return ctx
 	}
-	return context.WithValue(ctx, TerraformCommandContextKey, &sync.Map{})
+	ctx = context.WithValue(ctx, TerraformCommandContextKey, &sync.Map{})
+	ctx = context.WithValue(ctx, LocksContextKey, util.NewKeyLocks())
+	return ctx
 }
 
+func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error {
+	if !IsEngineEnabled() {
+		return nil
+	}
+	e := opts.Engine
+
+	if util.FileExists(e.Source) {
+		// if source is a file, no need to download, exit
+		return nil
+	}
+	path, err := engineDir(e)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	if err := util.EnsureDirectory(path); err != nil {
+		return errors.WithStackTrace(err)
+	}
+	localEngineFile := filepath.Join(path, engineFileName(e))
+
+	// lock downloading process for only one instance
+	locks, err := downloadLocksFromContext(ctx)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	// locking by file where engine is downloaded
+	// however, it will not help in case of multiple parallel Terragrunt runs
+	locks.Lock(localEngineFile)
+	defer locks.Unlock(localEngineFile)
+
+	if util.FileExists(localEngineFile) {
+		return nil
+	}
+	downloadFile := filepath.Join(path, enginePackageName(e))
+	var downloadURL string
+	if strings.HasPrefix(e.Source, "http") {
+		// if source starts with absolute path, download as is
+		downloadURL = e.Source
+	} else {
+		// Archive support documented in https://github.com/hashicorp/go-getter?tab=readme-ov-file#unarchiving
+		downloadURL = fmt.Sprintf("https://%s/releases/download/%s/%s",
+			e.Source, e.Version, enginePackageName(e))
+	}
+
+	client := &getter.Client{
+		Ctx:           ctx,
+		Src:           downloadURL,
+		Dst:           downloadFile,
+		Mode:          getter.ClientModeFile,
+		Decompressors: map[string]getter.Decompressor{},
+	}
+
+	if err := client.Get(); err != nil {
+		return errors.WithStackTrace(err)
+	}
+	opts.Logger.Infof("Engine downloaded to %s", downloadFile)
+	if err := extractArchive(opts, downloadFile, localEngineFile); err != nil {
+		return errors.WithStackTrace(err)
+	}
+	opts.Logger.Infof("Engine available as %s", path)
+	return nil
+}
+
+func extractArchive(opts *options.TerragruntOptions, downloadFile string, engineFile string) error {
+	if !isArchiveByHeader(downloadFile) {
+		opts.Logger.Info("Downloaded file is not an archive, no extraction needed")
+		// move file directly if it is not an archive
+		if err := os.Rename(downloadFile, engineFile); err != nil {
+			return errors.WithStackTrace(err)
+		}
+		return nil
+	}
+	// extract package and process files
+	path := filepath.Dir(engineFile)
+	tempDir, err := os.MkdirTemp(path, "temp-")
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			opts.Logger.Warnf("Failed to clean temp dir %s: %v", tempDir, err)
+		}
+	}()
+	// extract archive
+	if err := archiver.Unarchive(downloadFile, tempDir); err != nil {
+		return errors.WithStackTrace(err)
+	}
+	// process files
+	files, err := os.ReadDir(tempDir)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	opts.Logger.Infof("Engine extracted to %s", path)
+
+	if len(files) == 1 && !files[0].IsDir() {
+		// handle case where archive contains a single file, most of the cases
+		singleFile := filepath.Join(tempDir, files[0].Name())
+		if err := os.Rename(singleFile, engineFile); err != nil {
+			return errors.WithStackTrace(err)
+		}
+		return nil
+	}
+	// Move all files to the engine directory
+	for _, file := range files {
+		srcPath := filepath.Join(tempDir, file.Name())
+		dstPath := filepath.Join(path, file.Name())
+		if err := os.Rename(srcPath, dstPath); err != nil {
+			return errors.WithStackTrace(err)
+		}
+	}
+	return nil
+}
+
+// engineDir returns the directory path where engine files are stored.
+func engineDir(e *options.EngineOptions) (string, error) {
+	if util.FileExists(e.Source) {
+		return filepath.Dir(e.Source), nil
+	}
+	cacheDir := os.Getenv(EngineCachePathEnv)
+	if cacheDir == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", errors.WithStackTrace(err)
+		}
+		cacheDir = filepath.Join(homeDir, DefaultCacheDir)
+	}
+	platform := runtime.GOOS
+	arch := runtime.GOARCH
+	return filepath.Join(cacheDir, EngineCacheDir, e.Type, e.Version, platform, arch), nil
+}
+
+// engineFileName returns the file name for the engine.
+func engineFileName(e *options.EngineOptions) string {
+	engineName := filepath.Base(e.Source)
+	if util.FileExists(e.Source) {
+		// return file name if source is absolute path
+		return engineName
+	}
+	platform := runtime.GOOS
+	arch := runtime.GOARCH
+	engineName = strings.TrimPrefix(engineName, PrefixTrim)
+	return fmt.Sprintf(FileNameFormat, engineName, e.Type, e.Version, platform, arch)
+}
+
+// enginePackageName returns the package name for the engine.
+func enginePackageName(e *options.EngineOptions) string {
+	return fmt.Sprintf("%s.zip", engineFileName(e))
+}
+
+// isArchiveByHeader checks if a file is an archive by examining its header.
+func isArchiveByHeader(filePath string) bool {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	archiveType, err := archiver.ByHeader(f)
+	return err == nil && archiveType != nil
+}
+
+// engineClientsFromContext returns the engine clients map from the context.
 func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
 	val := ctx.Value(TerraformCommandContextKey)
 	if val == nil {
 		return nil, errors.WithStackTrace(fmt.Errorf("failed to fetch engine clients from context"))
 	}
 	result, ok := val.(*sync.Map)
+	if !ok {
+		return nil, errors.WithStackTrace(fmt.Errorf("failed to cast engine clients from context"))
+	}
+	return result, nil
+}
+
+// downloadLocksFromContext returns the locks map from the context.
+func downloadLocksFromContext(ctx context.Context) (*util.KeyLocks, error) {
+	val := ctx.Value(LocksContextKey)
+	if val == nil {
+		return nil, errors.WithStackTrace(fmt.Errorf("failed to fetch engine clients from context"))
+	}
+	result, ok := val.(*util.KeyLocks)
 	if !ok {
 		return nil, errors.WithStackTrace(fmt.Errorf("failed to cast engine clients from context"))
 	}
@@ -146,10 +338,14 @@ func Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// create engine for working directory
+// createEngine create engine for working directory
 func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineClient, *plugin.Client, error) {
-	enginePath := terragruntOptions.Engine.Source
-	terragruntOptions.Logger.Debugf("Creating engine %s", enginePath)
+	path, err := engineDir(terragruntOptions.Engine)
+	if err != nil {
+		return nil, nil, errors.WithStackTrace(err)
+	}
+	localEnginePath := filepath.Join(path, engineFileName(terragruntOptions.Engine))
+	terragruntOptions.Logger.Debugf("Creating engine %s", localEnginePath)
 
 	logger := hclog.NewInterceptLogger(&hclog.LoggerOptions{
 		Level:  hclog.Debug,
@@ -165,7 +361,7 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 		Plugins: map[string]plugin.Plugin{
 			"plugin": &engine.TerragruntGRPCEngine{},
 		},
-		Cmd: exec.Command(enginePath),
+		Cmd: exec.Command(localEnginePath),
 		GRPCDialOptions: []grpc.DialOption{
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		},
@@ -238,7 +434,7 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 		}
 		resultCode = int(runResp.ResultCode)
 	}
-	terragruntOptions.Logger.Debugf("Plugin execution done in %v", terragruntOptions.WorkingDir)
+	terragruntOptions.Logger.Debugf("Engine execution done in %v", terragruntOptions.WorkingDir)
 
 	if resultCode != 0 {
 		err = util.ProcessExecutionError{

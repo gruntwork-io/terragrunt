@@ -107,6 +107,7 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 			providerHandlers = append(providerHandlers, handlers.NewProviderNetworkMirrorHandler(providerService, cacheProviderHTTPStatusCode, method))
 		case *cliconfig.ProviderInstallationDirect:
 			providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, cacheProviderHTTPStatusCode, method))
+			continue
 		}
 	}
 	providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, cacheProviderHTTPStatusCode, new(cliconfig.ProviderInstallationDirect)))
