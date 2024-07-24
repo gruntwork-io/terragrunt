@@ -329,6 +329,11 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 		return err
 	}
 
+	if len(opts.IncludeDirs) > 0 {
+		opts.Logger.Debugf("Included directories set. Excluding by default.")
+		opts.ExcludeByDefault = true
+	}
+
 	opts.IncludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.IncludeDirs...)
 	if err != nil {
 		return err
