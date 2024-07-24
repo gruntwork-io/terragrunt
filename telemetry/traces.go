@@ -18,7 +18,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -127,13 +127,13 @@ func newTraceProvider(opts *TelemetryOptions, exp sdktrace.SpanExporter) (*sdktr
 // newTraceExporter - create a new exporter based on the telemetry options.
 func newTraceExporter(ctx context.Context, opts *TelemetryOptions) (sdktrace.SpanExporter, error) {
 	exporterType := traceExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_TRACE_EXPORTER"], string(noneTraceExporterType)))
-	insecure := env.GetBool(opts.Vars["TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT"], false)
+	insecure := env.GetBool(opts.Vars["TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT"], false)
 	switch exporterType {
 	case httpTraceExporterType:
-		endpoint := env.GetString(opts.Vars["TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_HTTP_ENDPOINT"], "")
+		endpoint := env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT"], "")
 		if endpoint == "" {
 			return nil, &ErrorMissingEnvVariable{
-				Vars: []string{"TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_HTTP_ENDPOINT"},
+				Vars: []string{"TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT"},
 			}
 		}
 		endpointOpt := otlptracehttp.WithEndpoint(endpoint)

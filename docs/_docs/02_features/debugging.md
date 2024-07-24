@@ -162,8 +162,8 @@ Tracing configuration:
   - `otlpHttp` - to export traces to an OpenTelemetry collector over HTTP [otlptracehttp](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp)
   - `otlpGrpc` - to export traces over gRPC [otlptracegrpc](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc)
   - `http` - to export traces to a custom HTTP endpoint using [otlptracehttp](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp)
-- `TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_HTTP_ENDPOINT` - in case of `http` exporter, this is the endpoint to which traces will be sent.
-- `TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local traces collection.
+- `TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT` - in case of `http` exporter, this is the endpoint to which traces will be sent.
+- `TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local traces collection.
 - `TRACEPARENT` - if set, the value will be used as a parent trace context, format `TRACEPARENT=00-<hex_trace_id>-<hex_span_id>-<trace_flags>`, example: `TRACEPARENT=00-xxx-yyy-01`
 
 Metrics configuration:
@@ -173,7 +173,7 @@ Metrics configuration:
   - `console` - write metrics to console as JSONs.
   - `otlpHttp` - export metrics to an OpenTelemetry collector over HTTP [otlpmetrichttp](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp)
   - `grpcHttp` - export metrics to an OpenTelemetry collector over gRPC [otlpmetricgrpc](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc)
-- `TERRAGRUNT_TELEMERTY_METRIC_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local metrics collection.
+- `TERRAGRUNT_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT` - if set to true, the exporter will not validate the server's certificate, helpful for local metrics collection.
 
 ## Example configurations for trace collection
 
@@ -192,8 +192,8 @@ docker run --rm --name jaeger -e COLLECTOR_OTLP_ENABLED=true -p 16686:16686 -p 4
 
 ```bash
 export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER=http
-export TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_HTTP_ENDPOINT=localhost:4318
-export TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
+export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT=localhost:4318
+export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
 ```
 
 - Run terragrunt
@@ -208,7 +208,7 @@ export TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
 export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER=otlpHttp
 # Replace with your tempo instance
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
-export TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
+export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT=true
 ````
 
 - Run terragrunt
@@ -304,7 +304,7 @@ scrape_configs:
 
 ```bash
 export TERRAGRUNT_TELEMETRY_METRIC_EXPORTER=grpcHttp
-export TERRAGRUNT_TELEMERTY_METRIC_EXPORTER_INSECURE_ENDPOINT=true
+export TERRAGRUNT_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT=true
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 ```
 
