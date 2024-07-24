@@ -97,7 +97,14 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 		return nil, err
 	}
 
-	var providerHandlers []handlers.ProviderHandler
+	var (
+		providerHandlers []handlers.ProviderHandler
+		excludeAddrs     []string
+	)
+
+	for _, registryName := range opts.ProviderCacheRegistryNames {
+		excludeAddrs = append(excludeAddrs, fmt.Sprintf("%s/*/*", registryName))
+	}
 
 	for _, method := range cliCfg.ProviderInstallation.Methods {
 		switch method := method.(type) {
@@ -107,12 +114,10 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 			providerHandlers = append(providerHandlers, handlers.NewProviderNetworkMirrorHandler(providerService, cacheProviderHTTPStatusCode, method))
 		case *cliconfig.ProviderInstallationDirect:
 			providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, cacheProviderHTTPStatusCode, method))
-			continue
 		}
+		method.AppendExclude(excludeAddrs)
 	}
 	providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, cacheProviderHTTPStatusCode, new(cliconfig.ProviderInstallationDirect)))
-
-	cliCfg.ProviderInstallation = nil
 
 	cache := cache.NewServer(
 		cache.WithHostname(opts.ProviderCacheHostname),
@@ -174,6 +179,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	if err != nil {
 		return nil, err
 	}
+
 	if err := getproviders.UpdateLockfile(ctx, opts.WorkingDir, caches); err != nil {
 		return nil, err
 	}
@@ -242,6 +248,8 @@ func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions
 		cfg.AddProviderInstallationMethods(
 			cliconfig.NewProviderInstallationFilesystemMirror(opts.ProviderCacheDir, providerInstallationIncludes, nil),
 		)
+	} else {
+		cfg.ProviderInstallation = nil
 	}
 
 	cfg.AddProviderInstallationMethods(

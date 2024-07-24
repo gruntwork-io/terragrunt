@@ -86,10 +86,10 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	}
 	createCLIConfig(t, cliConfigFilename, cliConfigSettings)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-registry-names example.com --terragrunt-provider-cache-registry-names registry.terraform.io --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, appPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-registry-names example.com --terragrunt-provider-cache-registry-names registry.opentofu.org --terragrunt-provider-cache-registry-names registry.terraform.io --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, appPath))
 
-	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { path = "%s" include = ["example.com/*/*", "registry.terraform.io/*/*"] } "direct" { } }`
-	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providerCacheDir)
+	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { path = "%s" include = ["example.com/*/*"] exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } "filesystem_mirror" { path = "%s" include = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } "direct" { } }`
+	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersMirrorPath, providerCacheDir)
 
 	terraformrcBytes, err := os.ReadFile(filepath.Join(appPath, ".terraformrc"))
 	require.NoError(t, err)
@@ -176,10 +176,10 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	}
 	createCLIConfig(t, cliConfigFilename, cliConfigSettings)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-registry-names example.com --terragrunt-provider-cache-registry-names registry.terraform.io --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, appPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-registry-names example.com --terragrunt-provider-cache-registry-names registry.opentofu.org --terragrunt-provider-cache-registry-names registry.terraform.io --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, appPath))
 
-	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { path = "%s" include = ["example.com/*/*", "registry.terraform.io/*/*"] } "direct" { } }`
-	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providerCacheDir)
+	expectedProviderInstallation := `provider_installation { "filesystem_mirror" { path = "%s" include = ["example.com/hashicorp/azurerm"] exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } "network_mirror" { url = "%s" exclude = ["example.com/hashicorp/azurerm", "example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } "filesystem_mirror" { path = "%s" include = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } "direct" { exclude = ["example.com/*/*", "registry.opentofu.org/*/*", "registry.terraform.io/*/*"] } }`
+	expectedProviderInstallation = fmt.Sprintf(strings.Join(strings.Fields(expectedProviderInstallation), " "), providersFilesystemMirrorPath, networkMirrorURL.String(), providerCacheDir)
 
 	terraformrcBytes, err := os.ReadFile(filepath.Join(appPath, ".terraformrc"))
 	require.NoError(t, err)

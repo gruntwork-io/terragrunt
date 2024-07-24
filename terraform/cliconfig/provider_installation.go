@@ -52,6 +52,7 @@ type ProviderInstallationMethod interface {
 	fmt.Stringer
 	AppendInclude(addrs []string)
 	AppendExclude(addrs []string)
+	RemoveInclude(addrs []string)
 	RemoveExclude(addrs []string)
 	Merge(with ProviderInstallationMethod) bool
 }
@@ -120,6 +121,17 @@ func (method *ProviderInstallationDirect) RemoveExclude(addrs []string) {
 
 	if len(*method.Exclude) == 0 {
 		method.Exclude = nil
+	}
+}
+
+func (method *ProviderInstallationDirect) RemoveInclude(addrs []string) {
+	if len(addrs) == 0 || method.Include == nil {
+		return
+	}
+	*method.Include = util.RemoveSublistFromList(*method.Include, addrs)
+
+	if len(*method.Include) == 0 {
+		method.Include = nil
 	}
 }
 
@@ -197,6 +209,17 @@ func (method *ProviderInstallationFilesystemMirror) RemoveExclude(addrs []string
 	}
 }
 
+func (method *ProviderInstallationFilesystemMirror) RemoveInclude(addrs []string) {
+	if len(addrs) == 0 || method.Include == nil {
+		return
+	}
+	*method.Include = util.RemoveSublistFromList(*method.Include, addrs)
+
+	if len(*method.Include) == 0 {
+		method.Include = nil
+	}
+}
+
 func (method *ProviderInstallationFilesystemMirror) String() string {
 	b, _ := json.Marshal(method) //nolint:errcheck
 	return string(b)
@@ -268,6 +291,17 @@ func (method *ProviderInstallationNetworkMirror) RemoveExclude(addrs []string) {
 
 	if len(*method.Exclude) == 0 {
 		method.Exclude = nil
+	}
+}
+
+func (method *ProviderInstallationNetworkMirror) RemoveInclude(addrs []string) {
+	if len(addrs) == 0 || method.Include == nil {
+		return
+	}
+	*method.Include = util.RemoveSublistFromList(*method.Include, addrs)
+
+	if len(*method.Include) == 0 {
+		method.Include = nil
 	}
 }
 
