@@ -33,6 +33,8 @@ import (
 const (
 	DefaultTerragruntConfigPath     = "terragrunt.hcl"
 	DefaultTerragruntJsonConfigPath = "terragrunt.hcl.json"
+
+	DefaultEngineType = "rpc"
 )
 
 const FoundInFile = "found_in_file"
@@ -1315,6 +1317,10 @@ func (conf *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 	}
 	if conf.Engine.Type != nil {
 		t = *conf.Engine.Type
+	}
+	// if type is null of empty, set to "rpc"
+	if len(t) == 0 {
+		t = DefaultEngineType
 	}
 	return &options.EngineOptions{
 		Source:  conf.Engine.Source,
