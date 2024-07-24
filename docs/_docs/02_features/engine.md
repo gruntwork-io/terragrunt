@@ -67,7 +67,7 @@ Parameters:
 
 * `source`: (Required) The source of the plugin. Multiple engine approaches are supported, including GitHub repositories, HTTP(S) paths, and local absolute paths.
 * `version`: (Required for GitHub) The version of the plugin to download from GitHub releases.
-* `type`: Currently, the only supported type is `rpc`.
+* `type`: (Optional) Currently, the only supported type is `rpc`.
 * `meta`: (Optional) A block for setting plugin-specific metadata. This can include various configuration settings required by the plugin.
 
 Engines are cached locally by default to enhance performance and minimize repeated downloads.
