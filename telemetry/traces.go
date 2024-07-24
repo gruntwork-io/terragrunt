@@ -126,7 +126,7 @@ func newTraceProvider(opts *TelemetryOptions, exp sdktrace.SpanExporter) (*sdktr
 
 // newTraceExporter - create a new exporter based on the telemetry options.
 func newTraceExporter(ctx context.Context, opts *TelemetryOptions) (sdktrace.SpanExporter, error) {
-	exporterType := traceExporterType(env.GetString(opts.GetValue("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER"), string(noneTraceExporterType)))
+	exporterType := traceExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_TRACE_EXPORTER"], string(noneTraceExporterType)))
 	insecure := env.GetBool(opts.GetValue("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT", "TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT"), false)
 	switch exporterType {
 	case httpTraceExporterType:
