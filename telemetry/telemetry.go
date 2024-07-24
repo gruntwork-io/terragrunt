@@ -100,6 +100,16 @@ func mapToAttributes(data map[string]interface{}) []attribute.KeyValue {
 	return attrs
 }
 
+// GetValue - get the value of the environment variable, return found key.
+func (to *TelemetryOptions) GetValue(keys ...string) string {
+	for _, key := range keys {
+		if value, found := to.Vars[key]; found {
+			return value
+		}
+	}
+	return ""
+}
+
 // ErrorMissingEnvVariable error for missing environment variable.
 type ErrorMissingEnvVariable struct {
 	Vars []string
