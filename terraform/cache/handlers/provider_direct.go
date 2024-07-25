@@ -1,12 +1,16 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
 	"strconv"
 
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
@@ -21,6 +25,9 @@ const (
 	ProviderDownloadURLName         providerURLName = "download_url"
 	ProviderSHASumsURLName          providerURLName = "shasums_url"
 	ProviderSHASumsSignatureURLName providerURLName = "shasums_signature_url"
+
+	// well-known address for discovery URLs
+	wellKnownURL = ".well-known/terraform.json"
 )
 
 var (
@@ -34,6 +41,39 @@ var (
 
 type providerURLName string
 
+type ProviderDirectDiscoveryURL struct {
+	ModulesV1   string `json:"modules.v1"`
+	ProvidersV1 string `json:"providers.v1"`
+}
+
+func DiscoveryURL(ctx context.Context, registryName string) (*ProviderDirectDiscoveryURL, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("https://%s/%s", registryName, wellKnownURL), nil)
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
+	resp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s returned from %s", resp.Status, wellKnownURL)
+	}
+
+	content, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
+	urls := new(ProviderDirectDiscoveryURL)
+	if err := json.Unmarshal(content, urls); err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+	return urls, nil
+}
+
 type ProviderDirectHandler struct {
 	*CommonProviderHandler
 
@@ -42,7 +82,7 @@ type ProviderDirectHandler struct {
 	cacheProviderHTTPStatusCode int
 }
 
-func NewProviderDirectHandler(providerService *services.ProviderService, cacheProviderHTTPStatusCode int, method *cliconfig.ProviderInstallationDirect) ProviderHandler {
+func NewProviderDirectHandler(providerService *services.ProviderService, cacheProviderHTTPStatusCode int, method *cliconfig.ProviderInstallationDirect) *ProviderDirectHandler {
 	return &ProviderDirectHandler{
 		CommonProviderHandler:       NewCommonProviderHandler(method.Include, method.Exclude),
 		ReverseProxy:                &ReverseProxy{},
@@ -61,7 +101,7 @@ func (handler *ProviderDirectHandler) GetVersions(ctx echo.Context, provider *mo
 	reqURL := &url.URL{
 		Scheme: "https",
 		Host:   provider.RegistryName,
-		Path:   path.Join("/v1/providers", provider.Namespace, provider.Name, "versions"),
+		Path:   path.Join(provider.RegistryPrefix, provider.Namespace, provider.Name, "versions"),
 	}
 
 	return handler.ReverseProxy.NewRequest(ctx, reqURL)
@@ -115,7 +155,7 @@ func (handler *ProviderDirectHandler) platformURL(provider *models.Provider) *ur
 	return &url.URL{
 		Scheme: "https",
 		Host:   provider.RegistryName,
-		Path:   path.Join("/v1/providers", provider.Namespace, provider.Name, provider.Version, "download", provider.OS, provider.Arch),
+		Path:   path.Join(provider.RegistryPrefix, provider.Namespace, provider.Name, provider.Version, "download", provider.OS, provider.Arch),
 	}
 }
 
