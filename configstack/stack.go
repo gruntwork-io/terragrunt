@@ -13,6 +13,8 @@ import (
 
 	"github.com/gruntwork-io/go-commons/collections"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds"
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
@@ -494,6 +496,13 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 			config.DependenciesBlock,
 			config.DependencyBlock,
 		)
+
+	// Credentials have to be acquired before the config is parsed, as the config may contain interpolation functions
+	// that require credentials to be available.
+	credsGetter := creds.NewGetter()
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, opts, externalcmd.NewProvider(opts)); err != nil {
+		return nil, err
+	}
 
 	// We only partially parse the config, only using the pieces that we need in this section. This config will be fully
 	// parsed at a later stage right before the action is run. This is to delay interpolation of functions until right
