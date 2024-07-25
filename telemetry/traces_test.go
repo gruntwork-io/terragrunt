@@ -45,7 +45,7 @@ func TestNewTraceExporter(t *testing.T) {
 			telemetryOptions: &TelemetryOptions{
 				Vars: map[string]string{
 					"TERRAGRUNT_TELEMETRY_TRACE_EXPORTER":               "http",
-					"TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_HTTP_ENDPOINT": "http://localhost:4317",
+					"TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT": "http://localhost:4317",
 				},
 				Writer: io.Discard,
 			},

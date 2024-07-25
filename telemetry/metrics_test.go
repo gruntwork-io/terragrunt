@@ -59,7 +59,7 @@ func TestNewMetricsExporter(t *testing.T) {
 			opts := &TelemetryOptions{
 				Vars: map[string]string{
 					"TERRAGRUNT_TELEMETRY_METRIC_EXPORTER":                   tt.exporterType,
-					"TERRAGRUNT_TELEMERTY_METRIC_EXPORTER_INSECURE_ENDPOINT": fmt.Sprintf("%v", tt.insecure),
+					"TERRAGRUNT_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT": fmt.Sprintf("%v", tt.insecure),
 				},
 				Writer: io.Discard,
 			}

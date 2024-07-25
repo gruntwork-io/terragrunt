@@ -19,7 +19,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric"
 
 	"go.opentelemetry.io/otel/sdk/resource"
-	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 )
 
 type metricsExporterType string
@@ -98,7 +98,7 @@ func configureMetricsCollection(ctx context.Context, opts *TelemetryOptions) err
 // newMetricsExporter - create a new exporter based on the telemetry options.
 func newMetricsExporter(ctx context.Context, opts *TelemetryOptions) (metric.Exporter, error) {
 	exporterType := metricsExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_METRIC_EXPORTER"], string(noneMetricsExporterType)))
-	insecure := env.GetBool(opts.Vars["TERRAGRUNT_TELEMERTY_METRIC_EXPORTER_INSECURE_ENDPOINT"], false)
+	insecure := env.GetBool(opts.GetValue("TERRAGRUNT_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT", "TERRAGRUNT_TELEMERTY_METRIC_EXPORTER_INSECURE_ENDPOINT"), false)
 	switch exporterType {
 	case oltpHttpMetricsExporterType:
 		var config []otlpmetrichttp.Option
