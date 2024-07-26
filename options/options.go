@@ -321,6 +321,20 @@ type TerragruntOptions struct {
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
 type TerragruntOptionsFunc func(*TerragruntOptions)
 
+// WithRoleARN adds the provided role ARN to IamRoleOptions
+func WithIAMRoleARN(arn string) TerragruntOptionsFunc {
+	return func(t *TerragruntOptions) {
+		t.IAMRoleOptions.RoleARN = arn
+	}
+}
+
+// WithIAMWebIdentityToken adds the provided WebIdentity token to IamRoleOptions
+func WithIAMWebIdentityToken(token string) TerragruntOptionsFunc {
+	return func(t *TerragruntOptions) {
+		t.IAMRoleOptions.WebIdentityToken = token
+	}
+}
+
 // IAMRoleOptions represents options that are used by Terragrunt to assume an IAM role.
 type IAMRoleOptions struct {
 	// The ARN of an IAM Role to assume. Used when accessing AWS, both internally and through terraform.
