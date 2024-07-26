@@ -55,12 +55,6 @@ func RunTerraformCommand(ctx context.Context, terragruntOptions *options.Terragr
 	return err
 }
 
-// Run the given shell command
-func RunShellCommand(ctx context.Context, terragruntOptions *options.TerragruntOptions, command string, args ...string) error {
-	_, err := RunShellCommandWithOutput(ctx, terragruntOptions, "", false, false, command, args...)
-	return err
-}
-
 // Run the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
 // method's caller
 func RunTerraformCommandWithOutput(ctx context.Context, terragruntOptions *options.TerragruntOptions, args ...string) (*util.CmdOutput, error) {

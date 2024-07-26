@@ -41,10 +41,6 @@ type Source struct {
 	Logger logrus.FieldLogger
 }
 
-func (src *Source) String() string {
-	return fmt.Sprintf("Source{CanonicalSourceURL = %v, DownloadDir = %v, WorkingDir = %v, VersionFile = %v}", src.CanonicalSourceURL, src.DownloadDir, src.WorkingDir, src.VersionFile)
-}
-
 // Encode a version number for the given source. When calculating a version number, we take the query
 // string of the source URL, calculate its sha1, and base 64 encode it. For remote URLs (e.g. Git URLs), this is
 // based on the assumption that the scheme/host/path of the URL (e.g. git::github.com/foo/bar) identifies the module

@@ -2,13 +2,11 @@ package dynamodb
 
 import (
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/client"
-	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
@@ -180,13 +178,6 @@ func DeleteTable(tableName string, dbClient *dynamodb.DynamoDB) error {
 
 type DeleteTableRetryer struct {
 	client.DefaultRetryer
-}
-
-func (retryer DeleteTableRetryer) ShouldRetry(req *request.Request) bool {
-	if req.HTTPResponse.StatusCode == http.StatusBadRequest {
-		return true
-	}
-	return retryer.DefaultRetryer.ShouldRetry(req)
 }
 
 // Return true if the given error is the error message returned by AWS when the resource already exists and is being

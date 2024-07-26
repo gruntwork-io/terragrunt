@@ -174,31 +174,6 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File,
 
 }
 
-// PartialParseConfigString partially parses and decodes the provided string. Which blocks/attributes to decode is
-// controlled by the function parameter decodeList. These blocks/attributes are parsed and set on the output
-// TerragruntConfig. Valid values are:
-//   - DependenciesBlock: Parses the `dependencies` block in the config
-//   - DependencyBlock: Parses the `dependency` block in the config
-//   - TerraformBlock: Parses the `terraform` block in the config
-//   - TerragruntFlags: Parses the boolean flags `prevent_destroy` and `skip` in the config
-//   - TerragruntVersionConstraints: Parses the attributes related to constraining terragrunt and terraform versions in
-//     the config.
-//   - RemoteStateBlock: Parses the `remote_state` block in the config
-//
-// Note that the following blocks are always decoded:
-// - locals
-// - include
-// Note also that the following blocks are never decoded in a partial parse:
-// - inputs
-func PartialParseConfigString(ctx *ParsingContext, configPath, configString string, include *IncludeConfig) (*TerragruntConfig, error) {
-	file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromString(configString, configPath)
-	if err != nil {
-		return nil, err
-	}
-
-	return PartialParseConfig(ctx, file, include)
-}
-
 func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	ctx = ctx.WithTrackInclude(nil)
 

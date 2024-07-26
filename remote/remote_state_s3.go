@@ -1517,7 +1517,3 @@ func (err MaxRetriesWaitingForS3ACLExceeded) Error() string {
 type InvalidAccessLoggingBucketEncryption struct {
 	BucketSSEAlgorithm string
 }
-
-func (err InvalidAccessLoggingBucketEncryption) Error() string {
-	return fmt.Sprintf("Encryption algorithm %s is not supported for access logging bucket. Please use AES256", err.BucketSSEAlgorithm)
-}

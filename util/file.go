@@ -53,12 +53,6 @@ func FileExists(path string) bool {
 	return err == nil
 }
 
-// Return true if the given file does not exist
-func FileNotExists(path string) bool {
-	_, err := os.Stat(path)
-	return os.IsNotExist(err)
-}
-
 // EnsureDirectory creates a directory at this path if it does not exist, or error if the path exists and is a file.
 func EnsureDirectory(path string) error {
 	if FileExists(path) && IsFile(path) {
@@ -350,13 +344,6 @@ func CopyFolderContentsWithFilter(source, destination, manifestFile string, filt
 	}
 
 	return nil
-}
-
-// IsSymLink returns true if the given file is a symbolic link
-// Per https://stackoverflow.com/a/18062079/2308858
-func IsSymLink(path string) bool {
-	fileInfo, err := os.Lstat(path)
-	return err == nil && fileInfo.Mode()&os.ModeSymlink != 0
 }
 
 func TerragruntExcludes(path string) bool {
