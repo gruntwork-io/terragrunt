@@ -110,7 +110,7 @@ run_deadcode: &run_deadcode
     tmpfile="$(mktemp)"
 
     # Some stuff is filtered out here to avoid having to investigate whether it's needed or not.
-    deadcode ./... | tee | grep -vi 'exported' | grep -vi 'test' | grep -vi 'error' | grep -vi 'log' | grep -vi 'deletetable' > "$tmpfile"
+    deadcode ./... | tee | grep -vi 'exported' | grep -vi 'test' | grep -vi 'error' | grep -vi 'log' | grep -vi 'deletetable' | head -c -1 > "$tmpfile"
     if [[ -s "$tmpfile" ]]; then
       echo "Dead code found. Please remove it."
       exit 1
