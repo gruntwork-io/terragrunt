@@ -103,6 +103,17 @@ run_markdownlint: &run_markdownlint
     -- \
     docs
 
+run_deadcode: &run_deadcode
+  name: Run deadcode
+  command: |
+    go install golang.org/x/tools/cmd/deadcode@latest
+    tmpfile="$(mktemp)"
+    deadcode ./... | tee "$tmpfile"
+    if [[ -s "$tmpfile" ]]; then
+      echo "Dead code found. Please remove it."
+      exit 1
+    fi
+
 version: 2.1
 jobs:
   test_windows:
@@ -369,6 +380,13 @@ jobs:
       - run:
           <<: *run_markdownlint
 
+  run_deadcode:
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          <<: *run_deadcode
+
   build:
     resource_class: xlarge
     <<: *defaults
@@ -538,6 +556,14 @@ workflows:
             - GITHUB__PAT__gruntwork-ci
             - APPLE__OSX__code-signing
       - run_markdownlint:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+      - run_deadcode:
           filters:
             tags:
               only: /^v.*/
