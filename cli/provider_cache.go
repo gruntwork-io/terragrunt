@@ -250,7 +250,7 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 				return err
 			}
 			urls = DefaultRegistryURLs
-			opts.Logger.Debugf("Unable to discovery %q registry URLs, reason: %q, use default URLs: %s", registryName, err, urls)
+			opts.Logger.Debugf("Unable to discover %q registry URLs, reason: %q, use default URLs: %s", registryName, err, urls)
 		} else {
 			opts.Logger.Debugf("Discovered %q registry URLs: %s", registryName, urls)
 		}
