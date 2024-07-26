@@ -86,13 +86,7 @@ func TestEngineRunAllOpentofu(t *testing.T) {
 func TestEngineRunAllOpentofuCustomPath(t *testing.T) {
 	t.Setenv(EnvVarExperimental, "1")
 
-	// create temporary folder
-	cacheDir := t.TempDir()
-	t.Setenv("TG_ENGINE_CACHE_PATH", cacheDir)
-
-	cleanupTerraformFolder(t, TestFixtureOpenTofuRunAll)
-	tmpEnvPath := copyEnvironment(t, TestFixtureOpenTofuRunAll)
-	rootPath := util.JoinPath(tmpEnvPath, TestFixtureOpenTofuRunAll)
+	cacheDir, rootPath := setupEngineCache(t)
 
 	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)
@@ -130,6 +124,29 @@ func TestEngineDownloadOverHttp(t *testing.T) {
 	assert.Contains(t, stderr, "plugin process exited:")
 	assert.Contains(t, stdout, "OpenTofu has been successfully initialized")
 	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
+}
+
+func TestEngineChecksumVerification(t *testing.T) {
+	t.Setenv(EnvVarExperimental, "1")
+
+	cacheDir, rootPath := setupEngineCache(t)
+
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	require.NoError(t, err)
+
+	// change the checksum of the archive
+
+}
+
+func setupEngineCache(t *testing.T) (string, string) {
+	// create temporary folder
+	cacheDir := t.TempDir()
+	t.Setenv("TG_ENGINE_CACHE_PATH", cacheDir)
+
+	cleanupTerraformFolder(t, TestFixtureOpenTofuRunAll)
+	tmpEnvPath := copyEnvironment(t, TestFixtureOpenTofuRunAll)
+	rootPath := util.JoinPath(tmpEnvPath, TestFixtureOpenTofuRunAll)
+	return cacheDir, rootPath
 }
 
 func setupLocalEngine(t *testing.T) string {

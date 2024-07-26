@@ -42,6 +42,7 @@ const (
 	FileNameFormat                                   = "terragrunt-iac-%s_%s_%s_%s_%s"
 	ChecksumFileNameFormat                           = "terragrunt-iac-%s_%s_%s_SHA256SUMS"
 	EngineCachePathEnv                               = "TG_ENGINE_CACHE_PATH"
+	EngineSkipCheckEnv                               = "TG_ENGINE_SKIP_CHECK"
 	TerraformCommandContextKey      engineClientsKey = iota
 	LocksContextKey                 engineLocksKey   = iota
 )
@@ -186,13 +187,13 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 		}
 	}
 
-	if checksumFile != "" && checksumSigFile != "" {
+	if !skipEngineCheck() && checksumFile != "" && checksumSigFile != "" {
 		opts.Logger.Infof("Verifying checksum for %s", downloadFile)
-		if err := verifyEngine(downloadFile, checksumFile, checksumSigFile); err != nil {
+		if err := verifyFile(downloadFile, checksumFile, checksumSigFile); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	} else {
-		opts.Logger.Infof("Skipping checksum verification for %s", downloadFile)
+		opts.Logger.Warnf("Skipping verification for %s", downloadFile)
 	}
 
 	if err := extractArchive(opts, downloadFile, localEngineFile); err != nil {
@@ -379,6 +380,16 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 		return nil, nil, errors.WithStackTrace(err)
 	}
 	localEnginePath := filepath.Join(path, engineFileName(terragruntOptions.Engine))
+	localChecksumFile := filepath.Join(path, engineChecksumName(terragruntOptions.Engine))
+	localChecksumSigFile := filepath.Join(path, engineChecksumSigName(terragruntOptions.Engine))
+	// validate engine before loading if verification is not disabled
+	if !skipEngineCheck() && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) && util.FileExists(localChecksumSigFile) {
+		if err := verifyFile(localEnginePath, localChecksumFile, localChecksumSigFile); err != nil {
+			return nil, nil, errors.WithStackTrace(err)
+		}
+	} else {
+		terragruntOptions.Logger.Warnf("Skipping verification for %s", localEnginePath)
+	}
 	terragruntOptions.Logger.Debugf("Creating engine %s", localEnginePath)
 
 	logger := hclog.NewInterceptLogger(&hclog.LoggerOptions{
@@ -611,4 +622,13 @@ func convertMetaToProtobuf(meta map[string]interface{}) (map[string]*anypb.Any, 
 		protoMeta[key] = v
 	}
 	return protoMeta, nil
+}
+
+// skipChecksumCheck returns true if the engine checksum check is skipped.
+func skipEngineCheck() bool {
+	switch strings.ToLower(os.Getenv(EngineSkipCheckEnv)) {
+	case "1", "yes", "true", "on":
+		return true
+	}
+	return false
 }
