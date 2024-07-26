@@ -53,6 +53,12 @@ func FileExists(path string) bool {
 	return err == nil
 }
 
+// Return true if the given file does not exist
+func FileNotExists(path string) bool {
+	_, err := os.Stat(path)
+	return os.IsNotExist(err)
+}
+
 // EnsureDirectory creates a directory at this path if it does not exist, or error if the path exists and is a file.
 func EnsureDirectory(path string) error {
 	if FileExists(path) && IsFile(path) {

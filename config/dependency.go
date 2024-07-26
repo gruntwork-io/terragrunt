@@ -958,6 +958,11 @@ func terraformOutputJsonToCtyValueMap(targetConfigPath string, jsonBytes []byte)
 	return flattenedOutput, nil
 }
 
+// ClearOutputCache clears the output cache. Useful during testing.
+func ClearOutputCache() {
+	jsonOutputCache = sync.Map{}
+}
+
 // runTerraformInitForDependencyOutput will run terraform init in a mode that doesn't pull down plugins or modules. Note
 // that this will cause the command to fail for most modules as terraform init does a validation check to make sure the
 // plugins are available, even though we don't need it for our purposes (terraform output does not depend on any of the
