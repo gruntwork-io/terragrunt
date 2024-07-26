@@ -77,12 +77,13 @@ type ResponseBody struct {
 type Provider struct {
 	*ResponseBody
 
-	RegistryName string
-	Namespace    string
-	Name         string
-	Version      string
-	OS           string
-	Arch         string
+	RegistryPrefix string
+	RegistryName   string
+	Namespace      string
+	Name           string
+	Version        string
+	OS             string
+	Arch           string
 }
 
 func ParseProvider(str string) *Provider {

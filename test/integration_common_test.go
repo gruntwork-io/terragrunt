@@ -286,7 +286,8 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 	certpool := x509.NewCertPool()
 	certpool.AppendCertsFromPEM(caPEM.Bytes())
 	clientTLSConf := &tls.Config{
-		RootCAs: certpool,
+		RootCAs:            certpool,
+		InsecureSkipVerify: true,
 	}
 
 	return serverTLSConf, clientTLSConf

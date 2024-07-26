@@ -2,9 +2,11 @@ package cli
 
 import (
 	"context"
+	liberrors "errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -100,6 +102,7 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 	var (
 		providerHandlers []handlers.ProviderHandler
 		excludeAddrs     []string
+		directIsdefined  bool
 	)
 
 	for _, registryName := range opts.ProviderCacheRegistryNames {
@@ -114,10 +117,15 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 			providerHandlers = append(providerHandlers, handlers.NewProviderNetworkMirrorHandler(providerService, cacheProviderHTTPStatusCode, method))
 		case *cliconfig.ProviderInstallationDirect:
 			providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, cacheProviderHTTPStatusCode, method))
+			directIsdefined = true
 		}
 		method.AppendExclude(excludeAddrs)
 	}
-	providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, cacheProviderHTTPStatusCode, new(cliconfig.ProviderInstallationDirect)))
+
+	if !directIsdefined {
+		// In a case if none of direct provider installation methods `cliCfg.ProviderInstallation.Methods` are specified.
+		providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, cacheProviderHTTPStatusCode, new(cliconfig.ProviderInstallationDirect)))
+	}
 
 	cache := cache.NewServer(
 		cache.WithHostname(opts.ProviderCacheHostname),
@@ -160,7 +168,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	}
 
 	// Create terraform cli config file that enables provider caching and does not use provider cache dir
-	if err := cache.createLocalCLIConfig(opts, cliConfigFilename, cacheRequestID); err != nil {
+	if err := cache.createLocalCLIConfig(ctx, opts, cliConfigFilename, cacheRequestID); err != nil {
 		return nil, err
 	}
 
@@ -184,7 +192,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	}
 
 	// Create terraform cli config file that uses provider cache dir
-	if err := cache.createLocalCLIConfig(opts, cliConfigFilename, ""); err != nil {
+	if err := cache.createLocalCLIConfig(ctx, opts, cliConfigFilename, ""); err != nil {
 		return nil, err
 	}
 
@@ -227,7 +235,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 // It creates two types of configuration depending on the `cacheRequestID` variable set.
 // 1. If `cacheRequestID` is set, `terraform init` does _not_ use the provider cache directory, the cache server creates a cache for requested providers and returns HTTP status 423. Since for each module we create the CLI config, using `cacheRequestID` we have the opportunity later retrieve from the cache server exactly those cached providers that were requested by `terraform init` using this configuration.
 // 2. If `cacheRequestID` is empty, 'terraform init` uses provider cache directory, the cache server acts as a proxy.
-func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions, filename string, cacheRequestID string) error {
+func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *options.TerragruntOptions, filename string, cacheRequestID string) error {
 	cfg := cache.cliCfg.Clone()
 	cfg.PluginCacheDir = ""
 
@@ -236,10 +244,21 @@ func (cache *ProviderCache) createLocalCLIConfig(opts *options.TerragruntOptions
 	for _, registryName := range opts.ProviderCacheRegistryNames {
 		providerInstallationIncludes = append(providerInstallationIncludes, fmt.Sprintf("%s/*/*", registryName))
 
+		urls, err := DiscoveryURL(ctx, registryName)
+		if err != nil {
+			if !liberrors.As(err, &NotFoundWellKnownURL{}) {
+				return err
+			}
+			urls = DefaultRegistryURLs
+			opts.Logger.Debugf("Unable to discover %q registry URLs, reason: %q, use default URLs: %s", registryName, err, urls)
+		} else {
+			opts.Logger.Debugf("Discovered %q registry URLs: %s", registryName, urls)
+		}
+
 		cfg.AddHost(registryName, map[string]string{
-			"providers.v1": fmt.Sprintf("%s/%s/%s/", cache.ProviderController.URL(), cacheRequestID, registryName),
+			"providers.v1": fmt.Sprintf("%s/%s/%s/%s/", cache.ProviderController.URL(), cacheRequestID, url.PathEscape(urls.ProvidersV1), registryName),
 			// Since Terragrunt Provider Cache only caches providers, we need to route module requests to the original registry.
-			"modules.v1": fmt.Sprintf("https://%s/v1/modules", registryName),
+			"modules.v1": fmt.Sprintf("https://%s%s", registryName, urls.ModulesV1),
 		})
 	}
 
