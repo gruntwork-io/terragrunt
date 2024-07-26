@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	liberrors "errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -61,7 +62,6 @@ type ProviderCache struct {
 	*cache.Server
 	cliCfg          *cliconfig.Config
 	providerService *services.ProviderService
-	modulesURL      map[string]string
 }
 
 func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, error) {
@@ -246,9 +246,14 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 
 		urls, err := handlers.DiscoveryURL(ctx, registryName)
 		if err != nil {
-			return err
+			if !liberrors.As(err, &handlers.NotFoundWellKnownURL{}) {
+				return err
+			}
+			urls = handlers.DefaultDiscoveryURL
+			opts.Logger.Debugf("Unable to discovery %q registry URLs, reason: %q, use default URLs: %s", registryName, err, urls)
+		} else {
+			opts.Logger.Debugf("Discovered %q registry URLs: %s", registryName, urls)
 		}
-		opts.Logger.Debugf("Discovered URLs for registry name %q", registryName)
 
 		cfg.AddHost(registryName, map[string]string{
 			"providers.v1": fmt.Sprintf("%s/%s/%s/%s/", cache.ProviderController.URL(), cacheRequestID, url.PathEscape(urls.ProvidersV1), registryName),
