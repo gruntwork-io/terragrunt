@@ -107,11 +107,15 @@ run_deadcode: &run_deadcode
   name: Run deadcode
   command: |
     go install golang.org/x/tools/cmd/deadcode@latest
-    tmpfile="$(mktemp)"
+
+    deadcode_output="$(mktemp)"
+    deadcode ./... | tee "$deadcode_output"
 
     # Some stuff is filtered out here to avoid having to investigate whether it's needed or not.
-    deadcode ./... | tee | grep -vi 'exported' | grep -vi 'test' | grep -vi 'error' | grep -vi 'log' | grep -vi 'deletetable' | head -c -1 > "$tmpfile"
-    if [[ -s "$tmpfile" ]]; then
+    filtered="$(mktemp)"
+    cat "$deadcode_output" | grep -vi 'exported' | grep -vi 'test' | grep -vi 'error' | grep -vi 'log' | grep -vi 'deletetable' | head -c -1 || true > "$filtered"
+
+    if [[ -s "$filtered" ]]; then
       echo "Dead code found. Please remove it."
       exit 1
     fi
