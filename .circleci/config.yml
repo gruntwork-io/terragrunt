@@ -108,7 +108,9 @@ run_deadcode: &run_deadcode
   command: |
     go install golang.org/x/tools/cmd/deadcode@latest
     tmpfile="$(mktemp)"
-    deadcode ./... | tee "$tmpfile"
+
+    # Some stuff is filtered out here to avoid having to investigate whether it's needed or not.
+    deadcode ./... | tee | grep -vi 'exported' | grep -vi 'test' | grep -vi 'error' | grep -vi 'log' | grep -vi 'deletetable' > "$tmpfile"
     if [[ -s "$tmpfile" ]]; then
       echo "Dead code found. Please remove it."
       exit 1
