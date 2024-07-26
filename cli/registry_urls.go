@@ -1,4 +1,4 @@
-package handlers
+package cli
 
 import (
 	"context"
@@ -16,23 +16,23 @@ const (
 )
 
 var (
-	DefaultDiscoveryURL = &ProviderDirectDiscoveryURL{
+	DefaultRegistryURLs = &RegistryURLs{
 		ModulesV1:   "/v1/modules",
 		ProvidersV1: "/v1/providers",
 	}
 )
 
-type ProviderDirectDiscoveryURL struct {
+type RegistryURLs struct {
 	ModulesV1   string `json:"modules.v1"`
 	ProvidersV1 string `json:"providers.v1"`
 }
 
-func (urls *ProviderDirectDiscoveryURL) String() string {
+func (urls *RegistryURLs) String() string {
 	b, _ := json.Marshal(urls) //nolint:errcheck
 	return string(b)
 }
 
-func DiscoveryURL(ctx context.Context, registryName string) (*ProviderDirectDiscoveryURL, error) {
+func DiscoveryURL(ctx context.Context, registryName string) (*RegistryURLs, error) {
 	url := fmt.Sprintf("https://%s/%s", registryName, wellKnownURL)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -59,9 +59,17 @@ func DiscoveryURL(ctx context.Context, registryName string) (*ProviderDirectDisc
 		return nil, errors.WithStackTrace(err)
 	}
 
-	urls := new(ProviderDirectDiscoveryURL)
+	urls := new(RegistryURLs)
 	if err := json.Unmarshal(content, urls); err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
 	return urls, nil
+}
+
+type NotFoundWellKnownURL struct {
+	url string
+}
+
+func (err NotFoundWellKnownURL) Error() string {
+	return fmt.Sprintf("%s not found", err.url)
 }

@@ -244,12 +244,12 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 	for _, registryName := range opts.ProviderCacheRegistryNames {
 		providerInstallationIncludes = append(providerInstallationIncludes, fmt.Sprintf("%s/*/*", registryName))
 
-		urls, err := handlers.DiscoveryURL(ctx, registryName)
+		urls, err := DiscoveryURL(ctx, registryName)
 		if err != nil {
-			if !liberrors.As(err, &handlers.NotFoundWellKnownURL{}) {
+			if !liberrors.As(err, &NotFoundWellKnownURL{}) {
 				return err
 			}
-			urls = handlers.DefaultDiscoveryURL
+			urls = DefaultRegistryURLs
 			opts.Logger.Debugf("Unable to discovery %q registry URLs, reason: %q, use default URLs: %s", registryName, err, urls)
 		} else {
 			opts.Logger.Debugf("Discovered %q registry URLs: %s", registryName, urls)

@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/helpers"
@@ -101,12 +103,21 @@ func (handler *ProviderDirectHandler) Download(ctx echo.Context, provider *model
 		}
 	}
 
+	// check if the URL contains http scheme, it may just be a filename and we need to build the URL
+	if !strings.Contains(provider.DownloadURL, "://") {
+		downloadURL := &url.URL{
+			Scheme: "https",
+			Host:   provider.RegistryName,
+			Path:   filepath.Join(provider.RegistryPrefix, provider.RegistryName, provider.Namespace, provider.Name, provider.DownloadURL),
+		}
+		return handler.ReverseProxy.NewRequest(ctx, downloadURL)
+	}
+
 	downloadURL, err := url.Parse(provider.DownloadURL)
 	if err != nil {
 		return err
 	}
 	return handler.ReverseProxy.NewRequest(ctx, downloadURL)
-
 }
 
 // platformURL returns the URL used to query the all platforms for a single version.
