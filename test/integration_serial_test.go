@@ -538,6 +538,10 @@ func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules in
 }
 
 func TestTerragruntParallelism(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode, as `testTerragruntParallelism` includes sleeps.")
+	}
+
 	testCases := []struct {
 		parallelism            int
 		numberOfModules        int
