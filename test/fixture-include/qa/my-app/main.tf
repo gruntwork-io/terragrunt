@@ -1,9 +1,17 @@
 # Create an arbitrary local resource
-data "template_file" "test" {
-  template = "Hello, I am a template."
+data "external" "hello" {
+  program = ["jq", "-n", "{\"greeting\": \"Hello, I am a template.\"}"]
 }
 
-variable "reflect" {}
+variable "reflect" {
+  type = string
+}
+
 output "reflect" {
   value = var.reflect
 }
+
+output "mock" {
+  value = data.external.hello.result.greeting
+}
+

@@ -1,7 +1,16 @@
-data "template_file" "foo" {
-  template = "foo"
+terraform {
+  required_providers {
+    external = {
+      source = "hashicorp/external"
+      version = "2.3.3"
+    }
+  }
+}
+
+data "external" "foo" {
+  program = ["jq", "-n", "{\"foo\": \"foo\"}"]
 }
 
 output "foo" {
-  value = data.template_file.foo.rendered
+  value = data.external.foo.result.foo
 }

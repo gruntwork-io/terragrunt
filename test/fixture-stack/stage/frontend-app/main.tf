@@ -1,18 +1,26 @@
 terraform {
   backend "s3" {}
+
+  required_providers {
+    external = {
+      source  = "hashicorp/external"
+      version = "2.3.3"
+    }
+  }
 }
 
 # Create an arbitrary local resource
-data "template_file" "text" {
-  template = "[I am a frontend-app template. Data from my dependencies: vpc = ${data.terraform_remote_state.vpc.outputs.text}, bastion-host = ${data.terraform_remote_state.bastion_host.outputs.text}, backend-app = ${data.terraform_remote_state.backend_app.outputs.text}]"
+data "external" "text" {
+  program = ["jq", "-n", "--arg", "vpc", data.terraform_remote_state.vpc.outputs.text, "--arg", "bastion_host", data.terraform_remote_state.bastion_host.outputs.text, "--arg", "backend_app", data.terraform_remote_state.backend_app.outputs.text, "{\"text\": \"[I am a frontend-app template. Data from my dependencies: vpc = \\($vpc), bastion-host = \\($bastion_host), backend-app = \\($backend_app)]\"}"]
 }
 
 output "text" {
-  value = data.template_file.text.rendered
+  value = data.external.text.result.text
 }
 
 variable "terraform_remote_state_s3_bucket" {
   description = "The name of the S3 bucket where Terraform remote state is stored"
+  type        = string
 }
 
 data "terraform_remote_state" "vpc" {

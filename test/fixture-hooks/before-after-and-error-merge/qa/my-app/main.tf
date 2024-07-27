@@ -1,11 +1,18 @@
 terraform {
   backend "s3" {}
+
+  required_providers {
+    external = {
+      source  = "hashicorp/external"
+      version = "2.3.3"
+    }
+  }
 }
 
-data "template_file" "example" {
-  template = "hello, world"
+data "external" "example" {
+  program = ["jq", "-n", "{\"example\": \"hello, world\"}"]
 }
 
 output "example" {
-  value = data.template_file.example.rendered
+  value = data.external.example.result.example
 }

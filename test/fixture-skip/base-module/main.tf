@@ -1,9 +1,20 @@
-variable "person" {}
+terraform {
+  required_providers {
+    external = {
+      source  = "hashicorp/external"
+      version = "2.3.3"
+    }
+  }
+}
 
-data "template_file" "example" {
-  template = "hello, ${var.person}"
+variable "person" {
+  type = string
+}
+
+data "external" "example" {
+  program = ["jq", "-n", "--arg", "person", var.person, "{\"example\": \"hello, \\($person)\"}"]
 }
 
 output "example" {
-  value = data.template_file.example.rendered
+  value = data.external.example.result.example
 }

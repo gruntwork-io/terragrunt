@@ -1,13 +1,10 @@
-data "template_file" "test" {
-  template = "${module.hello.hello}, ${var.name}"
-}
-
 variable "name" {
+  type        = string
   description = "Specify a name"
 }
 
 output "test" {
-  value = data.template_file.test.rendered
+  value = "${module.hello.hello}, ${var.name}"
 }
 
 module "hello" {
