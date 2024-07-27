@@ -16,10 +16,10 @@ import (
 )
 
 const (
-	TestFixtureLocalEngine    = "fixture-engine/local-engine"
-	TestFixtureRemoteEngine   = "fixture-engine/remote-engine"
-	TestFixtureOpenTofuEngine = "fixture-engine/opentofu-engine"
-	TestFixtureOpenTofuRunAll = "fixture-engine/opentofu-run-all"
+	TestFixtureLocalEngine    = "fixtures/engine/local-engine"
+	TestFixtureRemoteEngine   = "fixtures/engine/remote-engine"
+	TestFixtureOpenTofuEngine = "fixtures/engine/opentofu-engine"
+	TestFixtureOpenTofuRunAll = "fixtures/engine/opentofu-run-all"
 
 	EnvVarExperimental = "TG_EXPERIMENTAL_ENGINE"
 )

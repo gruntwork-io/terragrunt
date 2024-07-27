@@ -60,150 +60,150 @@ const (
 	TERRAFORM_REMOTE_STATE_S3_REGION                                         = "us-west-2"
 	TERRAFORM_REMOTE_STATE_GCP_REGION                                        = "eu"
 	TEST_FIXTURE_PATH                                                        = "fixture/"
-	TEST_FIXTURE_HCLVALIDATE                                                 = "fixture-hclvalidate"
+	TEST_FIXTURE_HCLVALIDATE                                                 = "fixtures/hclvalidate"
 	TEST_FIXTURE_EXCLUDES_FILE                                               = "fixutre-excludes-file"
-	TEST_FIXTURE_INIT_ONCE                                                   = "fixture-init-once"
-	TEST_FIXTURE_PROVIDER_CACHE_MULTIPLE_PLATFORMS                           = "fixture-provider-cache/multiple-platforms"
-	TEST_FIXTURE_PROVIDER_CACHE_DIRECT                                       = "fixture-provider-cache/direct"
-	TEST_FIXTURE_PROVIDER_CACHE_NETWORK_MIRROR                               = "fixture-provider-cache/network-mirror"
-	TEST_FIXTURE_PROVIDER_CACHE_FILESYSTEM_MIRROR                            = "fixture-provider-cache/filesystem-mirror"
-	TEST_FIXTURE_DESTROY_ORDER                                               = "fixture-destroy-order"
-	TEST_FIXTURE_CODEGEN_PATH                                                = "fixture-codegen"
-	TEST_FIXTURE_GCS_PATH                                                    = "fixture-gcs/"
-	TEST_FIXTURE_GCS_BYO_BUCKET_PATH                                         = "fixture-gcs-byo-bucket/"
-	TEST_FIXTURE_STACK                                                       = "fixture-stack/"
-	TEST_FIXTURE_GRAPH_DEPENDENCIES                                          = "fixture-graph-dependencies"
-	TEST_FIXTURE_OUTPUT_ALL                                                  = "fixture-output-all"
-	TEST_FIXTURE_OUTPUT_FROM_REMOTE_STATE                                    = "fixture-output-from-remote-state"
-	TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY                                      = "fixture-output-from-dependency"
-	TEST_FIXTURE_INPUTS_FROM_DEPENDENCY                                      = "fixture-inputs-from-dependency"
-	TEST_FIXTURE_STDOUT                                                      = "fixture-download/stdout-test"
-	TEST_FIXTURE_EXTRA_ARGS_PATH                                             = "fixture-extra-args/"
-	TEST_FIXTURE_ENV_VARS_BLOCK_PATH                                         = "fixture-env-vars-block/"
-	TEST_FIXTURE_SKIP                                                        = "fixture-skip/"
-	TEST_FIXTURE_CONFIG_SINGLE_JSON_PATH                                     = "fixture-config-files/single-json-config"
-	TEST_FIXTURE_CONFIG_WITH_NON_DEFAULT_NAMES                               = "fixture-config-files/with-non-default-names"
-	TEST_FIXTURE_PREVENT_DESTROY_OVERRIDE                                    = "fixture-prevent-destroy-override/child"
-	TEST_FIXTURE_PREVENT_DESTROY_NOT_SET                                     = "fixture-prevent-destroy-not-set/child"
-	TEST_FIXTURE_LOCAL_PREVENT_DESTROY                                       = "fixture-download/local-with-prevent-destroy"
-	TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES                          = "fixture-download/local-with-prevent-destroy-dependencies"
-	TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES                  = "fixture-download/local-include-with-prevent-destroy-dependencies"
-	TEST_FIXTURE_NOT_EXISTING_SOURCE                                         = "fixture-download/invalid-path"
-	TEST_FIXTURE_EXTERNAL_DEPENDENCE                                         = "fixture-external-dependencies"
-	TEST_FIXTURE_MISSING_DEPENDENCE                                          = "fixture-missing-dependencies/main"
-	TEST_FIXTURE_GET_OUTPUT                                                  = "fixture-get-output"
-	TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH                                      = "fixture-hooks/before-only"
-	TEST_FIXTURE_HOOKS_ALL_PATH                                              = "fixture-hooks/all"
-	TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH                                       = "fixture-hooks/after-only"
-	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH                                 = "fixture-hooks/before-and-after"
-	TEST_FIXTURE_HOOKS_BEFORE_AFTER_AND_ERROR_MERGE_PATH                     = "fixture-hooks/before-after-and-error-merge"
-	TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH                                    = "fixture-hooks/skip-on-error"
-	TEST_FIXTURE_ERROR_HOOKS_PATH                                            = "fixture-hooks/error-hooks"
-	TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH                                   = "fixture-hooks/one-arg-action"
-	TEST_FIXTURE_HOOKS_EMPTY_STRING_COMMAND_PATH                             = "fixture-hooks/bad-arg-action/empty-string-command"
-	TEST_FIXTURE_HOOKS_EMPTY_COMMAND_LIST_PATH                               = "fixture-hooks/bad-arg-action/empty-command-list"
-	TEST_FIXTURE_HOOKS_INTERPOLATIONS_PATH                                   = "fixture-hooks/interpolations"
-	TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_NO_BACKEND                        = "fixture-hooks/init-once/no-source-no-backend"
-	TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_WITH_BACKEND                      = "fixture-hooks/init-once/no-source-with-backend"
-	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND                      = "fixture-hooks/init-once/with-source-no-backend"
-	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND_SUPPRESS_HOOK_STDOUT = "fixture-hooks/init-once/with-source-no-backend-suppress-hook-stdout"
-	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_WITH_BACKEND                    = "fixture-hooks/init-once/with-source-with-backend"
-	TEST_FIXTURE_FAILED_TERRAFORM                                            = "fixture-failure"
-	TEST_FIXTURE_EXIT_CODE                                                   = "fixture-exit-code"
-	TEST_FIXTURE_AUTO_RETRY_RERUN                                            = "fixture-auto-retry/re-run"
-	TEST_FIXTURE_AUTO_RETRY_EXHAUST                                          = "fixture-auto-retry/exhaust"
-	TEST_FIXTURE_AUTO_RETRY_GET_DEFAULT_ERRORS                               = "fixture-auto-retry/get-default-errors"
-	TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS                                    = "fixture-auto-retry/custom-errors"
-	TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS_NOT_SET                            = "fixture-auto-retry/custom-errors-not-set"
-	TEST_FIXTURE_AUTO_RETRY_APPLY_ALL_RETRIES                                = "fixture-auto-retry/apply-all"
-	TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES                             = "fixture-auto-retry/configurable-retries"
-	TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES_ERROR_1                     = "fixture-auto-retry/configurable-retries-incorrect-retry-attempts"
-	TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES_ERROR_2                     = "fixture-auto-retry/configurable-retries-incorrect-sleep-interval"
-	TEST_FIXTURE_AWS_PROVIDER_PATCH                                          = "fixture-aws-provider-patch"
-	TEST_FIXTURE_INPUTS                                                      = "fixture-inputs"
-	TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL                                = "fixture-locals-errors/undefined-local"
-	TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL_BUT_INPUT                      = "fixture-locals-errors/undefined-local-but-input"
-	TEST_FIXTURE_LOCALS_CANONICAL                                            = "fixture-locals/canonical"
-	TEST_FIXTURE_LOCALS_IN_INCLUDE                                           = "fixture-locals/local-in-include"
-	TEST_FIXTURE_LOCAL_RUN_ONCE                                              = "fixture-locals/run-once"
-	TEST_FIXTURE_LOCAL_RUN_MULTIPLE                                          = "fixture-locals/run-multiple"
+	TEST_FIXTURE_INIT_ONCE                                                   = "fixtures/init-once"
+	TEST_FIXTURE_PROVIDER_CACHE_MULTIPLE_PLATFORMS                           = "fixtures/provider-cache/multiple-platforms"
+	TEST_FIXTURE_PROVIDER_CACHE_DIRECT                                       = "fixtures/provider-cache/direct"
+	TEST_FIXTURE_PROVIDER_CACHE_NETWORK_MIRROR                               = "fixtures/provider-cache/network-mirror"
+	TEST_FIXTURE_PROVIDER_CACHE_FILESYSTEM_MIRROR                            = "fixtures/provider-cache/filesystem-mirror"
+	TEST_FIXTURE_DESTROY_ORDER                                               = "fixtures/destroy-order"
+	TEST_FIXTURE_CODEGEN_PATH                                                = "fixtures/codegen"
+	TEST_FIXTURE_GCS_PATH                                                    = "fixtures/gcs/"
+	TEST_FIXTURE_GCS_BYO_BUCKET_PATH                                         = "fixtures/gcs-byo-bucket/"
+	TEST_FIXTURE_STACK                                                       = "fixtures/stack/"
+	TEST_FIXTURE_GRAPH_DEPENDENCIES                                          = "fixtures/graph-dependencies"
+	TEST_FIXTURE_OUTPUT_ALL                                                  = "fixtures/output-all"
+	TEST_FIXTURE_OUTPUT_FROM_REMOTE_STATE                                    = "fixtures/output-from-remote-state"
+	TEST_FIXTURE_OUTPUT_FROM_DEPENDENCY                                      = "fixtures/output-from-dependency"
+	TEST_FIXTURE_INPUTS_FROM_DEPENDENCY                                      = "fixtures/inputs-from-dependency"
+	TEST_FIXTURE_STDOUT                                                      = "fixtures/download/stdout-test"
+	TEST_FIXTURE_EXTRA_ARGS_PATH                                             = "fixtures/extra-args/"
+	TEST_FIXTURE_ENV_VARS_BLOCK_PATH                                         = "fixtures/env-vars-block/"
+	TEST_FIXTURE_SKIP                                                        = "fixtures/skip/"
+	TEST_FIXTURE_CONFIG_SINGLE_JSON_PATH                                     = "fixtures/config-files/single-json-config"
+	TEST_FIXTURE_CONFIG_WITH_NON_DEFAULT_NAMES                               = "fixtures/config-files/with-non-default-names"
+	TEST_FIXTURE_PREVENT_DESTROY_OVERRIDE                                    = "fixtures/prevent-destroy-override/child"
+	TEST_FIXTURE_PREVENT_DESTROY_NOT_SET                                     = "fixtures/prevent-destroy-not-set/child"
+	TEST_FIXTURE_LOCAL_PREVENT_DESTROY                                       = "fixtures/download/local-with-prevent-destroy"
+	TEST_FIXTURE_LOCAL_PREVENT_DESTROY_DEPENDENCIES                          = "fixtures/download/local-with-prevent-destroy-dependencies"
+	TEST_FIXTURE_LOCAL_INCLUDE_PREVENT_DESTROY_DEPENDENCIES                  = "fixtures/download/local-include-with-prevent-destroy-dependencies"
+	TEST_FIXTURE_NOT_EXISTING_SOURCE                                         = "fixtures/download/invalid-path"
+	TEST_FIXTURE_EXTERNAL_DEPENDENCE                                         = "fixtures/external-dependencies"
+	TEST_FIXTURE_MISSING_DEPENDENCE                                          = "fixtures/missing-dependencies/main"
+	TEST_FIXTURE_GET_OUTPUT                                                  = "fixtures/get-output"
+	TEST_FIXTURE_HOOKS_BEFORE_ONLY_PATH                                      = "fixtures/hooks/before-only"
+	TEST_FIXTURE_HOOKS_ALL_PATH                                              = "fixtures/hooks/all"
+	TEST_FIXTURE_HOOKS_AFTER_ONLY_PATH                                       = "fixtures/hooks/after-only"
+	TEST_FIXTURE_HOOKS_BEFORE_AND_AFTER_PATH                                 = "fixtures/hooks/before-and-after"
+	TEST_FIXTURE_HOOKS_BEFORE_AFTER_AND_ERROR_MERGE_PATH                     = "fixtures/hooks/before-after-and-error-merge"
+	TEST_FIXTURE_HOOKS_SKIP_ON_ERROR_PATH                                    = "fixtures/hooks/skip-on-error"
+	TEST_FIXTURE_ERROR_HOOKS_PATH                                            = "fixtures/hooks/error-hooks"
+	TEST_FIXTURE_HOOKS_ONE_ARG_ACTION_PATH                                   = "fixtures/hooks/one-arg-action"
+	TEST_FIXTURE_HOOKS_EMPTY_STRING_COMMAND_PATH                             = "fixtures/hooks/bad-arg-action/empty-string-command"
+	TEST_FIXTURE_HOOKS_EMPTY_COMMAND_LIST_PATH                               = "fixtures/hooks/bad-arg-action/empty-command-list"
+	TEST_FIXTURE_HOOKS_INTERPOLATIONS_PATH                                   = "fixtures/hooks/interpolations"
+	TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_NO_BACKEND                        = "fixtures/hooks/init-once/no-source-no-backend"
+	TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_WITH_BACKEND                      = "fixtures/hooks/init-once/no-source-with-backend"
+	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND                      = "fixtures/hooks/init-once/with-source-no-backend"
+	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND_SUPPRESS_HOOK_STDOUT = "fixtures/hooks/init-once/with-source-no-backend-suppress-hook-stdout"
+	TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_WITH_BACKEND                    = "fixtures/hooks/init-once/with-source-with-backend"
+	TEST_FIXTURE_FAILED_TERRAFORM                                            = "fixtures/failure"
+	TEST_FIXTURE_EXIT_CODE                                                   = "fixtures/exit-code"
+	TEST_FIXTURE_AUTO_RETRY_RERUN                                            = "fixtures/auto-retry/re-run"
+	TEST_FIXTURE_AUTO_RETRY_EXHAUST                                          = "fixtures/auto-retry/exhaust"
+	TEST_FIXTURE_AUTO_RETRY_GET_DEFAULT_ERRORS                               = "fixtures/auto-retry/get-default-errors"
+	TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS                                    = "fixtures/auto-retry/custom-errors"
+	TEST_FIXTURE_AUTO_RETRY_CUSTOM_ERRORS_NOT_SET                            = "fixtures/auto-retry/custom-errors-not-set"
+	TEST_FIXTURE_AUTO_RETRY_APPLY_ALL_RETRIES                                = "fixtures/auto-retry/apply-all"
+	TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES                             = "fixtures/auto-retry/configurable-retries"
+	TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES_ERROR_1                     = "fixtures/auto-retry/configurable-retries-incorrect-retry-attempts"
+	TEST_FIXTURE_AUTO_RETRY_CONFIGURABLE_RETRIES_ERROR_2                     = "fixtures/auto-retry/configurable-retries-incorrect-sleep-interval"
+	TEST_FIXTURE_AWS_PROVIDER_PATCH                                          = "fixtures/aws-provider-patch"
+	TEST_FIXTURE_INPUTS                                                      = "fixtures/inputs"
+	TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL                                = "fixtures/locals-errors/undefined-local"
+	TEST_FIXTURE_LOCALS_ERROR_UNDEFINED_LOCAL_BUT_INPUT                      = "fixtures/locals-errors/undefined-local-but-input"
+	TEST_FIXTURE_LOCALS_CANONICAL                                            = "fixtures/locals/canonical"
+	TEST_FIXTURE_LOCALS_IN_INCLUDE                                           = "fixtures/locals/local-in-include"
+	TEST_FIXTURE_LOCAL_RUN_ONCE                                              = "fixtures/locals/run-once"
+	TEST_FIXTURE_LOCAL_RUN_MULTIPLE                                          = "fixtures/locals/run-multiple"
 	TEST_FIXTURE_LOCALS_IN_INCLUDE_CHILD_REL_PATH                            = "qa/my-app"
-	TEST_FIXTURE_NO_COLOR                                                    = "fixture-no-color"
-	TEST_FIXTURE_READ_CONFIG                                                 = "fixture-read-config"
-	TEST_FIXTURE_READ_IAM_ROLE                                               = "fixture-read-config/iam_role_in_file"
-	TEST_FIXTURE_IAM_ROLES_MULTIPLE_MODULES                                  = "fixture-read-config/iam_roles_multiple_modules"
-	TEST_FIXTURE_RELATIVE_INCLUDE_CMD                                        = "fixture-relative-include-cmd"
-	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                                     = "fixture-get-aws-caller-identity"
-	TEST_FIXTURE_GET_REPO_ROOT                                               = "fixture-get-repo-root"
-	TEST_FIXTURE_GET_WORKING_DIR                                             = "fixture-get-working-dir"
-	TEST_FIXTURE_PATH_RELATIVE_FROM_INCLUDE                                  = "fixture-get-path/fixture-path_relative_from_include"
-	TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT                                     = "fixture-get-path/fixture-get-path-from-repo-root"
-	TEST_FIXTURE_GET_PATH_TO_REPO_ROOT                                       = "fixture-get-path/fixture-get-path-to-repo-root"
-	TEST_FIXTURE_GET_PLATFORM                                                = "fixture-get-platform"
-	TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_HCL                                   = "fixture-get-terragrunt-source-hcl"
-	TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_CLI                                   = "fixture-get-terragrunt-source-cli"
-	TEST_FIXTURE_REGRESSIONS                                                 = "fixture-regressions"
-	TEST_FIXTURE_PLANFILE_ORDER                                              = "fixture-planfile-order-test"
-	TEST_FIXTURE_DIRS_PATH                                                   = "fixture-dirs"
-	TEST_FIXTURE_PARALLELISM                                                 = "fixture-parallelism"
-	TEST_FIXTURE_SOPS                                                        = "fixture-sops"
-	TEST_FIXTURE_DESTROY_WARNING                                             = "fixture-destroy-warning"
-	TEST_FIXTURE_INCLUDE_PARENT                                              = "fixture-include-parent"
-	TEST_FIXTURE_AUTO_INIT                                                   = "fixture-download/init-on-source-change"
-	TEST_FIXTURE_DISJOINT                                                    = "fixture-stack/disjoint"
-	TEST_FIXTURE_BROKEN_LOCALS                                               = "fixture-broken-locals"
-	TEST_FIXTURE_BROKEN_DEPENDENCY                                           = "fixture-broken-dependency"
-	TEST_FIXTURE_RENDER_JSON_METADATA                                        = "fixture-render-json-metadata"
-	TEST_FIXTURE_RENDER_JSON_MOCK_OUTPUTS                                    = "fixture-render-json-mock-outputs"
-	TEST_FIXTURE_RENDER_JSON_INPUTS                                          = "fixture-render-json-inputs"
-	TEST_FIXTURE_OUTPUT_MODULE_GROUPS                                        = "fixture-output-module-groups"
-	TEST_FIXTURE_STARTSWITH                                                  = "fixture-startswith"
-	TEST_FIXTURE_TIMECMP                                                     = "fixture-timecmp"
-	TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP                                   = "fixture-timecmp-errors/invalid-timestamp"
-	TEST_FIXTURE_ENDSWITH                                                    = "fixture-endswith"
-	TEST_FIXTURE_TFLINT_NO_ISSUES_FOUND                                      = "fixture-tflint/no-issues-found"
-	TEST_FIXTURE_TFLINT_ISSUES_FOUND                                         = "fixture-tflint/issues-found"
-	TEST_FIXTURE_TFLINT_NO_CONFIG_FILE                                       = "fixture-tflint/no-config-file"
-	TEST_FIXTURE_TFLINT_MODULE_FOUND                                         = "fixture-tflint/module-found"
-	TEST_FIXTURE_TFLINT_NO_TF_SOURCE_PATH                                    = "fixture-tflint/no-tf-source"
-	TEST_FIXTURE_TFLINT_EXTERNAL_TFLINT                                      = "fixture-tflint/external-tflint"
-	TEST_FIXTURE_TFLINT_TFVAR_PASSING                                        = "fixture-tflint/tfvar-passing"
-	TEST_FIXTURE_TFLINT_ARGS                                                 = "fixture-tflint/tflint-args"
-	TEST_FIXTURE_TFLINT_CUSTOM_CONFIG                                        = "fixture-tflint/custom-tflint-config"
-	TEST_FIXTURE_PARALLEL_RUN                                                = "fixture-parallel-run"
-	TEST_FIXTURE_INIT_ERROR                                                  = "fixture-init-error"
-	TEST_FIXTURE_MODULE_PATH_ERROR                                           = "fixture-module-path-in-error"
-	TEST_FIXTURE_HCLFMT_DIFF                                                 = "fixture-hclfmt-diff"
-	TEST_FIXTURE_DESTROY_DEPENDENT_MODULE                                    = "fixture-destroy-dependent-module"
-	TEST_FIXTURE_REF_SOURCE                                                  = "fixture-download/remote-ref"
-	TEST_FIXTURE_SOURCE_MAP_SLASHES                                          = "fixture-source-map/slashes-in-ref"
-	TEST_FIXTURE_STRCONTAINS                                                 = "fixture-strcontains"
-	TEST_FIXTURE_INIT_CACHE                                                  = "fixture-init-cache"
-	TEST_FIXTURE_NULL_VALUE                                                  = "fixture-null-values"
-	TEST_FIXTURE_GCS_IMPERSONATE_PATH                                        = "fixture-gcs-impersonate/"
-	TEST_FIXTURE_S3_ERRORS                                                   = "fixture-s3-errors/"
-	TEST_FIXTURE_GCS_NO_BUCKET                                               = "fixture-gcs-no-bucket/"
-	TEST_FIXTURE_GCS_NO_PREFIX                                               = "fixture-gcs-no-prefix/"
-	TEST_FIXTURE_DISABLED_PATH                                               = "fixture-disabled-path/"
-	TEST_FIXTURE_NO_SUBMODULES                                               = "fixture-no-submodules/"
-	TEST_FIXTURE_DISABLED_MODULE                                             = "fixture-disabled/"
-	TEST_FIXTURE_EMPTY_STATE                                                 = "fixture-empty-state/"
-	TEST_FIXTURE_EXTERNAL_DEPENDENCY                                         = "fixture-external-dependency/"
-	TEST_FIXTURE_TF_TEST                                                     = "fixture-tftest/"
-	TEST_COMMANDS_THAT_NEED_INPUT                                            = "fixture-commands-that-need-input"
-	TEST_FIXTURE_PARALLEL_STATE_INIT                                         = "fixture-parallel-state-init"
-	TEST_FIXTURE_GCS_PARALLEL_STATE_INIT                                     = "fixture-gcs-parallel-state-init"
-	TEST_FIXTURE_ASSUME_ROLE                                                 = "fixture-assume-role/external-id"
-	TEST_FIXTURE_ASSUME_ROLE_DURATION                                        = "fixture-assume-role/duration"
-	TEST_FIXTURE_ASSUME_ROLE_WEB_IDENTITY_ENV                                = "fixture-assume-role-web-identity/env-var"
-	TEST_FIXTURE_ASSUME_ROLE_WEB_IDENTITY_FILE                               = "fixture-assume-role-web-identity/file-path"
-	TEST_FIXTURE_GRAPH                                                       = "fixture-graph"
-	TEST_FIXTURE_SKIP_DEPENDENCIES                                           = "fixture-skip-dependencies"
-	TEST_FIXTURE_INFO_ERROR                                                  = "fixture-terragrunt-info-error"
-	TEST_FIXTURE_DEPENDENCY_OUTPUT                                           = "fixture-dependency-output"
-	TEST_FIXTURE_OUT_DIR                                                     = "fixture-out-dir"
-	TEST_FIXTURE_SOPS_ERRORS                                                 = "fixture-sops-errors"
-	TEST_FIXTURE_AUTH_PROVIDER_CMD                                           = "fixture-auth-provider-cmd"
+	TEST_FIXTURE_NO_COLOR                                                    = "fixtures/no-color"
+	TEST_FIXTURE_READ_CONFIG                                                 = "fixtures/read-config"
+	TEST_FIXTURE_READ_IAM_ROLE                                               = "fixtures/read-config/iam_role_in_file"
+	TEST_FIXTURE_IAM_ROLES_MULTIPLE_MODULES                                  = "fixtures/read-config/iam_roles_multiple_modules"
+	TEST_FIXTURE_RELATIVE_INCLUDE_CMD                                        = "fixtures/relative-include-cmd"
+	TEST_FIXTURE_AWS_GET_CALLER_IDENTITY                                     = "fixtures/get-aws-caller-identity"
+	TEST_FIXTURE_GET_REPO_ROOT                                               = "fixtures/get-repo-root"
+	TEST_FIXTURE_GET_WORKING_DIR                                             = "fixtures/get-working-dir"
+	TEST_FIXTURE_PATH_RELATIVE_FROM_INCLUDE                                  = "fixtures/get-path/fixtures/path_relative_from_include"
+	TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT                                     = "fixtures/get-path/fixtures/get-path-from-repo-root"
+	TEST_FIXTURE_GET_PATH_TO_REPO_ROOT                                       = "fixtures/get-path/fixtures/get-path-to-repo-root"
+	TEST_FIXTURE_GET_PLATFORM                                                = "fixtures/get-platform"
+	TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_HCL                                   = "fixtures/get-terragrunt-source-hcl"
+	TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_CLI                                   = "fixtures/get-terragrunt-source-cli"
+	TEST_FIXTURE_REGRESSIONS                                                 = "fixtures/regressions"
+	TEST_FIXTURE_PLANFILE_ORDER                                              = "fixtures/planfile-order-test"
+	TEST_FIXTURE_DIRS_PATH                                                   = "fixtures/dirs"
+	TEST_FIXTURE_PARALLELISM                                                 = "fixtures/parallelism"
+	TEST_FIXTURE_SOPS                                                        = "fixtures/sops"
+	TEST_FIXTURE_DESTROY_WARNING                                             = "fixtures/destroy-warning"
+	TEST_FIXTURE_INCLUDE_PARENT                                              = "fixtures/include-parent"
+	TEST_FIXTURE_AUTO_INIT                                                   = "fixtures/download/init-on-source-change"
+	TEST_FIXTURE_DISJOINT                                                    = "fixtures/stack/disjoint"
+	TEST_FIXTURE_BROKEN_LOCALS                                               = "fixtures/broken-locals"
+	TEST_FIXTURE_BROKEN_DEPENDENCY                                           = "fixtures/broken-dependency"
+	TEST_FIXTURE_RENDER_JSON_METADATA                                        = "fixtures/render-json-metadata"
+	TEST_FIXTURE_RENDER_JSON_MOCK_OUTPUTS                                    = "fixtures/render-json-mock-outputs"
+	TEST_FIXTURE_RENDER_JSON_INPUTS                                          = "fixtures/render-json-inputs"
+	TEST_FIXTURE_OUTPUT_MODULE_GROUPS                                        = "fixtures/output-module-groups"
+	TEST_FIXTURE_STARTSWITH                                                  = "fixtures/startswith"
+	TEST_FIXTURE_TIMECMP                                                     = "fixtures/timecmp"
+	TEST_FIXTURE_TIMECMP_INVALID_TIMESTAMP                                   = "fixtures/timecmp-errors/invalid-timestamp"
+	TEST_FIXTURE_ENDSWITH                                                    = "fixtures/endswith"
+	TEST_FIXTURE_TFLINT_NO_ISSUES_FOUND                                      = "fixtures/tflint/no-issues-found"
+	TEST_FIXTURE_TFLINT_ISSUES_FOUND                                         = "fixtures/tflint/issues-found"
+	TEST_FIXTURE_TFLINT_NO_CONFIG_FILE                                       = "fixtures/tflint/no-config-file"
+	TEST_FIXTURE_TFLINT_MODULE_FOUND                                         = "fixtures/tflint/module-found"
+	TEST_FIXTURE_TFLINT_NO_TF_SOURCE_PATH                                    = "fixtures/tflint/no-tf-source"
+	TEST_FIXTURE_TFLINT_EXTERNAL_TFLINT                                      = "fixtures/tflint/external-tflint"
+	TEST_FIXTURE_TFLINT_TFVAR_PASSING                                        = "fixtures/tflint/tfvar-passing"
+	TEST_FIXTURE_TFLINT_ARGS                                                 = "fixtures/tflint/tflint-args"
+	TEST_FIXTURE_TFLINT_CUSTOM_CONFIG                                        = "fixtures/tflint/custom-tflint-config"
+	TEST_FIXTURE_PARALLEL_RUN                                                = "fixtures/parallel-run"
+	TEST_FIXTURE_INIT_ERROR                                                  = "fixtures/init-error"
+	TEST_FIXTURE_MODULE_PATH_ERROR                                           = "fixtures/module-path-in-error"
+	TEST_FIXTURE_HCLFMT_DIFF                                                 = "fixtures/hclfmt-diff"
+	TEST_FIXTURE_DESTROY_DEPENDENT_MODULE                                    = "fixtures/destroy-dependent-module"
+	TEST_FIXTURE_REF_SOURCE                                                  = "fixtures/download/remote-ref"
+	TEST_FIXTURE_SOURCE_MAP_SLASHES                                          = "fixtures/source-map/slashes-in-ref"
+	TEST_FIXTURE_STRCONTAINS                                                 = "fixtures/strcontains"
+	TEST_FIXTURE_INIT_CACHE                                                  = "fixtures/init-cache"
+	TEST_FIXTURE_NULL_VALUE                                                  = "fixtures/null-values"
+	TEST_FIXTURE_GCS_IMPERSONATE_PATH                                        = "fixtures/gcs-impersonate/"
+	TEST_FIXTURE_S3_ERRORS                                                   = "fixtures/s3-errors/"
+	TEST_FIXTURE_GCS_NO_BUCKET                                               = "fixtures/gcs-no-bucket/"
+	TEST_FIXTURE_GCS_NO_PREFIX                                               = "fixtures/gcs-no-prefix/"
+	TEST_FIXTURE_DISABLED_PATH                                               = "fixtures/disabled-path/"
+	TEST_FIXTURE_NO_SUBMODULES                                               = "fixtures/no-submodules/"
+	TEST_FIXTURE_DISABLED_MODULE                                             = "fixtures/disabled/"
+	TEST_FIXTURE_EMPTY_STATE                                                 = "fixtures/empty-state/"
+	TEST_FIXTURE_EXTERNAL_DEPENDENCY                                         = "fixtures/external-dependency/"
+	TEST_FIXTURE_TF_TEST                                                     = "fixtures/tftest/"
+	TEST_COMMANDS_THAT_NEED_INPUT                                            = "fixtures/commands-that-need-input"
+	TEST_FIXTURE_PARALLEL_STATE_INIT                                         = "fixtures/parallel-state-init"
+	TEST_FIXTURE_GCS_PARALLEL_STATE_INIT                                     = "fixtures/gcs-parallel-state-init"
+	TEST_FIXTURE_ASSUME_ROLE                                                 = "fixtures/assume-role/external-id"
+	TEST_FIXTURE_ASSUME_ROLE_DURATION                                        = "fixtures/assume-role/duration"
+	TEST_FIXTURE_ASSUME_ROLE_WEB_IDENTITY_ENV                                = "fixtures/assume-role-web-identity/env-var"
+	TEST_FIXTURE_ASSUME_ROLE_WEB_IDENTITY_FILE                               = "fixtures/assume-role-web-identity/file-path"
+	TEST_FIXTURE_GRAPH                                                       = "fixtures/graph"
+	TEST_FIXTURE_SKIP_DEPENDENCIES                                           = "fixtures/skip-dependencies"
+	TEST_FIXTURE_INFO_ERROR                                                  = "fixtures/terragrunt-info-error"
+	TEST_FIXTURE_DEPENDENCY_OUTPUT                                           = "fixtures/dependency-output"
+	TEST_FIXTURE_OUT_DIR                                                     = "fixtures/out-dir"
+	TEST_FIXTURE_SOPS_ERRORS                                                 = "fixtures/sops-errors"
+	TEST_FIXTURE_AUTH_PROVIDER_CMD                                           = "fixtures/auth-provider-cmd"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -212,7 +212,7 @@ const (
 	TERRAGRUNT_CACHE                                                         = ".terragrunt-cache"
 
 	qaMyAppRelPath  = "qa/my-app"
-	fixtureDownload = "fixture-download"
+	fixtureDownload = "fixtures/download"
 )
 
 func TestTerragruntExcludesFile(t *testing.T) {
@@ -478,7 +478,7 @@ func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_NO_BACKEND)
-	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	tmpEnvPath := copyEnvironment(t, "fixtures/hooks/init-once")
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_NO_BACKEND)
 
 	var (
@@ -504,7 +504,7 @@ func TestTerragruntInitHookNoSourceWithBackend(t *testing.T) {
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_WITH_BACKEND)
-	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	tmpEnvPath := copyEnvironment(t, "fixtures/hooks/init-once")
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_NO_SOURCE_WITH_BACKEND)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
@@ -532,7 +532,7 @@ func TestTerragruntInitHookWithSourceNoBackend(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
-	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	tmpEnvPath := copyEnvironment(t, "fixtures/hooks/init-once")
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
 
 	var (
@@ -559,7 +559,7 @@ func TestTerragruntInitHookWithSourceWithBackend(t *testing.T) {
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_WITH_BACKEND)
-	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	tmpEnvPath := copyEnvironment(t, "fixtures/hooks/init-once")
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_WITH_BACKEND)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
@@ -636,7 +636,7 @@ func TestTerragruntBeforeHook(t *testing.T) {
 func TestTerragruntHookWorkingDir(t *testing.T) {
 	t.Parallel()
 
-	fixturePath := "fixture-hooks/working_dir"
+	fixturePath := "fixtures/hooks/working_dir"
 	cleanupTerraformFolder(t, fixturePath)
 	tmpEnvPath := copyEnvironment(t, fixturePath)
 	rootPath := util.JoinPath(tmpEnvPath, fixturePath)
@@ -1095,7 +1095,7 @@ func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 	cleanupTerraformFolder(t, TEST_FIXTURE_FAILED_TERRAFORM)
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_FAILED_TERRAFORM)
 
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "fixture-failure")
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "fixtures/failure")
 
 	cmd := fmt.Sprintf("terragrunt plan-all --terragrunt-non-interactive --terragrunt-working-dir %s", rootTerragruntConfigPath)
 	var (
@@ -1603,7 +1603,7 @@ func TestAwsProviderPatch(t *testing.T) {
 	)
 	t.Log(stderr.String())
 
-	assert.Regexp(t, "Patching AWS provider in .+test/fixture-aws-provider-patch/example-module/main.tf", stderr.String())
+	assert.Regexp(t, "Patching AWS provider in .+test/fixtures/aws-provider-patch/example-module/main.tf", stderr.String())
 
 	// Make sure the resulting terraform code is still valid
 	assert.NoError(
@@ -1742,7 +1742,7 @@ func TestPreventDestroyNotSet(t *testing.T) {
 func TestPreventDestroy(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := copyEnvironment(t, "fixture-download")
+	tmpEnvPath := copyEnvironment(t, "fixtures/download")
 	fixtureRoot := util.JoinPath(tmpEnvPath, TEST_FIXTURE_LOCAL_PREVENT_DESTROY)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", fixtureRoot))
@@ -1758,7 +1758,7 @@ func TestPreventDestroy(t *testing.T) {
 func TestPreventDestroyApply(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := copyEnvironment(t, "fixture-download")
+	tmpEnvPath := copyEnvironment(t, "fixtures/download")
 
 	fixtureRoot := util.JoinPath(tmpEnvPath, TEST_FIXTURE_LOCAL_PREVENT_DESTROY)
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", fixtureRoot))
@@ -2125,7 +2125,7 @@ func TestApplySkipTrue(t *testing.T) {
 	stderr := showStderr.String()
 
 	assert.NoError(t, err)
-	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixture-skip/skip-true/terragrunt.hcl due to skip = true."), stderr)
+	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixtures/skip/skip-true/terragrunt.hcl due to skip = true."), stderr)
 	assert.NotContains(t, stdout, "hello, Hobbs")
 }
 
@@ -2167,7 +2167,7 @@ func TestApplyAllSkipTrue(t *testing.T) {
 	stderr := showStderr.String()
 
 	assert.NoError(t, err)
-	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixture-skip/skip-true/terragrunt.hcl due to skip = true."), stderr)
+	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixtures/skip/skip-true/terragrunt.hcl due to skip = true."), stderr)
 	assert.Contains(t, stdout, "hello, Ernie")
 	assert.Contains(t, stdout, "hello, Bert")
 }
@@ -2199,7 +2199,7 @@ func TestTerragruntInfo(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND_SUPPRESS_HOOK_STDOUT)
-	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	tmpEnvPath := copyEnvironment(t, "fixtures/hooks/init-once")
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND_SUPPRESS_HOOK_STDOUT)
 
 	showStdout := bytes.Buffer{}
@@ -2253,21 +2253,21 @@ func TestYamlDecodeRegressions(t *testing.T) {
 // module has been destroyed.
 func TestDependencyOutputOptimization(t *testing.T) {
 	expectOutputLogs := []string{
-		`Running command: ` + wrappedBinary() + ` init -get=false prefix=\[.*fixture-get-output/nested-optimization/dep\]`,
+		`Running command: ` + wrappedBinary() + ` init -get=false prefix=\[.*fixtures/get-output/nested-optimization/dep\]`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization", true, expectOutputLogs)
 }
 
 func TestDependencyOutputOptimizationSkipInit(t *testing.T) {
 	expectOutputLogs := []string{
-		`Detected module .*nested-optimization/dep/terragrunt.hcl is already init-ed. Retrieving outputs directly from working directory. prefix=\[.*fixture-get-output/nested-optimization/dep\]`,
+		`Detected module .*nested-optimization/dep/terragrunt.hcl is already init-ed. Retrieving outputs directly from working directory. prefix=\[.*fixtures/get-output/nested-optimization/dep\]`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization", false, expectOutputLogs)
 }
 
 func TestDependencyOutputOptimizationNoGenerate(t *testing.T) {
 	expectOutputLogs := []string{
-		`Running command: ` + wrappedBinary() + ` init -get=false prefix=\[.*fixture-get-output/nested-optimization-nogen/dep\]`,
+		`Running command: ` + wrappedBinary() + ` init -get=false prefix=\[.*fixtures/get-output/nested-optimization-nogen/dep\]`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization-nogen", true, expectOutputLogs)
 }
@@ -3296,7 +3296,7 @@ func TestGetRepoRoot(t *testing.T) {
 	repoRoot, ok := outputs["repo_root"]
 
 	require.True(t, ok)
-	require.Regexp(t, "/tmp/terragrunt-.*/fixture-get-repo-root", repoRoot.Value)
+	require.Regexp(t, "/tmp/terragrunt-.*/fixtures/get-repo-root", repoRoot.Value)
 }
 
 func TestGetWorkingDirBuiltInFunc(t *testing.T) {
@@ -3752,7 +3752,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 		t,
 		depsOut,
 		map[string]interface{}{
-			"paths": []interface{}{"../../fixture"},
+			"paths": []interface{}{"../../fixtures/basic"},
 		},
 	)
 	generateOut := map[string]interface{}{}
@@ -4163,7 +4163,7 @@ func TestTerragruntRemoteStateCodegenDoesNotGenerateWithSkip(t *testing.T) {
 func TestTerragruntValidateAllWithVersionChecks(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := copyEnvironment(t, "fixture-version-check")
+	tmpEnvPath := copyEnvironment(t, "fixtures/version-check")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -4339,7 +4339,7 @@ func TestIamRolesLoadingFromDifferentModules(t *testing.T) {
 }
 
 func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
-	fixturePath := "fixture-partial-parse/terragrunt-version-constraint"
+	fixturePath := "fixtures/partial-parse/terragrunt-version-constraint"
 	cleanupTerragruntFolder(t, fixturePath)
 
 	stdout := bytes.Buffer{}
@@ -5177,7 +5177,7 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 
 func TestTerragruntOutputFromRemoteState(t *testing.T) {
 	// NOTE: We can't run this test in parallel because there are other tests that also call `config.ClearOutputCache()`, but this function uses a global variable and sometimes it throws an unexpected error:
-	// "fixture-output-from-remote-state/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
+	// "fixtures/output-from-remote-state/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
 	// t.Parallel()
 
 	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
@@ -5881,7 +5881,7 @@ func TestTerragruntRenderJsonHelp(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
-	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	tmpEnvPath := copyEnvironment(t, "fixtures/hooks/init-once")
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_HOOKS_INIT_ONCE_WITH_SOURCE_NO_BACKEND)
 
 	showStdout := bytes.Buffer{}
@@ -6076,7 +6076,7 @@ func TestInitFailureModulePrefix(t *testing.T) {
 		runTerragruntCommand(t, fmt.Sprintf("terragrunt init -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s", initTestCase), &stdout, &stderr),
 	)
 	logBufferContentsLineByLine(t, stderr, "init")
-	assert.Contains(t, stderr.String(), "[fixture-init-error] Error")
+	assert.Contains(t, stderr.String(), "[fixtures/init-error] Error")
 }
 
 func TestDependencyOutputModulePrefix(t *testing.T) {

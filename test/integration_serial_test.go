@@ -422,20 +422,20 @@ func TestPriorityOrderOfArgument(t *testing.T) {
 func TestTerragruntValidateInputsWithEnvVar(t *testing.T) {
 	t.Setenv("TF_VAR_input", "from the env")
 
-	moduleDir := filepath.Join("fixture-validate-inputs", "fail-no-inputs")
+	moduleDir := filepath.Join("fixtures/validate-inputs", "fail-no-inputs")
 	runTerragruntValidateInputs(t, moduleDir, nil, true)
 }
 
 func TestTerragruntValidateInputsWithUnusedEnvVar(t *testing.T) {
 	t.Setenv("TF_VAR_unused", "from the env")
 
-	moduleDir := filepath.Join("fixture-validate-inputs", "success-inputs-only")
+	moduleDir := filepath.Join("fixtures/validate-inputs", "success-inputs-only")
 	args := []string{"--terragrunt-strict-validate"}
 	runTerragruntValidateInputs(t, moduleDir, args, false)
 }
 
 func TestTerragruntSourceMapEnvArg(t *testing.T) {
-	fixtureSourceMapPath := "fixture-source-map"
+	fixtureSourceMapPath := "fixtures/source-map"
 	cleanupTerraformFolder(t, fixtureSourceMapPath)
 	tmpEnvPath := copyEnvironment(t, fixtureSourceMapPath)
 	rootPath := filepath.Join(tmpEnvPath, fixtureSourceMapPath)

@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	registryFixturePath                          = "fixture-tfr"
+	registryFixturePath                          = "fixtures/tfr"
 	registryFixtureRootModulePath                = "root"
 	registryFixtureRootShorthandModulePath       = "root-shorthand"
 	registryFixtureSubdirModulePath              = "subdir"
