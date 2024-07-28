@@ -138,7 +138,9 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 		http.DefaultTransport = defaultTransport
 	}()
 
-	networkMirrorURL := runNetworkMirrorServer(t, ctx, "/providers/", providersNetkworMirrorPath)
+	token := "123456790"
+
+	networkMirrorURL := runNetworkMirrorServer(t, ctx, "/providers/", providersNetkworMirrorPath, token)
 	t.Logf("Network mirror URL: %s", networkMirrorURL)
 	t.Logf("Provdiers network mirror path: %s", providersNetkworMirrorPath)
 	t.Logf("Provdiers filesysmte mirror path: %s", providersFilesystemMirrorPath)
@@ -148,6 +150,11 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	cliConfigFilename, err := os.CreateTemp("", "*")
 	require.NoError(t, err)
 	defer cliConfigFilename.Close()
+
+	tokenEnvName := fmt.Sprintf("TF_TOKEN_%s", strings.ReplaceAll(networkMirrorURL.Hostname(), ".", "_"))
+	err = os.Setenv(tokenEnvName, token)
+	require.NoError(t, err)
+	defer os.Unsetenv(tokenEnvName)
 
 	err = os.Setenv(terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
 	require.NoError(t, err)

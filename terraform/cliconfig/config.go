@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclwrite"
+	svchost "github.com/hashicorp/terraform-svchost"
 )
 
 // ConfigHost is the structure of the "host" nested block within the CLI configuration, which can be used to override the default service host discovery behavior for a particular hostname.
@@ -109,4 +110,21 @@ func (cfg *Config) Save(configPath string) error {
 	}
 
 	return nil
+}
+
+// CredentialsSource creates and returns a service credentials source whose behavior depends on which "credentials" if are present in the receiving config.
+func (cfg *Config) CredentialsSource() *CredentialsSource {
+	configured := make(map[svchost.Hostname]string)
+	for _, creds := range cfg.Credentials {
+		host, err := svchost.ForComparison(creds.Name)
+		if err != nil {
+			// We expect the config was already validated by the time we get here, so we'll just ignore invalid hostnames.
+			continue
+		}
+		configured[host] = creds.Token
+	}
+
+	return &CredentialsSource{
+		configured: configured,
+	}
 }
