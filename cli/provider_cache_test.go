@@ -110,8 +110,8 @@ func TestProviderCache(t *testing.T) {
 
 			errGroup, ctx := errgroup.WithContext(ctx)
 
-			providerService := services.NewProviderService(providerCacheDir, pluginCacheDir)
-			providerHandler := handlers.NewProviderDirectHandler(providerService, cacheProviderHTTPStatusCode, new(cliconfig.ProviderInstallationDirect))
+			providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil)
+			providerHandler := handlers.NewProviderDirectHandler(providerService, cacheProviderHTTPStatusCode, new(cliconfig.ProviderInstallationDirect), nil)
 
 			testCase.opts = append(testCase.opts, cache.WithServices(providerService), cache.WithProviderHandlers(providerHandler))
 
@@ -155,5 +155,4 @@ func TestProviderCache(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
-
 }
