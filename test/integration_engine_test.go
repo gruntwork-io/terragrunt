@@ -186,9 +186,9 @@ func setupLocalEngine(t *testing.T) string {
 
 // testEngineVersion returns the version of the engine to be used in the test
 func testEngineVersion() string {
-	value, found := os.LookupEnv("ENGINE_VERSION")
+	value, found := os.LookupEnv("TOFU_ENGINE_VERSION")
 	if !found {
-		return "v0.0.1"
+		return "v0.0.4"
 	}
 	return value
 }
