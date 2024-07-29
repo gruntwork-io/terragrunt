@@ -24,7 +24,27 @@ There are a few ways to assume IAM roles when using AWS CLI tools, such as Terra
 
 3. A final option is to modify your AWS provider with the [assume_role configuration](https://www.terraform.io/docs/providers/aws/#assume-role) and your S3 backend with the [role_arn parameter](https://www.terraform.io/docs/backends/types/s3.html#role_arn). You can then set the credentials for the security account (the one where your IAM users are defined) as the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` and when you run `terraform apply` or `terragrunt apply`, Terraform/Terragrunt will assume the IAM role you specify automatically. The advantage of this approach is that you can store your AWS credentials in a secret store and never write them to disk in plaintext, and you get fresh credentials on every run of `apply`, without the complexity of calling `assume-role`. The disadvantage is that you have to modify all your Terraform / Terragrunt code to set the `role_arn` param and your Terraform backend configuration will change (and prompt you to manually confirm the update\!) every time you change the IAM role you’re using.
 
-To avoid these frustrating trade-offs, you can configure Terragrunt to assume an IAM role for you, as described next.
+These paths are complicated by anyone trying to use Terragrunt's built-in `run-all` to create and read resources across accounts.
+
+### Recommended Best Practices
+#### Authentication
+Terragrunt has an [auth-provider-command](https://terragrunt.gruntwork.io/docs/reference/cli-options/#terragrunt-auth-provider-cmd) cli option to dynamically auth. By default, [Pipelines](https://www.gruntwork.io/products/pipelines) is configured to make use of this cli option by intelligently figuring out where you are in your [infrastructure-live directory](https://terragrunt.gruntwork.io/docs/features/keep-your-terraform-code-dry/) tree and feed credentials that match the associated account to Terragrunt. In practice this means that [dependency blocks](https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-attributes/#dependency) for resources in different accounts when using this cli option will function across accounts by dynamically authenticating to these accounts before each terraform operation is performed.
+
+#### Modules Interacting with Multiple Accounts
+Some of the most common multi-account use cases are creating route53 records to a centrally managed zone or sharing resources using [AWS RAM](https://docs.aws.amazon.com/ram/latest/APIReference/API_CreateResourceShare.html). It's often desirable to treat these multi-account relationships similarly to single-account relationships by using [run-all](https://terragrunt.gruntwork.io/docs/reference/cli-options/#run-all) and defined `dependency` blocks.
+
+With the auth provider command defined, this works exactly as expected where you can specify a `config_path` to a module in a directory managing a different account.
+
+#### Avoiding Cyclic Dependencies
+It is best practice to avoid cyclic dependencies where 2 modules depend on each other while maintaining separation of access. To avoid this we can recommend the use of "join" modules that acts as a the bridge between 
+When writing and using modules that share resources cross account it's important to maintain a separation of access.
+
+Consider the example of an [ACM certificate](https://docs.aws.amazon.com/acm/latest/userguide/acm-overview.html). 
+To avoid these frustrating trade-offs, you can configure Terragrunt to assume an IAM role for you or use credentials specific to an account, as described next.
+
+### Configuring Terragrunt to use credentials dynamically
+
+
 
 ### Configuring Terragrunt to assume an IAM role
 
