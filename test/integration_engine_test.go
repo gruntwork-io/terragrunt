@@ -114,7 +114,7 @@ func TestEngineDownloadOverHttp(t *testing.T) {
 	arch := runtime.GOARCH
 
 	copyAndFillMapPlaceholders(t, util.JoinPath(TestFixtureRemoteEngine, "terragrunt.hcl"), util.JoinPath(rootPath, config.DefaultTerragruntConfigPath), map[string]string{
-		"__hardcoded_url__": fmt.Sprintf("https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/v0.0.2/terragrunt-iac-engine-opentofu_rpc_v0.0.2_%s_%s.zip", platform, arch),
+		"__hardcoded_url__": fmt.Sprintf("https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/v0.0.4/terragrunt-iac-engine-opentofu_rpc_v0.0.4_%s_%s.zip", platform, arch),
 	})
 
 	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
@@ -129,13 +129,31 @@ func TestEngineDownloadOverHttp(t *testing.T) {
 func TestEngineChecksumVerification(t *testing.T) {
 	t.Setenv(EnvVarExperimental, "1")
 
-	cacheDir, rootPath := setupEngineCache(t)
+	cachePath, rootPath := setupEngineCache(t)
 
-	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)
 
-	// change the checksum of the archive
+	// change the checksum of the package file
+	version := "v0.0.4"
+	platform := runtime.GOOS
+	arch := runtime.GOARCH
+	executablePath := fmt.Sprintf("terragrunt/plugins/iac-engine/rpc/%s/%s/%s/terragrunt-iac-engine-opentofu_rpc_%s_%s_%s", version, platform, arch, version, platform, arch)
+	fullPath := util.JoinPath(cachePath, executablePath)
 
+	// open the file and write some data
+	file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_WRONLY, 0600)
+	assert.NoError(t, err)
+	nonExecutableData := []byte{0x00}
+	if _, err := file.Write(nonExecutableData); err != nil {
+		assert.NoError(t, err)
+	}
+
+	assert.NoError(t, file.Close())
+	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	require.Error(t, err)
+
+	require.Contains(t, err.Error(), "checksum list has unexpected SHA-256 hash")
 }
 
 func setupEngineCache(t *testing.T) (string, string) {
