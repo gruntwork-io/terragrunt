@@ -80,7 +80,7 @@ The cached engines are stored in the following directory:
 
 If you need to use a different path, set the environment variable `TG_ENGINE_CACHE_PATH` accordingly.
 
-Downloaded engines are checked for integrity using the SHA256 checksum GPG key. 
+Downloaded engines are checked for integrity using the SHA256 checksum GPG key.
 If the checksum does not match, the engine is not executed.
 To disable this feature, set the environment variable:
 
