@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -158,7 +159,7 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 	downloads := make(map[string]string)
 	checksumFile := ""
 	checksumSigFile := ""
-	if strings.HasPrefix(e.Source, "http") {
+	if strings.HasPrefix(e.Source, "://") {
 		// if source starts with absolute path, download as is
 		downloads[e.Source] = downloadFile
 	} else {
@@ -342,11 +343,8 @@ func downloadLocksFromContext(ctx context.Context) (*util.KeyLocks, error) {
 
 // IsEngineEnabled returns true if the experimental engine is enabled.
 func IsEngineEnabled() bool {
-	switch strings.ToLower(os.Getenv(EnableExperimentalEngineEnvName)) {
-	case "1", "yes", "true", "on":
-		return true
-	}
-	return false
+	ok, _ := strconv.ParseBool(os.Getenv(EnableExperimentalEngineEnvName)) //nolint:errcheck
+	return ok
 }
 
 // Shutdown shuts down the experimental engine.
@@ -626,9 +624,6 @@ func convertMetaToProtobuf(meta map[string]interface{}) (map[string]*anypb.Any, 
 
 // skipChecksumCheck returns true if the engine checksum check is skipped.
 func skipEngineCheck() bool {
-	switch strings.ToLower(os.Getenv(EngineSkipCheckEnv)) {
-	case "1", "yes", "true", "on":
-		return true
-	}
-	return false
+	ok, _ := strconv.ParseBool(os.Getenv(EngineSkipCheckEnv)) //nolint:errcheck
+	return ok
 }

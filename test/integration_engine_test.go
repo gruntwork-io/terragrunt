@@ -4,8 +4,11 @@ package test
 
 import (
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/engine"
 	"os"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -154,6 +157,44 @@ func TestEngineChecksumVerification(t *testing.T) {
 	require.Error(t, err)
 
 	require.Contains(t, err.Error(), "checksum list has unexpected SHA-256 hash")
+}
+
+func TestEngineDisableChecksumCheck(t *testing.T) {
+	t.Setenv(EnvVarExperimental, "1")
+
+	cachePath, rootPath := setupEngineCache(t)
+
+	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	require.NoError(t, err)
+
+	err = filepath.Walk(cachePath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if strings.HasSuffix(filepath.Base(path), "_SHA256SUMS") {
+			// clean checksum list
+			if err := os.Truncate(path, 0); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	require.NoError(t, err)
+
+	// create separated directory for new tests
+	cleanupTerraformFolder(t, TestFixtureOpenTofuRunAll)
+	tmpEnvPath := copyEnvironment(t, TestFixtureOpenTofuRunAll)
+	rootPath = util.JoinPath(tmpEnvPath, TestFixtureOpenTofuRunAll)
+
+	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "verification failure")
+
+	// disable checksum check
+	t.Setenv(engine.EngineSkipCheckEnv, "1")
+
+	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	require.NoError(t, err)
 }
 
 func setupEngineCache(t *testing.T) (string, string) {
