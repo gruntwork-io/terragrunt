@@ -29,7 +29,7 @@ var LocalEngineBinaryPath = "terragrunt-iac-engine-opentofu_" + testEngineVersio
 func TestEngineLocalPlan(t *testing.T) {
 	rootPath := setupLocalEngine(t)
 
-	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", rootPath))
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, LocalEngineBinaryPath+": plugin address")
