@@ -38,7 +38,7 @@ func (reverseProxy *ReverseProxy) NewRequest(ctx echo.Context, targetURL *url.UR
 
 			if reverseProxy.CredsSource != nil {
 				hostname := svchost.Hostname(req.Out.URL.Hostname())
-				if creds, err := reverseProxy.CredsSource.ForHost(hostname); err == nil && creds != nil {
+				if creds := reverseProxy.CredsSource.ForHost(hostname); creds != nil {
 					creds.PrepareRequest(req.Out)
 				}
 			}

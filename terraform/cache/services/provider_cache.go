@@ -254,11 +254,7 @@ func (cache *ProviderCache) newRequest(ctx context.Context, url string) (*http.R
 	}
 
 	hostname := svchost.Hostname(req.URL.Hostname())
-	creds, err := cache.credsSource.ForHost(hostname)
-	if err != nil {
-		return nil, err
-	}
-	if creds != nil {
+	if creds := cache.credsSource.ForHost(hostname); creds != nil {
 		creds.PrepareRequest(req)
 	}
 

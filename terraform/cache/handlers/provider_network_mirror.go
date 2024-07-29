@@ -122,9 +122,7 @@ func (handler *ProviderNetworkMirrorHandler) do(ctx echo.Context, method, reqPat
 
 	if handler.credsSource != nil {
 		hostname := svchost.Hostname(req.URL.Hostname())
-		if creds, err := handler.credsSource.ForHost(hostname); err != nil {
-			return err
-		} else if creds != nil {
+		if creds := handler.credsSource.ForHost(hostname); creds != nil {
 			creds.PrepareRequest(req)
 		}
 	}

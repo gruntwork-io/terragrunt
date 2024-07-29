@@ -13,18 +13,18 @@ type CredentialsSource struct {
 	configured map[svchost.Hostname]string
 }
 
-func (s *CredentialsSource) ForHost(host svchost.Hostname) (svcauth.HostCredentials, error) {
+func (s *CredentialsSource) ForHost(host svchost.Hostname) svcauth.HostCredentials {
 	// The first order of precedence for credentials is a host-specific environment variable
 	if envCreds := hostCredentialsFromEnv(host); envCreds != nil {
-		return envCreds, nil
+		return envCreds
 	}
 
 	// Then, any credentials block present in the CLI config
 	if token, ok := s.configured[host]; ok {
-		return svcauth.HostCredentialsToken(token), nil
+		return svcauth.HostCredentialsToken(token)
 	}
 
-	return nil, nil
+	return nil
 }
 
 // hostCredentialsFromEnv returns a token credential by searching for a hostname-specific environment variable. The host parameter is expected to be in the "comparison" form, for example, hostnames containing non-ASCII characters like "café.fr" should be expressed as "xn--caf-dma.fr". If the variable based on the hostname is not defined, nil is returned.
