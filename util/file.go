@@ -25,6 +25,7 @@ const (
 	TerragruntCacheDir    = ".terragrunt-cache"
 	DefaultBoilerplateDir = ".boilerplate"
 	TfFileExtension       = ".tf"
+	ChecksumReadBlock     = 8192
 )
 
 // FileOrData will read the contents of the data of the given arg if it is a file, and otherwise return the contents by
@@ -722,7 +723,7 @@ func FileSHA256(filePath string) ([]byte, error) {
 	defer file.Close() //nolint:errcheck
 
 	hash := sha256.New()
-	buffer := make([]byte, 8192)
+	buffer := make([]byte, ChecksumReadBlock)
 	for {
 		n, err := file.Read(buffer)
 		if err != nil && err != io.EOF {
