@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bytes"
 	"encoding/gob"
 	"io"
 	"os"
@@ -584,15 +585,47 @@ func (err PathIsNotFile) Error() string {
 // Terraform 0.14 now generates a lock file when you run `terraform init`.
 // If any such file exists, this function will copy the lock file to the destination folder
 func CopyLockFile(sourceFolder string, destinationFolder string, logger *logrus.Entry) error {
-	sourceLockFilePath := JoinPath(sourceFolder, TerraformLockFile)
-	destinationLockFilePath := JoinPath(destinationFolder, TerraformLockFile)
-
-	if FileExists(sourceLockFilePath) {
-		logger.Debugf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
-		return CopyFile(sourceLockFilePath, destinationLockFilePath)
+	sourceLockFilePath, sourceErr := filepath.Abs(JoinPath(sourceFolder, TerraformLockFile))
+	if sourceErr != nil {
+		return errors.WithStackTrace(sourceErr)
+	}
+	destinationLockFilePath, destErr := filepath.Abs(JoinPath(destinationFolder, TerraformLockFile))
+	if destErr != nil {
+		return errors.WithStackTrace(destErr)
 	}
 
-	return nil
+	if sourceLockFilePath == destinationLockFilePath {
+		logger.Debugf("Source and destination lock file paths are the same: %s. Not copying.", sourceLockFilePath)
+		return nil
+	}
+
+	if !FileExists(sourceLockFilePath) {
+		logger.Debugf("Source lock file does not exist: %s. Not copying.", sourceLockFilePath)
+		return nil
+	}
+
+	sourceContents, sourceReadErr := os.ReadFile(sourceLockFilePath)
+	if sourceReadErr != nil {
+		return errors.WithStackTrace(sourceReadErr)
+	}
+
+	if !FileExists(destinationLockFilePath) {
+		logger.Debugf("Destination lock file does not exist: %s. Copying.", destinationLockFilePath)
+		return WriteFileWithSamePermissions(sourceLockFilePath, destinationLockFilePath, sourceContents)
+	}
+
+	destinationContents, destReadErr := os.ReadFile(destinationLockFilePath)
+	if destReadErr != nil {
+		return errors.WithStackTrace(destReadErr)
+	}
+
+	if bytes.Equal(sourceContents, destinationContents) {
+		logger.Debugf("Source and destination lock file contents are the same. Not copying.")
+		return nil
+	}
+
+	logger.Debugf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
+	return WriteFileWithSamePermissions(sourceLockFilePath, destinationLockFilePath, sourceContents)
 }
 
 // ListTfFiles returns a list of all TF files in the specified directory.
