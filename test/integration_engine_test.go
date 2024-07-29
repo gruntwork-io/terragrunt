@@ -24,7 +24,7 @@ const (
 	EnvVarExperimental = "TG_EXPERIMENTAL_ENGINE"
 )
 
-var LocalEngineBinaryPath = "terragrunt-iac-engine-opentofu_" + testEngineVersion()
+var LocalEngineBinaryPath = "terragrunt-iac-engine-opentofu_rpc_" + testEngineVersion() + "_" + runtime.GOOS + "_" + runtime.GOARCH
 
 func TestEngineLocalPlan(t *testing.T) {
 	rootPath := setupLocalEngine(t)
