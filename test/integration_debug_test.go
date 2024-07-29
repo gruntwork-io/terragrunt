@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 package test
 
 import (
@@ -15,19 +18,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-)
-
-const (
-	terragruntDebugFile = "terragrunt-debug.tfvars.json"
-
-	fixtureMultiIncludeDependency = "fixtures/multiinclude-dependency"
-	fixtureRenderJSON             = "fixtures/render-json"
-	fixtureRenderJSONRegression   = "fixtures/render-json-regression"
-)
-
-var (
-	fixtureRenderJSONMainModulePath = filepath.Join(fixtureRenderJSON, "main")
-	fixtureRenderJSONDepModulePath  = filepath.Join(fixtureRenderJSON, "dep")
 )
 
 func TestDebugGeneratedInputs(t *testing.T) {

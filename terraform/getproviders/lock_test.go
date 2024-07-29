@@ -1,3 +1,6 @@
+//go:build mocks
+// +build mocks
+
 package getproviders
 
 import (
