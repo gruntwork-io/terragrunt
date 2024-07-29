@@ -178,7 +178,6 @@ func setupLocalEngine(t *testing.T) string {
 	pwd, err := os.Getwd()
 	require.NoError(t, err)
 
-	fmt.Printf("engine source: %s", pwd+"/../"+LocalEngineBinaryPath)
 	copyAndFillMapPlaceholders(t, util.JoinPath(TestFixtureLocalEngine, "terragrunt.hcl"), util.JoinPath(rootPath, config.DefaultTerragruntConfigPath), map[string]string{
 		"__engine_source__": pwd + "/../" + LocalEngineBinaryPath,
 	})

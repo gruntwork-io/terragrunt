@@ -126,13 +126,10 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 		return nil
 	}
 	e := opts.Engine
-
-	fmt.Printf("Checking engine %s 1", e.Source)
 	if util.FileExists(e.Source) {
 		// if source is a file, no need to download, exit
 		return nil
 	}
-	fmt.Printf("Checking engine %s 2", e.Source)
 	path, err := engineDir(e)
 	if err != nil {
 		return errors.WithStackTrace(err)
