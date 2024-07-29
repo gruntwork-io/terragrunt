@@ -26,7 +26,7 @@ const (
 
 var LocalEngineBinaryPath = "terragrunt-iac-engine-opentofu_" + testEngineVersion()
 
-func TestEnginePlan(t *testing.T) {
+func TestEngineLocalPlan(t *testing.T) {
 	rootPath := setupLocalEngine(t)
 
 	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
@@ -38,7 +38,7 @@ func TestEnginePlan(t *testing.T) {
 	assert.Contains(t, stdout, "1 to add, 0 to change, 0 to destroy.")
 }
 
-func TestEngineApply(t *testing.T) {
+func TestEngineLocalApply(t *testing.T) {
 	rootPath := setupLocalEngine(t)
 
 	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
@@ -178,6 +178,7 @@ func setupLocalEngine(t *testing.T) string {
 	pwd, err := os.Getwd()
 	require.NoError(t, err)
 
+	fmt.Printf("engine source: %s", pwd+"/../"+LocalEngineBinaryPath)
 	copyAndFillMapPlaceholders(t, util.JoinPath(TestFixtureLocalEngine, "terragrunt.hcl"), util.JoinPath(rootPath, config.DefaultTerragruntConfigPath), map[string]string{
 		"__engine_source__": pwd + "/../" + LocalEngineBinaryPath,
 	})
@@ -188,7 +189,7 @@ func setupLocalEngine(t *testing.T) string {
 func testEngineVersion() string {
 	value, found := os.LookupEnv("TOFU_ENGINE_VERSION")
 	if !found {
-		return "v0.0.4"
+		return "v0.0.1"
 	}
 	return value
 }
