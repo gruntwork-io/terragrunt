@@ -126,6 +126,7 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 		return nil
 	}
 	e := opts.Engine
+
 	if util.FileExists(e.Source) {
 		// if source is a file, no need to download, exit
 		return nil
