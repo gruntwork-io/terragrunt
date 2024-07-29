@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -16,10 +17,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
+	"github.com/gruntwork-io/terragrunt/terraform/cliconfig"
 	"github.com/gruntwork-io/terragrunt/terraform/getproviders"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-getter/v2"
 	"github.com/hashicorp/go-multierror"
+	svchost "github.com/hashicorp/terraform-svchost"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
@@ -85,6 +88,8 @@ type ProviderCache struct {
 	packageDir      string
 	lockfilePath    string
 	archivePath     string
+
+	credsSource *cliconfig.CredentialsSource
 }
 
 func (cache *ProviderCache) DocumentSHA256Sums(ctx context.Context) ([]byte, error) {
@@ -94,7 +99,11 @@ func (cache *ProviderCache) DocumentSHA256Sums(ctx context.Context) ([]byte, err
 
 	var documentSHA256Sums = new(bytes.Buffer)
 
-	if err := helpers.Fetch(ctx, cache.SHA256SumsURL, documentSHA256Sums); err != nil {
+	req, err := cache.newRequest(ctx, cache.SHA256SumsURL)
+	if err != nil {
+		return nil, err
+	}
+	if err := helpers.Fetch(ctx, req, documentSHA256Sums); err != nil {
 		return nil, fmt.Errorf("failed to retrieve authentication checksums for provider %q: %w", cache.Provider, err)
 	}
 
@@ -109,7 +118,11 @@ func (cache *ProviderCache) Signature(ctx context.Context) ([]byte, error) {
 
 	var signature = new(bytes.Buffer)
 
-	if err := helpers.Fetch(ctx, cache.SHA256SumsSignatureURL, signature); err != nil {
+	req, err := cache.newRequest(ctx, cache.SHA256SumsSignatureURL)
+	if err != nil {
+		return nil, err
+	}
+	if err := helpers.Fetch(ctx, req, signature); err != nil {
 		return nil, fmt.Errorf("failed to retrieve authentication signature for provider %q: %w", cache.Provider, err)
 	}
 
@@ -204,7 +217,11 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		cache.archivePath = cache.DownloadURL
 	} else {
 		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %s", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, logrus.DebugLevel, func(ctx context.Context) error {
-			return helpers.FetchToFile(ctx, cache.DownloadURL, cache.archivePath)
+			req, err := cache.newRequest(ctx, cache.DownloadURL)
+			if err != nil {
+				return err
+			}
+			return helpers.FetchToFile(ctx, req, cache.archivePath)
 		}); err != nil {
 			return err
 		}
@@ -224,6 +241,24 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	log.Infof("Cached %s (%s)", cache.Provider, auth)
 
 	return nil
+}
+
+func (cache *ProviderCache) newRequest(ctx context.Context, url string) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
+	if cache.credsSource == nil {
+		return req, nil
+	}
+
+	hostname := svchost.Hostname(req.URL.Hostname())
+	if creds := cache.credsSource.ForHost(hostname); creds != nil {
+		creds.PrepareRequest(req)
+	}
+
+	return req, nil
 }
 
 func (cache *ProviderCache) removeArchive() error {
@@ -267,13 +302,16 @@ type ProviderService struct {
 
 	cacheMu      sync.RWMutex
 	cacheReadyMu sync.RWMutex
+
+	credsSource *cliconfig.CredentialsSource
 }
 
-func NewProviderService(cacheDir, userCacheDir string) *ProviderService {
+func NewProviderService(cacheDir, userCacheDir string, credsSource *cliconfig.CredentialsSource) *ProviderService {
 	return &ProviderService{
 		cacheDir:              cacheDir,
 		userCacheDir:          userCacheDir,
 		providerCacheWarmUpCh: make(chan *ProviderCache),
+		credsSource:           credsSource,
 	}
 }
 
@@ -312,8 +350,9 @@ func (service *ProviderService) CacheProvider(ctx context.Context, requestID str
 	packageName := fmt.Sprintf("%s-%s-%s-%s-%s", provider.RegistryName, provider.Namespace, provider.Name, provider.Version, provider.Platform())
 
 	cache := &ProviderCache{
-		Provider: provider,
-		started:  make(chan struct{}, 1),
+		Provider:    provider,
+		credsSource: service.credsSource,
+		started:     make(chan struct{}, 1),
 
 		userProviderDir: filepath.Join(service.userCacheDir, provider.Address(), provider.Version, provider.Platform()),
 		packageDir:      filepath.Join(service.cacheDir, provider.Address(), provider.Version, provider.Platform()),

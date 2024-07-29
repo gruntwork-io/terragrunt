@@ -15,11 +15,7 @@ import (
 	"github.com/hashicorp/go-getter/v2"
 )
 
-func Fetch(ctx context.Context, url string, dst io.Writer) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return errors.WithStackTrace(err)
-	}
+func Fetch(ctx context.Context, req *http.Request, dst io.Writer) error {
 	req.Header.Add("Accept-Encoding", "gzip")
 
 	resp, err := (&http.Client{}).Do(req)
@@ -29,7 +25,7 @@ func Fetch(ctx context.Context, url string, dst io.Writer) error {
 	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%s returned from %s", resp.Status, url)
+		return fmt.Errorf("%s returned from %s", resp.Status, req.URL)
 	}
 
 	reader, err := ResponseReader(resp)
@@ -47,14 +43,14 @@ func Fetch(ctx context.Context, url string, dst io.Writer) error {
 }
 
 // FetchToFile downloads the file from the given `url` into the specified `dst` file.
-func FetchToFile(ctx context.Context, url, dst string) error {
+func FetchToFile(ctx context.Context, req *http.Request, dst string) error {
 	file, err := os.Create(dst)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 	defer file.Close() //nolint:errcheck
 
-	if err := Fetch(ctx, url, file); err != nil {
+	if err := Fetch(ctx, req, file); err != nil {
 		return err
 	}
 

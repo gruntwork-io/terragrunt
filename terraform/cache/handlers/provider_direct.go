@@ -44,10 +44,10 @@ type ProviderDirectHandler struct {
 	cacheProviderHTTPStatusCode int
 }
 
-func NewProviderDirectHandler(providerService *services.ProviderService, cacheProviderHTTPStatusCode int, method *cliconfig.ProviderInstallationDirect) *ProviderDirectHandler {
+func NewProviderDirectHandler(providerService *services.ProviderService, cacheProviderHTTPStatusCode int, method *cliconfig.ProviderInstallationDirect, credsSource *cliconfig.CredentialsSource) *ProviderDirectHandler {
 	return &ProviderDirectHandler{
 		CommonProviderHandler:       NewCommonProviderHandler(method.Include, method.Exclude),
-		ReverseProxy:                &ReverseProxy{},
+		ReverseProxy:                &ReverseProxy{CredsSource: credsSource},
 		providerService:             providerService,
 		cacheProviderHTTPStatusCode: cacheProviderHTTPStatusCode,
 	}
