@@ -11,3 +11,8 @@ locals {
 
   ddd = dependency.d
 }
+
+// should not cause a dependency cycle
+dependency iam {
+  //config_path = "../iam"
+}

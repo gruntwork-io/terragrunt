@@ -79,7 +79,7 @@ type terragruntVersionConstraints struct {
 
 // terragruntDependency is a struct that can be used to only decode the dependency blocks in the terragrunt config
 type terragruntDependency struct {
-	Dependencies []Dependency `hcl:"dependency,block"`
+	Dependencies Dependencies `hcl:"dependency,block"`
 	Remain       hcl.Body     `hcl:",remain"`
 }
 
@@ -265,8 +265,9 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			if err != nil {
 				return nil, err
 			}
-			output.TerragruntDependencies = decoded.Dependencies
+			decoded.Dependencies = decoded.Dependencies.filteredWithUndefinedPath()
 
+			output.TerragruntDependencies = decoded.Dependencies
 			// Convert dependency blocks into module depenency lists. If we already decoded some dependencies,
 			// merge them in. Otherwise, set as the new list.
 			dependencies := dependencyBlocksToModuleDependencies(decoded.Dependencies)

@@ -510,7 +510,7 @@ func remoteStateAsCty(remoteState *remote.RemoteState) (cty.Value, error) {
 }
 
 // Serialize the list of dependency blocks to a cty Value as a map that maps the block names to the cty representation.
-func dependencyBlocksAsCty(dependencyBlocks []Dependency) (cty.Value, error) {
+func dependencyBlocksAsCty(dependencyBlocks Dependencies) (cty.Value, error) {
 	out := map[string]cty.Value{}
 	for _, block := range dependencyBlocks {
 		blockCty, err := goTypeToCty(block)

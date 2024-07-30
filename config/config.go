@@ -105,7 +105,7 @@ type TerragruntConfig struct {
 	IamWebIdentityToken         string
 	Inputs                      map[string]interface{}
 	Locals                      map[string]interface{}
-	TerragruntDependencies      []Dependency
+	TerragruntDependencies      Dependencies
 	GenerateConfigs             map[string]codegen.GenerateConfig
 	RetryableErrors             []string
 	RetryMaxAttempts            *int
@@ -179,7 +179,7 @@ type terragruntConfigFile struct {
 	IamAssumeRoleDuration    *int64              `hcl:"iam_assume_role_duration,attr"`
 	IamAssumeRoleSessionName *string             `hcl:"iam_assume_role_session_name,attr"`
 	IamWebIdentityToken      *string             `hcl:"iam_web_identity_token,attr"`
-	TerragruntDependencies   []Dependency        `hcl:"dependency,block"`
+	TerragruntDependencies   Dependencies        `hcl:"dependency,block"`
 
 	// We allow users to configure code generation via blocks:
 	//

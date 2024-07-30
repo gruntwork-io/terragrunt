@@ -475,13 +475,13 @@ func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 
 // Merge dependency blocks shallowly. If the source list has the same name as the target, it will override the
 // dependency block in the target. Otherwise, the blocks are appended.
-func mergeDependencyBlocks(targetDependencies []Dependency, sourceDependencies []Dependency) []Dependency {
+func mergeDependencyBlocks(targetDependencies Dependencies, sourceDependencies Dependencies) Dependencies {
 	// We track the keys so that the dependencies are added in order, with those in target prepending those in
 	// source. This is not strictly necessary, but it makes testing easier by making the output list more
 	// predictable.
 	keys := []string{}
 
-	dependencyBlocks := make(map[string]Dependency)
+	dependencyBlocks := make(map[string]*Dependency)
 	for _, dep := range targetDependencies {
 		dependencyBlocks[dep.Name] = dep
 		keys = append(keys, dep.Name)
@@ -495,7 +495,7 @@ func mergeDependencyBlocks(targetDependencies []Dependency, sourceDependencies [
 		dependencyBlocks[dep.Name] = dep
 	}
 	// Now convert the map to list and set target
-	combinedDeps := []Dependency{}
+	combinedDeps := Dependencies{}
 	for _, key := range keys {
 		combinedDeps = append(combinedDeps, dependencyBlocks[key])
 	}
@@ -504,13 +504,13 @@ func mergeDependencyBlocks(targetDependencies []Dependency, sourceDependencies [
 
 // Merge dependency blocks deeply. This works almost the same as mergeDependencyBlocks, except it will recursively merge
 // attributes of the dependency struct if they share the same name.
-func deepMergeDependencyBlocks(targetDependencies []Dependency, sourceDependencies []Dependency) ([]Dependency, error) {
+func deepMergeDependencyBlocks(targetDependencies Dependencies, sourceDependencies Dependencies) (Dependencies, error) {
 	// We track the keys so that the dependencies are added in order, with those in target prepending those in
 	// source. This is not strictly necessary, but it makes testing easier by making the output list more
 	// predictable.
 	keys := []string{}
 
-	dependencyBlocks := make(map[string]Dependency)
+	dependencyBlocks := make(map[string]*Dependency)
 	for _, dep := range targetDependencies {
 		dependencyBlocks[dep.Name] = dep
 		keys = append(keys, dep.Name)
@@ -518,11 +518,10 @@ func deepMergeDependencyBlocks(targetDependencies []Dependency, sourceDependenci
 	for _, dep := range sourceDependencies {
 		sameKeyDep, hasSameKey := dependencyBlocks[dep.Name]
 		if hasSameKey {
-			sameKeyDepPtr := &sameKeyDep
-			if err := sameKeyDepPtr.DeepMerge(dep); err != nil {
+			if err := sameKeyDep.DeepMerge(dep); err != nil {
 				return nil, err
 			}
-			dependencyBlocks[dep.Name] = *sameKeyDepPtr
+			dependencyBlocks[dep.Name] = sameKeyDep
 		} else {
 			dependencyBlocks[dep.Name] = dep
 			keys = append(keys, dep.Name)
@@ -530,7 +529,7 @@ func deepMergeDependencyBlocks(targetDependencies []Dependency, sourceDependenci
 
 	}
 	// Now convert the map to list and set target
-	combinedDeps := []Dependency{}
+	combinedDeps := Dependencies{}
 	for _, key := range keys {
 		combinedDeps = append(combinedDeps, dependencyBlocks[key])
 	}

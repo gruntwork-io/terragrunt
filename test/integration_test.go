@@ -329,6 +329,23 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 				Values:               []diagnostic.ExpressionValue{diagnostic.ExpressionValue{Traversal: "dependency.a", Statement: "is object with no attributes"}},
 			},
 		},
+		&diagnostic.Diagnostic{
+			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
+			Summary:  "Missing required argument",
+			Detail:   "The argument \"config_path\" is required, but no definition was found.",
+			Range: &diagnostic.Range{
+				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
+				Start:    diagnostic.Pos{Line: 16, Column: 16, Byte: 219},
+				End:      diagnostic.Pos{Line: 16, Column: 17, Byte: 220},
+			},
+			Snippet: &diagnostic.Snippet{
+				Context:              "dependency \"iam\"",
+				Code:                 "dependency iam {",
+				StartLine:            16,
+				HighlightStartOffset: 15,
+				HighlightEndOffset:   16,
+			},
+		},
 	}
 
 	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hclvalidate --terragrunt-working-dir %s --terragrunt-hclvalidate-json", rootPath))

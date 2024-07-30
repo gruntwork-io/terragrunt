@@ -52,10 +52,10 @@ func assertModulesEqual(t *testing.T, expected *TerraformModule, actual *Terrafo
 		// When comparing the TerragruntConfig objects, we need to normalize the dependency list to explicitly set the
 		// expected to empty list when nil, as the parsing routine will set it to empty list instead of nil.
 		if expected.Config.TerragruntDependencies == nil {
-			expected.Config.TerragruntDependencies = []config.Dependency{}
+			expected.Config.TerragruntDependencies = config.Dependencies{}
 		}
 		if actual.Config.TerragruntDependencies == nil {
-			actual.Config.TerragruntDependencies = []config.Dependency{}
+			actual.Config.TerragruntDependencies = config.Dependencies{}
 		}
 		assert.Equal(t, expected.Config, actual.Config, messageAndArgs...)
 

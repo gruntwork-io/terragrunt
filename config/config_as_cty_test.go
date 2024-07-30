@@ -88,7 +88,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 			"quote": "the answer is 42",
 		},
 		DependentModulesPath: dependentModulesPath,
-		TerragruntDependencies: []Dependency{
+		TerragruntDependencies: Dependencies{
 			{
 				Name:                                "foo",
 				ConfigPath:                          "foo",

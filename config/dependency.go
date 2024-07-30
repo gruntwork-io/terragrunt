@@ -35,6 +35,21 @@ import (
 
 const renderJsonCommand = "render-json"
 
+type Dependencies []*Dependency
+
+// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this leads to a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
+func (deps Dependencies) filteredWithUndefinedPath() Dependencies {
+	var filteredDeps Dependencies
+
+	for _, dep := range deps {
+		if dep.ConfigPath != "" {
+			filteredDeps = append(filteredDeps, dep)
+		}
+	}
+
+	return filteredDeps
+}
+
 type Dependency struct {
 	Name                                string     `hcl:",label" cty:"name"`
 	Enabled                             *bool      `hcl:"enabled,attr" cty:"enabled"`
@@ -60,7 +75,7 @@ type Dependency struct {
 //   - For MockOutputsAllowedTerraformCommands, the source will be concatenated to the target.
 //
 // Note that RenderedOutputs is ignored in the deep merge operation.
-func (targetDepConfig *Dependency) DeepMerge(sourceDepConfig Dependency) error {
+func (targetDepConfig *Dependency) DeepMerge(sourceDepConfig *Dependency) error {
 	if sourceDepConfig.ConfigPath != "" {
 		targetDepConfig.ConfigPath = sourceDepConfig.ConfigPath
 	}
@@ -179,6 +194,7 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 	if err := file.Decode(&decodedDependency, evalParsingContext); err != nil {
 		return nil, err
 	}
+	decodedDependency.Dependencies = decodedDependency.Dependencies.filteredWithUndefinedPath()
 
 	if err := checkForDependencyBlockCycles(ctx, file.ConfigPath, decodedDependency); err != nil {
 		return nil, err
@@ -227,7 +243,7 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 
 // Convert the list of parsed Dependency blocks into a list of module dependencies. Each output block should
 // become a dependency of the current config, since that module has to be applied before we can read the output.
-func dependencyBlocksToModuleDependencies(decodedDependencyBlocks []Dependency) *ModuleDependencies {
+func dependencyBlocksToModuleDependencies(decodedDependencyBlocks Dependencies) *ModuleDependencies {
 	if len(decodedDependencyBlocks) == 0 {
 		return nil
 	}
@@ -323,7 +339,7 @@ func getDependencyBlockConfigPathsByFilepath(ctx *ParsingContext, configPath str
 //     dependency.
 //
 // This routine will go through the process of obtaining the outputs using `terragrunt output` from the target config.
-func dependencyBlocksToCtyValue(ctx *ParsingContext, dependencyConfigs []Dependency) (*cty.Value, error) {
+func dependencyBlocksToCtyValue(ctx *ParsingContext, dependencyConfigs Dependencies) (*cty.Value, error) {
 	paths := []string{}
 
 	// dependencyMap is the top level map that maps dependency block names to the encoded version, which includes
@@ -642,7 +658,9 @@ func getTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, 
 
 	// First attempt to parse the `remote_state` blocks without parsing/getting dependency outputs. If this is possible,
 	// proceed to routine that fetches remote state directly. Otherwise, fallback to calling `terragrunt output`
-	// directly. We need to suspend logging diagnostic errors on this attempt.
+	// directly.
+
+	// we need to suspend logging diagnostic errors on this attempt
 	parseOptions := append(ctx.ParserOptions, hclparse.WithDiagnosticsWriter(io.Discard, true))
 	remoteStateTGConfig, err := PartialParseConfigFile(ctx.WithParseOption(parseOptions).WithDecodeList(RemoteStateBlock, TerragruntFlags), targetConfig, nil)
 	if err != nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {

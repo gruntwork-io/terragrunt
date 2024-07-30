@@ -147,7 +147,7 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 	for _, testCase := range testCases {
 		// if nil, initialize to empty dependency list
 		if testCase.expected.TerragruntDependencies == nil {
-			testCase.expected.TerragruntDependencies = []Dependency{}
+			testCase.expected.TerragruntDependencies = Dependencies{}
 		}
 
 		err := testCase.includedConfig.Merge(testCase.config, mockOptionsForTest(t))
@@ -247,21 +247,21 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 		{
 			"dependencies",
 			&TerragruntConfig{Dependencies: &ModuleDependencies{Paths: []string{"../vpc"}},
-				TerragruntDependencies: []Dependency{
+				TerragruntDependencies: Dependencies{
 					{
 						Name:       "vpc",
 						ConfigPath: "../vpc",
 					},
 				}},
 			&TerragruntConfig{Dependencies: &ModuleDependencies{Paths: []string{"../mysql"}},
-				TerragruntDependencies: []Dependency{
+				TerragruntDependencies: Dependencies{
 					{
 						Name:       "mysql",
 						ConfigPath: "../mysql",
 					},
 				}},
 			&TerragruntConfig{Dependencies: &ModuleDependencies{Paths: []string{"../mysql", "../vpc"}},
-				TerragruntDependencies: []Dependency{
+				TerragruntDependencies: Dependencies{
 					{
 						Name:       "mysql",
 						ConfigPath: "../mysql",
@@ -296,7 +296,7 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 
 			// if nil, initialize to empty dependency list
 			if testCase.expected.TerragruntDependencies == nil {
-				testCase.expected.TerragruntDependencies = []Dependency{}
+				testCase.expected.TerragruntDependencies = Dependencies{}
 			}
 			assert.Equal(t, testCase.expected, testCase.target)
 		})
