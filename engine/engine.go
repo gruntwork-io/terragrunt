@@ -159,7 +159,7 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 	downloads := make(map[string]string)
 	checksumFile := ""
 	checksumSigFile := ""
-	if strings.HasPrefix(e.Source, "://") {
+	if strings.Contains(e.Source, "://") {
 		// if source starts with absolute path, download as is
 		downloads[e.Source] = downloadFile
 	} else {
