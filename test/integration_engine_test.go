@@ -4,12 +4,13 @@ package test
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/engine"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/engine"
 
 	"github.com/gruntwork-io/terragrunt/config"
 
