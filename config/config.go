@@ -179,7 +179,7 @@ type terragruntConfigFile struct {
 	IamAssumeRoleDuration    *int64              `hcl:"iam_assume_role_duration,attr"`
 	IamAssumeRoleSessionName *string             `hcl:"iam_assume_role_session_name,attr"`
 	IamWebIdentityToken      *string             `hcl:"iam_web_identity_token,attr"`
-	TerragruntDependencies   Dependencies        `hcl:"dependency,block"`
+	TerragruntDependencies   []Dependency        `hcl:"dependency,block"`
 
 	// We allow users to configure code generation via blocks:
 	//

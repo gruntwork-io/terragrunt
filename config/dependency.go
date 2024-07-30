@@ -35,14 +35,13 @@ import (
 
 const renderJsonCommand = "render-json"
 
-type Dependencies []*Dependency
+type Dependencies []Dependency
 
-// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this leads to a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
-func (deps Dependencies) filteredWithUndefinedPath() Dependencies {
+func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
 	var filteredDeps Dependencies
 
 	for _, dep := range deps {
-		if dep.ConfigPath != "" {
+		if !dep.ConfigPath.IsNull() {
 			filteredDeps = append(filteredDeps, dep)
 		}
 	}
@@ -53,7 +52,7 @@ func (deps Dependencies) filteredWithUndefinedPath() Dependencies {
 type Dependency struct {
 	Name                                string     `hcl:",label" cty:"name"`
 	Enabled                             *bool      `hcl:"enabled,attr" cty:"enabled"`
-	ConfigPath                          string     `hcl:"config_path,attr" cty:"config_path"`
+	ConfigPath                          cty.Value  `hcl:"config_path,attr" cty:"config_path"`
 	SkipOutputs                         *bool      `hcl:"skip_outputs,attr" cty:"skip"`
 	MockOutputs                         *cty.Value `hcl:"mock_outputs,attr" cty:"mock_outputs"`
 	MockOutputsAllowedTerraformCommands *[]string  `hcl:"mock_outputs_allowed_terraform_commands,attr" cty:"mock_outputs_allowed_terraform_commands"`
@@ -75,8 +74,8 @@ type Dependency struct {
 //   - For MockOutputsAllowedTerraformCommands, the source will be concatenated to the target.
 //
 // Note that RenderedOutputs is ignored in the deep merge operation.
-func (targetDepConfig *Dependency) DeepMerge(sourceDepConfig *Dependency) error {
-	if sourceDepConfig.ConfigPath != "" {
+func (targetDepConfig *Dependency) DeepMerge(sourceDepConfig Dependency) error {
+	if sourceDepConfig.ConfigPath.AsString() != "" {
 		targetDepConfig.ConfigPath = sourceDepConfig.ConfigPath
 	}
 
@@ -194,7 +193,8 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 	if err := file.Decode(&decodedDependency, evalParsingContext); err != nil {
 		return nil, err
 	}
-	decodedDependency.Dependencies = decodedDependency.Dependencies.filteredWithUndefinedPath()
+	// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
+	decodedDependency.Dependencies = decodedDependency.Dependencies.FilteredWithoutConfigPath()
 
 	if err := checkForDependencyBlockCycles(ctx, file.ConfigPath, decodedDependency); err != nil {
 		return nil, err
@@ -203,7 +203,7 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 	// Mark skipped dependencies as disabled
 	updatedDependencies := terragruntDependency{}
 	for _, dep := range decodedDependency.Dependencies {
-		depPath := getCleanedTargetConfigPath(dep.ConfigPath, ctx.TerragruntOptions.TerragruntConfigPath)
+		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
 		if dep.isEnabled() && util.FileExists(depPath) {
 			depOpts := cloneTerragruntOptionsForDependency(ctx, depPath)
 			depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
@@ -243,7 +243,7 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 
 // Convert the list of parsed Dependency blocks into a list of module dependencies. Each output block should
 // become a dependency of the current config, since that module has to be applied before we can read the output.
-func dependencyBlocksToModuleDependencies(decodedDependencyBlocks Dependencies) *ModuleDependencies {
+func dependencyBlocksToModuleDependencies(decodedDependencyBlocks []Dependency) *ModuleDependencies {
 	if len(decodedDependencyBlocks) == 0 {
 		return nil
 	}
@@ -254,7 +254,7 @@ func dependencyBlocksToModuleDependencies(decodedDependencyBlocks Dependencies) 
 		if !decodedDependencyBlock.isEnabled() {
 			continue
 		}
-		paths = append(paths, decodedDependencyBlock.ConfigPath)
+		paths = append(paths, decodedDependencyBlock.ConfigPath.AsString())
 	}
 
 	return &ModuleDependencies{Paths: paths}
@@ -269,7 +269,7 @@ func checkForDependencyBlockCycles(ctx *ParsingContext, configPath string, decod
 		if dependency.isDisabled() {
 			continue
 		}
-		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath, configPath)
+		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath.AsString(), configPath)
 		dependencyConetxt := ctx.WithTerragruntOptions(cloneTerragruntOptionsForDependency(ctx, dependencyPath))
 
 		if err := checkForDependencyBlockCyclesUsingDFS(dependencyConetxt, dependencyPath, &visitedPaths, &currentTraversalPaths); err != nil {
@@ -339,7 +339,7 @@ func getDependencyBlockConfigPathsByFilepath(ctx *ParsingContext, configPath str
 //     dependency.
 //
 // This routine will go through the process of obtaining the outputs using `terragrunt output` from the target config.
-func dependencyBlocksToCtyValue(ctx *ParsingContext, dependencyConfigs Dependencies) (*cty.Value, error) {
+func dependencyBlocksToCtyValue(ctx *ParsingContext, dependencyConfigs []Dependency) (*cty.Value, error) {
 	paths := []string{}
 
 	// dependencyMap is the top level map that maps dependency block names to the encoded version, which includes
@@ -362,7 +362,7 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, dependencyConfigs Dependenc
 
 			if dependencyConfig.RenderedOutputs != nil {
 				lock.Lock()
-				paths = append(paths, dependencyConfig.ConfigPath)
+				paths = append(paths, dependencyConfig.ConfigPath.AsString())
 				lock.Unlock()
 				dependencyEncodingMap["outputs"] = *dependencyConfig.RenderedOutputs
 			}
@@ -439,7 +439,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, depe
 	// When we get no output, it can be an indication that either the module has no outputs or the module is not
 	// applied. In either case, check if there are default output values to return. If yes, return that. Else,
 	// return error.
-	targetConfig := getCleanedTargetConfigPath(dependencyConfig.ConfigPath, ctx.TerragruntOptions.TerragruntConfigPath)
+	targetConfig := getCleanedTargetConfigPath(dependencyConfig.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
 	currentConfig := ctx.TerragruntOptions.TerragruntConfigPath
 	if dependencyConfig.shouldReturnMockOutputs(ctx) {
 		ctx.TerragruntOptions.Logger.Debugf("WARNING: config %s is a dependency of %s that has no outputs, but mock outputs provided and returning those in dependency output.",
@@ -478,7 +478,7 @@ func (dependencyConfig Dependency) shouldReturnMockOutputs(ctx *ParsingContext) 
 // module hasn't been applied yet.
 func getTerragruntOutput(ctx *ParsingContext, dependencyConfig Dependency) (*cty.Value, bool, error) {
 	// target config check: make sure the target config exists
-	targetConfigPath := getCleanedTargetConfigPath(dependencyConfig.ConfigPath, ctx.TerragruntOptions.TerragruntConfigPath)
+	targetConfigPath := getCleanedTargetConfigPath(dependencyConfig.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
 	if !util.FileExists(targetConfigPath) {
 		return nil, true, errors.WithStackTrace(DependencyConfigNotFound{Path: targetConfigPath})
 	}

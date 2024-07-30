@@ -265,7 +265,8 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			if err != nil {
 				return nil, err
 			}
-			decoded.Dependencies = decoded.Dependencies.filteredWithUndefinedPath()
+			// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
+			decoded.Dependencies = decoded.Dependencies.FilteredWithoutConfigPath()
 
 			output.TerragruntDependencies = decoded.Dependencies
 			// Convert dependency blocks into module depenency lists. If we already decoded some dependencies,
