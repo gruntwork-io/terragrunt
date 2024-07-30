@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func TestMergeConfigIntoIncludedConfig(t *testing.T) {
@@ -250,25 +251,25 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 				TerragruntDependencies: Dependencies{
 					{
 						Name:       "vpc",
-						ConfigPath: "../vpc",
+						ConfigPath: cty.StringVal("../vpc"),
 					},
 				}},
 			&TerragruntConfig{Dependencies: &ModuleDependencies{Paths: []string{"../mysql"}},
 				TerragruntDependencies: Dependencies{
 					{
 						Name:       "mysql",
-						ConfigPath: "../mysql",
+						ConfigPath: cty.StringVal("../mysql"),
 					},
 				}},
 			&TerragruntConfig{Dependencies: &ModuleDependencies{Paths: []string{"../mysql", "../vpc"}},
 				TerragruntDependencies: Dependencies{
 					{
 						Name:       "mysql",
-						ConfigPath: "../mysql",
+						ConfigPath: cty.StringVal("../mysql"),
 					},
 					{
 						Name:       "vpc",
-						ConfigPath: "../vpc",
+						ConfigPath: cty.StringVal("../vpc"),
 					},
 				}},
 		},

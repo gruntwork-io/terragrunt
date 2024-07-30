@@ -91,7 +91,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 		TerragruntDependencies: Dependencies{
 			{
 				Name:                                "foo",
-				ConfigPath:                          "foo",
+				ConfigPath:                          cty.StringVal("foo"),
 				SkipOutputs:                         &testTrue,
 				MockOutputs:                         &mockOutputs,
 				MockOutputsAllowedTerraformCommands: &mockOutputsAllowedTerraformCommands,
