@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func TestPartialParseResolvesLocals(t *testing.T) {
@@ -177,7 +178,7 @@ dependency "vpc" {
 	require.NotNil(t, terragruntConfig.TerragruntDependencies)
 	assert.Equal(t, len(terragruntConfig.TerragruntDependencies), 1)
 	assert.Equal(t, terragruntConfig.TerragruntDependencies[0].Name, "vpc")
-	assert.Equal(t, terragruntConfig.TerragruntDependencies[0].ConfigPath, "../app1")
+	assert.Equal(t, terragruntConfig.TerragruntDependencies[0].ConfigPath, cty.StringVal("../app1"))
 }
 
 func TestPartialParseMultipleDependencyBlockSetsTerragruntDependencies(t *testing.T) {
@@ -201,9 +202,9 @@ dependency "sql" {
 	require.NotNil(t, terragruntConfig.TerragruntDependencies)
 	assert.Equal(t, len(terragruntConfig.TerragruntDependencies), 2)
 	assert.Equal(t, terragruntConfig.TerragruntDependencies[0].Name, "vpc")
-	assert.Equal(t, terragruntConfig.TerragruntDependencies[0].ConfigPath, "../app1")
+	assert.Equal(t, terragruntConfig.TerragruntDependencies[0].ConfigPath, cty.StringVal("../app1"))
 	assert.Equal(t, terragruntConfig.TerragruntDependencies[1].Name, "sql")
-	assert.Equal(t, terragruntConfig.TerragruntDependencies[1].ConfigPath, "../db1")
+	assert.Equal(t, terragruntConfig.TerragruntDependencies[1].ConfigPath, cty.StringVal("../db1"))
 }
 
 func TestPartialParseDependencyBlockSetsDependencies(t *testing.T) {
