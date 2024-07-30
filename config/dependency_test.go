@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 )
 
@@ -36,9 +37,9 @@ dependency "sql" {
 
 	assert.Equal(t, len(decoded.Dependencies), 2)
 	assert.Equal(t, decoded.Dependencies[0].Name, "vpc")
-	assert.Equal(t, decoded.Dependencies[0].ConfigPath, "../vpc")
+	assert.Equal(t, decoded.Dependencies[0].ConfigPath, cty.StringVal("../vpc"))
 	assert.Equal(t, decoded.Dependencies[1].Name, "sql")
-	assert.Equal(t, decoded.Dependencies[1].ConfigPath, "../sql")
+	assert.Equal(t, decoded.Dependencies[1].ConfigPath, cty.StringVal("../sql"))
 }
 
 func TestDecodeNoDependencyBlock(t *testing.T) {
@@ -96,7 +97,7 @@ dependency "hitchhiker" {
 	assert.Equal(t, len(decoded.Dependencies), 1)
 	dependency := decoded.Dependencies[0]
 	assert.Equal(t, dependency.Name, "hitchhiker")
-	assert.Equal(t, dependency.ConfigPath, "../answers")
+	assert.Equal(t, dependency.ConfigPath, cty.StringVal("../answers"))
 
 	ctyValueDefault := dependency.MockOutputs
 	require.NotNil(t, ctyValueDefault)

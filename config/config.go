@@ -105,7 +105,7 @@ type TerragruntConfig struct {
 	IamWebIdentityToken         string
 	Inputs                      map[string]interface{}
 	Locals                      map[string]interface{}
-	TerragruntDependencies      []Dependency
+	TerragruntDependencies      Dependencies
 	GenerateConfigs             map[string]codegen.GenerateConfig
 	RetryableErrors             []string
 	RetryMaxAttempts            *int

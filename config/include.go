@@ -468,7 +468,7 @@ func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 		return m
 	}
 	for _, dependency := range config.TerragruntDependencies {
-		m[dependency.Name] = dependency.ConfigPath
+		m[dependency.Name] = dependency.ConfigPath.AsString()
 	}
 	return m
 }

@@ -88,10 +88,10 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 			"quote": "the answer is 42",
 		},
 		DependentModulesPath: dependentModulesPath,
-		TerragruntDependencies: []Dependency{
+		TerragruntDependencies: Dependencies{
 			{
 				Name:                                "foo",
-				ConfigPath:                          "foo",
+				ConfigPath:                          cty.StringVal("foo"),
 				SkipOutputs:                         &testTrue,
 				MockOutputs:                         &mockOutputs,
 				MockOutputsAllowedTerraformCommands: &mockOutputsAllowedTerraformCommands,

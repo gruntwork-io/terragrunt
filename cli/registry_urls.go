@@ -47,7 +47,7 @@ func DiscoveryURL(ctx context.Context, registryName string) (*RegistryURLs, erro
 	defer resp.Body.Close() //nolint:errcheck
 
 	switch resp.StatusCode {
-	case http.StatusNotFound:
+	case http.StatusNotFound, http.StatusInternalServerError:
 		return nil, errors.WithStackTrace(NotFoundWellKnownURL{wellKnownURL})
 	case http.StatusOK:
 	default:
