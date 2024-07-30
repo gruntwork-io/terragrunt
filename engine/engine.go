@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -40,7 +41,9 @@ const (
 	EngineCacheDir                                   = "terragrunt/plugins/iac-engine"
 	PrefixTrim                                       = "terragrunt-"
 	FileNameFormat                                   = "terragrunt-iac-%s_%s_%s_%s_%s"
+	ChecksumFileNameFormat                           = "terragrunt-iac-%s_%s_%s_SHA256SUMS"
 	EngineCachePathEnv                               = "TG_ENGINE_CACHE_PATH"
+	EngineSkipCheckEnv                               = "TG_ENGINE_SKIP_CHECK"
 	TerraformCommandContextKey      engineClientsKey = iota
 	LocksContextKey                 engineLocksKey   = iota
 )
@@ -152,28 +155,48 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 		return nil
 	}
 	downloadFile := filepath.Join(path, enginePackageName(e))
-	var downloadURL string
-	if strings.HasPrefix(e.Source, "http") {
+
+	downloads := make(map[string]string)
+	checksumFile := ""
+	checksumSigFile := ""
+	if strings.Contains(e.Source, "://") {
 		// if source starts with absolute path, download as is
-		downloadURL = e.Source
+		downloads[e.Source] = downloadFile
 	} else {
-		// Archive support documented in https://github.com/hashicorp/go-getter?tab=readme-ov-file#unarchiving
-		downloadURL = fmt.Sprintf("https://%s/releases/download/%s/%s",
-			e.Source, e.Version, enginePackageName(e))
+		baseURL := fmt.Sprintf("https://%s/releases/download/%s", e.Source, e.Version)
+
+		// URLs and their corresponding local paths
+		checksumFile = filepath.Join(path, engineChecksumName(e))
+		checksumSigFile = filepath.Join(path, engineChecksumSigName(e))
+		downloads[fmt.Sprintf("%s/%s", baseURL, enginePackageName(e))] = downloadFile
+		downloads[fmt.Sprintf("%s/%s", baseURL, engineChecksumName(e))] = checksumFile
+		downloads[fmt.Sprintf("%s/%s.sig", baseURL, engineChecksumName(e))] = checksumSigFile
 	}
 
-	client := &getter.Client{
-		Ctx:           ctx,
-		Src:           downloadURL,
-		Dst:           downloadFile,
-		Mode:          getter.ClientModeFile,
-		Decompressors: map[string]getter.Decompressor{},
+	for url, path := range downloads {
+		opts.Logger.Infof("Downloading %s to %s", url, path)
+		client := &getter.Client{
+			Ctx:           ctx,
+			Src:           url,
+			Dst:           path,
+			Mode:          getter.ClientModeFile,
+			Decompressors: map[string]getter.Decompressor{},
+		}
+
+		if err := client.Get(); err != nil {
+			return errors.WithStackTrace(err)
+		}
 	}
 
-	if err := client.Get(); err != nil {
-		return errors.WithStackTrace(err)
+	if !skipEngineCheck() && checksumFile != "" && checksumSigFile != "" {
+		opts.Logger.Infof("Verifying checksum for %s", downloadFile)
+		if err := verifyFile(downloadFile, checksumFile, checksumSigFile); err != nil {
+			return errors.WithStackTrace(err)
+		}
+	} else {
+		opts.Logger.Warnf("Skipping verification for %s", downloadFile)
 	}
-	opts.Logger.Infof("Engine downloaded to %s", downloadFile)
+
 	if err := extractArchive(opts, downloadFile, localEngineFile); err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -262,6 +285,19 @@ func engineFileName(e *options.EngineOptions) string {
 	return fmt.Sprintf(FileNameFormat, engineName, e.Type, e.Version, platform, arch)
 }
 
+// engineChecksumName returns the file name of engine checksum file
+func engineChecksumName(e *options.EngineOptions) string {
+	engineName := filepath.Base(e.Source)
+
+	engineName = strings.TrimPrefix(engineName, PrefixTrim)
+	return fmt.Sprintf(ChecksumFileNameFormat, engineName, e.Type, e.Version)
+}
+
+// engineChecksumSigName returns the file name of engine checksum file signature
+func engineChecksumSigName(e *options.EngineOptions) string {
+	return fmt.Sprintf("%s.sig", engineChecksumName(e))
+}
+
 // enginePackageName returns the package name for the engine.
 func enginePackageName(e *options.EngineOptions) string {
 	return fmt.Sprintf("%s.zip", engineFileName(e))
@@ -307,11 +343,8 @@ func downloadLocksFromContext(ctx context.Context) (*util.KeyLocks, error) {
 
 // IsEngineEnabled returns true if the experimental engine is enabled.
 func IsEngineEnabled() bool {
-	switch strings.ToLower(os.Getenv(EnableExperimentalEngineEnvName)) {
-	case "1", "yes", "true", "on":
-		return true
-	}
-	return false
+	ok, _ := strconv.ParseBool(os.Getenv(EnableExperimentalEngineEnvName)) //nolint:errcheck
+	return ok
 }
 
 // Shutdown shuts down the experimental engine.
@@ -345,6 +378,16 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 		return nil, nil, errors.WithStackTrace(err)
 	}
 	localEnginePath := filepath.Join(path, engineFileName(terragruntOptions.Engine))
+	localChecksumFile := filepath.Join(path, engineChecksumName(terragruntOptions.Engine))
+	localChecksumSigFile := filepath.Join(path, engineChecksumSigName(terragruntOptions.Engine))
+	// validate engine before loading if verification is not disabled
+	if !skipEngineCheck() && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) && util.FileExists(localChecksumSigFile) {
+		if err := verifyFile(localEnginePath, localChecksumFile, localChecksumSigFile); err != nil {
+			return nil, nil, errors.WithStackTrace(err)
+		}
+	} else {
+		terragruntOptions.Logger.Warnf("Skipping verification for %s", localEnginePath)
+	}
 	terragruntOptions.Logger.Debugf("Creating engine %s", localEnginePath)
 
 	logger := hclog.NewInterceptLogger(&hclog.LoggerOptions{
@@ -577,4 +620,10 @@ func convertMetaToProtobuf(meta map[string]interface{}) (map[string]*anypb.Any, 
 		protoMeta[key] = v
 	}
 	return protoMeta, nil
+}
+
+// skipChecksumCheck returns true if the engine checksum check is skipped.
+func skipEngineCheck() bool {
+	ok, _ := strconv.ParseBool(os.Getenv(EngineSkipCheckEnv)) //nolint:errcheck
+	return ok
 }

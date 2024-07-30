@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/util"
+
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
@@ -159,14 +161,7 @@ func NewMatchingChecksumAuthentication(document []byte, filename string, wantSHA
 func (auth matchingChecksumAuthentication) Authenticate(location string) (*PackageAuthenticationResult, error) {
 	// Find the checksum in the list with matching filename. The document is in the form "0123456789abcdef filename.zip".
 	filename := []byte(auth.Filename)
-	var checksum []byte
-	for _, line := range bytes.Split(auth.Document, []byte("\n")) {
-		parts := bytes.Fields(line)
-		if len(parts) > 1 && bytes.Equal(parts[1], filename) {
-			checksum = parts[0]
-			break
-		}
-	}
+	checksum := util.MatchSha256Checksum(auth.Document, filename)
 	if checksum == nil {
 		return nil, errors.Errorf("checksum list has no SHA-256 hash for %q", auth.Filename)
 	}
