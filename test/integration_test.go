@@ -279,40 +279,6 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 		},
 		&diagnostic.Diagnostic{
 			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
-			Summary:  "Can't evaluate expression",
-			Detail:   "You can only reference to other local variables here, but it looks like you're referencing something else (\"dependency\" is not defined)",
-			Range: &diagnostic.Range{
-				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
-				Start:    diagnostic.Pos{Line: 10, Column: 9, Byte: 117},
-				End:      diagnostic.Pos{Line: 10, Column: 31, Byte: 139},
-			},
-			Snippet: &diagnostic.Snippet{
-				Context:              "locals",
-				Code:                 "  vvv = dependency.a.outputs.z",
-				StartLine:            10,
-				HighlightStartOffset: 8,
-				HighlightEndOffset:   30,
-			},
-		},
-		&diagnostic.Diagnostic{
-			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
-			Summary:  "Can't evaluate expression",
-			Detail:   "You can only reference to other local variables here, but it looks like you're referencing something else (\"dependency\" is not defined)",
-			Range: &diagnostic.Range{
-				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
-				Start:    diagnostic.Pos{Line: 12, Column: 9, Byte: 149},
-				End:      diagnostic.Pos{Line: 12, Column: 21, Byte: 161},
-			},
-			Snippet: &diagnostic.Snippet{
-				Context:              "locals",
-				Code:                 "  ddd = dependency.d",
-				StartLine:            12,
-				HighlightStartOffset: 8,
-				HighlightEndOffset:   20,
-			},
-		},
-		&diagnostic.Diagnostic{
-			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
 			Summary:  "Unsupported attribute",
 			Detail:   "This object does not have an attribute named \"outputs\".",
 			Range: &diagnostic.Range{
@@ -346,6 +312,40 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 				HighlightEndOffset:   16,
 			},
 		},
+		&diagnostic.Diagnostic{
+			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
+			Summary:  "Can't evaluate expression",
+			Detail:   "You can only reference to other local variables here, but it looks like you're referencing something else (\"dependency\" is not defined)",
+			Range: &diagnostic.Range{
+				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
+				Start:    diagnostic.Pos{Line: 12, Column: 9, Byte: 149},
+				End:      diagnostic.Pos{Line: 12, Column: 21, Byte: 161},
+			},
+			Snippet: &diagnostic.Snippet{
+				Context:              "locals",
+				Code:                 "  ddd = dependency.d",
+				StartLine:            12,
+				HighlightStartOffset: 8,
+				HighlightEndOffset:   20,
+			},
+		},
+		&diagnostic.Diagnostic{
+			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
+			Summary:  "Can't evaluate expression",
+			Detail:   "You can only reference to other local variables here, but it looks like you're referencing something else (\"dependency\" is not defined)",
+			Range: &diagnostic.Range{
+				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
+				Start:    diagnostic.Pos{Line: 10, Column: 9, Byte: 117},
+				End:      diagnostic.Pos{Line: 10, Column: 31, Byte: 139},
+			},
+			Snippet: &diagnostic.Snippet{
+				Context:              "locals",
+				Code:                 "  vvv = dependency.a.outputs.z",
+				StartLine:            10,
+				HighlightStartOffset: 8,
+				HighlightEndOffset:   30,
+			},
+		},
 	}
 
 	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hclvalidate --terragrunt-working-dir %s --terragrunt-hclvalidate-json", rootPath))
@@ -356,7 +356,7 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 	err = json.Unmarshal([]byte(strings.TrimSpace(stdout)), &actualDiags)
 	require.NoError(t, err)
 
-	assert.ElementsMatch(t, expectedDiags, actualDiags)
+	assert.Equal(t, expectedDiags, actualDiags)
 }
 
 func TestHclvalidateInvalidConfigPath(t *testing.T) {
@@ -369,7 +369,7 @@ func TestHclvalidateInvalidConfigPath(t *testing.T) {
 		filepath.Join(rootPath, "second/c/terragrunt.hcl"),
 	}
 
-	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hclvalidate --terragrunt-working-dir %s --terragrunt-hclvalidate-json --terragrunt-hclvalidate-invalid", rootPath))
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hclvalidate --terragrunt-working-dir %s --terragrunt-hclvalidate-json --terragrunt-hclvalidate-show-config-path", rootPath))
 	require.NoError(t, err)
 
 	var actualPaths []string

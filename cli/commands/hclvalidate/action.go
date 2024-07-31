@@ -2,6 +2,7 @@ package hclvalidate
 
 import (
 	"context"
+	"sort"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
@@ -42,6 +43,13 @@ func Run(ctx context.Context, opts *Options) (er error) {
 	stackErr := stack.Run(ctx, opts.TerragruntOptions)
 
 	if len(diags) > 0 {
+		sort.Slice(diags, func(i, j int) bool {
+			if diags[i].Range != nil && diags[j].Range != nil && diags[i].Range.Filename > diags[j].Range.Filename {
+				return false
+			}
+			return true
+		})
+
 		if err := writeDiagnostics(opts, diags); err != nil {
 			return err
 		}
@@ -58,8 +66,8 @@ func writeDiagnostics(opts *Options, diags diagnostic.Diagnostics) error {
 
 	writer := view.NewWriter(opts.Writer, render)
 
-	if opts.InvalidConfigPath {
-		return writer.InvalidConfigPath(diags)
+	if opts.ShowConfigPath {
+		return writer.ShowConfigPath(diags)
 	}
 
 	return writer.Diagnostics(diags)
