@@ -3,7 +3,6 @@ package config
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/imdario/mergo"
 	"github.com/zclconf/go-cty/cty"
