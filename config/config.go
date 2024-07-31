@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
@@ -706,6 +707,8 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 		"config_path": configPath,
 		"working_dir": ctx.TerragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
+		fmt.Printf("parse_config_file: %v\n", configPath)
+		debug.PrintStack()
 		childKey := "nil"
 		if includeFromChild != nil {
 			childKey = includeFromChild.String()
@@ -724,10 +727,12 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 			return err
 		}
 		var file *hclparse.File
-		var cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, ctx.TerragruntOptions.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
+		var cacheKey = fmt.Sprintf("configPath-%v-childKey-%v-decodeListKey-%v-ctx.TerragruntOptions.WorkingDir-dir-%v-modTime-%v", configPath, childKey, decodeListKey, dir, fileInfo.ModTime().UnixMicro())
 		if cacheConfig, found := hclCache.Get(cacheKey); found {
 			file = cacheConfig
 		} else {
+			fmt.Printf("parse_config_file no cache : %v %v \n", configPath, cacheKey)
+
 			// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
 			file, err = hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
 			if err != nil {
