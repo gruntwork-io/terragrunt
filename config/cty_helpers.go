@@ -321,13 +321,13 @@ func includeConfigAsCtyVal(ctx *ParsingContext, includeConfig IncludeConfig) (ct
 
 // updateUnknownCtyValValues deeply updates unknown values with default value
 func updateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
-	if !value.IsKnown() {
-		return cty.StringVal(""), nil
-	}
-
 	var updatedValue any
 
 	switch {
+	case !value.IsKnown():
+		return cty.StringVal(""), nil
+	case value.IsNull():
+		return value, nil
 	case value.Type().IsMapType(), value.Type().IsObjectType():
 		mapVals := value.AsValueMap()
 		for key, val := range mapVals {
@@ -338,6 +338,7 @@ func updateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 			mapVals[key] = val
 		}
 		updatedValue = mapVals
+
 	case value.Type().IsTupleType(), value.Type().IsListType():
 		sliceVals := value.AsValueSlice()
 		for key, val := range sliceVals {
@@ -348,6 +349,7 @@ func updateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 			sliceVals[key] = val
 		}
 		updatedValue = sliceVals
+
 	default:
 		return value, nil
 	}
