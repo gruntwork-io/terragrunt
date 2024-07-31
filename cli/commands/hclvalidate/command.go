@@ -12,7 +12,7 @@ const (
 	CommandName = "hclvalidate"
 
 	ShowConfigPathFlagName   = "terragrunt-hclvalidate-show-config-path"
-	ShowConfigPathEnvVarName = "TERRAGRUNT_HCLVALIDATE_INVALID"
+	ShowConfigPathEnvVarName = "TERRAGRUNT_HCLVALIDATE_SHOW_CONFIG_PATH"
 
 	JSONOutputFlagName   = "terragrunt-hclvalidate-json"
 	JSONOutputEnvVarName = "TERRAGRUNT_HCLVALIDATE_JSON"
