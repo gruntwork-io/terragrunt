@@ -3845,7 +3845,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 					"suppress_stdout": nil,
 				},
 			},
-			"error_hook": map[string]interface{}{},
+			"error_hook": nil,
 		},
 	)
 }
