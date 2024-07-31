@@ -319,12 +319,6 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			}
 
 			if decoded.Inputs != nil {
-				val, err := updateUnknownCtyValValues(decoded.Inputs)
-				if err != nil {
-					return nil, err
-				}
-				decoded.Inputs = val
-
 				inputs, err := parseCtyValueToMap(*decoded.Inputs)
 				if err != nil {
 					return nil, err
