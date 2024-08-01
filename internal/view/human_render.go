@@ -40,7 +40,7 @@ func NewHumanRender(disableColor bool) Render {
 	}
 }
 
-func (render *HumanRender) InvalidConfigPath(filenames []string) (string, error) {
+func (render *HumanRender) ShowConfigPath(filenames []string) (string, error) {
 	var buf bytes.Buffer
 
 	for _, filename := range filenames {

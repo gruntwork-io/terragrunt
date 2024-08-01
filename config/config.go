@@ -899,11 +899,11 @@ func decodeAsTerragruntConfigFile(ctx *ParsingContext, file *hclparse.File, eval
 	}
 
 	if terragruntConfig.Inputs != nil {
-		inputs, err := updateUnknownCtyValValues(terragruntConfig.Inputs)
+		inputs, err := updateUnknownCtyValValues(*terragruntConfig.Inputs)
 		if err != nil {
 			return nil, err
 		}
-		terragruntConfig.Inputs = inputs
+		terragruntConfig.Inputs = &inputs
 	}
 
 	return &terragruntConfig, nil
@@ -1158,12 +1158,6 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	}
 
 	if ctx.Locals != nil && *ctx.Locals != cty.NilVal {
-		locals, err := updateUnknownCtyValValues(ctx.Locals)
-		if err != nil {
-			return nil, err
-		}
-		ctx.Locals = locals
-
 		localsParsed, err := parseCtyValueToMap(*ctx.Locals)
 		if err != nil {
 			return nil, err
