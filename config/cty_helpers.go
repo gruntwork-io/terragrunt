@@ -353,7 +353,6 @@ func updateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 		if len(sliceVals) > 0 {
 			updatedValue = sliceVals
 		}
-		updatedValue = sliceVals
 	}
 
 	if updatedValue == nil {

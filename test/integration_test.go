@@ -3767,16 +3767,16 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(outputs["dependencies"].Value.(string)), &depsOut))
 	assert.Equal(
 		t,
-		depsOut,
 		map[string]interface{}{
 			"paths": []interface{}{"../../fixture"},
 		},
+		depsOut,
 	)
+
 	generateOut := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["generate"].Value.(string)), &generateOut))
 	assert.Equal(
 		t,
-		generateOut,
 		map[string]interface{}{
 			"provider": map[string]interface{}{
 				"path":              "provider.tf",
@@ -3791,12 +3791,12 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 `,
 			},
 		},
+		generateOut,
 	)
 	remoteStateOut := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["remote_state"].Value.(string)), &remoteStateOut))
 	assert.Equal(
 		t,
-		remoteStateOut,
 		map[string]interface{}{
 			"backend":                         "local",
 			"disable_init":                    false,
@@ -3804,12 +3804,12 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 			"generate":                        map[string]interface{}{"path": "backend.tf", "if_exists": "overwrite_terragrunt"},
 			"config":                          map[string]interface{}{"path": "foo.tfstate"},
 		},
+		remoteStateOut,
 	)
 	terraformOut := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["terraformtg"].Value.(string)), &terraformOut))
 	assert.Equal(
 		t,
-		terraformOut,
 		map[string]interface{}{
 			"source":          "./delorean",
 			"include_in_copy": []interface{}{"time_machine.*"},
@@ -3845,8 +3845,9 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 					"suppress_stdout": nil,
 				},
 			},
-			"error_hook": nil,
+			"error_hook": map[string]interface{}{},
 		},
+		terraformOut,
 	)
 }
 
