@@ -113,7 +113,11 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 		case *cliconfig.ProviderInstallationFilesystemMirror:
 			providerHandlers = append(providerHandlers, handlers.NewProviderFilesystemMirrorHandler(providerService, cacheProviderHTTPStatusCode, method))
 		case *cliconfig.ProviderInstallationNetworkMirror:
-			providerHandlers = append(providerHandlers, handlers.NewProviderNetworkMirrorHandler(providerService, cacheProviderHTTPStatusCode, method, cliCfg.CredentialsSource()))
+			networkMirrorHandler, err := handlers.NewProviderNetworkMirrorHandler(providerService, cacheProviderHTTPStatusCode, method, cliCfg.CredentialsSource())
+			if err != nil {
+				return nil, err
+			}
+			providerHandlers = append(providerHandlers, networkMirrorHandler)
 		case *cliconfig.ProviderInstallationDirect:
 			providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, cacheProviderHTTPStatusCode, method, cliCfg.CredentialsSource()))
 			directIsdefined = true
