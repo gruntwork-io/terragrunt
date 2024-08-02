@@ -3,14 +3,15 @@ package config
 import (
 	"context"
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/internal/cache"
-	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/terragrunt/telemetry"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/mitchellh/mapstructure"
 
@@ -1338,12 +1339,20 @@ func WithConfigValues(ctx context.Context) context.Context {
 	return ctx
 }
 
-// fetchHclCache returns hcl file cache from the context.
+// fetchHclCache returns hcl file cache from the context. If the cache is nil, it creates a new instance.
 func fetchHclCache(ctx context.Context) *cache.Cache[*hclparse.File] {
-	return ctx.Value(HclCacheContextKey).(*cache.Cache[*hclparse.File])
+	hclCache, ok := ctx.Value(HclCacheContextKey).(*cache.Cache[*hclparse.File])
+	if !ok || hclCache == nil {
+		hclCache = cache.NewCache[*hclparse.File]()
+	}
+	return hclCache
 }
 
-// fetchConfigCache returns config cache from the context.
+// fetchConfigCache returns config cache from the context. If the cache is nil, it creates a new instance.
 func fetchConfigCache(ctx context.Context) *cache.Cache[TerragruntConfig] {
-	return ctx.Value(HclConfigContextKey).(*cache.Cache[TerragruntConfig])
+	configCache, ok := ctx.Value(HclConfigContextKey).(*cache.Cache[TerragruntConfig])
+	if !ok || configCache == nil {
+		configCache = cache.NewCache[TerragruntConfig]()
+	}
+	return configCache
 }
