@@ -126,7 +126,7 @@ state? For example, when using the [s3 backend](https://www.terraform.io/languag
 expects the S3 bucket to already exist for it to upload the state objects.
 
 Ideally you can manage the S3 bucket using OpenTofu/Terraform, but what about the state object for the module managing the S3
-bucket? How do you create the S3 bucket, before you run `terraform`, if you need to run `terraform` to create the
+bucket? How do you create the S3 bucket, before you run `tofu`/`terraform`, if you need to run `tofu`/`terraform` to create the
 bucket?
 
 To handle this, Terragrunt supports a different block for managing the backend configuration: the [remote_state

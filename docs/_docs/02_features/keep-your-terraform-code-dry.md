@@ -251,7 +251,7 @@ ssh -T -oStrictHostKeyChecking=accept-new git@github.com || true
 ### DRY common OpenTofu/Terraform code with Terragrunt generate blocks
 
 Terragrunt has the ability to generate code in to the downloaded remote OpenTofu/Terraform modules before calling out to
-`terraform` using the [generate block](/docs/reference/config-blocks-and-attributes#generate). This can be used to
+`tofu`/`terraform` using the [generate block](/docs/reference/config-blocks-and-attributes#generate). This can be used to
 inject common OpenTofu/Terraform configurations into all the modules that you use.
 
 For example, it is common to have custom provider configurations in your code to customize authentication. Consider a
