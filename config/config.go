@@ -3,16 +3,14 @@ package config
 import (
 	"context"
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/telemetry"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
-	"runtime/debug"
 	"strings"
-
-	"github.com/gruntwork-io/terragrunt/internal/cache"
-	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/mitchellh/mapstructure"
 
@@ -34,13 +32,9 @@ import (
 const (
 	DefaultTerragruntConfigPath     = "terragrunt.hcl"
 	DefaultTerragruntJsonConfigPath = "terragrunt.hcl.json"
+	FoundInFile                     = "found_in_file"
 
-	DefaultEngineType = "rpc"
-)
-
-const FoundInFile = "found_in_file"
-
-const (
+	DefaultEngineType                   = "rpc"
 	MetadataTerraform                   = "terraform"
 	MetadataTerraformBinary             = "terraform_binary"
 	MetadataTerraformVersionConstraint  = "terraform_version_constraint"
@@ -66,7 +60,11 @@ const (
 	MetadataRetrySleepIntervalSec       = "retry_sleep_interval_sec"
 	MetadataDependentModules            = "dependent_modules"
 	MetadataInclude                     = "include"
+
+	HclCacheContextKey configKey = iota
 )
+
+type configKey byte
 
 var (
 	// Order matters, for example if none of the files are found `GetDefaultConfigPath` func returns the last element.
@@ -697,18 +695,15 @@ func ReadTerragruntConfig(ctx context.Context, terragruntOptions *options.Terrag
 	return ParseConfigFile(parcingCtx, terragruntOptions.TerragruntConfigPath, nil)
 }
 
-var hclCache = cache.NewCache[*hclparse.File]()
-
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
 func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	var config *TerragruntConfig
+	hclCache := fetchHclCache(ctx)
 	err := telemetry.Telemetry(ctx, ctx.TerragruntOptions, "parse_config_file", map[string]interface{}{
 		"config_path": configPath,
 		"working_dir": ctx.TerragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
-		fmt.Printf("parse_config_file: %v\n", configPath)
-		debug.PrintStack()
 		childKey := "nil"
 		if includeFromChild != nil {
 			childKey = includeFromChild.String()
@@ -1333,4 +1328,17 @@ func (conf *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 		Type:    t,
 		Meta:    meta,
 	}, nil
+}
+
+// WithConfigValues add to context default values for configuration.
+func WithConfigValues(ctx context.Context) context.Context {
+	var c = cache.NewCache[*hclparse.File]()
+	ctx = context.WithValue(ctx, HclCacheContextKey, c)
+	return ctx
+}
+
+// fetchHclCache returns the locks map from the context.
+func fetchHclCache(ctx context.Context) *cache.Cache[*hclparse.File] {
+	cacheType := ctx.Value(HclCacheContextKey).(*cache.Cache[*hclparse.File])
+	return cacheType
 }

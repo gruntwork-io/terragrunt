@@ -113,7 +113,8 @@ func Run(
 	return cmdOutput, nil
 }
 
-func ContextWithEngine(ctx context.Context) context.Context {
+// WithEngineValues add to context default values for engine.
+func WithEngineValues(ctx context.Context) context.Context {
 	if !IsEngineEnabled() {
 		return ctx
 	}
@@ -122,6 +123,7 @@ func ContextWithEngine(ctx context.Context) context.Context {
 	return ctx
 }
 
+// DownloadEngine downloads the engine for the given options.
 func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error {
 	if !IsEngineEnabled() {
 		return nil
