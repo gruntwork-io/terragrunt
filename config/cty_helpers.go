@@ -333,7 +333,7 @@ func updateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 		for key, val := range mapVals {
 			val, err := updateUnknownCtyValValues(val)
 			if err != nil {
-				return cty.NilVal, errors.WithStackTrace(err)
+				return cty.NilVal, err
 			}
 			mapVals[key] = val
 		}
@@ -346,7 +346,7 @@ func updateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 		for key, val := range sliceVals {
 			val, err := updateUnknownCtyValValues(val)
 			if err != nil {
-				return cty.NilVal, errors.WithStackTrace(err)
+				return cty.NilVal, err
 			}
 			sliceVals[key] = val
 		}
