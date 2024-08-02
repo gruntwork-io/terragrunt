@@ -21,13 +21,13 @@ nav_title_link: /docs/
 
 ### Motivation
 
-Sometimes you may need to pass extra CLI arguments every time you run certain `terraform` commands. For example, you may want to set the `lock-timeout` setting to 20 minutes for all commands that may modify remote state so that Terraform will keep trying to acquire a lock for up to 20 minutes if someone else already has the lock rather than immediately exiting with an error.
+Sometimes you may need to pass extra CLI arguments every time you run certain `tofu`/`terraform` commands. For example, you may want to set the `lock-timeout` setting to 20 minutes for all commands that may modify remote state so that OpenTofu/Terraform will keep trying to acquire a lock for up to 20 minutes if someone else already has the lock rather than immediately exiting with an error.
 
 You can configure Terragrunt to pass specific CLI arguments for specific commands using an `extra_arguments` block in your `terragrunt.hcl` file:
 
 ``` hcl
 terraform {
-  # Force Terraform to keep trying to acquire a lock for
+  # Force OpenTofu/Terraform to keep trying to acquire a lock for
   # up to 20 minutes if someone else already has the lock
   extra_arguments "retry_lock" {
     commands = [
@@ -51,18 +51,18 @@ terraform {
 }
 ```
 
-Each `extra_arguments` block includes an arbitrary name (in the example above, `retry_lock`), a list of `commands` to which the extra arguments should be added, and a list of `arguments` or `required_var_files` or `optional_var_files` to add. You can also pass custom environment variables using `env_vars` block, which stores environment variables in key value pairs. With the configuration above, when you run `terragrunt apply`, Terragrunt will call Terraform as follows:
+Each `extra_arguments` block includes an arbitrary name (in the example above, `retry_lock`), a list of `commands` to which the extra arguments should be added, and a list of `arguments` or `required_var_files` or `optional_var_files` to add. You can also pass custom environment variables using `env_vars` block, which stores environment variables in key value pairs. With the configuration above, when you run `terragrunt apply`, Terragrunt will call OpenTofu/Terraform as follows:
 
 ```bash
 $ terragrunt apply
 # terraform apply -lock-timeout=20m
 ```
 
-You can even use built-in functions such as [get\_terraform\_commands\_that\_need\_locking]({{site.baseurl}}/docs/reference/built-in-functions/#get_terraform_commands_that_need_locking) to automatically populate the list of Terraform commands that need locking:
+You can even use built-in functions such as [get\_terraform\_commands\_that\_need\_locking]({{site.baseurl}}/docs/reference/built-in-functions/#get_terraform_commands_that_need_locking) to automatically populate the list of OpenTofu/Terraform commands that need locking:
 
 ``` hcl
 terraform {
-  # Force Terraform to keep trying to acquire a lock for up to 20 minutes if someone else already has the lock
+  # Force OpenTofu/Terraform to keep trying to acquire a lock for up to 20 minutes if someone else already has the lock
   extra_arguments "retry_lock" {
     commands  = get_terraform_commands_that_need_locking()
     arguments = ["-lock-timeout=20m"]
@@ -76,14 +76,14 @@ You can specify one or more `extra_arguments` blocks. The `arguments` in each bl
 
 ``` hcl
 terraform {
-  # Force Terraform to keep trying to acquire a lock for
+  # Force OpenTofu/Terraform to keep trying to acquire a lock for
   # up to 20 minutes if someone else already has the lock
   extra_arguments "retry_lock" {
     commands  = get_terraform_commands_that_need_locking()
     arguments = ["-lock-timeout=20m"]
   }
 
-  # Pass custom var files to Terraform
+  # Pass custom var files to OpenTofu/Terraform
   extra_arguments "custom_vars" {
     commands = [
       "apply",
@@ -101,22 +101,22 @@ terraform {
 }
 ```
 
-With the configuration above, when you run `terragrunt apply`, Terragrunt will call Terraform as follows:
+With the configuration above, when you run `terragrunt apply`, Terragrunt will call OpenTofu/Terraform as follows:
 
 ```bash
 $ terragrunt apply
-# terraform apply -lock-timeout=20m -var foo=bar -var region=us-west-1
+# tofu apply -lock-timeout=20m -var foo=bar -var region=us-west-1
 ```
 
 ### `extra_arguments` for `init`
 
 Extra arguments for the `init` command have some additional behavior and constraints.
 
-In addition to being appended to the `terraform init` command that is run when you explicitly run `terragrunt init`, `extra_arguments` for `init` will also be appended to the `init` commands that are automatically run during other commands (see [Auto-Init]({{site.baseurl}}/docs/features/auto-init)).
+In addition to being appended to the `tofu init`/`terraform init` command that is run when you explicitly run `terragrunt init`, `extra_arguments` for `init` will also be appended to the `init` commands that are automatically run during other commands (see [Auto-Init]({{site.baseurl}}/docs/features/auto-init)).
 
 You must *not* specify the `-from-module` option (aka. the `SOURCE` argument for terraform \< 0.10.0) or the `DIR` argument in the `extra_arguments` for `init`. This option and argument will be provided automatically by terragrunt.
 
-Here’s an example of configuring `extra_arguments` for `init` in an environment in which terraform plugins are manually installed, rather than relying on terraform to automatically download them.
+Here’s an example of configuring `extra_arguments` for `init` in an environment in which OpenTofu/Terraform plugins are manually installed, rather than relying on OpenTofu/Terraform to automatically download them.
 
 ``` hcl
 terraform {
@@ -128,7 +128,7 @@ terraform {
     ]
 
     arguments = [
-      "-plugin-dir=/my/terraform/plugin/dir",
+      "-plugin-dir=/my/tofu/plugin/dir",
     ]
   }
 }
@@ -164,7 +164,7 @@ terraform {
     ]
 
     required_var_files = [
-      "${get_parent_terragrunt_dir()}/terraform.tfvars"
+      "${get_parent_terragrunt_dir()}/tofu.tfvars"
     ]
 
     optional_var_files = [
@@ -179,20 +179,20 @@ terraform {
 
 See the [get\_terragrunt\_dir()]({{site.baseurl}}/docs/reference/built-in-functions/#get_terragrunt_dir) and [get\_parent\_terragrunt\_dir()]({{site.baseurl}}/docs/reference/built-in-functions/#get_parent_terragrunt_dir) documentation for more details.
 
-With the configuration above, when you run `terragrunt run-all apply`, Terragrunt will call Terraform as follows:
+With the configuration above, when you run `terragrunt run-all apply`, Terragrunt will call OpenTofu/Terraform as follows:
 
 ```bash
 $ terragrunt run-all apply
-[backend-app]  terraform apply -var-file=/my/tf/terraform.tfvars -var-file=/my/tf/backend-app/dev.tfvars
-[frontend-app] terraform apply -var-file=/my/tf/terraform.tfvars -var-file=/my/tf/frontend-app/us-east-1.tfvars
+[backend-app]  tofu apply -var-file=/my/tf/tofu.tfvars -var-file=/my/tf/backend-app/dev.tfvars
+[frontend-app] tofu apply -var-file=/my/tf/tofu.tfvars -var-file=/my/tf/frontend-app/us-east-1.tfvars
 
 $ TF_VAR_env=prod terragrunt run-all apply
-[backend-app]  terraform apply -var-file=/my/tf/terraform.tfvars -var-file=/my/tf/prod.tfvars
-[frontend-app] terraform apply -var-file=/my/tf/terraform.tfvars -var-file=/my/tf/prod.tfvars -var-file=/my/tf/frontend-app/us-east-1.tfvars
+[backend-app]  tofu apply -var-file=/my/tf/tofu.tfvars -var-file=/my/tf/prod.tfvars
+[frontend-app] tofu apply -var-file=/my/tf/tofu.tfvars -var-file=/my/tf/prod.tfvars -var-file=/my/tf/frontend-app/us-east-1.tfvars
 
 $ TF_VAR_env=prod TF_VAR_region=us-west-2 terragrunt run-all apply
-[backend-app]  terraform apply -var-file=/my/tf/terraform.tfvars -var-file=/my/tf/prod.tfvars -var-file=/my/tf/us-west-2.tfvars
-[frontend-app] terraform apply -var-file=/my/tf/terraform.tfvars -var-file=/my/tf/prod.tfvars -var-file=/my/tf/us-west-2.tfvars
+[backend-app]  tofu apply -var-file=/my/tf/tofu.tfvars -var-file=/my/tf/prod.tfvars -var-file=/my/tf/us-west-2.tfvars
+[frontend-app] tofu apply -var-file=/my/tf/tofu.tfvars -var-file=/my/tf/prod.tfvars -var-file=/my/tf/us-west-2.tfvars
 ```
 
 ### Handling whitespace
@@ -217,9 +217,9 @@ terraform {
 }
 ```
 
-With the configuration above, when you run `terragrunt apply`, Terragrunt will call Terraform as follows:
+With the configuration above, when you run `terragrunt apply`, Terragrunt will call OpenTofu/Terraform as follows:
 
 ```bash
 $ terragrunt apply
-# terraform apply -var bucket=example.bucket.name
+# tofu apply -var bucket=example.bucket.name
 ```

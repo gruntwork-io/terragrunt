@@ -3,7 +3,7 @@ layout: collection-browser-doc
 title: Debugging
 category: features
 categories_url: features
-excerpt: Learn how to debug issues with terragrunt and terraform.
+excerpt: Learn how to debug issues with terragrunt and tofu/terraform.
 tags: ["DRY", "Use cases", "CLI"]
 order: 265
 nav_title: Documentation
@@ -12,7 +12,7 @@ nav_title_link: /docs/
 
 ## Debugging
 
-Terragrunt and Terraform usually play well together in helping you
+Terragrunt and OpenTofu/Terraform usually play well together in helping you
 write DRY, re-usable infrastructure. But how do we figure out what
 went wrong in the rare case that they _don't_ play well?
 
@@ -31,8 +31,8 @@ Running this command will do two things for you:
 
 - Output a file named `terragrunt-debug.tfvars.json` to your terragrunt
     working directory (the same one containing your `terragrunt.hcl`)
-- Print instructions on how to invoke terraform against the generated file to
-    reproduce exactly the same terraform output as you saw when invoking
+- Print instructions on how to invoke tofu/terraform against the generated file to
+    reproduce exactly the same tofu/terraform output as you saw when invoking
     `terragrunt`. This will help you to determine where the problem's root cause
     lies.
 
@@ -41,11 +41,11 @@ root cause of your problem:
 
 1. Misconfiguration of your infrastructure code.
 2. An error in `terragrunt`.
-3. An error in `terraform`.
+3. An error in `tofu/terraform`.
 
 Let's run through a few use-cases.
 
-### Use-case: I use locals or dependencies in terragrunt.hcl, and the terraform output isn't what I expected
+### Use-case: I use locals or dependencies in terragrunt.hcl, and the tofu/terraform output isn't what I expected
 
 Consider this file structure for a fictional production environment where we
 have configured an application to deploy as many tasks as there are minimum
@@ -107,9 +107,9 @@ terragrunt apply --terragrunt-log-level debug --terragrunt-debug
 After applying, you will see this output on standard error
 
 ```log
-[terragrunt] Variables passed to terraform are located in "~/live/prod/app/terragrunt-debug.tfvars"
-[terragrunt] Run this command to replicate how terraform was invoked:
-[terragrunt]     terraform apply -var-file="~/live/prod/app/terragrunt-debug.tfvars.json" "~/live/prod/app"
+[terragrunt] Variables passed to tofu/terraform are located in "~/live/prod/app/terragrunt-debug.tfvars"
+[terragrunt] Run this command to replicate how tofu/terraform was invoked:
+[terragrunt]     tofu/terraform apply -var-file="~/live/prod/app/terragrunt-debug.tfvars.json" "~/live/prod/app"
 ```
 
 Well we may have to do all that, but first let's just take a look at `terragrunt-debug.tfvars.json`
@@ -228,8 +228,8 @@ export TERRAGRUNT_TELEMETRY_TRACE_EXPORTER=console
 ```json
 {"Name":"run_bash","SpanContext":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"f91587247524593b","TraceFlags":"01","TraceState":"","Remote":false},"Parent":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"b0b007770f852066","TraceFlags":"01","TraceState":"","Remote":false},"SpanKind":1,"StartTime":"2024-02-08T12:32:30.564217484Z","EndTime":"2024-02-08T12:32:31.570666395Z","Attributes":[{"Key":"command","Value":{"Type":"STRING","Value":"bash"}},{"Key":"args","Value":{"Type":"STRING","Value":"[-c sleep 1]"}},{"Key":"dir","Value":{"Type":"STRING","Value":"/projects/gruntwork/terragrunt-tests/trace-test/mod2"}}],"Events":null,"Links":null,"Status":{"Code":"Unset","Description":""},"DroppedAttributes":0,"DroppedEvents":0,"DroppedLinks":0,"ChildSpanCount":0,"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-29-g66bfa07b756e-dirty"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.0"}}],"InstrumentationLibrary":{"Name":"terragrunt","Version":"","SchemaURL":""}}
 {"Name":"parse_config_file","SpanContext":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"d2823047fb469bdf","TraceFlags":"01","TraceState":"","Remote":false},"Parent":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"b0b007770f852066","TraceFlags":"01","TraceState":"","Remote":false},"SpanKind":1,"StartTime":"2024-02-08T12:32:30.380054129Z","EndTime":"2024-02-08T12:32:31.570899286Z","Attributes":[{"Key":"config_path","Value":{"Type":"STRING","Value":"/projects/gruntwork/terragrunt-tests/trace-test/mod2/terragrunt.hcl"}}],"Events":null,"Links":null,"Status":{"Code":"Unset","Description":""},"DroppedAttributes":0,"DroppedEvents":0,"DroppedLinks":0,"ChildSpanCount":0,"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-29-g66bfa07b756e-dirty"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.0"}}],"InstrumentationLibrary":{"Name":"terragrunt","Version":"","SchemaURL":""}}
-{"Name":"run_terraform","SpanContext":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"152d873a18559f07","TraceFlags":"01","TraceState":"","Remote":false},"Parent":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"b0b007770f852066","TraceFlags":"01","TraceState":"","Remote":false},"SpanKind":1,"StartTime":"2024-02-08T12:32:31.57161757Z","EndTime":"2024-02-08T12:32:31.688157882Z","Attributes":[{"Key":"command","Value":{"Type":"STRING","Value":"terraform"}},{"Key":"args","Value":{"Type":"STRING","Value":"[init]"}},{"Key":"dir","Value":{"Type":"STRING","Value":"/projects/gruntwork/terragrunt-tests/trace-test/mod2"}}],"Events":null,"Links":null,"Status":{"Code":"Unset","Description":""},"DroppedAttributes":0,"DroppedEvents":0,"DroppedLinks":0,"ChildSpanCount":0,"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-29-g66bfa07b756e-dirty"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.0"}}],"InstrumentationLibrary":{"Name":"terragrunt","Version":"","SchemaURL":""}}
-{"Name":"run_terraform","SpanContext":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"29341bdb65f66b1e","TraceFlags":"01","TraceState":"","Remote":false},"Parent":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"b0b007770f852066","TraceFlags":"01","TraceState":"","Remote":false},"SpanKind":1,"StartTime":"2024-02-08T12:32:31.688240673Z","EndTime":"2024-02-08T12:32:31.793377642Z","Attributes":[{"Key":"command","Value":{"Type":"STRING","Value":"terraform"}},{"Key":"args","Value":{"Type":"STRING","Value":"[apply -auto-approve -input=false]"}},{"Key":"dir","Value":{"Type":"STRING","Value":"/projects/gruntwork/terragrunt-tests/trace-test/mod2"}}],"Events":null,"Links":null,"Status":{"Code":"Unset","Description":""},"DroppedAttributes":0,"DroppedEvents":0,"DroppedLinks":0,"ChildSpanCount":0,"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-29-g66bfa07b756e-dirty"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.0"}}],"InstrumentationLibrary":{"Name":"terragrunt","Version":"","SchemaURL":""}}
+{"Name":"run_terraform","SpanContext":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"152d873a18559f07","TraceFlags":"01","TraceState":"","Remote":false},"Parent":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"b0b007770f852066","TraceFlags":"01","TraceState":"","Remote":false},"SpanKind":1,"StartTime":"2024-02-08T12:32:31.57161757Z","EndTime":"2024-02-08T12:32:31.688157882Z","Attributes":[{"Key":"command","Value":{"Type":"STRING","Value":"tofu"}},{"Key":"args","Value":{"Type":"STRING","Value":"[init]"}},{"Key":"dir","Value":{"Type":"STRING","Value":"/projects/gruntwork/terragrunt-tests/trace-test/mod2"}}],"Events":null,"Links":null,"Status":{"Code":"Unset","Description":""},"DroppedAttributes":0,"DroppedEvents":0,"DroppedLinks":0,"ChildSpanCount":0,"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-29-g66bfa07b756e-dirty"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.0"}}],"InstrumentationLibrary":{"Name":"terragrunt","Version":"","SchemaURL":""}}
+{"Name":"run_terraform","SpanContext":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"29341bdb65f66b1e","TraceFlags":"01","TraceState":"","Remote":false},"Parent":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"b0b007770f852066","TraceFlags":"01","TraceState":"","Remote":false},"SpanKind":1,"StartTime":"2024-02-08T12:32:31.688240673Z","EndTime":"2024-02-08T12:32:31.793377642Z","Attributes":[{"Key":"command","Value":{"Type":"STRING","Value":"tofu"}},{"Key":"args","Value":{"Type":"STRING","Value":"[apply -auto-approve -input=false]"}},{"Key":"dir","Value":{"Type":"STRING","Value":"/projects/gruntwork/terragrunt-tests/trace-test/mod2"}}],"Events":null,"Links":null,"Status":{"Code":"Unset","Description":""},"DroppedAttributes":0,"DroppedEvents":0,"DroppedLinks":0,"ChildSpanCount":0,"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-29-g66bfa07b756e-dirty"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.0"}}],"InstrumentationLibrary":{"Name":"terragrunt","Version":"","SchemaURL":""}}
 {"Name":"run_module","SpanContext":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"8a01522bc65e0f1b","TraceFlags":"01","TraceState":"","Remote":false},"Parent":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"b0b007770f852066","TraceFlags":"01","TraceState":"","Remote":false},"SpanKind":1,"StartTime":"2024-02-08T12:32:30.290680776Z","EndTime":"2024-02-08T12:32:31.793392803Z","Attributes":[{"Key":"path","Value":{"Type":"STRING","Value":"/projects/gruntwork/terragrunt-tests/trace-test/mod2"}},{"Key":"terraformCommand","Value":{"Type":"STRING","Value":"apply"}}],"Events":null,"Links":null,"Status":{"Code":"Unset","Description":""},"DroppedAttributes":0,"DroppedEvents":0,"DroppedLinks":0,"ChildSpanCount":0,"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-29-g66bfa07b756e-dirty"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.0"}}],"InstrumentationLibrary":{"Name":"terragrunt","Version":"","SchemaURL":""}}
 {"Name":"run-all apply","SpanContext":{"TraceID":"bdf3cb9078706b7f0b4f1d92428eedc0","SpanID":"b0b007770f852066","TraceFlags":"01","TraceState":"","Remote":false},"Parent":{"TraceID":"00000000000000000000000000000000","SpanID":"0000000000000000","TraceFlags":"00","TraceState":"","Remote":false},"SpanKind":1,"StartTime":"2024-02-08T12:32:26.388519019Z","EndTime":"2024-02-08T12:32:31.793405603Z","Attributes":[{"Key":"terraformCommand","Value":{"Type":"STRING","Value":"apply"}},{"Key":"args","Value":{"Type":"STRING","Value":"[apply]"}},{"Key":"dir","Value":{"Type":"STRING","Value":"/projects/gruntwork/terragrunt-tests/trace-test"}}],"Events":null,"Links":null,"Status":{"Code":"Unset","Description":""},"DroppedAttributes":0,"DroppedEvents":0,"DroppedLinks":0,"ChildSpanCount":28,"Resource":[{"Key":"service.name","Value":{"Type":"STRING","Value":"terragrunt"}},{"Key":"service.version","Value":{"Type":"STRING","Value":"v0.55.0-29-g66bfa07b756e-dirty"}},{"Key":"telemetry.sdk.language","Value":{"Type":"STRING","Value":"go"}},{"Key":"telemetry.sdk.name","Value":{"Type":"STRING","Value":"opentelemetry"}},{"Key":"telemetry.sdk.version","Value":{"Type":"STRING","Value":"1.23.0"}}],"InstrumentationLibrary":{"Name":"terragrunt","Version":"","SchemaURL":""}}
 ```

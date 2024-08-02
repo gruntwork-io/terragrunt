@@ -14,7 +14,7 @@ nav_title_link: /docs/
 
 Terragrunt scaffolding can generate files for you automatically using [boilerplate](https://github.com/gruntwork-io/boilerplate) templates.
 
-Currently, one boilerplate template is supported out-of-the-box, which you can use to generate a best-practices `terragrunt.hcl` that configures a Terraform module for deployment:
+Currently, one boilerplate template is supported out-of-the-box, which you can use to generate a best-practices `terragrunt.hcl` that configures a OpenTofu/Terraform module for deployment:
 
 ```bash
 terragrunt scaffold <MODULE_URL> [TEMPLATE_URL] [--var] [--var-file]
@@ -22,12 +22,12 @@ terragrunt scaffold <MODULE_URL> [TEMPLATE_URL] [--var] [--var-file]
 
 Description:
 
-- `MODULE_URL` - URL to a Terraform module. Can be a local file path, git URL, registry URL, or any other [module source URL](https://developer.hashicorp.com/terraform/language/modules/sources).
+- `MODULE_URL` - URL to a OpenTofu/Terraform module. Can be a local file path, git URL, registry URL, or any other [module source URL](https://developer.hashicorp.com/terraform/language/modules/sources).
 - `TEMPLATE_URL` - Optional URL to a custom boilerplate template to use to generate HCL files. Can be a local file path, git URL, registry URL, or any other [module source URL](https://developer.hashicorp.com/terraform/language/modules/sources). If not specified, Terragrunt will:
   - Look for a `.boilerplate` folder in the module at `MODULE_URL`, and if found, use the boilerplate template in that folder.
-  - Failing to find that, Terragrunt will use a boilerplate template that is built-in, which creates a best-practices `terragrunt.hcl` for deploying a single Terraform module.
+  - Failing to find that, Terragrunt will use a boilerplate template that is built-in, which creates a best-practices `terragrunt.hcl` for deploying a single OpenTofu/Terraform module.
 
-For example, here's how you can generate a `terragrunt.hcl` file to configure an [example MySQL Terraform module](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example/tree/master/mysql) for deployment:
+For example, here's how you can generate a `terragrunt.hcl` file to configure an [example MySQL OpenTofu/Terraform module](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example/tree/master/mysql) for deployment:
 
 ```bash
 terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql
