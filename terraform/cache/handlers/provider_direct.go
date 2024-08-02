@@ -81,7 +81,7 @@ func (handler *ProviderDirectHandler) GetPlatform(ctx echo.Context, provider *mo
 					return err
 				}
 
-				provider.ResponseBody = body
+				provider.ResponseBody = body.ResolveRelativeReferences(resp.Request.URL)
 
 				handler.providerService.CacheProvider(ctx.Request().Context(), cacheRequestID, provider)
 				return ctx.NoContent(handler.cacheProviderHTTPStatusCode)

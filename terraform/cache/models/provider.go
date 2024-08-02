@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"net/url"
 	"path"
 	"strings"
 )
@@ -71,6 +72,13 @@ type ResponseBody struct {
 
 	SHA256Sum   string         `json:"shasum,omitempty"`
 	SigningKeys SigningKeyList `json:"signing_keys,omitempty"`
+}
+
+func (body ResponseBody) ResolveRelativeReferences(base *url.URL) *ResponseBody {
+	body.DownloadURL = resolveRelativeReference(base, body.DownloadURL)
+	body.SHA256SumsSignatureURL = resolveRelativeReference(base, body.SHA256SumsSignatureURL)
+	body.SHA256SumsURL = resolveRelativeReference(base, body.SHA256SumsURL)
+	return &body
 }
 
 // Provider represents the details of the Terraform provider.
