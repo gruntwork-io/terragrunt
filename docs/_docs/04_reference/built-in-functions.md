@@ -12,7 +12,7 @@ nav_title_link: /docs/
 
 Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like OpenTofu/Terraform\! The functions currently available are:
 
-- [OpenTofu/Terraform built-in functions](#terraform-built-in-functions)
+- [OpenTofu/Terraform built-in functions](#opentofuterraform-built-in-functions)
 - [find\_in\_parent\_folders](#find_in_parent_folders)
 - [path\_relative\_to\_include](#path_relative_to_include)
 - [path\_relative\_from\_include](#path_relative_from_include)

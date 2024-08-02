@@ -12,16 +12,16 @@ nav_title_link: /docs/
 
 ## Keep your OpenTofu/Terraform code DRY
 
-- [Keep your OpenTofu/Terraform code DRY](#keep-your-terraform-code-dry)
+- [Keep your OpenTofu/Terraform code DRY](#keep-your-opentofuterraform-code-dry)
   - [Motivation](#motivation)
-  - [Remote OpenTofu/Terraform configurations](#remote-terraform-configurations)
-  - [Achieve DRY OpenTofu/Terraform code and immutable infrastructure](#achieve-dry-terraform-code-and-immutable-infrastructure)
+  - [Remote OpenTofu/Terraform configurations](#remote-opentofuterraform-configurations)
+  - [Achieve DRY OpenTofu/Terraform code and immutable infrastructure](#achieve-dry-opentofuterraform-code-and-immutable-infrastructure)
   - [Working locally](#working-locally)
   - [Working with lock files](#working-with-lock-files)
   - [Important gotcha: Terragrunt caching](#important-gotcha-terragrunt-caching)
   - [Important gotcha: working with relative file paths](#important-gotcha-working-with-relative-file-paths)
   - [Using Terragrunt with private Git repos](#using-terragrunt-with-private-git-repos)
-  - [DRY common OpenTofu/Terraform code with Terragrunt generate blocks](#dry-common-terraform-code-with-terragrunt-generate-blocks)
+  - [DRY common OpenTofu/Terraform code with Terragrunt generate blocks](#dry-common-opentofuterraform-code-with-terragrunt-generate-blocks)
 
 ### Motivation
 
