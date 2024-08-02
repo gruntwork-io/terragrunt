@@ -301,7 +301,7 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 		localsConfigs[name] = map[string]interface{}{
 			"dependencies":                  interface{}(nil),
 			"download_dir":                  "",
-			"generate":                      interface{}(nil),
+			"generate":                      map[string]interface{}{},
 			"iam_assume_role_duration":      interface{}(nil),
 			"iam_assume_role_session_name":  "",
 			"iam_role":                      "",
