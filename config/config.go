@@ -61,7 +61,8 @@ const (
 	MetadataDependentModules            = "dependent_modules"
 	MetadataInclude                     = "include"
 
-	HclCacheContextKey configKey = iota
+	HclCacheContextKey  configKey = iota
+	HclConfigContextKey configKey = iota
 )
 
 type configKey byte
@@ -1332,13 +1333,17 @@ func (conf *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 
 // WithConfigValues add to context default values for configuration.
 func WithConfigValues(ctx context.Context) context.Context {
-	var c = cache.NewCache[*hclparse.File]()
-	ctx = context.WithValue(ctx, HclCacheContextKey, c)
+	ctx = context.WithValue(ctx, HclCacheContextKey, cache.NewCache[*hclparse.File]())
+	ctx = context.WithValue(ctx, HclConfigContextKey, cache.NewCache[TerragruntConfig]())
 	return ctx
 }
 
-// fetchHclCache returns the locks map from the context.
+// fetchHclCache returns hcl file cache from the context.
 func fetchHclCache(ctx context.Context) *cache.Cache[*hclparse.File] {
-	cacheType := ctx.Value(HclCacheContextKey).(*cache.Cache[*hclparse.File])
-	return cacheType
+	return ctx.Value(HclCacheContextKey).(*cache.Cache[*hclparse.File])
+}
+
+// fetchConfigCache returns config cache from the context.
+func fetchConfigCache(ctx context.Context) *cache.Cache[TerragruntConfig] {
+	return ctx.Value(HclConfigContextKey).(*cache.Cache[TerragruntConfig])
 }
