@@ -337,7 +337,9 @@ func updateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 			}
 			mapVals[key] = val
 		}
-		updatedValue = mapVals
+		if len(mapVals) > 0 {
+			updatedValue = mapVals
+		}
 
 	case value.Type().IsTupleType(), value.Type().IsListType():
 		sliceVals := value.AsValueSlice()
@@ -348,9 +350,13 @@ func updateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 			}
 			sliceVals[key] = val
 		}
+		if len(sliceVals) > 0 {
+			updatedValue = sliceVals
+		}
 		updatedValue = sliceVals
+	}
 
-	default:
+	if updatedValue == nil {
 		return value, nil
 	}
 
