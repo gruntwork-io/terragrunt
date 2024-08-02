@@ -3811,8 +3811,9 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 	assert.Equal(
 		t,
 		map[string]interface{}{
-			"source":          "./delorean",
-			"include_in_copy": []interface{}{"time_machine.*"},
+			"source":                   "./delorean",
+			"include_in_copy":          []interface{}{"time_machine.*"},
+			"copy_terraform_lock_file": true,
 			"extra_arguments": map[string]interface{}{
 				"var-files": map[string]interface{}{
 					"name":               "var-files",
@@ -5884,12 +5885,13 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 	var expectedTerraform = map[string]interface{}{
 		"metadata": terragruntMetadata,
 		"value": map[string]interface{}{
-			"after_hook":      map[string]interface{}{},
-			"before_hook":     map[string]interface{}{},
-			"error_hook":      map[string]interface{}{},
-			"extra_arguments": map[string]interface{}{},
-			"include_in_copy": nil,
-			"source":          "../terraform",
+			"after_hook":               map[string]interface{}{},
+			"before_hook":              map[string]interface{}{},
+			"copy_terraform_lock_file": nil,
+			"error_hook":               map[string]interface{}{},
+			"extra_arguments":          map[string]interface{}{},
+			"include_in_copy":          nil,
+			"source":                   "../terraform",
 		},
 	}
 

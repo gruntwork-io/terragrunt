@@ -24,8 +24,9 @@ remote_state {
 }
 
 terraform {
-  source          = "./delorean"
-  include_in_copy = ["time_machine.*"]
+  source                   = "./delorean"
+  include_in_copy          = ["time_machine.*"]
+  copy_terraform_lock_file = true
 
   extra_arguments "var-files" {
     commands = ["apply", "plan"]
