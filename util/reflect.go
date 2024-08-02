@@ -62,3 +62,84 @@ func MustWalkTerraformOutput(value interface{}, path ...string) interface{} {
 	}
 	return found
 }
+
+// DeepCopy performs a deep copy of a struct and returns a new struct instance
+func DeepCopy(src interface{}) interface{} {
+	if src == nil {
+		return nil
+	}
+
+	srcVal := reflect.ValueOf(src)
+	srcType := srcVal.Type()
+
+	// Ensure the src is a struct or pointer to a struct
+	if srcType.Kind() == reflect.Ptr {
+		srcType = srcType.Elem()
+		srcVal = srcVal.Elem()
+	}
+	if srcType.Kind() != reflect.Struct {
+		return src
+	}
+
+	// Create a new instance of the struct
+	dstVal := reflect.New(srcType).Elem()
+
+	// Copy all fields
+	for i := 0; i < srcVal.NumField(); i++ {
+		fieldVal := srcVal.Field(i)
+		if !fieldVal.CanSet() {
+			continue
+		}
+
+		dstField := dstVal.Field(i)
+		copyValue(dstField, fieldVal)
+	}
+
+	// Return the new struct instance
+	return dstVal.Interface()
+}
+
+// copyValue performs a deep copy of a value from src to dst
+func copyValue(dst, src reflect.Value) {
+	if !dst.CanSet() {
+		return
+	}
+
+	switch src.Kind() {
+	case reflect.Ptr:
+		if !src.IsNil() {
+			srcVal := src.Elem()
+			dst.Set(reflect.New(srcVal.Type()))
+			copyValue(dst.Elem(), srcVal)
+		}
+
+	case reflect.Struct:
+		dst.Set(reflect.New(src.Type()).Elem())
+		for i := 0; i < src.NumField(); i++ {
+			copyValue(dst.Field(i), src.Field(i))
+		}
+
+	case reflect.Slice:
+		if src.IsNil() {
+			return
+		}
+		dst.Set(reflect.MakeSlice(src.Type(), src.Len(), src.Cap()))
+		for i := 0; i < src.Len(); i++ {
+			copyValue(dst.Index(i), src.Index(i))
+		}
+
+	case reflect.Map:
+		if src.IsNil() {
+			return
+		}
+		dst.Set(reflect.MakeMap(src.Type()))
+		for _, key := range src.MapKeys() {
+			newVal := reflect.New(src.MapIndex(key).Type()).Elem()
+			copyValue(newVal, src.MapIndex(key))
+			dst.SetMapIndex(key, newVal)
+		}
+
+	default:
+		dst.Set(src)
+	}
+}
