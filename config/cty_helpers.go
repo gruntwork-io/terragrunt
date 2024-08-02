@@ -333,24 +333,29 @@ func updateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 		for key, val := range mapVals {
 			val, err := updateUnknownCtyValValues(val)
 			if err != nil {
-				return cty.NilVal, errors.WithStackTrace(err)
+				return cty.NilVal, err
 			}
 			mapVals[key] = val
 		}
-		updatedValue = mapVals
+		if len(mapVals) > 0 {
+			updatedValue = mapVals
+		}
 
 	case value.Type().IsTupleType(), value.Type().IsListType():
 		sliceVals := value.AsValueSlice()
 		for key, val := range sliceVals {
 			val, err := updateUnknownCtyValValues(val)
 			if err != nil {
-				return cty.NilVal, errors.WithStackTrace(err)
+				return cty.NilVal, err
 			}
 			sliceVals[key] = val
 		}
-		updatedValue = sliceVals
+		if len(sliceVals) > 0 {
+			updatedValue = sliceVals
+		}
+	}
 
-	default:
+	if updatedValue == nil {
 		return value, nil
 	}
 
