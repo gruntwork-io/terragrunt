@@ -305,11 +305,11 @@ func GitTopLevelDir(ctx context.Context, terragruntOptions *options.TerragruntOp
 	opts.Writer = &stdout
 	opts.ErrWriter = &stderr
 	cmd, err := RunShellCommandWithOutput(ctx, opts, path, true, false, "git", "rev-parse", "--show-toplevel")
-	terragruntOptions.Logger.Debugf("git show-toplevel result: \n%v\n%v\n", stdout.String(), stderr.String())
 	if err != nil {
 		return "", err
 	}
 	cmdOutput := strings.TrimSpace(cmd.Stdout)
+	terragruntOptions.Logger.Debugf("git show-toplevel result: \n%v\n%v\n%v\n", stdout.String(), stderr.String(), cmdOutput)
 	cache.Put(path, cmdOutput)
 	return cmdOutput, nil
 }
