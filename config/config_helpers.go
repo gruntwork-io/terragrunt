@@ -314,7 +314,7 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 func runCommand(ctx *ParsingContext, args []string) (string, error) {
 	// runCommandCache - cache of evaluated `run_cmd` invocations
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
-	runCommandCache := fetchCache[string](ctx, RunCmdCacheContextKey)
+	runCommandCache := cache.ContextCache[string](ctx, RunCmdCacheContextKey)
 
 	if len(args) == 0 {
 		return "", errors.WithStackTrace(EmptyStringNotAllowedError("parameter to the run_cmd function"))

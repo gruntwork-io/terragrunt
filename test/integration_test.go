@@ -7359,6 +7359,25 @@ func TestTerragruntLogSopsErrors(t *testing.T) {
 	require.Contains(t, errorOut, "error base64-decoding encrypted data key: illegal base64 data at input byte")
 }
 
+func TestGetRepoRootCaching(t *testing.T) {
+	t.Parallel()
+	cleanupTerraformFolder(t, TEST_FIXTURE_GET_REPO_ROOT)
+	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_GET_REPO_ROOT))
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_REPO_ROOT)
+
+	gitOutput, err := exec.Command("git", "init", rootPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("Error initializing git repo: %v\n%s", err, string(gitOutput))
+	}
+
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", rootPath))
+	require.NoError(t, err)
+
+	output := fmt.Sprintf("%s %s", stdout, stderr)
+	count := strings.Count(output, "git show-toplevel result")
+	assert.Equal(t, 1, count)
+}
+
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
 	t.Helper()
 	output, hasPlatform := outputs[key]

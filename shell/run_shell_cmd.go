@@ -291,8 +291,8 @@ func (signalChannel *SignalsForwarder) Close() error {
 
 // GitTopLevelDir - fetch git repository path from passed directory
 func GitTopLevelDir(ctx context.Context, terragruntOptions *options.TerragruntOptions, path string) (string, error) {
-	cache := cache.ContextCache[string](ctx, RunCmdCacheContextKey)
-	if gitTopLevelDir, found := cache.Get(path); found {
+	runCache := cache.ContextCache[string](ctx, RunCmdCacheContextKey)
+	if gitTopLevelDir, found := runCache.Get(path); found {
 		return gitTopLevelDir, nil
 	}
 	stdout := bytes.Buffer{}
@@ -310,7 +310,7 @@ func GitTopLevelDir(ctx context.Context, terragruntOptions *options.TerragruntOp
 	}
 	cmdOutput := strings.TrimSpace(cmd.Stdout)
 	terragruntOptions.Logger.Debugf("git show-toplevel result: \n%v\n%v\n%v\n", stdout.String(), stderr.String(), cmdOutput)
-	cache.Put(path, cmdOutput)
+	runCache.Put(path, cmdOutput)
 	return cmdOutput, nil
 }
 
