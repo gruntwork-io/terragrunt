@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"io"
 	"net/url"
 	"os"
@@ -12,6 +11,8 @@ import (
 	"os/signal"
 	"strings"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 
 	"github.com/gruntwork-io/terragrunt/engine"
 

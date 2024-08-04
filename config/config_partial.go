@@ -2,9 +2,10 @@ package config
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"os"
 	"path/filepath"
+
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"

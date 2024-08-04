@@ -3,10 +3,11 @@ package shell
 import (
 	"bytes"
 	"context"
-	"github.com/gruntwork-io/terragrunt/internal/cache"
-	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
