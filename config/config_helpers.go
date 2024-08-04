@@ -308,14 +308,14 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 	return envVariable, nil
 }
 
-// runCommandCache - cache of evaluated `run_cmd` invocations
-// see: https://github.com/gruntwork-io/terragrunt/issues/1427
-var runCommandCache = cache.NewCache[string]()
-
 // runCommand is a helper function that runs a command and returns the stdout as the interporation
 // for each `run_cmd` in locals section, function is called twice
 // result
 func runCommand(ctx *ParsingContext, args []string) (string, error) {
+	// runCommandCache - cache of evaluated `run_cmd` invocations
+	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
+	runCommandCache := fetchCache[string](ctx, RunCmdCacheContextKey)
+
 	if len(args) == 0 {
 		return "", errors.WithStackTrace(EmptyStringNotAllowedError("parameter to the run_cmd function"))
 	}

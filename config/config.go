@@ -62,8 +62,9 @@ const (
 	MetadataDependentModules            = "dependent_modules"
 	MetadataInclude                     = "include"
 
-	HclCacheContextKey  configKey = iota
-	HclConfigContextKey configKey = iota
+	HclCacheContextKey              configKey = iota
+	TerragruntConfigCacheContextKey configKey = iota
+	RunCmdCacheContextKey           configKey = iota
 )
 
 type configKey byte
@@ -701,7 +702,7 @@ func ReadTerragruntConfig(ctx context.Context, terragruntOptions *options.Terrag
 // included in some other config file when resolving relative paths.
 func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	var config *TerragruntConfig
-	hclCache := fetchHclCache(ctx)
+	hclCache := fetchCache[*hclparse.File](ctx, HclCacheContextKey)
 	err := telemetry.Telemetry(ctx, ctx.TerragruntOptions, "parse_config_file", map[string]interface{}{
 		"config_path": configPath,
 		"working_dir": ctx.TerragruntOptions.WorkingDir,
@@ -1335,24 +1336,16 @@ func (conf *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 // WithConfigValues add to context default values for configuration.
 func WithConfigValues(ctx context.Context) context.Context {
 	ctx = context.WithValue(ctx, HclCacheContextKey, cache.NewCache[*hclparse.File]())
-	ctx = context.WithValue(ctx, HclConfigContextKey, cache.NewCache[TerragruntConfig]())
+	ctx = context.WithValue(ctx, TerragruntConfigCacheContextKey, cache.NewCache[*TerragruntConfig]())
+	ctx = context.WithValue(ctx, RunCmdCacheContextKey, cache.NewCache[string]())
 	return ctx
 }
 
-// fetchHclCache returns hcl file cache from the context. If the cache is nil, it creates a new instance.
-func fetchHclCache(ctx context.Context) *cache.Cache[*hclparse.File] {
-	hclCache, ok := ctx.Value(HclCacheContextKey).(*cache.Cache[*hclparse.File])
-	if !ok || hclCache == nil {
-		hclCache = cache.NewCache[*hclparse.File]()
+// fetchCache returns cache from the context. If the cache is nil, it creates a new instance.
+func fetchCache[T any](ctx context.Context, key any) *cache.Cache[T] {
+	cacheInstance, ok := ctx.Value(key).(*cache.Cache[T])
+	if !ok || cacheInstance == nil {
+		cacheInstance = cache.NewCache[T]()
 	}
-	return hclCache
-}
-
-// fetchConfigCache returns config cache from the context. If the cache is nil, it creates a new instance.
-func fetchConfigCache(ctx context.Context) *cache.Cache[TerragruntConfig] {
-	configCache, ok := ctx.Value(HclConfigContextKey).(*cache.Cache[TerragruntConfig])
-	if !ok || configCache == nil {
-		configCache = cache.NewCache[TerragruntConfig]()
-	}
-	return configCache
+	return cacheInstance
 }

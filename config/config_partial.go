@@ -136,7 +136,8 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 }
 
 func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *IncludeConfig) (*TerragruntConfig, error) {
-	hclCache := fetchHclCache(ctx)
+	hclCache := fetchCache[*hclparse.File](ctx, HclCacheContextKey)
+
 	fileInfo, err := os.Stat(configPath)
 	if err != nil {
 		return nil, err
@@ -162,8 +163,7 @@ func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *Inc
 func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	var cacheKey = fmt.Sprintf("%#v-%#v-%#v-%#v", file.ConfigPath, file.Content(), includeFromChild, ctx.PartialParseDecodeList)
 
-	var terragruntConfigCache = fetchConfigCache(ctx)
-
+	terragruntConfigCache := fetchCache[*TerragruntConfig](ctx, RunCmdCacheContextKey)
 	if ctx.TerragruntOptions.UsePartialParseConfigCache {
 		if config, found := terragruntConfigCache.Get(cacheKey); found {
 			ctx.TerragruntOptions.Logger.Debugf("Cache hit for '%s' (partial parsing), decodeList: '%v'.", file.ConfigPath, ctx.PartialParseDecodeList)
@@ -180,7 +180,7 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File,
 	}
 
 	if ctx.TerragruntOptions.UsePartialParseConfigCache {
-		terragruntConfigCache.Put(cacheKey, *config)
+		terragruntConfigCache.Put(cacheKey, config)
 	}
 
 	return config, nil
