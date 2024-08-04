@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"sync"
@@ -80,4 +81,13 @@ func (c *ExpiringCache[V]) Put(key string, value V, expiration time.Time) {
 	c.Mutex.Lock()
 	defer c.Mutex.Unlock()
 	c.Cache[key] = ExpiringItem[V]{Value: value, Expiration: expiration}
+}
+
+// ContextCache returns cache from the context. If the cache is nil, it creates a new instance.
+func ContextCache[T any](ctx context.Context, key any) *Cache[T] {
+	cacheInstance, ok := ctx.Value(key).(*Cache[T])
+	if !ok || cacheInstance == nil {
+		cacheInstance = NewCache[T]()
+	}
+	return cacheInstance
 }

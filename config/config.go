@@ -702,7 +702,7 @@ func ReadTerragruntConfig(ctx context.Context, terragruntOptions *options.Terrag
 // included in some other config file when resolving relative paths.
 func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	var config *TerragruntConfig
-	hclCache := fetchCache[*hclparse.File](ctx, HclCacheContextKey)
+	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
 	err := telemetry.Telemetry(ctx, ctx.TerragruntOptions, "parse_config_file", map[string]interface{}{
 		"config_path": configPath,
 		"working_dir": ctx.TerragruntOptions.WorkingDir,
@@ -1339,13 +1339,4 @@ func WithConfigValues(ctx context.Context) context.Context {
 	ctx = context.WithValue(ctx, TerragruntConfigCacheContextKey, cache.NewCache[*TerragruntConfig]())
 	ctx = context.WithValue(ctx, RunCmdCacheContextKey, cache.NewCache[string]())
 	return ctx
-}
-
-// fetchCache returns cache from the context. If the cache is nil, it creates a new instance.
-func fetchCache[T any](ctx context.Context, key any) *cache.Cache[T] {
-	cacheInstance, ok := ctx.Value(key).(*cache.Cache[T])
-	if !ok || cacheInstance == nil {
-		cacheInstance = cache.NewCache[T]()
-	}
-	return cacheInstance
 }

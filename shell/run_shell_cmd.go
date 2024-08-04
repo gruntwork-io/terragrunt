@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"io"
 	"net/url"
 	"os"
@@ -290,6 +291,10 @@ func (signalChannel *SignalsForwarder) Close() error {
 
 // GitTopLevelDir - fetch git repository path from passed directory
 func GitTopLevelDir(ctx context.Context, terragruntOptions *options.TerragruntOptions, path string) (string, error) {
+	cache := cache.ContextCache[string](ctx, RunCmdCacheContextKey)
+	if gitTopLevelDir, found := cache.Get(path); found {
+		return gitTopLevelDir, nil
+	}
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	opts, err := options.NewTerragruntOptionsWithConfigPath(path)
@@ -304,7 +309,9 @@ func GitTopLevelDir(ctx context.Context, terragruntOptions *options.TerragruntOp
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(cmd.Stdout), nil
+	cmdOutput := strings.TrimSpace(cmd.Stdout)
+	cache.Put(path, cmdOutput)
+	return cmdOutput, nil
 }
 
 // GitRepoTags - fetch git repository tags from passed url
