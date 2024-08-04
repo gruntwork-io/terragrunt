@@ -989,6 +989,7 @@ terragrunt run-all plan --terragrunt-excludes-file <(terragrunt hclvalidate --te
 ### terragrunt-exclude-dir
 
 **CLI Arg**: `--terragrunt-exclude-dir`<br/>
+**Environment Variable**: `TERRAGRUNT_EXCLUDE_DIR`<br/>
 **Requires an argument**: `--terragrunt-exclude-dir /path/to/dirs/to/exclude*`<br/>
 
 Can be supplied multiple times: `--terragrunt-exclude-dir /path/to/dirs/to/exclude --terragrunt-exclude-dir /another/path/to/dirs/to/exclude`
