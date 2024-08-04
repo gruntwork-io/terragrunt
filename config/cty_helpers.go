@@ -220,6 +220,12 @@ func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*m
 // we convert the given value to JSON using cty's JSON library and then convert the JSON back to a
 // map[string]interface{} using the Go json library.
 func parseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
+	updatedValue, err := updateUnknownCtyValValues(value)
+	if err != nil {
+		return nil, err
+	}
+	value = updatedValue
+
 	jsonBytes, err := ctyjson.Marshal(value, cty.DynamicPseudoType)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
@@ -313,22 +319,49 @@ func includeConfigAsCtyVal(ctx *ParsingContext, includeConfig IncludeConfig) (ct
 	return cty.NilVal, nil
 }
 
-// updateUnknownCtyValValues updates unknown values with default value
-func updateUnknownCtyValValues(value *cty.Value) (*cty.Value, error) {
-	updatedValue := map[string]cty.Value{}
+// updateUnknownCtyValValues deeply updates unknown values with default value
+func updateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
+	var updatedValue any
 
-	for key, value := range value.AsValueMap() {
-		if value.IsKnown() {
-			updatedValue[key] = value
-		} else {
-			updatedValue[key] = cty.StringVal("")
+	switch {
+	case !value.IsKnown():
+		return cty.StringVal(""), nil
+	case value.IsNull():
+		return value, nil
+	case value.Type().IsMapType(), value.Type().IsObjectType():
+		mapVals := value.AsValueMap()
+		for key, val := range mapVals {
+			val, err := updateUnknownCtyValValues(val)
+			if err != nil {
+				return cty.NilVal, err
+			}
+			mapVals[key] = val
+		}
+		if len(mapVals) > 0 {
+			updatedValue = mapVals
+		}
+
+	case value.Type().IsTupleType(), value.Type().IsListType():
+		sliceVals := value.AsValueSlice()
+		for key, val := range sliceVals {
+			val, err := updateUnknownCtyValValues(val)
+			if err != nil {
+				return cty.NilVal, err
+			}
+			sliceVals[key] = val
+		}
+		if len(sliceVals) > 0 {
+			updatedValue = sliceVals
 		}
 	}
 
-	res, err := gocty.ToCtyValue(updatedValue, value.Type())
-	if err != nil {
-		return nil, err
+	if updatedValue == nil {
+		return value, nil
 	}
 
-	return &res, nil
+	value, err := gocty.ToCtyValue(updatedValue, value.Type())
+	if err != nil {
+		return cty.NilVal, errors.WithStackTrace(err)
+	}
+	return value, nil
 }

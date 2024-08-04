@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"path"
 	"path/filepath"
 	"strings"
@@ -23,19 +24,24 @@ type ProviderNetworkMirrorHandler struct {
 	*http.Client
 	providerService             *services.ProviderService
 	cacheProviderHTTPStatusCode int
-	networkMirrorURL            string
+	networkMirrorURL            *url.URL
 	credsSource                 *cliconfig.CredentialsSource
 }
 
-func NewProviderNetworkMirrorHandler(providerService *services.ProviderService, cacheProviderHTTPStatusCode int, networkMirror *cliconfig.ProviderInstallationNetworkMirror, credsSource *cliconfig.CredentialsSource) ProviderHandler {
+func NewProviderNetworkMirrorHandler(providerService *services.ProviderService, cacheProviderHTTPStatusCode int, networkMirror *cliconfig.ProviderInstallationNetworkMirror, credsSource *cliconfig.CredentialsSource) (ProviderHandler, error) {
+	networkMirrorURL, err := url.Parse(networkMirror.URL)
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
 	return &ProviderNetworkMirrorHandler{
 		CommonProviderHandler:       NewCommonProviderHandler(networkMirror.Include, networkMirror.Exclude),
 		Client:                      &http.Client{},
 		providerService:             providerService,
 		cacheProviderHTTPStatusCode: cacheProviderHTTPStatusCode,
-		networkMirrorURL:            networkMirror.URL,
+		networkMirrorURL:            networkMirrorURL,
 		credsSource:                 credsSource,
-	}
+	}, nil
 }
 
 func (handler *ProviderNetworkMirrorHandler) String() string {
@@ -90,14 +96,12 @@ func (handler *ProviderNetworkMirrorHandler) GetPlatform(ctx echo.Context, provi
 	}
 
 	if archive, ok := mirrorData.Archives[provider.Platform()]; ok {
-		if !strings.HasPrefix(archive.URL, "http") {
-			archive.URL = fmt.Sprintf("%s/%s", strings.TrimRight(handler.networkMirrorURL, "/"), path.Join(provider.RegistryName, provider.Namespace, provider.Name, archive.URL))
-		}
-
-		provider.ResponseBody = &models.ResponseBody{
+		provider.ResponseBody = (&models.ResponseBody{
 			Filename:    filepath.Base(archive.URL),
 			DownloadURL: archive.URL,
-		}
+		}).ResolveRelativeReferences(handler.networkMirrorURL.ResolveReference(&url.URL{
+			Path: path.Join(handler.networkMirrorURL.Path, provider.Address()),
+		}))
 	} else {
 		return ctx.NoContent(http.StatusNotFound)
 	}
@@ -113,7 +117,7 @@ func (handler *ProviderNetworkMirrorHandler) Download(ctx echo.Context, provider
 }
 
 func (handler *ProviderNetworkMirrorHandler) do(ctx echo.Context, method, reqPath string, value any) error {
-	reqURL := fmt.Sprintf("%s/%s", strings.TrimRight(handler.networkMirrorURL, "/"), reqPath)
+	reqURL := fmt.Sprintf("%s/%s", strings.TrimRight(handler.networkMirrorURL.String(), "/"), reqPath)
 
 	req, err := http.NewRequestWithContext(ctx.Request().Context(), method, reqURL, nil)
 	if err != nil {

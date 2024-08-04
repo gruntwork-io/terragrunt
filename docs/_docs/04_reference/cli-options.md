@@ -64,7 +64,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-diff](#terragrunt-diff)
   - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
   - [terragrunt-hclvalidate-json](#terragrunt-hclvalidate-json)
-  - [terragrunt-hclvalidate-invalid](#terragrunt-hclvalidate-invalid)
+  - [terragrunt-hclvalidate-show-config-path](#terragrunt-hclvalidate-show-config-path)
   - [terragrunt-override-attr](#terragrunt-override-attr)
   - [terragrunt-json-out](#terragrunt-json-out)
   - [terragrunt-json-disable-dependent-modules](#terragrunt-json-disable-dependent-modules)
@@ -432,12 +432,12 @@ Example:
 terragrunt hclvalidate --terragrunt-hclvalidate-json
 ```
 
-In addition, you can pass the `--terragrunt-hclvalidate-invalid` flag to only output the invalid files, delimited by newlines. This can be especially useful when combined with the [terragrunt-excludes-file](#terragrunt-excludes-file) flag.
+In addition, you can pass the `--terragrunt-hclvalidate-show-config-path` flag to only output paths of the invalid config files, delimited by newlines. This can be especially useful when combined with the [terragrunt-excludes-file](#terragrunt-excludes-file) flag.
 
 Example:
 
 ```bash
-terragrunt hclvalidate --terragrunt-hclvalidate-invalid
+terragrunt hclvalidate --terragrunt-hclvalidate-show-config-path
 ```
 
 ### aws-provider-patch
@@ -764,7 +764,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
   - [terragrunt-diff](#terragrunt-diff)
   - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
   - [terragrunt-hclvalidate-json](#terragrunt-hclvalidate-json)
-  - [terragrunt-hclvalidate-invalid](#terragrunt-hclvalidate-invalid)
+  - [terragrunt-hclvalidate-show-config-path](#terragrunt-hclvalidate-show-config-path)
   - [terragrunt-override-attr](#terragrunt-override-attr)
   - [terragrunt-json-out](#terragrunt-json-out)
   - [terragrunt-json-disable-dependent-modules](#terragrunt-json-disable-dependent-modules)
@@ -980,10 +980,10 @@ Path to a file with a list of directories that need to be excluded when running 
 excluded during execution of the commands. If a relative path is specified, it should be relative from
 [--terragrunt-working-dir](#terragrunt-working-dir). This will only exclude the module, not its dependencies.
 
-This flag has been designed to integrate nicely with the `hclvalidate` command, which can return a list of invalid files delimited by newlines when passed the `--terragrunt-hclvalidate-invalid` flag. To integrate the two, you can run something like the following using bash process substitution:
+This flag has been designed to integrate nicely with the `hclvalidate` command, which can return a list of invalid files delimited by newlines when passed the `--terragrunt-hclvalidate-show-config-path` flag. To integrate the two, you can run something like the following using bash process substitution:
 
 ```bash
-terragrunt run-all plan --terragrunt-excludes-file <(terragrunt hclvalidate --terragrunt-hclvalidate-invalid)
+terragrunt run-all plan --terragrunt-excludes-file <(terragrunt hclvalidate --terragrunt-hclvalidate-show-config-path)
 ```
 
 ### terragrunt-exclude-dir
@@ -1130,9 +1130,9 @@ When passed in, run `hclfmt` only on specified hcl file.
 
 When passed in, render the output in the JSON format.
 
-### terragrunt-hclvalidate-invalid
+### terragrunt-hclvalidate-show-config-path
 
-**CLI Arg**: `--terragrunt-hclvalidate-invalid`<br/>
+**CLI Arg**: `--terragrunt-hclvalidate-show-config-path`<br/>
 **Environment Variable**: `TERRAGRUNT_HCLVALIDATE_INVALID` (set to `true`)<br/>
 **Commands**:
 

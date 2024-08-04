@@ -589,13 +589,16 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 			assert.True(t, containsFoo)
 
 			fooSlice := toStringSlice(t, foo)
-
 			assert.EqualValues(t, testCase.expectedFooInput, fooSlice, "For string '%s' include %v and options %v", testCase.str, testCase.include, testCase.terragruntOptions)
 		})
 	}
 }
 
 func toStringSlice(t *testing.T, value interface{}) []string {
+	if value == nil {
+		return nil
+	}
+
 	asInterfaceSlice, isInterfaceSlice := value.([]interface{})
 	require.True(t, isInterfaceSlice)
 

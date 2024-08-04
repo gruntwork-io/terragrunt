@@ -279,40 +279,6 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 		},
 		&diagnostic.Diagnostic{
 			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
-			Summary:  "Can't evaluate expression",
-			Detail:   "You can only reference to other local variables here, but it looks like you're referencing something else (\"dependency\" is not defined)",
-			Range: &diagnostic.Range{
-				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
-				Start:    diagnostic.Pos{Line: 10, Column: 9, Byte: 117},
-				End:      diagnostic.Pos{Line: 10, Column: 31, Byte: 139},
-			},
-			Snippet: &diagnostic.Snippet{
-				Context:              "locals",
-				Code:                 "  vvv = dependency.a.outputs.z",
-				StartLine:            10,
-				HighlightStartOffset: 8,
-				HighlightEndOffset:   30,
-			},
-		},
-		&diagnostic.Diagnostic{
-			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
-			Summary:  "Can't evaluate expression",
-			Detail:   "You can only reference to other local variables here, but it looks like you're referencing something else (\"dependency\" is not defined)",
-			Range: &diagnostic.Range{
-				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
-				Start:    diagnostic.Pos{Line: 12, Column: 9, Byte: 149},
-				End:      diagnostic.Pos{Line: 12, Column: 21, Byte: 161},
-			},
-			Snippet: &diagnostic.Snippet{
-				Context:              "locals",
-				Code:                 "  ddd = dependency.d",
-				StartLine:            12,
-				HighlightStartOffset: 8,
-				HighlightEndOffset:   20,
-			},
-		},
-		&diagnostic.Diagnostic{
-			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
 			Summary:  "Unsupported attribute",
 			Detail:   "This object does not have an attribute named \"outputs\".",
 			Range: &diagnostic.Range{
@@ -346,6 +312,40 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 				HighlightEndOffset:   16,
 			},
 		},
+		&diagnostic.Diagnostic{
+			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
+			Summary:  "Can't evaluate expression",
+			Detail:   "You can only reference to other local variables here, but it looks like you're referencing something else (\"dependency\" is not defined)",
+			Range: &diagnostic.Range{
+				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
+				Start:    diagnostic.Pos{Line: 12, Column: 9, Byte: 149},
+				End:      diagnostic.Pos{Line: 12, Column: 21, Byte: 161},
+			},
+			Snippet: &diagnostic.Snippet{
+				Context:              "locals",
+				Code:                 "  ddd = dependency.d",
+				StartLine:            12,
+				HighlightStartOffset: 8,
+				HighlightEndOffset:   20,
+			},
+		},
+		&diagnostic.Diagnostic{
+			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
+			Summary:  "Can't evaluate expression",
+			Detail:   "You can only reference to other local variables here, but it looks like you're referencing something else (\"dependency\" is not defined)",
+			Range: &diagnostic.Range{
+				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
+				Start:    diagnostic.Pos{Line: 10, Column: 9, Byte: 117},
+				End:      diagnostic.Pos{Line: 10, Column: 31, Byte: 139},
+			},
+			Snippet: &diagnostic.Snippet{
+				Context:              "locals",
+				Code:                 "  vvv = dependency.a.outputs.z",
+				StartLine:            10,
+				HighlightStartOffset: 8,
+				HighlightEndOffset:   30,
+			},
+		},
 	}
 
 	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hclvalidate --terragrunt-working-dir %s --terragrunt-hclvalidate-json", rootPath))
@@ -369,7 +369,7 @@ func TestHclvalidateInvalidConfigPath(t *testing.T) {
 		filepath.Join(rootPath, "second/c/terragrunt.hcl"),
 	}
 
-	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hclvalidate --terragrunt-working-dir %s --terragrunt-hclvalidate-json --terragrunt-hclvalidate-invalid", rootPath))
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hclvalidate --terragrunt-working-dir %s --terragrunt-hclvalidate-json --terragrunt-hclvalidate-show-config-path", rootPath))
 	require.NoError(t, err)
 
 	var actualPaths []string
@@ -3767,16 +3767,16 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(outputs["dependencies"].Value.(string)), &depsOut))
 	assert.Equal(
 		t,
-		depsOut,
 		map[string]interface{}{
 			"paths": []interface{}{"../../fixture"},
 		},
+		depsOut,
 	)
+
 	generateOut := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["generate"].Value.(string)), &generateOut))
 	assert.Equal(
 		t,
-		generateOut,
 		map[string]interface{}{
 			"provider": map[string]interface{}{
 				"path":              "provider.tf",
@@ -3791,12 +3791,12 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 `,
 			},
 		},
+		generateOut,
 	)
 	remoteStateOut := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["remote_state"].Value.(string)), &remoteStateOut))
 	assert.Equal(
 		t,
-		remoteStateOut,
 		map[string]interface{}{
 			"backend":                         "local",
 			"disable_init":                    false,
@@ -3804,12 +3804,12 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 			"generate":                        map[string]interface{}{"path": "backend.tf", "if_exists": "overwrite_terragrunt"},
 			"config":                          map[string]interface{}{"path": "foo.tfstate"},
 		},
+		remoteStateOut,
 	)
 	terraformOut := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["terraformtg"].Value.(string)), &terraformOut))
 	assert.Equal(
 		t,
-		terraformOut,
 		map[string]interface{}{
 			"source":          "./delorean",
 			"include_in_copy": []interface{}{"time_machine.*"},
@@ -3847,6 +3847,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 			},
 			"error_hook": map[string]interface{}{},
 		},
+		terraformOut,
 	)
 }
 
@@ -5078,6 +5079,39 @@ func TestSopsDecryptedCorrectly(t *testing.T) {
 	stderr := bytes.Buffer{}
 
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr)
+	require.NoError(t, err)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+
+	assert.Equal(t, outputs["json_bool_array"].Value, []interface{}{true, false})
+	assert.Equal(t, outputs["json_string_array"].Value, []interface{}{"example_value1", "example_value2"})
+	assert.Equal(t, outputs["json_number"].Value, 1234.56789)
+	assert.Equal(t, outputs["json_string"].Value, "example_value")
+	assert.Equal(t, outputs["json_hello"].Value, "Welcome to SOPS! Edit this file as you please!")
+	assert.Equal(t, outputs["yaml_bool_array"].Value, []interface{}{true, false})
+	assert.Equal(t, outputs["yaml_string_array"].Value, []interface{}{"example_value1", "example_value2"})
+	assert.Equal(t, outputs["yaml_number"].Value, 1234.5679)
+	assert.Equal(t, outputs["yaml_string"].Value, "example_value")
+	assert.Equal(t, outputs["yaml_hello"].Value, "Welcome to SOPS! Edit this file as you please!")
+	assert.Equal(t, outputs["text_value"].Value, "Raw Secret Example")
+	assert.Contains(t, outputs["env_value"].Value, "DB_PASSWORD=tomato")
+	assert.Contains(t, outputs["ini_value"].Value, "password = potato")
+}
+
+func TestSopsDecryptedCorrectlyRunAll(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, TEST_FIXTURE_SOPS)
+	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_SOPS)
+	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_SOPS)
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s/.. --terragrunt-include-dir %s", rootPath, TEST_FIXTURE_SOPS))
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt run-all output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s/.. --terragrunt-include-dir %s", rootPath, TEST_FIXTURE_SOPS), &stdout, &stderr)
 	require.NoError(t, err)
 
 	outputs := map[string]TerraformOutput{}
