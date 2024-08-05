@@ -61,10 +61,6 @@ const (
 	MetadataRetrySleepIntervalSec       = "retry_sleep_interval_sec"
 	MetadataDependentModules            = "dependent_modules"
 	MetadataInclude                     = "include"
-
-	HclCacheContextKey              configKey = iota
-	TerragruntConfigCacheContextKey configKey = iota
-	RunCmdCacheContextKey           configKey = iota
 )
 
 type configKey byte
@@ -1323,12 +1319,4 @@ func (conf *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 		Type:    t,
 		Meta:    meta,
 	}, nil
-}
-
-// WithConfigValues add to context default values for configuration.
-func WithConfigValues(ctx context.Context) context.Context {
-	ctx = context.WithValue(ctx, HclCacheContextKey, cache.NewCache[*hclparse.File]("hclCache"))
-	ctx = context.WithValue(ctx, TerragruntConfigCacheContextKey, cache.NewCache[*TerragruntConfig]("terragruntConfigCache"))
-	ctx = context.WithValue(ctx, RunCmdCacheContextKey, cache.NewCache[string]("runCmdCache"))
-	return ctx
 }

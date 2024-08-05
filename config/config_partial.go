@@ -182,7 +182,8 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File,
 	}
 
 	if ctx.TerragruntOptions.UsePartialParseConfigCache {
-		terragruntConfigCache.Put(ctx, cacheKey, config)
+		putConfig := util.DeepCopy(config).(TerragruntConfig)
+		terragruntConfigCache.Put(ctx, cacheKey, &putConfig)
 	}
 
 	return config, nil

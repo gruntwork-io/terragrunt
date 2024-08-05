@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"io"
 	"os"
 	"path/filepath"
@@ -37,16 +38,10 @@ const renderJsonCommand = "render-json"
 
 type Dependencies []Dependency
 
-func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
-	var filteredDeps Dependencies
-
-	for _, dep := range deps {
-		if !dep.ConfigPath.IsNull() {
-			filteredDeps = append(filteredDeps, dep)
-		}
-	}
-
-	return filteredDeps
+// Struct to hold the decoded dependency blocks.
+type dependencyOutputCache struct {
+	Enabled *bool
+	Inputs  cty.Value
 }
 
 type Dependency struct {
@@ -183,10 +178,6 @@ var outputLocks = sync.Map{}
 // NOTE FOR MAINTAINER: When implementing importation of other config blocks (e.g referencing inputs), carefully
 //
 //	consider whether or not the implementation of the cyclic dependency detection still makes sense.
-
-var enableMap = map[string]bool{}
-var inputMap = map[string]*cty.Value{}
-
 func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Value, error) {
 	evalParsingContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
 	if err != nil {
@@ -225,39 +216,37 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 // decodeDependencies decode dependencies and fetch inputs
 func decodeDependencies(ctx *ParsingContext, decodedDependency terragruntDependency) (*terragruntDependency, error) {
 	updatedDependencies := terragruntDependency{}
+	depCache := cache.ContextCache[*dependencyOutputCache](ctx, DependencyOutputCacheContextKey)
 	for _, dep := range decodedDependency.Dependencies {
 		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
 		if dep.isEnabled() && util.FileExists(depPath) {
-
-			enabled, enabledFound := enableMap[depPath]
-			inputs, inputsFound := inputMap[depPath]
-
-			if !enabledFound && !inputsFound {
+			cachedDependency, found := depCache.Get(ctx, depPath)
+			if !found {
 				depOpts := cloneTerragruntOptionsForDependency(ctx, depPath)
 				depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
-
 				if depConfig, err := PartialParseConfigFile(depCtx, depPath, nil); err == nil {
-					enableMap[depPath] = true
 					if depConfig.Skip {
 						ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
 						dep.Enabled = new(bool)
-						enableMap[depPath] = false
 					}
-
 					inputsCty, err := convertToCtyWithJson(depConfig.Inputs)
 					if err != nil {
 						return nil, err
 					}
+					cachedValue := dependencyOutputCache{
+						Enabled: dep.Enabled,
+						Inputs:  inputsCty,
+					}
+					depCache.Put(ctx, depPath, &cachedValue)
+
 					dep.Inputs = &inputsCty
-					inputMap[depPath] = &inputsCty
 
 				} else {
 					ctx.TerragruntOptions.Logger.Warnf("Error reading partial config for dependency %s: %v", dep.Name, err)
 				}
 			} else {
-				enableMap[depPath] = enabled
-				dep.Inputs = inputs
-
+				dep.Enabled = cachedDependency.Enabled
+				dep.Inputs = &cachedDependency.Inputs
 			}
 		}
 		updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
@@ -1022,4 +1011,16 @@ func runTerraformInitForDependencyOutput(ctx *ParsingContext, workingDir string,
 		ctx.TerragruntOptions.Logger.Debugf("Init call stderr:")
 		ctx.TerragruntOptions.Logger.Debugf(stderr.String())
 	}
+}
+
+func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
+	var filteredDeps Dependencies
+
+	for _, dep := range deps {
+		if !dep.ConfigPath.IsNull() {
+			filteredDeps = append(filteredDeps, dep)
+		}
+	}
+
+	return filteredDeps
 }
