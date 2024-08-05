@@ -222,35 +222,32 @@ func decodeDependencies(ctx *ParsingContext, decodedDependency terragruntDepende
 		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
 		if dep.isEnabled() && util.FileExists(depPath) {
 			cachedDependency, found := depCache.Get(ctx, depPath)
-			if !found {
-				depOpts := cloneTerragruntOptionsForDependency(ctx, depPath)
-				depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
-				if depConfig, err := PartialParseConfigFile(depCtx, depPath, nil); err == nil {
-					if depConfig.Skip {
-						ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
-						dep.Enabled = new(bool)
-					}
-					inputsCty, err := convertToCtyWithJson(depConfig.Inputs)
-					if err != nil {
-						return nil, err
-					}
-					cachedValue := dependencyOutputCache{
-						Enabled: dep.Enabled,
-						Inputs:  inputsCty,
-					}
-					depCache.Put(ctx, depPath, &cachedValue)
-
-					dep.Inputs = &inputsCty
-
-				} else {
-					ctx.TerragruntOptions.Logger.Warnf("Error reading partial config for dependency %s: %v", dep.Name, err)
-				}
-			} else {
+			updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+			if found {
 				dep.Enabled = cachedDependency.Enabled
 				dep.Inputs = &cachedDependency.Inputs
 			}
+			depOpts := cloneTerragruntOptionsForDependency(ctx, depPath)
+			depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
+			if depConfig, err := PartialParseConfigFile(depCtx, depPath, nil); err == nil {
+				if depConfig.Skip {
+					ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
+					dep.Enabled = new(bool)
+				}
+				inputsCty, err := convertToCtyWithJson(depConfig.Inputs)
+				if err != nil {
+					return nil, err
+				}
+				cachedValue := dependencyOutputCache{
+					Enabled: dep.Enabled,
+					Inputs:  inputsCty,
+				}
+				depCache.Put(ctx, depPath, &cachedValue)
+				dep.Inputs = &inputsCty
+			} else {
+				ctx.TerragruntOptions.Logger.Warnf("Error reading partial config for dependency %s: %v", dep.Name, err)
+			}
 		}
-		updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
 	}
 	return &updatedDependencies, nil
 }
