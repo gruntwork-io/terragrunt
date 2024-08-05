@@ -183,6 +183,10 @@ var outputLocks = sync.Map{}
 // NOTE FOR MAINTAINER: When implementing importation of other config blocks (e.g referencing inputs), carefully
 //
 //	consider whether or not the implementation of the cyclic dependency detection still makes sense.
+
+var enableMap = map[string]bool{}
+var inputMap = map[string]*cty.Value{}
+
 func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Value, error) {
 	evalParsingContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
 	if err != nil {
@@ -200,34 +204,11 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 		return nil, err
 	}
 
-	// Mark skipped dependencies as disabled
-	updatedDependencies := terragruntDependency{}
-	for _, dep := range decodedDependency.Dependencies {
-		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
-		if dep.isEnabled() && util.FileExists(depPath) {
-			depOpts := cloneTerragruntOptionsForDependency(ctx, depPath)
-			depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
-
-			if depConfig, err := PartialParseConfigFile(depCtx, depPath, nil); err == nil {
-				if depConfig.Skip {
-					ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
-					dep.Enabled = new(bool)
-				}
-
-				inputsCty, err := convertToCtyWithJson(depConfig.Inputs)
-				if err != nil {
-					return nil, err
-				}
-				dep.Inputs = &inputsCty
-
-			} else {
-				ctx.TerragruntOptions.Logger.Warnf("Error reading partial config for dependency %s: %v", dep.Name, err)
-			}
-		}
-
-		updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+	updatedDependencies, err := decodeDependencies(ctx, decodedDependency)
+	if err != nil {
+		return nil, err
 	}
-	decodedDependency = updatedDependencies
+	decodedDependency = *updatedDependencies
 
 	// Merge in included dependencies
 	if ctx.TrackInclude != nil {
@@ -239,6 +220,49 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 	}
 
 	return dependencyBlocksToCtyValue(ctx, decodedDependency.Dependencies)
+}
+
+// decodeDependencies decode dependencies and fetch inputs
+func decodeDependencies(ctx *ParsingContext, decodedDependency terragruntDependency) (*terragruntDependency, error) {
+	updatedDependencies := terragruntDependency{}
+	for _, dep := range decodedDependency.Dependencies {
+		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
+		if dep.isEnabled() && util.FileExists(depPath) {
+
+			enabled, enabledFound := enableMap[depPath]
+			inputs, inputsFound := inputMap[depPath]
+
+			if !enabledFound && !inputsFound {
+				depOpts := cloneTerragruntOptionsForDependency(ctx, depPath)
+				depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
+
+				if depConfig, err := PartialParseConfigFile(depCtx, depPath, nil); err == nil {
+					enableMap[depPath] = true
+					if depConfig.Skip {
+						ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
+						dep.Enabled = new(bool)
+						enableMap[depPath] = false
+					}
+
+					inputsCty, err := convertToCtyWithJson(depConfig.Inputs)
+					if err != nil {
+						return nil, err
+					}
+					dep.Inputs = &inputsCty
+					inputMap[depPath] = &inputsCty
+
+				} else {
+					ctx.TerragruntOptions.Logger.Warnf("Error reading partial config for dependency %s: %v", dep.Name, err)
+				}
+			} else {
+				enableMap[depPath] = enabled
+				dep.Inputs = inputs
+
+			}
+		}
+		updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+	}
+	return &updatedDependencies, nil
 }
 
 // Convert the list of parsed Dependency blocks into a list of module dependencies. Each output block should
