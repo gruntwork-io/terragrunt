@@ -226,6 +226,7 @@ func decodeDependencies(ctx *ParsingContext, decodedDependency terragruntDepende
 			if found {
 				dep.Enabled = cachedDependency.Enabled
 				dep.Inputs = &cachedDependency.Inputs
+				continue
 			}
 			depOpts := cloneTerragruntOptionsForDependency(ctx, depPath)
 			depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
