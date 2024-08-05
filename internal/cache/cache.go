@@ -4,9 +4,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/telemetry"
 	"sync"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/telemetry"
 )
 
 // Cache - generic cache implementation
