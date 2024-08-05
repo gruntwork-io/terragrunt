@@ -230,24 +230,25 @@ func decodeDependencies(ctx *ParsingContext, decodedDependency terragruntDepende
 			}
 			depOpts := cloneTerragruntOptionsForDependency(ctx, depPath)
 			depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
-			if depConfig, err := PartialParseConfigFile(depCtx, depPath, nil); err == nil {
-				if depConfig.Skip {
-					ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
-					dep.Enabled = new(bool)
-				}
-				inputsCty, err := convertToCtyWithJson(depConfig.Inputs)
-				if err != nil {
-					return nil, err
-				}
-				cachedValue := dependencyOutputCache{
-					Enabled: dep.Enabled,
-					Inputs:  inputsCty,
-				}
-				depCache.Put(ctx, depPath, &cachedValue)
-				dep.Inputs = &inputsCty
-			} else {
+			depConfig, err := PartialParseConfigFile(depCtx, depPath, nil)
+			if err != nil {
 				ctx.TerragruntOptions.Logger.Warnf("Error reading partial config for dependency %s: %v", dep.Name, err)
+				continue
 			}
+			if depConfig.Skip {
+				ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
+				dep.Enabled = new(bool)
+			}
+			inputsCty, err := convertToCtyWithJson(depConfig.Inputs)
+			if err != nil {
+				return nil, err
+			}
+			cachedValue := dependencyOutputCache{
+				Enabled: dep.Enabled,
+				Inputs:  inputsCty,
+			}
+			depCache.Put(ctx, depPath, &cachedValue)
+			dep.Inputs = &inputsCty
 		}
 	}
 	return &updatedDependencies, nil
