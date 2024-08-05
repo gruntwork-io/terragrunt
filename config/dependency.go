@@ -5,12 +5,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
