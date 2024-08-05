@@ -3,16 +3,16 @@ layout: collection-browser-doc
 title: Built-in functions
 category: reference
 categories_url: reference
-excerpt: Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like Terraform.
+excerpt: Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like OpenTofu/Terraform.
 tags: ["functions"]
 order: 402
 nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like Terraform\! The functions currently available are:
+Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like OpenTofu/Terraform\! The functions currently available are:
 
-- [Terraform built-in functions](#terraform-built-in-functions)
+- [OpenTofu/Terraform built-in functions](#opentofuterraform-built-in-functions)
 - [find\_in\_parent\_folders](#find_in_parent_folders)
 - [path\_relative\_to\_include](#path_relative_to_include)
 - [path\_relative\_from\_include](#path_relative_from_include)
@@ -41,9 +41,9 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
 - [get\_terragrunt\_source\_cli\_flag](#get_terragrunt_source_cli_flag)
 - [read\_tfvars\_file](#read_tfvars_file)
 
-## Terraform built-in functions
+## OpenTofu/Terraform built-in functions
 
-All [Terraform built-in functions](https://www.terraform.io/docs/configuration/functions.html) are supported in Terragrunt config files:
+All [OpenTofu/Terraform built-in functions](https://opentofu.org/docs/language/functions/) are supported in Terragrunt config files:
 
 ```hcl
 terraform {
@@ -53,9 +53,9 @@ terraform {
 remote_state {
   backend = "s3"
   config = {
-    bucket = trimspace("   my-terraform-bucket     ")
+    bucket = trimspace("   my-tofu-bucket     ")
     region = join("-", ["us", "east", "1"])
-    key    = format("%s/terraform.tfstate", path_relative_to_include())
+    key    = format("%s/tofu.tfstate", path_relative_to_include())
   }
 }
 ```
@@ -161,14 +161,14 @@ The root `terragrunt.hcl` can use the `path_relative_to_include()` in its `remot
 remote_state {
   backend = "s3"
   config = {
-    bucket = "my-terraform-bucket"
+    bucket = "my-tofu-bucket"
     region = "us-east-1"
-    key    = "${path_relative_to_include()}/terraform.tfstate"
+    key    = "${path_relative_to_include()}/tofu.tfstate"
   }
 }
 ```
 
-The resulting `key` will be `prod/mysql/terraform.tfstate` for the prod `mysql` module and `stage/mysql/terraform.tfstate` for the stage `mysql` module.
+The resulting `key` will be `prod/mysql/tofu.tfstate` for the prod `mysql` module and `stage/mysql/tofu.tfstate` for the stage `mysql` module.
 
 If you have `include` blocks, this function requires a `name` parameter when used in the child config to specify which
 `include` block to base the relative path on.
@@ -217,7 +217,7 @@ include "root" {
 }
 ```
 
-The root `terragrunt.hcl` can use the `path_relative_from_include()` in combination with `path_relative_to_include()` in its `source` configuration to retrieve the relative terraform source code from the terragrunt configuration file:
+The root `terragrunt.hcl` can use the `path_relative_from_include()` in combination with `path_relative_to_include()` in its `source` configuration to retrieve the relative OpenTofu/Terraform source code from the terragrunt configuration file:
 
 ```hcl
 terraform {
@@ -286,12 +286,12 @@ remote_state {
 remote_state {
   backend = "s3"
   config = {
-    bucket = get_env("BUCKET", "my-terraform-bucket")
+    bucket = get_env("BUCKET", "my-tofu-bucket")
   }
 }
 ```
 
-Note that [Terraform will read environment variables](https://www.terraform.io/docs/configuration/environment-variables.html#tf_var_name) that start with the prefix `TF_VAR_`, so one way to share a variable named `foo` between Terraform and Terragrunt is to set its value as the environment variable `TF_VAR_foo` and to read that value in using this `get_env()` built-in function.
+Note that [OpenTofu/Terraform will read environment variables](https://opentofu.org/docs/cli/config/environment-variables/#tf_var_name) that start with the prefix `TF_VAR_`, so one way to share a variable named `foo` between OpenTofu/Terraform and Terragrunt is to set its value as the environment variable `TF_VAR_foo` and to read that value in using this `get_env()` built-in function.
 
 ## get_platform
 
@@ -339,11 +339,11 @@ remote_state {
   backend = "s3"
 
   config = {
-    bucket         = "terraform"
-    dynamodb_table = "terraform"
+    bucket         = "tofu"
+    dynamodb_table = "tofu"
     encrypt        = true
-    key            = "${get_path_from_repo_root()}/terraform.tfstate"
-    session_name   = "terraform"
+    key            = "${get_path_from_repo_root()}/tofu.tfstate"
+    session_name   = "tofu"
     region         = "us-east-1"
   }
 }
@@ -365,7 +365,7 @@ This function will error if the file is not located in a Git repository.
 
 ## get_terragrunt_dir
 
-`get_terragrunt_dir()` returns the directory where the Terragrunt configuration file (by default `terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote Terraform configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/#remote-terraform-configurations) and you want those paths relative to your Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
+`get_terragrunt_dir()` returns the directory where the Terragrunt configuration file (by default `terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote OpenTofu/Terraform configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/#remote-opentofu-terraform-configurations) and you want those paths relative to your Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
 
 For example, imagine you have the following file structure:
 
@@ -375,7 +375,7 @@ For example, imagine you have the following file structure:
 │   └── terragrunt.hcl
 ```
 
-Inside of `/terraform-code/frontend-app/terragrunt.hcl` you might try to write code that looks like this:
+Inside of `/tofu-code/frontend-app/terragrunt.hcl` you might try to write code that looks like this:
 
 ```hcl
 terraform {
@@ -397,7 +397,7 @@ terraform {
 }
 ```
 
-Note how the `source` parameter is set, so Terragrunt will download the `frontend-app` code from the `modules` repo into a temporary folder and run `terraform` in that temporary folder. Note also that there is an `extra_arguments` block that is trying to allow the `frontend-app` to read some shared variables from a `common.tfvars` file. Unfortunately, the relative path (`../common.tfvars`) won’t work, as it will be relative to the temporary folder\! Moreover, you can’t use an absolute path, or the code won’t work on any of your teammates' computers.
+Note how the `source` parameter is set, so Terragrunt will download the `frontend-app` code from the `modules` repo into a temporary folder and run `tofu`/`terraform` in that temporary folder. Note also that there is an `extra_arguments` block that is trying to allow the `frontend-app` to read some shared variables from a `common.tfvars` file. Unfortunately, the relative path (`../common.tfvars`) won’t work, as it will be relative to the temporary folder\! Moreover, you can’t use an absolute path, or the code won’t work on any of your teammates' computers.
 
 To make the relative path work, you need to use `get_terragrunt_dir()` to combine the path with the folder where the `terragrunt.hcl` file lives:
 
@@ -424,11 +424,11 @@ terraform {
 
 ## get_working_dir
 
-`get_working_dir()` returns the absolute path where Terragrunt runs Terraform commands. This is useful when you need to manage substitutions of vars inside a \*.tfvars file located right inside terragrunt's tmp dir.
+`get_working_dir()` returns the absolute path where Terragrunt runs OpenTofu/Terraform commands. This is useful when you need to manage substitutions of vars inside a \*.tfvars file located right inside terragrunt's tmp dir.
 
 ## get_parent_terragrunt_dir
 
-`get_parent_terragrunt_dir()` returns the absolute directory where the Terragrunt parent configuration file (by default `terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote Terraform configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/#remote-terraform-configurations) and you want those paths relative to your parent Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
+`get_parent_terragrunt_dir()` returns the absolute directory where the Terragrunt parent configuration file (by default `terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote OpenTofu/Terraform configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/#remote-opentofu-terraform-configurations) and you want those paths relative to your parent Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
 
 This function is very similar to [get_terragrunt_dir()](#get_terragrunt_dir) except it returns the root instead of the leaf of your terragrunt configuration folder.
 
@@ -462,7 +462,7 @@ terraform {
 }
 ```
 
-The common.tfvars located in the terraform root folder will be included by all applications, whatever their relative location to the root.
+The common.tfvars located in the root folder will be included by all applications, whatever their relative location to the root.
 
 If you have `include` blocks, this function requires a `name` parameter when used in the child config to specify which
 `include` block to base the parent dir on.
@@ -486,12 +486,12 @@ terraform {
 
 `get_original_terragrunt_dir()` returns the directory where the original Terragrunt configuration file (by default
 `terragrunt.hcl`) lives. This is primarily useful when one Terragrunt config is being read from another: e.g., if
-`/terraform-code/terragrunt.hcl` calls `read_terragrunt_config("/foo/bar.hcl")`, and within `bar.hcl`, you call
-`get_original_terragrunt_dir()`, you'll get back `/terraform-code`.
+`/tofu-code/terragrunt.hcl` calls `read_terragrunt_config("/foo/bar.hcl")`, and within `bar.hcl`, you call
+`get_original_terragrunt_dir()`, you'll get back `/tofu-code`.
 
 ## get_terraform_commands_that_need_vars
 
-`get_terraform_commands_that_need_vars()` returns the list of terraform commands that accept `-var` and `-var-file` parameters. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_vars()` returns the list of OpenTofu/Terraform commands that accept `-var` and `-var-file` parameters. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#multiple-extra_arguments-blocks).
 
 ```hcl
 terraform {
@@ -504,11 +504,11 @@ terraform {
 
 ## get_terraform_commands_that_need_input
 
-`get_terraform_commands_that_need_input()` returns the list of terraform commands that accept the `-input=(true or false)` parameter. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_input()` returns the list of OpenTofu/Terraform commands that accept the `-input=(true or false)` parameter. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#multiple-extra_arguments-blocks).
 
 ```hcl
 terraform {
-  # Force Terraform to not ask for input value if some variables are undefined.
+  # Force OpenTofu/Terraform to not ask for input value if some variables are undefined.
   extra_arguments "disable_input" {
     commands  = get_terraform_commands_that_need_input()
     arguments = ["-input=false"]
@@ -522,7 +522,7 @@ terraform {
 
 ```hcl
 terraform {
-  # Force Terraform to keep trying to acquire a lock for up to 20 minutes if someone else already has the lock
+  # Force OpenTofu/Terraform to keep trying to acquire a lock for up to 20 minutes if someone else already has the lock
   extra_arguments "retry_lock" {
     commands  = get_terraform_commands_that_need_locking()
     arguments = ["-lock-timeout=20m"]
@@ -536,7 +536,7 @@ terraform {
 
 ```hcl
 terraform {
-  # Force Terraform to run with reduced parallelism
+  # Force OpenTofu/Terraform to run with reduced parallelism
   extra_arguments "parallelism" {
     commands  = get_terraform_commands_that_need_parallelism()
     arguments = ["-parallelism=5"]
@@ -646,7 +646,7 @@ If the command you are running has the potential to output sensitive values, you
 super_secret_value = run_cmd("--terragrunt-quiet", "./decrypt_secret.sh", "foo")
 ```
 
-**Note:** This will prevent terragrunt from displaying the output from the command in its output. However, the value could still be displayed in the Terraform output if Terraform does not treat it as a [sensitive value](https://www.terraform.io/docs/configuration/outputs.html#sensitive-suppressing-values-in-cli-output).
+**Note:** This will prevent terragrunt from displaying the output from the command in its output. However, the value could still be displayed in the OpenTofu/Terraform output if OpenTofu/Terraform does not treat it as a [sensitive value](https://www.terraform.io/docs/configuration/outputs.html#sensitive-suppressing-values-in-cli-output).
 
 Invocations of `run_cmd` are cached based on directory and executed command, so cached values are re-used later, rather than executed multiple times. Here's an example:
 
@@ -791,7 +791,7 @@ inputs = merge(
 )
 ```
 
-If you absolutely need to fallback to a default value you can make use of the Terraform `try` function:
+If you absolutely need to fallback to a default value you can make use of the OpenTofu/Terraform `try` function:
 
 ```hcl
 locals {

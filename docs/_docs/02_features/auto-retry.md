@@ -3,7 +3,7 @@ layout: collection-browser-doc
 title: Auto-retry
 category: features
 categories_url: features
-excerpt: Auto-Retry is a feature of terragrunt that will automatically address situations where a terraform command needs to be re-run.
+excerpt: Auto-Retry is a feature of terragrunt that will automatically address situations where an OpenTofu/Terraform command needs to be re-run.
 tags: ["CLI"]
 order: 250
 nav_title: Documentation
@@ -12,9 +12,9 @@ nav_title_link: /docs/
 
 ## Auto-Retry
 
-*Auto-Retry* is a feature of `terragrunt` that will automatically address situations where a `terraform` command needs to be re-run.
+*Auto-Retry* is a feature of `terragrunt` that will automatically address situations where a `tofu`/`terraform` command needs to be re-run.
 
-Terraform can fail with transient errors which can be addressed by simply retrying the command again. In the event `terragrunt` finds one of these errors, the command will be re-run again automatically.
+OpenTofu/Terraform can fail with transient errors which can be addressed by simply retrying the command again. In the event `terragrunt` finds one of these errors, the command will be re-run again automatically.
 
 ### Example
 
@@ -46,7 +46,7 @@ retryable_errors = [
 ]
 ```
 
-By default, `auto-retry` tries a maximum of three times to re-run a command, pausing for five seconds between each retry, at which point it will deem the error as not transient, and accept the `terraform` failure.
+By default, `auto-retry` tries a maximum of three times to re-run a command, pausing for five seconds between each retry, at which point it will deem the error as not transient, and accept the `tofu`/`terraform` failure.
 However, you can override these defaults. For example, the following retries up to five times, with 60 seconds in between each retry:
 
 ```hcl

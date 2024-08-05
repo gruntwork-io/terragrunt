@@ -1,8 +1,5 @@
-FROM ruby:2.6.2-stretch
+FROM ruby:3.3-bookworm
 MAINTAINER Gruntwork <info@gruntwork.io>
-
-# This project requires bundler 2, but the docker image comes with bundler 1 so we need to upgrade
-RUN gem install bundler
 
 # Copy the Gemfile and Gemfile.lock into the image and run bundle install in a way that will be cached
 WORKDIR /tmp
