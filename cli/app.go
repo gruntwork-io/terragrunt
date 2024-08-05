@@ -70,7 +70,7 @@ func NewApp(writer io.Writer, errWriter io.Writer) *App {
 
 	app := cli.NewApp()
 	app.Name = "terragrunt"
-	app.Usage = "Terragrunt is a thin wrapper for Terraform that provides extra tools for working with multiple\nTerraform modules, remote state, and locking. For documentation, see https://github.com/gruntwork-io/terragrunt/."
+	app.Usage = "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale. For documentation, see https://terragrunt.gruntwork.io/."
 	app.Author = "Gruntwork <www.gruntwork.io>"
 	app.Version = version.GetVersion()
 	app.Writer = writer

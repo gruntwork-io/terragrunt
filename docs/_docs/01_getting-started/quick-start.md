@@ -120,13 +120,13 @@ Terragrunt can help you accomplish the following:
 - [Key features](#key-features)
   - [Keep your backend configuration DRY](#keep-your-backend-configuration-dry)
   - [Keep your provider configuration DRY](#keep-your-provider-configuration-dry)
-  - [Keep your Terraform CLI arguments DRY](#keep-your-terraform-cli-arguments-dry)
+  - [Keep your OpenTofu/Terraform CLI arguments DRY](#keep-your-opentofuterraform-cli-arguments-dry)
   - [Promote immutable, versioned OpenTofu/Terraform modules across environments](#promote-immutable-versioned-opentofuterraform-modules-across-environments)
 - [Next steps](#next-steps)
 
 ### Keep your backend configuration DRY
 
-_Terraform_ backends allow you to store OpenTofu/Terraform state in a shared location that everyone on your team can access, such as an S3 bucket, and provide locking around your state files to protect against race conditions. To use an OpenTofu/Terraform backend, you add a `backend` configuration to your configurations:
+_OpenTofu/Terraform_ backends allow you to store OpenTofu/Terraform state in a shared location that everyone on your team can access, such as an S3 bucket, and provide locking around your state files to protect against race conditions. To use an OpenTofu/Terraform backend, you add a `backend` configuration to your configurations:
 
 ``` hcl
 # stage/frontend-app/main.tf
@@ -320,9 +320,9 @@ $ find . -name "provider.tf"
 .terragrunt-cache/some-unique-hash/provider.tf
 ```
 
-### Keep your Terraform CLI arguments DRY
+### Keep your OpenTofu/Terraform CLI arguments DRY
 
-CLI flags are another common source of copy/paste in the Terraform world. For example, a typical pattern with Terraform is to define common account-level variables in an `account.tfvars` file:
+CLI flags are another common source of copy/paste in the OpenTofu/Terraform world. For example, a typical pattern with OpenTofu/Terraform is to define common account-level variables in an `account.tfvars` file:
 
 ``` hcl
 # account.tfvars
@@ -426,7 +426,7 @@ Therefore, you typically want to break up your infrastructure across multiple mo
         └── outputs.tf
 ```
 
-The folder structure above shows how to separate the code for each environment (`prod`, `qa`, `stage`) and for each type of infrastructure (apps, databases, VPCs). However, the downside is that it isn’t DRY. The `.tf` files will contain a LOT of duplication. You can reduce it somewhat by defining all the infrastructure in [reusable Terraform modules](https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d), but even the code to instantiate a module—including configuring the `provider`, `backend`, the module’s input variables, and `output` variables—means you still end up with dozens or hundreds of lines of copy/paste for every module in every environment:
+The folder structure above shows how to separate the code for each environment (`prod`, `qa`, `stage`) and for each type of infrastructure (apps, databases, VPCs). However, the downside is that it isn’t DRY. The `.tf` files will contain a LOT of duplication. You can reduce it somewhat by defining all the infrastructure in [reusable OpenTofu/Terraform modules](https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d), but even the code to instantiate a module—including configuring the `provider`, `backend`, the module’s input variables, and `output` variables—means you still end up with dozens or hundreds of lines of copy/paste for every module in every environment:
 
 ``` hcl
 # prod/app/main.tf

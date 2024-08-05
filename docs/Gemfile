@@ -16,8 +16,6 @@ gem "github-pages", group: :jekyll_plugins
 # If you have any plugins, put them here!
 group :jekyll_plugins do
   gem 'jekyll-sitemap', '1.4.0'
-  gem 'therubyracer', '0.12.3'
-  gem 'less', '2.6.0'
   gem 'jekyll-toc'
   gem 'jekyll-redirect-from'
 end
@@ -27,3 +25,5 @@ gem "wdm", "~> 0.1.1", :install_if => Gem.win_platform?
 
 gem "nokogiri", "1.16.3", group: :jekyll_plugins
 gem "mini_portile2", "2.8.5", group: :jekyll_plugins
+
+gem "webrick", "~> 1.8"

@@ -30,7 +30,7 @@ template and fill in each respective section.
 This section should describe why you need this feature in Terragrunt. This should include a description of:
 
 - The problem you are trying to solve.
-- The reason why Terraform can't solve this problem, or data points that suggest there is a long enough time horizon for
+- The reason why OpenTofu/Terraform can't solve this problem, or data points that suggest there is a long enough time horizon for
   implementation that it makes sense to workaround it in Terragrunt.
 - Use cases for the problem. Why is it important that we have this feature?
 
