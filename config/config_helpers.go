@@ -341,7 +341,7 @@ func runCommand(ctx *ParsingContext, args []string) (string, error) {
 	// To avoid re-run of the same run_cmd command, is used in memory cache for command results, with caching key path + arguments
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 	cacheKey := fmt.Sprintf("%v-%v", cachePath, args)
-	cachedValue, foundInCache := runCommandCache.Get(cacheKey)
+	cachedValue, foundInCache := runCommandCache.Get(ctx, cacheKey)
 	if foundInCache {
 		if suppressOutput {
 			ctx.TerragruntOptions.Logger.Debugf("run_cmd, cached output: [REDACTED]")
@@ -366,7 +366,7 @@ func runCommand(ctx *ParsingContext, args []string) (string, error) {
 
 	// Persisting result in cache to avoid future re-evaluation
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
-	runCommandCache.Put(cacheKey, value)
+	runCommandCache.Put(ctx, cacheKey, value)
 	return value, nil
 }
 
@@ -728,7 +728,7 @@ func getModulePathFromSourceUrl(sourceUrl string) (string, error) {
 //
 // The cache keys are the canonical paths to the encrypted files, and the values are the
 // plain-text result of the decrypt operation.
-var sopsCache = cache.NewCache[string]()
+var sopsCache = cache.NewCache[string]("sopsCache")
 
 // decrypts and returns sops encrypted utf-8 yaml or json data as a string
 func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
@@ -751,7 +751,7 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 		return "", errors.WithStackTrace(err)
 	}
 
-	if val, ok := sopsCache.Get(canonicalSourceFile); ok {
+	if val, ok := sopsCache.Get(ctx, canonicalSourceFile); ok {
 		return val, nil
 	}
 
@@ -762,7 +762,7 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 
 	if utf8.Valid(rawData) {
 		value := string(rawData)
-		sopsCache.Put(canonicalSourceFile, value)
+		sopsCache.Put(ctx, canonicalSourceFile, value)
 		return value, nil
 	}
 

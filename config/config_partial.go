@@ -147,7 +147,7 @@ func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *Inc
 	var file *hclparse.File
 	var cacheKey = fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
 
-	if cacheConfig, found := hclCache.Get(cacheKey); found {
+	if cacheConfig, found := hclCache.Get(ctx, cacheKey); found {
 		file = cacheConfig
 	} else {
 		file, err = hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
@@ -167,7 +167,7 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File,
 
 	terragruntConfigCache := cache.ContextCache[*TerragruntConfig](ctx, RunCmdCacheContextKey)
 	if ctx.TerragruntOptions.UsePartialParseConfigCache {
-		if config, found := terragruntConfigCache.Get(cacheKey); found {
+		if config, found := terragruntConfigCache.Get(ctx, cacheKey); found {
 			ctx.TerragruntOptions.Logger.Debugf("Cache hit for '%s' (partial parsing), decodeList: '%v'.", file.ConfigPath, ctx.PartialParseDecodeList)
 			deepCopy := util.DeepCopy(config).(TerragruntConfig)
 			return &deepCopy, nil
@@ -182,7 +182,7 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File,
 	}
 
 	if ctx.TerragruntOptions.UsePartialParseConfigCache {
-		terragruntConfigCache.Put(cacheKey, config)
+		terragruntConfigCache.Put(ctx, cacheKey, config)
 	}
 
 	return config, nil

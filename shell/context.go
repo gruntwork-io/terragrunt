@@ -19,7 +19,7 @@ type ctxKey byte
 type RunShellCommandFunc func(ctx context.Context, opts *options.TerragruntOptions, args []string) (*util.CmdOutput, error)
 
 func ContextWithTerraformCommandHook(ctx context.Context, fn RunShellCommandFunc) context.Context {
-	ctx = context.WithValue(ctx, RunCmdCacheContextKey, cache.NewCache[string]())
+	ctx = context.WithValue(ctx, RunCmdCacheContextKey, cache.NewCache[string]("runCmdCache"))
 	return context.WithValue(ctx, TerraformCommandContextKey, fn)
 }
 

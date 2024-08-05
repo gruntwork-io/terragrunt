@@ -304,7 +304,7 @@ func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *
 	var s3Config = s3ConfigExtended.remoteStateConfigS3
 
 	cacheKey := s3Initializer.buildInitializerCacheKey(&s3Config)
-	if initialized, hit := initializedRemoteStateCache.Get(cacheKey); initialized && hit {
+	if initialized, hit := initializedRemoteStateCache.Get(ctx, cacheKey); initialized && hit {
 		terragruntOptions.Logger.Debugf("S3 bucket %s has already been confirmed to be initialized, skipping initialization checks", s3Config.Bucket)
 		return nil
 	}
@@ -312,7 +312,7 @@ func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *
 	// ensure that only one goroutine can initialize bucket
 	return stateAccessLock.StateBucketUpdate(s3Config.Bucket, func() error {
 		// Check if another goroutine has already initialized the bucket
-		if initialized, hit := initializedRemoteStateCache.Get(cacheKey); initialized && hit {
+		if initialized, hit := initializedRemoteStateCache.Get(ctx, cacheKey); initialized && hit {
 			terragruntOptions.Logger.Debugf("S3 bucket %s has already been confirmed to be initialized, skipping initialization checks", s3Config.Bucket)
 			return nil
 		}
@@ -352,7 +352,7 @@ func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *
 			return errors.WithStackTrace(err)
 		}
 
-		initializedRemoteStateCache.Put(cacheKey, true)
+		initializedRemoteStateCache.Put(ctx, cacheKey, true)
 
 		return nil
 	})

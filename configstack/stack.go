@@ -564,7 +564,7 @@ func (stack *Stack) resolveDependenciesForModule(ctx context.Context, module *Te
 	}
 
 	key := fmt.Sprintf("%s-%s-%v-%v", module.Path, stack.terragruntOptions.WorkingDir, skipExternal, stack.terragruntOptions.TerraformCommand)
-	if value, ok := existingModules.Get(key); ok {
+	if value, ok := existingModules.Get(ctx, key); ok {
 		return *value, nil
 	}
 
@@ -592,7 +592,7 @@ func (stack *Stack) resolveDependenciesForModule(ctx context.Context, module *Te
 		return nil, err
 	}
 
-	existingModules.Put(key, &result)
+	existingModules.Put(ctx, key, &result)
 	return result, nil
 }
 

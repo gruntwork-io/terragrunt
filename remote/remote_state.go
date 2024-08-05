@@ -33,7 +33,7 @@ var stateAccessLock = newStateAccess()
 
 // initializedRemoteStateCache is a cache to store the result of a remote state initialization check.
 // This is used to avoid checking to see if remote state needs to be initialized multiple times.
-var initializedRemoteStateCache = cache.NewCache[bool]()
+var initializedRemoteStateCache = cache.NewCache[bool]("initializedRemoteStateCache")
 
 func (remoteState *RemoteState) String() string {
 	return fmt.Sprintf("RemoteState{Backend = %v, DisableInit = %v, DisableDependencyOptimization = %v, Generate = %v, Config = %v}", remoteState.Backend, remoteState.DisableInit, remoteState.DisableDependencyOptimization, remoteState.Generate, remoteState.Config)

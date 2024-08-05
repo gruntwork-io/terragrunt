@@ -491,7 +491,7 @@ func (modules TerraformModules) flagModulesThatDontInclude(terragruntOptions *op
 	return modules, nil
 }
 
-var existingModules = cache.NewCache[*TerraformModulesMap]()
+var existingModules = cache.NewCache[*TerraformModulesMap]("existingModulesCache")
 
 type TerraformModulesMap map[string]*TerraformModule
 

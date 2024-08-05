@@ -726,7 +726,7 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 		}
 		var file *hclparse.File
 		var cacheKey = fmt.Sprintf("configPath-%v-childKey-%v-decodeListKey-%v-ctx.TerragruntOptions.WorkingDir-dir-%v-modTime-%v", configPath, childKey, decodeListKey, dir, fileInfo.ModTime().UnixMicro())
-		if cacheConfig, found := hclCache.Get(cacheKey); found {
+		if cacheConfig, found := hclCache.Get(ctx, cacheKey); found {
 			file = cacheConfig
 		} else {
 			fmt.Printf("parse_config_file no cache : %v %v \n", configPath, cacheKey)
@@ -736,7 +736,7 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 			if err != nil {
 				return err
 			}
-			hclCache.Put(cacheKey, file)
+			hclCache.Put(ctx, cacheKey, file)
 		}
 		config, err = ParseConfig(ctx, file, includeFromChild)
 		if err != nil {
@@ -859,7 +859,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 }
 
 // iamRoleCache - store for cached values of IAM roles
-var iamRoleCache = cache.NewCache[options.IAMRoleOptions]()
+var iamRoleCache = cache.NewCache[options.IAMRoleOptions]("iamRoleCache")
 
 // setIAMRole - extract IAM role details from Terragrunt flags block
 func setIAMRole(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) error {
@@ -869,14 +869,14 @@ func setIAMRole(ctx *ParsingContext, file *hclparse.File, includeFromChild *Incl
 	} else {
 		// as key is considered HCL code and include configuration
 		var key = fmt.Sprintf("%v-%v", file.Content(), includeFromChild)
-		var config, found = iamRoleCache.Get(key)
+		var config, found = iamRoleCache.Get(ctx, key)
 		if !found {
 			iamConfig, err := TerragruntConfigFromPartialConfig(ctx.WithDecodeList(TerragruntFlags), file, includeFromChild)
 			if err != nil {
 				return err
 			}
 			config = iamConfig.GetIAMRoleOptions()
-			iamRoleCache.Put(key, config)
+			iamRoleCache.Put(ctx, key, config)
 		}
 		// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
 		// precedence.
@@ -1329,8 +1329,8 @@ func (conf *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 
 // WithConfigValues add to context default values for configuration.
 func WithConfigValues(ctx context.Context) context.Context {
-	ctx = context.WithValue(ctx, HclCacheContextKey, cache.NewCache[*hclparse.File]())
-	ctx = context.WithValue(ctx, TerragruntConfigCacheContextKey, cache.NewCache[*TerragruntConfig]())
-	ctx = context.WithValue(ctx, RunCmdCacheContextKey, cache.NewCache[string]())
+	ctx = context.WithValue(ctx, HclCacheContextKey, cache.NewCache[*hclparse.File]("hclCache"))
+	ctx = context.WithValue(ctx, TerragruntConfigCacheContextKey, cache.NewCache[*TerragruntConfig]("terragruntConfigCache"))
+	ctx = context.WithValue(ctx, RunCmdCacheContextKey, cache.NewCache[string]("runCmdCache"))
 	return ctx
 }
