@@ -8,9 +8,10 @@ import (
 const (
 	CommandName = "hclfmt"
 
-	FlagNameTerragruntHCLFmt = "terragrunt-hclfmt-file"
-	FlagNameTerragruntCheck  = "terragrunt-check"
-	FlagNameTerragruntDiff   = "terragrunt-diff"
+	FlagNameTerragruntHCLFmt      = "terragrunt-hclfmt-file"
+	FlagNameTerragruntCheck       = "terragrunt-check"
+	FlagNameTerragruntDiff        = "terragrunt-diff"
+	FlagNameTerragruntHCLFmtStdin = "terragrunt-hclfmt-stdin"
 )
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
@@ -31,6 +32,12 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.Diff,
 			EnvVar:      "TERRAGRUNT_DIFF",
 			Usage:       "Print diff between original and modified file versions when running with 'hclfmt'.",
+		},
+		&cli.BoolFlag{
+			Name:        FlagNameTerragruntHCLFmtStdin,
+			Destination: &opts.HclFromStdin,
+			EnvVar:      "TERRAGRUNT_HCLFMT_STDIN",
+			Usage:       "Format HCL from stdin and print result to stdout.",
 		},
 	}
 }
