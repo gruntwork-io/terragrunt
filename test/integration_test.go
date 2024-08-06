@@ -700,7 +700,8 @@ func TestTerragruntBeforeAndAfterHook(t *testing.T) {
 
 	assert.Equal(t, 1, strings.Count(output, "AFTER_TERRAGRUNT_READ_CONFIG"), "Hooks on terragrunt-read-config command executed more than once")
 
-	assert.Equal(t, 1, strings.Count(output, "COMMAND=terragrunt-read-config HOOK_NAME=after_hook_3"))
+	expectedHookOutput := fmt.Sprintf("TF_PATH=%s COMMAND=terragrunt-read-config HOOK_NAME=after_hook_3", wrappedBinary())
+	assert.Equal(t, 1, strings.Count(output, expectedHookOutput))
 
 	assert.NoError(t, beforeException)
 	assert.NoError(t, afterException)
