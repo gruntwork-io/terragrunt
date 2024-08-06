@@ -69,6 +69,7 @@ require (
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-plugin v1.6.1
 	github.com/hashicorp/terraform-svchost v0.0.1
+	github.com/huandu/go-clone/generic v1.7.2
 	github.com/labstack/echo/v4 v4.11.4
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db
@@ -189,6 +190,7 @@ require (
 	github.com/hashicorp/logutils v1.0.0 // indirect
 	github.com/hashicorp/terraform-registry-address v0.2.0 // indirect
 	github.com/hashicorp/yamux v0.1.1 // indirect
+	github.com/huandu/go-clone v1.6.0 // indirect
 	github.com/huandu/xstrings v1.3.3 // indirect
 	github.com/inancgumus/screen v0.0.0-20190314163918-06e984b86ed3 // indirect
 	github.com/jessevdk/go-flags v1.5.0 // indirect

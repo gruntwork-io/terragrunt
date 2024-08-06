@@ -221,7 +221,8 @@ func decodeDependencies(ctx *ParsingContext, decodedDependency terragruntDepende
 	for _, dep := range decodedDependency.Dependencies {
 		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
 		if dep.isEnabled() && util.FileExists(depPath) {
-			cachedDependency, found := depCache.Get(ctx, depPath)
+			cacheKey := ctx.TerragruntOptions.WorkingDir + depPath
+			cachedDependency, found := depCache.Get(ctx, cacheKey)
 			if !found {
 				depOpts := cloneTerragruntOptionsForDependency(ctx, depPath)
 				depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
@@ -238,7 +239,7 @@ func decodeDependencies(ctx *ParsingContext, decodedDependency terragruntDepende
 						Enabled: dep.Enabled,
 						Inputs:  inputsCty,
 					}
-					depCache.Put(ctx, depPath, &cachedValue)
+					depCache.Put(ctx, cacheKey, &cachedValue)
 					dep.Inputs = &inputsCty
 				} else {
 					ctx.TerragruntOptions.Logger.Warnf("Error reading partial config for dependency %s: %v", dep.Name, err)

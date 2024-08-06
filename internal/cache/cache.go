@@ -14,7 +14,7 @@ import (
 type Cache[V any] struct {
 	Name  string
 	Cache map[string]V
-	Mutex *sync.Mutex
+	Mutex *sync.RWMutex
 }
 
 // NewCache - create new cache with generic type V
@@ -22,14 +22,14 @@ func NewCache[V any](name string) *Cache[V] {
 	return &Cache[V]{
 		Name:  name,
 		Cache: make(map[string]V),
-		Mutex: &sync.Mutex{},
+		Mutex: &sync.RWMutex{},
 	}
 }
 
 // Get - fetch value from cache by key
 func (c *Cache[V]) Get(ctx context.Context, key string) (V, bool) {
-	c.Mutex.Lock()
-	defer c.Mutex.Unlock()
+	c.Mutex.RLock()
+	defer c.Mutex.RUnlock()
 	keyHash := sha256.Sum256([]byte(key))
 	cacheKey := fmt.Sprintf("%x", keyHash)
 	value, found := c.Cache[cacheKey]
@@ -62,7 +62,7 @@ type ExpiringItem[V any] struct {
 type ExpiringCache[V any] struct {
 	Name  string
 	Cache map[string]ExpiringItem[V]
-	Mutex *sync.Mutex
+	Mutex *sync.RWMutex
 }
 
 // NewExpiringCache - create new cache with generic type V
@@ -70,14 +70,14 @@ func NewExpiringCache[V any](name string) *ExpiringCache[V] {
 	return &ExpiringCache[V]{
 		Name:  name,
 		Cache: make(map[string]ExpiringItem[V]),
-		Mutex: &sync.Mutex{},
+		Mutex: &sync.RWMutex{},
 	}
 }
 
 // Get - fetch value from cache by key
 func (c *ExpiringCache[V]) Get(ctx context.Context, key string) (V, bool) {
-	c.Mutex.Lock()
-	defer c.Mutex.Unlock()
+	c.Mutex.RLock()
+	defer c.Mutex.RUnlock()
 	item, found := c.Cache[key]
 	telemetry.Count(ctx, fmt.Sprintf("%s_cache_get", c.Name), 1)
 	if !found {

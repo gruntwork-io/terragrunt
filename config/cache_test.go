@@ -25,7 +25,7 @@ func TestTerragruntConfigCacheOperation(t *testing.T) {
 	testCacheKey := "super-safe-cache-key"
 
 	ctx := context.Background()
-	cache := cache.NewCache[TerragruntConfig]("TerragruntConfig")
+	cache := cache.NewCache[TerragruntConfig]("TerragruntConfigCacheName")
 
 	actualResult, found := cache.Get(ctx, testCacheKey)
 

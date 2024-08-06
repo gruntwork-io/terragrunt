@@ -7,6 +7,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 )
 
+type configKey byte
+
 const (
 	HclCacheContextKey              configKey = iota
 	TerragruntConfigCacheContextKey configKey = iota

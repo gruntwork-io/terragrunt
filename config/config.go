@@ -63,8 +63,6 @@ const (
 	MetadataInclude                     = "include"
 )
 
-type configKey byte
-
 var (
 	// Order matters, for example if none of the files are found `GetDefaultConfigPath` func returns the last element.
 	DefaultTerragruntConfigPaths = []string{

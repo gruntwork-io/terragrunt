@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
+	clone "github.com/huandu/go-clone"
+
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 
 	"github.com/hashicorp/hcl/v2"
@@ -169,8 +171,8 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File,
 	if ctx.TerragruntOptions.UsePartialParseConfigCache {
 		if config, found := terragruntConfigCache.Get(ctx, cacheKey); found {
 			ctx.TerragruntOptions.Logger.Debugf("Cache hit for '%s' (partial parsing), decodeList: '%v'.", file.ConfigPath, ctx.PartialParseDecodeList)
-			deepCopy := util.DeepCopy(config).(TerragruntConfig)
-			return &deepCopy, nil
+			deepCopy := clone.Clone(config).(*TerragruntConfig)
+			return deepCopy, nil
 		}
 
 		ctx.TerragruntOptions.Logger.Debugf("Cache miss for '%s' (partial parsing), decodeList: '%v'.", file.ConfigPath, ctx.PartialParseDecodeList)
@@ -182,8 +184,8 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File,
 	}
 
 	if ctx.TerragruntOptions.UsePartialParseConfigCache {
-		putConfig := util.DeepCopy(config).(TerragruntConfig)
-		terragruntConfigCache.Put(ctx, cacheKey, &putConfig)
+		putConfig := clone.Clone(config).(*TerragruntConfig)
+		terragruntConfigCache.Put(ctx, cacheKey, putConfig)
 	}
 
 	return config, nil
