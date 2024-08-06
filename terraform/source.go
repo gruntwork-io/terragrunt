@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/edwardrf/symwalk"
 	"github.com/hashicorp/go-getter"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
 	"github.com/sirupsen/logrus"
@@ -58,7 +57,7 @@ func (terraformSource Source) EncodeSourceVersion() (string, error) {
 		sourceHash := sha256.New()
 		sourceDir := filepath.Clean(terraformSource.CanonicalSourceURL.Path)
 
-		err := symwalk.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+		err := filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				// If we've encountered an error while walking the tree, give up
 				return err
