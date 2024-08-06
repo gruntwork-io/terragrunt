@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/edwardrf/symwalk"
 	"github.com/gitsight/go-vcsurl"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/files"
@@ -78,7 +79,7 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 			continue
 		}
 
-		err := filepath.Walk(modulesPath,
+		err := symwalk.Walk(modulesPath,
 			func(dir string, remote os.FileInfo, err error) error {
 				if err != nil {
 					return err
