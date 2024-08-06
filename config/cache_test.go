@@ -8,10 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const testCacheName = "TerragruntConfig"
+
 func TestTerragruntConfigCacheCreation(t *testing.T) {
 	t.Parallel()
 
-	cache := cache.NewCache[TerragruntConfig]("TerragruntConfig")
+	cache := cache.NewCache[TerragruntConfig](testCacheName)
 
 	assert.NotNil(t, cache.Mutex)
 	assert.NotNil(t, cache.Cache)
@@ -25,7 +27,7 @@ func TestTerragruntConfigCacheOperation(t *testing.T) {
 	testCacheKey := "super-safe-cache-key"
 
 	ctx := context.Background()
-	cache := cache.NewCache[TerragruntConfig]("TerragruntConfigCacheName")
+	cache := cache.NewCache[TerragruntConfig](testCacheName)
 
 	actualResult, found := cache.Get(ctx, testCacheKey)
 

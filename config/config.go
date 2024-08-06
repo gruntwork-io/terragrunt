@@ -35,6 +35,8 @@ const (
 	DefaultTerragruntJsonConfigPath = "terragrunt.hcl.json"
 	FoundInFile                     = "found_in_file"
 
+	iamRoleCacheName = "iamRoleCache"
+
 	DefaultEngineType                   = "rpc"
 	MetadataTerraform                   = "terraform"
 	MetadataTerraformBinary             = "terraform_binary"
@@ -851,7 +853,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 }
 
 // iamRoleCache - store for cached values of IAM roles
-var iamRoleCache = cache.NewCache[options.IAMRoleOptions]("iamRoleCache")
+var iamRoleCache = cache.NewCache[options.IAMRoleOptions](iamRoleCacheName)
 
 // setIAMRole - extract IAM role details from Terragrunt flags block
 func setIAMRole(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) error {

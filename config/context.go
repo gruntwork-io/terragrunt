@@ -14,13 +14,18 @@ const (
 	TerragruntConfigCacheContextKey configKey = iota
 	RunCmdCacheContextKey           configKey = iota
 	DependencyOutputCacheContextKey configKey = iota
+
+	hclCacheName              = "hclCache"
+	configCacheName           = "configCache"
+	runCmdCacheName           = "runCmdCache"
+	dependencyOutputCacheName = "dependencyOutputCache"
 )
 
 // WithConfigValues add to context default values for configuration.
 func WithConfigValues(ctx context.Context) context.Context {
-	ctx = context.WithValue(ctx, HclCacheContextKey, cache.NewCache[*hclparse.File]("hclCache"))
-	ctx = context.WithValue(ctx, TerragruntConfigCacheContextKey, cache.NewCache[*TerragruntConfig]("configCache"))
-	ctx = context.WithValue(ctx, RunCmdCacheContextKey, cache.NewCache[string]("runCmdCache"))
-	ctx = context.WithValue(ctx, DependencyOutputCacheContextKey, cache.NewCache[*dependencyOutputCache]("dependencyOutputCache"))
+	ctx = context.WithValue(ctx, HclCacheContextKey, cache.NewCache[*hclparse.File](hclCacheName))
+	ctx = context.WithValue(ctx, TerragruntConfigCacheContextKey, cache.NewCache[*TerragruntConfig](configCacheName))
+	ctx = context.WithValue(ctx, RunCmdCacheContextKey, cache.NewCache[string](runCmdCacheName))
+	ctx = context.WithValue(ctx, DependencyOutputCacheContextKey, cache.NewCache[*dependencyOutputCache](dependencyOutputCacheName))
 	return ctx
 }

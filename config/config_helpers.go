@@ -69,6 +69,8 @@ const (
 	FuncNameEndsWith                                = "endswith"
 	FuncNameStrContains                             = "strcontains"
 	FuncNameTimeCmp                                 = "timecmp"
+
+	sopsCacheName = "sopsCache"
 )
 
 // List of terraform commands that accept -lock-timeout
@@ -728,7 +730,7 @@ func getModulePathFromSourceUrl(sourceUrl string) (string, error) {
 //
 // The cache keys are the canonical paths to the encrypted files, and the values are the
 // plain-text result of the decrypt operation.
-var sopsCache = cache.NewCache[string]("sopsCache")
+var sopsCache = cache.NewCache[string](sopsCacheName)
 
 // decrypts and returns sops encrypted utf-8 yaml or json data as a string
 func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {

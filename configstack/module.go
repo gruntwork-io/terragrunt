@@ -23,6 +23,7 @@ import (
 )
 
 const maxLevelsOfRecursion = 20
+const existingModulesCacheName = "existingModules"
 
 // Represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
 // module and the list of other modules that this module depends on
@@ -491,7 +492,7 @@ func (modules TerraformModules) flagModulesThatDontInclude(terragruntOptions *op
 	return modules, nil
 }
 
-var existingModules = cache.NewCache[*TerraformModulesMap]("existingModulesCache")
+var existingModules = cache.NewCache[*TerraformModulesMap](existingModulesCacheName)
 
 type TerraformModulesMap map[string]*TerraformModule
 
