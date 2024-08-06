@@ -180,7 +180,7 @@ func (gcsInitializer GCSInitializer) Initialize(ctx context.Context, remoteState
 	var gcsConfig = gcsConfigExtended.remoteStateConfigGCS
 
 	cacheKey := gcsInitializer.buildInitializerCacheKey(&gcsConfig)
-	if initialized, hit := initializedRemoteStateCache.Get(cacheKey); initialized && hit {
+	if initialized, hit := initializedRemoteStateCache.Get(ctx, cacheKey); initialized && hit {
 		terragruntOptions.Logger.Debugf("GCS bucket %s has already been confirmed to be initialized, skipping initialization checks", gcsConfig.Bucket)
 		return nil
 	}
@@ -188,7 +188,7 @@ func (gcsInitializer GCSInitializer) Initialize(ctx context.Context, remoteState
 	// ensure that only one goroutine can initialize bucket
 	return stateAccessLock.StateBucketUpdate(gcsConfig.Bucket, func() error {
 		// check if another goroutine has already initialized the bucket
-		if initialized, hit := initializedRemoteStateCache.Get(cacheKey); initialized && hit {
+		if initialized, hit := initializedRemoteStateCache.Get(ctx, cacheKey); initialized && hit {
 			terragruntOptions.Logger.Debugf("GCS bucket %s has already been confirmed to be initialized, skipping initialization checks", gcsConfig.Bucket)
 			return nil
 		}
@@ -211,7 +211,7 @@ func (gcsInitializer GCSInitializer) Initialize(ctx context.Context, remoteState
 			}
 		}
 
-		initializedRemoteStateCache.Put(cacheKey, true)
+		initializedRemoteStateCache.Put(ctx, cacheKey, true)
 
 		return nil
 	})

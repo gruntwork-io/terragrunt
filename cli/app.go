@@ -127,9 +127,11 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		}
 	}(ctx)
 
+	ctx = config.WithConfigValues(ctx)
+
 	// init engine if required
 	if engine.IsEngineEnabled() {
-		ctx = engine.ContextWithEngine(ctx)
+		ctx = engine.WithEngineValues(ctx)
 	}
 	defer func(ctx context.Context) {
 		if err := engine.Shutdown(ctx); err != nil {

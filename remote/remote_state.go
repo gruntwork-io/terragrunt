@@ -13,6 +13,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
+const initializedRemoteStateCacheName = "initializedRemoteStateCache"
+
 // Configuration for Terraform remote state
 // NOTE: If any attributes are added here, be sure to add it to remoteStateAsCty in config/config_as_cty.go
 type RemoteState struct {
@@ -33,7 +35,7 @@ var stateAccessLock = newStateAccess()
 
 // initializedRemoteStateCache is a cache to store the result of a remote state initialization check.
 // This is used to avoid checking to see if remote state needs to be initialized multiple times.
-var initializedRemoteStateCache = cache.NewCache[bool]()
+var initializedRemoteStateCache = cache.NewCache[bool](initializedRemoteStateCacheName)
 
 func (remoteState *RemoteState) String() string {
 	return fmt.Sprintf("RemoteState{Backend = %v, DisableInit = %v, DisableDependencyOptimization = %v, Generate = %v, Config = %v}", remoteState.Backend, remoteState.DisableInit, remoteState.DisableDependencyOptimization, remoteState.Generate, remoteState.Config)

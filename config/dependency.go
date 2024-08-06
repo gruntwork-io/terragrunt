@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/internal/cache"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/hashicorp/go-getter"
@@ -37,16 +39,10 @@ const renderJsonCommand = "render-json"
 
 type Dependencies []Dependency
 
-func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
-	var filteredDeps Dependencies
-
-	for _, dep := range deps {
-		if !dep.ConfigPath.IsNull() {
-			filteredDeps = append(filteredDeps, dep)
-		}
-	}
-
-	return filteredDeps
+// Struct to hold the decoded dependency blocks.
+type dependencyOutputCache struct {
+	Enabled *bool
+	Inputs  cty.Value
 }
 
 type Dependency struct {
@@ -200,34 +196,11 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 		return nil, err
 	}
 
-	// Mark skipped dependencies as disabled
-	updatedDependencies := terragruntDependency{}
-	for _, dep := range decodedDependency.Dependencies {
-		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
-		if dep.isEnabled() && util.FileExists(depPath) {
-			depOpts := cloneTerragruntOptionsForDependency(ctx, depPath)
-			depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
-
-			if depConfig, err := PartialParseConfigFile(depCtx, depPath, nil); err == nil {
-				if depConfig.Skip {
-					ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
-					dep.Enabled = new(bool)
-				}
-
-				inputsCty, err := convertToCtyWithJson(depConfig.Inputs)
-				if err != nil {
-					return nil, err
-				}
-				dep.Inputs = &inputsCty
-
-			} else {
-				ctx.TerragruntOptions.Logger.Warnf("Error reading partial config for dependency %s: %v", dep.Name, err)
-			}
-		}
-
-		updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+	updatedDependencies, err := decodeDependencies(ctx, decodedDependency)
+	if err != nil {
+		return nil, err
 	}
-	decodedDependency = updatedDependencies
+	decodedDependency = *updatedDependencies
 
 	// Merge in included dependencies
 	if ctx.TrackInclude != nil {
@@ -239,6 +212,46 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 	}
 
 	return dependencyBlocksToCtyValue(ctx, decodedDependency.Dependencies)
+}
+
+// decodeDependencies decode dependencies and fetch inputs
+func decodeDependencies(ctx *ParsingContext, decodedDependency terragruntDependency) (*terragruntDependency, error) {
+	updatedDependencies := terragruntDependency{}
+	depCache := cache.ContextCache[*dependencyOutputCache](ctx, DependencyOutputCacheContextKey)
+	for _, dep := range decodedDependency.Dependencies {
+		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
+		if dep.isEnabled() && util.FileExists(depPath) {
+			cacheKey := ctx.TerragruntOptions.WorkingDir + depPath
+			cachedDependency, found := depCache.Get(ctx, cacheKey)
+			if !found {
+				depOpts := cloneTerragruntOptionsForDependency(ctx, depPath)
+				depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
+				if depConfig, err := PartialParseConfigFile(depCtx, depPath, nil); err == nil {
+					if depConfig.Skip {
+						ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
+						dep.Enabled = new(bool)
+					}
+					inputsCty, err := convertToCtyWithJson(depConfig.Inputs)
+					if err != nil {
+						return nil, err
+					}
+					cachedValue := dependencyOutputCache{
+						Enabled: dep.Enabled,
+						Inputs:  inputsCty,
+					}
+					depCache.Put(ctx, cacheKey, &cachedValue)
+					dep.Inputs = &inputsCty
+				} else {
+					ctx.TerragruntOptions.Logger.Warnf("Error reading partial config for dependency %s: %v", dep.Name, err)
+				}
+			} else {
+				dep.Enabled = cachedDependency.Enabled
+				dep.Inputs = &cachedDependency.Inputs
+			}
+		}
+		updatedDependencies.Dependencies = append(updatedDependencies.Dependencies, dep)
+	}
+	return &updatedDependencies, nil
 }
 
 // Convert the list of parsed Dependency blocks into a list of module dependencies. Each output block should
@@ -998,4 +1011,16 @@ func runTerraformInitForDependencyOutput(ctx *ParsingContext, workingDir string,
 		ctx.TerragruntOptions.Logger.Debugf("Init call stderr:")
 		ctx.TerragruntOptions.Logger.Debugf(stderr.String())
 	}
+}
+
+func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
+	var filteredDeps Dependencies
+
+	for _, dep := range deps {
+		if !dep.ConfigPath.IsNull() {
+			filteredDeps = append(filteredDeps, dep)
+		}
+	}
+
+	return filteredDeps
 }

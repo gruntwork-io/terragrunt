@@ -6,6 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 )
@@ -69,4 +72,22 @@ func TestLastReleaseTag(t *testing.T) {
 	lastTag := lastReleaseTag(tags)
 	assert.NotEmpty(t, lastTag)
 	assert.Equal(t, "v20.1.2", lastTag)
+}
+
+func TestGitLevelTopDirCaching(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ctx = ContextWithTerraformCommandHook(ctx, nil)
+	c := cache.ContextCache[string](ctx, RunCmdCacheContextKey)
+	assert.NotNil(t, c)
+	assert.Equal(t, 0, len(c.Cache))
+	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+	path := "."
+	path1, err := GitTopLevelDir(ctx, terragruntOptions, path)
+	require.NoError(t, err)
+	path2, err := GitTopLevelDir(ctx, terragruntOptions, path)
+	require.NoError(t, err)
+	assert.Equal(t, path1, path2)
+	assert.Equal(t, 1, len(c.Cache))
 }

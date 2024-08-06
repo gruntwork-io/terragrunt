@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/options"
-
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 
 	"github.com/gruntwork-io/go-commons/env"
@@ -35,7 +33,7 @@ const (
 )
 
 // Trace - collect traces for method execution
-func Trace(ctx context.Context, opts *options.TerragruntOptions, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
+func Trace(ctx context.Context, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
 	if spanExporter == nil || traceProvider == nil { // invoke function without tracing
 		return fn(ctx)
 	}

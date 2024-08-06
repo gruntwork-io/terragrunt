@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/cache"
+
 	"github.com/gruntwork-io/terragrunt/engine"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -290,6 +292,11 @@ func (signalChannel *SignalsForwarder) Close() error {
 
 // GitTopLevelDir - fetch git repository path from passed directory
 func GitTopLevelDir(ctx context.Context, terragruntOptions *options.TerragruntOptions, path string) (string, error) {
+	runCache := cache.ContextCache[string](ctx, RunCmdCacheContextKey)
+	cacheKey := "top-level-dir-" + path
+	if gitTopLevelDir, found := runCache.Get(ctx, cacheKey); found {
+		return gitTopLevelDir, nil
+	}
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	opts, err := options.NewTerragruntOptionsWithConfigPath(path)
@@ -300,11 +307,13 @@ func GitTopLevelDir(ctx context.Context, terragruntOptions *options.TerragruntOp
 	opts.Writer = &stdout
 	opts.ErrWriter = &stderr
 	cmd, err := RunShellCommandWithOutput(ctx, opts, path, true, false, "git", "rev-parse", "--show-toplevel")
-	terragruntOptions.Logger.Debugf("git show-toplevel result: \n%v\n%v\n", stdout.String(), stderr.String())
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(cmd.Stdout), nil
+	cmdOutput := strings.TrimSpace(cmd.Stdout)
+	terragruntOptions.Logger.Debugf("git show-toplevel result: \n%v\n%v\n%v\n", stdout.String(), stderr.String(), cmdOutput)
+	runCache.Put(ctx, cacheKey, cmdOutput)
+	return cmdOutput, nil
 }
 
 // GitRepoTags - fetch git repository tags from passed url

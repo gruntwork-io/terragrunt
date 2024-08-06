@@ -69,6 +69,8 @@ const (
 	FuncNameEndsWith                                = "endswith"
 	FuncNameStrContains                             = "strcontains"
 	FuncNameTimeCmp                                 = "timecmp"
+
+	sopsCacheName = "sopsCache"
 )
 
 // List of terraform commands that accept -lock-timeout
@@ -308,14 +310,14 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 	return envVariable, nil
 }
 
-// runCommandCache - cache of evaluated `run_cmd` invocations
-// see: https://github.com/gruntwork-io/terragrunt/issues/1427
-var runCommandCache = cache.NewCache[string]()
-
 // runCommand is a helper function that runs a command and returns the stdout as the interporation
 // for each `run_cmd` in locals section, function is called twice
 // result
 func runCommand(ctx *ParsingContext, args []string) (string, error) {
+	// runCommandCache - cache of evaluated `run_cmd` invocations
+	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
+	runCommandCache := cache.ContextCache[string](ctx, RunCmdCacheContextKey)
+
 	if len(args) == 0 {
 		return "", errors.WithStackTrace(EmptyStringNotAllowedError("parameter to the run_cmd function"))
 	}
@@ -341,7 +343,7 @@ func runCommand(ctx *ParsingContext, args []string) (string, error) {
 	// To avoid re-run of the same run_cmd command, is used in memory cache for command results, with caching key path + arguments
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 	cacheKey := fmt.Sprintf("%v-%v", cachePath, args)
-	cachedValue, foundInCache := runCommandCache.Get(cacheKey)
+	cachedValue, foundInCache := runCommandCache.Get(ctx, cacheKey)
 	if foundInCache {
 		if suppressOutput {
 			ctx.TerragruntOptions.Logger.Debugf("run_cmd, cached output: [REDACTED]")
@@ -366,7 +368,7 @@ func runCommand(ctx *ParsingContext, args []string) (string, error) {
 
 	// Persisting result in cache to avoid future re-evaluation
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
-	runCommandCache.Put(cacheKey, value)
+	runCommandCache.Put(ctx, cacheKey, value)
 	return value, nil
 }
 
@@ -728,7 +730,7 @@ func getModulePathFromSourceUrl(sourceUrl string) (string, error) {
 //
 // The cache keys are the canonical paths to the encrypted files, and the values are the
 // plain-text result of the decrypt operation.
-var sopsCache = cache.NewCache[string]()
+var sopsCache = cache.NewCache[string](sopsCacheName)
 
 // decrypts and returns sops encrypted utf-8 yaml or json data as a string
 func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
@@ -751,7 +753,7 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 		return "", errors.WithStackTrace(err)
 	}
 
-	if val, ok := sopsCache.Get(canonicalSourceFile); ok {
+	if val, ok := sopsCache.Get(ctx, canonicalSourceFile); ok {
 		return val, nil
 	}
 
@@ -762,7 +764,7 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 
 	if utf8.Valid(rawData) {
 		value := string(rawData)
-		sopsCache.Put(canonicalSourceFile, value)
+		sopsCache.Put(ctx, canonicalSourceFile, value)
 		return value, nil
 	}
 
