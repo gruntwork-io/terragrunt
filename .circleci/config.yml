@@ -180,6 +180,11 @@ jobs:
             pre-commit install
             pre-commit run --all-files
       - run:
+          name: generate mocks
+          command: |
+            make install-mockery
+            make generate-mocks
+      - run:
           name: run lint
           command: |
             make install-lint
