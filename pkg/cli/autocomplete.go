@@ -1,6 +1,7 @@
 package cli
 
 import (
+	goErrors "errors"
 	"fmt"
 	"io"
 	"os"
@@ -78,6 +79,8 @@ func defaultComplete(ctx *Context) error {
 }
 
 func printCommandSuggestions(arg string, commands []*Command, writer io.Writer) error {
+	errs := []error{}
+
 	for _, command := range commands {
 		if command.Hidden {
 			continue
@@ -85,9 +88,14 @@ func printCommandSuggestions(arg string, commands []*Command, writer io.Writer) 
 
 		for _, name := range command.Names() {
 			if name != "" && (arg == "" || strings.HasPrefix(name, arg)) {
-				fmt.Fprintln(writer, name)
+				_, err := fmt.Fprintln(writer, name)
+				errs = append(errs, err)
 			}
 		}
+	}
+
+	if len(errs) > 0 {
+		return goErrors.Join(errs...)
 	}
 
 	return nil
@@ -96,6 +104,7 @@ func printCommandSuggestions(arg string, commands []*Command, writer io.Writer) 
 func printFlagSuggestions(arg string, flags []Flag, writer io.Writer) error {
 	cur := strings.TrimPrefix(arg, "-")
 
+	errs := []error{}
 	for _, flag := range flags {
 		for _, name := range flag.Names() {
 			name = strings.TrimSpace(name)
@@ -112,9 +121,14 @@ func printFlagSuggestions(arg string, flags []Flag, writer io.Writer) error {
 			// match if last argument matches this flag and it is not repeated
 			if strings.HasPrefix(name, cur) && cur != name && !cliArgContains(name) {
 				flagCompletion := fmt.Sprintf("%s%s", strings.Repeat("-", count), name)
-				fmt.Fprintln(writer, flagCompletion)
+				_, err := fmt.Fprintln(writer, flagCompletion)
+				errs = append(errs, err)
 			}
 		}
+	}
+
+	if len(errs) > 0 {
+		return goErrors.Join(errs...)
 	}
 
 	return nil
