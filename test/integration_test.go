@@ -1662,7 +1662,7 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 		{
 			[]string{"paln"},
 			"",
-			terraform.WrongTerraformCommand("paln"),
+			expectedWrongCommandErr("paln"),
 		},
 		{
 			[]string{"paln", "--terragrunt-disable-command-validation"},
@@ -7431,6 +7431,14 @@ func wrappedBinary() string {
 		return TERRAFORM_BINARY
 	}
 	return filepath.Base(value)
+}
+
+// expectedWrongCommandErr - return expected error message for wrong command
+func expectedWrongCommandErr(command string) error {
+	if wrappedBinary() == TOFU_BINARY {
+		return terraform.WrongTofuCommand(command)
+	}
+	return terraform.WrongTerraformCommand(command)
 }
 
 func isTerraform() bool {
