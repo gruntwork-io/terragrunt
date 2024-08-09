@@ -390,7 +390,7 @@ jobs:
       - run:
           name: Run mocks tests
           command: |
-            run-go-tests --packages "-tags=mocks -run ^TestUpdateLockFile ./terraform/getproviders/lock_test.go" | tee logs/mocks.log
+            run-go-tests --packages "-tags=mocks -run ^TestUpdateLockFile ./terraform/getproviders/." | tee logs/mocks.log
           no_output_timeout: 30m
           environment:
             TERRAGRUNT_TFPATH: tofu
