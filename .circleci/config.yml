@@ -372,6 +372,35 @@ jobs:
       - store_test_results:
           path: logs
 
+  test_mocks:
+    resource_class: small
+    <<: *defaults
+    <<: *env
+    steps:
+      - checkout
+      - run:
+          <<: *install_tofu
+      - run:
+          <<: *install_tofu_engine
+      - run:
+          <<: *setup_test_environment
+      - run:
+          # Remove terraform
+          sudo rm -f $(which terraform)
+      - run:
+          name: Run mocks tests
+          command: |
+            run-go-tests --packages "-tags=mocks -run ^TestUpdateLockFile ./terraform/getproviders/lock_test.go" | tee logs/mocks.log
+          no_output_timeout: 30m
+          environment:
+            TERRAGRUNT_TFPATH: tofu
+      - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
   # Run TFLint tests separately as tflint during execution change working directory.
   integration_test_tflint:
     resource_class: large
