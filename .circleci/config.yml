@@ -394,8 +394,6 @@ jobs:
           no_output_timeout: 30m
           environment:
             TERRAGRUNT_TFPATH: tofu
-      - run:
-          <<: *run_terratest_log_parser
       - store_artifacts:
           path: logs
       - store_test_results:
