@@ -271,7 +271,7 @@ func IsLocalSource(sourceUrl *url.URL) bool {
 // path is everything after the double slash. If there is no double-slash in the URL, the root repo is the entire
 // sourceUrl and the path is an empty string.
 func SplitSourceUrl(sourceUrl *url.URL, logger *logrus.Entry) (*url.URL, string, error) {
-	pathSplitOnDoubleSlash := strings.SplitN(sourceUrl.Path, "//", 2)
+	pathSplitOnDoubleSlash := strings.SplitN(sourceUrl.Path, "//", 2) //nolint:mnd
 
 	if len(pathSplitOnDoubleSlash) > 1 {
 		sourceUrlModifiedPath, err := parseSourceUrl(sourceUrl.String())
