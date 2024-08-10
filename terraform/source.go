@@ -111,7 +111,8 @@ func (terraformSource Source) WriteVersionFile() error {
 		}
 	}
 
-	return errors.WithStackTrace(os.WriteFile(terraformSource.VersionFile, []byte(version), 0640))
+	const ownerReadWriteGroupReadPerms = 0640
+	return errors.WithStackTrace(os.WriteFile(terraformSource.VersionFile, []byte(version), ownerReadWriteGroupReadPerms))
 }
 
 // Take the given source path and create a Source struct from it, including the folder where the source should
