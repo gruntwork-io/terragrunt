@@ -362,10 +362,12 @@ jobs:
       - run:
           name: Run mocks tests
           command: |
-            run-go-tests --packages "-tags=mocks -run ^TestMock ./terraform/getproviders/." | tee logs/integration.log
+            run-go-tests --packages "-tags=mocks -run ^TestMock ./terraform/getproviders/." | tee logs/mocks.log
           no_output_timeout: 30m
           environment:
             TERRAGRUNT_TFPATH: tofu
+      - run:
+          <<: *run_terratest_log_parser
       - store_artifacts:
           path: logs
       - store_test_results:
