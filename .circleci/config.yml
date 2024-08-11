@@ -341,6 +341,36 @@ jobs:
       - store_test_results:
           path: logs
 
+  test_mocks:
+    resource_class: small
+    <<: *defaults
+    <<: *env
+    steps:
+      - checkout
+      - run:
+          <<: *install_tofu
+      - run:
+          <<: *setup_test_environment
+      - run:
+          # Remove terraform
+          sudo rm -f $(which terraform)
+      - run:
+          name: generate mocks
+          command: |
+            make install-mockery
+            make generate-mocks
+      - run:
+          name: Run mocks tests
+          command: |
+            run-go-tests --packages "-tags=mocks -run ^TestUpdateLockFile ./terraform/getproviders/." | tee logs/mocks.log
+          no_output_timeout: 30m
+          environment:
+            TERRAGRUNT_TFPATH: tofu
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
   # Run TFLint tests separately as tflint during execution change working directory.
   integration_test_tflint:
     resource_class: large
@@ -521,6 +551,14 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
       - integration_test_tflint:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+      - test_mocks:
           filters:
             tags:
               only: /^v.*/
