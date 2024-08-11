@@ -21,6 +21,12 @@ func (name WrongTerraformCommand) Error() string {
 	return fmt.Sprintf("Terraform has no command named %q. To see all of Terraform's top-level commands, run: terraform -help", string(name))
 }
 
+type WrongTofuCommand string
+
+func (name WrongTofuCommand) Error() string {
+	return fmt.Sprintf("OpenTofu has no command named %q. To see all of OpenTofu's top-level commands, run: tofu -help", string(name))
+}
+
 type BackendNotDefined struct {
 	Opts        *options.TerragruntOptions
 	BackendType string
