@@ -774,7 +774,8 @@ func setTerragruntNullValues(terragruntOptions *options.TerragruntOptions, terra
 		return "", errors.WithStackTrace(err)
 	}
 	varFile := filepath.Join(terragruntOptions.WorkingDir, NullTFVarsFile)
-	if err := os.WriteFile(varFile, jsonContents, os.FileMode(0600)); err != nil {
+	const ownerReadWritePermissions = 0600
+	if err := os.WriteFile(varFile, jsonContents, os.FileMode(ownerReadWritePermissions)); err != nil {
 		return "", errors.WithStackTrace(err)
 	}
 

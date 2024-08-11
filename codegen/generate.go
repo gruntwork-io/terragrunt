@@ -121,7 +121,8 @@ func WriteToFile(terragruntOptions *options.TerragruntOptions, basePath string, 
 	}
 	contentsToWrite := fmt.Sprintf("%s%s", prefix, config.Contents)
 
-	if err := os.WriteFile(targetPath, []byte(contentsToWrite), 0644); err != nil {
+	const ownerWriteGlobalReadPerms = 0644
+	if err := os.WriteFile(targetPath, []byte(contentsToWrite), ownerWriteGlobalReadPerms); err != nil {
 		return errors.WithStackTrace(err)
 	}
 	terragruntOptions.Logger.Debugf("Generated file %s.", targetPath)

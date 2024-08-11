@@ -233,10 +233,11 @@ func prepareBoilerplateFiles(ctx context.Context, opts *options.TerragruntOption
 			return "", errors.WithStackTrace(err)
 		}
 		boilerplateDir = defaultTempDir
-		if err := os.WriteFile(util.JoinPath(boilerplateDir, "terragrunt.hcl"), []byte(defaultTerragruntTemplate), 0644); err != nil {
+		const ownerWriteGlobalReadPerms = 0644
+		if err := os.WriteFile(util.JoinPath(boilerplateDir, "terragrunt.hcl"), []byte(defaultTerragruntTemplate), ownerWriteGlobalReadPerms); err != nil {
 			return "", errors.WithStackTrace(err)
 		}
-		if err := os.WriteFile(util.JoinPath(boilerplateDir, "boilerplate.yml"), []byte(defaultBoilerplateConfig), 0644); err != nil {
+		if err := os.WriteFile(util.JoinPath(boilerplateDir, "boilerplate.yml"), []byte(defaultBoilerplateConfig), ownerWriteGlobalReadPerms); err != nil {
 			return "", errors.WithStackTrace(err)
 		}
 	}

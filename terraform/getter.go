@@ -216,7 +216,8 @@ func (tfrGetter *RegistryGetter) getSubdir(ctx context.Context, dstPath, sourceU
 	}
 
 	// Make the final destination
-	if err := os.MkdirAll(dstPath, 0755); err != nil {
+	const ownerWriteGlobalReadExecutePerms = 0755
+	if err := os.MkdirAll(dstPath, ownerWriteGlobalReadExecutePerms); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
