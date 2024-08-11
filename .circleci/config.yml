@@ -350,8 +350,6 @@ jobs:
       - run:
           <<: *install_tofu
       - run:
-          <<: *install_tofu_engine
-      - run:
           <<: *setup_test_environment
       - run:
           # Remove terraform
