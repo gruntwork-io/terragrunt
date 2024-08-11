@@ -507,7 +507,9 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 	// We only partially parse the config, only using the pieces that we need in this section. This config will be fully
 	// parsed at a later stage right before the action is run. This is to delay interpolation of functions until right
 	// before we call out to terraform.
-	terragruntConfig, err := config.PartialParseConfigFile(
+
+	// TODO: Remove lint suppression
+	terragruntConfig, err := config.PartialParseConfigFile( //nolint:contextcheck
 		parseCtx,
 		terragruntConfigPath,
 		includeConfig,

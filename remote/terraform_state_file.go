@@ -22,23 +22,23 @@ const DefaultPathToRemoteStateFile = "terraform.tfstate"
 
 // TerraformState - represents the structure of the Terraform .tfstate file.
 type TerraformState struct {
-	Version int
-	Serial  int
-	Backend *TerraformBackend
-	Modules []TerraformStateModule
+	Version int                    `json:"Version"`
+	Serial  int                    `json:"Serial"`
+	Backend *TerraformBackend      `json:"Backend"`
+	Modules []TerraformStateModule `json:"Modules"`
 }
 
 // TerraformBackend represents the structure of the "backend" section in the Terraform .tfstate file.
 type TerraformBackend struct {
-	Type   string
-	Config map[string]interface{}
+	Type   string                 `json:"Type"`
+	Config map[string]interface{} `json:"Config"`
 }
 
 // TerraformStateModule represents the structure of a "module" section in the Terraform .tfstate file.
 type TerraformStateModule struct {
-	Path      []string
-	Outputs   map[string]interface{}
-	Resources map[string]interface{}
+	Path      []string               `json:"Path"`
+	Outputs   map[string]interface{} `json:"Outputs"`
+	Resources map[string]interface{} `json:"Resources"`
 }
 
 // IsRemote returns true if this Terraform state is configured for remote state storage.

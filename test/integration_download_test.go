@@ -43,7 +43,7 @@ func TestLocalDownload(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureLocalDownloadPath))
 
 	// As of Terraform 0.14.0 we should be copying the lock file from .terragrunt-cache to the working directory
-	assert.FileExists(t, util.JoinPath(testFixtureLocalDownloadPath, util.TerraformLockFile))
+	require.FileExists(t, util.JoinPath(testFixtureLocalDownloadPath, util.TerraformLockFile))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureLocalDownloadPath))
@@ -80,7 +80,7 @@ func TestLocalDownloadWithAllowedHiddenFiles(t *testing.T) {
 	logBufferContentsLineByLine(t, stdout, "output stdout")
 	logBufferContentsLineByLine(t, stderr, "output stderr")
 	require.NoError(t, err)
-	assert.Equal(t, "Hello world", stdout.String())
+	require.Equal(t, "Hello world", stdout.String())
 }
 
 func TestLocalDownloadWithRelativePath(t *testing.T) {
@@ -130,7 +130,7 @@ func TestLocalWithMissingBackend(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), os.Stdout, os.Stderr)
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		assert.IsType(t, terraform.BackendNotDefined{}, underlying)
+		require.IsType(t, terraform.BackendNotDefined{}, underlying)
 	}
 }
 
@@ -157,9 +157,9 @@ func TestInvalidRemoteDownload(t *testing.T) {
 	logBufferContentsLineByLine(t, applyStdout, "apply stdout")
 	logBufferContentsLineByLine(t, applyStderr, "apply stderr")
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	errMessage := "downloading source url"
-	assert.Containsf(t, err.Error(), errMessage, "expected error containing %q, got %s", errMessage, err)
+	require.Containsf(t, err.Error(), errMessage, "expected error containing %q, got %s", errMessage, err)
 
 }
 
@@ -243,7 +243,7 @@ func TestCustomLockFile(t *testing.T) {
 	// In our lock file, we intentionally have hashes for an older version of the AWS provider. If the lock file
 	// copying works, then Terraform will stick with this older version. If there is a bug, Terraform will end up
 	// installing a newer version (since the version is not pinned in the .tf code, only in the lock file).
-	assert.Contains(t, string(readFile), `version     = "5.23.0"`)
+	require.Contains(t, string(readFile), `version     = "5.23.0"`)
 }
 
 func TestExcludeDirs(t *testing.T) {
@@ -302,10 +302,10 @@ func TestExcludeDirs(t *testing.T) {
 			logBufferContentsLineByLine(t, showStdout, fmt.Sprintf("show stdout for %s", modulePath))
 			logBufferContentsLineByLine(t, showStderr, fmt.Sprintf("show stderr for %s", modulePath))
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			output := showStdout.String()
 			for _, excludedModuleOutput := range testCase.excludedModuleOutputs {
-				assert.NotContains(t, output, excludedModuleOutput)
+				require.NotContains(t, output, excludedModuleOutput)
 			}
 
 		}
@@ -369,10 +369,10 @@ func TestIncludeDirs(t *testing.T) {
 			logBufferContentsLineByLine(t, showStdout, fmt.Sprintf("show stdout for %s", modulePath))
 			logBufferContentsLineByLine(t, showStderr, fmt.Sprintf("show stderr for %s", modulePath))
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			output := showStdout.String()
 			for _, includedModuleOutput := range testCase.includedModuleOutputs {
-				assert.NotContains(t, output, includedModuleOutput)
+				require.NotContains(t, output, includedModuleOutput)
 			}
 
 		}
@@ -395,13 +395,13 @@ func TestIncludeDirsDependencyConsistencyRegression(t *testing.T) {
 	}
 
 	includedModulesWithNone := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{}, false)
-	assert.Greater(t, len(includedModulesWithNone), 0)
+	require.NotEmpty(t, includedModulesWithNone)
 
 	includedModulesWithAmzApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"amazing-app/k8s"}, false)
-	assert.Equal(t, []string{"amazing-app/k8s", "clusters/eks"}, includedModulesWithAmzApp)
+	require.Equal(t, []string{"amazing-app/k8s", "clusters/eks"}, includedModulesWithAmzApp)
 
 	includedModulesWithTestApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"testapp/k8s"}, false)
-	assert.Equal(t, []string{"clusters/eks", "testapp/k8s"}, includedModulesWithTestApp)
+	require.Equal(t, []string{"clusters/eks", "testapp/k8s"}, includedModulesWithTestApp)
 }
 
 func TestIncludeDirsStrict(t *testing.T) {
@@ -421,13 +421,13 @@ func TestIncludeDirsStrict(t *testing.T) {
 	}
 
 	includedModulesWithNone := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{}, true)
-	assert.Equal(t, []string{}, includedModulesWithNone)
+	require.Equal(t, []string{}, includedModulesWithNone)
 
 	includedModulesWithAmzApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"amazing-app/k8s"}, true)
-	assert.Equal(t, []string{"amazing-app/k8s"}, includedModulesWithAmzApp)
+	require.Equal(t, []string{"amazing-app/k8s"}, includedModulesWithAmzApp)
 
 	includedModulesWithTestApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"testapp/k8s"}, true)
-	assert.Equal(t, []string{"testapp/k8s"}, includedModulesWithTestApp)
+	require.Equal(t, []string{"testapp/k8s"}, includedModulesWithTestApp)
 }
 
 func TestTerragruntExternalDependencies(t *testing.T) {
@@ -461,6 +461,6 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 	}
 
 	for _, module := range modules {
-		assert.Contains(t, applyAllStdoutString, fmt.Sprintf("Hello World, %s", module))
+		require.Contains(t, applyAllStdoutString, fmt.Sprintf("Hello World, %s", module))
 	}
 }

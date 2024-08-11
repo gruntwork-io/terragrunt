@@ -127,7 +127,8 @@ func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool
 			return nil, err
 		}
 
-		switch mergeStrategy {
+		// TODO: Remove lint suppression
+		switch mergeStrategy { //nolint:exhaustive
 		case NoMerge:
 			ctx.TerragruntOptions.Logger.Debugf("%sIncluded config %s has strategy no merge: not merging config in.", logPrefix, includeConfig.Path)
 		case ShallowMerge:
@@ -173,7 +174,8 @@ func handleIncludeForDependency(ctx *ParsingContext, childDecodedDependency terr
 			return nil, err
 		}
 
-		switch mergeStrategy {
+		// TODO: Remove lint suppression
+		switch mergeStrategy { //nolint:exhaustive
 		case NoMerge:
 			ctx.TerragruntOptions.Logger.Debugf("Included config %s has strategy no merge: not merging config in for dependency.", includeConfig.Path)
 		case ShallowMerge:

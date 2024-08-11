@@ -36,7 +36,8 @@ const versionParts = 3
 func checkVersionConstraints(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
 	configContext := config.NewParsingContext(ctx, terragruntOptions).WithDecodeList(config.TerragruntVersionConstraints)
 
-	partialTerragruntConfig, err := config.PartialParseConfigFile(
+	// TODO: See if we should be ignore this lint error
+	partialTerragruntConfig, err := config.PartialParseConfigFile( //nolint: contextcheck
 		configContext,
 		terragruntOptions.TerragruntConfigPath,
 		nil,

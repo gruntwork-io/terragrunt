@@ -123,7 +123,8 @@ type tokenFetcher string
 func (f tokenFetcher) FetchToken(ctx credentials.Context) ([]byte, error) {
 	// Check if token is a raw value
 	if _, err := os.Stat(string(f)); err != nil {
-		return []byte(f), nil
+		// TODO: See if this lint error should be ignored
+		return []byte(f), nil //nolint: nilerr
 	}
 	token, err := os.ReadFile(string(f))
 	if err != nil {

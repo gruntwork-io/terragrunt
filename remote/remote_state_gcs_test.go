@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -12,7 +11,7 @@ func TestGCSConfigValuesEqual(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("remote_state_test")
-	require.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	testCases := []struct {
 		name          string
@@ -120,10 +119,10 @@ func TestGCSConfigValuesEqual(t *testing.T) {
 			}
 
 			actual := gcsConfigValuesEqual(config, testCase.backend, terragruntOptions)
-			assert.Equal(t, testCase.shouldBeEqual, actual)
+			require.Equal(t, testCase.shouldBeEqual, actual)
 
 			// Ensure the config remains unchanged by the comparison
-			assert.Equal(t, testCase.config, config)
+			require.Equal(t, testCase.config, config)
 		})
 	}
 }

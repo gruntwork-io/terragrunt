@@ -433,7 +433,9 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, depe
 
 		if !isEmpty && dependencyConfig.shouldMergeMockOutputsWithState(ctx) && dependencyConfig.MockOutputs != nil {
 			mockMergeStrategy := dependencyConfig.getMockOutputsMergeStrategy()
-			switch mockMergeStrategy {
+
+			// TODO: Make this exhaustive
+			switch mockMergeStrategy { // nolint:exhaustive
 			case NoMerge:
 				return outputVal, nil
 			case ShallowMerge:

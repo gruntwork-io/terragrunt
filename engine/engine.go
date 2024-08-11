@@ -465,19 +465,19 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 		if runResp == nil {
 			break
 		}
-		if runResp.Stdout != "" {
-			_, err := stdout.Write([]byte(runResp.Stdout))
+		if runResp.GetStdout() != "" {
+			_, err := stdout.Write([]byte(runResp.GetStdout()))
 			if err != nil {
 				return nil, errors.WithStackTrace(err)
 			}
 		}
-		if runResp.Stderr != "" {
-			_, err := stderr.Write([]byte(runResp.Stderr))
+		if runResp.GetStderr() != "" {
+			_, err := stderr.Write([]byte(runResp.GetStderr()))
 			if err != nil {
 				return nil, errors.WithStackTrace(err)
 			}
 		}
-		resultCode = int(runResp.ResultCode)
+		resultCode = int(runResp.GetResultCode())
 	}
 	terragruntOptions.Logger.Debugf("Engine execution done in %v", terragruntOptions.WorkingDir)
 
@@ -526,8 +526,8 @@ func initialize(ctx context.Context, runOptions *ExecutionOptions, client *proto
 			return nil, nil
 		}
 		return &outputLine{
-			Stderr: output.Stderr,
-			Stdout: output.Stdout,
+			Stderr: output.GetStderr(),
+			Stdout: output.GetStdout(),
 		}, nil
 	})
 }
@@ -559,8 +559,8 @@ func shutdown(ctx context.Context, runOptions *ExecutionOptions, terragruntEngin
 			return nil, nil
 		}
 		return &outputLine{
-			Stdout: output.Stdout,
-			Stderr: output.Stderr,
+			Stdout: output.GetStdout(),
+			Stderr: output.GetStderr(),
 		}, nil
 	})
 
@@ -597,7 +597,8 @@ func readEngineOutput(runOptions *ExecutionOptions, output outputFn) error {
 			}
 		}
 	}
-	return nil
+	// TODO: Why does this lint need to be ignored?
+	return nil //nolint:nilerr
 }
 
 // convert metadata map to protobuf map
@@ -609,7 +610,7 @@ func convertMetaToProtobuf(meta map[string]interface{}) (map[string]*anypb.Any, 
 	for key, value := range meta {
 		jsonData, err := json.Marshal(value)
 		if err != nil {
-			return nil, fmt.Errorf("error marshaling value to JSON: %v", err)
+			return nil, fmt.Errorf("error marshaling value to JSON: %w", err)
 		}
 		jsonStructValue, err := structpb.NewValue(string(jsonData))
 		if err != nil {

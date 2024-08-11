@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIsEngineEnabled(t *testing.T) {
@@ -27,9 +28,9 @@ func TestConvertMetaToProtobuf(t *testing.T) {
 	}
 
 	protoMeta, err := convertMetaToProtobuf(meta)
-	assert.NoError(t, err)
-	assert.NotNil(t, protoMeta)
-	assert.Equal(t, 2, len(protoMeta))
+	require.NoError(t, err)
+	require.NotNil(t, protoMeta)
+	require.Len(t, protoMeta, 2)
 }
 
 func TestReadEngineOutput(t *testing.T) {

@@ -7,13 +7,14 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTerragruntIsAddedInUserAgent(t *testing.T) {
 	t.Parallel()
 
 	sess, err := CreateAwsSession(nil, options.NewTerragruntOptions())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	op := &request.Operation{
 		Name:       "",

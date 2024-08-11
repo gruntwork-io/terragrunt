@@ -122,7 +122,7 @@ func TestConfigValuesEqual(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("remote_state_test")
-	require.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	testCases := []struct {
 		name          string
@@ -237,7 +237,7 @@ func TestConfigValuesEqual(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			actual := configValuesEqual(testCase.config, testCase.backend, terragruntOptions)
-			assert.Equal(t, testCase.shouldBeEqual, actual)
+			require.Equal(t, testCase.shouldBeEqual, actual)
 		})
 	}
 }
@@ -246,7 +246,7 @@ func TestForcePathStyleClientSession(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("s3_client_test")
-	require.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	testCases := []struct {
 		name     string
@@ -279,13 +279,13 @@ func TestForcePathStyleClientSession(t *testing.T) {
 			t.Parallel()
 
 			s3ConfigExtended, err := ParseExtendedS3Config(testCase.config)
-			require.Nil(t, err, "Unexpected error parsing config for test: %v", err)
+			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
 			s3Client, err := CreateS3Client(s3ConfigExtended.GetAwsSessionConfig(), terragruntOptions)
-			require.Nil(t, err, "Unexpected error creating client for test: %v", err)
+			require.NoError(t, err, "Unexpected error creating client for test: %v", err)
 
 			actual := aws.BoolValue(s3Client.Config.S3ForcePathStyle)
-			assert.Equal(t, testCase.expected, actual)
+			require.Equal(t, testCase.expected, actual)
 		})
 	}
 }
@@ -320,7 +320,7 @@ func TestGetAwsSessionConfig(t *testing.T) {
 			t.Parallel()
 
 			s3ConfigExtended, err := ParseExtendedS3Config(testCase.config)
-			require.Nil(t, err, "Unexpected error parsing config for test: %v", err)
+			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
 			expected := &aws_helper.AwsSessionConfig{
 				Region:                  s3ConfigExtended.remoteStateConfigS3.Region,
@@ -334,7 +334,7 @@ func TestGetAwsSessionConfig(t *testing.T) {
 			}
 
 			actual := s3ConfigExtended.GetAwsSessionConfig()
-			assert.Equal(t, expected, actual)
+			require.Equal(t, expected, actual)
 		})
 	}
 }
@@ -362,7 +362,7 @@ func TestGetAwsSessionConfigWithAssumeRole(t *testing.T) {
 
 			config := map[string]interface{}{"assume_role": testCase.config}
 			s3ConfigExtended, err := ParseExtendedS3Config(config)
-			require.Nil(t, err, "Unexpected error parsing config for test: %v", err)
+			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
 			expected := &aws_helper.AwsSessionConfig{
 				RoleArn:     s3ConfigExtended.remoteStateConfigS3.AssumeRole.RoleArn,
@@ -371,7 +371,7 @@ func TestGetAwsSessionConfigWithAssumeRole(t *testing.T) {
 			}
 
 			actual := s3ConfigExtended.GetAwsSessionConfig()
-			assert.Equal(t, expected, actual)
+			require.Equal(t, expected, actual)
 		})
 	}
 }
@@ -516,10 +516,10 @@ func TestGetTerraformInitArgs(t *testing.T) {
 			actual := initializer.GetTerraformInitArgs(testCase.config)
 
 			if !testCase.shouldBeEqual {
-				assert.NotEqual(t, testCase.expected, actual)
+				require.NotEqual(t, testCase.expected, actual)
 				return
 			}
-			assert.Equal(t, testCase.expected, actual)
+			require.Equal(t, testCase.expected, actual)
 		})
 	}
 }
@@ -567,8 +567,8 @@ func TestNegativePublicAccessResponse(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			response, err := validatePublicAccessBlock(testCase.response)
-			assert.NoError(t, err)
-			assert.False(t, response)
+			require.NoError(t, err)
+			require.False(t, response)
 		})
 	}
 }
@@ -616,9 +616,9 @@ func TestValidateS3Config(t *testing.T) {
 			logger.SetOutput(buf)
 			err := validateS3Config(testCase.extendedConfig)
 			if err != nil {
-				assert.ErrorIs(t, err, testCase.expectedErr)
+				require.ErrorIs(t, err, testCase.expectedErr)
 			}
-			assert.Contains(t, buf.String(), testCase.expectedOutput)
+			require.Contains(t, buf.String(), testCase.expectedOutput)
 		})
 	}
 }

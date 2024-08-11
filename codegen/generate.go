@@ -132,7 +132,8 @@ func WriteToFile(terragruntOptions *options.TerragruntOptions, basePath string, 
 // Whether or not file generation should continue if the file path already exists. The answer depends on the
 // ifExists configuration.
 func shouldContinueWithFileExists(terragruntOptions *options.TerragruntOptions, path string, ifExists GenerateConfigExists) (bool, error) {
-	switch ifExists {
+	// TODO: Make exhaustive
+	switch ifExists { //nolint:exhaustive
 	case ExistsError:
 		return false, errors.WithStackTrace(GenerateFileExistsError{path: path})
 	case ExistsSkip:
@@ -166,7 +167,8 @@ func shouldContinueWithFileExists(terragruntOptions *options.TerragruntOptions, 
 
 // shouldRemoveWithFileExists returns true if the already existing file should be removed.
 func shouldRemoveWithFileExists(terragruntOptions *options.TerragruntOptions, path string, ifDisable GenerateConfigDisabled) (bool, error) {
-	switch ifDisable {
+	// TODO: Make exhaustive
+	switch ifDisable { //nolint:exhaustive
 	case DisabledSkip:
 		// Do nothing since skip was configured.
 		terragruntOptions.Logger.Debugf("The file path %s already exists and if_disabled for code generation set to \"skip\", will not remove file.", path)

@@ -9,7 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // For simplicity, do all testing in the us-east-1 region
@@ -39,7 +39,7 @@ func uniqueTableNameForTest() string {
 
 func cleanupTableForTest(t *testing.T, tableName string, client *dynamodb.DynamoDB) {
 	err := DeleteTable(tableName, client)
-	assert.Nil(t, err, "Unexpected error: %v", err)
+	require.NoError(t, err, "Unexpected error: %v", err)
 }
 
 func assertCanWriteToTable(t *testing.T, tableName string, client *dynamodb.DynamoDB) {
@@ -50,7 +50,7 @@ func assertCanWriteToTable(t *testing.T, tableName string, client *dynamodb.Dyna
 		Item:      item,
 	})
 
-	assert.Nil(t, err, "Unexpected error: %v", err)
+	require.NoError(t, err, "Unexpected error: %v", err)
 }
 
 func withLockTable(t *testing.T, action func(tableName string, client *dynamodb.DynamoDB)) {
@@ -67,7 +67,7 @@ func withLockTableTagged(t *testing.T, tags map[string]string, action func(table
 	}
 
 	err = CreateLockTableIfNecessary(tableName, tags, client, mockOptions)
-	assert.Nil(t, err, "Unexpected error: %v", err)
+	require.NoError(t, err, "Unexpected error: %v", err)
 	defer cleanupTableForTest(t, tableName, client)
 
 	action(tableName, client)
@@ -75,6 +75,6 @@ func withLockTableTagged(t *testing.T, tags map[string]string, action func(table
 
 func createKeyFromItemId(itemId string) map[string]*dynamodb.AttributeValue {
 	return map[string]*dynamodb.AttributeValue{
-		ATTR_LOCK_ID: &dynamodb.AttributeValue{S: aws.String(itemId)},
+		ATTR_LOCK_ID: {S: aws.String(itemId)},
 	}
 }

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseTimestamp(t *testing.T) {
@@ -30,12 +30,12 @@ func TestParseTimestamp(t *testing.T) {
 
 			actual, err := ParseTimestamp(testCase.arg)
 			if testCase.err != "" {
-				assert.EqualError(t, err, testCase.err)
+				require.EqualError(t, err, testCase.err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
-			assert.Equal(t, testCase.value, actual)
+			require.Equal(t, testCase.value, actual)
 		})
 	}
 }

@@ -18,11 +18,11 @@ const initializedRemoteStateCacheName = "initializedRemoteStateCache"
 // Configuration for Terraform remote state
 // NOTE: If any attributes are added here, be sure to add it to remoteStateAsCty in config/config_as_cty.go
 type RemoteState struct {
-	Backend                       string
-	DisableInit                   bool
-	DisableDependencyOptimization bool
-	Generate                      *RemoteStateGenerate
-	Config                        map[string]interface{}
+	Backend                       string                 `mapstructure:"backend" json:"Backend"`
+	DisableInit                   bool                   `mapstructure:"disable_init" json:"DisableInit"`
+	DisableDependencyOptimization bool                   `mapstructure:"disable_dependency_optimization" json:"DisableDependencyOptimization"`
+	Generate                      *RemoteStateGenerate   `mapstructure:"generate" json:"Generate"`
+	Config                        map[string]interface{} `mapstructure:"config" json:"Config"`
 }
 
 // map to store mutexes for each state bucket action

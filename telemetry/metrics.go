@@ -98,7 +98,9 @@ func configureMetricsCollection(ctx context.Context, opts *TelemetryOptions) err
 func newMetricsExporter(ctx context.Context, opts *TelemetryOptions) (metric.Exporter, error) {
 	exporterType := metricsExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_METRIC_EXPORTER"], string(noneMetricsExporterType)))
 	insecure := env.GetBool(opts.GetValue("TERRAGRUNT_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT", "TERRAGRUNT_TELEMERTY_METRIC_EXPORTER_INSECURE_ENDPOINT"), false)
-	switch exporterType {
+
+	// TODO: Remove this lint suppression
+	switch exporterType { //nolint:exhaustive
 	case oltpHttpMetricsExporterType:
 		var config []otlpmetrichttp.Option
 		if insecure {

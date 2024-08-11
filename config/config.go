@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	goErrors "errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -275,7 +276,7 @@ type remoteStateConfigGenerate struct {
 // Struct used to parse generate blocks. This will later be converted to GenerateConfig structs so that we can go
 // through the codegen routine.
 type terragruntGenerateBlock struct {
-	Name             string  `hcl:",label"`
+	Name             string  `hcl:",label" mapstructure:",omitempty"`
 	Path             string  `hcl:"path,attr" mapstructure:"path"`
 	IfExists         string  `hcl:"if_exists,attr" mapstructure:"if_exists"`
 	IfDisabled       *string `hcl:"if_disabled,attr" mapstructure:"if_disabled"`
@@ -691,7 +692,9 @@ func ReadTerragruntConfig(ctx context.Context, terragruntOptions *options.Terrag
 
 	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
 	parcingCtx := NewParsingContext(ctx, terragruntOptions).WithParseOption(parserOptions)
-	return ParseConfigFile(parcingCtx, terragruntOptions.TerragruntConfigPath, nil)
+
+	// TODO: Remove lint ignore
+	return ParseConfigFile(parcingCtx, terragruntOptions.TerragruntConfigPath, nil) //nolint:contextcheck
 }
 
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
@@ -722,7 +725,8 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 		}
 		var file *hclparse.File
 		var cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, ctx.TerragruntOptions.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
-		if cacheConfig, found := hclCache.Get(ctx, cacheKey); found {
+		// TODO: Remove lint ignore
+		if cacheConfig, found := hclCache.Get(ctx, cacheKey); found { //nolint:contextcheck
 			file = cacheConfig
 		} else {
 			// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
@@ -730,9 +734,12 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 			if err != nil {
 				return err
 			}
-			hclCache.Put(ctx, cacheKey, file)
+			// TODO: Remove lint ignore
+			hclCache.Put(ctx, cacheKey, file) //nolint:contextcheck
 		}
-		config, err = ParseConfig(ctx, file, includeFromChild)
+
+		// TODO: Remove lint ignore
+		config, err = ParseConfig(ctx, file, includeFromChild) //nolint:contextcheck
 		if err != nil {
 			return err
 		}
@@ -886,7 +893,9 @@ func decodeAsTerragruntConfigFile(ctx *ParsingContext, file *hclparse.File, eval
 	terragruntConfig := terragruntConfigFile{}
 
 	if err := file.Decode(&terragruntConfig, evalContext); err != nil {
-		diagErr, ok := errors.Unwrap(err).(hcl.Diagnostics)
+		var diagErr hcl.Diagnostics
+		// diagErr, ok := errors.Unwrap(err).(hcl.Diagnostics)
+		ok := goErrors.As(err, &diagErr)
 
 		// in case of render-json command and inputs reference error, we update the inputs with default value
 		if !ok || !isRenderJsonCommand(ctx) || !isAttributeAccessError(diagErr) {

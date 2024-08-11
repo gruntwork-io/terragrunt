@@ -3,7 +3,7 @@ package tflint
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestInputsToTflintVar(t *testing.T) {
@@ -34,7 +34,7 @@ func TestInputsToTflintVar(t *testing.T) {
 
 	for _, testCase := range testCases {
 		actual, err := inputsToTflintVar(testCase.inputs)
-		assert.NoError(t, err)
-		assert.ElementsMatch(t, testCase.expected, actual)
+		require.NoError(t, err)
+		require.ElementsMatch(t, testCase.expected, actual)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Terraform Version Checking
@@ -93,9 +94,9 @@ func testCheckTerraformVersionMeetsConstraint(t *testing.T, currentVersion strin
 
 	err = checkTerraformVersionMeetsConstraint(current, versionConstraint)
 	if versionMeetsConstraint && err != nil {
-		assert.Nil(t, err, "Expected Terraform version %s to meet constraint %s, but got error: %v", currentVersion, versionConstraint, err)
+		require.NoError(t, err, "Expected Terraform version %s to meet constraint %s, but got error: %v", currentVersion, versionConstraint, err)
 	} else if !versionMeetsConstraint && err == nil {
-		assert.NotNil(t, err, "Expected Terraform version %s to NOT meet constraint %s, but got back a nil error", currentVersion, versionConstraint)
+		require.Error(t, err, "Expected Terraform version %s to NOT meet constraint %s, but got back a nil error", currentVersion, versionConstraint)
 	}
 }
 
@@ -107,7 +108,7 @@ func testParseTerraformVersion(t *testing.T, versionString string, expectedVersi
 			t.Fatalf("Invalid expected version specified in test: %v", err)
 		}
 
-		assert.Nil(t, actualErr)
+		require.NoError(t, actualErr)
 		assert.Equal(t, expected, actualVersion)
 	} else {
 		assert.True(t, errors.IsError(actualErr, expectedErr))

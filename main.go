@@ -1,6 +1,7 @@
 package main
 
 import (
+	goErrors "errors"
 	"os"
 	"strings"
 
@@ -43,9 +44,11 @@ func checkForErrorsAndExit(err error) {
 }
 
 func printErrorWithStackTrace(err error) string {
-	if err, ok := err.(*multierror.Error); ok {
+	var multierror *multierror.Error
+	// if err, ok := err.(*multierror.Error); ok {
+	if goErrors.As(err, &multierror) {
 		var errsStr []string
-		for _, err := range err.Errors {
+		for _, err := range multierror.Errors {
 			errsStr = append(errsStr, errors.PrintErrorWithStackTrace(err))
 		}
 		return strings.Join(errsStr, "\n")
