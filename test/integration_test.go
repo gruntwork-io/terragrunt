@@ -388,9 +388,7 @@ func TestTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PROVIDER_CACHE_MULTIPLE_PLATFORMS)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_PROVIDER_CACHE_MULTIPLE_PLATFORMS)
 
-	cacheDir, err := util.GetCacheDir()
-	require.NoError(t, err)
-	providerCacheDir := filepath.Join(cacheDir, "provider-cache-multiple-platforms")
+	providerCacheDir := t.TempDir()
 
 	var (
 		platforms     = []string{"linux_amd64", "darwin_arm64"}
