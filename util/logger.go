@@ -1,12 +1,13 @@
 package util
 
 import (
-	"fmt"
 	"io"
 	"os"
+	"strconv"
 
 	"golang.org/x/term"
 
+	"github.com/gruntwork-io/terragrunt/internal/log/formatter"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/sirupsen/logrus"
@@ -14,8 +15,9 @@ import (
 
 // used in integration tests
 const (
-	defaultLogLevel = logrus.InfoLevel
-	logLevelEnvVar  = "TERRAGRUNT_LOG_LEVEL"
+	defaultLogLevel     = logrus.InfoLevel
+	logLevelEnvVar      = "TERRAGRUNT_LOG_LEVEL"
+	fullTimestampEnvVar = "TERRAGRUNT_LOG_FULLTIMESTAMP"
 )
 
 var (
@@ -62,10 +64,10 @@ func CreateLogger(lvl logrus.Level) *logrus.Logger {
 	if jsonLogFormat {
 		logger.SetFormatter(&logrus.JSONFormatter{})
 	} else {
-		logger.SetFormatter(&logrus.TextFormatter{
-			DisableQuote:  true,
-			DisableColors: disableLogColors,
-		})
+		fullTimestampStr := os.Getenv(fullTimestampEnvVar)
+		fullTimestamp, _ := strconv.ParseBool(fullTimestampStr)
+
+		logger.SetFormatter(formatter.NewFormatter(disableLogColors, fullTimestamp))
 	}
 	return logger
 }
@@ -73,22 +75,15 @@ func CreateLogger(lvl logrus.Level) *logrus.Logger {
 // CreateLogEntry creates a logger entry with the given prefix field
 func CreateLogEntry(prefix string, level logrus.Level) *logrus.Entry {
 	logger := CreateLogger(level)
-	var fields logrus.Fields
+	fields := logrus.Fields{}
 	if prefix != "" {
-		fields = logrus.Fields{"prefix": prefix}
-	} else {
-		fields = logrus.Fields{}
+		fields[formatter.PrefixKeyName] = prefix
 	}
 	return logger.WithFields(fields)
 }
 
 // CreateLogEntryWithWriter Create a logger around the given output stream and prefix
 func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Level, hooks logrus.LevelHooks) *logrus.Entry {
-	if prefix != "" {
-		prefix = fmt.Sprintf("[%s] ", prefix)
-	} else {
-		prefix = fmt.Sprintf("[terragrunt] %s", prefix)
-	}
 	logger := CreateLogEntry(prefix, level)
 	logger.Logger.SetOutput(writer)
 	logger.Logger.ReplaceHooks(hooks)

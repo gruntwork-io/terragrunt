@@ -257,9 +257,10 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntIncludeModulePrefixFlagName,
-			Destination: &opts.IncludeModulePrefix,
+			Destination: &opts.NoIncludeModulePrefix,
+			Negative:    true,
 			EnvVar:      "TERRAGRUNT_INCLUDE_MODULE_PREFIX",
-			Usage:       "When this flag is set output from Terraform sub-commands is prefixed with module path.",
+			Usage:       "If this flag is set to false, the output of Terraform commands will not be prefixed with the module short path.",
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntStrictIncludeFlagName,

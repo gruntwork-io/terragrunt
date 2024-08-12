@@ -260,7 +260,7 @@ type TerragruntOptions struct {
 	OutputPrefix string
 
 	// Controls if a module prefix will be prepended to TF outputs
-	IncludeModulePrefix bool
+	NoIncludeModulePrefix bool
 
 	// Fail execution if is required to create S3 bucket
 	FailIfBucketCreationRequired bool
@@ -410,7 +410,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 		FetchDependencyOutputFromState: false,
 		UsePartialParseConfigCache:     false,
 		OutputPrefix:                   "",
-		IncludeModulePrefix:            false,
+		NoIncludeModulePrefix:          false,
 		JSONOut:                        DefaultJSONOutName,
 		TerraformImplementation:        UnknownImpl,
 		JsonLogFormat:                  false,
@@ -508,7 +508,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		NonInteractive:                 opts.NonInteractive,
 		TerraformCliArgs:               util.CloneStringList(opts.TerraformCliArgs),
 		WorkingDir:                     workingDir,
-		Logger:                         util.CreateLogEntryWithWriter(opts.ErrWriter, workingDir, opts.LogLevel, opts.Logger.Logger.Hooks),
+		Logger:                         util.CreateLogEntryWithWriter(opts.ErrWriter, opts.OutputPrefix, opts.LogLevel, opts.Logger.Logger.Hooks),
 		LogLevel:                       opts.LogLevel,
 		ValidateStrict:                 opts.ValidateStrict,
 		Env:                            util.CloneStringMap(opts.Env),
@@ -546,7 +546,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		FetchDependencyOutputFromState: opts.FetchDependencyOutputFromState,
 		UsePartialParseConfigCache:     opts.UsePartialParseConfigCache,
 		OutputPrefix:                   opts.OutputPrefix,
-		IncludeModulePrefix:            opts.IncludeModulePrefix,
+		NoIncludeModulePrefix:          opts.NoIncludeModulePrefix,
 		FailIfBucketCreationRequired:   opts.FailIfBucketCreationRequired,
 		DisableBucketUpdate:            opts.DisableBucketUpdate,
 		TerraformImplementation:        opts.TerraformImplementation,

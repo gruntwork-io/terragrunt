@@ -442,7 +442,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, depe
 	targetConfig := getCleanedTargetConfigPath(dependencyConfig.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
 	currentConfig := ctx.TerragruntOptions.TerragruntConfigPath
 	if dependencyConfig.shouldReturnMockOutputs(ctx) {
-		ctx.TerragruntOptions.Logger.Debugf("WARNING: config %s is a dependency of %s that has no outputs, but mock outputs provided and returning those in dependency output.",
+		ctx.TerragruntOptions.Logger.Warnf("Config %s is a dependency of %s that has no outputs, but mock outputs provided and returning those in dependency output.",
 			targetConfig,
 			currentConfig,
 		)
@@ -579,7 +579,7 @@ func cloneTerragruntOptionsForDependency(ctx *ParsingContext, targetConfigPath s
 // Clone terragrunt options and update ctx for dependency block so that the outputs can be read correctly
 func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, targetConfig string) (*options.TerragruntOptions, error) {
 	targetOptions := cloneTerragruntOptionsForDependency(ctx, targetConfig)
-	targetOptions.IncludeModulePrefix = false
+	targetOptions.NoIncludeModulePrefix = false
 	// just read outputs, so no need to check for dependent modules
 	targetOptions.CheckDependentModules = false
 	targetOptions.TerraformCommand = "output"
@@ -925,7 +925,7 @@ func runTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, 
 	newOpts := *ctx.TerragruntOptions
 	// explicit disable json formatting and prefixing to read json output
 	newOpts.TerraformLogsToJson = false
-	newOpts.IncludeModulePrefix = false
+	newOpts.NoIncludeModulePrefix = false
 	newOpts.Writer = stdoutBufferWriter
 	ctx = ctx.WithTerragruntOptions(&newOpts)
 

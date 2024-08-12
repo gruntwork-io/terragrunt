@@ -11,7 +11,7 @@ import (
 	"github.com/gitsight/go-vcsurl"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/files"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/internal/log"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/hashicorp/go-getter"
 	"gopkg.in/ini.v1"

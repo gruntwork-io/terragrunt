@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/internal/log"
 	"github.com/labstack/echo/v4"
 )
 

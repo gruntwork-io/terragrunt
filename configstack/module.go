@@ -28,22 +28,24 @@ const maxLevelsOfRecursion = 20
 // module and the list of other modules that this module depends on
 type TerraformModule struct {
 	Path                 string
+	ShortPath            string
 	Dependencies         TerraformModules
 	Config               config.TerragruntConfig
 	TerragruntOptions    *options.TerragruntOptions
 	AssumeAlreadyApplied bool
 	FlagExcluded         bool
+	PrefixStyle          string
 }
 
 // Render this module as a human-readable string
 func (module *TerraformModule) String() string {
 	dependencies := []string{}
 	for _, dependency := range module.Dependencies {
-		dependencies = append(dependencies, dependency.Path)
+		dependencies = append(dependencies, dependency.ShortPath)
 	}
 	return fmt.Sprintf(
 		"Module %s (excluded: %v, assume applied: %v, dependencies: [%s])",
-		module.Path, module.FlagExcluded, module.AssumeAlreadyApplied, strings.Join(dependencies, ", "),
+		module.ShortPath, module.FlagExcluded, module.AssumeAlreadyApplied, strings.Join(dependencies, ", "),
 	)
 }
 
@@ -258,6 +260,19 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, terragruntOptions *optio
 	}
 
 	return matchedModules
+}
+
+func (modules TerraformModules) FindCommonPath() string {
+	var paths []string
+	for _, module := range modules {
+		paths = append(paths, module.Path)
+	}
+
+	prefix := util.FindCommonPrefixFromList(paths)
+	if util.FileExists(prefix) && util.IsDir(prefix) {
+		return prefix
+	}
+	return filepath.Dir(prefix)
 }
 
 // WriteDot is used to emit a GraphViz compatible definition

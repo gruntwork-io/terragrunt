@@ -98,7 +98,7 @@ func (stack *Stack) LogModuleDeployOrder(logger *logrus.Entry, terraformCommand 
 	for i, group := range runGraph {
 		outStr += fmt.Sprintf("Group %d\n", i+1)
 		for _, module := range group {
-			outStr += fmt.Sprintf("- Module %s\n", module.Path)
+			outStr += fmt.Sprintf("- Module %s\n", module.ShortPath)
 		}
 		outStr += "\n"
 	}
@@ -178,11 +178,7 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 		// We capture the out stream for each module
 		errorStreams := make([]bytes.Buffer, len(stack.Modules))
 		for n, module := range stack.Modules {
-			if !terragruntOptions.NonInteractive { // redirect output to ErrWriter in case of not NonInteractive mode
-				module.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], module.TerragruntOptions.ErrWriter)
-			} else {
-				module.TerragruntOptions.ErrWriter = &errorStreams[n]
-			}
+			module.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], module.TerragruntOptions.ErrWriter)
 		}
 		defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
 	}
@@ -209,19 +205,17 @@ func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.Terragrunt
 			continue
 		}
 
-		terragruntOptions.Logger.Infoln(output)
-		if strings.Contains(output, "Error running plan:") {
-			if strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
-				var dependenciesMsg string
-				if len(stack.Modules[i].Dependencies) > 0 {
-					dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", stack.Modules[i].Config.Dependencies.Paths)
-				}
-				terragruntOptions.Logger.Infof("%v%v refers to remote state "+
-					"you may have to apply your changes in the dependencies prior running terragrunt run-all plan.\n",
-					stack.Modules[i].Path,
-					dependenciesMsg,
-				)
+		//terragruntOptions.Logger.Infoln(output)
+		if strings.Contains(output, "Error running plan:") && strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
+			var dependenciesMsg string
+			if len(stack.Modules[i].Dependencies) > 0 {
+				dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", stack.Modules[i].Config.Dependencies.Paths)
 			}
+			terragruntOptions.Logger.Infof("%v%v refers to remote state "+
+				"you may have to apply your changes in the dependencies prior running terragrunt run-all plan.\n",
+				stack.Modules[i].Path,
+				dependenciesMsg,
+			)
 		}
 	}
 }
@@ -276,16 +270,39 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 	err := telemetry.Telemetry(ctx, stack.terragruntOptions, "create_stack_for_terragrunt_config_paths", map[string]interface{}{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
+		workingDir, err := filepath.Abs(stack.terragruntOptions.WorkingDir)
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
 
 		if len(terragruntConfigPaths) == 0 {
 			return errors.WithStackTrace(NoTerraformModulesFound)
 		}
 
 		modules, err := stack.ResolveTerraformModules(ctx, terragruntConfigPaths)
-
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
+
+		commonDir := modules.FindCommonPath()
+		for _, module := range modules {
+			opts := module.TerragruntOptions
+			opts.OutputPrefix = strings.TrimPrefix(module.Path, commonDir)
+			opts.Logger = util.CreateLogEntryWithWriter(opts.ErrWriter, opts.OutputPrefix, opts.LogLevel, opts.Logger.Logger.Hooks)
+
+			relPath, err := filepath.Rel(workingDir, module.Path)
+			if err != nil {
+				return errors.WithStackTrace(err)
+			}
+			relPath = fmt.Sprintf(".%s%s", string(filepath.Separator), relPath)
+
+			if len(workingDir) < len(relPath) {
+				module.ShortPath = workingDir
+			} else {
+				module.ShortPath = relPath
+			}
+		}
+
 		stack.Modules = modules
 		return nil
 	})
@@ -546,10 +563,6 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 	if (terragruntConfig.Terraform == nil || terragruntConfig.Terraform.Source == nil || *terragruntConfig.Terraform.Source == "") && matches == nil {
 		stack.terragruntOptions.Logger.Debugf("Module %s does not have an associated terraform configuration and will be skipped.", filepath.Dir(terragruntConfigPath))
 		return nil, nil
-	}
-
-	if opts.IncludeModulePrefix {
-		opts.OutputPrefix = fmt.Sprintf("[%v] ", modulePath)
 	}
 
 	return &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil

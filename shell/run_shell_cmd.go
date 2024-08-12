@@ -13,6 +13,9 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/engine"
+	"github.com/gruntwork-io/terragrunt/internal/log"
+	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/mgutz/ansi"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
@@ -100,7 +103,7 @@ func RunShellCommandWithOutput(
 		"args":    fmt.Sprintf("%v", args),
 		"dir":     commandDir,
 	}, func(childCtx context.Context) error {
-		terragruntOptions.Logger.Debugf("Running command: %s %s", command, strings.Join(args, " "))
+		terragruntOptions.Logger.Infof("Running command: %s %s", command, strings.Join(args, " "))
 		if suppressStdout {
 			terragruntOptions.Logger.Debugf("Command output will be suppressed.")
 		}
@@ -128,17 +131,17 @@ func RunShellCommandWithOutput(
 			errWriter = jsonErrorWriter.WriterLevel(logrus.ErrorLevel)
 		}
 
-		var prefix = ""
-		if terragruntOptions.IncludeModulePrefix {
-			prefix = terragruntOptions.OutputPrefix
-		}
 		cmd.Dir = commandDir
 
 		// Inspired by https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
-		cmdStderr := io.MultiWriter(withPrefix(errWriter, prefix), &stderrBuf)
+		cmdStderr := io.MultiWriter(log.TFStderrWriter(errWriter, terragruntOptions.Logger.Logger.Formatter, terragruntOptions.OutputPrefix), &stderrBuf)
 		var cmdStdout io.Writer
 		if !suppressStdout {
-			cmdStdout = io.MultiWriter(withPrefix(outWriter, prefix), &stdoutBuf)
+			// do not add prefix if cli command contains `-json` flag
+			if !util.ListContainsElement(args, terraform.FlagNameJSON) {
+				outWriter = log.TFStdoutWriter(outWriter, terragruntOptions.Logger.Logger.Formatter, terragruntOptions.OutputPrefix)
+			}
+			cmdStdout = io.MultiWriter(outWriter, &stdoutBuf)
 		} else {
 			cmdStdout = io.MultiWriter(&stdoutBuf)
 		}
@@ -196,7 +199,7 @@ func RunShellCommandWithOutput(
 		err := cmd.Wait()
 		cmdChannel <- err
 
-		cmdOutput := util.CmdOutput{
+		output = &util.CmdOutput{
 			Stdout: stdoutBuf.String(),
 			Stderr: stderrBuf.String(),
 		}
@@ -209,9 +212,9 @@ func RunShellCommandWithOutput(
 				WorkingDir: cmd.Dir,
 			}
 		}
-		output = &cmdOutput
 		return errors.WithStackTrace(err)
 	})
+
 	return output, err
 }
 
@@ -240,14 +243,6 @@ func isTerraformCommandThatNeedsPty(args []string) (bool, error) {
 	}
 
 	return true, nil
-}
-
-func withPrefix(writer io.Writer, prefix string) io.Writer {
-	if prefix == "" {
-		return writer
-	}
-
-	return util.PrefixedWriter(writer, prefix)
 }
 
 type SignalsForwarder chan os.Signal
@@ -377,4 +372,23 @@ func extractSemVerTags(tags []string) []*version.Version {
 		}
 	}
 	return semverTags
+}
+
+// ColorFunc creates a closure to avoid computation ANSI color code.
+func ColorFunc(style string) func(string) string {
+	if style == "" {
+		return func(s string) string {
+			return s
+		}
+	}
+	color := ansi.ColorCode(style)
+
+	fmt.Println("--------------------------------", color)
+	return func(s string) string {
+		buf := bytes.NewBufferString(color)
+		buf.WriteString(s)
+		buf.WriteString(ansi.Reset)
+		result := buf.String()
+		return result
+	}
 }

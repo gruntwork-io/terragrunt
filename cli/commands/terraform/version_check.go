@@ -50,6 +50,7 @@ func checkVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 	if terragruntOptions.TerraformPath == options.DefaultWrappedPath && partialTerragruntConfig.TerraformBinary != "" {
 		terragruntOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
 	}
+
 	if err := PopulateTerraformVersion(ctx, terragruntOptions); err != nil {
 		return err
 	}
@@ -76,7 +77,6 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 	terragruntOptionsCopy := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	terragruntOptionsCopy.Writer = io.Discard
 	terragruntOptionsCopy.ErrWriter = io.Discard
-
 	// Remove any TF_CLI_ARGS before version checking. These are appended to
 	// the arguments supplied on the command line and cause issues when running
 	// the --version command.
@@ -91,6 +91,8 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 	if err != nil {
 		return err
 	}
+
+	//fmt.Println(output)
 
 	terraformVersion, err := parseTerraformVersion(output.Stdout)
 	if err != nil {

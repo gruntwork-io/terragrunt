@@ -50,13 +50,13 @@ func testCommandOutputOrder(t *testing.T, withPtty bool, fullOutput []string, st
 }
 
 func TestCommandOutputPrefix(t *testing.T) {
-	prefix := "PREFIX> "
+	prefix := "PREFIX"
 	prefixedOutput := []string{}
 	for _, line := range FULL_OUTPUT {
 		prefixedOutput = append(prefixedOutput, prefix+line)
 	}
 	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
-		terragruntOptions.IncludeModulePrefix = true
+		terragruntOptions.NoIncludeModulePrefix = false
 		terragruntOptions.OutputPrefix = prefix
 	}, assertOutputs(t,
 		prefixedOutput,

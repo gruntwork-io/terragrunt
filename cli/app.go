@@ -44,9 +44,9 @@ import (
 	terraformCmd "github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
+	"github.com/gruntwork-io/terragrunt/internal/log"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // forced shutdown interval after receiving an interrupt signal
@@ -283,12 +283,6 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 		util.JsonFormat()
 	}
 
-	opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
-	opts.Logger = util.CreateLogEntry("", opts.LogLevel)
-	opts.Logger.Logger.SetOutput(cliCtx.App.ErrWriter)
-
-	log.SetLogger(opts.Logger.Logger)
-
 	// --- Working Dir
 	if opts.WorkingDir == "" {
 		currentDir, err := os.Getwd()
@@ -309,6 +303,12 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 		return errors.WithStackTrace(err)
 	}
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
+
+	opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
+	opts.Logger = util.CreateLogEntry(filepath.Base(opts.WorkingDir), opts.LogLevel)
+	opts.Logger.Logger.SetOutput(cliCtx.App.ErrWriter)
+
+	log.SetLogger(opts.Logger.Logger)
 
 	// --- Terragrunt ConfigPath
 	if opts.TerragruntConfigPath == "" {
@@ -365,10 +365,10 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 			break
 		}
 	}
-	if opts.IncludeModulePrefix && !jsonOutput {
-		opts.OutputPrefix = fmt.Sprintf("[%s] ", opts.WorkingDir)
+	if !opts.NoIncludeModulePrefix && !jsonOutput {
+		opts.OutputPrefix = filepath.Base(opts.WorkingDir)
 	} else {
-		opts.IncludeModulePrefix = false
+		opts.NoIncludeModulePrefix = true
 	}
 
 	// --- Others

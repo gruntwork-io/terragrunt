@@ -204,3 +204,23 @@ func SplitUrls(s, sep string) []string {
 
 	return urls
 }
+
+func FindCommonPrefixFromList(strs []string) string {
+	// Handle the case where the slice is empty
+	if len(strs) == 0 {
+		return ""
+	}
+
+	// Initialize the common prefix with the first string
+	prefix := strs[0]
+
+	// Compare the prefix with the other strings
+	for _, str := range strs {
+		for !strings.HasPrefix(str, prefix) {
+			// Progressively reduce the prefix until it matches
+			prefix = prefix[:len(prefix)-1]
+		}
+	}
+
+	return prefix
+}
