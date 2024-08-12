@@ -178,7 +178,7 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, 
 
 	var contextStr string
 	if snippet.Context != "" {
-		contextStr = fmt.Sprintf(", in %s", snippet.Context)
+		contextStr = ", in " + snippet.Context
 	}
 	if _, err := fmt.Fprintf(buf, "  on %s line %d%s:\n", diag.Range.Filename, diag.Range.Start.Line, contextStr); err != nil {
 		return "", errors.WithStackTrace(err)

@@ -43,7 +43,7 @@ func TestFindStackInSubfolders(t *testing.T) {
 	stack, err := FindStackInSubfolders(context.Background(), terragruntOptions)
 	require.NoError(t, err)
 
-	var modulePaths []string
+	var modulePaths = make([]string, 0, len(stack.Modules))
 
 	for _, module := range stack.Modules {
 		relPath := strings.Replace(module.Path, tempFolder, "", 1)

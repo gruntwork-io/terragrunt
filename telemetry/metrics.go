@@ -2,7 +2,6 @@ package telemetry
 
 import (
 	"context"
-	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -44,7 +43,7 @@ func Time(ctx context.Context, name string, attrs map[string]interface{}, fn fun
 	}
 
 	metricAttrs := mapToAttributes(attrs)
-	histogram, err := meter.Int64Histogram(cleanMetricName(fmt.Sprintf("%s_duration", name)))
+	histogram, err := meter.Int64Histogram(cleanMetricName(name + "_duration"))
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -54,9 +53,9 @@ func Time(ctx context.Context, name string, attrs map[string]interface{}, fn fun
 	if err != nil {
 		// count errors
 		Count(ctx, ErrorsCounter, 1)
-		Count(ctx, fmt.Sprintf("%s_errors", name), 1)
+		Count(ctx, name+"_errors", 1)
 	} else {
-		Count(ctx, fmt.Sprintf("%s_success", name), 1)
+		Count(ctx, name+"_success", 1)
 	}
 	return err
 }
@@ -66,7 +65,7 @@ func Count(ctx context.Context, name string, value int64) {
 	if ctx == nil || metricExporter == nil {
 		return
 	}
-	counter, err := meter.Int64Counter(cleanMetricName(fmt.Sprintf("%s_count", name)))
+	counter, err := meter.Int64Counter(cleanMetricName(name + "_count"))
 	if err != nil {
 		return
 	}

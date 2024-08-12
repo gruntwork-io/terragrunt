@@ -2,6 +2,7 @@ package options
 
 import (
 	"context"
+	goErrors "errors"
 	"fmt"
 	"io"
 	"math"
@@ -675,4 +676,4 @@ type EngineOptions struct {
 
 // Custom error types
 
-var ErrRunTerragruntCommandNotSet = fmt.Errorf("the RunTerragrunt option has not been set on this TerragruntOptions object")
+var ErrRunTerragruntCommandNotSet = goErrors.New("the RunTerragrunt option has not been set on this TerragruntOptions object")

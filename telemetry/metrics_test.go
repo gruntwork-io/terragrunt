@@ -2,8 +2,8 @@ package telemetry
 
 import (
 	"context"
-	"fmt"
 	"io"
+	"strconv"
 	"testing"
 
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
@@ -59,7 +59,7 @@ func TestNewMetricsExporter(t *testing.T) {
 			opts := &TelemetryOptions{
 				Vars: map[string]string{
 					"TERRAGRUNT_TELEMETRY_METRIC_EXPORTER":                   tt.exporterType,
-					"TERRAGRUNT_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT": fmt.Sprintf("%v", tt.insecure),
+					"TERRAGRUNT_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT": strconv.FormatBool(tt.insecure),
 				},
 				Writer: io.Discard,
 			}

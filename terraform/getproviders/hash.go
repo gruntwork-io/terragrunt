@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -56,12 +55,12 @@ func PackageHashLegacyZipSHA(path string) (Hash, error) {
 	}
 
 	gotHash := hash.Sum(nil)
-	return HashSchemeZip.New(fmt.Sprintf("%x", gotHash)), nil
+	return HashSchemeZip.New(hex.EncodeToString(gotHash)), nil
 }
 
 // HashLegacyZipSHAFromSHA is a convenience method to produce the schemed-string hash format from an already-calculated hash of a provider .zip archive.
 func HashLegacyZipSHAFromSHA(sum [sha256.Size]byte) Hash {
-	return HashSchemeZip.New(fmt.Sprintf("%x", sum[:]))
+	return HashSchemeZip.New(hex.EncodeToString(sum[:]))
 }
 
 // PackageHashV1 computes a hash of the contents of the package at the given location using hash algorithm 1. The resulting Hash is guaranteed to have the scheme HashScheme1.

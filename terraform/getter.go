@@ -4,6 +4,7 @@ package terraform
 import (
 	"context"
 	"encoding/json"
+	goErrors "errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -172,7 +173,7 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 // GetFile is not implemented for the Terraform module registry Getter since the terraform module registry doesn't serve
 // a single file.
 func (tfrGetter *RegistryGetter) GetFile(dst string, src *url.URL) error {
-	return errors.WithStackTrace(fmt.Errorf("GetFile is not implemented for the Terraform Registry Getter"))
+	return errors.WithStackTrace(goErrors.New("GetFile is not implemented for the Terraform Registry Getter"))
 }
 
 // getSubdir downloads the source into the destination, but with the proper subdir.
@@ -320,7 +321,7 @@ func httpGETAndGetResponse(ctx context.Context, getURL url.URL) ([]byte, *http.H
 	// the request header.
 	authToken := os.Getenv(authTokenEnvVarName)
 	if authToken != "" {
-		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", authToken))
+		req.Header.Add("Authorization", "Bearer "+authToken)
 	}
 
 	resp, err := httpClient.Do(req)

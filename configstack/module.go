@@ -254,7 +254,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, terragruntOptions *optio
 	}
 
 	// extract modules as list
-	var matchedModules TerraformModules
+	var matchedModules = make(TerraformModules, 0, len(matchedModulesMap))
 	for _, module := range matchedModulesMap {
 		matchedModules = append(matchedModules, module)
 	}

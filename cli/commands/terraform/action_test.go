@@ -2,7 +2,6 @@ package terraform
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -344,13 +343,13 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 		{
 			mockCmdOptions(t, workingDir, []string{"apply"}),
 			mockExtraArgs([]string{"--foo", "bar"}, []string{"apply", "plan"}, []string{}, []string{temporaryFile}),
-			[]string{"--foo", "bar", fmt.Sprintf("-var-file=%s", temporaryFile)},
+			[]string{"--foo", "bar", "-var-file=" + temporaryFile},
 		},
 		// required var file + optional existing var file
 		{
 			mockCmdOptions(t, workingDir, []string{"apply"}),
 			mockExtraArgs([]string{"--foo", "bar"}, []string{"apply", "plan"}, []string{"required.tfvars"}, []string{temporaryFile}),
-			[]string{"--foo", "bar", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+			[]string{"--foo", "bar", "-var-file=required.tfvars", "-var-file=" + temporaryFile},
 		},
 		// non existing required var file + non existing optional var file
 		{
@@ -362,13 +361,13 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 		{
 			mockCmdOptions(t, workingDir, []string{"plan", workingDir}),
 			mockExtraArgs([]string{"--foo", "bar"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
-			[]string{"--foo", "bar", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+			[]string{"--foo", "bar", "-var-file=required.tfvars", "-var-file=" + temporaryFile},
 		},
 		// apply providing a folder, var files should stay included
 		{
 			mockCmdOptions(t, workingDir, []string{"apply", workingDir}),
 			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "-var='key=value'"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
-			[]string{"--foo", "-var-file=test.tfvars", "-var='key=value'", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+			[]string{"--foo", "-var-file=test.tfvars", "-var='key=value'", "-var-file=required.tfvars", "-var-file=" + temporaryFile},
 		},
 		// apply providing a file, no var files included
 		{
@@ -381,7 +380,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 		{
 			mockCmdOptions(t, workingDir, []string{"apply"}),
 			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
-			[]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+			[]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo", "-var-file=required.tfvars", "-var-file=" + temporaryFile},
 		},
 		// apply with some parameters, providing a file => no var files included
 		{
@@ -393,7 +392,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 		{
 			mockCmdOptions(t, workingDir, []string{"destroy", workingDir}),
 			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "-var='key=value'"}, []string{"plan", "destroy"}, []string{"required.tfvars"}, []string{temporaryFile}),
-			[]string{"--foo", "-var-file=test.tfvars", "-var='key=value'", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+			[]string{"--foo", "-var-file=test.tfvars", "-var='key=value'", "-var-file=required.tfvars", "-var-file=" + temporaryFile},
 		},
 		// destroy providing a file, no var files included
 		{
@@ -406,7 +405,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 		{
 			mockCmdOptions(t, workingDir, []string{"destroy"}),
 			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "destroy"}, []string{"required.tfvars"}, []string{temporaryFile}),
-			[]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+			[]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo", "-var-file=required.tfvars", "-var-file=" + temporaryFile},
 		},
 		// destroy with some parameters, providing a file => no var files included
 		{

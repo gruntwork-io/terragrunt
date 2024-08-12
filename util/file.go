@@ -249,7 +249,7 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 		includeExpandedGlobs = append(includeExpandedGlobs, relativeExpandGlobPath)
 
 		if IsDir(absoluteExpandGlobPath) {
-			dirExpandGlob, err := expandGlobPath(source, fmt.Sprintf("%s/*", absoluteExpandGlobPath))
+			dirExpandGlob, err := expandGlobPath(source, absoluteExpandGlobPath+"/*")
 			if err != nil {
 				return nil, errors.WithStackTrace(err)
 			}
@@ -308,7 +308,7 @@ func CopyFolderContentsWithFilter(source, destination, manifestFile string, filt
 	// Why use filepath.Glob here? The original implementation used os.ReadDir, but that method calls lstat on all
 	// the files/folders in the directory, including files/folders you may want to explicitly skip. The next attempt
 	// was to use filepath.Walk, but that doesn't work because it ignores symlinks. So, now we turn to filepath.Glob.
-	files, err := filepath.Glob(fmt.Sprintf("%s/*", source))
+	files, err := filepath.Glob(source + "/*")
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -577,7 +577,7 @@ type PathIsNotDirectory struct {
 }
 
 func (err PathIsNotDirectory) Error() string {
-	return fmt.Sprintf("%s is not a directory", err.path)
+	return err.path + " is not a directory"
 }
 
 // PathIsNotFile is returned when the given path is unexpectedly not a file.
@@ -586,7 +586,7 @@ type PathIsNotFile struct {
 }
 
 func (err PathIsNotFile) Error() string {
-	return fmt.Sprintf("%s is not a file", err.path)
+	return err.path + " is not a file"
 }
 
 // Terraform 0.14 now generates a lock file when you run `terraform init`.

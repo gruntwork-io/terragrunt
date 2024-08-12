@@ -10,7 +10,7 @@ import (
 type Attributes []*Attribute
 
 func NewAttributes(file *File, hclAttrs hcl.Attributes) Attributes {
-	var attrs Attributes
+	var attrs = make(Attributes, 0, len(hclAttrs))
 
 	for _, hclAttr := range hclAttrs {
 		attrs = append(attrs, &Attribute{

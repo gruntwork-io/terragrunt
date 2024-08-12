@@ -3,6 +3,7 @@ package remote
 
 import (
 	"context"
+	goErrors "errors"
 	"fmt"
 	"reflect"
 	"sync"
@@ -190,7 +191,7 @@ func (remoteState RemoteState) ToTerraformInitArgs() []string {
 		config = initializer.GetTerraformInitArgs(remoteState.Config)
 	}
 
-	var backendConfigArgs []string = nil
+	var backendConfigArgs = make([]string, 0, len(config))
 
 	for key, value := range config {
 		arg := fmt.Sprintf("-backend-config=%s=%v", key, value)
@@ -235,8 +236,8 @@ func (remoteState *RemoteState) GenerateTerraformCode(terragruntOptions *options
 
 // Custom errors
 var (
-	ErrRemoteBackendMissing             = fmt.Errorf("the remote_state.backend field cannot be empty")
-	ErrGenerateCalledWithNoGenerateAttr = fmt.Errorf("generate code routine called when no generate attribute is configured")
+	ErrRemoteBackendMissing             = goErrors.New("the remote_state.backend field cannot be empty")
+	ErrGenerateCalledWithNoGenerateAttr = goErrors.New("generate code routine called when no generate attribute is configured")
 )
 
 type BucketCreationNotAllowed string

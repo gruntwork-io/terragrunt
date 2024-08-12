@@ -172,12 +172,13 @@ func TestJoinTerraformModulePath(t *testing.T) {
 func TestFileManifest(t *testing.T) {
 	t.Parallel()
 
-	var testfiles []string
+	files := []string{"file1", "file2"}
+	var testfiles = make([]string, 0, len(files))
 
 	// create temp dir
 	dir, err := os.MkdirTemp("", ".terragrunt-test-dir")
 	require.NoError(t, err)
-	for _, file := range []string{"file1", "file2"} {
+	for _, file := range files {
 		// create temp files in the dir
 		f, err := os.CreateTemp(dir, file)
 		require.NoError(t, err)

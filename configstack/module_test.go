@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -302,7 +301,7 @@ func TestRunModulesOneModuleError(t *testing.T) {
 	t.Parallel()
 
 	aRan := false
-	expectedErrA := fmt.Errorf("Expected error for module a")
+	expectedErrA := errors.New("Expected error for module a")
 	moduleA := &TerraformModule{
 		Path:              "a",
 		Dependencies:      TerraformModules{},
@@ -323,7 +322,7 @@ func TestRunModulesReverseOrderOneModuleError(t *testing.T) {
 	t.Parallel()
 
 	aRan := false
-	expectedErrA := fmt.Errorf("Expected error for module a")
+	expectedErrA := errors.New("Expected error for module a")
 	moduleA := &TerraformModule{
 		Path:              "a",
 		Dependencies:      TerraformModules{},
@@ -344,7 +343,7 @@ func TestRunModulesIgnoreOrderOneModuleError(t *testing.T) {
 	t.Parallel()
 
 	aRan := false
-	expectedErrA := fmt.Errorf("Expected error for module a")
+	expectedErrA := errors.New("Expected error for module a")
 	moduleA := &TerraformModule{
 		Path:              "a",
 		Dependencies:      TerraformModules{},
@@ -529,7 +528,7 @@ func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
 	}
 
 	bRan := false
-	expectedErrB := fmt.Errorf("Expected error for module b")
+	expectedErrB := errors.New("Expected error for module b")
 	moduleB := &TerraformModule{
 		Path:              "b",
 		Dependencies:      TerraformModules{},
@@ -561,7 +560,7 @@ func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 	t.Parallel()
 
 	aRan := false
-	expectedErrA := fmt.Errorf("Expected error for module a")
+	expectedErrA := errors.New("Expected error for module a")
 	moduleA := &TerraformModule{
 		Path:              "a",
 		Dependencies:      TerraformModules{},
@@ -570,7 +569,7 @@ func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 	}
 
 	bRan := false
-	expectedErrB := fmt.Errorf("Expected error for module b")
+	expectedErrB := errors.New("Expected error for module b")
 	moduleB := &TerraformModule{
 		Path:              "b",
 		Dependencies:      TerraformModules{},
@@ -579,7 +578,7 @@ func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 	}
 
 	cRan := false
-	expectedErrC := fmt.Errorf("Expected error for module c")
+	expectedErrC := errors.New("Expected error for module c")
 	moduleC := &TerraformModule{
 		Path:              "c",
 		Dependencies:      TerraformModules{},
@@ -777,7 +776,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 	}
 
 	bRan := false
-	expectedErrB := fmt.Errorf("Expected error for module b")
+	expectedErrB := errors.New("Expected error for module b")
 	moduleB := &TerraformModule{
 		Path:              "b",
 		Dependencies:      TerraformModules{moduleA},
@@ -821,7 +820,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErro
 	}
 
 	bRan := false
-	expectedErrB := fmt.Errorf("Expected error for module b")
+	expectedErrB := errors.New("Expected error for module b")
 	terragruntOptionsB := optionsWithMockTerragruntCommand(t, "b", expectedErrB, &bRan)
 	terragruntOptionsB.IgnoreDependencyErrors = true
 	moduleB := &TerraformModule{
@@ -865,7 +864,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *test
 	}
 
 	bRan := false
-	expectedErrB := fmt.Errorf("Expected error for module b")
+	expectedErrB := errors.New("Expected error for module b")
 	moduleB := &TerraformModule{
 		Path:              "b",
 		Dependencies:      TerraformModules{moduleA},
@@ -907,7 +906,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesOneFailure(t *testi
 	}
 
 	bRan := false
-	expectedErrB := fmt.Errorf("Expected error for module b")
+	expectedErrB := errors.New("Expected error for module b")
 	moduleB := &TerraformModule{
 		Path:              "b",
 		Dependencies:      TerraformModules{moduleA},
@@ -939,7 +938,7 @@ func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T)
 	t.Parallel()
 
 	aRan := false
-	expectedErrA := fmt.Errorf("Expected error for module a")
+	expectedErrA := errors.New("Expected error for module a")
 	moduleA := &TerraformModule{
 		Path:              "a",
 		Dependencies:      TerraformModules{},
@@ -982,7 +981,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesMultipleFailures(t 
 	t.Parallel()
 
 	aRan := false
-	expectedErrA := fmt.Errorf("Expected error for module a")
+	expectedErrA := errors.New("Expected error for module a")
 	moduleA := &TerraformModule{
 		Path:              "a",
 		Dependencies:      TerraformModules{},
@@ -1104,7 +1103,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 	}
 
 	cRan := false
-	expectedErrC := fmt.Errorf("Expected error for module large-graph-c")
+	expectedErrC := errors.New("Expected error for module large-graph-c")
 	moduleC := &TerraformModule{
 		Path:              "large-graph-c",
 		Dependencies:      TerraformModules{moduleB},
@@ -1184,7 +1183,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 	}
 
 	cRan := false
-	expectedErrC := fmt.Errorf("Expected error for module c")
+	expectedErrC := errors.New("Expected error for module c")
 	moduleC := &TerraformModule{
 		Path:              "c",
 		Dependencies:      TerraformModules{moduleB},

@@ -99,13 +99,13 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 	providerService := services.NewProviderService(opts.ProviderCacheDir, userProviderDir, cliCfg.CredentialsSource())
 
 	var (
-		providerHandlers []handlers.ProviderHandler
-		excludeAddrs     []string
+		providerHandlers = make([]handlers.ProviderHandler, 0, len(cliCfg.ProviderInstallation.Methods))
+		excludeAddrs     = make([]string, 0, len(cliCfg.ProviderInstallation.Methods))
 		directIsdefined  bool
 	)
 
 	for _, registryName := range opts.ProviderCacheRegistryNames {
-		excludeAddrs = append(excludeAddrs, fmt.Sprintf("%s/*/*", registryName))
+		excludeAddrs = append(excludeAddrs, registryName+"/*/*")
 	}
 
 	for _, method := range cliCfg.ProviderInstallation.Methods {
@@ -242,10 +242,10 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 	cfg := cache.cliCfg.Clone()
 	cfg.PluginCacheDir = ""
 
-	var providerInstallationIncludes []string
+	var providerInstallationIncludes = make([]string, 0, len(opts.ProviderCacheRegistryNames))
 
 	for _, registryName := range opts.ProviderCacheRegistryNames {
-		providerInstallationIncludes = append(providerInstallationIncludes, fmt.Sprintf("%s/*/*", registryName))
+		providerInstallationIncludes = append(providerInstallationIncludes, registryName+"/*/*")
 
 		urls, err := DiscoveryURL(ctx, registryName)
 		if err != nil {
@@ -348,9 +348,8 @@ func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile str
 // `providers lock -platform=freebsd_amd64`
 func convertToMultipleCommandsByPlatforms(args []string) [][]string {
 	var (
-		filteredArgs []string
-		platformArgs []string
-		commandsArgs [][]string
+		filteredArgs = make([]string, 0, len(args))
+		platformArgs = make([]string, 0, len(args))
 	)
 
 	for _, arg := range args {
@@ -364,6 +363,8 @@ func convertToMultipleCommandsByPlatforms(args []string) [][]string {
 	if len(platformArgs) == 0 {
 		return [][]string{args}
 	}
+
+	var commandsArgs = make([][]string, 0, len(platformArgs))
 
 	for _, platformArg := range platformArgs {
 		commandsArgs = append(commandsArgs, append(filteredArgs, platformArg))

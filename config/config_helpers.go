@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	goErrors "errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -620,7 +621,7 @@ func readTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *ct
 func readTerragruntConfigAsFuncImpl(ctx *ParsingContext) function.Function {
 	return function.New(&function.Spec{
 		// Takes one required string param
-		Params: []function.Parameter{function.Parameter{Type: cty.String}},
+		Params: []function.Parameter{{Type: cty.String}},
 		// And optional param that takes anything
 		VarParam: &function.Parameter{Type: cty.DynamicPseudoType},
 		// We don't know the return type until we parse the terragrunt config, so we use a dynamic type
@@ -864,7 +865,7 @@ func endsWith(ctx *ParsingContext, args []string) (bool, error) {
 // timeCmp implements Terraform's `timecmp` function that compares two timestamps.
 func timeCmp(ctx *ParsingContext, args []string) (int64, error) {
 	if len(args) != matchedPats {
-		return 0, errors.WithStackTrace(fmt.Errorf("function can take only two parameters: timestamp_a and timestamp_b"))
+		return 0, errors.WithStackTrace(goErrors.New("function can take only two parameters: timestamp_a and timestamp_b"))
 	}
 
 	tsA, err := util.ParseTimestamp(args[0])

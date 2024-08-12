@@ -331,7 +331,7 @@ func confirmActionWithDependentModules(ctx context.Context, terragruntOptions *o
 			return false
 		}
 		for _, module := range modules {
-			if _, err := terragruntOptions.ErrWriter.Write([]byte(fmt.Sprintf("%s\n", module.Path))); err != nil {
+			if _, err := terragruntOptions.ErrWriter.Write([]byte(module.Path + "\n")); err != nil {
 				terragruntOptions.Logger.Error(err)
 				return false
 			}
@@ -471,13 +471,13 @@ func prepareInitCommand(ctx context.Context, terragruntOptions *options.Terragru
 
 func checkFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptions) error {
 	files := []string{}
-	hclFiles, err := zglob.Glob(fmt.Sprintf("%s/**/*.tf", terragruntOptions.WorkingDir))
+	hclFiles, err := zglob.Glob(terragruntOptions.WorkingDir + "/**/*.tf")
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 	files = append(files, hclFiles...)
 
-	jsonFiles, err := zglob.Glob(fmt.Sprintf("%s/**/*.tf.json", terragruntOptions.WorkingDir))
+	jsonFiles, err := zglob.Glob(terragruntOptions.WorkingDir + "/**/*.tf.json")
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -497,7 +497,7 @@ func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptio
 		return errors.WithStackTrace(err)
 	}
 
-	definesBackend, err := util.Grep(terraformBackendRegexp, fmt.Sprintf("%s/**/*.tf", terragruntOptions.WorkingDir))
+	definesBackend, err := util.Grep(terraformBackendRegexp, terragruntOptions.WorkingDir+"/**/*.tf")
 	if err != nil {
 		return err
 	}
@@ -510,7 +510,7 @@ func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptio
 		return errors.WithStackTrace(err)
 	}
 
-	definesJSONBackend, err := util.Grep(terraformJSONBackendRegexp, fmt.Sprintf("%s/**/*.tf.json", terragruntOptions.WorkingDir))
+	definesJSONBackend, err := util.Grep(terraformJSONBackendRegexp, terragruntOptions.WorkingDir+"/**/*.tf.json")
 	if err != nil {
 		return err
 	}
@@ -661,7 +661,7 @@ func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragru
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) == terraform.CommandNameDestroy {
 		destroyFlag = true
 	}
-	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, fmt.Sprintf("-%s", terraform.CommandNameDestroy)) {
+	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-"+terraform.CommandNameDestroy) {
 		destroyFlag = true
 	}
 	if !destroyFlag {
@@ -703,7 +703,7 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 				if !skipVars {
 					varFiles := arg.GetVarFiles(terragruntOptions.Logger)
 					for _, file := range varFiles {
-						out = append(out, fmt.Sprintf("-var-file=%s", file))
+						out = append(out, "-var-file="+file)
 					}
 				}
 			}

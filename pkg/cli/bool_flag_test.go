@@ -5,6 +5,7 @@ import (
 	libflag "flag"
 	"fmt"
 	"io"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -108,7 +109,7 @@ func testBoolFlagApply(t *testing.T, flag *BoolFlag, args []string, envs map[str
 		destDefined = true
 		flag.Destination = &actualValue
 	} else if val := *flag.Destination; val && !flag.Negative {
-		expectedDefaultValue = fmt.Sprintf("%t", val)
+		expectedDefaultValue = strconv.FormatBool(val)
 	}
 
 	flag.LookupEnvFunc = func(key string) (string, bool) {
@@ -141,7 +142,7 @@ func testBoolFlagApply(t *testing.T, flag *BoolFlag, args []string, envs map[str
 
 	assert.Equal(t, expectedValue, actualValue)
 	if actualValue {
-		assert.Equal(t, fmt.Sprintf("%t", expectedValue), flag.GetValue(), "GetValue()")
+		assert.Equal(t, strconv.FormatBool(expectedValue), flag.GetValue(), "GetValue()")
 	}
 
 	assert.Equal(t, len(args) > 0, flag.Value().IsSet(), "IsSet()")

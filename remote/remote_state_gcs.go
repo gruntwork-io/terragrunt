@@ -302,7 +302,7 @@ func createGCSBucketIfNecessary(ctx context.Context, gcsClient *storage.Client, 
 
 		if shouldCreateBucket {
 			// To avoid any eventual consistency issues with creating a GCS bucket we use a retry loop.
-			description := fmt.Sprintf("Create GCS bucket %s", config.remoteStateConfigGCS.Bucket)
+			description := "Create GCS bucket " + config.remoteStateConfigGCS.Bucket
 
 			return util.DoWithRetry(ctx, description, gcpMaxRetries, gcpSleepBetweenRetries, logrus.DebugLevel, func(ctx context.Context) error {
 				// TODO: Remove lint suppression
@@ -525,5 +525,5 @@ func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, err
 type MissingRequiredGCSRemoteStateConfig string
 
 func (configName MissingRequiredGCSRemoteStateConfig) Error() string {
-	return fmt.Sprintf("Missing required GCS remote state configuration %s", string(configName))
+	return "Missing required GCS remote state configuration " + string(configName)
 }

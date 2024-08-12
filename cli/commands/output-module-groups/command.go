@@ -1,8 +1,6 @@
 package outputmodulegroups
 
 import (
-	"fmt"
-
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -28,7 +26,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 func subCommandFunc(cmd string, opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:  cmd,
-		Usage: fmt.Sprintf("Recursively find terragrunt modules in the current directory tree and output the dependency order as a list of list in JSON for the %s", cmd),
+		Usage: "Recursively find terragrunt modules in the current directory tree and output the dependency order as a list of list in JSON for the " + cmd,
 		Action: func(ctx *cli.Context) error {
 			opts.TerraformCommand = cmd
 			return Run(ctx, opts.OptionsFromContext(ctx))

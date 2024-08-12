@@ -72,5 +72,5 @@ type NotFoundWellKnownURL struct {
 }
 
 func (err NotFoundWellKnownURL) Error() string {
-	return fmt.Sprintf("%s not found", err.url)
+	return err.url + " not found"
 }

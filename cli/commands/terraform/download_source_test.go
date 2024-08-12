@@ -27,7 +27,7 @@ import (
 func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
 	t.Parallel()
 
-	canonicalUrl := fmt.Sprintf("file://%s", absPath(t, "../../../test/fixture-download-source/hello-world-local-hash"))
+	canonicalUrl := "file://" + absPath(t, "../../../test/fixture-download-source/hello-world-local-hash")
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
@@ -51,7 +51,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathHashingFailure(t *testing.T) {
 	t.Parallel()
 
 	fixturePath := absPath(t, "../../../test/fixture-download-source/hello-world-local-hash-failed")
-	canonicalUrl := fmt.Sprintf("file://%s", fixturePath)
+	canonicalUrl := "file://" + fixturePath
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
@@ -78,7 +78,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathHashingFailure(t *testing.T) {
 func TestAlreadyHaveLatestCodeLocalFilePathWithHashChanged(t *testing.T) {
 	t.Parallel()
 
-	canonicalUrl := fmt.Sprintf("file://%s", absPath(t, "../../../test/fixture-download-source/hello-world-local-hash"))
+	canonicalUrl := "file://" + absPath(t, "../../../test/fixture-download-source/hello-world-local-hash")
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
@@ -99,7 +99,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithHashChanged(t *testing.T) {
 func TestAlreadyHaveLatestCodeLocalFilePath(t *testing.T) {
 	t.Parallel()
 
-	canonicalUrl := fmt.Sprintf("file://%s", absPath(t, "../../../test/fixture-download-source/hello-world"))
+	canonicalUrl := "file://" + absPath(t, "../../../test/fixture-download-source/hello-world")
 	downloadDir := "does-not-exist"
 
 	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, false)
@@ -162,7 +162,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionAndVersi
 func TestDownloadTerraformSourceIfNecessaryLocalDirToEmptyDir(t *testing.T) {
 	t.Parallel()
 
-	canonicalUrl := fmt.Sprintf("file://%s", absPath(t, "../../../test/fixture-download-source/hello-world"))
+	canonicalUrl := "file://" + absPath(t, "../../../test/fixture-download-source/hello-world")
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
@@ -172,7 +172,7 @@ func TestDownloadTerraformSourceIfNecessaryLocalDirToEmptyDir(t *testing.T) {
 func TestDownloadTerraformSourceIfNecessaryLocalDirToAlreadyDownloadedDir(t *testing.T) {
 	t.Parallel()
 
-	canonicalUrl := fmt.Sprintf("file://%s", absPath(t, "../../../test/fixture-download-source/hello-world"))
+	canonicalUrl := "file://" + absPath(t, "../../../test/fixture-download-source/hello-world")
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
@@ -314,7 +315,7 @@ func (cfg *IncludeConfig) String() string {
 	}
 	exposeStr := "nil"
 	if cfg.Expose != nil {
-		exposeStr = fmt.Sprintf("%v", *cfg.Expose)
+		exposeStr = strconv.FormatBool(*cfg.Expose)
 	}
 	mergeStrategyStr := "nil"
 	if cfg.MergeStrategy != nil {

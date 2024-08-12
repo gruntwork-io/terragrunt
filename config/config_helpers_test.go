@@ -446,7 +446,7 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 		{
 			`iam_role = get_env("TEST_ENV_TERRAGRUNT_VAR")`,
 			nil,
-			terragruntOptionsForTestWithEnv(t, fmt.Sprintf("/root/child/%s", DefaultTerragruntConfigPath), map[string]string{"TEST_ENV_TERRAGRUNT_VAR": "SOMETHING"}),
+			terragruntOptionsForTestWithEnv(t, "/root/child/"+DefaultTerragruntConfigPath, map[string]string{"TEST_ENV_TERRAGRUNT_VAR": "SOMETHING"}),
 			"SOMETHING",
 			"",
 		},
@@ -602,7 +602,12 @@ func toStringSlice(t *testing.T, value interface{}) []string {
 	asInterfaceSlice, isInterfaceSlice := value.([]interface{})
 	require.True(t, isInterfaceSlice)
 
-	var out []string
+	// TODO: See if this logic is desired
+	if len(asInterfaceSlice) == 0 {
+		return nil
+	}
+
+	var out = make([]string, 0, len(asInterfaceSlice))
 	for _, item := range asInterfaceSlice {
 		asStr, isStr := item.(string)
 		require.True(t, isStr)
@@ -616,7 +621,7 @@ func TestGetTerragruntDirAbsPath(t *testing.T) {
 	t.Parallel()
 	workingDir, err := os.Getwd()
 	require.NoError(t, err, "Could not get current working dir: %v", err)
-	testGetTerragruntDir(t, "/foo/bar/terragrunt.hcl", fmt.Sprintf("%s/foo/bar", filepath.VolumeName(workingDir)))
+	testGetTerragruntDir(t, "/foo/bar/terragrunt.hcl", filepath.VolumeName(workingDir)+"/foo/bar")
 }
 
 func TestGetTerragruntDirRelPath(t *testing.T) {
@@ -625,7 +630,7 @@ func TestGetTerragruntDirRelPath(t *testing.T) {
 	require.NoError(t, err, "Could not get current working dir: %v", err)
 	workingDir = filepath.ToSlash(workingDir)
 
-	testGetTerragruntDir(t, "foo/bar/terragrunt.hcl", fmt.Sprintf("%s/foo/bar", workingDir))
+	testGetTerragruntDir(t, "foo/bar/terragrunt.hcl", workingDir+"/foo/bar")
 }
 
 func testGetTerragruntDir(t *testing.T, configPath string, expectedPath string) {
@@ -706,7 +711,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 			map[string]IncludeConfig{"": {Path: "../../other-child/" + DefaultTerragruntConfigPath}},
 			nil,
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+DefaultTerragruntConfigPath),
-			fmt.Sprintf("%s/other-child", filepath.VolumeName(parentDir)),
+			filepath.VolumeName(parentDir) + "/other-child",
 		},
 		{
 			map[string]IncludeConfig{"": {Path: "../../" + DefaultTerragruntConfigPath}},
@@ -721,7 +726,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 			},
 			[]string{"child"},
 			terragruntOptionsForTest(t, helpers.RootFolder+"child/sub-child/"+DefaultTerragruntConfigPath),
-			fmt.Sprintf("%s/other-child", filepath.VolumeName(parentDir)),
+			filepath.VolumeName(parentDir) + "/other-child",
 		},
 	}
 
