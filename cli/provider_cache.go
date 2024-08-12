@@ -367,7 +367,9 @@ func convertToMultipleCommandsByPlatforms(args []string) [][]string {
 	var commandsArgs = make([][]string, 0, len(platformArgs))
 
 	for _, platformArg := range platformArgs {
-		commandsArgs = append(commandsArgs, append(filteredArgs, platformArg))
+		var commandArgs = make([]string, len(filteredArgs), len(filteredArgs)+1)
+		copy(commandArgs, filteredArgs)
+		commandsArgs = append(commandsArgs, append(commandArgs, platformArg))
 	}
 	return commandsArgs
 }
