@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/gob"
+	goErrors "errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -233,7 +234,7 @@ func listContainsElementWithPrefix(list []string, elementPrefix string) bool {
 func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 	includeExpandedGlobs := []string{}
 	absoluteExpandGlob, err := zglob.Glob(absoluteGlobPath)
-	if err != nil && err != os.ErrNotExist {
+	if err != nil && !goErrors.Is(err, os.ErrNotExist) {
 		// we ignore not exist error as we only care about the globs that exist in the src dir
 		return nil, errors.WithStackTrace(err)
 	}
@@ -516,7 +517,7 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 		var manifestEntry fileManifestEntry
 		err = decoder.Decode(&manifestEntry)
 		if err != nil {
-			if err == io.EOF {
+			if goErrors.Is(err, io.EOF) {
 				break
 			} else {
 				return err

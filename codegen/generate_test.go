@@ -55,7 +55,7 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 			// validates the first output.
 			require.True(t, bytes.Contains(output, []byte(testCase.backend)))
 			require.Equal(t, testCase.expected, output)
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			// runs the function a few of times again. All the outputs must be
 			// equal to the first output.
@@ -105,11 +105,11 @@ func TestGenerateDisabling(t *testing.T) {
 			}
 
 			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
-			require.Nil(t, err)
+			require.NoError(t, err)
 			require.NotNil(t, opts)
 
 			err = WriteToFile(opts, "", config)
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			if testCase.disabled {
 				require.True(t, util.FileNotExists(testCase.path))

@@ -2,11 +2,11 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -71,7 +71,8 @@ func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOption
 	ctx.ParserOptions = append(ctx.ParserOptions, hclparse.WithHaltOnErrorOnlyForBlocks([]string{MetadataCatalog}))
 	ctx.ConvertToTerragruntConfigFunc = convertToTerragruntCatalogConfig
 
-	config, err := ParseConfigString(ctx, configPath, configString, nil)
+	// TODO: Resolve lint error
+	config, err := ParseConfigString(ctx, configPath, configString, nil) //nolint:contextcheck
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +104,8 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 
 		newConfigPath, err := findInParentFolders(NewParsingContext(ctx, opts), []string{configName})
 		if err != nil {
-			if _, ok := errors.Unwrap(err).(ParentFileNotFoundError); ok {
+			var parentFileNotFoundError ParentFileNotFoundError
+			if ok := errors.As(err, &parentFileNotFoundError); ok {
 				break
 			}
 			return "", "", err

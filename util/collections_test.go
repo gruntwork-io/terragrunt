@@ -3,7 +3,7 @@ package util
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMatchesAny(t *testing.T) {
@@ -33,7 +33,7 @@ func TestMatchesAny(t *testing.T) {
 
 	for _, testCase := range testCases {
 		actual := MatchesAny(testCase.list, testCase.element)
-		assert.Equal(t, testCase.expected, actual, "For list %v and element %s", testCase.list, testCase.element)
+		require.Equal(t, testCase.expected, actual, "For list %v and element %s", testCase.list, testCase.element)
 	}
 }
 
@@ -55,7 +55,7 @@ func TestListContainsElement(t *testing.T) {
 
 	for _, testCase := range testCases {
 		actual := ListContainsElement(testCase.list, testCase.element)
-		assert.Equal(t, testCase.expected, actual, "For list %v and element %s", testCase.list, testCase.element)
+		require.Equal(t, testCase.expected, actual, "For list %v and element %s", testCase.list, testCase.element)
 	}
 }
 
@@ -79,7 +79,7 @@ func TestListEquals(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		actual := ListEquals(testCase.a, testCase.b)
-		assert.Equal(t, testCase.expected, actual, "For list %v and list %v", testCase.a, testCase.b)
+		require.Equal(t, testCase.expected, actual, "For list %v and list %v", testCase.a, testCase.b)
 	}
 }
 
@@ -116,7 +116,7 @@ func TestListContainsSublist(t *testing.T) {
 
 	for _, testCase := range testCases {
 		actual := ListContainsSublist(testCase.list, testCase.sublist)
-		assert.Equal(t, testCase.expected, actual, "For list %v and sublist %v", testCase.list, testCase.sublist)
+		require.Equal(t, testCase.expected, actual, "For list %v and sublist %v", testCase.list, testCase.sublist)
 	}
 }
 
@@ -143,7 +143,7 @@ func TestListHasPrefix(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		actual := ListHasPrefix(testCase.list, testCase.prefix)
-		assert.Equal(t, testCase.expected, actual, "For list %v and prefix %v", testCase.list, testCase.prefix)
+		require.Equal(t, testCase.expected, actual, "For list %v and prefix %v", testCase.list, testCase.prefix)
 	}
 }
 
@@ -166,7 +166,7 @@ func TestRemoveElementFromList(t *testing.T) {
 
 	for _, testCase := range testCases {
 		actual := RemoveElementFromList(testCase.list, testCase.element)
-		assert.Equal(t, testCase.expected, actual, "For list %v and element %s", testCase.list, testCase.element)
+		require.Equal(t, testCase.expected, actual, "For list %v and element %s", testCase.list, testCase.element)
 	}
 }
 
@@ -192,7 +192,7 @@ func TestRemoveDuplicatesFromList(t *testing.T) {
 		if testCase.reverse {
 			f = RemoveDuplicatesFromListKeepLast[[]string]
 		}
-		assert.Equal(t, f(testCase.list), testCase.expected, "For list %v", testCase.list)
+		require.Equal(t, testCase.expected, f(testCase.list), "For list %v", testCase.list)
 		t.Logf("%v passed", testCase.list)
 	}
 }
@@ -210,7 +210,7 @@ func TestCommaSeparatedStrings(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		assert.Equal(t, CommaSeparatedStrings(testCase.list), testCase.expected, "For list %v", testCase.list)
+		require.Equal(t, testCase.expected, CommaSeparatedStrings(testCase.list), "For list %v", testCase.list)
 		t.Logf("%v passed", testCase.list)
 	}
 }
@@ -231,7 +231,7 @@ func TestStringListInsert(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		assert.Equal(t, testCase.expected, StringListInsert(testCase.list, testCase.element, testCase.index), "For list %v", testCase.list)
+		require.Equal(t, testCase.expected, StringListInsert(testCase.list, testCase.element, testCase.index), "For list %v", testCase.list)
 		t.Logf("%v passed", testCase.list)
 	}
 }

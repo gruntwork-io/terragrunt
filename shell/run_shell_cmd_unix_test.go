@@ -17,7 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestExitCodeUnix(t *testing.T) {
@@ -28,21 +28,21 @@ func TestExitCodeUnix(t *testing.T) {
 		err := cmd.Run()
 
 		if i == 0 {
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		} else {
-			assert.Error(t, err)
+			require.Error(t, err)
 		}
 		retCode, err := util.GetExitCode(err)
-		assert.NoError(t, err)
-		assert.Equal(t, i, retCode)
+		require.NoError(t, err)
+		require.Equal(t, i, retCode)
 	}
 
 	// assert a non exec.ExitError returns an error
 	err := goerrors.New("This is an explicit error")
 	retCode, retErr := util.GetExitCode(err)
-	assert.Error(t, retErr, "An error was expected")
-	assert.Equal(t, err, retErr)
-	assert.Equal(t, 0, retCode)
+	require.Error(t, retErr, "An error was expected")
+	require.Equal(t, err, retErr)
+	require.Equal(t, 0, retCode)
 }
 
 func TestNewSignalsForwarderWaitUnix(t *testing.T) {
@@ -51,7 +51,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	expectedWait := 5
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
-	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	cmd := exec.Command("../testdata/test_sigint_wait.sh", strconv.Itoa(expectedWait))
 
@@ -70,11 +70,11 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	cmd.Process.Signal(os.Interrupt)
 	err = <-runChannel
 	cmdChannel <- err
-	assert.Error(t, err)
+	require.Error(t, err)
 	retCode, err := util.GetExitCode(err)
-	assert.NoError(t, err)
-	assert.Equal(t, retCode, expectedWait)
-	assert.WithinDuration(t, time.Now(), start.Add(time.Duration(expectedWait)*time.Second), time.Second,
+	require.NoError(t, err)
+	require.Equal(t, expectedWait, retCode)
+	require.WithinDuration(t, time.Now(), start.Add(time.Duration(expectedWait)*time.Second), time.Second,
 		"Expected to wait 5 (+/-1) seconds after SIGINT")
 
 }
@@ -85,7 +85,7 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 
 	expectedInterrupts := 10
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
-	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	cmd := exec.Command("../testdata/test_sigint_multiple.sh", strconv.Itoa(expectedInterrupts))
 
@@ -118,18 +118,18 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 
 	interrupts, err := interruptAndWaitForProcess()
 	cmdChannel <- err
-	assert.Error(t, err)
+	require.Error(t, err)
 	retCode, err := util.GetExitCode(err)
-	assert.NoError(t, err)
-	assert.True(t, retCode <= interrupts, "Subprocess received wrong number of signals")
-	assert.Equal(t, retCode, expectedInterrupts, "Subprocess didn't receive multiple signals")
+	require.NoError(t, err)
+	require.LessOrEqual(t, retCode, interrupts, "Subprocess received wrong number of signals")
+	require.Equal(t, expectedInterrupts, retCode, "Subprocess didn't receive multiple signals")
 }
 
 func TestRunShellCommandWithOutputInterrupt(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
-	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	errCh := make(chan error)
 	expectedWait := 5
@@ -144,5 +144,5 @@ func TestRunShellCommandWithOutputInterrupt(t *testing.T) {
 	})
 
 	expectedErr := fmt.Sprintf("[.] exit status %d", expectedWait)
-	assert.EqualError(t, <-errCh, expectedErr)
+	require.EqualError(t, <-errCh, expectedErr)
 }

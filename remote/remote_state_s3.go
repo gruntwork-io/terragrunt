@@ -2,6 +2,7 @@ package remote
 
 import (
 	"context"
+	goErrors "errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -593,7 +594,8 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 		} else {
 			if config.AccessLoggingBucketName != "" {
 				if err := configureAccessLogBucket(terragruntOptions, s3Client, config); err != nil {
-					return nil
+					// TODO: Remove lint suppression
+					return nil //nolint:nilerr
 				}
 			} else {
 				terragruntOptions.Logger.Debugf("Access Logging is disabled for the remote state AWS S3 bucket %s", config.remoteStateConfigS3.Bucket)
@@ -828,7 +830,8 @@ func CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client *s3.S3, c
 
 	if config.AccessLoggingBucketName != "" {
 		if err := configureAccessLogBucket(terragruntOptions, s3Client, config); err != nil {
-			return nil
+			// TODO: Remove lint suppression
+			return nil //nolint:nilerr
 		}
 	} else {
 		terragruntOptions.Logger.Debugf("Access Logging is disabled for the remote state AWS S3 bucket %s", config.remoteStateConfigS3.Bucket)
@@ -962,14 +965,16 @@ func CreateS3Bucket(s3Client *s3.S3, bucket *string, terragruntOptions *options.
 // Determine if this is an error that implies you've already made a request to create the S3 bucket and it succeeded
 // or is in progress. This usually happens when running many tests in parallel or xxx-all commands.
 func isBucketAlreadyOwnedByYouError(err error) bool {
-	awsErr, isAwsErr := errors.Unwrap(err).(awserr.Error)
-	return isAwsErr && (awsErr.Code() == "BucketAlreadyOwnedByYou" || awsErr.Code() == "OperationAborted")
+	var awsErr awserr.Error
+	ok := goErrors.As(err, &awsErr)
+	return ok && (awsErr.Code() == "BucketAlreadyOwnedByYou" || awsErr.Code() == "OperationAborted")
 }
 
 // isBucketCreationErrorRetriable returns true if the error is temporary and bucket creation can be retried.
 func isBucketCreationErrorRetriable(err error) bool {
-	awsErr, isAwsErr := errors.Unwrap(err).(awserr.Error)
-	if !isAwsErr {
+	var awsErr awserr.Error
+	ok := goErrors.As(err, &awsErr)
+	if !ok {
 		return true
 	}
 	return awsErr.Code() == "InternalError" || awsErr.Code() == "OperationAborted" || awsErr.Code() == "InvalidParameter"
@@ -1062,7 +1067,8 @@ func checkIfBucketRootAccess(s3Client *s3.S3, config *RemoteStateConfigS3, terra
 	})
 	if err != nil {
 		// NoSuchBucketPolicy error is considered as no policy.
-		if awsErr, ok := err.(awserr.Error); ok {
+		var awsErr awserr.Error
+		if ok := goErrors.As(err, &awsErr); ok {
 			if awsErr.Code() == "NoSuchBucketPolicy" {
 				return false, nil
 			}
@@ -1175,9 +1181,10 @@ func checkIfBucketEnforcedTLS(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 	if err != nil {
 		// S3 API error codes:
 		// http://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
-		if aerr, ok := err.(awserr.Error); ok {
+		var awsErr awserr.Error
+		if ok := goErrors.As(err, &awsErr); ok {
 			// Enforced TLS policy if is not found bucket policy
-			if aerr.Code() == "NoSuchBucketPolicy" {
+			if awsErr.Code() == "NoSuchBucketPolicy" {
 				terragruntOptions.Logger.Debugf("Could not get policy for bucket %s", config.Bucket)
 				return false, nil
 			}
@@ -1377,9 +1384,10 @@ func checkIfS3PublicAccessBlockingEnabled(s3Client *s3.S3, config *RemoteStateCo
 		Bucket: aws.String(config.Bucket),
 	})
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
+		var awsErr awserr.Error
+		if ok := goErrors.As(err, &awsErr); ok {
 			// Enforced block public access if is not found bucket policy
-			if aerr.Code() == "NoSuchPublicAccessBlockConfiguration" {
+			if awsErr.Code() == "NoSuchPublicAccessBlockConfiguration" {
 				terragruntOptions.Logger.Debugf("Could not get public access block for bucket %s", config.Bucket)
 				return false, nil
 			}
@@ -1482,8 +1490,9 @@ func checkBucketAccess(s3Client *s3.S3, bucket *string, key *string) error {
 	if err == nil {
 		return nil
 	}
-	awsErr, isAwsErr := errors.Unwrap(err).(awserr.Error)
-	if !isAwsErr {
+	var awsErr awserr.Error
+	ok := goErrors.As(err, &awsErr)
+	if !ok {
 		return err
 	}
 	// filter permissions errors

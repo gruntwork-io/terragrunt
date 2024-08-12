@@ -126,7 +126,9 @@ func newTraceProvider(opts *TelemetryOptions, exp sdktrace.SpanExporter) (*sdktr
 func newTraceExporter(ctx context.Context, opts *TelemetryOptions) (sdktrace.SpanExporter, error) {
 	exporterType := traceExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_TRACE_EXPORTER"], string(noneTraceExporterType)))
 	insecure := env.GetBool(opts.GetValue("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT", "TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT"), false)
-	switch exporterType {
+
+	// TODO: Remove lint suppression
+	switch exporterType { //nolint:exhaustive
 	case httpTraceExporterType:
 		endpoint := env.GetString(opts.GetValue("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT", "TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_HTTP_ENDPOINT"), "")
 		if endpoint == "" {
@@ -177,8 +179,13 @@ func openSpan(ctx context.Context, name string, attrs map[string]interface{}) (c
 		ctx = trace.ContextWithSpanContext(ctx, spanContext)
 	}
 
-	ctx, span := rootTracer.Start(ctx, name)
+	// This lint is suppressed because we definitely do close the span
+	// in a defer statement everywhere openSpan is called. It seems like
+	// a useful lint, though. We should consider removing the suppression
+	// and fixing the lint.
+
+	ctx, span := rootTracer.Start(ctx, name) // nolint:spancheck
 	// convert attrs map to span.SetAttributes
 	span.SetAttributes(mapToAttributes(attrs)...)
-	return ctx, span
+	return ctx, span //nolint:spancheck
 }

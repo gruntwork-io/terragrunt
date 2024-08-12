@@ -10,27 +10,26 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestRunShellCommand(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
-	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	cmd := RunShellCommand(context.Background(), terragruntOptions, "terraform", "--version")
-	assert.Nil(t, cmd)
+	require.NoError(t, cmd)
 
 	cmd = RunShellCommand(context.Background(), terragruntOptions, "terraform", "not-a-real-command")
-	assert.Error(t, cmd)
+	require.Error(t, cmd)
 }
 
 func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
-	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
@@ -39,10 +38,10 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	terragruntOptions.ErrWriter = stderr
 
 	cmd := RunShellCommand(context.Background(), terragruntOptions, "terraform", "--version")
-	assert.Nil(t, cmd)
+	require.NoError(t, cmd)
 
-	assert.True(t, strings.Contains(stdout.String(), "Terraform"), "Output directed to stdout")
-	assert.True(t, len(stderr.String()) == 0, "No output to stderr")
+	require.True(t, strings.Contains(stdout.String(), "Terraform"), "Output directed to stdout")
+	require.Empty(t, stderr.String(), "No output to stderr")
 
 	stdout = new(bytes.Buffer)
 	stderr = new(bytes.Buffer)
@@ -52,10 +51,10 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	terragruntOptions.ErrWriter = stderr
 
 	cmd = RunShellCommand(context.Background(), terragruntOptions, "terraform", "--version")
-	assert.Nil(t, cmd)
+	require.NoError(t, cmd)
 
-	assert.True(t, strings.Contains(stderr.String(), "Terraform"), "Output directed to stderr")
-	assert.True(t, len(stdout.String()) == 0, "No output to stdout")
+	require.True(t, strings.Contains(stderr.String(), "Terraform"), "Output directed to stderr")
+	require.Empty(t, stdout.String(), "No output to stdout")
 }
 
 func TestLastReleaseTag(t *testing.T) {
@@ -70,8 +69,8 @@ func TestLastReleaseTag(t *testing.T) {
 		"refs/tags/v0.5.1",
 	}
 	lastTag := lastReleaseTag(tags)
-	assert.NotEmpty(t, lastTag)
-	assert.Equal(t, "v20.1.2", lastTag)
+	require.NotEmpty(t, lastTag)
+	require.Equal(t, "v20.1.2", lastTag)
 }
 
 func TestGitLevelTopDirCaching(t *testing.T) {
@@ -79,8 +78,8 @@ func TestGitLevelTopDirCaching(t *testing.T) {
 	ctx := context.Background()
 	ctx = ContextWithTerraformCommandHook(ctx, nil)
 	c := cache.ContextCache[string](ctx, RunCmdCacheContextKey)
-	assert.NotNil(t, c)
-	assert.Equal(t, 0, len(c.Cache))
+	require.NotNil(t, c)
+	require.Empty(t, len(c.Cache))
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 	path := "."
@@ -88,6 +87,6 @@ func TestGitLevelTopDirCaching(t *testing.T) {
 	require.NoError(t, err)
 	path2, err := GitTopLevelDir(ctx, terragruntOptions, path)
 	require.NoError(t, err)
-	assert.Equal(t, path1, path2)
-	assert.Equal(t, 1, len(c.Cache))
+	require.Equal(t, path1, path2)
+	require.Len(t, c.Cache, 1)
 }

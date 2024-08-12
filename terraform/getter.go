@@ -176,7 +176,7 @@ func (tfrGetter *RegistryGetter) GetFile(dst string, src *url.URL) error {
 }
 
 // getSubdir downloads the source into the destination, but with the proper subdir.
-func (tfrGetter *RegistryGetter) getSubdir(ctx context.Context, dstPath, sourceURL, subDir string) error {
+func (tfrGetter *RegistryGetter) getSubdir(_ context.Context, dstPath, sourceURL, subDir string) error {
 	// Create a temporary directory to store the full source. This has to be a non-existent directory.
 	tempdirPath, tempdirCloser, err := safetemp.Dir("", "getter")
 	if err != nil {
@@ -328,12 +328,13 @@ func httpGETAndGetResponse(ctx context.Context, getURL url.URL) ([]byte, *http.H
 		return nil, nil, errors.WithStackTrace(err)
 	}
 
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
+	defer func() {
+		err := resp.Body.Close()
 		if err != nil {
 			util.GlobalFallbackLogEntry.Warnf("Error closing response body: %v", err)
 		}
-	}(resp.Body)
+	}()
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, nil, errors.WithStackTrace(RegistryAPIErr{url: getURL.String(), statusCode: resp.StatusCode})
 	}

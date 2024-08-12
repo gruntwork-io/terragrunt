@@ -2,6 +2,7 @@ package configstack
 
 import (
 	"context"
+	goErrors "errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -14,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,7 +54,7 @@ func TestFindStackInSubfolders(t *testing.T) {
 
 	for _, filePath := range filePaths {
 		filePathFound := util.ListContainsElement(modulePaths, filePath)
-		assert.True(t, filePathFound, "The filePath %s was not found by Terragrunt.\n", filePath)
+		require.True(t, filePathFound, "The filePath %s was not found by Terragrunt.\n", filePath)
 	}
 }
 
@@ -65,7 +65,7 @@ func TestGetModuleRunGraphApplyOrder(t *testing.T) {
 	runGraph, err := stack.getModuleRunGraph(terraform.CommandNameApply)
 	require.NoError(t, err)
 
-	assert.Equal(
+	require.Equal(
 		t,
 		[]TerraformModules{
 			{
@@ -90,7 +90,7 @@ func TestGetModuleRunGraphDestroyOrder(t *testing.T) {
 	runGraph, err := stack.getModuleRunGraph(terraform.CommandNameDestroy)
 	require.NoError(t, err)
 
-	assert.Equal(
+	require.Equal(
 		t,
 		[]TerraformModules{
 			{
@@ -198,7 +198,7 @@ func TestResolveTerraformModulesNoPaths(t *testing.T) {
 	expected := TerraformModules{}
 	stack := NewStack(mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -221,7 +221,7 @@ func TestResolveTerraformModulesOneModuleNoDependencies(t *testing.T) {
 
 	stack := NewStack(mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -244,7 +244,7 @@ func TestResolveTerraformModulesOneJsonModuleNoDependencies(t *testing.T) {
 
 	stack := NewStack(mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -270,7 +270,7 @@ func TestResolveTerraformModulesOneModuleWithIncludesNoDependencies(t *testing.T
 
 	stack := NewStack(mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -292,11 +292,11 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 
 	for name, configPath := range localsConfigPaths {
 		opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		ctx := config.NewParsingContext(context.Background(), opts)
 		cfg, err := config.PartialParseConfigFile(ctx, configPath, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		localsConfigs[name] = map[string]interface{}{
 			"dependencies":                  interface{}(nil),
@@ -356,7 +356,7 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 
 	stack := NewStack(mockOptions, WithChildTerragruntConfig(childTerragruntConfig))
 	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -382,7 +382,7 @@ func TestResolveTerraformModulesOneJsonModuleWithIncludesNoDependencies(t *testi
 
 	stack := NewStack(mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -408,7 +408,7 @@ func TestResolveTerraformModulesOneHclModuleWithIncludesNoDependencies(t *testin
 
 	stack := NewStack(mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -443,7 +443,7 @@ func TestResolveTerraformModulesTwoModulesWithDependencies(t *testing.T) {
 
 	stack := NewStack(mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -478,7 +478,7 @@ func TestResolveTerraformModulesJsonModulesWithHclDependencies(t *testing.T) {
 
 	stack := NewStack(mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -513,7 +513,7 @@ func TestResolveTerraformModulesHclModulesWithJsonDependencies(t *testing.T) {
 
 	stack := NewStack(mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -550,7 +550,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	moduleA.FlagExcluded = true
 	expected := TerraformModules{moduleA, moduleC}
 
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -599,7 +599,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	moduleA.FlagExcluded = true
 	expected := TerraformModules{moduleA, moduleC, moduleAbba}
 
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -642,7 +642,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDepend
 	moduleAbba.FlagExcluded = true
 	expected := TerraformModules{moduleA, moduleC, moduleAbba}
 
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -677,7 +677,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithNoDepe
 	moduleC.FlagExcluded = true
 	expected := TerraformModules{moduleA, moduleC}
 
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -719,7 +719,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 	moduleA.FlagExcluded = false
 	expected := TerraformModules{moduleA, moduleC}
 
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -762,7 +762,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithNoDepe
 	moduleC.FlagExcluded = true
 	expected := TerraformModules{moduleA, moduleC}
 
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -812,7 +812,7 @@ func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDepend
 	moduleF.FlagExcluded = true
 	expected := TerraformModules{moduleA, moduleC, moduleF}
 
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -872,7 +872,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 
 	stack := NewStack(mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -932,7 +932,7 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 
 	stack := NewStack(mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -984,7 +984,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 
 	stack := NewStack(mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -1019,7 +1019,7 @@ func TestResolveTerraformModulesMultipleModulesWithExternalDependencies(t *testi
 
 	stack := NewStack(mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 
@@ -1091,11 +1091,13 @@ func TestResolveTerraformModulesInvalidPaths(t *testing.T) {
 	_, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
 	require.Error(t, actualErr)
 
-	underlying, ok := errors.Unwrap(actualErr).(ProcessingModuleError)
+	var processingModuleError ProcessingModuleError
+	// underlying, ok := errors.Unwrap(actualErr).(ProcessingModuleError)
+	ok := goErrors.As(actualErr, &processingModuleError)
 	require.True(t, ok)
 
-	unwrapped := errors.Unwrap(underlying.UnderlyingError)
-	assert.True(t, os.IsNotExist(unwrapped), "Expected a file not exists error but got %v", underlying.UnderlyingError)
+	unwrapped := errors.Unwrap(processingModuleError.UnderlyingError)
+	require.True(t, os.IsNotExist(unwrapped), "Expected a file not exists error but got %v", processingModuleError.UnderlyingError)
 }
 
 func TestResolveTerraformModuleNoTerraformConfig(t *testing.T) {
@@ -1106,7 +1108,7 @@ func TestResolveTerraformModuleNoTerraformConfig(t *testing.T) {
 
 	stack := NewStack(mockOptions)
 	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
-	assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
 	assertModuleListsEqual(t, expected, actualModules)
 }
 

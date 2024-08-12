@@ -28,7 +28,8 @@ type RegistryURLs struct {
 }
 
 func (urls *RegistryURLs) String() string {
-	b, _ := json.Marshal(urls) //nolint:errcheck
+	// TODO: handle error
+	b, _ := json.Marshal(urls) //nolint:errcheck,errchkjson
 	return string(b)
 }
 

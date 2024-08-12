@@ -58,9 +58,9 @@ type ProviderInstallationMethod interface {
 }
 
 type ProviderInstallationDirect struct {
-	Name    string    `hcl:",label"`
-	Include *[]string `hcl:"include,optional"`
-	Exclude *[]string `hcl:"exclude,optional"`
+	Name    string    `hcl:",label" json:"Name"`
+	Include *[]string `hcl:"include,optional" json:"Include"`
+	Exclude *[]string `hcl:"exclude,optional" json:"Exclude"`
 }
 
 func NewProviderInstallationDirect(include, exclude []string) *ProviderInstallationDirect {
@@ -136,15 +136,16 @@ func (method *ProviderInstallationDirect) RemoveInclude(addrs []string) {
 }
 
 func (method *ProviderInstallationDirect) String() string {
-	b, _ := json.Marshal(method) //nolint:errcheck
+	// Odd that this err isn't checked. There should be an explanation why.
+	b, _ := json.Marshal(method) //nolint:errchkjson
 	return string(b)
 }
 
 type ProviderInstallationFilesystemMirror struct {
-	Name    string    `hcl:",label"`
-	Path    string    `hcl:"path,attr"`
-	Include *[]string `hcl:"include,optional"`
-	Exclude *[]string `hcl:"exclude,optional"`
+	Name    string    `hcl:",label" json:"Name"`
+	Path    string    `hcl:"path,attr" json:"Path"`
+	Include *[]string `hcl:"include,optional" json:"Include"`
+	Exclude *[]string `hcl:"exclude,optional" json:"Exclude"`
 }
 
 func NewProviderInstallationFilesystemMirror(path string, include, exclude []string) *ProviderInstallationFilesystemMirror {
@@ -221,15 +222,16 @@ func (method *ProviderInstallationFilesystemMirror) RemoveInclude(addrs []string
 }
 
 func (method *ProviderInstallationFilesystemMirror) String() string {
-	b, _ := json.Marshal(method) //nolint:errcheck
+	// Odd that this err isn't checked. There should be an explanation why.
+	b, _ := json.Marshal(method) //nolint:errchkjson
 	return string(b)
 }
 
 type ProviderInstallationNetworkMirror struct {
-	Name    string    `hcl:",label"`
-	URL     string    `hcl:"url,attr"`
-	Include *[]string `hcl:"include,optional"`
-	Exclude *[]string `hcl:"exclude,optional"`
+	Name    string    `hcl:",label" json:"Name"`
+	URL     string    `hcl:"url,attr" json:"URL"`
+	Include *[]string `hcl:"include,optional" json:"Include"`
+	Exclude *[]string `hcl:"exclude,optional" json:"Exclude"`
 }
 
 func NewProviderInstallationNetworkMirror(url string, include, exclude []string) *ProviderInstallationNetworkMirror {
@@ -306,6 +308,7 @@ func (method *ProviderInstallationNetworkMirror) RemoveInclude(addrs []string) {
 }
 
 func (method *ProviderInstallationNetworkMirror) String() string {
-	b, _ := json.Marshal(method) //nolint:errcheck
+	// Odd that this err isn't checked. There should be an explanation why.
+	b, _ := json.Marshal(method) //nolint:errchkjson
 	return string(b)
 }

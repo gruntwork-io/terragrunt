@@ -11,7 +11,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,7 +55,7 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 
 			outputs := map[string]TerraformOutput{}
 			require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-			assert.Equal(t, "us-west-1-test", outputs["region"].Value.(string))
+			require.Equal(t, "us-west-1-test", outputs["region"].Value.(string))
 		})
 	}
 }
@@ -114,9 +113,9 @@ func TestTerragruntRunAllModulesThatIncludeRestrictsSet(t *testing.T) {
 	logBufferContentsLineByLine(t, stderr, "stderr")
 
 	planOutput := stdout.String()
-	assert.Contains(t, planOutput, "alpha")
-	assert.NotContains(t, planOutput, "beta")
-	assert.NotContains(t, planOutput, "charlie")
+	require.Contains(t, planOutput, "alpha")
+	require.NotContains(t, planOutput, "beta")
+	require.NotContains(t, planOutput, "charlie")
 }
 
 func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
@@ -142,20 +141,20 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	logBufferContentsLineByLine(t, stderr, "stderr")
 
 	planOutput := stdout.String()
-	assert.Contains(t, planOutput, "alpha")
-	assert.Contains(t, planOutput, "beta")
-	assert.Contains(t, planOutput, "charlie")
+	require.Contains(t, planOutput, "alpha")
+	require.Contains(t, planOutput, "beta")
+	require.Contains(t, planOutput, "charlie")
 
 	stdoutLines := strings.Split(planOutput, "\n")
 	for _, line := range stdoutLines {
 		if strings.Contains(line, "alpha") {
-			assert.Contains(t, line, includeRunAllFixturePath+"a")
+			require.Contains(t, line, includeRunAllFixturePath+"a")
 		}
 		if strings.Contains(line, "beta") {
-			assert.Contains(t, line, includeRunAllFixturePath+"b")
+			require.Contains(t, line, includeRunAllFixturePath+"b")
 		}
 		if strings.Contains(line, "charlie") {
-			assert.Contains(t, line, includeRunAllFixturePath+"c")
+			require.Contains(t, line, includeRunAllFixturePath+"c")
 		}
 	}
 }
@@ -176,13 +175,13 @@ func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
-	assert.Equal(t, "mock", outputs["attribute"].Value.(string))
-	assert.Equal(t, "new val", outputs["new_attribute"].Value.(string))
-	assert.Equal(t, "old val", outputs["old_attribute"].Value.(string))
-	assert.Equal(t, []interface{}{"hello", "mock"}, outputs["list_attr"].Value.([]interface{}))
-	assert.Equal(t, map[string]interface{}{"foo": "bar", "bar": "baz", "test": "new val"}, outputs["map_attr"].Value.(map[string]interface{}))
+	require.Equal(t, "mock", outputs["attribute"].Value.(string))
+	require.Equal(t, "new val", outputs["new_attribute"].Value.(string))
+	require.Equal(t, "old val", outputs["old_attribute"].Value.(string))
+	require.Equal(t, []interface{}{"hello", "mock"}, outputs["list_attr"].Value.([]interface{}))
+	require.Equal(t, map[string]interface{}{"foo": "bar", "bar": "baz", "test": "new val"}, outputs["map_attr"].Value.(map[string]interface{}))
 
-	assert.Equal(
+	require.Equal(
 		t,
 		map[string]interface{}{
 			"attribute":     "mock",
@@ -235,13 +234,13 @@ func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 }
 
 func validateMultipleIncludeTestOutput(t *testing.T, outputs map[string]TerraformOutput) {
-	assert.Equal(t, "mock", outputs["attribute"].Value.(string))
-	assert.Equal(t, "new val", outputs["new_attribute"].Value.(string))
-	assert.Equal(t, "old val", outputs["old_attribute"].Value.(string))
-	assert.Equal(t, []interface{}{"hello", "mock", "foo"}, outputs["list_attr"].Value.([]interface{}))
-	assert.Equal(t, map[string]interface{}{"foo": "bar", "bar": "baz", "test": "new val"}, outputs["map_attr"].Value.(map[string]interface{}))
+	require.Equal(t, "mock", outputs["attribute"].Value.(string))
+	require.Equal(t, "new val", outputs["new_attribute"].Value.(string))
+	require.Equal(t, "old val", outputs["old_attribute"].Value.(string))
+	require.Equal(t, []interface{}{"hello", "mock", "foo"}, outputs["list_attr"].Value.([]interface{}))
+	require.Equal(t, map[string]interface{}{"foo": "bar", "bar": "baz", "test": "new val"}, outputs["map_attr"].Value.(map[string]interface{}))
 
-	assert.Equal(
+	require.Equal(
 		t,
 		map[string]interface{}{
 			"attribute":     "mock",
@@ -267,9 +266,8 @@ func validateIncludeRemoteStateReflection(t *testing.T, s3BucketName string, key
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	remoteStateOut := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["reflect"].Value.(string)), &remoteStateOut))
-	assert.Equal(
+	require.Equal(
 		t,
-		remoteStateOut,
 		map[string]interface{}{
 			"backend":                         "s3",
 			"disable_init":                    false,
@@ -282,5 +280,6 @@ func validateIncludeRemoteStateReflection(t *testing.T, s3BucketName string, key
 				"region":  "us-west-2",
 			},
 		},
+		remoteStateOut,
 	)
 }

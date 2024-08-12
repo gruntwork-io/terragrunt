@@ -84,7 +84,8 @@ func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) (string, erro
 	var leftRuleLine, leftRuleStart, leftRuleEnd string
 	var leftRuleWidth int // in visual character cells
 
-	switch hcl.DiagnosticSeverity(diag.Severity) {
+	// TODO: Remove lint suppression
+	switch hcl.DiagnosticSeverity(diag.Severity) { //nolint:exhaustive
 	case hcl.DiagError:
 		buf.WriteString(render.colorize.Color("[bold][red]Error: [reset]"))
 		leftRuleLine = render.colorize.Color("[red]│[reset] ")

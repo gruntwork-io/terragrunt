@@ -44,7 +44,7 @@ func TestTerragruntS3SSEAES(t *testing.T) {
 	client := terraws.NewS3Client(t, TERRAFORM_REMOTE_STATE_S3_REGION)
 	resp, err := client.GetBucketEncryption(&s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
 	require.NoError(t, err)
-	require.Equal(t, 1, len(resp.ServerSideEncryptionConfiguration.Rules))
+	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
 	sseRule := resp.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault
 	require.NotNil(t, sseRule)
 	assert.Equal(t, s3.ServerSideEncryptionAes256, aws.StringValue(sseRule.SSEAlgorithm))
@@ -71,7 +71,7 @@ func TestTerragruntS3SSECustomKey(t *testing.T) {
 	client := terraws.NewS3Client(t, TERRAFORM_REMOTE_STATE_S3_REGION)
 	resp, err := client.GetBucketEncryption(&s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
 	require.NoError(t, err)
-	require.Equal(t, 1, len(resp.ServerSideEncryptionConfiguration.Rules))
+	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
 	sseRule := resp.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault
 	require.NotNil(t, sseRule)
 	assert.Equal(t, s3.ServerSideEncryptionAwsKms, aws.StringValue(sseRule.SSEAlgorithm))
@@ -108,7 +108,7 @@ func TestTerragruntS3SSEKeyNotReverted(t *testing.T) {
 	client := terraws.NewS3Client(t, TERRAFORM_REMOTE_STATE_S3_REGION)
 	resp, err := client.GetBucketEncryption(&s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
 	require.NoError(t, err)
-	require.Equal(t, 1, len(resp.ServerSideEncryptionConfiguration.Rules))
+	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
 	sseRule := resp.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault
 	require.NotNil(t, sseRule)
 	assert.Equal(t, s3.ServerSideEncryptionAwsKms, aws.StringValue(sseRule.SSEAlgorithm))
@@ -142,7 +142,7 @@ func TestTerragruntS3EncryptionWarning(t *testing.T) {
 	client := terraws.NewS3Client(t, TERRAFORM_REMOTE_STATE_S3_REGION)
 	resp, err := client.GetBucketEncryption(&s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
 	require.NoError(t, err)
-	require.Equal(t, 1, len(resp.ServerSideEncryptionConfiguration.Rules))
+	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
 	sseRule := resp.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault
 	require.NotNil(t, sseRule)
 	assert.Equal(t, s3.ServerSideEncryptionAwsKms, aws.StringValue(sseRule.SSEAlgorithm))

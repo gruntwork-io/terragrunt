@@ -244,8 +244,8 @@ func parseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
 // a value field. This struct is used to capture that information so when we parse the JSON back into a Go struct, we
 // can pull out just the Value field we need.
 type CtyJsonOutput struct {
-	Value map[string]interface{}
-	Type  interface{}
+	Value map[string]interface{} `json:"Value"`
+	Type  interface{}            `json:"Type"`
 }
 
 // convertValuesMapToCtyVal takes a map of name - cty.Value pairs and converts to a single cty.Value object.

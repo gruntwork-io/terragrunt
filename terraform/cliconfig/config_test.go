@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConfig(t *testing.T) {
@@ -18,7 +18,7 @@ func TestConfig(t *testing.T) {
 	)
 
 	tempCacheDir, err := os.MkdirTemp("", "*")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	testCases := []struct {
 		providerInstallationMethods []ProviderInstallationMethod
@@ -90,7 +90,7 @@ provider_installation {
 			t.Parallel()
 
 			tempDir, err := os.MkdirTemp("", "*")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			configFile := filepath.Join(tempDir, ".terraformrc")
 
 			for _, host := range testCase.hosts {
@@ -99,12 +99,12 @@ provider_installation {
 			testCase.config.AddProviderInstallationMethods(testCase.providerInstallationMethods...)
 
 			err = testCase.config.Save(configFile)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			hclBytes, err := os.ReadFile(configFile)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
-			assert.Equal(t, testCase.expectedHCL, string(hclBytes))
+			require.Equal(t, testCase.expectedHCL, string(hclBytes))
 		})
 	}
 }

@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/stretchr/testify/require"
@@ -184,11 +182,11 @@ func TestScaffold3rdPartyModule(t *testing.T) {
 	require.NoError(t, err)
 	tmpEnvPath := filepath.Join(tmpRoot, "app")
 	err = os.MkdirAll(tmpEnvPath, 0755)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// create "root" terragrunt.hcl
 	err = os.WriteFile(filepath.Join(tmpRoot, "terragrunt.hcl"), []byte(""), 0644)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, TEST_SCAFFOLD_3RD_PARTY_MODULE))
 	require.NoError(t, err)

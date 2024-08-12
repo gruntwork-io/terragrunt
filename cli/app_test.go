@@ -193,7 +193,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		if testCase.expectedErr != nil {
 			assert.EqualError(t, actualErr, testCase.expectedErr.Error())
 		} else {
-			assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+			require.NoError(t, actualErr)
 			assertOptionsEqual(t, *testCase.expectedOptions, *actualOptions, "For args %v", testCase.args)
 		}
 	}
@@ -322,7 +322,7 @@ func TestParseMultiStringArg(t *testing.T) {
 		if testCase.expectedErr != nil {
 			assert.EqualError(t, actualErr, testCase.expectedErr.Error())
 		} else {
-			assert.Nil(t, actualErr, "Unexpected error: %q", actualErr)
+			require.NoError(t, actualErr)
 			assert.Equal(t, testCase.expectedVals, actualOptions.ModulesThatInclude, "For args %q", testCase.args)
 		}
 	}
@@ -355,7 +355,7 @@ func TestParseMutliStringKeyValueArg(t *testing.T) {
 		if testCase.expectedErr != nil {
 			assert.ErrorContains(t, actualErr, testCase.expectedErr.Error())
 		} else {
-			assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+			require.NoError(t, actualErr)
 			assert.Equal(t, testCase.expectedVals, actualOptions.AwsProviderPatchOverrides, "For args %v", testCase.args)
 		}
 	}

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/urfave/cli/v2"
@@ -73,7 +74,8 @@ func handleExitCoder(err error, osExiter func(code int)) error {
 		return nil
 	}
 
-	if exitErr, ok := err.(cli.ExitCoder); ok {
+	var exitErr cli.ExitCoder
+	if ok := errors.As(err, &exitErr); ok {
 		if err.Error() != "" {
 			_, _ = fmt.Fprintln(cli.ErrWriter, err)
 		}

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPrefixWriter(t *testing.T) {
@@ -44,10 +44,10 @@ func TestPrefixWriter(t *testing.T) {
 		pw := PrefixedWriter(&b, testCase.prefix)
 		for _, input := range testCase.values {
 			written, err := pw.Write([]byte(input))
-			assert.NoError(t, err)
-			assert.Equal(t, written, len(input))
+			require.NoError(t, err)
+			require.Len(t, input, written)
 		}
-		assert.Equal(t, testCase.expected, b.String())
+		require.Equal(t, testCase.expected, b.String())
 	}
 }
 
@@ -72,8 +72,8 @@ func TestPrefixWriterFail(t *testing.T) {
 		pw := PrefixedWriter(&FailingWriter{}, testCase.prefix)
 		for _, input := range testCase.values {
 			written, err := pw.Write([]byte(input))
-			assert.Error(t, err)
-			assert.Equal(t, written, 0)
+			require.Error(t, err)
+			require.Empty(t, written)
 		}
 	}
 }

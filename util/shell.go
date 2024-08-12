@@ -1,6 +1,7 @@
 package util
 
 import (
+	goErrors "errors"
 	"fmt"
 	"os/exec"
 	"syscall"
@@ -17,7 +18,8 @@ func IsCommandExecutable(command string, args ...string) bool {
 	cmd.Stderr = nil
 
 	if err := cmd.Run(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if ok := goErrors.As(err, &exitErr); ok {
 			return exitErr.ExitCode() == 0
 		}
 		return false
@@ -42,13 +44,15 @@ func GetExitCode(err error) (int, error) {
 		return exiterr.ExitStatus()
 	}
 
-	if exiterr, ok := errors.Unwrap(err).(*exec.ExitError); ok {
+	var exiterr *exec.ExitError
+	if ok := goErrors.As(err, &exiterr); ok {
 		status := exiterr.Sys().(syscall.WaitStatus)
 		return status.ExitStatus(), nil
 	}
 
-	if exiterr, ok := errors.Unwrap(err).(*multierror.Error); ok {
-		for _, err := range exiterr.Errors {
+	var multiErr *multierror.Error
+	if ok := goErrors.As(err, &multiErr); ok {
+		for _, err := range multiErr.Errors {
 			exitCode, exitCodeErr := GetExitCode(err)
 			if exitCodeErr == nil {
 				return exitCode, nil

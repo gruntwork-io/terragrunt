@@ -167,7 +167,8 @@ func (module *TerraformModule) getDependenciesForModule(modulesMap TerraformModu
 	for _, dependencyPath := range module.Config.Dependencies.Paths {
 		dependencyModulePath, err := util.CanonicalPath(dependencyPath, module.Path)
 		if err != nil {
-			return dependencies, nil
+			// TODO: Remove lint suppression
+			return dependencies, nil //nolint:nilerr
 		}
 
 		if files.FileExists(dependencyModulePath) && !files.IsDir(dependencyModulePath) {

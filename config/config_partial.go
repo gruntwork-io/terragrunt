@@ -1,6 +1,7 @@
 package config
 
 import (
+	goErrors "errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -327,7 +328,8 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			}
 
 			if err := file.Decode(&decoded, evalParsingContext); err != nil {
-				diagErr, ok := errors.Unwrap(err).(hcl.Diagnostics)
+				var diagErr hcl.Diagnostics
+				ok := goErrors.As(err, &diagErr)
 
 				// in case of render-json command and inputs reference error, we update the inputs with default value
 				if !ok || !isRenderJsonCommand(ctx) || !isAttributeAccessError(diagErr) {

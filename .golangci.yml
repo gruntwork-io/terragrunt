@@ -73,7 +73,8 @@ linters:
   fast: false
   mnd:
     ignored-functions: strconv.Format*,os.*,strconv.Parse*,strings.SplitN,bytes.SplitN
-
+  presets:
+    - bugs
 issues:
   exclude-dirs:
     - docs
