@@ -75,6 +75,7 @@ linters:
     ignored-functions: strconv.Format*,os.*,strconv.Parse*,strings.SplitN,bytes.SplitN
   presets:
     - bugs
+    - performance
 issues:
   exclude-dirs:
     - docs
