@@ -3821,7 +3821,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 					"name":               "var-files",
 					"commands":           []interface{}{"apply", "plan"},
 					"arguments":          nil,
-					"required_var_files":  []interface{}{"extra.tfvars"},
+					"required_var_files": []interface{}{"extra.tfvars"},
 					"optional_var_files": []interface{}{"optional.tfvars"},
 					"env_vars": map[string]interface{}{
 						"TF_VAR_custom_var": "I'm set in extra_arguments env_vars",
