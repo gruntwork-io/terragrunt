@@ -456,7 +456,9 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 
 	stdout := io.MultiWriter(cmdStdout, &stdoutBuf)
 	stderr := io.MultiWriter(cmdStderr, &stderrBuf)
-	// read stdout and stderr from engine
+
+	// Buffers for accumulating characters until newline is encountered
+	var stdoutLineBuf, stderrLineBuf bytes.Buffer
 	var resultCode = 0
 	for {
 		runResp, err := response.Recv()
@@ -467,19 +469,62 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 			break
 		}
 		if runResp.GetStdout() != "" {
-			_, err := stdout.Write([]byte(runResp.GetStdout()))
+			data := runResp.GetStdout()
+			for _, ch := range data {
+				if ch == '\n' {
+					line := stdoutLineBuf.String()
+					_, err := fmt.Fprintln(cmdStdout, line)
+					if err != nil {
+						return nil, errors.WithStackTrace(err)
+					}
+					stdoutLineBuf.Reset()
+				} else {
+					stdoutLineBuf.WriteByte(byte(ch))
+				}
+			}
+			_, err := stdout.Write([]byte(data))
 			if err != nil {
 				return nil, errors.WithStackTrace(err)
 			}
 		}
+
+		// Handle stderr
 		if runResp.GetStderr() != "" {
-			_, err := stderr.Write([]byte(runResp.GetStderr()))
+			data := runResp.GetStderr()
+			for _, ch := range data {
+				if ch == '\n' {
+					line := stderrLineBuf.String()
+					_, err := fmt.Println(cmdStderr, line)
+					if err != nil {
+						return nil, errors.WithStackTrace(err)
+					}
+					stderrLineBuf.Reset()
+				} else {
+					stderrLineBuf.WriteByte(byte(ch))
+				}
+			}
+			_, err := stderr.Write([]byte(data))
 			if err != nil {
 				return nil, errors.WithStackTrace(err)
 			}
 		}
 		resultCode = int(runResp.GetResultCode())
 	}
+
+	// Print any remaining data in the buffers if they don't end with a newline
+	if stdoutLineBuf.Len() > 0 {
+		_, err := fmt.Fprint(cmdStdout, stdoutLineBuf.String())
+		if err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
+	}
+	if stderrLineBuf.Len() > 0 {
+		_, err := fmt.Fprint(cmdStderr, stderrLineBuf.String())
+		if err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
+	}
+
 	terragruntOptions.Logger.Debugf("Engine execution done in %v", terragruntOptions.WorkingDir)
 
 	if resultCode != 0 {
