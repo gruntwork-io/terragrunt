@@ -206,7 +206,6 @@ func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.Terragrunt
 			continue
 		}
 
-		//terragruntOptions.Logger.Infoln(output)
 		if strings.Contains(output, "Error running plan:") && strings.Contains(output, ": Resource 'data.terraform_remote_state.") {
 			var dependenciesMsg string
 			if len(stack.Modules[i].Dependencies) > 0 {

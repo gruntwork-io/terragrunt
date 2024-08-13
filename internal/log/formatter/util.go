@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 )
 
 var baseTimestamp time.Time = time.Now()
@@ -17,7 +17,7 @@ func miniTS() int {
 func CheckIfTerminal(w io.Writer) bool {
 	switch v := w.(type) {
 	case *os.File:
-		return terminal.IsTerminal(int(v.Fd()))
+		return term.IsTerminal(int(v.Fd()))
 	default:
 		return false
 	}

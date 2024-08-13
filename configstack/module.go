@@ -265,9 +265,9 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, terragruntOptions *optio
 }
 
 func (modules TerraformModules) FindCommonPath() string {
-	var paths []string
-	for _, module := range modules {
-		paths = append(paths, module.Path)
+	var paths = make([]string, len(modules))
+	for i, module := range modules {
+		paths[i] = module.Path
 	}
 
 	prefix := util.FindCommonPrefixFromList(paths)
@@ -282,8 +282,7 @@ func (modules TerraformModules) FindCommonPath() string {
 // This is a similar implementation to terraform's digraph https://github.com/hashicorp/terraform/blob/master/digraph/graphviz.go
 // adding some styling to modules that are excluded from the execution in *-all commands
 func (modules TerraformModules) WriteDot(w io.Writer, terragruntOptions *options.TerragruntOptions) error {
-	_, err := w.Write([]byte("digraph {\n"))
-	if err != nil {
+	if _, err := w.Write([]byte("digraph {\n")); err != nil {
 		return errors.WithStackTrace(err)
 	}
 	defer func(w io.Writer, p []byte) {

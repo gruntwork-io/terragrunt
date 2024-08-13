@@ -13,6 +13,7 @@ var (
 		FatalLevelStyle: "red",
 		PanicLevelStyle: "red",
 		DebugLevelStyle: "blue+h",
+		TraceLevelStyle: "white",
 		PrefixStyle:     "cyan",
 		TimestampStyle:  "black+h",
 	}
@@ -26,6 +27,7 @@ const (
 	FatalLevelStyle
 	PanicLevelStyle
 	DebugLevelStyle
+	TraceLevelStyle
 	PrefixStyle
 	TimestampStyle
 )
@@ -67,6 +69,8 @@ func (scheme compiledColorScheme) LevelColorFunc(level logrus.Level) ColorFunc {
 		return scheme.ColorFunc(PanicLevelStyle)
 	case logrus.DebugLevel:
 		return scheme.ColorFunc(DebugLevelStyle)
+	case logrus.TraceLevel:
+		return scheme.ColorFunc(TraceLevelStyle)
 	default:
 		return scheme.ColorFunc(None)
 	}

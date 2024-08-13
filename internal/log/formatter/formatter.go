@@ -87,7 +87,7 @@ func (formatter *Formatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entr
 
 	var timestamp string
 	if formatter.FullTimestamp {
-		timestamp = fmt.Sprintf("%s", entry.Time.Format(formatter.TimestampFormat))
+		timestamp = entry.Time.Format(formatter.TimestampFormat)
 	} else {
 		timestamp = fmt.Sprintf("%04d", miniTS())
 	}
@@ -144,8 +144,8 @@ func (formatter *Formatter) appendValue(buf *bytes.Buffer, value interface{}) er
 	quoteCharacter := ""
 
 	if !formatter.needsQuoting(str) {
-		quoteCharacter := "\""
-		if len(quoteCharacter) != 0 {
+		quoteCharacter = "\""
+		if len(formatter.QuoteCharacter) != 0 {
 			quoteCharacter = formatter.QuoteCharacter
 		}
 	}
@@ -173,9 +173,13 @@ func (formatter *Formatter) levelText(level logrus.Level) string {
 }
 
 func (formatter *Formatter) keys(data logrus.Fields) []string {
-	var fields []string = make([]string, 0, len(data))
-	for k := range data {
-		fields = append(fields, k)
+	var (
+		fields = make([]string, len(data))
+		i      = 0
+	)
+	for key := range data {
+		fields[i] = key
+		i++
 	}
 
 	if !formatter.DisableSorting {

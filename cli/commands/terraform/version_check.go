@@ -93,8 +93,6 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 		return err
 	}
 
-	//fmt.Println(output)
-
 	terraformVersion, err := parseTerraformVersion(output.Stdout)
 	if err != nil {
 		return err
