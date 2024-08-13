@@ -834,8 +834,8 @@ terraform {
 		commands = ["fmt"]
 	}
 
-	extra_arguments "assertd_tfvars" {
-		assertd_var_files = [
+	extra_arguments "required_tfvars" {
+		required_var_files = [
 			"file1.tfvars",
 			"file2.tfvars"
 		]
@@ -866,7 +866,7 @@ terraform {
 		assert.Equal(t, "fmt_diff", terragruntConfig.Terraform.ExtraArgs[1].Name)
 		assert.Equal(t, &[]string{"-diff=true"}, terragruntConfig.Terraform.ExtraArgs[1].Arguments)
 		assert.Equal(t, []string{"fmt"}, terragruntConfig.Terraform.ExtraArgs[1].Commands)
-		assert.Equal(t, "assertd_tfvars", terragruntConfig.Terraform.ExtraArgs[2].Name)
+		assert.Equal(t, "required_tfvars", terragruntConfig.Terraform.ExtraArgs[2].Name)
 		assert.Equal(t, &[]string{"file1.tfvars", "file2.tfvars"}, terragruntConfig.Terraform.ExtraArgs[2].RequiredVarFiles)
 		assert.Equal(t, TERRAFORM_COMMANDS_NEED_VARS, terragruntConfig.Terraform.ExtraArgs[2].Commands)
 		assert.Equal(t, "optional_tfvars", terragruntConfig.Terraform.ExtraArgs[3].Name)
@@ -890,8 +890,8 @@ func TestParseTerragruntJsonConfigTerraformWithMultipleExtraArguments(t *testing
 				"arguments": ["-diff=true"],
 				"commands": ["fmt"]
 			},
-			"assertd_tfvars":{
-				"assertd_var_files":[
+			"required_tfvars":{
+				"required_var_files":[
 					"file1.tfvars",
 					"file2.tfvars"
 				],
