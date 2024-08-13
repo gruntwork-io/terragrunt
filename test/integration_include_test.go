@@ -1,4 +1,4 @@
-package test
+package integration_test
 
 import (
 	"bytes"
@@ -33,19 +33,21 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 	files, err := os.ReadDir(includeExposeFixturePath)
 	require.NoError(t, err)
 
-	testCases := []string{}
+	tc := []string{}
 	for _, finfo := range files {
 		if finfo.IsDir() {
-			testCases = append(testCases, finfo.Name())
+			tc = append(tc, finfo.Name())
 		}
 	}
 
-	for _, testCase := range testCases {
+	for _, tt := range tc {
 		// Capture range variable to avoid it changing across parallel test runs
-		testCase := testCase
+		tt := tt
 
-		t.Run(filepath.Base(testCase), func(t *testing.T) {
-			childPath := filepath.Join(includeExposeFixturePath, testCase, includeChildFixturePath)
+		t.Run(filepath.Base(tt), func(t *testing.T) {
+			t.Parallel()
+
+			childPath := filepath.Join(includeExposeFixturePath, tt, includeChildFixturePath)
 			cleanupTerraformFolder(t, childPath)
 			runTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-include-external-dependencies --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+childPath)
 

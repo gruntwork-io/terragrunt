@@ -1,10 +1,11 @@
-package configstack
+package configstack_test
 
 import (
 	"bytes"
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/sirupsen/logrus"
 
 	"github.com/stretchr/testify/assert"
@@ -16,7 +17,7 @@ func ptr(str string) *string {
 
 func TestLogReductionHook(t *testing.T) {
 	t.Parallel()
-	var hook = NewForceLogLevelHook(logrus.ErrorLevel)
+	var hook = configstack.NewForceLogLevelHook(logrus.ErrorLevel)
 
 	stdout := bytes.Buffer{}
 

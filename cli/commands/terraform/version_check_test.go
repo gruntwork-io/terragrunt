@@ -1,10 +1,11 @@
 //nolint:unparam
-package terraform
+package terraform_test
 
 import (
 	"testing"
 
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -83,7 +84,7 @@ func TestParseTerraformVersionWithUnexpectedName(t *testing.T) {
 
 func TestParseTerraformVersionInvalidSyntax(t *testing.T) {
 	t.Parallel()
-	testParseTerraformVersion(t, "invalid-syntax", "", InvalidTerraformVersionSyntax("invalid-syntax"))
+	testParseTerraformVersion(t, "invalid-syntax", "", terraform.InvalidTerraformVersionSyntax("invalid-syntax"))
 }
 
 func testCheckTerraformVersionMeetsConstraint(t *testing.T, currentVersion string, versionConstraint string, versionMeetsConstraint bool) {
@@ -92,7 +93,7 @@ func testCheckTerraformVersionMeetsConstraint(t *testing.T, currentVersion strin
 		t.Fatalf("Invalid current version specified in test: %v", err)
 	}
 
-	err = checkTerraformVersionMeetsConstraint(current, versionConstraint)
+	err = terraform.CheckTerraformVersionMeetsConstraint(current, versionConstraint)
 	if versionMeetsConstraint && err != nil {
 		assert.NoError(t, err, "Expected Terraform version %s to meet constraint %s, but got error: %v", currentVersion, versionConstraint, err)
 	} else if !versionMeetsConstraint && err == nil {
@@ -101,7 +102,7 @@ func testCheckTerraformVersionMeetsConstraint(t *testing.T, currentVersion strin
 }
 
 func testParseTerraformVersion(t *testing.T, versionString string, expectedVersion string, expectedErr error) {
-	actualVersion, actualErr := parseTerraformVersion(versionString)
+	actualVersion, actualErr := terraform.ParseTerraformVersion(versionString)
 	if expectedErr == nil {
 		expected, err := version.NewVersion(expectedVersion)
 		if err != nil {
@@ -147,7 +148,7 @@ func testCheckTerragruntVersionMeetsConstraint(t *testing.T, currentVersion stri
 		t.Fatalf("Invalid current version specified in test: %v", err)
 	}
 
-	err = checkTerragruntVersionMeetsConstraint(current, versionConstraint)
+	err = terraform.CheckTerragruntVersionMeetsConstraint(current, versionConstraint)
 	if versionMeetsConstraint && err != nil {
 		t.Fatalf("Expected Terragrunt version %s to meet constraint %s, but got error: %v", currentVersion, versionConstraint, err)
 	} else if !versionMeetsConstraint && err == nil {

@@ -1,4 +1,4 @@
-package terraform
+package terraform_test
 
 import (
 	"context"
@@ -13,7 +13,8 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/go-commons/env"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	tgTerraform "github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/sirupsen/logrus"
 
 	"github.com/stretchr/testify/assert"
@@ -252,9 +253,9 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 
 	require.NoError(t, err)
 
-	err = downloadTerraformSourceIfNecessary(context.Background(), terraformSource, terragruntOptions, terragruntConfig)
+	err = terraform.DownloadTerraformSourceIfNecessary(context.Background(), terraformSource, terragruntOptions, terragruntConfig)
 	require.Error(t, err)
-	var downloadingTerraformSourceErr DownloadingTerraformSourceErr
+	var downloadingTerraformSourceErr terraform.DownloadingTerraformSourceErr
 	ok := errors.As(err, &downloadingTerraformSourceErr)
 	assert.True(t, ok)
 }
@@ -272,9 +273,9 @@ func TestInvalidModulePath(t *testing.T) {
 	require.NoError(t, err)
 	terraformSource.WorkingDir += "/not-existing-path"
 
-	err = validateWorkingDir(terraformSource)
+	err = terraform.ValidateWorkingDir(terraformSource)
 	require.Error(t, err)
-	var workingDirNotFound WorkingDirNotFound
+	var workingDirNotFound terraform.WorkingDirNotFound
 	ok := errors.As(err, &workingDirNotFound)
 	assert.True(t, ok)
 }
@@ -292,9 +293,9 @@ func TestDownloadInvalidPathToFilePath(t *testing.T) {
 	require.NoError(t, err)
 	terraformSource.WorkingDir += "/main.tf"
 
-	err = validateWorkingDir(terraformSource)
+	err = terraform.ValidateWorkingDir(terraformSource)
 	require.Error(t, err)
-	var workingDirNotDir WorkingDirNotDir
+	var workingDirNotDir terraform.WorkingDirNotDir
 	ok := errors.As(err, &workingDirNotDir)
 	assert.True(t, ok)
 }
@@ -303,12 +304,16 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 	t.Parallel()
 
 	downloadDir := tmpDir(t)
-	defer os.Remove(downloadDir)
+	t.Cleanup(func() {
+		os.RemoveAll(downloadDir)
+	})
 
 	// used to test if an empty folder gets copied
 	testDir := tmpDir(t)
 	require.NoError(t, os.Mkdir(path.Join(testDir, "sub2"), 0700))
-	defer os.Remove(testDir)
+	t.Cleanup(func() {
+		os.Remove(testDir)
+	})
 
 	testCases := []struct {
 		name      string
@@ -355,6 +360,8 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
 			copyFolder(t, testCase.sourceURL, downloadDir)
 			assert.Condition(t, testCase.comp)
 		})
@@ -363,12 +370,12 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 
 }
 
-func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool, expectedFileContents string, assertInitFile bool) {
+func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool, expectedFileContents string, requireInitFile bool) {
 	terraformSource, terragruntOptions, terragruntConfig, err := createConfig(t, canonicalUrl, downloadDir, sourceUpdate)
 
 	require.NoError(t, err)
 
-	err = downloadTerraformSourceIfNecessary(context.Background(), terraformSource, terragruntOptions, terragruntConfig)
+	err = terraform.DownloadTerraformSourceIfNecessary(context.Background(), terraformSource, terragruntOptions, terragruntConfig)
 	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	expectedFilePath := util.JoinPath(downloadDir, "main.tf")
@@ -377,16 +384,16 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 		assert.Equal(t, expectedFileContents, actualFileContents, "For terraform source %v", terraformSource)
 	}
 
-	if assertInitFile {
-		existsInitFile := util.FileExists(util.JoinPath(terraformSource.WorkingDir, moduleInitRequiredFile))
-		assert.True(t, existsInitFile)
+	if requireInitFile {
+		existsInitFile := util.FileExists(util.JoinPath(terraformSource.WorkingDir, terraform.MODULE_INIT_REQUIRED_FILE))
+		require.True(t, existsInitFile)
 	}
 }
 
-func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool) (*terraform.Source, *options.TerragruntOptions, *config.TerragruntConfig, error) {
+func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool) (*tgTerraform.Source, *options.TerragruntOptions, *config.TerragruntConfig, error) {
 	logger := logrus.New()
 	logger.Out = io.Discard
-	terraformSource := &terraform.Source{
+	terraformSource := &tgTerraform.Source{
 		CanonicalSourceURL: parseUrl(t, canonicalUrl),
 		DownloadDir:        downloadDir,
 		WorkingDir:         downloadDir,
@@ -407,7 +414,7 @@ func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceU
 		},
 	}
 
-	err = PopulateTerraformVersion(context.Background(), terragruntOptions)
+	err = terraform.PopulateTerraformVersion(context.Background(), terragruntOptions)
 	require.NoError(t, err)
 	return terraformSource, terragruntOptions, terragruntConfig, err
 }
@@ -415,7 +422,7 @@ func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceU
 func testAlreadyHaveLatestCode(t *testing.T, canonicalUrl string, downloadDir string, expected bool) {
 	logger := logrus.New()
 	logger.Out = io.Discard
-	terraformSource := &terraform.Source{
+	terraformSource := &tgTerraform.Source{
 		CanonicalSourceURL: parseUrl(t, canonicalUrl),
 		DownloadDir:        downloadDir,
 		WorkingDir:         downloadDir,
@@ -426,7 +433,7 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalUrl string, downloadDir st
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	require.NoError(t, err)
 
-	actual, err := alreadyHaveLatestCode(terraformSource, opts)
+	actual, err := terraform.AlreadyHaveLatestCode(terraformSource, opts)
 	require.NoError(t, err)
 	assert.Equal(t, expected, actual, "For terraform source %v", terraformSource)
 }

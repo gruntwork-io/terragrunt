@@ -1,5 +1,5 @@
 //nolint:govet
-package dynamodb
+package dynamodb_test
 
 import (
 	"math/rand"
@@ -7,12 +7,14 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/dynamodb"
 )
 
 func TestCountingSemaphoreHappyPath(t *testing.T) {
 	t.Parallel()
 
-	semaphore := NewCountingSemaphore(1)
+	semaphore := dynamodb.NewCountingSemaphore(1)
 	semaphore.Acquire()
 	semaphore.Release()
 }
@@ -26,7 +28,7 @@ func TestCountingSemaphoreConcurrency(t *testing.T) {
 
 	permits := 10
 	goroutines := 100
-	semaphore := NewCountingSemaphore(permits)
+	semaphore := dynamodb.NewCountingSemaphore(permits)
 
 	var goRoutinesExecutingSimultaneously uint32
 	var waitForAllGoRoutinesToFinish sync.WaitGroup

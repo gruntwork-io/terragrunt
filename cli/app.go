@@ -79,11 +79,11 @@ func NewApp(writer io.Writer, errWriter io.Writer) *App {
 		commands.NewGlobalFlags(opts),
 		commands.NewHelpVersionFlags(opts)...)
 	app.Commands = append(
-		deprecatedCommands(opts),
-		terragruntCommands(opts)...).WrapAction(wrapWithTelemetry(opts))
+		DeprecatedCommands(opts),
+		TerragruntCommands(opts)...).WrapAction(WrapWithTelemetry(opts))
 	app.Before = beforeAction(opts)
-	app.DefaultCommand = terraformCmd.NewCommand(opts).WrapAction(wrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
-	app.OsExiter = osExiter
+	app.DefaultCommand = terraformCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
+	app.OsExiter = OSExiter
 
 	return &App{app}
 }
@@ -146,7 +146,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 }
 
 // This set of commands is also used in unit tests
-func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
+func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	cmds := cli.Commands{
 		runall.NewCommand(opts),             // runAction-all
 		terragruntinfo.NewCommand(opts),     // terragrunt-info
@@ -171,7 +171,7 @@ func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 }
 
 // Wrap CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
-func wrapWithTelemetry(opts *options.TerragruntOptions) func(ctx *cli.Context, action cli.ActionFunc) error {
+func WrapWithTelemetry(opts *options.TerragruntOptions) func(ctx *cli.Context, action cli.ActionFunc) error {
 	return func(ctx *cli.Context, action cli.ActionFunc) error {
 		return telemetry.Telemetry(ctx.Context, opts, fmt.Sprintf("%s %s", ctx.Command.Name, opts.TerraformCommand), map[string]interface{}{
 			"terraformCommand": opts.TerraformCommand,
@@ -391,7 +391,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	return nil
 }
 
-func osExiter(exitCode int) {
+func OSExiter(exitCode int) {
 	// Do nothing. We just need to override this function, as the default value calls os.Exit, which
 	// kills the app (or any automated test) dead in its tracks.
 }

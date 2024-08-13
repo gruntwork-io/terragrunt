@@ -1,4 +1,4 @@
-package config
+package config_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,12 +23,12 @@ func TestCatalogParseConfigFile(t *testing.T) {
 
 	testCases := []struct {
 		configPath     string
-		expectedConfig *CatalogConfig
+		expectedConfig *config.CatalogConfig
 		expectedErr    error
 	}{
 		{
 			filepath.Join(basePath, "config1.hcl"),
-			&CatalogConfig{
+			&config.CatalogConfig{
 				URLs: []string{
 					filepath.Join(basePath, "terraform-aws-eks"), // this path exists in the fixture directory and must be converted to the absolute path.
 					"/repo-copier",
@@ -45,12 +46,12 @@ func TestCatalogParseConfigFile(t *testing.T) {
 		},
 		{
 			filepath.Join(basePath, "config3.hcl"),
-			&CatalogConfig{},
+			&config.CatalogConfig{},
 			nil,
 		},
 		{
 			filepath.Join(basePath, "complex/terragrunt.hcl"),
-			&CatalogConfig{
+			&config.CatalogConfig{
 				URLs: []string{
 					filepath.Join(basePath, "complex/dev/us-west-1/modules/terraform-aws-eks"),
 					"./terraform-aws-service-catalog",
@@ -61,7 +62,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 		},
 		{
 			filepath.Join(basePath, "complex/dev/terragrunt.hcl"),
-			&CatalogConfig{
+			&config.CatalogConfig{
 				URLs: []string{
 					filepath.Join(basePath, "complex/dev/us-west-1/modules/terraform-aws-eks"),
 					"./terraform-aws-service-catalog",
@@ -72,7 +73,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 		},
 		{
 			filepath.Join(basePath, "complex/dev/us-west-1/terragrunt.hcl"),
-			&CatalogConfig{
+			&config.CatalogConfig{
 				URLs: []string{
 					filepath.Join(basePath, "complex/dev/us-west-1/modules/terraform-aws-eks"),
 					"./terraform-aws-service-catalog",
@@ -83,7 +84,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 		},
 		{
 			filepath.Join(basePath, "complex/dev/us-west-1/modules/terragrunt.hcl"),
-			&CatalogConfig{
+			&config.CatalogConfig{
 				URLs: []string{
 					filepath.Join(basePath, "complex/dev/us-west-1/modules/terraform-aws-eks"),
 					"./terraform-aws-service-catalog",
@@ -94,7 +95,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 		},
 		{
 			filepath.Join(basePath, "complex/prod/terragrunt.hcl"),
-			&CatalogConfig{
+			&config.CatalogConfig{
 				URLs: []string{
 					filepath.Join(basePath, "complex/dev/us-west-1/modules/terraform-aws-eks"),
 					"./terraform-aws-service-catalog",
@@ -114,7 +115,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 			opts, err := options.NewTerragruntOptionsWithConfigPath(testCase.configPath)
 			require.NoError(t, err)
 
-			config, err := ReadCatalogConfig(context.Background(), opts)
+			config, err := config.ReadCatalogConfig(context.Background(), opts)
 
 			if testCase.expectedErr == nil {
 				require.NoError(t, err)

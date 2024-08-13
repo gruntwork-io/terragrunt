@@ -115,7 +115,7 @@ func (remoteState *RemoteState) NeedsInit(terragruntOptions *options.TerragruntO
 	if initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]; hasInitializer {
 		// Remote state initializer says initialization is necessary
 		return initializer.NeedsInitialization(remoteState, state.Backend, terragruntOptions)
-	} else if state.IsRemote() && remoteState.differsFrom(state.Backend, terragruntOptions) {
+	} else if state.IsRemote() && remoteState.DiffersFrom(state.Backend, terragruntOptions) {
 		// If there's no remote state initializer, then just compare the the config values
 		return true, nil
 	}
@@ -124,7 +124,7 @@ func (remoteState *RemoteState) NeedsInit(terragruntOptions *options.TerragruntO
 }
 
 // Returns true if this remote state is different than the given remote state that is currently being used by terraform.
-func (remoteState *RemoteState) differsFrom(existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) bool {
+func (remoteState *RemoteState) DiffersFrom(existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) bool {
 	if existingBackend.Type != remoteState.Backend {
 		terragruntOptions.Logger.Infof("Backend type has changed from %s to %s", existingBackend.Type, remoteState.Backend)
 		return true

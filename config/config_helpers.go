@@ -142,21 +142,21 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 	}
 
 	terragruntFunctions := map[string]function.Function{
-		FuncNameFindInParentFolders:                     wrapStringSliceToStringAsFuncImpl(ctx, findInParentFolders),
-		FuncNamePathRelativeToInclude:                   wrapStringSliceToStringAsFuncImpl(ctx, pathRelativeToInclude),
-		FuncNamePathRelativeFromInclude:                 wrapStringSliceToStringAsFuncImpl(ctx, pathRelativeFromInclude),
+		FuncNameFindInParentFolders:                     wrapStringSliceToStringAsFuncImpl(ctx, FindInParentFolders),
+		FuncNamePathRelativeToInclude:                   wrapStringSliceToStringAsFuncImpl(ctx, PathRelativeToInclude),
+		FuncNamePathRelativeFromInclude:                 wrapStringSliceToStringAsFuncImpl(ctx, PathRelativeFromInclude),
 		FuncNameGetEnv:                                  wrapStringSliceToStringAsFuncImpl(ctx, getEnvironmentVariable),
-		FuncNameRunCmd:                                  wrapStringSliceToStringAsFuncImpl(ctx, runCommand),
+		FuncNameRunCmd:                                  wrapStringSliceToStringAsFuncImpl(ctx, RunCommand),
 		FuncNameReadTerragruntConfig:                    readTerragruntConfigAsFuncImpl(ctx),
 		FuncNameGetPlatform:                             wrapVoidToStringAsFuncImpl(ctx, getPlatform),
 		FuncNameGetRepoRoot:                             wrapVoidToStringAsFuncImpl(ctx, getRepoRoot),
 		FuncNameGetPathFromRepoRoot:                     wrapVoidToStringAsFuncImpl(ctx, getPathFromRepoRoot),
 		FuncNameGetPathToRepoRoot:                       wrapVoidToStringAsFuncImpl(ctx, getPathToRepoRoot),
-		FuncNameGetTerragruntDir:                        wrapVoidToStringAsFuncImpl(ctx, getTerragruntDir),
+		FuncNameGetTerragruntDir:                        wrapVoidToStringAsFuncImpl(ctx, GetTerragruntDir),
 		FuncNameGetOriginalTerragruntDir:                wrapVoidToStringAsFuncImpl(ctx, getOriginalTerragruntDir),
 		FuncNameGetTerraformCommand:                     wrapVoidToStringAsFuncImpl(ctx, getTerraformCommand),
 		FuncNameGetTerraformCLIArgs:                     wrapVoidToStringSliceAsFuncImpl(ctx, getTerraformCliArgs),
-		FuncNameGetParentTerragruntDir:                  wrapStringSliceToStringAsFuncImpl(ctx, getParentTerragruntDir),
+		FuncNameGetParentTerragruntDir:                  wrapStringSliceToStringAsFuncImpl(ctx, GetParentTerragruntDir),
 		FuncNameGetAWSAccountID:                         wrapVoidToStringAsFuncImpl(ctx, getAWSAccountID),
 		FuncNameGetAWSCallerIdentityArn:                 wrapVoidToStringAsFuncImpl(ctx, getAWSCallerIdentityARN),
 		FuncNameGetAWSCallerIdentityUserID:              wrapVoidToStringAsFuncImpl(ctx, getAWSCallerIdentityUserID),
@@ -172,10 +172,10 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 
 		// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
 		// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22
-		FuncNameStartsWith:  wrapStringSliceToBoolAsFuncImpl(ctx, startsWith),
-		FuncNameEndsWith:    wrapStringSliceToBoolAsFuncImpl(ctx, endsWith),
-		FuncNameStrContains: wrapStringSliceToBoolAsFuncImpl(ctx, strContains),
-		FuncNameTimeCmp:     wrapStringSliceToNumberAsFuncImpl(ctx, timeCmp),
+		FuncNameStartsWith:  wrapStringSliceToBoolAsFuncImpl(ctx, StartsWith),
+		FuncNameEndsWith:    wrapStringSliceToBoolAsFuncImpl(ctx, EndsWith),
+		FuncNameStrContains: wrapStringSliceToBoolAsFuncImpl(ctx, StrContains),
+		FuncNameTimeCmp:     wrapStringSliceToNumberAsFuncImpl(ctx, TimeCmp),
 	}
 
 	functions := map[string]function.Function{}
@@ -253,7 +253,7 @@ func getPathToRepoRoot(ctx *ParsingContext) (string, error) {
 }
 
 // Return the directory where the Terragrunt configuration file lives
-func getTerragruntDir(ctx *ParsingContext) (string, error) {
+func GetTerragruntDir(ctx *ParsingContext) (string, error) {
 	terragruntConfigFileAbsPath, err := filepath.Abs(ctx.TerragruntOptions.TerragruntConfigPath)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
@@ -276,8 +276,8 @@ func getOriginalTerragruntDir(ctx *ParsingContext) (string, error) {
 }
 
 // Return the parent directory where the Terragrunt configuration file lives
-func getParentTerragruntDir(ctx *ParsingContext, params []string) (string, error) {
-	parentPath, err := pathRelativeFromInclude(ctx, params)
+func GetParentTerragruntDir(ctx *ParsingContext, params []string) (string, error) {
+	parentPath, err := PathRelativeFromInclude(ctx, params)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
@@ -311,10 +311,10 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 	return envVariable, nil
 }
 
-// runCommand is a helper function that runs a command and returns the stdout as the interporation
+// RunCommand is a helper function that runs a command and returns the stdout as the interporation
 // for each `run_cmd` in locals section, function is called twice
 // result
-func runCommand(ctx *ParsingContext, args []string) (string, error) {
+func RunCommand(ctx *ParsingContext, args []string) (string, error) {
 	// runCommandCache - cache of evaluated `run_cmd` invocations
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 	runCommandCache := cache.ContextCache[string](ctx, RunCmdCacheContextKey)
@@ -393,7 +393,7 @@ func getEnvironmentVariable(ctx *ParsingContext, parameters []string) (string, e
 
 // Find a parent Terragrunt configuration file in the parent folders above the current Terragrunt configuration file
 // and return its path
-func findInParentFolders(
+func FindInParentFolders(
 	ctx *ParsingContext,
 	params []string,
 ) (string, error) {
@@ -453,7 +453,7 @@ func findInParentFolders(
 // Return the relative path between the included Terragrunt configuration file and the current Terragrunt configuration
 // file. Name param is required and used to lookup the relevant import block when called in a child config with multiple
 // import blocks.
-func pathRelativeToInclude(ctx *ParsingContext, params []string) (string, error) {
+func PathRelativeToInclude(ctx *ParsingContext, params []string) (string, error) {
 	if ctx.TrackInclude == nil {
 		return ".", nil
 	}
@@ -485,7 +485,7 @@ func pathRelativeToInclude(ctx *ParsingContext, params []string) (string, error)
 }
 
 // Return the relative path from the current Terragrunt configuration to the included Terragrunt configuration file
-func pathRelativeFromInclude(ctx *ParsingContext, params []string) (string, error) {
+func PathRelativeFromInclude(ctx *ParsingContext, params []string) (string, error) {
 	if ctx.TrackInclude == nil {
 		return ".", nil
 	}
@@ -583,7 +583,7 @@ func getAWSCallerIdentityUserID(ctx *ParsingContext) (string, error) {
 
 // Parse the terragrunt config and return a representation that can be used as a reference. If given a default value,
 // this will return the default if the terragrunt config file does not exist.
-func readTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *cty.Value) (cty.Value, error) {
+func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *cty.Value) (cty.Value, error) {
 	// target config check: make sure the target config exists. If the file does not exist, and there is no default val,
 	// return an error. If the file does not exist but there is a default val, return the default val. Otherwise,
 	// proceed to parse the file as a terragrunt config file.
@@ -643,7 +643,7 @@ func readTerragruntConfigAsFuncImpl(ctx *ParsingContext) function.Function {
 			}
 
 			targetConfigPath := strArgs[0]
-			return readTerragruntConfig(ctx, targetConfigPath, defaultVal)
+			return ParseTerragruntConfig(ctx, targetConfigPath, defaultVal)
 		},
 	})
 }
@@ -832,8 +832,8 @@ func getSelectedIncludeBlock(trackInclude TrackInclude, params []string) (*Inclu
 	return &imported, nil
 }
 
-// startsWith Implementation of Terraform's startsWith function
-func startsWith(ctx *ParsingContext, args []string) (bool, error) {
+// StartsWith Implementation of Terraform's StartsWith function
+func StartsWith(ctx *ParsingContext, args []string) (bool, error) {
 	if len(args) == 0 {
 		return false, errors.WithStackTrace(EmptyStringNotAllowedError("parameter to the startswith function"))
 	}
@@ -847,8 +847,8 @@ func startsWith(ctx *ParsingContext, args []string) (bool, error) {
 	return false, nil
 }
 
-// endsWith Implementation of Terraform's endsWith function
-func endsWith(ctx *ParsingContext, args []string) (bool, error) {
+// EndsWith Implementation of Terraform's EndsWith function
+func EndsWith(ctx *ParsingContext, args []string) (bool, error) {
 	if len(args) == 0 {
 		return false, errors.WithStackTrace(EmptyStringNotAllowedError("parameter to the endswith function"))
 	}
@@ -862,8 +862,8 @@ func endsWith(ctx *ParsingContext, args []string) (bool, error) {
 	return false, nil
 }
 
-// timeCmp implements Terraform's `timecmp` function that compares two timestamps.
-func timeCmp(ctx *ParsingContext, args []string) (int64, error) {
+// TimeCmp implements Terraform's `timecmp` function that compares two timestamps.
+func TimeCmp(ctx *ParsingContext, args []string) (int64, error) {
 	if len(args) != matchedPats {
 		return 0, errors.WithStackTrace(goErrors.New("function can take only two parameters: timestamp_a and timestamp_b"))
 	}
@@ -888,8 +888,8 @@ func timeCmp(ctx *ParsingContext, args []string) (int64, error) {
 	}
 }
 
-// strContains Implementation of Terraform's strContains function
-func strContains(ctx *ParsingContext, args []string) (bool, error) {
+// StrContains Implementation of Terraform's StrContains function
+func StrContains(ctx *ParsingContext, args []string) (bool, error) {
 	if len(args) == 0 {
 		return false, errors.WithStackTrace(EmptyStringNotAllowedError("parameter to the strcontains function"))
 	}
@@ -982,7 +982,7 @@ func ParseAndDecodeVarFile(varFile string, fileContents []byte, out interface{})
 
 	typedOut, hasType := out.(*map[string]interface{})
 	if hasType {
-		genericMap, err := parseCtyValueToMap(ctyVal)
+		genericMap, err := ParseCtyValueToMap(ctyVal)
 		if err != nil {
 			return err
 		}

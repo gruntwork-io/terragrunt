@@ -1,9 +1,10 @@
-package module
+package module_test
 
 import (
 	"fmt"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -68,7 +69,7 @@ func TestFrontmatter(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			doc := newDoc(testCase.content, "")
+			doc := module.NewDoc(testCase.content, "")
 
 			assert.Equal(t, testCase.expectedName, doc.Title(), "Frontmatter Name")
 			assert.Equal(t, testCase.expectedDesc, doc.Description(0), "Frontmatter Description")
@@ -223,7 +224,7 @@ func TestElement(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			doc := newDoc(testCase.content, testCase.fileExt)
+			doc := module.NewDoc(testCase.content, testCase.fileExt)
 
 			assert.Equal(t, testCase.expectedTitle, doc.Title(), "Title")
 			assert.Equal(t, testCase.expectedDescription, doc.Description(testCase.maxDescriptionLength), "Description")

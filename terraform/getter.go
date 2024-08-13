@@ -134,22 +134,22 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 	}
 	version := versionList[0]
 
-	moduleRegistryBasePath, err := getModuleRegistryURLBasePath(ctx, registryDomain)
+	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, registryDomain)
 	if err != nil {
 		return err
 	}
 
-	moduleURL, err := buildRequestUrl(registryDomain, moduleRegistryBasePath, modulePath, version)
+	moduleURL, err := BuildRequestUrl(registryDomain, moduleRegistryBasePath, modulePath, version)
 	if err != nil {
 		return err
 	}
 
-	terraformGet, err := getTerraformGetHeader(ctx, *moduleURL)
+	terraformGet, err := GetTerraformGetHeader(ctx, *moduleURL)
 	if err != nil {
 		return err
 	}
 
-	downloadURL, err := getDownloadURLFromHeader(*moduleURL, terraformGet)
+	downloadURL, err := GetDownloadURLFromHeader(*moduleURL, terraformGet)
 	if err != nil {
 		return err
 	}
@@ -235,11 +235,11 @@ func (tfrGetter *RegistryGetter) getSubdir(_ context.Context, dstPath, sourceURL
 	return util.CopyFolderContentsWithFilter(sourcePath, dstPath, manifestFname, func(path string) bool { return true })
 }
 
-// getModuleRegistryURLBasePath uses the service discovery protocol
+// GetModuleRegistryURLBasePath uses the service discovery protocol
 // (https://www.terraform.io/docs/internals/remote-service-discovery.html)
 // to figure out where the modules are stored. This will return the base
 // path where the modules can be accessed
-func getModuleRegistryURLBasePath(ctx context.Context, domain string) (string, error) {
+func GetModuleRegistryURLBasePath(ctx context.Context, domain string) (string, error) {
 	sdURL := url.URL{
 		Scheme: "https",
 		Host:   domain,
@@ -258,9 +258,9 @@ func getModuleRegistryURLBasePath(ctx context.Context, domain string) (string, e
 	return respJSON.ModulesPath, nil
 }
 
-// getTerraformGetHeader makes an http GET call to the given registry URL and return the contents of location json
+// GetTerraformGetHeader makes an http GET call to the given registry URL and return the contents of location json
 // body or the header X-Terraform-Get. This function will return an error if the response does not contain the header.
-func getTerraformGetHeader(ctx context.Context, url url.URL) (string, error) {
+func GetTerraformGetHeader(ctx context.Context, url url.URL) (string, error) {
 	body, header, err := httpGETAndGetResponse(ctx, url)
 	if err != nil {
 		details := "error receiving HTTP data"
@@ -291,9 +291,9 @@ func getTerraformGetHeader(ctx context.Context, url url.URL) (string, error) {
 	return terraformGet, nil
 }
 
-// getDownloadURLFromHeader checks if the content of the X-Terraform-GET header contains the base url
+// GetDownloadURLFromHeader checks if the content of the X-Terraform-GET header contains the base url
 // and prepends it if not
-func getDownloadURLFromHeader(moduleURL url.URL, terraformGet string) (string, error) {
+func GetDownloadURLFromHeader(moduleURL url.URL, terraformGet string) (string, error) {
 	// If url from X-Terrafrom-Get Header seems to be a relative url,
 	// append scheme and host from url used for getting the download url
 	// because third-party registry implementations may not "know" their own absolute URLs if
@@ -344,8 +344,8 @@ func httpGETAndGetResponse(ctx context.Context, getURL url.URL) ([]byte, *http.H
 	return bodyData, &resp.Header, errors.WithStackTrace(err)
 }
 
-// buildRequestUrl - create url to download module using moduleRegistryBasePath
-func buildRequestUrl(registryDomain string, moduleRegistryBasePath string, modulePath string, version string) (*url.URL, error) {
+// BuildRequestUrl - create url to download module using moduleRegistryBasePath
+func BuildRequestUrl(registryDomain string, moduleRegistryBasePath string, modulePath string, version string) (*url.URL, error) {
 	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
 	modulePath = strings.TrimSuffix(modulePath, "/")
 	modulePath = strings.TrimPrefix(modulePath, "/")

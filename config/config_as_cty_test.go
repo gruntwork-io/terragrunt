@@ -1,4 +1,4 @@
-package config
+package config_test
 
 import (
 	"sort"
@@ -10,52 +10,55 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/codegen"
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/remote"
 )
 
 // This test makes sure that all the fields from the TerragruntConfig struct are accounted for in the conversion to
 // cty.Value.
 func TestTerragruntConfigAsCtyDrift(t *testing.T) {
+	t.Parallel()
+
 	testSource := "./foo"
 	testTrue := true
 	testFalse := false
 	mockOutputs := cty.Zero
 	mockOutputsAllowedTerraformCommands := []string{"init"}
 	dependentModulesPath := []*string{&testSource}
-	testConfig := TerragruntConfig{
-		Engine: &EngineConfig{
+	testConfig := config.TerragruntConfig{
+		Engine: &config.EngineConfig{
 			Source: "github.com/acme/terragrunt-plugin-custom-opentofu",
 			Meta:   &cty.Value{},
 		},
-		Catalog: &CatalogConfig{
+		Catalog: &config.CatalogConfig{
 			URLs: []string{
 				"repo/path",
 			},
 		},
-		Terraform: &TerraformConfig{
+		Terraform: &config.TerraformConfig{
 			Source: &testSource,
-			ExtraArgs: []TerraformExtraArguments{
-				TerraformExtraArguments{
+			ExtraArgs: []config.TerraformExtraArguments{
+				{
 					Name:     "init",
 					Commands: []string{"init"},
 				},
 			},
-			BeforeHooks: []Hook{
-				Hook{
-					Name:     "init",
-					Commands: []string{"init"},
-					Execute:  []string{"true"},
-				},
-			},
-			AfterHooks: []Hook{
-				Hook{
+			BeforeHooks: []config.Hook{
+				{
 					Name:     "init",
 					Commands: []string{"init"},
 					Execute:  []string{"true"},
 				},
 			},
-			ErrorHooks: []ErrorHook{
-				ErrorHook{
+			AfterHooks: []config.Hook{
+				{
+					Name:     "init",
+					Commands: []string{"init"},
+					Execute:  []string{"true"},
+				},
+			},
+			ErrorHooks: []config.ErrorHook{
+				{
 					Name:     "init",
 					Commands: []string{"init"},
 					Execute:  []string{"true"},
@@ -74,7 +77,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 				"bar": "baz",
 			},
 		},
-		Dependencies: &ModuleDependencies{
+		Dependencies: &config.ModuleDependencies{
 			Paths: []string{"foo"},
 		},
 		DownloadDir:    ".terragrunt-cache",
@@ -88,8 +91,8 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 			"quote": "the answer is 42",
 		},
 		DependentModulesPath: dependentModulesPath,
-		TerragruntDependencies: Dependencies{
-			{
+		TerragruntDependencies: config.Dependencies{
+			config.Dependency{
 				Name:                                "foo",
 				ConfigPath:                          cty.StringVal("foo"),
 				SkipOutputs:                         &testTrue,
@@ -100,7 +103,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 			},
 		},
 		GenerateConfigs: map[string]codegen.GenerateConfig{
-			"provider": codegen.GenerateConfig{
+			"provider": {
 				Path:          "foo",
 				IfExists:      codegen.ExistsOverwriteTerragrunt,
 				IfExistsStr:   "overwrite_terragrunt",
@@ -111,10 +114,10 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 			},
 		},
 	}
-	ctyVal, err := TerragruntConfigAsCty(&testConfig)
+	ctyVal, err := config.TerragruntConfigAsCty(&testConfig)
 	require.NoError(t, err)
 
-	ctyMap, err := parseCtyValueToMap(ctyVal)
+	ctyMap, err := config.ParseCtyValueToMap(ctyVal)
 	require.NoError(t, err)
 
 	// Test the root properties
@@ -137,6 +140,8 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 
 // This test makes sure that all the fields in RemoteState are converted to cty
 func TestRemoteStateAsCtyDrift(t *testing.T) {
+	t.Parallel()
+
 	testConfig := remote.RemoteState{
 		Backend:                       "foo",
 		DisableInit:                   true,
@@ -150,10 +155,10 @@ func TestRemoteStateAsCtyDrift(t *testing.T) {
 		},
 	}
 
-	ctyVal, err := remoteStateAsCty(&testConfig)
+	ctyVal, err := config.RemoteStateAsCty(&testConfig)
 	require.NoError(t, err)
 
-	ctyMap, err := parseCtyValueToMap(ctyVal)
+	ctyMap, err := config.ParseCtyValueToMap(ctyVal)
 	require.NoError(t, err)
 
 	// Test the root properties
@@ -177,10 +182,12 @@ func TestRemoteStateAsCtyDrift(t *testing.T) {
 
 // This test makes sure that all the fields in TerraformConfig exist in ctyTerraformConfig.
 func TestTerraformConfigAsCtyDrift(t *testing.T) {
-	terraformConfigStructInfo := structs.New(TerraformConfig{})
+	t.Parallel()
+
+	terraformConfigStructInfo := structs.New(config.TerraformConfig{})
 	terraformConfigFields := terraformConfigStructInfo.Names()
 	sort.Strings(terraformConfigFields)
-	ctyTerraformConfigStructInfo := structs.New(ctyTerraformConfig{})
+	ctyTerraformConfigStructInfo := structs.New(config.CtyTerraformConfig{})
 	ctyTerraformConfigFields := ctyTerraformConfigStructInfo.Names()
 	sort.Strings(ctyTerraformConfigFields)
 	assert.Equal(t, terraformConfigFields, ctyTerraformConfigFields)

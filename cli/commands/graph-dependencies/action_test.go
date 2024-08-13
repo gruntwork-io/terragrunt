@@ -1,4 +1,4 @@
-package graphdependencies
+package graphdependencies_test
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/require"
 )
@@ -45,7 +46,7 @@ func BenchmarkRunGraphDependencies(b *testing.B) {
 
 			b.ResetTimer()
 			b.StartTimer()
-			err = Run(context.Background(), terragruntOptions)
+			err = graphdependencies.Run(context.Background(), terragruntOptions)
 			b.StopTimer()
 			require.NoError(b, err)
 		})

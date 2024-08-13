@@ -1,7 +1,7 @@
 //go:build windows
 // +build windows
 
-package test
+package integration_test
 
 import (
 	"bytes"

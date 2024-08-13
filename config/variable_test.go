@@ -1,8 +1,9 @@
-package config
+package config_test
 
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,11 +13,11 @@ func TestScanVariables(t *testing.T) {
 
 	opts := terragruntOptionsForTest(t, "")
 
-	inputs, err := ParseVariables(opts, "../test/fixture-inputs")
+	inputs, err := config.ParseVariables(opts, "../test/fixture-inputs")
 	require.NoError(t, err)
 	assert.Len(t, inputs, 11)
 
-	varByName := map[string]*ParsedVariable{}
+	varByName := map[string]*config.ParsedVariable{}
 	for _, input := range inputs {
 		varByName[input.Name] = input
 	}
@@ -44,11 +45,11 @@ func TestScanDefaultVariables(t *testing.T) {
 	t.Parallel()
 	opts := terragruntOptionsForTest(t, "")
 
-	inputs, err := ParseVariables(opts, "../test/fixture-inputs-defaults")
+	inputs, err := config.ParseVariables(opts, "../test/fixture-inputs-defaults")
 	require.NoError(t, err)
 	assert.Len(t, inputs, 11)
 
-	varByName := map[string]*ParsedVariable{}
+	varByName := map[string]*config.ParsedVariable{}
 	for _, input := range inputs {
 		varByName[input.Name] = input
 	}
