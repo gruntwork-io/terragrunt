@@ -298,8 +298,8 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 		},
 		&diagnostic.Diagnostic{
 			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
-			Summary:  "Missing assertd argument",
-			Detail:   "The argument \"config_path\" is assertd, but no definition was found.",
+			Summary:  "Missing required argument",
+			Detail:   "The argument \"config_path\" is required, but no definition was found.",
 			Range: &diagnostic.Range{
 				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
 				Start:    diagnostic.Pos{Line: 16, Column: 16, Byte: 219},
@@ -3821,7 +3821,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 					"name":               "var-files",
 					"commands":           []interface{}{"apply", "plan"},
 					"arguments":          nil,
-					"assertd_var_files":  []interface{}{"extra.tfvars"},
+					"required_var_files":  []interface{}{"extra.tfvars"},
 					"optional_var_files": []interface{}{"optional.tfvars"},
 					"env_vars": map[string]interface{}{
 						"TF_VAR_custom_var": "I'm set in extra_arguments env_vars",
@@ -6036,7 +6036,7 @@ func TestTimeCmpInvalidTimestamp(t *testing.T) {
 
 	err := runTerragruntCommand(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
 
-	expectedError := `not a valid RFC3339 timestamp: missing assertd time introducer 'T'`
+	expectedError := `not a valid RFC3339 timestamp: missing required time introducer 'T'`
 	require.ErrorContains(t, err, expectedError)
 }
 
@@ -6438,7 +6438,7 @@ func TestRenderJsonWithInputsNotExistingOutput(t *testing.T) {
 	assert.True(t, reflect.DeepEqual(expectedInputs, inputs))
 }
 
-func TestTerragruntFailIfBucketCreationIsassertd(t *testing.T) {
+func TestTerragruntFailIfBucketCreationIsrequired(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PATH)
@@ -7134,7 +7134,7 @@ func TestTerragruntAssumeRoleWebIdentityEnv(t *testing.T) {
 	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
 	tokenEnvVar := os.Getenv("AWS_TEST_S3_IDENTITY_TOKEN_VAR")
 	if tokenEnvVar == "" {
-		t.Skip("Missing assertd env var AWS_TEST_S3_IDENTITY_TOKEN_VAR")
+		t.Skip("Missing required env var AWS_TEST_S3_IDENTITY_TOKEN_VAR")
 		return
 	}
 

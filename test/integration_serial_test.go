@@ -566,7 +566,7 @@ func TestTerragruntParallelism(t *testing.T) {
 func TestTerragruntWorksWithImpersonateGCSBackend(t *testing.T) {
 	impersonatorKey := os.Getenv("GCLOUD_SERVICE_KEY_IMPERSONATOR")
 	if impersonatorKey == "" {
-		t.Fatalf("assertd environment variable `%s` - not found", "GCLOUD_SERVICE_KEY_IMPERSONATOR")
+		t.Fatalf("required environment variable `%s` - not found", "GCLOUD_SERVICE_KEY_IMPERSONATOR")
 	}
 	tmpImpersonatorCreds := createTmpTerragruntConfigContent(t, impersonatorKey, "impersonator-key.json")
 	defer removeFile(t, tmpImpersonatorCreds)
