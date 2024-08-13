@@ -448,81 +448,31 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 		return nil, errors.WithStackTrace(err)
 	}
 
-	cmdStdout := runOptions.CmdStdout
-	cmdStderr := runOptions.CmdStderr
+	var stdoutBuf, stderrBuf bytes.Buffer
+	stdout := io.MultiWriter(runOptions.CmdStdout, &stdoutBuf)
+	stderr := io.MultiWriter(runOptions.CmdStderr, &stderrBuf)
 
-	var stdoutBuf bytes.Buffer
-	var stderrBuf bytes.Buffer
-
-	stdout := io.MultiWriter(cmdStdout, &stdoutBuf)
-	stderr := io.MultiWriter(cmdStderr, &stderrBuf)
-
-	// Buffers for accumulating characters until newline is encountered
 	var stdoutLineBuf, stderrLineBuf bytes.Buffer
-	var resultCode = 0
+	var resultCode int
+
 	for {
 		runResp, err := response.Recv()
-		if err != nil {
+		if err != nil || runResp == nil {
 			break
 		}
-		if runResp == nil {
-			break
+		if err := processStream(runResp.GetStdout(), &stdoutLineBuf, stdout, runOptions.CmdStdout); err != nil {
+			return nil, errors.WithStackTrace(err)
 		}
-		if runResp.GetStdout() != "" {
-			data := runResp.GetStdout()
-			for _, ch := range data {
-				if ch == '\n' {
-					line := stdoutLineBuf.String()
-					_, err := fmt.Fprintln(cmdStdout, line)
-					if err != nil {
-						return nil, errors.WithStackTrace(err)
-					}
-					stdoutLineBuf.Reset()
-				} else {
-					stdoutLineBuf.WriteByte(byte(ch))
-				}
-			}
-			_, err := stdout.Write([]byte(data))
-			if err != nil {
-				return nil, errors.WithStackTrace(err)
-			}
-		}
-
-		// Handle stderr
-		if runResp.GetStderr() != "" {
-			data := runResp.GetStderr()
-			for _, ch := range data {
-				if ch == '\n' {
-					line := stderrLineBuf.String()
-					_, err := fmt.Println(cmdStderr, line)
-					if err != nil {
-						return nil, errors.WithStackTrace(err)
-					}
-					stderrLineBuf.Reset()
-				} else {
-					stderrLineBuf.WriteByte(byte(ch))
-				}
-			}
-			_, err := stderr.Write([]byte(data))
-			if err != nil {
-				return nil, errors.WithStackTrace(err)
-			}
+		if err := processStream(runResp.GetStderr(), &stderrLineBuf, stderr, runOptions.CmdStderr); err != nil {
+			return nil, errors.WithStackTrace(err)
 		}
 		resultCode = int(runResp.GetResultCode())
 	}
-
-	// Print any remaining data in the buffers if they don't end with a newline
-	if stdoutLineBuf.Len() > 0 {
-		_, err := fmt.Fprint(cmdStdout, stdoutLineBuf.String())
-		if err != nil {
-			return nil, errors.WithStackTrace(err)
-		}
+	if err := flushBuffer(&stdoutLineBuf, runOptions.CmdStdout); err != nil {
+		return nil, errors.WithStackTrace(err)
 	}
-	if stderrLineBuf.Len() > 0 {
-		_, err := fmt.Fprint(cmdStderr, stderrLineBuf.String())
-		if err != nil {
-			return nil, errors.WithStackTrace(err)
-		}
+	if err := flushBuffer(&stderrLineBuf, runOptions.CmdStderr); err != nil {
+		return nil, errors.WithStackTrace(err)
 	}
 
 	terragruntOptions.Logger.Debugf("Engine execution done in %v", terragruntOptions.WorkingDir)
@@ -543,6 +493,34 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 	}
 
 	return &cmdOutput, nil
+}
+
+// processStream handles the character buffering and line printing for a given stream
+func processStream(data string, lineBuf *bytes.Buffer, writer io.Writer, output io.Writer) error {
+	for _, ch := range data {
+		if ch == '\n' {
+			if _, err := fmt.Fprintln(output, lineBuf.String()); err != nil {
+				return errors.WithStackTrace(err)
+			}
+			lineBuf.Reset()
+		} else {
+			lineBuf.WriteByte(byte(ch))
+		}
+	}
+
+	_, err := writer.Write([]byte(data))
+	return errors.WithStackTrace(err)
+}
+
+// flushBuffer prints any remaining data in the buffer
+func flushBuffer(lineBuf *bytes.Buffer, output io.Writer) error {
+	if lineBuf.Len() > 0 {
+		_, err := fmt.Fprint(output, lineBuf.String())
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+	}
+	return nil
 }
 
 // initialize engine for working directory
