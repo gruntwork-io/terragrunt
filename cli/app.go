@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/engine"
@@ -359,20 +358,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.TerragruntVersion = terragruntVersion
 	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of terragrunt used.
 	opts.Logger.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
-
-	// --- IncludeModulePrefix
-	jsonOutput := false
-	for _, arg := range opts.TerraformCliArgs {
-		if strings.EqualFold(arg, "-json") {
-			jsonOutput = true
-			break
-		}
-	}
-	if !opts.NoIncludeModulePrefix && !jsonOutput {
-		opts.OutputPrefix = filepath.Base(opts.WorkingDir)
-	} else {
-		opts.NoIncludeModulePrefix = true
-	}
+	opts.OutputPrefix = filepath.Base(opts.WorkingDir)
 
 	// --- Others
 	if !opts.RunAllAutoApprove {

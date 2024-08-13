@@ -14,7 +14,7 @@ import (
 )
 
 const tfTimestampFormat = "2006-01-02T15:04:05.000-0700"
-const prefixFmt = "%s:tf"
+const TFPrefixFmt = "%s:tf"
 
 var extractTimeAndLevelReg = regexp.MustCompile(`(\S+)\s*\[(\S+)\]\s*(.+\S)`)
 
@@ -70,7 +70,7 @@ func (tf *tfWriter) Write(p []byte) (int, error) {
 		}
 
 		if tf.prefix != "" {
-			entry.Data[formatter.PrefixKeyName] = fmt.Sprintf(prefixFmt, tf.prefix)
+			entry.Data[formatter.PrefixKeyName] = fmt.Sprintf(TFPrefixFmt, tf.prefix)
 		}
 
 		level, err := logrus.ParseLevel(strings.ToLower(levelStr))

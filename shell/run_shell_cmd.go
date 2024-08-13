@@ -139,9 +139,19 @@ func RunShellCommandWithOutput(
 		cmdStderr := io.MultiWriter(log.TFStderrWriter(errWriter, terragruntOptions.Logger.Logger.Formatter, terragruntOptions.OutputPrefix), &stderrBuf)
 		var cmdStdout io.Writer
 		if !suppressStdout {
-			// do not add prefix if cli command contains `-json` flag
-			if !util.ListContainsElement(args, terraform.CommandNameOutput) {
-				outWriter = log.TFStdoutWriter(outWriter, terragruntOptions.Logger.Logger.Formatter, terragruntOptions.OutputPrefix)
+			if !terragruntOptions.NoIncludeModulePrefix && len(args) > 0 && !strings.EqualFold(args[0], terraform.CommandNameOutput) {
+				// do not add prefix if args contains `-json` flag
+				var jsonOutput bool
+				for _, arg := range args {
+					if strings.EqualFold(arg, terraform.FlagNameJSON) {
+						jsonOutput = true
+						break
+					}
+				}
+
+				if !jsonOutput {
+					outWriter = log.TFStdoutWriter(outWriter, terragruntOptions.Logger.Logger.Formatter, terragruntOptions.OutputPrefix)
+				}
 			}
 			cmdStdout = io.MultiWriter(outWriter, &stdoutBuf)
 		} else {

@@ -3,17 +3,15 @@ package formatter
 import (
 	"bytes"
 	"fmt"
+	"runtime"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/sirupsen/logrus"
 )
 
 const (
-	defaultTimestampFormat = time.RFC3339
-
 	PrefixKeyName = "prefix"
 	NoneLevel     = logrus.Level(10)
 )
@@ -30,6 +28,9 @@ type Formatter struct {
 
 	// Enable logging the full timestamp when a TTY is attached instead of just the time passed since beginning of execution.
 	FullTimestamp bool
+
+	// Force formatted layout, even for non-TTY output.
+	ForceFormatting bool
 
 	// Timestamp format to use for display when a full timestamp is printed.
 	TimestampFormat string
@@ -48,11 +49,11 @@ type Formatter struct {
 }
 
 // NewFormatter returns a new Formatter instance with default values.
-func NewFormatter(disableColors, fullTimestamp bool) logrus.Formatter {
+func NewFormatter(disableColors bool, timestampFormat string) logrus.Formatter {
 	return &Formatter{
-		FullTimestamp:   fullTimestamp,
+		FullTimestamp:   true,
 		DisableColors:   disableColors,
-		TimestampFormat: defaultTimestampFormat,
+		TimestampFormat: timestampFormat,
 		colorScheme:     defaultColorScheme.Complite(),
 	}
 }
@@ -67,14 +68,44 @@ func (formatter *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 		buf = new(bytes.Buffer)
 	}
 
-	if err := formatter.printFormatted(buf, entry); err != nil {
-		return nil, err
+	if formatter.ForceFormatting || isTerminal {
+		if err := formatter.printFormatted(buf, entry); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := formatter.printKeyValue(buf, entry); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := buf.WriteByte('\n'); err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
 	return buf.Bytes(), nil
+}
+
+func (formatter *Formatter) printKeyValue(buf *bytes.Buffer, entry *logrus.Entry) error {
+	if err := formatter.appendKeyValue(buf, "time", entry.Time.Format(formatter.TimestampFormat), false); err != nil {
+		return err
+	}
+
+	if err := formatter.appendKeyValue(buf, "level", entry.Level.String(), true); err != nil {
+		return err
+	}
+
+	if entry.Message != "" {
+		if err := formatter.appendKeyValue(buf, "msg", entry.Message, true); err != nil {
+			return err
+		}
+	}
+
+	for _, key := range formatter.keys(entry.Data) {
+		if err := formatter.appendKeyValue(buf, key, entry.Data[key], true); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (formatter *Formatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entry) error {
@@ -92,7 +123,7 @@ func (formatter *Formatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entr
 		timestamp = fmt.Sprintf("%04d", miniTS())
 	}
 
-	if !formatter.DisableColors {
+	if formatter.isColored() {
 		level = formatter.colorScheme.LevelColorFunc(entry.Level)(level)
 		prefix = formatter.colorScheme.ColorFunc(PrefixStyle)(prefix)
 		timestamp = formatter.colorScheme.ColorFunc(TimestampStyle)(timestamp)
@@ -102,21 +133,23 @@ func (formatter *Formatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entr
 		return errors.WithStackTrace(err)
 	}
 
-	for _, key := range formatter.keys(entry.Data) {
-		if key != PrefixKeyName {
-			value := entry.Data[key]
-
-			if err := formatter.appendKeyValue(buf, key, value); err != nil {
-				return err
-			}
+	for i, key := range formatter.keys(entry.Data, PrefixKeyName) {
+		value := entry.Data[key]
+		if err := formatter.appendKeyValue(buf, key, value, i != 0); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
-func (formatter *Formatter) appendKeyValue(buf *bytes.Buffer, key string, value interface{}) error {
-	if _, err := fmt.Fprintf(buf, " %s=", key); err != nil {
+func (formatter *Formatter) appendKeyValue(buf *bytes.Buffer, key string, value interface{}, appendSpace bool) error {
+	keyFmt := "%s="
+	if appendSpace {
+		keyFmt = " " + keyFmt
+	}
+
+	if _, err := fmt.Fprintf(buf, keyFmt, key); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
@@ -141,16 +174,12 @@ func (formatter *Formatter) appendValue(buf *bytes.Buffer, value interface{}) er
 		return nil
 	}
 
-	quoteCharacter := ""
-
-	if !formatter.needsQuoting(str) {
-		quoteCharacter = "\""
-		if len(formatter.QuoteCharacter) != 0 {
-			quoteCharacter = formatter.QuoteCharacter
-		}
+	valueFmt := "%v"
+	if formatter.needsQuoting(str) {
+		valueFmt = formatter.QuoteCharacter + valueFmt + formatter.QuoteCharacter
 	}
 
-	if _, err := fmt.Fprintf(buf, "%s%v%s", quoteCharacter, value, quoteCharacter); err != nil {
+	if _, err := fmt.Fprintf(buf, valueFmt, value); err != nil {
 		return errors.WithStackTrace(err)
 	}
 	return nil
@@ -172,21 +201,30 @@ func (formatter *Formatter) levelText(level logrus.Level) string {
 
 }
 
-func (formatter *Formatter) keys(data logrus.Fields) []string {
+func (formatter *Formatter) keys(data logrus.Fields, removeKeys ...string) []string {
 	var (
-		fields = make([]string, len(data))
-		i      = 0
+		keys []string
 	)
+
 	for key := range data {
-		fields[i] = key
-		i++
+		var skip bool
+		for _, removeKey := range removeKeys {
+			if key == removeKey {
+				skip = true
+				break
+			}
+		}
+
+		if !skip {
+			keys = append(keys, key)
+		}
 	}
 
 	if !formatter.DisableSorting {
-		sort.Strings(fields)
+		sort.Strings(keys)
 	}
 
-	return fields
+	return keys
 }
 
 func (formatter *Formatter) needsQuoting(text string) bool {
@@ -202,4 +240,9 @@ func (formatter *Formatter) needsQuoting(text string) bool {
 		}
 	}
 	return false
+}
+
+func (formatter *Formatter) isColored() bool {
+	isColored := formatter.ForceColors || (isTerminal && (runtime.GOOS != "windows"))
+	return isColored && !formatter.DisableColors
 }

@@ -14,7 +14,14 @@ func miniTS() int {
 	return int(time.Since(baseTimestamp) / time.Second)
 }
 
-func CheckIfTerminal(w io.Writer) bool {
+// Whether the logger's out is to a terminal.
+var isTerminal bool
+
+func init() {
+	isTerminal = checkIfTerminal(os.Stderr)
+}
+
+func checkIfTerminal(w io.Writer) bool {
 	switch v := w.(type) {
 	case *os.File:
 		return term.IsTerminal(int(v.Fd()))

@@ -3,7 +3,7 @@ package util
 import (
 	"io"
 	"os"
-	"strconv"
+	"time"
 
 	"golang.org/x/term"
 
@@ -15,9 +15,11 @@ import (
 
 // used in integration tests
 const (
-	defaultLogLevel     = logrus.InfoLevel
-	logLevelEnvVar      = "TERRAGRUNT_LOG_LEVEL"
-	fullTimestampEnvVar = "TERRAGRUNT_LOG_FULLTIMESTAMP"
+	defaultLogLevel        = logrus.InfoLevel
+	defaultTimestampFormat = time.RFC3339
+
+	logLevelEnvVar        = "TERRAGRUNT_LOG_LEVEL"
+	timestampFormatEnvVar = "TERRAGRUNT_LOG_TIMESTAMP_FOFRMAT"
 )
 
 var (
@@ -64,10 +66,11 @@ func CreateLogger(lvl logrus.Level) *logrus.Logger {
 	if jsonLogFormat {
 		logger.SetFormatter(&logrus.JSONFormatter{})
 	} else {
-		fullTimestampStr := os.Getenv(fullTimestampEnvVar)
-		fullTimestamp, _ := strconv.ParseBool(fullTimestampStr)
-
-		logger.SetFormatter(formatter.NewFormatter(disableLogColors, fullTimestamp))
+		timestampFormat := os.Getenv(timestampFormatEnvVar)
+		if timestampFormat == "" {
+			timestampFormat = defaultTimestampFormat
+		}
+		logger.SetFormatter(formatter.NewFormatter(disableLogColors, timestampFormat))
 	}
 	return logger
 }
