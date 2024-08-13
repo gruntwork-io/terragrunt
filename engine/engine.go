@@ -448,38 +448,33 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 		return nil, errors.WithStackTrace(err)
 	}
 
-	cmdStdout := runOptions.CmdStdout
-	cmdStderr := runOptions.CmdStderr
+	var stdoutBuf, stderrBuf bytes.Buffer
+	stdout := io.MultiWriter(runOptions.CmdStdout, &stdoutBuf)
+	stderr := io.MultiWriter(runOptions.CmdStderr, &stderrBuf)
 
-	var stdoutBuf bytes.Buffer
-	var stderrBuf bytes.Buffer
+	var stdoutLineBuf, stderrLineBuf bytes.Buffer
+	var resultCode int
 
-	stdout := io.MultiWriter(cmdStdout, &stdoutBuf)
-	stderr := io.MultiWriter(cmdStderr, &stderrBuf)
-	// read stdout and stderr from engine
-	var resultCode = 0
 	for {
 		runResp, err := response.Recv()
-		if err != nil {
+		if err != nil || runResp == nil {
 			break
 		}
-		if runResp == nil {
-			break
+		if err := processStream(runResp.GetStdout(), &stdoutLineBuf, stdout); err != nil {
+			return nil, errors.WithStackTrace(err)
 		}
-		if runResp.GetStdout() != "" {
-			_, err := stdout.Write([]byte(runResp.GetStdout()))
-			if err != nil {
-				return nil, errors.WithStackTrace(err)
-			}
-		}
-		if runResp.GetStderr() != "" {
-			_, err := stderr.Write([]byte(runResp.GetStderr()))
-			if err != nil {
-				return nil, errors.WithStackTrace(err)
-			}
+		if err := processStream(runResp.GetStderr(), &stderrLineBuf, stderr); err != nil {
+			return nil, errors.WithStackTrace(err)
 		}
 		resultCode = int(runResp.GetResultCode())
 	}
+	if err := flushBuffer(&stdoutLineBuf, stdout); err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+	if err := flushBuffer(&stderrLineBuf, stderr); err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
 	terragruntOptions.Logger.Debugf("Engine execution done in %v", terragruntOptions.WorkingDir)
 
 	if resultCode != 0 {
@@ -498,6 +493,31 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 	}
 
 	return &cmdOutput, nil
+}
+
+// processStream handles the character buffering and line printing for a given stream
+func processStream(data string, lineBuf *bytes.Buffer, output io.Writer) error {
+	for _, ch := range data {
+		lineBuf.WriteByte(byte(ch))
+		if ch == '\n' {
+			if _, err := fmt.Fprint(output, lineBuf.String()); err != nil {
+				return errors.WithStackTrace(err)
+			}
+			lineBuf.Reset()
+		}
+	}
+	return nil
+}
+
+// flushBuffer prints any remaining data in the buffer
+func flushBuffer(lineBuf *bytes.Buffer, output io.Writer) error {
+	if lineBuf.Len() > 0 {
+		_, err := fmt.Fprint(output, lineBuf.String())
+		if err != nil {
+			return errors.WithStackTrace(err)
+		}
+	}
+	return nil
 }
 
 // initialize engine for working directory
