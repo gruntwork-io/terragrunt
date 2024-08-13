@@ -487,7 +487,7 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesIgnoreOrder(t 
 
 func testToRunningModules(t *testing.T, modules TerraformModules, order DependencyOrder, expected runningModules) {
 	actual, err := modules.toRunningModules(order)
-	if assert.Nil(t, err, "For modules %v and order %v", modules, order) {
+	if assert.NoError(t, err, "For modules %v and order %v", modules, order) {
 		assertRunningModuleMapsEqual(t, expected, actual, true, "For modules %v and order %v", modules, order)
 	}
 }

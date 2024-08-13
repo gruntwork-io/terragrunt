@@ -278,7 +278,7 @@ func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile
 		return nil, errors.WithStackTrace(err)
 	}
 
-	if err := util.DoWithRetry(ctx, fmt.Sprintf("Acquiring lock file %s", cache.lockfilePath), maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func(ctx context.Context) error {
+	if err := util.DoWithRetry(ctx, "Acquiring lock file "+cache.lockfilePath, maxRetriesLockFile, retryDelayLockFile, logrus.DebugLevel, func(ctx context.Context) error {
 		return lockfile.TryLock()
 	}); err != nil {
 		return nil, errors.Errorf("unable to acquire lock file %s (already locked?) try to remove the file manually: %w", cache.lockfilePath, err)
@@ -356,8 +356,8 @@ func (service *ProviderService) CacheProvider(ctx context.Context, requestID str
 
 		userProviderDir: filepath.Join(service.userCacheDir, provider.Address(), provider.Version, provider.Platform()),
 		packageDir:      filepath.Join(service.cacheDir, provider.Address(), provider.Version, provider.Platform()),
-		lockfilePath:    filepath.Join(service.tempDir, fmt.Sprintf("%s.lock", packageName)),
-		archivePath:     filepath.Join(service.tempDir, fmt.Sprintf("%s%s", packageName, path.Ext(provider.Filename))),
+		lockfilePath:    filepath.Join(service.tempDir, packageName+".lock"),
+		archivePath:     filepath.Join(service.tempDir, packageName+path.Ext(provider.Filename)),
 	}
 
 	select {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	goErrors "errors"
 	"io"
 	"os"
 	"strings"
@@ -243,7 +244,7 @@ func (auth signatureAuthentication) Authenticate(location string) (*PackageAuthe
 func (auth signatureAuthentication) checkDetachedSignature(keyring openpgp.KeyRing, signed, signature io.Reader, config *packet.Config) error {
 	entity, err := openpgp.CheckDetachedSignature(keyring, signed, signature, config)
 
-	if err == openpgpErrors.ErrKeyExpired {
+	if goErrors.Is(err, openpgpErrors.ErrKeyExpired) {
 		for id := range entity.Identities {
 			log.Warnf("expired openpgp key from %s\n", id)
 		}
@@ -266,7 +267,7 @@ func (auth signatureAuthentication) findSigningKey() (string, string, error) {
 
 		if err := auth.checkDetachedSignature(keyring, bytes.NewReader(auth.Document), bytes.NewReader(auth.Signature), nil); err != nil {
 			// If the signature issuer does not match the the key, keep trying the rest of the provided keys.
-			if err == openpgpErrors.ErrUnknownIssuer {
+			if goErrors.Is(err, openpgpErrors.ErrUnknownIssuer) {
 				continue
 			}
 

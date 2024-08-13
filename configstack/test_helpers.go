@@ -2,6 +2,7 @@ package configstack
 
 import (
 	"context"
+	goErrors "errors"
 	"sort"
 	"testing"
 
@@ -125,10 +126,13 @@ func assertRunningModulesEqual(t *testing.T, expected *runningModule, actual *ru
 // configstack.UnrecognizedDependencyError" panic. Therefore, we have to compare that error more manually.
 func assertErrorsEqual(t *testing.T, expected error, actual error, messageAndArgs ...interface{}) {
 	actual = errors.Unwrap(actual)
-	if expectedUnrecognized, isUnrecognizedDependencyError := expected.(UnrecognizedDependencyError); isUnrecognizedDependencyError {
-		actualUnrecognized, isUnrecognizedDependencyError := actual.(UnrecognizedDependencyError)
-		if assert.True(t, isUnrecognizedDependencyError, messageAndArgs...) {
-			assert.Equal(t, expectedUnrecognized, actualUnrecognized, messageAndArgs...)
+
+	var unrecognizedDependencyError UnrecognizedDependencyError
+	if ok := goErrors.As(expected, &unrecognizedDependencyError); ok {
+		var actualUnrecognized UnrecognizedDependencyError
+		ok = goErrors.As(actual, &actualUnrecognized)
+		if assert.True(t, ok, messageAndArgs...) {
+			assert.Equal(t, unrecognizedDependencyError, actualUnrecognized, messageAndArgs...)
 		}
 	} else {
 		assert.True(t, errors.IsError(actual, expected), messageAndArgs...)
@@ -180,13 +184,14 @@ func optionsWithMockTerragruntCommand(t *testing.T, terragruntConfigPath string,
 
 func assertMultiErrorContains(t *testing.T, actualError error, expectedErrors ...error) {
 	actualError = errors.Unwrap(actualError)
-	multiError, isMultiError := actualError.(*multierror.Error)
+	var multiError *multierror.Error
+	isMultiError := goErrors.As(actualError, &multiError)
 	if assert.True(t, isMultiError, "Expected a MutliError, but got: %v", actualError) {
 		assert.Equal(t, len(expectedErrors), len(multiError.Errors))
 		for _, expectedErr := range expectedErrors {
 			found := false
 			for _, actualErr := range multiError.Errors {
-				if expectedErr == actualErr {
+				if goErrors.Is(expectedErr, actualErr) {
 					found = true
 					break
 				}

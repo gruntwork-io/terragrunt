@@ -3,7 +3,7 @@ package util
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAsTerraformEnvVarJsonValue(t *testing.T) {
@@ -19,7 +19,7 @@ func TestAsTerraformEnvVarJsonValue(t *testing.T) {
 
 	for _, testCase := range testCases {
 		actual, err := AsTerraformEnvVarJsonValue(testCase.value)
-		assert.NoError(t, err)
-		assert.Equal(t, testCase.expected, actual)
+		require.NoError(t, err)
+		require.Equal(t, testCase.expected, actual)
 	}
 }

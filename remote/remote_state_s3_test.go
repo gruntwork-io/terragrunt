@@ -2,6 +2,7 @@ package remote
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -14,11 +15,114 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestCreateS3LoggingInput(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		config        map[string]interface{}
+		loggingInput  s3.PutBucketLoggingInput
+		shouldBeEqual bool
+	}{
+		{
+			"equal-default-prefix-no-partition-date-source",
+			map[string]interface{}{
+				"bucket":                    "source-bucket",
+				"accesslogging_bucket_name": "logging-bucket",
+			},
+			s3.PutBucketLoggingInput{
+				Bucket: aws.String("source-bucket"),
+				BucketLoggingStatus: &s3.BucketLoggingStatus{
+					LoggingEnabled: &s3.LoggingEnabled{
+						TargetBucket: aws.String("logging-bucket"),
+						TargetPrefix: aws.String(DefaultS3BucketAccessLoggingTargetPrefix),
+					},
+				},
+			},
+			true,
+		},
+		{
+			"equal-no-prefix-no-partition-date-source",
+			map[string]interface{}{
+				"bucket":                      "source-bucket",
+				"accesslogging_bucket_name":   "logging-bucket",
+				"accesslogging_target_prefix": "",
+			},
+			s3.PutBucketLoggingInput{
+				Bucket: aws.String("source-bucket"),
+				BucketLoggingStatus: &s3.BucketLoggingStatus{
+					LoggingEnabled: &s3.LoggingEnabled{
+						TargetBucket: aws.String("logging-bucket"),
+					},
+				},
+			},
+			true,
+		},
+		{
+			"equal-custom-prefix-no-partition-date-source",
+			map[string]interface{}{
+				"bucket":                      "source-bucket",
+				"accesslogging_bucket_name":   "logging-bucket",
+				"accesslogging_target_prefix": "custom-prefix/",
+			},
+			s3.PutBucketLoggingInput{
+				Bucket: aws.String("source-bucket"),
+				BucketLoggingStatus: &s3.BucketLoggingStatus{
+					LoggingEnabled: &s3.LoggingEnabled{
+						TargetBucket: aws.String("logging-bucket"),
+						TargetPrefix: aws.String("custom-prefix/"),
+					},
+				},
+			},
+			true,
+		},
+		{
+			"equal-custom-prefix-custom-partition-date-source",
+			map[string]interface{}{
+				"bucket":                    "source-bucket",
+				"accesslogging_bucket_name": "logging-bucket",
+				"accesslogging_target_object_partition_date_source": "EventTime",
+				"accesslogging_target_prefix":                       "custom-prefix/",
+			},
+			s3.PutBucketLoggingInput{
+				Bucket: aws.String("source-bucket"),
+				BucketLoggingStatus: &s3.BucketLoggingStatus{
+					LoggingEnabled: &s3.LoggingEnabled{
+						TargetBucket: aws.String("logging-bucket"),
+						TargetPrefix: aws.String("custom-prefix/"),
+						TargetObjectKeyFormat: &s3.TargetObjectKeyFormat{
+							PartitionedPrefix: &s3.PartitionedPrefix{
+								PartitionDateSource: aws.String("EventTime"),
+							},
+						},
+					},
+				},
+			},
+			true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		// Save the testCase in local scope so all the t.Run calls don't end up with the last item in the list
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			extendedS3Config, _ := ParseExtendedS3Config(testCase.config)
+			createdLoggingInput := extendedS3Config.createS3LoggingInput()
+			actual := reflect.DeepEqual(createdLoggingInput, testCase.loggingInput)
+			if !assert.Equal(t, testCase.shouldBeEqual, actual) {
+				t.Errorf("s3.PutBucketLoggingInput mismatch:\ncreated: %+v\nexpected: %+v", createdLoggingInput, testCase.loggingInput)
+			}
+		})
+	}
+}
+
 func TestConfigValuesEqual(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("remote_state_test")
-	require.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	testCases := []struct {
 		name          string
@@ -81,8 +185,16 @@ func TestConfigValuesEqual(t *testing.T) {
 			true,
 		},
 		{
-			"equal-ignore-accesslogging-bucket-tags",
-			map[string]interface{}{"accesslogging_bucket_tags": []map[string]string{{"foo": "bar"}}},
+			"equal-ignore-accesslogging-options",
+			map[string]interface{}{
+				"accesslogging_bucket_tags":                         []map[string]string{{"foo": "bar"}},
+				"accesslogging_target_object_partition_date_source": "EventTime",
+				"accesslogging_target_prefix":                       "test/",
+				"skip_accesslogging_bucket_acl":                     false,
+				"skip_accesslogging_bucket_enforced_tls":            false,
+				"skip_accesslogging_bucket_public_access_blocking":  false,
+				"skip_accesslogging_bucket_ssencryption":            false,
+			},
 			&TerraformBackend{Type: "s3", Config: map[string]interface{}{}},
 			true,
 		},
@@ -125,7 +237,7 @@ func TestConfigValuesEqual(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			actual := configValuesEqual(testCase.config, testCase.backend, terragruntOptions)
-			assert.Equal(t, testCase.shouldBeEqual, actual)
+			require.Equal(t, testCase.shouldBeEqual, actual)
 		})
 	}
 }
@@ -134,7 +246,7 @@ func TestForcePathStyleClientSession(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("s3_client_test")
-	require.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	testCases := []struct {
 		name     string
@@ -167,13 +279,13 @@ func TestForcePathStyleClientSession(t *testing.T) {
 			t.Parallel()
 
 			s3ConfigExtended, err := ParseExtendedS3Config(testCase.config)
-			require.Nil(t, err, "Unexpected error parsing config for test: %v", err)
+			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
 			s3Client, err := CreateS3Client(s3ConfigExtended.GetAwsSessionConfig(), terragruntOptions)
-			require.Nil(t, err, "Unexpected error creating client for test: %v", err)
+			require.NoError(t, err, "Unexpected error creating client for test: %v", err)
 
 			actual := aws.BoolValue(s3Client.Config.S3ForcePathStyle)
-			assert.Equal(t, testCase.expected, actual)
+			require.Equal(t, testCase.expected, actual)
 		})
 	}
 }
@@ -208,7 +320,7 @@ func TestGetAwsSessionConfig(t *testing.T) {
 			t.Parallel()
 
 			s3ConfigExtended, err := ParseExtendedS3Config(testCase.config)
-			require.Nil(t, err, "Unexpected error parsing config for test: %v", err)
+			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
 			expected := &aws_helper.AwsSessionConfig{
 				Region:                  s3ConfigExtended.remoteStateConfigS3.Region,
@@ -222,7 +334,7 @@ func TestGetAwsSessionConfig(t *testing.T) {
 			}
 
 			actual := s3ConfigExtended.GetAwsSessionConfig()
-			assert.Equal(t, expected, actual)
+			require.Equal(t, expected, actual)
 		})
 	}
 }
@@ -250,7 +362,7 @@ func TestGetAwsSessionConfigWithAssumeRole(t *testing.T) {
 
 			config := map[string]interface{}{"assume_role": testCase.config}
 			s3ConfigExtended, err := ParseExtendedS3Config(config)
-			require.Nil(t, err, "Unexpected error parsing config for test: %v", err)
+			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
 			expected := &aws_helper.AwsSessionConfig{
 				RoleArn:     s3ConfigExtended.remoteStateConfigS3.AssumeRole.RoleArn,
@@ -259,7 +371,7 @@ func TestGetAwsSessionConfigWithAssumeRole(t *testing.T) {
 			}
 
 			actual := s3ConfigExtended.GetAwsSessionConfig()
-			assert.Equal(t, expected, actual)
+			require.Equal(t, expected, actual)
 		})
 	}
 }
@@ -319,19 +431,24 @@ func TestGetTerraformInitArgs(t *testing.T) {
 		{
 			"empty-no-values-all-terragrunt-keys-filtered",
 			map[string]interface{}{
-				"s3_bucket_tags":                     map[string]string{},
-				"dynamodb_table_tags":                map[string]string{},
-				"accesslogging_bucket_tags":          map[string]string{},
-				"skip_bucket_versioning":             true,
-				"skip_bucket_ssencryption":           false,
-				"skip_bucket_root_access":            false,
-				"skip_bucket_enforced_tls":           false,
-				"skip_bucket_public_access_blocking": false,
-				"disable_bucket_update":              true,
-				"enable_lock_table_ssencryption":     true,
-				"disable_aws_client_checksums":       false,
-				"accesslogging_bucket_name":          "test",
-				"accesslogging_target_prefix":        "test",
+				"s3_bucket_tags":                                    map[string]string{},
+				"dynamodb_table_tags":                               map[string]string{},
+				"accesslogging_bucket_tags":                         map[string]string{},
+				"skip_bucket_versioning":                            true,
+				"skip_bucket_ssencryption":                          false,
+				"skip_bucket_root_access":                           false,
+				"skip_bucket_enforced_tls":                          false,
+				"skip_bucket_public_access_blocking":                false,
+				"disable_bucket_update":                             true,
+				"enable_lock_table_ssencryption":                    true,
+				"disable_aws_client_checksums":                      false,
+				"accesslogging_bucket_name":                         "test",
+				"accesslogging_target_object_partition_date_source": "EventTime",
+				"accesslogging_target_prefix":                       "test",
+				"skip_accesslogging_bucket_acl":                     false,
+				"skip_accesslogging_bucket_enforced_tls":            false,
+				"skip_accesslogging_bucket_public_access_blocking":  false,
+				"skip_accesslogging_bucket_ssencryption":            false,
 			},
 			map[string]interface{}{},
 			true,
@@ -399,10 +516,10 @@ func TestGetTerraformInitArgs(t *testing.T) {
 			actual := initializer.GetTerraformInitArgs(testCase.config)
 
 			if !testCase.shouldBeEqual {
-				assert.NotEqual(t, testCase.expected, actual)
+				require.NotEqual(t, testCase.expected, actual)
 				return
 			}
-			assert.Equal(t, testCase.expected, actual)
+			require.Equal(t, testCase.expected, actual)
 		})
 	}
 }
@@ -450,8 +567,8 @@ func TestNegativePublicAccessResponse(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			response, err := validatePublicAccessBlock(testCase.response)
-			assert.NoError(t, err)
-			assert.False(t, response)
+			require.NoError(t, err)
+			require.False(t, response)
 		})
 	}
 }
@@ -499,9 +616,9 @@ func TestValidateS3Config(t *testing.T) {
 			logger.SetOutput(buf)
 			err := validateS3Config(testCase.extendedConfig)
 			if err != nil {
-				assert.ErrorIs(t, err, testCase.expectedErr)
+				require.ErrorIs(t, err, testCase.expectedErr)
 			}
-			assert.Contains(t, buf.String(), testCase.expectedOutput)
+			require.Contains(t, buf.String(), testCase.expectedOutput)
 		})
 	}
 }

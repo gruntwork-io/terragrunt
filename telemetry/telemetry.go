@@ -73,8 +73,8 @@ func ShutdownTelemetry(ctx context.Context) error {
 // Telemetry - collect telemetry from function execution - metrics and traces.
 func Telemetry(ctx context.Context, opts *options.TerragruntOptions, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
 	// wrap telemetry collection with trace and time metric
-	return Trace(ctx, opts, name, attrs, func(ctx context.Context) error {
-		return Time(ctx, opts, name, attrs, fn)
+	return Trace(ctx, name, attrs, func(ctx context.Context) error {
+		return Time(ctx, name, attrs, fn)
 	})
 }
 

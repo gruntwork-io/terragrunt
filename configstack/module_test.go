@@ -3,14 +3,14 @@ package configstack
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGraph(t *testing.T) {
@@ -47,7 +47,7 @@ digraph {
 	"h" -> "c";
 }
 `)
-	assert.True(t, strings.Contains(stdout.String(), expected))
+	require.True(t, strings.Contains(stdout.String(), expected))
 }
 
 func TestGraphTrimPrefix(t *testing.T) {
@@ -84,7 +84,7 @@ digraph {
 	"alpha/beta/h" -> "c";
 }
 `)
-	assert.True(t, strings.Contains(stdout.String(), expected))
+	require.True(t, strings.Contains(stdout.String(), expected))
 }
 
 func TestGraphFlagExcluded(t *testing.T) {
@@ -121,7 +121,7 @@ digraph {
 	"h" -> "c";
 }
 `)
-	assert.True(t, strings.Contains(stdout.String(), expected))
+	require.True(t, strings.Contains(stdout.String(), expected))
 }
 
 func TestCheckForCycles(t *testing.T) {
@@ -195,10 +195,12 @@ func TestCheckForCycles(t *testing.T) {
 	for _, testCase := range testCases {
 		actual := testCase.modules.CheckForCycles()
 		if testCase.expected == nil {
-			assert.Nil(t, actual)
-		} else if assert.NotNil(t, actual, "For modules %v", testCase.modules) {
-			actualErr := errors.Unwrap(actual).(DependencyCycleError)
-			assert.Equal(t, []string(testCase.expected), []string(actualErr), "For modules %v", testCase.modules)
+			require.NoError(t, actual)
+		} else if assert.Error(t, actual, "For modules %v", testCase.modules) {
+			var actualErr DependencyCycleError
+			// actualErr := errors.Unwrap(actual).(DependencyCycleError)
+			errors.As(actual, &actualErr)
+			require.Equal(t, []string(testCase.expected), []string(actualErr), "For modules %v", testCase.modules)
 		}
 	}
 }
@@ -207,11 +209,11 @@ func TestRunModulesNoModules(t *testing.T) {
 	t.Parallel()
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
-	assert.Nil(t, err, "Unexpected error: %v", err)
+	require.NoError(t, err, "Unexpected error: %v", err)
 }
 
 func TestRunModulesOneModuleSuccess(t *testing.T) {
@@ -226,12 +228,12 @@ func TestRunModulesOneModuleSuccess(t *testing.T) {
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
-	assert.Nil(t, err, "Unexpected error: %v", err)
-	assert.True(t, aRan)
+	require.NoError(t, err, "Unexpected error: %v", err)
+	require.True(t, aRan)
 }
 
 func TestRunModulesOneModuleAssumeAlreadyRan(t *testing.T) {
@@ -247,12 +249,12 @@ func TestRunModulesOneModuleAssumeAlreadyRan(t *testing.T) {
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
-	assert.Nil(t, err, "Unexpected error: %v", err)
-	assert.False(t, aRan)
+	require.NoError(t, err, "Unexpected error: %v", err)
+	require.False(t, aRan)
 }
 
 func TestRunModulesReverseOrderOneModuleSuccess(t *testing.T) {
@@ -267,12 +269,12 @@ func TestRunModulesReverseOrderOneModuleSuccess(t *testing.T) {
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA}
 	err = modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
-	assert.Nil(t, err, "Unexpected error: %v", err)
-	assert.True(t, aRan)
+	require.NoError(t, err, "Unexpected error: %v", err)
+	require.True(t, aRan)
 }
 
 func TestRunModulesIgnoreOrderOneModuleSuccess(t *testing.T) {
@@ -287,19 +289,19 @@ func TestRunModulesIgnoreOrderOneModuleSuccess(t *testing.T) {
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA}
 	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
-	assert.Nil(t, err, "Unexpected error: %v", err)
-	assert.True(t, aRan)
+	require.NoError(t, err, "Unexpected error: %v", err)
+	require.True(t, aRan)
 }
 
 func TestRunModulesOneModuleError(t *testing.T) {
 	t.Parallel()
 
 	aRan := false
-	expectedErrA := fmt.Errorf("Expected error for module a")
+	expectedErrA := errors.New("Expected error for module a")
 	moduleA := &TerraformModule{
 		Path:              "a",
 		Dependencies:      TerraformModules{},
@@ -308,19 +310,19 @@ func TestRunModulesOneModuleError(t *testing.T) {
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA)
-	assert.True(t, aRan)
+	require.True(t, aRan)
 }
 
 func TestRunModulesReverseOrderOneModuleError(t *testing.T) {
 	t.Parallel()
 
 	aRan := false
-	expectedErrA := fmt.Errorf("Expected error for module a")
+	expectedErrA := errors.New("Expected error for module a")
 	moduleA := &TerraformModule{
 		Path:              "a",
 		Dependencies:      TerraformModules{},
@@ -329,19 +331,19 @@ func TestRunModulesReverseOrderOneModuleError(t *testing.T) {
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA}
 	err = modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA)
-	assert.True(t, aRan)
+	require.True(t, aRan)
 }
 
 func TestRunModulesIgnoreOrderOneModuleError(t *testing.T) {
 	t.Parallel()
 
 	aRan := false
-	expectedErrA := fmt.Errorf("Expected error for module a")
+	expectedErrA := errors.New("Expected error for module a")
 	moduleA := &TerraformModule{
 		Path:              "a",
 		Dependencies:      TerraformModules{},
@@ -350,12 +352,12 @@ func TestRunModulesIgnoreOrderOneModuleError(t *testing.T) {
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA}
 	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA)
-	assert.True(t, aRan)
+	require.True(t, aRan)
 }
 
 func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
@@ -386,15 +388,15 @@ func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
-	assert.Nil(t, err, "Unexpected error: %v", err)
+	require.NoError(t, err, "Unexpected error: %v", err)
 
-	assert.True(t, aRan)
-	assert.True(t, bRan)
-	assert.True(t, cRan)
+	require.True(t, aRan)
+	require.True(t, bRan)
+	require.True(t, cRan)
 }
 
 func TestRunModulesMultipleModulesNoDependenciesSuccessNoParallelism(t *testing.T) {
@@ -425,15 +427,15 @@ func TestRunModulesMultipleModulesNoDependenciesSuccessNoParallelism(t *testing.
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModules(context.Background(), opts, 1)
-	assert.Nil(t, err, "Unexpected error: %v", err)
+	require.NoError(t, err, "Unexpected error: %v", err)
 
-	assert.True(t, aRan)
-	assert.True(t, bRan)
-	assert.True(t, cRan)
+	require.True(t, aRan)
+	require.True(t, bRan)
+	require.True(t, cRan)
 }
 
 func TestRunModulesReverseOrderMultipleModulesNoDependenciesSuccess(t *testing.T) {
@@ -464,15 +466,15 @@ func TestRunModulesReverseOrderMultipleModulesNoDependenciesSuccess(t *testing.T
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
-	assert.Nil(t, err, "Unexpected error: %v", err)
+	require.NoError(t, err, "Unexpected error: %v", err)
 
-	assert.True(t, aRan)
-	assert.True(t, bRan)
-	assert.True(t, cRan)
+	require.True(t, aRan)
+	require.True(t, bRan)
+	require.True(t, cRan)
 }
 
 func TestRunModulesIgnoreOrderMultipleModulesNoDependenciesSuccess(t *testing.T) {
@@ -503,15 +505,15 @@ func TestRunModulesIgnoreOrderMultipleModulesNoDependenciesSuccess(t *testing.T)
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
-	assert.Nil(t, err, "Unexpected error: %v", err)
+	require.NoError(t, err, "Unexpected error: %v", err)
 
-	assert.True(t, aRan)
-	assert.True(t, bRan)
-	assert.True(t, cRan)
+	require.True(t, aRan)
+	require.True(t, bRan)
+	require.True(t, cRan)
 }
 
 func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
@@ -526,7 +528,7 @@ func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
 	}
 
 	bRan := false
-	expectedErrB := fmt.Errorf("Expected error for module b")
+	expectedErrB := errors.New("Expected error for module b")
 	moduleB := &TerraformModule{
 		Path:              "b",
 		Dependencies:      TerraformModules{},
@@ -543,22 +545,22 @@ func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
 	}
 
 	opts, optsErr := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, optsErr)
+	require.NoError(t, optsErr)
 
 	modules := TerraformModules{moduleA, moduleB, moduleC}
 	err := modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB)
 
-	assert.True(t, aRan)
-	assert.True(t, bRan)
-	assert.True(t, cRan)
+	require.True(t, aRan)
+	require.True(t, bRan)
+	require.True(t, cRan)
 }
 
 func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 	t.Parallel()
 
 	aRan := false
-	expectedErrA := fmt.Errorf("Expected error for module a")
+	expectedErrA := errors.New("Expected error for module a")
 	moduleA := &TerraformModule{
 		Path:              "a",
 		Dependencies:      TerraformModules{},
@@ -567,7 +569,7 @@ func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 	}
 
 	bRan := false
-	expectedErrB := fmt.Errorf("Expected error for module b")
+	expectedErrB := errors.New("Expected error for module b")
 	moduleB := &TerraformModule{
 		Path:              "b",
 		Dependencies:      TerraformModules{},
@@ -576,7 +578,7 @@ func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 	}
 
 	cRan := false
-	expectedErrC := fmt.Errorf("Expected error for module c")
+	expectedErrC := errors.New("Expected error for module c")
 	moduleC := &TerraformModule{
 		Path:              "c",
 		Dependencies:      TerraformModules{},
@@ -585,15 +587,15 @@ func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA, expectedErrB, expectedErrC)
 
-	assert.True(t, aRan)
-	assert.True(t, bRan)
-	assert.True(t, cRan)
+	require.True(t, aRan)
+	require.True(t, bRan)
+	require.True(t, cRan)
 }
 
 func TestRunModulesMultipleModulesWithDependenciesSuccess(t *testing.T) {
@@ -624,15 +626,15 @@ func TestRunModulesMultipleModulesWithDependenciesSuccess(t *testing.T) {
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
-	assert.Nil(t, err, "Unexpected error: %v", err)
+	require.NoError(t, err, "Unexpected error: %v", err)
 
-	assert.True(t, aRan)
-	assert.True(t, bRan)
-	assert.True(t, cRan)
+	require.True(t, aRan)
+	require.True(t, bRan)
+	require.True(t, cRan)
 }
 
 func TestRunModulesMultipleModulesWithDependenciesWithAssumeAlreadyRanSuccess(t *testing.T) {
@@ -672,16 +674,16 @@ func TestRunModulesMultipleModulesWithDependenciesWithAssumeAlreadyRanSuccess(t 
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA, moduleB, moduleC, moduleD}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
-	assert.Nil(t, err, "Unexpected error: %v", err)
+	require.NoError(t, err, "Unexpected error: %v", err)
 
-	assert.True(t, aRan)
-	assert.True(t, bRan)
-	assert.False(t, cRan)
-	assert.True(t, dRan)
+	require.True(t, aRan)
+	require.True(t, bRan)
+	require.False(t, cRan)
+	require.True(t, dRan)
 }
 
 func TestRunModulesReverseOrderMultipleModulesWithDependenciesSuccess(t *testing.T) {
@@ -712,15 +714,15 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesSuccess(t *testing
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
-	assert.Nil(t, err, "Unexpected error: %v", err)
+	require.NoError(t, err, "Unexpected error: %v", err)
 
-	assert.True(t, aRan)
-	assert.True(t, bRan)
-	assert.True(t, cRan)
+	require.True(t, aRan)
+	require.True(t, bRan)
+	require.True(t, cRan)
 }
 
 func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesSuccess(t *testing.T) {
@@ -751,15 +753,15 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesSuccess(t *testing.
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
-	assert.Nil(t, err, "Unexpected error: %v", err)
+	require.NoError(t, err, "Unexpected error: %v", err)
 
-	assert.True(t, aRan)
-	assert.True(t, bRan)
-	assert.True(t, cRan)
+	require.True(t, aRan)
+	require.True(t, bRan)
+	require.True(t, cRan)
 }
 
 func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
@@ -774,7 +776,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 	}
 
 	bRan := false
-	expectedErrB := fmt.Errorf("Expected error for module b")
+	expectedErrB := errors.New("Expected error for module b")
 	moduleB := &TerraformModule{
 		Path:              "b",
 		Dependencies:      TerraformModules{moduleA},
@@ -793,15 +795,15 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 	expectedErrC := ProcessingModuleDependencyError{moduleC, moduleB, expectedErrB}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB, expectedErrC)
 
-	assert.True(t, aRan)
-	assert.True(t, bRan)
-	assert.False(t, cRan)
+	require.True(t, aRan)
+	require.True(t, bRan)
+	require.False(t, cRan)
 }
 
 func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErrors(t *testing.T) {
@@ -818,7 +820,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErro
 	}
 
 	bRan := false
-	expectedErrB := fmt.Errorf("Expected error for module b")
+	expectedErrB := errors.New("Expected error for module b")
 	terragruntOptionsB := optionsWithMockTerragruntCommand(t, "b", expectedErrB, &bRan)
 	terragruntOptionsB.IgnoreDependencyErrors = true
 	moduleB := &TerraformModule{
@@ -839,15 +841,15 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErro
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB)
 
-	assert.True(t, aRan)
-	assert.True(t, bRan)
-	assert.True(t, cRan)
+	require.True(t, aRan)
+	require.True(t, bRan)
+	require.True(t, cRan)
 }
 
 func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *testing.T) {
@@ -862,7 +864,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *test
 	}
 
 	bRan := false
-	expectedErrB := fmt.Errorf("Expected error for module b")
+	expectedErrB := errors.New("Expected error for module b")
 	moduleB := &TerraformModule{
 		Path:              "b",
 		Dependencies:      TerraformModules{moduleA},
@@ -881,15 +883,15 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *test
 	expectedErrA := ProcessingModuleDependencyError{moduleA, moduleB, expectedErrB}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB, expectedErrA)
 
-	assert.False(t, aRan)
-	assert.True(t, bRan)
-	assert.True(t, cRan)
+	require.False(t, aRan)
+	require.True(t, bRan)
+	require.True(t, cRan)
 }
 
 func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesOneFailure(t *testing.T) {
@@ -904,7 +906,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesOneFailure(t *testi
 	}
 
 	bRan := false
-	expectedErrB := fmt.Errorf("Expected error for module b")
+	expectedErrB := errors.New("Expected error for module b")
 	moduleB := &TerraformModule{
 		Path:              "b",
 		Dependencies:      TerraformModules{moduleA},
@@ -921,22 +923,22 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesOneFailure(t *testi
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB)
 
-	assert.True(t, aRan)
-	assert.True(t, bRan)
-	assert.True(t, cRan)
+	require.True(t, aRan)
+	require.True(t, bRan)
+	require.True(t, cRan)
 }
 
 func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T) {
 	t.Parallel()
 
 	aRan := false
-	expectedErrA := fmt.Errorf("Expected error for module a")
+	expectedErrA := errors.New("Expected error for module a")
 	moduleA := &TerraformModule{
 		Path:              "a",
 		Dependencies:      TerraformModules{},
@@ -964,22 +966,22 @@ func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T)
 	expectedErrC := ProcessingModuleDependencyError{moduleC, moduleB, expectedErrB}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA, expectedErrB, expectedErrC)
 
-	assert.True(t, aRan)
-	assert.False(t, bRan)
-	assert.False(t, cRan)
+	require.True(t, aRan)
+	require.False(t, bRan)
+	require.False(t, cRan)
 }
 
 func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesMultipleFailures(t *testing.T) {
 	t.Parallel()
 
 	aRan := false
-	expectedErrA := fmt.Errorf("Expected error for module a")
+	expectedErrA := errors.New("Expected error for module a")
 	moduleA := &TerraformModule{
 		Path:              "a",
 		Dependencies:      TerraformModules{},
@@ -1004,15 +1006,15 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesMultipleFailures(t 
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA)
 
-	assert.True(t, aRan)
-	assert.True(t, bRan)
-	assert.True(t, cRan)
+	require.True(t, aRan)
+	require.True(t, bRan)
+	require.True(t, cRan)
 }
 
 func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testing.T) {
@@ -1067,18 +1069,18 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testin
 	}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	assert.True(t, aRan)
-	assert.True(t, bRan)
-	assert.True(t, cRan)
-	assert.True(t, dRan)
-	assert.True(t, eRan)
-	assert.True(t, fRan)
+	require.True(t, aRan)
+	require.True(t, bRan)
+	require.True(t, cRan)
+	require.True(t, dRan)
+	require.True(t, eRan)
+	require.True(t, fRan)
 }
 
 func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *testing.T) {
@@ -1101,7 +1103,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 	}
 
 	cRan := false
-	expectedErrC := fmt.Errorf("Expected error for module large-graph-c")
+	expectedErrC := errors.New("Expected error for module large-graph-c")
 	moduleC := &TerraformModule{
 		Path:              "large-graph-c",
 		Dependencies:      TerraformModules{moduleB},
@@ -1146,19 +1148,19 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 	expectedErrF := ProcessingModuleDependencyError{moduleF, moduleD, expectedErrD}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	modules := TerraformModules{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF, moduleG}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrC, expectedErrD, expectedErrF)
 
-	assert.True(t, aRan)
-	assert.True(t, bRan)
-	assert.True(t, cRan)
-	assert.False(t, dRan)
-	assert.False(t, eRan)
-	assert.False(t, fRan)
-	assert.True(t, gRan)
+	require.True(t, aRan)
+	require.True(t, bRan)
+	require.True(t, cRan)
+	require.False(t, dRan)
+	require.False(t, eRan)
+	require.False(t, fRan)
+	require.True(t, gRan)
 }
 
 func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialFailure(t *testing.T) {
@@ -1181,7 +1183,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 	}
 
 	cRan := false
-	expectedErrC := fmt.Errorf("Expected error for module c")
+	expectedErrC := errors.New("Expected error for module c")
 	moduleC := &TerraformModule{
 		Path:              "c",
 		Dependencies:      TerraformModules{moduleB},
@@ -1217,16 +1219,16 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 	expectedErrA := ProcessingModuleDependencyError{moduleA, moduleB, expectedErrB}
 
 	opts, optsErr := options.NewTerragruntOptionsForTest("")
-	assert.NoError(t, optsErr)
+	require.NoError(t, optsErr)
 
 	modules := TerraformModules{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF}
 	err := modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrC, expectedErrB, expectedErrA)
 
-	assert.False(t, aRan)
-	assert.False(t, bRan)
-	assert.True(t, cRan)
-	assert.True(t, dRan)
-	assert.True(t, eRan)
-	assert.True(t, fRan)
+	require.False(t, aRan)
+	require.False(t, bRan)
+	require.True(t, cRan)
+	require.True(t, dRan)
+	require.True(t, eRan)
+	require.True(t, fRan)
 }

@@ -10,7 +10,7 @@ import (
 type Attributes []*Attribute
 
 func NewAttributes(file *File, hclAttrs hcl.Attributes) Attributes {
-	var attrs Attributes
+	var attrs = make(Attributes, 0, len(hclAttrs))
 
 	for _, hclAttr := range hclAttrs {
 		attrs = append(attrs, &Attribute{
@@ -25,7 +25,8 @@ func NewAttributes(file *File, hclAttrs hcl.Attributes) Attributes {
 func (attrs Attributes) ValidateIdentifier() error {
 	for _, attr := range attrs {
 		if err := attr.ValidateIdentifier(); err != nil {
-			return nil
+			// TODO: Remove lint suppression
+			return nil //nolint:nilerr
 		}
 	}
 

@@ -147,7 +147,7 @@ func wrapStaticValueToStringSliceAsFuncImpl(out []string) function.Function {
 // Convert the slice of cty values to a slice of strings. If any of the values in the given slice is not a string,
 // return an error.
 func ctySliceToStringSlice(args []cty.Value) ([]string, error) {
-	var out []string
+	var out = make([]string, 0, len(args))
 	for _, arg := range args {
 		if arg.Type() != cty.String {
 			return nil, errors.WithStackTrace(InvalidParameterTypeError{Expected: "string", Actual: arg.Type().FriendlyName()})
@@ -244,8 +244,8 @@ func parseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
 // a value field. This struct is used to capture that information so when we parse the JSON back into a Go struct, we
 // can pull out just the Value field we need.
 type CtyJsonOutput struct {
-	Value map[string]interface{}
-	Type  interface{}
+	Value map[string]interface{} `json:"Value"`
+	Type  interface{}            `json:"Type"`
 }
 
 // convertValuesMapToCtyVal takes a map of name - cty.Value pairs and converts to a single cty.Value object.

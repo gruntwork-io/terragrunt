@@ -4,6 +4,7 @@ package terraform
 import (
 	"context"
 	"encoding/json"
+	goErrors "errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -172,11 +173,11 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 // GetFile is not implemented for the Terraform module registry Getter since the terraform module registry doesn't serve
 // a single file.
 func (tfrGetter *RegistryGetter) GetFile(dst string, src *url.URL) error {
-	return errors.WithStackTrace(fmt.Errorf("GetFile is not implemented for the Terraform Registry Getter"))
+	return errors.WithStackTrace(goErrors.New("GetFile is not implemented for the Terraform Registry Getter"))
 }
 
 // getSubdir downloads the source into the destination, but with the proper subdir.
-func (tfrGetter *RegistryGetter) getSubdir(ctx context.Context, dstPath, sourceURL, subDir string) error {
+func (tfrGetter *RegistryGetter) getSubdir(_ context.Context, dstPath, sourceURL, subDir string) error {
 	// Create a temporary directory to store the full source. This has to be a non-existent directory.
 	tempdirPath, tempdirCloser, err := safetemp.Dir("", "getter")
 	if err != nil {
@@ -216,7 +217,8 @@ func (tfrGetter *RegistryGetter) getSubdir(ctx context.Context, dstPath, sourceU
 	}
 
 	// Make the final destination
-	if err := os.MkdirAll(dstPath, 0755); err != nil {
+	const ownerWriteGlobalReadExecutePerms = 0755
+	if err := os.MkdirAll(dstPath, ownerWriteGlobalReadExecutePerms); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
@@ -319,7 +321,7 @@ func httpGETAndGetResponse(ctx context.Context, getURL url.URL) ([]byte, *http.H
 	// the request header.
 	authToken := os.Getenv(authTokenEnvVarName)
 	if authToken != "" {
-		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", authToken))
+		req.Header.Add("Authorization", "Bearer "+authToken)
 	}
 
 	resp, err := httpClient.Do(req)
@@ -327,12 +329,13 @@ func httpGETAndGetResponse(ctx context.Context, getURL url.URL) ([]byte, *http.H
 		return nil, nil, errors.WithStackTrace(err)
 	}
 
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
+	defer func() {
+		err := resp.Body.Close()
 		if err != nil {
 			util.GlobalFallbackLogEntry.Warnf("Error closing response body: %v", err)
 		}
-	}(resp.Body)
+	}()
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, nil, errors.WithStackTrace(RegistryAPIErr{url: getURL.String(), statusCode: resp.StatusCode})
 	}

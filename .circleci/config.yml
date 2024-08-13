@@ -79,20 +79,20 @@ setup_test_environment: &setup_test_environment
 run_integration_test: &run_integration_test
   name: Run integration tests
   command: |
-    run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/integration.log
+    run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/test-results.log
   no_output_timeout: 30m
 
 run_tflint_test: &run_tflint_test
   name: Run TFlint tests
   command: |
-    run-go-tests --packages "-tags tflint -run TestTflint ./test" | tee logs/integration.log
+    run-go-tests --packages "-tags tflint -run TestTflint ./test" | tee logs/test-results.log
   no_output_timeout: 30m
 
 run_terratest_log_parser: &run_terratest_log_parser
   name: Terratest log parser
   command: |
     gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.30.0'
-    terratest_log_parser --testlog logs/integration.log --outputdir logs
+    terratest_log_parser --testlog logs/test-results.log --outputdir logs
   when: always
 
 run_markdownlint: &run_markdownlint
@@ -193,11 +193,10 @@ jobs:
           command: |
             mkdir -p logs
             go mod tidy
-            run-go-tests --parallelism 1 --packages "$(go list ./... | grep -v /test | tr '\n' ' ')"  | tee logs/unit.log
-            go test -run=TestParseDependencyBlockMultiple -race ./config | tee -a logs/unit.log
+            run-go-tests --parallelism 1 --packages "$(go list ./... | grep -v /test | tr '\n' ' ')"  | tee logs/test-results.log
+            go test -run=TestParseDependencyBlockMultiple -race ./config | tee -a logs/block-multiple-test-results.log
       - run:
-          command: terratest_log_parser --testlog logs/unit.log --outputdir logs
-          when: always
+          <<: *run_terratest_log_parser
       - store_artifacts:
           path: logs
       - store_test_results:
@@ -330,7 +329,39 @@ jobs:
       - run:
           name: Run engine integration tests
           command: |
-            run-go-tests --packages "-tags=engine -run ^TestEngine ./test" | tee logs/integration.log
+            run-go-tests --packages "-tags=engine -run ^TestEngine ./test" | tee logs/test-results.log
+          no_output_timeout: 30m
+          environment:
+            TERRAGRUNT_TFPATH: tofu
+      - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
+  test_mocks:
+    resource_class: small
+    <<: *defaults
+    <<: *env
+    steps:
+      - checkout
+      - run:
+          <<: *install_tofu
+      - run:
+          <<: *setup_test_environment
+      - run:
+          # Remove terraform
+          sudo rm -f $(which terraform)
+      - run:
+          name: generate mocks
+          command: |
+            make install-mockery
+            make generate-mocks
+      - run:
+          name: Run mocks tests
+          command: |
+            run-go-tests --packages "-tags=mocks -run ^TestMock ./terraform/getproviders/." | tee logs/test-results.log
           no_output_timeout: 30m
           environment:
             TERRAGRUNT_TFPATH: tofu
@@ -521,6 +552,14 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
       - integration_test_tflint:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+      - test_mocks:
           filters:
             tags:
               only: /^v.*/

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terratest/modules/files"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,7 +16,7 @@ func TestGetModuleRegistryURLBasePath(t *testing.T) {
 
 	basePath, err := getModuleRegistryURLBasePath(context.Background(), "registry.terraform.io")
 	require.NoError(t, err)
-	assert.Equal(t, "/v1/modules/", basePath)
+	require.Equal(t, "/v1/modules/", basePath)
 }
 
 func TestGetTerraformHeader(t *testing.T) {
@@ -30,7 +29,7 @@ func TestGetTerraformHeader(t *testing.T) {
 	}
 	terraformGetHeader, err := getTerraformGetHeader(context.Background(), testModuleURL)
 	require.NoError(t, err)
-	assert.Contains(t, terraformGetHeader, "github.com/terraform-aws-modules/terraform-aws-vpc")
+	require.Contains(t, terraformGetHeader, "github.com/terraform-aws-modules/terraform-aws-vpc")
 }
 
 func TestGetDownloadURLFromHeader(t *testing.T) {
@@ -93,7 +92,7 @@ func TestGetDownloadURLFromHeader(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			downloadURL, err := getDownloadURLFromHeader(testCase.moduleURL, testCase.terraformGet)
 			require.NoError(t, err)
-			assert.Equal(t, testCase.expectedResult, downloadURL)
+			require.Equal(t, testCase.expectedResult, downloadURL)
 		})
 	}
 }
@@ -110,11 +109,11 @@ func TestTFRGetterRootDir(t *testing.T) {
 
 	// The dest path must not exist for go getter to work
 	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
-	assert.False(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	require.False(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 
 	tfrGetter := new(RegistryGetter)
 	require.NoError(t, tfrGetter.Get(moduleDestPath, testModuleURL))
-	assert.True(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	require.True(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 }
 
 func TestTFRGetterSubModule(t *testing.T) {
@@ -129,24 +128,24 @@ func TestTFRGetterSubModule(t *testing.T) {
 
 	// The dest path must not exist for go getter to work
 	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
-	assert.False(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	require.False(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 
 	tfrGetter := new(RegistryGetter)
 	require.NoError(t, tfrGetter.Get(moduleDestPath, testModuleURL))
-	assert.True(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
+	require.True(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 }
 
 func TestBuildRequestUrlFullPath(t *testing.T) {
 	t.Parallel()
 	requestUrl, err := buildRequestUrl("gruntwork.io", "https://gruntwork.io/registry/modules/v1/", "/tfr-project/terraform-aws-tfr", "6.6.6")
-	assert.NoError(t, err)
-	assert.Equal(t, "https://gruntwork.io/registry/modules/v1/tfr-project/terraform-aws-tfr/6.6.6/download", requestUrl.String())
+	require.NoError(t, err)
+	require.Equal(t, "https://gruntwork.io/registry/modules/v1/tfr-project/terraform-aws-tfr/6.6.6/download", requestUrl.String())
 }
 
 func TestBuildRequestUrlRelativePath(t *testing.T) {
 	t.Parallel()
 	requestUrl, err := buildRequestUrl("gruntwork.io", "/registry/modules/v1", "/tfr-project/terraform-aws-tfr", "6.6.6")
-	assert.NoError(t, err)
-	assert.Equal(t, "https://gruntwork.io/registry/modules/v1/tfr-project/terraform-aws-tfr/6.6.6/download", requestUrl.String())
+	require.NoError(t, err)
+	require.Equal(t, "https://gruntwork.io/registry/modules/v1/tfr-project/terraform-aws-tfr/6.6.6/download", requestUrl.String())
 
 }

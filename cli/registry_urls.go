@@ -28,7 +28,8 @@ type RegistryURLs struct {
 }
 
 func (urls *RegistryURLs) String() string {
-	b, _ := json.Marshal(urls) //nolint:errcheck
+	// TODO: handle error
+	b, _ := json.Marshal(urls) //nolint:errcheck,errchkjson
 	return string(b)
 }
 
@@ -71,5 +72,5 @@ type NotFoundWellKnownURL struct {
 }
 
 func (err NotFoundWellKnownURL) Error() string {
-	return fmt.Sprintf("%s not found", err.url)
+	return err.url + " not found"
 }

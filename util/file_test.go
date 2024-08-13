@@ -35,7 +35,7 @@ func TestGetPathRelativeTo(t *testing.T) {
 
 	for _, testCase := range testCases {
 		actual, err := GetPathRelativeTo(testCase.path, testCase.basePath)
-		assert.Nil(t, err, "Unexpected error for path %s and basePath %s: %v", testCase.path, testCase.basePath, err)
+		require.NoError(t, err)
 		assert.Equal(t, testCase.expected, actual, "For path %s and basePath %s", testCase.path, testCase.basePath)
 	}
 }
@@ -64,7 +64,7 @@ func TestCanonicalPath(t *testing.T) {
 
 	for _, testCase := range testCases {
 		actual, err := CanonicalPath(testCase.path, testCase.basePath)
-		assert.Nil(t, err, "Unexpected error for path %s and basePath %s: %v", testCase.path, testCase.basePath, err)
+		require.NoError(t, err)
 		assert.Equal(t, testCase.expected, actual, "For path %s and basePath %s", testCase.path, testCase.basePath)
 	}
 }
@@ -76,7 +76,7 @@ func TestGlobCanonicalPath(t *testing.T) {
 
 	expectedHelper := func(path string) string {
 		basePath, err := filepath.Abs(basePath)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		return filepath.ToSlash(filepath.Join(basePath, path))
 	}
 
@@ -102,7 +102,7 @@ func TestGlobCanonicalPath(t *testing.T) {
 			return testCase.expected[i] < testCase.expected[j]
 		})
 
-		assert.Nil(t, err, "Unexpected error for paths %s and basePath %s: %v", testCase.paths, basePath, err)
+		require.NoError(t, err)
 		assert.Equal(t, testCase.expected, actual, "For path %s and basePath %s", testCase.paths, basePath)
 	}
 }
@@ -172,15 +172,16 @@ func TestJoinTerraformModulePath(t *testing.T) {
 func TestFileManifest(t *testing.T) {
 	t.Parallel()
 
-	var testfiles []string
+	files := []string{"file1", "file2"}
+	var testfiles = make([]string, 0, len(files))
 
 	// create temp dir
 	dir, err := os.MkdirTemp("", ".terragrunt-test-dir")
 	require.NoError(t, err)
-	for _, file := range []string{"file1", "file2"} {
+	for _, file := range files {
 		// create temp files in the dir
 		f, err := os.CreateTemp(dir, file)
-		assert.NoError(t, err, f.Close())
+		require.NoError(t, err)
 		testfiles = append(testfiles, f.Name())
 	}
 	// will later test if the file already doesn't exist
@@ -188,11 +189,11 @@ func TestFileManifest(t *testing.T) {
 
 	// create a manifest
 	manifest := newFileManifest(dir, ".terragrunt-test-manifest")
-	require.Nil(t, manifest.Create())
+	require.NoError(t, manifest.Create())
 	// check the file manifest has been created
 	require.FileExists(t, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
 	for _, file := range testfiles {
-		assert.NoError(t, manifest.AddFile(file))
+		require.NoError(t, manifest.AddFile(file))
 	}
 	// check for a non-existent directory as well
 	assert.NoError(t, manifest.AddDirectory(path.Join(dir, "ephemeral-directory-that-doesnt-exist")))
@@ -200,7 +201,7 @@ func TestFileManifest(t *testing.T) {
 	require.NoError(t, manifest.Clean())
 	// test if the files have been deleted
 	for _, file := range testfiles {
-		assert.Equal(t, FileExists(file), false)
+		require.False(t, FileExists(file))
 	}
 
 }
@@ -333,7 +334,7 @@ func TestEmptyDir(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		emptyValue, err := IsDirectoryEmpty(testCase.path)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, testCase.expectEmpty, emptyValue, "For path %s", testCase.path)
 	}
 

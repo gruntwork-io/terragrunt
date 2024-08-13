@@ -34,9 +34,10 @@ const versionParts = 3
 // - TerraformVersion
 // TODO: Look into a way to refactor this function to avoid the side effect.
 func checkVersionConstraints(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
-	configContext := config.NewParsingContext(context.Background(), terragruntOptions).WithDecodeList(config.TerragruntVersionConstraints)
+	configContext := config.NewParsingContext(ctx, terragruntOptions).WithDecodeList(config.TerragruntVersionConstraints)
 
-	partialTerragruntConfig, err := config.PartialParseConfigFile(
+	// TODO: See if we should be ignore this lint error
+	partialTerragruntConfig, err := config.PartialParseConfigFile( //nolint: contextcheck
 		configContext,
 		terragruntOptions.TerragruntConfigPath,
 		nil,
@@ -190,7 +191,7 @@ func parseTerraformImplementationType(versionCommandOutput string) (options.Terr
 type InvalidTerraformVersionSyntax string
 
 func (err InvalidTerraformVersionSyntax) Error() string {
-	return fmt.Sprintf("Unable to parse Terraform version output: %s", string(err))
+	return "Unable to parse Terraform version output: " + string(err)
 }
 
 type InvalidTerraformVersion struct {

@@ -139,7 +139,7 @@ func alreadyHaveLatestCode(terraformSource *terraform.Source, terragruntOptions 
 		return false, nil
 	}
 
-	tfFiles, err := filepath.Glob(fmt.Sprintf("%s/*.tf", terraformSource.WorkingDir))
+	tfFiles, err := filepath.Glob(terraformSource.WorkingDir + "/*.tf")
 	if err != nil {
 		return false, errors.WithStackTrace(err)
 	}

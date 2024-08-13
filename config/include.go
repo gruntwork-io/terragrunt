@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	goErrors "errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -98,7 +99,7 @@ func parseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*T
 // user.
 func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool) (*TerragruntConfig, error) {
 	if ctx.TrackInclude == nil {
-		return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_NIL_INCLUDE_CONFIG")
+		return nil, goErrors.New("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_NIL_INCLUDE_CONFIG")
 	}
 
 	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
@@ -127,7 +128,8 @@ func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool
 			return nil, err
 		}
 
-		switch mergeStrategy {
+		// TODO: Remove lint suppression
+		switch mergeStrategy { //nolint:exhaustive
 		case NoMerge:
 			ctx.TerragruntOptions.Logger.Debugf("%sIncluded config %s has strategy no merge: not merging config in.", logPrefix, includeConfig.Path)
 		case ShallowMerge:
@@ -155,7 +157,7 @@ func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool
 // child.
 func handleIncludeForDependency(ctx *ParsingContext, childDecodedDependency terragruntDependency) (*terragruntDependency, error) {
 	if ctx.TrackInclude == nil {
-		return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_DEPENDENCY_NIL_INCLUDE_CONFIG")
+		return nil, goErrors.New("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_DEPENDENCY_NIL_INCLUDE_CONFIG")
 	}
 	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
 	// those in earlier includes, so we need to merge bottom up instead of top down to ensure this.
@@ -173,7 +175,8 @@ func handleIncludeForDependency(ctx *ParsingContext, childDecodedDependency terr
 			return nil, err
 		}
 
-		switch mergeStrategy {
+		// TODO: Remove lint suppression
+		switch mergeStrategy { //nolint:exhaustive
 		case NoMerge:
 			ctx.TerragruntOptions.Logger.Debugf("Included config %s has strategy no merge: not merging config in for dependency.", includeConfig.Path)
 		case ShallowMerge:

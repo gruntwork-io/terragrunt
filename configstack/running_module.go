@@ -236,7 +236,9 @@ func (modules runningModules) crossLinkDependencies(dependencyOrder DependencyOr
 			if !hasDependency {
 				return modules, errors.WithStackTrace(DependencyNotFoundWhileCrossLinkingError{module, dependency})
 			}
-			switch dependencyOrder {
+
+			// TODO: Remove lint suppression
+			switch dependencyOrder { //nolint:exhaustive
 			case NormalOrder:
 				module.Dependencies[runningDependency.Module.Path] = runningDependency
 				runningDependency.NotifyWhenDone = append(runningDependency.NotifyWhenDone, module)

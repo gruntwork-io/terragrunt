@@ -23,6 +23,7 @@ import (
 )
 
 const maxLevelsOfRecursion = 20
+const existingModulesCacheName = "existingModules"
 
 // Represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
 // module and the list of other modules that this module depends on
@@ -168,7 +169,8 @@ func (module *TerraformModule) getDependenciesForModule(modulesMap TerraformModu
 	for _, dependencyPath := range module.Config.Dependencies.Paths {
 		dependencyModulePath, err := util.CanonicalPath(dependencyPath, module.Path)
 		if err != nil {
-			return dependencies, nil
+			// TODO: Remove lint suppression
+			return dependencies, nil //nolint:nilerr
 		}
 
 		if files.FileExists(dependencyModulePath) && !files.IsDir(dependencyModulePath) {
@@ -254,7 +256,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, terragruntOptions *optio
 	}
 
 	// extract modules as list
-	var matchedModules TerraformModules
+	var matchedModules = make(TerraformModules, 0, len(matchedModulesMap))
 	for _, module := range matchedModulesMap {
 		matchedModules = append(matchedModules, module)
 	}
@@ -506,7 +508,7 @@ func (modules TerraformModules) flagModulesThatDontInclude(terragruntOptions *op
 	return modules, nil
 }
 
-var existingModules = cache.NewCache[*TerraformModulesMap]()
+var existingModules = cache.NewCache[*TerraformModulesMap](existingModulesCacheName)
 
 type TerraformModulesMap map[string]*TerraformModule
 

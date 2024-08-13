@@ -127,9 +127,11 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		}
 	}(ctx)
 
+	ctx = config.WithConfigValues(ctx)
+
 	// init engine if required
 	if engine.IsEngineEnabled() {
-		ctx = engine.ContextWithEngine(ctx)
+		ctx = engine.WithEngineValues(ctx)
 	}
 	defer func(ctx context.Context) {
 		if err := engine.Shutdown(ctx); err != nil {
@@ -181,12 +183,13 @@ func wrapWithTelemetry(opts *options.TerragruntOptions) func(ctx *cli.Context, a
 				return err
 			}
 
-			return runAction(ctx, opts, action)
+			// TODO: See if this lint should be ignored
+			return runAction(ctx, opts, action) //nolint:contextcheck
 		})
 	}
 }
 
-func beforeAction(opts *options.TerragruntOptions) cli.ActionFunc {
+func beforeAction(_ *options.TerragruntOptions) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
 		// setting current context to the options
 		// show help if the args are not specified.

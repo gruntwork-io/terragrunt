@@ -105,7 +105,8 @@ func (cfg *Config) Save(configPath string) error {
 	file := hclwrite.NewEmptyFile()
 	gohcl.EncodeIntoBody(cfg, file.Body())
 
-	if err := os.WriteFile(configPath, file.Bytes(), os.FileMode(0644)); err != nil {
+	const ownerWriteGlobalReadPerms = 0644
+	if err := os.WriteFile(configPath, file.Bytes(), os.FileMode(ownerWriteGlobalReadPerms)); err != nil {
 		return errors.WithStackTrace(err)
 	}
 

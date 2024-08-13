@@ -31,7 +31,6 @@ package awsproviderpatch
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -91,13 +90,13 @@ func runAwsProviderPatch(ctx context.Context, opts *options.TerragruntOptions, c
 
 // The format we expect in the .terraform/modules/modules.json file
 type TerraformModulesJson struct {
-	Modules []TerraformModule
+	Modules []TerraformModule `json:"Modules"`
 }
 
 type TerraformModule struct {
-	Key    string
-	Source string
-	Dir    string
+	Key    string `json:"Key"`
+	Source string `json:"Source"`
+	Dir    string `json:"Dir"`
 }
 
 // findAllTerraformFiles returns all Terraform source files within the modules being used by this Terragrunt
@@ -142,7 +141,7 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 			// Ideally, we'd use a builtin Go library like filepath.Glob here, but per https://github.com/golang/go/issues/11862,
 			// the current go implementation doesn't support treating ** as zero or more directories, just zero or one.
 			// So we use a third-party library.
-			matches, err := zglob.Glob(fmt.Sprintf("%s/**/*.tf", moduleAbsPath))
+			matches, err := zglob.Glob(moduleAbsPath + "/**/*.tf")
 			if err != nil {
 				return nil, errors.WithStackTrace(err)
 			}

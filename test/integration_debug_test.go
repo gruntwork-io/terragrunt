@@ -42,11 +42,11 @@ func TestDebugGeneratedInputs(t *testing.T) {
 
 	require.NoError(
 		t,
-		runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-debug --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+		runTerragruntCommand(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-debug --terragrunt-working-dir "+rootPath, &stdout, &stderr),
 	)
 
 	debugFile := util.JoinPath(rootPath, terragruntDebugFile)
-	assert.True(t, util.FileExists(debugFile))
+	require.True(t, util.FileExists(debugFile))
 
 	require.Contains(t, stderr.String(), fmt.Sprintf("-chdir=\"%s\"", rootPath))
 
@@ -64,7 +64,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	stderr = bytes.Buffer{}
 	require.NoError(
 		t,
-		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
 	)
 
 	outputs := map[string]TerraformOutput{}
@@ -77,7 +77,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	var data map[string]interface{}
 	require.NoError(t, json.Unmarshal(debugJsonContents, &data))
 	_, isDefined := data["undefined_var"]
-	assert.False(t, isDefined)
+	require.False(t, isDefined)
 }
 
 func TestTerragruntInputsWithDashes(t *testing.T) {
@@ -189,7 +189,7 @@ func TestRenderJSONConfig(t *testing.T) {
 	cleanupTerraformFolder(t, fixtureRenderJSONMainModulePath)
 	cleanupTerraformFolder(t, fixtureRenderJSONDepModulePath)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", fixtureRenderJSON))
+	runTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+fixtureRenderJSON)
 	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-json-out %s", fixtureRenderJSONMainModulePath, jsonOut))
 
 	jsonBytes, err := os.ReadFile(jsonOut)
@@ -203,13 +203,13 @@ func TestRenderJSONConfig(t *testing.T) {
 	if assert.True(t, hasTerraform) {
 		source, hasSource := terraformBlock.(map[string]interface{})["source"]
 		require.True(t, hasSource)
-		assert.Equal(t, "./module", source)
+		require.Equal(t, "./module", source)
 	}
 
 	// Make sure included remote_state is rendered out
 	remote_state, hasRemoteState := rendered["remote_state"]
 	if assert.True(t, hasRemoteState) {
-		assert.Equal(
+		require.Equal(
 			t,
 			map[string]interface{}{
 				"backend": "local",
@@ -230,7 +230,7 @@ func TestRenderJSONConfig(t *testing.T) {
 	// Make sure dependency blocks are rendered out
 	dependencyBlocks, hasDependency := rendered["dependency"]
 	if assert.True(t, hasDependency) {
-		assert.Equal(
+		require.Equal(
 			t,
 			map[string]interface{}{
 				"dep": map[string]interface{}{
@@ -253,7 +253,7 @@ func TestRenderJSONConfig(t *testing.T) {
 	// Make sure included generate block is rendered out
 	generateBlocks, hasGenerate := rendered["generate"]
 	if assert.True(t, hasGenerate) {
-		assert.Equal(
+		require.Equal(
 			t,
 			map[string]interface{}{
 				"provider": map[string]interface{}{
@@ -276,7 +276,7 @@ func TestRenderJSONConfig(t *testing.T) {
 	// Make sure all inputs are merged together
 	inputsBlock, hasInputs := rendered["inputs"]
 	if assert.True(t, hasInputs) {
-		assert.Equal(
+		require.Equal(
 			t,
 			map[string]interface{}{
 				"env":        "qa",
@@ -300,9 +300,9 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, fixtureRenderJSONRegression)
 	workDir := filepath.Join(tmpEnvPath, fixtureRenderJSONRegression)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", workDir))
+	runTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+workDir)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-json-out %s", workDir, jsonOut))
+	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-json-out ", workDir)+jsonOut)
 
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
@@ -315,13 +315,13 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	if assert.True(t, hasTerraform) {
 		source, hasSource := terraformBlock.(map[string]interface{})["source"]
 		require.True(t, hasSource)
-		assert.Equal(t, "./foo", source)
+		require.Equal(t, "./foo", source)
 	}
 
 	// Make sure top level locals are rendered out
 	locals, hasLocals := rendered["locals"]
 	if assert.True(t, hasLocals) {
-		assert.Equal(
+		require.Equal(
 			t,
 			map[string]interface{}{
 				"foo": "bar",
@@ -333,7 +333,7 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	// Make sure included dependency block is rendered out, and with the outputs rendered
 	dependencyBlocks, hasDependency := rendered["dependency"]
 	if assert.True(t, hasDependency) {
-		assert.Equal(
+		require.Equal(
 			t,
 			map[string]interface{}{
 				"baz": map[string]interface{}{
@@ -356,7 +356,7 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	// Make sure generate block is rendered out
 	generateBlocks, hasGenerate := rendered["generate"]
 	if assert.True(t, hasGenerate) {
-		assert.Equal(
+		require.Equal(
 			t,
 			map[string]interface{}{
 				"provider": map[string]interface{}{
@@ -376,7 +376,7 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	// Make sure all inputs are merged together
 	inputsBlock, hasInputs := rendered["inputs"]
 	if assert.True(t, hasInputs) {
-		assert.Equal(
+		require.Equal(
 			t,
 			map[string]interface{}{
 				"foo":       "bar",
@@ -403,9 +403,9 @@ func TestRenderJSONConfigRunAll(t *testing.T) {
 	defer os.Remove(bazJSONOut)
 	defer os.Remove(rootChildJSONOut)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", workDir))
+	runTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+workDir)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", workDir))
+	runTerragrunt(t, "terragrunt run-all render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+workDir)
 
 	bazJSONBytes, err := os.ReadFile(bazJSONOut)
 	require.NoError(t, err)
@@ -416,7 +416,7 @@ func TestRenderJSONConfigRunAll(t *testing.T) {
 	// Make sure top level locals are rendered out
 	bazLocals, bazHasLocals := bazRendered["locals"]
 	if assert.True(t, bazHasLocals) {
-		assert.Equal(
+		require.Equal(
 			t,
 			map[string]interface{}{
 				"self": "baz",
@@ -434,7 +434,7 @@ func TestRenderJSONConfigRunAll(t *testing.T) {
 	// Make sure top level locals are rendered out
 	rootChildLocals, rootChildHasLocals := rootChildRendered["locals"]
 	if assert.True(t, rootChildHasLocals) {
-		assert.Equal(
+		require.Equal(
 			t,
 			map[string]interface{}{
 				"foo": "bar",
@@ -455,13 +455,13 @@ func TestDependencyGraphWithMultiInclude(t *testing.T) {
 	stderr := bytes.Buffer{}
 	require.NoError(
 		t,
-		runTerragruntCommand(t, fmt.Sprintf("terragrunt graph-dependencies --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+		runTerragruntCommand(t, "terragrunt graph-dependencies --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
 	)
 	stdoutStr := stdout.String()
 
-	assert.Contains(t, stdoutStr, `"main" -> "depa";`)
-	assert.Contains(t, stdoutStr, `"main" -> "depb";`)
-	assert.Contains(t, stdoutStr, `"main" -> "depc";`)
+	require.Contains(t, stdoutStr, `"main" -> "depa";`)
+	require.Contains(t, stdoutStr, `"main" -> "depb";`)
+	require.Contains(t, stdoutStr, `"main" -> "depc";`)
 }
 
 func runTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []string, isSuccessTest bool) {

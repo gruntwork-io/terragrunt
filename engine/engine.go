@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	goErrors "errors"
 	"fmt"
 	"io"
 	"os"
@@ -113,7 +114,8 @@ func Run(
 	return cmdOutput, nil
 }
 
-func ContextWithEngine(ctx context.Context) context.Context {
+// WithEngineValues add to context default values for engine.
+func WithEngineValues(ctx context.Context) context.Context {
 	if !IsEngineEnabled() {
 		return ctx
 	}
@@ -122,6 +124,7 @@ func ContextWithEngine(ctx context.Context) context.Context {
 	return ctx
 }
 
+// DownloadEngine downloads the engine for the given options.
 func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error {
 	if !IsEngineEnabled() {
 		return nil
@@ -295,12 +298,12 @@ func engineChecksumName(e *options.EngineOptions) string {
 
 // engineChecksumSigName returns the file name of engine checksum file signature
 func engineChecksumSigName(e *options.EngineOptions) string {
-	return fmt.Sprintf("%s.sig", engineChecksumName(e))
+	return engineChecksumName(e) + ".sig"
 }
 
 // enginePackageName returns the package name for the engine.
 func enginePackageName(e *options.EngineOptions) string {
-	return fmt.Sprintf("%s.zip", engineFileName(e))
+	return engineFileName(e) + ".zip"
 }
 
 // isArchiveByHeader checks if a file is an archive by examining its header.
@@ -319,11 +322,11 @@ func isArchiveByHeader(filePath string) bool {
 func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
 	val := ctx.Value(TerraformCommandContextKey)
 	if val == nil {
-		return nil, errors.WithStackTrace(fmt.Errorf("failed to fetch engine clients from context"))
+		return nil, errors.WithStackTrace(goErrors.New("failed to fetch engine clients from context"))
 	}
 	result, ok := val.(*sync.Map)
 	if !ok {
-		return nil, errors.WithStackTrace(fmt.Errorf("failed to cast engine clients from context"))
+		return nil, errors.WithStackTrace(goErrors.New("failed to cast engine clients from context"))
 	}
 	return result, nil
 }
@@ -332,11 +335,11 @@ func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
 func downloadLocksFromContext(ctx context.Context) (*util.KeyLocks, error) {
 	val := ctx.Value(LocksContextKey)
 	if val == nil {
-		return nil, errors.WithStackTrace(fmt.Errorf("failed to fetch engine clients from context"))
+		return nil, errors.WithStackTrace(goErrors.New("failed to fetch engine clients from context"))
 	}
 	result, ok := val.(*util.KeyLocks)
 	if !ok {
-		return nil, errors.WithStackTrace(fmt.Errorf("failed to cast engine clients from context"))
+		return nil, errors.WithStackTrace(goErrors.New("failed to cast engine clients from context"))
 	}
 	return result, nil
 }
@@ -463,19 +466,19 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 		if runResp == nil {
 			break
 		}
-		if runResp.Stdout != "" {
-			_, err := stdout.Write([]byte(runResp.Stdout))
+		if runResp.GetStdout() != "" {
+			_, err := stdout.Write([]byte(runResp.GetStdout()))
 			if err != nil {
 				return nil, errors.WithStackTrace(err)
 			}
 		}
-		if runResp.Stderr != "" {
-			_, err := stderr.Write([]byte(runResp.Stderr))
+		if runResp.GetStderr() != "" {
+			_, err := stderr.Write([]byte(runResp.GetStderr()))
 			if err != nil {
 				return nil, errors.WithStackTrace(err)
 			}
 		}
-		resultCode = int(runResp.ResultCode)
+		resultCode = int(runResp.GetResultCode())
 	}
 	terragruntOptions.Logger.Debugf("Engine execution done in %v", terragruntOptions.WorkingDir)
 
@@ -524,8 +527,8 @@ func initialize(ctx context.Context, runOptions *ExecutionOptions, client *proto
 			return nil, nil
 		}
 		return &outputLine{
-			Stderr: output.Stderr,
-			Stdout: output.Stdout,
+			Stderr: output.GetStderr(),
+			Stdout: output.GetStdout(),
 		}, nil
 	})
 }
@@ -557,8 +560,8 @@ func shutdown(ctx context.Context, runOptions *ExecutionOptions, terragruntEngin
 			return nil, nil
 		}
 		return &outputLine{
-			Stdout: output.Stdout,
-			Stderr: output.Stderr,
+			Stdout: output.GetStdout(),
+			Stderr: output.GetStderr(),
 		}, nil
 	})
 
@@ -595,7 +598,8 @@ func readEngineOutput(runOptions *ExecutionOptions, output outputFn) error {
 			}
 		}
 	}
-	return nil
+	// TODO: Why does this lint need to be ignored?
+	return nil //nolint:nilerr
 }
 
 // convert metadata map to protobuf map
@@ -607,7 +611,7 @@ func convertMetaToProtobuf(meta map[string]interface{}) (map[string]*anypb.Any, 
 	for key, value := range meta {
 		jsonData, err := json.Marshal(value)
 		if err != nil {
-			return nil, fmt.Errorf("error marshaling value to JSON: %v", err)
+			return nil, fmt.Errorf("error marshaling value to JSON: %w", err)
 		}
 		jsonStructValue, err := structpb.NewValue(string(jsonData))
 		if err != nil {

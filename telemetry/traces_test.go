@@ -5,7 +5,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
@@ -15,13 +15,13 @@ func TestNewTraceExporter(t *testing.T) {
 	ctx := context.Background()
 
 	http, err := otlptracehttp.New(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	grpc, err := otlptracegrpc.New(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	stdoutrace, err := stdouttrace.New()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name             string
@@ -94,10 +94,10 @@ func TestNewTraceExporter(t *testing.T) {
 			exporter, err := newTraceExporter(ctx, tt.telemetryOptions)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
-				assert.IsType(t, tt.expectedType, exporter)
+				require.NoError(t, err)
+				require.IsType(t, tt.expectedType, exporter)
 			}
 		})
 	}

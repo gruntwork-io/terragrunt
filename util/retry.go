@@ -2,6 +2,7 @@ package util
 
 import (
 	"context"
+	goErrors "errors"
 	"fmt"
 	"time"
 
@@ -22,7 +23,8 @@ func DoWithRetry(ctx context.Context, actionDescription string, maxRetries int, 
 			return nil
 		}
 
-		if _, isFatalErr := err.(FatalError); isFatalErr {
+		var fatalErr FatalError
+		if ok := goErrors.As(err, &fatalErr); ok {
 			return err
 		}
 

@@ -69,6 +69,7 @@ require (
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-plugin v1.6.1
 	github.com/hashicorp/terraform-svchost v0.0.1
+	github.com/huandu/go-clone v1.6.0
 	github.com/labstack/echo/v4 v4.11.4
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b
 	github.com/mholt/archiver/v3 v3.5.1

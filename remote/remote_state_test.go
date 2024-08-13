@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 /**
@@ -121,7 +121,7 @@ func TestToTerraformInitArgsNoBackendConfigs(t *testing.T) {
 
 	for _, state := range remoteStates {
 		args := state.ToTerraformInitArgs()
-		assert.Empty(t, args)
+		require.Empty(t, args)
 	}
 }
 
@@ -129,7 +129,7 @@ func TestDiffersFrom(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("remote_state_test")
-	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	testCases := []struct {
 		name            string
@@ -286,16 +286,16 @@ func TestDiffersFrom(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			shouldOverride := testCase.stateFromConfig.differsFrom(&testCase.existingBackend, terragruntOptions)
-			assert.Equal(t, testCase.shouldOverride, shouldOverride, "Expect differsFrom to return %t but got %t for existingRemoteState %v and remoteStateFromTerragruntConfig %v", testCase.shouldOverride, shouldOverride, testCase.existingBackend, testCase.stateFromConfig)
+			require.Equal(t, testCase.shouldOverride, shouldOverride, "Expect differsFrom to return %t but got %t for existingRemoteState %v and remoteStateFromTerragruntConfig %v", testCase.shouldOverride, shouldOverride, testCase.existingBackend, testCase.stateFromConfig)
 		})
 	}
 }
 
 func assertTerraformInitArgsEqual(t *testing.T, actualArgs []string, expectedArgs string) {
 	expected := strings.Split(expectedArgs, " ")
-	assert.Len(t, actualArgs, len(expected))
+	require.Len(t, actualArgs, len(expected))
 
 	for _, expectedArg := range expected {
-		assert.Contains(t, actualArgs, expectedArg)
+		require.Contains(t, actualArgs, expectedArg)
 	}
 }

@@ -1,6 +1,7 @@
 package configstack
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -42,12 +43,12 @@ func (err InfiniteRecursionError) Error() string {
 	return fmt.Sprintf("Hit what seems to be an infinite recursion after going %d levels deep. Please check for a circular dependency! Modules involved: %v", err.RecursionLevel, err.Modules)
 }
 
-var NoTerraformModulesFound = fmt.Errorf("Could not find any subfolders with Terragrunt configuration files")
+var NoTerraformModulesFound = errors.New("Could not find any subfolders with Terragrunt configuration files")
 
 type DependencyCycleError []string
 
 func (err DependencyCycleError) Error() string {
-	return fmt.Sprintf("Found a dependency cycle between modules: %s", strings.Join([]string(err), " -> "))
+	return "Found a dependency cycle between modules: " + strings.Join([]string(err), " -> ")
 }
 
 type ProcessingModuleDependencyError struct {

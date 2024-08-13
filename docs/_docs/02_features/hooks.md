@@ -39,6 +39,7 @@ In this example configuration, whenever Terragrunt runs `tofu apply` or `tofu pl
 
 Any type of hook adds extra environment variables to the hook's run command:
 
+- `TG_CTX_TF_PATH`
 - `TG_CTX_COMMAND`
 - `TG_CTX_HOOK_NAME`
 
@@ -58,10 +59,10 @@ terraform {
 ``` bash
 #!/bin/sh
 
-echo "COMMAND=${TG_CTX_COMMAND} HOOK_NAME=${TG_CTX_HOOK_NAME}"
+echo "TF_PATH=${TG_CTX_TF_PATH} COMMAND=${TG_CTX_COMMAND} HOOK_NAME=${TG_CTX_HOOK_NAME}"
 ```
 
-In this example, whenever Terragrunt runs `tofu apply`/`terraform apply`, the `hook.sh` script will print "COMMAND=apply HOOK_NAME=test_hook"
+In this example, whenever Terragrunt runs `tofu apply`/`terraform apply`, the `hook.sh` script will print "TF_PATH=tofu COMMAND=apply HOOK_NAME=test_hook"
 
 You can have multiple before and after hooks. Each hook will execute in the order they are defined. For example:
 

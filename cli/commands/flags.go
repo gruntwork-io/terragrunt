@@ -1,6 +1,8 @@
 package commands
 
 import (
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -363,7 +365,8 @@ func NewHelpFlag(opts *options.TerragruntOptions) cli.Flag {
 				err := cli.ShowCommandHelp(ctx, cmdName)
 
 				// If the command name is not found, it is most likely a terraform command, show Terraform help.
-				if _, ok := err.(cli.InvalidCommandNameError); ok {
+				var invalidCommandNameError cli.InvalidCommandNameError
+				if ok := errors.As(err, &invalidCommandNameError); ok {
 					terraformHelpCmd := append([]string{cmdName, "-help"}, ctx.Args().Tail()...)
 					return shell.RunTerraformCommand(ctx, opts, terraformHelpCmd...)
 				}

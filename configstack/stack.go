@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
@@ -80,7 +81,7 @@ func (stack *Stack) WithOptions(opts ...Option) *Stack {
 func (stack *Stack) String() string {
 	modules := []string{}
 	for _, module := range stack.Modules {
-		modules = append(modules, fmt.Sprintf("  => %s", module.String()))
+		modules = append(modules, "  => "+module.String())
 	}
 	sort.Strings(modules)
 	return fmt.Sprintf("Stack at %s:\n%s", stack.terragruntOptions.WorkingDir, strings.Join(modules, "\n"))
@@ -117,7 +118,7 @@ func (stack *Stack) JsonModuleDeployOrder(terraformCommand string) (string, erro
 	// The index should be the group number, and the value should be an array of module paths
 	jsonGraph := make(map[string][]string)
 	for i, group := range runGraph {
-		groupNum := "Group " + fmt.Sprintf("%d", i+1)
+		groupNum := "Group " + strconv.Itoa(i+1)
 		jsonGraph[groupNum] = make([]string, len(group))
 		for j, module := range group {
 			jsonGraph[groupNum][j] = module.Path
@@ -231,7 +232,7 @@ func (stack *Stack) syncTerraformCliArgs(terragruntOptions *options.TerragruntOp
 			terragruntOptions.Logger.Debugf("Using output file %s for module %s", planFile, module.TerragruntOptions.TerragruntConfigPath)
 			if module.TerragruntOptions.TerraformCommand == terraform.CommandNamePlan {
 				// for plan command add -out=<file> to the terraform cli args
-				module.TerragruntOptions.TerraformCliArgs = util.StringListInsert(module.TerragruntOptions.TerraformCliArgs, fmt.Sprintf("-out=%s", planFile), len(module.TerragruntOptions.TerraformCliArgs))
+				module.TerragruntOptions.TerraformCliArgs = util.StringListInsert(module.TerragruntOptions.TerraformCliArgs, "-out="+planFile, len(module.TerragruntOptions.TerraformCliArgs))
 			} else {
 				module.TerragruntOptions.TerraformCliArgs = util.StringListInsert(module.TerragruntOptions.TerraformCliArgs, planFile, len(module.TerragruntOptions.TerraformCliArgs))
 			}
@@ -336,7 +337,7 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "resolve_modules", map[string]interface{}{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
-		howThesePathsWereFound := fmt.Sprintf("Terragrunt config file found in a subdirectory of %s", stack.terragruntOptions.WorkingDir)
+		howThesePathsWereFound := "Terragrunt config file found in a subdirectory of " + stack.terragruntOptions.WorkingDir
 		result, err := stack.resolveModules(ctx, canonicalTerragruntConfigPaths, howThesePathsWereFound)
 		if err != nil {
 			return err
@@ -524,7 +525,9 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 	// We only partially parse the config, only using the pieces that we need in this section. This config will be fully
 	// parsed at a later stage right before the action is run. This is to delay interpolation of functions until right
 	// before we call out to terraform.
-	terragruntConfig, err := config.PartialParseConfigFile(
+
+	// TODO: Remove lint suppression
+	terragruntConfig, err := config.PartialParseConfigFile( //nolint:contextcheck
 		parseCtx,
 		terragruntConfigPath,
 		includeConfig,
@@ -577,7 +580,7 @@ func (stack *Stack) resolveDependenciesForModule(ctx context.Context, module *Te
 	}
 
 	key := fmt.Sprintf("%s-%s-%v-%v", module.Path, stack.terragruntOptions.WorkingDir, skipExternal, stack.terragruntOptions.TerraformCommand)
-	if value, ok := existingModules.Get(key); ok {
+	if value, ok := existingModules.Get(ctx, key); ok {
 		return *value, nil
 	}
 
@@ -605,7 +608,7 @@ func (stack *Stack) resolveDependenciesForModule(ctx context.Context, module *Te
 		return nil, err
 	}
 
-	existingModules.Put(key, &result)
+	existingModules.Put(ctx, key, &result)
 	return result, nil
 }
 

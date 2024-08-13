@@ -8,7 +8,7 @@ type MalformedRegistryURLErr struct {
 }
 
 func (err MalformedRegistryURLErr) Error() string {
-	return fmt.Sprintf("tfr getter URL is malformed: %s", err.reason)
+	return "tfr getter URL is malformed: " + err.reason
 }
 
 // ServiceDiscoveryErr is returned if Terragrunt failed to identify the module API endpoint through the service
@@ -18,7 +18,7 @@ type ServiceDiscoveryErr struct {
 }
 
 func (err ServiceDiscoveryErr) Error() string {
-	return fmt.Sprintf("Error identifying module registry API location: %s", err.reason)
+	return "Error identifying module registry API location: " + err.reason
 }
 
 // ModuleDownloadErr is returned if Terragrunt failed to download the module.

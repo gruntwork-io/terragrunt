@@ -2,13 +2,13 @@ package telemetry
 
 import (
 	"context"
-	"fmt"
 	"io"
+	"strconv"
 	"testing"
 
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 )
@@ -17,7 +17,7 @@ func TestNewMetricsExporter(t *testing.T) {
 	ctx := context.Background()
 
 	stdout, err := stdoutmetric.New()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name         string
@@ -59,18 +59,18 @@ func TestNewMetricsExporter(t *testing.T) {
 			opts := &TelemetryOptions{
 				Vars: map[string]string{
 					"TERRAGRUNT_TELEMETRY_METRIC_EXPORTER":                   tt.exporterType,
-					"TERRAGRUNT_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT": fmt.Sprintf("%v", tt.insecure),
+					"TERRAGRUNT_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT": strconv.FormatBool(tt.insecure),
 				},
 				Writer: io.Discard,
 			}
 
 			exporter, err := newMetricsExporter(ctx, opts)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			if tt.expectNil {
-				assert.Nil(t, exporter)
+				require.Nil(t, exporter)
 			} else {
-				assert.IsType(t, tt.expectedType, exporter)
+				require.IsType(t, tt.expectedType, exporter)
 			}
 		})
 	}
@@ -124,7 +124,7 @@ func TestCleanMetricName(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			result := cleanMetricName(tc.input)
-			assert.Equal(t, tc.expected, result)
+			require.Equal(t, tc.expected, result)
 		})
 	}
 }

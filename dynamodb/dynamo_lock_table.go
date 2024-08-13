@@ -1,6 +1,7 @@
 package dynamodb
 
 import (
+	goErrors "errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -63,7 +64,8 @@ func CreateLockTableIfNecessary(tableName string, tags map[string]string, client
 func LockTableExistsAndIsActive(tableName string, client *dynamodb.DynamoDB) (bool, error) {
 	output, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
 	if err != nil {
-		if awsErr, isAwsErr := err.(awserr.Error); isAwsErr && awsErr.Code() == "ResourceNotFoundException" {
+		var awsErr awserr.Error
+		if ok := goErrors.As(err, &awsErr); ok && awsErr.Code() == "ResourceNotFoundException" {
 			return false, nil
 		} else {
 			return false, errors.WithStackTrace(err)
@@ -143,7 +145,7 @@ func tagTableIfTagsGiven(tags map[string]string, tableArn *string, client *dynam
 	// we were able to create the table successfully, now add tags
 	terragruntOptions.Logger.Debugf("Adding tags to lock table: %s", tags)
 
-	var tagsConverted []*dynamodb.Tag
+	var tagsConverted = make([]*dynamodb.Tag, 0, len(tags))
 
 	for k, v := range tags {
 		tagsConverted = append(tagsConverted, &dynamodb.Tag{Key: aws.String(k), Value: aws.String(v)})
@@ -192,8 +194,9 @@ func (retryer DeleteTableRetryer) ShouldRetry(req *request.Request) bool {
 // Return true if the given error is the error message returned by AWS when the resource already exists and is being
 // updated by someone else
 func isTableAlreadyBeingCreatedOrUpdatedError(err error) bool {
-	awsErr, isAwsErr := err.(awserr.Error)
-	return isAwsErr && awsErr.Code() == "ResourceInUseException"
+	var awsErr awserr.Error
+	ok := goErrors.As(err, &awsErr)
+	return ok && awsErr.Code() == "ResourceInUseException"
 }
 
 // Wait for the given DynamoDB table to be in the "active" state. If it's not in "active" state, sleep for the

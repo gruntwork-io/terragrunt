@@ -60,7 +60,7 @@ func runNetworkMirrorServer(t *testing.T, ctx context.Context, urlPrefix, provid
 	mux.HandleFunc(urlPrefix, func(resp http.ResponseWriter, req *http.Request) {
 		if token != "" {
 			authHeaders := req.Header.Values("Authorization")
-			assert.Contains(t, authHeaders, fmt.Sprintf("Bearer %s", token))
+			assert.Contains(t, authHeaders, "Bearer "+token)
 		}
 
 		withGz.ServeHTTP(resp, req)
@@ -127,7 +127,7 @@ func (provider *FakeProvider) createVersionJSON(t *testing.T, providerDir string
 	}
 
 	version := &Version{Archives: make(map[string]VersionProvider)}
-	filename := filepath.Join(providerDir, fmt.Sprintf("%s.json", provider.Version))
+	filename := filepath.Join(providerDir, provider.Version+".json")
 	platform := fmt.Sprintf("%s_%s", provider.PlatformOS, provider.PlatformArch)
 
 	unmarshalFile(t, filename, version)

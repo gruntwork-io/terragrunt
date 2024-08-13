@@ -17,6 +17,7 @@ import (
 )
 
 const (
+	HookCtxTFPathEnvName   = "TG_CTX_TF_PATH"
 	HookCtxCommandEnvName  = "TG_CTX_COMMAND"
 	HookCtxHookNameEnvName = "TG_CTX_HOOK_NAME"
 )
@@ -40,9 +41,10 @@ func processErrorHooks(ctx context.Context, hooks []config.ErrorHook, terragrunt
 				// https://github.com/gruntwork-io/terragrunt/issues/2045
 				originalError := errors.Unwrap(e)
 				if originalError != nil {
-					processError, cast := originalError.(util.ProcessExecutionError)
-					if cast {
-						errorMessage = fmt.Sprintf("%s\n%s", processError.StdOut, processError.Stderr)
+					var processExecutionError util.ProcessExecutionError
+					ok := errors.As(originalError, &processExecutionError)
+					if ok {
+						errorMessage = fmt.Sprintf("%s\n%s", processExecutionError.StdOut, processExecutionError.Stderr)
 					}
 				}
 				result = fmt.Sprintf("%s\n%s", result, errorMessage)
@@ -98,7 +100,7 @@ func processHooks(ctx context.Context, hooks []config.Hook, terragruntOptions *o
 	for _, curHook := range hooks {
 		allPreviousErrors := multierror.Append(previousExecErrors, errorsOccured)
 		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors) {
-			err := telemetry.Telemetry(ctx, terragruntOptions, fmt.Sprintf("hook_%s", curHook.Name), map[string]interface{}{
+			err := telemetry.Telemetry(ctx, terragruntOptions, "hook_"+curHook.Name, map[string]interface{}{
 				"hook": curHook.Name,
 				"dir":  curHook.WorkingDir,
 			}, func(childCtx context.Context) error {
@@ -180,6 +182,7 @@ func executeTFLint(ctx context.Context, terragruntOptions *options.TerragruntOpt
 func terragruntOptionsWithHookEnvs(opts *options.TerragruntOptions, hookName string) *options.TerragruntOptions {
 	newOpts := *opts
 	newOpts.Env = util.CloneStringMap(opts.Env)
+	newOpts.Env[HookCtxTFPathEnvName] = opts.TerraformPath
 	newOpts.Env[HookCtxCommandEnvName] = opts.TerraformCommand
 	newOpts.Env[HookCtxHookNameEnvName] = hookName
 

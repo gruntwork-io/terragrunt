@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFindModules(t *testing.T) {
@@ -61,7 +62,7 @@ func TestFindModules(t *testing.T) {
 			ctx := context.Background()
 
 			repo, err := NewRepo(ctx, testCase.repoPath, "")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			modules, err := repo.FindModules(ctx)
 			assert.Equal(t, testCase.expectedErr, err)

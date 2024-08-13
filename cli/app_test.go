@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -80,8 +79,8 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			[]string{doubleDashed(commands.TerragruntConfigFlagName), fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath)},
-			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, defaultLogLevel, false),
+			[]string{doubleDashed(commands.TerragruntConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath},
+			mockOptions(t, "/some/path/"+config.DefaultTerragruntConfigPath, workingDir, []string{}, false, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
@@ -140,14 +139,14 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			[]string{doubleDashed(commands.TerragruntConfigFlagName), fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "--terragrunt-non-interactive"},
-			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), workingDir, []string{}, true, "", false, false, defaultLogLevel, false),
+			[]string{doubleDashed(commands.TerragruntConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath, "--terragrunt-non-interactive"},
+			mockOptions(t, "/some/path/"+config.DefaultTerragruntConfigPath, workingDir, []string{}, true, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
-			[]string{"--foo", doubleDashed(commands.TerragruntConfigFlagName), fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "bar", doubleDashed(commands.TerragruntNonInteractiveFlagName), "--baz", doubleDashed(commands.TerragruntWorkingDirFlagName), "/some/path", doubleDashed(commands.TerragruntSourceFlagName), "github.com/foo/bar//baz?ref=1.0.3"},
-			mockOptions(t, fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath), "/some/path", []string{"-foo", "bar", "-baz"}, true, "github.com/foo/bar//baz?ref=1.0.3", false, false, defaultLogLevel, false),
+			[]string{"--foo", doubleDashed(commands.TerragruntConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath, "bar", doubleDashed(commands.TerragruntNonInteractiveFlagName), "--baz", doubleDashed(commands.TerragruntWorkingDirFlagName), "/some/path", doubleDashed(commands.TerragruntSourceFlagName), "github.com/foo/bar//baz?ref=1.0.3"},
+			mockOptions(t, "/some/path/"+config.DefaultTerragruntConfigPath, "/some/path", []string{"-foo", "bar", "-baz"}, true, "github.com/foo/bar//baz?ref=1.0.3", false, false, defaultLogLevel, false),
 			nil,
 		},
 
@@ -193,7 +192,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		if testCase.expectedErr != nil {
 			assert.EqualError(t, actualErr, testCase.expectedErr.Error())
 		} else {
-			assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+			require.NoError(t, actualErr)
 			assertOptionsEqual(t, *testCase.expectedOptions, *actualOptions, "For args %v", testCase.args)
 		}
 	}
@@ -282,10 +281,10 @@ func TestFilterTerragruntArgs(t *testing.T) {
 	}{
 		{[]string{}, []string{}},
 		{[]string{"foo", "--bar"}, []string{"foo", "-bar"}},
-		{[]string{"foo", doubleDashed(commands.TerragruntConfigFlagName), fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath)}, []string{"foo"}},
+		{[]string{"foo", doubleDashed(commands.TerragruntConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath}, []string{"foo"}},
 		{[]string{"foo", doubleDashed(commands.TerragruntNonInteractiveFlagName)}, []string{"foo"}},
 		{[]string{"foo", doubleDashed(commands.TerragruntDebugFlagName)}, []string{"foo"}},
-		{[]string{"foo", doubleDashed(commands.TerragruntNonInteractiveFlagName), "-bar", doubleDashed(commands.TerragruntWorkingDirFlagName), "/some/path", "--baz", doubleDashed(commands.TerragruntConfigFlagName), fmt.Sprintf("/some/path/%s", config.DefaultTerragruntConfigPath)}, []string{"foo", "-bar", "-baz"}},
+		{[]string{"foo", doubleDashed(commands.TerragruntNonInteractiveFlagName), "-bar", doubleDashed(commands.TerragruntWorkingDirFlagName), "/some/path", "--baz", doubleDashed(commands.TerragruntConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath}, []string{"foo", "-bar", "-baz"}},
 		{[]string{CommandNameApplyAll, "foo", "bar"}, []string{terraform.CommandNameApply, "foo", "bar"}},
 		{[]string{CommandNameDestroyAll, "foo", "-foo", "--bar"}, []string{terraform.CommandNameDestroy, "foo", "-foo", "-bar"}},
 	}
@@ -322,7 +321,7 @@ func TestParseMultiStringArg(t *testing.T) {
 		if testCase.expectedErr != nil {
 			assert.EqualError(t, actualErr, testCase.expectedErr.Error())
 		} else {
-			assert.Nil(t, actualErr, "Unexpected error: %q", actualErr)
+			require.NoError(t, actualErr)
 			assert.Equal(t, testCase.expectedVals, actualOptions.ModulesThatInclude, "For args %q", testCase.args)
 		}
 	}
@@ -355,7 +354,7 @@ func TestParseMutliStringKeyValueArg(t *testing.T) {
 		if testCase.expectedErr != nil {
 			assert.ErrorContains(t, actualErr, testCase.expectedErr.Error())
 		} else {
-			assert.Nil(t, actualErr, "Unexpected error: %v", actualErr)
+			require.NoError(t, actualErr)
 			assert.Equal(t, testCase.expectedVals, actualOptions.AwsProviderPatchOverrides, "For args %v", testCase.args)
 		}
 	}
@@ -486,13 +485,13 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 }
 
 func doubleDashed(name string) string {
-	return fmt.Sprintf("--%s", name)
+	return "--" + name
 }
 
 type argMissingValueError string
 
 func (err argMissingValueError) Error() string {
-	return fmt.Sprintf("flag needs an argument: -%s", string(err))
+	return "flag needs an argument: -" + string(err)
 }
 
 func TestAutocomplete(t *testing.T) {
