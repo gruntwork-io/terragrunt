@@ -140,7 +140,7 @@ func RunShellCommandWithOutput(
 		var cmdStdout io.Writer
 		if !suppressStdout {
 			// do not add prefix if cli command contains `-json` flag
-			if !util.ListContainsElement(args, terraform.FlagNameJSON) {
+			if !util.ListContainsElement(args, terraform.CommandNameOutput) {
 				outWriter = log.TFStdoutWriter(outWriter, terragruntOptions.Logger.Logger.Formatter, terragruntOptions.OutputPrefix)
 			}
 			cmdStdout = io.MultiWriter(outWriter, &stdoutBuf)
