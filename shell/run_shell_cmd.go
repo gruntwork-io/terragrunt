@@ -97,7 +97,7 @@ func RunShellCommandWithOutput(
 	if workingDir == "" {
 		commandDir = terragruntOptions.WorkingDir
 	}
-	err := telemetry.Telemetry(ctx, terragruntOptions, fmt.Sprintf("run_%s", command), map[string]interface{}{
+	err := telemetry.Telemetry(ctx, terragruntOptions, "run_"+command, map[string]interface{}{
 		"command": command,
 		"args":    fmt.Sprintf("%v", args),
 		"dir":     commandDir,

@@ -2,6 +2,7 @@ package terraform
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/url"
 	"os"
@@ -84,7 +85,7 @@ func (terraformSource Source) EncodeSourceVersion() (string, error) {
 		})
 
 		if err == nil {
-			hash := fmt.Sprintf("%x", sourceHash.Sum(nil))
+			hash := hex.EncodeToString(sourceHash.Sum(nil))
 
 			return hash, nil
 		}

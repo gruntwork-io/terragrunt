@@ -87,7 +87,7 @@ func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Leve
 	if prefix != "" {
 		prefix = fmt.Sprintf("[%s] ", prefix)
 	} else {
-		prefix = fmt.Sprintf("[terragrunt] %s", prefix)
+		prefix = "[terragrunt] " + prefix
 	}
 	logger := CreateLogEntry(prefix, level)
 	logger.Logger.SetOutput(writer)

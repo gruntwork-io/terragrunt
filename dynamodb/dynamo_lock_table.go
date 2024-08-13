@@ -145,7 +145,7 @@ func tagTableIfTagsGiven(tags map[string]string, tableArn *string, client *dynam
 	// we were able to create the table successfully, now add tags
 	terragruntOptions.Logger.Debugf("Adding tags to lock table: %s", tags)
 
-	var tagsConverted []*dynamodb.Tag
+	var tagsConverted = make([]*dynamodb.Tag, 0, len(tags))
 
 	for k, v := range tags {
 		tagsConverted = append(tagsConverted, &dynamodb.Tag{Key: aws.String(k), Value: aws.String(v)})

@@ -67,7 +67,7 @@ Traversals:
 					if includeUnknown {
 						value.Statement = fmt.Sprintf("is a %s, known only after apply", ty.FriendlyName())
 					} else {
-						value.Statement = fmt.Sprintf("is a %s", ty.FriendlyName())
+						value.Statement = "is a " + ty.FriendlyName()
 					}
 				} else {
 					if !includeUnknown {
@@ -76,7 +76,7 @@ Traversals:
 					value.Statement = "will be known only after apply"
 				}
 			default:
-				value.Statement = fmt.Sprintf("is %s", valueStr(val))
+				value.Statement = "is " + valueStr(val)
 			}
 			values = append(values, value)
 			seen[traversalStr] = struct{}{}

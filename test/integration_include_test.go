@@ -46,11 +46,11 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 		t.Run(filepath.Base(testCase), func(t *testing.T) {
 			childPath := filepath.Join(includeExposeFixturePath, testCase, includeChildFixturePath)
 			cleanupTerraformFolder(t, childPath)
-			runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-include-external-dependencies --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath))
+			runTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-include-external-dependencies --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+childPath)
 
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
-			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+			err := runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+childPath, &stdout, &stderr)
 			require.NoError(t, err)
 
 			outputs := map[string]TerraformOutput{}
@@ -66,7 +66,7 @@ func TestTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
 	childPath := util.JoinPath(includeFixturePath, includeShallowFixturePath)
 	cleanupTerraformFolder(t, childPath)
 
-	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 
 	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, includeFixturePath, includeShallowFixturePath, s3BucketName, config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath)
@@ -129,10 +129,7 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(
 		t,
-		fmt.Sprintf(
-			"terragrunt run-all plan --terragrunt-non-interactive --terragrunt-include-module-prefix --terragrunt-working-dir %s",
-			modulePath,
-		),
+		"terragrunt run-all plan --terragrunt-non-interactive --terragrunt-include-module-prefix --terragrunt-working-dir "+modulePath,
 		&stdout,
 		&stderr,
 	)
@@ -165,11 +162,11 @@ func TestTerragruntWorksWithIncludeDeepMerge(t *testing.T) {
 	childPath := util.JoinPath(includeDeepFixturePath, "child")
 	cleanupTerraformFolder(t, childPath)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+childPath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+	err := runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+childPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	outputs := map[string]TerraformOutput{}
@@ -219,11 +216,11 @@ func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 
 			childPath := filepath.Join(includeMultipleFixturePath, testCase, includeDeepFixtureChildPath)
 			cleanupTerraformFolder(t, childPath)
-			runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath))
+			runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+childPath)
 
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
-			err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", childPath), &stdout, &stderr)
+			err := runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+childPath, &stdout, &stderr)
 			require.NoError(t, err)
 
 			outputs := map[string]TerraformOutput{}

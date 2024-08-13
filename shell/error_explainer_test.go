@@ -1,7 +1,7 @@
 package shell
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/util"
@@ -43,7 +43,7 @@ func TestExplainError(t *testing.T) {
 
 		t.Run(tt.errorOutput, func(t *testing.T) {
 			err := multierror.Append(&multierror.Error{}, util.ProcessExecutionError{
-				Err:    fmt.Errorf(""),
+				Err:    errors.New(""),
 				StdOut: "",
 				Stderr: tt.errorOutput,
 			})

@@ -39,7 +39,7 @@ func (err BackendNotDefined) Error() string {
 type NoTerraformFilesFound string
 
 func (path NoTerraformFilesFound) Error() string {
-	return fmt.Sprintf("Did not find any Terraform files (*.tf) in %s", string(path))
+	return "Did not find any Terraform files (*.tf) in " + string(path)
 }
 
 type ModuleIsProtected struct {

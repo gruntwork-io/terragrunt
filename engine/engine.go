@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	goErrors "errors"
 	"fmt"
 	"io"
 	"os"
@@ -297,12 +298,12 @@ func engineChecksumName(e *options.EngineOptions) string {
 
 // engineChecksumSigName returns the file name of engine checksum file signature
 func engineChecksumSigName(e *options.EngineOptions) string {
-	return fmt.Sprintf("%s.sig", engineChecksumName(e))
+	return engineChecksumName(e) + ".sig"
 }
 
 // enginePackageName returns the package name for the engine.
 func enginePackageName(e *options.EngineOptions) string {
-	return fmt.Sprintf("%s.zip", engineFileName(e))
+	return engineFileName(e) + ".zip"
 }
 
 // isArchiveByHeader checks if a file is an archive by examining its header.
@@ -321,11 +322,11 @@ func isArchiveByHeader(filePath string) bool {
 func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
 	val := ctx.Value(TerraformCommandContextKey)
 	if val == nil {
-		return nil, errors.WithStackTrace(fmt.Errorf("failed to fetch engine clients from context"))
+		return nil, errors.WithStackTrace(goErrors.New("failed to fetch engine clients from context"))
 	}
 	result, ok := val.(*sync.Map)
 	if !ok {
-		return nil, errors.WithStackTrace(fmt.Errorf("failed to cast engine clients from context"))
+		return nil, errors.WithStackTrace(goErrors.New("failed to cast engine clients from context"))
 	}
 	return result, nil
 }
@@ -334,11 +335,11 @@ func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
 func downloadLocksFromContext(ctx context.Context) (*util.KeyLocks, error) {
 	val := ctx.Value(LocksContextKey)
 	if val == nil {
-		return nil, errors.WithStackTrace(fmt.Errorf("failed to fetch engine clients from context"))
+		return nil, errors.WithStackTrace(goErrors.New("failed to fetch engine clients from context"))
 	}
 	result, ok := val.(*util.KeyLocks)
 	if !ok {
-		return nil, errors.WithStackTrace(fmt.Errorf("failed to cast engine clients from context"))
+		return nil, errors.WithStackTrace(goErrors.New("failed to cast engine clients from context"))
 	}
 	return result, nil
 }

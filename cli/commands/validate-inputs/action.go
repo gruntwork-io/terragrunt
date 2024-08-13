@@ -84,7 +84,7 @@ func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg
 	// an error will only be returned if required inputs are missing. When strict mode is true, an error will be
 	// returned if required inputs are missing OR if any unused variables are passed
 	if len(missingVars) > 0 || len(unusedVars) > 0 && opts.ValidateStrict {
-		return fmt.Errorf(fmt.Sprintf("Terragrunt configuration has misaligned inputs. Strict mode enabled: %t.", opts.ValidateStrict))
+		return fmt.Errorf("Terragrunt configuration has misaligned inputs. Strict mode enabled: %t.", opts.ValidateStrict)
 	} else if len(unusedVars) > 0 {
 		opts.Logger.Warn("Terragrunt configuration has misaligned inputs, but running in relaxed mode so ignoring.")
 	}

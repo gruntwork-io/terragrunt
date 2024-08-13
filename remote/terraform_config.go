@@ -8,7 +8,7 @@ import (
 
 // wrapMapToSingleLineHcl - This is a workaround to convert a map[string]interface{} to a single line HCL string.
 func wrapMapToSingleLineHcl(m map[string]interface{}) string {
-	var attributes []string
+	var attributes = make([]string, 0, len(m))
 	for key, value := range m {
 		attributes = append(attributes, fmt.Sprintf(`%s=%s`, key, formatHclValue(value)))
 	}

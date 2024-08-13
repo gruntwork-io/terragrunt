@@ -499,7 +499,7 @@ func createS3BucketIfNecessary(ctx context.Context, s3Client *s3.S3, config *Ext
 		// the S3 bucket, we do so in a retry loop with a sleep between retries that will hopefully work around the
 		// eventual consistency issues. Each S3 operation should be idempotent, so redoing steps that have already
 		// been performed should be a no-op.
-		description := fmt.Sprintf("Create S3 bucket with retry %s", config.remoteStateConfigS3.Bucket)
+		description := "Create S3 bucket with retry " + config.remoteStateConfigS3.Bucket
 
 		return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, logrus.DebugLevel, func(ctx context.Context) error {
 			err := CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(s3Client, config, terragruntOptions)
@@ -919,8 +919,7 @@ func TagS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragrun
 }
 
 func convertTags(tags map[string]string) []*s3.Tag {
-
-	var tagsConverted []*s3.Tag
+	var tagsConverted = make([]*s3.Tag, 0, len(tags))
 
 	for k, v := range tags {
 		var tag = s3.Tag{
@@ -1426,7 +1425,7 @@ func validatePublicAccessBlock(output *s3.GetPublicAccessBlockOutput) (bool, err
 func configureBucketAccessLoggingAcl(s3Client *s3.S3, bucket *string, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Debugf("Granting WRITE and READ_ACP permissions to S3 Log Delivery (%s) for bucket %s. This is required for access logging.", s3LogDeliveryGranteeUri, aws.StringValue(bucket))
 
-	uri := fmt.Sprintf("uri=%s", s3LogDeliveryGranteeUri)
+	uri := "uri=" + s3LogDeliveryGranteeUri
 	aclInput := s3.PutBucketAclInput{
 		Bucket:       bucket,
 		GrantWrite:   aws.String(uri),
@@ -1550,7 +1549,7 @@ func CreateS3Client(config *aws_helper.AwsSessionConfig, terragruntOptions *opti
 type MissingRequiredS3RemoteStateConfig string
 
 func (configName MissingRequiredS3RemoteStateConfig) Error() string {
-	return fmt.Sprintf("Missing required S3 remote state configuration %s", string(configName))
+	return "Missing required S3 remote state configuration " + string(configName)
 }
 
 type MultipleTagsDeclarations string

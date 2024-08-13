@@ -49,7 +49,7 @@ func (commands Commands) SkipRunning() Commands {
 // VisibleCommands returns a slice of the Commands with Hidden=false.
 // Used by `urfave/cli` package to generate help.
 func (commands Commands) VisibleCommands() []*cli.Command {
-	var visible []*cli.Command
+	var visible = make([]*cli.Command, 0, len(commands))
 
 	for _, cmd := range commands {
 		if cmd.Hidden {

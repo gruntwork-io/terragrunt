@@ -68,7 +68,7 @@ type model struct {
 
 func newModel(modules module.Modules, opts *options.TerragruntOptions) model {
 	var (
-		items        []list.Item
+		items        = make([]list.Item, 0, len(modules))
 		listKeys     = newListKeyMap()
 		delegateKeys = newDelegateKeyMap()
 		pagerKeys    = newPagerKeyMap()

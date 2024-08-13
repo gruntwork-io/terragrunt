@@ -2,7 +2,6 @@ package test
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -107,11 +106,11 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 	require.True(t, found)
 	require.Contains(t, *cfg.Terraform.Source, "git::https://github.com/gruntwork-io/terraform-fake-modules.git//modules/aws/aurora?ref=v0.0.5")
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt init --terragrunt-non-interactive --terragrunt-working-dir %s", opts.WorkingDir))
+	runTerragrunt(t, "terragrunt init --terragrunt-non-interactive --terragrunt-working-dir "+opts.WorkingDir)
 }
 
 func readConfig(t *testing.T, opts *options.TerragruntOptions) *config.TerragruntConfig {
-	require.FileExists(t, fmt.Sprintf("%s/terragrunt.hcl", opts.WorkingDir))
+	require.FileExists(t, opts.WorkingDir+"/terragrunt.hcl")
 
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(opts.WorkingDir, "terragrunt.hcl"))
 	require.NoError(t, err)

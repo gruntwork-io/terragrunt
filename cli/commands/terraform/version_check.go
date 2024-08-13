@@ -189,7 +189,7 @@ func parseTerraformImplementationType(versionCommandOutput string) (options.Terr
 type InvalidTerraformVersionSyntax string
 
 func (err InvalidTerraformVersionSyntax) Error() string {
-	return fmt.Sprintf("Unable to parse Terraform version output: %s", string(err))
+	return "Unable to parse Terraform version output: " + string(err)
 }
 
 type InvalidTerraformVersion struct {

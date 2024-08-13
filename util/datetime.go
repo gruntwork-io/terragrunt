@@ -2,6 +2,7 @@
 package util
 
 import (
+	"errors"
 	"fmt"
 	"time"
 )
@@ -44,7 +45,7 @@ func ParseTimestamp(ts string) (time.Time, error) {
 			case "Z07:00":
 				what = "UTC offset"
 			case "T":
-				return time.Time{}, fmt.Errorf("not a valid RFC3339 timestamp: missing required time introducer 'T'")
+				return time.Time{}, errors.New("not a valid RFC3339 timestamp: missing required time introducer 'T'")
 			case ":", "-":
 				if err.ValueElem == "" {
 					return time.Time{}, fmt.Errorf("not a valid RFC3339 timestamp: end of string where %q is expected", err.LayoutElem)

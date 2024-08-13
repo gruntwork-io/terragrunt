@@ -80,25 +80,25 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 				0x5a, 0x79, 0x2a, 0xde, 0x97, 0x11, 0xf5, 0x01,
 			},
 			nil,
-			fmt.Errorf("archive has incorrect checksum zh:8610a6d93c01e05a0d3920fe66c79b3c7c3b084f1f5c70715afd919fee1d978e (expected zh:4fb39849f2e138eb16a18ba0c682635d781cb8c3b25901dd5a792ade9711f501)"),
+			errors.New("archive has incorrect checksum zh:8610a6d93c01e05a0d3920fe66c79b3c7c3b084f1f5c70715afd919fee1d978e (expected zh:4fb39849f2e138eb16a18ba0c682635d781cb8c3b25901dd5a792ade9711f501)"),
 		},
 		{
 			"testdata/no-package-here.zip",
 			[sha256.Size]byte{},
 			nil,
-			fmt.Errorf("stat testdata/no-package-here.zip: no such file or directory"),
+			errors.New("stat testdata/no-package-here.zip: no such file or directory"),
 		},
 		{
 			"testdata/filesystem-mirror/registry.terraform.io/hashicorp/null/terraform-provider-null_2.1.0_linux_amd64.zip",
 			[sha256.Size]byte{},
 			nil,
-			fmt.Errorf("archive has incorrect checksum zh:4fb39849f2e138eb16a18ba0c682635d781cb8c3b25901dd5a792ade9711f501 (expected zh:0000000000000000000000000000000000000000000000000000000000000000)"),
+			errors.New("archive has incorrect checksum zh:4fb39849f2e138eb16a18ba0c682635d781cb8c3b25901dd5a792ade9711f501 (expected zh:0000000000000000000000000000000000000000000000000000000000000000)"),
 		},
 		{
 			"testdata/filesystem-mirror/tfe.example.com/AwesomeCorp/happycloud/0.1.0-alpha.2/darwin_amd64",
 			[sha256.Size]byte{},
 			nil,
-			fmt.Errorf("cannot check archive hash for non-archive location testdata/filesystem-mirror/tfe.example.com/AwesomeCorp/happycloud/0.1.0-alpha.2/darwin_amd64"),
+			errors.New("cannot check archive hash for non-archive location testdata/filesystem-mirror/tfe.example.com/AwesomeCorp/happycloud/0.1.0-alpha.2/darwin_amd64"),
 		},
 	}
 
@@ -150,7 +150,7 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 				),
 			),
 			[sha256.Size]byte{0xde, 0xca, 0xde},
-			fmt.Errorf(`checksum list has no SHA-256 hash for "my-package.zip"`),
+			errors.New(`checksum list has no SHA-256 hash for "my-package.zip"`),
 		},
 		{
 			"testdata/my-package.zip",
@@ -163,7 +163,7 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 				),
 			),
 			[sha256.Size]byte{0xde, 0xca, 0xde},
-			fmt.Errorf(`checksum list has invalid SHA256 hash "chickens": encoding/hex: invalid byte: U+0068 'h'`),
+			errors.New(`checksum list has invalid SHA256 hash "chickens": encoding/hex: invalid byte: U+0068 'h'`),
 		},
 		{
 			"testdata/my-package.zip",
@@ -176,7 +176,7 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 				),
 			),
 			[sha256.Size]byte{0xde, 0xca, 0xde},
-			fmt.Errorf("checksum list has unexpected SHA-256 hash c0ffee0000000000000000000000000000000000000000000000000000000000 (expected decade0000000000000000000000000000000000000000000000000000000000)"),
+			errors.New("checksum list has unexpected SHA-256 hash c0ffee0000000000000000000000000000000000000000000000000000000000 (expected decade0000000000000000000000000000000000000000000000000000000000)"),
 		},
 	}
 

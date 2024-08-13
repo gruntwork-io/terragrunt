@@ -219,7 +219,7 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]interfac
 	f := hclwrite.NewEmptyFile()
 	backendBlock := f.Body().AppendNewBlock("terraform", nil).Body().AppendNewBlock("backend", []string{backend})
 	backendBlockBody := backendBlock.Body()
-	var backendKeys []string
+	var backendKeys = make([]string, 0, len(config))
 
 	for key := range config {
 		backendKeys = append(backendKeys, key)

@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
@@ -31,13 +32,13 @@ func (c *Cache[V]) Get(ctx context.Context, key string) (V, bool) {
 	c.Mutex.RLock()
 	defer c.Mutex.RUnlock()
 	keyHash := sha256.Sum256([]byte(key))
-	cacheKey := fmt.Sprintf("%x", keyHash)
+	cacheKey := hex.EncodeToString(keyHash[:])
 	value, found := c.Cache[cacheKey]
-	telemetry.Count(ctx, fmt.Sprintf("%s_cache_get", c.Name), 1)
+	telemetry.Count(ctx, c.Name+"_cache_get", 1)
 	if found {
-		telemetry.Count(ctx, fmt.Sprintf("%s_cache_hit", c.Name), 1)
+		telemetry.Count(ctx, c.Name+"_cache_hit", 1)
 	} else {
-		telemetry.Count(ctx, fmt.Sprintf("%s_cache_miss", c.Name), 1)
+		telemetry.Count(ctx, c.Name+"_cache_miss", 1)
 	}
 	return value, found
 }
@@ -46,9 +47,9 @@ func (c *Cache[V]) Get(ctx context.Context, key string) (V, bool) {
 func (c *Cache[V]) Put(ctx context.Context, key string, value V) {
 	c.Mutex.Lock()
 	defer c.Mutex.Unlock()
-	telemetry.Count(ctx, fmt.Sprintf("%s_cache_put", c.Name), 1)
+	telemetry.Count(ctx, c.Name+"_cache_put", 1)
 	keyHash := sha256.Sum256([]byte(key))
-	cacheKey := fmt.Sprintf("%x", keyHash)
+	cacheKey := hex.EncodeToString(keyHash[:])
 	c.Cache[cacheKey] = value
 }
 
@@ -79,17 +80,17 @@ func (c *ExpiringCache[V]) Get(ctx context.Context, key string) (V, bool) {
 	c.Mutex.RLock()
 	defer c.Mutex.RUnlock()
 	item, found := c.Cache[key]
-	telemetry.Count(ctx, fmt.Sprintf("%s_cache_get", c.Name), 1)
+	telemetry.Count(ctx, c.Name+"_cache_get", 1)
 	if !found {
-		telemetry.Count(ctx, fmt.Sprintf("%s_cache_miss", c.Name), 1)
+		telemetry.Count(ctx, c.Name+"_cache_miss", 1)
 		return item.Value, false
 	}
 	if time.Now().After(item.Expiration) {
-		telemetry.Count(ctx, fmt.Sprintf("%s_cache_expiry", c.Name), 1)
+		telemetry.Count(ctx, c.Name+"_cache_expiry", 1)
 		delete(c.Cache, key)
 		return item.Value, false
 	}
-	telemetry.Count(ctx, fmt.Sprintf("%s_cache_hit", c.Name), 1)
+	telemetry.Count(ctx, c.Name+"_cache_hit", 1)
 	return item.Value, true
 }
 
@@ -98,7 +99,7 @@ func (c *ExpiringCache[V]) Put(ctx context.Context, key string, value V, expirat
 	c.Mutex.Lock()
 	defer c.Mutex.Unlock()
 
-	telemetry.Count(ctx, fmt.Sprintf("%s_cache_put", c.Name), 1)
+	telemetry.Count(ctx, c.Name+"_cache_put", 1)
 	c.Cache[key] = ExpiringItem[V]{Value: value, Expiration: expiration}
 }
 

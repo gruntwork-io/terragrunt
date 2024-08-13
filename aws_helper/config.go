@@ -3,6 +3,7 @@ package aws_helper
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/request"
@@ -137,7 +138,7 @@ func getWebIdentityCredentialsFromIAMRoleOptions(sess *session.Session, iamRoleO
 	roleSessionName := iamRoleOptions.AssumeRoleSessionName
 	if roleSessionName == "" {
 		// Set a unique session name in the same way it is done in the SDK
-		roleSessionName = fmt.Sprintf("%d", time.Now().UTC().UnixNano())
+		roleSessionName = strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
 	}
 	svc := sts.New(sess)
 	p := stscreds.NewWebIdentityRoleProviderWithOptions(svc, iamRoleOptions.RoleARN, roleSessionName, tokenFetcher(iamRoleOptions.WebIdentityToken))

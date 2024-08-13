@@ -100,7 +100,7 @@ func processHooks(ctx context.Context, hooks []config.Hook, terragruntOptions *o
 	for _, curHook := range hooks {
 		allPreviousErrors := multierror.Append(previousExecErrors, errorsOccured)
 		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors) {
-			err := telemetry.Telemetry(ctx, terragruntOptions, fmt.Sprintf("hook_%s", curHook.Name), map[string]interface{}{
+			err := telemetry.Telemetry(ctx, terragruntOptions, "hook_"+curHook.Name, map[string]interface{}{
 				"hook": curHook.Name,
 				"dir":  curHook.WorkingDir,
 			}, func(childCtx context.Context) error {

@@ -1,7 +1,6 @@
 package dynamodb
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -34,7 +33,7 @@ func createDynamoDbClientForTest(t *testing.T) *dynamodb.DynamoDB {
 }
 
 func uniqueTableNameForTest() string {
-	return fmt.Sprintf("terragrunt_test_%s", util.UniqueId())
+	return "terragrunt_test_" + util.UniqueId()
 }
 
 func cleanupTableForTest(t *testing.T, tableName string, client *dynamodb.DynamoDB) {
