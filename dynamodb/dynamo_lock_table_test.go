@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCreateLockTableIfNecessaryTableDoesntAlreadyExist(t *testing.T) {
@@ -84,7 +83,7 @@ func TestCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
 
 		// Try to create the table the second time and make sure you get no errors
 		err = CreateLockTableIfNecessary(tableName, nil, client, mockOptions)
-		require.NoError(t, err, "Unexpected error: %v", err)
+		assert.NoError(t, err, "Unexpected error: %v", err)
 	})
 }
 
@@ -106,7 +105,7 @@ func TestTableTagging(t *testing.T) {
 
 		// Try to create the table the second time and make sure you get no errors
 		err = CreateLockTableIfNecessary(tableName, nil, client, mockOptions)
-		require.NoError(t, err, "Unexpected error: %v", err)
+		assert.NoError(t, err, "Unexpected error: %v", err)
 	})
 }
 

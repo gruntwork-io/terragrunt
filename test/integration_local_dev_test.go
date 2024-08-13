@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -90,7 +91,7 @@ func TestGetTerragruntSourceHCL(t *testing.T) {
 	outputs := map[string]TerraformOutput{}
 
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-	require.Equal(t, "HCL: "+terraformSource, outputs["terragrunt_source"].Value)
+	assert.Equal(t, "HCL: "+terraformSource, outputs["terragrunt_source"].Value)
 }
 
 func TestGetTerragruntSourceCLI(t *testing.T) {
@@ -115,5 +116,5 @@ func TestGetTerragruntSourceCLI(t *testing.T) {
 	outputs := map[string]TerraformOutput{}
 
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-	require.Equal(t, "CLI: "+terraformSource, outputs["terragrunt_source"].Value)
+	assert.Equal(t, "CLI: "+terraformSource, outputs["terragrunt_source"].Value)
 }

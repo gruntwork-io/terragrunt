@@ -256,7 +256,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 	require.Error(t, err)
 	var downloadingTerraformSourceErr DownloadingTerraformSourceErr
 	ok := errors.As(err, &downloadingTerraformSourceErr)
-	require.True(t, ok)
+	assert.True(t, ok)
 }
 
 func TestInvalidModulePath(t *testing.T) {
@@ -276,7 +276,7 @@ func TestInvalidModulePath(t *testing.T) {
 	require.Error(t, err)
 	var workingDirNotFound WorkingDirNotFound
 	ok := errors.As(err, &workingDirNotFound)
-	require.True(t, ok)
+	assert.True(t, ok)
 }
 
 func TestDownloadInvalidPathToFilePath(t *testing.T) {
@@ -296,7 +296,7 @@ func TestDownloadInvalidPathToFilePath(t *testing.T) {
 	require.Error(t, err)
 	var workingDirNotDir WorkingDirNotDir
 	ok := errors.As(err, &workingDirNotDir)
-	require.True(t, ok)
+	assert.True(t, ok)
 }
 
 func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
@@ -356,14 +356,14 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			copyFolder(t, testCase.sourceURL, downloadDir)
-			require.Condition(t, testCase.comp)
+			assert.Condition(t, testCase.comp)
 		})
 
 	}
 
 }
 
-func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool, expectedFileContents string, requireInitFile bool) {
+func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool, expectedFileContents string, assertInitFile bool) {
 	terraformSource, terragruntOptions, terragruntConfig, err := createConfig(t, canonicalUrl, downloadDir, sourceUpdate)
 
 	require.NoError(t, err)
@@ -374,12 +374,12 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 	expectedFilePath := util.JoinPath(downloadDir, "main.tf")
 	if assert.True(t, util.FileExists(expectedFilePath), "For terraform source %v", terraformSource) {
 		actualFileContents := readFile(t, expectedFilePath)
-		require.Equal(t, expectedFileContents, actualFileContents, "For terraform source %v", terraformSource)
+		assert.Equal(t, expectedFileContents, actualFileContents, "For terraform source %v", terraformSource)
 	}
 
-	if requireInitFile {
+	if assertInitFile {
 		existsInitFile := util.FileExists(util.JoinPath(terraformSource.WorkingDir, moduleInitRequiredFile))
-		require.True(t, existsInitFile)
+		assert.True(t, existsInitFile)
 	}
 }
 
@@ -428,7 +428,7 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalUrl string, downloadDir st
 
 	actual, err := alreadyHaveLatestCode(terraformSource, opts)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual, "For terraform source %v", terraformSource)
+	assert.Equal(t, expected, actual, "For terraform source %v", terraformSource)
 }
 
 func tmpDir(t *testing.T) string {

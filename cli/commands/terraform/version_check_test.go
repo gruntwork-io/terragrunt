@@ -94,9 +94,9 @@ func testCheckTerraformVersionMeetsConstraint(t *testing.T, currentVersion strin
 
 	err = checkTerraformVersionMeetsConstraint(current, versionConstraint)
 	if versionMeetsConstraint && err != nil {
-		require.NoError(t, err, "Expected Terraform version %s to meet constraint %s, but got error: %v", currentVersion, versionConstraint, err)
+		assert.NoError(t, err, "Expected Terraform version %s to meet constraint %s, but got error: %v", currentVersion, versionConstraint, err)
 	} else if !versionMeetsConstraint && err == nil {
-		require.Error(t, err, "Expected Terraform version %s to NOT meet constraint %s, but got back a nil error", currentVersion, versionConstraint)
+		assert.Error(t, err, "Expected Terraform version %s to NOT meet constraint %s, but got back a nil error", currentVersion, versionConstraint)
 	}
 }
 

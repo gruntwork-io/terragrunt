@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/command"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,7 +27,7 @@ func TestScaffoldGitRepo(t *testing.T) {
 
 	modules, err := repo.FindModules(ctx)
 	require.NoError(t, err)
-	require.Len(t, modules, 4)
+	assert.Len(t, modules, 4)
 }
 
 func TestScaffoldGitModule(t *testing.T) {
@@ -48,7 +49,7 @@ func TestScaffoldGitModule(t *testing.T) {
 			auroraModule = m
 		}
 	}
-	require.NotNil(t, auroraModule)
+	assert.NotNil(t, auroraModule)
 
 	testPath := t.TempDir()
 	opts, err := options.NewTerragruntOptionsForTest(testPath)
@@ -61,11 +62,11 @@ func TestScaffoldGitModule(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := readConfig(t, opts)
-	require.NotEmpty(t, cfg.Inputs)
-	require.Len(t, cfg.Inputs, 1)
+	assert.NotEmpty(t, cfg.Inputs)
+	assert.Len(t, cfg.Inputs, 1)
 	_, found := cfg.Inputs["vpc_id"]
-	require.True(t, found)
-	require.Contains(t, *cfg.Terraform.Source, "git::https://github.com/gruntwork-io/terraform-fake-modules.git//modules/aws/aurora")
+	assert.True(t, found)
+	assert.Contains(t, *cfg.Terraform.Source, "git::https://github.com/gruntwork-io/terraform-fake-modules.git//modules/aws/aurora")
 }
 
 func TestScaffoldGitModuleHttps(t *testing.T) {
@@ -87,7 +88,7 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 			auroraModule = m
 		}
 	}
-	require.NotNil(t, auroraModule)
+	assert.NotNil(t, auroraModule)
 
 	testPath := t.TempDir()
 	opts, err := options.NewTerragruntOptionsForTest(testPath)
@@ -100,17 +101,17 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := readConfig(t, opts)
-	require.NotEmpty(t, cfg.Inputs)
-	require.Len(t, cfg.Inputs, 1)
+	assert.NotEmpty(t, cfg.Inputs)
+	assert.Len(t, cfg.Inputs, 1)
 	_, found := cfg.Inputs["vpc_id"]
-	require.True(t, found)
-	require.Contains(t, *cfg.Terraform.Source, "git::https://github.com/gruntwork-io/terraform-fake-modules.git//modules/aws/aurora?ref=v0.0.5")
+	assert.True(t, found)
+	assert.Contains(t, *cfg.Terraform.Source, "git::https://github.com/gruntwork-io/terraform-fake-modules.git//modules/aws/aurora?ref=v0.0.5")
 
 	runTerragrunt(t, "terragrunt init --terragrunt-non-interactive --terragrunt-working-dir "+opts.WorkingDir)
 }
 
 func readConfig(t *testing.T, opts *options.TerragruntOptions) *config.TerragruntConfig {
-	require.FileExists(t, opts.WorkingDir+"/terragrunt.hcl")
+	assert.FileExists(t, opts.WorkingDir+"/terragrunt.hcl")
 
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(opts.WorkingDir, "terragrunt.hcl"))
 	require.NoError(t, err)

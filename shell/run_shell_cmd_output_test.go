@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/util"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/options"
@@ -80,7 +81,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 
 	out, err := RunShellCommandWithOutput(context.Background(), terragruntOptions, "", !allocateStdout, false, "../testdata/test_outputs.sh", "same")
 
-	require.NotNil(t, out, "Should get output")
+	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")
 
 	assertResults(allOutputBuffer.String(), out)
@@ -94,13 +95,13 @@ func assertOutputs(
 ) func(string, *util.CmdOutput) {
 	return func(allOutput string, out *util.CmdOutput) {
 		allOutputs := strings.Split(strings.TrimSpace(allOutput), "\n")
-		require.Equal(t, expectedAllOutputs, allOutputs)
+		assert.Equal(t, expectedAllOutputs, allOutputs)
 
 		stdOutputs := strings.Split(strings.TrimSpace(out.Stdout), "\n")
-		require.Equal(t, expectedStdOutputs, stdOutputs)
+		assert.Equal(t, expectedStdOutputs, stdOutputs)
 
 		stdErrs := strings.Split(strings.TrimSpace(out.Stderr), "\n")
-		require.Equal(t, expectedStdErrs, stdErrs)
+		assert.Equal(t, expectedStdErrs, stdErrs)
 	}
 }
 

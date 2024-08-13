@@ -6,6 +6,7 @@ import (
 
 	"errors"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,8 +46,8 @@ func TestParseTerraformStateLocal(t *testing.T) {
 	actualTerraformState, err := parseTerraformState([]byte(stateFile))
 
 	require.NoError(t, err)
-	require.Equal(t, expectedTerraformState, actualTerraformState)
-	require.False(t, actualTerraformState.IsRemote())
+	assert.Equal(t, expectedTerraformState, actualTerraformState)
+	assert.False(t, actualTerraformState.IsRemote())
 }
 
 func TestParseTerraformStateRemote(t *testing.T) {
@@ -102,8 +103,8 @@ func TestParseTerraformStateRemote(t *testing.T) {
 	actualTerraformState, err := parseTerraformState([]byte(stateFile))
 
 	require.NoError(t, err)
-	require.Equal(t, expectedTerraformState, actualTerraformState)
-	require.True(t, actualTerraformState.IsRemote())
+	assert.Equal(t, expectedTerraformState, actualTerraformState)
+	assert.True(t, actualTerraformState.IsRemote())
 }
 
 func TestParseTerraformStateRemoteFull(t *testing.T) {
@@ -289,8 +290,8 @@ func TestParseTerraformStateRemoteFull(t *testing.T) {
 	actualTerraformState, err := parseTerraformState([]byte(stateFile))
 
 	require.NoError(t, err)
-	require.Equal(t, expectedTerraformState, actualTerraformState)
-	require.True(t, actualTerraformState.IsRemote())
+	assert.Equal(t, expectedTerraformState, actualTerraformState)
+	assert.True(t, actualTerraformState.IsRemote())
 }
 
 func TestParseTerraformStateEmpty(t *testing.T) {
@@ -303,8 +304,8 @@ func TestParseTerraformStateEmpty(t *testing.T) {
 	actualTerraformState, err := parseTerraformState([]byte(stateFile))
 
 	require.NoError(t, err)
-	require.Equal(t, expectedTerraformState, actualTerraformState)
-	require.False(t, actualTerraformState.IsRemote())
+	assert.Equal(t, expectedTerraformState, actualTerraformState)
+	assert.False(t, actualTerraformState.IsRemote())
 }
 
 func TestParseTerraformStateInvalid(t *testing.T) {
@@ -314,10 +315,10 @@ func TestParseTerraformStateInvalid(t *testing.T) {
 
 	actualTerraformState, err := parseTerraformState([]byte(stateFile))
 
-	require.Nil(t, actualTerraformState)
+	assert.Nil(t, actualTerraformState)
 	require.Error(t, err)
 
 	var jsonSyntaxError *json.SyntaxError
 	ok := errors.As(err, &jsonSyntaxError)
-	require.True(t, ok)
+	assert.True(t, ok)
 }

@@ -191,17 +191,17 @@ func TestFileManifest(t *testing.T) {
 	manifest := newFileManifest(dir, ".terragrunt-test-manifest")
 	require.NoError(t, manifest.Create())
 	// check the file manifest has been created
-	require.FileExists(t, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
+	assert.FileExists(t, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
 	for _, file := range testfiles {
 		require.NoError(t, manifest.AddFile(file))
 	}
 	// check for a non-existent directory as well
 	assert.NoError(t, manifest.AddDirectory(path.Join(dir, "ephemeral-directory-that-doesnt-exist")))
 
-	require.NoError(t, manifest.Clean())
+	assert.NoError(t, manifest.Clean())
 	// test if the files have been deleted
 	for _, file := range testfiles {
-		require.False(t, FileExists(file))
+		assert.False(t, FileExists(file))
 	}
 
 }
@@ -308,8 +308,8 @@ func TestIncludeInCopy(t *testing.T) {
 	fileContent := []byte("source file")
 	for _, testCase := range testCases {
 		path := filepath.Join(source, testCase.path)
-		require.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
-		require.NoError(t, os.WriteFile(path, fileContent, 0644))
+		assert.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
+		assert.NoError(t, os.WriteFile(path, fileContent, 0644))
 	}
 
 	require.NoError(t, CopyFolderContents(source, destination, ".terragrunt-test", includeInCopy))

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -89,8 +90,7 @@ provider_installation {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			tempDir, err := os.MkdirTemp("", "*")
-			require.NoError(t, err)
+			tempDir := t.TempDir()
 			configFile := filepath.Join(tempDir, ".terraformrc")
 
 			for _, host := range testCase.hosts {
@@ -104,7 +104,7 @@ provider_installation {
 			hclBytes, err := os.ReadFile(configFile)
 			require.NoError(t, err)
 
-			require.Equal(t, testCase.expectedHCL, string(hclBytes))
+			assert.Equal(t, testCase.expectedHCL, string(hclBytes))
 		})
 	}
 }

@@ -237,7 +237,7 @@ func TestConfigValuesEqual(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			actual := configValuesEqual(testCase.config, testCase.backend, terragruntOptions)
-			require.Equal(t, testCase.shouldBeEqual, actual)
+			assert.Equal(t, testCase.shouldBeEqual, actual)
 		})
 	}
 }
@@ -285,7 +285,7 @@ func TestForcePathStyleClientSession(t *testing.T) {
 			require.NoError(t, err, "Unexpected error creating client for test: %v", err)
 
 			actual := aws.BoolValue(s3Client.Config.S3ForcePathStyle)
-			require.Equal(t, testCase.expected, actual)
+			assert.Equal(t, testCase.expected, actual)
 		})
 	}
 }
@@ -334,7 +334,7 @@ func TestGetAwsSessionConfig(t *testing.T) {
 			}
 
 			actual := s3ConfigExtended.GetAwsSessionConfig()
-			require.Equal(t, expected, actual)
+			assert.Equal(t, expected, actual)
 		})
 	}
 }
@@ -371,7 +371,7 @@ func TestGetAwsSessionConfigWithAssumeRole(t *testing.T) {
 			}
 
 			actual := s3ConfigExtended.GetAwsSessionConfig()
-			require.Equal(t, expected, actual)
+			assert.Equal(t, expected, actual)
 		})
 	}
 }
@@ -516,10 +516,10 @@ func TestGetTerraformInitArgs(t *testing.T) {
 			actual := initializer.GetTerraformInitArgs(testCase.config)
 
 			if !testCase.shouldBeEqual {
-				require.NotEqual(t, testCase.expected, actual)
+				assert.NotEqual(t, testCase.expected, actual)
 				return
 			}
-			require.Equal(t, testCase.expected, actual)
+			assert.Equal(t, testCase.expected, actual)
 		})
 	}
 }
@@ -568,7 +568,7 @@ func TestNegativePublicAccessResponse(t *testing.T) {
 			t.Parallel()
 			response, err := validatePublicAccessBlock(testCase.response)
 			require.NoError(t, err)
-			require.False(t, response)
+			assert.False(t, response)
 		})
 	}
 }
@@ -618,7 +618,7 @@ func TestValidateS3Config(t *testing.T) {
 			if err != nil {
 				require.ErrorIs(t, err, testCase.expectedErr)
 			}
-			require.Contains(t, buf.String(), testCase.expectedOutput)
+			assert.Contains(t, buf.String(), testCase.expectedOutput)
 		})
 	}
 }
