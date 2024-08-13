@@ -460,18 +460,18 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 		if err != nil || runResp == nil {
 			break
 		}
-		if err := processStream(runResp.GetStdout(), &stdoutLineBuf, stdout, runOptions.CmdStdout); err != nil {
+		if err := processStream(runResp.GetStdout(), &stdoutLineBuf, stdout); err != nil {
 			return nil, errors.WithStackTrace(err)
 		}
-		if err := processStream(runResp.GetStderr(), &stderrLineBuf, stderr, runOptions.CmdStderr); err != nil {
+		if err := processStream(runResp.GetStderr(), &stderrLineBuf, stderr); err != nil {
 			return nil, errors.WithStackTrace(err)
 		}
 		resultCode = int(runResp.GetResultCode())
 	}
-	if err := flushBuffer(&stdoutLineBuf, runOptions.CmdStdout); err != nil {
+	if err := flushBuffer(&stdoutLineBuf, stdout); err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
-	if err := flushBuffer(&stderrLineBuf, runOptions.CmdStderr); err != nil {
+	if err := flushBuffer(&stderrLineBuf, stderr); err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
 
@@ -496,20 +496,17 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 }
 
 // processStream handles the character buffering and line printing for a given stream
-func processStream(data string, lineBuf *bytes.Buffer, writer io.Writer, output io.Writer) error {
+func processStream(data string, lineBuf *bytes.Buffer, output io.Writer) error {
 	for _, ch := range data {
+		lineBuf.WriteByte(byte(ch))
 		if ch == '\n' {
-			if _, err := fmt.Fprintln(output, lineBuf.String()); err != nil {
+			if _, err := fmt.Fprint(output, lineBuf.String()); err != nil {
 				return errors.WithStackTrace(err)
 			}
 			lineBuf.Reset()
-		} else {
-			lineBuf.WriteByte(byte(ch))
 		}
 	}
-
-	_, err := writer.Write([]byte(data))
-	return errors.WithStackTrace(err)
+	return nil
 }
 
 // flushBuffer prints any remaining data in the buffer
