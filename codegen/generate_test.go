@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,15 +54,15 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			output, err := RemoteStateConfigToTerraformCode(testCase.backend, testCase.config)
 			// validates the first output.
-			require.True(t, bytes.Contains(output, []byte(testCase.backend)))
-			require.Equal(t, testCase.expected, output)
+			assert.True(t, bytes.Contains(output, []byte(testCase.backend)))
+			assert.Equal(t, testCase.expected, output)
 			require.NoError(t, err)
 
 			// runs the function a few of times again. All the outputs must be
 			// equal to the first output.
 			for i := 0; i < 20; i++ {
 				actual, _ := RemoteStateConfigToTerraformCode(testCase.backend, testCase.config)
-				require.Equal(t, output, actual)
+				assert.Equal(t, output, actual)
 			}
 		})
 	}
@@ -106,15 +107,15 @@ func TestGenerateDisabling(t *testing.T) {
 
 			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
 			require.NoError(t, err)
-			require.NotNil(t, opts)
+			assert.NotNil(t, opts)
 
 			err = WriteToFile(opts, "", config)
 			require.NoError(t, err)
 
 			if testCase.disabled {
-				require.True(t, util.FileNotExists(testCase.path))
+				assert.True(t, util.FileNotExists(testCase.path))
 			} else {
-				require.True(t, util.FileExists(testCase.path))
+				assert.True(t, util.FileExists(testCase.path))
 			}
 		})
 	}

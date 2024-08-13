@@ -47,7 +47,7 @@ digraph {
 	"h" -> "c";
 }
 `)
-	require.True(t, strings.Contains(stdout.String(), expected))
+	assert.True(t, strings.Contains(stdout.String(), expected))
 }
 
 func TestGraphTrimPrefix(t *testing.T) {
@@ -84,7 +84,7 @@ digraph {
 	"alpha/beta/h" -> "c";
 }
 `)
-	require.True(t, strings.Contains(stdout.String(), expected))
+	assert.True(t, strings.Contains(stdout.String(), expected))
 }
 
 func TestGraphFlagExcluded(t *testing.T) {
@@ -121,7 +121,7 @@ digraph {
 	"h" -> "c";
 }
 `)
-	require.True(t, strings.Contains(stdout.String(), expected))
+	assert.True(t, strings.Contains(stdout.String(), expected))
 }
 
 func TestCheckForCycles(t *testing.T) {
@@ -200,7 +200,7 @@ func TestCheckForCycles(t *testing.T) {
 			var actualErr DependencyCycleError
 			// actualErr := errors.Unwrap(actual).(DependencyCycleError)
 			errors.As(actual, &actualErr)
-			require.Equal(t, []string(testCase.expected), []string(actualErr), "For modules %v", testCase.modules)
+			assert.Equal(t, []string(testCase.expected), []string(actualErr), "For modules %v", testCase.modules)
 		}
 	}
 }
@@ -233,7 +233,7 @@ func TestRunModulesOneModuleSuccess(t *testing.T) {
 	modules := TerraformModules{moduleA}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
-	require.True(t, aRan)
+	assert.True(t, aRan)
 }
 
 func TestRunModulesOneModuleAssumeAlreadyRan(t *testing.T) {
@@ -254,7 +254,7 @@ func TestRunModulesOneModuleAssumeAlreadyRan(t *testing.T) {
 	modules := TerraformModules{moduleA}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
-	require.False(t, aRan)
+	assert.False(t, aRan)
 }
 
 func TestRunModulesReverseOrderOneModuleSuccess(t *testing.T) {
@@ -274,7 +274,7 @@ func TestRunModulesReverseOrderOneModuleSuccess(t *testing.T) {
 	modules := TerraformModules{moduleA}
 	err = modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
-	require.True(t, aRan)
+	assert.True(t, aRan)
 }
 
 func TestRunModulesIgnoreOrderOneModuleSuccess(t *testing.T) {
@@ -294,7 +294,7 @@ func TestRunModulesIgnoreOrderOneModuleSuccess(t *testing.T) {
 	modules := TerraformModules{moduleA}
 	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
-	require.True(t, aRan)
+	assert.True(t, aRan)
 }
 
 func TestRunModulesOneModuleError(t *testing.T) {
@@ -315,7 +315,7 @@ func TestRunModulesOneModuleError(t *testing.T) {
 	modules := TerraformModules{moduleA}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA)
-	require.True(t, aRan)
+	assert.True(t, aRan)
 }
 
 func TestRunModulesReverseOrderOneModuleError(t *testing.T) {
@@ -336,7 +336,7 @@ func TestRunModulesReverseOrderOneModuleError(t *testing.T) {
 	modules := TerraformModules{moduleA}
 	err = modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA)
-	require.True(t, aRan)
+	assert.True(t, aRan)
 }
 
 func TestRunModulesIgnoreOrderOneModuleError(t *testing.T) {
@@ -357,7 +357,7 @@ func TestRunModulesIgnoreOrderOneModuleError(t *testing.T) {
 	modules := TerraformModules{moduleA}
 	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA)
-	require.True(t, aRan)
+	assert.True(t, aRan)
 }
 
 func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
@@ -394,9 +394,9 @@ func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
-	require.True(t, aRan)
-	require.True(t, bRan)
-	require.True(t, cRan)
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
 }
 
 func TestRunModulesMultipleModulesNoDependenciesSuccessNoParallelism(t *testing.T) {
@@ -433,9 +433,9 @@ func TestRunModulesMultipleModulesNoDependenciesSuccessNoParallelism(t *testing.
 	err = modules.RunModules(context.Background(), opts, 1)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
-	require.True(t, aRan)
-	require.True(t, bRan)
-	require.True(t, cRan)
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
 }
 
 func TestRunModulesReverseOrderMultipleModulesNoDependenciesSuccess(t *testing.T) {
@@ -472,9 +472,9 @@ func TestRunModulesReverseOrderMultipleModulesNoDependenciesSuccess(t *testing.T
 	err = modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
-	require.True(t, aRan)
-	require.True(t, bRan)
-	require.True(t, cRan)
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
 }
 
 func TestRunModulesIgnoreOrderMultipleModulesNoDependenciesSuccess(t *testing.T) {
@@ -511,9 +511,9 @@ func TestRunModulesIgnoreOrderMultipleModulesNoDependenciesSuccess(t *testing.T)
 	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
-	require.True(t, aRan)
-	require.True(t, bRan)
-	require.True(t, cRan)
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
 }
 
 func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
@@ -551,9 +551,9 @@ func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
 	err := modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB)
 
-	require.True(t, aRan)
-	require.True(t, bRan)
-	require.True(t, cRan)
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
 }
 
 func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
@@ -593,9 +593,9 @@ func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA, expectedErrB, expectedErrC)
 
-	require.True(t, aRan)
-	require.True(t, bRan)
-	require.True(t, cRan)
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
 }
 
 func TestRunModulesMultipleModulesWithDependenciesSuccess(t *testing.T) {
@@ -632,9 +632,9 @@ func TestRunModulesMultipleModulesWithDependenciesSuccess(t *testing.T) {
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
-	require.True(t, aRan)
-	require.True(t, bRan)
-	require.True(t, cRan)
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
 }
 
 func TestRunModulesMultipleModulesWithDependenciesWithAssumeAlreadyRanSuccess(t *testing.T) {
@@ -680,10 +680,10 @@ func TestRunModulesMultipleModulesWithDependenciesWithAssumeAlreadyRanSuccess(t 
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
-	require.True(t, aRan)
-	require.True(t, bRan)
-	require.False(t, cRan)
-	require.True(t, dRan)
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.False(t, cRan)
+	assert.True(t, dRan)
 }
 
 func TestRunModulesReverseOrderMultipleModulesWithDependenciesSuccess(t *testing.T) {
@@ -720,9 +720,9 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesSuccess(t *testing
 	err = modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
-	require.True(t, aRan)
-	require.True(t, bRan)
-	require.True(t, cRan)
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
 }
 
 func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesSuccess(t *testing.T) {
@@ -759,9 +759,9 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesSuccess(t *testing.
 	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
-	require.True(t, aRan)
-	require.True(t, bRan)
-	require.True(t, cRan)
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
 }
 
 func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
@@ -801,9 +801,9 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB, expectedErrC)
 
-	require.True(t, aRan)
-	require.True(t, bRan)
-	require.False(t, cRan)
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.False(t, cRan)
 }
 
 func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErrors(t *testing.T) {
@@ -847,9 +847,9 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErro
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB)
 
-	require.True(t, aRan)
-	require.True(t, bRan)
-	require.True(t, cRan)
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
 }
 
 func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *testing.T) {
@@ -889,9 +889,9 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *test
 	err = modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB, expectedErrA)
 
-	require.False(t, aRan)
-	require.True(t, bRan)
-	require.True(t, cRan)
+	assert.False(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
 }
 
 func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesOneFailure(t *testing.T) {
@@ -929,9 +929,9 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesOneFailure(t *testi
 	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB)
 
-	require.True(t, aRan)
-	require.True(t, bRan)
-	require.True(t, cRan)
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
 }
 
 func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T) {
@@ -972,9 +972,9 @@ func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T)
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA, expectedErrB, expectedErrC)
 
-	require.True(t, aRan)
-	require.False(t, bRan)
-	require.False(t, cRan)
+	assert.True(t, aRan)
+	assert.False(t, bRan)
+	assert.False(t, cRan)
 }
 
 func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesMultipleFailures(t *testing.T) {
@@ -1012,9 +1012,9 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesMultipleFailures(t 
 	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA)
 
-	require.True(t, aRan)
-	require.True(t, bRan)
-	require.True(t, cRan)
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
 }
 
 func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testing.T) {
@@ -1075,12 +1075,12 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testin
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err)
 
-	require.True(t, aRan)
-	require.True(t, bRan)
-	require.True(t, cRan)
-	require.True(t, dRan)
-	require.True(t, eRan)
-	require.True(t, fRan)
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
+	assert.True(t, dRan)
+	assert.True(t, eRan)
+	assert.True(t, fRan)
 }
 
 func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *testing.T) {
@@ -1154,13 +1154,13 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrC, expectedErrD, expectedErrF)
 
-	require.True(t, aRan)
-	require.True(t, bRan)
-	require.True(t, cRan)
-	require.False(t, dRan)
-	require.False(t, eRan)
-	require.False(t, fRan)
-	require.True(t, gRan)
+	assert.True(t, aRan)
+	assert.True(t, bRan)
+	assert.True(t, cRan)
+	assert.False(t, dRan)
+	assert.False(t, eRan)
+	assert.False(t, fRan)
+	assert.True(t, gRan)
 }
 
 func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialFailure(t *testing.T) {
@@ -1225,10 +1225,10 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 	err := modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrC, expectedErrB, expectedErrA)
 
-	require.False(t, aRan)
-	require.False(t, bRan)
-	require.True(t, cRan)
-	require.True(t, dRan)
-	require.True(t, eRan)
-	require.True(t, fRan)
+	assert.False(t, aRan)
+	assert.False(t, bRan)
+	assert.True(t, cRan)
+	assert.True(t, dRan)
+	assert.True(t, eRan)
+	assert.True(t, fRan)
 }

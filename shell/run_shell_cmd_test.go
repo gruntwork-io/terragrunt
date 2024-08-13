@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/options"
@@ -22,7 +23,7 @@ func TestRunShellCommand(t *testing.T) {
 	require.NoError(t, cmd)
 
 	cmd = RunShellCommand(context.Background(), terragruntOptions, "terraform", "not-a-real-command")
-	require.Error(t, cmd)
+	assert.Error(t, cmd)
 }
 
 func TestRunShellOutputToStderrAndStdout(t *testing.T) {
@@ -40,8 +41,8 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	cmd := RunShellCommand(context.Background(), terragruntOptions, "terraform", "--version")
 	require.NoError(t, cmd)
 
-	require.True(t, strings.Contains(stdout.String(), "Terraform"), "Output directed to stdout")
-	require.Empty(t, stderr.String(), "No output to stderr")
+	assert.True(t, strings.Contains(stdout.String(), "Terraform"), "Output directed to stdout")
+	assert.Empty(t, stderr.String(), "No output to stderr")
 
 	stdout = new(bytes.Buffer)
 	stderr = new(bytes.Buffer)
@@ -53,8 +54,8 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	cmd = RunShellCommand(context.Background(), terragruntOptions, "terraform", "--version")
 	require.NoError(t, cmd)
 
-	require.True(t, strings.Contains(stderr.String(), "Terraform"), "Output directed to stderr")
-	require.Empty(t, stdout.String(), "No output to stdout")
+	assert.True(t, strings.Contains(stderr.String(), "Terraform"), "Output directed to stderr")
+	assert.Empty(t, stdout.String(), "No output to stdout")
 }
 
 func TestLastReleaseTag(t *testing.T) {
@@ -69,8 +70,8 @@ func TestLastReleaseTag(t *testing.T) {
 		"refs/tags/v0.5.1",
 	}
 	lastTag := lastReleaseTag(tags)
-	require.NotEmpty(t, lastTag)
-	require.Equal(t, "v20.1.2", lastTag)
+	assert.NotEmpty(t, lastTag)
+	assert.Equal(t, "v20.1.2", lastTag)
 }
 
 func TestGitLevelTopDirCaching(t *testing.T) {
@@ -78,8 +79,8 @@ func TestGitLevelTopDirCaching(t *testing.T) {
 	ctx := context.Background()
 	ctx = ContextWithTerraformCommandHook(ctx, nil)
 	c := cache.ContextCache[string](ctx, RunCmdCacheContextKey)
-	require.NotNil(t, c)
-	require.Empty(t, len(c.Cache))
+	assert.NotNil(t, c)
+	assert.Empty(t, len(c.Cache))
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 	path := "."
@@ -87,6 +88,6 @@ func TestGitLevelTopDirCaching(t *testing.T) {
 	require.NoError(t, err)
 	path2, err := GitTopLevelDir(ctx, terragruntOptions, path)
 	require.NoError(t, err)
-	require.Equal(t, path1, path2)
-	require.Len(t, c.Cache, 1)
+	assert.Equal(t, path1, path2)
+	assert.Len(t, c.Cache, 1)
 }

@@ -29,8 +29,8 @@ func TestConvertMetaToProtobuf(t *testing.T) {
 
 	protoMeta, err := convertMetaToProtobuf(meta)
 	require.NoError(t, err)
-	require.NotNil(t, protoMeta)
-	require.Len(t, protoMeta, 2)
+	assert.NotNil(t, protoMeta)
+	assert.Len(t, protoMeta, 2)
 }
 
 func TestReadEngineOutput(t *testing.T) {

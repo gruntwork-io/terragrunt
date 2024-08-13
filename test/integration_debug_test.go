@@ -46,9 +46,9 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	)
 
 	debugFile := util.JoinPath(rootPath, terragruntDebugFile)
-	require.True(t, util.FileExists(debugFile))
+	assert.True(t, util.FileExists(debugFile))
 
-	require.Contains(t, stderr.String(), fmt.Sprintf("-chdir=\"%s\"", rootPath))
+	assert.Contains(t, stderr.String(), fmt.Sprintf("-chdir=\"%s\"", rootPath))
 
 	// If the debug file is generated correctly, we should be able to run terraform apply using the generated var file
 	// without going through terragrunt.
@@ -77,7 +77,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	var data map[string]interface{}
 	require.NoError(t, json.Unmarshal(debugJsonContents, &data))
 	_, isDefined := data["undefined_var"]
-	require.False(t, isDefined)
+	assert.False(t, isDefined)
 }
 
 func TestTerragruntInputsWithDashes(t *testing.T) {
@@ -202,14 +202,14 @@ func TestRenderJSONConfig(t *testing.T) {
 	terraformBlock, hasTerraform := rendered["terraform"]
 	if assert.True(t, hasTerraform) {
 		source, hasSource := terraformBlock.(map[string]interface{})["source"]
-		require.True(t, hasSource)
-		require.Equal(t, "./module", source)
+		assert.True(t, hasSource)
+		assert.Equal(t, "./module", source)
 	}
 
 	// Make sure included remote_state is rendered out
 	remote_state, hasRemoteState := rendered["remote_state"]
 	if assert.True(t, hasRemoteState) {
-		require.Equal(
+		assert.Equal(
 			t,
 			map[string]interface{}{
 				"backend": "local",
@@ -230,7 +230,7 @@ func TestRenderJSONConfig(t *testing.T) {
 	// Make sure dependency blocks are rendered out
 	dependencyBlocks, hasDependency := rendered["dependency"]
 	if assert.True(t, hasDependency) {
-		require.Equal(
+		assert.Equal(
 			t,
 			map[string]interface{}{
 				"dep": map[string]interface{}{
@@ -253,7 +253,7 @@ func TestRenderJSONConfig(t *testing.T) {
 	// Make sure included generate block is rendered out
 	generateBlocks, hasGenerate := rendered["generate"]
 	if assert.True(t, hasGenerate) {
-		require.Equal(
+		assert.Equal(
 			t,
 			map[string]interface{}{
 				"provider": map[string]interface{}{
@@ -276,7 +276,7 @@ func TestRenderJSONConfig(t *testing.T) {
 	// Make sure all inputs are merged together
 	inputsBlock, hasInputs := rendered["inputs"]
 	if assert.True(t, hasInputs) {
-		require.Equal(
+		assert.Equal(
 			t,
 			map[string]interface{}{
 				"env":        "qa",
@@ -314,14 +314,14 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	terraformBlock, hasTerraform := rendered["terraform"]
 	if assert.True(t, hasTerraform) {
 		source, hasSource := terraformBlock.(map[string]interface{})["source"]
-		require.True(t, hasSource)
-		require.Equal(t, "./foo", source)
+		assert.True(t, hasSource)
+		assert.Equal(t, "./foo", source)
 	}
 
 	// Make sure top level locals are rendered out
 	locals, hasLocals := rendered["locals"]
 	if assert.True(t, hasLocals) {
-		require.Equal(
+		assert.Equal(
 			t,
 			map[string]interface{}{
 				"foo": "bar",
@@ -333,7 +333,7 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	// Make sure included dependency block is rendered out, and with the outputs rendered
 	dependencyBlocks, hasDependency := rendered["dependency"]
 	if assert.True(t, hasDependency) {
-		require.Equal(
+		assert.Equal(
 			t,
 			map[string]interface{}{
 				"baz": map[string]interface{}{
@@ -356,7 +356,7 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	// Make sure generate block is rendered out
 	generateBlocks, hasGenerate := rendered["generate"]
 	if assert.True(t, hasGenerate) {
-		require.Equal(
+		assert.Equal(
 			t,
 			map[string]interface{}{
 				"provider": map[string]interface{}{
@@ -376,7 +376,7 @@ func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	// Make sure all inputs are merged together
 	inputsBlock, hasInputs := rendered["inputs"]
 	if assert.True(t, hasInputs) {
-		require.Equal(
+		assert.Equal(
 			t,
 			map[string]interface{}{
 				"foo":       "bar",
@@ -416,7 +416,7 @@ func TestRenderJSONConfigRunAll(t *testing.T) {
 	// Make sure top level locals are rendered out
 	bazLocals, bazHasLocals := bazRendered["locals"]
 	if assert.True(t, bazHasLocals) {
-		require.Equal(
+		assert.Equal(
 			t,
 			map[string]interface{}{
 				"self": "baz",
@@ -434,7 +434,7 @@ func TestRenderJSONConfigRunAll(t *testing.T) {
 	// Make sure top level locals are rendered out
 	rootChildLocals, rootChildHasLocals := rootChildRendered["locals"]
 	if assert.True(t, rootChildHasLocals) {
-		require.Equal(
+		assert.Equal(
 			t,
 			map[string]interface{}{
 				"foo": "bar",
@@ -459,9 +459,9 @@ func TestDependencyGraphWithMultiInclude(t *testing.T) {
 	)
 	stdoutStr := stdout.String()
 
-	require.Contains(t, stdoutStr, `"main" -> "depa";`)
-	require.Contains(t, stdoutStr, `"main" -> "depb";`)
-	require.Contains(t, stdoutStr, `"main" -> "depc";`)
+	assert.Contains(t, stdoutStr, `"main" -> "depa";`)
+	assert.Contains(t, stdoutStr, `"main" -> "depb";`)
+	assert.Contains(t, stdoutStr, `"main" -> "depc";`)
 }
 
 func runTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []string, isSuccessTest bool) {

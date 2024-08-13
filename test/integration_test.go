@@ -248,7 +248,7 @@ func TestTerragruntExcludesFile(t *testing.T) {
 			require.NoError(t, err)
 
 			actualOutput := strings.Split(strings.TrimSpace(stdout), "\n")
-			require.ElementsMatch(t, testCase.expectedOutput, actualOutput)
+			assert.ElementsMatch(t, testCase.expectedOutput, actualOutput)
 		})
 	}
 }
@@ -298,8 +298,8 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 		},
 		&diagnostic.Diagnostic{
 			Severity: diagnostic.DiagnosticSeverity(hcl.DiagError),
-			Summary:  "Missing required argument",
-			Detail:   "The argument \"config_path\" is required, but no definition was found.",
+			Summary:  "Missing assertd argument",
+			Detail:   "The argument \"config_path\" is assertd, but no definition was found.",
 			Range: &diagnostic.Range{
 				Filename: filepath.Join(rootPath, "second/c/terragrunt.hcl"),
 				Start:    diagnostic.Pos{Line: 16, Column: 16, Byte: 219},
@@ -357,7 +357,7 @@ func TestHclvalidateDiagnostic(t *testing.T) {
 	err = json.Unmarshal([]byte(strings.TrimSpace(stdout)), &actualDiags)
 	require.NoError(t, err)
 
-	require.ElementsMatch(t, expectedDiags, actualDiags)
+	assert.ElementsMatch(t, expectedDiags, actualDiags)
 }
 
 func TestHclvalidateInvalidConfigPath(t *testing.T) {
@@ -378,7 +378,7 @@ func TestHclvalidateInvalidConfigPath(t *testing.T) {
 	err = json.Unmarshal([]byte(strings.TrimSpace(stdout)), &actualPaths)
 	require.NoError(t, err)
 
-	require.ElementsMatch(t, expectedPaths, actualPaths)
+	assert.ElementsMatch(t, expectedPaths, actualPaths)
 }
 
 func TestTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
@@ -413,28 +413,28 @@ func TestTerragruntProviderCacheMultiplePlatforms(t *testing.T) {
 
 	for _, appName := range []string{"app1", "app2", "app3"} {
 		appPath := filepath.Join(rootPath, appName)
-		require.True(t, util.FileExists(appPath))
+		assert.True(t, util.FileExists(appPath))
 
 		lockfilePath := filepath.Join(appPath, ".terraform.lock.hcl")
 		lockfileContent, err := os.ReadFile(lockfilePath)
 		require.NoError(t, err)
 
 		lockfile, diags := hclwrite.ParseConfig(lockfileContent, lockfilePath, hcl.Pos{Line: 1, Column: 1})
-		require.False(t, diags.HasErrors())
-		require.NotNil(t, lockfile)
+		assert.False(t, diags.HasErrors())
+		assert.NotNil(t, lockfile)
 
 		for _, provider := range providers {
 			provider := path.Join(registryName, provider)
 
 			providerBlock := lockfile.Body().FirstMatchingBlock("provider", []string{filepath.Dir(provider)})
-			require.NotNil(t, providerBlock)
+			assert.NotNil(t, providerBlock)
 
 			providerPath := filepath.Join(providerCacheDir, provider)
-			require.True(t, util.FileExists(providerPath))
+			assert.True(t, util.FileExists(providerPath))
 
 			for _, platform := range platforms {
 				platformPath := filepath.Join(providerPath, platform)
-				require.True(t, util.FileExists(platformPath))
+				assert.True(t, util.FileExists(platformPath))
 			}
 		}
 	}
@@ -448,7 +448,7 @@ func TestTerragruntInitOnce(t *testing.T) {
 
 	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
-	require.Contains(t, stdout, "Initializing modules")
+	assert.Contains(t, stdout, "Initializing modules")
 
 	// update the config creation time without changing content
 	cfgPath := filepath.Join(rootPath, "terragrunt.hcl")
@@ -459,7 +459,7 @@ func TestTerragruntInitOnce(t *testing.T) {
 
 	stdout, _, err = runTerragruntCommandWithOutput(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
-	require.NotContains(t, stdout, "Initializing modules", "init command executed more than once")
+	assert.NotContains(t, stdout, "Initializing modules", "init command executed more than once")
 }
 
 func TestTerragruntDestroyOrder(t *testing.T) {
@@ -473,7 +473,7 @@ func TestTerragruntDestroyOrder(t *testing.T) {
 
 	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt run-all destroy --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
-	require.Regexp(t, regexp.MustCompile(`(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`), stdout)
+	assert.Regexp(t, regexp.MustCompile(`(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`), stdout)
 }
 
 func TestTerragruntApplyDestroyOrder(t *testing.T) {
@@ -487,7 +487,7 @@ func TestTerragruntApplyDestroyOrder(t *testing.T) {
 
 	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt run-all apply -destroy --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
-	require.Regexp(t, regexp.MustCompile(`(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`), stdout)
+	assert.Regexp(t, regexp.MustCompile(`(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`), stdout)
 }
 
 func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
@@ -509,9 +509,9 @@ func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
 		t.Errorf("Did not expect to get error: %s", err.Error())
 	}
 
-	require.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
+	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
 	// With no source, `init-from-module` should not execute
-	require.NotContains(t, output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE", "Hooks on init-from-module command executed when no source was specified")
+	assert.NotContains(t, output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE", "Hooks on init-from-module command executed when no source was specified")
 }
 
 func TestTerragruntInitHookNoSourceWithBackend(t *testing.T) {
@@ -539,9 +539,9 @@ func TestTerragruntInitHookNoSourceWithBackend(t *testing.T) {
 		t.Errorf("Did not expect to get error: %s", err.Error())
 	}
 
-	require.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
+	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
 	// With no source, `init-from-module` should not execute
-	require.NotContains(t, output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE", "Hooks on init-from-module command executed when no source was specified")
+	assert.NotContains(t, output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE", "Hooks on init-from-module command executed when no source was specified")
 }
 
 func TestTerragruntInitHookWithSourceNoBackend(t *testing.T) {
@@ -565,8 +565,8 @@ func TestTerragruntInitHookWithSourceNoBackend(t *testing.T) {
 		t.Errorf("Did not expect to get error: %s", err.Error())
 	}
 
-	require.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE\n"), "Hooks on init command executed more than once")
-	require.Equal(t, 1, strings.Count(output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE\n"), "Hooks on init-from-module command executed more than once")
+	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE\n"), "Hooks on init command executed more than once")
+	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE\n"), "Hooks on init-from-module command executed more than once")
 }
 
 func TestTerragruntInitHookWithSourceWithBackend(t *testing.T) {
@@ -596,9 +596,9 @@ func TestTerragruntInitHookWithSourceWithBackend(t *testing.T) {
 	}
 
 	// `init` hook should execute only once
-	require.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
+	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
 	// `init-from-module` hook should execute only once
-	require.Equal(t, 1, strings.Count(output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE"), "Hooks on init-from-module command executed more than once")
+	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE"), "Hooks on init-from-module command executed more than once")
 }
 
 func TestTerragruntHookRunAllApply(t *testing.T) {
@@ -694,13 +694,13 @@ func TestTerragruntBeforeAndAfterHook(t *testing.T) {
 		t.Errorf("Did not expect to get error: %s", err.Error())
 	}
 
-	require.Equal(t, 0, strings.Count(output, "BEFORE_TERRAGRUNT_READ_CONFIG"), "terragrunt-read-config before_hook should not be triggered")
+	assert.Equal(t, 0, strings.Count(output, "BEFORE_TERRAGRUNT_READ_CONFIG"), "terragrunt-read-config before_hook should not be triggered")
 	t.Logf("output: %s", output)
 
-	require.Equal(t, 1, strings.Count(output, "AFTER_TERRAGRUNT_READ_CONFIG"), "Hooks on terragrunt-read-config command executed more than once")
+	assert.Equal(t, 1, strings.Count(output, "AFTER_TERRAGRUNT_READ_CONFIG"), "Hooks on terragrunt-read-config command executed more than once")
 
 	expectedHookOutput := fmt.Sprintf("TF_PATH=%s COMMAND=terragrunt-read-config HOOK_NAME=after_hook_3", wrappedBinary())
-	require.Equal(t, 1, strings.Count(output, expectedHookOutput))
+	assert.Equal(t, 1, strings.Count(output, expectedHookOutput))
 
 	require.NoError(t, beforeException)
 	require.NoError(t, afterException)
@@ -762,15 +762,15 @@ func TestTerragruntSkipOnError(t *testing.T) {
 
 	output := stdout.String()
 
-	require.Contains(t, output, "BEFORE_SHOULD_DISPLAY")
-	require.NotContains(t, output, "BEFORE_NODISPLAY")
+	assert.Contains(t, output, "BEFORE_SHOULD_DISPLAY")
+	assert.NotContains(t, output, "BEFORE_NODISPLAY")
 
-	require.Contains(t, output, "AFTER_SHOULD_DISPLAY")
-	require.NotContains(t, output, "AFTER_NODISPLAY")
+	assert.Contains(t, output, "AFTER_SHOULD_DISPLAY")
+	assert.NotContains(t, output, "AFTER_NODISPLAY")
 
-	require.Contains(t, output, "ERROR_HOOK_EXECUTED")
-	require.NotContains(t, output, "NOT_MATCHING_ERROR_HOOK")
-	require.Contains(t, output, "PATTERN_MATCHING_ERROR_HOOK")
+	assert.Contains(t, output, "ERROR_HOOK_EXECUTED")
+	assert.NotContains(t, output, "NOT_MATCHING_ERROR_HOOK")
+	assert.Contains(t, output, "PATTERN_MATCHING_ERROR_HOOK")
 }
 
 func TestTerragruntCatchErrorsInTerraformExecution(t *testing.T) {
@@ -791,9 +791,9 @@ func TestTerragruntCatchErrorsInTerraformExecution(t *testing.T) {
 
 	output := stderr.String()
 
-	require.Contains(t, output, "pattern_matching_hook")
-	require.Contains(t, output, "catch_all_matching_hook")
-	require.NotContains(t, output, "not_matching_hook")
+	assert.Contains(t, output, "pattern_matching_hook")
+	assert.Contains(t, output, "catch_all_matching_hook")
+	assert.NotContains(t, output, "not_matching_hook")
 
 }
 
@@ -815,7 +815,7 @@ func TestTerragruntBeforeOneArgAction(t *testing.T) {
 	if err != nil {
 		t.Error("Expected successful execution of terragrunt with 1 before hook execution.")
 	} else {
-		require.Contains(t, output, "Running command: date")
+		assert.Contains(t, output, "Running command: date")
 	}
 }
 
@@ -834,7 +834,7 @@ func TestTerragruntEmptyStringCommandHook(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
 
 	if err != nil {
-		require.Contains(t, err.Error(), "Need at least one non-empty argument in 'execute'.")
+		assert.Contains(t, err.Error(), "Need at least one non-empty argument in 'execute'.")
 	} else {
 		t.Error("Expected an Error with message: 'Need at least one argument'")
 	}
@@ -855,7 +855,7 @@ func TestTerragruntEmptyCommandListHook(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
 
 	if err != nil {
-		require.Contains(t, err.Error(), "Need at least one non-empty argument in 'execute'.")
+		assert.Contains(t, err.Error(), "Need at least one non-empty argument in 'execute'.")
 	} else {
 		t.Error("Expected an Error with message: 'Need at least one argument'")
 	}
@@ -885,7 +885,7 @@ func TestTerragruntHookInterpolation(t *testing.T) {
 		t.Errorf("Did not expect to get error: %s", err.Error())
 	}
 
-	require.Contains(t, output, homePath)
+	assert.Contains(t, output, homePath)
 
 }
 
@@ -945,24 +945,24 @@ func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGiven
 	targetLoggingBucket := terraws.GetS3BucketLoggingTarget(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 	targetLoggingBucketPrefix := terraws.GetS3BucketLoggingTargetPrefix(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 
-	require.Equal(t, s3BucketLogsName, targetLoggingBucket)
-	require.Equal(t, s3BucketLogsTargetPrefix, targetLoggingBucketPrefix)
+	assert.Equal(t, s3BucketLogsName, targetLoggingBucket)
+	assert.Equal(t, s3BucketLogsTargetPrefix, targetLoggingBucketPrefix)
 
 	encryptionConfig, err := bucketEncryption(t, TERRAFORM_REMOTE_STATE_S3_REGION, targetLoggingBucket)
 	require.NoError(t, err)
-	require.NotNil(t, encryptionConfig)
-	require.NotNil(t, encryptionConfig.ServerSideEncryptionConfiguration)
+	assert.NotNil(t, encryptionConfig)
+	assert.NotNil(t, encryptionConfig.ServerSideEncryptionConfiguration)
 	for _, rule := range encryptionConfig.ServerSideEncryptionConfiguration.Rules {
 		if rule.ApplyServerSideEncryptionByDefault != nil {
 			if rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
-				require.Equal(t, s3.ServerSideEncryptionAes256, *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
+				assert.Equal(t, s3.ServerSideEncryptionAes256, *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
 			}
 		}
 	}
 
 	policy, err := bucketPolicy(t, TERRAFORM_REMOTE_STATE_S3_REGION, targetLoggingBucket)
 	require.NoError(t, err)
-	require.NotNil(t, policy.Policy)
+	assert.NotNil(t, policy.Policy)
 
 	policyInBucket, err := aws_helper.UnmarshalPolicy(*policy.Policy)
 	require.NoError(t, err)
@@ -972,7 +972,7 @@ func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGiven
 			enforceSSE = true
 		}
 	}
-	require.True(t, enforceSSE)
+	assert.True(t, enforceSSE)
 }
 
 // Regression test to ensure that `accesslogging_bucket_name` is taken into account
@@ -1005,18 +1005,18 @@ func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithDefau
 
 	encryptionConfig, err := bucketEncryption(t, TERRAFORM_REMOTE_STATE_S3_REGION, targetLoggingBucket)
 	require.NoError(t, err)
-	require.NotNil(t, encryptionConfig)
-	require.NotNil(t, encryptionConfig.ServerSideEncryptionConfiguration)
+	assert.NotNil(t, encryptionConfig)
+	assert.NotNil(t, encryptionConfig.ServerSideEncryptionConfiguration)
 	for _, rule := range encryptionConfig.ServerSideEncryptionConfiguration.Rules {
 		if rule.ApplyServerSideEncryptionByDefault != nil {
 			if rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
-				require.Equal(t, s3.ServerSideEncryptionAes256, *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
+				assert.Equal(t, s3.ServerSideEncryptionAes256, *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
 			}
 		}
 	}
 
-	require.Equal(t, s3BucketLogsName, targetLoggingBucket)
-	require.Equal(t, remote.DefaultS3BucketAccessLoggingTargetPrefix, targetLoggingBucketPrefix)
+	assert.Equal(t, s3BucketLogsName, targetLoggingBucket)
+	assert.Equal(t, remote.DefaultS3BucketAccessLoggingTargetPrefix, targetLoggingBucketPrefix)
 }
 
 func TestTerragruntWorksWithGCSBackend(t *testing.T) {
@@ -1084,9 +1084,9 @@ func TestTerragruntWorksWithNonDefaultConfigNamesAndRunAllCommand(t *testing.T) 
 	require.NoError(t, err)
 
 	out := stdout.String()
-	require.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
-	require.Equal(t, 1, strings.Count(out, "dependency_hcl"))
-	require.Equal(t, 1, strings.Count(out, "common_hcl"))
+	assert.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
+	assert.Equal(t, 1, strings.Count(out, "dependency_hcl"))
+	assert.Equal(t, 1, strings.Count(out, "common_hcl"))
 }
 
 func TestTerragruntWorksWithNonDefaultConfigNames(t *testing.T) {
@@ -1102,9 +1102,9 @@ func TestTerragruntWorksWithNonDefaultConfigNames(t *testing.T) {
 	require.NoError(t, err)
 
 	out := stdout.String()
-	require.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
-	require.Equal(t, 1, strings.Count(out, "dependency_hcl"))
-	require.Equal(t, 1, strings.Count(out, "common_hcl"))
+	assert.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
+	assert.Equal(t, 1, strings.Count(out, "dependency_hcl"))
+	assert.Equal(t, 1, strings.Count(out, "common_hcl"))
 }
 
 func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
@@ -1126,8 +1126,8 @@ func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 	output := stdout.String()
 	errOutput := stderr.String()
 	fmt.Printf("STDERR is %s.\n STDOUT is %s", errOutput, output)
-	require.True(t, strings.Contains(errOutput, "missingvar1") || strings.Contains(output, "missingvar1"))
-	require.True(t, strings.Contains(errOutput, "missingvar2") || strings.Contains(output, "missingvar2"))
+	assert.True(t, strings.Contains(errOutput, "missingvar1") || strings.Contains(output, "missingvar1"))
+	assert.True(t, strings.Contains(errOutput, "missingvar2") || strings.Contains(output, "missingvar2"))
 }
 
 func TestTerragruntGraphDependenciesCommand(t *testing.T) {
@@ -1149,7 +1149,7 @@ func TestTerragruntGraphDependenciesCommand(t *testing.T) {
 	)
 	runTerragruntRedirectOutput(t, "terragrunt graph-dependencies --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
 	output := stdout.String()
-	require.True(t, strings.Contains(output, strings.TrimSpace(`
+	assert.True(t, strings.Contains(output, strings.TrimSpace(`
 digraph {
 	"backend-app" ;
 	"backend-app" -> "mysql";
@@ -1205,11 +1205,11 @@ func TestTerragruntOutputAllCommand(t *testing.T) {
 	runTerragruntRedirectOutput(t, "terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
 	output := stdout.String()
 
-	require.True(t, strings.Contains(output, "app1 output"))
-	require.True(t, strings.Contains(output, "app2 output"))
-	require.True(t, strings.Contains(output, "app3 output"))
+	assert.True(t, strings.Contains(output, "app1 output"))
+	assert.True(t, strings.Contains(output, "app2 output"))
+	assert.True(t, strings.Contains(output, "app3 output"))
 
-	require.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
+	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
 }
 
 func TestTerragruntOutputFromDependency(t *testing.T) {
@@ -1236,7 +1236,7 @@ func TestTerragruntOutputFromDependency(t *testing.T) {
 	require.NoError(t, err)
 
 	output := stderr.String()
-	require.NotContains(t, output, "invalid character")
+	assert.NotContains(t, output, "invalid character")
 }
 
 func TestTerragruntValidateAllCommand(t *testing.T) {
@@ -1268,7 +1268,7 @@ func TestTerragruntStdOut(t *testing.T) {
 	runTerragruntRedirectOutput(t, "terragrunt output foo --terragrunt-non-interactive --terragrunt-working-dir "+TEST_FIXTURE_STDOUT, &stdout, &stderr)
 
 	output := stdout.String()
-	require.Equal(t, "\"foo\"\n", output)
+	assert.Equal(t, "\"foo\"\n", output)
 }
 
 func TestTerragruntOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *testing.T) {
@@ -1298,7 +1298,7 @@ func TestTerragruntOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *tes
 	logBufferContentsLineByLine(t, stderr, "output-all stderr")
 
 	// Without --terragrunt-ignore-dependency-errors, app2 never runs because its dependencies have "errors" since they don't have the output "app2_text".
-	require.True(t, strings.Contains(output, "app2 output"))
+	assert.True(t, strings.Contains(output, "app2 output"))
 }
 
 func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules int, timeToDeployEachModule time.Duration) (string, int, error) {
@@ -1404,7 +1404,7 @@ func TestInvalidSource(t *testing.T) {
 	var workingDirNotFoundErr terraform.WorkingDirNotFound
 	// _, ok := errors.Unwrap(err).(terraform.WorkingDirNotFound)
 	ok := goErrors.As(err, &workingDirNotFoundErr)
-	require.True(t, ok)
+	assert.True(t, ok)
 }
 
 // Run terragrunt plan -detailed-exitcode on a folder with some uncreated resources and make sure that you get an exit
@@ -1418,7 +1418,7 @@ func TestExitCode(t *testing.T) {
 
 	exitCode, exitCodeErr := util.GetExitCode(err)
 	require.NoError(t, exitCodeErr)
-	require.Equal(t, 2, exitCode)
+	assert.Equal(t, 2, exitCode)
 }
 
 func TestAutoRetryBasicRerun(t *testing.T) {
@@ -1430,7 +1430,7 @@ func TestAutoRetryBasicRerun(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, out, os.Stderr)
 
 	require.NoError(t, err)
-	require.Contains(t, out.String(), "Apply complete!")
+	assert.Contains(t, out.String(), "Apply complete!")
 }
 
 func TestAutoRetrySkip(t *testing.T) {
@@ -1442,7 +1442,7 @@ func TestAutoRetrySkip(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, out, os.Stderr)
 
 	require.Error(t, err)
-	require.NotContains(t, out.String(), "Apply complete!")
+	assert.NotContains(t, out.String(), "Apply complete!")
 }
 
 func TestPlanfileOrder(t *testing.T) {
@@ -1467,8 +1467,8 @@ func TestAutoRetryExhaustRetries(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, out, os.Stderr)
 
 	require.Error(t, err)
-	require.Contains(t, out.String(), "Failed to load backend")
-	require.NotContains(t, out.String(), "Apply complete!")
+	assert.Contains(t, out.String(), "Failed to load backend")
+	assert.NotContains(t, out.String(), "Apply complete!")
 }
 
 func TestAutoRetryCustomRetryableErrors(t *testing.T) {
@@ -1480,8 +1480,8 @@ func TestAutoRetryCustomRetryableErrors(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, out, os.Stderr)
 
 	require.NoError(t, err)
-	require.Contains(t, out.String(), "My own little error")
-	require.Contains(t, out.String(), "Apply complete!")
+	assert.Contains(t, out.String(), "My own little error")
+	assert.Contains(t, out.String(), "Apply complete!")
 }
 
 func TestAutoRetryGetDefaultErrors(t *testing.T) {
@@ -1500,8 +1500,8 @@ func TestAutoRetryGetDefaultErrors(t *testing.T) {
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
 	list, hasVal := outputs["retryable_errors"]
-	require.True(t, hasVal)
-	require.ElementsMatch(t, list.Value, append(options.DEFAULT_RETRYABLE_ERRORS, "my special snowflake"))
+	assert.True(t, hasVal)
+	assert.ElementsMatch(t, list.Value, append(options.DEFAULT_RETRYABLE_ERRORS, "my special snowflake"))
 }
 
 func TestAutoRetryCustomRetryableErrorsFailsWhenRetryableErrorsNotSet(t *testing.T) {
@@ -1513,8 +1513,8 @@ func TestAutoRetryCustomRetryableErrorsFailsWhenRetryableErrorsNotSet(t *testing
 	err := runTerragruntCommand(t, "terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, out, os.Stderr)
 
 	require.Error(t, err)
-	require.Contains(t, out.String(), "My own little error")
-	require.NotContains(t, out.String(), "Apply complete!")
+	assert.Contains(t, out.String(), "My own little error")
+	assert.NotContains(t, out.String(), "Apply complete!")
 }
 
 func TestAutoRetryFlagWithRecoverableError(t *testing.T) {
@@ -1526,7 +1526,7 @@ func TestAutoRetryFlagWithRecoverableError(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, out, os.Stderr)
 
 	require.Error(t, err)
-	require.NotContains(t, out.String(), "Apply complete!")
+	assert.NotContains(t, out.String(), "Apply complete!")
 }
 
 func TestAutoRetryEnvVarWithRecoverableError(t *testing.T) {
@@ -1537,7 +1537,7 @@ func TestAutoRetryEnvVarWithRecoverableError(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, out, os.Stderr)
 
 	require.Error(t, err)
-	require.NotContains(t, out.String(), "Apply complete!")
+	assert.NotContains(t, out.String(), "Apply complete!")
 }
 
 func TestAutoRetryApplyAllDependentModuleRetries(t *testing.T) {
@@ -1550,10 +1550,10 @@ func TestAutoRetryApplyAllDependentModuleRetries(t *testing.T) {
 
 	require.NoError(t, err)
 	s := out.String()
-	require.Contains(t, s, "app1 output")
-	require.Contains(t, s, "app2 output")
-	require.Contains(t, s, "app3 output")
-	require.Contains(t, s, "Apply complete!")
+	assert.Contains(t, s, "app1 output")
+	assert.Contains(t, s, "app2 output")
+	assert.Contains(t, s, "app3 output")
+	assert.Contains(t, s, "Apply complete!")
 }
 
 func TestAutoRetryConfigurableRetries(t *testing.T) {
@@ -1567,8 +1567,8 @@ func TestAutoRetryConfigurableRetries(t *testing.T) {
 	sleeps := regexp.MustCompile("Sleeping 0s before retrying.").FindAllStringIndex(stderr.String(), -1)
 
 	require.NoError(t, err)
-	require.Len(t, sleeps, 4) // 5 retries, so 4 sleeps
-	require.Contains(t, stdout.String(), "Apply complete!")
+	assert.Len(t, sleeps, 4) // 5 retries, so 4 sleeps
+	assert.Contains(t, stdout.String(), "Apply complete!")
 }
 
 func TestAutoRetryConfigurableRetriesErrors(t *testing.T) {
@@ -1593,8 +1593,8 @@ func TestAutoRetryConfigurableRetriesErrors(t *testing.T) {
 
 			err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, stdout, stderr)
 			require.Error(t, err)
-			require.NotContains(t, stdout.String(), "Apply complete!")
-			require.Contains(t, err.Error(), tc.errorMessage)
+			assert.NotContains(t, stdout.String(), "Apply complete!")
+			assert.Contains(t, err.Error(), tc.errorMessage)
 		})
 	}
 }
@@ -1623,7 +1623,7 @@ func TestAwsProviderPatch(t *testing.T) {
 	)
 	t.Log(stderr.String())
 
-	require.Regexp(t, "Patching AWS provider in .+test/fixture-aws-provider-patch/example-module/main.tf", stderr.String())
+	assert.Regexp(t, "Patching AWS provider in .+test/fixture-aws-provider-patch/example-module/main.tf", stderr.String())
 
 	// Make sure the resulting terraform code is still valid
 	require.NoError(
@@ -1688,7 +1688,7 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 
 		output := stdout.String()
 		errOutput := stderr.String()
-		require.True(t, strings.Contains(errOutput, testCase.expected) || strings.Contains(output, testCase.expected))
+		assert.True(t, strings.Contains(errOutput, testCase.expected) || strings.Contains(output, testCase.expected))
 	}
 }
 
@@ -1732,7 +1732,7 @@ func TestTerraformSubcommandCliArgs(t *testing.T) {
 		}
 		output := stdout.String()
 		errOutput := stderr.String()
-		require.True(t, strings.Contains(errOutput, testCase.expected) || strings.Contains(output, testCase.expected))
+		assert.True(t, strings.Contains(errOutput, testCase.expected) || strings.Contains(output, testCase.expected))
 	}
 }
 
@@ -1755,7 +1755,7 @@ func TestPreventDestroyNotSet(t *testing.T) {
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		require.IsType(t, terraform.ModuleIsProtected{}, underlying)
+		assert.IsType(t, terraform.ModuleIsProtected{}, underlying)
 	}
 }
 
@@ -1771,7 +1771,7 @@ func TestPreventDestroy(t *testing.T) {
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		require.IsType(t, terraform.ModuleIsProtected{}, underlying)
+		assert.IsType(t, terraform.ModuleIsProtected{}, underlying)
 	}
 }
 
@@ -1787,7 +1787,7 @@ func TestPreventDestroyApply(t *testing.T) {
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		require.IsType(t, terraform.ModuleIsProtected{}, underlying)
+		assert.IsType(t, terraform.ModuleIsProtected{}, underlying)
 	}
 }
 
@@ -1838,7 +1838,7 @@ func TestPreventDestroyDependencies(t *testing.T) {
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		require.IsType(t, &multierror.Error{}, underlying)
+		assert.IsType(t, &multierror.Error{}, underlying)
 	}
 
 	// Check that modules C, D and E were deleted and modules A and B weren't.
@@ -1856,31 +1856,31 @@ func TestPreventDestroyDependencies(t *testing.T) {
 		output := showStdout.String()
 		switch moduleName {
 		case "module-a":
-			require.Contains(t, output, "Hello, Module A")
+			assert.Contains(t, output, "Hello, Module A")
 		case "module-b":
-			require.Contains(t, output, "Hello, Module B")
+			assert.Contains(t, output, "Hello, Module B")
 		case "module-c":
-			require.NotContains(t, output, "Hello, Module C")
+			assert.NotContains(t, output, "Hello, Module C")
 		case "module-d":
-			require.NotContains(t, output, "Hello, Module D")
+			assert.NotContains(t, output, "Hello, Module D")
 		case "module-e":
-			require.NotContains(t, output, "Hello, Module E")
+			assert.NotContains(t, output, "Hello, Module E")
 		}
 	}
 }
 
 func validateInputs(t *testing.T, outputs map[string]TerraformOutput) {
-	require.Equal(t, true, outputs["bool"].Value)
-	require.Equal(t, []interface{}{true, false}, outputs["list_bool"].Value)
-	require.Equal(t, []interface{}{1.0, 2.0, 3.0}, outputs["list_number"].Value)
-	require.Equal(t, []interface{}{"a", "b", "c"}, outputs["list_string"].Value)
-	require.Equal(t, map[string]interface{}{"foo": true, "bar": false, "baz": true}, outputs["map_bool"].Value)
-	require.Equal(t, map[string]interface{}{"foo": 42.0, "bar": 12345.0}, outputs["map_number"].Value)
-	require.Equal(t, map[string]interface{}{"foo": "bar"}, outputs["map_string"].Value)
-	require.InEpsilon(t, 42.0, outputs["number"].Value, 0.0000000001)
-	require.Equal(t, map[string]interface{}{"list": []interface{}{1.0, 2.0, 3.0}, "map": map[string]interface{}{"foo": "bar"}, "num": 42.0, "str": "string"}, outputs["object"].Value)
-	require.Equal(t, "string", outputs["string"].Value)
-	require.Equal(t, "default", outputs["from_env"].Value)
+	assert.Equal(t, true, outputs["bool"].Value)
+	assert.Equal(t, []interface{}{true, false}, outputs["list_bool"].Value)
+	assert.Equal(t, []interface{}{1.0, 2.0, 3.0}, outputs["list_number"].Value)
+	assert.Equal(t, []interface{}{"a", "b", "c"}, outputs["list_string"].Value)
+	assert.Equal(t, map[string]interface{}{"foo": true, "bar": false, "baz": true}, outputs["map_bool"].Value)
+	assert.Equal(t, map[string]interface{}{"foo": 42.0, "bar": 12345.0}, outputs["map_number"].Value)
+	assert.Equal(t, map[string]interface{}{"foo": "bar"}, outputs["map_string"].Value)
+	assert.InEpsilon(t, 42.0, outputs["number"].Value, 0.0000000001)
+	assert.Equal(t, map[string]interface{}{"list": []interface{}{1.0, 2.0, 3.0}, "map": map[string]interface{}{"foo": "bar"}, "num": 42.0, "str": "string"}, outputs["object"].Value)
+	assert.Equal(t, "string", outputs["string"].Value)
+	assert.Equal(t, "default", outputs["from_env"].Value)
 }
 
 func TestInputsPassedThroughCorrectly(t *testing.T) {
@@ -1915,7 +1915,7 @@ func TestNoAutoInit(t *testing.T) {
 	logBufferContentsLineByLine(t, stdout, "no force apply stdout")
 	logBufferContentsLineByLine(t, stderr, "no force apply stderr")
 	require.Error(t, err)
-	require.Contains(t, stderr.String(), "This module is not yet installed.")
+	assert.Contains(t, stderr.String(), "This module is not yet installed.")
 }
 
 func TestLocalsParsing(t *testing.T) {
@@ -1934,8 +1934,8 @@ func TestLocalsParsing(t *testing.T) {
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
-	require.Equal(t, "Hello world\n", outputs["data"].Value)
-	require.InEpsilon(t, 42.0, outputs["answer"].Value, 0.0000000001)
+	assert.Equal(t, "Hello world\n", outputs["data"].Value)
+	assert.InEpsilon(t, 42.0, outputs["answer"].Value, 0.0000000001)
 }
 
 func TestLocalsInInclude(t *testing.T) {
@@ -1958,22 +1958,22 @@ func TestLocalsInInclude(t *testing.T) {
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
-	require.Equal(
+	assert.Equal(
 		t,
 		filepath.Join(tmpEnvPath, TEST_FIXTURE_LOCALS_IN_INCLUDE),
 		outputs["parent_terragrunt_dir"].Value,
 	)
-	require.Equal(
+	assert.Equal(
 		t,
 		childPath,
 		outputs["terragrunt_dir"].Value,
 	)
-	require.Equal(
+	assert.Equal(
 		t,
 		"apply",
 		outputs["terraform_command"].Value,
 	)
-	require.Equal(
+	assert.Equal(
 		t,
 		"[\"apply\",\"-auto-approve\",\"-no-color\"]",
 		outputs["terraform_cli_args"].Value,
@@ -2047,7 +2047,7 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		require.IsType(t, &multierror.Error{}, underlying)
+		assert.IsType(t, &multierror.Error{}, underlying)
 	}
 
 	// Check that modules C, D and E were deleted and modules A and B weren't.
@@ -2065,11 +2065,11 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 		output := showStdout.String()
 		switch moduleName {
 		case "module-a":
-			require.Contains(t, output, "Hello, Module A")
+			assert.Contains(t, output, "Hello, Module A")
 		case "module-b":
-			require.Contains(t, output, "Hello, Module B")
+			assert.Contains(t, output, "Hello, Module B")
 		case "module-c":
-			require.NotContains(t, output, "Hello, Module C")
+			assert.NotContains(t, output, "Hello, Module C")
 		}
 	}
 }
@@ -2087,9 +2087,9 @@ func TestTerragruntMissingDependenciesFail(t *testing.T) {
 	require.Error(t, err)
 	var parsedError config.DependencyDirNotFoundError
 	ok := goErrors.As(err, &parsedError)
-	require.True(t, ok)
-	require.Len(t, parsedError.Dir, 1)
-	require.Contains(t, parsedError.Dir[0], "hl3-release")
+	assert.True(t, ok)
+	assert.Len(t, parsedError.Dir, 1)
+	assert.Contains(t, parsedError.Dir[0], "hl3-release")
 }
 
 func TestTerragruntExcludeExternalDependencies(t *testing.T) {
@@ -2125,8 +2125,8 @@ func TestTerragruntExcludeExternalDependencies(t *testing.T) {
 		t.Errorf("Did not expect to get error: %s", err.Error())
 	}
 
-	require.Contains(t, applyAllStdoutString, "Hello World, "+includedModule)
-	require.NotContains(t, applyAllStdoutString, "Hello World, "+excludedModule)
+	assert.Contains(t, applyAllStdoutString, "Hello World, "+includedModule)
+	assert.NotContains(t, applyAllStdoutString, "Hello World, "+excludedModule)
 }
 
 func TestApplySkipTrue(t *testing.T) {
@@ -2146,8 +2146,8 @@ func TestApplySkipTrue(t *testing.T) {
 	stderr := showStderr.String()
 
 	require.NoError(t, err)
-	require.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixture-skip/skip-true/terragrunt.hcl due to skip = true."), stderr)
-	require.NotContains(t, stdout, "hello, Hobbs")
+	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixture-skip/skip-true/terragrunt.hcl due to skip = true."), stderr)
+	assert.NotContains(t, stdout, "hello, Hobbs")
 }
 
 func TestApplySkipFalse(t *testing.T) {
@@ -2167,8 +2167,8 @@ func TestApplySkipFalse(t *testing.T) {
 	stdout := showStdout.String()
 
 	require.NoError(t, err)
-	require.Contains(t, stdout, "hello, Hobbs")
-	require.NotContains(t, stderr, "Skipping terragrunt module")
+	assert.Contains(t, stdout, "hello, Hobbs")
+	assert.NotContains(t, stderr, "Skipping terragrunt module")
 }
 
 func TestApplyAllSkipTrue(t *testing.T) {
@@ -2188,9 +2188,9 @@ func TestApplyAllSkipTrue(t *testing.T) {
 	stderr := showStderr.String()
 
 	require.NoError(t, err)
-	require.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixture-skip/skip-true/terragrunt.hcl due to skip = true."), stderr)
-	require.Contains(t, stdout, "hello, Ernie")
-	require.Contains(t, stdout, "hello, Bert")
+	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixture-skip/skip-true/terragrunt.hcl due to skip = true."), stderr)
+	assert.Contains(t, stdout, "hello, Ernie")
+	assert.Contains(t, stdout, "hello, Bert")
 }
 
 func TestApplyAllSkipFalse(t *testing.T) {
@@ -2210,10 +2210,10 @@ func TestApplyAllSkipFalse(t *testing.T) {
 	stderr := showStderr.String()
 
 	require.NoError(t, err)
-	require.Contains(t, stdout, "hello, Hobbs")
-	require.Contains(t, stdout, "hello, Ernie")
-	require.Contains(t, stdout, "hello, Bert")
-	require.NotContains(t, stderr, "Skipping terragrunt module")
+	assert.Contains(t, stdout, "hello, Hobbs")
+	assert.Contains(t, stdout, "hello, Ernie")
+	assert.Contains(t, stdout, "hello, Bert")
+	assert.NotContains(t, stderr, "Skipping terragrunt module")
 }
 
 func TestTerragruntInfo(t *testing.T) {
@@ -2235,9 +2235,9 @@ func TestTerragruntInfo(t *testing.T) {
 	errUnmarshal := json.Unmarshal(showStdout.Bytes(), &dat)
 	require.NoError(t, errUnmarshal)
 
-	require.Equal(t, fmt.Sprintf("%s/%s", rootPath, TERRAGRUNT_CACHE), dat.DownloadDir)
-	require.Equal(t, wrappedBinary(), dat.TerraformBinary)
-	require.Empty(t, dat.IamRole)
+	assert.Equal(t, fmt.Sprintf("%s/%s", rootPath, TERRAGRUNT_CACHE), dat.DownloadDir)
+	assert.Equal(t, wrappedBinary(), dat.TerraformBinary)
+	assert.Empty(t, dat.IamRole)
 }
 
 // Test case for yamldecode bug: https://github.com/gruntwork-io/terragrunt/issues/834
@@ -2261,9 +2261,9 @@ func TestYamlDecodeRegressions(t *testing.T) {
 
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-	require.Equal(t, "003", outputs["test1"].Value)
-	require.Equal(t, "1.00", outputs["test2"].Value)
-	require.Equal(t, "0ba", outputs["test3"].Value)
+	assert.Equal(t, "003", outputs["test1"].Value)
+	assert.Equal(t, "1.00", outputs["test2"].Value)
+	assert.Equal(t, "0ba", outputs["test3"].Value)
 }
 
 // We test the path with remote_state blocks by:
@@ -2325,7 +2325,7 @@ func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit
 
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
-	require.Equal(t, expectedOutput, outputs["output"].Value)
+	assert.Equal(t, expectedOutput, outputs["output"].Value)
 
 	// If we want to force reinit, delete the relevant .terraform directories
 	if forceInit {
@@ -2339,13 +2339,13 @@ func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit
 	require.NoError(t, err)
 
 	require.NoError(t, json.Unmarshal([]byte(reout), &outputs))
-	require.Equal(t, expectedOutput, outputs["output"].Value)
+	assert.Equal(t, expectedOutput, outputs["output"].Value)
 
 	for _, logRegexp := range expectedOutputLogs {
 		re, err := regexp.Compile(logRegexp)
 		require.NoError(t, err)
 		matches := re.FindAllString(reerr, -1)
-		require.NotEmpty(t, matches)
+		assert.NotEmpty(t, matches)
 	}
 }
 
@@ -2380,7 +2380,7 @@ func TestDependencyOutputOptimizationDisableTest(t *testing.T) {
 
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
-	require.Equal(t, expectedOutput, outputs["output"].Value)
+	assert.Equal(t, expectedOutput, outputs["output"].Value)
 
 	// Now delete the deepdep state and verify it no longer works, because it tries to fetch the deepdep dependency
 	config.ClearOutputCache()
@@ -2411,7 +2411,7 @@ func TestDependencyOutput(t *testing.T) {
 
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-	require.Equal(t, 42, int(outputs["z"].Value.(float64)))
+	assert.Equal(t, 42, int(outputs["z"].Value.(float64)))
 }
 
 func TestDependencyOutputErrorBeforeApply(t *testing.T) {
@@ -2428,7 +2428,7 @@ func TestDependencyOutputErrorBeforeApply(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir "+app3Path, &showStdout, &showStderr)
 	require.Error(t, err)
 	// Verify that we fail because the dependency is not applied yet
-	require.Contains(t, err.Error(), "has not been applied yet")
+	assert.Contains(t, err.Error(), "has not been applied yet")
 
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 	logBufferContentsLineByLine(t, showStderr, "show stderr")
@@ -2480,7 +2480,7 @@ func TestDependencyOutputSkipOutputsWithMockOutput(t *testing.T) {
 	)
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-	require.Equal(t, "The answer is 0", outputs["truth"].Value)
+	assert.Equal(t, "The answer is 0", outputs["truth"].Value)
 
 	// Now apply-all so that the dependency is applied, and verify it still uses the mock output
 	err = runTerragruntCommand(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &showStdout, &showStderr)
@@ -2498,7 +2498,7 @@ func TestDependencyOutputSkipOutputsWithMockOutput(t *testing.T) {
 	)
 	outputs = map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-	require.Equal(t, "The answer is 0", outputs["truth"].Value)
+	assert.Equal(t, "The answer is 0", outputs["truth"].Value)
 }
 
 // Test that when you have a mock_output on a dependency, the dependency will use the mock as the output instead
@@ -2529,7 +2529,7 @@ func TestDependencyMockOutput(t *testing.T) {
 	)
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-	require.Equal(t, "The answer is 0", outputs["truth"].Value)
+	assert.Equal(t, "The answer is 0", outputs["truth"].Value)
 
 	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
 	// This is only a problem during testing, where the process is shared across terragrunt runs.
@@ -2551,7 +2551,7 @@ func TestDependencyMockOutput(t *testing.T) {
 	)
 	outputs = map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-	require.Equal(t, "The answer is 42", outputs["truth"].Value)
+	assert.Equal(t, "The answer is 42", outputs["truth"].Value)
 }
 
 // Test default behavior when mock_outputs_merge_with_state is not set. It should behave, as before this parameter was added
@@ -2580,7 +2580,7 @@ func TestDependencyMockOutputMergeWithStateDefault(t *testing.T) {
 	require.Error(t, err)
 	// Verify that we fail because the dependency is not applied yet, and the new attribute is not available and in
 	// this case, mocked outputs are not used.
-	require.Contains(t, err.Error(), "This object does not have an attribute named \"test_output2\"")
+	assert.Contains(t, err.Error(), "This object does not have an attribute named \"test_output2\"")
 
 	logBufferContentsLineByLine(t, stdout, "plan stdout")
 	logBufferContentsLineByLine(t, stderr, "plan stderr")
@@ -2613,7 +2613,7 @@ func TestDependencyMockOutputMergeWithStateFalse(t *testing.T) {
 	require.Error(t, err)
 	// Verify that we fail because the dependency is not applied yet, and the new attribute is not available and in
 	// this case, mocked outputs are not used.
-	require.Contains(t, err.Error(), "This object does not have an attribute named \"test_output2\"")
+	assert.Contains(t, err.Error(), "This object does not have an attribute named \"test_output2\"")
 
 	logBufferContentsLineByLine(t, stdout, "plan stdout")
 	logBufferContentsLineByLine(t, stderr, "plan stderr")
@@ -2657,8 +2657,8 @@ func TestDependencyMockOutputMergeWithStateTrue(t *testing.T) {
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
-	require.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
-	require.Equal(t, "fake-data2", outputs["test_output2_from_parent"].Value)
+	assert.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
+	assert.Equal(t, "fake-data2", outputs["test_output2_from_parent"].Value)
 
 	logBufferContentsLineByLine(t, stdout, "output stdout")
 	logBufferContentsLineByLine(t, stderr, "output stderr")
@@ -2734,8 +2734,8 @@ func TestDependencyMockOutputMergeWithStateNoOverride(t *testing.T) {
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
-	require.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
-	require.Equal(t, "value2", outputs["test_output2_from_parent"].Value)
+	assert.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
+	assert.Equal(t, "value2", outputs["test_output2_from_parent"].Value)
 
 	logBufferContentsLineByLine(t, stdout, "show stdout")
 	logBufferContentsLineByLine(t, stderr, "show stderr")
@@ -2755,7 +2755,7 @@ func TestDependencyMockOutputMergeStrategyWithStateDefault(t *testing.T) {
 
 	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+childPath, &stdout, &stderr)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "This object does not have an attribute named \"test_output_list_string\"")
+	assert.Contains(t, err.Error(), "This object does not have an attribute named \"test_output_list_string\"")
 	logBufferContentsLineByLine(t, stdout, "apply stdout")
 	logBufferContentsLineByLine(t, stderr, "apply stderr")
 }
@@ -2774,7 +2774,7 @@ func TestDependencyMockOutputMergeStrategyWithStateCompatFalse(t *testing.T) {
 
 	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+childPath, &stdout, &stderr)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "This object does not have an attribute named \"test_output_list_string\"")
+	assert.Contains(t, err.Error(), "This object does not have an attribute named \"test_output_list_string\"")
 	logBufferContentsLineByLine(t, stdout, "apply stdout")
 	logBufferContentsLineByLine(t, stderr, "apply stderr")
 }
@@ -2805,11 +2805,11 @@ func TestDependencyMockOutputMergeStrategyWithStateCompatTrue(t *testing.T) {
 	logBufferContentsLineByLine(t, stdout, "output stdout")
 	logBufferContentsLineByLine(t, stderr, "output stderr")
 
-	require.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
-	require.Equal(t, "map_root1_sub1_value", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "map_root1", "map_root1_sub1", "value"))
-	require.Nil(t, util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "not_in_state", "abc", "value"))
-	require.Equal(t, "fake-list-data", util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "0"))
-	require.Nil(t, util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "1"))
+	assert.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
+	assert.Equal(t, "map_root1_sub1_value", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "map_root1", "map_root1_sub1", "value"))
+	assert.Nil(t, util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "not_in_state", "abc", "value"))
+	assert.Equal(t, "fake-list-data", util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "0"))
+	assert.Nil(t, util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "1"))
 }
 
 // Test when both mock_outputs_merge_with_state and mock_outputs_merge_strategy_with_state are set, mock_outputs_merge_strategy_with_state is used
@@ -2838,11 +2838,11 @@ func TestDependencyMockOutputMergeStrategyWithStateCompatConflict(t *testing.T) 
 	logBufferContentsLineByLine(t, stdout, "output stdout")
 	logBufferContentsLineByLine(t, stderr, "output stderr")
 
-	require.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
-	require.Equal(t, "map_root1_sub1_value", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "map_root1", "map_root1_sub1", "value"))
-	require.Nil(t, util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "not_in_state", "abc", "value"))
-	require.Equal(t, "fake-list-data", util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "0"))
-	require.Nil(t, util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "1"))
+	assert.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
+	assert.Equal(t, "map_root1_sub1_value", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "map_root1", "map_root1_sub1", "value"))
+	assert.Nil(t, util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "not_in_state", "abc", "value"))
+	assert.Equal(t, "fake-list-data", util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "0"))
+	assert.Nil(t, util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "1"))
 }
 
 // Test when mock_outputs_merge_strategy_with_state = "no_merge" that mocks are not merged into the current state
@@ -2859,7 +2859,7 @@ func TestDependencyMockOutputMergeStrategyWithStateNoMerge(t *testing.T) {
 
 	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+childPath, &stdout, &stderr)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "This object does not have an attribute named \"test_output_list_string\"")
+	assert.Contains(t, err.Error(), "This object does not have an attribute named \"test_output_list_string\"")
 	logBufferContentsLineByLine(t, stdout, "apply stdout")
 	logBufferContentsLineByLine(t, stderr, "apply stderr")
 }
@@ -2891,11 +2891,11 @@ func TestDependencyMockOutputMergeStrategyWithStateShallow(t *testing.T) {
 	logBufferContentsLineByLine(t, stdout, "output stdout")
 	logBufferContentsLineByLine(t, stderr, "output stderr")
 
-	require.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
-	require.Equal(t, "map_root1_sub1_value", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "map_root1", "map_root1_sub1", "value"))
-	require.Nil(t, util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "not_in_state", "abc", "value"))
-	require.Equal(t, "fake-list-data", util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "0"))
-	require.Nil(t, util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "1"))
+	assert.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
+	assert.Equal(t, "map_root1_sub1_value", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "map_root1", "map_root1_sub1", "value"))
+	assert.Nil(t, util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "not_in_state", "abc", "value"))
+	assert.Equal(t, "fake-list-data", util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "0"))
+	assert.Nil(t, util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "1"))
 }
 
 // Test when mock_outputs_merge_strategy_with_state = "deep" that the existing state is deeply merged into the mocks
@@ -2926,12 +2926,12 @@ func TestDependencyMockOutputMergeStrategyWithStateDeepMapOnly(t *testing.T) {
 	logBufferContentsLineByLine(t, stdout, "output stdout")
 	logBufferContentsLineByLine(t, stderr, "output stderr")
 
-	require.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
-	require.Equal(t, "fake-abc", outputs["test_output2_from_parent"].Value)
-	require.Equal(t, "map_root1_sub1_value", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "map_root1", "map_root1_sub1", "value"))
-	require.Equal(t, "fake-abc", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "not_in_state", "abc", "value"))
-	require.Equal(t, "a", util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "0"))
-	require.Nil(t, util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "1"))
+	assert.Equal(t, "value1", outputs["test_output1_from_parent"].Value)
+	assert.Equal(t, "fake-abc", outputs["test_output2_from_parent"].Value)
+	assert.Equal(t, "map_root1_sub1_value", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "map_root1", "map_root1_sub1", "value"))
+	assert.Equal(t, "fake-abc", util.MustWalkTerraformOutput(outputs["test_output_map_map_string_from_parent"].Value, "not_in_state", "abc", "value"))
+	assert.Equal(t, "a", util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "0"))
+	assert.Nil(t, util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "1"))
 }
 
 // Test that when you have a mock_output on a dependency, the dependency will use the mock as the output instead
@@ -2950,7 +2950,7 @@ func TestDependencyMockOutputRestricted(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+dependent2Path, &showStdout, &showStderr)
 	require.Error(t, err)
 	// Verify that we fail because the dependency is not applied yet
-	require.Contains(t, err.Error(), "has not been applied yet")
+	assert.Contains(t, err.Error(), "has not been applied yet")
 
 	logBufferContentsLineByLine(t, showStdout, "show stdout")
 	logBufferContentsLineByLine(t, showStderr, "show stderr")
@@ -3018,17 +3018,17 @@ func TestDependencyOutputTypeConversion(t *testing.T) {
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
-	require.Equal(t, true, outputs["bool"].Value)
-	require.Equal(t, []interface{}{true, false}, outputs["list_bool"].Value)
-	require.Equal(t, []interface{}{1.0, 2.0, 3.0}, outputs["list_number"].Value)
-	require.Equal(t, []interface{}{"a", "b", "c"}, outputs["list_string"].Value)
-	require.Equal(t, map[string]interface{}{"foo": true, "bar": false, "baz": true}, outputs["map_bool"].Value)
-	require.Equal(t, map[string]interface{}{"foo": 42.0, "bar": 12345.0}, outputs["map_number"].Value)
-	require.Equal(t, map[string]interface{}{"foo": "bar"}, outputs["map_string"].Value)
-	require.InEpsilon(t, 42.0, outputs["number"].Value.(float64), 0.0000001)
-	require.Equal(t, map[string]interface{}{"list": []interface{}{1.0, 2.0, 3.0}, "map": map[string]interface{}{"foo": "bar"}, "num": 42.0, "str": "string"}, outputs["object"].Value)
-	require.Equal(t, "string", outputs["string"].Value)
-	require.Equal(t, "default", outputs["from_env"].Value)
+	assert.Equal(t, true, outputs["bool"].Value)
+	assert.Equal(t, []interface{}{true, false}, outputs["list_bool"].Value)
+	assert.Equal(t, []interface{}{1.0, 2.0, 3.0}, outputs["list_number"].Value)
+	assert.Equal(t, []interface{}{"a", "b", "c"}, outputs["list_string"].Value)
+	assert.Equal(t, map[string]interface{}{"foo": true, "bar": false, "baz": true}, outputs["map_bool"].Value)
+	assert.Equal(t, map[string]interface{}{"foo": 42.0, "bar": 12345.0}, outputs["map_number"].Value)
+	assert.Equal(t, map[string]interface{}{"foo": "bar"}, outputs["map_string"].Value)
+	assert.InEpsilon(t, 42.0, outputs["number"].Value.(float64), 0.0000001)
+	assert.Equal(t, map[string]interface{}{"list": []interface{}{1.0, 2.0, 3.0}, "map": map[string]interface{}{"foo": "bar"}, "num": 42.0, "str": "string"}, outputs["object"].Value)
+	assert.Equal(t, "string", outputs["string"].Value)
+	assert.Equal(t, "default", outputs["from_env"].Value)
 }
 
 // Regression testing for https://github.com/gruntwork-io/terragrunt/issues/1102: Ordering keys from
@@ -3051,7 +3051,7 @@ func TestOrderedMapOutputRegressions1102(t *testing.T) {
 		runTerragruntCommand(t, command, &stdout, &stderr),
 	)
 	expected, _ := os.ReadFile(path)
-	require.Contains(t, string(expected), "local")
+	assert.Contains(t, string(expected), "local")
 
 	// runs terragrunt again. All the outputs must be
 	// equal to the first run.
@@ -3061,7 +3061,7 @@ func TestOrderedMapOutputRegressions1102(t *testing.T) {
 			runTerragruntCommand(t, command, &stdout, &stderr),
 		)
 		actual, _ := os.ReadFile(path)
-		require.Equal(t, expected, actual)
+		assert.Equal(t, expected, actual)
 	}
 }
 
@@ -3100,7 +3100,7 @@ func TestDependencyOutputCycleHandling(t *testing.T) {
 			logBufferContentsLineByLine(t, planStdout, "plan stdout")
 			logBufferContentsLineByLine(t, planStderr, "plan stderr")
 			require.Error(t, err)
-			require.True(t, strings.Contains(err.Error(), "Found a dependency cycle between modules"))
+			assert.True(t, strings.Contains(err.Error(), "Found a dependency cycle between modules"))
 		})
 	}
 }
@@ -3227,14 +3227,14 @@ func TestDependencyOutputWithHooks(t *testing.T) {
 	config.ClearOutputCache()
 
 	// The file should exist in the first run.
-	require.True(t, util.FileExists(depPathFileOut))
-	require.False(t, util.FileExists(mainPathFileOut))
+	assert.True(t, util.FileExists(depPathFileOut))
+	assert.False(t, util.FileExists(mainPathFileOut))
 
 	// Now delete file and run just main again. It should NOT create file.out.
 	require.NoError(t, os.Remove(depPathFileOut))
 	runTerragrunt(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir "+mainPath)
-	require.False(t, util.FileExists(depPathFileOut))
-	require.False(t, util.FileExists(mainPathFileOut))
+	assert.False(t, util.FileExists(depPathFileOut))
+	assert.False(t, util.FileExists(mainPathFileOut))
 }
 
 func TestDeepDependencyOutputWithMock(t *testing.T) {
@@ -3283,9 +3283,9 @@ func TestAWSGetCallerIdentityFunctions(t *testing.T) {
 
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-	require.Equal(t, outputs["account"].Value, *identity.Account)
-	require.Equal(t, outputs["arn"].Value, *identity.Arn)
-	require.Equal(t, outputs["user_id"].Value, *identity.UserId)
+	assert.Equal(t, outputs["account"].Value, *identity.Account)
+	assert.Equal(t, outputs["arn"].Value, *identity.Arn)
+	assert.Equal(t, outputs["user_id"].Value, *identity.UserId)
 }
 
 func TestGetRepoRoot(t *testing.T) {
@@ -3316,8 +3316,8 @@ func TestGetRepoRoot(t *testing.T) {
 
 	repoRoot, ok := outputs["repo_root"]
 
-	require.True(t, ok)
-	require.Regexp(t, "/tmp/terragrunt-.*/fixture-get-repo-root", repoRoot.Value)
+	assert.True(t, ok)
+	assert.Regexp(t, "/tmp/terragrunt-.*/fixture-get-repo-root", repoRoot.Value)
 }
 
 func TestGetWorkingDirBuiltInFunc(t *testing.T) {
@@ -3368,8 +3368,8 @@ func TestGetWorkingDirBuiltInFunc(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	require.True(t, ok)
-	require.Equal(t, expectedWorkingDir, workingDir.Value)
+	assert.True(t, ok)
+	assert.Equal(t, expectedWorkingDir, workingDir.Value)
 }
 
 func TestPathRelativeFromInclude(t *testing.T) {
@@ -3399,8 +3399,8 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
 	val, hasVal := outputs["some_output"]
-	require.True(t, hasVal)
-	require.Equal(t, "something else", val.Value)
+	assert.True(t, hasVal)
+	assert.Equal(t, "something else", val.Value)
 
 	// try to destroy module and check if warning is printed in output, also test `get_parent_terragrunt_dir()` func in the parent terragrunt config.
 	stdout = bytes.Buffer{}
@@ -3409,7 +3409,7 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	err = runTerragruntCommand(t, "terragrunt destroy -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+basePath, &stdout, &stderr)
 	require.NoError(t, err)
 
-	require.Contains(t, stderr.String(), "Detected dependent modules:\n"+clusterPath)
+	assert.Contains(t, stderr.String(), "Detected dependent modules:\n"+clusterPath)
 }
 
 func TestGetPathFromRepoRoot(t *testing.T) {
@@ -3441,8 +3441,8 @@ func TestGetPathFromRepoRoot(t *testing.T) {
 
 	pathFromRoot, hasPathFromRoot := outputs["path_from_root"]
 
-	require.True(t, hasPathFromRoot)
-	require.Equal(t, TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT, pathFromRoot.Value)
+	assert.True(t, hasPathFromRoot)
+	assert.Equal(t, TEST_FIXTURE_GET_PATH_FROM_REPO_ROOT, pathFromRoot.Value)
 }
 
 func TestGetPathToRepoRoot(t *testing.T) {
@@ -3480,8 +3480,8 @@ func TestGetPathToRepoRoot(t *testing.T) {
 	} {
 		value, hasValue := outputs[name]
 
-		require.True(t, hasValue)
-		require.Equal(t, expected, value.Value)
+		assert.True(t, hasValue)
+		assert.Equal(t, expected, value.Value)
 	}
 }
 
@@ -3507,8 +3507,8 @@ func TestGetPlatform(t *testing.T) {
 
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	platform, hasPlatform := outputs["platform"]
-	require.True(t, hasPlatform)
-	require.Equal(t, runtime.GOOS, platform.Value)
+	assert.True(t, hasPlatform)
+	assert.Equal(t, runtime.GOOS, platform.Value)
 }
 
 func TestDataDir(t *testing.T) {
@@ -3527,14 +3527,14 @@ func TestDataDir(t *testing.T) {
 
 	err := runTerragruntCommand(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
 	require.NoError(t, err)
-	require.Contains(t, stdout.String(), "Initializing provider plugins")
+	assert.Contains(t, stdout.String(), "Initializing provider plugins")
 
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
 
 	err = runTerragruntCommand(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
 	require.NoError(t, err)
-	require.NotContains(t, stdout.String(), "Initializing provider plugins")
+	assert.NotContains(t, stdout.String(), "Initializing provider plugins")
 }
 
 func TestReadTerragruntConfigWithDependency(t *testing.T) {
@@ -3573,17 +3573,17 @@ func TestReadTerragruntConfigWithDependency(t *testing.T) {
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
-	require.Equal(t, true, outputs["bool"].Value)
-	require.Equal(t, []interface{}{true, false}, outputs["list_bool"].Value)
-	require.Equal(t, []interface{}{1.0, 2.0, 3.0}, outputs["list_number"].Value)
-	require.Equal(t, []interface{}{"a", "b", "c"}, outputs["list_string"].Value)
-	require.Equal(t, map[string]interface{}{"foo": true, "bar": false, "baz": true}, outputs["map_bool"].Value)
-	require.Equal(t, map[string]interface{}{"foo": 42.0, "bar": 12345.0}, outputs["map_number"].Value)
-	require.Equal(t, map[string]interface{}{"foo": "bar"}, outputs["map_string"].Value)
-	require.InEpsilon(t, 42.0, outputs["number"].Value.(float64), 0.0000001)
-	require.Equal(t, map[string]interface{}{"list": []interface{}{1.0, 2.0, 3.0}, "map": map[string]interface{}{"foo": "bar"}, "num": 42.0, "str": "string"}, outputs["object"].Value)
-	require.Equal(t, "string", outputs["string"].Value)
-	require.Equal(t, "default", outputs["from_env"].Value)
+	assert.Equal(t, true, outputs["bool"].Value)
+	assert.Equal(t, []interface{}{true, false}, outputs["list_bool"].Value)
+	assert.Equal(t, []interface{}{1.0, 2.0, 3.0}, outputs["list_number"].Value)
+	assert.Equal(t, []interface{}{"a", "b", "c"}, outputs["list_string"].Value)
+	assert.Equal(t, map[string]interface{}{"foo": true, "bar": false, "baz": true}, outputs["map_bool"].Value)
+	assert.Equal(t, map[string]interface{}{"foo": 42.0, "bar": 12345.0}, outputs["map_number"].Value)
+	assert.Equal(t, map[string]interface{}{"foo": "bar"}, outputs["map_string"].Value)
+	assert.InEpsilon(t, 42.0, outputs["number"].Value.(float64), 0.0000001)
+	assert.Equal(t, map[string]interface{}{"list": []interface{}{1.0, 2.0, 3.0}, "map": map[string]interface{}{"foo": "bar"}, "num": 42.0, "str": "string"}, outputs["object"].Value)
+	assert.Equal(t, "string", outputs["string"].Value)
+	assert.Equal(t, "default", outputs["from_env"].Value)
 }
 
 func TestReadTerragruntConfigFromDependency(t *testing.T) {
@@ -3615,7 +3615,7 @@ func TestReadTerragruntConfigFromDependency(t *testing.T) {
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
-	require.Equal(t, "hello world", outputs["bar"].Value)
+	assert.Equal(t, "hello world", outputs["bar"].Value)
 }
 
 func TestReadTerragruntConfigWithDefault(t *testing.T) {
@@ -3638,7 +3638,7 @@ func TestReadTerragruntConfigWithDefault(t *testing.T) {
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
-	require.Equal(t, "default value", outputs["data"].Value)
+	assert.Equal(t, "default value", outputs["data"].Value)
 }
 
 func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
@@ -3666,10 +3666,10 @@ func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
 	depOutputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(depStdout.Bytes(), &depOutputs))
 
-	require.Equal(t, depPathAbs, depOutputs["terragrunt_dir"].Value)
-	require.Equal(t, depPathAbs, depOutputs["original_terragrunt_dir"].Value)
-	require.Equal(t, fooPathAbs, depOutputs["bar_terragrunt_dir"].Value)
-	require.Equal(t, depPathAbs, depOutputs["bar_original_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, depOutputs["terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, depOutputs["original_terragrunt_dir"].Value)
+	assert.Equal(t, fooPathAbs, depOutputs["bar_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, depOutputs["bar_original_terragrunt_dir"].Value)
 
 	// Run apply on the root module and make sure we get the expected outputs
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
@@ -3685,12 +3685,12 @@ func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
 	rootOutputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(rootStdout.Bytes(), &rootOutputs))
 
-	require.Equal(t, fooPathAbs, rootOutputs["terragrunt_dir"].Value)
-	require.Equal(t, rootPathAbs, rootOutputs["original_terragrunt_dir"].Value)
-	require.Equal(t, depPathAbs, rootOutputs["dep_terragrunt_dir"].Value)
-	require.Equal(t, depPathAbs, rootOutputs["dep_original_terragrunt_dir"].Value)
-	require.Equal(t, fooPathAbs, rootOutputs["dep_bar_terragrunt_dir"].Value)
-	require.Equal(t, depPathAbs, rootOutputs["dep_bar_original_terragrunt_dir"].Value)
+	assert.Equal(t, fooPathAbs, rootOutputs["terragrunt_dir"].Value)
+	assert.Equal(t, rootPathAbs, rootOutputs["original_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, rootOutputs["dep_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, rootOutputs["dep_original_terragrunt_dir"].Value)
+	assert.Equal(t, fooPathAbs, rootOutputs["dep_bar_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, rootOutputs["dep_bar_original_terragrunt_dir"].Value)
 
 	// Run 'run-all apply' and make sure all the outputs are identical in the root module and the dependency module
 	runTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
@@ -3717,16 +3717,16 @@ func TestReadTerragruntConfigWithOriginalTerragruntDir(t *testing.T) {
 	runAllDepOutputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(runAllDepStdout.Bytes(), &runAllDepOutputs))
 
-	require.Equal(t, fooPathAbs, runAllRootOutputs["terragrunt_dir"].Value)
-	require.Equal(t, rootPathAbs, runAllRootOutputs["original_terragrunt_dir"].Value)
-	require.Equal(t, depPathAbs, runAllRootOutputs["dep_terragrunt_dir"].Value)
-	require.Equal(t, depPathAbs, runAllRootOutputs["dep_original_terragrunt_dir"].Value)
-	require.Equal(t, fooPathAbs, runAllRootOutputs["dep_bar_terragrunt_dir"].Value)
-	require.Equal(t, depPathAbs, runAllRootOutputs["dep_bar_original_terragrunt_dir"].Value)
-	require.Equal(t, depPathAbs, runAllDepOutputs["terragrunt_dir"].Value)
-	require.Equal(t, depPathAbs, runAllDepOutputs["original_terragrunt_dir"].Value)
-	require.Equal(t, fooPathAbs, runAllDepOutputs["bar_terragrunt_dir"].Value)
-	require.Equal(t, depPathAbs, runAllDepOutputs["bar_original_terragrunt_dir"].Value)
+	assert.Equal(t, fooPathAbs, runAllRootOutputs["terragrunt_dir"].Value)
+	assert.Equal(t, rootPathAbs, runAllRootOutputs["original_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, runAllRootOutputs["dep_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, runAllRootOutputs["dep_original_terragrunt_dir"].Value)
+	assert.Equal(t, fooPathAbs, runAllRootOutputs["dep_bar_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, runAllRootOutputs["dep_bar_original_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, runAllDepOutputs["terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, runAllDepOutputs["original_terragrunt_dir"].Value)
+	assert.Equal(t, fooPathAbs, runAllDepOutputs["bar_terragrunt_dir"].Value)
+	assert.Equal(t, depPathAbs, runAllDepOutputs["bar_original_terragrunt_dir"].Value)
 }
 
 func TestReadTerragruntConfigFull(t *testing.T) {
@@ -3749,26 +3749,26 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
-	require.Equal(t, "terragrunt", outputs["terraform_binary"].Value)
-	require.Equal(t, "= 0.12.20", outputs["terraform_version_constraint"].Value)
-	require.Equal(t, "= 0.23.18", outputs["terragrunt_version_constraint"].Value)
-	require.Equal(t, ".terragrunt-cache", outputs["download_dir"].Value)
-	require.Equal(t, "TerragruntIAMRole", outputs["iam_role"].Value)
-	require.Equal(t, "true", outputs["skip"].Value)
-	require.Equal(t, "true", outputs["prevent_destroy"].Value)
+	assert.Equal(t, "terragrunt", outputs["terraform_binary"].Value)
+	assert.Equal(t, "= 0.12.20", outputs["terraform_version_constraint"].Value)
+	assert.Equal(t, "= 0.23.18", outputs["terragrunt_version_constraint"].Value)
+	assert.Equal(t, ".terragrunt-cache", outputs["download_dir"].Value)
+	assert.Equal(t, "TerragruntIAMRole", outputs["iam_role"].Value)
+	assert.Equal(t, "true", outputs["skip"].Value)
+	assert.Equal(t, "true", outputs["prevent_destroy"].Value)
 
 	// Simple maps
 	localstgOut := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["localstg"].Value.(string)), &localstgOut))
-	require.Equal(t, map[string]interface{}{"the_answer": float64(42)}, localstgOut)
+	assert.Equal(t, map[string]interface{}{"the_answer": float64(42)}, localstgOut)
 	inputsOut := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["inputs"].Value.(string)), &inputsOut))
-	require.Equal(t, map[string]interface{}{"doc": "Emmett Brown"}, inputsOut)
+	assert.Equal(t, map[string]interface{}{"doc": "Emmett Brown"}, inputsOut)
 
 	// Complex blocks
 	depsOut := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["dependencies"].Value.(string)), &depsOut))
-	require.Equal(
+	assert.Equal(
 		t,
 		map[string]interface{}{
 			"paths": []interface{}{"../../fixture"},
@@ -3778,7 +3778,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 
 	generateOut := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["generate"].Value.(string)), &generateOut))
-	require.Equal(
+	assert.Equal(
 		t,
 		map[string]interface{}{
 			"provider": map[string]interface{}{
@@ -3798,7 +3798,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 	)
 	remoteStateOut := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["remote_state"].Value.(string)), &remoteStateOut))
-	require.Equal(
+	assert.Equal(
 		t,
 		map[string]interface{}{
 			"backend":                         "local",
@@ -3811,7 +3811,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 	)
 	terraformOut := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal([]byte(outputs["terraformtg"].Value.(string)), &terraformOut))
-	require.Equal(
+	assert.Equal(
 		t,
 		map[string]interface{}{
 			"source":          "./delorean",
@@ -3821,7 +3821,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 					"name":               "var-files",
 					"commands":           []interface{}{"apply", "plan"},
 					"arguments":          nil,
-					"required_var_files": []interface{}{"extra.tfvars"},
+					"assertd_var_files":  []interface{}{"extra.tfvars"},
 					"optional_var_files": []interface{}{"optional.tfvars"},
 					"env_vars": map[string]interface{}{
 						"TF_VAR_custom_var": "I'm set in extra_arguments env_vars",
@@ -3870,7 +3870,7 @@ func TestTerragruntGenerateBlockSkipRemove(t *testing.T) {
 	generateTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_CODEGEN_PATH, "remove-file", "skip")
 
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+generateTestCase)
-	require.FileExists(t, filepath.Join(generateTestCase, "backend.tf"))
+	assert.FileExists(t, filepath.Join(generateTestCase, "backend.tf"))
 }
 
 func TestTerragruntGenerateBlockRemove(t *testing.T) {
@@ -3880,7 +3880,7 @@ func TestTerragruntGenerateBlockRemove(t *testing.T) {
 	generateTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_CODEGEN_PATH, "remove-file", "remove")
 
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+generateTestCase)
-	require.NoFileExists(t, filepath.Join(generateTestCase, "backend.tf"))
+	assert.NoFileExists(t, filepath.Join(generateTestCase, "backend.tf"))
 }
 
 func TestTerragruntGenerateBlockRemoveTerragruntSuccess(t *testing.T) {
@@ -3890,7 +3890,7 @@ func TestTerragruntGenerateBlockRemoveTerragruntSuccess(t *testing.T) {
 	generateTestCase := util.JoinPath(tmpEnvPath, TEST_FIXTURE_CODEGEN_PATH, "remove-file", "remove_terragrunt")
 
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+generateTestCase)
-	require.NoFileExists(t, filepath.Join(generateTestCase, "backend.tf"))
+	assert.NoFileExists(t, filepath.Join(generateTestCase, "backend.tf"))
 }
 
 func TestTerragruntGenerateBlockRemoveTerragruntFail(t *testing.T) {
@@ -3904,9 +3904,9 @@ func TestTerragruntGenerateBlockRemoveTerragruntFail(t *testing.T) {
 
 	var generateFileRemoveError codegen.GenerateFileRemoveError
 	ok := goErrors.As(err, &generateFileRemoveError)
-	require.True(t, ok)
+	assert.True(t, ok)
 
-	require.FileExists(t, filepath.Join(generateTestCase, "backend.tf"))
+	assert.FileExists(t, filepath.Join(generateTestCase, "backend.tf"))
 }
 
 func TestTerragruntGenerateBlockSkip(t *testing.T) {
@@ -3916,7 +3916,7 @@ func TestTerragruntGenerateBlockSkip(t *testing.T) {
 	cleanupTerraformFolder(t, generateTestCase)
 	cleanupTerragruntFolder(t, generateTestCase)
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+generateTestCase)
-	require.False(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
+	assert.False(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
 
 func TestTerragruntGenerateBlockOverwrite(t *testing.T) {
@@ -3928,8 +3928,8 @@ func TestTerragruntGenerateBlockOverwrite(t *testing.T) {
 
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+generateTestCase)
 	// If the state file was written as foo.tfstate, that means it overwrote the local backend config.
-	require.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
-	require.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
+	assert.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
+	assert.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
 }
 
 func TestTerragruntGenerateAttr(t *testing.T) {
@@ -3943,7 +3943,7 @@ func TestTerragruntGenerateAttr(t *testing.T) {
 
 	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s -var text=\"%s\"", generateTestCase, text))
 	require.NoError(t, err)
-	require.Contains(t, stdout, text)
+	assert.Contains(t, stdout, text)
 }
 
 func TestTerragruntGenerateBlockOverwriteTerragruntSuccess(t *testing.T) {
@@ -3955,8 +3955,8 @@ func TestTerragruntGenerateBlockOverwriteTerragruntSuccess(t *testing.T) {
 
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+generateTestCase)
 	// If the state file was written as foo.tfstate, that means it overwrote the local backend config.
-	require.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
-	require.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
+	assert.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
+	assert.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
 }
 
 func TestTerragruntGenerateBlockOverwriteTerragruntFail(t *testing.T) {
@@ -3972,7 +3972,7 @@ func TestTerragruntGenerateBlockOverwriteTerragruntFail(t *testing.T) {
 	require.Error(t, err)
 	var generateFileExistsError codegen.GenerateFileExistsError
 	ok := goErrors.As(err, &generateFileExistsError)
-	require.True(t, ok)
+	assert.True(t, ok)
 }
 
 func TestTerragruntGenerateBlockNestedInherit(t *testing.T) {
@@ -3984,10 +3984,10 @@ func TestTerragruntGenerateBlockNestedInherit(t *testing.T) {
 
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+generateTestCase)
 	// If the state file was written as foo.tfstate, that means it inherited the config
-	require.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
-	require.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
+	assert.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
+	assert.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
 	// Also check to make sure the child config generate block was included
-	require.True(t, fileIsInFolder(t, "random_file.txt", generateTestCase))
+	assert.True(t, fileIsInFolder(t, "random_file.txt", generateTestCase))
 }
 
 func TestTerragruntGenerateBlockNestedOverwrite(t *testing.T) {
@@ -3999,10 +3999,10 @@ func TestTerragruntGenerateBlockNestedOverwrite(t *testing.T) {
 
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+generateTestCase)
 	// If the state file was written as bar.tfstate, that means it overwrite the parent config
-	require.False(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
-	require.True(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
+	assert.False(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
+	assert.True(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
 	// Also check to make sure the child config generate block was included
-	require.True(t, fileIsInFolder(t, "random_file.txt", generateTestCase))
+	assert.True(t, fileIsInFolder(t, "random_file.txt", generateTestCase))
 }
 
 func TestTerragruntGenerateBlockDisableSignature(t *testing.T) {
@@ -4026,7 +4026,7 @@ func TestTerragruntGenerateBlockDisableSignature(t *testing.T) {
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
-	require.Equal(t, "Hello, World!", outputs["text"].Value)
+	assert.Equal(t, "Hello, World!", outputs["text"].Value)
 }
 
 func TestTerragruntGenerateBlockSameNameFail(t *testing.T) {
@@ -4042,9 +4042,9 @@ func TestTerragruntGenerateBlockSameNameFail(t *testing.T) {
 	require.Error(t, err)
 	var parsedError config.DuplicatedGenerateBlocksError
 	ok := goErrors.As(err, &parsedError)
-	require.True(t, ok)
-	require.Len(t, parsedError.BlockName, 1)
-	require.Contains(t, parsedError.BlockName, "backend")
+	assert.True(t, ok)
+	assert.Len(t, parsedError.BlockName, 1)
+	assert.Contains(t, parsedError.BlockName, "backend")
 }
 
 func TestTerragruntGenerateBlockSameNameIncludeFail(t *testing.T) {
@@ -4060,9 +4060,9 @@ func TestTerragruntGenerateBlockSameNameIncludeFail(t *testing.T) {
 	require.Error(t, err)
 	var parsedError config.DuplicatedGenerateBlocksError
 	ok := goErrors.As(err, &parsedError)
-	require.True(t, ok)
-	require.Len(t, parsedError.BlockName, 1)
-	require.Contains(t, parsedError.BlockName, "backend")
+	assert.True(t, ok)
+	assert.Len(t, parsedError.BlockName, 1)
+	assert.Contains(t, parsedError.BlockName, "backend")
 }
 
 func TestTerragruntGenerateBlockMultipleSameNameFail(t *testing.T) {
@@ -4078,10 +4078,10 @@ func TestTerragruntGenerateBlockMultipleSameNameFail(t *testing.T) {
 	require.Error(t, err)
 	var parsedError config.DuplicatedGenerateBlocksError
 	ok := goErrors.As(err, &parsedError)
-	require.True(t, ok)
-	require.Len(t, parsedError.BlockName, 2)
-	require.Contains(t, parsedError.BlockName, "backend")
-	require.Contains(t, parsedError.BlockName, "backend2")
+	assert.True(t, ok)
+	assert.Len(t, parsedError.BlockName, 2)
+	assert.Contains(t, parsedError.BlockName, "backend")
+	assert.Contains(t, parsedError.BlockName, "backend2")
 }
 
 func TestTerragruntGenerateBlockDisable(t *testing.T) {
@@ -4095,7 +4095,7 @@ func TestTerragruntGenerateBlockDisable(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, "terragrunt init --terragrunt-working-dir "+generateTestCase, &stdout, &stderr)
 	require.NoError(t, err)
-	require.False(t, fileIsInFolder(t, "data.txt", generateTestCase))
+	assert.False(t, fileIsInFolder(t, "data.txt", generateTestCase))
 }
 
 func TestTerragruntGenerateBlockEnable(t *testing.T) {
@@ -4109,7 +4109,7 @@ func TestTerragruntGenerateBlockEnable(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, "terragrunt init --terragrunt-working-dir "+generateTestCase, &stdout, &stderr)
 	require.NoError(t, err)
-	require.True(t, fileIsInFolder(t, "data.txt", generateTestCase))
+	assert.True(t, fileIsInFolder(t, "data.txt", generateTestCase))
 }
 
 func TestTerragruntRemoteStateCodegenGeneratesBackendBlock(t *testing.T) {
@@ -4122,7 +4122,7 @@ func TestTerragruntRemoteStateCodegenGeneratesBackendBlock(t *testing.T) {
 
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+generateTestCase)
 	// If the state file was written as foo.tfstate, that means it wrote out the local backend config.
-	require.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
+	assert.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
 
 func TestTerragruntRemoteStateCodegenOverwrites(t *testing.T) {
@@ -4135,8 +4135,8 @@ func TestTerragruntRemoteStateCodegenOverwrites(t *testing.T) {
 
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+generateTestCase)
 	// If the state file was written as foo.tfstate, that means it overwrote the local backend config.
-	require.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
-	require.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
+	assert.True(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
+	assert.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
 }
 
 func TestTerragruntRemoteStateCodegenGeneratesBackendBlockS3(t *testing.T) {
@@ -4172,7 +4172,7 @@ func TestTerragruntRemoteStateCodegenErrorsIfExists(t *testing.T) {
 	require.Error(t, err)
 	var generateFileExistsError codegen.GenerateFileExistsError
 	ok := goErrors.As(err, &generateFileExistsError)
-	require.True(t, ok)
+	assert.True(t, ok)
 }
 
 func TestTerragruntRemoteStateCodegenDoesNotGenerateWithSkip(t *testing.T) {
@@ -4184,7 +4184,7 @@ func TestTerragruntRemoteStateCodegenDoesNotGenerateWithSkip(t *testing.T) {
 	cleanupTerragruntFolder(t, generateTestCase)
 
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+generateTestCase)
-	require.False(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
+	assert.False(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
 
 func TestTerragruntValidateAllWithVersionChecks(t *testing.T) {
@@ -4213,9 +4213,9 @@ func TestTerragruntIncludeParentHclFile(t *testing.T) {
 	require.NoError(t, err)
 
 	out := stdout.String()
-	require.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
-	require.Equal(t, 1, strings.Count(out, "dependency_hcl"))
-	require.Equal(t, 1, strings.Count(out, "common_hcl"))
+	assert.Equal(t, 1, strings.Count(out, "parent_hcl_file"))
+	assert.Equal(t, 1, strings.Count(out, "dependency_hcl"))
+	assert.Equal(t, 1, strings.Count(out, "common_hcl"))
 }
 
 func TestTerragruntVersionConstraints(t *testing.T) {
@@ -4302,9 +4302,9 @@ func TestReadTerragruntConfigIamRole(t *testing.T) {
 	output := fmt.Sprintf("%v %v %v", stderr.String(), stdout.String(), err.Error())
 
 	// Check that output contains value defined in IAM role
-	require.Contains(t, output, "666666666666")
+	assert.Contains(t, output, "666666666666")
 	// Ensure that state file wasn't created with default IAM value
-	require.True(t, util.FileNotExists(util.JoinPath(TEST_FIXTURE_READ_IAM_ROLE, identityArn+".txt")))
+	assert.True(t, util.FileNotExists(util.JoinPath(TEST_FIXTURE_READ_IAM_ROLE, identityArn+".txt")))
 }
 
 func TestReadTerragruntAuthProviderCmd(t *testing.T) {
@@ -4324,9 +4324,9 @@ func TestReadTerragruntAuthProviderCmd(t *testing.T) {
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
 
-	require.Equal(t, "app1-bar", outputs["foo-app1"].Value)
-	require.Equal(t, "app2-bar", outputs["foo-app2"].Value)
-	require.Equal(t, "app3-bar", outputs["foo-app3"].Value)
+	assert.Equal(t, "app1-bar", outputs["foo-app1"].Value)
+	assert.Equal(t, "app2-bar", outputs["foo-app2"].Value)
+	assert.Equal(t, "app3-bar", outputs["foo-app3"].Value)
 }
 
 func TestIamRolesLoadingFromDifferentModules(t *testing.T) {
@@ -4358,11 +4358,11 @@ func TestIamRolesLoadingFromDifferentModules(t *testing.T) {
 			continue
 		}
 	}
-	require.NotEmptyf(t, component1, "Missing role for component 1")
-	require.NotEmptyf(t, component2, "Missing role for component 2")
+	assert.NotEmptyf(t, component1, "Missing role for component 1")
+	assert.NotEmptyf(t, component2, "Missing role for component 2")
 
-	require.Contains(t, component1, "iam_roles_multiple_modules/component")
-	require.Contains(t, component2, "iam_roles_multiple_modules/component2")
+	assert.Contains(t, component1, "iam_roles_multiple_modules/component")
+	assert.Contains(t, component2, "iam_roles_multiple_modules/component2")
 }
 
 func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
@@ -4380,7 +4380,7 @@ func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
 
 	var invalidVersionError terraform.InvalidTerragruntVersion
 	ok := goErrors.As(err, &invalidVersionError)
-	require.True(t, ok)
+	assert.True(t, ok)
 }
 
 func TestLogFailedLocalsEvaluation(t *testing.T) {
@@ -4396,7 +4396,7 @@ func TestLogFailedLocalsEvaluation(t *testing.T) {
 	require.NoError(t, err)
 
 	output := stderr.String()
-	require.Contains(t, output, "Encountered error while evaluating locals in file "+filepath.Join(testdataDir, "terragrunt.hcl"))
+	assert.Contains(t, output, "Encountered error while evaluating locals in file "+filepath.Join(testdataDir, "terragrunt.hcl"))
 }
 
 func TestLogFailingDependencies(t *testing.T) {
@@ -4414,7 +4414,7 @@ func TestLogFailingDependencies(t *testing.T) {
 	require.NoError(t, err)
 
 	output := stderr.String()
-	require.Contains(t, output, fmt.Sprintf("%s invocation failed in %s", wrappedBinary(), testdataDir))
+	assert.Contains(t, output, fmt.Sprintf("%s invocation failed in %s", wrappedBinary(), testdataDir))
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
@@ -4631,13 +4631,13 @@ func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketNam
 		t.Fatalf("Error creating S3 client: %v", err)
 	}
 
-	require.True(t, remote.DoesS3BucketExist(s3Client, &bucketName), "Terragrunt failed to create remote state S3 bucket %s", bucketName)
+	assert.True(t, remote.DoesS3BucketExist(s3Client, &bucketName), "Terragrunt failed to create remote state S3 bucket %s", bucketName)
 
 	if expectedTags != nil {
-		requireS3Tags(expectedTags, bucketName, s3Client, t)
+		assertS3Tags(expectedTags, bucketName, s3Client, t)
 	}
 
-	requireS3PublicAccessBlocks(t, s3Client, bucketName)
+	assertS3PublicAccessBlocks(t, s3Client, bucketName)
 }
 
 // Check that the DynamoDB table of the given name and region exists. Terragrunt should create this table during the test.
@@ -4664,10 +4664,10 @@ func validateDynamoDBTableExistsAndIsTagged(t *testing.T, awsRegion string, tabl
 		actualTags[*element.Key] = *element.Value
 	}
 
-	require.Equal(t, expectedTags, actualTags, "Did not find expected tags on dynamo table.")
+	assert.Equal(t, expectedTags, actualTags, "Did not find expected tags on dynamo table.")
 }
 
-func requireS3Tags(expectedTags map[string]string, bucketName string, client *s3.S3, t *testing.T) {
+func assertS3Tags(expectedTags map[string]string, bucketName string, client *s3.S3, t *testing.T) {
 
 	var in = s3.GetBucketTaggingInput{}
 	in.SetBucket(bucketName)
@@ -4684,20 +4684,20 @@ func requireS3Tags(expectedTags map[string]string, bucketName string, client *s3
 		actualTags[*element.Key] = *element.Value
 	}
 
-	require.Equal(t, expectedTags, actualTags, "Did not find expected tags on s3 bucket.")
+	assert.Equal(t, expectedTags, actualTags, "Did not find expected tags on s3 bucket.")
 }
 
-func requireS3PublicAccessBlocks(t *testing.T, client *s3.S3, bucketName string) {
+func assertS3PublicAccessBlocks(t *testing.T, client *s3.S3, bucketName string) {
 	resp, err := client.GetPublicAccessBlock(
 		&s3.GetPublicAccessBlockInput{Bucket: aws.String(bucketName)},
 	)
 	require.NoError(t, err)
 
 	publicAccessBlockConfig := resp.PublicAccessBlockConfiguration
-	require.True(t, aws.BoolValue(publicAccessBlockConfig.BlockPublicAcls))
-	require.True(t, aws.BoolValue(publicAccessBlockConfig.BlockPublicPolicy))
-	require.True(t, aws.BoolValue(publicAccessBlockConfig.IgnorePublicAcls))
-	require.True(t, aws.BoolValue(publicAccessBlockConfig.RestrictPublicBuckets))
+	assert.True(t, aws.BoolValue(publicAccessBlockConfig.BlockPublicAcls))
+	assert.True(t, aws.BoolValue(publicAccessBlockConfig.BlockPublicPolicy))
+	assert.True(t, aws.BoolValue(publicAccessBlockConfig.IgnorePublicAcls))
+	assert.True(t, aws.BoolValue(publicAccessBlockConfig.RestrictPublicBuckets))
 }
 
 // createS3BucketE create test S3 bucket.
@@ -4893,7 +4893,7 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 	}
 
 	// verify the bucket exists
-	require.True(t, remote.DoesGCSBucketExist(gcsClient, &remoteStateConfig), "Terragrunt failed to create remote state GCS bucket %s", bucketName)
+	assert.True(t, remote.DoesGCSBucketExist(gcsClient, &remoteStateConfig), "Terragrunt failed to create remote state GCS bucket %s", bucketName)
 
 	// verify the bucket location
 	ctx := context.Background()
@@ -4903,10 +4903,10 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 		t.Fatal(err)
 	}
 
-	require.Equal(t, strings.ToUpper(location), attrs.Location, "Did not find GCS bucket in expected location.")
+	assert.Equal(t, strings.ToUpper(location), attrs.Location, "Did not find GCS bucket in expected location.")
 
 	if expectedLabels != nil {
-		requireGCSLabels(t, expectedLabels, bucketName, gcsClient)
+		assertGCSLabels(t, expectedLabels, bucketName, gcsClient)
 	}
 }
 
@@ -4930,7 +4930,7 @@ func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage
 	return attrs
 }
 
-func requireGCSLabels(t *testing.T, expectedLabels map[string]string, bucketName string, client *storage.Client) {
+func assertGCSLabels(t *testing.T, expectedLabels map[string]string, bucketName string, client *storage.Client) {
 	ctx := context.Background()
 	bucket := client.Bucket(bucketName)
 
@@ -4945,7 +4945,7 @@ func requireGCSLabels(t *testing.T, expectedLabels map[string]string, bucketName
 		actualLabels[key] = value
 	}
 
-	require.Equal(t, expectedLabels, actualLabels, "Did not find expected labels on GCS bucket.")
+	assert.Equal(t, expectedLabels, actualLabels, "Did not find expected labels on GCS bucket.")
 }
 
 // Create the specified GCS bucket
@@ -5094,19 +5094,19 @@ func TestSopsDecryptedCorrectly(t *testing.T) {
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
-	require.Equal(t, []interface{}{true, false}, outputs["json_bool_array"].Value)
-	require.Equal(t, []interface{}{"example_value1", "example_value2"}, outputs["json_string_array"].Value)
-	require.InEpsilon(t, 1234.56789, outputs["json_number"].Value, 0.0001)
-	require.Equal(t, "example_value", outputs["json_string"].Value)
-	require.Equal(t, "Welcome to SOPS! Edit this file as you please!", outputs["json_hello"].Value)
-	require.Equal(t, []interface{}{true, false}, outputs["yaml_bool_array"].Value)
-	require.Equal(t, []interface{}{"example_value1", "example_value2"}, outputs["yaml_string_array"].Value)
-	require.InEpsilon(t, 1234.5679, outputs["yaml_number"].Value, 0.0001)
-	require.Equal(t, "example_value", outputs["yaml_string"].Value)
-	require.Equal(t, "Welcome to SOPS! Edit this file as you please!", outputs["yaml_hello"].Value)
-	require.Equal(t, "Raw Secret Example", outputs["text_value"].Value)
-	require.Contains(t, outputs["env_value"].Value, "DB_PASSWORD=tomato")
-	require.Contains(t, outputs["ini_value"].Value, "password = potato")
+	assert.Equal(t, []interface{}{true, false}, outputs["json_bool_array"].Value)
+	assert.Equal(t, []interface{}{"example_value1", "example_value2"}, outputs["json_string_array"].Value)
+	assert.InEpsilon(t, 1234.56789, outputs["json_number"].Value, 0.0001)
+	assert.Equal(t, "example_value", outputs["json_string"].Value)
+	assert.Equal(t, "Welcome to SOPS! Edit this file as you please!", outputs["json_hello"].Value)
+	assert.Equal(t, []interface{}{true, false}, outputs["yaml_bool_array"].Value)
+	assert.Equal(t, []interface{}{"example_value1", "example_value2"}, outputs["yaml_string_array"].Value)
+	assert.InEpsilon(t, 1234.5679, outputs["yaml_number"].Value, 0.0001)
+	assert.Equal(t, "example_value", outputs["yaml_string"].Value)
+	assert.Equal(t, "Welcome to SOPS! Edit this file as you please!", outputs["yaml_hello"].Value)
+	assert.Equal(t, "Raw Secret Example", outputs["text_value"].Value)
+	assert.Contains(t, outputs["env_value"].Value, "DB_PASSWORD=tomato")
+	assert.Contains(t, outputs["ini_value"].Value, "password = potato")
 }
 
 func TestSopsDecryptedCorrectlyRunAll(t *testing.T) {
@@ -5127,19 +5127,19 @@ func TestSopsDecryptedCorrectlyRunAll(t *testing.T) {
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
-	require.Equal(t, []interface{}{true, false}, outputs["json_bool_array"].Value)
-	require.Equal(t, []interface{}{"example_value1", "example_value2"}, outputs["json_string_array"].Value)
-	require.InEpsilon(t, 1234.56789, outputs["json_number"].Value, 0.0001)
-	require.Equal(t, "example_value", outputs["json_string"].Value)
-	require.Equal(t, "Welcome to SOPS! Edit this file as you please!", outputs["json_hello"].Value)
-	require.Equal(t, []interface{}{true, false}, outputs["yaml_bool_array"].Value)
-	require.Equal(t, []interface{}{"example_value1", "example_value2"}, outputs["yaml_string_array"].Value)
-	require.InEpsilon(t, 1234.5679, outputs["yaml_number"].Value, 0.0001)
-	require.Equal(t, "example_value", outputs["yaml_string"].Value)
-	require.Equal(t, "Welcome to SOPS! Edit this file as you please!", outputs["yaml_hello"].Value)
-	require.Equal(t, "Raw Secret Example", outputs["text_value"].Value)
-	require.Contains(t, outputs["env_value"].Value, "DB_PASSWORD=tomato")
-	require.Contains(t, outputs["ini_value"].Value, "password = potato")
+	assert.Equal(t, []interface{}{true, false}, outputs["json_bool_array"].Value)
+	assert.Equal(t, []interface{}{"example_value1", "example_value2"}, outputs["json_string_array"].Value)
+	assert.InEpsilon(t, 1234.56789, outputs["json_number"].Value, 0.0001)
+	assert.Equal(t, "example_value", outputs["json_string"].Value)
+	assert.Equal(t, "Welcome to SOPS! Edit this file as you please!", outputs["json_hello"].Value)
+	assert.Equal(t, []interface{}{true, false}, outputs["yaml_bool_array"].Value)
+	assert.Equal(t, []interface{}{"example_value1", "example_value2"}, outputs["yaml_string_array"].Value)
+	assert.InEpsilon(t, 1234.5679, outputs["yaml_number"].Value, 0.0001)
+	assert.Equal(t, "example_value", outputs["yaml_string"].Value)
+	assert.Equal(t, "Welcome to SOPS! Edit this file as you please!", outputs["yaml_hello"].Value)
+	assert.Equal(t, "Raw Secret Example", outputs["text_value"].Value)
+	assert.Contains(t, outputs["env_value"].Value, "DB_PASSWORD=tomato")
+	assert.Contains(t, outputs["ini_value"].Value, "password = potato")
 }
 
 func TestTerragruntRunAllCommandPrompt(t *testing.T) {
@@ -5159,7 +5159,7 @@ func TestTerragruntRunAllCommandPrompt(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt run-all apply --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
 	logBufferContentsLineByLine(t, stdout, "stdout")
 	logBufferContentsLineByLine(t, stderr, "stderr")
-	require.Contains(t, stderr.String(), "Are you sure you want to run 'terragrunt apply' in each folder of the stack described above? (y/n)")
+	assert.Contains(t, stderr.String(), "Are you sure you want to run 'terragrunt apply' in each folder of the stack described above? (y/n)")
 	require.Error(t, err)
 }
 
@@ -5175,7 +5175,7 @@ func TestTerragruntLocalRunOnce(t *testing.T) {
 
 	errout := stdout.String()
 
-	require.Equal(t, 1, strings.Count(errout, "foo"))
+	assert.Equal(t, 1, strings.Count(errout, "foo"))
 }
 
 func TestTerragruntInitRunCmd(t *testing.T) {
@@ -5191,17 +5191,17 @@ func TestTerragruntInitRunCmd(t *testing.T) {
 	errout := stdout.String()
 
 	// Check for cached values between locals and inputs sections
-	require.Equal(t, 1, strings.Count(errout, "potato"))
-	require.Equal(t, 1, strings.Count(errout, "carrot"))
-	require.Equal(t, 1, strings.Count(errout, "bar"))
-	require.Equal(t, 1, strings.Count(errout, "foo"))
+	assert.Equal(t, 1, strings.Count(errout, "potato"))
+	assert.Equal(t, 1, strings.Count(errout, "carrot"))
+	assert.Equal(t, 1, strings.Count(errout, "bar"))
+	assert.Equal(t, 1, strings.Count(errout, "foo"))
 
-	require.Equal(t, 1, strings.Count(errout, "input_variable"))
+	assert.Equal(t, 1, strings.Count(errout, "input_variable"))
 
 	// Commands executed multiple times because of different arguments
-	require.Equal(t, 4, strings.Count(errout, "uuid"))
-	require.Equal(t, 6, strings.Count(errout, "random_arg"))
-	require.Equal(t, 4, strings.Count(errout, "another_arg"))
+	assert.Equal(t, 4, strings.Count(errout, "uuid"))
+	assert.Equal(t, 6, strings.Count(errout, "random_arg"))
+	assert.Equal(t, 4, strings.Count(errout, "another_arg"))
 }
 
 func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
@@ -5232,8 +5232,8 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	require.NoError(t, err)
 
 	output := stderr.String()
-	require.Equal(t, 1, strings.Count(output, appV1Path))
-	require.Equal(t, 1, strings.Count(output, appV2Path))
+	assert.Equal(t, 1, strings.Count(output, appV1Path))
+	assert.Equal(t, 1, strings.Count(output, appV2Path))
 }
 
 func TestTerragruntOutputFromRemoteState(t *testing.T) {
@@ -5269,12 +5269,12 @@ func TestTerragruntOutputFromRemoteState(t *testing.T) {
 	runTerragruntRedirectOutput(t, "terragrunt run-all output --terragrunt-fetch-dependency-output-from-state --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
 	output := stdout.String()
 
-	require.True(t, strings.Contains(output, "app1 output"))
-	require.True(t, strings.Contains(output, "app2 output"))
-	require.True(t, strings.Contains(output, "app3 output"))
-	require.False(t, strings.Contains(stderr.String(), "terraform output -json"))
+	assert.True(t, strings.Contains(output, "app1 output"))
+	assert.True(t, strings.Contains(output, "app2 output"))
+	assert.True(t, strings.Contains(output, "app3 output"))
+	assert.False(t, strings.Contains(stderr.String(), "terraform output -json"))
 
-	require.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
+	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
 }
 
 func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
@@ -5289,7 +5289,7 @@ func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
 	require.Error(t, err)
 	var missingCommandError runall.MissingCommand
 	ok := goErrors.As(err, &missingCommandError)
-	require.True(t, ok)
+	assert.True(t, ok)
 }
 
 func TestPathRelativeToIncludeInvokedInCorrectPathFromChild(t *testing.T) {
@@ -5302,8 +5302,8 @@ func TestPathRelativeToIncludeInvokedInCorrectPathFromChild(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt version --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir "+appPath, &stdout, &stderr)
 	require.NoError(t, err)
 	output := stdout.String()
-	require.Equal(t, 1, strings.Count(output, "path_relative_to_inclue: app\n"))
-	require.Equal(t, 0, strings.Count(output, "path_relative_to_inclue: .\n"))
+	assert.Equal(t, 1, strings.Count(output, "path_relative_to_inclue: app\n"))
+	assert.Equal(t, 0, strings.Count(output, "path_relative_to_inclue: .\n"))
 }
 
 func TestTerragruntInitConfirmation(t *testing.T) {
@@ -5321,7 +5321,7 @@ func TestTerragruntInitConfirmation(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt run-all init --terragrunt-working-dir "+tmpEnvPath, &stdout, &stderr)
 	require.Error(t, err)
 	errout := stderr.String()
-	require.Equal(t, 1, strings.Count(errout, "does not exist or you don't have permissions to access it. Would you like Terragrunt to create it? (y/n)"))
+	assert.Equal(t, 1, strings.Count(errout, "does not exist or you don't have permissions to access it. Would you like Terragrunt to create it? (y/n)"))
 }
 
 func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
@@ -5337,7 +5337,7 @@ func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 	// providers initialization during first plan
-	require.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
+	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
 
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
@@ -5346,7 +5346,7 @@ func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
 	require.NoError(t, err)
 	// no initialization expected for second plan run
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
-	require.Equal(t, 0, strings.Count(stdout.String(), "has been successfully initialized!"))
+	assert.Equal(t, 0, strings.Count(stdout.String(), "has been successfully initialized!"))
 }
 
 func TestAutoInitWhenSourceIsChanged(t *testing.T) {
@@ -5370,7 +5370,7 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	err = runTerragruntCommand(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 	// providers initialization during first plan
-	require.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
+	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
 
 	updatedHcl = strings.ReplaceAll(contents, "__TAG_VALUE__", "v0.35.2")
 	require.NoError(t, os.WriteFile(terragruntHcl, []byte(updatedHcl), 0444))
@@ -5381,7 +5381,7 @@ func TestAutoInitWhenSourceIsChanged(t *testing.T) {
 	err = runTerragruntCommand(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 	// auto initialization when source is changed
-	require.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
+	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
 }
 
 func TestNoColor(t *testing.T) {
@@ -5397,9 +5397,9 @@ func TestNoColor(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt plan -no-color --terragrunt-working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 	// providers initialization during first plan
-	require.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
+	assert.Equal(t, 1, strings.Count(stdout.String(), "has been successfully initialized!"))
 
-	require.NotContains(t, stdout.String(), "[")
+	assert.NotContains(t, stdout.String(), "[")
 }
 
 func TestRenderJsonAttributesMetadata(t *testing.T) {
@@ -5436,7 +5436,7 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 			"value":    "us-east-1",
 		},
 	}
-	require.True(t, reflect.DeepEqual(expectedInputs, inputs))
+	assert.True(t, reflect.DeepEqual(expectedInputs, inputs))
 
 	var locals = renderedJson[config.MetadataLocals]
 	var expectedLocals = map[string]interface{}{
@@ -5445,63 +5445,63 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 			"value":    "us-east-1",
 		},
 	}
-	require.True(t, reflect.DeepEqual(expectedLocals, locals))
+	assert.True(t, reflect.DeepEqual(expectedLocals, locals))
 
 	var downloadDir = renderedJson[config.MetadataDownloadDir]
 	var expecteDownloadDir = map[string]interface{}{
 		"metadata": expectedMetadata,
 		"value":    "/tmp",
 	}
-	require.True(t, reflect.DeepEqual(expecteDownloadDir, downloadDir))
+	assert.True(t, reflect.DeepEqual(expecteDownloadDir, downloadDir))
 
 	var iamAssumeRoleDuration = renderedJson[config.MetadataIamAssumeRoleDuration]
 	expectedIamAssumeRoleDuration := map[string]interface{}{
 		"metadata": expectedMetadata,
 		"value":    float64(666),
 	}
-	require.True(t, reflect.DeepEqual(expectedIamAssumeRoleDuration, iamAssumeRoleDuration))
+	assert.True(t, reflect.DeepEqual(expectedIamAssumeRoleDuration, iamAssumeRoleDuration))
 
 	var iamAssumeRoleName = renderedJson[config.MetadataIamAssumeRoleSessionName]
 	expectedIamAssumeRoleName := map[string]interface{}{
 		"metadata": expectedMetadata,
 		"value":    "qwe",
 	}
-	require.True(t, reflect.DeepEqual(expectedIamAssumeRoleName, iamAssumeRoleName))
+	assert.True(t, reflect.DeepEqual(expectedIamAssumeRoleName, iamAssumeRoleName))
 
 	var iamRole = renderedJson[config.MetadataIamRole]
 	expectedIamRole := map[string]interface{}{
 		"metadata": expectedMetadata,
 		"value":    "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME",
 	}
-	require.True(t, reflect.DeepEqual(expectedIamRole, iamRole))
+	assert.True(t, reflect.DeepEqual(expectedIamRole, iamRole))
 
 	var preventDestroy = renderedJson[config.MetadataPreventDestroy]
 	expectedPreventDestroy := map[string]interface{}{
 		"metadata": expectedMetadata,
 		"value":    true,
 	}
-	require.True(t, reflect.DeepEqual(expectedPreventDestroy, preventDestroy))
+	assert.True(t, reflect.DeepEqual(expectedPreventDestroy, preventDestroy))
 
 	var skip = renderedJson[config.MetadataSkip]
 	expectedSkip := map[string]interface{}{
 		"metadata": expectedMetadata,
 		"value":    true,
 	}
-	require.True(t, reflect.DeepEqual(expectedSkip, skip))
+	assert.True(t, reflect.DeepEqual(expectedSkip, skip))
 
 	var terraformBinary = renderedJson[config.MetadataTerraformBinary]
 	expectedTerraformBinary := map[string]interface{}{
 		"metadata": expectedMetadata,
 		"value":    wrappedBinary(),
 	}
-	require.True(t, reflect.DeepEqual(expectedTerraformBinary, terraformBinary))
+	assert.True(t, reflect.DeepEqual(expectedTerraformBinary, terraformBinary))
 
 	var terraformVersionConstraint = renderedJson[config.MetadataTerraformVersionConstraint]
 	expectedTerraformVersionConstraint := map[string]interface{}{
 		"metadata": expectedMetadata,
 		"value":    ">= 0.11",
 	}
-	require.True(t, reflect.DeepEqual(expectedTerraformVersionConstraint, terraformVersionConstraint))
+	assert.True(t, reflect.DeepEqual(expectedTerraformVersionConstraint, terraformVersionConstraint))
 }
 
 func TestOutputModuleGroups(t *testing.T) {
@@ -5574,7 +5574,7 @@ func TestOutputModuleGroups(t *testing.T) {
 			runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output-module-groups --terragrunt-working-dir %s %s", environmentPath, tt.subCommand), &stdout, &stderr)
 			output := strings.ReplaceAll(stdout.String(), " ", "")
 			expectedOutput := strings.ReplaceAll(strings.ReplaceAll(tt.expectedOutput, "\t", ""), " ", "")
-			require.True(t, strings.Contains(strings.TrimSpace(output), strings.TrimSpace(expectedOutput)))
+			assert.True(t, strings.Contains(strings.TrimSpace(output), strings.TrimSpace(expectedOutput)))
 		})
 	}
 }
@@ -5614,7 +5614,7 @@ func TestRenderJsonMetadataDependency(t *testing.T) {
 			"value":    "test_value",
 		},
 	}
-	require.True(t, reflect.DeepEqual(expectedInputs, inputs))
+	assert.True(t, reflect.DeepEqual(expectedInputs, inputs))
 
 	var dependencies = renderedJson[config.MetadataDependencies]
 	var expectedDependencies = []interface{}{
@@ -5627,7 +5627,7 @@ func TestRenderJsonMetadataDependency(t *testing.T) {
 			"value":    "../dependency1",
 		},
 	}
-	require.True(t, reflect.DeepEqual(expectedDependencies, dependencies))
+	assert.True(t, reflect.DeepEqual(expectedDependencies, dependencies))
 }
 
 func TestRenderJsonWithMockOutputs(t *testing.T) {
@@ -5678,7 +5678,7 @@ func TestRenderJsonWithMockOutputs(t *testing.T) {
 
 	serializedExpectedDependency, err := json.Marshal(expectedDependency)
 	require.NoError(t, err)
-	require.Equal(t, string(serializedExpectedDependency), string(serializedDependency))
+	assert.Equal(t, string(serializedExpectedDependency), string(serializedDependency))
 }
 
 func TestRenderJsonMetadataIncludes(t *testing.T) {
@@ -5731,7 +5731,7 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 			"value":    "123",
 		},
 	}
-	require.True(t, reflect.DeepEqual(expectedInputs, inputs))
+	assert.True(t, reflect.DeepEqual(expectedInputs, inputs))
 
 	var locals = renderedJson[config.MetadataLocals]
 	var expectedLocals = map[string]interface{}{
@@ -5740,7 +5740,7 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 			"value":    "xyz",
 		},
 	}
-	require.True(t, reflect.DeepEqual(expectedLocals, locals))
+	assert.True(t, reflect.DeepEqual(expectedLocals, locals))
 
 	var generate = renderedJson[config.MetadataGenerateConfigs]
 	var expectedGenerate = map[string]interface{}{
@@ -5765,7 +5765,7 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 	serializedExpectedGenerate, err := json.Marshal(expectedGenerate)
 	require.NoError(t, err)
 
-	require.Equal(t, string(serializedExpectedGenerate), string(serializedGenerate))
+	assert.Equal(t, string(serializedExpectedGenerate), string(serializedGenerate))
 
 	var remoteState = renderedJson[config.MetadataRemoteState]
 	var expectedRemoteState = map[string]interface{}{
@@ -5790,7 +5790,7 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 	serializedExpectedRemoteState, err := json.Marshal(expectedRemoteState)
 	require.NoError(t, err)
 
-	require.Equal(t, string(serializedExpectedRemoteState), string(serializedRemoteState))
+	assert.Equal(t, string(serializedExpectedRemoteState), string(serializedRemoteState))
 }
 
 func TestRenderJsonMetadataDepenency(t *testing.T) {
@@ -5862,7 +5862,7 @@ func TestRenderJsonMetadataDepenency(t *testing.T) {
 	serializedExpectedDependency, err := json.Marshal(expectedDependency)
 	require.NoError(t, err)
 
-	require.Equal(t, string(serializedExpectedDependency), string(serializedDependency))
+	assert.Equal(t, string(serializedExpectedDependency), string(serializedDependency))
 }
 
 func TestRenderJsonMetadataTerraform(t *testing.T) {
@@ -5911,7 +5911,7 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 	serializedExpectedTerraform, err := json.Marshal(expectedTerraform)
 	require.NoError(t, err)
 
-	require.Equal(t, string(serializedExpectedTerraform), string(serializedTerraform))
+	assert.Equal(t, string(serializedExpectedTerraform), string(serializedTerraform))
 
 	var remoteState = renderedJson[config.MetadataRemoteState]
 	var expectedRemoteState = map[string]interface{}{
@@ -5936,7 +5936,7 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 	serializedExpectedRemoteState, err := json.Marshal(expectedRemoteState)
 	require.NoError(t, err)
 
-	require.Equal(t, string(serializedExpectedRemoteState), string(serializedRemoteState))
+	assert.Equal(t, string(serializedExpectedRemoteState), string(serializedRemoteState))
 }
 
 func TestTerragruntRenderJsonHelp(t *testing.T) {
@@ -5956,8 +5956,8 @@ func TestTerragruntRenderJsonHelp(t *testing.T) {
 
 	output := showStdout.String()
 
-	require.Contains(t, output, "terragrunt render-json")
-	require.Contains(t, output, "--with-metadata")
+	assert.Contains(t, output, "terragrunt render-json")
+	assert.Contains(t, output, "--with-metadata")
 }
 
 func TestStartsWith(t *testing.T) {
@@ -6036,7 +6036,7 @@ func TestTimeCmpInvalidTimestamp(t *testing.T) {
 
 	err := runTerragruntCommand(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
 
-	expectedError := `not a valid RFC3339 timestamp: missing required time introducer 'T'`
+	expectedError := `not a valid RFC3339 timestamp: missing assertd time introducer 'T'`
 	require.ErrorContains(t, err, expectedError)
 }
 
@@ -6138,7 +6138,7 @@ func TestInitFailureModulePrefix(t *testing.T) {
 		runTerragruntCommand(t, "terragrunt init -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir "+initTestCase, &stdout, &stderr),
 	)
 	logBufferContentsLineByLine(t, stderr, "init")
-	require.Contains(t, stderr.String(), "[fixture-init-error] Error")
+	assert.Contains(t, stderr.String(), "[fixture-init-error] Error")
 }
 
 func TestDependencyOutputModulePrefix(t *testing.T) {
@@ -6162,7 +6162,7 @@ func TestDependencyOutputModulePrefix(t *testing.T) {
 	// validate that output is valid json
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-	require.Equal(t, 42, int(outputs["z"].Value.(float64)))
+	assert.Equal(t, 42, int(outputs["z"].Value.(float64)))
 }
 
 func TestErrorExplaining(t *testing.T) {
@@ -6181,7 +6181,7 @@ func TestErrorExplaining(t *testing.T) {
 	require.Error(t, err)
 
 	explanation := shell.ExplainError(err)
-	require.Contains(t, explanation, "Check your credentials and permissions")
+	assert.Contains(t, explanation, "Check your credentials and permissions")
 }
 
 func TestExplainingMissingCredentials(t *testing.T) {
@@ -6201,7 +6201,7 @@ func TestExplainingMissingCredentials(t *testing.T) {
 
 	err := runTerragruntCommand(t, "terragrunt init -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir "+initTestCase, &stdout, &stderr)
 	explanation := shell.ExplainError(err)
-	require.Contains(t, explanation, "Missing AWS credentials")
+	assert.Contains(t, explanation, "Missing AWS credentials")
 }
 
 func TestModulePathInPlanErrorMessage(t *testing.T) {
@@ -6216,8 +6216,8 @@ func TestModulePathInPlanErrorMessage(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt plan -no-color --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
 	require.Error(t, err)
 	output := fmt.Sprintf("%s\n%s\n%v\n", stdout.String(), stderr.String(), err.Error())
-	require.Contains(t, output, fmt.Sprintf("prefix=[%s]", util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1")))
-	require.Contains(t, output, "1 error occurred")
+	assert.Contains(t, output, fmt.Sprintf("prefix=[%s]", util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1")))
+	assert.Contains(t, output, "1 error occurred")
 }
 
 func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
@@ -6232,8 +6232,8 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt run-all plan -no-color --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
 	require.Error(t, err)
 	output := fmt.Sprintf("%s\n%s\n%v\n", stdout.String(), stderr.String(), err.Error())
-	require.Contains(t, output, "finished with an error")
-	require.Contains(t, output, "Module "+util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1"))
+	assert.Contains(t, output, "finished with an error")
+	assert.Contains(t, output, "Module "+util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1"))
 
 }
 
@@ -6258,7 +6258,7 @@ func TestHclFmtDiff(t *testing.T) {
 	require.NoError(t, err)
 
 	logBufferContentsLineByLine(t, stdout, "output")
-	require.Contains(t, output, string(expectedDiff))
+	assert.Contains(t, output, string(expectedDiff))
 }
 
 func TestDestroyDependentModule(t *testing.T) {
@@ -6286,11 +6286,11 @@ func TestDestroyDependentModule(t *testing.T) {
 	err = runTerragruntCommand(t, "terragrunt destroy -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+util.JoinPath(rootPath, "c"), &stdout, &stderr)
 	require.NoError(t, err)
 
-	require.True(t, strings.Contains(stderr.String(), util.JoinPath(rootPath, "b", "terragrunt.hcl")))
-	require.True(t, strings.Contains(stderr.String(), util.JoinPath(rootPath, "a", "terragrunt.hcl")))
+	assert.True(t, strings.Contains(stderr.String(), util.JoinPath(rootPath, "b", "terragrunt.hcl")))
+	assert.True(t, strings.Contains(stderr.String(), util.JoinPath(rootPath, "a", "terragrunt.hcl")))
 
-	require.True(t, strings.Contains(stderr.String(), "\"value\": \"module-b.txt\""))
-	require.True(t, strings.Contains(stderr.String(), "\"value\": \"module-a.txt\""))
+	assert.True(t, strings.Contains(stderr.String(), "\"value\": \"module-b.txt\""))
+	assert.True(t, strings.Contains(stderr.String(), "\"value\": \"module-a.txt\""))
 }
 
 func TestDownloadSourceWithRef(t *testing.T) {
@@ -6363,8 +6363,8 @@ func TestInitSkipCache(t *testing.T) {
 	)
 
 	// verify that init was invoked
-	require.Contains(t, stdout.String(), "has been successfully initialized!")
-	require.Contains(t, stderr.String(), "Running command: "+wrappedBinary()+" init")
+	assert.Contains(t, stdout.String(), "has been successfully initialized!")
+	assert.Contains(t, stderr.String(), "Running command: "+wrappedBinary()+" init")
 
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
@@ -6375,8 +6375,8 @@ func TestInitSkipCache(t *testing.T) {
 	)
 
 	// verify that init wasn't invoked second time since cache directories are ignored
-	require.NotContains(t, stdout.String(), "has been successfully initialized!")
-	require.NotContains(t, stderr.String(), "Running command: "+wrappedBinary()+" init")
+	assert.NotContains(t, stdout.String(), "has been successfully initialized!")
+	assert.NotContains(t, stderr.String(), "Running command: "+wrappedBinary()+" init")
 
 	// verify that after adding new file, init is executed
 	tfFile := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_CACHE, "app", "project.tf")
@@ -6393,8 +6393,8 @@ func TestInitSkipCache(t *testing.T) {
 	)
 
 	// verify that init was invoked
-	require.Contains(t, stdout.String(), "has been successfully initialized!")
-	require.Contains(t, stderr.String(), "Running command: "+wrappedBinary()+" init")
+	assert.Contains(t, stdout.String(), "has been successfully initialized!")
+	assert.Contains(t, stderr.String(), "Running command: "+wrappedBinary()+" init")
 }
 
 func TestRenderJsonWithInputsNotExistingOutput(t *testing.T) {
@@ -6435,10 +6435,10 @@ func TestRenderJsonWithInputsNotExistingOutput(t *testing.T) {
 			"value":    "",
 		},
 	}
-	require.True(t, reflect.DeepEqual(expectedInputs, inputs))
+	assert.True(t, reflect.DeepEqual(expectedInputs, inputs))
 }
 
-func TestTerragruntFailIfBucketCreationIsRequired(t *testing.T) {
+func TestTerragruntFailIfBucketCreationIsassertd(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_PATH)
@@ -6503,8 +6503,8 @@ func TestTerragruntPassNullValues(t *testing.T) {
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
 	// check that the null values are passed correctly
-	require.Nil(t, outputs["output1"].Value)
-	require.Equal(t, "variable 2", outputs["output2"].Value)
+	assert.Nil(t, outputs["output1"].Value)
+	assert.Equal(t, "variable 2", outputs["output2"].Value)
 
 	// check that file with null values is removed
 	cachePath := filepath.Join(TEST_FIXTURE_NULL_VALUE, TERRAGRUNT_CACHE)
@@ -6519,7 +6519,7 @@ func TestTerragruntPassNullValues(t *testing.T) {
 			}
 			return nil
 		})
-	require.Falsef(t, foundNullValuesFile, "Found %s file in cache directory", terraform.NullTFVarsFile)
+	assert.Falsef(t, foundNullValuesFile, "Found %s file in cache directory", terraform.NullTFVarsFile)
 	require.NoError(t, err)
 }
 
@@ -6542,8 +6542,8 @@ func TestTerragruntPrintAwsErrors(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigFile, rootPath), &stdout, &stderr)
 	require.Error(t, err)
 	message := err.Error()
-	require.True(t, strings.Contains(message, "AllAccessDisabled: All access to this object has been disabled") || strings.Contains(message, "BucketRegionError: incorrect region"))
-	require.Contains(t, message, s3BucketName)
+	assert.True(t, strings.Contains(message, "AllAccessDisabled: All access to this object has been disabled") || strings.Contains(message, "BucketRegionError: incorrect region"))
+	assert.Contains(t, message, s3BucketName)
 }
 
 func TestTerragruntErrorWhenStateBucketIsInDifferentRegion(t *testing.T) {
@@ -6571,7 +6571,7 @@ func TestTerragruntErrorWhenStateBucketIsInDifferentRegion(t *testing.T) {
 	stderr = bytes.Buffer{}
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigFile, rootPath), &stdout, &stderr)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "BucketRegionError: incorrect region")
+	assert.Contains(t, err.Error(), "BucketRegionError: incorrect region")
 }
 
 func TestTerragruntCheckMissingGCSBucket(t *testing.T) {
@@ -6588,7 +6588,7 @@ func TestTerragruntCheckMissingGCSBucket(t *testing.T) {
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, TEST_FIXTURE_GCS_NO_BUCKET, project, TERRAFORM_REMOTE_STATE_GCP_REGION, gcsBucketName, config.DefaultTerragruntConfigPath)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, TEST_FIXTURE_GCS_NO_BUCKET), &stdout, &stderr)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "Missing required GCS remote state configuration bucket")
+	assert.Contains(t, err.Error(), "Missing required GCS remote state configuration bucket")
 }
 
 func TestTerragruntNoPrefixGCSBucket(t *testing.T) {
@@ -6621,7 +6621,7 @@ func TestTerragruntNoWarningLocalPath(t *testing.T) {
 
 	err := runTerragruntCommand(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
-	require.NotContains(t, stderr.String(), "No double-slash (//) found in source URL")
+	assert.NotContains(t, stderr.String(), "No double-slash (//) found in source URL")
 }
 
 func TestTerragruntNoWarningRemotePath(t *testing.T) {
@@ -6636,7 +6636,7 @@ func TestTerragruntNoWarningRemotePath(t *testing.T) {
 
 	err := runTerragruntCommand(t, "terragrunt init --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
-	require.NotContains(t, stderr.String(), "No double-slash (//) found in source URL")
+	assert.NotContains(t, stderr.String(), "No double-slash (//) found in source URL")
 }
 
 func TestTerragruntDisabledDependency(t *testing.T) {
@@ -6652,10 +6652,10 @@ func TestTerragruntDisabledDependency(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt run-all plan --terragrunt-non-interactive  --terragrunt-log-level debug --terragrunt-working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 	// check that only enabled dependencies are evaluated
-	require.Contains(t, stderr.String(), util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "app"))
-	require.Contains(t, stderr.String(), util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "m1"))
-	require.Contains(t, stderr.String(), util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "m3"))
-	require.NotContains(t, stderr.String(), util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "m2"))
+	assert.Contains(t, stderr.String(), util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "app"))
+	assert.Contains(t, stderr.String(), util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "m1"))
+	assert.Contains(t, stderr.String(), util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "m3"))
+	assert.NotContains(t, stderr.String(), util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "m2"))
 }
 
 func TestTerragruntHandleEmptyStateFile(t *testing.T) {
@@ -6691,8 +6691,8 @@ func TestRenderJsonDependentModulesTerraform(t *testing.T) {
 
 	var dependentModules = renderedJson[config.MetadataDependentModules].([]interface{})
 	// check if value list contains app-v1 and app-v2
-	require.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v1"))
-	require.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v2"))
+	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v1"))
+	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v2"))
 }
 
 func TestRenderJsonDisableDependentModulesTerraform(t *testing.T) {
@@ -6712,7 +6712,7 @@ func TestRenderJsonDisableDependentModulesTerraform(t *testing.T) {
 	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
 
 	_, found := renderedJson[config.MetadataDependentModules].([]interface{})
-	require.False(t, found)
+	assert.False(t, found)
 }
 
 func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
@@ -6734,8 +6734,8 @@ func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
 
 	dependentModules := renderedJson[config.MetadataDependentModules]["value"].([]interface{})
 	// check if value list contains app-v1 and app-v2
-	require.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v1"))
-	require.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v2"))
+	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v1"))
+	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_WARNING, "app-v2"))
 }
 
 func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
@@ -6787,8 +6787,8 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	captured := <-capturedOutput
 
 	require.NoError(t, err)
-	require.NotContains(t, captured, "Should Terragrunt apply the external dependency?")
-	require.NotContains(t, captured, "/tmp/external1")
+	assert.NotContains(t, captured, "Should Terragrunt apply the external dependency?")
+	assert.NotContains(t, captured, "/tmp/external1")
 }
 
 func TestTerragruntInvokeTerraformTests(t *testing.T) {
@@ -6807,7 +6807,7 @@ func TestTerragruntInvokeTerraformTests(t *testing.T) {
 
 	err := runTerragruntCommand(t, "terragrunt test --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
-	require.Contains(t, stdout.String(), "1 passed, 0 failed")
+	assert.Contains(t, stdout.String(), "1 passed, 0 failed")
 }
 
 func TestTerragruntCommandsThatNeedInput(t *testing.T) {
@@ -6819,7 +6819,7 @@ func TestTerragruntCommandsThatNeedInput(t *testing.T) {
 
 	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
 	require.NoError(t, err)
-	require.Contains(t, stdout, "Apply complete")
+	assert.Contains(t, stdout, "Apply complete")
 }
 
 func TestTerragruntParallelStateInit(t *testing.T) {
@@ -6890,7 +6890,7 @@ func TestTerragruntAssumeRole(t *testing.T) {
 
 	// validate generated backend.tf
 	backendFile := filepath.Join(testPath, "backend.tf")
-	require.FileExists(t, backendFile)
+	assert.FileExists(t, backendFile)
 
 	content, err := files.ReadFileAsString(backendFile)
 	require.NoError(t, err)
@@ -6901,9 +6901,9 @@ func TestTerragruntAssumeRole(t *testing.T) {
 	identityARN, err := aws_helper.GetAWSIdentityArn(nil, opts)
 	require.NoError(t, err)
 
-	require.Contains(t, content, "role_arn     = \""+identityARN+"\"")
-	require.Contains(t, content, "external_id  = \"external_id_123\"")
-	require.Contains(t, content, "session_name = \"session_name_example\"")
+	assert.Contains(t, content, "role_arn     = \""+identityARN+"\"")
+	assert.Contains(t, content, "external_id  = \"external_id_123\"")
+	assert.Contains(t, content, "session_name = \"session_name_example\"")
 }
 
 func TestTerragruntUpdatePolicy(t *testing.T) {
@@ -6977,11 +6977,11 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
 
 			for _, module := range testCase.expectedModules {
-				require.Containsf(t, output, "/"+module+"\n", "Expected module %s to be in output", module)
+				assert.Containsf(t, output, "/"+module+"\n", "Expected module %s to be in output", module)
 			}
 
 			for _, module := range testCase.notExpectedModules {
-				require.NotContainsf(t, output, "Module "+tmpModulePath+"/"+module+"\n", "Expected module %s must not to be in output", module)
+				assert.NotContainsf(t, output, "Module "+tmpModulePath+"/"+module+"\n", "Expected module %s must not to be in output", module)
 			}
 		})
 	}
@@ -7024,11 +7024,11 @@ func TestTerragruntApplyGraph(t *testing.T) {
 			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
 
 			for _, module := range testCase.expectedModules {
-				require.Containsf(t, output, "/"+module+"\n", "Expected module %s to be in output", module)
+				assert.Containsf(t, output, "/"+module+"\n", "Expected module %s to be in output", module)
 			}
 
 			for _, module := range testCase.notExpectedModules {
-				require.NotContainsf(t, output, "Module "+tmpModulePath+"/"+module+"\n", "Expected module %s must not to be in output", module)
+				assert.NotContainsf(t, output, "Module "+tmpModulePath+"/"+module+"\n", "Expected module %s must not to be in output", module)
 			}
 		})
 	}
@@ -7068,12 +7068,12 @@ func TestTerragruntSkipDependenciesWithSkipFlag(t *testing.T) {
 
 	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
 
-	require.NotContains(t, output, "Error reading partial config for dependency")
-	require.NotContains(t, output, "Call to function \"find_in_parent_folders\" failed")
-	require.NotContains(t, output, "ParentFileNotFoundError")
+	assert.NotContains(t, output, "Error reading partial config for dependency")
+	assert.NotContains(t, output, "Call to function \"find_in_parent_folders\" failed")
+	assert.NotContains(t, output, "ParentFileNotFoundError")
 
-	require.Contains(t, output, "first/terragrunt.hcl due to skip = true")
-	require.Contains(t, output, "second/terragrunt.hcl due to skip = true")
+	assert.Contains(t, output, "first/terragrunt.hcl due to skip = true")
+	assert.Contains(t, output, "second/terragrunt.hcl due to skip = true")
 	// check that no test_file.txt was created in module directory
 	_, err = os.Stat(util.JoinPath(tmpEnvPath, TEST_FIXTURE_SKIP_DEPENDENCIES, "first", "test_file.txt"))
 	require.Error(t, err)
@@ -7114,7 +7114,7 @@ func TestTerragruntAssumeRoleDuration(t *testing.T) {
 	require.NoError(t, err)
 
 	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
-	require.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
+	assert.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
 	// run one more time to check that no init is performed
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
@@ -7123,9 +7123,9 @@ func TestTerragruntAssumeRoleDuration(t *testing.T) {
 	require.NoError(t, err)
 
 	output = fmt.Sprintf("%s %s", stderr.String(), stdout.String())
-	require.NotContains(t, output, "Initializing the backend...")
-	require.NotContains(t, output, "has been successfully initialized!")
-	require.Contains(t, output, "no changes are needed.")
+	assert.NotContains(t, output, "Initializing the backend...")
+	assert.NotContains(t, output, "has been successfully initialized!")
+	assert.Contains(t, output, "no changes are needed.")
 }
 
 func TestTerragruntAssumeRoleWebIdentityEnv(t *testing.T) {
@@ -7134,7 +7134,7 @@ func TestTerragruntAssumeRoleWebIdentityEnv(t *testing.T) {
 	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
 	tokenEnvVar := os.Getenv("AWS_TEST_S3_IDENTITY_TOKEN_VAR")
 	if tokenEnvVar == "" {
-		t.Skip("Missing required env var AWS_TEST_S3_IDENTITY_TOKEN_VAR")
+		t.Skip("Missing assertd env var AWS_TEST_S3_IDENTITY_TOKEN_VAR")
 		return
 	}
 
@@ -7162,7 +7162,7 @@ func TestTerragruntAssumeRoleWebIdentityEnv(t *testing.T) {
 	require.NoError(t, err)
 
 	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
-	require.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
+	assert.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
 }
 
 func TestTerragruntAssumeRoleWebIdentityFile(t *testing.T) {
@@ -7195,7 +7195,7 @@ func TestTerragruntAssumeRoleWebIdentityFile(t *testing.T) {
 	require.NoError(t, err)
 
 	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
-	require.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
+	assert.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
 }
 
 func prepareGraphFixture(t *testing.T) string {
@@ -7244,14 +7244,14 @@ func TestStorePlanFilesRunAllPlanApply(t *testing.T) {
 	_, output, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
 	require.NoError(t, err)
 
-	require.Contains(t, output, "Using output file "+tmpDir)
+	assert.Contains(t, output, "Using output file "+tmpDir)
 
 	// verify that tfplan files are created in the tmpDir, 2 files
 	list, err := findFilesWithExtension(tmpDir, ".tfplan")
 	require.NoError(t, err)
-	require.Len(t, list, 2)
+	assert.Len(t, list, 2)
 	for _, file := range list {
-		require.Equal(t, "tfplan.tfplan", filepath.Base(file))
+		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
 	}
 
 	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
@@ -7276,22 +7276,22 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	// remove all tfstate files from temp directory to prepare destroy
 	list, err := findFilesWithExtension(tmpDir, ".tfplan")
 	require.NoError(t, err)
-	require.Len(t, list, 2)
+	assert.Len(t, list, 2)
 	for _, file := range list {
-		require.Equal(t, "tfplan.tfplan", filepath.Base(file))
+		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
 	}
 
 	// prepare destroy plan
 	_, output, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all plan -destroy --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
 	require.NoError(t, err)
 
-	require.Contains(t, output, "Using output file "+tmpDir)
+	assert.Contains(t, output, "Using output file "+tmpDir)
 	// verify that tfplan files are created in the tmpDir, 2 files
 	list, err = findFilesWithExtension(tmpDir, ".tfplan")
 	require.NoError(t, err)
-	require.Len(t, list, 2)
+	assert.Len(t, list, 2)
 	for _, file := range list {
-		require.Equal(t, "tfplan.tfplan", filepath.Base(file))
+		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
 	}
 
 	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
@@ -7309,19 +7309,19 @@ func TestPlanJsonFilesRunAll(t *testing.T) {
 	// verify that was generated json files with plan data
 	list, err := findFilesWithExtension(tmpDir, ".json")
 	require.NoError(t, err)
-	require.Len(t, list, 2)
+	assert.Len(t, list, 2)
 	for _, file := range list {
-		require.Equal(t, "tfplan.json", filepath.Base(file))
+		assert.Equal(t, "tfplan.json", filepath.Base(file))
 		// verify that file is not empty
 		content, err := os.ReadFile(file)
 		require.NoError(t, err)
-		require.NotEmpty(t, content)
+		assert.NotEmpty(t, content)
 		// check that produced json is valid and can be unmarshalled
 		var plan map[string]interface{}
 		err = json.Unmarshal(content, &plan)
 		require.NoError(t, err)
 		// check that plan is not empty
-		require.NotEmpty(t, plan)
+		assert.NotEmpty(t, plan)
 	}
 
 }
@@ -7342,21 +7342,21 @@ func TestPlanJsonPlanBinaryRunAll(t *testing.T) {
 	// verify that was generated json files with plan data
 	list, err := findFilesWithExtension(tmpDir, ".json")
 	require.NoError(t, err)
-	require.Len(t, list, 2)
+	assert.Len(t, list, 2)
 	for _, file := range list {
-		require.Equal(t, "tfplan.json", filepath.Base(file))
+		assert.Equal(t, "tfplan.json", filepath.Base(file))
 		// verify that file is not empty
 		content, err := os.ReadFile(file)
 		require.NoError(t, err)
-		require.NotEmpty(t, content)
+		assert.NotEmpty(t, content)
 	}
 
 	// verify that was generated binary plan files
 	list, err = findFilesWithExtension(tmpDir, ".tfplan")
 	require.NoError(t, err)
-	require.Len(t, list, 2)
+	assert.Len(t, list, 2)
 	for _, file := range list {
-		require.Equal(t, "tfplan.tfplan", filepath.Base(file))
+		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
 	}
 
 }
@@ -7385,7 +7385,7 @@ func TestTerragruntRunAllPlanAndShow(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify that output contains the plan and not just the actual state output
-	require.Contains(t, stdout, "No changes. Your infrastructure matches the configuration.")
+	assert.Contains(t, stdout, "No changes. Your infrastructure matches the configuration.")
 }
 
 func TestTerragruntLogSopsErrors(t *testing.T) {
@@ -7400,8 +7400,8 @@ func TestTerragruntLogSopsErrors(t *testing.T) {
 	_, errorOut, err := runTerragruntCommandWithOutput(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+testPath)
 	require.Error(t, err)
 
-	require.Contains(t, errorOut, "error decrypting key: [error decrypting key")
-	require.Contains(t, errorOut, "error base64-decoding encrypted data key: illegal base64 data at input byte")
+	assert.Contains(t, errorOut, "error decrypting key: [error decrypting key")
+	assert.Contains(t, errorOut, "error base64-decoding encrypted data key: illegal base64 data at input byte")
 }
 
 func TestGetRepoRootCaching(t *testing.T) {
@@ -7420,14 +7420,14 @@ func TestGetRepoRootCaching(t *testing.T) {
 
 	output := fmt.Sprintf("%s %s", stdout, stderr)
 	count := strings.Count(output, "git show-toplevel result")
-	require.Equal(t, 1, count)
+	assert.Equal(t, 1, count)
 }
 
 func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
 	t.Helper()
 	output, hasPlatform := outputs[key]
-	require.Truef(t, hasPlatform, "Expected output %s to be defined", key)
-	require.Equalf(t, output.Value, value, "Expected output %s to be %t", key, value)
+	assert.Truef(t, hasPlatform, "Expected output %s to be defined", key)
+	assert.Equalf(t, output.Value, value, "Expected output %s to be %t", key, value)
 }
 
 // wrappedBinary - return which binary will be wrapped by Terragrunt, useful in CICD to run same tests against tofu and terraform

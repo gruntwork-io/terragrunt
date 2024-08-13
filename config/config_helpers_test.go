@@ -82,7 +82,7 @@ func TestPathRelativeToInclude(t *testing.T) {
 		ctx := NewParsingContext(context.Background(), testCase.terragruntOptions).WithTrackInclude(trackInclude)
 		actualPath, actualErr := pathRelativeToInclude(ctx, testCase.params)
 		require.NoError(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
-		require.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
+		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}
 }
 
@@ -153,7 +153,7 @@ func TestPathRelativeFromInclude(t *testing.T) {
 		ctx := NewParsingContext(context.Background(), testCase.terragruntOptions).WithTrackInclude(trackInclude)
 		actualPath, actualErr := pathRelativeFromInclude(ctx, testCase.params)
 		require.NoError(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
-		require.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
+		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}
 }
 
@@ -226,7 +226,7 @@ func TestRunCommand(t *testing.T) {
 				}
 			} else {
 				require.NoError(t, actualErr)
-				require.Equal(t, testCase.expectedOutput, actualOutput)
+				assert.Equal(t, testCase.expectedOutput, actualOutput)
 			}
 		})
 	}
@@ -331,7 +331,7 @@ func TestFindInParentFolders(t *testing.T) {
 				}
 			} else {
 				require.NoError(t, actualErr)
-				require.Equal(t, testCase.expectedPath, actualPath)
+				assert.Equal(t, testCase.expectedPath, actualPath)
 			}
 		})
 	}
@@ -396,9 +396,9 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 				assert.Contains(t, actualErr.Error(), testCase.expectedErr)
 			} else {
 				require.NoError(t, actualErr)
-				require.NotNil(t, actualOut)
-				require.NotNil(t, actualOut.Terraform)
-				require.NotNil(t, actualOut.Terraform.Source)
+				assert.NotNil(t, actualOut)
+				assert.NotNil(t, actualOut.Terraform)
+				assert.NotNil(t, actualOut.Terraform.Source)
 				assert.Equal(t, testCase.expectedOut, *actualOut.Terraform.Source)
 			}
 		})
@@ -537,10 +537,10 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 			actualOut, actualErr := ParseConfigString(ctx, "mock-path-for-test.hcl", testCase.str, testCase.include)
 			require.NoError(t, actualErr, "For string '%s' include %v and options %v, unexpected error: %v", testCase.str, testCase.include, testCase.terragruntOptions, actualErr)
 
-			require.NotNil(t, actualOut)
+			assert.NotNil(t, actualOut)
 
 			inputs := actualOut.Inputs
-			require.NotNil(t, inputs)
+			assert.NotNil(t, inputs)
 
 			foo, containsFoo := inputs["foo"]
 			assert.True(t, containsFoo)
@@ -580,10 +580,10 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 			actualOut, actualErr := ParseConfigString(ctx, "mock-path-for-test.hcl", testCase.str, testCase.include)
 			require.NoError(t, actualErr, "For string '%s' include %v and options %v, unexpected error: %v", testCase.str, testCase.include, testCase.terragruntOptions, actualErr)
 
-			require.NotNil(t, actualOut)
+			assert.NotNil(t, actualOut)
 
 			inputs := actualOut.Inputs
-			require.NotNil(t, inputs)
+			assert.NotNil(t, inputs)
 
 			foo, containsFoo := inputs["foo"]
 			assert.True(t, containsFoo)
@@ -600,7 +600,7 @@ func toStringSlice(t *testing.T, value interface{}) []string {
 	}
 
 	asInterfaceSlice, isInterfaceSlice := value.([]interface{})
-	require.True(t, isInterfaceSlice)
+	assert.True(t, isInterfaceSlice)
 
 	// TODO: See if this logic is desired
 	if len(asInterfaceSlice) == 0 {
@@ -610,7 +610,7 @@ func toStringSlice(t *testing.T, value interface{}) []string {
 	var out = make([]string, 0, len(asInterfaceSlice))
 	for _, item := range asInterfaceSlice {
 		asStr, isStr := item.(string)
-		require.True(t, isStr)
+		assert.True(t, isStr)
 		out = append(out, asStr)
 	}
 
@@ -735,7 +735,7 @@ func TestGetParentTerragruntDir(t *testing.T) {
 		ctx := NewParsingContext(context.Background(), testCase.terragruntOptions).WithTrackInclude(trackInclude)
 		actualPath, actualErr := getParentTerragruntDir(ctx, testCase.params)
 		require.NoError(t, actualErr, "For include %v and options %v, unexpected error: %v", testCase.include, testCase.terragruntOptions, actualErr)
-		require.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
+		assert.Equal(t, testCase.expectedPath, actualPath, "For include %v and options %v", testCase.include, testCase.terragruntOptions)
 	}
 }
 
@@ -789,10 +789,10 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 			actual, err := ParseConfigString(ctx, terragruntOptions.TerragruntConfigPath, configString, nil)
 			require.NoError(t, err, "For hcl '%s' include %v and options %v, unexpected error: %v", testCase.input, nil, terragruntOptions, err)
 
-			require.NotNil(t, actual)
+			assert.NotNil(t, actual)
 
 			inputs := actual.Inputs
-			require.NotNil(t, inputs)
+			assert.NotNil(t, inputs)
 
 			test, containsTest := inputs["test"]
 			assert.True(t, containsTest)
@@ -860,7 +860,7 @@ func TestTerraformOutputJsonToCtyValueMap(t *testing.T) {
 	for _, testCase := range testCases {
 		converted, err := terraformOutputJsonToCtyValueMap(mockTargetConfig, []byte(testCase.input))
 		require.NoError(t, err)
-		require.Equal(t, getKeys(converted), getKeys(testCase.expected))
+		assert.Equal(t, getKeys(converted), getKeys(testCase.expected))
 		for k, v := range converted {
 			assert.True(t, v.Equals(testCase.expected[k]).True())
 		}
@@ -881,17 +881,17 @@ func TestReadTerragruntConfigInputs(t *testing.T) {
 
 	inputsMap := tgConfigMap["inputs"].(map[string]interface{})
 
-	require.Equal(t, "string", inputsMap["string"].(string))
-	require.InEpsilon(t, float64(42), inputsMap["number"].(float64), 0.0000000001)
-	require.True(t, inputsMap["bool"].(bool))
-	require.Equal(t, []interface{}{"a", "b", "c"}, inputsMap["list_string"].([]interface{}))
-	require.Equal(t, []interface{}{float64(1), float64(2), float64(3)}, inputsMap["list_number"].([]interface{}))
-	require.Equal(t, []interface{}{true, false}, inputsMap["list_bool"].([]interface{}))
-	require.Equal(t, map[string]interface{}{"foo": "bar"}, inputsMap["map_string"].(map[string]interface{}))
-	require.Equal(t, map[string]interface{}{"foo": float64(42), "bar": float64(12345)}, inputsMap["map_number"].(map[string]interface{}))
-	require.Equal(t, map[string]interface{}{"foo": true, "bar": false, "baz": true}, inputsMap["map_bool"].(map[string]interface{}))
+	assert.Equal(t, "string", inputsMap["string"].(string))
+	assert.InEpsilon(t, float64(42), inputsMap["number"].(float64), 0.0000000001)
+	assert.True(t, inputsMap["bool"].(bool))
+	assert.Equal(t, []interface{}{"a", "b", "c"}, inputsMap["list_string"].([]interface{}))
+	assert.Equal(t, []interface{}{float64(1), float64(2), float64(3)}, inputsMap["list_number"].([]interface{}))
+	assert.Equal(t, []interface{}{true, false}, inputsMap["list_bool"].([]interface{}))
+	assert.Equal(t, map[string]interface{}{"foo": "bar"}, inputsMap["map_string"].(map[string]interface{}))
+	assert.Equal(t, map[string]interface{}{"foo": float64(42), "bar": float64(12345)}, inputsMap["map_number"].(map[string]interface{}))
+	assert.Equal(t, map[string]interface{}{"foo": true, "bar": false, "baz": true}, inputsMap["map_bool"].(map[string]interface{}))
 
-	require.Equal(
+	assert.Equal(
 		t,
 		map[string]interface{}{
 			"str":  "string",
@@ -902,7 +902,7 @@ func TestReadTerragruntConfigInputs(t *testing.T) {
 		inputsMap["object"].(map[string]interface{}),
 	)
 
-	require.Equal(t, "default", inputsMap["from_env"].(string))
+	assert.Equal(t, "default", inputsMap["from_env"].(string))
 }
 
 func TestReadTerragruntConfigRemoteState(t *testing.T) {
@@ -917,21 +917,21 @@ func TestReadTerragruntConfigRemoteState(t *testing.T) {
 	require.NoError(t, err)
 
 	remoteStateMap := tgConfigMap["remote_state"].(map[string]interface{})
-	require.Equal(t, "s3", remoteStateMap["backend"].(string))
+	assert.Equal(t, "s3", remoteStateMap["backend"].(string))
 	configMap := remoteStateMap["config"].(map[string]interface{})
-	require.True(t, configMap["encrypt"].(bool))
-	require.Equal(t, "terraform.tfstate", configMap["key"].(string))
-	require.Equal(
+	assert.True(t, configMap["encrypt"].(bool))
+	assert.Equal(t, "terraform.tfstate", configMap["key"].(string))
+	assert.Equal(
 		t,
 		map[string]interface{}{"owner": "terragrunt integration test", "name": "Terraform state storage"},
 		configMap["s3_bucket_tags"].(map[string]interface{}),
 	)
-	require.Equal(
+	assert.Equal(
 		t,
 		map[string]interface{}{"owner": "terragrunt integration test", "name": "Terraform lock table"},
 		configMap["dynamodb_table_tags"].(map[string]interface{}),
 	)
-	require.Equal(
+	assert.Equal(
 		t,
 		map[string]interface{}{"owner": "terragrunt integration test", "name": "Terraform access log storage"},
 		configMap["accesslogging_bucket_tags"].(map[string]interface{}),
@@ -951,30 +951,30 @@ func TestReadTerragruntConfigHooks(t *testing.T) {
 
 	terraformMap := tgConfigMap["terraform"].(map[string]interface{})
 	beforeHooksMap := terraformMap["before_hook"].(map[string]interface{})
-	require.Equal(
+	assert.Equal(
 		t,
 		[]interface{}{"touch", "before.out"},
 		beforeHooksMap["before_hook_1"].(map[string]interface{})["execute"].([]interface{}),
 	)
-	require.Equal(
+	assert.Equal(
 		t,
 		[]interface{}{"echo", "BEFORE_TERRAGRUNT_READ_CONFIG"},
 		beforeHooksMap["before_hook_2"].(map[string]interface{})["execute"].([]interface{}),
 	)
 
 	afterHooksMap := terraformMap["after_hook"].(map[string]interface{})
-	require.Equal(
+	assert.Equal(
 		t,
 		[]interface{}{"touch", "after.out"},
 		afterHooksMap["after_hook_1"].(map[string]interface{})["execute"].([]interface{}),
 	)
-	require.Equal(
+	assert.Equal(
 		t,
 		[]interface{}{"echo", "AFTER_TERRAGRUNT_READ_CONFIG"},
 		afterHooksMap["after_hook_2"].(map[string]interface{})["execute"].([]interface{}),
 	)
 	errorHooksMap := terraformMap["error_hook"].(map[string]interface{})
-	require.Equal(
+	assert.Equal(
 		t,
 		[]interface{}{"echo", "ON_APPLY_ERROR"},
 		errorHooksMap["error_hook_1"].(map[string]interface{})["execute"].([]interface{}),
@@ -993,9 +993,9 @@ func TestReadTerragruntConfigLocals(t *testing.T) {
 	require.NoError(t, err)
 
 	localsMap := tgConfigMap["locals"].(map[string]interface{})
-	require.InEpsilon(t, float64(2), localsMap["x"].(float64), 0.0000000001)
-	require.Equal(t, "Hello world\n", localsMap["file_contents"].(string))
-	require.InEpsilon(t, float64(42), localsMap["number_expression"].(float64), 0.0000000001)
+	assert.InEpsilon(t, float64(2), localsMap["x"].(float64), 0.0000000001)
+	assert.Equal(t, "Hello world\n", localsMap["file_contents"].(string))
+	assert.InEpsilon(t, float64(42), localsMap["number_expression"].(float64), 0.0000000001)
 }
 
 func TestGetTerragruntSourceForModuleHappyPath(t *testing.T) {
@@ -1055,7 +1055,7 @@ func TestStartsWith(t *testing.T) {
 			ctx := NewParsingContext(context.Background(), testCase.config)
 			actual, err := startsWith(ctx, testCase.args)
 			require.NoError(t, err)
-			require.Equal(t, testCase.value, actual)
+			assert.Equal(t, testCase.value, actual)
 		})
 	}
 }
@@ -1085,7 +1085,7 @@ func TestEndsWith(t *testing.T) {
 			ctx := NewParsingContext(context.Background(), testCase.config)
 			actual, err := endsWith(ctx, testCase.args)
 			require.NoError(t, err)
-			require.Equal(t, testCase.value, actual)
+			assert.Equal(t, testCase.value, actual)
 		})
 	}
 }
@@ -1106,7 +1106,7 @@ func TestTimeCmp(t *testing.T) {
 		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T01:00:00+01:00", "2017-11-22T01:00:00-01:00"}, -1, ""},
 		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T01:00:00-01:00", "2017-11-22T01:00:00+01:00"}, 1, ""},
 		{terragruntOptionsForTest(t, ""), []string{"2017-11-22T00:00:00Z", "bloop"}, 0, `could not parse second parameter "bloop": not a valid RFC3339 timestamp: cannot use "bloop" as year`},
-		{terragruntOptionsForTest(t, ""), []string{"2017-11-22 00:00:00Z", "2017-11-22T00:00:00Z"}, 0, `could not parse first parameter "2017-11-22 00:00:00Z": not a valid RFC3339 timestamp: missing required time introducer 'T'`},
+		{terragruntOptionsForTest(t, ""), []string{"2017-11-22 00:00:00Z", "2017-11-22T00:00:00Z"}, 0, `could not parse first parameter "2017-11-22 00:00:00Z": not a valid RFC3339 timestamp: missing assertd time introducer 'T'`},
 	}
 
 	for _, testCase := range testCases {
@@ -1178,14 +1178,14 @@ func TestReadTFVarsFiles(t *testing.T) {
 
 	locals := tgConfigMap["locals"].(map[string]interface{})
 
-	require.Equal(t, "string", locals["string_var"].(string))
-	require.InEpsilon(t, float64(42), locals["number_var"].(float64), 0.0000000001)
-	require.True(t, locals["bool_var"].(bool))
-	require.Equal(t, []interface{}{"hello", "world"}, locals["list_var"].([]interface{}))
+	assert.Equal(t, "string", locals["string_var"].(string))
+	assert.InEpsilon(t, float64(42), locals["number_var"].(float64), 0.0000000001)
+	assert.True(t, locals["bool_var"].(bool))
+	assert.Equal(t, []interface{}{"hello", "world"}, locals["list_var"].([]interface{}))
 
-	require.InEpsilon(t, float64(24), locals["json_number_var"].(float64), 0.0000000001)
-	require.Equal(t, "another string", locals["json_string_var"].(string))
-	require.False(t, locals["json_bool_var"].(bool))
+	assert.InEpsilon(t, float64(24), locals["json_number_var"].(float64), 0.0000000001)
+	assert.Equal(t, "another string", locals["json_string_var"].(string))
+	assert.False(t, locals["json_bool_var"].(bool))
 }
 
 func mockConfigWithSource(sourceUrl string) *TerragruntConfig {

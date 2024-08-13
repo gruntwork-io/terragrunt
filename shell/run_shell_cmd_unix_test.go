@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,15 +35,15 @@ func TestExitCodeUnix(t *testing.T) {
 		}
 		retCode, err := util.GetExitCode(err)
 		require.NoError(t, err)
-		require.Equal(t, i, retCode)
+		assert.Equal(t, i, retCode)
 	}
 
 	// assert a non exec.ExitError returns an error
 	err := goerrors.New("This is an explicit error")
 	retCode, retErr := util.GetExitCode(err)
 	require.Error(t, retErr, "An error was expected")
-	require.Equal(t, err, retErr)
-	require.Equal(t, 0, retCode)
+	assert.Equal(t, err, retErr)
+	assert.Equal(t, 0, retCode)
 }
 
 func TestNewSignalsForwarderWaitUnix(t *testing.T) {
@@ -73,8 +74,8 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	require.Error(t, err)
 	retCode, err := util.GetExitCode(err)
 	require.NoError(t, err)
-	require.Equal(t, expectedWait, retCode)
-	require.WithinDuration(t, time.Now(), start.Add(time.Duration(expectedWait)*time.Second), time.Second,
+	assert.Equal(t, expectedWait, retCode)
+	assert.WithinDuration(t, time.Now(), start.Add(time.Duration(expectedWait)*time.Second), time.Second,
 		"Expected to wait 5 (+/-1) seconds after SIGINT")
 
 }
@@ -121,8 +122,8 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 	require.Error(t, err)
 	retCode, err := util.GetExitCode(err)
 	require.NoError(t, err)
-	require.LessOrEqual(t, retCode, interrupts, "Subprocess received wrong number of signals")
-	require.Equal(t, expectedInterrupts, retCode, "Subprocess didn't receive multiple signals")
+	assert.LessOrEqual(t, retCode, interrupts, "Subprocess received wrong number of signals")
+	assert.Equal(t, expectedInterrupts, retCode, "Subprocess didn't receive multiple signals")
 }
 
 func TestRunShellCommandWithOutputInterrupt(t *testing.T) {
@@ -144,5 +145,5 @@ func TestRunShellCommandWithOutputInterrupt(t *testing.T) {
 	})
 
 	expectedErr := fmt.Sprintf("[.] exit status %d", expectedWait)
-	require.EqualError(t, <-errCh, expectedErr)
+	assert.EqualError(t, <-errCh, expectedErr)
 }
