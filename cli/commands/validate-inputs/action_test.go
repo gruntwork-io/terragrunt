@@ -66,5 +66,4 @@ func TestGetVarFlagsFromExtraArgs(t *testing.T) {
 			assert.Equal(t, testCase.expectedVarFiles, varFiles)
 		})
 	}
-
 }

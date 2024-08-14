@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-// The main entrypoint for Terragrunt
+// The main entrypoint for Terragrunt.
 func main() {
 	defer errors.Recover(checkForErrorsAndExit)
 

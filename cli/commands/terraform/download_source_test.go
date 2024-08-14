@@ -365,9 +365,7 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 			copyFolder(t, testCase.sourceURL, downloadDir)
 			assert.Condition(t, testCase.comp)
 		})
-
 	}
-
 }
 
 func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool, expectedFileContents string, requireInitFile bool) {

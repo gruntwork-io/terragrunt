@@ -150,7 +150,7 @@ type matchingChecksumAuthentication struct {
 }
 
 // NewMatchingChecksumAuthentication returns a PackageAuthentication implementation that scans a registry-provided SHA256SUMS document for a specified filename,
-// and compares the SHA256 hash against the expected hash
+// and compares the SHA256 hash against the expected hash.
 func NewMatchingChecksumAuthentication(document []byte, filename string, wantSHA256Sum [sha256.Size]byte) PackageAuthentication {
 	return matchingChecksumAuthentication{
 		Document:      document,

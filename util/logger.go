@@ -12,7 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// used in integration tests
+// used in integration tests.
 const (
 	defaultLogLevel = logrus.InfoLevel
 	logLevelEnvVar  = "TERRAGRUNT_LOG_LEVEL"
@@ -54,7 +54,7 @@ func DisableJsonFormat() {
 	GlobalFallbackLogEntry = CreateLogEntry("", defaultLogLevel)
 }
 
-// CreateLogger creates a logger. If debug is set, we use ErrorLevel to enable verbose output, otherwise - only errors are shown
+// CreateLogger creates a logger. If debug is set, we use ErrorLevel to enable verbose output, otherwise - only errors are shown.
 func CreateLogger(lvl logrus.Level) *logrus.Logger {
 	logger := logrus.New()
 	logger.SetLevel(lvl)
@@ -70,7 +70,7 @@ func CreateLogger(lvl logrus.Level) *logrus.Logger {
 	return logger
 }
 
-// CreateLogEntry creates a logger entry with the given prefix field
+// CreateLogEntry creates a logger entry with the given prefix field.
 func CreateLogEntry(prefix string, level logrus.Level) *logrus.Entry {
 	logger := CreateLogger(level)
 	var fields logrus.Fields
@@ -82,7 +82,7 @@ func CreateLogEntry(prefix string, level logrus.Level) *logrus.Entry {
 	return logger.WithFields(fields)
 }
 
-// CreateLogEntryWithWriter Create a logger around the given output stream and prefix
+// CreateLogEntryWithWriter Create a logger around the given output stream and prefix.
 func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Level, hooks logrus.LevelHooks) *logrus.Entry {
 	if prefix != "" {
 		prefix = fmt.Sprintf("[%s] ", prefix)
@@ -129,7 +129,7 @@ func ParseLogLevel(logLevelStr string) logrus.Level {
 	return parsedLogLevel
 }
 
-// LogWriter - Writer implementation which redirect Write requests to configured logger and level
+// LogWriter - Writer implementation which redirect Write requests to configured logger and level.
 type LogWriter struct {
 	Logger *logrus.Entry
 	Level  logrus.Level

@@ -56,7 +56,7 @@ func (cmd *Command) Names() []string {
 	return append([]string{cmd.Name}, cmd.Aliases...)
 }
 
-// HasName returns true if Command.Name matches given name
+// HasName returns true if Command.Name matches given name.
 func (cmd *Command) HasName(name string) bool {
 	for _, n := range cmd.Names() {
 		if n == name && name != "" {
@@ -225,7 +225,6 @@ func (cmd *Command) flagSetParse(flagSet *libflag.FlagSet, args []string) ([]str
 				args = args[i+1:]
 				break
 			}
-
 		}
 
 		// This should be an impossible to reach code path, but in case the arg

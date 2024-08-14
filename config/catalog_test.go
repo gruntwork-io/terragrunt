@@ -124,6 +124,5 @@ func TestCatalogParseConfigFile(t *testing.T) {
 				assert.EqualError(t, err, testCase.expectedErr.Error())
 			}
 		})
-
 	}
 }

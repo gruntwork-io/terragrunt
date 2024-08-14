@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// For simplicity, do all testing in the us-east-1 region
+// For simplicity, do all testing in the us-east-1 region.
 const DEFAULT_TEST_REGION = "us-east-1"
 
 // Create a DynamoDB client we can use at test time. If there are any errors creating the client, fail the test.

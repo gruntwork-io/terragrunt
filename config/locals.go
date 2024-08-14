@@ -90,14 +90,13 @@ func EvaluateLocalsBlock(ctx *ParsingContext, file *hclparse.File) (map[string]c
 // - the list of remaining locals that were unevaluated in this attempt
 // - the updated map of evaluated locals after this attempt
 // - whether or not any locals were evaluated in this attempt
-// - any errors from the evaluation
+// - any errors from the evaluation.
 func attemptEvaluateLocals(
 	ctx *ParsingContext,
 	file *hclparse.File,
 	attrs hclparse.Attributes,
 	evaluatedLocals map[string]cty.Value,
 ) (unevaluatedAttrs hclparse.Attributes, newEvaluatedLocals map[string]cty.Value, evaluated bool, err error) {
-
 	localsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedLocals)
 	if err != nil {
 		ctx.TerragruntOptions.Logger.Errorf("Could not convert evaluated locals to the execution ctx to evaluate additional locals in file %s", file.ConfigPath)

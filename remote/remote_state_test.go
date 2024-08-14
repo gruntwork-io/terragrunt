@@ -11,7 +11,7 @@ import (
 )
 
 /**
- * Test for s3, also tests that the terragrunt-specific options are not passed on to terraform
+ * Test for s3, also tests that the terragrunt-specific options are not passed on to terraform.
  */
 func TestToTerraformInitArgs(t *testing.T) {
 	t.Parallel()

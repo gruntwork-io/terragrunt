@@ -32,7 +32,7 @@ const (
 	traceParentParts = 4
 )
 
-// Trace - collect traces for method execution
+// Trace - collect traces for method execution.
 func Trace(ctx context.Context, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
 	if spanExporter == nil || traceProvider == nil { // invoke function without tracing
 		return fn(ctx)
@@ -49,7 +49,7 @@ func Trace(ctx context.Context, name string, attrs map[string]interface{}, fn fu
 	return nil
 }
 
-// configureTraceCollection - configure the traces collection
+// configureTraceCollection - configure the traces collection.
 func configureTraceCollection(ctx context.Context, opts *TelemetryOptions) error {
 	exp, err := NewTraceExporter(ctx, opts)
 	if err != nil {
@@ -184,7 +184,7 @@ func openSpan(ctx context.Context, name string, attrs map[string]interface{}) (c
 	// a useful lint, though. We should consider removing the suppression
 	// and fixing the lint.
 
-	ctx, span := rootTracer.Start(ctx, name) // nolint:spancheck
+	ctx, span := rootTracer.Start(ctx, name) //nolint:spancheck
 	// convert attrs map to span.SetAttributes
 	span.SetAttributes(mapToAttributes(attrs)...)
 	return ctx, span //nolint:spancheck

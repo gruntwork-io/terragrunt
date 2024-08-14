@@ -30,7 +30,7 @@ func (byPath RunningModuleByPath) Less(i, j int) bool {
 }
 
 // We can't use assert.Equals on TerraformModule or any data structure that contains it because it contains some
-// fields (e.g. TerragruntOptions) that cannot be compared directly
+// fields (e.g. TerragruntOptions) that cannot be compared directly.
 func assertModuleListsEqual(t *testing.T, expectedModules configstack.TerraformModules, actualModules configstack.TerraformModules, messageAndArgs ...interface{}) {
 	if !assert.Equal(t, len(expectedModules), len(actualModules), messageAndArgs...) {
 		t.Logf("%s != %s", expectedModules, actualModules)
@@ -48,7 +48,7 @@ func assertModuleListsEqual(t *testing.T, expectedModules configstack.TerraformM
 }
 
 // We can't use assert.Equals on TerraformModule because it contains some fields (e.g. TerragruntOptions) that cannot
-// be compared directly
+// be compared directly.
 func assertModulesEqual(t *testing.T, expected *configstack.TerraformModule, actual *configstack.TerraformModule, messageAndArgs ...interface{}) {
 	if assert.NotNil(t, actual, messageAndArgs...) {
 		// When comparing the TerragruntConfig objects, we need to normalize the dependency list to explicitly set the
@@ -71,7 +71,7 @@ func assertModulesEqual(t *testing.T, expected *configstack.TerraformModule, act
 }
 
 // We can't use assert.Equals on TerraformModule or any data structure that contains it (e.g. configstack.RunningModule) because it
-// contains some fields (e.g. TerragruntOptions) that cannot be compared directly
+// contains some fields (e.g. TerragruntOptions) that cannot be compared directly.
 func assertRunningModuleMapsEqual(t *testing.T, expectedModules map[string]*configstack.RunningModule, actualModules map[string]*configstack.RunningModule, doDeepCheck bool, messageAndArgs ...interface{}) {
 	if !assert.Equal(t, len(expectedModules), len(actualModules), messageAndArgs...) {
 		t.Logf("%v != %v", expectedModules, actualModules)
@@ -87,7 +87,7 @@ func assertRunningModuleMapsEqual(t *testing.T, expectedModules map[string]*conf
 }
 
 // We can't use assert.Equals on TerraformModule or any data structure that contains it (e.g. configstack.RunningModule) because it
-// contains some fields (e.g. TerragruntOptions) that cannot be compared directly
+// contains some fields (e.g. TerragruntOptions) that cannot be compared directly.
 func assertRunningModuleListsEqual(t *testing.T, expectedModules []*configstack.RunningModule, actualModules []*configstack.RunningModule, doDeepCheck bool, messageAndArgs ...interface{}) {
 	if !assert.Equal(t, len(expectedModules), len(actualModules), messageAndArgs...) {
 		t.Logf("%v != %v", expectedModules, actualModules)
@@ -105,7 +105,7 @@ func assertRunningModuleListsEqual(t *testing.T, expectedModules []*configstack.
 }
 
 // We can't use assert.Equals on TerraformModule or any data structure that contains it (e.g. configstack.RunningModule) because it
-// contains some fields (e.g. TerragruntOptions) that cannot be compared directly
+// contains some fields (e.g. TerragruntOptions) that cannot be compared directly.
 func assertRunningModulesEqual(t *testing.T, expected *configstack.RunningModule, actual *configstack.RunningModule, doDeepCheck bool, messageAndArgs ...interface{}) {
 	if assert.NotNil(t, actual, messageAndArgs...) {
 		assert.Equal(t, expected.Status, actual.Status, messageAndArgs...)
@@ -152,7 +152,7 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 	assert.Equal(t, expected.WorkingDir, actual.WorkingDir, messageAndArgs...)
 }
 
-// Return the absolute path for the given path
+// Return the absolute path for the given path.
 func canonical(t *testing.T, path string) string {
 	out, err := util.CanonicalPath(path, ".")
 	if err != nil {

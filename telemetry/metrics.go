@@ -36,7 +36,7 @@ const (
 var metricNameCleanPattern = regexp.MustCompile(`[^A-Za-z0-9_.-/]`)
 var multipleUnderscoresPattern = regexp.MustCompile(`_+`)
 
-// Time - collect time for function execution
+// Time - collect time for function execution.
 func Time(ctx context.Context, name string, attrs map[string]interface{}, fn func(childCtx context.Context) error) error {
 	if metricExporter == nil {
 		return fn(ctx)
@@ -60,7 +60,7 @@ func Time(ctx context.Context, name string, attrs map[string]interface{}, fn fun
 	return err
 }
 
-// Count - add to counter provided value
+// Count - add to counter provided value.
 func Count(ctx context.Context, name string, value int64) {
 	if ctx == nil || metricExporter == nil {
 		return
@@ -72,7 +72,7 @@ func Count(ctx context.Context, name string, value int64) {
 	counter.Add(ctx, value)
 }
 
-// configureMetricsCollection - configure the metrics collection
+// configureMetricsCollection - configure the metrics collection.
 func configureMetricsCollection(ctx context.Context, opts *TelemetryOptions) error {
 	exporter, err := NewMetricsExporter(ctx, opts)
 	if err != nil {
@@ -116,7 +116,6 @@ func NewMetricsExporter(ctx context.Context, opts *TelemetryOptions) (metric.Exp
 		return stdoutmetric.New(stdoutmetric.WithWriter(opts.Writer))
 	default:
 		return nil, nil
-
 	}
 }
 

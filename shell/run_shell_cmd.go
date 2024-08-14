@@ -46,7 +46,7 @@ var terraformCommandsThatNeedPty = []string{
 	"console",
 }
 
-// Run the given Terraform command
+// Run the given Terraform command.
 func RunTerraformCommand(ctx context.Context, terragruntOptions *options.TerragruntOptions, args ...string) error {
 	needPTY, err := isTerraformCommandThatNeedsPty(args)
 	if err != nil {
@@ -57,14 +57,14 @@ func RunTerraformCommand(ctx context.Context, terragruntOptions *options.Terragr
 	return err
 }
 
-// Run the given shell command
+// Run the given shell command.
 func RunShellCommand(ctx context.Context, terragruntOptions *options.TerragruntOptions, command string, args ...string) error {
 	_, err := RunShellCommandWithOutput(ctx, terragruntOptions, "", false, false, command, args...)
 	return err
 }
 
 // Run the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
-// method's caller
+// method's caller.
 func RunTerraformCommandWithOutput(ctx context.Context, terragruntOptions *options.TerragruntOptions, args ...string) (*util.CmdOutput, error) {
 	needPTY, err := isTerraformCommandThatNeedsPty(args)
 	if err != nil {
@@ -120,7 +120,6 @@ func RunShellCommandWithOutput(
 
 		// redirect output through logger with json wrapping
 		if terragruntOptions.JsonLogFormat && terragruntOptions.TerraformLogsToJson {
-
 			jsonWriter := terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args)
 			jsonWriter.Logger.Out = outWriter
 			outWriter = jsonWriter.Writer()
@@ -276,7 +275,6 @@ func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *logrus.Entry,
 			case <-cmdChannel:
 				return
 			}
-
 		}
 	}()
 
@@ -290,7 +288,7 @@ func (signalChannel *SignalsForwarder) Close() error {
 	return nil
 }
 
-// GitTopLevelDir - fetch git repository path from passed directory
+// GitTopLevelDir - fetch git repository path from passed directory.
 func GitTopLevelDir(ctx context.Context, terragruntOptions *options.TerragruntOptions, path string) (string, error) {
 	runCache := cache.ContextCache[string](ctx, RunCmdCacheContextKey)
 	cacheKey := "top-level-dir-" + path
@@ -316,7 +314,7 @@ func GitTopLevelDir(ctx context.Context, terragruntOptions *options.TerragruntOp
 	return cmdOutput, nil
 }
 
-// GitRepoTags - fetch git repository tags from passed url
+// GitRepoTags - fetch git repository tags from passed url.
 func GitRepoTags(ctx context.Context, opts *options.TerragruntOptions, gitRepo *url.URL) ([]string, error) {
 	repoPath := gitRepo.String()
 	// remove git:: part if present
@@ -347,7 +345,7 @@ func GitRepoTags(ctx context.Context, opts *options.TerragruntOptions, gitRepo *
 	return tags, nil
 }
 
-// GitLastReleaseTag - fetch git repository last release tag
+// GitLastReleaseTag - fetch git repository last release tag.
 func GitLastReleaseTag(ctx context.Context, opts *options.TerragruntOptions, gitRepo *url.URL) (string, error) {
 	tags, err := GitRepoTags(ctx, opts, gitRepo)
 	if err != nil {

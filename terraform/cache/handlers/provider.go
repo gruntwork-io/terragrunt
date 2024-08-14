@@ -61,7 +61,7 @@ func NewCommonProviderHandler(includes, excludes *[]string) *CommonProviderHandl
 	}
 }
 
-// CanHandleProvider implements ProviderHandler.CanHandleProvider
+// CanHandleProvider implements ProviderHandler.CanHandleProvider.
 func (handler *CommonProviderHandler) CanHandleProvider(provider *models.Provider) bool {
 	switch {
 	case handler.excludeProviders.Find(provider) != nil:

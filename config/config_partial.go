@@ -45,7 +45,7 @@ type terragruntDependencies struct {
 	Remain       hcl.Body            `hcl:",remain"`
 }
 
-// terragruntTerraform is a struct that can be used to only decode the terraform block
+// terragruntTerraform is a struct that can be used to only decode the terraform block.
 type terragruntTerraform struct {
 	Terraform *TerraformConfig `hcl:"terraform,block"`
 	Remain    hcl.Body         `hcl:",remain"`
@@ -64,7 +64,7 @@ type terraformConfigSourceOnly struct {
 	Remain hcl.Body `hcl:",remain"`
 }
 
-// terragruntFlags is a struct that can be used to only decode the flag attributes (skip and prevent_destroy)
+// terragruntFlags is a struct that can be used to only decode the flag attributes (skip and prevent_destroy).
 type terragruntFlags struct {
 	IamRole             *string  `hcl:"iam_role,attr"`
 	IamWebIdentityToken *string  `hcl:"iam_web_identity_token,attr"`
@@ -82,13 +82,13 @@ type terragruntVersionConstraints struct {
 	Remain                      hcl.Body `hcl:",remain"`
 }
 
-// TerragruntDependency is a struct that can be used to only decode the dependency blocks in the terragrunt config
+// TerragruntDependency is a struct that can be used to only decode the dependency blocks in the terragrunt config.
 type TerragruntDependency struct {
 	Dependencies Dependencies `hcl:"dependency,block"`
 	Remain       hcl.Body     `hcl:",remain"`
 }
 
-// terragruntRemoteState is a struct that can be used to only decode the remote_state blocks in the terragrunt config
+// terragruntRemoteState is a struct that can be used to only decode the remote_state blocks in the terragrunt config.
 type terragruntRemoteState struct {
 	RemoteState *remoteStateConfigFile `hcl:"remote_state,block"`
 	Remain      hcl.Body               `hcl:",remain"`
@@ -104,7 +104,7 @@ type terragruntInputs struct {
 // be decoded even in partial decoding, because they provide bindings that are necessary for parsing any block in the
 // file. Currently base blocks are:
 // - locals
-// - include
+// - include.
 func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TrackInclude, *cty.Value, error) {
 	evalParsingContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
 	if err != nil {
@@ -190,7 +190,6 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File,
 	}
 
 	return config, nil
-
 }
 
 // PartialParseConfigString partially parses and decodes the provided string. Which blocks/attributes to decode is
@@ -208,7 +207,7 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File,
 // - locals
 // - include
 // Note also that the following blocks are never decoded in a partial parse:
-// - inputs
+// - inputs.
 func PartialParseConfigString(ctx *ParsingContext, configPath, configString string, include *IncludeConfig) (*TerragruntConfig, error) {
 	file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromString(configString, configPath)
 	if err != nil {

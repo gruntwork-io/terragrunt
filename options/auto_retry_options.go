@@ -6,7 +6,7 @@ const DEFAULT_RETRY_MAX_ATTEMPTS = 3
 const DEFAULT_RETRY_SLEEP_INTERVAL_SEC = 5 * time.Second
 
 // List of recurring transient errors encountered when calling terraform
-// If any of these match, we'll retry the command
+// If any of these match, we'll retry the command.
 var DEFAULT_RETRYABLE_ERRORS = []string{
 	"(?s).*Failed to load state.*tcp.*timeout.*",
 	"(?s).*Failed to load backend.*TLS handshake timeout.*",

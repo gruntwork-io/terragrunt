@@ -75,7 +75,6 @@ func TestFrontmatter(t *testing.T) {
 			assert.Equal(t, testCase.expectedDesc, doc.Description(0), "Frontmatter Description")
 		})
 	}
-
 }
 
 var testH1EksK8sArgocd = `
@@ -230,5 +229,4 @@ func TestElement(t *testing.T) {
 			assert.Equal(t, testCase.expectedDescription, doc.Description(testCase.maxDescriptionLength), "Description")
 		})
 	}
-
 }

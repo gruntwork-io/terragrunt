@@ -11,14 +11,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/telemetry"
 )
 
-// Cache - generic cache implementation
+// Cache - generic cache implementation.
 type Cache[V any] struct {
 	Name  string
 	Cache map[string]V
 	Mutex *sync.RWMutex
 }
 
-// NewCache - create new cache with generic type V
+// NewCache - create new cache with generic type V.
 func NewCache[V any](name string) *Cache[V] {
 	return &Cache[V]{
 		Name:  name,
@@ -27,7 +27,7 @@ func NewCache[V any](name string) *Cache[V] {
 	}
 }
 
-// Get - fetch value from cache by key
+// Get - fetch value from cache by key.
 func (c *Cache[V]) Get(ctx context.Context, key string) (V, bool) {
 	c.Mutex.RLock()
 	defer c.Mutex.RUnlock()
@@ -43,7 +43,7 @@ func (c *Cache[V]) Get(ctx context.Context, key string) (V, bool) {
 	return value, found
 }
 
-// Put - put value into cache by key
+// Put - put value into cache by key.
 func (c *Cache[V]) Put(ctx context.Context, key string, value V) {
 	c.Mutex.Lock()
 	defer c.Mutex.Unlock()
@@ -53,20 +53,20 @@ func (c *Cache[V]) Put(ctx context.Context, key string, value V) {
 	c.Cache[cacheKey] = value
 }
 
-// ExpiringItem - item with expiration time
+// ExpiringItem - item with expiration time.
 type ExpiringItem[V any] struct {
 	Value      V
 	Expiration time.Time
 }
 
-// ExpiringCache - cache with items with expiration time
+// ExpiringCache - cache with items with expiration time.
 type ExpiringCache[V any] struct {
 	Name  string
 	Cache map[string]ExpiringItem[V]
 	Mutex *sync.RWMutex
 }
 
-// NewExpiringCache - create new cache with generic type V
+// NewExpiringCache - create new cache with generic type V.
 func NewExpiringCache[V any](name string) *ExpiringCache[V] {
 	return &ExpiringCache[V]{
 		Name:  name,
@@ -75,7 +75,7 @@ func NewExpiringCache[V any](name string) *ExpiringCache[V] {
 	}
 }
 
-// Get - fetch value from cache by key
+// Get - fetch value from cache by key.
 func (c *ExpiringCache[V]) Get(ctx context.Context, key string) (V, bool) {
 	c.Mutex.RLock()
 	defer c.Mutex.RUnlock()
@@ -94,7 +94,7 @@ func (c *ExpiringCache[V]) Get(ctx context.Context, key string) (V, bool) {
 	return item.Value, true
 }
 
-// Put - put value into cache by key
+// Put - put value into cache by key.
 func (c *ExpiringCache[V]) Put(ctx context.Context, key string, value V, expiration time.Time) {
 	c.Mutex.Lock()
 	defer c.Mutex.Unlock()

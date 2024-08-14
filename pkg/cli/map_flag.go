@@ -99,7 +99,7 @@ func (flag *MapFlag[K, V]) Names() []string {
 	return append([]string{flag.Name}, flag.Aliases...)
 }
 
-// RunAction implements ActionableFlag.RunAction
+// RunAction implements ActionableFlag.RunAction.
 func (flag *MapFlag[K, V]) RunAction(ctx *Context) error {
 	if flag.Action != nil {
 		return flag.Action(ctx)
@@ -201,7 +201,7 @@ func (flag *mapValue[K, V]) Get() any {
 	return vals
 }
 
-// String returns a readable representation of this value
+// String returns a readable representation of this value.
 func (flag *mapValue[K, V]) String() string {
 	if flag.values == nil {
 		return ""

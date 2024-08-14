@@ -20,7 +20,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-// A representation of the configuration options for an AWS Session
+// A representation of the configuration options for an AWS Session.
 type AwsSessionConfig struct {
 	Region                  string
 	CustomS3Endpoint        string
@@ -120,7 +120,7 @@ func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *opt
 type tokenFetcher string
 
 // FetchToken Implements the stscreds.TokenFetcher interface.
-// Supports providing a token value or the path to a token on disk
+// Supports providing a token value or the path to a token on disk.
 func (f tokenFetcher) FetchToken(ctx credentials.Context) ([]byte, error) {
 	// Check if token is a raw value
 	if _, err := os.Stat(string(f)); err != nil {
@@ -224,7 +224,7 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 	return sess, nil
 }
 
-// Make API calls to AWS to assume the IAM role specified and return the temporary AWS credentials to use that role
+// Make API calls to AWS to assume the IAM role specified and return the temporary AWS credentials to use that role.
 func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error) {
 	sessionOptions := session.Options{SharedConfigState: session.SharedConfigEnable}
 	sess, err := session.NewSessionWithOptions(sessionOptions)
@@ -300,7 +300,7 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 	return resp.Credentials, nil
 }
 
-// Return the AWS caller identity associated with the current set of credentials
+// Return the AWS caller identity associated with the current set of credentials.
 func GetAWSCallerIdentity(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (sts.GetCallerIdentityOutput, error) {
 	sess, err := CreateAwsSession(config, terragruntOptions)
 	if err != nil {
@@ -315,14 +315,14 @@ func GetAWSCallerIdentity(config *AwsSessionConfig, terragruntOptions *options.T
 	return *identity, nil
 }
 
-// ValidateAwsSession - Validate if current AWS session is valid
+// ValidateAwsSession - Validate if current AWS session is valid.
 func ValidateAwsSession(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) error {
 	// read the caller identity to check if the credentials are valid
 	_, err := GetAWSCallerIdentity(config, terragruntOptions)
 	return err
 }
 
-// Get the AWS Partition of the current session configuration
+// Get the AWS Partition of the current session configuration.
 func GetAWSPartition(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
 	if err != nil {
@@ -336,7 +336,7 @@ func GetAWSPartition(config *AwsSessionConfig, terragruntOptions *options.Terrag
 	return arn.Partition, nil
 }
 
-// Get the AWS account ID of the current session configuration
+// Get the AWS account ID of the current session configuration.
 func GetAWSAccountID(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
 	if err != nil {
@@ -346,7 +346,7 @@ func GetAWSAccountID(config *AwsSessionConfig, terragruntOptions *options.Terrag
 	return *identity.Account, nil
 }
 
-// Get the ARN of the AWS identity associated with the current set of credentials
+// Get the ARN of the AWS identity associated with the current set of credentials.
 func GetAWSIdentityArn(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
 	if err != nil {
@@ -356,7 +356,7 @@ func GetAWSIdentityArn(config *AwsSessionConfig, terragruntOptions *options.Terr
 	return *identity.Arn, nil
 }
 
-// Get the AWS user ID of the current session configuration
+// Get the AWS user ID of the current session configuration.
 func GetAWSUserID(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
 	if err != nil {

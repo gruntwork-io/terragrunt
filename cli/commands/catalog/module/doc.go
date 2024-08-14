@@ -22,7 +22,7 @@ const (
 )
 
 var (
-	// `strings.EqualFold` is used (case insensitive) while comparing
+	// `strings.EqualFold` is used (case insensitive) while comparing.
 	docFiles = []string{"README.md", "README.adoc"}
 
 	frontmatterKeys = map[string]docDataKey{

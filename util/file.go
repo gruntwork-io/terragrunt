@@ -51,13 +51,13 @@ func FileOrData(maybePath string) (string, error) {
 	return expandedMaybePath, nil
 }
 
-// Return true if the given file exists
+// Return true if the given file exists.
 func FileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
 
-// Return true if the given file does not exist
+// Return true if the given file does not exist.
 func FileNotExists(path string) bool {
 	_, err := os.Stat(path)
 	return os.IsNotExist(err)
@@ -145,7 +145,7 @@ func CanonicalPaths(paths []string, basePath string) ([]string, error) {
 	return canonicalPaths, nil
 }
 
-// Returns true if the given regex can be found in any of the files matched by the given glob
+// Returns true if the given regex can be found in any of the files matched by the given glob.
 func Grep(regex *regexp.Regexp, glob string) (bool, error) {
 	// Ideally, we'd use a builin Go library like filepath.Glob here, but per https://github.com/golang/go/issues/11862,
 	// the current go implementation doesn't support treating ** as zero or more directories, just zero or one.
@@ -172,19 +172,19 @@ func Grep(regex *regexp.Regexp, glob string) (bool, error) {
 	return false, nil
 }
 
-// Return true if the path points to a directory
+// Return true if the path points to a directory.
 func IsDir(path string) bool {
 	fileInfo, err := os.Stat(path)
 	return err == nil && fileInfo.IsDir()
 }
 
-// Return true if the path points to a file
+// Return true if the path points to a file.
 func IsFile(path string) bool {
 	fileInfo, err := os.Stat(path)
 	return err == nil && !fileInfo.IsDir()
 }
 
-// Return the relative path you would have to take to get from basePath to path
+// Return the relative path you would have to take to get from basePath to path.
 func GetPathRelativeTo(path string, basePath string) (string, error) {
 	if path == "" {
 		path = "."
@@ -211,7 +211,7 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 	return filepath.ToSlash(relPath), nil
 }
 
-// Return the contents of the file at the given path as a string
+// Return the contents of the file at the given path as a string.
 func ReadFileAsString(path string) (string, error) {
 	bytes, err := os.ReadFile(path)
 	if err != nil {
@@ -230,7 +230,7 @@ func listContainsElementWithPrefix(list []string, elementPrefix string) bool {
 	return false
 }
 
-// Takes apbsolute glob path and returns an array of expanded relative paths
+// Takes apbsolute glob path and returns an array of expanded relative paths.
 func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 	includeExpandedGlobs := []string{}
 	absoluteExpandGlob, err := zglob.Glob(absoluteGlobPath)
@@ -380,7 +380,7 @@ func TerragruntExcludes(path string) bool {
 	return false
 }
 
-// Copy a file from source to destination
+// Copy a file from source to destination.
 func CopyFile(source string, destination string) error {
 	contents, err := os.ReadFile(source)
 	if err != nil {
@@ -390,7 +390,7 @@ func CopyFile(source string, destination string) error {
 	return WriteFileWithSamePermissions(source, destination, contents)
 }
 
-// Write a file to the given destination with the given contents using the same permissions as the file at source
+// Write a file to the given destination with the given contents using the same permissions as the file at source.
 func WriteFileWithSamePermissions(source string, destination string, contents []byte) error {
 	fileInfo, err := os.Stat(source)
 	if err != nil {
@@ -402,7 +402,7 @@ func WriteFileWithSamePermissions(source string, destination string, contents []
 
 // Windows systems use \ as the path separator *nix uses /
 // Use this function when joining paths to force the returned path to use / as the path separator
-// This will improve cross-platform compatibility
+// This will improve cross-platform compatibility.
 func JoinPath(elem ...string) string {
 	return filepath.ToSlash(filepath.Join(elem...))
 }
@@ -415,14 +415,14 @@ func SplitPath(path string) []string {
 	return strings.Split(CleanPath(path), filepath.ToSlash(string(filepath.Separator)))
 }
 
-// Use this function when cleaning paths to ensure the returned path uses / as the path separator to improve cross-platform compatibility
+// Use this function when cleaning paths to ensure the returned path uses / as the path separator to improve cross-platform compatibility.
 func CleanPath(path string) string {
 	return filepath.ToSlash(filepath.Clean(path))
 }
 
 // ContainsPath returns true if path contains the given subpath
 // E.g. path="foo/bar/bee", subpath="bar/bee" -> true
-// E.g. path="foo/bar/bee", subpath="bar/be" -> false (because be is not a directory)
+// E.g. path="foo/bar/bee", subpath="bar/be" -> false (because be is not a directory).
 func ContainsPath(path, subpath string) bool {
 	splitPath := SplitPath(CleanPath(path))
 	splitSubpath := SplitPath(CleanPath(subpath))
@@ -433,7 +433,7 @@ func ContainsPath(path, subpath string) bool {
 // HasPathPrefix returns true if path starts with the given path prefix
 // E.g. path="/foo/bar/biz", prefix="/foo/bar" -> true
 // E.g. path="/foo/bar/biz", prefix="/foo/ba" -> false (because ba is not a directory
-// path)
+// path).
 func HasPathPrefix(path, prefix string) bool {
 	splitPath := SplitPath(CleanPath(path))
 	splitPrefix := SplitPath(CleanPath(prefix))
@@ -481,18 +481,18 @@ type fileManifest struct {
 
 // fileManifestEntry represents an entry in the fileManifest.
 // It uses a struct with IsDir flag so that we won't have to call Stat on every
-// file to determine if it's a directory or a file
+// file to determine if it's a directory or a file.
 type fileManifestEntry struct {
 	Path  string
 	IsDir bool
 }
 
-// Clean will recursively remove all files specified in the manifest
+// Clean will recursively remove all files specified in the manifest.
 func (manifest *fileManifest) Clean() error {
 	return manifest.clean(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
 }
 
-// clean cleans the files in the manifest. If it has a directory entry, then it recursively calls clean()
+// clean cleans the files in the manifest. If it has a directory entry, then it recursively calls clean().
 func (manifest *fileManifest) clean(manifestPath string) error {
 	// if manifest file doesn't exist, just exit
 	if !FileExists(manifestPath) {
@@ -537,7 +537,7 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 	return nil
 }
 
-// Create will create the manifest file
+// Create will create the manifest file.
 func (manifest *fileManifest) Create() error {
 	const ownerWriteGlobalReadPerms = 0644
 	fileHandle, err := os.OpenFile(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, ownerWriteGlobalReadPerms)
@@ -550,17 +550,17 @@ func (manifest *fileManifest) Create() error {
 	return nil
 }
 
-// AddFile will add the file path to the manifest file. Please make sure to run Create() before using this
+// AddFile will add the file path to the manifest file. Please make sure to run Create() before using this.
 func (manifest *fileManifest) AddFile(path string) error {
 	return manifest.encoder.Encode(fileManifestEntry{Path: path, IsDir: false})
 }
 
-// AddDirectory will add the directory path to the manifest file. Please make sure to run Create() before using this
+// AddDirectory will add the directory path to the manifest file. Please make sure to run Create() before using this.
 func (manifest *fileManifest) AddDirectory(path string) error {
 	return manifest.encoder.Encode(fileManifestEntry{Path: path, IsDir: true})
 }
 
-// Close closes the manifest file handle
+// Close closes the manifest file handle.
 func (manifest *fileManifest) Close() error {
 	return manifest.fileHandle.Close()
 }
@@ -590,7 +590,7 @@ func (err PathIsNotFile) Error() string {
 }
 
 // Terraform 0.14 now generates a lock file when you run `terraform init`.
-// If any such file exists, this function will copy the lock file to the destination folder
+// If any such file exists, this function will copy the lock file to the destination folder.
 func CopyLockFile(sourceFolder string, destinationFolder string, logger *logrus.Entry) error {
 	sourceLockFilePath := JoinPath(sourceFolder, TerraformLockFile)
 	destinationLockFilePath := JoinPath(destinationFolder, TerraformLockFile)
@@ -725,7 +725,7 @@ func FileSHA256(filePath string) ([]byte, error) {
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
-	defer file.Close() //nolint:errcheck
+	defer file.Close()
 
 	hash := sha256.New()
 	buffer := make([]byte, ChecksumReadBlock)

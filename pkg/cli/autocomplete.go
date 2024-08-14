@@ -55,7 +55,7 @@ func (i *autocompleteInstaller) Uninstall(cmd string) error {
 	return nil
 }
 
-// ShowCompletions prints the lists of commands within a given context
+// ShowCompletions prints the lists of commands within a given context.
 func ShowCompletions(ctx *Context) error {
 	if cmd := ctx.Command; cmd != nil && cmd.Complete != nil {
 		return cmd.Complete(ctx)

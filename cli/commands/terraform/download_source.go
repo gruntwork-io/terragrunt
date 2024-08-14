@@ -17,10 +17,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-// manifest for files copied from terragrunt module folder (i.e., the folder that contains the current terragrunt.hcl)
+// manifest for files copied from terragrunt module folder (i.e., the folder that contains the current terragrunt.hcl).
 const ModuleManifestName = ".terragrunt-module-manifest"
 
-// file to indicate that init should be executed
+// file to indicate that init should be executed.
 const ModuleInitRequiredFile = ".terragrunt-init-required"
 
 const tfLintConfig = ".tflint.hcl"
@@ -210,7 +210,7 @@ func updateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfi
 	}
 }
 
-// Download the code from the Canonical Source URL into the Download Folder using the go-getter library
+// Download the code from the Canonical Source URL into the Download Folder using the go-getter library.
 func downloadSource(terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	terragruntOptions.Logger.Infof("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
 
@@ -221,7 +221,7 @@ func downloadSource(terraformSource *terraform.Source, terragruntOptions *option
 	return nil
 }
 
-// Check if working terraformSource.WorkingDir exists and is directory
+// Check if working terraformSource.WorkingDir exists and is directory.
 func ValidateWorkingDir(terraformSource *terraform.Source) error {
 	workingLocalDir := strings.ReplaceAll(terraformSource.WorkingDir, terraformSource.DownloadDir+filepath.FromSlash("/"), "")
 	if util.IsFile(terraformSource.WorkingDir) {

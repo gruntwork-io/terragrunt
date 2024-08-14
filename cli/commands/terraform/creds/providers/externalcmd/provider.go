@@ -25,12 +25,12 @@ func NewProvider(opts *options.TerragruntOptions) providers.Provider {
 	}
 }
 
-// Name implements providers.Name
+// Name implements providers.Name.
 func (provider *Provider) Name() string {
 	return fmt.Sprintf("external %s command", provider.terragruntOptions.AuthProviderCmd)
 }
 
-// GetCredentials implements providers.GetCredentials
+// GetCredentials implements providers.GetCredentials.
 func (provider *Provider) GetCredentials(ctx context.Context) (*providers.Credentials, error) {
 	command := provider.terragruntOptions.AuthProviderCmd
 	if command == "" {

@@ -80,7 +80,7 @@ func (flag *GenericFlag[T]) Names() []string {
 	return append([]string{flag.Name}, flag.Aliases...)
 }
 
-// RunAction implements ActionableFlag.RunAction
+// RunAction implements ActionableFlag.RunAction.
 func (flag *GenericFlag[T]) RunAction(ctx *Context) error {
 	if flag.Action != nil {
 		return flag.Action(ctx)
@@ -89,7 +89,7 @@ func (flag *GenericFlag[T]) RunAction(ctx *Context) error {
 	return nil
 }
 
-// -- generic Value
+// -- generic Value.
 type genericValue[T comparable] struct {
 	value       FlagType[T]
 	defaultText string
@@ -153,7 +153,7 @@ func (flag *genericValue[T]) GetDefaultText() string {
 	return flag.defaultText
 }
 
-// -- generic Type
+// -- generic Type.
 type genericType[T comparable] struct {
 	dest *T
 }
@@ -204,7 +204,7 @@ func (val *genericType[T]) Set(str string) error {
 
 func (val *genericType[T]) Get() any { return *val.dest }
 
-// String returns a readable representation of this value
+// String returns a readable representation of this value.
 func (val *genericType[T]) String() string {
 	if *val.dest == *new(T) {
 		return ""

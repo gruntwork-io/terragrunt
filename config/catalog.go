@@ -27,7 +27,7 @@ include "root" {
 	// include {
 	//
 	// }
-	// ```
+	// ```.
 	hclBlockRegExprFmt = `(?is)(?:^|^((?:[^/]|/[^*])*)(?:/\*.*?\*/)?((?:[^/]|/[^*])*)\n)(%s[ {][^\}]+)`
 )
 
@@ -37,7 +37,7 @@ var (
 )
 
 type CatalogConfig struct {
-	URLs []string `hcl:"urls,attr" cty:"urls"`
+	URLs []string `cty:"urls" hcl:"urls,attr"`
 }
 
 func (conf *CatalogConfig) String() string {

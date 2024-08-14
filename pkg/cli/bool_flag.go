@@ -74,7 +74,7 @@ func (flag *BoolFlag) Names() []string {
 	return append([]string{flag.Name}, flag.Aliases...)
 }
 
-// RunAction implements ActionableFlag.RunAction
+// RunAction implements ActionableFlag.RunAction.
 func (flag *BoolFlag) RunAction(ctx *Context) error {
 	if flag.Action != nil {
 		return flag.Action(ctx)
@@ -83,7 +83,7 @@ func (flag *BoolFlag) RunAction(ctx *Context) error {
 	return nil
 }
 
-// -- bool Flag Type
+// -- bool Flag Type.
 type boolFlagType struct {
 	*genericType[bool]
 	negative bool

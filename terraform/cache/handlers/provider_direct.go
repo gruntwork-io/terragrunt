@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	// Provider's assets consist of three files/URLs: zipped binary, hashes and signature
+	// Provider's assets consist of three files/URLs: zipped binary, hashes and signature.
 	ProviderDownloadURLName         providerURLName = "download_url"
 	ProviderSHASumsURLName          providerURLName = "shasums_url"
 	ProviderSHASumsSignatureURLName providerURLName = "shasums_signature_url"
@@ -57,7 +57,7 @@ func (handler *ProviderDirectHandler) String() string {
 	return "direct handler "
 }
 
-// GetVersions implements ProviderHandler.GetVersions
+// GetVersions implements ProviderHandler.GetVersions.
 func (handler *ProviderDirectHandler) GetVersions(ctx echo.Context, provider *models.Provider) error {
 	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-versions-for-a-single-provider
 	reqURL := &url.URL{
@@ -69,7 +69,7 @@ func (handler *ProviderDirectHandler) GetVersions(ctx echo.Context, provider *mo
 	return handler.ReverseProxy.NewRequest(ctx, reqURL)
 }
 
-// GetPlatform implements ProviderHandler.GetPlatform
+// GetPlatform implements ProviderHandler.GetPlatform.
 func (handler *ProviderDirectHandler) GetPlatform(ctx echo.Context, provider *models.Provider, downloaderController router.Controller, cacheRequestID string) error {
 	return handler.ReverseProxy.
 		WithModifyResponse(func(resp *http.Response) error {
@@ -91,10 +91,9 @@ func (handler *ProviderDirectHandler) GetPlatform(ctx echo.Context, provider *mo
 			return proxyGetVersionsRequest(resp, downloaderController)
 		}).
 		NewRequest(ctx, handler.platformURL(provider))
-
 }
 
-// Download implements ProviderHandler.Download
+// Download implements ProviderHandler.Download.
 func (handler *ProviderDirectHandler) Download(ctx echo.Context, provider *models.Provider) error {
 	if cache := handler.providerService.GetProviderCache(provider); cache != nil {
 		if path := cache.ArchivePath(); path != "" {

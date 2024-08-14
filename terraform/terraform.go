@@ -25,7 +25,7 @@ const (
 	CommandNameShow           = "show"
 
 	FlagNameNoColor = "-no-color"
-	// `apply -destroy` is alias for `destroy`
+	// `apply -destroy` is alias for `destroy`.
 	FlagNameDestroy = "-destroy"
 
 	// `platform` is a flag used with the `providers lock` command.

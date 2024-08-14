@@ -87,7 +87,7 @@ var (
 )
 
 // TerragruntConfig represents a parsed and expanded configuration
-// NOTE: if any attributes are added, make sure to update terragruntConfigAsCty in config_as_cty.go
+// NOTE: if any attributes are added, make sure to update terragruntConfigAsCty in config_as_cty.go.
 type TerragruntConfig struct {
 	Catalog                     *CatalogConfig
 	Terraform                   *TerraformConfig
@@ -145,7 +145,7 @@ func (conf *TerragruntConfig) GetIAMRoleOptions() options.IAMRoleOptions {
 }
 
 // terragruntConfigFile represents the configuration supported in a Terragrunt configuration file (i.e.
-// terragrunt.hcl)
+// terragrunt.hcl).
 type terragruntConfigFile struct {
 	Catalog                     *CatalogConfig   `hcl:"catalog,block"`
 	Engine                      *EngineConfig    `hcl:"engine,block"`
@@ -223,7 +223,7 @@ type terragruntIncludeIgnore struct {
 	Remain hcl.Body `hcl:",remain"`
 }
 
-// Configuration for Terraform remote state as parsed from a terragrunt.hcl config file
+// Configuration for Terraform remote state as parsed from a terragrunt.hcl config file.
 type remoteStateConfigFile struct {
 	Backend                       string                     `hcl:"backend,attr"`
 	DisableInit                   *bool                      `hcl:"disable_init,attr"`
@@ -277,14 +277,14 @@ type remoteStateConfigGenerate struct {
 // Struct used to parse generate blocks. This will later be converted to GenerateConfig structs so that we can go
 // through the codegen routine.
 type terragruntGenerateBlock struct {
-	Name             string  `hcl:",label" mapstructure:",omitempty"`
-	Path             string  `hcl:"path,attr" mapstructure:"path"`
-	IfExists         string  `hcl:"if_exists,attr" mapstructure:"if_exists"`
-	IfDisabled       *string `hcl:"if_disabled,attr" mapstructure:"if_disabled"`
-	CommentPrefix    *string `hcl:"comment_prefix,attr" mapstructure:"comment_prefix"`
-	Contents         string  `hcl:"contents,attr" mapstructure:"contents"`
+	Name             string  `hcl:",label"                 mapstructure:",omitempty"`
+	Path             string  `hcl:"path,attr"              mapstructure:"path"`
+	IfExists         string  `hcl:"if_exists,attr"         mapstructure:"if_exists"`
+	IfDisabled       *string `hcl:"if_disabled,attr"       mapstructure:"if_disabled"`
+	CommentPrefix    *string `hcl:"comment_prefix,attr"    mapstructure:"comment_prefix"`
+	Contents         string  `hcl:"contents,attr"          mapstructure:"contents"`
 	DisableSignature *bool   `hcl:"disable_signature,attr" mapstructure:"disable_signature"`
-	Disable          *bool   `hcl:"disable,attr" mapstructure:"disable"`
+	Disable          *bool   `hcl:"disable,attr"           mapstructure:"disable"`
 }
 
 type IncludeConfigs map[string]IncludeConfig
@@ -361,9 +361,9 @@ const (
 )
 
 // ModuleDependencies represents the paths to other Terraform modules that must be applied before the current module
-// can be applied
+// can be applied.
 type ModuleDependencies struct {
-	Paths []string `hcl:"paths,attr" cty:"paths"`
+	Paths []string `cty:"paths" hcl:"paths,attr"`
 }
 
 // Merge appends the paths in the provided ModuleDependencies object into this ModuleDependencies object.
@@ -383,23 +383,23 @@ func (deps *ModuleDependencies) String() string {
 	return fmt.Sprintf("ModuleDependencies{Paths = %v}", deps.Paths)
 }
 
-// Hook specifies terraform commands (apply/plan) and array of os commands to execute
+// Hook specifies terraform commands (apply/plan) and array of os commands to execute.
 type Hook struct {
-	Name           string   `hcl:"name,label" cty:"name"`
-	Commands       []string `hcl:"commands,attr" cty:"commands"`
-	Execute        []string `hcl:"execute,attr" cty:"execute"`
-	RunOnError     *bool    `hcl:"run_on_error,attr" cty:"run_on_error"`
-	SuppressStdout *bool    `hcl:"suppress_stdout,attr" cty:"suppress_stdout"`
-	WorkingDir     *string  `hcl:"working_dir,attr" cty:"working_dir"`
+	Name           string   `cty:"name"            hcl:"name,label"`
+	Commands       []string `cty:"commands"        hcl:"commands,attr"`
+	Execute        []string `cty:"execute"         hcl:"execute,attr"`
+	RunOnError     *bool    `cty:"run_on_error"    hcl:"run_on_error,attr"`
+	SuppressStdout *bool    `cty:"suppress_stdout" hcl:"suppress_stdout,attr"`
+	WorkingDir     *string  `cty:"working_dir"     hcl:"working_dir,attr"`
 }
 
 type ErrorHook struct {
-	Name           string   `hcl:"name,label" cty:"name"`
-	Commands       []string `hcl:"commands,attr" cty:"commands"`
-	Execute        []string `hcl:"execute,attr" cty:"execute"`
-	OnErrors       []string `hcl:"on_errors,attr" cty:"on_errors"`
-	SuppressStdout *bool    `hcl:"suppress_stdout,attr" cty:"suppress_stdout"`
-	WorkingDir     *string  `hcl:"working_dir,attr" cty:"working_dir"`
+	Name           string   `cty:"name"            hcl:"name,label"`
+	Commands       []string `cty:"commands"        hcl:"commands,attr"`
+	Execute        []string `cty:"execute"         hcl:"execute,attr"`
+	OnErrors       []string `cty:"on_errors"       hcl:"on_errors,attr"`
+	SuppressStdout *bool    `cty:"suppress_stdout" hcl:"suppress_stdout,attr"`
+	WorkingDir     *string  `cty:"working_dir"     hcl:"working_dir,attr"`
 }
 
 func (conf *Hook) String() string {
@@ -470,14 +470,14 @@ func (conf *TerraformConfig) ValidateHooks() error {
 	return nil
 }
 
-// TerraformExtraArguments sets a list of arguments to pass to Terraform if command fits any in the `Commands` list
+// TerraformExtraArguments sets a list of arguments to pass to Terraform if command fits any in the `Commands` list.
 type TerraformExtraArguments struct {
-	Name             string             `hcl:"name,label" cty:"name"`
-	Arguments        *[]string          `hcl:"arguments,attr" cty:"arguments"`
-	RequiredVarFiles *[]string          `hcl:"required_var_files,attr" cty:"required_var_files"`
-	OptionalVarFiles *[]string          `hcl:"optional_var_files,attr" cty:"optional_var_files"`
-	Commands         []string           `hcl:"commands,attr" cty:"commands"`
-	EnvVars          *map[string]string `hcl:"env_vars,attr" cty:"env_vars"`
+	Name             string             `cty:"name"               hcl:"name,label"`
+	Arguments        *[]string          `cty:"arguments"          hcl:"arguments,attr"`
+	RequiredVarFiles *[]string          `cty:"required_var_files" hcl:"required_var_files,attr"`
+	OptionalVarFiles *[]string          `cty:"optional_var_files" hcl:"optional_var_files,attr"`
+	Commands         []string           `cty:"commands"           hcl:"commands,attr"`
+	EnvVars          *map[string]string `cty:"env_vars"           hcl:"env_vars,attr"`
 }
 
 func (conf *TerraformExtraArguments) String() string {
@@ -515,7 +515,7 @@ func (conf *TerraformExtraArguments) GetVarFiles(logger *logrus.Entry) []string 
 
 // There are two ways a user can tell Terragrunt that it needs to download Terraform configurations from a specific
 // URL: via a command-line option or via an entry in the Terragrunt configuration. If the user used one of these, this
-// method returns the source URL or an empty string if there is no source url
+// method returns the source URL or an empty string if there is no source url.
 func GetTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragruntConfig *TerragruntConfig) (string, error) {
 	switch {
 	case terragruntOptions.Source != "":
@@ -588,10 +588,9 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 		moduleSubdir = moduleSubdirFromUrl
 	}
 	return util.JoinTerraformModulePath(sourcePath, moduleSubdir), nil
-
 }
 
-// Return the default path to use for the Terragrunt configuration that exists within the path giving preference to `terragrunt.hcl`
+// Return the default path to use for the Terragrunt configuration that exists within the path giving preference to `terragrunt.hcl`.
 func GetDefaultConfigPath(workingDir string) string {
 	// check if a configuration file was passed as `workingDir`.
 	if !files.IsDir(workingDir) && files.FileExists(workingDir) {
@@ -613,7 +612,7 @@ func GetDefaultConfigPath(workingDir string) string {
 }
 
 // Returns a list of all Terragrunt config files in the given path or any subfolder of the path. A file is a Terragrunt
-// config file if it has a name as returned by the DefaultConfigPath method
+// config file if it has a name as returned by the DefaultConfigPath method.
 func FindConfigFilesInPath(rootPath string, terragruntOptions *options.TerragruntOptions) ([]string, error) {
 	configFiles := []string{}
 
@@ -687,7 +686,7 @@ func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOpt
 	return true, nil
 }
 
-// Read the Terragrunt config file from its default location
+// Read the Terragrunt config file from its default location.
 func ReadTerragruntConfig(ctx context.Context, terragruntOptions *options.TerragruntOptions, parserOptions []hclparse.Option) (*TerragruntConfig, error) {
 	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
 
@@ -860,10 +859,10 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 	return config, nil
 }
 
-// iamRoleCache - store for cached values of IAM roles
+// iamRoleCache - store for cached values of IAM roles.
 var iamRoleCache = cache.NewCache[options.IAMRoleOptions](iamRoleCacheName)
 
-// setIAMRole - extract IAM role details from Terragrunt flags block
+// setIAMRole - extract IAM role details from Terragrunt flags block.
 func setIAMRole(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) error {
 	// Prefer the IAM Role CLI args if they were passed otherwise lazily evaluate the IamRoleOptions using the config.
 	if ctx.TerragruntOptions.OriginalIAMRoleOptions.RoleARN != "" {
@@ -927,7 +926,7 @@ func getIndexOfHookWithName(hooks []Hook, name string) int {
 	return -1
 }
 
-// isAttributeAccessError returns true if the given diagnostics indicate an error accessing an attribute
+// isAttributeAccessError returns true if the given diagnostics indicate an error accessing an attribute.
 func isAttributeAccessError(diagnostics hcl.Diagnostics) bool {
 	for _, diagnostic := range diagnostics {
 		if diagnostic.Severity == hcl.DiagError && strings.Contains(diagnostic.Summary, "Unsupported attribute") {
@@ -939,7 +938,7 @@ func isAttributeAccessError(diagnostics hcl.Diagnostics) bool {
 
 // Returns the index of the ErrorHook with the given name,
 // or -1 if no Hook have the given name.
-// TODO: Figure out more DRY way to do this
+// TODO: Figure out more DRY way to do this.
 func getIndexOfErrorHookWithName(hooks []ErrorHook, name string) int {
 	for i, hook := range hooks {
 		if hook.Name == name {
@@ -960,7 +959,7 @@ func getIndexOfExtraArgsWithName(extraArgs []TerraformExtraArguments, name strin
 	return -1
 }
 
-// Convert the contents of a fully resolved Terragrunt configuration to a TerragruntConfig object
+// Convert the contents of a fully resolved Terragrunt configuration to a TerragruntConfig object.
 func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
 	if ctx.ConvertToTerragruntConfigFunc != nil {
 		return ctx.ConvertToTerragruntConfigFunc(ctx, configPath, terragruntConfigFromFile)
@@ -1176,7 +1175,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	return terragruntConfig, nil
 }
 
-// Iterate over dependencies paths and check if directories exists, return error with all missing dependencies
+// Iterate over dependencies paths and check if directories exists, return error with all missing dependencies.
 func validateDependencies(ctx *ParsingContext, dependencies *ModuleDependencies) error {
 	var missingDependencies []string
 	if dependencies == nil {
@@ -1198,7 +1197,7 @@ func validateDependencies(ctx *ParsingContext, dependencies *ModuleDependencies)
 	return nil
 }
 
-// Iterate over generate blocks and detect duplicate names, return error with list of duplicated names
+// Iterate over generate blocks and detect duplicate names, return error with list of duplicated names.
 func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 	var blockNames = map[string]bool{}
 	var duplicatedGenerateBlockNames []string
@@ -1297,7 +1296,7 @@ func (conf *TerragruntConfig) GetMapFieldMetadata(fieldType, fieldName string) (
 	return result, found
 }
 
-// EngineOptions fetch engine options
+// EngineOptions fetch engine options.
 func (conf *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 	if conf.Engine == nil {
 		return nil, nil

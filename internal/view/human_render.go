@@ -241,7 +241,6 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, 
 
 		fmt.Fprint(buf, render.colorize.Color("    [dark_gray]├────────────────[reset]\n"))
 		if callInfo := snippet.FunctionCall; callInfo != nil && callInfo.Signature != nil {
-
 			if _, err := fmt.Fprintf(buf, render.colorize.Color("    [dark_gray]│[reset] while calling [bold]%s[reset]("), callInfo.CalledAs); err != nil {
 				return "", errors.WithStackTrace(err)
 			}

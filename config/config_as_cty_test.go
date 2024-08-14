@@ -138,7 +138,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 	}
 }
 
-// This test makes sure that all the fields in RemoteState are converted to cty
+// This test makes sure that all the fields in RemoteState are converted to cty.
 func TestRemoteStateAsCtyDrift(t *testing.T) {
 	t.Parallel()
 
@@ -177,7 +177,6 @@ func TestRemoteStateAsCtyDrift(t *testing.T) {
 		_, hasKey := checked[key]
 		assert.Truef(t, hasKey, "cty value key %s is not accounted for from struct field", key)
 	}
-
 }
 
 // This test makes sure that all the fields in TerraformConfig exist in ctyTerraformConfig.

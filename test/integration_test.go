@@ -56,7 +56,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-// hard-code this to match the test fixture for now
+// hard-code this to match the test fixture for now.
 const (
 	TERRAFORM_REMOTE_STATE_S3_REGION                                         = "us-west-2"
 	TERRAFORM_REMOTE_STATE_GCP_REGION                                        = "eu"
@@ -798,7 +798,6 @@ func TestTerragruntCatchErrorsInTerraformExecution(t *testing.T) {
 	assert.Contains(t, output, "pattern_matching_hook")
 	assert.Contains(t, output, "catch_all_matching_hook")
 	assert.NotContains(t, output, "not_matching_hook")
-
 }
 
 func TestTerragruntBeforeOneArgAction(t *testing.T) {
@@ -890,7 +889,6 @@ func TestTerragruntHookInterpolation(t *testing.T) {
 	}
 
 	assert.Contains(t, output, homePath)
-
 }
 
 func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
@@ -921,7 +919,7 @@ func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
 
 // Regression test to ensure that `accesslogging_bucket_name` and `accesslogging_target_prefix` are taken into account
 // & the TargetLogs bucket is set to a new S3 bucket, different from the origin S3 bucket
-// & the logs objects are prefixed with the `accesslogging_target_prefix` value
+// & the logs objects are prefixed with the `accesslogging_target_prefix` value.
 func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetPrefix(t *testing.T) {
 	t.Parallel()
 
@@ -980,7 +978,7 @@ func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGiven
 }
 
 // Regression test to ensure that `accesslogging_bucket_name` is taken into account
-// & when no `accesslogging_target_prefix` provided, then **default** value is used for TargetPrefix
+// & when no `accesslogging_target_prefix` provided, then **default** value is used for TargetPrefix.
 func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithDefaultTargetPrefix(t *testing.T) {
 	t.Parallel()
 
@@ -1260,7 +1258,7 @@ func TestTerragruntValidateAllCommand(t *testing.T) {
 	runTerragrunt(t, "terragrunt validate-all --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath)
 }
 
-// Check that Terragrunt does not pollute stdout with anything
+// Check that Terragrunt does not pollute stdout with anything.
 func TestTerragruntStdOut(t *testing.T) {
 	t.Parallel()
 
@@ -1637,7 +1635,7 @@ func TestAwsProviderPatch(t *testing.T) {
 	)
 }
 
-// This tests terragrunt properly passes through terraform commands and any number of specified args
+// This tests terragrunt properly passes through terraform commands and any number of specified args.
 func TestTerraformCommandCliArgs(t *testing.T) {
 	t.Parallel()
 
@@ -1698,7 +1696,7 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 }
 
 // This tests terragrunt properly passes through terraform commands with sub commands
-// and any number of specified args
+// and any number of specified args.
 func TestTerraformSubcommandCliArgs(t *testing.T) {
 	t.Parallel()
 
@@ -2593,7 +2591,6 @@ func TestDependencyMockOutputMergeWithStateDefault(t *testing.T) {
 
 	logBufferContentsLineByLine(t, stdout, "plan stdout")
 	logBufferContentsLineByLine(t, stderr, "plan stderr")
-
 }
 
 // Test when mock_outputs_merge_with_state is explicitly set to false. It should behave, as before this parameter was added
@@ -2750,7 +2747,7 @@ func TestDependencyMockOutputMergeWithStateNoOverride(t *testing.T) {
 	logBufferContentsLineByLine(t, stderr, "show stderr")
 }
 
-// Test when mock_outputs_merge_strategy_with_state or mock_outputs_merge_with_state is not set, the default is no_merge
+// Test when mock_outputs_merge_strategy_with_state or mock_outputs_merge_with_state is not set, the default is no_merge.
 func TestDependencyMockOutputMergeStrategyWithStateDefault(t *testing.T) {
 	t.Parallel()
 
@@ -2769,7 +2766,7 @@ func TestDependencyMockOutputMergeStrategyWithStateDefault(t *testing.T) {
 	logBufferContentsLineByLine(t, stderr, "apply stderr")
 }
 
-// Test when mock_outputs_merge_with_state = "false" that MergeStrategyType is set to no_merge
+// Test when mock_outputs_merge_with_state = "false" that MergeStrategyType is set to no_merge.
 func TestDependencyMockOutputMergeStrategyWithStateCompatFalse(t *testing.T) {
 	t.Parallel()
 
@@ -2788,7 +2785,7 @@ func TestDependencyMockOutputMergeStrategyWithStateCompatFalse(t *testing.T) {
 	logBufferContentsLineByLine(t, stderr, "apply stderr")
 }
 
-// Test when mock_outputs_merge_with_state = "true" that MergeStrategyType is set to shallow
+// Test when mock_outputs_merge_with_state = "true" that MergeStrategyType is set to shallow.
 func TestDependencyMockOutputMergeStrategyWithStateCompatTrue(t *testing.T) {
 	t.Parallel()
 
@@ -2821,7 +2818,7 @@ func TestDependencyMockOutputMergeStrategyWithStateCompatTrue(t *testing.T) {
 	assert.Nil(t, util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "1"))
 }
 
-// Test when both mock_outputs_merge_with_state and mock_outputs_merge_strategy_with_state are set, mock_outputs_merge_strategy_with_state is used
+// Test when both mock_outputs_merge_with_state and mock_outputs_merge_strategy_with_state are set, mock_outputs_merge_strategy_with_state is used.
 func TestDependencyMockOutputMergeStrategyWithStateCompatConflict(t *testing.T) {
 	t.Parallel()
 
@@ -2854,7 +2851,7 @@ func TestDependencyMockOutputMergeStrategyWithStateCompatConflict(t *testing.T) 
 	assert.Nil(t, util.MustWalkTerraformOutput(outputs["test_output_list_string"].Value, "1"))
 }
 
-// Test when mock_outputs_merge_strategy_with_state = "no_merge" that mocks are not merged into the current state
+// Test when mock_outputs_merge_strategy_with_state = "no_merge" that mocks are not merged into the current state.
 func TestDependencyMockOutputMergeStrategyWithStateNoMerge(t *testing.T) {
 	t.Parallel()
 
@@ -2874,7 +2871,7 @@ func TestDependencyMockOutputMergeStrategyWithStateNoMerge(t *testing.T) {
 }
 
 // Test when mock_outputs_merge_strategy_with_state = "shallow" that only top level outputs are merged.
-// Lists or keys in existing maps will not be merged
+// Lists or keys in existing maps will not be merged.
 func TestDependencyMockOutputMergeStrategyWithStateShallow(t *testing.T) {
 	t.Parallel()
 
@@ -2909,7 +2906,7 @@ func TestDependencyMockOutputMergeStrategyWithStateShallow(t *testing.T) {
 
 // Test when mock_outputs_merge_strategy_with_state = "deep" that the existing state is deeply merged into the mocks
 // so that the existing state overwrites the mocks. This allows child modules to use new dependency outputs before the
-// dependency has been applied
+// dependency has been applied.
 func TestDependencyMockOutputMergeStrategyWithStateDeepMapOnly(t *testing.T) {
 	t.Parallel()
 
@@ -3074,7 +3071,7 @@ func TestOrderedMapOutputRegressions1102(t *testing.T) {
 	}
 }
 
-// Test that we get the expected error message about dependency cycles when there is a cycle in the dependency chain
+// Test that we get the expected error message about dependency cycles when there is a cycle in the dependency chain.
 func TestDependencyOutputCycleHandling(t *testing.T) {
 	t.Parallel()
 
@@ -4659,7 +4656,7 @@ func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketNam
 }
 
 // Check that the DynamoDB table of the given name and region exists. Terragrunt should create this table during the test.
-// Also check if table got tagged properly
+// Also check if table got tagged properly.
 func validateDynamoDBTableExistsAndIsTagged(t *testing.T, awsRegion string, tableName string, expectedTags map[string]string) {
 	client := createDynamoDbClientForTest(t, awsRegion)
 
@@ -4686,7 +4683,6 @@ func validateDynamoDBTableExistsAndIsTagged(t *testing.T, awsRegion string, tabl
 }
 
 func assertS3Tags(expectedTags map[string]string, bucketName string, client *s3.S3, t *testing.T) {
-
 	var in = s3.GetBucketTaggingInput{}
 	in.SetBucket(bucketName)
 
@@ -4800,7 +4796,7 @@ func deleteS3BucketWithRetry(t *testing.T, awsRegion string, bucketName string) 
 	t.Fatalf("Max retries attempting to delete s3 bucket %s in region %s", bucketName, awsRegion)
 }
 
-// Delete the specified S3 bucket to clean up after a test
+// Delete the specified S3 bucket to clean up after a test.
 func deleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...options.TerragruntOptionsFunc) {
 	require.NoError(t, deleteS3BucketE(t, awsRegion, bucketName, opts...))
 }
@@ -4906,7 +4902,7 @@ func bucketPolicy(t *testing.T, awsRegion string, bucketName string) (*s3.GetBuc
 	return policyOutput, nil
 }
 
-// Create an authenticated client for DynamoDB
+// Create an authenticated client for DynamoDB.
 func createDynamoDbClient(awsRegion, awsProfile string, iamRoleArn string) (*dynamodb.DynamoDB, error) {
 	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
 	if err != nil {
@@ -4969,7 +4965,7 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 	}
 }
 
-// gcsObjectAttrs returns the attributes of the specified object in the bucket
+// gcsObjectAttrs returns the attributes of the specified object in the bucket.
 func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage.ObjectAttrs {
 	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
 
@@ -5007,7 +5003,7 @@ func assertGCSLabels(t *testing.T, expectedLabels map[string]string, bucketName 
 	assert.Equal(t, expectedLabels, actualLabels, "Did not find expected labels on GCS bucket.")
 }
 
-// Create the specified GCS bucket
+// Create the specified GCS bucket.
 func createGCSBucket(t *testing.T, projectID string, location string, bucketName string) {
 	var gcsConfig remote.RemoteStateConfigGCS
 	gcsClient, err := remote.CreateGCSClient(gcsConfig)
@@ -5030,7 +5026,7 @@ func createGCSBucket(t *testing.T, projectID string, location string, bucketName
 	}
 }
 
-// Delete the specified GCS bucket to clean up after a test
+// Delete the specified GCS bucket to clean up after a test.
 func deleteGCSBucket(t *testing.T, bucketName string) {
 	var gcsConfig remote.RemoteStateConfigGCS
 	gcsClient, err := remote.CreateGCSClient(gcsConfig)
@@ -5134,7 +5130,7 @@ func runValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath
 	return includedModules
 }
 
-// sops decrypting for inputs
+// sops decrypting for inputs.
 func TestSopsDecryptedCorrectly(t *testing.T) {
 	t.Parallel()
 
@@ -6296,7 +6292,6 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 	output := fmt.Sprintf("%s\n%s\n%v\n", stdout.String(), stderr.String(), err.Error())
 	assert.Contains(t, output, "finished with an error")
 	assert.Contains(t, output, "Module "+util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1"))
-
 }
 
 func TestHclFmtDiff(t *testing.T) {
@@ -7388,7 +7383,6 @@ func TestPlanJsonFilesRunAll(t *testing.T) {
 		// check that plan is not empty
 		assert.NotEmpty(t, plan)
 	}
-
 }
 
 func TestPlanJsonPlanBinaryRunAll(t *testing.T) {
@@ -7423,7 +7417,6 @@ func TestPlanJsonPlanBinaryRunAll(t *testing.T) {
 	for _, file := range list {
 		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
 	}
-
 }
 
 func TestTerragruntRunAllPlanAndShow(t *testing.T) {
@@ -7495,7 +7488,7 @@ func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string
 	assert.Equalf(t, output.Value, value, "Expected output %s to be %t", key, value)
 }
 
-// wrappedBinary - return which binary will be wrapped by Terragrunt, useful in CICD to run same tests against tofu and terraform
+// wrappedBinary - return which binary will be wrapped by Terragrunt, useful in CICD to run same tests against tofu and terraform.
 func wrappedBinary() string {
 	value, found := os.LookupEnv("TERRAGRUNT_TFPATH")
 	if !found {
@@ -7508,7 +7501,7 @@ func wrappedBinary() string {
 	return filepath.Base(value)
 }
 
-// expectedWrongCommandErr - return expected error message for wrong command
+// expectedWrongCommandErr - return expected error message for wrong command.
 func expectedWrongCommandErr(command string) error {
 	if wrappedBinary() == TOFU_BINARY {
 		return terraform.WrongTofuCommand(command)

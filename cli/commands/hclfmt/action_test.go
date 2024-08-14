@@ -75,7 +75,6 @@ func TestHCLFmt(t *testing.T) {
 			assert.Equal(t, original, actual)
 		})
 	})
-
 }
 
 func TestHCLFmtErrors(t *testing.T) {

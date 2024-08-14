@@ -380,8 +380,8 @@ func wrapWithMetadata(config *TerragruntConfig, value interface{}, metadataName 
 
 // ValueWithMetadata stores value and metadata used in render-json with metadata.
 type ValueWithMetadata struct {
-	Value    cty.Value         `json:"value" cty:"value"`
-	Metadata map[string]string `json:"metadata" cty:"metadata"`
+	Value    cty.Value         `cty:"value"    json:"value"`
+	Metadata map[string]string `cty:"metadata" json:"metadata"`
 }
 
 // ctyCatalogConfig is an alternate representation of CatalogConfig that converts internal blocks into a map that
@@ -538,7 +538,7 @@ func convertToCtyWithJson(val interface{}) (cty.Value, error) {
 }
 
 // Converts arbitrary go type (struct that has cty tags, slice, map with string keys, string, bool, int
-// uint, float, cty.Value) to a cty Value
+// uint, float, cty.Value) to a cty Value.
 func goTypeToCty(val interface{}) (cty.Value, error) {
 	ctyType, err := gocty.ImpliedType(val)
 	if err != nil {

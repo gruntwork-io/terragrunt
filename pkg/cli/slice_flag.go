@@ -94,7 +94,7 @@ func (flag *SliceFlag[T]) Names() []string {
 	return append([]string{flag.Name}, flag.Aliases...)
 }
 
-// RunAction implements ActionableFlag.RunAction
+// RunAction implements ActionableFlag.RunAction.
 func (flag *SliceFlag[T]) RunAction(ctx *Context) error {
 	if flag.Action != nil {
 		return flag.Action(ctx)
@@ -103,7 +103,7 @@ func (flag *SliceFlag[T]) RunAction(ctx *Context) error {
 	return nil
 }
 
-// -- slice Value
+// -- slice Value.
 type sliceValue[T comparable] struct {
 	values      *[]T
 	valueType   FlagType[T]
@@ -178,7 +178,7 @@ func (flag *sliceValue[T]) Get() any {
 	return vals
 }
 
-// String returns a readable representation of this value
+// String returns a readable representation of this value.
 func (flag *sliceValue[T]) String() string {
 	if flag.values == nil {
 		return ""

@@ -49,7 +49,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// forced shutdown interval after receiving an interrupt signal
+// forced shutdown interval after receiving an interrupt signal.
 const forceExitInterval = shell.SignalForwardingDelay * 2
 
 func init() {
@@ -145,7 +145,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	return nil
 }
 
-// This set of commands is also used in unit tests
+// This set of commands is also used in unit tests.
 func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	cmds := cli.Commands{
 		runall.NewCommand(opts),             // runAction-all
@@ -241,7 +241,7 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 	return errGroup.Wait()
 }
 
-// mostly preparing terragrunt options
+// mostly preparing terragrunt options.
 func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	// The env vars are renamed to "..._NO_AUTO_..." in the gobal flags`. These ones are left for backwards compatibility.
 	opts.AutoInit = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_INIT"), opts.AutoInit)

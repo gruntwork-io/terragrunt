@@ -144,7 +144,7 @@ func checkErrors(logger *logrus.Entry, disableColor bool, contents []byte, tgHcl
 	return nil
 }
 
-// bytesDiff uses GNU diff to display the differences between the contents of HCL file before and after formatting
+// bytesDiff uses GNU diff to display the differences between the contents of HCL file before and after formatting.
 func bytesDiff(opts *options.TerragruntOptions, b1, b2 []byte, path string) ([]byte, error) {
 	f1, err := os.CreateTemp("", "")
 	if err != nil {

@@ -7,7 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-// Run graph dependencies prints the dependency graph to stdout
+// Run graph dependencies prints the dependency graph to stdout.
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	stack, err := configstack.FindStackInSubfolders(ctx, opts)
 	if err != nil {

@@ -22,7 +22,7 @@ type NormalizeActsType byte
 // Args provides convenient access to CLI arguments.
 type Args []string
 
-// Get returns the nth argument, or else a blank string
+// Get returns the nth argument, or else a blank string.
 func (args Args) Get(n int) string {
 	if len(args) > 0 && len(args) > n {
 		return (args)[n]
@@ -30,18 +30,18 @@ func (args Args) Get(n int) string {
 	return ""
 }
 
-// First returns the first argument or a blank string
+// First returns the first argument or a blank string.
 func (args Args) First() string {
 	return args.Get(0)
 }
 
-// Last returns the last argument or a blank string
+// Last returns the last argument or a blank string.
 func (args Args) Last() string {
 	return args.Get(len(args) - 1)
 }
 
 // Tail returns the rest of the arguments (not the first one)
-// or else an empty string slice
+// or else an empty string slice.
 func (args Args) Tail() []string {
 	if args.Len() >= minTailLen {
 		tail := []string((args)[1:])
@@ -52,17 +52,17 @@ func (args Args) Tail() []string {
 	return []string{}
 }
 
-// Len returns the length of the wrapped slice
+// Len returns the length of the wrapped slice.
 func (args Args) Len() int {
 	return len(args)
 }
 
-// Present checks if there are any arguments present
+// Present checks if there are any arguments present.
 func (args Args) Present() bool {
 	return args.Len() != 0
 }
 
-// Slice returns a copy of the internal slice
+// Slice returns a copy of the internal slice.
 func (args Args) Slice() []string {
 	ret := make([]string, len(args))
 	copy(ret, args)

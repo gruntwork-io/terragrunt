@@ -48,7 +48,7 @@ func (handler *ProviderNetworkMirrorHandler) String() string {
 	return "network mirror handler "
 }
 
-// GetVersions implements ProviderHandler.GetVersions
+// GetVersions implements ProviderHandler.GetVersions.
 func (handler *ProviderNetworkMirrorHandler) GetVersions(ctx echo.Context, provider *models.Provider) error {
 	var mirrorData struct {
 		Versions map[string]struct{} `json:"versions"`
@@ -76,7 +76,7 @@ func (handler *ProviderNetworkMirrorHandler) GetVersions(ctx echo.Context, provi
 	return ctx.JSON(http.StatusOK, versions)
 }
 
-// GetPlatform implements ProviderHandler.GetPlatform
+// GetPlatform implements ProviderHandler.GetPlatform.
 func (handler *ProviderNetworkMirrorHandler) GetPlatform(ctx echo.Context, provider *models.Provider, downloaderController router.Controller, cacheRequestID string) error {
 	if cacheRequestID == "" {
 		// it is impossible to return all platform properties from the network mirror, return 404 status
@@ -111,7 +111,7 @@ func (handler *ProviderNetworkMirrorHandler) GetPlatform(ctx echo.Context, provi
 	return ctx.NoContent(handler.cacheProviderHTTPStatusCode)
 }
 
-// Download implements ProviderHandler.Download
+// Download implements ProviderHandler.Download.
 func (handler *ProviderNetworkMirrorHandler) Download(ctx echo.Context, provider *models.Provider) error {
 	return ctx.NoContent(http.StatusNotImplemented)
 }

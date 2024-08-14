@@ -26,7 +26,7 @@ const maxLevelsOfRecursion = 20
 const existingModulesCacheName = "existingModules"
 
 // Represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
-// module and the list of other modules that this module depends on
+// module and the list of other modules that this module depends on.
 type TerraformModule struct {
 	Path                 string
 	Dependencies         TerraformModules
@@ -36,7 +36,7 @@ type TerraformModule struct {
 	FlagExcluded         bool
 }
 
-// Render this module as a human-readable string
+// Render this module as a human-readable string.
 func (module *TerraformModule) String() string {
 	dependencies := []string{}
 	for _, dependency := range module.Dependencies {
@@ -82,7 +82,7 @@ func (module *TerraformModule) checkForCyclesUsingDepthFirstSearch(visitedPaths 
 	return nil
 }
 
-// planFile - return plan file location, if output folder is set
+// planFile - return plan file location, if output folder is set.
 func (module *TerraformModule) planFile(terragruntOptions *options.TerragruntOptions) string {
 	planFile := ""
 
@@ -98,7 +98,7 @@ func (module *TerraformModule) planFile(terragruntOptions *options.TerragruntOpt
 	return planFile
 }
 
-// outputFile - return plan file location, if output folder is set
+// outputFile - return plan file location, if output folder is set.
 func (module *TerraformModule) outputFile(opts *options.TerragruntOptions) string {
 	planFile := ""
 	if opts.OutputFolder != "" {
@@ -109,7 +109,7 @@ func (module *TerraformModule) outputFile(opts *options.TerragruntOptions) strin
 	return planFile
 }
 
-// outputJsonFile - return plan JSON file location, if JSON output folder is set
+// outputJsonFile - return plan JSON file location, if JSON output folder is set.
 func (module *TerraformModule) outputJsonFile(opts *options.TerragruntOptions) string {
 	jsonPlanFile := ""
 	if opts.JsonOutputFolder != "" {
@@ -120,7 +120,7 @@ func (module *TerraformModule) outputJsonFile(opts *options.TerragruntOptions) s
 	return jsonPlanFile
 }
 
-// findModuleInPath returns true if a module is located under one of the target directories
+// findModuleInPath returns true if a module is located under one of the target directories.
 func (module *TerraformModule) findModuleInPath(targetDirs []string) bool {
 	for _, targetDir := range targetDirs {
 		if module.Path == targetDir {
@@ -156,7 +156,7 @@ func (module *TerraformModule) confirmShouldApplyExternalDependency(dependency *
 	return shell.PromptUserForYesNo(prompt, terragruntOptions)
 }
 
-// Get the list of modules this module depends on
+// Get the list of modules this module depends on.
 func (module *TerraformModule) getDependenciesForModule(modulesMap TerraformModulesMap, terragruntConfigPaths []string) (TerraformModules, error) {
 	dependencies := TerraformModules{}
 
@@ -195,7 +195,7 @@ type TerraformModules []*TerraformModule
 // FindWhereWorkingDirIsIncluded - find where working directory is included, flow:
 // 1. Find root git top level directory and build list of modules
 // 2. Iterate over includes from terragruntOptions if git top level directory detection failed
-// 3. Filter found module only items which has in dependencies working directory
+// 3. Filter found module only items which has in dependencies working directory.
 func FindWhereWorkingDirIsIncluded(ctx context.Context, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) TerraformModules {
 	var pathsToCheck []string
 	var matchedModulesMap = make(TerraformModulesMap)
@@ -265,7 +265,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, terragruntOptions *optio
 // WriteDot is used to emit a GraphViz compatible definition
 // for a directed graph. It can be used to dump a .dot file.
 // This is a similar implementation to terraform's digraph https://github.com/hashicorp/terraform/blob/master/digraph/graphviz.go
-// adding some styling to modules that are excluded from the execution in *-all commands
+// adding some styling to modules that are excluded from the execution in *-all commands.
 func (modules TerraformModules) WriteDot(w io.Writer, terragruntOptions *options.TerragruntOptions) error {
 	_, err := w.Write([]byte("digraph {\n"))
 	if err != nil {
@@ -360,7 +360,7 @@ func (modules TerraformModules) ToRunningModules(dependencyOrder DependencyOrder
 	return crossLinkedModules.RemoveFlagExcluded(), nil
 }
 
-// Check for dependency cycles in the given list of modules and return an error if one is found
+// Check for dependency cycles in the given list of modules and return an error if one is found.
 func (modules TerraformModules) CheckForCycles() error {
 	visitedPaths := []string{}
 	currentTraversalPaths := []string{}
@@ -498,7 +498,7 @@ var existingModules = cache.NewCache[*TerraformModulesMap](existingModulesCacheN
 type TerraformModulesMap map[string]*TerraformModule
 
 // Merge the given external dependencies into the given map of modules if those dependencies aren't already in the
-// modules map
+// modules map.
 func (modulesMap TerraformModulesMap) mergeMaps(externalDependencies TerraformModulesMap) TerraformModulesMap {
 	out := TerraformModulesMap{}
 
@@ -534,7 +534,7 @@ func (modulesMap TerraformModulesMap) crosslinkDependencies(canonicalTerragruntC
 }
 
 // Return the keys for the given map in sorted order. This is used to ensure we always iterate over maps of modules
-// in a consistent order (Go does not guarantee iteration order for maps, and usually makes it random)
+// in a consistent order (Go does not guarantee iteration order for maps, and usually makes it random).
 func (modulesMap TerraformModulesMap) getSortedKeys() []string {
 	keys := []string{}
 	for key := range modulesMap {

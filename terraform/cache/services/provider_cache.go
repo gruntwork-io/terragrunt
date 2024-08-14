@@ -37,7 +37,7 @@ const (
 	maxRetriesFetchFile = 5
 )
 
-// Borrow the "unpack a zip cache into a target directory" logic from go-getter
+// Borrow the "unpack a zip cache into a target directory" logic from go-getter.
 var unzip = getter.ZipDecompressor{}
 
 type ProviderCaches []*ProviderCache

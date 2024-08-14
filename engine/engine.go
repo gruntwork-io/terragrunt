@@ -288,7 +288,7 @@ func engineFileName(e *options.EngineOptions) string {
 	return fmt.Sprintf(FileNameFormat, engineName, e.Type, e.Version, platform, arch)
 }
 
-// engineChecksumName returns the file name of engine checksum file
+// engineChecksumName returns the file name of engine checksum file.
 func engineChecksumName(e *options.EngineOptions) string {
 	engineName := filepath.Base(e.Source)
 
@@ -296,7 +296,7 @@ func engineChecksumName(e *options.EngineOptions) string {
 	return fmt.Sprintf(ChecksumFileNameFormat, engineName, e.Type, e.Version)
 }
 
-// engineChecksumSigName returns the file name of engine checksum file signature
+// engineChecksumSigName returns the file name of engine checksum file signature.
 func engineChecksumSigName(e *options.EngineOptions) string {
 	return engineChecksumName(e) + ".sig"
 }
@@ -346,7 +346,7 @@ func downloadLocksFromContext(ctx context.Context) (*util.KeyLocks, error) {
 
 // IsEngineEnabled returns true if the experimental engine is enabled.
 func IsEngineEnabled() bool {
-	ok, _ := strconv.ParseBool(os.Getenv(EnableExperimentalEngineEnvName)) //nolint:errcheck
+	ok, _ := strconv.ParseBool(os.Getenv(EnableExperimentalEngineEnvName))
 	return ok
 }
 
@@ -374,7 +374,7 @@ func Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// createEngine create engine for working directory
+// createEngine create engine for working directory.
 func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineClient, *plugin.Client, error) {
 	path, err := engineDir(terragruntOptions.Engine)
 	if err != nil {
@@ -427,7 +427,7 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 	return &terragruntEngine, client, nil
 }
 
-// invoke engine for working directory
+// invoke engine for working directory.
 func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.EngineClient) (*util.CmdOutput, error) {
 	terragruntOptions := runOptions.TerragruntOptions
 
@@ -495,7 +495,7 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 	return &cmdOutput, nil
 }
 
-// processStream handles the character buffering and line printing for a given stream
+// processStream handles the character buffering and line printing for a given stream.
 func processStream(data string, lineBuf *bytes.Buffer, output io.Writer) error {
 	for _, ch := range data {
 		lineBuf.WriteByte(byte(ch))
@@ -509,7 +509,7 @@ func processStream(data string, lineBuf *bytes.Buffer, output io.Writer) error {
 	return nil
 }
 
-// flushBuffer prints any remaining data in the buffer
+// flushBuffer prints any remaining data in the buffer.
 func flushBuffer(lineBuf *bytes.Buffer, output io.Writer) error {
 	if lineBuf.Len() > 0 {
 		_, err := fmt.Fprint(output, lineBuf.String())
@@ -520,7 +520,7 @@ func flushBuffer(lineBuf *bytes.Buffer, output io.Writer) error {
 	return nil
 }
 
-// initialize engine for working directory
+// initialize engine for working directory.
 func initialize(ctx context.Context, runOptions *ExecutionOptions, client *proto.EngineClient) error {
 	terragruntOptions := runOptions.TerragruntOptions
 	meta, err := ConvertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
@@ -553,7 +553,7 @@ func initialize(ctx context.Context, runOptions *ExecutionOptions, client *proto
 	})
 }
 
-// shutdown engine for working directory
+// shutdown engine for working directory.
 func shutdown(ctx context.Context, runOptions *ExecutionOptions, terragruntEngine *proto.EngineClient) error {
 	terragruntOptions := runOptions.TerragruntOptions
 
@@ -584,10 +584,9 @@ func shutdown(ctx context.Context, runOptions *ExecutionOptions, terragruntEngin
 			Stderr: output.GetStderr(),
 		}, nil
 	})
-
 }
 
-// common engine output
+// common engine output.
 type OutputLine struct {
 	Stdout string
 	Stderr string
@@ -596,7 +595,7 @@ type OutputLine struct {
 type outputFn func() (*OutputLine, error)
 
 // ReadEngineOutput reads the output from the engine, since grpc plugins don't have common type,
-// use lambda function to read bytes from the stream
+// use lambda function to read bytes from the stream.
 func ReadEngineOutput(runOptions *ExecutionOptions, output outputFn) error {
 	cmdStdout := runOptions.CmdStdout
 	cmdStderr := runOptions.CmdStderr
@@ -622,7 +621,7 @@ func ReadEngineOutput(runOptions *ExecutionOptions, output outputFn) error {
 	return nil //nolint:nilerr
 }
 
-// convert metadata map to protobuf map
+// convert metadata map to protobuf map.
 func ConvertMetaToProtobuf(meta map[string]interface{}) (map[string]*anypb.Any, error) {
 	protoMeta := make(map[string]*anypb.Any)
 	if meta == nil {
@@ -648,6 +647,6 @@ func ConvertMetaToProtobuf(meta map[string]interface{}) (map[string]*anypb.Any, 
 
 // skipChecksumCheck returns true if the engine checksum check is skipped.
 func skipEngineCheck() bool {
-	ok, _ := strconv.ParseBool(os.Getenv(EngineSkipCheckEnv)) //nolint:errcheck
+	ok, _ := strconv.ParseBool(os.Getenv(EngineSkipCheckEnv))
 	return ok
 }

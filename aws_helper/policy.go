@@ -2,7 +2,7 @@ package aws_helper
 
 import "encoding/json"
 
-// Policy - representation of the policy for AWS
+// Policy - representation of the policy for AWS.
 type Policy struct {
 	Version   string      `json:"Version"`
 	Statement []Statement `json:"Statement"`

@@ -22,7 +22,7 @@ type DiscoveryController struct {
 	Endpointers []Endpointer
 }
 
-// Register implements router.Controller.Register
+// Register implements router.Controller.Register.
 func (controller *DiscoveryController) Register(router *router.Router) {
 	controller.Router = router.Group(discoveryPath)
 

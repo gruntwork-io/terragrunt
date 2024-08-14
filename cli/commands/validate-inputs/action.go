@@ -99,7 +99,7 @@ func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg
 // - env vars defined on terraform.extra_arguments blocks.
 // - env vars from the external runtime calling terragrunt.
 // - inputs blocks.
-// - automatically injected terraform vars (terraform.tfvars, terraform.tfvars.json, *.auto.tfvars, *.auto.tfvars.json)
+// - automatically injected terraform vars (terraform.tfvars, terraform.tfvars.json, *.auto.tfvars, *.auto.tfvars.json).
 func getDefinedTerragruntInputs(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) ([]string, error) {
 	envVarTFVars := getTerraformInputNamesFromEnvVar(opts, cfg)
 	inputsTFVars := getTerraformInputNamesFromConfig(cfg)
@@ -228,7 +228,7 @@ func getTerraformInputNamesFromCLIArgs(opts *options.TerragruntOptions, terragru
 	return inputNames, nil
 }
 
-// getTerraformInputNamesFromAutomaticVarFiles returns all the variables names
+// getTerraformInputNamesFromAutomaticVarFiles returns all the variables names.
 func getTerraformInputNamesFromAutomaticVarFiles(opts *options.TerragruntOptions) ([]string, error) {
 	base := opts.WorkingDir
 	automaticVarFiles := []string{}

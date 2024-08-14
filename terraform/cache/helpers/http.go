@@ -48,7 +48,7 @@ func FetchToFile(ctx context.Context, req *http.Request, dst string) error {
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
-	defer file.Close() //nolint:errcheck
+	defer file.Close()
 
 	if err := Fetch(ctx, req, file); err != nil {
 		return err

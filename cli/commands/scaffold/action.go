@@ -33,7 +33,7 @@ const (
 	sourceUrlTypeVar    = "SourceUrlType"
 	sourceGitSshUserVar = "SourceGitSshUser"
 	refVar              = "Ref"
-	// refParam - ?ref param from url
+	// refParam - ?ref param from url.
 	refParam = "ref"
 
 	moduleUrlPattern = `(?:git|hg|s3|gcs)::([^:]+)://([^/]+)(/.*)`
@@ -265,7 +265,7 @@ func parseVariables(opts *options.TerragruntOptions, moduleDir string) ([]*confi
 	return requiredVariables, optionalVariables, nil
 }
 
-// parseModuleUrl - parse module url and rewrite it if required
+// parseModuleUrl - parse module url and rewrite it if required.
 func parseModuleUrl(ctx context.Context, opts *options.TerragruntOptions, vars map[string]interface{}, moduleUrl string) (string, error) {
 	parsedModuleUrl, err := terraform.ToSourceUrl(moduleUrl, opts.WorkingDir)
 	if err != nil {
@@ -328,7 +328,7 @@ func rewriteModuleUrl(opts *options.TerragruntOptions, vars map[string]interface
 }
 
 // rewriteTemplateUrl rewrites template url with reference to tag
-// github.com/denis256/terragrunt-tests.git//scaffold/base-template => github.com/denis256/terragrunt-tests.git//scaffold/base-template?ref=v0.53.8
+// github.com/denis256/terragrunt-tests.git//scaffold/base-template => github.com/denis256/terragrunt-tests.git//scaffold/base-template?ref=v0.53.8.
 func rewriteTemplateUrl(ctx context.Context, opts *options.TerragruntOptions, parsedTemplateUrl *url.URL) (*url.URL, error) {
 	var updatedTemplateUrl = parsedTemplateUrl
 	var templateParams = updatedTemplateUrl.Query()
@@ -349,7 +349,7 @@ func rewriteTemplateUrl(ctx context.Context, opts *options.TerragruntOptions, pa
 	return updatedTemplateUrl, nil
 }
 
-// addRefToModuleUrl adds ref to module url if is passed through variables or find it from git tags
+// addRefToModuleUrl adds ref to module url if is passed through variables or find it from git tags.
 func addRefToModuleUrl(ctx context.Context, opts *options.TerragruntOptions, parsedModuleUrl *url.URL, vars map[string]interface{}) (*url.URL, error) {
 	var moduleUrl = parsedModuleUrl
 	// append ref to source url, if is passed through variables or find it from git tags
@@ -379,7 +379,7 @@ func addRefToModuleUrl(ctx context.Context, opts *options.TerragruntOptions, par
 	return moduleUrl, nil
 }
 
-// parseUrl parses module url to scheme, host and path
+// parseUrl parses module url to scheme, host and path.
 func parseUrl(opts *options.TerragruntOptions, moduleUrl string) (*parsedUrl, error) {
 	matches := moduleUrlRegex.FindStringSubmatch(moduleUrl)
 	if len(matches) != moduleUrlParts {

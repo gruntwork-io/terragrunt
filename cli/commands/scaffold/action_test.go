@@ -91,5 +91,4 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	_, found := cfg.Inputs["required_var_1"]
 	require.True(t, found)
 	require.Equal(t, "git::https://github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.8", *cfg.Terraform.Source)
-
 }

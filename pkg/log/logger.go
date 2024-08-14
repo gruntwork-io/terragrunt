@@ -19,12 +19,12 @@ func SetLogLevel(level logrus.Level) {
 	logger.Level = level
 }
 
-// Logger returns logger
+// Logger returns logger.
 func Logger() *logrus.Logger {
 	return logger
 }
 
-// Logger returns logger
+// Logger returns logger.
 func SetLogger(l *logrus.Logger) {
 	logger = l
 }

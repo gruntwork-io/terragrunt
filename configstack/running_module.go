@@ -28,13 +28,13 @@ const (
 	IgnoreOrder
 )
 
-// Represents the status of a module that we are trying to apply as part of the apply-all or destroy-all command
+// Represents the status of a module that we are trying to apply as part of the apply-all or destroy-all command.
 type ModuleStatus int
 
-// This controls in what order dependencies should be enforced between modules
+// This controls in what order dependencies should be enforced between modules.
 type DependencyOrder int
 
-// Represents a module we are trying to "run" (i.e. apply or destroy) as part of the apply-all or destroy-all command
+// Represents a module we are trying to "run" (i.e. apply or destroy) as part of the apply-all or destroy-all command.
 type RunningModule struct {
 	Module         *TerraformModule
 	Status         ModuleStatus
@@ -61,7 +61,6 @@ func newRunningModule(module *TerraformModule) *RunningModule {
 
 // Run a module once all of its dependencies have finished executing.
 func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *options.TerragruntOptions, semaphore chan struct{}) {
-
 	err := telemetry.Telemetry(ctx, opts, "wait_for_module_ready", map[string]interface{}{
 		"path":             module.Module.Path,
 		"terraformCommand": module.Module.TerragruntOptions.TerraformCommand,
@@ -146,7 +145,7 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 	}
 }
 
-// Record that a module has finished executing and notify all of this module's dependencies
+// Record that a module has finished executing and notify all of this module's dependencies.
 func (module *RunningModule) moduleFinished(moduleErr error) {
 	if moduleErr == nil {
 		module.Module.TerragruntOptions.Logger.Debugf("Module %s has finished successfully!", module.Module.Path)
@@ -254,12 +253,11 @@ func (modules RunningModules) crossLinkDependencies(dependencyOrder DependencyOr
 	return modules, nil
 }
 
-// Return a cleaned-up map that only contains modules and dependencies that should not be excluded
+// Return a cleaned-up map that only contains modules and dependencies that should not be excluded.
 func (modules RunningModules) RemoveFlagExcluded() map[string]*RunningModule {
 	var finalModules = make(map[string]*RunningModule)
 
 	for key, module := range modules {
-
 		// Only add modules that should not be excluded
 		if !module.FlagExcluded {
 			finalModules[key] = &RunningModule{
@@ -304,7 +302,7 @@ func (modules RunningModules) runModules(ctx context.Context, opts *options.Terr
 }
 
 // Collect the errors from the given modules and return a single error object to represent them, or nil if no errors
-// occurred
+// occurred.
 func (modules RunningModules) collectErrors() error {
 	var result *multierror.Error
 	for _, module := range modules {

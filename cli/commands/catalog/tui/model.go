@@ -111,7 +111,7 @@ func newModel(modules module.Modules, opts *options.TerragruntOptions) model {
 	}
 }
 
-// Init implements bubbletea.Model.Init
+// Init implements bubbletea.Model.Init.
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
 		m.buttonBar.Init(),

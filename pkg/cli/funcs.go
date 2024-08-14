@@ -1,6 +1,6 @@
 package cli
 
-// CompleteFunc is an action to execute when the shell completion flag is set
+// CompleteFunc is an action to execute when the shell completion flag is set.
 type CompleteFunc func(ctx *Context) error
 
 // ActionFunc is the action to execute when no commands/subcommands are specified.

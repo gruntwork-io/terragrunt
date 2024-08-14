@@ -61,12 +61,12 @@ func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 	return module, nil
 }
 
-// FilterValue implements /github.com/charmbracelet/bubbles.list.Item.FilterValue
+// FilterValue implements /github.com/charmbracelet/bubbles.list.Item.FilterValue.
 func (module *Module) FilterValue() string {
 	return module.Title()
 }
 
-// Title implements /github.com/charmbracelet/bubbles.list.DefaultItem.Title
+// Title implements /github.com/charmbracelet/bubbles.list.DefaultItem.Title.
 func (module *Module) Title() string {
 	if title := module.Doc.Title(); title != "" {
 		return title
@@ -75,7 +75,7 @@ func (module *Module) Title() string {
 	return filepath.Base(module.moduleDir)
 }
 
-// Description implements /github.com/charmbracelet/bubbles.list.DefaultItem.Description
+// Description implements /github.com/charmbracelet/bubbles.list.DefaultItem.Description.
 func (module *Module) Description() string {
 	if desc := module.Doc.Description(maxDescriptionLenght); desc != "" {
 		return desc

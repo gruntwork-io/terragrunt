@@ -76,7 +76,6 @@ func TestTerragruntS3SSECustomKey(t *testing.T) {
 	require.NotNil(t, sseRule)
 	assert.Equal(t, s3.ServerSideEncryptionAwsKms, aws.StringValue(sseRule.SSEAlgorithm))
 	assert.True(t, strings.HasSuffix(aws.StringValue(sseRule.KMSMasterKeyID), "alias/dedicated-test-key"))
-
 }
 
 func TestTerragruntS3SSEKeyNotReverted(t *testing.T) {

@@ -103,7 +103,6 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 		if err != nil {
 			return nil, err
 		}
-
 	}
 
 	return modules, nil
@@ -134,7 +133,7 @@ func (repo *Repo) ModuleURL(moduleDir string) (string, error) {
 	}
 }
 
-// clone clones the repository to a temporary directory if the repoPath is URL
+// clone clones the repository to a temporary directory if the repoPath is URL.
 func (repo *Repo) clone(ctx context.Context) error {
 	if repo.cloneURL == "" {
 		currentDir, err := os.Getwd()

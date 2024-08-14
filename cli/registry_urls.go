@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	// well-known address for discovery URLs
+	// well-known address for discovery URLs.
 	wellKnownURL = ".well-known/terraform.json"
 )
 

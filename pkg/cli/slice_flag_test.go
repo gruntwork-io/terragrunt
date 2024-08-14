@@ -159,7 +159,6 @@ func TestSliceFlagInt64Apply(t *testing.T) {
 }
 
 func testSliceFlagApply[T cli.SliceFlagType](t *testing.T, flag *cli.SliceFlag[T], args []string, envs map[string]string, expectedValue []T, expectedErr error) {
-
 	var (
 		actualValue          []T
 		destDefined          bool

@@ -319,7 +319,7 @@ func includeConfigAsCtyVal(ctx *ParsingContext, includeConfig IncludeConfig) (ct
 	return cty.NilVal, nil
 }
 
-// UpdateUnknownCtyValValues deeply updates unknown values with default value
+// UpdateUnknownCtyValValues deeply updates unknown values with default value.
 func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 	var updatedValue any
 

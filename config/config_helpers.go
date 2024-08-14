@@ -74,7 +74,7 @@ const (
 	sopsCacheName = "sopsCache"
 )
 
-// List of terraform commands that accept -lock-timeout
+// List of terraform commands that accept -lock-timeout.
 var TERRAFORM_COMMANDS_NEED_LOCKING = []string{
 	"apply",
 	"destroy",
@@ -85,7 +85,7 @@ var TERRAFORM_COMMANDS_NEED_LOCKING = []string{
 	"untaint",
 }
 
-// List of terraform commands that accept -var or -var-file
+// List of terraform commands that accept -var or -var-file.
 var TERRAFORM_COMMANDS_NEED_VARS = []string{
 	"apply",
 	"console",
@@ -96,7 +96,7 @@ var TERRAFORM_COMMANDS_NEED_VARS = []string{
 	"refresh",
 }
 
-// List of terraform commands that accept -input=
+// List of terraform commands that accept -input=.
 var TERRAFORM_COMMANDS_NEED_INPUT = []string{
 	"apply",
 	"import",
@@ -105,7 +105,7 @@ var TERRAFORM_COMMANDS_NEED_INPUT = []string{
 	"refresh",
 }
 
-// List of terraform commands that accept -parallelism=
+// List of terraform commands that accept -parallelism=.
 var TERRAFORM_COMMANDS_NEED_PARALLELISM = []string{
 	"apply",
 	"plan",
@@ -212,17 +212,17 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 	return evalCtx, nil
 }
 
-// Return the OS platform
+// Return the OS platform.
 func getPlatform(ctx *ParsingContext) (string, error) {
 	return runtime.GOOS, nil
 }
 
-// Return the repository root as an absolute path
+// Return the repository root as an absolute path.
 func getRepoRoot(ctx *ParsingContext) (string, error) {
 	return shell.GitTopLevelDir(ctx, ctx.TerragruntOptions, ctx.TerragruntOptions.WorkingDir)
 }
 
-// Return the path from the repository root
+// Return the path from the repository root.
 func getPathFromRepoRoot(ctx *ParsingContext) (string, error) {
 	repoAbsPath, err := shell.GitTopLevelDir(ctx, ctx.TerragruntOptions, ctx.TerragruntOptions.WorkingDir)
 	if err != nil {
@@ -237,7 +237,7 @@ func getPathFromRepoRoot(ctx *ParsingContext) (string, error) {
 	return filepath.ToSlash(repoRelPath), nil
 }
 
-// Return the path to the repository root
+// Return the path to the repository root.
 func getPathToRepoRoot(ctx *ParsingContext) (string, error) {
 	repoAbsPath, err := shell.GitTopLevelDir(ctx, ctx.TerragruntOptions, ctx.TerragruntOptions.WorkingDir)
 	if err != nil {
@@ -252,7 +252,7 @@ func getPathToRepoRoot(ctx *ParsingContext) (string, error) {
 	return filepath.ToSlash(strings.TrimSpace(repoRootPathAbs)), nil
 }
 
-// Return the directory where the Terragrunt configuration file lives
+// Return the directory where the Terragrunt configuration file lives.
 func GetTerragruntDir(ctx *ParsingContext) (string, error) {
 	terragruntConfigFileAbsPath, err := filepath.Abs(ctx.TerragruntOptions.TerragruntConfigPath)
 	if err != nil {
@@ -275,7 +275,7 @@ func getOriginalTerragruntDir(ctx *ParsingContext) (string, error) {
 	return filepath.ToSlash(filepath.Dir(terragruntConfigFileAbsPath)), nil
 }
 
-// Return the parent directory where the Terragrunt configuration file lives
+// Return the parent directory where the Terragrunt configuration file lives.
 func GetParentTerragruntDir(ctx *ParsingContext, params []string) (string, error) {
 	parentPath, err := PathRelativeFromInclude(ctx, params)
 	if err != nil {
@@ -313,7 +313,7 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 
 // RunCommand is a helper function that runs a command and returns the stdout as the interporation
 // for each `run_cmd` in locals section, function is called twice
-// result
+// result.
 func RunCommand(ctx *ParsingContext, args []string) (string, error) {
 	// runCommandCache - cache of evaluated `run_cmd` invocations
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
@@ -392,7 +392,7 @@ func getEnvironmentVariable(ctx *ParsingContext, parameters []string) (string, e
 }
 
 // Find a parent Terragrunt configuration file in the parent folders above the current Terragrunt configuration file
-// and return its path
+// and return its path.
 func FindInParentFolders(
 	ctx *ParsingContext,
 	params []string,
@@ -484,7 +484,7 @@ func PathRelativeToInclude(ctx *ParsingContext, params []string) (string, error)
 	return relativePath, err
 }
 
-// Return the relative path from the current Terragrunt configuration to the included Terragrunt configuration file
+// Return the relative path from the current Terragrunt configuration to the included Terragrunt configuration file.
 func PathRelativeFromInclude(ctx *ParsingContext, params []string) (string, error) {
 	if ctx.TrackInclude == nil {
 		return ".", nil
@@ -507,12 +507,12 @@ func PathRelativeFromInclude(ctx *ParsingContext, params []string) (string, erro
 	return util.GetPathRelativeTo(includePath, currentPath)
 }
 
-// getTerraformCommand returns the current terraform command in execution
+// getTerraformCommand returns the current terraform command in execution.
 func getTerraformCommand(ctx *ParsingContext) (string, error) {
 	return ctx.TerragruntOptions.TerraformCommand, nil
 }
 
-// getWorkingDir returns the current working dir
+// getWorkingDir returns the current working dir.
 func getWorkingDir(ctx *ParsingContext) (string, error) {
 	ctx.TerragruntOptions.Logger.Debugf("Start processing get_working_dir built-in function")
 	defer ctx.TerragruntOptions.Logger.Debugf("Complete processing get_working_dir built-in function")
@@ -544,17 +544,17 @@ func getWorkingDir(ctx *ParsingContext) (string, error) {
 	return source.WorkingDir, nil
 }
 
-// getTerraformCliArgs returns cli args for terraform
+// getTerraformCliArgs returns cli args for terraform.
 func getTerraformCliArgs(ctx *ParsingContext) ([]string, error) {
 	return ctx.TerragruntOptions.TerraformCliArgs, nil
 }
 
-// getDefaultRetryableErrors returns default retryable errors
+// getDefaultRetryableErrors returns default retryable errors.
 func getDefaultRetryableErrors(ctx *ParsingContext) ([]string, error) {
 	return options.DEFAULT_RETRYABLE_ERRORS, nil
 }
 
-// Return the AWS account id associated to the current set of credentials
+// Return the AWS account id associated to the current set of credentials.
 func getAWSAccountID(ctx *ParsingContext) (string, error) {
 	accountID, err := aws_helper.GetAWSAccountID(nil, ctx.TerragruntOptions)
 	if err == nil {
@@ -563,7 +563,7 @@ func getAWSAccountID(ctx *ParsingContext) (string, error) {
 	return "", err
 }
 
-// Return the ARN of the AWS identity associated with the current set of credentials
+// Return the ARN of the AWS identity associated with the current set of credentials.
 func getAWSCallerIdentityARN(ctx *ParsingContext) (string, error) {
 	identityARN, err := aws_helper.GetAWSIdentityArn(nil, ctx.TerragruntOptions)
 	if err == nil {
@@ -572,7 +572,7 @@ func getAWSCallerIdentityARN(ctx *ParsingContext) (string, error) {
 	return "", err
 }
 
-// Return the UserID of the AWS identity associated with the current set of credentials
+// Return the UserID of the AWS identity associated with the current set of credentials.
 func getAWSCallerIdentityUserID(ctx *ParsingContext) (string, error) {
 	userID, err := aws_helper.GetAWSUserID(nil, ctx.TerragruntOptions)
 	if err == nil {
@@ -675,7 +675,7 @@ func getCleanedTargetConfigPath(configPath string, workingPath string) string {
 // --terragrunt-source: /source/infrastructure-modules
 // source param in module's terragrunt.hcl: git::git@github.com:acme/infrastructure-modules.git//networking/vpc?ref=v0.0.1
 //
-// This method will return: /source/infrastructure-modules//networking/vpc
+// This method will return: /source/infrastructure-modules//networking/vpc.
 func GetTerragruntSourceForModule(sourcePath string, modulePath string, moduleTerragruntConfig *TerragruntConfig) (string, error) {
 	if sourcePath == "" || moduleTerragruntConfig.Terraform == nil || moduleTerragruntConfig.Terraform.Source == nil || *moduleTerragruntConfig.Terraform.Source == "" {
 		return "", nil
@@ -707,7 +707,6 @@ func GetTerragruntSourceForModule(sourcePath string, modulePath string, moduleTe
 // will return "module-name".
 
 func getModulePathFromSourceUrl(sourceUrl string) (string, error) {
-
 	// Regexp for module name extraction. It assumes that the query string has already been stripped off.
 	// Then we simply capture anything after the last slash, and before `.` or end of string.
 	var moduleNameRegexp = regexp.MustCompile(`(?:.+/)(.+?)(?:\.|$)`)
@@ -733,7 +732,7 @@ func getModulePathFromSourceUrl(sourceUrl string) (string, error) {
 // plain-text result of the decrypt operation.
 var sopsCache = cache.NewCache[string](sopsCacheName)
 
-// decrypts and returns sops encrypted utf-8 yaml or json data as a string
+// decrypts and returns sops encrypted utf-8 yaml or json data as a string.
 func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 	numParams := len(params)
 
@@ -772,7 +771,7 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 	return "", errors.WithStackTrace(InvalidSopsFormatError{SourceFilePath: sourceFile})
 }
 
-// Mapping of SOPS format to string
+// Mapping of SOPS format to string.
 var sopsFormatToString = map[formats.Format]string{
 	formats.Binary: "binary",
 	formats.Dotenv: "dotenv",
@@ -781,7 +780,7 @@ var sopsFormatToString = map[formats.Format]string{
 	formats.Yaml:   "yaml",
 }
 
-// getSopsFileFormat - Return file format for SOPS library
+// getSopsFileFormat - Return file format for SOPS library.
 func getSopsFileFormat(sourceFile string) (string, error) {
 	fileFormat := formats.FormatForPath(sourceFile)
 	format, found := sopsFormatToString[fileFormat]
@@ -791,7 +790,7 @@ func getSopsFileFormat(sourceFile string) (string, error) {
 	return format, nil
 }
 
-// Return the location of the Terraform files provided via --terragrunt-source
+// Return the location of the Terraform files provided via --terragrunt-source.
 func getTerragruntSourceCliFlag(ctx *ParsingContext) (string, error) {
 	return ctx.TerragruntOptions.Source, nil
 }
@@ -832,7 +831,7 @@ func getSelectedIncludeBlock(trackInclude TrackInclude, params []string) (*Inclu
 	return &imported, nil
 }
 
-// StartsWith Implementation of Terraform's StartsWith function
+// StartsWith Implementation of Terraform's StartsWith function.
 func StartsWith(ctx *ParsingContext, args []string) (bool, error) {
 	if len(args) == 0 {
 		return false, errors.WithStackTrace(EmptyStringNotAllowedError("parameter to the startswith function"))
@@ -847,7 +846,7 @@ func StartsWith(ctx *ParsingContext, args []string) (bool, error) {
 	return false, nil
 }
 
-// EndsWith Implementation of Terraform's EndsWith function
+// EndsWith Implementation of Terraform's EndsWith function.
 func EndsWith(ctx *ParsingContext, args []string) (bool, error) {
 	if len(args) == 0 {
 		return false, errors.WithStackTrace(EmptyStringNotAllowedError("parameter to the endswith function"))
@@ -888,7 +887,7 @@ func TimeCmp(ctx *ParsingContext, args []string) (int64, error) {
 	}
 }
 
-// StrContains Implementation of Terraform's StrContains function
+// StrContains Implementation of Terraform's StrContains function.
 func StrContains(ctx *ParsingContext, args []string) (bool, error) {
 	if len(args) == 0 {
 		return false, errors.WithStackTrace(EmptyStringNotAllowedError("parameter to the strcontains function"))
@@ -903,9 +902,8 @@ func StrContains(ctx *ParsingContext, args []string) (bool, error) {
 	return false, nil
 }
 
-// readTFVarsFile reads a *.tfvars or *.tfvars.json file and returns the contents as a JSON encoded string
+// readTFVarsFile reads a *.tfvars or *.tfvars.json file and returns the contents as a JSON encoded string.
 func readTFVarsFile(ctx *ParsingContext, args []string) (string, error) {
-
 	if len(args) != 1 {
 		return "", errors.WithStackTrace(WrongNumberOfParamsError{Func: "read_tfvars_file", Expected: "1", Actual: len(args)})
 	}
@@ -992,7 +990,7 @@ func ParseAndDecodeVarFile(varFile string, fileContents []byte, out interface{})
 	return gocty.FromCtyValue(ctyVal, out)
 }
 
-// extractSopsErrors extracts the original errors from the sops library and returns them as a multierror.Error
+// extractSopsErrors extracts the original errors from the sops library and returns them as a multierror.Error.
 func extractSopsErrors(err error) *multierror.Error {
 	var errs = &multierror.Error{}
 

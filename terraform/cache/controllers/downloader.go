@@ -20,7 +20,7 @@ type DownloaderController struct {
 	ProviderHandlers []handlers.ProviderHandler
 }
 
-// Register implements router.Controller.Register
+// Register implements router.Controller.Register.
 func (controller *DownloaderController) Register(router *router.Router) {
 	controller.Router = router.Group(downloadPath)
 

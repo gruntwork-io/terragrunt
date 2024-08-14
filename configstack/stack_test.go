@@ -107,7 +107,6 @@ func TestGetModuleRunGraphDestroyOrder(t *testing.T) {
 		},
 		runGraph,
 	)
-
 }
 
 func createTestStack() *configstack.Stack {
@@ -167,7 +166,7 @@ func createTempFolder(t *testing.T) string {
 	return filepath.ToSlash(tmpFolder)
 }
 
-// Create a dummy Terragrunt config file at each of the given paths
+// Create a dummy Terragrunt config file at each of the given paths.
 func writeDummyTerragruntConfigs(t *testing.T, tmpFolder string, paths []string) {
 	contents := []byte("terraform {\nsource = \"test\"\n}\n")
 	for _, path := range paths {

@@ -25,7 +25,7 @@ var (
 
 const matchCount = 2
 
-// This struct represents information about Terraform source code that needs to be downloaded
+// This struct represents information about Terraform source code that needs to be downloaded.
 type Source struct {
 	// A canonical version of RawSource, in URL format
 	CanonicalSourceURL *url.URL
@@ -144,7 +144,6 @@ func (terraformSource Source) WriteVersionFile() error {
 //  2. Only download source URLs pointing to remote paths if /T/W/H doesn't already exist or, if it does exist, if the
 //     version number in /T/W/H/.terragrunt-source-version doesn't match the current version.
 func NewSource(source string, downloadDir string, workingDir string, logger *logrus.Entry) (*Source, error) {
-
 	canonicalWorkingDir, err := util.CanonicalPath(workingDir, "")
 	if err != nil {
 		return nil, err
@@ -262,7 +261,7 @@ func parseSourceUrl(source string) (*url.URL, error) {
 	return canonicalSourceUrl, nil
 }
 
-// Returns true if the given URL refers to a path on the local file system
+// Returns true if the given URL refers to a path on the local file system.
 func IsLocalSource(sourceUrl *url.URL) bool {
 	return sourceUrl.Scheme == "file"
 }

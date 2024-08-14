@@ -160,7 +160,6 @@ func TestInvalidRemoteDownload(t *testing.T) {
 	require.Error(t, err)
 	errMessage := "downloading source url"
 	assert.Containsf(t, err.Error(), errMessage, "expected error containing %q, got %s", errMessage, err)
-
 }
 
 func TestRemoteDownloadWithRelativePath(t *testing.T) {
@@ -219,7 +218,7 @@ func TestRemoteWithModuleInRoot(t *testing.T) {
 }
 
 // As of Terraform 0.14.0, if there's already a lock file in the working directory, we should be copying it into
-// .terragrunt-cache
+// .terragrunt-cache.
 func TestCustomLockFile(t *testing.T) {
 	t.Parallel()
 
@@ -307,7 +306,6 @@ func TestExcludeDirs(t *testing.T) {
 			for _, excludedModuleOutput := range testCase.excludedModuleOutputs {
 				assert.NotContains(t, output, excludedModuleOutput)
 			}
-
 		}
 	}
 }
@@ -374,7 +372,6 @@ func TestIncludeDirs(t *testing.T) {
 			for _, includedModuleOutput := range testCase.includedModuleOutputs {
 				assert.NotContains(t, output, includedModuleOutput)
 			}
-
 		}
 	}
 }

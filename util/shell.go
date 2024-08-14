@@ -63,7 +63,7 @@ func GetExitCode(err error) (int, error) {
 	return 0, err
 }
 
-// ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr
+// ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr.
 type ProcessExecutionError struct {
 	Err        error
 	StdOut     string

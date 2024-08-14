@@ -18,15 +18,15 @@ import (
 )
 
 // DynamoDB only allows 10 table creates/deletes simultaneously. To ensure we don't hit this error, especially when
-// running many automated tests in parallel, we use a counting semaphore
+// running many automated tests in parallel, we use a counting semaphore.
 const dynamoParallelOperations = 10
 
 var tableCreateDeleteSemaphore = NewCountingSemaphore(dynamoParallelOperations)
 
-// Terraform requires the DynamoDB table to have a primary key with this name
+// Terraform requires the DynamoDB table to have a primary key with this name.
 const ATTR_LOCK_ID = "LockID"
 
-// Default is to retry for up to 5 minutes
+// Default is to retry for up to 5 minutes.
 const MAX_RETRIES_WAITING_FOR_TABLE_TO_BE_ACTIVE = 30
 const SLEEP_BETWEEN_TABLE_STATUS_CHECKS = 10 * time.Second
 
@@ -35,7 +35,7 @@ const DYNAMODB_PAY_PER_REQUEST_BILLING_MODE = "PAY_PER_REQUEST"
 const sleepBetweenRetries = 20 * time.Second
 const maxRetries = 15
 
-// Create an authenticated client for DynamoDB
+// Create an authenticated client for DynamoDB.
 func CreateDynamoDbClient(config *aws_helper.AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*dynamodb.DynamoDB, error) {
 	session, err := aws_helper.CreateAwsSession(config, terragruntOptions)
 	if err != nil {
@@ -45,7 +45,7 @@ func CreateDynamoDbClient(config *aws_helper.AwsSessionConfig, terragruntOptions
 	return dynamodb.New(session), nil
 }
 
-// Create the lock table in DynamoDB if it doesn't already exist
+// Create the lock table in DynamoDB if it doesn't already exist.
 func CreateLockTableIfNecessary(tableName string, tags map[string]string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
 	tableExists, err := LockTableExistsAndIsActive(tableName, client)
 	if err != nil {
@@ -60,7 +60,7 @@ func CreateLockTableIfNecessary(tableName string, tags map[string]string, client
 	return nil
 }
 
-// Return true if the lock table exists in DynamoDB and is in "active" state
+// Return true if the lock table exists in DynamoDB and is in "active" state.
 func LockTableExistsAndIsActive(tableName string, client *dynamodb.DynamoDB) (bool, error) {
 	output, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
 	if err != nil {
@@ -75,7 +75,7 @@ func LockTableExistsAndIsActive(tableName string, client *dynamodb.DynamoDB) (bo
 	return *output.Table.TableStatus == dynamodb.TableStatusActive, nil
 }
 
-// Return true if the lock table's SSEncryption is turned on
+// Return true if the lock table's SSEncryption is turned on.
 func LockTableCheckSSEncryptionIsOn(tableName string, client *dynamodb.DynamoDB) (bool, error) {
 	output, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
 	if err != nil {
@@ -136,7 +136,6 @@ func CreateLockTable(tableName string, tags map[string]string, client *dynamodb.
 }
 
 func tagTableIfTagsGiven(tags map[string]string, tableArn *string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
-
 	if len(tags) == 0 {
 		terragruntOptions.Logger.Debugf("No tags for lock table given.")
 		return nil
@@ -160,7 +159,7 @@ func tagTableIfTagsGiven(tags map[string]string, tableArn *string, client *dynam
 	return err
 }
 
-// Delete the given table in DynamoDB
+// Delete the given table in DynamoDB.
 func DeleteTable(tableName string, dbClient *dynamodb.DynamoDB) error {
 	const (
 		maxRetries    = 5
@@ -177,7 +176,6 @@ func DeleteTable(tableName string, dbClient *dynamodb.DynamoDB) error {
 		MinRetryDelay: minRetryDelay,
 	}}
 	return req.Send()
-
 }
 
 type DeleteTableRetryer struct {
@@ -192,7 +190,7 @@ func (retryer DeleteTableRetryer) ShouldRetry(req *request.Request) bool {
 }
 
 // Return true if the given error is the error message returned by AWS when the resource already exists and is being
-// updated by someone else
+// updated by someone else.
 func isTableAlreadyBeingCreatedOrUpdatedError(err error) bool {
 	var awsErr awserr.Error
 	ok := goErrors.As(err, &awsErr)
@@ -228,7 +226,7 @@ func WaitForTableToBeActiveWithRandomSleep(tableName string, client *dynamodb.Dy
 	return errors.WithStackTrace(TableActiveRetriesExceeded{TableName: tableName, Retries: maxRetries})
 }
 
-// Encrypt the TFState Lock table - If Necessary
+// Encrypt the TFState Lock table - If Necessary.
 func UpdateLockTableSetSSEncryptionOnIfNecessary(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
 	tableSSEncrypted, err := LockTableCheckSSEncryptionIsOn(tableName, client)
 	if err != nil {
@@ -268,7 +266,7 @@ func UpdateLockTableSetSSEncryptionOnIfNecessary(tableName string, client *dynam
 	return waitForTableToBeActive(tableName, client, MAX_RETRIES_WAITING_FOR_TABLE_TO_BE_ACTIVE, SLEEP_BETWEEN_TABLE_STATUS_CHECKS, terragruntOptions)
 }
 
-// Wait until encryption is enabled for the given table
+// Wait until encryption is enabled for the given table.
 func waitForEncryptionToBeEnabled(tableName string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Debugf("Waiting for encryption to be enabled on table %s", tableName)
 

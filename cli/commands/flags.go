@@ -56,7 +56,7 @@ const (
 	TerragruntJsonOutDirFlagEnvVarName = "TERRAGRUNT_JSON_OUT_DIR"
 	TerragruntJsonOutDirFlagName       = "terragrunt-json-out-dir"
 
-	// Terragrunt Provider Cache flags/envs
+	// Terragrunt Provider Cache flags/envs.
 	TerragruntProviderCacheFlagName                = "terragrunt-provider-cache"
 	TerragruntProviderCacheEnvVarName              = "TERRAGRUNT_PROVIDER_CACHE"
 	TerragruntProviderCacheDirFlagName             = "terragrunt-provider-cache-dir"

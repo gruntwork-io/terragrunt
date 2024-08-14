@@ -5,7 +5,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 )
 
-// Detailed error messages in diagnostics returned by parsing locals
+// Detailed error messages in diagnostics returned by parsing locals.
 const (
 	// A consistent detail message for all "not a valid identifier" diagnostics. This is exactly the same as that returned
 	// by terraform.
@@ -19,7 +19,7 @@ type Block struct {
 
 // GetAttrs loads the block into name expression pairs to assist with evaluation of the attrs prior to
 // evaluating the whole config. Note that this is exactly the same as
-// terraform/configs/named_values.go:decodeLocalsBlock
+// terraform/configs/named_values.go:decodeLocalsBlock.
 func (block *Block) JustAttributes() (Attributes, error) {
 	hclAttrs, diags := block.Body.JustAttributes()
 

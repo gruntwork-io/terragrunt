@@ -37,7 +37,7 @@ func (router *Router) URL() *url.URL {
 	}
 }
 
-// Register registers controller's endpoints
+// Register registers controller's endpoints.
 func (router *Router) Register(controllers ...Controller) {
 	for _, controller := range controllers {
 		controller.Register(router)

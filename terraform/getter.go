@@ -27,7 +27,7 @@ import (
 // httpClient is the default client to be used by HttpGetters.
 var httpClient = cleanhttp.DefaultClient()
 
-// Constants relevant to the module registry
+// Constants relevant to the module registry.
 const (
 	defaultRegistryDomain     = "registry.terraform.io"
 	defaultOtRegistryDomain   = "registry.opentofu.org"
@@ -238,7 +238,7 @@ func (tfrGetter *RegistryGetter) getSubdir(_ context.Context, dstPath, sourceURL
 // GetModuleRegistryURLBasePath uses the service discovery protocol
 // (https://www.terraform.io/docs/internals/remote-service-discovery.html)
 // to figure out where the modules are stored. This will return the base
-// path where the modules can be accessed
+// path where the modules can be accessed.
 func GetModuleRegistryURLBasePath(ctx context.Context, domain string) (string, error) {
 	sdURL := url.URL{
 		Scheme: "https",
@@ -292,7 +292,7 @@ func GetTerraformGetHeader(ctx context.Context, url url.URL) (string, error) {
 }
 
 // GetDownloadURLFromHeader checks if the content of the X-Terraform-GET header contains the base url
-// and prepends it if not
+// and prepends it if not.
 func GetDownloadURLFromHeader(moduleURL url.URL, terraformGet string) (string, error) {
 	// If url from X-Terrafrom-Get Header seems to be a relative url,
 	// append scheme and host from url used for getting the download url
@@ -344,7 +344,7 @@ func httpGETAndGetResponse(ctx context.Context, getURL url.URL) ([]byte, *http.H
 	return bodyData, &resp.Header, errors.WithStackTrace(err)
 }
 
-// BuildRequestUrl - create url to download module using moduleRegistryBasePath
+// BuildRequestUrl - create url to download module using moduleRegistryBasePath.
 func BuildRequestUrl(registryDomain string, moduleRegistryBasePath string, modulePath string, version string) (*url.URL, error) {
 	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
 	modulePath = strings.TrimSuffix(modulePath, "/")

@@ -18,16 +18,16 @@ import (
 const initializedRemoteStateCacheName = "initializedRemoteStateCache"
 
 // Configuration for Terraform remote state
-// NOTE: If any attributes are added here, be sure to add it to remoteStateAsCty in config/config_as_cty.go
+// NOTE: If any attributes are added here, be sure to add it to remoteStateAsCty in config/config_as_cty.go.
 type RemoteState struct {
-	Backend                       string                 `mapstructure:"backend" json:"Backend"`
-	DisableInit                   bool                   `mapstructure:"disable_init" json:"DisableInit"`
-	DisableDependencyOptimization bool                   `mapstructure:"disable_dependency_optimization" json:"DisableDependencyOptimization"`
-	Generate                      *RemoteStateGenerate   `mapstructure:"generate" json:"Generate"`
-	Config                        map[string]interface{} `mapstructure:"config" json:"Config"`
+	Backend                       string                 `json:"Backend"                       mapstructure:"backend"`
+	DisableInit                   bool                   `json:"DisableInit"                   mapstructure:"disable_init"`
+	DisableDependencyOptimization bool                   `json:"DisableDependencyOptimization" mapstructure:"disable_dependency_optimization"`
+	Generate                      *RemoteStateGenerate   `json:"Generate"                      mapstructure:"generate"`
+	Config                        map[string]interface{} `json:"Config"                        mapstructure:"config"`
 }
 
-// map to store mutexes for each state bucket action
+// map to store mutexes for each state bucket action.
 type stateAccess struct {
 	mapAccess   sync.Mutex
 	bucketLocks map[string]*sync.Mutex
@@ -43,9 +43,9 @@ func (remoteState *RemoteState) String() string {
 	return fmt.Sprintf("RemoteState{Backend = %v, DisableInit = %v, DisableDependencyOptimization = %v, Generate = %v, Config = %v}", remoteState.Backend, remoteState.DisableInit, remoteState.DisableDependencyOptimization, remoteState.Generate, remoteState.Config)
 }
 
-// Code gen configuration for Terraform remote state
+// Code gen configuration for Terraform remote state.
 type RemoteStateGenerate struct {
-	Path     string `cty:"path" mapstructure:"path"`
+	Path     string `cty:"path"      mapstructure:"path"`
 	IfExists string `cty:"if_exists" mapstructure:"if_exists"`
 }
 
@@ -61,18 +61,18 @@ type RemoteStateInitializer interface {
 	GetTerraformInitArgs(config map[string]interface{}) map[string]interface{}
 }
 
-// TODO: initialization actions for other remote state backends can be added here
+// TODO: initialization actions for other remote state backends can be added here.
 var remoteStateInitializers = map[string]RemoteStateInitializer{
 	"s3":  S3Initializer{},
 	"gcs": GCSInitializer{},
 }
 
-// Fill in any default configuration for remote state
+// Fill in any default configuration for remote state.
 func (remoteState *RemoteState) FillDefaults() {
 	// Nothing to do
 }
 
-// Validate that the remote state is configured correctly
+// Validate that the remote state is configured correctly.
 func (remoteState *RemoteState) Validate() error {
 	if remoteState.Backend == "" {
 		return errors.WithStackTrace(ErrRemoteBackendMissing)
@@ -161,7 +161,7 @@ func terraformStateConfigEqual(existingConfig map[string]interface{}, newConfig 
 	return reflect.DeepEqual(existingConfigNonNil, newConfig)
 }
 
-// Copy the non-nil values from the existingMap to a new map
+// Copy the non-nil values from the existingMap to a new map.
 func copyExistingNotNullValues(existingMap map[string]interface{}, newMap map[string]interface{}) map[string]interface{} {
 	existingConfigNonNil := map[string]interface{}{}
 	for existingKey, existingValue := range existingMap {
@@ -180,7 +180,7 @@ func copyExistingNotNullValues(existingMap map[string]interface{}, newMap map[st
 	return existingConfigNonNil
 }
 
-// Convert the RemoteState config into the format used by the terraform init command
+// Convert the RemoteState config into the format used by the terraform init command.
 func (remoteState RemoteState) ToTerraformInitArgs() []string {
 	config := remoteState.Config
 	if remoteState.DisableInit {
@@ -241,7 +241,7 @@ func (remoteState *RemoteState) GenerateTerraformCode(terragruntOptions *options
 	return codegen.WriteToFile(terragruntOptions, terragruntOptions.WorkingDir, codegenConfig)
 }
 
-// Custom errors
+// Custom errors.
 var (
 	ErrRemoteBackendMissing             = goErrors.New("the remote_state.backend field cannot be empty")
 	ErrGenerateCalledWithNoGenerateAttr = goErrors.New("generate code routine called when no generate attribute is configured")

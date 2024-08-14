@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/go-getter"
 )
 
-// manifest for files copied from the URL specified in the terraform { source = "<URL>" } config
+// manifest for files copied from the URL specified in the terraform { source = "<URL>" } config.
 const SourceManifestName = ".terragrunt-source-manifest"
 
 // A custom getter.Getter implementation that uses file copying instead of symlinks. Symlinks are
@@ -24,7 +24,7 @@ type FileCopyGetter struct {
 }
 
 // The original FileGetter does NOT know how to do folder copying (it only does symlinks), so we provide a copy
-// implementation here
+// implementation here.
 func (g *FileCopyGetter) Get(dst string, u *url.URL) error {
 	path := u.Path
 	if u.RawPath != "" {
@@ -42,7 +42,7 @@ func (g *FileCopyGetter) Get(dst string, u *url.URL) error {
 }
 
 // GetFile The original FileGetter already knows how to do file copying so long as we set the Copy flag to true, so just
-// delegate to it
+// delegate to it.
 func (g *FileCopyGetter) GetFile(dst string, u *url.URL) error {
 	underlying := &getter.FileGetter{Copy: true}
 	if err := underlying.GetFile(dst, u); err != nil {

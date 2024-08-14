@@ -119,7 +119,6 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 
 			assert.Equal(t, testCase.expectedResult, actualResult)
 		})
-
 	}
 }
 
@@ -195,7 +194,6 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 			} else {
 				require.NoError(t, actualErr)
 			}
-
 		})
 	}
 }

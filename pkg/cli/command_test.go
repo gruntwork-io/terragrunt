@@ -189,7 +189,6 @@ func TestCommandRun(t *testing.T) {
 			} else {
 				require.NoError(t, err, testCase)
 			}
-
 		})
 	}
 }

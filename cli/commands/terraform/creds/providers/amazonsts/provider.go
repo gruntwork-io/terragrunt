@@ -23,12 +23,12 @@ func NewProvider(opts *options.TerragruntOptions) providers.Provider {
 	}
 }
 
-// Name implements providers.Name
+// Name implements providers.Name.
 func (provider *Provider) Name() string {
 	return "API calls to Amazon STS"
 }
 
-// GetCredentials implements providers.GetCredentials
+// GetCredentials implements providers.GetCredentials.
 func (provider *Provider) GetCredentials(ctx context.Context) (*providers.Credentials, error) {
 	iamRoleOpts := provider.terragruntOptions.IAMRoleOptions
 	if iamRoleOpts.RoleARN == "" {

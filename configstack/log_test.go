@@ -47,5 +47,4 @@ func TestLogReductionHook(t *testing.T) {
 	// check that both entries got logged with error level
 	assert.Contains(t, firstLogEntry, "level=error")
 	assert.Contains(t, secondLogEntry, "level=error")
-
 }

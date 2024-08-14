@@ -257,7 +257,7 @@ func generateConfig(terragruntConfig *config.TerragruntConfig, updatedTerragrunt
 // This will forward all the args and extra_arguments directly to Terraform.
 
 // This function takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
-// and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
+// and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded.
 func runTerragruntWithConfig(ctx context.Context, originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, target *Target) error {
 	// Add extra_arguments to the command
 	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExtraArgs != nil && len(terragruntConfig.Terraform.ExtraArgs) > 0 {
@@ -322,7 +322,7 @@ func runTerragruntWithConfig(ctx context.Context, originalTerragruntOptions *opt
 	})
 }
 
-// confirmActionWithDependentModules - Show warning with list of dependent modules from current module before destroy
+// confirmActionWithDependentModules - Show warning with list of dependent modules from current module before destroy.
 func confirmActionWithDependentModules(ctx context.Context, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) bool {
 	modules := configstack.FindWhereWorkingDirIsIncluded(ctx, terragruntOptions, terragruntConfig)
 	if len(modules) != 0 {
@@ -439,7 +439,7 @@ func RunTerraformWithRetry(ctx context.Context, terragruntOptions *options.Terra
 	return errors.WithStackTrace(MaxRetriesExceeded{terragruntOptions})
 }
 
-// IsRetryable checks whether there was an error and if the output matches any of the configured RetryableErrors
+// IsRetryable checks whether there was an error and if the output matches any of the configured RetryableErrors.
 func IsRetryable(opts *options.TerragruntOptions, out *util.CmdOutput) bool {
 	if !opts.AutoRetry {
 		return false
@@ -449,7 +449,7 @@ func IsRetryable(opts *options.TerragruntOptions, out *util.CmdOutput) bool {
 }
 
 // Prepare for running 'terraform init' by initializing remote state storage and adding backend configuration arguments
-// to the TerraformCliArgs
+// to the TerraformCliArgs.
 func prepareInitCommand(ctx context.Context, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	if terragruntConfig.RemoteState != nil {
 		// Initialize the remote state if necessary  (e.g. create S3 bucket and DynamoDB table)
@@ -490,7 +490,7 @@ func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptio
 	return nil
 }
 
-// Check that the specified Terraform code defines a backend { ... } block and return an error if doesn't
+// Check that the specified Terraform code defines a backend { ... } block and return an error if doesn't.
 func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptions, backendType string) error {
 	terraformBackendRegexp, err := regexp.Compile(fmt.Sprintf(`backend[[:blank:]]+"%s"`, backendType))
 	if err != nil {
@@ -523,7 +523,7 @@ func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptio
 
 // Prepare for running any command other than 'terraform init' by running 'terraform init' if necessary
 // This function takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
-// and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
+// and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded.
 func prepareNonInitCommand(ctx context.Context, originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	needsInit, err := needsInit(terragruntOptions, terragruntConfig)
 	if err != nil {
@@ -538,7 +538,7 @@ func prepareNonInitCommand(ctx context.Context, originalTerragruntOptions *optio
 	return nil
 }
 
-// Determines if 'terraform init' needs to be executed
+// Determines if 'terraform init' needs to be executed.
 func needsInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (bool, error) {
 	if util.ListContainsElement(TerraformCommandsThatDoNotNeedInit, util.FirstArg(terragruntOptions.TerraformCliArgs)) {
 		return false, nil
@@ -559,7 +559,7 @@ func needsInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *c
 	return remoteStateNeedsInit(terragruntConfig.RemoteState, terragruntOptions)
 }
 
-// Returns true if we need to run `terraform init` to download providers
+// Returns true if we need to run `terraform init` to download providers.
 func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 	pluginsPath := util.JoinPath(terragruntOptions.DataDir(), "plugins")
 	providersPath := util.JoinPath(terragruntOptions.DataDir(), "providers")
@@ -580,7 +580,7 @@ func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 // This method will return an error and NOT run terraform init if the user has disabled Auto-Init.
 //
 // This method takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
-// and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
+// and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded.
 func runTerraformInit(ctx context.Context, originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	// Prevent Auto-Init if the user has disabled it
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) != terraform.CommandNameInit && !terragruntOptions.AutoInit {
@@ -644,7 +644,6 @@ func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error)
 // If the user entered a Terraform command that uses state (e.g. plan, apply), make sure remote state is configured
 // before running the command.
 func remoteStateNeedsInit(remoteState *remote.RemoteState, terragruntOptions *options.TerragruntOptions) (bool, error) {
-
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
 	if remoteState != nil && util.ListContainsElement(TerraformCommandsThatUseState, util.FirstArg(terragruntOptions.TerraformCliArgs)) {
@@ -655,7 +654,7 @@ func remoteStateNeedsInit(remoteState *remote.RemoteState, terragruntOptions *op
 
 // runAll runs the provided terraform command against all the modules that are found in the directory tree.
 
-// checkProtectedModule checks if module is protected via the "prevent_destroy" flag
+// checkProtectedModule checks if module is protected via the "prevent_destroy" flag.
 func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	var destroyFlag = false
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) == terraform.CommandNameDestroy {

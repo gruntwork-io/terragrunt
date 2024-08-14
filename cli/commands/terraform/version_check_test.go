@@ -1,4 +1,3 @@
-//nolint:unparam
 package terraform_test
 
 import (
@@ -11,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Terraform Version Checking
+// Terraform Version Checking.
 func TestCheckTerraformVersionMeetsConstraintEqual(t *testing.T) {
 	t.Parallel()
 	testCheckTerraformVersionMeetsConstraint(t, "v0.9.3", ">= v0.9.3", true)
@@ -116,7 +115,7 @@ func testParseTerraformVersion(t *testing.T, versionString string, expectedVersi
 	}
 }
 
-// Terragrunt Version Checking
+// Terragrunt Version Checking.
 func TestCheckTerragruntVersionMeetsConstraintEqual(t *testing.T) {
 	t.Parallel()
 	testCheckTerragruntVersionMeetsConstraint(t, "v0.23.18", ">= v0.23.18", true)

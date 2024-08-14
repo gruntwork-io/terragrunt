@@ -36,7 +36,7 @@ func (handler *ProviderFilesystemMirrorHandler) String() string {
 	return "filesystem mirror handler "
 }
 
-// GetVersions implements ProviderHandler.GetVersions
+// GetVersions implements ProviderHandler.GetVersions.
 func (handler *ProviderFilesystemMirrorHandler) GetVersions(ctx echo.Context, provider *models.Provider) error {
 	var mirrorData struct {
 		Versions map[string]struct{} `json:"versions"`
@@ -64,7 +64,7 @@ func (handler *ProviderFilesystemMirrorHandler) GetVersions(ctx echo.Context, pr
 	return ctx.JSON(http.StatusOK, versions)
 }
 
-// GetPlatform implements ProviderHandler.GetPlatform
+// GetPlatform implements ProviderHandler.GetPlatform.
 func (handler *ProviderFilesystemMirrorHandler) GetPlatform(ctx echo.Context, provider *models.Provider, downloaderController router.Controller, cacheRequestID string) error {
 	if cacheRequestID == "" {
 		// it is impossible to return all platform properties from the filesystem mirror, return 404 status
@@ -102,7 +102,7 @@ func (handler *ProviderFilesystemMirrorHandler) GetPlatform(ctx echo.Context, pr
 	return ctx.NoContent(handler.cacheProviderHTTPStatusCode)
 }
 
-// Download implements ProviderHandler.Download
+// Download implements ProviderHandler.Download.
 func (handler *ProviderFilesystemMirrorHandler) Download(ctx echo.Context, provider *models.Provider) error {
 	return ctx.NoContent(http.StatusNotImplemented)
 }

@@ -21,13 +21,13 @@ const ContextKey ctxKey = iota
 const (
 	DefaultMaxFoldersToCheck = 100
 
-	// no limits on parallelism by default (limited by GOPROCS)
+	// no limits on parallelism by default (limited by GOPROCS).
 	DefaultParallelism = math.MaxInt32
 
-	// TofuDefaultPath command to run tofu
+	// TofuDefaultPath command to run tofu.
 	TofuDefaultPath = "tofu"
 
-	// TerraformDefaultPath just takes terraform from the path
+	// TerraformDefaultPath just takes terraform from the path.
 	TerraformDefaultPath = "terraform"
 
 	// Default to naming it `terragrunt_rendered.json` in the terragrunt config directory.
@@ -67,7 +67,7 @@ const (
 	UnknownImpl   TerraformImplementationType = "unknown"
 )
 
-// TerragruntOptions represents options that configure the behavior of the Terragrunt program
+// TerragruntOptions represents options that configure the behavior of the Terragrunt program.
 type TerragruntOptions struct {
 	// Location of the Terragrunt config file
 	TerragruntConfigPath string
@@ -319,17 +319,17 @@ type TerragruntOptions struct {
 	Engine *EngineOptions
 }
 
-// TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
+// TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests.
 type TerragruntOptionsFunc func(*TerragruntOptions)
 
-// WithRoleARN adds the provided role ARN to IamRoleOptions
+// WithRoleARN adds the provided role ARN to IamRoleOptions.
 func WithIAMRoleARN(arn string) TerragruntOptionsFunc {
 	return func(t *TerragruntOptions) {
 		t.IAMRoleOptions.RoleARN = arn
 	}
 }
 
-// WithIAMWebIdentityToken adds the provided WebIdentity token to IamRoleOptions
+// WithIAMWebIdentityToken adds the provided WebIdentity token to IamRoleOptions.
 func WithIAMWebIdentityToken(token string) TerragruntOptionsFunc {
 	return func(t *TerragruntOptions) {
 		t.IAMRoleOptions.WebIdentityToken = token
@@ -373,7 +373,7 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 	return out
 }
 
-// Create a new TerragruntOptions object with reasonable defaults for real usage
+// Create a new TerragruntOptions object with reasonable defaults for real usage.
 func NewTerragruntOptions() *TerragruntOptions {
 	return &TerragruntOptions{
 		TerraformPath:                  DefaultWrappedPath,
@@ -440,7 +440,7 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 	return opts, nil
 }
 
-// Get the default working and download directories for the given Terragrunt config path
+// Get the default working and download directories for the given Terragrunt config path.
 func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string, error) {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
@@ -457,7 +457,7 @@ func GetDefaultIAMAssumeRoleSessionName() string {
 	return fmt.Sprintf("terragrunt-%d", time.Now().UTC().UnixNano())
 }
 
-// Create a new TerragruntOptions object with reasonable defaults for test usage
+// Create a new TerragruntOptions object with reasonable defaults for test usage.
 func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...TerragruntOptionsFunc) (*TerragruntOptions, error) {
 	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
 	if err != nil {
@@ -570,7 +570,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 	}
 }
 
-// cloneEngineOptions creates a deep copy of the given EngineOptions
+// cloneEngineOptions creates a deep copy of the given EngineOptions.
 func cloneEngineOptions(opts *EngineOptions) *EngineOptions {
 	if opts == nil {
 		return nil
@@ -583,12 +583,12 @@ func cloneEngineOptions(opts *EngineOptions) *EngineOptions {
 	}
 }
 
-// Check if argument is planfile TODO check file format
+// Check if argument is planfile TODO check file format.
 func checkIfPlanFile(arg string) bool {
 	return util.IsFile(arg) && filepath.Ext(arg) == ".tfplan"
 }
 
-// Extract planfile from arguments list
+// Extract planfile from arguments list.
 func extractPlanFile(argsToInsert []string) (*string, []string) {
 	planFile := ""
 	var filteredArgs []string
@@ -608,7 +608,7 @@ func extractPlanFile(argsToInsert []string) (*string, []string) {
 	return nil, filteredArgs
 }
 
-// Inserts the given argsToInsert after the terraform command argument, but before the remaining args
+// Inserts the given argsToInsert after the terraform command argument, but before the remaining args.
 func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	planFile, restArgs := extractPlanFile(argsToInsert)
 
@@ -634,12 +634,12 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	opts.TerraformCliArgs = args
 }
 
-// Appends the given argsToAppend after the current TerraformCliArgs
+// Appends the given argsToAppend after the current TerraformCliArgs.
 func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
 	opts.TerraformCliArgs = append(opts.TerraformCliArgs, argsToAppend...)
 }
 
-// TerraformDataDir returns Terraform data directory (.terraform by default, overridden by $TF_DATA_DIR envvar)
+// TerraformDataDir returns Terraform data directory (.terraform by default, overridden by $TF_DATA_DIR envvar).
 func (opts *TerragruntOptions) TerraformDataDir() string {
 	if tfDataDir, ok := opts.Env["TF_DATA_DIR"]; ok {
 		return tfDataDir
@@ -657,7 +657,7 @@ func (opts *TerragruntOptions) DataDir() string {
 	return util.JoinPath(opts.WorkingDir, tfDataDir)
 }
 
-// identifyDefaultWrappedExecutable - return default path used for wrapped executable
+// identifyDefaultWrappedExecutable - return default path used for wrapped executable.
 func identifyDefaultWrappedExecutable() string {
 	if util.IsCommandExecutable(TofuDefaultPath, "-version") {
 		return TofuDefaultPath
@@ -666,7 +666,7 @@ func identifyDefaultWrappedExecutable() string {
 	return TerraformDefaultPath
 }
 
-// EngineOptions Options for the Terragrunt engine
+// EngineOptions Options for the Terragrunt engine.
 type EngineOptions struct {
 	Source  string
 	Version string

@@ -11,7 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/terraform"
 )
 
-// The following commands are DEPRECATED
+// The following commands are DEPRECATED.
 const (
 	CommandNameSpinUp      = "spin-up"
 	CommandNameTearDown    = "tear-down"

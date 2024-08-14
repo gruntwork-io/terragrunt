@@ -233,7 +233,6 @@ func TestFileManifest(t *testing.T) {
 	for _, file := range testfiles {
 		assert.False(t, util.FileExists(file))
 	}
-
 }
 
 func TestSplitPath(t *testing.T) {

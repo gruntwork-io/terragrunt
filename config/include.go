@@ -23,7 +23,7 @@ const bareIncludeKey = ""
 
 var fieldsCopyLocks = util.NewKeyLocks()
 
-// Parse the config of the given include, if one is specified
+// Parse the config of the given include, if one is specified.
 func parseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
 		return nil, errors.WithStackTrace(IncludedConfigMissingPathError(ctx.TerragruntOptions.TerragruntConfigPath))
@@ -464,7 +464,7 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 	return nil
 }
 
-// fetchDependencyPaths - return from configuration map with dependency_name: path
+// fetchDependencyPaths - return from configuration map with dependency_name: path.
 func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 	var m = make(map[string]string)
 	if config == nil {
@@ -530,7 +530,6 @@ func deepMergeDependencyBlocks(targetDependencies []Dependency, sourceDependenci
 			dependencyBlocks[dep.Name] = dep
 			keys = append(keys, dep.Name)
 		}
-
 	}
 	// Now convert the map to list and set target
 	combinedDeps := []Dependency{}
@@ -598,7 +597,7 @@ func deepMergeInputs(childInputs map[string]interface{}, parentInputs map[string
 // then the child's hook will be selected (and the parent's ignored)
 // If a child's hook has a different name from all of the parent's hooks,
 // then the child's hook will be added to the end of the parent's.
-// Therefore, the child with the same name overrides the parent
+// Therefore, the child with the same name overrides the parent.
 func mergeHooks(terragruntOptions *options.TerragruntOptions, childHooks []Hook, parentHooks *[]Hook) {
 	result := *parentHooks
 	for _, child := range childHooks {
@@ -619,7 +618,7 @@ func mergeHooks(terragruntOptions *options.TerragruntOptions, childHooks []Hook,
 
 // Merge the error hooks (error_hook).
 // Does the same thing as mergeHooks but for error hooks
-// TODO: Figure out more DRY way to do this
+// TODO: Figure out more DRY way to do this.
 func mergeErrorHooks(terragruntOptions *options.TerragruntOptions, childHooks []ErrorHook, parentHooks *[]ErrorHook) {
 	result := *parentHooks
 	for _, child := range childHooks {
@@ -827,7 +826,7 @@ func updateSingleBareIncludeInParsedJSON(parsed map[string]interface{}, newVal i
 // block if:
 // - It is an object
 // - Has the 'path' attribute
-// - The 'path' attribute is a string
+// - The 'path' attribute is a string.
 func jsonIsIncludeBlock(jsonData interface{}) bool {
 	typed, isMap := jsonData.(map[string]interface{})
 	if isMap {
@@ -842,7 +841,6 @@ func jsonIsIncludeBlock(jsonData interface{}) bool {
 
 // CopyFieldsMetadata Copy fields metadata between TerragruntConfig instances.
 func CopyFieldsMetadata(sourceConfig *TerragruntConfig, targetConfig *TerragruntConfig) {
-
 	fieldsCopyLocks.Lock(targetConfig.DownloadDir)
 	defer fieldsCopyLocks.Unlock(targetConfig.DownloadDir)
 

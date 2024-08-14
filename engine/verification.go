@@ -13,7 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-// verifyFile verifies the checksums file and the signature file of the passed file
+// verifyFile verifies the checksums file and the signature file of the passed file.
 func verifyFile(checkedFile, checksumsFile, signatureFile string) error {
 	checksums, err := os.ReadFile(checksumsFile)
 	if err != nil {

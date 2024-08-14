@@ -41,7 +41,6 @@ var parentTraceFlags *trace.TraceFlags
 
 // InitTelemetry - initialize the telemetry provider.
 func InitTelemetry(ctx context.Context, opts *TelemetryOptions) error {
-
 	if err := configureTraceCollection(ctx, opts); err != nil {
 		return errors.WithStack(err)
 	}
@@ -111,7 +110,6 @@ func (to *TelemetryOptions) GetValue(key, deprecated string) string {
 		// print deprecation warning
 		_, _ = fmt.Fprintf(to.ErrWriter, "WARNING: %s is deprecated, use %s instead\n", deprecated, key)
 		return value
-
 	}
 
 	return ""

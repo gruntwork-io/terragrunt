@@ -108,7 +108,7 @@ func assertOutputs(
 	}
 }
 
-// A goroutine-safe bytes.Buffer
+// A goroutine-safe bytes.Buffer.
 type BufferWithLocking struct {
 	buffer bytes.Buffer
 	mutex  sync.Mutex

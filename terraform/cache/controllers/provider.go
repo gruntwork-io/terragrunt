@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	// name using for the discovery
+	// name using for the discovery.
 	providerName = "providers.v1"
-	// URL path to this controller
+	// URL path to this controller.
 	providerPath = "/providers"
 )
 
@@ -27,12 +27,12 @@ type ProviderController struct {
 	ProviderHandlers []handlers.ProviderHandler
 }
 
-// Endpoints implements controllers.Endpointer.Endpoints
+// Endpoints implements controllers.Endpointer.Endpoints.
 func (controller *ProviderController) Endpoints() map[string]any {
 	return map[string]any{providerName: controller.URL().Path}
 }
 
-// Register implements router.Controller.Register
+// Register implements router.Controller.Register.
 func (controller *ProviderController) Register(router *router.Router) {
 	controller.Router = router.Group(providerPath)
 

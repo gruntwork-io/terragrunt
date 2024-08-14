@@ -28,7 +28,7 @@ import (
 )
 
 // Represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or
-// "spin down" in a single command
+// "spin down" in a single command.
 type Stack struct {
 	parserOptions         []hclparse.Option
 	terragruntOptions     *options.TerragruntOptions
@@ -37,7 +37,7 @@ type Stack struct {
 }
 
 // Find all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
-// assemble them into a Stack object that can be applied or destroyed in a single command
+// assemble them into a Stack object that can be applied or destroyed in a single command.
 func FindStackInSubfolders(ctx context.Context, terragruntOptions *options.TerragruntOptions, opts ...Option) (*Stack, error) {
 	var terragruntConfigFiles []string
 
@@ -77,7 +77,7 @@ func (stack *Stack) WithOptions(opts ...Option) *Stack {
 	return stack
 }
 
-// Render this stack as a human-readable string
+// Render this stack as a human-readable string.
 func (stack *Stack) String() string {
 	modules := []string{}
 	for _, module := range stack.Modules {
@@ -131,7 +131,7 @@ func (stack *Stack) JsonModuleDeployOrder(terraformCommand string) (string, erro
 	return string(j), nil
 }
 
-// Graph creates a graphviz representation of the modules
+// Graph creates a graphviz representation of the modules.
 func (stack *Stack) Graph(terragruntOptions *options.TerragruntOptions) {
 	err := stack.Modules.WriteDot(terragruntOptions.Writer, terragruntOptions)
 	if err != nil {
@@ -272,12 +272,11 @@ func (stack *Stack) GetModuleRunGraph(terraformCommand string) ([]TerraformModul
 }
 
 // Find all the Terraform modules in the folders that contain the given Terragrunt config files and assemble those
-// modules into a Stack object that can be applied or destroyed in a single command
+// modules into a Stack object that can be applied or destroyed in a single command.
 func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, terragruntConfigPaths []string) error {
 	err := telemetry.Telemetry(ctx, stack.terragruntOptions, "create_stack_for_terragrunt_config_paths", map[string]interface{}{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
-
 		if len(terragruntConfigPaths) == 0 {
 			return errors.WithStackTrace(NoTerraformModulesFound)
 		}
@@ -651,7 +650,7 @@ func (stack *Stack) resolveExternalDependenciesForModules(ctx context.Context, m
 	return allExternalDependencies, nil
 }
 
-// ListStackDependentModules - build a map with each module and its dependent modules
+// ListStackDependentModules - build a map with each module and its dependent modules.
 func (stack *Stack) ListStackDependentModules() map[string][]string {
 	// build map of dependent modules
 	// module path -> list of dependent modules
@@ -659,7 +658,6 @@ func (stack *Stack) ListStackDependentModules() map[string][]string {
 
 	// build initial mapping of dependent modules
 	for _, module := range stack.Modules {
-
 		if len(module.Dependencies) != 0 {
 			for _, dep := range module.Dependencies {
 				dependentModules[dep.Path] = util.RemoveDuplicatesFromList(append(dependentModules[dep.Path], module.Path))

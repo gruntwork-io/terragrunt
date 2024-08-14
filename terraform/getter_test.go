@@ -153,5 +153,4 @@ func TestBuildRequestUrlRelativePath(t *testing.T) {
 	requestUrl, err := terraform.BuildRequestUrl("gruntwork.io", "/registry/modules/v1", "/tfr-project/terraform-aws-tfr", "6.6.6")
 	require.NoError(t, err)
 	assert.Equal(t, "https://gruntwork.io/registry/modules/v1/tfr-project/terraform-aws-tfr/6.6.6/download", requestUrl.String())
-
 }

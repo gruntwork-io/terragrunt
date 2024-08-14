@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	// The paths to the automatically generated local CLI configs
+	// The paths to the automatically generated local CLI configs.
 	localCLIFilename = ".terraformrc"
 
 	// The status returned when making a request to the caching provider.
@@ -345,7 +345,7 @@ func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile str
 // to
 // `providers lock -platform=linux_amd64`,
 // `providers lock -platform=darwin_arm64`,
-// `providers lock -platform=freebsd_amd64`
+// `providers lock -platform=freebsd_amd64`.
 func convertToMultipleCommandsByPlatforms(args []string) [][]string {
 	var (
 		filteredArgs = make([]string, 0, len(args))

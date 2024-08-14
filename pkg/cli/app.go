@@ -18,7 +18,7 @@ import (
 // `terragrunt run-all apply --terragrunt-log-level debug --auto-approve --terragrunt-non-interactive`
 // The `App` will runs the registered command `run-all`, define the registered flags `--terragrunt-log-level`,
 // `--terragrunt-non-interactive`, and define args `apply --auto-approve` which can be obtained from the App context,
-// ctx.Args().Slice()
+// ctx.Args().Slice().
 type App struct {
 	*cli.App
 	// List of commands to execute
@@ -93,7 +93,7 @@ func (app *App) Run(arguments []string) error {
 
 // RunContext is like Run except it takes a Context that will be
 // passed to its commands and sub-commands. Through this, you can
-// propagate timeouts and cancellation requests
+// propagate timeouts and cancellation requests.
 func (app *App) RunContext(ctx context.Context, arguments []string) (err error) {
 	// remove empty args
 	filteredArguments := []string{}

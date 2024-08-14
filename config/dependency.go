@@ -46,16 +46,16 @@ type dependencyOutputCache struct {
 }
 
 type Dependency struct {
-	Name                                string     `hcl:",label" cty:"name"`
-	Enabled                             *bool      `hcl:"enabled,attr" cty:"enabled"`
-	ConfigPath                          cty.Value  `hcl:"config_path,attr" cty:"config_path"`
-	SkipOutputs                         *bool      `hcl:"skip_outputs,attr" cty:"skip"`
-	MockOutputs                         *cty.Value `hcl:"mock_outputs,attr" cty:"mock_outputs"`
-	MockOutputsAllowedTerraformCommands *[]string  `hcl:"mock_outputs_allowed_terraform_commands,attr" cty:"mock_outputs_allowed_terraform_commands"`
+	Name                                string     `cty:"name"                                    hcl:",label"`
+	Enabled                             *bool      `cty:"enabled"                                 hcl:"enabled,attr"`
+	ConfigPath                          cty.Value  `cty:"config_path"                             hcl:"config_path,attr"`
+	SkipOutputs                         *bool      `cty:"skip"                                    hcl:"skip_outputs,attr"`
+	MockOutputs                         *cty.Value `cty:"mock_outputs"                            hcl:"mock_outputs,attr"`
+	MockOutputsAllowedTerraformCommands *[]string  `cty:"mock_outputs_allowed_terraform_commands" hcl:"mock_outputs_allowed_terraform_commands,attr"`
 
 	// MockOutputsMergeWithState is deprecated. Use MockOutputsMergeStrategyWithState
-	MockOutputsMergeWithState         *bool              `hcl:"mock_outputs_merge_with_state,attr" cty:"mock_outputs_merge_with_state"`
-	MockOutputsMergeStrategyWithState *MergeStrategyType `hcl:"mock_outputs_merge_strategy_with_state" cty:"mock_outputs_merge_strategy_with_state"`
+	MockOutputsMergeWithState         *bool              `cty:"mock_outputs_merge_with_state"          hcl:"mock_outputs_merge_with_state,attr"`
+	MockOutputsMergeStrategyWithState *MergeStrategyType `cty:"mock_outputs_merge_strategy_with_state" hcl:"mock_outputs_merge_strategy_with_state"`
 
 	// Used to store the rendered outputs for use when the config is imported or read with `read_terragrunt_config`
 	RenderedOutputs *cty.Value `cty:"outputs"`
@@ -123,12 +123,12 @@ func (dependencyConfig Dependency) getMockOutputsMergeStrategy() MergeStrategyTy
 	return *dependencyConfig.MockOutputsMergeStrategyWithState
 }
 
-// Given a dependency config, we should only attempt to get the outputs if SkipOutputs is nil or false
+// Given a dependency config, we should only attempt to get the outputs if SkipOutputs is nil or false.
 func (dependencyConfig Dependency) shouldGetOutputs(ctx *ParsingContext) bool {
 	return !ctx.TerragruntOptions.SkipOutput && dependencyConfig.isEnabled() && (dependencyConfig.SkipOutputs == nil || !*dependencyConfig.SkipOutputs)
 }
 
-// isEnabled returns true if the dependency is enabled
+// isEnabled returns true if the dependency is enabled.
 func (dependencyConfig Dependency) isEnabled() bool {
 	if dependencyConfig.Enabled == nil {
 		return true
@@ -136,12 +136,12 @@ func (dependencyConfig Dependency) isEnabled() bool {
 	return *dependencyConfig.Enabled
 }
 
-// isDisabled returns true if the dependency is disabled
+// isDisabled returns true if the dependency is disabled.
 func (dependencyConfig Dependency) isDisabled() bool {
 	return !dependencyConfig.isEnabled()
 }
 
-// Given a dependency config, we should only attempt to merge mocks outputs with the outputs if MockOutputsMergeWithState is not nil or true
+// Given a dependency config, we should only attempt to merge mocks outputs with the outputs if MockOutputsMergeWithState is not nil or true.
 func (dependencyConfig Dependency) shouldMergeMockOutputsWithState(ctx *ParsingContext) bool {
 	allowedCommand :=
 		dependencyConfig.MockOutputsAllowedTerraformCommands == nil ||
@@ -214,7 +214,7 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 	return dependencyBlocksToCtyValue(ctx, decodedDependency.Dependencies)
 }
 
-// decodeDependencies decode dependencies and fetch inputs
+// decodeDependencies decode dependencies and fetch inputs.
 func decodeDependencies(ctx *ParsingContext, decodedDependency TerragruntDependency) (*TerragruntDependency, error) {
 	updatedDependencies := TerragruntDependency{}
 	depCache := cache.ContextCache[*dependencyOutputCache](ctx, DependencyOutputCacheContextKey)
@@ -330,7 +330,7 @@ func checkForDependencyBlockCyclesUsingDFS(
 	return nil
 }
 
-// Given the config path, return the list of config paths that are specified as dependency blocks in the config
+// Given the config path, return the list of config paths that are specified as dependency blocks in the config.
 func getDependencyBlockConfigPathsByFilepath(ctx *ParsingContext, configPath string) ([]string, error) {
 	// This will automatically parse everything needed to parse the dependency block configs, and load them as
 	// TerragruntConfig.Dependencies. Note that since we aren't passing in `DependenciesBlock` to the
@@ -435,7 +435,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, depe
 			mockMergeStrategy := dependencyConfig.getMockOutputsMergeStrategy()
 
 			// TODO: Make this exhaustive
-			switch mockMergeStrategy { // nolint:exhaustive
+			switch mockMergeStrategy { //nolint:exhaustive
 			case NoMerge:
 				return outputVal, nil
 			case ShallowMerge:
@@ -445,7 +445,6 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, depe
 			default:
 				return nil, errors.WithStackTrace(InvalidMergeStrategyTypeError(mockMergeStrategy))
 			}
-
 		} else if !isEmpty {
 			return outputVal, err
 		}
@@ -524,7 +523,7 @@ func getTerragruntOutput(ctx *ParsingContext, dependencyConfig Dependency) (*cty
 	return &convertedOutput, isEmpty, errors.WithStackTrace(err)
 }
 
-// isRenderJsonCommand This function will true if terragrunt was invoked with render-json
+// isRenderJsonCommand This function will true if terragrunt was invoked with render-json.
 func isRenderJsonCommand(ctx *ParsingContext) bool {
 	return util.ListContainsElement(ctx.TerragruntOptions.TerraformCliArgs, renderJsonCommand)
 }
@@ -591,7 +590,7 @@ func cloneTerragruntOptionsForDependency(ctx *ParsingContext, targetConfigPath s
 	return targetOptions
 }
 
-// Clone terragrunt options and update ctx for dependency block so that the outputs can be read correctly
+// Clone terragrunt options and update ctx for dependency block so that the outputs can be read correctly.
 func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, targetConfig string) (*options.TerragruntOptions, error) {
 	targetOptions := cloneTerragruntOptionsForDependency(ctx, targetConfig)
 	targetOptions.IncludeModulePrefix = false
@@ -696,7 +695,7 @@ func getTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, 
 	return getTerragruntOutputJsonFromRemoteState(ctx, targetConfig, remoteStateTGConfig.RemoteState, remoteStateTGConfig.GetIAMRoleOptions())
 }
 
-// canGetRemoteState returns true if the remote state block is not nil and dependency optimization is not disabled
+// canGetRemoteState returns true if the remote state block is not nil and dependency optimization is not disabled.
 func canGetRemoteState(remoteState *remote.RemoteState) bool {
 	return remoteState != nil && !remoteState.DisableDependencyOptimization
 }
@@ -854,10 +853,9 @@ func getTerragruntOutputJsonFromRemoteState(
 	ctx.TerragruntOptions.Logger.Debugf("Retrieved output from %s as json: %s", targetConfigPath, jsonString)
 
 	return jsonBytes, nil
-
 }
 
-// getTerragruntOutputJsonFromRemoteStateS3 pulls the output directly from an S3 bucket without calling Terraform
+// getTerragruntOutputJsonFromRemoteStateS3 pulls the output directly from an S3 bucket without calling Terraform.
 func getTerragruntOutputJsonFromRemoteStateS3(terragruntOptions *options.TerragruntOptions, remoteState *remote.RemoteState) ([]byte, error) {
 	terragruntOptions.Logger.Debugf("Fetching outputs directly from s3://%s/%s", remoteState.Config["bucket"], remoteState.Config["key"])
 

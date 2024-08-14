@@ -441,7 +441,6 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 
 		assert.Equal(t, testCase.expectedArgs, out)
 	}
-
 }
 
 var defaultLogLevel = util.GetDefaultLogLevel()

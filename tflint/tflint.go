@@ -130,7 +130,7 @@ func tflintArguments(arguments []string) ([]string, bool) {
 	return filteredArguments, externalTfLint
 }
 
-// configFilePathArgument return configuration file specified in --config argument
+// configFilePathArgument return configuration file specified in --config argument.
 func tflintConfigFilePath(arguments []string) string {
 	for i, arg := range arguments {
 		if arg == "--config" && len(arguments) > i+1 {
@@ -182,7 +182,6 @@ func tfArgumentsToTflintVar(terragruntOptions *options.TerragruntOptions, hook c
 		if arg.Arguments != nil {
 			// extract variables and var files from arguments
 			for _, value := range *arg.Arguments {
-
 				if strings.HasPrefix(value, argVarPrefix) {
 					varName := strings.TrimPrefix(value, argVarPrefix)
 					newVar := fmt.Sprintf("--var='%s'", varName)
@@ -216,7 +215,6 @@ func tfArgumentsToTflintVar(terragruntOptions *options.TerragruntOptions, hook c
 				}
 			}
 		}
-
 	}
 
 	return variables, nil

@@ -56,7 +56,6 @@ Traversals:
 				Traversal: traversalStr,
 			}
 			switch {
-
 			case val.HasMark(Sensitive):
 				if !includeSensitive {
 					continue Traversals

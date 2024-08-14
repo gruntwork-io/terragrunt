@@ -482,7 +482,6 @@ include {
 			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
 		}
 	}
-
 }
 
 func TestParseTerragruntConfigIncludeWithFindInParentFolders(t *testing.T) {
@@ -510,7 +509,6 @@ include {
 			assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
 		}
 	}
-
 }
 
 func TestParseTerragruntConfigIncludeOverrideRemote(t *testing.T) {
@@ -550,7 +548,6 @@ remote_state {
 			assert.Equal(t, "override", terragruntConfig.RemoteState.Config["region"])
 		}
 	}
-
 }
 
 func TestParseTerragruntConfigIncludeOverrideAll(t *testing.T) {

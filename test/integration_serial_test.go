@@ -336,7 +336,6 @@ func TestTerragruntDownloadDir(t *testing.T) {
 			assert.Equal(t, testCase.downloadDirReference, dat.DownloadDir)
 		})
 	}
-
 }
 
 func TestTerragruntCorrectlyMirrorsTerraformGCPAuth(t *testing.T) {
@@ -728,7 +727,6 @@ func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {
 			output := fmt.Sprintf("%s %s", stderr, stdout)
 			assert.NotContains(t, output, "invalid character")
 		})
-
 	}
 }
 
@@ -768,7 +766,6 @@ func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
 				assert.NotEmpty(t, plan)
 			}
 		})
-
 	}
 }
 
