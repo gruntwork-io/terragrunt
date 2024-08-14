@@ -1,9 +1,10 @@
-package shell
+package shell_test
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/hashicorp/go-multierror"
@@ -40,14 +41,17 @@ func TestExplainError(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
+		tt := tt
 
 		t.Run(tt.errorOutput, func(t *testing.T) {
+			t.Parallel()
+
 			err := multierror.Append(&multierror.Error{}, util.ProcessExecutionError{
-				Err:    fmt.Errorf(""),
+				Err:    errors.New(""),
 				StdOut: "",
 				Stderr: tt.errorOutput,
 			})
-			explanation := ExplainError(err)
+			explanation := shell.ExplainError(err)
 			assert.Contains(t, explanation, tt.explanation)
 
 		})

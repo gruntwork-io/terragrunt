@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
@@ -83,9 +84,14 @@ func (handler *ProviderFilesystemMirrorHandler) GetPlatform(ctx echo.Context, pr
 	}
 
 	if archive, ok := mirrorData.Archives[provider.Platform()]; ok {
+		// check if the URL contains http scheme, it may just be a filename and we need to build the URL
+		if !strings.Contains(archive.URL, "://") {
+			archive.URL = filepath.Join(handler.filesystemMirrorPath, provider.RegistryName, provider.Namespace, provider.Name, archive.URL)
+		}
+
 		provider.ResponseBody = &models.ResponseBody{
 			Filename:    filepath.Base(archive.URL),
-			DownloadURL: filepath.Join(handler.filesystemMirrorPath, provider.RegistryName, provider.Namespace, provider.Name, archive.URL),
+			DownloadURL: archive.URL,
 		}
 	} else {
 		return ctx.NoContent(http.StatusNotFound)

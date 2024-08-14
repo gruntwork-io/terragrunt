@@ -44,7 +44,7 @@ func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 
 	log.Debugf("Found module in directory %q", moduleDir)
 
-	moduleURL, err := repo.moduleURL(moduleDir)
+	moduleURL, err := repo.ModuleURL(moduleDir)
 	if err != nil {
 		return nil, err
 	}
@@ -114,4 +114,8 @@ func (module *Module) isValid() (bool, error) {
 	}
 
 	return false, nil
+}
+
+func (module *Module) ModuleDir() string {
+	return module.moduleDir
 }

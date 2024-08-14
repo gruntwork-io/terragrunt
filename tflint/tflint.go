@@ -43,7 +43,7 @@ func RunTflintWithOpts(ctx context.Context, opts *options.TerragruntOptions, con
 
 	opts.Logger.Debugf("Using .tflint.hcl file in %s", configFile)
 
-	variables, err := inputsToTflintVar(config.Inputs)
+	variables, err := InputsToTflintVar(config.Inputs)
 	if err != nil {
 		return err
 	}
@@ -140,8 +140,8 @@ func tflintConfigFilePath(arguments []string) string {
 	return ""
 }
 
-// inputsToTflintVar converts the inputs map to a list of tflint variables.
-func inputsToTflintVar(inputs map[string]interface{}) ([]string, error) {
+// InputsToTflintVar converts the inputs map to a list of tflint variables.
+func InputsToTflintVar(inputs map[string]interface{}) ([]string, error) {
 	variables := make([]string, 0, len(inputs))
 	for key, value := range inputs {
 		varValue, err := util.AsTerraformEnvVarJsonValue(value)
@@ -191,7 +191,7 @@ func tfArgumentsToTflintVar(terragruntOptions *options.TerragruntOptions, hook c
 
 				if strings.HasPrefix(value, argVarFilePrefix) {
 					varName := strings.TrimPrefix(value, argVarFilePrefix)
-					newVar := fmt.Sprintf("--var-file=%s", varName)
+					newVar := "--var-file=" + varName
 					variables = append(variables, newVar)
 				}
 			}
@@ -200,7 +200,7 @@ func tfArgumentsToTflintVar(terragruntOptions *options.TerragruntOptions, hook c
 		if arg.RequiredVarFiles != nil {
 			// extract required variables
 			for _, file := range *arg.RequiredVarFiles {
-				newVar := fmt.Sprintf("--var-file=%s", file)
+				newVar := "--var-file=" + file
 				variables = append(variables, newVar)
 			}
 		}
@@ -209,7 +209,7 @@ func tfArgumentsToTflintVar(terragruntOptions *options.TerragruntOptions, hook c
 			// extract optional variables
 			for _, file := range util.RemoveDuplicatesFromListKeepLast(*arg.OptionalVarFiles) {
 				if util.FileExists(file) {
-					newVar := fmt.Sprintf("--var-file=%s", file)
+					newVar := "--var-file=" + file
 					variables = append(variables, newVar)
 				} else {
 					terragruntOptions.Logger.Debugf("Skipping tflint var-file %s as it does not exist", file)
@@ -279,5 +279,5 @@ type ConfigNotFound struct {
 }
 
 func (err ConfigNotFound) Error() string {
-	return fmt.Sprintf("Could not find .tflint.hcl config file in the parent folders: %s", err.cause)
+	return "Could not find .tflint.hcl config file in the parent folders: " + err.cause
 }

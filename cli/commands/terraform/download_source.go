@@ -18,10 +18,10 @@ import (
 )
 
 // manifest for files copied from terragrunt module folder (i.e., the folder that contains the current terragrunt.hcl)
-const MODULE_MANIFEST_NAME = ".terragrunt-module-manifest"
+const ModuleManifestName = ".terragrunt-module-manifest"
 
 // file to indicate that init should be executed
-const moduleInitRequiredFile = ".terragrunt-init-required"
+const ModuleInitRequiredFile = ".terragrunt-init-required"
 
 const tfLintConfig = ".tflint.hcl"
 
@@ -38,7 +38,7 @@ func downloadTerraformSource(ctx context.Context, source string, terragruntOptio
 		return nil, err
 	}
 
-	if err := downloadTerraformSourceIfNecessary(ctx, terraformSource, terragruntOptions, terragruntConfig); err != nil {
+	if err := DownloadTerraformSourceIfNecessary(ctx, terraformSource, terragruntOptions, terragruntConfig); err != nil {
 		return nil, err
 	}
 
@@ -49,7 +49,7 @@ func downloadTerraformSource(ctx context.Context, source string, terragruntOptio
 	}
 	// Always include the .tflint.hcl file, if it exists
 	includeInCopy = append(includeInCopy, tfLintConfig)
-	if err := util.CopyFolderContents(terragruntOptions.WorkingDir, terraformSource.WorkingDir, MODULE_MANIFEST_NAME, includeInCopy); err != nil {
+	if err := util.CopyFolderContents(terragruntOptions.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, includeInCopy); err != nil {
 		return nil, err
 	}
 
@@ -62,7 +62,7 @@ func downloadTerraformSource(ctx context.Context, source string, terragruntOptio
 }
 
 // Download the specified TerraformSource if the latest code hasn't already been downloaded.
-func downloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	if terragruntOptions.SourceUpdate {
 		terragruntOptions.Logger.Debugf("The --%s flag is set, so deleting the temporary folder %s before downloading source.", commands.TerragruntSourceUpdateFlagName, terraformSource.DownloadDir)
 		if err := os.RemoveAll(terraformSource.DownloadDir); err != nil {
@@ -70,13 +70,13 @@ func downloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *te
 		}
 	}
 
-	alreadyLatest, err := alreadyHaveLatestCode(terraformSource, terragruntOptions)
+	alreadyLatest, err := AlreadyHaveLatestCode(terraformSource, terragruntOptions)
 	if err != nil {
 		return err
 	}
 
 	if alreadyLatest {
-		if err := validateWorkingDir(terraformSource); err != nil {
+		if err := ValidateWorkingDir(terraformSource); err != nil {
 			return err
 		}
 		terragruntOptions.Logger.Debugf("%s files in %s are up to date. Will not download again.", terragruntOptions.TerraformImplementation, terraformSource.WorkingDir)
@@ -110,7 +110,7 @@ func downloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *te
 		return err
 	}
 
-	if err := validateWorkingDir(terraformSource); err != nil {
+	if err := ValidateWorkingDir(terraformSource); err != nil {
 		return err
 	}
 
@@ -118,7 +118,7 @@ func downloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *te
 	// if source versions are different or calculating version failed, create file to run init
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
 	if previousVersion != currentVersion || err != nil {
-		initFile := util.JoinPath(terraformSource.WorkingDir, moduleInitRequiredFile)
+		initFile := util.JoinPath(terraformSource.WorkingDir, ModuleInitRequiredFile)
 		f, createErr := os.Create(initFile)
 		if createErr != nil {
 			return createErr
@@ -132,14 +132,14 @@ func downloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *te
 // Returns true if the specified TerraformSource, of the exact same version, has already been downloaded into the
 // DownloadFolder. This helps avoid downloading the same code multiple times. Note that if the TerraformSource points
 // to a local file path, a hash will be generated from the contents of the source dir. See the ProcessTerraformSource method for more info.
-func alreadyHaveLatestCode(terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions) (bool, error) {
+func AlreadyHaveLatestCode(terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	if !util.FileExists(terraformSource.DownloadDir) ||
 		!util.FileExists(terraformSource.WorkingDir) ||
 		!util.FileExists(terraformSource.VersionFile) {
 		return false, nil
 	}
 
-	tfFiles, err := filepath.Glob(fmt.Sprintf("%s/*.tf", terraformSource.WorkingDir))
+	tfFiles, err := filepath.Glob(terraformSource.WorkingDir + "/*.tf")
 	if err != nil {
 		return false, errors.WithStackTrace(err)
 	}
@@ -222,7 +222,7 @@ func downloadSource(terraformSource *terraform.Source, terragruntOptions *option
 }
 
 // Check if working terraformSource.WorkingDir exists and is directory
-func validateWorkingDir(terraformSource *terraform.Source) error {
+func ValidateWorkingDir(terraformSource *terraform.Source) error {
 	workingLocalDir := strings.ReplaceAll(terraformSource.WorkingDir, terraformSource.DownloadDir+filepath.FromSlash("/"), "")
 	if util.IsFile(terraformSource.WorkingDir) {
 		return WorkingDirNotDir{Dir: workingLocalDir, Source: terraformSource.CanonicalSourceURL.String()}

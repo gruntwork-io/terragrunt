@@ -1,7 +1,7 @@
 //go:build tflint
 // +build tflint
 
-package test
+package integration_test
 
 import (
 	"bytes"

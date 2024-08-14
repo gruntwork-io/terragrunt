@@ -1,7 +1,10 @@
 package util
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"encoding/gob"
+	goErrors "errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -23,6 +26,7 @@ const (
 	TerragruntCacheDir    = ".terragrunt-cache"
 	DefaultBoilerplateDir = ".boilerplate"
 	TfFileExtension       = ".tf"
+	ChecksumReadBlock     = 8192
 )
 
 // FileOrData will read the contents of the data of the given arg if it is a file, and otherwise return the contents by
@@ -64,7 +68,8 @@ func EnsureDirectory(path string) error {
 	if FileExists(path) && IsFile(path) {
 		return errors.WithStackTrace(PathIsNotDirectory{path})
 	} else if !FileExists(path) {
-		return errors.WithStackTrace(os.MkdirAll(path, 0700))
+		const ownerReadWriteExecutePerms = 0700
+		return errors.WithStackTrace(os.MkdirAll(path, ownerReadWriteExecutePerms))
 	}
 	return nil
 }
@@ -229,7 +234,7 @@ func listContainsElementWithPrefix(list []string, elementPrefix string) bool {
 func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 	includeExpandedGlobs := []string{}
 	absoluteExpandGlob, err := zglob.Glob(absoluteGlobPath)
-	if err != nil && err != os.ErrNotExist {
+	if err != nil && !goErrors.Is(err, os.ErrNotExist) {
 		// we ignore not exist error as we only care about the globs that exist in the src dir
 		return nil, errors.WithStackTrace(err)
 	}
@@ -244,7 +249,7 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 		includeExpandedGlobs = append(includeExpandedGlobs, relativeExpandGlobPath)
 
 		if IsDir(absoluteExpandGlobPath) {
-			dirExpandGlob, err := expandGlobPath(source, fmt.Sprintf("%s/*", absoluteExpandGlobPath))
+			dirExpandGlob, err := expandGlobPath(source, absoluteExpandGlobPath+"/*")
 			if err != nil {
 				return nil, errors.WithStackTrace(err)
 			}
@@ -282,10 +287,11 @@ func CopyFolderContents(source, destination, manifestFile string, includeInCopy 
 // the given filter function and only copy it if the filter returns true. Will create a specified manifest file
 // that contains paths of all copied files.
 func CopyFolderContentsWithFilter(source, destination, manifestFile string, filter func(absolutePath string) bool) error {
-	if err := os.MkdirAll(destination, 0700); err != nil {
+	const ownerReadWriteExecutePerms = 0700
+	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
 		return errors.WithStackTrace(err)
 	}
-	manifest := newFileManifest(destination, manifestFile)
+	manifest := NewFileManifest(destination, manifestFile)
 	if err := manifest.Clean(); err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -302,7 +308,7 @@ func CopyFolderContentsWithFilter(source, destination, manifestFile string, filt
 	// Why use filepath.Glob here? The original implementation used os.ReadDir, but that method calls lstat on all
 	// the files/folders in the directory, including files/folders you may want to explicitly skip. The next attempt
 	// was to use filepath.Walk, but that doesn't work because it ignores symlinks. So, now we turn to filepath.Glob.
-	files, err := filepath.Glob(fmt.Sprintf("%s/*", source))
+	files, err := filepath.Glob(source + "/*")
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -337,7 +343,8 @@ func CopyFolderContentsWithFilter(source, destination, manifestFile string, filt
 			}
 		} else {
 			parentDir := filepath.Dir(dest)
-			if err := os.MkdirAll(parentDir, 0700); err != nil {
+			const ownerReadWriteExecutePerms = 0700
+			if err := os.MkdirAll(parentDir, ownerReadWriteExecutePerms); err != nil {
 				return errors.WithStackTrace(err)
 			}
 			if err := CopyFile(file, dest); err != nil {
@@ -510,7 +517,7 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 		var manifestEntry fileManifestEntry
 		err = decoder.Decode(&manifestEntry)
 		if err != nil {
-			if err == io.EOF {
+			if goErrors.Is(err, io.EOF) {
 				break
 			} else {
 				return err
@@ -532,7 +539,8 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 
 // Create will create the manifest file
 func (manifest *fileManifest) Create() error {
-	fileHandle, err := os.OpenFile(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	const ownerWriteGlobalReadPerms = 0644
+	fileHandle, err := os.OpenFile(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, ownerWriteGlobalReadPerms)
 	if err != nil {
 		return err
 	}
@@ -557,7 +565,7 @@ func (manifest *fileManifest) Close() error {
 	return manifest.fileHandle.Close()
 }
 
-func newFileManifest(manifestFolder string, manifestFile string) *fileManifest {
+func NewFileManifest(manifestFolder string, manifestFile string) *fileManifest {
 	return &fileManifest{ManifestFolder: manifestFolder, ManifestFile: manifestFile}
 }
 
@@ -569,7 +577,7 @@ type PathIsNotDirectory struct {
 }
 
 func (err PathIsNotDirectory) Error() string {
-	return fmt.Sprintf("%s is not a directory", err.path)
+	return err.path + " is not a directory"
 }
 
 // PathIsNotFile is returned when the given path is unexpectedly not a file.
@@ -578,7 +586,7 @@ type PathIsNotFile struct {
 }
 
 func (err PathIsNotFile) Error() string {
-	return fmt.Sprintf("%s is not a file", err.path)
+	return err.path + " is not a file"
 }
 
 // Terraform 0.14 now generates a lock file when you run `terraform init`.
@@ -692,4 +700,48 @@ func GetExcludeDirsFromFile(baseDir, filename string) ([]string, error) {
 	}
 
 	return dirs, nil
+}
+
+// MatchSha256Checksum returns the SHA256 checksum for the given file and filename.
+func MatchSha256Checksum(file, filename []byte) []byte {
+	var checksum []byte
+	for _, line := range bytes.Split(file, []byte("\n")) {
+		parts := bytes.Fields(line)
+		if len(parts) > 1 && bytes.Equal(parts[1], filename) {
+			checksum = parts[0]
+			break
+		}
+	}
+	if checksum == nil {
+		return nil
+	}
+
+	return checksum
+}
+
+// FileSHA256 calculates the SHA256 hash of the file at the given path.
+func FileSHA256(filePath string) ([]byte, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+	defer file.Close() //nolint:errcheck
+
+	hash := sha256.New()
+	buffer := make([]byte, ChecksumReadBlock)
+	for {
+		n, err := file.Read(buffer)
+		if err != nil && err != io.EOF {
+			return nil, errors.WithStackTrace(err)
+		}
+		if n == 0 {
+			break
+		}
+
+		if _, err := hash.Write(buffer[:n]); err != nil {
+			return nil, errors.WithStackTrace(err)
+		}
+	}
+
+	return hash.Sum(nil), nil
 }

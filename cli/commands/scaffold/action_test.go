@@ -1,4 +1,4 @@
-package scaffold
+package scaffold_test
 
 import (
 	"context"
@@ -9,9 +9,11 @@ import (
 	boilerplateoptions "github.com/gruntwork-io/boilerplate/options"
 	"github.com/gruntwork-io/boilerplate/templates"
 	"github.com/gruntwork-io/boilerplate/variables"
+	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,10 +54,10 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	err = os.Mkdir(outputDir, 0755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(util.JoinPath(templateDir, "terragrunt.hcl"), []byte(defaultTerragruntTemplate), 0644)
+	err = os.WriteFile(util.JoinPath(templateDir, "terragrunt.hcl"), []byte(scaffold.DefaultTerragruntTemplate), 0644)
 	require.NoError(t, err)
 
-	err = os.WriteFile(util.JoinPath(templateDir, "boilerplate.yml"), []byte(defaultBoilerplateConfig), 0644)
+	err = os.WriteFile(util.JoinPath(templateDir, "boilerplate.yml"), []byte(scaffold.DefaultBoilerplateConfig), 0644)
 	require.NoError(t, err)
 
 	boilerplateOpts := &boilerplateoptions.BoilerplateOptions{
@@ -85,7 +87,7 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	cfg, err := config.ReadTerragruntConfig(context.Background(), opts, config.DefaultParserOptions(opts))
 	require.NoError(t, err)
 	require.NotEmpty(t, cfg.Inputs)
-	require.Equal(t, 1, len(cfg.Inputs))
+	assert.Len(t, cfg.Inputs, 1)
 	_, found := cfg.Inputs["required_var_1"]
 	require.True(t, found)
 	require.Equal(t, "git::https://github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.8", *cfg.Terraform.Source)

@@ -1,10 +1,11 @@
-package cli
+package cli_test
 
 import (
 	"context"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -12,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/terraform/cache"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
@@ -38,15 +40,14 @@ func createFakeProvider(t *testing.T, cacheDir, relativePath string) string {
 func TestProviderCache(t *testing.T) {
 	t.Parallel()
 
-	token := fmt.Sprintf("%s:%s", apiKeyAuth, uuid.New().String())
+	token := fmt.Sprintf("%s:%s", cli.API_KEY_AUTH, uuid.New().String())
 
-	providerCacheDir, err := os.MkdirTemp("", "*")
-	require.NoError(t, err)
-
-	pluginCacheDir, err := os.MkdirTemp("", "*")
-	require.NoError(t, err)
+	providerCacheDir := t.TempDir()
+	pluginCacheDir := t.TempDir()
 
 	opts := []cache.Option{cache.WithToken(token)}
+
+	registryPrefix := url.PathEscape("/v1/providers/")
 
 	testCases := []struct {
 		opts               []cache.Option
@@ -63,36 +64,36 @@ func TestProviderCache(t *testing.T) {
 		},
 		{
 			opts:               append(opts, cache.WithToken("")),
-			urlPath:            "/v1/providers/cache/registry.terraform.io/hashicorp/aws/versions",
+			urlPath:            "/v1/providers/cache/" + registryPrefix + "/registry.terraform.io/hashicorp/aws/versions",
 			expectedStatusCode: http.StatusUnauthorized,
 		},
 		{
 			opts:               opts,
-			urlPath:            "/v1/providers/cache/registry.terraform.io/hashicorp/aws/versions",
+			urlPath:            "/v1/providers/cache/" + registryPrefix + "/registry.terraform.io/hashicorp/aws/versions",
 			expectedStatusCode: http.StatusOK,
 			expectedBodyReg:    regexp.MustCompile(regexp.QuoteMeta(`"version":"5.36.0","protocols":["5.0"],"platforms"`)),
 		},
 		{
 			opts:               opts,
-			urlPath:            "/v1/providers/cache/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
+			urlPath:            "/v1/providers/cache/" + registryPrefix + "/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
 			expectedStatusCode: http.StatusLocked,
 			expectedCachePath:  "registry.terraform.io/hashicorp/aws/5.36.0/darwin_arm64/terraform-provider-aws_v5.36.0_x5",
 		},
 		{
 			opts:               opts,
-			urlPath:            "/v1/providers/cache/registry.terraform.io/hashicorp/template/2.2.0/download/linux/amd64",
+			urlPath:            "/v1/providers/cache/" + registryPrefix + "/registry.terraform.io/hashicorp/template/2.2.0/download/linux/amd64",
 			expectedStatusCode: http.StatusLocked,
 			expectedCachePath:  "registry.terraform.io/hashicorp/template/2.2.0/linux_amd64/terraform-provider-template_v2.2.0_x4",
 		},
 		{
 			opts:               opts,
-			urlPath:            fmt.Sprintf("/v1/providers/cache/registry.terraform.io/hashicorp/template/1234.5678.9/download/%s/%s", runtime.GOOS, runtime.GOARCH),
+			urlPath:            fmt.Sprintf("/v1/providers/cache/%s/registry.terraform.io/hashicorp/template/1234.5678.9/download/%s/%s", registryPrefix, runtime.GOOS, runtime.GOARCH),
 			expectedStatusCode: http.StatusLocked,
 			expectedCachePath:  createFakeProvider(t, pluginCacheDir, fmt.Sprintf("registry.terraform.io/hashicorp/template/1234.5678.9/%s_%s/terraform-provider-template_1234.5678.9_x5", runtime.GOOS, runtime.GOARCH)),
 		},
 		{
 			opts:               opts,
-			urlPath:            "/v1/providers//registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
+			urlPath:            "/v1/providers//" + registryPrefix + "/registry.terraform.io/hashicorp/aws/5.36.0/download/darwin/arm64",
 			expectedStatusCode: http.StatusOK,
 			expectedBodyReg:    regexp.MustCompile(`\{.*` + regexp.QuoteMeta(`"download_url":"http://127.0.0.1:`) + `\d+` + regexp.QuoteMeta(`/downloads/releases.hashicorp.com/terraform-provider-aws/5.36.0/terraform-provider-aws_5.36.0_darwin_arm64.zip"`) + `.*\}`),
 		},
@@ -110,8 +111,8 @@ func TestProviderCache(t *testing.T) {
 
 			errGroup, ctx := errgroup.WithContext(ctx)
 
-			providerService := services.NewProviderService(providerCacheDir, pluginCacheDir)
-			providerHandler := handlers.NewProviderDirectHandler(providerService, cacheProviderHTTPStatusCode, new(cliconfig.ProviderInstallationDirect))
+			providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil)
+			providerHandler := handlers.NewProviderDirectHandler(providerService, cli.CACHE_PROVIDER_HTTP_STATUS_CODE, new(cliconfig.ProviderInstallationDirect), nil)
 
 			testCase.opts = append(testCase.opts, cache.WithServices(providerService), cache.WithProviderHandlers(providerHandler))
 
@@ -155,5 +156,4 @@ func TestProviderCache(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
-
 }

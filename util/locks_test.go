@@ -1,16 +1,17 @@
-package util
+package util_test
 
 import (
 	"sync"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/require"
 )
 
 // TestKeyLocksBasic verifies basic locking and unlocking behavior.
 func TestKeyLocksBasic(t *testing.T) {
 	t.Parallel()
-	kl := NewKeyLocks()
+	kl := util.NewKeyLocks()
 	var counter int // Counter to track lock/unlock cycles
 
 	kl.Lock("key1")
@@ -24,7 +25,7 @@ func TestKeyLocksBasic(t *testing.T) {
 // TestKeyLocksConcurrentAccess ensures thread-safe access for multiple keys.
 func TestKeyLocksConcurrentAccess(t *testing.T) {
 	t.Parallel()
-	kl := NewKeyLocks()
+	kl := util.NewKeyLocks()
 	var counters [10]int
 	var wg sync.WaitGroup
 
@@ -49,7 +50,7 @@ func TestKeyLocksConcurrentAccess(t *testing.T) {
 // TestKeyLocksUnlockWithoutLock checks for safe behavior when unlocking without locking.
 func TestKeyLocksUnlockWithoutLock(t *testing.T) {
 	t.Parallel()
-	kl := NewKeyLocks()
+	kl := util.NewKeyLocks()
 	require.NotPanics(t, func() {
 		kl.Unlock("nonexistent_key")
 	}, "Unlocking without locking should not panic")
@@ -58,7 +59,7 @@ func TestKeyLocksUnlockWithoutLock(t *testing.T) {
 // TestKeyLocksLockUnlockStressWithSharedKey tests a shared key under high concurrent load.
 func TestKeyLocksLockUnlockStressWithSharedKey(t *testing.T) {
 	t.Parallel()
-	kl := NewKeyLocks()
+	kl := util.NewKeyLocks()
 	const numGoroutines = 100
 	const numOperations = 1000
 	var wg sync.WaitGroup

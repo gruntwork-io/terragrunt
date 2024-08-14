@@ -1,9 +1,11 @@
-package aws_helper
+package aws_helper_test
 
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const simplePolicy = `
@@ -52,10 +54,10 @@ const arraysPolicy = `
 func TestUnmarshalStringActionResource(t *testing.T) {
 	t.Parallel()
 
-	bucketPolicy, err := UnmarshalPolicy(simplePolicy)
-	assert.NoError(t, err)
+	bucketPolicy, err := aws_helper.UnmarshalPolicy(simplePolicy)
+	require.NoError(t, err)
 	assert.NotNil(t, bucketPolicy)
-	assert.Equal(t, 1, len(bucketPolicy.Statement))
+	assert.Len(t, bucketPolicy.Statement, 1)
 	assert.NotNil(t, bucketPolicy.Statement[0].Action)
 	assert.NotNil(t, bucketPolicy.Statement[0].Resource)
 
@@ -73,23 +75,23 @@ func TestUnmarshalStringActionResource(t *testing.T) {
 		assert.Fail(t, "Expected string type for Resource")
 	}
 
-	out, err := MarshalPolicy(bucketPolicy)
-	assert.NoError(t, err)
+	out, err := aws_helper.MarshalPolicy(bucketPolicy)
+	require.NoError(t, err)
 	assert.NotContains(t, string(out), "null")
 }
 
 func TestUnmarshalActionResourceList(t *testing.T) {
 	t.Parallel()
-	bucketPolicy, err := UnmarshalPolicy(arraysPolicy)
-	assert.NoError(t, err)
+	bucketPolicy, err := aws_helper.UnmarshalPolicy(arraysPolicy)
+	require.NoError(t, err)
 	assert.NotNil(t, bucketPolicy)
-	assert.Equal(t, 1, len(bucketPolicy.Statement))
+	assert.Len(t, bucketPolicy.Statement, 1)
 	assert.NotNil(t, bucketPolicy.Statement[0].Action)
 	assert.NotNil(t, bucketPolicy.Statement[0].Resource)
 
 	switch actions := bucketPolicy.Statement[0].Action.(type) {
 	case []interface{}:
-		assert.Equal(t, 11, len(actions))
+		assert.Len(t, actions, 11)
 		assert.Contains(t, actions, "s3:ListJobs")
 	default:
 		assert.Fail(t, "Expected []string type for Action")
@@ -97,13 +99,13 @@ func TestUnmarshalActionResourceList(t *testing.T) {
 
 	switch resource := bucketPolicy.Statement[0].Resource.(type) {
 	case []interface{}:
-		assert.Equal(t, 2, len(resource))
+		assert.Len(t, resource, 2)
 		assert.Contains(t, resource, "arn:aws:s3:*:666:job/*")
 	default:
 		assert.Fail(t, "Expected []string type for Resource")
 	}
 
-	out, err := MarshalPolicy(bucketPolicy)
-	assert.NoError(t, err)
+	out, err := aws_helper.MarshalPolicy(bucketPolicy)
+	require.NoError(t, err)
 	assert.NotContains(t, string(out), "null")
 }

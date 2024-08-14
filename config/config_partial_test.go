@@ -1,17 +1,19 @@
-package config
+package config_test
 
 import (
 	"context"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zclconf/go-cty/cty"
 )
 
 func TestPartialParseResolvesLocals(t *testing.T) {
 	t.Parallel()
 
-	config := `
+	cfg := `
 locals {
   app1 = "../app1"
 }
@@ -21,14 +23,14 @@ dependencies {
 }
 `
 
-	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(DependenciesBlock)
-	terragruntConfig, err := PartialParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(config.DependenciesBlock)
+	terragruntConfig, err := config.PartialParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
-	require.NotNil(t, terragruntConfig.Dependencies)
-	assert.Equal(t, len(terragruntConfig.Dependencies.Paths), 1)
-	assert.Equal(t, terragruntConfig.Dependencies.Paths[0], "../app1")
+	assert.NotNil(t, terragruntConfig.Dependencies)
+	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
+	assert.Equal(t, "../app1", terragruntConfig.Dependencies.Paths[0])
 	assert.Equal(t, map[string]interface{}{"app1": "../app1"}, terragruntConfig.Locals)
 
 	assert.False(t, terragruntConfig.Skip)
@@ -41,7 +43,7 @@ dependencies {
 func TestPartialParseDoesNotResolveIgnoredBlock(t *testing.T) {
 	t.Parallel()
 
-	config := `
+	cfg := `
 dependencies {
   # This function call will fail when attempting to decode
   paths = [file("i-am-a-file-that-does-not-exist")]
@@ -50,18 +52,18 @@ dependencies {
 prevent_destroy = false
 `
 
-	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t))
-	_, err := PartialParseConfigString(ctx.WithDecodeList(TerragruntFlags), DefaultTerragruntConfigPath, config, nil)
-	assert.NoError(t, err)
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
+	_, err := config.PartialParseConfigString(ctx.WithDecodeList(config.TerragruntFlags), config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
 
-	_, err = PartialParseConfigString(ctx.WithDecodeList(DependenciesBlock), DefaultTerragruntConfigPath, config, nil)
+	_, err = config.PartialParseConfigString(ctx.WithDecodeList(config.DependenciesBlock), config.DefaultTerragruntConfigPath, cfg, nil)
 	assert.Error(t, err)
 }
 
 func TestPartialParseMultipleItems(t *testing.T) {
 	t.Parallel()
 
-	config := `
+	cfg := `
 dependencies {
   paths = ["../app1"]
 }
@@ -70,14 +72,14 @@ prevent_destroy = true
 skip = true
 `
 
-	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(DependenciesBlock, TerragruntFlags)
-	terragruntConfig, err := PartialParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(config.DependenciesBlock, config.TerragruntFlags)
+	terragruntConfig, err := config.PartialParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
-	require.NotNil(t, terragruntConfig.Dependencies)
-	assert.Equal(t, len(terragruntConfig.Dependencies.Paths), 1)
-	assert.Equal(t, terragruntConfig.Dependencies.Paths[0], "../app1")
+	assert.NotNil(t, terragruntConfig.Dependencies)
+	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
+	assert.Equal(t, "../app1", terragruntConfig.Dependencies.Paths[0])
 
 	assert.True(t, terragruntConfig.Skip)
 	assert.True(t, *terragruntConfig.PreventDestroy)
@@ -91,8 +93,8 @@ skip = true
 func TestPartialParseOmittedItems(t *testing.T) {
 	t.Parallel()
 
-	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(DependenciesBlock, TerragruntFlags)
-	terragruntConfig, err := PartialParseConfigString(ctx, DefaultTerragruntConfigPath, "", nil)
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(config.DependenciesBlock, config.TerragruntFlags)
+	terragruntConfig, err := config.PartialParseConfigString(ctx, config.DefaultTerragruntConfigPath, "", nil)
 
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
@@ -108,23 +110,23 @@ func TestPartialParseOmittedItems(t *testing.T) {
 func TestPartialParseDoesNotResolveIgnoredBlockEvenInParent(t *testing.T) {
 	t.Parallel()
 
-	opts := mockOptionsForTestWithConfigPath(t, "../test/fixture-partial-parse/ignore-bad-block-in-parent/child/"+DefaultTerragruntConfigPath)
+	opts := mockOptionsForTestWithConfigPath(t, "../test/fixture-partial-parse/ignore-bad-block-in-parent/child/"+config.DefaultTerragruntConfigPath)
 
-	ctx := NewParsingContext(context.Background(), opts)
-	_, err := PartialParseConfigFile(ctx.WithDecodeList(TerragruntFlags), opts.TerragruntConfigPath, nil)
-	assert.NoError(t, err)
+	ctx := config.NewParsingContext(context.Background(), opts)
+	_, err := config.PartialParseConfigFile(ctx.WithDecodeList(config.TerragruntFlags), opts.TerragruntConfigPath, nil)
+	require.NoError(t, err)
 
-	_, err = PartialParseConfigFile(ctx.WithDecodeList(DependenciesBlock), opts.TerragruntConfigPath, nil)
+	_, err = config.PartialParseConfigFile(ctx.WithDecodeList(config.DependenciesBlock), opts.TerragruntConfigPath, nil)
 	assert.Error(t, err)
 }
 
 func TestPartialParseOnlyInheritsSelectedBlocksFlags(t *testing.T) {
 	t.Parallel()
 
-	opts := mockOptionsForTestWithConfigPath(t, "../test/fixture-partial-parse/partial-inheritance/child/"+DefaultTerragruntConfigPath)
+	opts := mockOptionsForTestWithConfigPath(t, "../test/fixture-partial-parse/partial-inheritance/child/"+config.DefaultTerragruntConfigPath)
 
-	ctx := NewParsingContext(context.Background(), opts).WithDecodeList(TerragruntFlags)
-	terragruntConfig, err := PartialParseConfigFile(ctx, opts.TerragruntConfigPath, nil)
+	ctx := config.NewParsingContext(context.Background(), opts).WithDecodeList(config.TerragruntFlags)
+	terragruntConfig, err := config.PartialParseConfigFile(ctx, opts.TerragruntConfigPath, nil)
 	require.NoError(t, err)
 
 	assert.True(t, terragruntConfig.IsPartial)
@@ -140,17 +142,17 @@ func TestPartialParseOnlyInheritsSelectedBlocksFlags(t *testing.T) {
 func TestPartialParseOnlyInheritsSelectedBlocksDependencies(t *testing.T) {
 	t.Parallel()
 
-	opts := mockOptionsForTestWithConfigPath(t, "../test/fixture-partial-parse/partial-inheritance/child/"+DefaultTerragruntConfigPath)
+	opts := mockOptionsForTestWithConfigPath(t, "../test/fixture-partial-parse/partial-inheritance/child/"+config.DefaultTerragruntConfigPath)
 
-	ctx := NewParsingContext(context.Background(), opts).WithDecodeList(DependenciesBlock)
-	terragruntConfig, err := PartialParseConfigFile(ctx, opts.TerragruntConfigPath, nil)
+	ctx := config.NewParsingContext(context.Background(), opts).WithDecodeList(config.DependenciesBlock)
+	terragruntConfig, err := config.PartialParseConfigFile(ctx, opts.TerragruntConfigPath, nil)
 	require.NoError(t, err)
 
 	assert.True(t, terragruntConfig.IsPartial)
 
-	require.NotNil(t, terragruntConfig.Dependencies)
-	assert.Equal(t, len(terragruntConfig.Dependencies.Paths), 1)
-	assert.Equal(t, terragruntConfig.Dependencies.Paths[0], "../app1")
+	assert.NotNil(t, terragruntConfig.Dependencies)
+	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
+	assert.Equal(t, "../app1", terragruntConfig.Dependencies.Paths[0])
 
 	assert.False(t, terragruntConfig.Skip)
 	assert.Nil(t, terragruntConfig.PreventDestroy)
@@ -163,27 +165,27 @@ func TestPartialParseOnlyInheritsSelectedBlocksDependencies(t *testing.T) {
 func TestPartialParseDependencyBlockSetsTerragruntDependencies(t *testing.T) {
 	t.Parallel()
 
-	config := `
+	cfg := `
 dependency "vpc" {
   config_path = "../app1"
 }
 `
 
-	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(DependencyBlock)
-	terragruntConfig, err := PartialParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(config.DependencyBlock)
+	terragruntConfig, err := config.PartialParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
-	require.NotNil(t, terragruntConfig.TerragruntDependencies)
-	assert.Equal(t, len(terragruntConfig.TerragruntDependencies), 1)
-	assert.Equal(t, terragruntConfig.TerragruntDependencies[0].Name, "vpc")
-	assert.Equal(t, terragruntConfig.TerragruntDependencies[0].ConfigPath, "../app1")
+	assert.NotNil(t, terragruntConfig.TerragruntDependencies)
+	assert.Len(t, terragruntConfig.TerragruntDependencies, 1)
+	assert.Equal(t, "vpc", terragruntConfig.TerragruntDependencies[0].Name)
+	assert.Equal(t, cty.StringVal("../app1"), terragruntConfig.TerragruntDependencies[0].ConfigPath)
 }
 
 func TestPartialParseMultipleDependencyBlockSetsTerragruntDependencies(t *testing.T) {
 	t.Parallel()
 
-	config := `
+	cfg := `
 dependency "vpc" {
   config_path = "../app1"
 }
@@ -193,23 +195,23 @@ dependency "sql" {
 }
 `
 
-	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(DependencyBlock)
-	terragruntConfig, err := PartialParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(config.DependencyBlock)
+	terragruntConfig, err := config.PartialParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
-	require.NotNil(t, terragruntConfig.TerragruntDependencies)
-	assert.Equal(t, len(terragruntConfig.TerragruntDependencies), 2)
-	assert.Equal(t, terragruntConfig.TerragruntDependencies[0].Name, "vpc")
-	assert.Equal(t, terragruntConfig.TerragruntDependencies[0].ConfigPath, "../app1")
-	assert.Equal(t, terragruntConfig.TerragruntDependencies[1].Name, "sql")
-	assert.Equal(t, terragruntConfig.TerragruntDependencies[1].ConfigPath, "../db1")
+	assert.NotNil(t, terragruntConfig.TerragruntDependencies)
+	assert.Len(t, terragruntConfig.TerragruntDependencies, 2)
+	assert.Equal(t, "vpc", terragruntConfig.TerragruntDependencies[0].Name)
+	assert.Equal(t, cty.StringVal("../app1"), terragruntConfig.TerragruntDependencies[0].ConfigPath)
+	assert.Equal(t, "sql", terragruntConfig.TerragruntDependencies[1].Name)
+	assert.Equal(t, cty.StringVal("../db1"), terragruntConfig.TerragruntDependencies[1].ConfigPath)
 }
 
 func TestPartialParseDependencyBlockSetsDependencies(t *testing.T) {
 	t.Parallel()
 
-	config := `
+	cfg := `
 dependency "vpc" {
   config_path = "../app1"
 }
@@ -219,20 +221,20 @@ dependency "sql" {
 }
 `
 
-	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(DependencyBlock)
-	terragruntConfig, err := PartialParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(config.DependencyBlock)
+	terragruntConfig, err := config.PartialParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
-	require.NotNil(t, terragruntConfig.Dependencies)
-	assert.Equal(t, len(terragruntConfig.Dependencies.Paths), 2)
-	assert.Equal(t, terragruntConfig.Dependencies.Paths, []string{"../app1", "../db1"})
+	assert.NotNil(t, terragruntConfig.Dependencies)
+	assert.Len(t, terragruntConfig.Dependencies.Paths, 2)
+	assert.Equal(t, []string{"../app1", "../db1"}, terragruntConfig.Dependencies.Paths)
 }
 
 func TestPartialParseDependencyBlockMergesDependencies(t *testing.T) {
 	t.Parallel()
 
-	config := `
+	cfg := `
 dependency "vpc" {
   config_path = "../app1"
 }
@@ -246,20 +248,20 @@ dependency "sql" {
 }
 `
 
-	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(DependenciesBlock, DependencyBlock)
-	terragruntConfig, err := PartialParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(config.DependenciesBlock, config.DependencyBlock)
+	terragruntConfig, err := config.PartialParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
-	require.NotNil(t, terragruntConfig.Dependencies)
-	assert.Equal(t, len(terragruntConfig.Dependencies.Paths), 3)
-	assert.Equal(t, terragruntConfig.Dependencies.Paths, []string{"../vpc", "../app1", "../db1"})
+	assert.NotNil(t, terragruntConfig.Dependencies)
+	assert.Len(t, terragruntConfig.Dependencies.Paths, 3)
+	assert.Equal(t, []string{"../vpc", "../app1", "../db1"}, terragruntConfig.Dependencies.Paths)
 }
 
 func TestPartialParseDependencyBlockMergesDependenciesOrdering(t *testing.T) {
 	t.Parallel()
 
-	config := `
+	cfg := `
 dependency "vpc" {
   config_path = "../app1"
 }
@@ -273,20 +275,20 @@ dependency "sql" {
 }
 `
 
-	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(DependencyBlock, DependenciesBlock)
-	terragruntConfig, err := PartialParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(config.DependencyBlock, config.DependenciesBlock)
+	terragruntConfig, err := config.PartialParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
-	require.NotNil(t, terragruntConfig.Dependencies)
-	assert.Equal(t, len(terragruntConfig.Dependencies.Paths), 3)
-	assert.Equal(t, terragruntConfig.Dependencies.Paths, []string{"../app1", "../db1", "../vpc"})
+	assert.NotNil(t, terragruntConfig.Dependencies)
+	assert.Len(t, terragruntConfig.Dependencies.Paths, 3)
+	assert.Equal(t, []string{"../app1", "../db1", "../vpc"}, terragruntConfig.Dependencies.Paths)
 }
 
 func TestPartialParseDependencyBlockMergesDependenciesDedup(t *testing.T) {
 	t.Parallel()
 
-	config := `
+	cfg := `
 dependency "vpc" {
   config_path = "../app1"
 }
@@ -300,20 +302,20 @@ dependency "sql" {
 }
 `
 
-	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(DependencyBlock, DependenciesBlock)
-	terragruntConfig, err := PartialParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(config.DependencyBlock, config.DependenciesBlock)
+	terragruntConfig, err := config.PartialParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
-	require.NotNil(t, terragruntConfig.Dependencies)
-	assert.Equal(t, len(terragruntConfig.Dependencies.Paths), 2)
-	assert.Equal(t, terragruntConfig.Dependencies.Paths, []string{"../app1", "../db1"})
+	assert.NotNil(t, terragruntConfig.Dependencies)
+	assert.Len(t, terragruntConfig.Dependencies.Paths, 2)
+	assert.Equal(t, []string{"../app1", "../db1"}, terragruntConfig.Dependencies.Paths)
 }
 
 func TestPartialParseOnlyParsesTerraformSource(t *testing.T) {
 	t.Parallel()
 
-	config := `
+	cfg := `
 dependency "vpc" {
   config_path = "../vpc"
 }
@@ -327,20 +329,20 @@ terraform {
 }
 `
 
-	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(TerraformSource)
-	terragruntConfig, err := PartialParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(config.TerraformSource)
+	terragruntConfig, err := config.PartialParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 	assert.True(t, terragruntConfig.IsPartial)
 
-	require.NotNil(t, terragruntConfig.Terraform)
-	require.NotNil(t, terragruntConfig.Terraform.Source)
-	assert.Equal(t, *terragruntConfig.Terraform.Source, "../../modules/app")
+	assert.NotNil(t, terragruntConfig.Terraform)
+	assert.NotNil(t, terragruntConfig.Terraform.Source)
+	assert.Equal(t, "../../modules/app", *terragruntConfig.Terraform.Source)
 }
 
 func TestOptionalDependenciesAreSkipped(t *testing.T) {
 	t.Parallel()
 
-	config := `
+	cfg := `
 dependency "vpc" {
   config_path = "../vpc"
 }
@@ -350,8 +352,8 @@ dependency "ec2" {
 }
 `
 
-	ctx := NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(DependencyBlock)
-	terragruntConfig, err := PartialParseConfigString(ctx, DefaultTerragruntConfigPath, config, nil)
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t)).WithDecodeList(config.DependencyBlock)
+	terragruntConfig, err := config.PartialParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
 	require.NoError(t, err)
 	assert.Len(t, terragruntConfig.Dependencies.Paths, 1)
 }

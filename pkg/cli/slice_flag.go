@@ -184,7 +184,7 @@ func (flag *sliceValue[T]) String() string {
 		return ""
 	}
 
-	var vals []string
+	var vals = make([]string, 0, len(*flag.values))
 
 	for _, val := range *flag.values {
 		vals = append(vals, flag.valueType.Clone(&val).String())

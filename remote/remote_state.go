@@ -3,6 +3,7 @@ package remote
 
 import (
 	"context"
+	goErrors "errors"
 	"fmt"
 	"reflect"
 	"sync"
@@ -13,14 +14,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
+const initializedRemoteStateCacheName = "initializedRemoteStateCache"
+
 // Configuration for Terraform remote state
 // NOTE: If any attributes are added here, be sure to add it to remoteStateAsCty in config/config_as_cty.go
 type RemoteState struct {
-	Backend                       string
-	DisableInit                   bool
-	DisableDependencyOptimization bool
-	Generate                      *RemoteStateGenerate
-	Config                        map[string]interface{}
+	Backend                       string                 `mapstructure:"backend" json:"Backend"`
+	DisableInit                   bool                   `mapstructure:"disable_init" json:"DisableInit"`
+	DisableDependencyOptimization bool                   `mapstructure:"disable_dependency_optimization" json:"DisableDependencyOptimization"`
+	Generate                      *RemoteStateGenerate   `mapstructure:"generate" json:"Generate"`
+	Config                        map[string]interface{} `mapstructure:"config" json:"Config"`
 }
 
 // map to store mutexes for each state bucket action
@@ -33,7 +36,7 @@ var stateAccessLock = newStateAccess()
 
 // initializedRemoteStateCache is a cache to store the result of a remote state initialization check.
 // This is used to avoid checking to see if remote state needs to be initialized multiple times.
-var initializedRemoteStateCache = cache.NewCache[bool]()
+var initializedRemoteStateCache = cache.NewCache[bool](initializedRemoteStateCacheName)
 
 func (remoteState *RemoteState) String() string {
 	return fmt.Sprintf("RemoteState{Backend = %v, DisableInit = %v, DisableDependencyOptimization = %v, Generate = %v, Config = %v}", remoteState.Backend, remoteState.DisableInit, remoteState.DisableDependencyOptimization, remoteState.Generate, remoteState.Config)
@@ -112,7 +115,7 @@ func (remoteState *RemoteState) NeedsInit(terragruntOptions *options.TerragruntO
 	if initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]; hasInitializer {
 		// Remote state initializer says initialization is necessary
 		return initializer.NeedsInitialization(remoteState, state.Backend, terragruntOptions)
-	} else if state.IsRemote() && remoteState.differsFrom(state.Backend, terragruntOptions) {
+	} else if state.IsRemote() && remoteState.DiffersFrom(state.Backend, terragruntOptions) {
 		// If there's no remote state initializer, then just compare the the config values
 		return true, nil
 	}
@@ -121,7 +124,7 @@ func (remoteState *RemoteState) NeedsInit(terragruntOptions *options.TerragruntO
 }
 
 // Returns true if this remote state is different than the given remote state that is currently being used by terraform.
-func (remoteState *RemoteState) differsFrom(existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) bool {
+func (remoteState *RemoteState) DiffersFrom(existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) bool {
 	if existingBackend.Type != remoteState.Backend {
 		terragruntOptions.Logger.Infof("Backend type has changed from %s to %s", existingBackend.Type, remoteState.Backend)
 		return true
@@ -188,7 +191,7 @@ func (remoteState RemoteState) ToTerraformInitArgs() []string {
 		config = initializer.GetTerraformInitArgs(remoteState.Config)
 	}
 
-	var backendConfigArgs []string = nil
+	var backendConfigArgs = make([]string, 0, len(config))
 
 	for key, value := range config {
 		arg := fmt.Sprintf("-backend-config=%s=%v", key, value)
@@ -233,8 +236,8 @@ func (remoteState *RemoteState) GenerateTerraformCode(terragruntOptions *options
 
 // Custom errors
 var (
-	ErrRemoteBackendMissing             = fmt.Errorf("the remote_state.backend field cannot be empty")
-	ErrGenerateCalledWithNoGenerateAttr = fmt.Errorf("generate code routine called when no generate attribute is configured")
+	ErrRemoteBackendMissing             = goErrors.New("the remote_state.backend field cannot be empty")
+	ErrGenerateCalledWithNoGenerateAttr = goErrors.New("generate code routine called when no generate attribute is configured")
 )
 
 type BucketCreationNotAllowed string

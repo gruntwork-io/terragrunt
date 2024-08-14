@@ -1,4 +1,4 @@
-package test
+package integration_test
 
 import (
 	"bytes"
@@ -21,8 +21,8 @@ func TestTerragruntSourceMap(t *testing.T) {
 	rootPath := filepath.Join(tmpEnvPath, fixtureSourceMapPath)
 	sourceMapArgs := fmt.Sprintf(
 		"--terragrunt-source-map %s --terragrunt-source-map %s",
-		fmt.Sprintf("git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=%s", tmpEnvPath),
-		fmt.Sprintf("git::ssh://git@github.com/gruntwork-io/another-dont-exist.git=%s", tmpEnvPath),
+		"git::ssh://git@github.com/gruntwork-io/i-dont-exist.git="+tmpEnvPath,
+		"git::ssh://git@github.com/gruntwork-io/another-dont-exist.git="+tmpEnvPath,
 	)
 
 	testCases := []struct {
@@ -77,7 +77,7 @@ func TestGetTerragruntSourceHCL(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_HCL)
 	terraformSource := "" // get_terragrunt_source_cli_flag() only returns the source when it is passed in via the CLI
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -85,13 +85,13 @@ func TestGetTerragruntSourceHCL(t *testing.T) {
 
 	require.NoError(
 		t,
-		runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), &stdout, &stderr),
+		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
 	)
 
 	outputs := map[string]TerraformOutput{}
 
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-	assert.Equal(t, fmt.Sprintf("HCL: %s", terraformSource), outputs["terragrunt_source"].Value)
+	assert.Equal(t, "HCL: "+terraformSource, outputs["terragrunt_source"].Value)
 }
 
 func TestGetTerragruntSourceCLI(t *testing.T) {
@@ -116,5 +116,5 @@ func TestGetTerragruntSourceCLI(t *testing.T) {
 	outputs := map[string]TerraformOutput{}
 
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-	assert.Equal(t, fmt.Sprintf("CLI: %s", terraformSource), outputs["terragrunt_source"].Value)
+	assert.Equal(t, "CLI: "+terraformSource, outputs["terragrunt_source"].Value)
 }

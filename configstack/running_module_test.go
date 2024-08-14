@@ -1,9 +1,10 @@
-package configstack
+package configstack_test
 
 import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 )
@@ -13,283 +14,283 @@ var mockOptions, _ = options.NewTerragruntOptionsForTest("running_module_test")
 func TestToRunningModulesNoModules(t *testing.T) {
 	t.Parallel()
 
-	testToRunningModules(t, TerraformModules{}, NormalOrder, runningModules{})
+	testToRunningModules(t, configstack.TerraformModules{}, configstack.NormalOrder, configstack.RunningModules{})
 }
 
 func TestToRunningModulesOneModuleNoDependencies(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleA := &runningModule{
+	runningModuleA := &configstack.RunningModule{
 		Module:         moduleA,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	modules := TerraformModules{moduleA}
-	expected := runningModules{"a": runningModuleA}
+	modules := configstack.TerraformModules{moduleA}
+	expected := configstack.RunningModules{"a": runningModuleA}
 
-	testToRunningModules(t, modules, NormalOrder, expected)
+	testToRunningModules(t, modules, configstack.NormalOrder, expected)
 }
 
 func TestToRunningModulesTwoModulesNoDependencies(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleA := &runningModule{
+	runningModuleA := &configstack.RunningModule{
 		Module:         moduleA,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleB := &runningModule{
+	runningModuleB := &configstack.RunningModule{
 		Module:         moduleB,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	modules := TerraformModules{moduleA, moduleB}
-	expected := runningModules{"a": runningModuleA, "b": runningModuleB}
+	modules := configstack.TerraformModules{moduleA, moduleB}
+	expected := configstack.RunningModules{"a": runningModuleA, "b": runningModuleB}
 
-	testToRunningModules(t, modules, NormalOrder, expected)
+	testToRunningModules(t, modules, configstack.NormalOrder, expected)
 }
 
 func TestToRunningModulesTwoModulesWithDependencies(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleA := &runningModule{
+	runningModuleA := &configstack.RunningModule{
 		Module:         moduleA,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleB := &runningModule{
+	runningModuleB := &configstack.RunningModule{
 		Module:         moduleB,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{"a": runningModuleA},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{"a": runningModuleA},
+		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	runningModuleA.NotifyWhenDone = []*runningModule{runningModuleB}
+	runningModuleA.NotifyWhenDone = []*configstack.RunningModule{runningModuleB}
 
-	modules := TerraformModules{moduleA, moduleB}
-	expected := runningModules{"a": runningModuleA, "b": runningModuleB}
+	modules := configstack.TerraformModules{moduleA, moduleB}
+	expected := configstack.RunningModules{"a": runningModuleA, "b": runningModuleB}
 
-	testToRunningModules(t, modules, NormalOrder, expected)
+	testToRunningModules(t, modules, configstack.NormalOrder, expected)
 }
 
 func TestToRunningModulesTwoModulesWithDependenciesReverseOrder(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleA := &runningModule{
+	runningModuleA := &configstack.RunningModule{
 		Module:         moduleA,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleB := &runningModule{
+	runningModuleB := &configstack.RunningModule{
 		Module:         moduleB,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{runningModuleA},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{runningModuleA},
 	}
 
-	runningModuleA.Dependencies = runningModules{"b": runningModuleB}
+	runningModuleA.Dependencies = configstack.RunningModules{"b": runningModuleB}
 
-	modules := TerraformModules{moduleA, moduleB}
-	expected := runningModules{"a": runningModuleA, "b": runningModuleB}
+	modules := configstack.TerraformModules{moduleA, moduleB}
+	expected := configstack.RunningModules{"a": runningModuleA, "b": runningModuleB}
 
-	testToRunningModules(t, modules, ReverseOrder, expected)
+	testToRunningModules(t, modules, configstack.ReverseOrder, expected)
 }
 
 func TestToRunningModulesTwoModulesWithDependenciesIgnoreOrder(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleA := &runningModule{
+	runningModuleA := &configstack.RunningModule{
 		Module:         moduleA,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleB := &runningModule{
+	runningModuleB := &configstack.RunningModule{
 		Module:         moduleB,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	modules := TerraformModules{moduleA, moduleB}
-	expected := runningModules{"a": runningModuleA, "b": runningModuleB}
+	modules := configstack.TerraformModules{moduleA, moduleB}
+	expected := configstack.RunningModules{"a": runningModuleA, "b": runningModuleB}
 
-	testToRunningModules(t, modules, IgnoreOrder, expected)
+	testToRunningModules(t, modules, configstack.IgnoreOrder, expected)
 }
 
 func TestToRunningModulesMultipleModulesWithAndWithoutDependencies(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleA := &runningModule{
+	runningModuleA := &configstack.RunningModule{
 		Module:         moduleA,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleB := &runningModule{
+	runningModuleB := &configstack.RunningModule{
 		Module:         moduleB,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{"a": runningModuleA},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{"a": runningModuleA},
+		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleC := &runningModule{
+	runningModuleC := &configstack.RunningModule{
 		Module:         moduleC,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{"a": runningModuleA},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{"a": runningModuleA},
+		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleD := &TerraformModule{
+	moduleD := &configstack.TerraformModule{
 		Path:              "d",
-		Dependencies:      TerraformModules{moduleC},
+		Dependencies:      configstack.TerraformModules{moduleC},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleD := &runningModule{
+	runningModuleD := &configstack.RunningModule{
 		Module:         moduleD,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{"c": runningModuleC},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{"c": runningModuleC},
+		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleE := &TerraformModule{
+	moduleE := &configstack.TerraformModule{
 		Path:              "e",
-		Dependencies:      TerraformModules{moduleA, moduleB, moduleC, moduleD},
+		Dependencies:      configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleE := &runningModule{
+	runningModuleE := &configstack.RunningModule{
 		Module: moduleE,
-		Status: Waiting,
+		Status: configstack.Waiting,
 		Err:    nil,
-		Dependencies: runningModules{
+		Dependencies: configstack.RunningModules{
 			"a": runningModuleA,
 			"b": runningModuleB,
 			"c": runningModuleC,
 			"d": runningModuleD,
 		},
-		NotifyWhenDone: []*runningModule{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	runningModuleA.NotifyWhenDone = []*runningModule{runningModuleB, runningModuleC, runningModuleE}
-	runningModuleB.NotifyWhenDone = []*runningModule{runningModuleE}
-	runningModuleC.NotifyWhenDone = []*runningModule{runningModuleD, runningModuleE}
-	runningModuleD.NotifyWhenDone = []*runningModule{runningModuleE}
+	runningModuleA.NotifyWhenDone = []*configstack.RunningModule{runningModuleB, runningModuleC, runningModuleE}
+	runningModuleB.NotifyWhenDone = []*configstack.RunningModule{runningModuleE}
+	runningModuleC.NotifyWhenDone = []*configstack.RunningModule{runningModuleD, runningModuleE}
+	runningModuleD.NotifyWhenDone = []*configstack.RunningModule{runningModuleE}
 
-	modules := TerraformModules{moduleA, moduleB, moduleC, moduleD, moduleE}
-	expected := runningModules{
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD, moduleE}
+	expected := configstack.RunningModules{
 		"a": runningModuleA,
 		"b": runningModuleB,
 		"c": runningModuleC,
@@ -297,94 +298,94 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependencies(t *testing.T)
 		"e": runningModuleE,
 	}
 
-	testToRunningModules(t, modules, NormalOrder, expected)
+	testToRunningModules(t, modules, configstack.NormalOrder, expected)
 }
 
 func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesReverseOrder(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleA := &runningModule{
+	runningModuleA := &configstack.RunningModule{
 		Module:         moduleA,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleB := &runningModule{
+	runningModuleB := &configstack.RunningModule{
 		Module:         moduleB,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{runningModuleA},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{runningModuleA},
 	}
 
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleC := &runningModule{
+	runningModuleC := &configstack.RunningModule{
 		Module:         moduleC,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{runningModuleA},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{runningModuleA},
 	}
 
-	moduleD := &TerraformModule{
+	moduleD := &configstack.TerraformModule{
 		Path:              "d",
-		Dependencies:      TerraformModules{moduleC},
+		Dependencies:      configstack.TerraformModules{moduleC},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleD := &runningModule{
+	runningModuleD := &configstack.RunningModule{
 		Module:         moduleD,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{runningModuleC},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{runningModuleC},
 	}
 
-	moduleE := &TerraformModule{
+	moduleE := &configstack.TerraformModule{
 		Path:              "e",
-		Dependencies:      TerraformModules{moduleA, moduleB, moduleC, moduleD},
+		Dependencies:      configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleE := &runningModule{
+	runningModuleE := &configstack.RunningModule{
 		Module:         moduleE,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{runningModuleA, runningModuleB, runningModuleC, runningModuleD},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{runningModuleA, runningModuleB, runningModuleC, runningModuleD},
 	}
 
-	runningModuleA.Dependencies = runningModules{"b": runningModuleB, "c": runningModuleC, "e": runningModuleE}
-	runningModuleB.Dependencies = runningModules{"e": runningModuleE}
-	runningModuleC.Dependencies = runningModules{"d": runningModuleD, "e": runningModuleE}
-	runningModuleD.Dependencies = runningModules{"e": runningModuleE}
+	runningModuleA.Dependencies = configstack.RunningModules{"b": runningModuleB, "c": runningModuleC, "e": runningModuleE}
+	runningModuleB.Dependencies = configstack.RunningModules{"e": runningModuleE}
+	runningModuleC.Dependencies = configstack.RunningModules{"d": runningModuleD, "e": runningModuleE}
+	runningModuleD.Dependencies = configstack.RunningModules{"e": runningModuleE}
 
-	modules := TerraformModules{moduleA, moduleB, moduleC, moduleD, moduleE}
-	expected := runningModules{
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD, moduleE}
+	expected := configstack.RunningModules{
 		"a": runningModuleA,
 		"b": runningModuleB,
 		"c": runningModuleC,
@@ -392,89 +393,89 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesReverseOrder(t
 		"e": runningModuleE,
 	}
 
-	testToRunningModules(t, modules, ReverseOrder, expected)
+	testToRunningModules(t, modules, configstack.ReverseOrder, expected)
 }
 
 func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesIgnoreOrder(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleA := &runningModule{
+	runningModuleA := &configstack.RunningModule{
 		Module:         moduleA,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleB := &runningModule{
+	runningModuleB := &configstack.RunningModule{
 		Module:         moduleB,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleC := &runningModule{
+	runningModuleC := &configstack.RunningModule{
 		Module:         moduleC,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleD := &TerraformModule{
+	moduleD := &configstack.TerraformModule{
 		Path:              "d",
-		Dependencies:      TerraformModules{moduleC},
+		Dependencies:      configstack.TerraformModules{moduleC},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleD := &runningModule{
+	runningModuleD := &configstack.RunningModule{
 		Module:         moduleD,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	moduleE := &TerraformModule{
+	moduleE := &configstack.TerraformModule{
 		Path:              "e",
-		Dependencies:      TerraformModules{moduleA, moduleB, moduleC, moduleD},
+		Dependencies:      configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleE := &runningModule{
+	runningModuleE := &configstack.RunningModule{
 		Module:         moduleE,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 	}
 
-	modules := TerraformModules{moduleA, moduleB, moduleC, moduleD, moduleE}
-	expected := runningModules{
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD, moduleE}
+	expected := configstack.RunningModules{
 		"a": runningModuleA,
 		"b": runningModuleB,
 		"c": runningModuleC,
@@ -482,12 +483,12 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesIgnoreOrder(t 
 		"e": runningModuleE,
 	}
 
-	testToRunningModules(t, modules, IgnoreOrder, expected)
+	testToRunningModules(t, modules, configstack.IgnoreOrder, expected)
 }
 
-func testToRunningModules(t *testing.T, modules TerraformModules, order DependencyOrder, expected runningModules) {
-	actual, err := modules.toRunningModules(order)
-	if assert.Nil(t, err, "For modules %v and order %v", modules, order) {
+func testToRunningModules(t *testing.T, modules configstack.TerraformModules, order configstack.DependencyOrder, expected configstack.RunningModules) {
+	actual, err := modules.ToRunningModules(order)
+	if assert.NoError(t, err, "For modules %v and order %v", modules, order) {
 		assertRunningModuleMapsEqual(t, expected, actual, true, "For modules %v and order %v", modules, order)
 	}
 }
@@ -495,90 +496,90 @@ func testToRunningModules(t *testing.T, modules TerraformModules, order Dependen
 func TestRemoveFlagExcludedNoExclude(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleA := &runningModule{
+	runningModuleA := &configstack.RunningModule{
 		Module:         moduleA,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 		FlagExcluded:   false,
 	}
 
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleB := &runningModule{
+	runningModuleB := &configstack.RunningModule{
 		Module:         moduleB,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{"a": runningModuleA},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{"a": runningModuleA},
+		NotifyWhenDone: []*configstack.RunningModule{},
 		FlagExcluded:   false,
 	}
 
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleC := &runningModule{
+	runningModuleC := &configstack.RunningModule{
 		Module:         moduleC,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{"a": runningModuleA},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{"a": runningModuleA},
+		NotifyWhenDone: []*configstack.RunningModule{},
 		FlagExcluded:   false,
 	}
 
-	moduleD := &TerraformModule{
+	moduleD := &configstack.TerraformModule{
 		Path:              "d",
-		Dependencies:      TerraformModules{moduleC},
+		Dependencies:      configstack.TerraformModules{moduleC},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleD := &runningModule{
+	runningModuleD := &configstack.RunningModule{
 		Module:         moduleD,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{"c": runningModuleC},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{"c": runningModuleC},
+		NotifyWhenDone: []*configstack.RunningModule{},
 		FlagExcluded:   false,
 	}
 
-	moduleE := &TerraformModule{
+	moduleE := &configstack.TerraformModule{
 		Path:              "e",
-		Dependencies:      TerraformModules{moduleB, moduleD},
+		Dependencies:      configstack.TerraformModules{moduleB, moduleD},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleE := &runningModule{
+	runningModuleE := &configstack.RunningModule{
 		Module: moduleE,
-		Status: Waiting,
+		Status: configstack.Waiting,
 		Err:    nil,
-		Dependencies: runningModules{
+		Dependencies: configstack.RunningModules{
 			"b": runningModuleB,
 			"d": runningModuleD,
 		},
-		NotifyWhenDone: []*runningModule{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 		FlagExcluded:   false,
 	}
 
-	running_modules := runningModules{
+	running_modules := configstack.RunningModules{
 		"a": runningModuleA,
 		"b": runningModuleB,
 		"c": runningModuleC,
@@ -586,7 +587,7 @@ func TestRemoveFlagExcludedNoExclude(t *testing.T) {
 		"e": runningModuleE,
 	}
 
-	expected := runningModules{
+	expected := configstack.RunningModules{
 		"a": runningModuleA,
 		"b": runningModuleB,
 		"c": runningModuleC,
@@ -594,184 +595,184 @@ func TestRemoveFlagExcludedNoExclude(t *testing.T) {
 		"e": runningModuleE,
 	}
 
-	actual := running_modules.removeFlagExcluded()
+	actual := running_modules.RemoveFlagExcluded()
 	assertRunningModuleMapsEqual(t, expected, actual, true)
 }
 
 func TestRemoveFlagExcludedOneExcludeNoDependencies(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleA := &runningModule{
+	runningModuleA := &configstack.RunningModule{
 		Module:         moduleA,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 		FlagExcluded:   false,
 	}
 
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleB := &runningModule{
+	runningModuleB := &configstack.RunningModule{
 		Module:         moduleB,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{"a": runningModuleA},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{"a": runningModuleA},
+		NotifyWhenDone: []*configstack.RunningModule{},
 		FlagExcluded:   false,
 	}
 
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleC := &runningModule{
+	runningModuleC := &configstack.RunningModule{
 		Module:         moduleC,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{"a": runningModuleA},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{"a": runningModuleA},
+		NotifyWhenDone: []*configstack.RunningModule{},
 		FlagExcluded:   true,
 	}
 
-	running_modules := runningModules{
+	running_modules := configstack.RunningModules{
 		"a": runningModuleA,
 		"b": runningModuleB,
 		"c": runningModuleC,
 	}
 
-	expected := runningModules{
+	expected := configstack.RunningModules{
 		"a": runningModuleA,
 		"b": runningModuleB,
 	}
 
-	actual := running_modules.removeFlagExcluded()
+	actual := running_modules.RemoveFlagExcluded()
 	assertRunningModuleMapsEqual(t, expected, actual, true)
 }
 
 func TestRemoveFlagExcludedOneExcludeWithDependencies(t *testing.T) {
 	t.Parallel()
 
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleA := &runningModule{
+	runningModuleA := &configstack.RunningModule{
 		Module:         moduleA,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 		FlagExcluded:   false,
 	}
 
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleB := &runningModule{
+	runningModuleB := &configstack.RunningModule{
 		Module:         moduleB,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{"a": runningModuleA},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{"a": runningModuleA},
+		NotifyWhenDone: []*configstack.RunningModule{},
 		FlagExcluded:   false,
 	}
 
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleC := &runningModule{
+	runningModuleC := &configstack.RunningModule{
 		Module:         moduleC,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{"a": runningModuleA},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{"a": runningModuleA},
+		NotifyWhenDone: []*configstack.RunningModule{},
 		FlagExcluded:   true,
 	}
 
-	moduleD := &TerraformModule{
+	moduleD := &configstack.TerraformModule{
 		Path:              "d",
-		Dependencies:      TerraformModules{moduleB, moduleC},
+		Dependencies:      configstack.TerraformModules{moduleB, moduleC},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleD := &runningModule{
+	runningModuleD := &configstack.RunningModule{
 		Module: moduleD,
-		Status: Waiting,
+		Status: configstack.Waiting,
 		Err:    nil,
-		Dependencies: runningModules{
+		Dependencies: configstack.RunningModules{
 			"b": runningModuleB,
 			"c": runningModuleC,
 		},
-		NotifyWhenDone: []*runningModule{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 		FlagExcluded:   false,
 	}
 
-	moduleE := &TerraformModule{
+	moduleE := &configstack.TerraformModule{
 		Path:              "e",
-		Dependencies:      TerraformModules{moduleB, moduleD},
+		Dependencies:      configstack.TerraformModules{moduleB, moduleD},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: mockOptions,
 	}
 
-	runningModuleE := &runningModule{
+	runningModuleE := &configstack.RunningModule{
 		Module: moduleE,
-		Status: Waiting,
+		Status: configstack.Waiting,
 		Err:    nil,
-		Dependencies: runningModules{
+		Dependencies: configstack.RunningModules{
 			"b": runningModuleB,
 			"d": runningModuleD,
 		},
-		NotifyWhenDone: []*runningModule{},
+		NotifyWhenDone: []*configstack.RunningModule{},
 		FlagExcluded:   false,
 	}
 
-	running_modules := runningModules{
+	running_modules := configstack.RunningModules{
 		"a": runningModuleA,
 		"b": runningModuleB,
 		"c": runningModuleC,
 		"d": runningModuleD,
 		"e": runningModuleE,
 	}
-	actual := running_modules.removeFlagExcluded()
+	actual := running_modules.RemoveFlagExcluded()
 
-	_runningModuleD := &runningModule{
+	_runningModuleD := &configstack.RunningModule{
 		Module:         moduleD,
-		Status:         Waiting,
+		Status:         configstack.Waiting,
 		Err:            nil,
-		Dependencies:   runningModules{"b": runningModuleB},
-		NotifyWhenDone: []*runningModule{},
+		Dependencies:   configstack.RunningModules{"b": runningModuleB},
+		NotifyWhenDone: []*configstack.RunningModule{},
 		FlagExcluded:   false,
 	}
 
-	expected := runningModules{
+	expected := configstack.RunningModules{
 		"a": runningModuleA,
 		"b": runningModuleB,
 		"d": _runningModuleD,

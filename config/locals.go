@@ -15,7 +15,7 @@ import (
 // MaxIter is the maximum number of depth we support in recursively evaluating locals.
 const MaxIter = 1000
 
-// evaluateLocalsBlock is a routine to evaluate the locals block in a way to allow references to other locals. This
+// EvaluateLocalsBlock is a routine to evaluate the locals block in a way to allow references to other locals. This
 // will:
 //   - Extract a reference to the locals block from the parsed file
 //   - Continuously evaluate the block until all references are evaluated, defering evaluation of anything that references
@@ -23,7 +23,7 @@ const MaxIter = 1000
 //
 // This returns a map of the local names to the evaluated expressions (represented as `cty.Value` objects). This will
 // error if there are remaining unevaluated locals after all references that can be evaluated has been evaluated.
-func evaluateLocalsBlock(ctx *ParsingContext, file *hclparse.File) (map[string]cty.Value, error) {
+func EvaluateLocalsBlock(ctx *ParsingContext, file *hclparse.File) (map[string]cty.Value, error) {
 	localsBlock, err := file.Blocks(MetadataLocals, false)
 	if err != nil {
 		return nil, err

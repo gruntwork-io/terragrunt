@@ -3,6 +3,7 @@ package aws_helper
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/request"
@@ -123,7 +124,8 @@ type tokenFetcher string
 func (f tokenFetcher) FetchToken(ctx credentials.Context) ([]byte, error) {
 	// Check if token is a raw value
 	if _, err := os.Stat(string(f)); err != nil {
-		return []byte(f), nil
+		// TODO: See if this lint error should be ignored
+		return []byte(f), nil //nolint: nilerr
 	}
 	token, err := os.ReadFile(string(f))
 	if err != nil {
@@ -136,7 +138,7 @@ func getWebIdentityCredentialsFromIAMRoleOptions(sess *session.Session, iamRoleO
 	roleSessionName := iamRoleOptions.AssumeRoleSessionName
 	if roleSessionName == "" {
 		// Set a unique session name in the same way it is done in the SDK
-		roleSessionName = fmt.Sprintf("%d", time.Now().UTC().UnixNano())
+		roleSessionName = strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
 	}
 	svc := sts.New(sess)
 	p := stscreds.NewWebIdentityRoleProviderWithOptions(svc, iamRoleOptions.RoleARN, roleSessionName, tokenFetcher(iamRoleOptions.WebIdentityToken))

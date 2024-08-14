@@ -13,7 +13,3 @@ terraform {
     }
   }
 }
-
-provider "null" {
-  # Configuration options
-}

@@ -2,13 +2,10 @@ run:
   timeout: 2m
   issues-exit-code: 1
   tests: true
-  skip-dirs:
-    - docs
-    - _ci
-    - .github
-    - .circleci
+  go: "1.21"
 output:
-  format: colored-line-number
+  formats:
+    - format: colored-line-number
   print-issued-lines: true
   print-linter-name: true
 
@@ -28,21 +25,11 @@ linters-settings:
     comparison: true
   gofmt:
     simplify: true
-  gofumpt:
-    lang-version: "1.21"
-    extra-rules: false
-  gosimple:
-    go: "1.21"
-    checks: [ "all" ]
   dupl:
     threshold: 120
   goconst:
     min-len: 3
     min-occurrences: 5
-  gomnd:
-    settings:
-      mnd:
-        ignored-functions: strconv.Format*,os.*,strconv.Parse*,strings.SplitN,bytes.SplitN
   revive:
     min-confidence: 0.8
   unused:
@@ -69,11 +56,11 @@ linters:
     - goconst
     - gocritic
     - goimports
-    - gomnd
+    - mnd
     - gosimple
     - govet
     - ineffassign
-    - megacheck
+    - staticcheck
     - misspell
     - unconvert
     - unused
@@ -82,11 +69,23 @@ linters:
   disable:
     - depguard
     - gosec
-    - interfacer
     - gocyclo
+    - exhaustruct
   fast: false
+  mnd:
+    ignored-functions: strconv.Format*,os.*,strconv.Parse*,strings.SplitN,bytes.SplitN
+  presets:
+    - bugs
+    - performance
+    - unused
+    - test
 
 issues:
+  exclude-dirs:
+    - docs
+    - _ci
+    - .github
+    - .circleci
   exclude-rules:
     - path: _test\.go
       linters:
@@ -95,7 +94,7 @@ issues:
         - lll
         - errcheck
         - wsl
-        - gomnd
+        - mnd
         - unparam
 
   exclude-use-default: false

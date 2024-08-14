@@ -1,15 +1,18 @@
-package util
+package util_test
 
 import (
+	"strconv"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAsTerraformEnvVarJsonValue(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	tc := []struct {
 		value    interface{}
 		expected string
 	}{
@@ -17,9 +20,15 @@ func TestAsTerraformEnvVarJsonValue(t *testing.T) {
 		{[]string{"10.0.0.0/16", "10.0.0.10/16"}, "[\"10.0.0.0/16\",\"10.0.0.10/16\"]"},
 	}
 
-	for _, testCase := range testCases {
-		actual, err := AsTerraformEnvVarJsonValue(testCase.value)
-		assert.NoError(t, err)
-		assert.Equal(t, testCase.expected, actual)
+	for i, tt := range tc {
+		tt := tt
+
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
+
+			actual, err := util.AsTerraformEnvVarJsonValue(tt.value)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, actual)
+		})
 	}
 }

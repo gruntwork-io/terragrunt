@@ -1,22 +1,24 @@
-package engine
+package engine_test
 
 import (
 	"io"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/engine"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIsEngineEnabled(t *testing.T) {
 	t.Setenv("TG_EXPERIMENTAL_ENGINE", "true")
 
-	assert.True(t, IsEngineEnabled())
+	assert.True(t, engine.IsEngineEnabled())
 
 	t.Setenv("TG_EXPERIMENTAL_ENGINE", "false")
-	assert.False(t, IsEngineEnabled())
+	assert.False(t, engine.IsEngineEnabled())
 
 	t.Setenv("TG_EXPERIMENTAL_ENGINE", "")
-	assert.False(t, IsEngineEnabled())
+	assert.False(t, engine.IsEngineEnabled())
 }
 
 func TestConvertMetaToProtobuf(t *testing.T) {
@@ -26,31 +28,31 @@ func TestConvertMetaToProtobuf(t *testing.T) {
 		"key2": 42,
 	}
 
-	protoMeta, err := convertMetaToProtobuf(meta)
-	assert.NoError(t, err)
+	protoMeta, err := engine.ConvertMetaToProtobuf(meta)
+	require.NoError(t, err)
 	assert.NotNil(t, protoMeta)
-	assert.Equal(t, 2, len(protoMeta))
+	assert.Len(t, protoMeta, 2)
 }
 
 func TestReadEngineOutput(t *testing.T) {
 	t.Parallel()
-	runOptions := &ExecutionOptions{
+	runOptions := &engine.ExecutionOptions{
 		CmdStdout: io.Discard,
 		CmdStderr: io.Discard,
 	}
 
 	outputReturned := false
-	outputFn := func() (*outputLine, error) {
+	outputFn := func() (*engine.OutputLine, error) {
 		if outputReturned {
 			return nil, nil
 		}
 		outputReturned = true
-		return &outputLine{
+		return &engine.OutputLine{
 			Stdout: "stdout output",
 			Stderr: "stderr output",
 		}, nil
 	}
 
-	err := readEngineOutput(runOptions, outputFn)
+	err := engine.ReadEngineOutput(runOptions, outputFn)
 	assert.NoError(t, err)
 }

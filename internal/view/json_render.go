@@ -17,7 +17,7 @@ func (render *JSONRender) Diagnostics(diags diagnostic.Diagnostics) (string, err
 	return render.toJSON(diags)
 }
 
-func (render *JSONRender) InvalidConfigPath(filenames []string) (string, error) {
+func (render *JSONRender) ShowConfigPath(filenames []string) (string, error) {
 	return render.toJSON(filenames)
 }
 

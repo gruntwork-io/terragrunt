@@ -20,12 +20,12 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 // Struct is output as JSON by 'terragrunt-info':
 type TerragruntInfoGroup struct {
-	ConfigPath       string
-	DownloadDir      string
-	IamRole          string
-	TerraformBinary  string
-	TerraformCommand string
-	WorkingDir       string
+	ConfigPath       string `json:"ConfigPath"`
+	DownloadDir      string `json:"DownloadDir"`
+	IamRole          string `json:"IamRole"`
+	TerraformBinary  string `json:"TerraformBinary"`
+	TerraformCommand string `json:"TerraformCommand"`
+	WorkingDir       string `json:"WorkingDir"`
 }
 
 func printTerragruntInfo(opts *options.TerragruntOptions) error {

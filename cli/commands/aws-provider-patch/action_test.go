@@ -1,9 +1,11 @@
-package awsproviderpatch
+package awsproviderpatch_test
 
 import (
 	"testing"
 
+	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const terraformCodeExampleOutputOnly = `
@@ -317,8 +319,8 @@ func TestPatchAwsProviderInTerraformCodeHappyPath(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.testName, func(t *testing.T) {
 			t.Parallel()
-			actualTerraformCode, actualCodeWasUpdated, err := patchAwsProviderInTerraformCode(testCase.originalTerraformCode, "test.tf", testCase.attributesToOverride)
-			assert.NoError(t, err)
+			actualTerraformCode, actualCodeWasUpdated, err := awsproviderpatch.PatchAwsProviderInTerraformCode(testCase.originalTerraformCode, "test.tf", testCase.attributesToOverride)
+			require.NoError(t, err)
 			assert.Equal(t, testCase.expectedCodeWasUpdated, actualCodeWasUpdated)
 
 			// We check an array  of possible expected code here due to possible ordering differences. That is, the

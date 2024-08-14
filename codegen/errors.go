@@ -10,7 +10,7 @@ type UnknownGenerateIfExistsVal struct {
 
 func (err UnknownGenerateIfExistsVal) Error() string {
 	if err.val != "" {
-		return fmt.Sprintf("%s is not a valid value for generate if_exists", err.val)
+		return err.val + " is not a valid value for generate if_exists"
 	}
 	return "Received unknown value for if_exists"
 }
@@ -21,7 +21,7 @@ type UnknownGenerateIfDisabledVal struct {
 
 func (err UnknownGenerateIfDisabledVal) Error() string {
 	if err.val != "" {
-		return fmt.Sprintf("%s is not a valid value for generate if_disabled", err.val)
+		return err.val + " is not a valid value for generate if_disabled"
 	}
 	return "Received unknown value for if_disabled"
 }
@@ -39,5 +39,5 @@ type GenerateFileRemoveError struct {
 }
 
 func (err GenerateFileRemoveError) Error() string {
-	return fmt.Sprintf("Can not remove terraform file: %s", err.path)
+	return "Can not remove terraform file: " + err.path
 }

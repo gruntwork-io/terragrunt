@@ -1,25 +1,27 @@
-package configstack
+package configstack_test
 
 import (
 	"context"
+	goErrors "errors"
 	"sort"
 	"testing"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 )
 
-type TerraformModuleByPath TerraformModules
+type TerraformModuleByPath configstack.TerraformModules
 
 func (byPath TerraformModuleByPath) Len() int           { return len(byPath) }
 func (byPath TerraformModuleByPath) Swap(i, j int)      { byPath[i], byPath[j] = byPath[j], byPath[i] }
 func (byPath TerraformModuleByPath) Less(i, j int) bool { return byPath[i].Path < byPath[j].Path }
 
-type RunningModuleByPath []*runningModule
+type RunningModuleByPath []*configstack.RunningModule
 
 func (byPath RunningModuleByPath) Len() int      { return len(byPath) }
 func (byPath RunningModuleByPath) Swap(i, j int) { byPath[i], byPath[j] = byPath[j], byPath[i] }
@@ -29,7 +31,7 @@ func (byPath RunningModuleByPath) Less(i, j int) bool {
 
 // We can't use assert.Equals on TerraformModule or any data structure that contains it because it contains some
 // fields (e.g. TerragruntOptions) that cannot be compared directly
-func assertModuleListsEqual(t *testing.T, expectedModules TerraformModules, actualModules TerraformModules, messageAndArgs ...interface{}) {
+func assertModuleListsEqual(t *testing.T, expectedModules configstack.TerraformModules, actualModules configstack.TerraformModules, messageAndArgs ...interface{}) {
 	if !assert.Equal(t, len(expectedModules), len(actualModules), messageAndArgs...) {
 		t.Logf("%s != %s", expectedModules, actualModules)
 		return
@@ -47,15 +49,15 @@ func assertModuleListsEqual(t *testing.T, expectedModules TerraformModules, actu
 
 // We can't use assert.Equals on TerraformModule because it contains some fields (e.g. TerragruntOptions) that cannot
 // be compared directly
-func assertModulesEqual(t *testing.T, expected *TerraformModule, actual *TerraformModule, messageAndArgs ...interface{}) {
+func assertModulesEqual(t *testing.T, expected *configstack.TerraformModule, actual *configstack.TerraformModule, messageAndArgs ...interface{}) {
 	if assert.NotNil(t, actual, messageAndArgs...) {
 		// When comparing the TerragruntConfig objects, we need to normalize the dependency list to explicitly set the
 		// expected to empty list when nil, as the parsing routine will set it to empty list instead of nil.
 		if expected.Config.TerragruntDependencies == nil {
-			expected.Config.TerragruntDependencies = []config.Dependency{}
+			expected.Config.TerragruntDependencies = config.Dependencies{}
 		}
 		if actual.Config.TerragruntDependencies == nil {
-			actual.Config.TerragruntDependencies = []config.Dependency{}
+			actual.Config.TerragruntDependencies = config.Dependencies{}
 		}
 		assert.Equal(t, expected.Config, actual.Config, messageAndArgs...)
 
@@ -68,9 +70,9 @@ func assertModulesEqual(t *testing.T, expected *TerraformModule, actual *Terrafo
 	}
 }
 
-// We can't use assert.Equals on TerraformModule or any data structure that contains it (e.g. runningModule) because it
+// We can't use assert.Equals on TerraformModule or any data structure that contains it (e.g. configstack.RunningModule) because it
 // contains some fields (e.g. TerragruntOptions) that cannot be compared directly
-func assertRunningModuleMapsEqual(t *testing.T, expectedModules map[string]*runningModule, actualModules map[string]*runningModule, doDeepCheck bool, messageAndArgs ...interface{}) {
+func assertRunningModuleMapsEqual(t *testing.T, expectedModules map[string]*configstack.RunningModule, actualModules map[string]*configstack.RunningModule, doDeepCheck bool, messageAndArgs ...interface{}) {
 	if !assert.Equal(t, len(expectedModules), len(actualModules), messageAndArgs...) {
 		t.Logf("%v != %v", expectedModules, actualModules)
 		return
@@ -84,9 +86,9 @@ func assertRunningModuleMapsEqual(t *testing.T, expectedModules map[string]*runn
 	}
 }
 
-// We can't use assert.Equals on TerraformModule or any data structure that contains it (e.g. runningModule) because it
+// We can't use assert.Equals on TerraformModule or any data structure that contains it (e.g. configstack.RunningModule) because it
 // contains some fields (e.g. TerragruntOptions) that cannot be compared directly
-func assertRunningModuleListsEqual(t *testing.T, expectedModules []*runningModule, actualModules []*runningModule, doDeepCheck bool, messageAndArgs ...interface{}) {
+func assertRunningModuleListsEqual(t *testing.T, expectedModules []*configstack.RunningModule, actualModules []*configstack.RunningModule, doDeepCheck bool, messageAndArgs ...interface{}) {
 	if !assert.Equal(t, len(expectedModules), len(actualModules), messageAndArgs...) {
 		t.Logf("%v != %v", expectedModules, actualModules)
 		return
@@ -102,9 +104,9 @@ func assertRunningModuleListsEqual(t *testing.T, expectedModules []*runningModul
 	}
 }
 
-// We can't use assert.Equals on TerraformModule or any data structure that contains it (e.g. runningModule) because it
+// We can't use assert.Equals on TerraformModule or any data structure that contains it (e.g. configstack.RunningModule) because it
 // contains some fields (e.g. TerragruntOptions) that cannot be compared directly
-func assertRunningModulesEqual(t *testing.T, expected *runningModule, actual *runningModule, doDeepCheck bool, messageAndArgs ...interface{}) {
+func assertRunningModulesEqual(t *testing.T, expected *configstack.RunningModule, actual *configstack.RunningModule, doDeepCheck bool, messageAndArgs ...interface{}) {
 	if assert.NotNil(t, actual, messageAndArgs...) {
 		assert.Equal(t, expected.Status, actual.Status, messageAndArgs...)
 
@@ -120,15 +122,18 @@ func assertRunningModulesEqual(t *testing.T, expected *runningModule, actual *ru
 	}
 }
 
-// We can't do a simple IsError comparison for UnrecognizedDependencyError because that error is a struct that
+// We can't do a simple IsError comparison for configstack.UnrecognizedDependencyError because that error is a struct that
 // contains an array, and in Go, trying to compare arrays gives a "comparing uncomparable type
-// configstack.UnrecognizedDependencyError" panic. Therefore, we have to compare that error more manually.
+// configstack.configstack.UnrecognizedDependencyError" panic. Therefore, we have to compare that error more manually.
 func assertErrorsEqual(t *testing.T, expected error, actual error, messageAndArgs ...interface{}) {
 	actual = errors.Unwrap(actual)
-	if expectedUnrecognized, isUnrecognizedDependencyError := expected.(UnrecognizedDependencyError); isUnrecognizedDependencyError {
-		actualUnrecognized, isUnrecognizedDependencyError := actual.(UnrecognizedDependencyError)
-		if assert.True(t, isUnrecognizedDependencyError, messageAndArgs...) {
-			assert.Equal(t, expectedUnrecognized, actualUnrecognized, messageAndArgs...)
+
+	var unrecognizedDependencyError configstack.UnrecognizedDependencyError
+	if ok := goErrors.As(expected, &unrecognizedDependencyError); ok {
+		var actualUnrecognized configstack.UnrecognizedDependencyError
+		ok = goErrors.As(actual, &actualUnrecognized)
+		if assert.True(t, ok, messageAndArgs...) {
+			assert.Equal(t, unrecognizedDependencyError, actualUnrecognized, messageAndArgs...)
 		}
 	} else {
 		assert.True(t, errors.IsError(actual, expected), messageAndArgs...)
@@ -180,13 +185,14 @@ func optionsWithMockTerragruntCommand(t *testing.T, terragruntConfigPath string,
 
 func assertMultiErrorContains(t *testing.T, actualError error, expectedErrors ...error) {
 	actualError = errors.Unwrap(actualError)
-	multiError, isMultiError := actualError.(*multierror.Error)
+	var multiError *multierror.Error
+	isMultiError := goErrors.As(actualError, &multiError)
 	if assert.True(t, isMultiError, "Expected a MutliError, but got: %v", actualError) {
 		assert.Equal(t, len(expectedErrors), len(multiError.Errors))
 		for _, expectedErr := range expectedErrors {
 			found := false
 			for _, actualErr := range multiError.Errors {
-				if expectedErr == actualErr {
+				if goErrors.Is(expectedErr, actualErr) {
 					found = true
 					break
 				}

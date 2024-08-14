@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/helpers"
@@ -42,10 +44,10 @@ type ProviderDirectHandler struct {
 	cacheProviderHTTPStatusCode int
 }
 
-func NewProviderDirectHandler(providerService *services.ProviderService, cacheProviderHTTPStatusCode int, method *cliconfig.ProviderInstallationDirect) ProviderHandler {
+func NewProviderDirectHandler(providerService *services.ProviderService, cacheProviderHTTPStatusCode int, method *cliconfig.ProviderInstallationDirect, credsSource *cliconfig.CredentialsSource) *ProviderDirectHandler {
 	return &ProviderDirectHandler{
 		CommonProviderHandler:       NewCommonProviderHandler(method.Include, method.Exclude),
-		ReverseProxy:                &ReverseProxy{},
+		ReverseProxy:                &ReverseProxy{CredsSource: credsSource},
 		providerService:             providerService,
 		cacheProviderHTTPStatusCode: cacheProviderHTTPStatusCode,
 	}
@@ -61,7 +63,7 @@ func (handler *ProviderDirectHandler) GetVersions(ctx echo.Context, provider *mo
 	reqURL := &url.URL{
 		Scheme: "https",
 		Host:   provider.RegistryName,
-		Path:   path.Join("/v1/providers", provider.Namespace, provider.Name, "versions"),
+		Path:   path.Join(provider.RegistryPrefix, provider.Namespace, provider.Name, "versions"),
 	}
 
 	return handler.ReverseProxy.NewRequest(ctx, reqURL)
@@ -79,7 +81,7 @@ func (handler *ProviderDirectHandler) GetPlatform(ctx echo.Context, provider *mo
 					return err
 				}
 
-				provider.ResponseBody = body
+				provider.ResponseBody = body.ResolveRelativeReferences(resp.Request.URL)
 
 				handler.providerService.CacheProvider(ctx.Request().Context(), cacheRequestID, provider)
 				return ctx.NoContent(handler.cacheProviderHTTPStatusCode)
@@ -101,12 +103,21 @@ func (handler *ProviderDirectHandler) Download(ctx echo.Context, provider *model
 		}
 	}
 
+	// check if the URL contains http scheme, it may just be a filename and we need to build the URL
+	if !strings.Contains(provider.DownloadURL, "://") {
+		downloadURL := &url.URL{
+			Scheme: "https",
+			Host:   provider.RegistryName,
+			Path:   filepath.Join(provider.RegistryPrefix, provider.RegistryName, provider.Namespace, provider.Name, provider.DownloadURL),
+		}
+		return handler.ReverseProxy.NewRequest(ctx, downloadURL)
+	}
+
 	downloadURL, err := url.Parse(provider.DownloadURL)
 	if err != nil {
 		return err
 	}
 	return handler.ReverseProxy.NewRequest(ctx, downloadURL)
-
 }
 
 // platformURL returns the URL used to query the all platforms for a single version.
@@ -115,7 +126,7 @@ func (handler *ProviderDirectHandler) platformURL(provider *models.Provider) *ur
 	return &url.URL{
 		Scheme: "https",
 		Host:   provider.RegistryName,
-		Path:   path.Join("/v1/providers", provider.Namespace, provider.Name, provider.Version, "download", provider.OS, provider.Arch),
+		Path:   path.Join(provider.RegistryPrefix, provider.Namespace, provider.Name, provider.Version, "download", provider.OS, provider.Arch),
 	}
 }
 

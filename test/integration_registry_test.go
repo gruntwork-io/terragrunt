@@ -1,9 +1,8 @@
-package test
+package integration_test
 
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/util"
@@ -42,11 +41,11 @@ func TestTerraformRegistryFetchingSubdirWithReferenceModule(t *testing.T) {
 func testTerraformRegistryFetching(t *testing.T, modPath, expectedOutputKey string) {
 	modFullPath := util.JoinPath(registryFixturePath, modPath)
 	cleanupTerraformFolder(t, modFullPath)
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", modFullPath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+modFullPath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", modFullPath), &stdout, &stderr)
+	err := runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+modFullPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	outputs := map[string]TerraformOutput{}

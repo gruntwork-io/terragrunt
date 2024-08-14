@@ -1,13 +1,13 @@
-package terraform
+package terraform_test
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -68,13 +68,15 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 		// get updated due to concurrency within the scope of t.Run(..) below
 		testCase := testCase
 		t.Run(testCase.description, func(t *testing.T) {
+			t.Parallel()
+
 			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
 			require.NoError(t, err)
 			opts.Env = testCase.envVarsInOpts
 
 			cfg := &config.TerragruntConfig{Inputs: testCase.inputsInConfig}
 
-			require.NoError(t, setTerragruntInputsAsEnvVars(opts, cfg))
+			require.NoError(t, terraform.SetTerragruntInputsAsEnvVars(opts, cfg))
 
 			assert.Equal(t, testCase.expected, opts.Env)
 		})
@@ -118,7 +120,7 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
 			require.NoError(t, err)
 			opts.WorkingDir = testCase.workingDir
-			err = checkFolderContainsTerraformCode(opts)
+			err = terraform.CheckFolderContainsTerraformCode(opts)
 			if (err != nil) && testCase.valid {
 				t.Error("valid terraform returned error")
 			}
@@ -127,7 +129,11 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 				t.Error("invalid terraform did not return error")
 			}
 		}
-		t.Run(testCase.description, testFunc)
+		t.Run(testCase.description, func(t *testing.T) {
+			t.Parallel()
+
+			testFunc(t)
+		})
 	}
 }
 
@@ -146,7 +152,7 @@ func TestErrorRetryableOnStdoutError(t *testing.T) {
 		Stderr: "error is here",
 	}
 
-	retryable := isRetryable(tgOptions, out)
+	retryable := terraform.IsRetryable(tgOptions, out)
 	require.True(t, retryable, "The error should have retried")
 }
 
@@ -165,7 +171,7 @@ func TestErrorMultipleRetryableOnStderrError(t *testing.T) {
 		Stderr: "error is here",
 	}
 
-	retryable := isRetryable(tgOptions, out)
+	retryable := terraform.IsRetryable(tgOptions, out)
 	require.True(t, retryable, "The error should have retried")
 }
 
@@ -184,7 +190,7 @@ func TestEmptyRetryablesOnStderrError(t *testing.T) {
 		Stderr: "error is here",
 	}
 
-	retryable := isRetryable(tgOptions, out)
+	retryable := terraform.IsRetryable(tgOptions, out)
 	require.False(t, retryable, "The error should not have retried, the list of retryable errors was empty")
 }
 
@@ -203,7 +209,7 @@ func TestErrorRetryableOnStderrError(t *testing.T) {
 		Stderr: "error is here",
 	}
 
-	retryable := isRetryable(tgOptions, out)
+	retryable := terraform.IsRetryable(tgOptions, out)
 	require.True(t, retryable, "The error should have retried")
 }
 
@@ -222,7 +228,7 @@ func TestErrorNotRetryableOnStdoutError(t *testing.T) {
 		Stderr: "",
 	}
 
-	retryable := isRetryable(tgOptions, out)
+	retryable := terraform.IsRetryable(tgOptions, out)
 	require.False(t, retryable, "The error should not retry")
 }
 
@@ -241,7 +247,7 @@ func TestErrorNotRetryableOnStderrError(t *testing.T) {
 		Stderr: "error is here",
 	}
 
-	retryable := isRetryable(tgOptions, out)
+	retryable := terraform.IsRetryable(tgOptions, out)
 	require.False(t, retryable, "The error should not retry")
 }
 
@@ -253,7 +259,7 @@ func TestTerragruntHandlesCatastrophicTerraformFailure(t *testing.T) {
 
 	// Use a path that doesn't exist to induce error
 	tgOptions.TerraformPath = "i-dont-exist"
-	err = runTerraformWithRetry(context.Background(), tgOptions)
+	err = terraform.RunTerraformWithRetry(context.Background(), tgOptions)
 	require.Error(t, err)
 }
 
@@ -312,7 +318,9 @@ func TestToTerraformEnvVars(t *testing.T) {
 		// get updated due to concurrency within the scope of t.Run(..) below
 		testCase := testCase
 		t.Run(testCase.description, func(t *testing.T) {
-			actual, err := toTerraformEnvVars(testCase.vars)
+			t.Parallel()
+
+			actual, err := terraform.ToTerraformEnvVars(testCase.vars)
 			require.NoError(t, err)
 			assert.Equal(t, testCase.expected, actual)
 		})
@@ -320,6 +328,8 @@ func TestToTerraformEnvVars(t *testing.T) {
 }
 
 func TestFilterTerraformExtraArgs(t *testing.T) {
+	t.Parallel()
+
 	workingDir, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
@@ -344,13 +354,13 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 		{
 			mockCmdOptions(t, workingDir, []string{"apply"}),
 			mockExtraArgs([]string{"--foo", "bar"}, []string{"apply", "plan"}, []string{}, []string{temporaryFile}),
-			[]string{"--foo", "bar", fmt.Sprintf("-var-file=%s", temporaryFile)},
+			[]string{"--foo", "bar", "-var-file=" + temporaryFile},
 		},
 		// required var file + optional existing var file
 		{
 			mockCmdOptions(t, workingDir, []string{"apply"}),
 			mockExtraArgs([]string{"--foo", "bar"}, []string{"apply", "plan"}, []string{"required.tfvars"}, []string{temporaryFile}),
-			[]string{"--foo", "bar", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+			[]string{"--foo", "bar", "-var-file=required.tfvars", "-var-file=" + temporaryFile},
 		},
 		// non existing required var file + non existing optional var file
 		{
@@ -362,13 +372,13 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 		{
 			mockCmdOptions(t, workingDir, []string{"plan", workingDir}),
 			mockExtraArgs([]string{"--foo", "bar"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
-			[]string{"--foo", "bar", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+			[]string{"--foo", "bar", "-var-file=required.tfvars", "-var-file=" + temporaryFile},
 		},
 		// apply providing a folder, var files should stay included
 		{
 			mockCmdOptions(t, workingDir, []string{"apply", workingDir}),
 			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "-var='key=value'"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
-			[]string{"--foo", "-var-file=test.tfvars", "-var='key=value'", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+			[]string{"--foo", "-var-file=test.tfvars", "-var='key=value'", "-var-file=required.tfvars", "-var-file=" + temporaryFile},
 		},
 		// apply providing a file, no var files included
 		{
@@ -381,7 +391,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 		{
 			mockCmdOptions(t, workingDir, []string{"apply"}),
 			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "apply"}, []string{"required.tfvars"}, []string{temporaryFile}),
-			[]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+			[]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo", "-var-file=required.tfvars", "-var-file=" + temporaryFile},
 		},
 		// apply with some parameters, providing a file => no var files included
 		{
@@ -393,7 +403,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 		{
 			mockCmdOptions(t, workingDir, []string{"destroy", workingDir}),
 			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "-var='key=value'"}, []string{"plan", "destroy"}, []string{"required.tfvars"}, []string{temporaryFile}),
-			[]string{"--foo", "-var-file=test.tfvars", "-var='key=value'", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+			[]string{"--foo", "-var-file=test.tfvars", "-var='key=value'", "-var-file=required.tfvars", "-var-file=" + temporaryFile},
 		},
 		// destroy providing a file, no var files included
 		{
@@ -406,7 +416,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 		{
 			mockCmdOptions(t, workingDir, []string{"destroy"}),
 			mockExtraArgs([]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo"}, []string{"plan", "destroy"}, []string{"required.tfvars"}, []string{temporaryFile}),
-			[]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo", "-var-file=required.tfvars", fmt.Sprintf("-var-file=%s", temporaryFile)},
+			[]string{"--foo", "-var-file=test.tfvars", "bar", "-var='key=value'", "foo", "-var-file=required.tfvars", "-var-file=" + temporaryFile},
 		},
 		// destroy with some parameters, providing a file => no var files included
 		{
@@ -427,7 +437,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 			Terraform: &config.TerraformConfig{ExtraArgs: []config.TerraformExtraArguments{testCase.extraArgs}},
 		}
 
-		out := filterTerraformExtraArgs(testCase.options, &config)
+		out := terraform.FilterTerraformExtraArgs(testCase.options, &config)
 
 		assert.Equal(t, testCase.expectedArgs, out)
 	}

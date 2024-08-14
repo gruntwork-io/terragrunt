@@ -1,6 +1,7 @@
 package shell
 
 import (
+	goErrors "errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -33,8 +34,9 @@ var terraformErrorsMatcher = map[string]string{
 // ExplainError will try to explain the error to the user, if we know how to do so.
 func ExplainError(err error) string {
 	errorsToProcess := []error{err}
-	multiErrors, ok := err.(*multierror.Error)
-	if ok {
+	var multiErrors *multierror.Error
+	// multiErrors, ok := err.(*multierror.Error)
+	if ok := goErrors.As(err, &multiErrors); ok {
 		errorsToProcess = multiErrors.Errors
 	}
 	explanations := map[string]string{}
@@ -47,8 +49,8 @@ func ExplainError(err error) string {
 		}
 		message := originalError.Error()
 		// extract process output, if it is the case
-		processError, ok := originalError.(util.ProcessExecutionError)
-		if ok {
+		var processError util.ProcessExecutionError
+		if ok := goErrors.As(originalError, &processError); ok {
 			errorOutput := processError.Stderr
 			stdOut := processError.StdOut
 			message = fmt.Sprintf("%s\n%s", stdOut, errorOutput)

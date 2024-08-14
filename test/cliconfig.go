@@ -1,5 +1,5 @@
 // common integration test functions
-package test
+package integration_test
 
 import (
 	"html/template"

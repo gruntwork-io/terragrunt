@@ -1,7 +1,7 @@
 //go:build linux || darwin
 // +build linux darwin
 
-package shell
+package shell_test
 
 import (
 	"bytes"
@@ -10,12 +10,13 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestCommandOutputOrder(t *testing.T) {
@@ -50,6 +51,8 @@ func testCommandOutputOrder(t *testing.T, withPtty bool, fullOutput []string, st
 }
 
 func TestCommandOutputPrefix(t *testing.T) {
+	t.Parallel()
+
 	prefix := "PREFIX> "
 	prefixedOutput := []string{}
 	for _, line := range FULL_OUTPUT {
@@ -79,10 +82,10 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 
 	withOptions(terragruntOptions)
 
-	out, err := RunShellCommandWithOutput(context.Background(), terragruntOptions, "", !allocateStdout, false, "../testdata/test_outputs.sh", "same")
+	out, err := shell.RunShellCommandWithOutput(context.Background(), terragruntOptions, "", !allocateStdout, false, "../testdata/test_outputs.sh", "same")
 
-	require.NotNil(t, out, "Should get output")
-	assert.Nil(t, err, "Should have no error")
+	assert.NotNil(t, out, "Should get output")
+	require.NoError(t, err, "Should have no error")
 
 	assertResults(allOutputBuffer.String(), out)
 }

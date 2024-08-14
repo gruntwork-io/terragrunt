@@ -13,8 +13,8 @@ type Render interface {
 	// Diagnostics renders early diagnostics, resulting from argument parsing.
 	Diagnostics(diags diagnostic.Diagnostics) (string, error)
 
-	// InvalidConfigPath renders paths to configurations that contain errors.
-	InvalidConfigPath(filenames []string) (string, error)
+	// ShowConfigPath renders paths to configurations that contain errors.
+	ShowConfigPath(filenames []string) (string, error)
 }
 
 // Writer is the base layer for command views, encapsulating a set of I/O streams, a colorize implementation, and implementing a human friendly view for diagnostics.
@@ -39,7 +39,7 @@ func (writer *Writer) Diagnostics(diags diagnostic.Diagnostics) error {
 	return writer.output(output)
 }
 
-func (writer *Writer) InvalidConfigPath(diags diagnostic.Diagnostics) error {
+func (writer *Writer) ShowConfigPath(diags diagnostic.Diagnostics) error {
 	var filenames []string
 
 	for _, diag := range diags {
@@ -48,7 +48,7 @@ func (writer *Writer) InvalidConfigPath(diags diagnostic.Diagnostics) error {
 		}
 	}
 
-	output, err := writer.render.InvalidConfigPath(filenames)
+	output, err := writer.render.ShowConfigPath(filenames)
 	if err != nil {
 		return err
 	}

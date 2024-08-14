@@ -23,6 +23,7 @@ import (
 )
 
 const maxLevelsOfRecursion = 20
+const existingModulesCacheName = "existingModules"
 
 // Represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
 // module and the list of other modules that this module depends on
@@ -166,7 +167,8 @@ func (module *TerraformModule) getDependenciesForModule(modulesMap TerraformModu
 	for _, dependencyPath := range module.Config.Dependencies.Paths {
 		dependencyModulePath, err := util.CanonicalPath(dependencyPath, module.Path)
 		if err != nil {
-			return dependencies, nil
+			// TODO: Remove lint suppression
+			return dependencies, nil //nolint:nilerr
 		}
 
 		if files.FileExists(dependencyModulePath) && !files.IsDir(dependencyModulePath) {
@@ -252,7 +254,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, terragruntOptions *optio
 	}
 
 	// extract modules as list
-	var matchedModules TerraformModules
+	var matchedModules = make(TerraformModules, 0, len(matchedModulesMap))
 	for _, module := range matchedModulesMap {
 		matchedModules = append(matchedModules, module)
 	}
@@ -313,7 +315,7 @@ func (modules TerraformModules) WriteDot(w io.Writer, terragruntOptions *options
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
 func (modules TerraformModules) RunModules(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
-	runningModules, err := modules.toRunningModules(NormalOrder)
+	runningModules, err := modules.ToRunningModules(NormalOrder)
 	if err != nil {
 		return err
 	}
@@ -324,7 +326,7 @@ func (modules TerraformModules) RunModules(ctx context.Context, opts *options.Te
 // TerragruntOptions object. The modules will be executed in the reverse order of their inter-dependencies, using
 // as much concurrency as possible.
 func (modules TerraformModules) RunModulesReverseOrder(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
-	runningModules, err := modules.toRunningModules(ReverseOrder)
+	runningModules, err := modules.ToRunningModules(ReverseOrder)
 	if err != nil {
 		return err
 	}
@@ -334,7 +336,7 @@ func (modules TerraformModules) RunModulesReverseOrder(ctx context.Context, opts
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed without caring for inter-dependencies.
 func (modules TerraformModules) RunModulesIgnoreOrder(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
-	runningModules, err := modules.toRunningModules(IgnoreOrder)
+	runningModules, err := modules.ToRunningModules(IgnoreOrder)
 	if err != nil {
 		return err
 	}
@@ -344,8 +346,8 @@ func (modules TerraformModules) RunModulesIgnoreOrder(ctx context.Context, opts 
 // Convert the list of modules to a map from module path to a runningModule struct. This struct contains information
 // about executing the module, such as whether it has finished running or not and any errors that happened. Note that
 // this does NOT actually run the module. For that, see the RunModules method.
-func (modules TerraformModules) toRunningModules(dependencyOrder DependencyOrder) (runningModules, error) {
-	runningModules := runningModules{}
+func (modules TerraformModules) ToRunningModules(dependencyOrder DependencyOrder) (RunningModules, error) {
+	runningModules := RunningModules{}
 	for _, module := range modules {
 		runningModules[module.Path] = newRunningModule(module)
 	}
@@ -355,7 +357,7 @@ func (modules TerraformModules) toRunningModules(dependencyOrder DependencyOrder
 		return crossLinkedModules, err
 	}
 
-	return crossLinkedModules.removeFlagExcluded(), nil
+	return crossLinkedModules.RemoveFlagExcluded(), nil
 }
 
 // Check for dependency cycles in the given list of modules and return an error if one is found
@@ -394,8 +396,9 @@ func (modules TerraformModules) flagExcludedDirs(terragruntOptions *options.Terr
 
 // flagIncludedDirs iterates over a module slice and flags all entries not in the list specified via the terragrunt-include-dir CLI flag as excluded.
 func (modules TerraformModules) flagIncludedDirs(terragruntOptions *options.TerragruntOptions) TerraformModules {
-	// If no IncludeDirs is specified return the modules list instantly
-	if len(terragruntOptions.IncludeDirs) == 0 {
+	// If we're not excluding by default, we should include everything by default.
+	// This can happen when a user doesn't set include flags.
+	if !terragruntOptions.ExcludeByDefault {
 		// If we aren't given any include directories, but are given the strict include flag,
 		// return no modules.
 		if terragruntOptions.StrictInclude {
@@ -490,7 +493,7 @@ func (modules TerraformModules) flagModulesThatDontInclude(terragruntOptions *op
 	return modules, nil
 }
 
-var existingModules = cache.NewCache[*TerraformModulesMap]()
+var existingModules = cache.NewCache[*TerraformModulesMap](existingModulesCacheName)
 
 type TerraformModulesMap map[string]*TerraformModule
 

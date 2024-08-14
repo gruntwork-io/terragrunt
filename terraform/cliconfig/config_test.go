@@ -1,4 +1,4 @@
-package cliconfig
+package cliconfig_test
 
 import (
 	"fmt"
@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/terraform/cliconfig"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConfig(t *testing.T) {
@@ -18,24 +20,24 @@ func TestConfig(t *testing.T) {
 	)
 
 	tempCacheDir, err := os.MkdirTemp("", "*")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	testCases := []struct {
-		providerInstallationMethods []ProviderInstallationMethod
-		hosts                       []ConfigHost
-		config                      Config
+		providerInstallationMethods []cliconfig.ProviderInstallationMethod
+		hosts                       []cliconfig.ConfigHost
+		config                      cliconfig.Config
 		expectedHCL                 string
 	}{
 		{
-			providerInstallationMethods: []ProviderInstallationMethod{
-				NewProviderInstallationFilesystemMirror(tempCacheDir, include, exclude),
-				NewProviderInstallationNetworkMirror("https://network-mirror.io/providers/", include, exclude),
-				NewProviderInstallationDirect(include, exclude),
+			providerInstallationMethods: []cliconfig.ProviderInstallationMethod{
+				cliconfig.NewProviderInstallationFilesystemMirror(tempCacheDir, include, exclude),
+				cliconfig.NewProviderInstallationNetworkMirror("https://network-mirror.io/providers/", include, exclude),
+				cliconfig.NewProviderInstallationDirect(include, exclude),
 			},
-			hosts: []ConfigHost{
+			hosts: []cliconfig.ConfigHost{
 				{"registry.terraform.io", map[string]string{"providers.v1": "http://localhost:5758/v1/providers/registry.terraform.io/"}},
 			},
-			config: Config{
+			config: cliconfig.Config{
 				DisableCheckpoint: true,
 				PluginCacheDir:    "path/to/plugin/cache/dir1",
 			},
@@ -69,7 +71,7 @@ provider_installation {
 `,
 		},
 		{
-			config: Config{
+			config: cliconfig.Config{
 				DisableCheckpoint: false,
 				PluginCacheDir:    tempCacheDir,
 			},
@@ -89,8 +91,7 @@ provider_installation {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			tempDir, err := os.MkdirTemp("", "*")
-			assert.NoError(t, err)
+			tempDir := t.TempDir()
 			configFile := filepath.Join(tempDir, ".terraformrc")
 
 			for _, host := range testCase.hosts {
@@ -99,10 +100,10 @@ provider_installation {
 			testCase.config.AddProviderInstallationMethods(testCase.providerInstallationMethods...)
 
 			err = testCase.config.Save(configFile)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			hclBytes, err := os.ReadFile(configFile)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			assert.Equal(t, testCase.expectedHCL, string(hclBytes))
 		})

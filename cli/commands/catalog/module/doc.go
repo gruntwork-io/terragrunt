@@ -55,7 +55,7 @@ type Doc struct {
 	frontmatterReg   *regexp.Regexp
 }
 
-func newDoc(rawContent, fileExt string) *Doc {
+func NewDoc(rawContent, fileExt string) *Doc {
 	doc := &Doc{
 		rawContent: rawContent,
 		fileExt:    fileExt,
@@ -169,7 +169,7 @@ func FindDoc(dir string) (*Doc, error) {
 	}
 	rawContent := string(contentByte)
 
-	return newDoc(rawContent, fileExt), nil
+	return NewDoc(rawContent, fileExt), nil
 }
 
 func (doc *Doc) Title() string {

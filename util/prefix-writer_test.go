@@ -1,17 +1,20 @@
-package util
+package util_test
 
 import (
 	"bytes"
 	"errors"
+	"strconv"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPrefixWriter(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	tc := []struct {
 		prefix   string
 		values   []string
 		expected string
@@ -39,15 +42,21 @@ func TestPrefixWriter(t *testing.T) {
 		{"p1\n", []string{"\n"}, "p1\n\n"},
 	}
 
-	for _, testCase := range testCases {
-		var b bytes.Buffer
-		pw := PrefixedWriter(&b, testCase.prefix)
-		for _, input := range testCase.values {
-			written, err := pw.Write([]byte(input))
-			assert.NoError(t, err)
-			assert.Equal(t, written, len(input))
-		}
-		assert.Equal(t, testCase.expected, b.String())
+	for i, tt := range tc {
+		tt := tt
+
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
+
+			var b bytes.Buffer
+			pw := util.PrefixedWriter(&b, tt.prefix)
+			for _, input := range tt.values {
+				written, err := pw.Write([]byte(input))
+				require.NoError(t, err)
+				assert.Len(t, input, written)
+			}
+			assert.Equal(t, tt.expected, b.String())
+		})
 	}
 }
 
@@ -60,7 +69,7 @@ func (fw *FailingWriter) Write(b []byte) (int, error) {
 func TestPrefixWriterFail(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	tc := []struct {
 		prefix   string
 		values   []string
 		expected string
@@ -68,12 +77,18 @@ func TestPrefixWriterFail(t *testing.T) {
 		{"p1 ", []string{"a", "b"}, "p1 ab"},
 	}
 
-	for _, testCase := range testCases {
-		pw := PrefixedWriter(&FailingWriter{}, testCase.prefix)
-		for _, input := range testCase.values {
-			written, err := pw.Write([]byte(input))
-			assert.Error(t, err)
-			assert.Equal(t, written, 0)
-		}
+	for i, tt := range tc {
+		tt := tt
+
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
+
+			pw := util.PrefixedWriter(&FailingWriter{}, tt.prefix)
+			for _, input := range tt.values {
+				written, err := pw.Write([]byte(input))
+				require.Error(t, err)
+				assert.Empty(t, written)
+			}
+		})
 	}
 }

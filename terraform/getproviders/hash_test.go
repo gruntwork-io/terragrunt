@@ -1,10 +1,11 @@
-package getproviders
+package getproviders_test
 
 import (
 	"fmt"
 	"os"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/terraform/getproviders"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,9 +24,9 @@ func createFakeZipArchive(t *testing.T, content []byte) string {
 func TestPackageHashLegacyZipSHA(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	tc := []struct {
 		path         string
-		expectedHash Hash
+		expectedHash getproviders.Hash
 	}{
 		{
 			createFakeZipArchive(t, []byte("1234567890")),
@@ -37,16 +38,16 @@ func TestPackageHashLegacyZipSHA(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
+	for i, tt := range tc {
+		tt := tt
 
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			hash, err := PackageHashLegacyZipSHA(testCase.path)
+			hash, err := getproviders.PackageHashLegacyZipSHA(tt.path)
 			require.NoError(t, err)
 
-			assert.Equal(t, testCase.expectedHash, hash)
+			assert.Equal(t, tt.expectedHash, hash)
 		})
 	}
 }

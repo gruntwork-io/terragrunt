@@ -1,3 +1,5 @@
+//go:build mocks
+
 package getproviders
 
 import (
@@ -45,7 +47,7 @@ func mockProviderUpdateLock(t *testing.T, address, version string) Provider {
 	return provider
 }
 
-func TestUpdateLockfile(t *testing.T) {
+func TestMockUpdateLockfile(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {

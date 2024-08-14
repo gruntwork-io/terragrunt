@@ -1,9 +1,10 @@
-package validateinputs
+package validateinputs_test
 
 import (
 	"sort"
 	"testing"
 
+	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -57,7 +58,7 @@ func TestGetVarFlagsFromExtraArgs(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			vars, varFiles, err := getVarFlagsFromArgList(testCase.args)
+			vars, varFiles, err := validateinputs.GetVarFlagsFromArgList(testCase.args)
 			require.NoError(t, err)
 			sort.Strings(vars)
 			sort.Strings(varFiles)

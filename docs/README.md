@@ -183,7 +183,7 @@ title: CLI options  # CHANGE THIS
 categories:
   - getting-started # CHANGE THIS
 excerpt: >- # CHANGE THIS
-  Terragrunt forwards all arguments and options to Terraform. Learn more about CLI options in Terragrunt.
+  Terragrunt forwards all arguments and options to OpenTofu/Terraform. Learn more about CLI options in Terragrunt.
 tags: ["CLI"] # CHANGE THIS
 order: 102 # CHANGE THIS
 nav_title: Documentation # OPTIONAL
@@ -223,8 +223,8 @@ To add a new collection based on _Collection browser_, like _Documentation_ coll
    ---
    layout: collection-browser # DO NOT CHANGE THIS
    title: Use cases
-   subtitle: Learn how to integrate Terragrunt with Terraform.
-   excerpt: Learn how to integrate Terragrunt with Terraform.
+   subtitle: Learn how to integrate Terragrunt with OpenTofu/Terraform.
+   excerpt: Learn how to integrate Terragrunt with OpenTofu/Terraform.
    permalink: /use-cases/
    slug: use-cases
    nav_title: Documentation # OPTIONAL
@@ -270,7 +270,7 @@ The Collection Browser's purpose is to wrap Jekyll collection into:
    categories:                     # <-- [CHANGE THIS] use single category. (Downcase and dashes instead of spaces)
      - getting-started
    excerpt: >-                     # <-- [CHANGE THIS] doc's description
-     Terragrunt forwards all arguments and options to Terraform. Learn more about CLI options in Terragrunt.
+     Terragrunt forwards all arguments and options to OpenTofu/Terraform. Learn more about CLI options in Terragrunt.
    tags: ["CLI", "Another tag"]    # <-- [CHANGE THIS] doc's tags
    order: 102                      # <-- [CHANGE THIS] set different number to each doc to set right order
    ---
@@ -283,8 +283,8 @@ The Collection Browser's purpose is to wrap Jekyll collection into:
 ---
 layout: collection-browser         # <-- It has to be "collection-browser"
 title: Use cases
-subtitle: Learn how to integrate Terragrunt with Terraform.
-excerpt: Learn how to integrate Terragrunt with Terraform.
+subtitle: Learn how to integrate Terragrunt with OpenTofu/Terraform.
+excerpt: Learn how to integrate Terragrunt with OpenTofu/Terraform.
 permalink: /use-cases/
 slug: use-cases
 ---

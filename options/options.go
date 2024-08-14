@@ -2,6 +2,7 @@ package options
 
 import (
 	"context"
+	goErrors "errors"
 	"fmt"
 	"io"
 	"math"
@@ -202,6 +203,10 @@ type TerragruntOptions struct {
 
 	// Unix-style glob of directories to include when running *-all commands
 	IncludeDirs []string
+
+	// If set to true, exclude all directories by default when running *-all commands
+	// Is set automatically if IncludeDirs is set
+	ExcludeByDefault bool
 
 	// If set to true, do not include dependencies when processing IncludeDirs (unless they are in the included dirs)
 	StrictInclude bool
@@ -532,6 +537,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		ExcludesFile:                   opts.ExcludesFile,
 		ExcludeDirs:                    opts.ExcludeDirs,
 		IncludeDirs:                    opts.IncludeDirs,
+		ExcludeByDefault:               opts.ExcludeByDefault,
 		ModulesThatInclude:             opts.ModulesThatInclude,
 		Parallelism:                    opts.Parallelism,
 		StrictInclude:                  opts.StrictInclude,
@@ -673,4 +679,4 @@ type EngineOptions struct {
 
 // Custom error types
 
-var ErrRunTerragruntCommandNotSet = fmt.Errorf("the RunTerragrunt option has not been set on this TerragruntOptions object")
+var ErrRunTerragruntCommandNotSet = goErrors.New("the RunTerragrunt option has not been set on this TerragruntOptions object")

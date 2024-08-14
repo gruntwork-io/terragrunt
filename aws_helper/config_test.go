@@ -1,19 +1,21 @@
-package aws_helper
+package aws_helper_test
 
 import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTerragruntIsAddedInUserAgent(t *testing.T) {
 	t.Parallel()
 
-	sess, err := CreateAwsSession(nil, options.NewTerragruntOptions())
-	assert.NoError(t, err)
+	sess, err := aws_helper.CreateAwsSession(nil, options.NewTerragruntOptions())
+	require.NoError(t, err)
 
 	op := &request.Operation{
 		Name:       "",
@@ -32,7 +34,7 @@ func TestTerragruntIsAddedInUserAgent(t *testing.T) {
 func TestAwsSessionValidationFail(t *testing.T) {
 	t.Parallel()
 
-	err := ValidateAwsSession(&AwsSessionConfig{
+	err := aws_helper.ValidateAwsSession(&aws_helper.AwsSessionConfig{
 		Region:        "not-existing-region",
 		CredsFilename: "/tmp/not-existing-file",
 	}, options.NewTerragruntOptions())
