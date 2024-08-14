@@ -94,10 +94,16 @@ func (remoteState *RemoteState) Initialize(ctx context.Context, terragruntOption
 
 // Returns true if remote state needs to be configured. This will be the case when:
 //
-// 1. Remote state has not already been configured
-// 2. Remote state has been configured, but with a different configuration
-// 3. The remote state initializer for this backend type, if there is one, says initialization is necessary
+// 1. Remote state auto-initialization has been disabled
+// 2. Remote state has not already been configured
+// 3. Remote state has been configured, but with a different configuration
+// 4. The remote state initializer for this backend type, if there is one, says initialization is necessary
 func (remoteState *RemoteState) NeedsInit(terragruntOptions *options.TerragruntOptions) (bool, error) {
+	if terragruntOptions.DisableBucketUpdate {
+		terragruntOptions.Logger.Debugf("Skipping remote state initialization due to --terragrunt-disable-bucket-update flag")
+		return false, nil
+	}
+
 	state, err := ParseTerraformStateFileFromLocation(remoteState.Backend, remoteState.Config, terragruntOptions.WorkingDir, terragruntOptions.DataDir())
 	if err != nil {
 		return false, err
