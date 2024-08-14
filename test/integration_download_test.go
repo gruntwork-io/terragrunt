@@ -395,13 +395,13 @@ func TestIncludeDirsDependencyConsistencyRegression(t *testing.T) {
 	}
 
 	includedModulesWithNone := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{}, false)
-	require.NotEmpty(t, includedModulesWithNone)
+	assert.NotEmpty(t, includedModulesWithNone)
 
 	includedModulesWithAmzApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"amazing-app/k8s"}, false)
-	require.Equal(t, []string{"amazing-app/k8s", "clusters/eks"}, includedModulesWithAmzApp)
+	assert.Equal(t, []string{"amazing-app/k8s", "clusters/eks"}, includedModulesWithAmzApp)
 
 	includedModulesWithTestApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"testapp/k8s"}, false)
-	require.Equal(t, []string{"clusters/eks", "testapp/k8s"}, includedModulesWithTestApp)
+	assert.Equal(t, []string{"clusters/eks", "testapp/k8s"}, includedModulesWithTestApp)
 }
 
 func TestIncludeDirsStrict(t *testing.T) {
@@ -424,10 +424,10 @@ func TestIncludeDirsStrict(t *testing.T) {
 	require.Equal(t, []string{}, includedModulesWithNone)
 
 	includedModulesWithAmzApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"amazing-app/k8s"}, true)
-	require.Equal(t, []string{"amazing-app/k8s"}, includedModulesWithAmzApp)
+	assert.Equal(t, []string{"amazing-app/k8s"}, includedModulesWithAmzApp)
 
 	includedModulesWithTestApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"testapp/k8s"}, true)
-	require.Equal(t, []string{"testapp/k8s"}, includedModulesWithTestApp)
+	assert.Equal(t, []string{"testapp/k8s"}, includedModulesWithTestApp)
 }
 
 func TestTerragruntExternalDependencies(t *testing.T) {

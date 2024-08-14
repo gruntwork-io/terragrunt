@@ -5057,13 +5057,9 @@ func runValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath
 
 	require.NoError(t, err)
 
-	includedModulesRegexp, err := regexp.Compile(
-		fmt.Sprintf(
-			`=> Module %s/(.+) \(excluded: (true|false)`,
-			rootModulePath,
-		),
-	)
+	includedModulesRegexp, err := regexp.Compile(`=> Module \./(.+) \(excluded: (true|false)`)
 	require.NoError(t, err)
+
 	matches := includedModulesRegexp.FindAllStringSubmatch(validateAllStderr.String(), -1)
 	includedModules := []string{}
 	for _, match := range matches {

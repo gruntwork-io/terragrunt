@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/log/formatter"
 	"github.com/gruntwork-io/terragrunt/util"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/options"
@@ -26,12 +27,7 @@ func TestCommandOutputOrder(t *testing.T) {
 	t.Run("withPtty", func(t *testing.T) {
 		t.Parallel()
 		testCommandOutputOrder(t, true,
-			[]string{
-				"stdout1",
-				"time= level=unknown msg=stderr1",
-				"stdout2",
-				"time= level=unknown msg=stderr2",
-				"time= level=unknown msg=stderr3"},
+			[]string{"stdout1", "stderr1", "stdout2", "stderr2", "stderr3"},
 			[]string{"stdout1", "stdout2"},
 			[]string{"stderr1", "stderr2", "stderr3"},
 		)
@@ -39,10 +35,7 @@ func TestCommandOutputOrder(t *testing.T) {
 	t.Run("withoutPtty", func(t *testing.T) {
 		t.Parallel()
 		testCommandOutputOrder(t, false,
-			[]string{
-				"time= level=unknown msg=stderr1",
-				"time= level=unknown msg=stderr2",
-				"time= level=unknown msg=stderr3"},
+			[]string{"stderr1", "stderr2", "stderr3"},
 			[]string{"stdout1", "stdout2"},
 			[]string{"stderr1", "stderr2", "stderr3"},
 		)
@@ -56,18 +49,14 @@ var STDOUT = []string{"stdout1", "stdout2"}
 var STDERR = []string{"stderr1", "stderr2", "stderr3"}
 
 func testCommandOutputOrder(t *testing.T, withPtty bool, fullOutput []string, stdout []string, stderr []string) {
-	optsFn := func(opts *options.TerragruntOptions) {
-		opts.NoIncludeModulePrefix = true
-		opts.Logger.Logger.Formatter = formatter.NewFormatter(false, "")
-	}
-	testCommandOutput(t, optsFn, assertOutputs(t, fullOutput, stdout, stderr), withPtty)
+	testCommandOutput(t, noop[*options.TerragruntOptions], assertOutputs(t, fullOutput, stdout, stderr), withPtty)
 }
 
 func TestCommandOutputPrefix(t *testing.T) {
 	prefix := "PREFIX"
 	prefixedOutput := []string{}
 	for _, line := range FULL_OUTPUT {
-		prefixedOutput = append(prefixedOutput, fmt.Sprintf("time= level=unknown msg=%s prefix="+log.TFPrefixFmt, line, prefix))
+		prefixedOutput = append(prefixedOutput, fmt.Sprintf("msg=%s prefix="+log.TFPrefixFmt, line, prefix))
 	}
 	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
 		terragruntOptions.NoIncludeModulePrefix = false
@@ -110,13 +99,13 @@ func assertOutputs(
 ) func(string, *util.CmdOutput) {
 	return func(allOutput string, out *util.CmdOutput) {
 		allOutputs := strings.Split(strings.TrimSpace(allOutput), "\n")
-		require.Equal(t, expectedAllOutputs, allOutputs)
+		assert.Equal(t, expectedAllOutputs, allOutputs)
 
 		stdOutputs := strings.Split(strings.TrimSpace(out.Stdout), "\n")
-		require.Equal(t, expectedStdOutputs, stdOutputs)
+		assert.Equal(t, expectedStdOutputs, stdOutputs)
 
 		stdErrs := strings.Split(strings.TrimSpace(out.Stderr), "\n")
-		require.Equal(t, expectedStdErrs, stdErrs)
+		assert.Equal(t, expectedStdErrs, stdErrs)
 	}
 }
 
