@@ -385,7 +385,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 	}
 
 	if requireInitFile {
-		existsInitFile := util.FileExists(util.JoinPath(terraformSource.WorkingDir, terraform.MODULE_INIT_REQUIRED_FILE))
+		existsInitFile := util.FileExists(util.JoinPath(terraformSource.WorkingDir, terraform.ModuleInitRequiredFile))
 		require.True(t, existsInitFile)
 	}
 }

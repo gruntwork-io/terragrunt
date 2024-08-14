@@ -595,7 +595,7 @@ func runTerraformInit(ctx context.Context, originalTerragruntOptions *options.Te
 		return err
 	}
 
-	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, MODULE_INIT_REQUIRED_FILE)
+	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, ModuleInitRequiredFile)
 	if util.FileExists(moduleNeedInit) {
 		return os.Remove(moduleNeedInit)
 	}
@@ -633,7 +633,7 @@ func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error)
 		return false, nil
 	}
 
-	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, MODULE_INIT_REQUIRED_FILE)
+	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, ModuleInitRequiredFile)
 	if util.FileExists(moduleNeedInit) {
 		return true, nil
 	}

@@ -18,10 +18,10 @@ import (
 )
 
 // manifest for files copied from terragrunt module folder (i.e., the folder that contains the current terragrunt.hcl)
-const MODULE_MANIFEST_NAME = ".terragrunt-module-manifest"
+const ModuleManifestName = ".terragrunt-module-manifest"
 
 // file to indicate that init should be executed
-const MODULE_INIT_REQUIRED_FILE = ".terragrunt-init-required"
+const ModuleInitRequiredFile = ".terragrunt-init-required"
 
 const tfLintConfig = ".tflint.hcl"
 
@@ -49,7 +49,7 @@ func downloadTerraformSource(ctx context.Context, source string, terragruntOptio
 	}
 	// Always include the .tflint.hcl file, if it exists
 	includeInCopy = append(includeInCopy, tfLintConfig)
-	if err := util.CopyFolderContents(terragruntOptions.WorkingDir, terraformSource.WorkingDir, MODULE_MANIFEST_NAME, includeInCopy); err != nil {
+	if err := util.CopyFolderContents(terragruntOptions.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, includeInCopy); err != nil {
 		return nil, err
 	}
 
@@ -118,7 +118,7 @@ func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *te
 	// if source versions are different or calculating version failed, create file to run init
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
 	if previousVersion != currentVersion || err != nil {
-		initFile := util.JoinPath(terraformSource.WorkingDir, MODULE_INIT_REQUIRED_FILE)
+		initFile := util.JoinPath(terraformSource.WorkingDir, ModuleInitRequiredFile)
 		f, createErr := os.Create(initFile)
 		if createErr != nil {
 			return createErr
