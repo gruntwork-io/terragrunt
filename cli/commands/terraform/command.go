@@ -24,11 +24,11 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Name:     CommandName,
 		HelpName: CommandHelpName,
 		Usage:    "Terragrunt forwards all other commands directly to Terraform",
-		Action:   action(opts),
+		Action:   Action(opts),
 	}
 }
 
-func action(opts *options.TerragruntOptions) cli.ActionFunc {
+func Action(opts *options.TerragruntOptions) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
 		if opts.TerraformCommand == terraform.CommandNameDestroy {
 			opts.CheckDependentModules = true

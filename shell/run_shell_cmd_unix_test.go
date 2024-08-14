@@ -1,7 +1,7 @@
 //go:build linux || darwin
 // +build linux darwin
 
-package shell
+package shell_test
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/options"
@@ -59,7 +60,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	cmdChannel := make(chan error)
 	runChannel := make(chan error)
 
-	signalChannel := NewSignalsForwarder(InterruptSignals, cmd, terragruntOptions.Logger, cmdChannel)
+	signalChannel := shell.NewSignalsForwarder(shell.InterruptSignals, cmd, terragruntOptions.Logger, cmdChannel)
 	defer signalChannel.Close()
 
 	go func() {
@@ -93,7 +94,7 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 	cmdChannel := make(chan error)
 	runChannel := make(chan error)
 
-	signalChannel := NewSignalsForwarder(InterruptSignals, cmd, terragruntOptions.Logger, cmdChannel)
+	signalChannel := shell.NewSignalsForwarder(shell.InterruptSignals, cmd, terragruntOptions.Logger, cmdChannel)
 	defer signalChannel.Close()
 
 	go func() {
@@ -136,7 +137,7 @@ func TestRunShellCommandWithOutputInterrupt(t *testing.T) {
 	expectedWait := 5
 
 	go func() {
-		_, err := RunShellCommandWithOutput(context.Background(), terragruntOptions, "", false, false, "../testdata/test_sigint_wait.sh", strconv.Itoa(expectedWait))
+		_, err := shell.RunShellCommandWithOutput(context.Background(), terragruntOptions, "", false, false, "../testdata/test_sigint_wait.sh", strconv.Itoa(expectedWait))
 		errCh <- err
 	}()
 

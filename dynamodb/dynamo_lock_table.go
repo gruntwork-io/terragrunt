@@ -202,13 +202,13 @@ func isTableAlreadyBeingCreatedOrUpdatedError(err error) bool {
 // Wait for the given DynamoDB table to be in the "active" state. If it's not in "active" state, sleep for the
 // specified amount of time, and try again, up to a maximum of maxRetries retries.
 func waitForTableToBeActive(tableName string, client *dynamodb.DynamoDB, maxRetries int, sleepBetweenRetries time.Duration, terragruntOptions *options.TerragruntOptions) error {
-	return waitForTableToBeActiveWithRandomSleep(tableName, client, maxRetries, sleepBetweenRetries, sleepBetweenRetries, terragruntOptions)
+	return WaitForTableToBeActiveWithRandomSleep(tableName, client, maxRetries, sleepBetweenRetries, sleepBetweenRetries, terragruntOptions)
 }
 
 // Waits for the given table as described above, but sleeps a random amount of time greater than sleepBetweenRetriesMin
 // and less than sleepBetweenRetriesMax between tries. This is to avoid an AWS issue where all waiting requests fire at
 // the same time, which continually triggered AWS's "subscriber limit exceeded" API error.
-func waitForTableToBeActiveWithRandomSleep(tableName string, client *dynamodb.DynamoDB, maxRetries int, sleepBetweenRetriesMin time.Duration, sleepBetweenRetriesMax time.Duration, terragruntOptions *options.TerragruntOptions) error {
+func WaitForTableToBeActiveWithRandomSleep(tableName string, client *dynamodb.DynamoDB, maxRetries int, sleepBetweenRetriesMin time.Duration, sleepBetweenRetriesMax time.Duration, terragruntOptions *options.TerragruntOptions) error {
 	for i := 0; i < maxRetries; i++ {
 		tableReady, err := LockTableExistsAndIsActive(tableName, client)
 		if err != nil {

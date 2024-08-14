@@ -73,7 +73,7 @@ func (err ProcessingModuleDependencyError) Unwrap() error {
 }
 
 type DependencyNotFoundWhileCrossLinkingError struct {
-	Module     *runningModule
+	Module     *RunningModule
 	Dependency *TerraformModule
 }
 

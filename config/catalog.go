@@ -102,7 +102,7 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 			// continue
 		}
 
-		newConfigPath, err := findInParentFolders(NewParsingContext(ctx, opts), []string{configName})
+		newConfigPath, err := FindInParentFolders(NewParsingContext(ctx, opts), []string{configName})
 		if err != nil {
 			var parentFileNotFoundError ParentFileNotFoundError
 			if ok := errors.As(err, &parentFileNotFoundError); ok {
@@ -162,7 +162,7 @@ func convertToTerragruntCatalogConfig(ctx *ParsingContext, configPath string, te
 		// we should ignore any errors from `parseCtyValueToMap` as some `locals` values might have been incorrectly evaluated, that results to `json.Unmarshal` error.
 		// for example if the locals block looks like `{"var1":, "var2":"value2"}`, `parseCtyValueToMap` returns the map with "var2" value and an syntax error,
 		// but since we consciously understand that not all variables can be evaluated correctly due to the fact that parsing may not start from the real root file, we can safely ignore this error.
-		localsParsed, _ := parseCtyValueToMap(*ctx.Locals)
+		localsParsed, _ := ParseCtyValueToMap(*ctx.Locals)
 		terragruntConfig.Locals = localsParsed
 		terragruntConfig.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)
 	}

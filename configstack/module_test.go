@@ -1,4 +1,4 @@
-package configstack
+package configstack_test
 
 import (
 	"bytes"
@@ -8,22 +8,25 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGraph(t *testing.T) {
-	a := &TerraformModule{Path: "a"}
-	b := &TerraformModule{Path: "b"}
-	c := &TerraformModule{Path: "c"}
-	d := &TerraformModule{Path: "d"}
-	e := &TerraformModule{Path: "e", Dependencies: []*TerraformModule{a}}
-	f := &TerraformModule{Path: "f", Dependencies: []*TerraformModule{a, b}}
-	g := &TerraformModule{Path: "g", Dependencies: []*TerraformModule{e}}
-	h := &TerraformModule{Path: "h", Dependencies: []*TerraformModule{g, f, c}}
+	t.Parallel()
 
-	modules := TerraformModules{a, b, c, d, e, f, g, h}
+	a := &configstack.TerraformModule{Path: "a"}
+	b := &configstack.TerraformModule{Path: "b"}
+	c := &configstack.TerraformModule{Path: "c"}
+	d := &configstack.TerraformModule{Path: "d"}
+	e := &configstack.TerraformModule{Path: "e", Dependencies: []*configstack.TerraformModule{a}}
+	f := &configstack.TerraformModule{Path: "f", Dependencies: []*configstack.TerraformModule{a, b}}
+	g := &configstack.TerraformModule{Path: "g", Dependencies: []*configstack.TerraformModule{e}}
+	h := &configstack.TerraformModule{Path: "h", Dependencies: []*configstack.TerraformModule{g, f, c}}
+
+	modules := configstack.TerraformModules{a, b, c, d, e, f, g, h}
 
 	var stdout bytes.Buffer
 	terragruntOptions, _ := options.NewTerragruntOptionsForTest("/terragrunt.hcl")
@@ -51,16 +54,18 @@ digraph {
 }
 
 func TestGraphTrimPrefix(t *testing.T) {
-	a := &TerraformModule{Path: "/config/a"}
-	b := &TerraformModule{Path: "/config/b"}
-	c := &TerraformModule{Path: "/config/c"}
-	d := &TerraformModule{Path: "/config/d"}
-	e := &TerraformModule{Path: "/config/alpha/beta/gamma/e", Dependencies: []*TerraformModule{a}}
-	f := &TerraformModule{Path: "/config/alpha/beta/gamma/f", Dependencies: []*TerraformModule{a, b}}
-	g := &TerraformModule{Path: "/config/alpha/g", Dependencies: []*TerraformModule{e}}
-	h := &TerraformModule{Path: "/config/alpha/beta/h", Dependencies: []*TerraformModule{g, f, c}}
+	t.Parallel()
 
-	modules := TerraformModules{a, b, c, d, e, f, g, h}
+	a := &configstack.TerraformModule{Path: "/config/a"}
+	b := &configstack.TerraformModule{Path: "/config/b"}
+	c := &configstack.TerraformModule{Path: "/config/c"}
+	d := &configstack.TerraformModule{Path: "/config/d"}
+	e := &configstack.TerraformModule{Path: "/config/alpha/beta/gamma/e", Dependencies: []*configstack.TerraformModule{a}}
+	f := &configstack.TerraformModule{Path: "/config/alpha/beta/gamma/f", Dependencies: []*configstack.TerraformModule{a, b}}
+	g := &configstack.TerraformModule{Path: "/config/alpha/g", Dependencies: []*configstack.TerraformModule{e}}
+	h := &configstack.TerraformModule{Path: "/config/alpha/beta/h", Dependencies: []*configstack.TerraformModule{g, f, c}}
+
+	modules := configstack.TerraformModules{a, b, c, d, e, f, g, h}
 
 	var stdout bytes.Buffer
 	terragruntOptions, _ := options.NewTerragruntOptionsWithConfigPath("/config/terragrunt.hcl")
@@ -88,16 +93,18 @@ digraph {
 }
 
 func TestGraphFlagExcluded(t *testing.T) {
-	a := &TerraformModule{Path: "a", FlagExcluded: true}
-	b := &TerraformModule{Path: "b"}
-	c := &TerraformModule{Path: "c"}
-	d := &TerraformModule{Path: "d"}
-	e := &TerraformModule{Path: "e", Dependencies: []*TerraformModule{a}}
-	f := &TerraformModule{Path: "f", FlagExcluded: true, Dependencies: []*TerraformModule{a, b}}
-	g := &TerraformModule{Path: "g", Dependencies: []*TerraformModule{e}}
-	h := &TerraformModule{Path: "h", Dependencies: []*TerraformModule{g, f, c}}
+	t.Parallel()
 
-	modules := TerraformModules{a, b, c, d, e, f, g, h}
+	a := &configstack.TerraformModule{Path: "a", FlagExcluded: true}
+	b := &configstack.TerraformModule{Path: "b"}
+	c := &configstack.TerraformModule{Path: "c"}
+	d := &configstack.TerraformModule{Path: "d"}
+	e := &configstack.TerraformModule{Path: "e", Dependencies: []*configstack.TerraformModule{a}}
+	f := &configstack.TerraformModule{Path: "f", FlagExcluded: true, Dependencies: []*configstack.TerraformModule{a, b}}
+	g := &configstack.TerraformModule{Path: "g", Dependencies: []*configstack.TerraformModule{e}}
+	h := &configstack.TerraformModule{Path: "h", Dependencies: []*configstack.TerraformModule{g, f, c}}
+
+	modules := configstack.TerraformModules{a, b, c, d, e, f, g, h}
 
 	var stdout bytes.Buffer
 	terragruntOptions, _ := options.NewTerragruntOptionsForTest("/terragrunt.hcl")
@@ -130,66 +137,66 @@ func TestCheckForCycles(t *testing.T) {
 	////////////////////////////////////
 	// These modules have no dependencies
 	////////////////////////////////////
-	a := &TerraformModule{Path: "a"}
-	b := &TerraformModule{Path: "b"}
-	c := &TerraformModule{Path: "c"}
-	d := &TerraformModule{Path: "d"}
+	a := &configstack.TerraformModule{Path: "a"}
+	b := &configstack.TerraformModule{Path: "b"}
+	c := &configstack.TerraformModule{Path: "c"}
+	d := &configstack.TerraformModule{Path: "d"}
 
 	////////////////////////////////////
 	// These modules have dependencies, but no cycles
 	////////////////////////////////////
 
 	// e -> a
-	e := &TerraformModule{Path: "e", Dependencies: []*TerraformModule{a}}
+	e := &configstack.TerraformModule{Path: "e", Dependencies: []*configstack.TerraformModule{a}}
 
 	// f -> a, b
-	f := &TerraformModule{Path: "f", Dependencies: []*TerraformModule{a, b}}
+	f := &configstack.TerraformModule{Path: "f", Dependencies: []*configstack.TerraformModule{a, b}}
 
 	// g -> e -> a
-	g := &TerraformModule{Path: "g", Dependencies: []*TerraformModule{e}}
+	g := &configstack.TerraformModule{Path: "g", Dependencies: []*configstack.TerraformModule{e}}
 
 	// h -> g -> e -> a
 	// |            /
 	//  --> f -> b
 	// |
 	//  --> c
-	h := &TerraformModule{Path: "h", Dependencies: []*TerraformModule{g, f, c}}
+	h := &configstack.TerraformModule{Path: "h", Dependencies: []*configstack.TerraformModule{g, f, c}}
 
 	////////////////////////////////////
 	// These modules have dependencies and cycles
 	////////////////////////////////////
 
 	// i -> i
-	i := &TerraformModule{Path: "i", Dependencies: []*TerraformModule{}}
+	i := &configstack.TerraformModule{Path: "i", Dependencies: []*configstack.TerraformModule{}}
 	i.Dependencies = append(i.Dependencies, i)
 
 	// j -> k -> j
-	j := &TerraformModule{Path: "j", Dependencies: []*TerraformModule{}}
-	k := &TerraformModule{Path: "k", Dependencies: []*TerraformModule{j}}
+	j := &configstack.TerraformModule{Path: "j", Dependencies: []*configstack.TerraformModule{}}
+	k := &configstack.TerraformModule{Path: "k", Dependencies: []*configstack.TerraformModule{j}}
 	j.Dependencies = append(j.Dependencies, k)
 
 	// l -> m -> n -> o -> l
-	l := &TerraformModule{Path: "l", Dependencies: []*TerraformModule{}}
-	o := &TerraformModule{Path: "o", Dependencies: []*TerraformModule{l}}
-	n := &TerraformModule{Path: "n", Dependencies: []*TerraformModule{o}}
-	m := &TerraformModule{Path: "m", Dependencies: []*TerraformModule{n}}
+	l := &configstack.TerraformModule{Path: "l", Dependencies: []*configstack.TerraformModule{}}
+	o := &configstack.TerraformModule{Path: "o", Dependencies: []*configstack.TerraformModule{l}}
+	n := &configstack.TerraformModule{Path: "n", Dependencies: []*configstack.TerraformModule{o}}
+	m := &configstack.TerraformModule{Path: "m", Dependencies: []*configstack.TerraformModule{n}}
 	l.Dependencies = append(l.Dependencies, m)
 
 	testCases := []struct {
-		modules  TerraformModules
-		expected DependencyCycleError
+		modules  configstack.TerraformModules
+		expected configstack.DependencyCycleError
 	}{
-		{[]*TerraformModule{}, nil},
-		{[]*TerraformModule{a}, nil},
-		{[]*TerraformModule{a, b, c, d}, nil},
-		{[]*TerraformModule{a, e}, nil},
-		{[]*TerraformModule{a, b, f}, nil},
-		{[]*TerraformModule{a, e, g}, nil},
-		{[]*TerraformModule{a, b, c, e, f, g, h}, nil},
-		{[]*TerraformModule{i}, DependencyCycleError([]string{"i", "i"})},
-		{[]*TerraformModule{j, k}, DependencyCycleError([]string{"j", "k", "j"})},
-		{[]*TerraformModule{l, o, n, m}, DependencyCycleError([]string{"l", "m", "n", "o", "l"})},
-		{[]*TerraformModule{a, l, b, o, n, f, m, h}, DependencyCycleError([]string{"l", "m", "n", "o", "l"})},
+		{[]*configstack.TerraformModule{}, nil},
+		{[]*configstack.TerraformModule{a}, nil},
+		{[]*configstack.TerraformModule{a, b, c, d}, nil},
+		{[]*configstack.TerraformModule{a, e}, nil},
+		{[]*configstack.TerraformModule{a, b, f}, nil},
+		{[]*configstack.TerraformModule{a, e, g}, nil},
+		{[]*configstack.TerraformModule{a, b, c, e, f, g, h}, nil},
+		{[]*configstack.TerraformModule{i}, configstack.DependencyCycleError([]string{"i", "i"})},
+		{[]*configstack.TerraformModule{j, k}, configstack.DependencyCycleError([]string{"j", "k", "j"})},
+		{[]*configstack.TerraformModule{l, o, n, m}, configstack.DependencyCycleError([]string{"l", "m", "n", "o", "l"})},
+		{[]*configstack.TerraformModule{a, l, b, o, n, f, m, h}, configstack.DependencyCycleError([]string{"l", "m", "n", "o", "l"})},
 	}
 
 	for _, testCase := range testCases {
@@ -197,8 +204,7 @@ func TestCheckForCycles(t *testing.T) {
 		if testCase.expected == nil {
 			require.NoError(t, actual)
 		} else if assert.Error(t, actual, "For modules %v", testCase.modules) {
-			var actualErr DependencyCycleError
-			// actualErr := errors.Unwrap(actual).(DependencyCycleError)
+			var actualErr configstack.DependencyCycleError
 			errors.As(actual, &actualErr)
 			assert.Equal(t, []string(testCase.expected), []string(actualErr), "For modules %v", testCase.modules)
 		}
@@ -211,7 +217,7 @@ func TestRunModulesNoModules(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{}
+	modules := configstack.TerraformModules{}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 }
@@ -220,9 +226,9 @@ func TestRunModulesOneModuleSuccess(t *testing.T) {
 	t.Parallel()
 
 	aRan := false
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
@@ -230,7 +236,7 @@ func TestRunModulesOneModuleSuccess(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA}
+	modules := configstack.TerraformModules{moduleA}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.True(t, aRan)
@@ -240,9 +246,9 @@ func TestRunModulesOneModuleAssumeAlreadyRan(t *testing.T) {
 	t.Parallel()
 
 	aRan := false
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:                 "a",
-		Dependencies:         TerraformModules{},
+		Dependencies:         configstack.TerraformModules{},
 		Config:               config.TerragruntConfig{},
 		TerragruntOptions:    optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 		AssumeAlreadyApplied: true,
@@ -251,7 +257,7 @@ func TestRunModulesOneModuleAssumeAlreadyRan(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA}
+	modules := configstack.TerraformModules{moduleA}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.False(t, aRan)
@@ -261,9 +267,9 @@ func TestRunModulesReverseOrderOneModuleSuccess(t *testing.T) {
 	t.Parallel()
 
 	aRan := false
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
@@ -271,7 +277,7 @@ func TestRunModulesReverseOrderOneModuleSuccess(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA}
+	modules := configstack.TerraformModules{moduleA}
 	err = modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.True(t, aRan)
@@ -281,9 +287,9 @@ func TestRunModulesIgnoreOrderOneModuleSuccess(t *testing.T) {
 	t.Parallel()
 
 	aRan := false
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
@@ -291,7 +297,7 @@ func TestRunModulesIgnoreOrderOneModuleSuccess(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA}
+	modules := configstack.TerraformModules{moduleA}
 	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 	assert.True(t, aRan)
@@ -302,9 +308,9 @@ func TestRunModulesOneModuleError(t *testing.T) {
 
 	aRan := false
 	expectedErrA := errors.New("Expected error for module a")
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", expectedErrA, &aRan),
 	}
@@ -312,7 +318,7 @@ func TestRunModulesOneModuleError(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA}
+	modules := configstack.TerraformModules{moduleA}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA)
 	assert.True(t, aRan)
@@ -323,9 +329,9 @@ func TestRunModulesReverseOrderOneModuleError(t *testing.T) {
 
 	aRan := false
 	expectedErrA := errors.New("Expected error for module a")
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", expectedErrA, &aRan),
 	}
@@ -333,7 +339,7 @@ func TestRunModulesReverseOrderOneModuleError(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA}
+	modules := configstack.TerraformModules{moduleA}
 	err = modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA)
 	assert.True(t, aRan)
@@ -344,9 +350,9 @@ func TestRunModulesIgnoreOrderOneModuleError(t *testing.T) {
 
 	aRan := false
 	expectedErrA := errors.New("Expected error for module a")
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", expectedErrA, &aRan),
 	}
@@ -354,7 +360,7 @@ func TestRunModulesIgnoreOrderOneModuleError(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA}
+	modules := configstack.TerraformModules{moduleA}
 	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA)
 	assert.True(t, aRan)
@@ -364,25 +370,25 @@ func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
 	t.Parallel()
 
 	aRan := false
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
@@ -390,7 +396,7 @@ func TestRunModulesMultipleModulesNoDependenciesSuccess(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA, moduleB, moduleC}
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
@@ -403,25 +409,25 @@ func TestRunModulesMultipleModulesNoDependenciesSuccessNoParallelism(t *testing.
 	t.Parallel()
 
 	aRan := false
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
@@ -429,7 +435,7 @@ func TestRunModulesMultipleModulesNoDependenciesSuccessNoParallelism(t *testing.
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA, moduleB, moduleC}
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModules(context.Background(), opts, 1)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
@@ -442,25 +448,25 @@ func TestRunModulesReverseOrderMultipleModulesNoDependenciesSuccess(t *testing.T
 	t.Parallel()
 
 	aRan := false
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
@@ -468,7 +474,7 @@ func TestRunModulesReverseOrderMultipleModulesNoDependenciesSuccess(t *testing.T
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA, moduleB, moduleC}
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
@@ -481,25 +487,25 @@ func TestRunModulesIgnoreOrderMultipleModulesNoDependenciesSuccess(t *testing.T)
 	t.Parallel()
 
 	aRan := false
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
@@ -507,7 +513,7 @@ func TestRunModulesIgnoreOrderMultipleModulesNoDependenciesSuccess(t *testing.T)
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA, moduleB, moduleC}
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
@@ -520,26 +526,26 @@ func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
 	t.Parallel()
 
 	aRan := false
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
 	expectedErrB := errors.New("Expected error for module b")
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", expectedErrB, &bRan),
 	}
 
 	cRan := false
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
@@ -547,7 +553,7 @@ func TestRunModulesMultipleModulesNoDependenciesOneFailure(t *testing.T) {
 	opts, optsErr := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, optsErr)
 
-	modules := TerraformModules{moduleA, moduleB, moduleC}
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
 	err := modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB)
 
@@ -561,27 +567,27 @@ func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 
 	aRan := false
 	expectedErrA := errors.New("Expected error for module a")
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", expectedErrA, &aRan),
 	}
 
 	bRan := false
 	expectedErrB := errors.New("Expected error for module b")
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", expectedErrB, &bRan),
 	}
 
 	cRan := false
 	expectedErrC := errors.New("Expected error for module c")
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", expectedErrC, &cRan),
 	}
@@ -589,7 +595,7 @@ func TestRunModulesMultipleModulesNoDependenciesMultipleFailures(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA, moduleB, moduleC}
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA, expectedErrB, expectedErrC)
 
@@ -602,25 +608,25 @@ func TestRunModulesMultipleModulesWithDependenciesSuccess(t *testing.T) {
 	t.Parallel()
 
 	aRan := false
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{moduleB},
+		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
@@ -628,7 +634,7 @@ func TestRunModulesMultipleModulesWithDependenciesSuccess(t *testing.T) {
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA, moduleB, moduleC}
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
@@ -641,34 +647,34 @@ func TestRunModulesMultipleModulesWithDependenciesWithAssumeAlreadyRanSuccess(t 
 	t.Parallel()
 
 	aRan := false
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:                 "c",
-		Dependencies:         TerraformModules{moduleB},
+		Dependencies:         configstack.TerraformModules{moduleB},
 		Config:               config.TerragruntConfig{},
 		TerragruntOptions:    optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 		AssumeAlreadyApplied: true,
 	}
 
 	dRan := false
-	moduleD := &TerraformModule{
+	moduleD := &configstack.TerraformModule{
 		Path:              "d",
-		Dependencies:      TerraformModules{moduleC},
+		Dependencies:      configstack.TerraformModules{moduleC},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "d", nil, &dRan),
 	}
@@ -676,7 +682,7 @@ func TestRunModulesMultipleModulesWithDependenciesWithAssumeAlreadyRanSuccess(t 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA, moduleB, moduleC, moduleD}
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
@@ -690,25 +696,25 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesSuccess(t *testing
 	t.Parallel()
 
 	aRan := false
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{moduleB},
+		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
@@ -716,7 +722,7 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesSuccess(t *testing
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA, moduleB, moduleC}
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
@@ -729,25 +735,25 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesSuccess(t *testing.
 	t.Parallel()
 
 	aRan := false
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{moduleB},
+		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
@@ -755,7 +761,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesSuccess(t *testing.
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA, moduleB, moduleC}
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err, "Unexpected error: %v", err)
 
@@ -768,36 +774,36 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailure(t *testing.T) {
 	t.Parallel()
 
 	aRan := false
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
 	expectedErrB := errors.New("Expected error for module b")
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", expectedErrB, &bRan),
 	}
 
 	cRan := false
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{moduleB},
+		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	expectedErrC := ProcessingModuleDependencyError{moduleC, moduleB, expectedErrB}
+	expectedErrC := configstack.ProcessingModuleDependencyError{moduleC, moduleB, expectedErrB}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA, moduleB, moduleC}
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB, expectedErrC)
 
@@ -812,9 +818,9 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErro
 	aRan := false
 	terragruntOptionsA := optionsWithMockTerragruntCommand(t, "a", nil, &aRan)
 	terragruntOptionsA.IgnoreDependencyErrors = true
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: terragruntOptionsA,
 	}
@@ -823,9 +829,9 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErro
 	expectedErrB := errors.New("Expected error for module b")
 	terragruntOptionsB := optionsWithMockTerragruntCommand(t, "b", expectedErrB, &bRan)
 	terragruntOptionsB.IgnoreDependencyErrors = true
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: terragruntOptionsB,
 	}
@@ -833,9 +839,9 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErro
 	cRan := false
 	terragruntOptionsC := optionsWithMockTerragruntCommand(t, "c", nil, &cRan)
 	terragruntOptionsC.IgnoreDependencyErrors = true
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{moduleB},
+		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: terragruntOptionsC,
 	}
@@ -843,7 +849,7 @@ func TestRunModulesMultipleModulesWithDependenciesOneFailureIgnoreDependencyErro
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA, moduleB, moduleC}
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB)
 
@@ -856,36 +862,36 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesOneFailure(t *test
 	t.Parallel()
 
 	aRan := false
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
 	expectedErrB := errors.New("Expected error for module b")
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", expectedErrB, &bRan),
 	}
 
 	cRan := false
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{moduleB},
+		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	expectedErrA := ProcessingModuleDependencyError{moduleA, moduleB, expectedErrB}
+	expectedErrA := configstack.ProcessingModuleDependencyError{moduleA, moduleB, expectedErrB}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA, moduleB, moduleC}
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB, expectedErrA)
 
@@ -898,26 +904,26 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesOneFailure(t *testi
 	t.Parallel()
 
 	aRan := false
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
 	expectedErrB := errors.New("Expected error for module b")
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", expectedErrB, &bRan),
 	}
 
 	cRan := false
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{moduleB},
+		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
@@ -925,7 +931,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesOneFailure(t *testi
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA, moduleB, moduleC}
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrB)
 
@@ -939,36 +945,36 @@ func TestRunModulesMultipleModulesWithDependenciesMultipleFailures(t *testing.T)
 
 	aRan := false
 	expectedErrA := errors.New("Expected error for module a")
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", expectedErrA, &aRan),
 	}
 
 	bRan := false
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{moduleB},
+		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
-	expectedErrB := ProcessingModuleDependencyError{moduleB, moduleA, expectedErrA}
-	expectedErrC := ProcessingModuleDependencyError{moduleC, moduleB, expectedErrB}
+	expectedErrB := configstack.ProcessingModuleDependencyError{moduleB, moduleA, expectedErrA}
+	expectedErrC := configstack.ProcessingModuleDependencyError{moduleC, moduleB, expectedErrB}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA, moduleB, moduleC}
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA, expectedErrB, expectedErrC)
 
@@ -982,25 +988,25 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesMultipleFailures(t 
 
 	aRan := false
 	expectedErrA := errors.New("Expected error for module a")
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", expectedErrA, &aRan),
 	}
 
 	bRan := false
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{moduleB},
+		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
@@ -1008,7 +1014,7 @@ func TestRunModulesIgnoreOrderMultipleModulesWithDependenciesMultipleFailures(t 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA, moduleB, moduleC}
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC}
 	err = modules.RunModulesIgnoreOrder(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrA)
 
@@ -1021,49 +1027,49 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testin
 	t.Parallel()
 
 	aRan := false
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{moduleB},
+		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", nil, &cRan),
 	}
 
 	dRan := false
-	moduleD := &TerraformModule{
+	moduleD := &configstack.TerraformModule{
 		Path:              "d",
-		Dependencies:      TerraformModules{moduleA, moduleB, moduleC},
+		Dependencies:      configstack.TerraformModules{moduleA, moduleB, moduleC},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "d", nil, &dRan),
 	}
 
 	eRan := false
-	moduleE := &TerraformModule{
+	moduleE := &configstack.TerraformModule{
 		Path:              "e",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "e", nil, &eRan),
 	}
 
 	fRan := false
-	moduleF := &TerraformModule{
+	moduleF := &configstack.TerraformModule{
 		Path:              "f",
-		Dependencies:      TerraformModules{moduleE, moduleD},
+		Dependencies:      configstack.TerraformModules{moduleE, moduleD},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "f", nil, &fRan),
 	}
@@ -1071,7 +1077,7 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphAllSuccess(t *testin
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF}
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	require.NoError(t, err)
 
@@ -1087,70 +1093,70 @@ func TestRunModulesMultipleModulesWithDependenciesLargeGraphPartialFailure(t *te
 	t.Parallel()
 
 	aRan := false
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "large-graph-a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "large-graph-a", nil, &aRan),
 	}
 
 	bRan := false
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "large-graph-b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "large-graph-b", nil, &bRan),
 	}
 
 	cRan := false
 	expectedErrC := errors.New("Expected error for module large-graph-c")
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "large-graph-c",
-		Dependencies:      TerraformModules{moduleB},
+		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "large-graph-c", expectedErrC, &cRan),
 	}
 
 	dRan := false
-	moduleD := &TerraformModule{
+	moduleD := &configstack.TerraformModule{
 		Path:              "large-graph-d",
-		Dependencies:      TerraformModules{moduleA, moduleB, moduleC},
+		Dependencies:      configstack.TerraformModules{moduleA, moduleB, moduleC},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "large-graph-d", nil, &dRan),
 	}
 
 	eRan := false
-	moduleE := &TerraformModule{
+	moduleE := &configstack.TerraformModule{
 		Path:                 "large-graph-e",
-		Dependencies:         TerraformModules{},
+		Dependencies:         configstack.TerraformModules{},
 		Config:               config.TerragruntConfig{},
 		TerragruntOptions:    optionsWithMockTerragruntCommand(t, "large-graph-e", nil, &eRan),
 		AssumeAlreadyApplied: true,
 	}
 
 	fRan := false
-	moduleF := &TerraformModule{
+	moduleF := &configstack.TerraformModule{
 		Path:              "large-graph-f",
-		Dependencies:      TerraformModules{moduleE, moduleD},
+		Dependencies:      configstack.TerraformModules{moduleE, moduleD},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "large-graph-f", nil, &fRan),
 	}
 
 	gRan := false
-	moduleG := &TerraformModule{
+	moduleG := &configstack.TerraformModule{
 		Path:              "large-graph-g",
-		Dependencies:      TerraformModules{moduleE},
+		Dependencies:      configstack.TerraformModules{moduleE},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "large-graph-g", nil, &gRan),
 	}
 
-	expectedErrD := ProcessingModuleDependencyError{moduleD, moduleC, expectedErrC}
-	expectedErrF := ProcessingModuleDependencyError{moduleF, moduleD, expectedErrD}
+	expectedErrD := configstack.ProcessingModuleDependencyError{moduleD, moduleC, expectedErrC}
+	expectedErrF := configstack.ProcessingModuleDependencyError{moduleF, moduleD, expectedErrD}
 
 	opts, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
-	modules := TerraformModules{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF, moduleG}
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF, moduleG}
 	err = modules.RunModules(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrC, expectedErrD, expectedErrF)
 
@@ -1167,61 +1173,61 @@ func TestRunModulesReverseOrderMultipleModulesWithDependenciesLargeGraphPartialF
 	t.Parallel()
 
 	aRan := false
-	moduleA := &TerraformModule{
+	moduleA := &configstack.TerraformModule{
 		Path:              "a",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "a", nil, &aRan),
 	}
 
 	bRan := false
-	moduleB := &TerraformModule{
+	moduleB := &configstack.TerraformModule{
 		Path:              "b",
-		Dependencies:      TerraformModules{moduleA},
+		Dependencies:      configstack.TerraformModules{moduleA},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "b", nil, &bRan),
 	}
 
 	cRan := false
 	expectedErrC := errors.New("Expected error for module c")
-	moduleC := &TerraformModule{
+	moduleC := &configstack.TerraformModule{
 		Path:              "c",
-		Dependencies:      TerraformModules{moduleB},
+		Dependencies:      configstack.TerraformModules{moduleB},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "c", expectedErrC, &cRan),
 	}
 
 	dRan := false
-	moduleD := &TerraformModule{
+	moduleD := &configstack.TerraformModule{
 		Path:              "d",
-		Dependencies:      TerraformModules{moduleA, moduleB, moduleC},
+		Dependencies:      configstack.TerraformModules{moduleA, moduleB, moduleC},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "d", nil, &dRan),
 	}
 
 	eRan := false
-	moduleE := &TerraformModule{
+	moduleE := &configstack.TerraformModule{
 		Path:              "e",
-		Dependencies:      TerraformModules{},
+		Dependencies:      configstack.TerraformModules{},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "e", nil, &eRan),
 	}
 
 	fRan := false
-	moduleF := &TerraformModule{
+	moduleF := &configstack.TerraformModule{
 		Path:              "f",
-		Dependencies:      TerraformModules{moduleE, moduleD},
+		Dependencies:      configstack.TerraformModules{moduleE, moduleD},
 		Config:            config.TerragruntConfig{},
 		TerragruntOptions: optionsWithMockTerragruntCommand(t, "f", nil, &fRan),
 	}
 
-	expectedErrB := ProcessingModuleDependencyError{moduleB, moduleC, expectedErrC}
-	expectedErrA := ProcessingModuleDependencyError{moduleA, moduleB, expectedErrB}
+	expectedErrB := configstack.ProcessingModuleDependencyError{moduleB, moduleC, expectedErrC}
+	expectedErrA := configstack.ProcessingModuleDependencyError{moduleA, moduleB, expectedErrB}
 
 	opts, optsErr := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, optsErr)
 
-	modules := TerraformModules{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF}
+	modules := configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD, moduleE, moduleF}
 	err := modules.RunModulesReverseOrder(context.Background(), opts, options.DefaultParallelism)
 	assertMultiErrorContains(t, err, expectedErrC, expectedErrB, expectedErrA)
 

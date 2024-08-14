@@ -1,17 +1,18 @@
-package cache
+package cache_test
 
 import (
 	"context"
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCacheCreation(t *testing.T) {
 	t.Parallel()
 
-	cache := NewCache[string]("test")
+	cache := cache.NewCache[string]("test")
 
 	assert.NotNil(t, cache.Mutex)
 	assert.NotNil(t, cache.Cache)
@@ -23,7 +24,7 @@ func TestStringCacheOperation(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	cache := NewCache[string]("test")
+	cache := cache.NewCache[string]("test")
 
 	value, found := cache.Get(ctx, "potato")
 
@@ -41,7 +42,7 @@ func TestStringCacheOperation(t *testing.T) {
 func TestExpiringCacheCreation(t *testing.T) {
 	t.Parallel()
 
-	cache := NewExpiringCache[string]("test")
+	cache := cache.NewExpiringCache[string]("test")
 
 	assert.NotNil(t, cache.Mutex)
 	assert.NotNil(t, cache.Cache)
@@ -53,7 +54,7 @@ func TestExpiringCacheOperation(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	cache := NewExpiringCache[string]("test")
+	cache := cache.NewExpiringCache[string]("test")
 
 	value, found := cache.Get(ctx, "potato")
 
@@ -72,7 +73,7 @@ func TestExpiringCacheExpiration(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	cache := NewExpiringCache[string]("test")
+	cache := cache.NewExpiringCache[string]("test")
 
 	cache.Put(ctx, "potato", "carrot", time.Now().Add(-1*time.Second))
 	value, found := cache.Get(ctx, "potato")

@@ -13,7 +13,7 @@ type Context struct {
 	shellComplete bool
 }
 
-func newContext(parentCtx context.Context, app *App) *Context {
+func NewContext(parentCtx context.Context, app *App) *Context {
 	return &Context{
 		Context: parentCtx,
 		App:     app,

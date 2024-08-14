@@ -1,10 +1,11 @@
-package telemetry
+package telemetry_test
 
 import (
 	"context"
 	"io"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -13,6 +14,8 @@ import (
 )
 
 func TestNewTraceExporter(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	http, err := otlptracehttp.New(ctx)
@@ -26,13 +29,13 @@ func TestNewTraceExporter(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		telemetryOptions *TelemetryOptions
+		telemetryOptions *telemetry.TelemetryOptions
 		expectedType     interface{}
 		expectError      bool
 	}{
 		{
 			name: "HTTP Trace Exporter",
-			telemetryOptions: &TelemetryOptions{
+			telemetryOptions: &telemetry.TelemetryOptions{
 				Vars: map[string]string{
 					"TERRAGRUNT_TELEMETRY_TRACE_EXPORTER": "otlpHttp",
 				},
@@ -43,7 +46,7 @@ func TestNewTraceExporter(t *testing.T) {
 		},
 		{
 			name: "Custom HTTP endpoint",
-			telemetryOptions: &TelemetryOptions{
+			telemetryOptions: &telemetry.TelemetryOptions{
 				Vars: map[string]string{
 					"TERRAGRUNT_TELEMETRY_TRACE_EXPORTER":               "http",
 					"TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_HTTP_ENDPOINT": "http://localhost:4317",
@@ -55,7 +58,7 @@ func TestNewTraceExporter(t *testing.T) {
 		},
 		{
 			name: "Custom HTTP endpoint without endpoint",
-			telemetryOptions: &TelemetryOptions{
+			telemetryOptions: &telemetry.TelemetryOptions{
 				Vars: map[string]string{
 					"TERRAGRUNT_TELEMETRY_TRACE_EXPORTER": "http",
 				},
@@ -66,7 +69,7 @@ func TestNewTraceExporter(t *testing.T) {
 		},
 		{
 			name: "Grpc Trace Exporter",
-			telemetryOptions: &TelemetryOptions{
+			telemetryOptions: &telemetry.TelemetryOptions{
 				Vars: map[string]string{
 					"TERRAGRUNT_TELEMETRY_TRACE_EXPORTER": "otlpGrpc",
 				},
@@ -77,7 +80,7 @@ func TestNewTraceExporter(t *testing.T) {
 		},
 		{
 			name: "Console Trace Exporter",
-			telemetryOptions: &TelemetryOptions{
+			telemetryOptions: &telemetry.TelemetryOptions{
 				Vars: map[string]string{
 					"TERRAGRUNT_TELEMETRY_TRACE_EXPORTER": "console",
 				},
@@ -92,7 +95,7 @@ func TestNewTraceExporter(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			exporter, err := newTraceExporter(ctx, tt.telemetryOptions)
+			exporter, err := telemetry.NewTraceExporter(ctx, tt.telemetryOptions)
 
 			if tt.expectError {
 				require.Error(t, err)

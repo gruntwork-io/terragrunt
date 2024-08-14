@@ -185,7 +185,7 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 		return nil, err
 	}
 
-	decodedDependency := terragruntDependency{}
+	decodedDependency := TerragruntDependency{}
 	if err := file.Decode(&decodedDependency, evalParsingContext); err != nil {
 		return nil, err
 	}
@@ -215,8 +215,8 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 }
 
 // decodeDependencies decode dependencies and fetch inputs
-func decodeDependencies(ctx *ParsingContext, decodedDependency terragruntDependency) (*terragruntDependency, error) {
-	updatedDependencies := terragruntDependency{}
+func decodeDependencies(ctx *ParsingContext, decodedDependency TerragruntDependency) (*TerragruntDependency, error) {
+	updatedDependencies := TerragruntDependency{}
 	depCache := cache.ContextCache[*dependencyOutputCache](ctx, DependencyOutputCacheContextKey)
 	for _, dep := range decodedDependency.Dependencies {
 		depPath := getCleanedTargetConfigPath(dep.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
@@ -275,7 +275,7 @@ func dependencyBlocksToModuleDependencies(decodedDependencyBlocks []Dependency) 
 
 // Check for cyclic dependency blocks to avoid infinite `terragrunt output` loops. To avoid reparsing the config, we
 // kickstart the initial loop using what we already decoded.
-func checkForDependencyBlockCycles(ctx *ParsingContext, configPath string, decodedDependency terragruntDependency) error {
+func checkForDependencyBlockCycles(ctx *ParsingContext, configPath string, decodedDependency TerragruntDependency) error {
 	visitedPaths := []string{}
 	currentTraversalPaths := []string{configPath}
 	for _, dependency := range decodedDependency.Dependencies {
@@ -511,7 +511,7 @@ func getTerragruntOutput(ctx *ParsingContext, dependencyConfig Dependency) (*cty
 	}
 	isEmpty := string(jsonBytes) == "{}"
 
-	outputMap, err := terraformOutputJsonToCtyValueMap(targetConfigPath, jsonBytes)
+	outputMap, err := TerraformOutputJsonToCtyValueMap(targetConfigPath, jsonBytes)
 	if err != nil {
 		return nil, isEmpty, err
 	}
@@ -959,9 +959,9 @@ func runTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, 
 	return jsonBytes, nil
 }
 
-// terraformOutputJsonToCtyValueMap takes the terraform output json and converts to a mapping between output keys to the
+// TerraformOutputJsonToCtyValueMap takes the terraform output json and converts to a mapping between output keys to the
 // parsed cty.Value encoding of the json objects.
-func terraformOutputJsonToCtyValueMap(targetConfigPath string, jsonBytes []byte) (map[string]cty.Value, error) {
+func TerraformOutputJsonToCtyValueMap(targetConfigPath string, jsonBytes []byte) (map[string]cty.Value, error) {
 	// When getting all outputs, terraform returns a json with the data containing metadata about the types, so we
 	// can't quite return the data directly. Instead, we will need further processing to get the output we want.
 	// To do so, we first Unmarshal the json into a simple go map to a OutputMeta struct.

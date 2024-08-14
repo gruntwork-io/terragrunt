@@ -155,7 +155,7 @@ func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool
 // dependency block configurations between the included config and the child config. This allows us to merge the two
 // dependencies prior to retrieving the outputs, allowing you to have partial configuration that is overridden by a
 // child.
-func handleIncludeForDependency(ctx *ParsingContext, childDecodedDependency terragruntDependency) (*terragruntDependency, error) {
+func handleIncludeForDependency(ctx *ParsingContext, childDecodedDependency TerragruntDependency) (*TerragruntDependency, error) {
 	if ctx.TrackInclude == nil {
 		return nil, goErrors.New("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_DEPENDENCY_NIL_INCLUDE_CONFIG")
 	}
@@ -194,7 +194,7 @@ func handleIncludeForDependency(ctx *ParsingContext, childDecodedDependency terr
 			return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s_DEPENDENCY", mergeStrategy)
 		}
 	}
-	return &terragruntDependency{Dependencies: baseDependencyBlock}, nil
+	return &TerragruntDependency{Dependencies: baseDependencyBlock}, nil
 }
 
 // Merge performs a shallow merge of the given sourceConfig into the targetConfig. sourceConfig will override common
@@ -303,7 +303,7 @@ func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terr
 		targetConfig.Inputs = mergeInputs(sourceConfig.Inputs, targetConfig.Inputs)
 	}
 
-	copyFieldsMetadata(sourceConfig, targetConfig)
+	CopyFieldsMetadata(sourceConfig, targetConfig)
 
 	return nil
 }
@@ -460,7 +460,7 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 		targetConfig.GenerateConfigs[key] = val
 	}
 
-	copyFieldsMetadata(sourceConfig, targetConfig)
+	CopyFieldsMetadata(sourceConfig, targetConfig)
 	return nil
 }
 
@@ -840,8 +840,8 @@ func jsonIsIncludeBlock(jsonData interface{}) bool {
 	return false
 }
 
-// copyFieldsMetadata Copy fields metadata between TerragruntConfig instances.
-func copyFieldsMetadata(sourceConfig *TerragruntConfig, targetConfig *TerragruntConfig) {
+// CopyFieldsMetadata Copy fields metadata between TerragruntConfig instances.
+func CopyFieldsMetadata(sourceConfig *TerragruntConfig, targetConfig *TerragruntConfig) {
 
 	fieldsCopyLocks.Lock(targetConfig.DownloadDir)
 	defer fieldsCopyLocks.Unlock(targetConfig.DownloadDir)

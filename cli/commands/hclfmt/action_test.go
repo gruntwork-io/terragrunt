@@ -1,4 +1,4 @@
-package hclfmt
+package hclfmt_test
 
 import (
 	"os"
@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -17,7 +18,11 @@ func TestHCLFmt(t *testing.T) {
 	t.Parallel()
 
 	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt", t.Name(), func(path string) bool { return true })
-	defer os.RemoveAll(tmpPath)
+
+	t.Cleanup(func() {
+		os.RemoveAll(tmpPath)
+	})
+
 	require.NoError(t, err)
 
 	expected, err := util.ReadFileAsString("../../../test/fixture-hclfmt/expected.hcl")
@@ -28,10 +33,12 @@ func TestHCLFmt(t *testing.T) {
 
 	tgOptions.WorkingDir = tmpPath
 
-	err = Run(tgOptions)
+	err = hclfmt.Run(tgOptions)
 	require.NoError(t, err)
 
 	t.Run("group", func(t *testing.T) {
+		t.Parallel()
+
 		dirs := []string{
 			"terragrunt.hcl",
 			"a/terragrunt.hcl",
@@ -43,8 +50,6 @@ func TestHCLFmt(t *testing.T) {
 			// Capture range variable into for block so it doesn't change while looping
 			dir := dir
 
-			// Create a synchronous subtest to group the child tests so that they can run in parallel while honoring cleanup
-			// routines in the main test.
 			t.Run(dir, func(t *testing.T) {
 				t.Parallel()
 
@@ -77,7 +82,9 @@ func TestHCLFmtErrors(t *testing.T) {
 	t.Parallel()
 
 	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt-errors", t.Name(), func(path string) bool { return true })
-	defer os.RemoveAll(tmpPath)
+	t.Cleanup(func() {
+		os.RemoveAll(tmpPath)
+	})
 	require.NoError(t, err)
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
@@ -92,19 +99,15 @@ func TestHCLFmtErrors(t *testing.T) {
 		// Capture range variable into for block so it doesn't change while looping
 		dir := dir
 
-		// Create a synchronous subtest to group the child tests so that they can run in parallel while honoring cleanup
-		// routines in the main test.
-		t.Run("group", func(t *testing.T) {
-			t.Run(dir, func(t *testing.T) {
-				t.Parallel()
+		t.Run(dir, func(t *testing.T) {
+			t.Parallel()
 
-				tgHclDir := filepath.Join(tmpPath, dir)
-				newTgOptions := tgOptions.Clone(tgOptions.TerragruntConfigPath)
-				newTgOptions.WorkingDir = tgHclDir
+			tgHclDir := filepath.Join(tmpPath, dir)
+			newTgOptions := tgOptions.Clone(tgOptions.TerragruntConfigPath)
+			newTgOptions.WorkingDir = tgHclDir
 
-				err := Run(newTgOptions)
-				require.Error(t, err)
-			})
+			err := hclfmt.Run(newTgOptions)
+			require.Error(t, err)
 		})
 	}
 }
@@ -113,7 +116,11 @@ func TestHCLFmtCheck(t *testing.T) {
 	t.Parallel()
 
 	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt-check", t.Name(), func(path string) bool { return true })
-	defer os.RemoveAll(tmpPath)
+
+	t.Cleanup(func() {
+		os.RemoveAll(tmpPath)
+	})
+
 	require.NoError(t, err)
 
 	expected, err := os.ReadFile("../../../test/fixture-hclfmt-check/expected.hcl")
@@ -125,7 +132,7 @@ func TestHCLFmtCheck(t *testing.T) {
 	tgOptions.Check = true
 	tgOptions.WorkingDir = tmpPath
 
-	err = Run(tgOptions)
+	err = hclfmt.Run(tgOptions)
 	require.NoError(t, err)
 
 	dirs := []string{
@@ -140,17 +147,13 @@ func TestHCLFmtCheck(t *testing.T) {
 		// Capture range variable into for block so it doesn't change while looping
 		dir := dir
 
-		// Create a synchronous subtest to group the child tests so that they can run in parallel while honoring cleanup
-		// routines in the main test.
-		t.Run("group", func(t *testing.T) {
-			t.Run(dir, func(t *testing.T) {
-				t.Parallel()
+		t.Run(dir, func(t *testing.T) {
+			t.Parallel()
 
-				tgHclPath := filepath.Join(tmpPath, dir)
-				actual, err := os.ReadFile(tgHclPath)
-				require.NoError(t, err)
-				assert.Equal(t, expected, actual)
-			})
+			tgHclPath := filepath.Join(tmpPath, dir)
+			actual, err := os.ReadFile(tgHclPath)
+			require.NoError(t, err)
+			assert.Equal(t, expected, actual)
 		})
 	}
 }
@@ -159,7 +162,11 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 	t.Parallel()
 
 	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt-check-errors", t.Name(), func(path string) bool { return true })
-	defer os.RemoveAll(tmpPath)
+
+	t.Cleanup(func() {
+		os.RemoveAll(tmpPath)
+	})
+
 	require.NoError(t, err)
 
 	expected, err := os.ReadFile("../../../test/fixture-hclfmt-check-errors/expected.hcl")
@@ -171,7 +178,7 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 	tgOptions.Check = true
 	tgOptions.WorkingDir = tmpPath
 
-	err = Run(tgOptions)
+	err = hclfmt.Run(tgOptions)
 	require.Error(t, err)
 
 	dirs := []string{
@@ -186,17 +193,13 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 		// Capture range variable into for block so it doesn't change while looping
 		dir := dir
 
-		// Create a synchronous subtest to group the child tests so that they can run in parallel while honoring cleanup
-		// routines in the main test.
-		t.Run("group", func(t *testing.T) {
-			t.Run(dir, func(t *testing.T) {
-				t.Parallel()
+		t.Run(dir, func(t *testing.T) {
+			t.Parallel()
 
-				tgHclPath := filepath.Join(tmpPath, dir)
-				actual, err := os.ReadFile(tgHclPath)
-				require.NoError(t, err)
-				assert.Equal(t, expected, actual)
-			})
+			tgHclPath := filepath.Join(tmpPath, dir)
+			actual, err := os.ReadFile(tgHclPath)
+			require.NoError(t, err)
+			assert.Equal(t, expected, actual)
 		})
 	}
 }
@@ -205,7 +208,11 @@ func TestHCLFmtFile(t *testing.T) {
 	t.Parallel()
 
 	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt", t.Name(), func(path string) bool { return true })
-	defer os.RemoveAll(tmpPath)
+
+	t.Cleanup(func() {
+		os.RemoveAll(tmpPath)
+	})
+
 	require.NoError(t, err)
 
 	expected, err := os.ReadFile("../../../test/fixture-hclfmt/expected.hcl")
@@ -217,7 +224,7 @@ func TestHCLFmtFile(t *testing.T) {
 	// format only the hcl file contained within the a subdirectory of the fixture
 	tgOptions.HclFile = "a/terragrunt.hcl"
 	tgOptions.WorkingDir = tmpPath
-	err = Run(tgOptions)
+	err = hclfmt.Run(tgOptions)
 	require.NoError(t, err)
 
 	// test that the formatting worked on the specified file
@@ -244,16 +251,12 @@ func TestHCLFmtFile(t *testing.T) {
 		// Capture range variable into for block so it doesn't change while looping
 		dir := dir
 
-		// Create a synchronous subtest to group the child tests so that they can run in parallel while honoring cleanup
-		// routines in the main test.
-		t.Run("original", func(t *testing.T) {
-			t.Run(dir, func(t *testing.T) {
-				t.Parallel()
-				testingPath := filepath.Join(tmpPath, dir)
-				actual, err := os.ReadFile(testingPath)
-				require.NoError(t, err)
-				assert.Equal(t, original, actual)
-			})
+		t.Run(dir, func(t *testing.T) {
+			t.Parallel()
+			testingPath := filepath.Join(tmpPath, dir)
+			actual, err := os.ReadFile(testingPath)
+			require.NoError(t, err)
+			assert.Equal(t, original, actual)
 		})
 	}
 }
@@ -273,7 +276,7 @@ func TestHCLFmtHeredoc(t *testing.T) {
 
 	tgOptions.WorkingDir = tmpPath
 
-	err = Run(tgOptions)
+	err = hclfmt.Run(tgOptions)
 	require.NoError(t, err)
 
 	tgHclPath := filepath.Join(tmpPath, "terragrunt.hcl")

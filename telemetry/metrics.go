@@ -43,7 +43,7 @@ func Time(ctx context.Context, name string, attrs map[string]interface{}, fn fun
 	}
 
 	metricAttrs := mapToAttributes(attrs)
-	histogram, err := meter.Int64Histogram(cleanMetricName(name + "_duration"))
+	histogram, err := meter.Int64Histogram(CleanMetricName(name + "_duration"))
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -65,7 +65,7 @@ func Count(ctx context.Context, name string, value int64) {
 	if ctx == nil || metricExporter == nil {
 		return
 	}
-	counter, err := meter.Int64Counter(cleanMetricName(name + "_count"))
+	counter, err := meter.Int64Counter(CleanMetricName(name + "_count"))
 	if err != nil {
 		return
 	}
@@ -74,7 +74,7 @@ func Count(ctx context.Context, name string, value int64) {
 
 // configureMetricsCollection - configure the metrics collection
 func configureMetricsCollection(ctx context.Context, opts *TelemetryOptions) error {
-	exporter, err := newMetricsExporter(ctx, opts)
+	exporter, err := NewMetricsExporter(ctx, opts)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -93,8 +93,8 @@ func configureMetricsCollection(ctx context.Context, opts *TelemetryOptions) err
 	return nil
 }
 
-// newMetricsExporter - create a new exporter based on the telemetry options.
-func newMetricsExporter(ctx context.Context, opts *TelemetryOptions) (metric.Exporter, error) {
+// NewMetricsExporter - create a new exporter based on the telemetry options.
+func NewMetricsExporter(ctx context.Context, opts *TelemetryOptions) (metric.Exporter, error) {
 	exporterType := metricsExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_METRIC_EXPORTER"], string(noneMetricsExporterType)))
 	insecure := env.GetBool(opts.GetValue("TERRAGRUNT_TELEMETRY_METRIC_EXPORTER_INSECURE_ENDPOINT", "TERRAGRUNT_TELEMERTY_METRIC_EXPORTER_INSECURE_ENDPOINT"), false)
 
@@ -142,8 +142,8 @@ func newMetricsProvider(opts *TelemetryOptions, exp metric.Exporter) (*metric.Me
 	return meterProvider, nil
 }
 
-// cleanMetricName - clean metric name from invalid characters.
-func cleanMetricName(metricName string) string {
+// CleanMetricName - clean metric name from invalid characters.
+func CleanMetricName(metricName string) string {
 	cleanedName := metricNameCleanPattern.ReplaceAllString(metricName, "_")
 	cleanedName = multipleUnderscoresPattern.ReplaceAllString(cleanedName, "_")
 	return strings.Trim(cleanedName, "_")

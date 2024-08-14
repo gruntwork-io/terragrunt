@@ -1,4 +1,4 @@
-package terraform
+package terraform_test
 
 import (
 	"fmt"
@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/terraform"
 )
 
 func TestSplitSourceUrl(t *testing.T) {
@@ -52,7 +53,7 @@ func TestSplitSourceUrl(t *testing.T) {
 			terragruntOptions, err := options.NewTerragruntOptionsForTest("testing")
 			require.NoError(t, err)
 
-			actualRootRepo, actualModulePath, err := SplitSourceUrl(sourceUrl, terragruntOptions.Logger)
+			actualRootRepo, actualModulePath, err := terraform.SplitSourceUrl(sourceUrl, terragruntOptions.Logger)
 			require.NoError(t, err)
 
 			assert.Equal(t, testCase.expectedSo, actualRootRepo.String())
@@ -88,7 +89,7 @@ func TestToSourceUrl(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			actualSourceURL, err := ToSourceUrl(testCase.sourceURL, os.TempDir())
+			actualSourceURL, err := terraform.ToSourceUrl(testCase.sourceURL, os.TempDir())
 			require.NoError(t, err)
 			assert.Equal(t, testCase.expectedSourceURL, actualSourceURL.String())
 		})
@@ -102,11 +103,11 @@ func TestRegressionSupportForGitRemoteCodecommit(t *testing.T) {
 	require.NoError(t, err)
 
 	source := "git::codecommit::ap-northeast-1://my_app_modules//my-app/modules/main-module"
-	sourceURL, err := ToSourceUrl(source, ".")
+	sourceURL, err := terraform.ToSourceUrl(source, ".")
 	require.NoError(t, err)
 	require.Equal(t, "git::codecommit::ap-northeast-1", sourceURL.Scheme)
 
-	actualRootRepo, actualModulePath, err := SplitSourceUrl(sourceURL, terragruntOptions.Logger)
+	actualRootRepo, actualModulePath, err := terraform.SplitSourceUrl(sourceURL, terragruntOptions.Logger)
 	require.NoError(t, err)
 
 	require.Equal(t, "git::codecommit::ap-northeast-1://my_app_modules", actualRootRepo.String())

@@ -1,8 +1,9 @@
-package awsproviderpatch
+package awsproviderpatch_test
 
 import (
 	"testing"
 
+	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -318,7 +319,7 @@ func TestPatchAwsProviderInTerraformCodeHappyPath(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.testName, func(t *testing.T) {
 			t.Parallel()
-			actualTerraformCode, actualCodeWasUpdated, err := patchAwsProviderInTerraformCode(testCase.originalTerraformCode, "test.tf", testCase.attributesToOverride)
+			actualTerraformCode, actualCodeWasUpdated, err := awsproviderpatch.PatchAwsProviderInTerraformCode(testCase.originalTerraformCode, "test.tf", testCase.attributesToOverride)
 			require.NoError(t, err)
 			assert.Equal(t, testCase.expectedCodeWasUpdated, actualCodeWasUpdated)
 

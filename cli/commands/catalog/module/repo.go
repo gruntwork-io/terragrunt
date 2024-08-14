@@ -109,8 +109,8 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 	return modules, nil
 }
 
-// moduleURL returns the URL of the module in this repository. `moduleDir` is the path from the repository root.
-func (repo *Repo) moduleURL(moduleDir string) (string, error) {
+// ModuleURL returns the URL of the module in this repository. `moduleDir` is the path from the repository root.
+func (repo *Repo) ModuleURL(moduleDir string) (string, error) {
 	if repo.remoteURL == "" {
 		return filepath.Join(repo.path, moduleDir), nil
 	}

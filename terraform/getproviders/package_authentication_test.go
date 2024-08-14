@@ -1,4 +1,4 @@
-package getproviders
+package getproviders_test
 
 import (
 	"crypto/sha256"
@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/terraform/getproviders"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +16,7 @@ func TestPackageAuthenticationResult(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		result   *PackageAuthenticationResult
+		result   *getproviders.PackageAuthenticationResult
 		expected string
 	}{
 		{
@@ -23,19 +24,19 @@ func TestPackageAuthenticationResult(t *testing.T) {
 			"unauthenticated",
 		},
 		{
-			NewPackageAuthenticationResult(verifiedChecksum),
+			getproviders.NewPackageAuthenticationResult(getproviders.VERIFIED_CHECKSUM),
 			"verified checksum",
 		},
 		{
-			NewPackageAuthenticationResult(officialProvider),
+			getproviders.NewPackageAuthenticationResult(getproviders.OFFICIAL_PROVIDER),
 			"signed by HashiCorp",
 		},
 		{
-			NewPackageAuthenticationResult(partnerProvider),
+			getproviders.NewPackageAuthenticationResult(getproviders.PARTNER_PROVIDER),
 			"signed by a HashiCorp partner",
 		},
 		{
-			NewPackageAuthenticationResult(communityProvider),
+			getproviders.NewPackageAuthenticationResult(getproviders.COMMUNITY_PROVIDER),
 			"self-signed",
 		},
 	}
@@ -57,7 +58,7 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 	testCases := []struct {
 		path           string
 		wantSHA256Sum  [sha256.Size]byte
-		expectedResult *PackageAuthenticationResult
+		expectedResult *getproviders.PackageAuthenticationResult
 		expectedErr    error
 	}{
 		{
@@ -68,7 +69,7 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 				0x78, 0x1c, 0xb8, 0xc3, 0xb2, 0x59, 0x01, 0xdd,
 				0x5a, 0x79, 0x2a, 0xde, 0x97, 0x11, 0xf5, 0x01,
 			},
-			NewPackageAuthenticationResult(verifiedChecksum),
+			getproviders.NewPackageAuthenticationResult(getproviders.VERIFIED_CHECKSUM),
 			nil,
 		},
 		{
@@ -108,7 +109,7 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			auth := NewArchiveChecksumAuthentication(testCase.wantSHA256Sum)
+			auth := getproviders.NewArchiveChecksumAuthentication(testCase.wantSHA256Sum)
 			actualResult, actualErr := auth.Authenticate(testCase.path)
 			if testCase.expectedErr != nil {
 				require.EqualError(t, actualErr, testCase.expectedErr.Error())
@@ -186,7 +187,7 @@ func TestNewMatchingChecksumAuthentication(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			auth := NewMatchingChecksumAuthentication(testCase.document, testCase.filename, testCase.wantSHA256Sum)
+			auth := getproviders.NewMatchingChecksumAuthentication(testCase.document, testCase.filename, testCase.wantSHA256Sum)
 			_, actualErr := auth.Authenticate(testCase.path)
 
 			if testCase.expectedErr != nil {
@@ -204,7 +205,7 @@ func TestSignatureAuthentication(t *testing.T) {
 
 	testCases := []struct {
 		shasums        string
-		expectedHashes []Hash
+		expectedHashes []getproviders.Hash
 	}{
 		{
 			`7d7e888fdd28abfe00894f9055209b9eec785153641de98e6852aa071008d4ee  terraform_0.14.0-alpha20200923_darwin_amd64.zip
@@ -219,7 +220,7 @@ def1b73849bec0dc57a04405847921bf9206c75b52ae9de195476facb26bd85e  terraform_0.14
 48f1826ec31d6f104e46cc2022b41f30cd1019ef48eaec9697654ef9ec37a879  terraform_0.14.0-alpha20200923_solaris_amd64.zip
 17e0b496022bc4e4137be15e96d2b051c8acd6e14cb48d9b13b262330464f6cc  terraform_0.14.0-alpha20200923_windows_386.zip
 2696c86228f491bc5425561c45904c9ce39b1c676b1e17734cb2ee6b578c4bcd  terraform_0.14.0-alpha20200923_windows_amd64.zip`,
-			[]Hash{
+			[]getproviders.Hash{
 				"zh:7d7e888fdd28abfe00894f9055209b9eec785153641de98e6852aa071008d4ee",
 				"zh:f8b6cf9ade087c17826d49d89cef21261cdc22bd27065bbc5b27d7dbf7fbbf6c",
 				"zh:a5ba9945606bb7bfb821ba303957eeb40dd9ee4e706ba8da1eaf7cbeb0356e63",
@@ -242,8 +243,8 @@ def1b73849bec0dc57a04405847921bf9206c75b52ae9de195476facb26bd85e  terraform_0.14
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			auth := NewSignatureAuthentication([]byte(testCase.shasums), nil, nil)
-			authWithHashes, ok := auth.(PackageAuthenticationHashes)
+			auth := getproviders.NewSignatureAuthentication([]byte(testCase.shasums), nil, nil)
+			authWithHashes, ok := auth.(getproviders.PackageAuthenticationHashes)
 			require.True(t, ok)
 
 			actualHash := authWithHashes.AcceptableHashes()
@@ -260,15 +261,15 @@ func TestSignatureAuthenticate(t *testing.T) {
 		document       []byte
 		signature      string
 		keys           map[string]string
-		expectedResult *PackageAuthenticationResult
+		expectedResult *getproviders.PackageAuthenticationResult
 		expectedErr    error
 	}{
 		{
 			"testdata/my-package.zip",
 			[]byte(testProviderShaSums),
 			testHashicorpSignatureGoodBase64,
-			map[string]string{HashicorpPublicKey: ""},
-			NewPackageAuthenticationResult(officialProvider),
+			map[string]string{getproviders.HashicorpPublicKey: ""},
+			getproviders.NewPackageAuthenticationResult(getproviders.OFFICIAL_PROVIDER),
 			nil,
 		},
 		{
@@ -291,7 +292,7 @@ func TestSignatureAuthenticate(t *testing.T) {
 			"testdata/my-package.zip",
 			[]byte("example shasums data"),
 			testAuthorSignatureGoodBase64,
-			map[string]string{HashicorpPublicKey: ""},
+			map[string]string{getproviders.HashicorpPublicKey: ""},
 			nil,
 			errors.New("authentication signature from unknown issuer"),
 		},
@@ -322,7 +323,7 @@ func TestSignatureAuthenticate(t *testing.T) {
 			signature, err := base64.StdEncoding.DecodeString(testCase.signature)
 			require.NoError(t, err)
 
-			auth := NewSignatureAuthentication(testCase.document, signature, testCase.keys)
+			auth := getproviders.NewSignatureAuthentication(testCase.document, signature, testCase.keys)
 			actualResult, actualErr := auth.Authenticate(testCase.path)
 
 			if testCase.expectedErr != nil {

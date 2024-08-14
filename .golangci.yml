@@ -70,12 +70,16 @@ linters:
     - depguard
     - gosec
     - gocyclo
+    - exhaustruct
   fast: false
   mnd:
     ignored-functions: strconv.Format*,os.*,strconv.Parse*,strings.SplitN,bytes.SplitN
   presets:
     - bugs
     - performance
+    - unused
+    - test
+
 issues:
   exclude-dirs:
     - docs

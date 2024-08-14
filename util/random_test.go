@@ -1,14 +1,17 @@
-package util
+package util_test
 
 import (
+	"strconv"
 	"testing"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 func TestGetRandomTime(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	tc := []struct {
 		lowerBound time.Duration
 		upperBound time.Duration
 	}{
@@ -21,20 +24,30 @@ func TestGetRandomTime(t *testing.T) {
 	}
 
 	// Loop through each test case
-	for _, testCase := range testCases {
-		// Try each test case 100 times to avoid fluke test results
-		for i := 0; i < 100; i++ {
-			actual := GetRandomTime(testCase.lowerBound, testCase.upperBound)
+	for i, tt := range tc {
+		tt := tt
 
-			if testCase.lowerBound > 0 && testCase.upperBound > 0 {
-				if actual < testCase.lowerBound {
-					t.Fatalf("Randomly computed time %v should not be less than lowerBound %v", actual, testCase.lowerBound)
-				}
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
 
-				if actual > testCase.upperBound {
-					t.Fatalf("Randomly computed time %v should not be greater than upperBound %v", actual, testCase.upperBound)
-				}
+			// Try each test case 100 times to avoid fluke test results
+			for j := 0; j < 100; j++ {
+				t.Run(strconv.Itoa(j), func(t *testing.T) {
+					t.Parallel()
+
+					actual := util.GetRandomTime(tt.lowerBound, tt.upperBound)
+
+					if tt.lowerBound > 0 && tt.upperBound > 0 {
+						if actual < tt.lowerBound {
+							t.Fatalf("Randomly computed time %v should not be less than lowerBound %v", actual, tt.lowerBound)
+						}
+
+						if actual > tt.upperBound {
+							t.Fatalf("Randomly computed time %v should not be greater than upperBound %v", actual, tt.upperBound)
+						}
+					}
+				})
 			}
-		}
+		})
 	}
 }

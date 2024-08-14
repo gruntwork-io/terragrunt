@@ -431,7 +431,7 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.EngineClient) (*util.CmdOutput, error) {
 	terragruntOptions := runOptions.TerragruntOptions
 
-	meta, err := convertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
+	meta, err := ConvertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
@@ -523,7 +523,7 @@ func flushBuffer(lineBuf *bytes.Buffer, output io.Writer) error {
 // initialize engine for working directory
 func initialize(ctx context.Context, runOptions *ExecutionOptions, client *proto.EngineClient) error {
 	terragruntOptions := runOptions.TerragruntOptions
-	meta, err := convertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
+	meta, err := ConvertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -538,7 +538,7 @@ func initialize(ctx context.Context, runOptions *ExecutionOptions, client *proto
 	}
 	terragruntOptions.Logger.Debugf("Reading init output for engine in %s", runOptions.WorkingDir)
 
-	return readEngineOutput(runOptions, func() (*outputLine, error) {
+	return ReadEngineOutput(runOptions, func() (*OutputLine, error) {
 		output, err := request.Recv()
 		if err != nil {
 			return nil, err
@@ -546,7 +546,7 @@ func initialize(ctx context.Context, runOptions *ExecutionOptions, client *proto
 		if output == nil {
 			return nil, nil
 		}
-		return &outputLine{
+		return &OutputLine{
 			Stderr: output.GetStderr(),
 			Stdout: output.GetStdout(),
 		}, nil
@@ -557,7 +557,7 @@ func initialize(ctx context.Context, runOptions *ExecutionOptions, client *proto
 func shutdown(ctx context.Context, runOptions *ExecutionOptions, terragruntEngine *proto.EngineClient) error {
 	terragruntOptions := runOptions.TerragruntOptions
 
-	meta, err := convertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
+	meta, err := ConvertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -571,7 +571,7 @@ func shutdown(ctx context.Context, runOptions *ExecutionOptions, terragruntEngin
 	}
 	terragruntOptions.Logger.Debugf("Reading shutdown output for engine in %s", runOptions.WorkingDir)
 
-	return readEngineOutput(runOptions, func() (*outputLine, error) {
+	return ReadEngineOutput(runOptions, func() (*OutputLine, error) {
 		output, err := request.Recv()
 		if err != nil {
 			return nil, err
@@ -579,7 +579,7 @@ func shutdown(ctx context.Context, runOptions *ExecutionOptions, terragruntEngin
 		if output == nil {
 			return nil, nil
 		}
-		return &outputLine{
+		return &OutputLine{
 			Stdout: output.GetStdout(),
 			Stderr: output.GetStderr(),
 		}, nil
@@ -588,16 +588,16 @@ func shutdown(ctx context.Context, runOptions *ExecutionOptions, terragruntEngin
 }
 
 // common engine output
-type outputLine struct {
+type OutputLine struct {
 	Stdout string
 	Stderr string
 }
 
-type outputFn func() (*outputLine, error)
+type outputFn func() (*OutputLine, error)
 
-// readEngineOutput reads the output from the engine, since grpc plugins don't have common type,
+// ReadEngineOutput reads the output from the engine, since grpc plugins don't have common type,
 // use lambda function to read bytes from the stream
-func readEngineOutput(runOptions *ExecutionOptions, output outputFn) error {
+func ReadEngineOutput(runOptions *ExecutionOptions, output outputFn) error {
 	cmdStdout := runOptions.CmdStdout
 	cmdStderr := runOptions.CmdStderr
 	for {
@@ -623,7 +623,7 @@ func readEngineOutput(runOptions *ExecutionOptions, output outputFn) error {
 }
 
 // convert metadata map to protobuf map
-func convertMetaToProtobuf(meta map[string]interface{}) (map[string]*anypb.Any, error) {
+func ConvertMetaToProtobuf(meta map[string]interface{}) (map[string]*anypb.Any, error) {
 	protoMeta := make(map[string]*anypb.Any)
 	if meta == nil {
 		return protoMeta, nil
