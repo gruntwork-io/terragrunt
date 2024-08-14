@@ -79,6 +79,7 @@ linters:
     - performance
     - unused
     - test
+    - style
 
 issues:
   exclude-dirs:
