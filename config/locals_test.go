@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty/gocty"
 
@@ -27,34 +28,34 @@ func TestEvaluateLocalsBlock(t *testing.T) {
 
 	var actualRegion string
 	require.NoError(t, gocty.FromCtyValue(evaluatedLocals["region"], &actualRegion))
-	require.Equal(t, "us-east-1", actualRegion)
+	assert.Equal(t, "us-east-1", actualRegion)
 
 	var actualS3Url string
 	require.NoError(t, gocty.FromCtyValue(evaluatedLocals["s3_url"], &actualS3Url))
-	require.Equal(t, "com.amazonaws.us-east-1.s3", actualS3Url)
+	assert.Equal(t, "com.amazonaws.us-east-1.s3", actualS3Url)
 
 	var actualX float64
 	require.NoError(t, gocty.FromCtyValue(evaluatedLocals["x"], &actualX))
-	require.InEpsilon(t, float64(1), actualX, 0.0000001)
+	assert.InEpsilon(t, float64(1), actualX, 0.0000001)
 
 	var actualY float64
 	require.NoError(t, gocty.FromCtyValue(evaluatedLocals["y"], &actualY))
-	require.InEpsilon(t, float64(2), actualY, 0.0000001)
+	assert.InEpsilon(t, float64(2), actualY, 0.0000001)
 
 	var actualZ float64
 	require.NoError(t, gocty.FromCtyValue(evaluatedLocals["z"], &actualZ))
-	require.InEpsilon(t, float64(3), actualZ, 0.0000001)
+	assert.InEpsilon(t, float64(3), actualZ, 0.0000001)
 
 	var actualFoo struct{ First Foo }
 	require.NoError(t, gocty.FromCtyValue(evaluatedLocals["foo"], &actualFoo))
-	require.Equal(t, Foo{
+	assert.Equal(t, Foo{
 		Region: "us-east-1",
 		Foo:    "bar",
 	}, actualFoo.First)
 
 	var actualBar string
 	require.NoError(t, gocty.FromCtyValue(evaluatedLocals["bar"], &actualBar))
-	require.Equal(t, "us-east-1", actualBar)
+	assert.Equal(t, "us-east-1", actualBar)
 }
 
 func TestEvaluateLocalsBlockMultiDeepReference(t *testing.T) {
@@ -74,7 +75,7 @@ func TestEvaluateLocalsBlockMultiDeepReference(t *testing.T) {
 
 	var actualA string
 	require.NoError(t, gocty.FromCtyValue(evaluatedLocals["a"], &actualA))
-	require.Equal(t, expected, actualA)
+	assert.Equal(t, expected, actualA)
 
 	testCases := []string{
 		"b",
@@ -92,7 +93,7 @@ func TestEvaluateLocalsBlockMultiDeepReference(t *testing.T) {
 
 		var actual string
 		require.NoError(t, gocty.FromCtyValue(evaluatedLocals[testCase], &actual))
-		require.Equal(t, expected, actual)
+		assert.Equal(t, expected, actual)
 	}
 }
 

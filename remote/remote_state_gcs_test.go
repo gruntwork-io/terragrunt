@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -119,10 +120,10 @@ func TestGCSConfigValuesEqual(t *testing.T) {
 			}
 
 			actual := gcsConfigValuesEqual(config, testCase.backend, terragruntOptions)
-			require.Equal(t, testCase.shouldBeEqual, actual)
+			assert.Equal(t, testCase.shouldBeEqual, actual)
 
 			// Ensure the config remains unchanged by the comparison
-			require.Equal(t, testCase.config, config)
+			assert.Equal(t, testCase.config, config)
 		})
 	}
 }

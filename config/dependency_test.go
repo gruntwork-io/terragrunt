@@ -10,6 +10,7 @@ import (
 	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
@@ -34,11 +35,11 @@ dependency "sql" {
 	decoded := terragruntDependency{}
 	require.NoError(t, file.Decode(&decoded, &hcl.EvalContext{}))
 
-	require.Len(t, decoded.Dependencies, 2)
-	require.Equal(t, "vpc", decoded.Dependencies[0].Name)
-	require.Equal(t, cty.StringVal("../vpc"), decoded.Dependencies[0].ConfigPath)
-	require.Equal(t, "sql", decoded.Dependencies[1].Name)
-	require.Equal(t, cty.StringVal("../sql"), decoded.Dependencies[1].ConfigPath)
+	assert.Len(t, decoded.Dependencies, 2)
+	assert.Equal(t, "vpc", decoded.Dependencies[0].Name)
+	assert.Equal(t, cty.StringVal("../vpc"), decoded.Dependencies[0].ConfigPath)
+	assert.Equal(t, "sql", decoded.Dependencies[1].Name)
+	assert.Equal(t, cty.StringVal("../sql"), decoded.Dependencies[1].ConfigPath)
 }
 
 func TestDecodeNoDependencyBlock(t *testing.T) {
@@ -55,7 +56,7 @@ locals {
 
 	decoded := terragruntDependency{}
 	require.NoError(t, file.Decode(&decoded, &hcl.EvalContext{}))
-	require.Empty(t, decoded.Dependencies)
+	assert.Empty(t, decoded.Dependencies)
 }
 
 func TestDecodeDependencyNoLabelIsError(t *testing.T) {
@@ -71,7 +72,7 @@ dependency {
 	require.NoError(t, err)
 
 	decoded := terragruntDependency{}
-	require.Error(t, file.Decode(&decoded, &hcl.EvalContext{}))
+	assert.Error(t, file.Decode(&decoded, &hcl.EvalContext{}))
 }
 
 func TestDecodeDependencyMockOutputs(t *testing.T) {
@@ -93,23 +94,23 @@ dependency "hitchhiker" {
 	decoded := terragruntDependency{}
 	require.NoError(t, file.Decode(&decoded, &hcl.EvalContext{}))
 
-	require.Len(t, decoded.Dependencies, 1)
+	assert.Len(t, decoded.Dependencies, 1)
 	dependency := decoded.Dependencies[0]
-	require.Equal(t, "hitchhiker", dependency.Name)
-	require.Equal(t, cty.StringVal("../answers"), dependency.ConfigPath)
+	assert.Equal(t, "hitchhiker", dependency.Name)
+	assert.Equal(t, cty.StringVal("../answers"), dependency.ConfigPath)
 
 	ctyValueDefault := dependency.MockOutputs
-	require.NotNil(t, ctyValueDefault)
+	assert.NotNil(t, ctyValueDefault)
 
 	var actualDefault struct {
 		TheAnswer int `cty:"the_answer"`
 	}
 	require.NoError(t, gocty.FromCtyValue(*ctyValueDefault, &actualDefault))
-	require.Equal(t, 42, actualDefault.TheAnswer)
+	assert.Equal(t, 42, actualDefault.TheAnswer)
 
 	defaultAllowedCommands := dependency.MockOutputsAllowedTerraformCommands
-	require.NotNil(t, defaultAllowedCommands)
-	require.Equal(t, []string{"validate", "apply"}, *defaultAllowedCommands)
+	assert.NotNil(t, defaultAllowedCommands)
+	assert.Equal(t, []string{"validate", "apply"}, *defaultAllowedCommands)
 }
 func TestParseDependencyBlockMultiple(t *testing.T) {
 	t.Parallel()
@@ -123,9 +124,9 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 	ctx.TerragruntOptions.Env = env.Parse(os.Environ())
 	tfConfig, err := ParseConfigFile(ctx, filename, nil)
 	require.NoError(t, err)
-	require.Len(t, tfConfig.TerragruntDependencies, 2)
-	require.Equal(t, "dependency_1", tfConfig.TerragruntDependencies[0].Name)
-	require.Equal(t, "dependency_2", tfConfig.TerragruntDependencies[1].Name)
+	assert.Len(t, tfConfig.TerragruntDependencies, 2)
+	assert.Equal(t, "dependency_1", tfConfig.TerragruntDependencies[0].Name)
+	assert.Equal(t, "dependency_2", tfConfig.TerragruntDependencies[1].Name)
 }
 
 func TestDisabledDependency(t *testing.T) {
@@ -146,5 +147,5 @@ dependency "vpc" {
 
 	decoded := terragruntDependency{}
 	require.NoError(t, file.Decode(&decoded, &hcl.EvalContext{}))
-	require.Len(t, decoded.Dependencies, 2)
+	assert.Len(t, decoded.Dependencies, 2)
 }

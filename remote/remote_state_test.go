@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -121,7 +122,7 @@ func TestToTerraformInitArgsNoBackendConfigs(t *testing.T) {
 
 	for _, state := range remoteStates {
 		args := state.ToTerraformInitArgs()
-		require.Empty(t, args)
+		assert.Empty(t, args)
 	}
 }
 
@@ -286,16 +287,16 @@ func TestDiffersFrom(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			shouldOverride := testCase.stateFromConfig.differsFrom(&testCase.existingBackend, terragruntOptions)
-			require.Equal(t, testCase.shouldOverride, shouldOverride, "Expect differsFrom to return %t but got %t for existingRemoteState %v and remoteStateFromTerragruntConfig %v", testCase.shouldOverride, shouldOverride, testCase.existingBackend, testCase.stateFromConfig)
+			assert.Equal(t, testCase.shouldOverride, shouldOverride, "Expect differsFrom to return %t but got %t for existingRemoteState %v and remoteStateFromTerragruntConfig %v", testCase.shouldOverride, shouldOverride, testCase.existingBackend, testCase.stateFromConfig)
 		})
 	}
 }
 
 func assertTerraformInitArgsEqual(t *testing.T, actualArgs []string, expectedArgs string) {
 	expected := strings.Split(expectedArgs, " ")
-	require.Len(t, actualArgs, len(expected))
+	assert.Len(t, actualArgs, len(expected))
 
 	for _, expectedArg := range expected {
-		require.Contains(t, actualArgs, expectedArg)
+		assert.Contains(t, actualArgs, expectedArg)
 	}
 }

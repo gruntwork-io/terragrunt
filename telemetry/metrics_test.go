@@ -8,6 +8,7 @@ import (
 
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
@@ -68,9 +69,9 @@ func TestNewMetricsExporter(t *testing.T) {
 			require.NoError(t, err)
 
 			if tt.expectNil {
-				require.Nil(t, exporter)
+				assert.Nil(t, exporter)
 			} else {
-				require.IsType(t, tt.expectedType, exporter)
+				assert.IsType(t, tt.expectedType, exporter)
 			}
 		})
 	}
@@ -124,7 +125,7 @@ func TestCleanMetricName(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			result := cleanMetricName(tc.input)
-			require.Equal(t, tc.expected, result)
+			assert.Equal(t, tc.expected, result)
 		})
 	}
 }

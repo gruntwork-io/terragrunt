@@ -5,6 +5,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
@@ -97,7 +98,7 @@ func TestNewTraceExporter(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.IsType(t, tt.expectedType, exporter)
+				assert.IsType(t, tt.expectedType, exporter)
 			}
 		})
 	}

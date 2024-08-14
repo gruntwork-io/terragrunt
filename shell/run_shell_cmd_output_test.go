@@ -85,7 +85,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 
 	out, err := RunShellCommandWithOutput(context.Background(), terragruntOptions, "", !allocateStdout, false, "../testdata/test_outputs.sh", "same")
 
-	require.NotNil(t, out, "Should get output")
+	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")
 
 	assertResults(allOutputBuffer.String(), out)
