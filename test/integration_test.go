@@ -4718,6 +4718,12 @@ func assertS3PublicAccessBlocks(t *testing.T, client *s3.S3, bucketName string) 
 	assert.True(t, aws.BoolValue(publicAccessBlockConfig.RestrictPublicBuckets))
 }
 
+// createS3Bucket creates a test S3 bucket for state.
+func createS3Bucket(t *testing.T, awsRegion string, bucketName string) {
+	err := createS3BucketE(t, awsRegion, bucketName)
+	require.NoError(t, err)
+}
+
 // createS3BucketE create test S3 bucket.
 func createS3BucketE(t *testing.T, awsRegion string, bucketName string) error {
 	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
@@ -4741,6 +4747,41 @@ func createS3BucketE(t *testing.T, awsRegion string, bucketName string) error {
 		t.Logf("Failed to create S3 bucket %s: %v", bucketName, err)
 		return err
 	}
+	return nil
+}
+
+// createDynamoDbTable creates a test DynamoDB table.
+func createDynamoDbTable(t *testing.T, awsRegion string, tableName string) {
+	err := createDynamoDbTableE(t, awsRegion, tableName)
+	require.NoError(t, err)
+}
+
+// createDynamoDbTableE creates a test DynamoDB table, and returns an error if the table creation fails.
+func createDynamoDbTableE(t *testing.T, awsRegion string, tableName string) error {
+	client := createDynamoDbClientForTest(t, awsRegion)
+	_, err := client.CreateTable(&dynamodb.CreateTableInput{
+		AttributeDefinitions: []*dynamodb.AttributeDefinition{
+			{
+				AttributeName: aws.String("LockID"),
+				AttributeType: aws.String("S"),
+			},
+		},
+		KeySchema: []*dynamodb.KeySchemaElement{
+			{
+				AttributeName: aws.String("LockID"),
+				KeyType:       aws.String("HASH"),
+			},
+		},
+		TableName: aws.String(tableName),
+		ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(1),
+			WriteCapacityUnits: aws.Int64(1),
+		},
+	})
+	if err != nil {
+		return err
+	}
+	client.WaitUntilTableExists(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
 	return nil
 }
 
@@ -6487,8 +6528,8 @@ func TestTerragruntDisableBucketUpdate(t *testing.T) {
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
 	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueId())
 
-	err := createS3BucketE(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	require.NoError(t, err)
+	createS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	createDynamoDbTable(t, TERRAFORM_REMOTE_STATE_S3_REGION, lockTableName)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
@@ -6497,7 +6538,7 @@ func TestTerragruntDisableBucketUpdate(t *testing.T) {
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-disable-bucket-update --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, rootPath))
 
-	_, err = bucketPolicy(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	_, err := bucketPolicy(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 	// validate that bucket policy is not updated, because of --terragrunt-disable-bucket-update
 	require.Error(t, err)
 }
@@ -6937,8 +6978,7 @@ func TestTerragruntUpdatePolicy(t *testing.T) {
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
 	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueId())
 
-	err := createS3BucketE(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	require.NoError(t, err)
+	createS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
@@ -6946,7 +6986,7 @@ func TestTerragruntUpdatePolicy(t *testing.T) {
 	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, rootPath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 
 	// check that there is no policy on created bucket
-	_, err = bucketPolicy(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	_, err := bucketPolicy(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 	require.Error(t, err)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, rootPath))

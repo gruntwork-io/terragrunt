@@ -1,12 +1,19 @@
 terraform {
   backend "s3" {}
+
+  required_providers {
+    external = {
+      source  = "hashicorp/external"
+      version = "2.3.3"
+    }
+  }
 }
 
-# Create an arbitrary local resource
-data "template_file" "test" {
-  template = "Hello, I am a template. My sample_var value = $${sample_var}"
+data "external" "hello" {
+  program = ["bash", "-c", "sample_var=\"$$(cat - jq '.sample_var')\" && echo '{\"output\": \"Hello, I am a template. My sample_var value = $$sample_var\"}'"]
 
-  vars = {
+  query = {
     sample_var = var.sample_var
   }
 }
+
