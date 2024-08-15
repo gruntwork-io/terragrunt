@@ -3,6 +3,7 @@ package graph
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 
@@ -15,15 +16,26 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 )
 
+// Run the graph command.
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	target := terraform.NewTarget(terraform.TargetPointParseConfig, graph)
 
-	return terraform.RunWithTarget(ctx, opts, target)
+	err := terraform.RunWithTarget(ctx, opts, target)
+	if err != nil {
+		return fmt.Errorf("error running graph command: %w", err)
+	}
+
+	return nil
 }
+
+var (
+	// ErrNoConfig is returned when the terragrunt config is nil.
+	ErrNoConfig = errors.New("terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl") //nolint:lll
+)
 
 func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	if cfg == nil {
-		return errors.New("Terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl.")
+		return ErrNoConfig
 	}
 	// consider root for graph identification passed destroy-graph-root argument
 	rootDir := opts.GraphRoot
@@ -33,8 +45,9 @@ func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.Ter
 	if rootDir == "" {
 		gitRoot, err := shell.GitTopLevelDir(ctx, opts, opts.WorkingDir)
 		if err != nil {
-			return err
+			return fmt.Errorf("error when trying to find the root of the git repo: %w", err)
 		}
+
 		rootDir = gitRoot
 	}
 
@@ -42,9 +55,11 @@ func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.Ter
 	rootOptions.WorkingDir = rootDir
 
 	stack, err := configstack.FindStackInSubfolders(ctx, rootOptions)
+
 	if err != nil {
-		return err
+		return fmt.Errorf("error when trying to find the stack in subfolders: %w", err)
 	}
+
 	dependentModules := stack.ListStackDependentModules()
 
 	workDir := opts.WorkingDir
@@ -60,5 +75,10 @@ func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.Ter
 		}
 	}
 
-	return runall.RunAllOnStack(ctx, opts, stack)
+	err = runall.OnStack(ctx, opts, stack)
+	if err != nil {
+		return fmt.Errorf("error when trying to run all on stack: %w", err)
+	}
+
+	return nil
 }

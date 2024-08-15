@@ -12,14 +12,24 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
+// Run emits limited terragrunt state on stdout and exits.
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
-	target := terraform.NewTargetWithErrorHandler(terraform.TargetPointDownloadSource, runTerragruntInfo, runErrorTerragruntInfo)
+	target := terraform.NewTargetWithErrorHandler(
+		terraform.TargetPointDownloadSource,
+		runTerragruntInfo,
+		runErrorTerragruntInfo,
+	)
 
-	return terraform.RunWithTarget(ctx, opts, target)
+	err := terraform.RunWithTarget(ctx, opts, target)
+	if err != nil {
+		return fmt.Errorf("encountered error while running terragrunt-info: %w", err)
+	}
+
+	return nil
 }
 
-// Struct is output as JSON by 'terragrunt-info':.
-type TerragruntInfoGroup struct {
+// Group is a struct that represents the output of the terragrunt-info command.
+type Group struct {
 	ConfigPath       string `json:"ConfigPath"`
 	DownloadDir      string `json:"DownloadDir"`
 	IamRole          string `json:"IamRole"`
@@ -29,7 +39,7 @@ type TerragruntInfoGroup struct {
 }
 
 func printTerragruntInfo(opts *options.TerragruntOptions) error {
-	group := TerragruntInfoGroup{
+	group := Group{
 		ConfigPath:       opts.TerragruntConfigPath,
 		DownloadDir:      opts.DownloadDir,
 		IamRole:          opts.IAMRoleOptions.RoleARN,
@@ -41,22 +51,27 @@ func printTerragruntInfo(opts *options.TerragruntOptions) error {
 	b, err := json.MarshalIndent(group, "", "  ")
 	if err != nil {
 		opts.Logger.Errorf("JSON error marshalling terragrunt-info")
-		return errors.WithStackTrace(err)
+
+		return fmt.Errorf("error marshalling terragrunt-info: %w", errors.WithStackTrace(err))
 	}
+
 	if _, err := fmt.Fprintf(opts.Writer, "%s\n", b); err != nil {
-		return errors.WithStackTrace(err)
+		return fmt.Errorf("error writing terragrunt-info: %w", errors.WithStackTrace(err))
 	}
+
 	return nil
 }
 
-func runTerragruntInfo(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
+func runTerragruntInfo(_ context.Context, opts *options.TerragruntOptions, _ *config.TerragruntConfig) error {
 	return printTerragruntInfo(opts)
 }
 
-func runErrorTerragruntInfo(opts *options.TerragruntOptions, cfg *config.TerragruntConfig, err error) error {
+func runErrorTerragruntInfo(opts *options.TerragruntOptions, _ *config.TerragruntConfig, err error) error {
 	opts.Logger.Debugf("Fetching terragrunt-info: %v", err)
+
 	if err := printTerragruntInfo(opts); err != nil {
 		opts.Logger.Errorf("Error printing terragrunt-info: %v", err)
 	}
+
 	return err
 }

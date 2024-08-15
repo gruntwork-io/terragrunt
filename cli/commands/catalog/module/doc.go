@@ -1,6 +1,8 @@
+// Package module provides a struct and methods to parse README.md/README.adoc files.
 package module
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -23,9 +25,9 @@ const (
 
 var (
 	// `strings.EqualFold` is used (case insensitive) while comparing.
-	docFiles = []string{"README.md", "README.adoc"}
+	docFiles = []string{"README.md", "README.adoc"} //nolint:gochecknoglobals
 
-	frontmatterKeys = map[string]docDataKey{
+	frontmatterKeys = map[string]docDataKey{ //nolint:gochecknoglobals
 		"name":        docTitle,
 		"description": docDescription,
 	}
@@ -34,15 +36,20 @@ var (
 type docDataKey byte
 type docTagName byte
 
+// DocRegs is a slice of regular expressions used to strip tags from the README.md/README.adoc files.
 type DocRegs []*regexp.Regexp
 
+// Replace replaces all the regular expressions in the slice with an empty string.
 func (regs DocRegs) Replace(str string) string {
 	for _, reg := range regs {
 		str = reg.ReplaceAllString(str, "$1")
 	}
+
 	return str
 }
 
+// Doc is a struct that contains the raw content of the README.md/README.adoc files,
+// the file extension, and the regular expressions used to strip tags.
 type Doc struct {
 	rawContent string
 	fileExt    string
@@ -55,6 +62,7 @@ type Doc struct {
 	frontmatterReg   *regexp.Regexp
 }
 
+// NewDoc creates a new `Doc` struct with the given raw content and file extension.
 func NewDoc(rawContent, fileExt string) *Doc {
 	doc := &Doc{
 		rawContent: rawContent,
@@ -132,12 +140,13 @@ func NewDoc(rawContent, fileExt string) *Doc {
 	return doc
 }
 
+// FindDoc finds the README.md/README.adoc file in the given directory and returns a `Doc` struct.
 func FindDoc(dir string) (*Doc, error) {
 	var filePath, fileExt string
 
 	files, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, fmt.Errorf("error reading directory: %w", errors.WithStackTrace(err))
 	}
 
 	for _, file := range files {
@@ -149,6 +158,7 @@ func FindDoc(dir string) (*Doc, error) {
 			if strings.EqualFold(readmeFile, file.Name()) {
 				filePath = filepath.Join(dir, file.Name())
 				fileExt = filepath.Ext(filePath)
+
 				break
 			}
 		}
@@ -165,13 +175,15 @@ func FindDoc(dir string) (*Doc, error) {
 
 	contentByte, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, fmt.Errorf("error reading file: %w", errors.WithStackTrace(err))
 	}
+
 	rawContent := string(contentByte)
 
 	return NewDoc(rawContent, fileExt), nil
 }
 
+// Title returns the title of the README.md/README.adoc file.
 func (doc *Doc) Title() string {
 	if title := doc.parseFrontmatter(docTitle); title != "" {
 		return title
@@ -180,6 +192,7 @@ func (doc *Doc) Title() string {
 	return doc.parseTag(docTitle)
 }
 
+// Description returns the description of the README.md/README.adoc file.
 func (doc *Doc) Description(maxLenght int) string {
 	desc := doc.parseFrontmatter(docDescription)
 
@@ -207,6 +220,7 @@ func (doc *Doc) Description(maxLenght int) string {
 			}
 
 			desc += "."
+
 			break
 		}
 	}
@@ -214,6 +228,7 @@ func (doc *Doc) Description(maxLenght int) string {
 	return desc
 }
 
+// Content returns the content of the README.md/README.adoc file.
 func (doc *Doc) Content(stripTags bool) string {
 	if !stripTags {
 		return doc.rawContent
@@ -222,6 +237,7 @@ func (doc *Doc) Content(stripTags bool) string {
 	return doc.parseTag(docContent)
 }
 
+// IsMarkDown returns true if the README.md/README.adoc file is a Markdown file.
 func (doc *Doc) IsMarkDown() bool {
 	return doc.fileExt == mdExt
 }
@@ -257,7 +273,8 @@ func (doc *Doc) parseFrontmatter(key docDataKey) string {
 	return doc.frontmatterCache[key]
 }
 
-// parseTag parses Markdown/AsciiDoc files, stips tags and extracts the H1 header as the title and the H1+H2 bodies as the description.
+// parseTag parses Markdown/AsciiDoc files, stips tags and extracts
+// the H1 header as the title and the H1+H2 bodies as the description.
 func (doc *Doc) parseTag(key docDataKey) string {
 	if doc.tagRegs == nil {
 		return ""
@@ -265,6 +282,7 @@ func (doc *Doc) parseTag(key docDataKey) string {
 
 	if doc.tagCache == nil {
 		doc.tagCache = make(map[docDataKey]string)
+
 		var h1Body, h2Body string
 
 		for tagName, tagReg := range doc.tagRegs {
@@ -272,12 +290,14 @@ func (doc *Doc) parseTag(key docDataKey) string {
 			if len(match) == 0 {
 				continue
 			}
+
 			lines := strings.Split(match[1], "\n")
 
 			switch tagName {
 			case tagH1Block:
 				// header title
 				doc.tagCache[docTitle] = lines[0]
+
 				if len(lines) > 1 {
 					h1Body = strings.Join(lines[1:], "\n")
 				}

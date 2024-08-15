@@ -6,22 +6,27 @@ import (
 )
 
 const (
+	// CommandName is the name of the command.
 	CommandName = "aws-provider-patch"
 
+	// FlagNameTerragruntOverrideAttr is the name of the flag that specifies the
+	// attribute to override in the provider block.
 	FlagNameTerragruntOverrideAttr = "terragrunt-override-attr"
 )
 
+// NewFlags returns the flags for the aws-provider-patch command.
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
 		&cli.MapFlag[string, string]{
 			Name:        FlagNameTerragruntOverrideAttr,
 			Destination: &opts.AwsProviderPatchOverrides,
 			EnvVar:      "TERRAGRUNT_EXCLUDE_DIR",
-			Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",
+			Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.", //nolint:lll
 		},
 	}
 }
 
+// NewCommand returns the aws-provider-patch command.
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:   CommandName,

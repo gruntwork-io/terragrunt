@@ -1,3 +1,5 @@
+// Package dynamodb provides utilities for working with DynamoDB tables, such as creating and deleting tables.
+// The tables relevant to Terragrunt are typically the ones created automatically to store the OpenTofu/Terraform state locks.
 package dynamodb
 
 import (
@@ -12,7 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -21,10 +23,10 @@ import (
 // running many automated tests in parallel, we use a counting semaphore.
 const dynamoParallelOperations = 10
 
-var tableCreateDeleteSemaphore = NewCountingSemaphore(dynamoParallelOperations)
+var tableCreateDeleteSemaphore = NewCountingSemaphore(dynamoParallelOperations) //nolint:gochecknoglobals
 
 // Terraform requires the DynamoDB table to have a primary key with this name.
-const ATTR_LOCK_ID = "LockID"
+const AttrLockID = "LockID"
 
 // Default is to retry for up to 5 minutes.
 const MAX_RETRIES_WAITING_FOR_TABLE_TO_BE_ACTIVE = 30
@@ -36,8 +38,8 @@ const sleepBetweenRetries = 20 * time.Second
 const maxRetries = 15
 
 // Create an authenticated client for DynamoDB.
-func CreateDynamoDbClient(config *aws_helper.AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*dynamodb.DynamoDB, error) {
-	session, err := aws_helper.CreateAwsSession(config, terragruntOptions)
+func CreateDynamoDbClient(config *awshelper.AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*dynamodb.DynamoDB, error) {
+	session, err := awshelper.CreateAwsSession(config, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -94,11 +96,11 @@ func CreateLockTable(tableName string, tags map[string]string, client *dynamodb.
 	terragruntOptions.Logger.Debugf("Creating table %s in DynamoDB", tableName)
 
 	attributeDefinitions := []*dynamodb.AttributeDefinition{
-		{AttributeName: aws.String(ATTR_LOCK_ID), AttributeType: aws.String(dynamodb.ScalarAttributeTypeS)},
+		{AttributeName: aws.String(AttrLockID), AttributeType: aws.String(dynamodb.ScalarAttributeTypeS)},
 	}
 
 	keySchema := []*dynamodb.KeySchemaElement{
-		{AttributeName: aws.String(ATTR_LOCK_ID), KeyType: aws.String(dynamodb.KeyTypeHash)},
+		{AttributeName: aws.String(AttrLockID), KeyType: aws.String(dynamodb.KeyTypeHash)},
 	}
 
 	createTableOutput, err := client.CreateTable(&dynamodb.CreateTableInput{

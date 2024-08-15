@@ -1,3 +1,4 @@
+// Package terragruntinfo provides the command to emit limited terragrunt state on stdout and exits.
 package terragruntinfo
 
 import (
@@ -6,9 +7,11 @@ import (
 )
 
 const (
+	// CommandName is the name of the command.
 	CommandName = "terragrunt-info"
 )
 
+// NewCommand builds a new command.
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:   CommandName,

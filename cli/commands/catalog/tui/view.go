@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+//nolint:gochecknoglobals
 var (
 	appStyle          = lipgloss.NewStyle().Padding(1, 2) //nolint:mnd
 	infoPositionStyle = lipgloss.NewStyle().Padding(0, 1).BorderStyle(lipgloss.HiddenBorder())
@@ -50,7 +51,14 @@ func (m model) footerView() string {
 	info = lipgloss.JoinHorizontal(lipgloss.Center, line, info)
 
 	// button bar and key help
-	pagerKeys := infoHelp.Render(lipgloss.JoinVertical(lipgloss.Left, m.buttonBar.View(), "\n", m.pagerKeys.help.View(m.pagerKeys)))
+	pagerKeys := infoHelp.Render(
+		lipgloss.JoinVertical(
+			lipgloss.Left,
+			m.buttonBar.View(),
+			"\n",
+			m.pagerKeys.help.View(m.pagerKeys),
+		),
+	)
 
 	return lipgloss.JoinVertical(lipgloss.Left, info, pagerKeys)
 }

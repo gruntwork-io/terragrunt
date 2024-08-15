@@ -36,35 +36,54 @@ var (
 	catalogBlockReg = regexp.MustCompile(fmt.Sprintf(hclBlockRegExprFmt, MetadataCatalog))
 )
 
+// CatalogConfig represents the configuration for the `catalog` block.
 type CatalogConfig struct {
 	URLs []string `cty:"urls" hcl:"urls,attr"`
 }
 
-func (conf *CatalogConfig) String() string {
-	return fmt.Sprintf("Catalog{URLs = %v}", conf.URLs)
+// String returns a string representation of the CatalogConfig.
+func (cfg *CatalogConfig) String() string {
+	return fmt.Sprintf("Catalog{URLs = %v}", cfg.URLs)
 }
 
-func (config *CatalogConfig) normalize(cofnigPath string) {
-	configDir := filepath.Dir(cofnigPath)
+// normalize transforms relative paths to absolute ones.
+func (cfg *CatalogConfig) normalize(configPath string) {
+	configDir := filepath.Dir(configPath)
 
 	// transform relative paths to absolute ones
-	for i, url := range config.URLs {
+	for i, url := range cfg.URLs {
 		url := filepath.Join(configDir, url)
 
 		if files.FileExists(url) {
-			config.URLs[i] = url
+			cfg.URLs[i] = url
 		}
 	}
 }
 
-// We want users to be able to browse to any folder in an `infra-live` repo, run `terragrunt catalog` (with no URL) arg.
-// ReadCatalogConfig looks for the "nearest" `terragrunt.hcl` in the parent directories if the given `opts.TerragruntConfigPath` does not exist. Since our normal parsing `ParseConfig` does not always work, as some `terragrunt.hcl` files are meant to be used from an `include` and/or they might use `find_in_parent_folders` and they only work from certain child folders, it parses this file to see if the config contains `include{...find_in_parent_folders()...}` block to determine if it is the root configuration. If it finds `terragrunt.hcl` that already has `include`, then read that configuration as is, oterwise generate a stub child `terragrunt.hcl` in memory with an `include` to pull in the one we found.
-// Unlike "RoadTerragruntConfig" func, it ignores any configuration errors not related to the "catalog" block.
+// ReadCatalogConfig reads the `catalog` block from the `terragrunt.hcl` file.
+//
+// We want users to be able to browse to any folder in an `infra-live` repo,
+// and run `terragrunt catalog` extra arguments.
+//
+// ReadCatalogConfig looks for the "nearest" `terragrunt.hcl` in parent directories
+// if the given `opts.TerragruntConfigPath` does not exist.
+//
+// Since our normal parsing `ParseConfig` does not always work, as some `terragrunt.hcl` files are meant to be used
+// from an `include` and/or they might use `find_in_parent_folders` only work from certain child folders,
+// it parses this file to see if the config contains `include{...find_in_parent_folders()...}` block to determine
+// if it is the root configuration.
+//
+// If it finds that the `terragrunt.hcl` already has `include`,
+// then it reads that configuration as is, otherwise generate a stub child `terragrunt.hcl`
+// in memory with an `include` to pull in the one we found.
+//
+// Unlike the "ReadTerragruntConfig" func, it ignores any configuration errors not related to the "catalog" block.
 func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOptions) (*CatalogConfig, error) {
 	configPath, configString, err := findCatalogConfig(parentCtx, opts)
 	if err != nil || configPath == "" {
 		return nil, err
 	}
+
 	opts.TerragruntConfigPath = configPath
 
 	ctx := NewParsingContext(parentCtx, opts)
@@ -99,7 +118,6 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 		case <-ctx.Done():
 			return "", "", nil
 		default:
-			// continue
 		}
 
 		newConfigPath, err := FindInParentFolders(NewParsingContext(ctx, opts), []string{configName})
@@ -108,12 +126,13 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 			if ok := errors.As(err, &parentFileNotFoundError); ok {
 				break
 			}
+
 			return "", "", err
 		}
 
 		configString, err := util.ReadFileAsString(newConfigPath)
 		if err != nil {
-			return "", "", err
+			return "", "", fmt.Errorf("failed to read file %s: %w", newConfigPath, err)
 		}
 
 		// if the config contains `include` block (root config), read the config as is.
@@ -141,7 +160,7 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 	return "", "", nil
 }
 
-func convertToTerragruntCatalogConfig(ctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
+func convertToTerragruntCatalogConfig(ctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (*TerragruntConfig, error) { //nolint:lll
 	var (
 		terragruntConfig = &TerragruntConfig{}
 		defaultMetadata  = map[string]interface{}{FoundInFile: configPath}
@@ -159,9 +178,14 @@ func convertToTerragruntCatalogConfig(ctx *ParsingContext, configPath string, te
 	}
 
 	if ctx.Locals != nil && *ctx.Locals != cty.NilVal {
-		// we should ignore any errors from `parseCtyValueToMap` as some `locals` values might have been incorrectly evaluated, that results to `json.Unmarshal` error.
-		// for example if the locals block looks like `{"var1":, "var2":"value2"}`, `parseCtyValueToMap` returns the map with "var2" value and an syntax error,
-		// but since we consciously understand that not all variables can be evaluated correctly due to the fact that parsing may not start from the real root file, we can safely ignore this error.
+		// We should ignore any errors from `parseCtyValueToMap` as some `locals` values might have been
+		// incorrectly evaluated, which results in an `json.Unmarshal` error.
+		//
+		// For example if the locals block looks like `{"var1":, "var2":"value2"}`,
+		// `parseCtyValueToMap` returns the map with "var2" value and a syntax error.
+		//
+		// Since we consciously understand that not all variables can be evaluated correctly due to
+		// the fact that parsing may not start from the real root file, we can safely ignore this error.
 		localsParsed, _ := ParseCtyValueToMap(*ctx.Locals)
 		terragruntConfig.Locals = localsParsed
 		terragruntConfig.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)

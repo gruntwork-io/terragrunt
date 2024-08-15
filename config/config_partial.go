@@ -23,13 +23,22 @@ import (
 type PartialDecodeSectionType int
 
 const (
+	// DependenciesBlock is used to decode the `dependencies` block in the terragrunt config.
 	DependenciesBlock PartialDecodeSectionType = iota
+	// DependencyBlock is used to decode the `dependency` block in the terragrunt config.
 	DependencyBlock
+	// TerraformBlock is used to decode the `terraform` block in the terragrunt config.
 	TerraformBlock
+	// TerraformSource is used to decode the `terraform` block in the terragrunt config, and only the `source` attribute.
 	TerraformSource
+	// TerragruntFlags is used to decode the boolean flags `prevent_destroy` and `skip` in the terragrunt config.
 	TerragruntFlags
+	// TerragruntInputs is used to decode the inputs block in the terragrunt config.
 	TerragruntInputs
+	// TerragruntVersionConstraints is used to decode the attributes related to constraining terragrunt and terraform
+	// versions in the terragrunt config.
 	TerragruntVersionConstraints
+	// RemoteStateBlock is used to decode the `remote_state` block in the terragrunt config.
 	RemoteStateBlock
 )
 
@@ -105,7 +114,7 @@ type terragruntInputs struct {
 // file. Currently base blocks are:
 // - locals
 // - include.
-func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TrackInclude, *cty.Value, error) {
+func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TrackInclude, *cty.Value, error) { //nolint:lll
 	evalParsingContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
 	if err != nil {
 		return nil, nil, err
@@ -140,14 +149,19 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 	return trackInclude, &localsAsCtyVal, nil
 }
 
+// PartialParseConfigFile partially parses and decodes the provided file.
+// Which blocks/attributes to decode is controlled by the function parameter decodeList.
+// These blocks/attributes are parsed and set on the output TerragruntConfig.
 func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *IncludeConfig) (*TerragruntConfig, error) {
-	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
+	hclCache := cache.ContextCache[*hclparse.File](ctx, HCLCacheContextKey)
 
 	fileInfo, err := os.Stat(configPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error reading file %s: %w", configPath, err)
 	}
+
 	var file *hclparse.File
+
 	var cacheKey = fmt.Sprintf("configPath-%v-modTime-%v", configPath, fileInfo.ModTime().UnixMicro())
 
 	if cacheConfig, found := hclCache.Get(ctx, cacheKey); found {
@@ -155,28 +169,52 @@ func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *Inc
 	} else {
 		file, err = hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error parsing file %s: %w", configPath, err)
 		}
 	}
 
 	return TerragruntConfigFromPartialConfig(ctx, file, include)
 }
 
-// Wrapper of PartialParseConfigString which checks for cached configs.
+var (
+	// ErrFailedToCloneConfig is the error returned when the terragrunt config cannot be cloned.
+	ErrFailedToCloneConfig = goErrors.New("failed to clone terragrunt config")
+)
+
+// TerragruntConfigFromPartialConfig is rapper of PartialParseConfigString which checks for cached configs.
 // filename, configString, includeFromChild and decodeList are used for the cache key,
 // by getting the default value (%#v) through fmt.
-func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
-	var cacheKey = fmt.Sprintf("%#v-%#v-%#v-%#v", file.ConfigPath, file.Content(), includeFromChild, ctx.PartialParseDecodeList)
+func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) { //nolint:lll
+	var cacheKey = fmt.Sprintf(
+		"%#v-%#v-%#v-%#v",
+		file.ConfigPath,
+		file.Content(),
+		includeFromChild,
+		ctx.PartialParseDecodeList,
+	)
 
 	terragruntConfigCache := cache.ContextCache[*TerragruntConfig](ctx, RunCmdCacheContextKey)
 	if ctx.TerragruntOptions.UsePartialParseConfigCache {
 		if config, found := terragruntConfigCache.Get(ctx, cacheKey); found {
-			ctx.TerragruntOptions.Logger.Debugf("Cache hit for '%s' (partial parsing), decodeList: '%v'.", file.ConfigPath, ctx.PartialParseDecodeList)
-			deepCopy := clone.Clone(config).(*TerragruntConfig)
+			ctx.TerragruntOptions.Logger.Debugf(
+				"Cache hit for '%s' (partial parsing), decodeList: '%v'.",
+				file.ConfigPath,
+				ctx.PartialParseDecodeList,
+			)
+
+			deepCopy, ok := clone.Clone(config).(*TerragruntConfig)
+			if !ok {
+				return nil, ErrFailedToCloneConfig
+			}
+
 			return deepCopy, nil
 		}
 
-		ctx.TerragruntOptions.Logger.Debugf("Cache miss for '%s' (partial parsing), decodeList: '%v'.", file.ConfigPath, ctx.PartialParseDecodeList)
+		ctx.TerragruntOptions.Logger.Debugf(
+			"Cache miss for '%s' (partial parsing), decodeList: '%v'.",
+			file.ConfigPath,
+			ctx.PartialParseDecodeList,
+		)
 	}
 
 	config, err := PartialParseConfig(ctx, file, includeFromChild)
@@ -185,7 +223,11 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File,
 	}
 
 	if ctx.TerragruntOptions.UsePartialParseConfigCache {
-		putConfig := clone.Clone(config).(*TerragruntConfig)
+		putConfig, ok := clone.Clone(config).(*TerragruntConfig)
+		if !ok {
+			return nil, ErrFailedToCloneConfig
+		}
+
 		terragruntConfigCache.Put(ctx, cacheKey, putConfig)
 	}
 
@@ -208,16 +250,19 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File,
 // - include
 // Note also that the following blocks are never decoded in a partial parse:
 // - inputs.
-func PartialParseConfigString(ctx *ParsingContext, configPath, configString string, include *IncludeConfig) (*TerragruntConfig, error) {
+func PartialParseConfigString(ctx *ParsingContext, configPath, configString string, include *IncludeConfig) (*TerragruntConfig, error) { //nolint:lll
 	file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromString(configString, configPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error parsing file %s: %w", configPath, err)
 	}
 
 	return PartialParseConfig(ctx, file, include)
 }
 
-func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
+// PartialParseConfig partially parses and decodes the provided HCL2 file.
+// Which blocks/attributes to decode is controlled by the function parameter decodeList.
+// These blocks/attributes are parsed and set on the output TerragruntConfig.
+func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) { //nolint:lll
 	ctx = ctx.WithTrackInclude(nil)
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
@@ -226,6 +271,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 	if err != nil {
 		return nil, err
 	}
+
 	ctx = ctx.WithTrackInclude(trackInclude)
 	ctx = ctx.WithLocals(locals)
 
@@ -234,6 +280,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 	if err != nil {
 		return nil, err
 	}
+
 	output.IsPartial = true
 
 	evalParsingContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
@@ -247,9 +294,10 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 		switch decode {
 		case DependenciesBlock:
 			decoded := terragruntDependencies{}
+
 			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("error decoding dependencies block: %w", err)
 			}
 
 			// If we already decoded some dependencies, merge them in. Otherwise, set as the new list.
@@ -261,29 +309,39 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 		case TerraformBlock:
 			decoded := terragruntTerraform{}
+
 			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("error decoding terraform block: %w", err)
 			}
+
 			output.Terraform = decoded.Terraform
 
 		case TerraformSource:
 			decoded := terragruntTerraformSource{}
+
 			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("error decoding terraform block: %w", err)
 			}
+
 			if decoded.Terraform != nil {
 				output.Terraform = &TerraformConfig{Source: decoded.Terraform.Source}
 			}
 
 		case DependencyBlock:
 			decoded := TerragruntDependency{}
+
 			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("error decoding dependency block: %w", err)
 			}
-			// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
+
+			// In normal operation, if a dependency block does not have a `config_path` attribute,
+			// decoding returns an error since this attribute is required,
+			// but the `hclvalidate` command suppresses decoding errors and
+			// this causes a cycle between modules, so we need to filter out
+			// dependencies without a defined `config_path`.
 			decoded.Dependencies = decoded.Dependencies.FilteredWithoutConfigPath()
 
 			output.TerragruntDependencies = decoded.Dependencies
@@ -298,22 +356,28 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 		case TerragruntFlags:
 			decoded := terragruntFlags{}
+
 			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("error decoding terragrunt flags: %w", err)
 			}
+
 			if decoded.PreventDestroy != nil {
 				output.PreventDestroy = decoded.PreventDestroy
 			}
+
 			if decoded.Skip != nil {
 				output.Skip = *decoded.Skip
 			}
+
 			if decoded.IamRole != nil {
 				output.IamRole = *decoded.IamRole
 			}
+
 			if decoded.IamWebIdentityToken != nil {
 				output.IamWebIdentityToken = *decoded.IamWebIdentityToken
 			}
+
 		case TerragruntInputs:
 			decoded := terragruntInputs{}
 
@@ -323,6 +387,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				if err != nil {
 					return nil, err
 				}
+
 				evalParsingContext.Variables[MetadataDependency] = *retrievedOutputs
 			}
 
@@ -331,9 +396,10 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				ok := goErrors.As(err, &diagErr)
 
 				// in case of render-json command and inputs reference error, we update the inputs with default value
-				if !ok || !isRenderJsonCommand(ctx) || !isAttributeAccessError(diagErr) {
-					return nil, err
+				if !ok || !isRenderJSONCommand(ctx) || !isAttributeAccessError(diagErr) {
+					return nil, fmt.Errorf("error decoding inputs block: %w", err)
 				}
+
 				ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
 			}
 
@@ -342,41 +408,49 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				if err != nil {
 					return nil, err
 				}
+
 				output.Inputs = inputs
 			}
 
 		case TerragruntVersionConstraints:
 			decoded := terragruntVersionConstraints{}
+
 			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("error decoding terragrunt version constraints: %w", err)
 			}
+
 			if decoded.TerragruntVersionConstraint != nil {
 				output.TerragruntVersionConstraint = *decoded.TerragruntVersionConstraint
 			}
+
 			if decoded.TerraformVersionConstraint != nil {
 				output.TerraformVersionConstraint = *decoded.TerraformVersionConstraint
 			}
+
 			if decoded.TerraformBinary != nil {
 				output.TerraformBinary = *decoded.TerraformBinary
 			}
 
 		case RemoteStateBlock:
 			decoded := terragruntRemoteState{}
+
 			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("error decoding remote_state block: %w", err)
 			}
+
 			if decoded.RemoteState != nil {
 				remoteState, err := decoded.RemoteState.toConfig()
 				if err != nil {
 					return nil, err
 				}
+
 				output.RemoteState = remoteState
 			}
 
 		default:
-			return nil, InvalidPartialBlockName{decode}
+			return nil, InvalidPartialBlockNameError{decode}
 		}
 	}
 
@@ -386,16 +460,26 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 		if err != nil {
 			return nil, err
 		}
+
 		// Saving processed includes into configuration, direct assignment since nested includes aren't supported
 		config.ProcessedIncludes = ctx.TrackInclude.CurrentMap
+
 		return config, nil
 	}
+
 	return output, nil
 }
 
 func partialParseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
-		return nil, errors.WithStackTrace(IncludedConfigMissingPathError(ctx.TerragruntOptions.TerragruntConfigPath))
+		return nil, fmt.Errorf(
+			"included config missing path: %w",
+			errors.WithStackTrace(
+				IncludedConfigMissingPathError(
+					ctx.TerragruntOptions.TerragruntConfigPath,
+				),
+			),
+		)
 	}
 
 	includePath := includedConfig.Path
@@ -418,7 +502,7 @@ func partialParseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConf
 func decodeAsTerragruntInclude(file *hclparse.File, evalParsingContext *hcl.EvalContext) ([]IncludeConfig, error) {
 	tgInc := terragruntIncludeMultiple{}
 	if err := file.Decode(&tgInc, evalParsingContext); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error decoding include block: %w", err)
 	}
 
 	return tgInc.Include, nil
@@ -426,10 +510,16 @@ func decodeAsTerragruntInclude(file *hclparse.File, evalParsingContext *hcl.Eval
 
 // Custom error types
 
-type InvalidPartialBlockName struct {
+// InvalidPartialBlockNameError is an error type that is used when an
+// unrecognized partial block code is passed to the PartialParseConfig function.
+type InvalidPartialBlockNameError struct {
 	sectionCode PartialDecodeSectionType
 }
 
-func (err InvalidPartialBlockName) Error() string {
-	return fmt.Sprintf("Unrecognized partial block code %d. This is most likely an error in terragrunt. Please file a bug report on the project repository.", err.sectionCode)
+// Error returns the error message for an InvalidPartialBlockName error.
+func (err InvalidPartialBlockNameError) Error() string {
+	return fmt.Sprintf(
+		"Unrecognized partial block code %d. This is most likely an error in terragrunt. Please file a bug report on the project repository.", //nolint:lll
+		err.sectionCode,
+	)
 }

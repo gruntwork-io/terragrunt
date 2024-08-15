@@ -1,6 +1,7 @@
 package module
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -15,12 +16,14 @@ const (
 )
 
 var (
-	terraformFileExts = []string{".tf"}
-	ignoreFiles       = []string{"terraform-cloud-enterprise-private-module-registry-placeholder.tf"}
+	terraformFileExts = []string{".tf"}                                                               //nolint:gochecknoglobals,lll
+	ignoreFiles       = []string{"terraform-cloud-enterprise-private-module-registry-placeholder.tf"} //nolint:gochecknoglobals,lll
 )
 
+// Modules is a list of modules (OpenTofu/Terraform) modules found in a repository.
 type Modules []*Module
 
+// Module represents an OpenTofu/Terraform module.
 type Module struct {
 	*Doc
 
@@ -48,6 +51,7 @@ func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	module.url = moduleURL
 
 	modulePath := filepath.Join(module.repoPath, module.moduleDir)
@@ -56,6 +60,7 @@ func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	module.Doc = doc
 
 	return module, nil
@@ -84,18 +89,21 @@ func (module *Module) Description() string {
 	return defaultDescription
 }
 
+// URL returns the URL of the module.
 func (module *Module) URL() string {
 	return module.url
 }
 
+// TerraformSourcePath returns the Terraform source path of the module.
 func (module *Module) TerraformSourcePath() string {
 	return module.cloneURL + "//" + module.moduleDir
 }
 
+// isValid checks if the given directory contains a Terraform module.
 func (module *Module) isValid() (bool, error) {
 	files, err := os.ReadDir(filepath.Join(module.repoPath, module.moduleDir))
 	if err != nil {
-		return false, errors.WithStackTrace(err)
+		return false, fmt.Errorf("failed to read directory %q: %w", module.moduleDir, errors.WithStackTrace(err))
 	}
 
 	for _, file := range files {
@@ -116,6 +124,7 @@ func (module *Module) isValid() (bool, error) {
 	return false, nil
 }
 
+// ModuleDir returns the module directory.
 func (module *Module) ModuleDir() string {
 	return module.moduleDir
 }

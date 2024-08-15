@@ -72,9 +72,9 @@ func TestTerragruntSourceMap(t *testing.T) {
 func TestGetTerragruntSourceHCL(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_HCL)
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_HCL)
-	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_HCL)
+	cleanupTerraformFolder(t, TestFixtureGetTerragruntSourceHcl)
+	tmpEnvPath := copyEnvironment(t, TestFixtureGetTerragruntSourceHcl)
+	rootPath := util.JoinPath(tmpEnvPath, TestFixtureGetTerragruntSourceHcl)
 	terraformSource := "" // get_terragrunt_source_cli_flag() only returns the source when it is passed in via the CLI
 
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
@@ -97,9 +97,9 @@ func TestGetTerragruntSourceHCL(t *testing.T) {
 func TestGetTerragruntSourceCLI(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_CLI)
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_CLI)
-	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_TERRAGRUNT_SOURCE_CLI)
+	cleanupTerraformFolder(t, TestFixtureGetTerragruntSourceCli)
+	tmpEnvPath := copyEnvironment(t, TestFixtureGetTerragruntSourceCli)
+	rootPath := util.JoinPath(tmpEnvPath, TestFixtureGetTerragruntSourceCli)
 	terraformSource := "terraform_config_cli"
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", rootPath, terraformSource))

@@ -11,15 +11,17 @@ import (
 
 const (
 	// A consistent error message for multiple catalog block in terragrunt config (which is currently not supported).
-	multipleBlockDetailFmt = "Terragrunt currently does not support multiple %[1]s blocks in a single config. Consolidate to a single %[1]s block."
+	multipleBlockDetailFmt = "Terragrunt currently does not support multiple %[1]s blocks in a single config. Consolidate to a single %[1]s block." //nolint:lll
 )
 
+// File represents a parsed HCL file. It contains the parsed HCL file, the path to the file, and the parsed HCL file.
 type File struct {
 	*Parser
 	*hcl.File
 	ConfigPath string
 }
 
+// Content returns the content of the file as a string.
 func (file *File) Content() string {
 	return string(file.Bytes)
 }
@@ -29,11 +31,13 @@ func (file *File) Update(content []byte) error {
 	// Since `hclparse.Parser` has a cache, we need to recreate(clone) the Parser instance without current file
 	// to be able to parse the configuration with the same `configPath`.
 	parser := hclparse.NewParser()
+
 	for configPath, copyfile := range file.Files() {
 		if configPath != file.ConfigPath {
 			parser.AddFile(configPath, copyfile)
 		}
 	}
+
 	file.Parser.Parser = parser
 
 	// we need to reparse the new updated contents. This is necessarily because the blocks
@@ -45,6 +49,7 @@ func (file *File) Update(content []byte) error {
 	}
 
 	file.File = updatedFile.File
+
 	return nil
 }
 
@@ -55,7 +60,7 @@ func (file *File) Update(content []byte) error {
 // blocks with labels, requiring the exact number of expected labels in the parsing step.  To handle this restriction,
 // we first see if there are any include blocks without any labels, and if there is, we modify it in the file object to
 // inject the label as "".
-func (file *File) Decode(out interface{}, evalContext *hcl.EvalContext) (err error) {
+func (file *File) Decode(out interface{}, evalContext *hcl.EvalContext) error {
 	if file.fileUpdateHandlerFunc != nil {
 		if err := file.Parser.fileUpdateHandlerFunc(file); err != nil {
 			return err
@@ -64,13 +69,13 @@ func (file *File) Decode(out interface{}, evalContext *hcl.EvalContext) (err err
 
 	diags := gohcl.DecodeBody(file.Body, evalContext, out)
 	if err := file.HandleDiagnostics(diags); err != nil {
-		return errors.WithStackTrace(err)
+		return fmt.Errorf("error decoding HCL file: %w", errors.WithStackTrace(err))
 	}
 
 	return nil
 }
 
-// GetBlock takes a parsed HCL file and extracts a reference to the `name` block, if there are defined.
+// Blocks takes a parsed HCL file and extracts a reference to the `name` block, if there are defined.
 func (file *File) Blocks(name string, isMultipleAllowed bool) ([]*Block, error) {
 	catalogSchema := &hcl.BodySchema{
 		Blocks: []hcl.BlockHeaderSchema{
@@ -80,10 +85,11 @@ func (file *File) Blocks(name string, isMultipleAllowed bool) ([]*Block, error) 
 	// We use PartialContent here, because we are only interested in parsing out the catalog block.
 	parsed, _, diags := file.Body.PartialContent(catalogSchema)
 	if err := file.HandleDiagnostics(diags); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, fmt.Errorf("error extracting %s block: %w", name, errors.WithStackTrace(err))
 	}
 
 	extractedBlocks := []*Block{}
+
 	for _, block := range parsed.Blocks {
 		if block.Type == name {
 			extractedBlocks = append(extractedBlocks, &Block{
@@ -94,23 +100,26 @@ func (file *File) Blocks(name string, isMultipleAllowed bool) ([]*Block, error) 
 	}
 
 	if len(extractedBlocks) > 1 && !isMultipleAllowed {
-		return nil, errors.WithStackTrace(
-			&hcl.Diagnostic{
-				Severity: hcl.DiagError,
-				Summary:  fmt.Sprintf("Multiple %s block", name),
-				Detail:   fmt.Sprintf(multipleBlockDetailFmt, name),
-			},
+		return nil, fmt.Errorf("error extracting %s block: %w", name,
+			errors.WithStackTrace(
+				&hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  fmt.Sprintf("Multiple %s block", name),
+					Detail:   fmt.Sprintf(multipleBlockDetailFmt, name),
+				},
+			),
 		)
 	}
 
 	return extractedBlocks, nil
 }
 
+// JustAttributes returns the attributes of the file.
 func (file *File) JustAttributes() (Attributes, error) {
 	hclAttrs, diags := file.Body.JustAttributes()
 
 	if err := file.HandleDiagnostics(diags); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, fmt.Errorf("error extracting attributes: %w", errors.WithStackTrace(err))
 	}
 
 	attrs := NewAttributes(file, hclAttrs)
@@ -122,6 +131,7 @@ func (file *File) JustAttributes() (Attributes, error) {
 	return attrs, nil
 }
 
+// HandleDiagnostics handles the diagnostics returned by the HCL parser.
 func (file *File) HandleDiagnostics(diags hcl.Diagnostics) error {
 	return file.Parser.handleDiagnostics(file, diags)
 }

@@ -1,6 +1,9 @@
-package aws_helper
+package awshelper
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // Policy - representation of the policy for AWS.
 type Policy struct {
@@ -22,21 +25,24 @@ type Statement struct {
 	Condition    *map[string]interface{} `json:"Condition,omitempty"`
 }
 
+// UnmarshalPolicy - unmarshal policy from string.
 func UnmarshalPolicy(policy string) (Policy, error) {
 	var p Policy
+
 	err := json.Unmarshal([]byte(policy), &p)
 	if err != nil {
-		return p, err
+		return p, fmt.Errorf("error unmarshalling policy: %w", err)
 	}
 
 	return p, nil
 }
 
+// MarshalPolicy - marshal policy to string.
 func MarshalPolicy(policy Policy) ([]byte, error) {
-	policyJson, err := json.Marshal(policy)
+	policyJSON, err := json.Marshal(policy)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error marshalling policy: %w", err)
 	}
 
-	return policyJson, nil
+	return policyJSON, nil
 }

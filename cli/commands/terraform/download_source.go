@@ -17,10 +17,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-// manifest for files copied from terragrunt module folder (i.e., the folder that contains the current terragrunt.hcl).
+// ModuleManifestName is the manifest for files copied from terragrunt module folder.
+// i.e. the folder that contains the current terragrunt.hcl.
 const ModuleManifestName = ".terragrunt-module-manifest"
 
-// file to indicate that init should be executed.
+// ModuleInitRequiredFile is the file indicating that re-initialization is required.
 const ModuleInitRequiredFile = ".terragrunt-init-required"
 
 const tfLintConfig = ".tflint.hcl"
@@ -32,25 +33,47 @@ const tfLintConfig = ".tflint.hcl"
 //
 // See the NewTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
 // runs of Terragrunt to avoid downloading everything from scratch every time.
-func downloadTerraformSource(ctx context.Context, source string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (*options.TerragruntOptions, error) {
-	terraformSource, err := terraform.NewSource(source, terragruntOptions.DownloadDir, terragruntOptions.WorkingDir, terragruntOptions.Logger)
+func downloadTerraformSource(ctx context.Context, source string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (*options.TerragruntOptions, error) { //nolint:lll
+	terraformSource, err := terraform.NewSource(
+		source,
+		terragruntOptions.DownloadDir,
+		terragruntOptions.WorkingDir,
+		terragruntOptions.Logger,
+	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create OpenTofu/Terraform source for %s: %w", source, err)
 	}
 
 	if err := DownloadTerraformSourceIfNecessary(ctx, terraformSource, terragruntOptions, terragruntConfig); err != nil {
 		return nil, err
 	}
 
-	terragruntOptions.Logger.Debugf("Copying files from %s into %s", terragruntOptions.WorkingDir, terraformSource.WorkingDir)
+	terragruntOptions.Logger.Debugf(
+		"Copying files from %s into %s",
+		terragruntOptions.WorkingDir,
+		terraformSource.WorkingDir,
+	)
+
 	var includeInCopy []string
+
 	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.IncludeInCopy != nil {
 		includeInCopy = *terragruntConfig.Terraform.IncludeInCopy
 	}
 	// Always include the .tflint.hcl file, if it exists
 	includeInCopy = append(includeInCopy, tfLintConfig)
-	if err := util.CopyFolderContents(terragruntOptions.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, includeInCopy); err != nil {
-		return nil, err
+
+	if err := util.CopyFolderContents(
+		terragruntOptions.WorkingDir,
+		terraformSource.WorkingDir,
+		ModuleManifestName,
+		includeInCopy,
+	); err != nil {
+		return nil, fmt.Errorf(
+			"failed to copy files from %s to %s: %w",
+			terragruntOptions.WorkingDir,
+			terraformSource.WorkingDir,
+			err,
+		)
 	}
 
 	updatedTerragruntOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
@@ -61,12 +84,18 @@ func downloadTerraformSource(ctx context.Context, source string, terragruntOptio
 	return updatedTerragruntOptions, nil
 }
 
-// Download the specified TerraformSource if the latest code hasn't already been downloaded.
-func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+// DownloadTerraformSourceIfNecessary downloads the specified TerraformSource
+// if the latest code hasn't already been downloaded.
+func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error { //nolint:lll
 	if terragruntOptions.SourceUpdate {
-		terragruntOptions.Logger.Debugf("The --%s flag is set, so deleting the temporary folder %s before downloading source.", commands.TerragruntSourceUpdateFlagName, terraformSource.DownloadDir)
+		terragruntOptions.Logger.Debugf(
+			"The --%s flag is set, so deleting the temporary folder %s before downloading source.",
+			commands.TerragruntSourceUpdateFlagName,
+			terraformSource.DownloadDir,
+		)
+
 		if err := os.RemoveAll(terraformSource.DownloadDir); err != nil {
-			return errors.WithStackTrace(err)
+			return fmt.Errorf("failed to remove %s: %w", terraformSource.DownloadDir, errors.WithStackTrace(err))
 		}
 	}
 
@@ -79,7 +108,13 @@ func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *te
 		if err := ValidateWorkingDir(terraformSource); err != nil {
 			return err
 		}
-		terragruntOptions.Logger.Debugf("%s files in %s are up to date. Will not download again.", terragruntOptions.TerraformImplementation, terraformSource.WorkingDir)
+
+		terragruntOptions.Logger.Debugf(
+			"%s files in %s are up to date. Will not download again.",
+			terragruntOptions.TerraformImplementation,
+			terraformSource.WorkingDir,
+		)
+
 		return nil
 	}
 
@@ -98,16 +133,22 @@ func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *te
 	// before and after hooks (if any).
 	terragruntOptionsForDownload := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	terragruntOptionsForDownload.TerraformCommand = terraform.CommandNameInitFromModule
-	downloadErr := runActionWithHooks(ctx, "download source", terragruntOptionsForDownload, terragruntConfig, func(ctx context.Context) error {
-		return downloadSource(terraformSource, terragruntOptions, terragruntConfig)
-	})
+	downloadErr := runActionWithHooks(
+		ctx,
+		"download source",
+		terragruntOptionsForDownload,
+		terragruntConfig,
+		func(_ context.Context) error {
+			return downloadSource(terraformSource, terragruntOptions, terragruntConfig)
+		},
+	)
 
 	if downloadErr != nil {
-		return DownloadingTerraformSourceErr{ErrMsg: downloadErr, Url: terraformSource.CanonicalSourceURL.String()}
+		return DownloadingTerraformSourceError{ErrMsg: downloadErr, URL: terraformSource.CanonicalSourceURL.String()}
 	}
 
 	if err := terraformSource.WriteVersionFile(); err != nil {
-		return err
+		return fmt.Errorf("failed to write version file %s: %w", terraformSource.VersionFile, err)
 	}
 
 	if err := ValidateWorkingDir(terraformSource); err != nil {
@@ -120,19 +161,22 @@ func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *te
 	if previousVersion != currentVersion || err != nil {
 		initFile := util.JoinPath(terraformSource.WorkingDir, ModuleInitRequiredFile)
 		f, createErr := os.Create(initFile)
+
 		if createErr != nil {
-			return createErr
+			return fmt.Errorf("failed to create init file %s: %w", initFile, createErr)
 		}
+
 		defer f.Close()
 	}
 
 	return nil
 }
 
-// Returns true if the specified TerraformSource, of the exact same version, has already been downloaded into the
-// DownloadFolder. This helps avoid downloading the same code multiple times. Note that if the TerraformSource points
-// to a local file path, a hash will be generated from the contents of the source dir. See the ProcessTerraformSource method for more info.
-func AlreadyHaveLatestCode(terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions) (bool, error) {
+// AlreadyHaveLatestCode returns true if the specified TerraformSource, of the exact same version,
+// has already been downloaded into the DownloadFolder. This helps avoid downloading the same code multiple times.
+// Note that if the TerraformSource points to a local file path,
+// a hash will be generated from the contents of the source dir. See the ProcessTerraformSource method for more info.
+func AlreadyHaveLatestCode(terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions) (bool, error) { //nolint:lll
 	if !util.FileExists(terraformSource.DownloadDir) ||
 		!util.FileExists(terraformSource.WorkingDir) ||
 		!util.FileExists(terraformSource.VersionFile) {
@@ -141,11 +185,15 @@ func AlreadyHaveLatestCode(terraformSource *terraform.Source, terragruntOptions 
 
 	tfFiles, err := filepath.Glob(terraformSource.WorkingDir + "/*.tf")
 	if err != nil {
-		return false, errors.WithStackTrace(err)
+		return false, fmt.Errorf("failed to glob %s: %w", terraformSource.WorkingDir, err)
 	}
 
 	if len(tfFiles) == 0 {
-		terragruntOptions.Logger.Debugf("Working dir %s exists but contains no Terraform files, so assuming code needs to be downloaded again.", terraformSource.WorkingDir)
+		terragruntOptions.Logger.Debugf(
+			"Working dir %s exists but contains no Terraform files, so assuming code needs to be downloaded again.",
+			terraformSource.WorkingDir,
+		)
+
 		return false, nil
 	}
 
@@ -155,7 +203,7 @@ func AlreadyHaveLatestCode(terraformSource *terraform.Source, terragruntOptions 
 	if err != nil {
 		currentVersion, err = util.GenerateRandomSha256()
 		if err != nil {
-			return false, err
+			return false, fmt.Errorf("failed to generate random sha256: %w", err)
 		}
 	}
 
@@ -172,29 +220,36 @@ func AlreadyHaveLatestCode(terraformSource *terraform.Source, terragruntOptions 
 // that has already been downloaded is the same as the version the user is currently requesting. The version number is
 // calculated using the encodeSourceVersion method.
 func readVersionFile(terraformSource *terraform.Source) (string, error) {
-	return util.ReadFileAsString(terraformSource.VersionFile)
+	str, err := util.ReadFileAsString(terraformSource.VersionFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to read version file %s: %w", terraformSource.VersionFile, err)
+	}
+
+	return str, nil
 }
 
 // updateGetters returns the customized go-getter interfaces that Terragrunt relies on. Specifically:
-//   - Local file path getter is updated to copy the files instead of creating symlinks, which is what go-getter defaults
-//     to.
+//   - Local file path getter is updated to copy the files instead of creating symlinks,
+//     which is what go-getter defaults to.
 //   - Include the customized getter for fetching sources from the Terraform Registry.
 //
 // This creates a closure that returns a function so that we have access to the terragrunt configuration, which is
 // necessary for customizing the behavior of the file getter.
-func updateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) func(*getter.Client) error {
+func updateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) func(*getter.Client) error { //nolint:lll
 	return func(client *getter.Client) error {
 		// We copy all the default getters from the go-getter library, but replace the "file" getter. We shallow clone the
 		// getter map here rather than using getter.Getters directly because (a) we shouldn't change the original,
 		// globally-shared getter.Getters map and (b) Terragrunt may run this code from many goroutines concurrently during
 		// xxx-all calls, so creating a new map each time ensures we don't a "concurrent map writes" error.
 		client.Getters = map[string]getter.Getter{}
+
 		for getterName, getterValue := range getter.Getters {
 			if getterName == "file" {
 				var includeInCopy []string
 				if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.IncludeInCopy != nil {
 					includeInCopy = *terragruntConfig.Terraform.IncludeInCopy
 				}
+
 				client.Getters[getterName] = &FileCopyGetter{IncludeInCopy: includeInCopy}
 			} else {
 				client.Getters[getterName] = getterValue
@@ -211,52 +266,76 @@ func updateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfi
 }
 
 // Download the code from the Canonical Source URL into the Download Folder using the go-getter library.
-func downloadSource(terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	terragruntOptions.Logger.Infof("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
+func downloadSource(terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error { //nolint:lll
+	terragruntOptions.Logger.Infof(
+		"Downloading Terraform configurations from %s into %s",
+		terraformSource.CanonicalSourceURL,
+		terraformSource.DownloadDir,
+	)
 
-	if err := getter.GetAny(terraformSource.DownloadDir, terraformSource.CanonicalSourceURL.String(), updateGetters(terragruntOptions, terragruntConfig)); err != nil {
-		return errors.WithStackTrace(err)
+	if err := getter.GetAny(
+		terraformSource.DownloadDir,
+		terraformSource.CanonicalSourceURL.String(),
+		updateGetters(terragruntOptions, terragruntConfig),
+	); err != nil {
+		return fmt.Errorf(
+			"failed to download source from %s: %w",
+			terraformSource.CanonicalSourceURL.String(),
+			errors.WithStackTrace(err),
+		)
 	}
 
 	return nil
 }
 
-// Check if working terraformSource.WorkingDir exists and is directory.
+// ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is directory.
 func ValidateWorkingDir(terraformSource *terraform.Source) error {
-	workingLocalDir := strings.ReplaceAll(terraformSource.WorkingDir, terraformSource.DownloadDir+filepath.FromSlash("/"), "")
+	workingLocalDir := strings.ReplaceAll(
+		terraformSource.WorkingDir,
+		terraformSource.DownloadDir+filepath.FromSlash("/"),
+		"",
+	)
+
 	if util.IsFile(terraformSource.WorkingDir) {
-		return WorkingDirNotDir{Dir: workingLocalDir, Source: terraformSource.CanonicalSourceURL.String()}
+		return WorkingDirNotDirError{Dir: workingLocalDir, Source: terraformSource.CanonicalSourceURL.String()}
 	}
+
 	if !util.IsDir(terraformSource.WorkingDir) {
-		return WorkingDirNotFound{Dir: workingLocalDir, Source: terraformSource.CanonicalSourceURL.String()}
+		return WorkingDirNotFoundError{Dir: workingLocalDir, Source: terraformSource.CanonicalSourceURL.String()}
 	}
 
 	return nil
 }
 
-type WorkingDirNotFound struct {
+// WorkingDirNotFoundError is an error type for when the working directory does not exist.
+type WorkingDirNotFoundError struct {
 	Source string
 	Dir    string
 }
 
-func (err WorkingDirNotFound) Error() string {
+// Error returns the error message for WorkingDirNotFound.
+func (err WorkingDirNotFoundError) Error() string {
 	return fmt.Sprintf("Working dir %s from source %s does not exist", err.Dir, err.Source)
 }
 
-type WorkingDirNotDir struct {
+// WorkingDirNotDirError is an error type for when the working directory is not a directory.
+type WorkingDirNotDirError struct {
 	Source string
 	Dir    string
 }
 
-func (err WorkingDirNotDir) Error() string {
+// Error returns the error message for WorkingDirNotDir.
+func (err WorkingDirNotDirError) Error() string {
 	return fmt.Sprintf("Valid working dir %s from source %s", err.Dir, err.Source)
 }
 
-type DownloadingTerraformSourceErr struct {
+// DownloadingTerraformSourceError is an error type for when downloading the Terraform source fails.
+type DownloadingTerraformSourceError struct {
 	ErrMsg error
-	Url    string
+	URL    string
 }
 
-func (err DownloadingTerraformSourceErr) Error() string {
-	return fmt.Sprintf("downloading source url %s\n%v", err.Url, err.ErrMsg)
+// Error returns the error message for DownloadingTerraformSourceErr.
+func (err DownloadingTerraformSourceError) Error() string {
+	return fmt.Sprintf("downloading source url %s\n%v", err.URL, err.ErrMsg)
 }

@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"fmt"
 	"net/url"
 	"os"
 
@@ -9,10 +10,11 @@ import (
 	"github.com/hashicorp/go-getter"
 )
 
-// manifest for files copied from the URL specified in the terraform { source = "<URL>" } config.
+// SourceManifestName is the name of the file used as the manifest for files copied
+// from the URL specified in the terraform { source = "<URL>" } config.
 const SourceManifestName = ".terragrunt-source-manifest"
 
-// A custom getter.Getter implementation that uses file copying instead of symlinks. Symlinks are
+// FileCopyGetter is a custom getter.Getter implementation that uses file copying instead of symlinks. Symlinks are
 // faster and use less disk space, but they cause issues in Windows and with infinite loops, so we copy files/folders
 // instead.
 type FileCopyGetter struct {
@@ -23,6 +25,7 @@ type FileCopyGetter struct {
 	IncludeInCopy []string
 }
 
+// Get is a replacement for the original FileGetter Get method.
 // The original FileGetter does NOT know how to do folder copying (it only does symlinks), so we provide a copy
 // implementation here.
 func (g *FileCopyGetter) Get(dst string, u *url.URL) error {
@@ -38,7 +41,11 @@ func (g *FileCopyGetter) Get(dst string, u *url.URL) error {
 		return errors.Errorf("source path must be a directory")
 	}
 
-	return util.CopyFolderContents(path, dst, SourceManifestName, g.IncludeInCopy)
+	if err := util.CopyFolderContents(path, dst, SourceManifestName, g.IncludeInCopy); err != nil {
+		return fmt.Errorf("error copying folder contents: %w", err)
+	}
+
+	return nil
 }
 
 // GetFile The original FileGetter already knows how to do file copying so long as we set the Copy flag to true, so just
@@ -46,7 +53,8 @@ func (g *FileCopyGetter) Get(dst string, u *url.URL) error {
 func (g *FileCopyGetter) GetFile(dst string, u *url.URL) error {
 	underlying := &getter.FileGetter{Copy: true}
 	if err := underlying.GetFile(dst, u); err != nil {
-		return errors.WithStackTrace(err)
+		return fmt.Errorf("error copying file: %w", errors.WithStackTrace(err))
 	}
+
 	return nil
 }

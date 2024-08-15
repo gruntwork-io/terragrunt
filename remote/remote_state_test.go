@@ -16,7 +16,7 @@ import (
 func TestToTerraformInitArgs(t *testing.T) {
 	t.Parallel()
 
-	remoteState := remote.RemoteState{
+	remoteState := remote.State{
 		Backend: "s3",
 		Config: map[string]interface{}{
 			"encrypt": true,
@@ -54,7 +54,7 @@ func TestToTerraformInitArgs(t *testing.T) {
 func TestToTerraformInitArgsForGCS(t *testing.T) {
 	t.Parallel()
 
-	remoteState := remote.RemoteState{
+	remoteState := remote.State{
 		Backend: "gcs",
 		Config: map[string]interface{}{
 			"project":  "my-project-123456",
@@ -82,7 +82,7 @@ func TestToTerraformInitArgsForGCS(t *testing.T) {
 func TestToTerraformInitArgsUnknownBackend(t *testing.T) {
 	t.Parallel()
 
-	remoteState := remote.RemoteState{
+	remoteState := remote.State{
 		Backend: "s4",
 		Config: map[string]interface{}{
 			"encrypt": true,
@@ -99,7 +99,7 @@ func TestToTerraformInitArgsUnknownBackend(t *testing.T) {
 func TestToTerraformInitArgsInitDisabled(t *testing.T) {
 	t.Parallel()
 
-	remoteState := remote.RemoteState{
+	remoteState := remote.State{
 		Backend:     "s3",
 		DisableInit: true,
 		Config: map[string]interface{}{
@@ -116,7 +116,7 @@ func TestToTerraformInitArgsInitDisabled(t *testing.T) {
 func TestToTerraformInitArgsNoBackendConfigs(t *testing.T) {
 	t.Parallel()
 
-	remoteStates := []remote.RemoteState{
+	remoteStates := []remote.State{
 		{Backend: "s3"},
 		{Backend: "gcs"},
 	}
@@ -136,19 +136,19 @@ func TestDiffersFrom(t *testing.T) {
 	testCases := []struct {
 		name            string
 		existingBackend remote.TerraformBackend
-		stateFromConfig remote.RemoteState
+		stateFromConfig remote.State
 		shouldOverride  bool
 	}{
-		{"both empty", remote.TerraformBackend{}, remote.RemoteState{}, false},
-		{"same backend type value", remote.TerraformBackend{Type: "s3"}, remote.RemoteState{Backend: "s3"}, false},
-		{"different backend type values", remote.TerraformBackend{Type: "s3"}, remote.RemoteState{Backend: "atlas"}, true},
+		{"both empty", remote.TerraformBackend{}, remote.State{}, false},
+		{"same backend type value", remote.TerraformBackend{Type: "s3"}, remote.State{Backend: "s3"}, false},
+		{"different backend type values", remote.TerraformBackend{Type: "s3"}, remote.State{Backend: "atlas"}, true},
 		{
 			"identical S3 configs",
 			remote.TerraformBackend{
 				Type:   "s3",
 				Config: map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
-			remote.RemoteState{
+			remote.State{
 				Backend: "s3",
 				Config:  map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
@@ -159,7 +159,7 @@ func TestDiffersFrom(t *testing.T) {
 				Type:   "gcs",
 				Config: map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "bar"},
 			},
-			remote.RemoteState{
+			remote.State{
 				Backend: "gcs",
 				Config:  map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "bar"},
 			},
@@ -170,7 +170,7 @@ func TestDiffersFrom(t *testing.T) {
 				Type:   "s3",
 				Config: map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
-			remote.RemoteState{
+			remote.State{
 				Backend: "s3",
 				Config:  map[string]interface{}{"bucket": "different", "key": "bar", "region": "us-east-1"},
 			},
@@ -181,7 +181,7 @@ func TestDiffersFrom(t *testing.T) {
 				Type:   "gcs",
 				Config: map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "bar"},
 			},
-			remote.RemoteState{
+			remote.State{
 				Backend: "gcs",
 				Config:  map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "different", "prefix": "bar"},
 			},
@@ -192,7 +192,7 @@ func TestDiffersFrom(t *testing.T) {
 				Type:   "s3",
 				Config: map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
-			remote.RemoteState{
+			remote.State{
 				Backend: "s3",
 				Config:  map[string]interface{}{"bucket": "foo", "key": "different", "region": "us-east-1"},
 			},
@@ -203,7 +203,7 @@ func TestDiffersFrom(t *testing.T) {
 				Type:   "gcs",
 				Config: map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "bar"},
 			},
-			remote.RemoteState{
+			remote.State{
 				Backend: "gcs",
 				Config:  map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "different"},
 			},
@@ -214,7 +214,7 @@ func TestDiffersFrom(t *testing.T) {
 				Type:   "s3",
 				Config: map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
-			remote.RemoteState{
+			remote.State{
 				Backend: "s3",
 				Config:  map[string]interface{}{"bucket": "foo", "key": "bar", "region": "different"},
 			},
@@ -225,7 +225,7 @@ func TestDiffersFrom(t *testing.T) {
 				Type:   "gcs",
 				Config: map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "bar"},
 			},
-			remote.RemoteState{
+			remote.State{
 				Backend: "gcs",
 				Config:  map[string]interface{}{"project": "foo-123456", "location": "different", "bucket": "foo", "prefix": "bar"},
 			},
@@ -237,7 +237,7 @@ func TestDiffersFrom(t *testing.T) {
 				Type:   "s3",
 				Config: map[string]interface{}{"something": "true"},
 			},
-			remote.RemoteState{
+			remote.State{
 				Backend: "s3",
 				Config:  map[string]interface{}{"something": false},
 			},
@@ -249,7 +249,7 @@ func TestDiffersFrom(t *testing.T) {
 				Type:   "gcs",
 				Config: map[string]interface{}{"something": "true"},
 			},
-			remote.RemoteState{
+			remote.State{
 				Backend: "gcs",
 				Config:  map[string]interface{}{"something": false},
 			},
@@ -261,7 +261,7 @@ func TestDiffersFrom(t *testing.T) {
 				Type:   "s3",
 				Config: map[string]interface{}{"something": "foo", "set-to-nil-should-be-ignored": nil},
 			},
-			remote.RemoteState{
+			remote.State{
 				Backend: "s3",
 				Config:  map[string]interface{}{"something": "foo"},
 			},
@@ -273,7 +273,7 @@ func TestDiffersFrom(t *testing.T) {
 				Type:   "gcs",
 				Config: map[string]interface{}{"something": "foo", "set-to-nil-should-be-ignored": nil},
 			},
-			remote.RemoteState{
+			remote.State{
 				Backend: "gcs",
 				Config:  map[string]interface{}{"something": "foo"},
 			},

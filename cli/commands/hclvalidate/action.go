@@ -2,6 +2,7 @@ package hclvalidate
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -13,7 +14,8 @@ import (
 	"github.com/hashicorp/hcl/v2"
 )
 
-func Run(ctx context.Context, opts *Options) (er error) {
+// Run validates all HCL files in the config stack.
+func Run(ctx context.Context, opts *Options) error {
 	var diags diagnostic.Diagnostics
 
 	parseOptions := []hclparse.Option{
@@ -24,6 +26,7 @@ func Run(ctx context.Context, opts *Options) (er error) {
 					diags = append(diags, newDiag)
 				}
 			}
+
 			return nil, nil
 		}),
 	}
@@ -32,12 +35,18 @@ func Run(ctx context.Context, opts *Options) (er error) {
 	opts.NonInteractive = true
 	opts.RunTerragrunt = func(ctx context.Context, opts *options.TerragruntOptions) error {
 		_, err := config.ReadTerragruntConfig(ctx, opts, parseOptions)
-		return err
+
+		return fmt.Errorf("failed to read terragrunt config: %w", err)
 	}
 
-	stack, err := configstack.FindStackInSubfolders(ctx, opts.TerragruntOptions, configstack.WithParseOptions(parseOptions))
+	stack, err := configstack.FindStackInSubfolders(
+		ctx,
+		opts.TerragruntOptions,
+		configstack.WithParseOptions(parseOptions),
+	)
+
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to find stack in subfolders: %w", err)
 	}
 
 	stackErr := stack.Run(ctx, opts.TerragruntOptions)
@@ -47,6 +56,7 @@ func Run(ctx context.Context, opts *Options) (er error) {
 			if diags[i].Range != nil && diags[j].Range != nil && diags[i].Range.Filename > diags[j].Range.Filename {
 				return false
 			}
+
 			return true
 		})
 
@@ -55,7 +65,11 @@ func Run(ctx context.Context, opts *Options) (er error) {
 		}
 	}
 
-	return stackErr
+	if stackErr != nil {
+		return fmt.Errorf("failed to run stack: %w", stackErr)
+	}
+
+	return nil
 }
 
 func writeDiagnostics(opts *Options, diags diagnostic.Diagnostics) error {
@@ -67,8 +81,18 @@ func writeDiagnostics(opts *Options, diags diagnostic.Diagnostics) error {
 	writer := view.NewWriter(opts.Writer, render)
 
 	if opts.ShowConfigPath {
-		return writer.ShowConfigPath(diags)
+		err := writer.ShowConfigPath(diags)
+		if err != nil {
+			return fmt.Errorf("failed to show config path: %w", err)
+		}
+
+		return nil
 	}
 
-	return writer.Diagnostics(diags)
+	err := writer.Diagnostics(diags)
+	if err != nil {
+		return fmt.Errorf("failed to write summary: %w", err)
+	}
+
+	return nil
 }

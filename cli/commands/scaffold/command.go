@@ -1,3 +1,5 @@
+// Package scaffold provides functionality to scaffold OpenTofu/Terraform modules
+// based on boilerplate templates for Terragrunt.
 package scaffold
 
 import (
@@ -6,11 +8,17 @@ import (
 )
 
 const (
+	// CommandName is the name of the command.
 	CommandName = "scaffold"
-	Var         = "var"
-	VarFile     = "var-file"
+
+	// Var is the name of the flag to pass variables to the scaffolding process.
+	Var = "var"
+
+	// VarFile is the name of the flag to pass files with variables to the scaffolding process.
+	VarFile = "var-file"
 )
 
+// NewFlags returns the flags for the command.
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
 		&cli.SliceFlag[string]{
@@ -26,6 +34,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	}
 }
 
+// NewCommand returns the command.
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:                   CommandName,
@@ -33,17 +42,17 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		DisallowUndefinedFlags: true,
 		Flags:                  NewFlags(opts).Sort(),
 		Action: func(ctx *cli.Context) error {
-			var moduleUrl, templateUrl string
+			var moduleURL, templateURL string
 
 			if val := ctx.Args().Get(0); val != "" {
-				moduleUrl = val
+				moduleURL = val
 			}
 
 			if val := ctx.Args().Get(1); val != "" {
-				templateUrl = val
+				templateURL = val
 			}
 
-			return Run(ctx, opts.OptionsFromContext(ctx), moduleUrl, templateUrl)
+			return Run(ctx, opts.OptionsFromContext(ctx), moduleURL, templateURL)
 		},
 	}
 }

@@ -1,6 +1,8 @@
 package hclparse
 
 import (
+	"fmt"
+
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/hashicorp/hcl/v2"
 )
@@ -12,19 +14,20 @@ const (
 	badIdentifierDetail = "A name must start with a letter and may contain only letters, digits, underscores, and dashes."
 )
 
+// Block represents a block in the HCL configuration. It contains the file and the block itself.
 type Block struct {
 	*File
 	*hcl.Block
 }
 
-// GetAttrs loads the block into name expression pairs to assist with evaluation of the attrs prior to
+// JustAttributes loads the block into name expression pairs to assist with evaluation of the attrs prior to
 // evaluating the whole config. Note that this is exactly the same as
 // terraform/configs/named_values.go:decodeLocalsBlock.
 func (block *Block) JustAttributes() (Attributes, error) {
 	hclAttrs, diags := block.Body.JustAttributes()
 
 	if err := block.HandleDiagnostics(diags); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, fmt.Errorf("error parsing block attributes: %w", errors.WithStackTrace(err))
 	}
 
 	attrs := NewAttributes(block.File, hclAttrs)

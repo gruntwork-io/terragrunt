@@ -23,8 +23,8 @@ func TestMissingRunAllArguments(t *testing.T) {
 	err = runall.Run(context.Background(), tgOptions)
 	require.Error(t, err)
 
-	var missingCommand runall.MissingCommand
+	var missingCommand runall.MissingCommandError
 	ok := errors.As(err, &missingCommand)
-	fmt.Println(err, errors.Unwrap(err))
+	fmt.Println(err, errors.Unwrap(err)) //nolint:forbidigo
 	assert.True(t, ok)
 }

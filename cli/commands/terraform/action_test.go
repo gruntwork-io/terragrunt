@@ -64,9 +64,6 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		// The following is necessary to make sure testCase's values don't
-		// get updated due to concurrency within the scope of t.Run(..) below
-		testCase := testCase
 		t.Run(testCase.description, func(t *testing.T) {
 			t.Parallel()
 
@@ -113,10 +110,9 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		// The following is necessary to make sure testCase's values don't
-		// get updated due to concurrency within the scope of t.Run(..) below
-		testCase := testCase
 		testFunc := func(t *testing.T) {
+			t.Helper()
+
 			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
 			require.NoError(t, err)
 			opts.WorkingDir = testCase.workingDir
@@ -314,9 +310,6 @@ func TestToTerraformEnvVars(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		// The following is necessary to make sure testCase's values don't
-		// get updated due to concurrency within the scope of t.Run(..) below
-		testCase := testCase
 		t.Run(testCase.description, func(t *testing.T) {
 			t.Parallel()
 
@@ -443,10 +436,13 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 	}
 }
 
-var defaultLogLevel = util.GetDefaultLogLevel()
+var defaultLogLevel = util.GetDefaultLogLevel() //nolint:gochecknoglobals
 
 func mockCmdOptions(t *testing.T, workingDir string, terraformCliArgs []string) *options.TerragruntOptions {
+	t.Helper()
+
 	o := mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, terraformCliArgs, true, "", false, false, defaultLogLevel, false)
+
 	return o
 }
 
@@ -463,6 +459,8 @@ func mockExtraArgs(arguments, commands, requiredVarFiles, optionalVarFiles []str
 }
 
 func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, includeExternalDependencies bool, logLevel logrus.Level, debug bool) *options.TerragruntOptions {
+	t.Helper()
+
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
 	if err != nil {
 		t.Fatalf("error: %v\n", errors.WithStackTrace(err))
@@ -481,6 +479,8 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 }
 
 func createTempFile(t *testing.T) string {
+	t.Helper()
+
 	tmpFile, err := os.CreateTemp("", "")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %s\n", err.Error())

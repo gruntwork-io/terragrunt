@@ -1,11 +1,11 @@
-package aws_helper_test
+package awshelper_test
 
 import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,10 +14,10 @@ import (
 func TestTerragruntIsAddedInUserAgent(t *testing.T) {
 	t.Parallel()
 
-	sess, err := aws_helper.CreateAwsSession(nil, options.NewTerragruntOptions())
+	sess, err := awshelper.CreateAwsSession(nil, options.NewTerragruntOptions())
 	require.NoError(t, err)
 
-	op := &request.Operation{
+	operation := &request.Operation{
 		Name:       "",
 		HTTPMethod: "POST",
 		HTTPPath:   "/",
@@ -25,7 +25,7 @@ func TestTerragruntIsAddedInUserAgent(t *testing.T) {
 	input := &sts.GetCallerIdentityInput{}
 	output := &sts.GetCallerIdentityOutput{}
 
-	r := sts.New(sess).NewRequest(op, input, output)
+	r := sts.New(sess).NewRequest(operation, input, output)
 	sess.Handlers.Build.Run(r)
 
 	assert.Contains(t, r.HTTPRequest.Header.Get("User-Agent"), "terragrunt")
@@ -34,7 +34,7 @@ func TestTerragruntIsAddedInUserAgent(t *testing.T) {
 func TestAwsSessionValidationFail(t *testing.T) {
 	t.Parallel()
 
-	err := aws_helper.ValidateAwsSession(&aws_helper.AwsSessionConfig{
+	err := awshelper.ValidateAwsSession(&awshelper.AwsSessionConfig{
 		Region:        "not-existing-region",
 		CredsFilename: "/tmp/not-existing-file",
 	}, options.NewTerragruntOptions())

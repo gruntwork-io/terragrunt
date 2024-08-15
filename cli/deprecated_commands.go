@@ -1,4 +1,3 @@
-//nolint:unparam
 package cli
 
 import (
@@ -25,7 +24,7 @@ const (
 // deprecatedCommands is a map of deprecated commands to a handler that knows how to convert the command to the known
 // alternative. The handler should return the new TerragruntOptions (if any modifications are needed) and command
 // string.
-var replaceDeprecatedCommandsFuncs = map[string]replaceDeprecatedCommandFuncType{
+var replaceDeprecatedCommandsFuncs = map[string]replaceDeprecatedCommandFuncType{ //nolint:gochecknoglobals
 	CommandNameSpinUp:      replaceDeprecatedCommandFunc(runall.CommandName, terraform.CommandNameApply),
 	CommandNameTearDown:    replaceDeprecatedCommandFunc(runall.CommandName, terraform.CommandNameDestroy),
 	CommandNameApplyAll:    replaceDeprecatedCommandFunc(runall.CommandName, terraform.CommandNameApply),
@@ -37,8 +36,9 @@ var replaceDeprecatedCommandsFuncs = map[string]replaceDeprecatedCommandFuncType
 
 type replaceDeprecatedCommandFuncType func(opts *options.TerragruntOptions) cli.ActionFunc
 
-// replaceDeprecatedCommandFunc returns the `Action` function of the replacement command that is assigned to the deprecated command.
-func replaceDeprecatedCommandFunc(terragruntCommandName, terraformCommandName string) replaceDeprecatedCommandFuncType {
+// replaceDeprecatedCommandFunc returns the `Action` function of the
+// replacement command that is assigned to the deprecated command.
+func replaceDeprecatedCommandFunc(terragruntCommandName, terraformCommandName string) replaceDeprecatedCommandFuncType { //nolint:unparam,lll
 	return func(opts *options.TerragruntOptions) cli.ActionFunc {
 		return func(ctx *cli.Context) error {
 			command := ctx.App.Commands.Get(terragruntCommandName)
@@ -48,7 +48,7 @@ func replaceDeprecatedCommandFunc(terragruntCommandName, terraformCommandName st
 			newCommandFriendly := fmt.Sprintf("terragrunt %s %s", terragruntCommandName, strings.Join(args, " "))
 
 			opts.Logger.Warnf(
-				"'%s' is deprecated. Running '%s' instead. Please update your workflows to use '%s', as '%s' may be removed in the future!\n",
+				"'%s' is deprecated. Running '%s' instead. Please update your workflows to use '%s', as '%s' may be removed in the future!\n", //nolint:lll
 				deprecatedCommandName,
 				newCommandFriendly,
 				newCommandFriendly,
@@ -56,17 +56,21 @@ func replaceDeprecatedCommandFunc(terragruntCommandName, terraformCommandName st
 			)
 
 			err := command.Run(ctx, args)
-			return err
+
+			if err != nil {
+				return fmt.Errorf("error running command '%s': %w", newCommandFriendly, err)
+			}
+
+			return nil
 		}
 	}
 }
 
+// DeprecatedCommands returns a list of commands that are deprecated. These commands are hidden from the help output.
 func DeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 	var commands cli.Commands
 
 	for commandName, runFunc := range replaceDeprecatedCommandsFuncs {
-		runFunc := runFunc
-
 		command := &cli.Command{
 			Name:   commandName,
 			Hidden: true,

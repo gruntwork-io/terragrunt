@@ -12,7 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/dynamodb"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -117,8 +117,8 @@ type RemoteStateConfigS3 struct {
 }
 
 // Builds a session config for AWS related requests from the RemoteStateConfigS3 configuration.
-func (c *ExtendedRemoteStateConfigS3) GetAwsSessionConfig() *aws_helper.AwsSessionConfig {
-	return &aws_helper.AwsSessionConfig{
+func (c *ExtendedRemoteStateConfigS3) GetAwsSessionConfig() *awshelper.AwsSessionConfig {
+	return &awshelper.AwsSessionConfig{
 		Region:                  c.RemoteStateConfigS3.Region,
 		CustomS3Endpoint:        c.RemoteStateConfigS3.Endpoint,
 		CustomDynamoDBEndpoint:  c.RemoteStateConfigS3.DynamoDBEndpoint,
@@ -205,7 +205,7 @@ type S3Initializer struct{}
 //
 // 1. Any of the existing backend settings are different than the current config
 // 2. The configured S3 bucket or DynamoDB table does not exist.
-func (s3Initializer S3Initializer) NeedsInitialization(remoteState *RemoteState, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error) {
+func (s3Initializer S3Initializer) NeedsInitialization(remoteState *State, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	if remoteState.DisableInit {
 		return false, nil
 	}
@@ -235,7 +235,7 @@ func (s3Initializer S3Initializer) NeedsInitialization(remoteState *RemoteState,
 
 	// Validate current AWS session before checking S3
 	if !s3ConfigExtended.SkipCredentialsValidation {
-		if err = aws_helper.ValidateAwsSession(sessionConfig, terragruntOptions); err != nil {
+		if err = awshelper.ValidateAwsSession(sessionConfig, terragruntOptions); err != nil {
 			return false, err
 		}
 	}
@@ -328,7 +328,7 @@ func (s3Initializer S3Initializer) buildInitializerCacheKey(s3Config *RemoteStat
 
 // Initialize the remote state S3 bucket specified in the given config. This function will validate the config
 // parameters, create the S3 bucket if it doesn't already exist, and check that versioning is enabled.
-func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {
+func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *State, terragruntOptions *options.TerragruntOptions) error {
 	s3ConfigExtended, err := ParseExtendedS3Config(remoteState.Config)
 	if err != nil {
 		return errors.WithStackTrace(err)
@@ -980,17 +980,17 @@ func EnableRootAccesstoS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConf
 	bucket := config.RemoteStateConfigS3.Bucket
 	terragruntOptions.Logger.Debugf("Enabling root access to S3 bucket %s", bucket)
 
-	accountID, err := aws_helper.GetAWSAccountID(config.GetAwsSessionConfig(), terragruntOptions)
+	accountID, err := awshelper.GetAWSAccountID(config.GetAwsSessionConfig(), terragruntOptions)
 	if err != nil {
 		return errors.WithStackTraceAndPrefix(err, "Error getting AWS account ID %s for bucket %s", accountID, bucket)
 	}
 
-	partition, err := aws_helper.GetAWSPartition(config.GetAwsSessionConfig(), terragruntOptions)
+	partition, err := awshelper.GetAWSPartition(config.GetAwsSessionConfig(), terragruntOptions)
 	if err != nil {
 		return errors.WithStackTraceAndPrefix(err, "Error getting AWS partition %s for bucket %s", partition, bucket)
 	}
 
-	var policyInBucket aws_helper.Policy
+	var policyInBucket awshelper.Policy
 	policyOutput, err := s3Client.GetBucketPolicy(&s3.GetBucketPolicyInput{
 		Bucket: aws.String(bucket),
 	})
@@ -1001,7 +1001,7 @@ func EnableRootAccesstoS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConf
 
 	if policyOutput.Policy != nil {
 		terragruntOptions.Logger.Debugf("Policy already exists for bucket %s", bucket)
-		policyInBucket, err = aws_helper.UnmarshalPolicy(*policyOutput.Policy)
+		policyInBucket, err = awshelper.UnmarshalPolicy(*policyOutput.Policy)
 		if err != nil {
 			return errors.WithStackTraceAndPrefix(err, "Error unmarshalling policy for bucket %s", bucket)
 		}
@@ -1014,9 +1014,9 @@ func EnableRootAccesstoS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConf
 		}
 	}
 
-	rootS3Policy := aws_helper.Policy{
+	rootS3Policy := awshelper.Policy{
 		Version: "2012-10-17",
-		Statement: []aws_helper.Statement{
+		Statement: []awshelper.Statement{
 			{
 				Sid:    SidRootPolicy,
 				Effect: "Allow",
@@ -1036,7 +1036,7 @@ func EnableRootAccesstoS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConf
 
 	// Append the root s3 policy to the existing policy in the bucket
 	rootS3Policy.Statement = append(rootS3Policy.Statement, policyInBucket.Statement...)
-	policy, err := aws_helper.MarshalPolicy(rootS3Policy)
+	policy, err := awshelper.MarshalPolicy(rootS3Policy)
 	if err != nil {
 		return errors.WithStackTraceAndPrefix(err, "Error marshalling policy for bucket %s", bucket)
 	}
@@ -1077,7 +1077,7 @@ func checkIfBucketRootAccess(s3Client *s3.S3, config *RemoteStateConfigS3, terra
 		return true, nil
 	}
 
-	policyInBucket, err := aws_helper.UnmarshalPolicy(*policyOutput.Policy)
+	policyInBucket, err := awshelper.UnmarshalPolicy(*policyOutput.Policy)
 	if err != nil {
 		return false, errors.WithStackTraceAndPrefix(err, "Error unmarshalling policy for bucket %s", config.Bucket)
 	}
@@ -1097,12 +1097,12 @@ func checkIfBucketRootAccess(s3Client *s3.S3, config *RemoteStateConfigS3, terra
 func EnableEnforcedTLSAccesstoS3Bucket(s3Client *s3.S3, bucket string, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Debugf("Enabling enforced TLS access for S3 bucket %s", bucket)
 
-	partition, err := aws_helper.GetAWSPartition(config.GetAwsSessionConfig(), terragruntOptions)
+	partition, err := awshelper.GetAWSPartition(config.GetAwsSessionConfig(), terragruntOptions)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	var policyInBucket aws_helper.Policy
+	var policyInBucket awshelper.Policy
 	policyOutput, err := s3Client.GetBucketPolicy(&s3.GetBucketPolicyInput{
 		Bucket: aws.String(bucket),
 	})
@@ -1113,7 +1113,7 @@ func EnableEnforcedTLSAccesstoS3Bucket(s3Client *s3.S3, bucket string, config *E
 
 	if policyOutput.Policy != nil {
 		terragruntOptions.Logger.Debugf("Policy already exists for bucket %s", bucket)
-		policyInBucket, err = aws_helper.UnmarshalPolicy(*policyOutput.Policy)
+		policyInBucket, err = awshelper.UnmarshalPolicy(*policyOutput.Policy)
 		if err != nil {
 			return errors.WithStackTraceAndPrefix(err, "Error unmarshalling policy for bucket %s", bucket)
 		}
@@ -1126,9 +1126,9 @@ func EnableEnforcedTLSAccesstoS3Bucket(s3Client *s3.S3, bucket string, config *E
 		}
 	}
 
-	tlsS3Policy := aws_helper.Policy{
+	tlsS3Policy := awshelper.Policy{
 		Version: "2012-10-17",
-		Statement: []aws_helper.Statement{
+		Statement: []awshelper.Statement{
 			{
 				Sid:       SidEnforcedTLSPolicy,
 				Effect:    "Deny",
@@ -1149,7 +1149,7 @@ func EnableEnforcedTLSAccesstoS3Bucket(s3Client *s3.S3, bucket string, config *E
 
 	// Append the root s3 policy to the existing policy in the bucket
 	tlsS3Policy.Statement = append(tlsS3Policy.Statement, policyInBucket.Statement...)
-	policy, err := aws_helper.MarshalPolicy(tlsS3Policy)
+	policy, err := awshelper.MarshalPolicy(tlsS3Policy)
 	if err != nil {
 		return errors.WithStackTraceAndPrefix(err, "Error marshalling policy for bucket %s", bucket)
 	}
@@ -1192,7 +1192,7 @@ func checkIfBucketEnforcedTLS(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 		return true, nil
 	}
 
-	policyInBucket, err := aws_helper.UnmarshalPolicy(*policyOutput.Policy)
+	policyInBucket, err := awshelper.UnmarshalPolicy(*policyOutput.Policy)
 	if err != nil {
 		return false, errors.WithStackTraceAndPrefix(err, "Error unmarshalling policy for bucket %s", config.Bucket)
 	}
@@ -1229,12 +1229,12 @@ func EnableVersioningForS3Bucket(s3Client *s3.S3, config *RemoteStateConfigS3, t
 func EnableSSEForS3BucketWide(s3Client *s3.S3, bucketName string, algorithm string, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Debugf("Enabling bucket-wide SSE on AWS S3 bucket %s", bucketName)
 
-	accountID, err := aws_helper.GetAWSAccountID(config.GetAwsSessionConfig(), terragruntOptions)
+	accountID, err := awshelper.GetAWSAccountID(config.GetAwsSessionConfig(), terragruntOptions)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	partition, err := aws_helper.GetAWSPartition(config.GetAwsSessionConfig(), terragruntOptions)
+	partition, err := awshelper.GetAWSPartition(config.GetAwsSessionConfig(), terragruntOptions)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -1530,8 +1530,8 @@ func UpdateLockTableSetSSEncryptionOnIfNecessary(s3Config *RemoteStateConfigS3, 
 }
 
 // Create an authenticated client for DynamoDB.
-func CreateS3Client(config *aws_helper.AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*s3.S3, error) {
-	session, err := aws_helper.CreateAwsSession(config, terragruntOptions)
+func CreateS3Client(config *awshelper.AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*s3.S3, error) {
+	session, err := awshelper.CreateAwsSession(config, terragruntOptions)
 	if err != nil {
 		return nil, err
 	}

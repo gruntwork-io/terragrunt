@@ -1,9 +1,13 @@
-// The package wraps `hclparse.Parser` to be able to handle diagnostic errors from one place, see `handleDiagnostics(diags hcl.Diagnostics) error` func.
-// This allows us to halt the process only when certain errors occur, such as skipping all errors not related to the `catalog` block.
-
+// Package hclparse wraps `hclparse.Parser` to be able to handle diagnostic errors from one place.
+//
+// See `handleDiagnostics(diags hcl.Diagnostics) error` func.
+//
+// This allows us to halt the process only when certain errors occur,
+// such as skipping all errors not related to the `catalog` block.
 package hclparse
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -13,6 +17,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclparse"
 )
 
+// Parser is a wrapper around the HCL2 parser that provides additional functionality for handling diagnostics.
 type Parser struct {
 	*hclparse.Parser
 	diagsWriterFunc       func(hcl.Diagnostics) error
@@ -20,35 +25,41 @@ type Parser struct {
 	fileUpdateHandlerFunc func(*File) error
 }
 
+// NewParser creates a new instance of the HCL2 parser.
 func NewParser() *Parser {
 	return &Parser{
 		Parser: hclparse.NewParser(),
 	}
 }
 
+// WithOptions applies the given options to the parser.
 func (parser *Parser) WithOptions(opts ...Option) *Parser {
 	for _, opt := range opts {
 		parser = opt(parser)
 	}
+
 	return parser
 }
 
+// ParseFromFile uses the HCL2 parser to parse the given file into an HCL file body.
 func (parser *Parser) ParseFromFile(configPath string) (*File, error) {
 	content, err := os.ReadFile(configPath)
 	if err != nil {
 		log.Warnf("Error reading file %s: %v", configPath, err)
-		return nil, errors.WithStackTrace(err)
+
+		return nil, fmt.Errorf("error reading file %s: %w", configPath, errors.WithStackTrace(err))
 	}
 
 	return parser.ParseFromBytes(content, configPath)
 }
 
 // ParseFromString uses the HCL2 parser to parse the given string into an HCL file body.
-func (parser *Parser) ParseFromString(content, configPath string) (file *File, err error) {
+func (parser *Parser) ParseFromString(content, configPath string) (*File, error) {
 	return parser.ParseFromBytes([]byte(content), configPath)
 }
 
-func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *File, err error) {
+// ParseFromBytes uses the HCL2 parser to parse the given byte slice into an HCL file body.
+func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *File, err error) { //nolint:nonamedreturns,lll
 	// The HCL2 parser and especially cty conversions will panic in many types of errors, so we have to recover from
 	// those panics here and convert them to normal errors
 	defer func() {
@@ -77,7 +88,8 @@ func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *F
 
 	if err := parser.handleDiagnostics(file, diags); err != nil {
 		log.Warnf("Failed to parse HCL in file %s: %v", configPath, diags)
-		return nil, errors.WithStackTrace(diags)
+
+		return nil, fmt.Errorf("failed to parse HCL in file %s: %w", configPath, errors.WithStackTrace(diags))
 	}
 
 	return file, nil

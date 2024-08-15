@@ -2,32 +2,60 @@ package terraform
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
 const (
+	// TargetPointParseConfig is a point in the terraform execution flow where the terragrunt configuration is parsed
+	// and the terragrunt configuration is available to the callback function.
 	TargetPointParseConfig TargetPointType = iota + 1
+
+	// TargetPointDownloadSource is a point in the terraform execution flow where the source is downloaded
+	// and the terragrunt configuration is available to the callback function.
 	TargetPointDownloadSource
+
+	// TargetPointGenerateConfig is a point in the terraform execution flow where the terragrunt configuration is generated
+	// and the terragrunt configuration is available to the callback function.
 	TargetPointGenerateConfig
+
+	// TargetPointInitCommand is a point in the terraform execution flow where the terragrunt configuration is available
+	// to the callback function.
 	TargetPointInitCommand
 )
 
+// TargetPointType is a type that represents a point in the terraform
+// execution flow where a callback function can be run.
 type TargetPointType byte
 
-type TargetCallbackType func(ctx context.Context, opts *options.TerragruntOptions, config *config.TerragruntConfig) error
+// TargetCallbackType is a type that represents a function that
+// can be run at a specific point in the terraform execution flow.
+type TargetCallbackType func(
+	ctx context.Context,
+	opts *options.TerragruntOptions,
+	config *config.TerragruntConfig,
+) error
 
+// TargetErrorCallbackType is a type that represents a function
+// that can be run at a specific point in the terraform execution flow
+// when an error occurs.
 type TargetErrorCallbackType func(opts *options.TerragruntOptions, config *config.TerragruntConfig, e error) error
 
-// Since most terragrunt CLI commands like `render-json`, `aws-provider-patch` ...  require preparatory steps, such as `generate configuration` which is already coded in `terraform.runTerraform` and com;licated to extracted into a separate function due to some steps that can be called recursively in case of nested configuration or dependencies.
-// Target struct helps to run `terraform.runTerraform` func up to the certain logic point, and the runs target's callback func and returns the flow.
-// For example, `terragrunt-info` CLI command requires source to be downloaded before running its specific action. To do this it:
+// Since most terragrunt CLI commands like `render-json`, `aws-provider-patch` ...  require preparatory steps,
+// such as `generate configuration` which is already coded in `terraform.runTerraform` and complicated
+// to extracted into a separate function due to some steps that can be called recursively in case of
+// nested configuration or dependencies. Target struct helps to run `terraform.runTerraform` func up to
+// the certain logic point, and the runs target's callback func and returns the flow.
+// For example, `terragrunt-info` CLI command requires source to be downloaded before running its specific action.
+// To do this it:
 /*
    package terragruntinfo
    ... code omitted
 
-   // creates a new target with `TargetPointDownloadSource` point name, once a source is downloaded `target` will call the `runTerragruntInfo` callback func.
+   // creates a new target with `TargetPointDownloadSource` point name, once a source is downloaded
+   // `target` will call the `runTerragruntInfo` callback func.
    target := terraform.NewTarget(terraform.TargetPointDownloadSource, runTerragruntInfo)
    terraform.RunWithTarget(opts, target)
 
@@ -54,12 +82,15 @@ type TargetErrorCallbackType func(opts *options.TerragruntOptions, config *confi
    }
 */
 
+// Target is a struct that represents a target point in the terraform execution flow
+// where a callback function can be run.
 type Target struct {
 	point             TargetPointType
 	callbackFunc      TargetCallbackType
 	errorCallbackFunc TargetErrorCallbackType
 }
 
+// NewTarget creates a new target with the given point and callback function.
 func NewTarget(point TargetPointType, callbackFunc TargetCallbackType) *Target {
 	return &Target{
 		point:        point,
@@ -67,7 +98,8 @@ func NewTarget(point TargetPointType, callbackFunc TargetCallbackType) *Target {
 	}
 }
 
-func NewTargetWithErrorHandler(point TargetPointType, callbackFunc TargetCallbackType, errorCallbackFunc TargetErrorCallbackType) *Target {
+// NewTargetWithErrorHandler creates a new target with the given point, callback function, and error callback function.
+func NewTargetWithErrorHandler(point TargetPointType, callbackFunc TargetCallbackType, errorCallbackFunc TargetErrorCallbackType) *Target { //nolint:lll
 	return &Target{
 		point:             point,
 		callbackFunc:      callbackFunc,
@@ -79,13 +111,19 @@ func (target *Target) isPoint(point TargetPointType) bool {
 	return target.point == point
 }
 
-func (target *Target) runCallback(ctx context.Context, opts *options.TerragruntOptions, config *config.TerragruntConfig) error {
+func (target *Target) runCallback(ctx context.Context, opts *options.TerragruntOptions, config *config.TerragruntConfig) error { //nolint:lll
 	return target.callbackFunc(ctx, opts, config)
 }
 
-func (target *Target) runErrorCallback(opts *options.TerragruntOptions, config *config.TerragruntConfig, e error) error {
+func (target *Target) runErrorCallback(opts *options.TerragruntOptions, config *config.TerragruntConfig, e error) error { //nolint:lll
 	if target.errorCallbackFunc == nil {
 		return e
 	}
-	return target.errorCallbackFunc(opts, config, e)
+
+	err := target.errorCallbackFunc(opts, config, e)
+	if err != nil {
+		return fmt.Errorf("error running error callback: %w", err)
+	}
+
+	return nil
 }

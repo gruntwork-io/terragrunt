@@ -1,3 +1,4 @@
+// Package terraform provides a way to run OpenTofu/Terraform commands from Terragrunt.
 package terraform
 
 import (
@@ -11,14 +12,45 @@ import (
 )
 
 const (
-	CommandName     = ""
+	// CommandName is the name of this command. It's empty because it's the default command.
+	CommandName = ""
+
+	// CommandHelpName is the name of this command to be displayed in help.
 	CommandHelpName = "*"
 )
 
 var (
-	nativeTerraformCommands = []string{"apply", "console", "destroy", "env", "fmt", "get", "graph", "import", "init", "login", "logout", "metadata", "output", "plan", "providers", "push", "refresh", "show", "taint", "test", "version", "validate", "untaint", "workspace", "force-unlock", "state"}
+	nativeTerraformCommands = []string{ //nolint:gochecknoglobals
+		"apply",
+		"console",
+		"destroy",
+		"env",
+		"fmt",
+		"get",
+		"graph",
+		"import",
+		"init",
+		"login",
+		"logout",
+		"metadata",
+		"output",
+		"plan",
+		"providers",
+		"push",
+		"refresh",
+		"show",
+		"taint",
+		"test",
+		"version",
+		"validate",
+		"untaint",
+		"workspace",
+		"force-unlock",
+		"state",
+	}
 )
 
+// NewCommand builds a new command instance.
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:     CommandName,
@@ -28,19 +60,22 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	}
 }
 
+// Action runs the command.
 func Action(opts *options.TerragruntOptions) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
 		if opts.TerraformCommand == terraform.CommandNameDestroy {
 			opts.CheckDependentModules = true
 		}
 
-		if !opts.DisableCommandValidation && !collections.ListContainsElement(nativeTerraformCommands, opts.TerraformCommand) {
+		isValidCommand := collections.ListContainsElement(nativeTerraformCommands, opts.TerraformCommand)
+
+		if !opts.DisableCommandValidation && !isValidCommand {
 			if strings.HasSuffix(opts.TerraformPath, "terraform") {
-				return errors.WithStackTrace(WrongTerraformCommand(opts.TerraformCommand))
-			} else {
-				// We default to tofu if the terraform path does not end in Terraform
-				return errors.WithStackTrace(WrongTofuCommand(opts.TerraformCommand))
+				return errors.WithStackTrace(WrongTerraformCommandError(opts.TerraformCommand))
 			}
+
+			// We default to tofu if the terraform path does not end in Terraform
+			return errors.WithStackTrace(WrongTofuCommandError(opts.TerraformCommand))
 		}
 
 		return Run(ctx.Context, opts.OptionsFromContext(ctx))

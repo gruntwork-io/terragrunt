@@ -14,7 +14,9 @@ import (
 // ParsingContext provides various variables that are used throughout all funcs and passed from function to function.
 // Using `ParsingContext` makes the code more readable.
 type ParsingContext struct {
-	context.Context
+	// BUG: Go team says we shouldn't do this:
+	// https://go.dev/blog/context-and-structs
+	context.Context //nolint:containedctx
 
 	TerragruntOptions *options.TerragruntOptions
 
@@ -24,9 +26,11 @@ type ParsingContext struct {
 	// Locals are preevaluated variable bindings that can be used by reference in the code.
 	Locals *cty.Value
 
-	// DecodedDependencies are references of other terragrunt config. This contains the following attributes that map to
+	// DecodedDependencies are references of other terragrunt config.
+	// This contains the following attributes that map to
 	// various fields related to that config:
-	// - outputs: The map of outputs from the terraform state obtained by running `terragrunt output` on that target config.
+	// - outputs: The map of outputs from the terraform state obtained by running
+	// `terragrunt output` on that target config.
 	DecodedDependencies *cty.Value
 
 	// PartialParseDecodeList is the list of sections that are being decoded in the current config. This can be used to
@@ -41,10 +45,16 @@ type ParsingContext struct {
 	ParserOptions []hclparse.Option
 
 	// Set a custom converter to TerragruntConfig.
-	// Used to read a "catalog" configuration where only certain blocks (`catalog`, `locals`) do not need to be converted, avoiding errors if any of the remaining blocks were not evaluated correctly.
-	ConvertToTerragruntConfigFunc func(ctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error)
+	// Used to read a "catalog" configuration where only certain blocks (`catalog`, `locals`)
+	// do not need to be converted, avoiding errors if any of the remaining blocks were not evaluated correctly.
+	ConvertToTerragruntConfigFunc func(
+		ctx *ParsingContext,
+		configPath string,
+		terragruntConfigFromFile *terragruntConfigFile,
+	) (cfg *TerragruntConfig, err error)
 }
 
+// NewParsingContext creates a new ParsingContext with the given context and options.
 func NewParsingContext(ctx context.Context, opts *options.TerragruntOptions) *ParsingContext {
 	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
 
@@ -54,27 +64,38 @@ func NewParsingContext(ctx context.Context, opts *options.TerragruntOptions) *Pa
 		ParserOptions:     DefaultParserOptions(opts),
 	}
 }
+
+// WithDecodeList sets the PartialParseDecodeList field in the ParsingContext.
 func (ctx ParsingContext) WithDecodeList(decodeList ...PartialDecodeSectionType) *ParsingContext {
 	ctx.PartialParseDecodeList = decodeList
+
 	return &ctx
 }
 
+// WithTerragruntOptions sets the TerragruntOptions field in the ParsingContext.
 func (ctx ParsingContext) WithTerragruntOptions(opts *options.TerragruntOptions) *ParsingContext {
 	ctx.TerragruntOptions = opts
+
 	return &ctx
 }
 
+// WithLocals sets the Locals field in the ParsingContext.
 func (ctx ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
 	ctx.Locals = locals
+
 	return &ctx
 }
 
+// WithTrackInclude sets the TrackInclude field in the ParsingContext.
 func (ctx ParsingContext) WithTrackInclude(trackInclude *TrackInclude) *ParsingContext {
 	ctx.TrackInclude = trackInclude
+
 	return &ctx
 }
 
+// WithParseOption sets the ParserOptions field in the ParsingContext.
 func (ctx ParsingContext) WithParseOption(parserOptions []hclparse.Option) *ParsingContext {
 	ctx.ParserOptions = parserOptions
+
 	return &ctx
 }

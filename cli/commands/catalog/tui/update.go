@@ -16,7 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui/components/buttonbar"
 )
 
-func updateList(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
+func updateList(msg tea.Msg, m model) (tea.Model, tea.Cmd) { //nolint:ireturn
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
@@ -47,6 +47,7 @@ func updateList(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 						if err != nil {
 							return m, rendererErrCmd(err)
 						}
+
 						content = md
 					} else {
 						content = selectedModule.Content(true)
@@ -59,6 +60,7 @@ func updateList(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 					m.state = pagerState
 				case key.Matches(msg, m.delegateKeys.scaffold):
 					m.state = scaffoldState
+
 					return m, scaffoldModuleCmd(m, selectedModule)
 				}
 			} else {
@@ -73,10 +75,11 @@ func updateList(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 	// Handle keyboard and mouse events for the list
 	m.list, cmd = m.list.Update(msg)
+
 	return m, cmd
 }
 
-func updatePager(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
+func updatePager(msg tea.Msg, m model) (tea.Model, tea.Cmd) { //nolint
 	var (
 		cmd  tea.Cmd
 		cmds []tea.Cmd
@@ -85,15 +88,20 @@ func updatePager(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		bb, cmd := m.buttonBar.Update(msg)
-		m.buttonBar = bb.(*buttonbar.ButtonBar)
+
+		// TODO: Remove this lint suppression
+		m.buttonBar = bb.(*buttonbar.ButtonBar) //nolint:forcetypeassert
+
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+
 		switch {
 		case key.Matches(msg, m.pagerKeys.Choose):
 			// Choose changes the action depending on the active button
 			if m.activeButton == scaffoldBtn {
 				m.state = scaffoldState
+
 				return m, scaffoldModuleCmd(m, m.selectedModule)
 			} else {
 				if err := browser.OpenURL(m.selectedModule.URL()); err != nil {
@@ -103,11 +111,13 @@ func updatePager(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, m.pagerKeys.Scaffold):
 			m.state = scaffoldState
+
 			return m, scaffoldModuleCmd(m, m.selectedModule)
 
 		case key.Matches(msg, m.pagerKeys.Quit):
 			// because we're on the second screen, we need to go back
 			m.state = listState
+
 			return m, nil
 		}
 	case buttonbar.ActiveBtnMsg:
@@ -122,7 +132,7 @@ func updatePager(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 }
 
 // Update handles all TUI interactions and implements bubbletea.Model.Update.
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		h, v := appStyle.GetFrameSize()

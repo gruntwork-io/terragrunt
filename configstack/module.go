@@ -92,7 +92,7 @@ func (module *TerraformModule) planFile(terragruntOptions *options.TerragruntOpt
 	planCommand := module.TerragruntOptions.TerraformCommand == terraform.CommandNamePlan || module.TerragruntOptions.TerraformCommand == terraform.CommandNameShow
 
 	// in case if JSON output is enabled, and not specified planFile, save plan in working dir
-	if planCommand && planFile == "" && module.TerragruntOptions.JsonOutputFolder != "" {
+	if planCommand && planFile == "" && module.TerragruntOptions.JSONOutputFolder != "" {
 		planFile = terraform.TerraformPlanFile
 	}
 	return planFile
@@ -109,13 +109,13 @@ func (module *TerraformModule) outputFile(opts *options.TerragruntOptions) strin
 	return planFile
 }
 
-// outputJsonFile - return plan JSON file location, if JSON output folder is set.
-func (module *TerraformModule) outputJsonFile(opts *options.TerragruntOptions) string {
+// outputJSONFile - return plan JSON file location, if JSON output folder is set.
+func (module *TerraformModule) outputJSONFile(opts *options.TerragruntOptions) string {
 	jsonPlanFile := ""
-	if opts.JsonOutputFolder != "" {
+	if opts.JSONOutputFolder != "" {
 		path, _ := filepath.Rel(opts.WorkingDir, module.Path)
-		dir := filepath.Join(opts.JsonOutputFolder, path)
-		jsonPlanFile = filepath.Join(dir, terraform.TerraformPlanJsonFile)
+		dir := filepath.Join(opts.JSONOutputFolder, path)
+		jsonPlanFile = filepath.Join(dir, terraform.TerraformPlanJSONFile)
 	}
 	return jsonPlanFile
 }

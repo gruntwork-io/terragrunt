@@ -52,8 +52,6 @@ func TestFindModules(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
-
 		t.Run(testCase.repoPath, func(t *testing.T) {
 			t.Parallel()
 			// Unfortunately, we are unable to commit the `.git` directory. We have to temporarily rename it while running the tests.

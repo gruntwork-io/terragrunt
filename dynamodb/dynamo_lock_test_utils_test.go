@@ -5,7 +5,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	awsDynamodb "github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/dynamodb"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -22,7 +22,7 @@ func createDynamoDbClientForTest(t *testing.T) *awsDynamodb.DynamoDB {
 		t.Fatal(err)
 	}
 
-	sessionConfig := &aws_helper.AwsSessionConfig{
+	sessionConfig := &awshelper.AwsSessionConfig{
 		Region: DEFAULT_TEST_REGION,
 	}
 
@@ -75,6 +75,6 @@ func withLockTableTagged(t *testing.T, tags map[string]string, action func(table
 
 func createKeyFromItemId(itemId string) map[string]*awsDynamodb.AttributeValue {
 	return map[string]*awsDynamodb.AttributeValue{
-		dynamodb.ATTR_LOCK_ID: {S: aws.String(itemId)},
+		dynamodb.AttrLockID: {S: aws.String(itemId)},
 	}
 }

@@ -1,3 +1,4 @@
+// Package graphdependencies provides the command to print the terragrunt dependency graph to stdout.
 package graphdependencies
 
 import (
@@ -6,9 +7,11 @@ import (
 )
 
 const (
+	// CommandName is the name of the command.
 	CommandName = "graph-dependencies"
 )
 
+// NewCommand builds a new command to print the terragrunt dependency graph to stdout.
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:   CommandName,

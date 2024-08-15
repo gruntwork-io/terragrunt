@@ -69,7 +69,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 		TerraformBinary:             "terraform",
 		TerraformVersionConstraint:  "= 0.12.20",
 		TerragruntVersionConstraint: "= 0.23.18",
-		RemoteState: &remote.RemoteState{
+		RemoteState: &remote.State{
 			Backend:                       "foo",
 			DisableInit:                   true,
 			DisableDependencyOptimization: true,
@@ -142,7 +142,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 func TestRemoteStateAsCtyDrift(t *testing.T) {
 	t.Parallel()
 
-	testConfig := remote.RemoteState{
+	testConfig := remote.State{
 		Backend:                       "foo",
 		DisableInit:                   true,
 		DisableDependencyOptimization: true,
@@ -193,6 +193,8 @@ func TestTerraformConfigAsCtyDrift(t *testing.T) {
 }
 
 func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string, bool) {
+	t.Helper()
+
 	switch fieldName {
 	case "Catalog":
 		return "catalog", true
@@ -254,6 +256,8 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 }
 
 func remoteStateStructFieldToMapKey(t *testing.T, fieldName string) (string, bool) {
+	t.Helper()
+
 	switch fieldName {
 	case "Backend":
 		return "backend", true

@@ -54,8 +54,6 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 	}
 
 	for _, tt := range tc {
-		tt := tt
-
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -67,7 +65,7 @@ func TestRemoteStateConfigToTerraformCode(t *testing.T) {
 
 			// runs the function a few of times again. All the outputs must be
 			// equal to the first output.
-			for i := 0; i < 20; i++ {
+			for range 20 {
 				actual, _ := codegen.RemoteStateConfigToTerraformCode(tt.backend, tt.config)
 				assert.Equal(t, output, actual)
 			}
@@ -104,8 +102,6 @@ func TestGenerateDisabling(t *testing.T) {
 	}
 
 	for _, tt := range tc {
-		tt := tt
-
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

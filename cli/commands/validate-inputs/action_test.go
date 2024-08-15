@@ -51,10 +51,6 @@ func TestGetVarFlagsFromExtraArgs(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		// Capture range variable so that it is brought into the scope within the for loop, so that it is stable even
-		// when subtests are run in parallel.
-		testCase := testCase
-
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 

@@ -1,3 +1,4 @@
+//nolint:forcetypeassert
 package config_test
 
 import (
@@ -218,8 +219,6 @@ func TestRunCommand(t *testing.T) {
 		},
 	}
 	for _, tt := range tc {
-		tt := tt
-
 		t.Run(tt.terragruntOptions.TerragruntConfigPath, func(t *testing.T) {
 			t.Parallel()
 
@@ -238,8 +237,11 @@ func TestRunCommand(t *testing.T) {
 }
 
 func absPath(t *testing.T, path string) string {
+	t.Helper()
+
 	out, err := filepath.Abs(path)
 	require.NoError(t, err)
+
 	return out
 }
 
@@ -327,8 +329,6 @@ func TestFindInParentFolders(t *testing.T) {
 	}
 
 	for _, tt := range tc {
-		tt := tt
-
 		t.Run(tt.terragruntOptions.TerragruntConfigPath, func(t *testing.T) {
 			t.Parallel()
 
@@ -394,10 +394,6 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 	}
 
 	for _, tt := range tc {
-		// The following is necessary to make sure tt's values don't
-		// get updated due to concurrency within the scope of t.Run(..) below
-		tt := tt
-
 		t.Run(fmt.Sprintf("%s--%s", tt.str, tt.terragruntOptions.TerragruntConfigPath), func(t *testing.T) {
 			t.Parallel()
 
@@ -493,9 +489,6 @@ func TestResolveEnvInterpolationConfigString(t *testing.T) {
 	}
 
 	for _, tt := range tc {
-		// The following is necessary to make sure tt's values don't
-		// get updated due to concurrency within the scope of t.Run(..) below
-		tt := tt
 		t.Run(tt.str, func(t *testing.T) {
 			t.Parallel()
 
@@ -525,27 +518,23 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 			"inputs = { foo = get_terraform_commands_that_need_locking() }",
 			nil,
 			terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath),
-			config.TERRAFORM_COMMANDS_NEED_LOCKING,
+			config.TerraformCommandsNeedLocking,
 		},
 		{
 			`inputs = { foo = get_terraform_commands_that_need_vars() }`,
 			nil,
 			terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath),
-			config.TERRAFORM_COMMANDS_NEED_VARS,
+			config.TerraformCommandsNeedVars,
 		},
 		{
 			"inputs = { foo = get_terraform_commands_that_need_parallelism() }",
 			nil,
 			terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath),
-			config.TERRAFORM_COMMANDS_NEED_PARALLELISM,
+			config.TerraformCommandsNeedParallelism,
 		},
 	}
 
 	for _, tt := range tc {
-		// The following is necessary to make sure tt's values don't
-		// get updated due to concurrency within the scope of t.Run(..) below
-		tt := tt
-
 		t.Run(tt.str, func(t *testing.T) {
 			t.Parallel()
 
@@ -613,6 +602,8 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 }
 
 func toStringSlice(t *testing.T, value interface{}) []string {
+	t.Helper()
+
 	if value == nil {
 		return nil
 	}
@@ -652,6 +643,8 @@ func TestGetTerragruntDirRelPath(t *testing.T) {
 }
 
 func testGetTerragruntDir(t *testing.T, configPath string, expectedPath string) {
+	t.Helper()
+
 	terragruntOptions, err := options.NewTerragruntOptionsForTest(configPath)
 	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
@@ -663,22 +656,31 @@ func testGetTerragruntDir(t *testing.T, configPath string, expectedPath string) 
 }
 
 func terragruntOptionsForTest(t *testing.T, configPath string) *options.TerragruntOptions {
+	t.Helper()
+
 	opts, err := options.NewTerragruntOptionsForTest(configPath)
 	if err != nil {
 		t.Fatalf("Failed to create TerragruntOptions: %v", err)
 	}
+
 	return opts
 }
 
 func terragruntOptionsForTestWithMaxFolders(t *testing.T, configPath string, maxFoldersToCheck int) *options.TerragruntOptions {
+	t.Helper()
+
 	opts := terragruntOptionsForTest(t, configPath)
 	opts.MaxFoldersToCheck = maxFoldersToCheck
+
 	return opts
 }
 
 func terragruntOptionsForTestWithEnv(t *testing.T, configPath string, env map[string]string) *options.TerragruntOptions {
+	t.Helper()
+
 	opts := terragruntOptionsForTest(t, configPath)
 	opts.Env = env
+
 	return opts
 }
 
@@ -799,8 +801,6 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 	}
 
 	for _, tt := range tc {
-		tt := tt
-
 		t.Run(tt.input, func(t *testing.T) {
 			t.Parallel()
 
@@ -879,7 +879,7 @@ func TestTerraformOutputJsonToCtyValueMap(t *testing.T) {
 
 	mockTargetConfig := config.DefaultTerragruntConfigPath
 	for _, tt := range tc {
-		converted, err := config.TerraformOutputJsonToCtyValueMap(mockTargetConfig, []byte(tt.input))
+		converted, err := config.TerraformOutputJSONToCtyValueMap(mockTargetConfig, []byte(tt.input))
 		require.NoError(t, err)
 		assert.Equal(t, getKeys(converted), getKeys(tt.expected))
 		for k, v := range converted {
@@ -1040,9 +1040,6 @@ func TestGetTerragruntSourceForModuleHappyPath(t *testing.T) {
 	}
 
 	for _, tt := range tc {
-		// The following is necessary to make sure tt's values don't
-		// get updated due to concurrency within the scope of t.Run(..) below
-		tt := tt
 		t.Run(fmt.Sprintf("%v-%s", *tt.config.Terraform.Source, tt.source), func(t *testing.T) {
 			t.Parallel()
 
@@ -1073,7 +1070,6 @@ func TestStartsWith(t *testing.T) {
 	}
 
 	for id, tt := range tc {
-		tt := tt
 		t.Run(fmt.Sprintf("%v %v", id, tt.args), func(t *testing.T) {
 			t.Parallel()
 
@@ -1105,8 +1101,6 @@ func TestEndsWith(t *testing.T) {
 	}
 
 	for id, tt := range tc {
-		tt := tt
-
 		t.Run(fmt.Sprintf("%v %v", id, tt.args), func(t *testing.T) {
 			t.Parallel()
 
@@ -1138,8 +1132,6 @@ func TestTimeCmp(t *testing.T) {
 	}
 
 	for _, tt := range tc {
-		tt := tt
-
 		t.Run(fmt.Sprintf("TimeCmp(%#v, %#v)", tt.args[0], tt.args[1]), func(t *testing.T) {
 			t.Parallel()
 
@@ -1175,8 +1167,6 @@ func TestStrContains(t *testing.T) {
 	}
 
 	for _, tt := range tc {
-		tt := tt
-
 		t.Run(fmt.Sprintf("StrContains %v", tt.args), func(t *testing.T) {
 			t.Parallel()
 
@@ -1216,9 +1206,10 @@ func TestReadTFVarsFiles(t *testing.T) {
 	assert.False(t, locals["json_bool_var"].(bool))
 }
 
-func mockConfigWithSource(sourceUrl string) *config.TerragruntConfig {
+func mockConfigWithSource(sourceURL string) *config.TerragruntConfig {
 	cfg := config.TerragruntConfig{IsPartial: true}
-	cfg.Terraform = &config.TerraformConfig{Source: &sourceUrl}
+	cfg.Terraform = &config.TerraformConfig{Source: &sourceURL}
+
 	return &cfg
 }
 
@@ -1228,6 +1219,7 @@ func getKeys(valueMap map[string]cty.Value) map[string]bool {
 	for k := range valueMap {
 		keys[k] = true
 	}
+
 	return keys
 }
 
@@ -1235,18 +1227,24 @@ func getTrackIncludeFromTestData(includeMap map[string]config.IncludeConfig, par
 	if len(includeMap) == 0 {
 		return nil
 	}
+
 	currentList := make([]config.IncludeConfig, len(includeMap))
+
 	i := 0
+
 	for _, val := range includeMap {
 		currentList[i] = val
 		i++
 	}
+
 	trackInclude := &config.TrackInclude{
 		CurrentList: currentList,
 		CurrentMap:  includeMap,
 	}
+
 	if len(params) == 0 {
 		trackInclude.Original = &currentList[0]
 	}
+
 	return trackInclude
 }

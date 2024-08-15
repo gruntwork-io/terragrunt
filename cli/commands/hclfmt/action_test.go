@@ -17,7 +17,7 @@ import (
 func TestHCLFmt(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt", t.Name(), func(path string) bool { return true })
+	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt", t.Name(), func(_ string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -47,9 +47,6 @@ func TestHCLFmt(t *testing.T) {
 			"a/b/c/d/e/terragrunt.hcl",
 		}
 		for _, dir := range dirs {
-			// Capture range variable into for block so it doesn't change while looping
-			dir := dir
-
 			t.Run(dir, func(t *testing.T) {
 				t.Parallel()
 
@@ -80,7 +77,7 @@ func TestHCLFmt(t *testing.T) {
 func TestHCLFmtErrors(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt-errors", t.Name(), func(path string) bool { return true })
+	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt-errors", t.Name(), func(_ string) bool { return true })
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
 	})
@@ -95,9 +92,6 @@ func TestHCLFmtErrors(t *testing.T) {
 		"invalid-key",
 	}
 	for _, dir := range dirs {
-		// Capture range variable into for block so it doesn't change while looping
-		dir := dir
-
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 
@@ -114,7 +108,7 @@ func TestHCLFmtErrors(t *testing.T) {
 func TestHCLFmtCheck(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt-check", t.Name(), func(path string) bool { return true })
+	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt-check", t.Name(), func(_ string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -143,9 +137,6 @@ func TestHCLFmtCheck(t *testing.T) {
 	}
 
 	for _, dir := range dirs {
-		// Capture range variable into for block so it doesn't change while looping
-		dir := dir
-
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 
@@ -160,7 +151,7 @@ func TestHCLFmtCheck(t *testing.T) {
 func TestHCLFmtCheckErrors(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt-check-errors", t.Name(), func(path string) bool { return true })
+	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt-check-errors", t.Name(), func(_ string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -189,9 +180,6 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 	}
 
 	for _, dir := range dirs {
-		// Capture range variable into for block so it doesn't change while looping
-		dir := dir
-
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 
@@ -206,7 +194,7 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 func TestHCLFmtFile(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt", t.Name(), func(path string) bool { return true })
+	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt", t.Name(), func(_ string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -247,9 +235,6 @@ func TestHCLFmtFile(t *testing.T) {
 
 	// test that none of the other files were formatted
 	for _, dir := range dirs {
-		// Capture range variable into for block so it doesn't change while looping
-		dir := dir
-
 		t.Run(dir, func(t *testing.T) {
 			t.Parallel()
 			testingPath := filepath.Join(tmpPath, dir)
@@ -263,7 +248,7 @@ func TestHCLFmtFile(t *testing.T) {
 func TestHCLFmtHeredoc(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt-heredoc", t.Name(), func(path string) bool { return true })
+	tmpPath, err := files.CopyFolderToTemp("../../../test/fixture-hclfmt-heredoc", t.Name(), func(_ string) bool { return true })
 	defer os.RemoveAll(tmpPath)
 	require.NoError(t, err)
 

@@ -1,8 +1,9 @@
-//nolint:dupl
+//nolint:dupl,revive
 package config
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/imdario/mergo"
 	"github.com/zclconf/go-cty/cty"
@@ -23,7 +24,7 @@ func wrapStringSliceToStringAsFuncImpl(
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{Type: cty.String},
 		Type:     function.StaticReturnType(cty.String),
-		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
 			params, err := ctySliceToStringSlice(args)
 			if err != nil {
 				return cty.StringVal(""), err
@@ -32,6 +33,7 @@ func wrapStringSliceToStringAsFuncImpl(
 			if err != nil {
 				return cty.StringVal(""), err
 			}
+
 			return cty.StringVal(out), nil
 		},
 	})
@@ -44,7 +46,7 @@ func wrapStringSliceToNumberAsFuncImpl(
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{Type: cty.String},
 		Type:     function.StaticReturnType(cty.Number),
-		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
 			params, err := ctySliceToStringSlice(args)
 			if err != nil {
 				return cty.NumberIntVal(0), err
@@ -53,6 +55,7 @@ func wrapStringSliceToNumberAsFuncImpl(
 			if err != nil {
 				return cty.NumberIntVal(0), err
 			}
+
 			return cty.NumberIntVal(out), nil
 		},
 	})
@@ -65,7 +68,7 @@ func wrapStringSliceToBoolAsFuncImpl(
 	return function.New(&function.Spec{
 		VarParam: &function.Parameter{Type: cty.String},
 		Type:     function.StaticReturnType(cty.Bool),
-		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+		Impl: func(args []cty.Value, _ cty.Type) (cty.Value, error) {
 			params, err := ctySliceToStringSlice(args)
 			if err != nil {
 				return cty.BoolVal(false), err
@@ -74,6 +77,7 @@ func wrapStringSliceToBoolAsFuncImpl(
 			if err != nil {
 				return cty.BoolVal(false), err
 			}
+
 			return cty.BoolVal(out), nil
 		},
 	})
@@ -87,11 +91,12 @@ func wrapVoidToStringAsFuncImpl(
 ) function.Function {
 	return function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.String),
-		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+		Impl: func(_ []cty.Value, _ cty.Type) (cty.Value, error) {
 			out, err := toWrap(ctx)
 			if err != nil {
 				return cty.StringVal(""), err
 			}
+
 			return cty.StringVal(out), nil
 		},
 	})
@@ -101,7 +106,7 @@ func wrapVoidToStringAsFuncImpl(
 func wrapVoidToEmptyStringAsFuncImpl() function.Function {
 	return function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.String),
-		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+		Impl: func(_ []cty.Value, _ cty.Type) (cty.Value, error) {
 			return cty.StringVal(""), nil
 		},
 	})
@@ -115,7 +120,7 @@ func wrapVoidToStringSliceAsFuncImpl(
 ) function.Function {
 	return function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.List(cty.String)),
-		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+		Impl: func(_ []cty.Value, _ cty.Type) (cty.Value, error) {
 			outVals, err := toWrap(ctx)
 			if err != nil || len(outVals) == 0 {
 				return cty.ListValEmpty(cty.String), err
@@ -124,6 +129,7 @@ func wrapVoidToStringSliceAsFuncImpl(
 			for _, val := range outVals {
 				outCtyVals = append(outCtyVals, cty.StringVal(val))
 			}
+
 			return cty.ListVal(outCtyVals), nil
 		},
 	})
@@ -134,11 +140,12 @@ func wrapVoidToStringSliceAsFuncImpl(
 func wrapStaticValueToStringSliceAsFuncImpl(out []string) function.Function {
 	return function.New(&function.Spec{
 		Type: function.StaticReturnType(cty.List(cty.String)),
-		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+		Impl: func(_ []cty.Value, _ cty.Type) (cty.Value, error) {
 			outVals := []cty.Value{}
 			for _, val := range out {
 				outVals = append(outVals, cty.StringVal(val))
 			}
+
 			return cty.ListVal(outVals), nil
 		},
 	})
@@ -148,12 +155,24 @@ func wrapStaticValueToStringSliceAsFuncImpl(out []string) function.Function {
 // return an error.
 func ctySliceToStringSlice(args []cty.Value) ([]string, error) {
 	var out = make([]string, 0, len(args))
+
 	for _, arg := range args {
 		if arg.Type() != cty.String {
-			return nil, errors.WithStackTrace(InvalidParameterTypeError{Expected: "string", Actual: arg.Type().FriendlyName()})
+			return nil, fmt.Errorf(
+				"expected string, got %s: %w",
+				arg.Type().FriendlyName(),
+				errors.WithStackTrace(
+					InvalidParameterTypeError{
+						Expected: "string",
+						Actual:   arg.Type().FriendlyName(),
+					},
+				),
+			)
 		}
+
 		out = append(out, arg.AsString())
 	}
+
 	return out, nil
 }
 
@@ -163,6 +182,7 @@ func shallowMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error)
 	if err != nil {
 		return nil, err
 	}
+
 	SourceMap, err := ParseCtyValueToMap(source)
 	if err != nil {
 		return nil, err
@@ -174,10 +194,11 @@ func shallowMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error)
 		}
 	}
 
-	outCty, err := convertToCtyWithJson(outMap)
+	outCty, err := convertToCtyWithJSON(outMap)
 	if err != nil {
 		return nil, err
 	}
+
 	return &outCty, nil
 }
 
@@ -185,15 +206,19 @@ func deepMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
 	return deepMergeCtyMapsMapOnly(target, source, mergo.WithAppendSlice)
 }
 
-// deepMergeCtyMapsMapOnly implements a deep merge of two cty value objects. We can't directly merge two cty.Value objects, so
-// we cheat by using map[string]interface{} as an intermediary. Note that this assumes the provided cty value objects
+// deepMergeCtyMapsMapOnly implements a deep merge of two cty value objects.
+// We can't directly merge two cty.Value objects, so we cheat by using
+// map[string]interface{} as an intermediary.
+// Note that this assumes the provided cty value objects
 // are already maps or objects in HCL land.
 func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*mergo.Config)) (*cty.Value, error) {
 	outMap := make(map[string]interface{})
+
 	targetMap, err := ParseCtyValueToMap(target)
 	if err != nil {
 		return nil, err
 	}
+
 	sourceMap, err := ParseCtyValueToMap(source)
 	if err != nil {
 		return nil, err
@@ -204,16 +229,18 @@ func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*m
 	}
 
 	if err := mergo.Merge(&outMap, sourceMap, append(opts, mergo.WithOverride)...); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error merging maps: %w", err)
 	}
 
-	outCty, err := convertToCtyWithJson(outMap)
+	outCty, err := convertToCtyWithJSON(outMap)
 	if err != nil {
 		return nil, err
 	}
+
 	return &outCty, nil
 }
 
+// ParseCtyValueToMap converts a cty Value to a map[string]interface{}.
 // This is a hacky workaround to convert a cty Value to a Go map[string]interface{}. cty does not support this directly
 // (https://github.com/hashicorp/hcl2/issues/108) and doing it with gocty.FromCtyValue is nearly impossible, as cty
 // requires you to specify all the output types and will error out when it hits interface{}. So, as an ugly workaround,
@@ -224,26 +251,29 @@ func ParseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	value = updatedValue
 
 	jsonBytes, err := ctyjson.Marshal(value, cty.DynamicPseudoType)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, fmt.Errorf("error marshalling cty value to JSON: %w", errors.WithStackTrace(err))
 	}
 
-	var ctyJsonOutput CtyJsonOutput
-	if err := json.Unmarshal(jsonBytes, &ctyJsonOutput); err != nil {
-		return nil, errors.WithStackTrace(err)
+	var ctyJSONOutput CtyJSONOutput
+	if err := json.Unmarshal(jsonBytes, &ctyJSONOutput); err != nil {
+		return nil, fmt.Errorf("error unmarshalling cty value to JSON: %w", errors.WithStackTrace(err))
 	}
 
-	return ctyJsonOutput.Value, nil
+	return ctyJSONOutput.Value, nil
 }
 
+// CtyJSONOutput is a struct that captures the output of cty's Marshall method when converting a cty value to JSON.
+//
 // When you convert a cty value to JSON, if any of that types are not yet known (i.e., are labeled as
 // DynamicPseudoType), cty's Marshall method will write the type information to a type field and the actual value to
 // a value field. This struct is used to capture that information so when we parse the JSON back into a Go struct, we
 // can pull out just the Value field we need.
-type CtyJsonOutput struct {
+type CtyJSONOutput struct {
 	Value map[string]interface{} `json:"Value"`
 	Type  interface{}            `json:"Type"`
 }
@@ -251,13 +281,16 @@ type CtyJsonOutput struct {
 // convertValuesMapToCtyVal takes a map of name - cty.Value pairs and converts to a single cty.Value object.
 func convertValuesMapToCtyVal(valMap map[string]cty.Value) (cty.Value, error) {
 	valMapAsCty := cty.NilVal
+
 	if len(valMap) > 0 {
 		var err error
+
 		valMapAsCty, err = gocty.ToCtyValue(valMap, generateTypeFromValuesMap(valMap))
 		if err != nil {
-			return valMapAsCty, errors.WithStackTrace(err)
+			return valMapAsCty, fmt.Errorf("error converting map to cty value: %w", errors.WithStackTrace(err))
 		}
 	}
+
 	return valMapAsCty, nil
 }
 
@@ -270,6 +303,7 @@ func generateTypeFromValuesMap(valMap map[string]cty.Value) cty.Type {
 	for k, v := range valMap {
 		outType[k] = v.Type()
 	}
+
 	return cty.Object(outType)
 }
 
@@ -283,20 +317,25 @@ func includeMapAsCtyVal(ctx *ParsingContext) (cty.Value, error) {
 	bareInclude, hasBareInclude := ctx.TrackInclude.CurrentMap[bareIncludeKey]
 	if len(ctx.TrackInclude.CurrentMap) == 1 && hasBareInclude {
 		ctx.TerragruntOptions.Logger.Debug("Detected single bare include block - exposing as top level")
+
 		return includeConfigAsCtyVal(ctx, bareInclude)
 	}
 
 	exposedIncludeMap := map[string]cty.Value{}
+
 	for key, included := range ctx.TrackInclude.CurrentMap {
 		parsedIncludedCty, err := includeConfigAsCtyVal(ctx, included)
 		if err != nil {
 			return cty.NilVal, err
 		}
+
 		if parsedIncludedCty != cty.NilVal {
 			ctx.TerragruntOptions.Logger.Debugf("Exposing include block '%s'", key)
+
 			exposedIncludeMap[key] = parsedIncludedCty
 		}
 	}
+
 	return convertValuesMapToCtyVal(exposedIncludeMap)
 }
 
@@ -310,12 +349,15 @@ func includeConfigAsCtyVal(ctx *ParsingContext, includeConfig IncludeConfig) (ct
 		if err != nil {
 			return cty.NilVal, err
 		}
+
 		parsedIncludedCty, err := TerragruntConfigAsCty(parsedIncluded)
 		if err != nil {
 			return cty.NilVal, err
 		}
+
 		return parsedIncludedCty, nil
 	}
+
 	return cty.NilVal, nil
 }
 
@@ -335,8 +377,10 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 			if err != nil {
 				return cty.NilVal, err
 			}
+
 			mapVals[key] = val
 		}
+
 		if len(mapVals) > 0 {
 			updatedValue = mapVals
 		}
@@ -348,8 +392,10 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 			if err != nil {
 				return cty.NilVal, err
 			}
+
 			sliceVals[key] = val
 		}
+
 		if len(sliceVals) > 0 {
 			updatedValue = sliceVals
 		}
@@ -361,7 +407,8 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 
 	value, err := gocty.ToCtyValue(updatedValue, value.Type())
 	if err != nil {
-		return cty.NilVal, errors.WithStackTrace(err)
+		return cty.NilVal, fmt.Errorf("error converting map to cty value: %w", errors.WithStackTrace(err))
 	}
+
 	return value, nil
 }

@@ -1,8 +1,10 @@
+// Package externalcmd provides a provider that runs an external command that returns a JSON string with credentials.
 package externalcmd
 
 import (
 	"context"
 	"encoding/json"
+	goErrors "errors"
 	"fmt"
 	"strings"
 
@@ -19,7 +21,7 @@ type Provider struct {
 }
 
 // NewProvider returns a new Provider instance.
-func NewProvider(opts *options.TerragruntOptions) providers.Provider {
+func NewProvider(opts *options.TerragruntOptions) *Provider {
 	return &Provider{
 		terragruntOptions: opts,
 	}
@@ -30,14 +32,20 @@ func (provider *Provider) Name() string {
 	return fmt.Sprintf("external %s command", provider.terragruntOptions.AuthProviderCmd)
 }
 
+var (
+	// ErrCommandNotDefined is returned when the auth provider command is not defined.
+	ErrCommandNotDefined = goErrors.New("auth provider command is not defined")
+)
+
 // GetCredentials implements providers.GetCredentials.
 func (provider *Provider) GetCredentials(ctx context.Context) (*providers.Credentials, error) {
 	command := provider.terragruntOptions.AuthProviderCmd
 	if command == "" {
-		return nil, nil
+		return nil, ErrCommandNotDefined
 	}
 
 	var args []string
+
 	if parts := strings.Fields(command); len(parts) > 1 {
 		command = parts[0]
 		args = parts[1:]
@@ -45,7 +53,7 @@ func (provider *Provider) GetCredentials(ctx context.Context) (*providers.Creden
 
 	output, err := shell.RunShellCommandWithOutput(ctx, provider.terragruntOptions, "", true, false, command, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error running command %s: %w", command, err)
 	}
 
 	if output.Stdout == "" {
@@ -73,29 +81,38 @@ func (provider *Provider) GetCredentials(ctx context.Context) (*providers.Creden
 	return creds, nil
 }
 
+// Response is a struct that represents the response from the external command.
 type Response struct {
 	AWSCredentials *AWSCredentials   `json:"awsCredentials"`
 	Envs           map[string]string `json:"envs"`
 }
 
+// AWSCredentials is a struct that represents the AWS credentials.
 type AWSCredentials struct {
 	AccessKeyID     string `json:"ACCESS_KEY_ID"`
 	SecretAccessKey string `json:"SECRET_ACCESS_KEY"`
 	SessionToken    string `json:"SESSION_TOKEN"`
 }
 
+// Envs returns the AWS credentials as environment variables.
 func (creds *AWSCredentials) Envs(opts *options.TerragruntOptions) map[string]string {
 	var emptyFields []string
 
 	if creds.AccessKeyID == "" {
 		emptyFields = append(emptyFields, "ACCESS_KEY_ID")
 	}
+
 	if creds.SecretAccessKey == "" {
 		emptyFields = append(emptyFields, "SECRET_ACCESS_KEY")
 	}
 
 	if len(emptyFields) > 0 {
-		opts.Logger.Warnf("The command %s completed successfully, but AWS credentials contains empty required values: %s, nothing is being done.", opts.AuthProviderCmd, strings.Join(emptyFields, ", "))
+		opts.Logger.Warnf(
+			"The command %s completed successfully, but AWS credentials contains empty required values: %s, nothing is being done.", //nolint:lll
+			opts.AuthProviderCmd,
+			strings.Join(emptyFields, ", "),
+		)
+
 		return nil
 	}
 
@@ -105,5 +122,6 @@ func (creds *AWSCredentials) Envs(opts *options.TerragruntOptions) map[string]st
 		"AWS_SESSION_TOKEN":     creds.SessionToken,
 		"AWS_SECURITY_TOKEN":    creds.SessionToken,
 	}
+
 	return envs
 }

@@ -119,11 +119,11 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 			return err
 		}
 		// convert terragrunt output to json
-		if module.Module.outputJsonFile(module.Module.TerragruntOptions) != "" {
+		if module.Module.outputJSONFile(module.Module.TerragruntOptions) != "" {
 			jsonOptions := module.Module.TerragruntOptions.Clone(module.Module.TerragruntOptions.TerragruntConfigPath)
 			stdout := bytes.Buffer{}
 			jsonOptions.IncludeModulePrefix = false
-			jsonOptions.TerraformLogsToJson = false
+			jsonOptions.TerraformLogsToJSON = false
 			jsonOptions.OutputPrefix = ""
 			jsonOptions.Writer = &stdout
 			jsonOptions.TerraformCommand = terraform.CommandNameShow
@@ -132,7 +132,7 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 				return err
 			}
 			// save the json output to the file plan file
-			outputFile := module.Module.outputJsonFile(rootOptions)
+			outputFile := module.Module.outputJSONFile(rootOptions)
 			jsonDir := filepath.Dir(outputFile)
 			if err := os.MkdirAll(jsonDir, os.ModePerm); err != nil {
 				return err

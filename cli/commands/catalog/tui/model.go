@@ -98,6 +98,7 @@ func newModel(modules module.Modules, opts *options.TerragruntOptions) model {
 	for i, b := range []button{scaffoldBtn, viewSourceBtn} {
 		bs[i] = b.String()
 	}
+
 	bb := buttonbar.New(bs)
 
 	return model{

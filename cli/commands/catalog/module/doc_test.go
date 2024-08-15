@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+//nolint:gochecknoglobals
 var testFrontmatterEcsCluster = `
 <!-- Frontmatter
 type: service
@@ -24,6 +25,7 @@ built-with: terraform, bash, python, go
 [![Maintained by Gruntwork](https://img.shields.io/badge/maintained%20by-gruntwork.io-%235849a6.svg)](https://gruntwork.io)
 `
 
+//nolint:gochecknoglobals
 var testFrontmatterAsgService = `
 
 
@@ -64,8 +66,6 @@ func TestFrontmatter(t *testing.T) {
 	}
 
 	for i, testCase := range testCases {
-		testCase := testCase
-
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -77,6 +77,7 @@ func TestFrontmatter(t *testing.T) {
 	}
 }
 
+//nolint:gochecknoglobals
 var testH1EksK8sArgocd = `
 # EKS K8s GitOps Module
 This module deploys [Argo CD](https://argo-cd.readthedocs.io/en/stable/) to an EKS cluster. Argo CD is a declarative GitOps continuous delivery tool for Kubernetes. See the [Argo CD](https://argo-cd.readthedocs.io/en/stable/) for more details. This module supports deploying the Argo CD resources to Fargate in addition to EC2 Worker Nodes.
@@ -91,6 +92,7 @@ GitOps is an operational framework that is built around DevOps best practices fo
 To use this module, you will need to have a running EKS cluster prior to deploying this module. See the [Argo CD Example](/examples/eks-cluster-with-argocd/) for an example of how to deploy this module.
 `
 
+//nolint:gochecknoglobals
 var testH1EksCloudwatchAgent = `
 # EKS CloudWatch Agent Module
 
@@ -115,6 +117,7 @@ Container Insights also provides diagnostic information, such as container resta
 to help you isolate issues and resolve them quickly.
 `
 
+//nolint:gochecknoglobals
 var testH1EcsCluster = `
 # Amazon ECS Cluster
 
@@ -134,6 +137,7 @@ cluster on top of Fargate that is completely managed by AWS, refer to the
 for more information on the differences between the two flavors.
 `
 
+//nolint:gochecknoglobals
 var testH1EksAWSAuthMerger = `
 :type: service
 :name: EKS AWS Auth Merger
@@ -218,8 +222,6 @@ func TestElement(t *testing.T) {
 	}
 
 	for i, testCase := range testCases {
-		testCase := testCase
-
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 

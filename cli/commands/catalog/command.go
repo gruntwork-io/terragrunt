@@ -6,9 +6,11 @@ import (
 )
 
 const (
+	// CommandName is the name of the command.
 	CommandName = "catalog"
 )
 
+// NewCommand returns a new instance of the catalog command.
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:                   CommandName,

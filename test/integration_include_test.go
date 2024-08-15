@@ -41,9 +41,6 @@ func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
 	}
 
 	for _, tt := range tc {
-		// Capture range variable to avoid it changing across parallel test runs
-		tt := tt
-
 		t.Run(filepath.Base(tt), func(t *testing.T) {
 			t.Parallel()
 
@@ -70,7 +67,7 @@ func TestTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
 	cleanupTerraformFolder(t, childPath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	defer deleteS3Bucket(t, TerraformRemoteStateS3Region, s3BucketName)
 
 	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, includeFixturePath, includeShallowFixturePath, s3BucketName, config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath)
 

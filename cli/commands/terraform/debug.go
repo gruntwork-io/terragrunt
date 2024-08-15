@@ -14,13 +14,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+// TerragruntTFVarsFile is the name of the file that will be created in the working directory to hold the debug values.
 const TerragruntTFVarsFile = "terragrunt-debug.tfvars.json"
 
 const defaultPermissions = int(0600)
 
 // WriteTerragruntDebugFile will create a tfvars file that can be used to invoke the terraform module in the same way
 // that terragrunt invokes the module, so that you can debug issues with the terragrunt config.
-func WriteTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+func WriteTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error { //nolint:lll
 	terragruntOptions.Logger.Infof(
 		"Debug mode requested: generating debug file %s in working dir %s",
 		TerragruntTFVarsFile,
@@ -29,8 +30,9 @@ func WriteTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terr
 
 	required, optional, err := terraform.ModuleVariables(terragruntOptions.WorkingDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get module variables: %w", err)
 	}
+
 	variables := append(required, optional...)
 
 	terragruntOptions.Logger.Debugf("The following variables were detected in the terraform module:")
@@ -43,8 +45,9 @@ func WriteTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terr
 
 	configFolder := filepath.Dir(terragruntOptions.TerragruntConfigPath)
 	fileName := filepath.Join(configFolder, TerragruntTFVarsFile)
+
 	if err := os.WriteFile(fileName, fileContents, os.FileMode(defaultPermissions)); err != nil {
-		return errors.WithStackTrace(err)
+		return fmt.Errorf("failed to write debug file: %w", errors.WithStackTrace(err))
 	}
 
 	terragruntOptions.Logger.Debugf("Variables passed to terraform are located in \"%s\"", fileName)
@@ -55,6 +58,7 @@ func WriteTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terr
 		strings.Join(terragruntOptions.TerraformCliArgs, " "),
 		fileName,
 	)
+
 	return nil
 }
 
@@ -72,6 +76,7 @@ func terragruntDebugFileContents(
 	}
 
 	jsonValuesByKey := make(map[string]interface{})
+
 	for varName, varValue := range terragruntConfig.Inputs {
 		nameAsEnvVar := fmt.Sprintf(terraform.EnvNameTFVarFmt, varName)
 		_, varIsInEnv := envVars[nameAsEnvVar]
@@ -95,9 +100,12 @@ func terragruntDebugFileContents(
 			)
 		}
 	}
+
 	jsonContent, err := json.MarshalIndent(jsonValuesByKey, "", "  ")
+
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, fmt.Errorf("failed to marshal json: %w", errors.WithStackTrace(err))
 	}
+
 	return jsonContent, nil
 }

@@ -40,7 +40,7 @@ const (
 	TerraformLockFile = ".terraform.lock.hcl"
 
 	TerraformPlanFile     = "tfplan.tfplan"
-	TerraformPlanJsonFile = "tfplan.json"
+	TerraformPlanJSONFile = "tfplan.json"
 )
 
 // ModuleVariables will return all the variables defined in the downloaded terraform modules, taking into

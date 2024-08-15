@@ -18,7 +18,7 @@ func TestSplitSourceUrl(t *testing.T) {
 
 	testCases := []struct {
 		name               string
-		sourceUrl          string
+		sourceURL          string
 		expectedSo         string
 		expectedModulePath string
 	}{
@@ -42,18 +42,16 @@ func TestSplitSourceUrl(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		// Save a local copy in scope so all the tests don't run the final item in the loop
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			sourceUrl, err := url.Parse(testCase.sourceUrl)
+			sourceURL, err := url.Parse(testCase.sourceURL)
 			require.NoError(t, err)
 
 			terragruntOptions, err := options.NewTerragruntOptionsForTest("testing")
 			require.NoError(t, err)
 
-			actualRootRepo, actualModulePath, err := terraform.SplitSourceUrl(sourceUrl, terragruntOptions.Logger)
+			actualRootRepo, actualModulePath, err := terraform.SplitSourceUrl(sourceURL, terragruntOptions.Logger)
 			require.NoError(t, err)
 
 			assert.Equal(t, testCase.expectedSo, actualRootRepo.String())
@@ -84,12 +82,10 @@ func TestToSourceUrl(t *testing.T) {
 	}
 
 	for i, testCase := range testCases {
-		// Save a local copy in scope so all the tests don't run the final item in the loop
-		testCase := testCase
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			actualSourceURL, err := terraform.ToSourceUrl(testCase.sourceURL, os.TempDir())
+			actualSourceURL, err := terraform.ToSourceURL(testCase.sourceURL, os.TempDir())
 			require.NoError(t, err)
 			assert.Equal(t, testCase.expectedSourceURL, actualSourceURL.String())
 		})
@@ -103,7 +99,7 @@ func TestRegressionSupportForGitRemoteCodecommit(t *testing.T) {
 	require.NoError(t, err)
 
 	source := "git::codecommit::ap-northeast-1://my_app_modules//my-app/modules/main-module"
-	sourceURL, err := terraform.ToSourceUrl(source, ".")
+	sourceURL, err := terraform.ToSourceURL(source, ".")
 	require.NoError(t, err)
 	require.Equal(t, "git::codecommit::ap-northeast-1", sourceURL.Scheme)
 

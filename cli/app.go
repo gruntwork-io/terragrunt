@@ -1,3 +1,5 @@
+// Package cli constructs the CLI for Terragrunt.
+// This is the entrypoint for everything that Terragrunt does.
 package cli
 
 import (
@@ -52,12 +54,14 @@ import (
 // forced shutdown interval after receiving an interrupt signal.
 const forceExitInterval = shell.SignalForwardingDelay * 2
 
-func init() {
+// TODO: Consider getting rid of init.
+func init() { //nolint:gochecknoinits
 	cli.AppVersionTemplate = AppVersionTemplate
 	cli.AppHelpTemplate = AppHelpTemplate
 	cli.CommandHelpTemplate = CommandHelpTemplate
 }
 
+// App represents the Terragrunt CLI App.
 type App struct {
 	*cli.App
 }
@@ -70,34 +74,39 @@ func NewApp(writer io.Writer, errWriter io.Writer) *App {
 
 	app := cli.NewApp()
 	app.Name = "terragrunt"
-	app.Usage = "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale. For documentation, see https://terragrunt.gruntwork.io/."
+	app.Usage = "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale. For documentation, see https://terragrunt.gruntwork.io/." //nolint:lll
 	app.Author = "Gruntwork <www.gruntwork.io>"
 	app.Version = version.GetVersion()
 	app.Writer = writer
 	app.ErrWriter = errWriter
+
 	app.Flags = append(
 		commands.NewGlobalFlags(opts),
 		commands.NewHelpVersionFlags(opts)...)
+
 	app.Commands = append(
 		DeprecatedCommands(opts),
 		TerragruntCommands(opts)...).WrapAction(WrapWithTelemetry(opts))
+
 	app.Before = beforeAction(opts)
-	app.DefaultCommand = terraformCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
+	app.DefaultCommand = terraformCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts))
 	app.OsExiter = OSExiter
 
 	return &App{app}
 }
 
+// Run the Terragrunt CLI App.
 func (app *App) Run(args []string) error {
 	return app.RunContext(context.Background(), args)
 }
 
+// RunContext the Terragrunt CLI App with a context.
 func (app *App) RunContext(ctx context.Context, args []string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	shell.RegisterSignalHandler(func(signal os.Signal) {
-		log.Infof("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(signal.String()), shell.SignalForwardingDelay)
+		log.Infof("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(signal.String()), shell.SignalForwardingDelay) //nolint:lll
 		cancel()
 
 		shell.RegisterSignalHandler(func(signal os.Signal) {
@@ -119,7 +128,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		ErrWriter:  app.ErrWriter,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize telemetry: %w", err)
 	}
 	defer func(ctx context.Context) {
 		if err := telemetry.ShutdownTelemetry(ctx); err != nil {
@@ -133,6 +142,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	if engine.IsEngineEnabled() {
 		ctx = engine.WithEngineValues(ctx)
 	}
+
 	defer func(ctx context.Context) {
 		if err := engine.Shutdown(ctx); err != nil {
 			_, _ = app.ErrWriter.Write([]byte(err.Error()))
@@ -140,12 +150,13 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	}(ctx)
 
 	if err := app.App.RunContext(ctx, args); err != nil && !goerrors.Is(err, context.Canceled) {
-		return err
+		return fmt.Errorf("error encountered while running Terragrunt: %w", err)
 	}
+
 	return nil
 }
 
-// This set of commands is also used in unit tests.
+// TerragruntCommands is the set of commands is also used in unit tests.
 func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	cmds := cli.Commands{
 		runall.NewCommand(opts),             // runAction-all
@@ -170,22 +181,27 @@ func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	return cmds
 }
 
-// Wrap CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
+// WrapWithTelemetry wraps CLI command execution with setting of telemetry context and labels.
+// If telemetry is disabled, just runAction the command.
 func WrapWithTelemetry(opts *options.TerragruntOptions) func(ctx *cli.Context, action cli.ActionFunc) error {
 	return func(ctx *cli.Context, action cli.ActionFunc) error {
-		return telemetry.Telemetry(ctx.Context, opts, fmt.Sprintf("%s %s", ctx.Command.Name, opts.TerraformCommand), map[string]interface{}{
-			"terraformCommand": opts.TerraformCommand,
-			"args":             opts.TerraformCliArgs,
-			"dir":              opts.WorkingDir,
-		}, func(childCtx context.Context) error {
-			ctx.Context = childCtx
-			if err := initialSetup(ctx, opts); err != nil {
-				return err
-			}
+		return telemetry.Telemetry(
+			ctx.Context, opts,
+			fmt.Sprintf("%s %s", ctx.Command.Name, opts.TerraformCommand),
+			map[string]interface{}{
+				"terraformCommand": opts.TerraformCommand,
+				"args":             opts.TerraformCliArgs,
+				"dir":              opts.WorkingDir,
+			}, func(childCtx context.Context) error {
+				ctx.Context = childCtx
+				if err := initialSetup(ctx, opts); err != nil {
+					return err
+				}
 
-			// TODO: See if this lint should be ignored
-			return runAction(ctx, opts, action) //nolint:contextcheck
-		})
+				// TODO: See if this lint should be ignored
+				return runAction(ctx, opts, action) //nolint:contextcheck
+			},
+		)
 	}
 }
 
@@ -198,6 +214,7 @@ func beforeAction(_ *options.TerragruntOptions) cli.ActionFunc {
 			// exit the app
 			return cli.NewExitError(err, 0)
 		}
+
 		return nil
 	}
 }
@@ -216,9 +233,11 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 		}
 
 		ln, err := server.Listen()
+
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to start provider cache server: %w", err)
 		}
+
 		defer ln.Close() //nolint:errcheck
 
 		cliCtx.Context = shell.ContextWithTerraformCommandHook(ctx, server.TerraformCommandHook)
@@ -235,25 +254,34 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 		if action != nil {
 			return action(cliCtx)
 		}
+
 		return nil
 	})
 
-	return errGroup.Wait()
+	err := errGroup.Wait()
+
+	if err != nil {
+		return fmt.Errorf("failed to run action: %w", err)
+	}
+
+	return nil
 }
 
 // mostly preparing terragrunt options.
 func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
-	// The env vars are renamed to "..._NO_AUTO_..." in the gobal flags`. These ones are left for backwards compatibility.
+	// The env vars are renamed to "..._NO_AUTO_..." in the gobal commands`.
+	// These ones are left for backwards compatibility.
 	opts.AutoInit = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_INIT"), opts.AutoInit)
 	opts.AutoRetry = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_RETRY"), opts.AutoRetry)
 	opts.RunAllAutoApprove = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_APPROVE"), opts.RunAllAutoApprove)
 
-	// `TF_INPUT` is the old env var for`--terragrunt-non-interactive` flag, now is replaced with `TERRAGRUNT_NON_INTERACTIVE` but kept for backwards compatibility.
+	// `TF_INPUT` is the old env var for`--terragrunt-non-interactive` flag,
+	// this is now is replaced with `TERRAGRUNT_NON_INTERACTIVE` but is kept for backwards compatibility.
 	// If `TF_INPUT` is false then `opts.NonInteractive` is true.
 	opts.NonInteractive = env.GetNegativeBool(os.Getenv("TF_INPUT"), opts.NonInteractive)
 
 	// --- Args
-	// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
+	// convert the rest commands (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
 	args := cliCtx.Args().Normalize(cli.SingleDashFlag)
 	cmdName := cliCtx.Command.Name
 
@@ -262,7 +290,9 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 		cmdName = cliCtx.Args().CommandName()
 
 		// `terraform apply -destroy` is an alias for `terraform destroy`.
-		// It is important to resolve the alias because the `run-all` relies on terraform command to determine the order, for `destroy` command is used the reverse order.
+		// It is important to resolve the alias because `run-all` relies on the tofu/terraform command being used
+		// to determine the order of nodes in the DAG.
+		// For the `destroy` command, the DAG is reversed.
 		if cmdName == terraform.CommandNameApply && util.ListContainsElement(args, terraform.FlagNameDestroy) {
 			cmdName = terraform.CommandNameDestroy
 			args = append([]string{terraform.CommandNameDestroy}, args.Tail()...)
@@ -282,7 +312,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 		util.DisableLogColors()
 	}
 
-	if opts.JsonLogFormat {
+	if opts.JSONLogFormat {
 		util.JsonFormat()
 	}
 
@@ -296,10 +326,12 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	if opts.WorkingDir == "" {
 		currentDir, err := os.Getwd()
 		if err != nil {
-			return errors.WithStackTrace(err)
+			return fmt.Errorf("failed to get current working directory: %w", errors.WithStackTrace(err))
 		}
+
 		opts.WorkingDir = currentDir
 	}
+
 	opts.WorkingDir = filepath.ToSlash(opts.WorkingDir)
 
 	// --- Download Dir
@@ -308,9 +340,11 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	}
 
 	downloadDir, err := filepath.Abs(opts.DownloadDir)
+
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return fmt.Errorf("failed to get absolute path for download directory: %w", errors.WithStackTrace(err))
 	}
+
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
 
 	// --- Terragrunt ConfigPath
@@ -322,14 +356,14 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	opts.TerragruntConfigPath, err = filepath.Abs(opts.TerragruntConfigPath)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return fmt.Errorf("failed to get absolute path for terragrunt config path: %w", errors.WithStackTrace(err))
 	}
 
 	opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)
 
 	opts.ExcludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.ExcludeDirs...)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get exclude directories: %w", errors.WithStackTrace(err))
 	}
 
 	if len(opts.IncludeDirs) > 0 {
@@ -339,13 +373,14 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	opts.IncludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.IncludeDirs...)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get include directories: %w", errors.WithStackTrace(err))
 	}
 
 	excludeDirs, err := util.GetExcludeDirsFromFile(opts.WorkingDir, opts.ExcludesFile)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get exclude directories from file: %w", errors.WithStackTrace(err))
 	}
+
 	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirs...)
 
 	// --- Terragrunt Version
@@ -353,21 +388,27 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	if err != nil {
 		// Malformed Terragrunt version; set the version to 0.0
 		if terragruntVersion, err = hashicorpversion.NewVersion("0.0"); err != nil {
-			return errors.WithStackTrace(err)
+			return fmt.Errorf("failed to get terragrunt version: %w", errors.WithStackTrace(err))
 		}
 	}
+
 	opts.TerragruntVersion = terragruntVersion
-	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of terragrunt used.
+
+	// Log the terragrunt version in debug mode.
+	// This helps with debugging issues and ensuring a specific version of terragrunt used.
 	opts.Logger.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
 
 	// --- IncludeModulePrefix
 	jsonOutput := false
+
 	for _, arg := range opts.TerraformCliArgs {
 		if strings.EqualFold(arg, "-json") {
 			jsonOutput = true
+
 			break
 		}
 	}
+
 	if opts.IncludeModulePrefix && !jsonOutput {
 		opts.OutputPrefix = fmt.Sprintf("[%s] ", opts.WorkingDir)
 	} else {
@@ -391,7 +432,10 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	return nil
 }
 
-func OSExiter(exitCode int) {
+// OSExiter is a function that can be used to override the default os.Exit function. This is useful for testing, as it
+// allows you to capture calls to os.Exit and prevent them from actually exiting the process. To use this function,
+// simply set the OsExiter field in the cli.App struct to this function.
+func OSExiter(_ int) {
 	// Do nothing. We just need to override this function, as the default value calls os.Exit, which
 	// kills the app (or any automated test) dead in its tracks.
 }

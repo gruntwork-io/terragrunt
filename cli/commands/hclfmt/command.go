@@ -1,3 +1,5 @@
+// Package hclfmt provides a command to recursively find hcl files and rewrite them into a canonical format
+// based on the language style guides provided by Hashicorp. This is done using the official hcl2 library.
 package hclfmt
 
 import (
@@ -6,13 +8,20 @@ import (
 )
 
 const (
+	// CommandName is the name of the command.
 	CommandName = "hclfmt"
 
+	// FlagNameTerragruntHCLFmt is the name of the flag that specifies a single hcl file to run the hclfmt command on.
 	FlagNameTerragruntHCLFmt = "terragrunt-hclfmt-file"
-	FlagNameTerragruntCheck  = "terragrunt-check"
-	FlagNameTerragruntDiff   = "terragrunt-diff"
+
+	// FlagNameTerragruntCheck is the name of the flag that enables check mode in the hclfmt command.
+	FlagNameTerragruntCheck = "terragrunt-check"
+
+	// FlagNameTerragruntDiff is the name of the flag that prints the diff between original and modified file versions.
+	FlagNameTerragruntDiff = "terragrunt-diff"
 )
 
+// NewFlags returns the flags for the hclfmt command.
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
 		&cli.GenericFlag[string]{
@@ -35,6 +44,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	}
 }
 
+// NewCommand returns the hclfmt command.
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:   CommandName,

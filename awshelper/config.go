@@ -1,4 +1,6 @@
-package aws_helper
+// Package awshelper provides helper functions for working with AWS, such as creating AWS sessions, assuming IAM roles,
+// and getting AWS account information.
+package awshelper
 
 import (
 	"fmt"
@@ -20,7 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-// A representation of the configuration options for an AWS Session.
+// AwsSessionConfig is a representation of the configuration options for an AWS Session.
 type AwsSessionConfig struct {
 	Region                  string
 	CustomS3Endpoint        string
@@ -35,17 +37,20 @@ type AwsSessionConfig struct {
 }
 
 // addUserAgent - Add terragrunt version to the user agent for AWS API calls.
-var addUserAgent = request.NamedHandler{
+var addUserAgent = request.NamedHandler{ //nolint:gochecknoglobals
 	Name: "terragrunt.UserAgentHandler",
 	Fn: request.MakeAddToUserAgentHandler(
 		"terragrunt", version.GetVersion()),
 }
 
-// Returns an AWS session object for the given config region (required), profile name (optional), and IAM role to assume
-// (optional), ensuring that the credentials are available.
-func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {
+// CreateAwsSessionFromConfig returns an AWS session object for the given:
+// - (required) config region
+// - (optional) profile name
+// - (optional) IAM role to assume
+// to use with the AWS SDK.
+func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*session.Session, error) { //nolint:lll
 	defaultResolver := endpoints.DefaultResolver()
-	s3CustResolverFn := func(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
+	s3CustResolverFn := func(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) { //nolint:lll
 		if service == "s3" && config.CustomS3Endpoint != "" {
 			return endpoints.ResolvedEndpoint{
 				URL:           config.CustomS3Endpoint,
@@ -80,7 +85,7 @@ func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *opt
 
 	sess, err := session.NewSessionWithOptions(sessionOptions)
 	if err != nil {
-		return nil, errors.WithStackTraceAndPrefix(err, "Error initializing session")
+		return nil, fmt.Errorf("error creating new AWS session: %w", errors.WithStackTrace(err))
 	}
 
 	sess.Handlers.Build.PushFrontNamed(addUserAgent)
@@ -99,6 +104,7 @@ func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *opt
 
 	if iamRoleOptions.WebIdentityToken != "" && iamRoleOptions.RoleARN != "" {
 		sess.Config.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(sess, iamRoleOptions)
+
 		return sess, nil
 	}
 
@@ -121,46 +127,58 @@ type tokenFetcher string
 
 // FetchToken Implements the stscreds.TokenFetcher interface.
 // Supports providing a token value or the path to a token on disk.
-func (f tokenFetcher) FetchToken(ctx credentials.Context) ([]byte, error) {
+func (f tokenFetcher) FetchToken(_ credentials.Context) ([]byte, error) {
 	// Check if token is a raw value
 	if _, err := os.Stat(string(f)); err != nil {
 		// TODO: See if this lint error should be ignored
 		return []byte(f), nil //nolint: nilerr
 	}
+
 	token, err := os.ReadFile(string(f))
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, fmt.Errorf("error reading token file: %w", errors.WithStackTrace(err))
 	}
+
 	return token, nil
 }
 
-func getWebIdentityCredentialsFromIAMRoleOptions(sess *session.Session, iamRoleOptions options.IAMRoleOptions) *credentials.Credentials {
+func getWebIdentityCredentialsFromIAMRoleOptions(sess *session.Session, iamRoleOptions options.IAMRoleOptions) *credentials.Credentials { //nolint:lll
 	roleSessionName := iamRoleOptions.AssumeRoleSessionName
 	if roleSessionName == "" {
 		// Set a unique session name in the same way it is done in the SDK
 		roleSessionName = strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
 	}
+
 	svc := sts.New(sess)
-	p := stscreds.NewWebIdentityRoleProviderWithOptions(svc, iamRoleOptions.RoleARN, roleSessionName, tokenFetcher(iamRoleOptions.WebIdentityToken))
+
+	provider := stscreds.NewWebIdentityRoleProviderWithOptions(
+		svc,
+		iamRoleOptions.RoleARN,
+		roleSessionName,
+		tokenFetcher(iamRoleOptions.WebIdentityToken),
+	)
 	if iamRoleOptions.AssumeRoleDuration > 0 {
-		p.Duration = time.Second * time.Duration(iamRoleOptions.AssumeRoleDuration)
+		provider.Duration = time.Second * time.Duration(iamRoleOptions.AssumeRoleDuration)
 	} else {
-		p.Duration = time.Second * time.Duration(options.DefaultIAMAssumeRoleDuration)
+		provider.Duration = time.Second * time.Duration(options.DefaultIAMAssumeRoleDuration)
 	}
-	return credentials.NewCredentials(p)
+
+	return credentials.NewCredentials(provider)
 }
 
-func getSTSCredentialsFromIAMRoleOptions(sess *session.Session, iamRoleOptions options.IAMRoleOptions, optFns ...func(*stscreds.AssumeRoleProvider)) *credentials.Credentials {
-	optFns = append(optFns, func(p *stscreds.AssumeRoleProvider) {
+func getSTSCredentialsFromIAMRoleOptions(sess *session.Session, iamRoleOptions options.IAMRoleOptions, optFns ...func(*stscreds.AssumeRoleProvider)) *credentials.Credentials { //nolint:lll
+	optFns = append(optFns, func(provider *stscreds.AssumeRoleProvider) {
 		if iamRoleOptions.AssumeRoleDuration > 0 {
-			p.Duration = time.Second * time.Duration(iamRoleOptions.AssumeRoleDuration)
+			provider.Duration = time.Second * time.Duration(iamRoleOptions.AssumeRoleDuration)
 		} else {
-			p.Duration = time.Second * time.Duration(options.DefaultIAMAssumeRoleDuration)
+			provider.Duration = time.Second * time.Duration(options.DefaultIAMAssumeRoleDuration)
 		}
+
 		if iamRoleOptions.AssumeRoleSessionName != "" {
-			p.RoleSessionName = iamRoleOptions.AssumeRoleSessionName
+			provider.RoleSessionName = iamRoleOptions.AssumeRoleSessionName
 		}
 	})
+
 	return stscreds.NewCredentials(sess, iamRoleOptions.RoleARN, optFns...)
 }
 
@@ -174,29 +192,36 @@ func getCredentialsFromEnvs(opts *options.TerragruntOptions) *credentials.Creden
 	if accessKeyID == "" || secretAccessKey == "" {
 		return nil
 	}
+
 	return credentials.NewStaticCredentials(accessKeyID, secretAccessKey, sessionToken)
 }
 
-// Returns an AWS session object. The session is configured by either:
+// CreateAwsSession returns an AWS session object. The session is configured by either:
 //   - The provided AwsSessionConfig struct, which specifies region (required), profile name (optional), and IAM role to
 //     assume (optional).
 //   - The provided TerragruntOptions struct, which specifies any IAM role to assume (optional).
 //
 // Note that if the AwsSessionConfig object is null, this will return default session credentials using the default
 // credentials chain of the AWS SDK.
-func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {
-	var sess *session.Session
-	var err error
+func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*session.Session, error) { //nolint:lll
+	var (
+		sess *session.Session
+		err  error
+	)
+
 	if config == nil {
 		sessionOptions := session.Options{SharedConfigState: session.SharedConfigEnable}
 		sess, err = session.NewSessionWithOptions(sessionOptions)
+
 		if err != nil {
-			return nil, errors.WithStackTrace(err)
+			return nil, fmt.Errorf("error creating new AWS session: %w", err)
 		}
+
 		sess.Handlers.Build.PushFrontNamed(addUserAgent)
+
 		if terragruntOptions.IAMRoleOptions.RoleARN != "" {
 			if terragruntOptions.IAMRoleOptions.WebIdentityToken != "" {
-				terragruntOptions.Logger.Debugf("Assuming role %s using WebIdentity token", terragruntOptions.IAMRoleOptions.RoleARN)
+				terragruntOptions.Logger.Debugf("Assuming role %s using WebIdentity token", terragruntOptions.IAMRoleOptions.RoleARN) //nolint:lll
 				sess.Config.Credentials = getWebIdentityCredentialsFromIAMRoleOptions(sess, terragruntOptions.IAMRoleOptions)
 			} else {
 				terragruntOptions.Logger.Debugf("Assuming role %s", terragruntOptions.IAMRoleOptions.RoleARN)
@@ -208,28 +233,33 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 	} else {
 		sess, err = CreateAwsSessionFromConfig(config, terragruntOptions)
 		if err != nil {
-			return nil, errors.WithStackTrace(err)
+			return nil, fmt.Errorf("error creating AWS session from config: %w", errors.WithStackTrace(err))
 		}
 	}
 
 	if _, err = sess.Config.Credentials.Get(); err != nil {
-		msg := "Error finding AWS credentials (did you set the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables?)"
+		msg := "Error finding AWS credentials (did you set the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables?)" //nolint:lll
 		if config != nil && len(config.CredsFilename) > 0 {
-			msg = fmt.Sprintf("Error finding AWS credentials in file '%s' (did you set the correct file name and/or profile?)", config.CredsFilename)
+			msg = fmt.Sprintf(
+				"Error finding AWS credentials in file '%s' (did you set the correct file name and/or profile?)",
+				config.CredsFilename,
+			)
 		}
 
-		return nil, errors.WithStackTraceAndPrefix(err, msg)
+		return nil, fmt.Errorf("%s: %w", msg, errors.WithStackTrace(err))
 	}
 
 	return sess, nil
 }
 
-// Make API calls to AWS to assume the IAM role specified and return the temporary AWS credentials to use that role.
+// AssumeIamRole makes AWS STS API calls to assume the IAM role specified
+// and returns temporary AWS credentials to use that role.
 func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error) {
 	sessionOptions := session.Options{SharedConfigState: session.SharedConfigEnable}
+
 	sess, err := session.NewSessionWithOptions(sessionOptions)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, fmt.Errorf("error creating new AWS session: %w", err)
 	}
 
 	sess.Handlers.Build.PushFrontNamed(addUserAgent)
@@ -240,7 +270,10 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 
 	_, err = sess.Config.Credentials.Get()
 	if err != nil {
-		return nil, errors.WithStackTraceAndPrefix(err, "Error finding AWS credentials (did you set the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables?)")
+		return nil, fmt.Errorf(
+			"error finding AWS credentials (did you set the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables?): %w", //nolint:lll
+			errors.WithStackTrace(err),
+		)
 	}
 
 	stsClient := sts.New(sess)
@@ -265,7 +298,7 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 
 		output, err := stsClient.AssumeRole(&input)
 		if err != nil {
-			return nil, errors.WithStackTrace(err)
+			return nil, fmt.Errorf("error assuming role %s: %w", iamRoleOpts.RoleARN, errors.WithStackTrace(err))
 		}
 
 		return output.Credentials, nil
@@ -279,10 +312,12 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 	} else {
 		tb, err := os.ReadFile(iamRoleOpts.WebIdentityToken)
 		if err != nil {
-			return nil, errors.WithStackTrace(err)
+			return nil, fmt.Errorf("error reading token file: %w", errors.WithStackTrace(err))
 		}
+
 		token = string(tb)
 	}
+
 	input := sts.AssumeRoleWithWebIdentityInput{
 		RoleArn:          aws.String(iamRoleOpts.RoleARN),
 		RoleSessionName:  aws.String(sessionName),
@@ -295,21 +330,22 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 	// N.B: copied from SDK implementation
 	req.RetryErrorCodes = append(req.RetryErrorCodes, sts.ErrCodeInvalidIdentityTokenException)
 	if err := req.Send(); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, fmt.Errorf("error assuming role %s: %w", iamRoleOpts.RoleARN, errors.WithStackTrace(err))
 	}
+
 	return resp.Credentials, nil
 }
 
-// Return the AWS caller identity associated with the current set of credentials.
-func GetAWSCallerIdentity(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (sts.GetCallerIdentityOutput, error) {
+// GetAWSCallerIdentity return the AWS caller identity associated with the current set of credentials.
+func GetAWSCallerIdentity(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (sts.GetCallerIdentityOutput, error) { //nolint:lll
 	sess, err := CreateAwsSession(config, terragruntOptions)
 	if err != nil {
-		return sts.GetCallerIdentityOutput{}, errors.WithStackTrace(err)
+		return sts.GetCallerIdentityOutput{}, fmt.Errorf("error creating AWS session: %w", errors.WithStackTrace(err))
 	}
 
 	identity, err := sts.New(sess).GetCallerIdentity(nil)
 	if err != nil {
-		return sts.GetCallerIdentityOutput{}, errors.WithStackTrace(err)
+		return sts.GetCallerIdentityOutput{}, fmt.Errorf("error getting AWS caller identity: %w", errors.WithStackTrace(err))
 	}
 
 	return *identity, nil
@@ -319,48 +355,50 @@ func GetAWSCallerIdentity(config *AwsSessionConfig, terragruntOptions *options.T
 func ValidateAwsSession(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) error {
 	// read the caller identity to check if the credentials are valid
 	_, err := GetAWSCallerIdentity(config, terragruntOptions)
+
 	return err
 }
 
-// Get the AWS Partition of the current session configuration.
+// GetAWSPartition gets the AWS Partition of the current session configuration.
 func GetAWSPartition(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", fmt.Errorf("error getting AWS caller identity: %w", errors.WithStackTrace(err))
 	}
 
 	arn, err := arn.Parse(*identity.Arn)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", fmt.Errorf("error parsing ARN: %w", errors.WithStackTrace(err))
 	}
+
 	return arn.Partition, nil
 }
 
-// Get the AWS account ID of the current session configuration.
+// GetAWSAccountID gets the AWS account ID of the current session configuration.
 func GetAWSAccountID(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", fmt.Errorf("error getting AWS caller identity: %w", errors.WithStackTrace(err))
 	}
 
 	return *identity.Account, nil
 }
 
-// Get the ARN of the AWS identity associated with the current set of credentials.
+// GetAWSIdentityArn gets the ARN of the AWS identity associated with the current set of credentials.
 func GetAWSIdentityArn(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", fmt.Errorf("error getting AWS caller identity ARN: %w", errors.WithStackTrace(err))
 	}
 
 	return *identity.Arn, nil
 }
 
-// Get the AWS user ID of the current session configuration.
+// GetAWSUserID gets the AWS user ID of the current session configuration.
 func GetAWSUserID(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", fmt.Errorf("error getting AWS caller identity user ID: %w", errors.WithStackTrace(err))
 	}
 
 	return *identity.UserId, nil

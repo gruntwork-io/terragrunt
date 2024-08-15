@@ -31,18 +31,18 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 		},
 		{
 			&config.TerragruntConfig{},
-			&config.TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
-			&config.TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: &remote.State{Backend: "bar"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: &remote.State{Backend: "bar"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
 		},
 		{
-			&config.TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "foo"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
-			&config.TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
-			&config.TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "foo"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: &remote.State{Backend: "foo"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: &remote.State{Backend: "bar"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: &remote.State{Backend: "foo"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
 		},
 		{
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{Source: ptr("foo")}},
-			&config.TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
-			&config.TerragruntConfig{RemoteState: &remote.RemoteState{Backend: "bar"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: &remote.State{Backend: "bar"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
+			&config.TerragruntConfig{RemoteState: &remote.State{Backend: "bar"}, Terraform: &config.TerraformConfig{Source: ptr("foo")}},
 		},
 		{
 			&config.TerragruntConfig{Terraform: &config.TerraformConfig{ExtraArgs: []config.TerraformExtraArguments{{Name: "childArgs"}}}},
@@ -291,8 +291,6 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 	}
 
 	for _, tt := range tc {
-		tt := tt
-
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -324,7 +322,7 @@ func TestConcurrentCopyFieldsMetadata(t *testing.T) {
 	numGoroutines := 666
 
 	wg.Add(numGoroutines)
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		go func() {
 			defer wg.Done()
 			config.CopyFieldsMetadata(sourceConfig, targetConfig)

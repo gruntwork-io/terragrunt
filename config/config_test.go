@@ -76,7 +76,7 @@ func TestParseTerragruntJsonConfigRemoteStateMinimalConfig(t *testing.T) {
 `
 
 	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntJsonConfigPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntJSONConfigPath, cfg, nil)
 	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.Terraform)
@@ -154,7 +154,7 @@ func TestParseTerragruntJsonConfigRemoteStateFullConfig(t *testing.T) {
 }
 `
 	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntJsonConfigPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntJSONConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +192,7 @@ retryable_errors = [
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	assert.Equal(t, 10, *terragruntConfig.RetryMaxAttempts)
-	assert.Equal(t, 60, *terragruntConfig.RetrySleepIntervalSec)
+	assert.Equal(t, 60, *terragruntConfig.RetrySleepInterval)
 
 	if assert.NotNil(t, terragruntConfig.RetryableErrors) {
 		assert.Equal(t, []string{"My own little error", "Another one of my errors"}, terragruntConfig.RetryableErrors)
@@ -213,14 +213,14 @@ func TestParseTerragruntJsonConfigRetryConfiguration(t *testing.T) {
 `
 
 	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntJsonConfigPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntJSONConfigPath, cfg, nil)
 	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	assert.Equal(t, 10, *terragruntConfig.RetryMaxAttempts)
-	assert.Equal(t, 60, *terragruntConfig.RetrySleepIntervalSec)
+	assert.Equal(t, 60, *terragruntConfig.RetrySleepInterval)
 
 	if assert.NotNil(t, terragruntConfig.RetryableErrors) {
 		assert.Equal(t, []string{"My own little error"}, terragruntConfig.RetryableErrors)
@@ -427,7 +427,7 @@ func TestParseTerragruntJsonConfigRemoteStateDynamoDbTerraformConfigAndDependenc
 `
 
 	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntJsonConfigPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntJSONConfigPath, cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -628,7 +628,7 @@ func TestParseTerragruntJsonConfigIncludeOverrideAll(t *testing.T) {
 }
 `, config.DefaultTerragruntConfigPath)
 
-	opts := mockOptionsForTestWithConfigPath(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+config.DefaultTerragruntJsonConfigPath)
+	opts := mockOptionsForTestWithConfigPath(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+config.DefaultTerragruntJSONConfigPath)
 
 	ctx := config.NewParsingContext(context.Background(), opts)
 	terragruntConfig, err := config.ParseConfigString(ctx, opts.TerragruntConfigPath, cfg, nil)
@@ -711,7 +711,7 @@ func TestParseTerragruntConfigEmptyConfig(t *testing.T) {
 	assert.Empty(t, terragruntConfig.IamRole)
 	assert.Empty(t, terragruntConfig.IamWebIdentityToken)
 	assert.Nil(t, terragruntConfig.RetryMaxAttempts)
-	assert.Nil(t, terragruntConfig.RetrySleepIntervalSec)
+	assert.Nil(t, terragruntConfig.RetrySleepInterval)
 	assert.Nil(t, terragruntConfig.RetryableErrors)
 }
 
@@ -808,7 +808,7 @@ terraform {
 			},
 			terragruntConfig.Terraform.ExtraArgs[0].Arguments)
 		assert.Equal(t,
-			config.TERRAFORM_COMMANDS_NEED_VARS,
+			config.TerraformCommandsNeedVars,
 			terragruntConfig.Terraform.ExtraArgs[0].Commands)
 
 		assert.Equal(t,
@@ -866,10 +866,10 @@ terraform {
 		assert.Equal(t, []string{"fmt"}, terragruntConfig.Terraform.ExtraArgs[1].Commands)
 		assert.Equal(t, "required_tfvars", terragruntConfig.Terraform.ExtraArgs[2].Name)
 		assert.Equal(t, &[]string{"file1.tfvars", "file2.tfvars"}, terragruntConfig.Terraform.ExtraArgs[2].RequiredVarFiles)
-		assert.Equal(t, config.TERRAFORM_COMMANDS_NEED_VARS, terragruntConfig.Terraform.ExtraArgs[2].Commands)
+		assert.Equal(t, config.TerraformCommandsNeedVars, terragruntConfig.Terraform.ExtraArgs[2].Commands)
 		assert.Equal(t, "optional_tfvars", terragruntConfig.Terraform.ExtraArgs[3].Name)
 		assert.Equal(t, &[]string{"opt1.tfvars", "opt2.tfvars"}, terragruntConfig.Terraform.ExtraArgs[3].OptionalVarFiles)
-		assert.Equal(t, config.TERRAFORM_COMMANDS_NEED_VARS, terragruntConfig.Terraform.ExtraArgs[3].Commands)
+		assert.Equal(t, config.TerraformCommandsNeedVars, terragruntConfig.Terraform.ExtraArgs[3].Commands)
 	}
 }
 
@@ -908,7 +908,7 @@ func TestParseTerragruntJsonConfigTerraformWithMultipleExtraArguments(t *testing
 `
 
 	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
-	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntJsonConfigPath, cfg, nil)
+	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntJSONConfigPath, cfg, nil)
 	require.NoError(t, err)
 
 	assert.Nil(t, terragruntConfig.RemoteState)
@@ -923,10 +923,10 @@ func TestParseTerragruntJsonConfigTerraformWithMultipleExtraArguments(t *testing
 		assert.Equal(t, []string{"fmt"}, terragruntConfig.Terraform.ExtraArgs[1].Commands)
 		assert.Equal(t, "required_tfvars", terragruntConfig.Terraform.ExtraArgs[2].Name)
 		assert.Equal(t, &[]string{"file1.tfvars", "file2.tfvars"}, terragruntConfig.Terraform.ExtraArgs[2].RequiredVarFiles)
-		assert.Equal(t, config.TERRAFORM_COMMANDS_NEED_VARS, terragruntConfig.Terraform.ExtraArgs[2].Commands)
+		assert.Equal(t, config.TerraformCommandsNeedVars, terragruntConfig.Terraform.ExtraArgs[2].Commands)
 		assert.Equal(t, "optional_tfvars", terragruntConfig.Terraform.ExtraArgs[3].Name)
 		assert.Equal(t, &[]string{"opt1.tfvars", "opt2.tfvars"}, terragruntConfig.Terraform.ExtraArgs[3].OptionalVarFiles)
-		assert.Equal(t, config.TERRAFORM_COMMANDS_NEED_VARS, terragruntConfig.Terraform.ExtraArgs[3].Commands)
+		assert.Equal(t, config.TerraformCommandsNeedVars, terragruntConfig.Terraform.ExtraArgs[3].Commands)
 	}
 }
 
@@ -1131,14 +1131,19 @@ func TestFindConfigFilesIgnoresDownloadDir(t *testing.T) {
 }
 
 func mockOptionsForTestWithConfigPath(t *testing.T, configPath string) *options.TerragruntOptions {
+	t.Helper()
+
 	opts, err := options.NewTerragruntOptionsForTest(configPath)
 	if err != nil {
 		t.Fatalf("Failed to create TerragruntOptions: %v", err)
 	}
+
 	return opts
 }
 
 func mockOptionsForTest(t *testing.T) *options.TerragruntOptions {
+	t.Helper()
+
 	return mockOptionsForTestWithConfigPath(t, "test-time-mock")
 }
 
@@ -1299,16 +1304,12 @@ func TestModuleDependenciesMerge(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		// Capture range variable so that it is brought into the scope within the for loop, so that it is stable even
-		// when subtests are run in parallel.
-		testCase := testCase
-
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
 			target := &config.ModuleDependencies{Paths: testCase.target}
 
-			var source *config.ModuleDependencies = nil
+			var source *config.ModuleDependencies
 			if testCase.source != nil {
 				source = &config.ModuleDependencies{Paths: testCase.source}
 			}

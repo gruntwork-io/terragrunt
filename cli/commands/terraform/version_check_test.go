@@ -83,10 +83,12 @@ func TestParseTerraformVersionWithUnexpectedName(t *testing.T) {
 
 func TestParseTerraformVersionInvalidSyntax(t *testing.T) {
 	t.Parallel()
-	testParseTerraformVersion(t, "invalid-syntax", "", terraform.InvalidTerraformVersionSyntax("invalid-syntax"))
+	testParseTerraformVersion(t, "invalid-syntax", "", terraform.InvalidTerraformVersionSyntaxError("invalid-syntax"))
 }
 
 func testCheckTerraformVersionMeetsConstraint(t *testing.T, currentVersion string, versionConstraint string, versionMeetsConstraint bool) {
+	t.Helper()
+
 	current, err := version.NewVersion(currentVersion)
 	if err != nil {
 		t.Fatalf("Invalid current version specified in test: %v", err)
@@ -101,6 +103,8 @@ func testCheckTerraformVersionMeetsConstraint(t *testing.T, currentVersion strin
 }
 
 func testParseTerraformVersion(t *testing.T, versionString string, expectedVersion string, expectedErr error) {
+	t.Helper()
+
 	actualVersion, actualErr := terraform.ParseTerraformVersion(versionString)
 	if expectedErr == nil {
 		expected, err := version.NewVersion(expectedVersion)
@@ -142,6 +146,8 @@ func TestCheckTerragruntVersionMeetsConstraintLessMajor(t *testing.T) {
 }
 
 func testCheckTerragruntVersionMeetsConstraint(t *testing.T, currentVersion string, versionConstraint string, versionMeetsConstraint bool) {
+	t.Helper()
+
 	current, err := version.NewVersion(currentVersion)
 	if err != nil {
 		t.Fatalf("Invalid current version specified in test: %v", err)

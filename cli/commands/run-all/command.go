@@ -1,3 +1,5 @@
+// Package runall provides a way to run a terraform command against a 'stack'
+// by running the specified command in each subfolder.
 package runall
 
 import (
@@ -18,20 +20,23 @@ import (
 )
 
 const (
+	// CommandName is the name of this command.
 	CommandName = "run-all"
 )
 
+// NewCommand builds a new command instance.
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:        CommandName,
 		Usage:       "Run a terraform command against a 'stack' by running the specified command in each subfolder.",
-		Description: "The command will recursively find terragrunt modules in the current directory tree and run the terraform command in dependency order (unless the command is destroy, in which case the command is run in reverse dependency order).",
+		Description: "The command will recursively find terragrunt modules in the current directory tree and run the terraform command in dependency order (unless the command is destroy, in which case the command is run in reverse dependency order).", //nolint:lll
 		Subcommands: subCommands(opts).SkipRunning(),
 		Action:      action(opts),
 		Flags:       NewFlags(opts).Sort(),
 	}
 }
 
+// NewFlags builds a new flags instance.
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
 		&cli.GenericFlag[string]{
@@ -41,21 +46,24 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "Directory to store plan files.",
 		},
 		&cli.GenericFlag[string]{
-			Name:        commands.TerragruntJsonOutDirFlagName,
-			EnvVar:      commands.TerragruntJsonOutDirFlagEnvVarName,
-			Destination: &opts.JsonOutputFolder,
+			Name:        commands.TerragruntJSONOutDirFlagName,
+			EnvVar:      commands.TerragruntJSONOutDirFlagEnvVarName,
+			Destination: &opts.JSONOutputFolder,
 			Usage:       "Directory to store json plan files.",
 		},
 	}
 }
 
+// Run runs the command.
 func action(opts *options.TerragruntOptions) cli.ActionFunc {
 	return func(cliCtx *cli.Context) error {
 		opts.RunTerragrunt = func(ctx context.Context, opts *options.TerragruntOptions) error {
 			if cmd := cliCtx.Command.Subcommand(opts.TerraformCommand); cmd != nil {
 				cliCtx := cliCtx.WithValue(options.ContextKey, opts)
+
 				return cmd.Action(cliCtx)
 			}
+
 			return terraform.Run(ctx, opts)
 		}
 

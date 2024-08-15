@@ -1,5 +1,8 @@
 package cli
 
+// AppHelpTemplate is the text template for the app help topic.
+//
+//nolint:lll
 const AppHelpTemplate = `NAME:
    {{$v := offset .App.HelpName 6}}{{wrap .App.HelpName 3}}{{if .App.Usage}} - {{wrap .App.Usage $v}}{{end}}
 
@@ -21,6 +24,9 @@ VERSION: {{.App.Version}}{{if len .App.Authors}}{{end}}
 AUTHOR: {{range .App.Authors}}{{.}}{{end}} {{end}}
 `
 
+// CommandHelpTemplate is the text template for the command help topic.
+//
+//nolint:lll
 const CommandHelpTemplate = `NAME:
    {{$v := offset .Command.HelpName 6}}{{wrap .Command.HelpName 3}}{{if .Usage}} - {{wrap .Command.Usage $v}}{{end}}
 
@@ -43,5 +49,6 @@ GLOBAL OPTIONS:
 
 `
 
+// AppVersionTemplate is the text template for the app version topic.
 const AppVersionTemplate = `terragrunt version {{.App.Version}}
 `

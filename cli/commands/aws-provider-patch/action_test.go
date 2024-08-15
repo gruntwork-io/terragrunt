@@ -316,7 +316,6 @@ func TestPatchAwsProviderInTerraformCodeHappyPath(t *testing.T) {
 	for _, testCase := range testCases {
 		// The following is necessary to make sure testCase's values don't
 		// get updated due to concurrency within the scope of t.Run(..) below
-		testCase := testCase
 		t.Run(testCase.testName, func(t *testing.T) {
 			t.Parallel()
 			actualTerraformCode, actualCodeWasUpdated, err := awsproviderpatch.PatchAwsProviderInTerraformCode(testCase.originalTerraformCode, "test.tf", testCase.attributesToOverride)

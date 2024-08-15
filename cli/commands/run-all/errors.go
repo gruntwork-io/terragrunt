@@ -2,17 +2,21 @@ package runall
 
 import "fmt"
 
-type RunAllDisabledErr struct {
+// DisabledError is an error type that is returned when a run-all command is disabled.
+type DisabledError struct {
 	command string
 	reason  string
 }
 
-func (err RunAllDisabledErr) Error() string {
+// Error returns the error message as a string.
+func (err DisabledError) Error() string {
 	return fmt.Sprintf("%s with run-all is disabled: %s", err.command, err.reason)
 }
 
-type MissingCommand struct{}
+// MissingCommandError is an error type that is returned when a run-all command is missing.
+type MissingCommandError struct{}
 
-func (err MissingCommand) Error() string {
+// Error returns the error message as a string.
+func (err MissingCommandError) Error() string {
 	return "Missing run-all command argument (Example: terragrunt run-all plan)"
 }

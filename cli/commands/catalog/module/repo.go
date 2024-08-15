@@ -28,9 +28,10 @@ var (
 	gitHeadBranchNameReg    = regexp.MustCompile(`^.*?([^/]+)$`)
 	repoNameFromCloneURLReg = regexp.MustCompile(`(?i)^.*?([-a-z_.]+)[^/]*?(?:\.git)?$`)
 
-	modulesPaths = []string{"modules"}
+	modulesPaths = []string{"modules"} //nolint:gochecknoglobals
 )
 
+// Repo represents a repository.
 type Repo struct {
 	cloneURL string
 	path     string
@@ -39,6 +40,7 @@ type Repo struct {
 	branchName string
 }
 
+// NewRepo creates a new repository instance.
 func NewRepo(ctx context.Context, cloneURL, tempDir string) (*Repo, error) {
 	repo := &Repo{
 		cloneURL: cloneURL,
@@ -60,8 +62,9 @@ func NewRepo(ctx context.Context, cloneURL, tempDir string) (*Repo, error) {
 	return repo, nil
 }
 
-// FindModules clones the repository if `repoPath` is a URL, searches for Terragrunt modules, indexes their README.* files, and returns module instances.
-func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
+// FindModules clones the repository if `repoPath` is a URL, searches for Terragrunt modules,
+// indexes their README.* files, and returns module instances.
+func (repo *Repo) FindModules(_ context.Context) (Modules, error) {
 	var modules Modules
 
 	// check if root repo path is a module dir
@@ -83,6 +86,7 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 				if err != nil {
 					return err
 				}
+
 				if !remote.IsDir() {
 					return nil
 				}
@@ -101,7 +105,7 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 				return nil
 			})
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error walking the path %q: %w", modulesPath, err)
 		}
 	}
 
@@ -116,7 +120,7 @@ func (repo *Repo) ModuleURL(moduleDir string) (string, error) {
 
 	remote, err := vcsurl.Parse(repo.remoteURL)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", fmt.Errorf("error parsing remote URL %q: %w", repo.remoteURL, errors.WithStackTrace(err))
 	}
 
 	switch remote.Host {
@@ -127,7 +131,7 @@ func (repo *Repo) ModuleURL(moduleDir string) (string, error) {
 	case bitbucketHost:
 		return fmt.Sprintf("https://%s/%s/browse/%s?at=%s", remote.Host, remote.FullName, moduleDir, repo.branchName), nil
 	case azuredevHost:
-		return fmt.Sprintf("https://%s/_git/%s?path=%s&version=GB%s", remote.Host, remote.FullName, moduleDir, repo.branchName), nil
+		return fmt.Sprintf("https://%s/_git/%s?path=%s&version=GB%s", remote.Host, remote.FullName, moduleDir, repo.branchName), nil //nolint:lll
 	default:
 		return "", errors.Errorf("hosting: %q is not supported yet", remote.Host)
 	}
@@ -138,7 +142,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 	if repo.cloneURL == "" {
 		currentDir, err := os.Getwd()
 		if err != nil {
-			return errors.WithStackTrace(err)
+			return fmt.Errorf("error getting current directory: %w", errors.WithStackTrace(err))
 		}
 
 		repo.cloneURL = currentDir
@@ -148,18 +152,19 @@ func (repo *Repo) clone(ctx context.Context) error {
 		if !filepath.IsAbs(repoPath) {
 			absRepoPath, err := filepath.Abs(repoPath)
 			if err != nil {
-				return errors.WithStackTrace(err)
+				return fmt.Errorf("error getting absolute path for %q: %w", repoPath, errors.WithStackTrace(err))
 			}
 
 			log.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
 		}
+
 		repo.path = repoPath
 
 		return nil
 	}
 
 	if err := os.MkdirAll(repo.path, os.ModePerm); err != nil {
-		return errors.WithStackTrace(err)
+		return fmt.Errorf("error creating directory %q: %w", repo.path, errors.WithStackTrace(err))
 	}
 
 	repoName := "temp"
@@ -169,33 +174,42 @@ func (repo *Repo) clone(ctx context.Context) error {
 
 	repo.path = filepath.Join(repo.path, repoName)
 
-	// Since we are cloning the repository into a temporary directory, some operating systems such as MacOS have a service for deleting files that have not been accessed for a long time.
-	// For example, in MacOS the service is responsible for deleting unused files deletes only files while leaving the directory structure is untouched, which in turn misleads `go-getter`, which thinks that the repository exists but cannot update it due to the lack of files. In such cases, we simply delete the temporary directory in order to clone the one again.
+	// Since we are cloning the repository into a temporary directory, some operating systems such as MacOS
+	// have a service for deleting files that have not been accessed for a long time.
+	// For example, in MacOS the service is responsible for deleting unused files deletes only files
+	// while leaving the directory structure is untouched, which in turn misleads `go-getter`,
+	// which thinks that the repository exists but cannot update it due to the lack of files.
+	// In such cases, we simply delete the temporary directory in order to clone the one again.
 	// See https://github.com/gruntwork-io/terragrunt/pull/2888
 	if files.FileExists(repo.path) && !files.FileExists(repo.gitHeadfile()) {
-		log.Debugf("The repo dir exists but git file %q does not. Removing the repo dir for cloning from the remote source.", repo.gitHeadfile())
+		log.Debugf(
+			"The repo dir exists but git file %q does not. Removing the repo dir for cloning from the remote source.",
+			repo.gitHeadfile(),
+		)
 
 		if err := os.RemoveAll(repo.path); err != nil {
-			return errors.WithStackTrace(err)
+			return fmt.Errorf("error removing directory %q: %w", repo.path, errors.WithStackTrace(err))
 		}
 	}
 
-	sourceUrl, err := terraform.ToSourceUrl(repo.cloneURL, "")
+	sourceURL, err := terraform.ToSourceURL(repo.cloneURL, "")
 	if err != nil {
-		return err
+		return fmt.Errorf("error converting source URL %q: %w", repo.cloneURL, errors.WithStackTrace(err))
 	}
-	repo.cloneURL = sourceUrl.String()
+
+	repo.cloneURL = sourceURL.String()
 
 	log.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
 
-	if err := getter.Get(repo.path, strings.Trim(sourceUrl.String(), "/"), getter.WithContext(ctx)); err != nil {
-		return errors.WithStackTrace(err)
+	if err := getter.Get(repo.path, strings.Trim(sourceURL.String(), "/"), getter.WithContext(ctx)); err != nil {
+		return fmt.Errorf("error cloning repository %q: %w", repo.cloneURL, errors.WithStackTrace(err))
 	}
 
 	return nil
 }
 
-// parseRemoteURL reads the git config `.git/config` and parses the first URL of the remote URLs, the remote name "origin" has the highest priority.
+// parseRemoteURL reads the git config `.git/config` and parses the first URL of the remote URLs,
+// the remote name "origin" has the highest priority.
 func (repo *Repo) parseRemoteURL() error {
 	gitConfigPath := filepath.Join(repo.path, ".git", "config")
 
@@ -207,14 +221,16 @@ func (repo *Repo) parseRemoteURL() error {
 
 	inidata, err := ini.Load(gitConfigPath)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return fmt.Errorf("error loading git config %q: %w", gitConfigPath, errors.WithStackTrace(err))
 	}
 
 	var sectionName string
+
 	for _, name := range inidata.SectionStrings() {
 		if !strings.HasPrefix(name, "remote") {
 			continue
 		}
+
 		sectionName = name
 
 		if sectionName == `remote "origin"` {
@@ -246,6 +262,7 @@ func (repo *Repo) parseBranchName() error {
 
 	if match := gitHeadBranchNameReg.FindStringSubmatch(data); len(match) > 0 {
 		repo.branchName = strings.TrimSpace(match[1])
+
 		return nil
 	}
 

@@ -8,8 +8,10 @@ import (
 	"github.com/hashicorp/hcl/v2"
 )
 
+// Option is a functional option type for the Parser.
 type Option func(*Parser) *Parser
 
+// WithDiagnosticsWriter sets the `diagsWriterFunc` func which is run after each file decoding.
 func WithDiagnosticsWriter(writer io.Writer, disableColor bool) Option {
 	return func(parser *Parser) *Parser {
 		diagsWriter := util.GetDiagnosticsWriter(writer, parser.Parser, disableColor)
@@ -22,8 +24,10 @@ func WithDiagnosticsWriter(writer io.Writer, disableColor bool) Option {
 			if err := diagsWriter.WriteDiagnostics(diags); err != nil {
 				return errors.WithStackTrace(err)
 			}
+
 			return nil
 		}
+
 		return parser
 	}
 }
@@ -32,54 +36,66 @@ func WithDiagnosticsWriter(writer io.Writer, disableColor bool) Option {
 func WithFileUpdate(fn func(*File) error) Option {
 	return func(parser *Parser) *Parser {
 		parser.fileUpdateHandlerFunc = fn
+
 		return parser
 	}
 }
 
-// WithHaltOnErrorOnlyForBlocks configures a diagnostic error handler that runs when diagnostic errors occur.
-// If errors occur in the given `blockNames` blocks, parser returns the error to its caller, otherwise it skips the error.
+// WithHaltOnErrorOnlyForBlocks configures a diagnostic error
+// handler that runs when diagnostic errors occur.
+// If errors occur in the given `blockNames` blocks, parser
+// returns the error to its caller, otherwise it skips the error.
 func WithHaltOnErrorOnlyForBlocks(blockNames []string) Option {
 	return func(parser *Parser) *Parser {
-		parser.handleDiagnosticsFunc = appendHandleDiagnosticsFunc(parser.handleDiagnosticsFunc, func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
-			if file == nil || !diags.HasErrors() {
-				return diags, nil
-			}
-
-			for _, blockName := range blockNames {
-				blocks, err := file.Blocks(blockName, true)
-				if err != nil {
-					return nil, err
+		parser.handleDiagnosticsFunc = appendHandleDiagnosticsFunc(
+			parser.handleDiagnosticsFunc,
+			func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
+				if file == nil || !diags.HasErrors() {
+					return diags, nil
 				}
 
-				for _, block := range blocks {
-					blockAttrs, _ := block.Body.JustAttributes()
+				for _, blockName := range blockNames {
+					blocks, err := file.Blocks(blockName, true)
+					if err != nil {
+						return nil, err
+					}
 
-					for _, blokcAttr := range blockAttrs {
-						for _, diag := range diags {
-							if diag.Context != nil && blokcAttr.Range.Overlaps(*diag.Context) {
-								return diags, nil
+					for _, block := range blocks {
+						blockAttrs, _ := block.Body.JustAttributes()
+
+						for _, blokcAttr := range blockAttrs {
+							for _, diag := range diags {
+								if diag.Context != nil && blokcAttr.Range.Overlaps(*diag.Context) {
+									return diags, nil
+								}
 							}
 						}
 					}
 				}
-			}
 
-			return nil, nil
-		})
+				return nil, nil
+			},
+		)
+
 		return parser
 	}
 }
 
+// WithDiagnosticsHandler sets the `handleDiagnosticsFunc` func which is run after each file decoding.
 func WithDiagnosticsHandler(fn func(file *hcl.File, diags hcl.Diagnostics) (hcl.Diagnostics, error)) Option {
 	return func(parser *Parser) *Parser {
-		parser.handleDiagnosticsFunc = appendHandleDiagnosticsFunc(parser.handleDiagnosticsFunc, func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
-			return fn(file.File, diags)
-		})
+		parser.handleDiagnosticsFunc = appendHandleDiagnosticsFunc(
+			parser.handleDiagnosticsFunc,
+			func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
+				return fn(file.File, diags)
+			},
+		)
+
 		return parser
 	}
 }
 
-func appendHandleDiagnosticsFunc(prev, next func(*File, hcl.Diagnostics) (hcl.Diagnostics, error)) func(*File, hcl.Diagnostics) (hcl.Diagnostics, error) {
+func appendHandleDiagnosticsFunc(prev, next func(*File, hcl.Diagnostics) (hcl.Diagnostics, error)) func(*File, hcl.Diagnostics) (hcl.Diagnostics, error) { //nolint:lll
 	return func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
 		var err error
 

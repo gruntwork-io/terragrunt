@@ -1,3 +1,6 @@
+// Package graph provides the `graph` command for Terragrunt.
+// The `graph` command executes commands on the full graph of dependent modules
+// for the current module, ensuring correct execution order.
 package graph
 
 import (
@@ -17,9 +20,11 @@ import (
 )
 
 const (
+	// CommandName is the name of the graph command.
 	CommandName = "graph"
 )
 
+// NewFlags returns the flags for the graph command.
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	globalFlags := commands.NewGlobalFlags(opts)
 	globalFlags.Add(
@@ -28,13 +33,15 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.GraphRoot,
 			Usage:       "Root directory from where to build graph dependencies.",
 		})
+
 	return globalFlags
 }
 
+// NewCommand returns the graph command.
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:                   CommandName,
-		Usage:                  "Execute commands on the full graph of dependent modules for the current module, ensuring correct execution order.",
+		Usage:                  "Execute commands on the full graph of dependent modules for the current module, ensuring correct execution order.", //nolint:lll
 		DisallowUndefinedFlags: true,
 		Flags:                  NewFlags(opts).Sort(),
 		Subcommands:            subCommands(opts).SkipRunning(),
