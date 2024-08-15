@@ -71,6 +71,9 @@ linters:
     - gosec
     - gocyclo
     - exhaustruct
+    - godox
+    - tagliatelle
+    - varnamelen
   fast: false
   mnd:
     ignored-functions: strconv.Format*,os.*,strconv.Parse*,strings.SplitN,bytes.SplitN
