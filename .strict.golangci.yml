@@ -79,9 +79,9 @@ linters:
     - performance
     - unused
     - test
-    # NOTE: These two are only in the strict lint right now
-    # - style
-    # - complexity
+    # These two are only in the strict lint right now
+    - style
+    - complexity
 
 issues:
   exclude-dirs:

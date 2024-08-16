@@ -372,6 +372,19 @@ jobs:
       - store_test_results:
           path: logs
 
+  strict_lint:
+    resource_class: small
+    <<: *defaults
+    steps:
+      - checkout
+      # The `run-strict-lint` target requires the `master` ref for comparison.
+      - run: git fetch
+      - run:
+          name: Run strict lint
+          command: |
+            make install-lint
+            make run-strict-lint
+
   # Run TFLint tests separately as tflint during execution change working directory.
   integration_test_tflint:
     resource_class: large
@@ -560,6 +573,14 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
       - test_mocks:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+      - strict_lint:
           filters:
             tags:
               only: /^v.*/
