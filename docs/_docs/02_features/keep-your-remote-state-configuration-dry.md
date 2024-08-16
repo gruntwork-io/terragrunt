@@ -21,7 +21,7 @@ nav_title_link: /docs/
 
 ### Motivation
 
-Terraform supports [remote state storage](https://www.terraform.io/docs/state/remote.html) via a variety of [backends](https://www.terraform.io/docs/backends) that you normally configure in your `.tf` files as follows:
+OpenTofu/Terraform supports [remote state storage](https://www.terraform.io/docs/state/remote.html) via a variety of [backends](https://www.terraform.io/docs/backends) that you normally configure in your `.tf` files as follows:
 
 ``` hcl
 terraform {
@@ -35,7 +35,7 @@ terraform {
 }
 ```
 
-Unfortunately, the `backend` configuration does not support expressions, variables, or functions. This makes it hard to keep your code [DRY](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself) if you have multiple Terraform modules. For example, consider the following folder structure, which uses different Terraform modules to deploy a backend app, frontend app, MySQL database, and a VPC:
+Unfortunately, the `backend` configuration does not support expressions, variables, or functions. This makes it hard to keep your code [DRY](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself) if you have multiple OpenTofu/Terraform modules. For example, consider the following folder structure, which uses different OpenTofu/Terraform modules to deploy a backend app, frontend app, MySQL database, and a VPC:
 
 ```tree
 ├── backend-app
@@ -54,7 +54,7 @@ To keep your remote state configuration DRY, you can use Terragrunt.
 
 ### Filling in remote state settings with Terragrunt
 
-To fill in the settings via Terragrunt, create a `terragrunt.hcl` file in the root folder, plus one `terragrunt.hcl` file in each of the Terraform modules:
+To fill in the settings via Terragrunt, create a `terragrunt.hcl` file in the root folder, plus one `terragrunt.hcl` file in each of the OpenTofu/Terraform modules:
 
 ```tree
 ├── terragrunt.hcl
@@ -93,7 +93,7 @@ EOF
 ```
 
 This instructs Terragrunt to create the file `backend.tf` in the working directory (where Terragrunt calls `terraform`)
-before it calls any of the Terraform commands, including `init`. This allows you to inject this backend configuration
+before it calls any of the OpenTofu/Terraform commands, including `init`. This allows you to inject this backend configuration
 in all the modules that includes the root file and have `terragrunt` properly initialize the backend configuration with
 interpolated values.
 
@@ -106,7 +106,7 @@ include "root" {
 }
 ```
 
-The `include` block tells Terragrunt to use the exact same Terragrunt configuration from the `terragrunt.hcl` file specified via the `path` parameter. It behaves exactly as if you had copy/pasted the Terraform configuration from the included file `generate` configuration into `mysql/terragrunt.hcl`, but this approach is much easier to maintain\!
+The `include` block tells Terragrunt to use the exact same Terragrunt configuration from the `terragrunt.hcl` file specified via the `path` parameter. It behaves exactly as if you had copy/pasted the OpenTofu/Terraform configuration from the included file `generate` configuration into `mysql/terragrunt.hcl`, but this approach is much easier to maintain\!
 
 The next time you run `terragrunt`, it will automatically configure all the settings for the backend, if they aren’t configured already, by calling [terraform init](https://www.terraform.io/docs/commands/init.html).
 
@@ -114,7 +114,7 @@ The `terragrunt.hcl` files above use two Terragrunt built-in functions:
 
 - `find_in_parent_folders()`: This function returns the absolute path to the first `terragrunt.hcl` file it finds in the parent folders above the current `terragrunt.hcl` file. In the example above, the call to `find_in_parent_folders()` in `mysql/terragrunt.hcl` will return `/your-root-folder/terragrunt.hcl`. This way, you don’t have to hard code the `path` parameter in every module.
 
-- `path_relative_to_include()`: This function returns the relative path between the current `terragrunt.hcl` file and the path specified in its `include` block. We typically use this in a root `terragrunt.hcl` file so that each Terraform child module stores its Terraform state at a different `key`. For example, the `mysql` module will have its `key` parameter resolve to `mysql/terraform.tfstate` and the `frontend-app` module will have its `key` parameter resolve to `frontend-app/terraform.tfstate`.
+- `path_relative_to_include()`: This function returns the relative path between the current `terragrunt.hcl` file and the path specified in its `include` block. We typically use this in a root `terragrunt.hcl` file so that each OpenTofu/Terraform child module stores its OpenTofu/Terraform state at a different `key`. For example, the `mysql` module will have its `key` parameter resolve to `mysql/terraform.tfstate` and the `frontend-app` module will have its `key` parameter resolve to `frontend-app/terraform.tfstate`.
 
 See [the Built-in Functions docs]({{site.baseurl}}/docs/reference/built-in-functions/#built-in-functions) for more info.
 
@@ -122,11 +122,11 @@ See [the Built-in Functions docs]({{site.baseurl}}/docs/reference/built-in-funct
 
 The `generate` block is useful for allowing you to setup the remote state backend configuration in a DRY manner, but
 this introduces a bootstrapping problem: how do you create and manage the underlying storage resources for the remote
-state? For example, when using the [s3 backend](https://www.terraform.io/language/settings/backends/s3), Terraform
+state? For example, when using the [s3 backend](https://www.terraform.io/language/settings/backends/s3), OpenTofu/Terraform
 expects the S3 bucket to already exist for it to upload the state objects.
 
-Ideally you can manage the S3 bucket using Terraform, but what about the state object for the module managing the S3
-bucket? How do you create the S3 bucket, before you run `terraform`, if you need to run `terraform` to create the
+Ideally you can manage the S3 bucket using OpenTofu/Terraform, but what about the state object for the module managing the S3
+bucket? How do you create the S3 bucket, before you run `tofu`/`terraform`, if you need to run `tofu`/`terraform` to create the
 bucket?
 
 To handle this, Terragrunt supports a different block for managing the backend configuration: the [remote_state
@@ -134,7 +134,7 @@ block](https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-attribut
 
 > **NOTE**
 >
-> `remote_state` is an alternative way of managing the Terraform backend compared to `generate`. You can not use both
+> `remote_state` is an alternative way of managing the OpenTofu/Terraform backend compared to `generate`. You can not use both
 > methods at the same time to manage the remote state configuration. When implementing `remote_state`, be sure to remove
 > the corresponding `generate` block for managing the backend.
 
@@ -235,11 +235,11 @@ remote_state {
 
   config = {
     skip_bucket_versioning         = true # use only if the object store does not support versioning
-    skip_bucket_ssencryption       = true # use only if non-encrypted Terraform State is required and/or the object store does not support server-side encryption
+    skip_bucket_ssencryption       = true # use only if non-encrypted OpenTofu/Terraform State is required and/or the object store does not support server-side encryption
     skip_bucket_root_access        = true # use only if the AWS account root user should not have access to the remote state bucket for some reason
     skip_bucket_enforced_tls       = true # use only if you need to access the S3 bucket without TLS being enforced
     skip_credentials_validation    = true # skip validation of AWS credentials, useful when is used S3 compatible object store different from AWS
-    enable_lock_table_ssencryption = true # use only if non-encrypted DynamoDB Lock Table for the Terraform State is required and/or the NoSQL database service does not support server-side encryption
+    enable_lock_table_ssencryption = true # use only if non-encrypted DynamoDB Lock Table for the OpenTofu/Terraform State is required and/or the NoSQL database service does not support server-side encryption
     accesslogging_bucket_name      = <string> # use only if you need server access logging to be enabled for your terraform state S3 bucket. Provide a <string> value representing the name of the target bucket to be used for logs output.
     accesslogging_target_prefix    = <string> # use only if you want to set a specific prefix for your terraform state S3 bucket access logs when Server Access Logging is enabled. Provide a <string> value representing the TargetPrefix to be used for the logs output objects. If set to empty <string>, then TargetPrefix will be set to empty <string>. If attribute is not provided at all, then TargetPrefix will be set to default value `TFStateLogs/`.
 
@@ -250,7 +250,7 @@ remote_state {
 }
 ```
 
-If you experience an error for any of these configurations, confirm you are using Terraform v0.12.2 or greater.
+If you experience an error for any of these configurations, confirm you are using OpenTofu or Terraform v0.12.2 or greater.
 
 Further, the config options `s3_bucket_tags`, `dynamodb_table_tags`, `accesslogging_bucket_tags`, `skip_bucket_versioning`, `skip_bucket_ssencryption`, `skip_bucket_root_access`, `skip_bucket_enforced_tls`, `skip_bucket_public_access_blocking`, `accesslogging_bucket_name`, `accesslogging_target_prefix`, and `enable_lock_table_ssencryption` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
 

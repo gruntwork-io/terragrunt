@@ -1,11 +1,14 @@
-package remote
+package remote_test
 
 import (
 	"encoding/json"
 	"testing"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"errors"
+
+	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseTerraformStateLocal(t *testing.T) {
@@ -28,11 +31,11 @@ func TestParseTerraformStateLocal(t *testing.T) {
 	}
 	`
 
-	expectedTerraformState := &TerraformState{
+	expectedTerraformState := &remote.TerraformState{
 		Version: 1,
 		Serial:  0,
 		Backend: nil,
-		Modules: []TerraformStateModule{
+		Modules: []remote.TerraformStateModule{
 			{
 				Path:      []string{"root"},
 				Outputs:   map[string]interface{}{},
@@ -41,9 +44,9 @@ func TestParseTerraformStateLocal(t *testing.T) {
 		},
 	}
 
-	actualTerraformState, err := parseTerraformState([]byte(stateFile))
+	actualTerraformState, err := remote.ParseTerraformState([]byte(stateFile))
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedTerraformState, actualTerraformState)
 	assert.False(t, actualTerraformState.IsRemote())
 }
@@ -77,10 +80,10 @@ func TestParseTerraformStateRemote(t *testing.T) {
 	}
 	`
 
-	expectedTerraformState := &TerraformState{
+	expectedTerraformState := &remote.TerraformState{
 		Version: 5,
 		Serial:  12,
-		Backend: &TerraformBackend{
+		Backend: &remote.TerraformBackend{
 			Type: "s3",
 			Config: map[string]interface{}{
 				"bucket":  "bucket",
@@ -89,7 +92,7 @@ func TestParseTerraformStateRemote(t *testing.T) {
 				"region":  "us-east-1",
 			},
 		},
-		Modules: []TerraformStateModule{
+		Modules: []remote.TerraformStateModule{
 			{
 				Path:      []string{"root"},
 				Outputs:   map[string]interface{}{},
@@ -98,9 +101,9 @@ func TestParseTerraformStateRemote(t *testing.T) {
 		},
 	}
 
-	actualTerraformState, err := parseTerraformState([]byte(stateFile))
+	actualTerraformState, err := remote.ParseTerraformState([]byte(stateFile))
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedTerraformState, actualTerraformState)
 	assert.True(t, actualTerraformState.IsRemote())
 }
@@ -207,10 +210,10 @@ func TestParseTerraformStateRemoteFull(t *testing.T) {
 
 	`
 
-	expectedTerraformState := &TerraformState{
+	expectedTerraformState := &remote.TerraformState{
 		Version: 1,
 		Serial:  51,
-		Backend: &TerraformBackend{
+		Backend: &remote.TerraformBackend{
 			Type: "s3",
 			Config: map[string]interface{}{
 				"bucket":  "bucket",
@@ -219,7 +222,7 @@ func TestParseTerraformStateRemoteFull(t *testing.T) {
 				"region":  "us-east-1",
 			},
 		},
-		Modules: []TerraformStateModule{
+		Modules: []remote.TerraformStateModule{
 			{
 				Path: []string{"root"},
 				Outputs: map[string]interface{}{
@@ -285,9 +288,9 @@ func TestParseTerraformStateRemoteFull(t *testing.T) {
 		},
 	}
 
-	actualTerraformState, err := parseTerraformState([]byte(stateFile))
+	actualTerraformState, err := remote.ParseTerraformState([]byte(stateFile))
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedTerraformState, actualTerraformState)
 	assert.True(t, actualTerraformState.IsRemote())
 }
@@ -297,11 +300,11 @@ func TestParseTerraformStateEmpty(t *testing.T) {
 
 	stateFile := `{}`
 
-	expectedTerraformState := &TerraformState{}
+	expectedTerraformState := &remote.TerraformState{}
 
-	actualTerraformState, err := parseTerraformState([]byte(stateFile))
+	actualTerraformState, err := remote.ParseTerraformState([]byte(stateFile))
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedTerraformState, actualTerraformState)
 	assert.False(t, actualTerraformState.IsRemote())
 }
@@ -311,12 +314,12 @@ func TestParseTerraformStateInvalid(t *testing.T) {
 
 	stateFile := `not-valid-json`
 
-	actualTerraformState, err := parseTerraformState([]byte(stateFile))
+	actualTerraformState, err := remote.ParseTerraformState([]byte(stateFile))
 
 	assert.Nil(t, actualTerraformState)
-	assert.Error(t, err)
+	require.Error(t, err)
 
-	underlyingErr := errors.Unwrap(err)
-	_, isSyntaxErr := underlyingErr.(*json.SyntaxError)
-	assert.True(t, isSyntaxErr)
+	var jsonSyntaxError *json.SyntaxError
+	ok := errors.As(err, &jsonSyntaxError)
+	assert.True(t, ok)
 }

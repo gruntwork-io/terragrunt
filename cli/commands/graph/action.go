@@ -2,7 +2,7 @@ package graph
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 
@@ -23,7 +23,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	if cfg == nil {
-		return fmt.Errorf("Terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl.")
+		return errors.New("Terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl.")
 	}
 	// consider root for graph identification passed destroy-graph-root argument
 	rootDir := opts.GraphRoot
@@ -41,11 +41,11 @@ func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.Ter
 	rootOptions := opts.Clone(rootDir)
 	rootOptions.WorkingDir = rootDir
 
-	stack, err := configstack.FindStackInSubfolders(ctx, rootOptions, nil)
+	stack, err := configstack.FindStackInSubfolders(ctx, rootOptions)
 	if err != nil {
 		return err
 	}
-	dependentModules := configstack.ListStackDependentModules(stack)
+	dependentModules := stack.ListStackDependentModules()
 
 	workDir := opts.WorkingDir
 	modulesToInclude := dependentModules[workDir]

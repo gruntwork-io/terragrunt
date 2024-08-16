@@ -21,7 +21,7 @@ nav_title_link: /docs/
 
 ### Motivation
 
-As covered in [Keep your Terraform code DRY]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry) and [Keep your
+As covered in [Keep your OpenTofu/Terraform code DRY]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry) and [Keep your
 remote state configuration DRY]({{site.baseurl}}/docs/features/keep-your-remote-state-configuration-dry), it becomes
 important to define base Terragrunt configuration files that are included in the child config. For example, you might
 have a **root** Terragrunt configuration that defines the remote state and provider configurations:

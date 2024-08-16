@@ -1,6 +1,8 @@
 package commands
 
 import (
+	"errors"
+
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -27,6 +29,7 @@ const (
 	TerragruntIgnoreDependencyOrderFlagName          = "terragrunt-ignore-dependency-order"
 	TerragruntIgnoreExternalDependenciesFlagName     = "terragrunt-ignore-external-dependencies"
 	TerragruntIncludeExternalDependenciesFlagName    = "terragrunt-include-external-dependencies"
+	TerragruntExcludesFile                           = "terragrunt-excludes-file"
 	TerragruntExcludeDirFlagName                     = "terragrunt-exclude-dir"
 	TerragruntIncludeDirFlagName                     = "terragrunt-include-dir"
 	TerragruntStrictIncludeFlagName                  = "terragrunt-strict-include"
@@ -165,8 +168,8 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 		&cli.GenericFlag[string]{
 			Name:        TerragruntIAMWebIdentityTokenFlagName,
 			Destination: &opts.IAMRoleOptions.WebIdentityToken,
-			EnvVar:      "TERRRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN",
-			Usage:       "For AssumeRoleWithWebIdentity, the WebIdentity token. Can also be set via TERRRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN environment variable",
+			EnvVar:      "TERRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN",
+			Usage:       "For AssumeRoleWithWebIdentity, the WebIdentity token. Can also be set via TERRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN environment variable",
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntIgnoreDependencyErrorsFlagName,
@@ -194,6 +197,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.Parallelism,
 			EnvVar:      "TERRAGRUNT_PARALLELISM",
 			Usage:       "*-all commands parallelism set to at most N modules",
+		},
+		&cli.GenericFlag[string]{
+			Name:        TerragruntExcludesFile,
+			Destination: &opts.ExcludesFile,
+			EnvVar:      "TERRAGRUNT_EXCLUDES_FILE",
+			Usage:       "Path to a file with a list of directories that need to be excluded when running *-all commands.",
 		},
 		&cli.SliceFlag[string]{
 			Name:        TerragruntExcludeDirFlagName,
@@ -355,7 +364,8 @@ func NewHelpFlag(opts *options.TerragruntOptions) cli.Flag {
 				err := cli.ShowCommandHelp(ctx, cmdName)
 
 				// If the command name is not found, it is most likely a terraform command, show Terraform help.
-				if _, ok := err.(cli.InvalidCommandNameError); ok {
+				var invalidCommandNameError cli.InvalidCommandNameError
+				if ok := errors.As(err, &invalidCommandNameError); ok {
 					terraformHelpCmd := append([]string{cmdName, "-help"}, ctx.Args().Tail()...)
 					return shell.RunTerraformCommand(ctx, opts, terraformHelpCmd...)
 				}

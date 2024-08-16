@@ -1,22 +1,36 @@
 package hclparse
 
 import (
+	"io"
+
+	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/sirupsen/logrus"
 )
 
-type Option func(Parser) Parser
+type Option func(*Parser) *Parser
 
-func WithLogger(logger *logrus.Entry) Option {
-	return func(parser Parser) Parser {
-		parser.logger = logger
+func WithDiagnosticsWriter(writer io.Writer, disableColor bool) Option {
+	return func(parser *Parser) *Parser {
+		diagsWriter := util.GetDiagnosticsWriter(writer, parser.Parser, disableColor)
+
+		parser.diagsWriterFunc = func(diags hcl.Diagnostics) error {
+			if !diags.HasErrors() {
+				return nil
+			}
+
+			if err := diagsWriter.WriteDiagnostics(diags); err != nil {
+				return errors.WithStackTrace(err)
+			}
+			return nil
+		}
 		return parser
 	}
 }
 
 // WithFileUpdate sets the `fileUpdateHandlerFunc` func which is run before each file decoding.
 func WithFileUpdate(fn func(*File) error) Option {
-	return func(parser Parser) Parser {
+	return func(parser *Parser) *Parser {
 		parser.fileUpdateHandlerFunc = fn
 		return parser
 	}
@@ -25,10 +39,14 @@ func WithFileUpdate(fn func(*File) error) Option {
 // WithHaltOnErrorOnlyForBlocks configures a diagnostic error handler that runs when diagnostic errors occur.
 // If errors occur in the given `blockNames` blocks, parser returns the error to its caller, otherwise it skips the error.
 func WithHaltOnErrorOnlyForBlocks(blockNames []string) Option {
-	return func(parser Parser) Parser {
-		parser.diagnosticsErrorFunc = func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
-			for _, sectionName := range blockNames {
-				blocks, err := file.Blocks(sectionName, true)
+	return func(parser *Parser) *Parser {
+		parser.handleDiagnosticsFunc = appendHandleDiagnosticsFunc(parser.handleDiagnosticsFunc, func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
+			if file == nil || !diags.HasErrors() {
+				return diags, nil
+			}
+
+			for _, blockName := range blockNames {
+				blocks, err := file.Blocks(blockName, true)
 				if err != nil {
 					return nil, err
 				}
@@ -47,8 +65,30 @@ func WithHaltOnErrorOnlyForBlocks(blockNames []string) Option {
 			}
 
 			return nil, nil
+		})
+		return parser
+	}
+}
+
+func WithDiagnosticsHandler(fn func(file *hcl.File, diags hcl.Diagnostics) (hcl.Diagnostics, error)) Option {
+	return func(parser *Parser) *Parser {
+		parser.handleDiagnosticsFunc = appendHandleDiagnosticsFunc(parser.handleDiagnosticsFunc, func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
+			return fn(file.File, diags)
+		})
+		return parser
+	}
+}
+
+func appendHandleDiagnosticsFunc(prev, next func(*File, hcl.Diagnostics) (hcl.Diagnostics, error)) func(*File, hcl.Diagnostics) (hcl.Diagnostics, error) {
+	return func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
+		var err error
+
+		if prev != nil {
+			if diags, err = prev(file, diags); err != nil {
+				return diags, err
+			}
 		}
 
-		return parser
+		return next(file, diags)
 	}
 }

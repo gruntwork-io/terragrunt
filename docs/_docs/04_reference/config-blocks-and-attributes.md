@@ -11,7 +11,7 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-The Terragrunt configuration file uses the same HCL syntax as Terraform itself in `terragrunt.hcl`.
+The Terragrunt configuration file uses the same HCL syntax as OpenTofu/Terraform itself in `terragrunt.hcl`.
 Terragrunt also supports [JSON-serialized HCL](https://github.com/hashicorp/hcl/blob/hcl2/json/spec.md) in a `terragrunt.hcl.json` file:
 where `terragrunt.hcl` is mentioned you can always use `terragrunt.hcl.json` instead.
 
@@ -52,22 +52,23 @@ The following is a reference of all the supported blocks and attributes in the c
 - [dependency](#dependency)
 - [dependencies](#dependencies)
 - [generate](#generate)
+- [engine](#engine)
 
 ### terraform
 
-The `terraform` block is used to configure how Terragrunt will interact with Terraform. This includes specifying where
-to find the Terraform configuration files, any extra arguments to pass to the `terraform` CLI, and any hooks to run
-before or after calling Terraform.
+The `terraform` block is used to configure how Terragrunt will interact with OpenTofu/Terraform. This includes specifying where
+to find the OpenTofu/Terraform configuration files, any extra arguments to pass to the `tofu`/`terraform` binary, and any hooks to run
+before or after calling OpenTofu/Terraform.
 
 The `terraform` block supports the following arguments:
 
-- `source` (attribute): Specifies where to find Terraform configuration files. This parameter supports the exact same syntax as the
-  [module source](https://www.terraform.io/docs/modules/sources.html) parameter for Terraform `module` blocks **except
+- `source` (attribute): Specifies where to find OpenTofu/Terraform configuration files. This parameter supports the exact same syntax as the
+  [module source](https://opentofu.org/docs/language/modules/sources/) parameter for OpenTofu/Terraform `module` blocks **except
   for the Terraform registry** (see below note), including local file paths, Git URLs, and Git URLS with `ref`
   parameters. Terragrunt will download all the code in the repo (i.e. the part before the double-slash `//`) so that
   relative paths work correctly between modules in that repo.
 
-  - The `source` parameter can be configured to pull Terraform modules from any Terraform module registry using
+  - The `source` parameter can be configured to pull OpenTofu/Terraform modules from any Terraform module registry using
     the `tfr` protocol. The `tfr` protocol expects URLs to be provided in the format
     `tfr://REGISTRY_HOST/MODULE_SOURCE?version=VERSION`. For example, to pull the `terraform-aws-modules/vpc/aws`
     module from the public Terraform registry, you can use the following as the source parameter:
@@ -91,54 +92,54 @@ The `terraform` block supports the following arguments:
     information about using modules from the Terraform Registry with Terragrunt.
 
 - `include_in_copy` (attribute): A list of glob patterns (e.g., `["*.txt"]`) that should always be copied into the
-  Terraform working directory. When you use the `source` param in your Terragrunt config and run `terragrunt <command>`,
+  OpenTofu/Terraform working directory. When you use the `source` param in your Terragrunt config and run `terragrunt <command>`,
   Terragrunt will download the code specified at source into a scratch folder (`.terragrunt-cache`, by default), copy
-  the code in your current working directory into the same scratch folder, and then run `terraform <command>` in that
+  the code in your current working directory into the same scratch folder, and then run `tofu <command>` (or `terraform <command>`) in that
   scratch folder. By default, Terragrunt excludes hidden files and folders during the copy step. This feature allows you
   to specify glob patterns of files that should always be copied from the Terragrunt working directory. Additional
   notes:
 
   - The path should be specified relative to the source directory.
   - This list is also used when using a local file source (e.g., `source = "../modules/vpc"`). For example, if your
-    terraform module source contains a hidden file that you want to copy over (e.g., a `.python-version` file), you
+    OpenTofu/Terraform module source contains a hidden file that you want to copy over (e.g., a `.python-version` file), you
     can specify that in this list to ensure it gets copied over to the scratch copy
     (e.g., `include_in_copy = [".python-version"]`).
 
-- `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `terraform` CLI. Learn more
+- `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `tofu`/`terraform` binary. Learn more
   about its usage in the [Keep your CLI flags DRY]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/) use case overview. Supports
   the following arguments:
 
-  - `arguments` (required) : A list of CLI arguments to pass to `terraform`.
-  - `commands` (required) : A list of `terraform` sub commands that the arguments will be passed to.
-  - `env_vars` (optional) : A map of key value pairs to set as environment variables when calling `terraform`.
-  - `required_var_files` (optional): A list of file paths to terraform vars files (`.tfvars`) that will be passed in to
+  - `arguments` (required) : A list of CLI arguments to pass to `tofu`/`terraform`.
+  - `commands` (required) : A list of `tofu`/`terraform` sub commands that the arguments will be passed to.
+  - `env_vars` (optional) : A map of key value pairs to set as environment variables when calling `tofu`/`terraform`.
+  - `required_var_files` (optional): A list of file paths to OpenTofu/Terraform vars files (`.tfvars`) that will be passed in to
     `terraform` as `-var-file=<your file>`.
-  - `optional_var_files` (optional): A list of file paths to terraform vars files (`.tfvars`) that will be passed in to
-    `terraform` like `required_var_files`, only any files that do not exist are ignored.
+  - `optional_var_files` (optional): A list of file paths to OpenTofu/Terraform vars files (`.tfvars`) that will be passed in to
+    `tofu`/`terraform` like `required_var_files`, only any files that do not exist are ignored.
 
-- `before_hook` (block): Nested blocks used to specify command hooks that should be run before `terraform` is called.
-  Hooks run from the directory with the terraform module, except for hooks related to `terragrunt-read-config` and
+- `before_hook` (block): Nested blocks used to specify command hooks that should be run before `tofu`/`terraform` is called.
+  Hooks run from the directory with the OpenTofu/Terraform module, except for hooks related to `terragrunt-read-config` and
   `init-from-module`. These hooks run in the terragrunt configuration directory (the directory where `terragrunt.hcl`
   lives).
   Supports the following arguments:
 
-  - `commands` (required) : A list of `terraform` sub commands for which the hook should run before.
+  - `commands` (required) : A list of `tofu`/`terraform` sub commands for which the hook should run before.
   - `execute` (required) : A list of command and arguments that should be run as the hook. For example, if `execute` is set as
     `["echo", "Foo"]`, the command `echo Foo` will be run.
   - `working_dir` (optional) : The path to set as the working directory of the hook. Terragrunt will switch directory
     to this path prior to running the hook command. Defaults to the terragrunt configuration directory for
-    `terragrunt-read-config` and `init-from-module` hooks, and the terraform module directory for other command hooks.
+    `terragrunt-read-config` and `init-from-module` hooks, and the OpenTofu/Terraform module directory for other command hooks.
   - `run_on_error` (optional) : If set to true, this hook will run even if a previous hook hit an error, or in the
-    case of "after" hooks, if the Terraform command hit an error. Default is false.
-  - `suppress_stdout` (optional) : If set to true, the stdout output of the executed commands will be suppressed. This can be useful when there are scripts relying on terraform's output and any other output would break their parsing.
+    case of "after" hooks, if the OpenTofu/Terraform command hit an error. Default is false.
+  - `suppress_stdout` (optional) : If set to true, the stdout output of the executed commands will be suppressed. This can be useful when there are scripts relying on OpenTofu/Terraform's output and any other output would break their parsing.
 
-- `after_hook` (block): Nested blocks used to specify command hooks that should be run after `terraform` is called.
+- `after_hook` (block): Nested blocks used to specify command hooks that should be run after `tofu`/`terraform` is called.
   Hooks run from the terragrunt configuration directory (the directory where `terragrunt.hcl` lives). Supports the same
   arguments as `before_hook`.
 - `error_hook` (block): Nested blocks used to specify command hooks that run when an error is thrown. The
   error must match one of the expressions listed in the `on_errors` attribute. Error hooks are executed after the before/after hooks.
 
-In addition to supporting before and after hooks for all terraform commands, the following specialized hooks are also
+In addition to supporting before and after hooks for all OpenTofu/Terraform commands, the following specialized hooks are also
 supported:
 
 - `terragrunt-read-config` (after hook only): `terragrunt-read-config` is a special hook command that you can use with
@@ -152,25 +153,25 @@ supported:
   is [Auto-Init](https://terragrunt.gruntwork.io/docs/features/auto-init/), which configures the backend and downloads
   provider plugins and modules. If you wish to run a hook when Terragrunt is using `go-getter` to download remote
   configurations, use `init-from-module` for the command. If you wish to execute a hook when Terragrunt is using
-  terraform `init` for Auto-Init, use `init` for the command. For example, an `after_hook` for the command
+  `tofu init`/`terraform init` for Auto-Init, use `init` for the command. For example, an `after_hook` for the command
   `init-from-module` will run after terragrunt clones the module, while an `after_hook` for the command `init` will run
-  after terragrunt runs `terraform init` on the cloned module.
+  after terragrunt runs `tofu init`/`terraform init` on the cloned module.
   - Hooks for both `init-from-module` and `init` only run if the requisite stage needs to run. That is, if terragrunt
     detects that the module is already cloned in the terragrunt cache, this stage will be skipped and thus the hooks
     will not run. Similarly, if terragrunt detects that it does not need to run `init` in the auto init feature, the
     `init` stage is skipped along with the related hooks.
   - The working directory for hooks associated with `init-from-module` will run in the terragrunt config directory,
-    while the working directory for hooks associated with `init` will be the terraform module.
+    while the working directory for hooks associated with `init` will be the OpenTofu/Terraform module.
 
 Complete Example:
 
 ```hcl
 terraform {
-  # Pull the terraform configuration at the github repo "acme/infrastructure-modules", under the subdirectory
+  # Pull the OpenTofu/Terraform configuration at the github repo "acme/infrastructure-modules", under the subdirectory
   # "networking/vpc", using the git tag "v0.0.1".
   source = "git::git@github.com:acme/infrastructure-modules.git//networking/vpc?ref=v0.0.1"
 
-  # For any terraform commands that use locking, make sure to configure a lock timeout of 20 minutes.
+  # For any OpenTofu/Terraform commands that use locking, make sure to configure a lock timeout of 20 minutes.
   extra_arguments "retry_lock" {
     commands  = get_terraform_commands_that_need_locking()
     arguments = ["-lock-timeout=20m"]
@@ -253,7 +254,7 @@ Local File Path Example with allowed hidden files:
 
 ```hcl
 terraform {
-  # Pull the terraform configuration from the local file system. Terragrunt will make a copy of the source folder in the
+  # Pull the OpenTofu/Terraform configuration from the local file system. Terragrunt will make a copy of the source folder in the
   # Terragrunt working directory (typically `.terragrunt-cache`).
   source = "../modules/networking/vpc"
 
@@ -268,34 +269,34 @@ terraform {
 #### A note about using modules from the registry
 
 The key design of Terragrunt is to act as a preprocessor to convert **shared service modules** in the registry into a **root
-module**. In Terraform, modules can be loosely categorized into two types:
+module**. In OpenTofu/Terraform, modules can be loosely categorized into two types:
 
-- **Root Module**: A Terraform module that is designed for running `terraform init` and the other workflow commands
+- **Root Module**: An OpenTofu/Terraform module that is designed for running `tofu init`/`terraform init` and the other workflow commands
   (`apply`, `plan`, etc). This is the entrypoint module for deploying your infrastructure. Root modules are identified
-  by the presence of key blocks that setup configuration about how Terraform behaves, like `backend` blocks (for
-  configuring state) and `provider` blocks (for configuring how Terraform interacts with the cloud APIs).
-- **Shared Module**: A Terraform module that is designed to be included in other Terraform modules through `module`
+  by the presence of key blocks that setup configuration about how OpenTofu/Terraform behaves, like `backend` blocks (for
+  configuring state) and `provider` blocks (for configuring how OpenTofu/Terraform interacts with the cloud APIs).
+- **Shared Module**: A OpenTofu/Terraform module that is designed to be included in other OpenTofu/Terraform modules through `module`
   blocks. These modules are missing many of the key blocks that are required for running the workflow commands of
-  terraform.
+  OpenTofu/Terraform.
 
 Terragrunt further distinguishes shared modules between **service modules** and **modules**:
 
-- **Shared Service Module**: A Terraform module that is designed to be standalone and applied directly. These modules
+- **Shared Service Module**: An OpenTofu/Terraform module that is designed to be standalone and applied directly. These modules
   are not root modules in that they are still missing the key blocks like `backend` and `provider`, but aside from that
   do not need any additional configuration or composition to deploy. For example, the
   [terraform-aws-modules/vpc](https://registry.terraform.io/modules/terraform-aws-modules/vpc/aws/latest) module can be
   deployed by itself without composing with other modules or resources.
-- **Shared Module**: A Terraform module that is designed to be composed with other modules. That is, these modules must
-  be embedded in another Terraform module and combined with other resources or modules. For example, the
+- **Shared Module**: An OpenTofu/Terraform module that is designed to be composed with other modules. That is, these modules must
+  be embedded in another OpenTofu/Terraform module and combined with other resources or modules. For example, the
   [consul-security-group-rules
   module](https://registry.terraform.io/modules/hashicorp/consul/aws/latest/submodules/consul-security-group-rules)
 
 Terragrunt started off with features that help directly deploy **Root Modules**, but over the years have implemented
 many features that allow you to turn **Shared Service Modules** into **Root Modules** by injecting the key configuration
-blocks that are necessary for Terraform modules to act as **Root Modules**.
+blocks that are necessary for OpenTofu/Terraform modules to act as **Root Modules**.
 
 Modules on the Terraform Registry are primarily designed to be used as **Shared Modules**. That is, you won't be able to
-`git clone` the underlying repository and run `terraform init` or `apply` directly on the module without modification.
+`git clone` the underlying repository and run `tofu init`/`terraform init` or `apply` directly on the module without modification.
 Unless otherwise specified, almost all the modules will require composition with other modules/resources to deploy.
 When using modules in the registry, it helps to think about what blocks and resources are necessary to operate the
 module, and translating those into Terragrunt blocks that generate them.
@@ -304,7 +305,7 @@ Note that in many cases, Terragrunt may not be able to deploy modules from the r
 to turn any **Shared Module** into a **Root Module**, there are two key technical limitations that prevent Terragrunt
 from converting ALL shared modules:
 
-- Every complex input must have a `type` associated with it. Otherwise, Terraform will interpret the input that
+- Every complex input must have a `type` associated with it. Otherwise, OpenTofu/Terraform will interpret the input that
   Terragrunt passes through as `string`. This includes `list` and `map`.
 - Derived sensitive outputs must be marked as `sensitive`. Refer to the [terraform tutorial on sensitive
   variables](https://learn.hashicorp.com/tutorials/terraform/sensitive-variables#reference-sensitive-variables) for more
@@ -319,13 +320,13 @@ instead of the module repository.**
 ### remote_state
 
 The `remote_state` block is used to configure how Terragrunt will set up the remote state configuration of your
-Terraform code. You can read more about Terragrunt's remote state functionality in [Keep your remote state configuration
+OpenTofu/Terraform code. You can read more about Terragrunt's remote state functionality in [Keep your remote state configuration
 DRY](/docs/features/keep-your-remote-state-configuration-dry/) use case overview.
 
 The `remote_state` block supports the following arguments:
 
 - `backend` (attribute): Specifies which remote state backend will be configured. This should be one of the
-  [backend types](https://www.terraform.io/docs/backends/types/index.html) that Terraform supports.
+  [available backends](https://opentofu.org/docs/language/settings/backends/configuration/#available-backends) that Opentofu/Terraform supports.
 
 - `disable_init` (attribute): When `true`, skip automatic initialization of the backend by Terragrunt. Some backends
   have support in Terragrunt to be automatically created if the storage does not exist. Currently `s3` and `gcs` are the
@@ -338,13 +339,13 @@ The `remote_state` block supports the following arguments:
   backend. This is a map that expects two properties:
 
   - `path`: The path where the generated file should be written. If a relative path, it'll be relative to the Terragrunt
-    working dir (where the terraform code lives).
+    working dir (where the OpenTofu/Terraform code lives).
   - `if_exists` (attribute): What to do if a file already exists at `path`. Valid values are: `overwrite` (overwrite the
     existing file), `overwrite_terragrunt` (overwrite the existing file if it was generated by terragrunt; otherwise,
     error) `skip` (skip code generation and leave the existing file as-is), `error` (exit with an error).
 
-- `config` (attribute): An arbitrary map that is used to fill in the backend configuration in Terraform. All the
-  properties will automatically be included in the Terraform backend block (with a few exceptions: see below). For
+- `config` (attribute): An arbitrary map that is used to fill in the backend configuration in OpenTofu/Terraform. All the
+  properties will automatically be included in the OpenTofu/Terraform backend block (with a few exceptions: see below). For
   example, if you had the following `remote_state` block:
 
   ```hcl
@@ -358,7 +359,7 @@ The `remote_state` block supports the following arguments:
   }
   ```
 
-  This is equivalent to the following `terraform` code:
+  This is equivalent to the following OpenTofu/Terraform code:
 
   ```hcl
   terraform {
@@ -423,11 +424,16 @@ For the `s3` backend, the following additional properties are supported in the `
 - `accesslogging_bucket_tags`: A map of key value pairs to associate as tags on the created S3 bucket to store de access logs.
 - `disable_aws_client_checksums`: When `true`, disable computing and checking checksums on the request and response,
   such as the CRC32 check for DynamoDB. See [#1059](https://github.com/gruntwork-io/terragrunt/issues/1059) for issue where this is a useful workaround.
-- `accesslogging_bucket_name`: (Optional) When provided as a valid `string`, create an S3 bucket with this name to store the access logs for the S3 bucket used to store Terraform state. If not provided, or string is empty or invalid S3 bucket name, then server access logging for the S3 bucket storing the terraform state will be disabled. **Note:** When access logging is enabled supported encryption for state bucket is only `AES256`. Reference: [S3 server access logging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html)
-- `accesslogging_target_prefix`: (Optional) When provided as a valid `string`, set the `TargetPrefix` for the access log objects in the S3 bucket used to store Terraform state. If set to **empty**`string`, then `TargetPrefix` will be set to **empty** `string`. If attribute is not provided at all, then `TargetPrefix` will be set to **default** value `TFStateLogs/`. This attribute won't take effect if the `accesslogging_bucket_name` attribute is not present.
+- `accesslogging_bucket_name`: (Optional) When provided as a valid `string`, create an S3 bucket with this name to store the access logs for the S3 bucket used to store OpenTofu/Terraform state. If not provided, or string is empty or invalid S3 bucket name, then server access logging for the S3 bucket storing the Opentofu/Terraform state will be disabled. **Note:** When access logging is enabled supported encryption for state bucket is only `AES256`. Reference: [S3 server access logging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html)
+- `accesslogging_target_object_partition_date_source`: (Optional) When provided as a valid `string`, it configures the `PartitionDateSource` option. This option is part of the `TargetObjectKeyFormat` and `PartitionedPrefix` AWS configurations, allowing you to configure the log object key format for the access log files. Reference: [Logging requests with server access logging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/ServerLogs.html).
+- `accesslogging_target_prefix`: (Optional) When provided as a valid `string`, set the `TargetPrefix` for the access log objects in the S3 bucket used to store Opentofu/Terraform state. If set to **empty**`string`, then `TargetPrefix` will be set to **empty** `string`. If attribute is not provided at all, then `TargetPrefix` will be set to **default** value `TFStateLogs/`. This attribute won't take effect if the `accesslogging_bucket_name` attribute is not present.
+- `skip_accesslogging_bucket_acl`: When set to `true`, the S3 bucket where access logs are stored will not be configured with bucket ACL.
+- `skip_accesslogging_bucket_enforced_tls`: When set to `true`, the S3 bucket where access logs are stored will not be configured with a bucket policy that enforces access to the bucket via a TLS connection.
+- `skip_accesslogging_bucket_public_access_blocking`: When set to `true`, the S3 bucket where access logs are stored will not have public access blocking enabled.
+- `skip_accesslogging_bucket_ssencryption`: When set to `true`, the S3 bucket where access logs are stored will not be configured with server-side encryption.
 - `bucket_sse_algorithm`: (Optional) The algorithm to use for server side encryption of the state bucket. Defaults to `aws:kms`.
 - `bucket_sse_kms_key_id`: (Optional) The KMS Key to use when the encryption algorithm is `aws:kms`. Defaults to the AWS Managed `aws/s3` key.
-- `assume_role`: (Optional) A configuration `map` to use when assuming a role (starting with Terraform 1.6). Override top level arguments
+- `assume_role`: (Optional) A configuration `map` to use when assuming a role (starting with Terraform 1.6 for Terraform). Override top level arguments
   - `role_arn` - (Optional) The role to be assumed.
   - `external_id` - (Optional) The external ID to use when assuming the role.
   - `session_name` - (Optional) The session name to use when assuming the role.
@@ -446,7 +452,7 @@ For the `gcs` backend, the following additional properties are supported in the 
   Example with S3:
 
 ```hcl
-# Configure terraform state to be stored in S3, in the bucket "my-terraform-state" in us-east-1 under a key that is
+# Configure OpenTofu/Terraform state to be stored in S3, in the bucket "my-tofu-state" in us-east-1 under a key that is
 # relative to included terragrunt config. For example, if you had the following folder structure:
 #
 # .
@@ -456,16 +462,16 @@ For the `gcs` backend, the following additional properties are supported in the 
 #     └── terragrunt.hcl
 #
 # And the following is defined in the root terragrunt.hcl config that is included in the child, the state file for the
-# child module will be stored at the key "child/terraform.tfstate".
+# child module will be stored at the key "child/tofu.tfstate".
 #
 # Note that since we are not using any of the skip args, this will automatically create the S3 bucket
-# "my-terraform-state" and DynamoDB table "my-lock-table" if it does not already exist.
+# "my-tofu-state" and DynamoDB table "my-lock-table" if it does not already exist.
 # terragrunt.hcl
 remote_state {
   backend = "s3"
   config = {
-    bucket         = "my-terraform-state"
-    key            = "${path_relative_to_include()}/terraform.tfstate"
+    bucket         = "my-tofu-state"
+    key            = "${path_relative_to_include()}/tofu.tfstate"
     region         = "us-east-1"
     encrypt        = true
     dynamodb_table = "my-lock-table"
@@ -486,9 +492,9 @@ terraform {
 Example with GCS:
 
 ```hcl
-# Configure terraform state to be stored in GCS, in the bucket "my-terraform-state" in the "my-terraform" GCP project in
+# Configure OpenTofu/Terraform state to be stored in GCS, in the bucket "my-tofu-state" in the "my-tofu" GCP project in
 # the eu region under a key that is relative to included terragrunt config. This will also apply the labels
-# "owner=terragrunt_test" and "name=terraform_state_storage" to the bucket if it is created by Terragrunt.
+# "owner=terragrunt_test" and "name=tofu_state_storage" to the bucket if it is created by Terragrunt.
 #
 # For example, if you had the following folder structure:
 #
@@ -499,24 +505,24 @@ Example with GCS:
 #     └── terragrunt.hcl
 #
 # And the following is defined in the root terragrunt.hcl config that is included in the child, the state file for the
-# child module will be stored at the key "child/terraform.tfstate".
+# child module will be stored at the key "child/tofu.tfstate".
 #
 # Note that since we are not using any of the skip args, this will automatically create the GCS bucket
-# "my-terraform-state" if it does not already exist.
+# "my-tofu-state" if it does not already exist.
 
 # terragrunt.hcl
 remote_state {
   backend = "gcs"
 
   config = {
-    project  = "my-terraform"
+    project  = "my-tofu"
     location = "eu"
-    bucket   = "my-terraform-state"
-    prefix   = "${path_relative_to_include()}/terraform.tfstate"
+    bucket   = "my-tofu-state"
+    prefix   = "${path_relative_to_include()}/tofu.tfstate"
 
     gcs_bucket_labels = {
       owner = "terragrunt_test"
-      name  = "terraform_state_storage"
+      name  = "tofu_state_storage"
     }
   }
 }
@@ -584,8 +590,8 @@ Examples:
 remote_state {
   backend = "s3"
   config = {
-    bucket         = "my-terraform-state"
-    key            = "${path_relative_to_include()}/terraform.tfstate"
+    bucket         = "my-tofu-state"
+    key            = "${path_relative_to_include()}/tofu.tfstate"
     region         = "us-east-1"
     encrypt        = true
     dynamodb_table = "my-lock-table"
@@ -625,8 +631,8 @@ terraform {
 remote_state {
   backend = "s3"
   config = {
-    bucket         = "my-terraform-state"
-    key            = "${path_relative_to_include()}/terraform.tfstate"
+    bucket         = "my-tofu-state"
+    key            = "${path_relative_to_include()}/tofu.tfstate"
     region         = "us-east-1"
     encrypt        = true
     dynamodb_table = "my-lock-table"
@@ -822,7 +828,7 @@ remote_state {
   config = {
     encrypt = true
     bucket = "__FILL_IN_BUCKET_NAME__"
-    key = "${path_relative_to_include()}/terraform.tfstate"
+    key = "${path_relative_to_include()}/tofu.tfstate"
     region = "us-west-2"
   }
 }
@@ -963,7 +969,7 @@ The `dependency` block is used to configure module dependencies. Each dependency
 module as block attributes you can reference throughout the configuration. You can learn more about `dependency` blocks
 in the [Dependencies between modules
 section](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/#dependencies-between-modules) of the
-"Execute Terraform commands on multiple modules at once" use case overview.
+"Execute Opentofu/Terraform commands on multiple modules at once" use case overview.
 
 You can define more than one `dependency` block. Each label you provide to the block identifies another `dependency`
 that you can reference in your config.
@@ -1044,7 +1050,7 @@ but the outputs for `account` and `vpc` will be fetched serially as terragrunt n
 tree to retrieve the outputs at each level.
 
 This recursive parsing happens due to the necessity to parse the entire `terragrunt.hcl` configuration (including
-`dependency` blocks) in full before being able to call `terraform output`.
+`dependency` blocks) in full before being able to call `tofu output`/`terraform output`.
 
 However, terragrunt includes an optimization to only fetch the lowest level outputs (`securitygroup` and `ecr` in this
 example) provided that the following conditions are met in the immediate dependencies:
@@ -1052,7 +1058,7 @@ example) provided that the following conditions are met in the immediate depende
 - The remote state is managed using `remote_state` blocks.
 - The dependency optimization feature flag is enabled (`disable_dependency_optimization = false`, which is the default).
 - The `remote_state` block itself does not depend on any `dependency` outputs (`locals` and `include` are ok).
-- You are not relying on `before_hook`, `after_hook`, or `extra_arguments` to the `terraform init` call. NOTE:
+- You are not relying on `before_hook`, `after_hook`, or `extra_arguments` to the `tofu init`/`terraform init` call. NOTE:
   terragrunt will not automatically detect this and you will need to explicitly opt out of the dependency optimization
   flag.
 
@@ -1063,7 +1069,7 @@ state for the target module without parsing the `dependency` blocks, avoiding th
 
 The `dependencies` block is used to enumerate all the Terragrunt modules that need to be applied in order for this
 module to be able to apply. Note that this is purely for ordering the operations when using `run-all` commands of
-Terraform. This does not expose or pull in the outputs like `dependency` blocks.
+OpenTofu/Terraform. This does not expose or pull in the outputs like `dependency` blocks.
 
 The `dependencies` block supports the following arguments:
 
@@ -1081,8 +1087,8 @@ dependencies {
 
 ### generate
 
-The `generate` block can be used to arbitrarily generate a file in the terragrunt working directory (where `terraform`
-is called). This can be used to generate common terraform configurations that are shared across multiple terraform
+The `generate` block can be used to arbitrarily generate a file in the terragrunt working directory (where `tofu`/`terraform`
+is called). This can be used to generate common OpenTofu/Terraform configurations that are shared across multiple OpenTofu/Terraform
 modules. For example, you can use `generate` to generate the provider blocks in a consistent fashion by defining a
 `generate` block in the parent terragrunt config.
 
@@ -1091,7 +1097,7 @@ The `generate` block supports the following arguments:
 - `name` (label): You can define multiple `generate` blocks in a single terragrunt config. As such, each block needs a
   name to differentiate between the other blocks.
 - `path` (attribute): The path where the generated file should be written. If a relative path, it'll be relative to the
-  Terragrunt working dir (where the terraform code lives).
+  Terragrunt working dir (where the OpenTofu/Terraform code lives).
 - `if_exists` (attribute): What to do if a file already exists at `path`. Valid values are: `overwrite` (overwrite the
   existing file), `overwrite_terragrunt` (overwrite the existing file if it was generated by terragrunt; otherwise,
   error) `skip` (skip code generation and leave the existing file as-is), `error` (exit with an error).
@@ -1108,7 +1114,7 @@ Example:
 
 ```hcl
 # When using this terragrunt config, terragrunt will generate the file "provider.tf" with the aws provider block before
-# calling to terraform. Note that this will overwrite the `provider.tf` file if it already exists.
+# calling to OpenTofu/Terraform. Note that this will overwrite the `provider.tf` file if it already exists.
 generate "provider" {
   path      = "provider.tf"
   if_exists = "overwrite"
@@ -1151,6 +1157,11 @@ locals {
 generate = local.common.generate
 ```
 
+### engine
+
+The `engine` block is used to configure experimental Terragrunt engine configuration.
+More details in [engine section](https://terragrunt.gruntwork.io/docs/features/engine/).
+
 ## Attributes
 
 - [Blocks](#blocks)
@@ -1181,15 +1192,15 @@ generate = local.common.generate
 
 ### inputs
 
-The `inputs` attribute is a map that is used to specify the input variables and their values to pass in to Terraform.
-Each entry of the map will be passed to Terraform using [the environment variable
-mechanism](https://www.terraform.io/docs/configuration/variables.html#environment-variables). This means that each input
+The `inputs` attribute is a map that is used to specify the input variables and their values to pass in to OpenTofu/Terraform.
+Each entry of the map will be passed to OpenTofu/Terraform using [the environment variable
+mechanism](https://opentofu.org/docs/language/values/variables/#environment-variables). This means that each input
 will be set using the form `TF_VAR_variablename`, with the value in `json` encoded format.
 
 Note that because the values are being passed in with environment variables and `json`, the type information is lost
-when crossing the boundary between Terragrunt and Terraform. You must specify the proper [type
-constraint](https://www.terraform.io/docs/configuration/variables.html#type-constraints) on the variable in Terraform in
-order for Terraform to process the inputs to the right type.
+when crossing the boundary between Terragrunt and OpenTofu/Terraform. You must specify the proper [type
+constraint](https://opentofu.org/docs/language/values/variables/#type-constraints) on the variable in OpenTofu/Terraform in
+order for OpenTofu/Terraform to process the inputs to the right type.
 
 Example:
 
@@ -1243,7 +1254,7 @@ It supports all terragrunt functions, i.e. `path_relative_from_include()`.
 
 ### prevent_destroy
 
-Terragrunt `prevent_destroy` boolean flag allows you to protect selected Terraform module. It will prevent `destroy` or
+Terragrunt `prevent_destroy` boolean flag allows you to protect selected OpenTofu/Terraform module. It will prevent `destroy` or
 `destroy-all` command to actually destroy resources of the protected module. This is useful for modules you want to
 carefully protect, such as a database, or a module that provides auth.
 
@@ -1276,7 +1287,7 @@ root
     └── terragrunt.hcl
 ```
 
-In some cases, the root level `terragrunt.hcl` file is solely used to DRY up your Terraform configuration by being
+In some cases, the root level `terragrunt.hcl` file is solely used to DRY up your OpenTofu/Terraform configuration by being
 included in the other `terragrunt.hcl` files. In this case, you do not want the `run-all` commands to process the root
 level `terragrunt.hcl` since it does not define any infrastructure by itself. To make the `run-all` commands skip the
 root level `terragrunt.hcl` file, you can set `skip = true`:
@@ -1290,7 +1301,7 @@ explicitly redefined in the current's module `terragrunt.hcl` file.
 
 ### iam_role
 
-The `iam_role` attribute can be used to specify an IAM role that Terragrunt should assume prior to invoking Terraform.
+The `iam_role` attribute can be used to specify an IAM role that Terragrunt should assume prior to invoking OpenTofu/Terraform.
 
 The precedence is as follows: `--terragrunt-iam-role` command line option → `TERRAGRUNT_IAM_ROLE` env variable →
 `iam_role` attribute of the `terragrunt.hcl` file in the module directory → `iam_role` attribute of the included
@@ -1309,7 +1320,7 @@ iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 
 ### iam_assume_role_duration
 
-The `iam_assume_role_duration` attribute can be used to specify the STS session duration, in seconds, for the IAM role that Terragrunt should assume prior to invoking Terraform.
+The `iam_assume_role_duration` attribute can be used to specify the STS session duration, in seconds, for the IAM role that Terragrunt should assume prior to invoking OpenTofu/Terraform.
 
 The precedence is as follows: `--terragrunt-iam-assume-role-duration` command line option → `TERRAGRUNT_IAM_ASSUME_ROLE_DURATION` env variable →
 `iam_assume_role_duration` attribute of the `terragrunt.hcl` file in the module directory → `iam_assume_role_duration` attribute of the included
@@ -1323,7 +1334,7 @@ iam_assume_role_duration = 14400
 
 ### iam_assume_role_session_name
 
-The `iam_assume_role_session_name` attribute can be used to specify the STS session name, for the IAM role that Terragrunt should assume prior to invoking Terraform.
+The `iam_assume_role_session_name` attribute can be used to specify the STS session name, for the IAM role that Terragrunt should assume prior to invoking OpenTofu/Terraform.
 
 The precedence is as follows: `--terragrunt-iam-assume-role-session-name` command line option → `TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME` env variable →
 `iam_assume_role_session_name` attribute of the `terragrunt.hcl` file in the module directory → `iam_assume_role_session_name` attribute of the included
@@ -1333,7 +1344,7 @@ The precedence is as follows: `--terragrunt-iam-assume-role-session-name` comman
 
 The `iam_web_identity_token` attribute can be used along with `iam_role` to assume a role using AssumeRoleWithWebIdentity. `iam_web_identity_token` can be set to either the token value (typically using `get_env()`), or the path to a file on disk.
 
-The precedence is as follows: `--terragrunt-iam-web-identity-token` command line option → `TERRRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN` env variable →
+The precedence is as follows: `--terragrunt-iam-web-identity-token` command line option → `TERRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN` env variable →
 `iam_web_identity_token` attribute of the `terragrunt.hcl` file in the module directory → `iam_web_identity_token` attribute of the included
 `terragrunt.hcl`.
 
@@ -1372,7 +1383,7 @@ iam_web_identity_token = "/path/to/token/file"
 
 ### terraform_binary
 
-The terragrunt `terraform_binary` string option can be used to override the default terraform binary path (which is
+The terragrunt `terraform_binary` string option can be used to override the default binary Terragrunt calls (which is
 `tofu`).
 
 The precedence is as follows: `--terragrunt-tfpath` command line option → `TERRAGRUNT_TFPATH` env variable →
@@ -1380,8 +1391,8 @@ The precedence is as follows: `--terragrunt-tfpath` command line option → `TER
 
 ### terraform_version_constraint
 
-The terragrunt `terraform_version_constraint` string overrides the default minimum supported version of terraform.
-Terragrunt only officially supports the latest version of terraform, however in some cases an old terraform is needed.
+The terragrunt `terraform_version_constraint` string overrides the default minimum supported version of OpenTofu/Terraform.
+Terragrunt usually only officially supports the latest version of OpenTofu/Terraform, however in some cases an old version of OpenTofu/Terraform is needed.
 
 Example:
 

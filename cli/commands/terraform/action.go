@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds"
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/amazonsts"
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/gruntwork-io/terragrunt/terraform"
@@ -84,11 +86,17 @@ func RunWithTarget(ctx context.Context, opts *options.TerragruntOptions, target 
 }
 
 func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOptions, target *Target) error {
+	// We need to get the credentials from auth-provider-cmd at the very beginning, since the locals block may contain `get_aws_account_id()` func.
+	credsGetter := creds.NewGetter()
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, terragruntOptions, externalcmd.NewProvider(terragruntOptions)); err != nil {
+		return err
+	}
+
 	if err := checkVersionConstraints(ctx, terragruntOptions); err != nil {
 		return target.runErrorCallback(terragruntOptions, nil, err)
 	}
 
-	terragruntConfig, err := config.ReadTerragruntConfig(terragruntOptions)
+	terragruntConfig, err := config.ReadTerragruntConfig(ctx, terragruntOptions, config.DefaultParserOptions(terragruntOptions))
 	if err != nil {
 		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
 	}
@@ -96,6 +104,13 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 	if target.isPoint(TargetPointParseConfig) {
 		return target.runCallback(ctx, terragruntOptions, terragruntConfig)
 	}
+
+	// fetch engine options from the config
+	engine, err := terragruntConfig.EngineOptions()
+	if err != nil {
+		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
+	}
+	terragruntOptions.Engine = engine
 
 	terragruntOptionsClone := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
@@ -119,7 +134,7 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 		terragruntOptions.OriginalIAMRoleOptions,
 	)
 
-	if err := creds.ObtainCredentialsAndUpdateEnvIfNecessary(ctx, terragruntOptions); err != nil {
+	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, terragruntOptions, amazonsts.NewProvider(terragruntOptions)); err != nil {
 		return err
 	}
 
@@ -197,7 +212,7 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 		}
 	}
 
-	if err := checkFolderContainsTerraformCode(updatedTerragruntOptions); err != nil {
+	if err := CheckFolderContainsTerraformCode(updatedTerragruntOptions); err != nil {
 		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
 	}
 
@@ -246,14 +261,14 @@ func generateConfig(terragruntConfig *config.TerragruntConfig, updatedTerragrunt
 func runTerragruntWithConfig(ctx context.Context, originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, target *Target) error {
 	// Add extra_arguments to the command
 	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExtraArgs != nil && len(terragruntConfig.Terraform.ExtraArgs) > 0 {
-		args := filterTerraformExtraArgs(terragruntOptions, terragruntConfig)
+		args := FilterTerraformExtraArgs(terragruntOptions, terragruntConfig)
 		terragruntOptions.InsertTerraformCliArgs(args...)
 		for k, v := range filterTerraformEnvVarsFromExtraArgs(terragruntOptions, terragruntConfig) {
 			terragruntOptions.Env[k] = v
 		}
 	}
 
-	if err := setTerragruntInputsAsEnvVars(terragruntOptions, terragruntConfig); err != nil {
+	if err := SetTerragruntInputsAsEnvVars(terragruntOptions, terragruntConfig); err != nil {
 		return err
 	}
 
@@ -289,7 +304,7 @@ func runTerragruntWithConfig(ctx context.Context, originalTerragruntOptions *opt
 	}
 
 	return runActionWithHooks(ctx, "terraform", terragruntOptions, terragruntConfig, func(ctx context.Context) error {
-		runTerraformError := runTerraformWithRetry(ctx, terragruntOptions)
+		runTerraformError := RunTerraformWithRetry(ctx, terragruntOptions)
 
 		var lockFileError error
 		if shouldCopyLockFile(terragruntOptions.TerraformCliArgs) {
@@ -316,7 +331,7 @@ func confirmActionWithDependentModules(ctx context.Context, terragruntOptions *o
 			return false
 		}
 		for _, module := range modules {
-			if _, err := terragruntOptions.ErrWriter.Write([]byte(fmt.Sprintf("%s\n", module.Path))); err != nil {
+			if _, err := terragruntOptions.ErrWriter.Write([]byte(module.Path + "\n")); err != nil {
 				terragruntOptions.Logger.Error(err)
 				return false
 			}
@@ -381,8 +396,8 @@ func runActionWithHooks(ctx context.Context, description string, terragruntOptio
 
 // The Terragrunt configuration can contain a set of inputs to pass to Terraform as environment variables. This method
 // sets these environment variables in the given terragruntOptions.
-func setTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	asEnvVars, err := toTerraformEnvVars(terragruntConfig.Inputs)
+func SetTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+	asEnvVars, err := ToTerraformEnvVars(terragruntConfig.Inputs)
 	if err != nil {
 		return err
 	}
@@ -400,11 +415,11 @@ func setTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, 
 	return nil
 }
 
-func runTerraformWithRetry(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
+func RunTerraformWithRetry(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
 	// Retry the command configurable time with sleep in between
 	for i := 0; i < terragruntOptions.RetryMaxAttempts; i++ {
 		if out, err := shell.RunTerraformCommandWithOutput(ctx, terragruntOptions, terragruntOptions.TerraformCliArgs...); err != nil {
-			if out == nil || !isRetryable(terragruntOptions, out) {
+			if out == nil || !IsRetryable(terragruntOptions, out) {
 				terragruntOptions.Logger.WithError(err).Errorf("%s invocation failed in %s", terragruntOptions.TerraformImplementation, terragruntOptions.WorkingDir)
 				return err
 			} else {
@@ -424,8 +439,8 @@ func runTerraformWithRetry(ctx context.Context, terragruntOptions *options.Terra
 	return errors.WithStackTrace(MaxRetriesExceeded{terragruntOptions})
 }
 
-// isRetryable checks whether there was an error and if the output matches any of the configured RetryableErrors
-func isRetryable(opts *options.TerragruntOptions, out *shell.CmdOutput) bool {
+// IsRetryable checks whether there was an error and if the output matches any of the configured RetryableErrors
+func IsRetryable(opts *options.TerragruntOptions, out *util.CmdOutput) bool {
 	if !opts.AutoRetry {
 		return false
 	}
@@ -454,15 +469,15 @@ func prepareInitCommand(ctx context.Context, terragruntOptions *options.Terragru
 	return nil
 }
 
-func checkFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptions) error {
+func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptions) error {
 	files := []string{}
-	hclFiles, err := zglob.Glob(fmt.Sprintf("%s/**/*.tf", terragruntOptions.WorkingDir))
+	hclFiles, err := zglob.Glob(terragruntOptions.WorkingDir + "/**/*.tf")
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
 	files = append(files, hclFiles...)
 
-	jsonFiles, err := zglob.Glob(fmt.Sprintf("%s/**/*.tf.json", terragruntOptions.WorkingDir))
+	jsonFiles, err := zglob.Glob(terragruntOptions.WorkingDir + "/**/*.tf.json")
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -482,7 +497,7 @@ func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptio
 		return errors.WithStackTrace(err)
 	}
 
-	definesBackend, err := util.Grep(terraformBackendRegexp, fmt.Sprintf("%s/**/*.tf", terragruntOptions.WorkingDir))
+	definesBackend, err := util.Grep(terraformBackendRegexp, terragruntOptions.WorkingDir+"/**/*.tf")
 	if err != nil {
 		return err
 	}
@@ -495,7 +510,7 @@ func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptio
 		return errors.WithStackTrace(err)
 	}
 
-	definesJSONBackend, err := util.Grep(terraformJSONBackendRegexp, fmt.Sprintf("%s/**/*.tf.json", terragruntOptions.WorkingDir))
+	definesJSONBackend, err := util.Grep(terraformJSONBackendRegexp, terragruntOptions.WorkingDir+"/**/*.tf.json")
 	if err != nil {
 		return err
 	}
@@ -580,7 +595,7 @@ func runTerraformInit(ctx context.Context, originalTerragruntOptions *options.Te
 		return err
 	}
 
-	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, moduleInitRequiredFile)
+	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, ModuleInitRequiredFile)
 	if util.FileExists(moduleNeedInit) {
 		return os.Remove(moduleNeedInit)
 	}
@@ -618,7 +633,7 @@ func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error)
 		return false, nil
 	}
 
-	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, moduleInitRequiredFile)
+	moduleNeedInit := util.JoinPath(terragruntOptions.WorkingDir, ModuleInitRequiredFile)
 	if util.FileExists(moduleNeedInit) {
 		return true, nil
 	}
@@ -646,7 +661,7 @@ func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragru
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) == terraform.CommandNameDestroy {
 		destroyFlag = true
 	}
-	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, fmt.Sprintf("-%s", terraform.CommandNameDestroy)) {
+	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-"+terraform.CommandNameDestroy) {
 		destroyFlag = true
 	}
 	if !destroyFlag {
@@ -658,7 +673,7 @@ func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragru
 	return nil
 }
 
-func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
+func FilterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
 	out := []string{}
 	cmd := util.FirstArg(terragruntOptions.TerraformCliArgs)
 
@@ -688,7 +703,7 @@ func filterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 				if !skipVars {
 					varFiles := arg.GetVarFiles(terragruntOptions.Logger)
 					for _, file := range varFiles {
-						out = append(out, fmt.Sprintf("-var-file=%s", file))
+						out = append(out, "-var-file="+file)
 					}
 				}
 			}
@@ -721,7 +736,7 @@ func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOp
 // Convert the given variables to a map of environment variables that will expose those variables to Terraform. The
 // keys will be of the format TF_VAR_xxx and the values will be converted to JSON, which Terraform knows how to read
 // natively.
-func toTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) {
+func ToTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) {
 	out := map[string]string{}
 
 	for varName, varValue := range vars {
@@ -759,7 +774,8 @@ func setTerragruntNullValues(terragruntOptions *options.TerragruntOptions, terra
 		return "", errors.WithStackTrace(err)
 	}
 	varFile := filepath.Join(terragruntOptions.WorkingDir, NullTFVarsFile)
-	if err := os.WriteFile(varFile, jsonContents, os.FileMode(0600)); err != nil {
+	const ownerReadWritePermissions = 0600
+	if err := os.WriteFile(varFile, jsonContents, os.FileMode(ownerReadWritePermissions)); err != nil {
 		return "", errors.WithStackTrace(err)
 	}
 

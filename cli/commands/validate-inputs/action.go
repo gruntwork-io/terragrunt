@@ -84,7 +84,7 @@ func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg
 	// an error will only be returned if required inputs are missing. When strict mode is true, an error will be
 	// returned if required inputs are missing OR if any unused variables are passed
 	if len(missingVars) > 0 || len(unusedVars) > 0 && opts.ValidateStrict {
-		return fmt.Errorf(fmt.Sprintf("Terragrunt configuration has misaligned inputs. Strict mode enabled: %t.", opts.ValidateStrict))
+		return fmt.Errorf("Terragrunt configuration has misaligned inputs. Strict mode enabled: %t.", opts.ValidateStrict)
 	} else if len(unusedVars) > 0 {
 		opts.Logger.Warn("Terragrunt configuration has misaligned inputs, but running in relaxed mode so ignoring.")
 	}
@@ -201,7 +201,7 @@ func getTerraformInputNamesFromVarFiles(opts *options.TerragruntOptions, terragr
 // args that are passed in via the configured arguments attribute in the extra_arguments block of the given terragrunt
 // config and those that are directly passed in via the CLI.
 func getTerraformInputNamesFromCLIArgs(opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) ([]string, error) {
-	inputNames, varFiles, err := getVarFlagsFromArgList(opts.TerraformCliArgs)
+	inputNames, varFiles, err := GetVarFlagsFromArgList(opts.TerraformCliArgs)
 	if err != nil {
 		return inputNames, err
 	}
@@ -209,7 +209,7 @@ func getTerraformInputNamesFromCLIArgs(opts *options.TerragruntOptions, terragru
 	if terragruntConfig.Terraform != nil {
 		for _, arg := range terragruntConfig.Terraform.ExtraArgs {
 			if arg.Arguments != nil {
-				vars, rawVarFiles, err := getVarFlagsFromArgList(*arg.Arguments)
+				vars, rawVarFiles, err := GetVarFlagsFromArgList(*arg.Arguments)
 				if err != nil {
 					return inputNames, err
 				}
@@ -298,7 +298,7 @@ func getVarNamesFromVarFile(varFile string) ([]string, error) {
 
 // Returns the CLI flags defined on the provided arguments list that correspond to -var and -var-file. Returns two
 // slices, one for `-var` args (the first one) and one for `-var-file` args (the second one).
-func getVarFlagsFromArgList(argList []string) ([]string, []string, error) {
+func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 	vars := []string{}
 	varFiles := []string{}
 

@@ -1,6 +1,8 @@
 package terraform
 
 import (
+	"strings"
+
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/gruntwork-cli/collections"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -22,18 +24,23 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Name:     CommandName,
 		HelpName: CommandHelpName,
 		Usage:    "Terragrunt forwards all other commands directly to Terraform",
-		Action:   action(opts),
+		Action:   Action(opts),
 	}
 }
 
-func action(opts *options.TerragruntOptions) cli.ActionFunc {
+func Action(opts *options.TerragruntOptions) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
 		if opts.TerraformCommand == terraform.CommandNameDestroy {
 			opts.CheckDependentModules = true
 		}
 
 		if !opts.DisableCommandValidation && !collections.ListContainsElement(nativeTerraformCommands, opts.TerraformCommand) {
-			return errors.WithStackTrace(WrongTerraformCommand(opts.TerraformCommand))
+			if strings.HasSuffix(opts.TerraformPath, "terraform") {
+				return errors.WithStackTrace(WrongTerraformCommand(opts.TerraformCommand))
+			} else {
+				// We default to tofu if the terraform path does not end in Terraform
+				return errors.WithStackTrace(WrongTofuCommand(opts.TerraformCommand))
+			}
 		}
 
 		return Run(ctx.Context, opts.OptionsFromContext(ctx))

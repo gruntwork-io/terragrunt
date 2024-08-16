@@ -3,7 +3,7 @@ layout: collection-browser-doc
 title: Lock File Handling
 category: features
 categories_url: features
-excerpt: Learn how to Terragrunt handles the Terraform lock file
+excerpt: Learn how to Terragrunt handles the OpenTofu/Terraform lock file
 tags: ["CLI", "DRY"]
 order: 270
 nav_title: Documentation
@@ -12,13 +12,13 @@ nav_title_link: /docs/
 
 ## The short version: how to use lock files with Terragrunt
 
-To use [Terraform lock files](https://www.terraform.io/docs/configuration/dependency-lock.html) with Terragrunt, you
+To use [OpenTofu/Terraform lock files](https://opentofu.org/docs/language/files/dependency-lock/) with Terragrunt, you
 need to:
 
 1. Run Terragrunt as usual (e.g., run `terragrunt plan`, `terragrunt apply`, etc.).
 1. Check the `.terraform.lock.hcl` file, which will end up sitting next to your `terragrunt.hcl`, into version control.
 
-Everything else with Terraform and Terragrunt should work as expected. To learn the details of how this works, read on!
+Everything else with OpenTofu/Terraform and Terragrunt should work as expected. To learn the details of how this works, read on!
 
 ## The long version: details of how Terragrunt handles lock files
 
@@ -26,14 +26,14 @@ Everything else with Terraform and Terragrunt should work as expected. To learn 
 
 [Terraform 0.14 added support for a
 *lock file*](https://www.hashicorp.com/blog/terraform-0-14-introduces-a-dependency-lock-file-for-providers)
-which gets created or updated every time you run `terraform init`. The file is typically generated into your working
-directory (i.e., the folder in which you ran `terraform init`) and is called `.terraform.lock.hcl`.
-It captures the versions of all the Terraform providers you're using. Normally, you want to check this file into
-version control so that when your team members run Terraform, they get the exact same provider versions.
+which gets created or updated every time you run `tofu init`/`terraform init`. The file is typically generated into your working
+directory (i.e., the folder in which you ran `tofu init`/`terraform init`) and is called `.terraform.lock.hcl`.
+It captures the versions of all the OpenTofu/Terraform providers you're using. Normally, you want to check this file into
+version control so that when your team members run OpenTofu/Terraform, they get the exact same provider versions.
 
-### The problem with mixing remote Terraform configurations in Terragrunt and lock files
+### The problem with mixing remote OpenTofu/Terraform configurations in Terragrunt and lock files
 
-Let's say you are using Terragrunt with [remote Terraform
+Let's say you are using Terragrunt with [remote OpenTofu/Terraform
 configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/) and you have the following folder
 structure:
 
@@ -59,7 +59,7 @@ If you ran `terragrunt apply` in the `/live/stage/vpc` folder, Terragrunt will:
 
 1. `git clone` the VPC module in the `source` URL into a temp folder in `.terragrunt-cache/xxx/vpc`, where `xxx` is
    dynamically determined based on the URL.
-1. Run `terraform apply` in the `.terragrunt-cache/xxx/vpc` temp folder.
+1. Run `tofu apply`/`terraform apply` in the `.terragrunt-cache/xxx/vpc` temp folder.
 
 As a result, the `.terraform.lock.hcl` file will be generated in the `.terragrunt-cache/xxx/vpc` temp folder, rather
 than in `/live/stage/vpc`.
@@ -69,10 +69,10 @@ than in `/live/stage/vpc`.
 To solve this problem, since version v0.27.0, Terragrunt implements the following logic for lock files:
 
 1. If Terragrunt finds a `.terraform.lock.hcl` file in your working directory (e.g., in `/live/stage/vpc`), before
-   running Terraform, Terragrunt will copy that lock file into the temp folder it uses when running your Terraform code
+   running OpenTofu/Terraform, Terragrunt will copy that lock file into the temp folder it uses when running your OpenTofu/Terraform code
    (e.g., `.terragrunt-cache/xxx/vpc`). This way, if you had a lock file checked into version control, Terragrunt will
-   respect and use it with your Terraform code as you'd expect.
-1. After running Terraform, if Terragrunt finds a `.terraform.lock.hcl` in the temp folder (e.g.,
+   respect and use it with your OpenTofu/Terraform code as you'd expect.
+1. After running OpenTofu/Terraform, if Terragrunt finds a `.terraform.lock.hcl` in the temp folder (e.g.,
    `.terragrunt-cache/xxx/vpc`), it will copy that lock file back to your working directory (e.g., to `/live/stage/vpc`).
    That way, you can commit the lock file (or the changes to the lock file) to version control as usual.
 

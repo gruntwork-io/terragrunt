@@ -12,7 +12,7 @@ nav_title_link: /docs/
 
 ## Terragrunt configuration file
 
-Terragrunt configuration is defined in a `terragrunt.hcl` file. This uses the same HCL syntax as Terraform itself.
+Terragrunt configuration is defined in a `terragrunt.hcl` file. This uses the same HCL syntax as OpenTofu/Terraform itself.
 
 Here’s an example:
 
@@ -87,7 +87,7 @@ This allows Terragrunt to avoid resolving `dependency` on modules that haven’t
 
 ## Formatting hcl files
 
-You can rewrite the hcl files to a canonical format using the `hclfmt` command built into `terragrunt`. Similar to `terraform fmt`, this command applies a subset of [the Terraform language style conventions](https://www.terraform.io/docs/configuration/style.html), along with other minor adjustments for readability.
+You can rewrite the hcl files to a canonical format using the `hclfmt` command built into `terragrunt`. Similar to `terraform fmt`, this command applies a subset of [the OpenTofu/Terraform language style conventions](https://www.terraform.io/docs/configuration/style.html), along with other minor adjustments for readability.
 
 This command will recursively search for hcl files and format all of them under a given directory tree. Consider the following file structure:
 

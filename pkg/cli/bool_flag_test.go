@@ -1,12 +1,14 @@
-package cli
+package cli_test
 
 import (
 	"errors"
 	libflag "flag"
 	"fmt"
 	"io"
+	"strconv"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,70 +17,70 @@ func TestBoolFlagApply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		flag          BoolFlag
+		flag          cli.BoolFlag
 		args          []string
 		envs          map[string]string
 		expectedValue bool
 		expectedErr   error
 	}{
 		{
-			BoolFlag{Name: "foo", EnvVar: "FOO"},
+			cli.BoolFlag{Name: "foo", EnvVar: "FOO"},
 			[]string{"--foo"},
 			map[string]string{"FOO": "false"},
 			true,
 			nil,
 		},
 		{
-			BoolFlag{Name: "foo", EnvVar: "FOO"},
+			cli.BoolFlag{Name: "foo", EnvVar: "FOO"},
 			nil,
 			map[string]string{"FOO": "true"},
 			true,
 			nil,
 		},
 		{
-			BoolFlag{Name: "foo", EnvVar: "FOO"},
+			cli.BoolFlag{Name: "foo", EnvVar: "FOO"},
 			nil,
 			nil,
 			false,
 			nil,
 		},
 		{
-			BoolFlag{Name: "foo", EnvVar: "FOO", Destination: mockDestValue(false)},
+			cli.BoolFlag{Name: "foo", EnvVar: "FOO", Destination: mockDestValue(false)},
 			[]string{"--foo"},
 			map[string]string{"FOO": "false"},
 			true,
 			nil,
 		},
 		{
-			BoolFlag{Name: "foo", Destination: mockDestValue(true)},
+			cli.BoolFlag{Name: "foo", Destination: mockDestValue(true)},
 			nil,
 			nil,
 			true,
 			nil,
 		},
 		{
-			BoolFlag{Name: "foo", Destination: mockDestValue(true), Negative: true},
+			cli.BoolFlag{Name: "foo", Destination: mockDestValue(true), Negative: true},
 			[]string{"--foo"},
 			nil,
 			false,
 			nil,
 		},
 		{
-			BoolFlag{Name: "foo", EnvVar: "FOO", Destination: mockDestValue(true), Negative: true},
+			cli.BoolFlag{Name: "foo", EnvVar: "FOO", Destination: mockDestValue(true), Negative: true},
 			nil,
 			map[string]string{"FOO": "true"},
 			false,
 			nil,
 		},
 		{
-			BoolFlag{Name: "foo", EnvVar: "FOO", Destination: mockDestValue(false), Negative: true},
+			cli.BoolFlag{Name: "foo", EnvVar: "FOO", Destination: mockDestValue(false), Negative: true},
 			nil,
 			map[string]string{"FOO": "false"},
 			true,
 			nil,
 		},
 		{
-			BoolFlag{Name: "foo", EnvVar: "FOO"},
+			cli.BoolFlag{Name: "foo", EnvVar: "FOO"},
 			[]string{"--foo", "--foo"},
 			nil,
 			false,
@@ -97,7 +99,7 @@ func TestBoolFlagApply(t *testing.T) {
 	}
 }
 
-func testBoolFlagApply(t *testing.T, flag *BoolFlag, args []string, envs map[string]string, expectedValue bool, expectedErr error) {
+func testBoolFlagApply(t *testing.T, flag *cli.BoolFlag, args []string, envs map[string]string, expectedValue bool, expectedErr error) {
 	var (
 		actualValue          bool
 		destDefined          bool
@@ -108,7 +110,7 @@ func testBoolFlagApply(t *testing.T, flag *BoolFlag, args []string, envs map[str
 		destDefined = true
 		flag.Destination = &actualValue
 	} else if val := *flag.Destination; val && !flag.Negative {
-		expectedDefaultValue = fmt.Sprintf("%t", val)
+		expectedDefaultValue = strconv.FormatBool(val)
 	}
 
 	flag.LookupEnvFunc = func(key string) (string, bool) {
@@ -141,7 +143,7 @@ func testBoolFlagApply(t *testing.T, flag *BoolFlag, args []string, envs map[str
 
 	assert.Equal(t, expectedValue, actualValue)
 	if actualValue {
-		assert.Equal(t, fmt.Sprintf("%t", expectedValue), flag.GetValue(), "GetValue()")
+		assert.Equal(t, strconv.FormatBool(expectedValue), flag.GetValue(), "GetValue()")
 	}
 
 	assert.Equal(t, len(args) > 0, flag.Value().IsSet(), "IsSet()")

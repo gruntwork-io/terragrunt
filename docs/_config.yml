@@ -21,11 +21,9 @@
 title: Terragrunt
 url: "https://terragrunt.gruntwork.io"
 email: info@gruntwork.io
-name: "Terragrunt | Terraform wrapper"
+name: "Terragrunt | OpenTofu/Terraform wrapper"
 description: >- # this means to ignore newlines until "baseurl:"
-  Terragrunt is a thin wrapper for Terraform that provides extra tools for
-  keeping your Terraform configurations DRY, working with multiple Terraform
-  modules, and managing remote state.
+  Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.
 baseurl: "" # the subpath of your site, e.g. /blog
 full_company_name: "Gruntwork, Inc"
 thumbnail_path: "/assets/img/terragrunt-thumbnail.png"
@@ -37,7 +35,7 @@ github_username:  https://github.com/gruntwork-io
 # theme: minima
 assets_base_url: '/assets/'
 
-ga_tracker: UA-76462621-6
+gtm_tracker: GTM-5TTJJGTL
 
 theme: null
 
@@ -81,3 +79,8 @@ exclude:
   - vendor/gems/
   - vendor/ruby/
   - scripts/
+  - Dockerfile
+  - docker-compose.yml
+  - jekyll-serve.sh
+  - README.md
+

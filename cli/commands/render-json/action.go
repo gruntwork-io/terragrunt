@@ -9,7 +9,7 @@ package renderjson
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	goErrors "errors"
 	"os"
 	"path/filepath"
 
@@ -33,7 +33,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 func runRenderJSON(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	if cfg == nil {
-		return fmt.Errorf("Terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl.")
+		return goErrors.New("Terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl.")
 	}
 
 	if !opts.JsonDisableDependentModules {
@@ -77,7 +77,8 @@ func runRenderJSON(ctx context.Context, opts *options.TerragruntOptions, cfg *co
 	}
 	opts.Logger.Debugf("Rendering config %s to JSON %s", opts.TerragruntConfigPath, jsonOutPath)
 
-	if err := os.WriteFile(jsonOutPath, jsonBytes, 0644); err != nil {
+	const ownerWriteGlobalReadPerms = 0644
+	if err := os.WriteFile(jsonOutPath, jsonBytes, ownerWriteGlobalReadPerms); err != nil {
 		return errors.WithStackTrace(err)
 	}
 	return nil

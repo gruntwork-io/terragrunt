@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/engine"
+
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"golang.org/x/sync/errgroup"
@@ -18,6 +20,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/graph"
+	"github.com/gruntwork-io/terragrunt/cli/commands/hclvalidate"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 
@@ -67,7 +70,7 @@ func NewApp(writer io.Writer, errWriter io.Writer) *App {
 
 	app := cli.NewApp()
 	app.Name = "terragrunt"
-	app.Usage = "Terragrunt is a thin wrapper for Terraform that provides extra tools for working with multiple\nTerraform modules, remote state, and locking. For documentation, see https://github.com/gruntwork-io/terragrunt/."
+	app.Usage = "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale. For documentation, see https://terragrunt.gruntwork.io/."
 	app.Author = "Gruntwork <www.gruntwork.io>"
 	app.Version = version.GetVersion()
 	app.Writer = writer
@@ -76,11 +79,11 @@ func NewApp(writer io.Writer, errWriter io.Writer) *App {
 		commands.NewGlobalFlags(opts),
 		commands.NewHelpVersionFlags(opts)...)
 	app.Commands = append(
-		deprecatedCommands(opts),
-		terragruntCommands(opts)...).WrapAction(wrapWithTelemetry(opts))
+		DeprecatedCommands(opts),
+		TerragruntCommands(opts)...).WrapAction(WrapWithTelemetry(opts))
 	app.Before = beforeAction(opts)
-	app.DefaultCommand = terraformCmd.NewCommand(opts).WrapAction(wrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
-	app.OsExiter = osExiter
+	app.DefaultCommand = terraformCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
+	app.OsExiter = OSExiter
 
 	return &App{app}
 }
@@ -96,6 +99,11 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	shell.RegisterSignalHandler(func(signal os.Signal) {
 		log.Infof("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(signal.String()), shell.SignalForwardingDelay)
 		cancel()
+
+		shell.RegisterSignalHandler(func(signal os.Signal) {
+			log.Infof("Second %s signal received, force shutting down...", cases.Title(language.English).String(signal.String()))
+			os.Exit(1)
+		})
 
 		time.Sleep(forceExitInterval)
 		log.Infof("Failed to gracefully shutdown within %v, force shutting down...", forceExitInterval)
@@ -119,6 +127,18 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		}
 	}(ctx)
 
+	ctx = config.WithConfigValues(ctx)
+
+	// init engine if required
+	if engine.IsEngineEnabled() {
+		ctx = engine.WithEngineValues(ctx)
+	}
+	defer func(ctx context.Context) {
+		if err := engine.Shutdown(ctx); err != nil {
+			_, _ = app.ErrWriter.Write([]byte(err.Error()))
+		}
+	}(ctx)
+
 	if err := app.App.RunContext(ctx, args); err != nil && !goerrors.Is(err, context.Canceled) {
 		return err
 	}
@@ -126,7 +146,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 }
 
 // This set of commands is also used in unit tests
-func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
+func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	cmds := cli.Commands{
 		runall.NewCommand(opts),             // runAction-all
 		terragruntinfo.NewCommand(opts),     // terragrunt-info
@@ -139,6 +159,7 @@ func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 		catalog.NewCommand(opts),            // catalog
 		scaffold.NewCommand(opts),           // scaffold
 		graph.NewCommand(opts),              // graph
+		hclvalidate.NewCommand(opts),        // hclvalidate
 	}
 
 	sort.Sort(cmds)
@@ -150,7 +171,7 @@ func terragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 }
 
 // Wrap CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
-func wrapWithTelemetry(opts *options.TerragruntOptions) func(ctx *cli.Context, action cli.ActionFunc) error {
+func WrapWithTelemetry(opts *options.TerragruntOptions) func(ctx *cli.Context, action cli.ActionFunc) error {
 	return func(ctx *cli.Context, action cli.ActionFunc) error {
 		return telemetry.Telemetry(ctx.Context, opts, fmt.Sprintf("%s %s", ctx.Command.Name, opts.TerraformCommand), map[string]interface{}{
 			"terraformCommand": opts.TerraformCommand,
@@ -162,12 +183,13 @@ func wrapWithTelemetry(opts *options.TerragruntOptions) func(ctx *cli.Context, a
 				return err
 			}
 
-			return runAction(ctx, opts, action)
+			// TODO: See if this lint should be ignored
+			return runAction(ctx, opts, action) //nolint:contextcheck
 		})
 	}
 }
 
-func beforeAction(opts *options.TerragruntOptions) cli.ActionFunc {
+func beforeAction(_ *options.TerragruntOptions) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
 		// setting current context to the options
 		// show help if the args are not specified.
@@ -310,10 +332,21 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 		return err
 	}
 
+	if len(opts.IncludeDirs) > 0 {
+		opts.Logger.Debugf("Included directories set. Excluding by default.")
+		opts.ExcludeByDefault = true
+	}
+
 	opts.IncludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.IncludeDirs...)
 	if err != nil {
 		return err
 	}
+
+	excludeDirs, err := util.GetExcludeDirsFromFile(opts.WorkingDir, opts.ExcludesFile)
+	if err != nil {
+		return err
+	}
+	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirs...)
 
 	// --- Terragrunt Version
 	terragruntVersion, err := hashicorpversion.NewVersion(cliCtx.App.Version)
@@ -358,7 +391,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	return nil
 }
 
-func osExiter(exitCode int) {
+func OSExiter(exitCode int) {
 	// Do nothing. We just need to override this function, as the default value calls os.Exit, which
 	// kills the app (or any automated test) dead in its tracks.
 }

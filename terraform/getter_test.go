@@ -1,4 +1,4 @@
-package terraform
+package terraform_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terratest/modules/files"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,7 +16,7 @@ import (
 func TestGetModuleRegistryURLBasePath(t *testing.T) {
 	t.Parallel()
 
-	basePath, err := getModuleRegistryURLBasePath(context.Background(), "registry.terraform.io")
+	basePath, err := terraform.GetModuleRegistryURLBasePath(context.Background(), "registry.terraform.io")
 	require.NoError(t, err)
 	assert.Equal(t, "/v1/modules/", basePath)
 }
@@ -28,7 +29,7 @@ func TestGetTerraformHeader(t *testing.T) {
 		Host:   "registry.terraform.io",
 		Path:   "/v1/modules/terraform-aws-modules/vpc/aws/3.3.0/download",
 	}
-	terraformGetHeader, err := getTerraformGetHeader(context.Background(), testModuleURL)
+	terraformGetHeader, err := terraform.GetTerraformGetHeader(context.Background(), testModuleURL)
 	require.NoError(t, err)
 	assert.Contains(t, terraformGetHeader, "github.com/terraform-aws-modules/terraform-aws-vpc")
 }
@@ -36,7 +37,7 @@ func TestGetTerraformHeader(t *testing.T) {
 func TestGetDownloadURLFromHeader(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	tc := []struct {
 		name           string
 		moduleURL      url.URL
 		terraformGet   string
@@ -89,11 +90,15 @@ func TestGetDownloadURLFromHeader(t *testing.T) {
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			downloadURL, err := getDownloadURLFromHeader(testCase.moduleURL, testCase.terraformGet)
+	for _, tt := range tc {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			downloadURL, err := terraform.GetDownloadURLFromHeader(tt.moduleURL, tt.terraformGet)
 			require.NoError(t, err)
-			assert.Equal(t, testCase.expectedResult, downloadURL)
+			assert.Equal(t, tt.expectedResult, downloadURL)
 		})
 	}
 }
@@ -112,7 +117,7 @@ func TestTFRGetterRootDir(t *testing.T) {
 	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
 	assert.False(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 
-	tfrGetter := new(RegistryGetter)
+	tfrGetter := new(terraform.RegistryGetter)
 	require.NoError(t, tfrGetter.Get(moduleDestPath, testModuleURL))
 	assert.True(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 }
@@ -131,22 +136,22 @@ func TestTFRGetterSubModule(t *testing.T) {
 	moduleDestPath := filepath.Join(dstPath, "terraform-aws-vpc")
 	assert.False(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 
-	tfrGetter := new(RegistryGetter)
+	tfrGetter := new(terraform.RegistryGetter)
 	require.NoError(t, tfrGetter.Get(moduleDestPath, testModuleURL))
 	assert.True(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 }
 
 func TestBuildRequestUrlFullPath(t *testing.T) {
 	t.Parallel()
-	requestUrl, err := buildRequestUrl("gruntwork.io", "https://gruntwork.io/registry/modules/v1/", "/tfr-project/terraform-aws-tfr", "6.6.6")
-	assert.NoError(t, err)
+	requestUrl, err := terraform.BuildRequestUrl("gruntwork.io", "https://gruntwork.io/registry/modules/v1/", "/tfr-project/terraform-aws-tfr", "6.6.6")
+	require.NoError(t, err)
 	assert.Equal(t, "https://gruntwork.io/registry/modules/v1/tfr-project/terraform-aws-tfr/6.6.6/download", requestUrl.String())
 }
 
 func TestBuildRequestUrlRelativePath(t *testing.T) {
 	t.Parallel()
-	requestUrl, err := buildRequestUrl("gruntwork.io", "/registry/modules/v1", "/tfr-project/terraform-aws-tfr", "6.6.6")
-	assert.NoError(t, err)
+	requestUrl, err := terraform.BuildRequestUrl("gruntwork.io", "/registry/modules/v1", "/tfr-project/terraform-aws-tfr", "6.6.6")
+	require.NoError(t, err)
 	assert.Equal(t, "https://gruntwork.io/registry/modules/v1/tfr-project/terraform-aws-tfr/6.6.6/download", requestUrl.String())
 
 }

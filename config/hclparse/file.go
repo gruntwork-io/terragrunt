@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclparse"
@@ -64,7 +63,7 @@ func (file *File) Decode(out interface{}, evalContext *hcl.EvalContext) (err err
 	}
 
 	diags := gohcl.DecodeBody(file.Body, evalContext, out)
-	if err := file.diagnosticsError(diags); err != nil {
+	if err := file.HandleDiagnostics(diags); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
@@ -80,7 +79,7 @@ func (file *File) Blocks(name string, isMultipleAllowed bool) ([]*Block, error) 
 	}
 	// We use PartialContent here, because we are only interested in parsing out the catalog block.
 	parsed, _, diags := file.Body.PartialContent(catalogSchema)
-	if err := file.diagnosticsError(diags); err != nil {
+	if err := file.HandleDiagnostics(diags); err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
 
@@ -110,7 +109,7 @@ func (file *File) Blocks(name string, isMultipleAllowed bool) ([]*Block, error) 
 func (file *File) JustAttributes() (Attributes, error) {
 	hclAttrs, diags := file.Body.JustAttributes()
 
-	if err := file.diagnosticsError(diags); err != nil {
+	if err := file.HandleDiagnostics(diags); err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
 
@@ -123,25 +122,6 @@ func (file *File) JustAttributes() (Attributes, error) {
 	return attrs, nil
 }
 
-func (file *File) diagnosticsError(diags hcl.Diagnostics) error {
-	if diags == nil || !diags.HasErrors() {
-		return nil
-	}
-
-	if fn := file.Parser.diagnosticsErrorFunc; fn != nil {
-		var err error
-		if diags, err = fn(file, diags); err != nil || diags == nil {
-			return err
-		}
-	}
-
-	if logger := file.Parser.logger; logger != nil {
-		diagsWriter := util.GetDiagnosticsWriter(logger, file.Parser.Parser)
-
-		if err := diagsWriter.WriteDiagnostics(diags); err != nil {
-			return errors.WithStackTrace(err)
-		}
-	}
-
-	return diags
+func (file *File) HandleDiagnostics(diags hcl.Diagnostics) error {
+	return file.Parser.handleDiagnostics(file, diags)
 }

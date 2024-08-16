@@ -3,7 +3,7 @@ layout: collection-browser-doc
 title: Before, After, and Error Hooks
 category: features
 categories_url: features
-excerpt: Learn how to execute custom code before or after running Terraform, or when errors occur.
+excerpt: Learn how to execute custom code before or after running OpenTofu/Terraform, or when errors occur.
 tags: ["hooks"]
 order: 240
 nav_title: Documentation
@@ -12,7 +12,7 @@ nav_title_link: /docs/
 
 ## Before and After Hooks
 
-_Before Hooks_ or _After Hooks_ are a feature of terragrunt that make it possible to define custom actions that will be called either before or after execution of the `terraform` command.
+_Before Hooks_ or _After Hooks_ are a feature of terragrunt that make it possible to define custom actions that will be called either before or after execution of the `tofu`/`terraform` command.
 
 Here’s an example:
 
@@ -20,22 +20,49 @@ Here’s an example:
 terraform {
   before_hook "before_hook" {
     commands     = ["apply", "plan"]
-    execute      = ["echo", "Running Terraform"]
+    execute      = ["echo", "Running OpenTofu"]
   }
 
   after_hook "after_hook" {
     commands     = ["apply", "plan"]
-    execute      = ["echo", "Finished running Terraform"]
+    execute      = ["echo", "Finished running OpenTofu"]
     run_on_error = true
   }
 }
 ```
 
-In this example configuration, whenever Terragrunt runs `terraform apply` or `terraform plan`, two things will happen:
+In this example configuration, whenever Terragrunt runs `tofu apply` or `tofu plan` (or the `terraform` equivalent), two things will happen:
 
-- Before Terragrunt runs `terraform`, it will output `Running Terraform` to the console.
-- After Terragrunt runs `terraform`, it will output `Finished running Terraform`, regardless of whether or not the
+- Before Terragrunt runs `tofu`/`terraform`, it will output `Running OpenTofu` to the console.
+- After Terragrunt runs `tofu`/`terraform`, it will output `Finished running OpenTofu`, regardless of whether or not the
   command failed.
+
+Any type of hook adds extra environment variables to the hook's run command:
+
+- `TG_CTX_TF_PATH`
+- `TG_CTX_COMMAND`
+- `TG_CTX_HOOK_NAME`
+
+For example:
+
+``` hcl
+terraform {
+  before_hook "test_hook" {
+    commands     = ["apply"]
+    execute      = ["hook.sh"]
+  }
+}
+```
+
+`hook.sh` contains:
+
+``` bash
+#!/bin/sh
+
+echo "TF_PATH=${TG_CTX_TF_PATH} COMMAND=${TG_CTX_COMMAND} HOOK_NAME=${TG_CTX_HOOK_NAME}"
+```
+
+In this example, whenever Terragrunt runs `tofu apply`/`terraform apply`, the `hook.sh` script will print "TF_PATH=tofu COMMAND=apply HOOK_NAME=test_hook"
 
 You can have multiple before and after hooks. Each hook will execute in the order they are defined. For example:
 
@@ -43,26 +70,26 @@ You can have multiple before and after hooks. Each hook will execute in the orde
 terraform {
   before_hook "before_hook_1" {
     commands     = ["apply", "plan"]
-    execute      = ["echo", "Will run Terraform"]
+    execute      = ["echo", "Will run OpenTofu"]
   }
 
   before_hook "before_hook_2" {
     commands     = ["apply", "plan"]
-    execute      = ["echo", "Running Terraform"]
+    execute      = ["echo", "Running OpenTofu"]
   }
 }
 ```
 
-This configuration will cause Terragrunt to output `Will run Terraform` and then `Running Terraform` before the call
-to Terraform.
+This configuration will cause Terragrunt to output `Will run OpenTofu` and then `Running OpenTofu` before the call
+to OpenTofu/Terraform.
 
 You can learn more about all the various configuration options supported in [the reference docs for the terraform
 block](/docs/reference/config-blocks-and-attributes/#terraform).
 
 ### Tflint hook
 
-_Before Hooks_ or _After Hooks_ support natively _tflint_, a linter for Terraform code. It will validate the
-Terraform code used by Terragrunt, and it's inputs.
+_Before Hooks_ or _After Hooks_ support natively _tflint_, a linter for OpenTofu/Terraform code. It will validate the
+OpenTofu/Terraform code used by Terragrunt, and it's inputs.
 
 Here's an example:
 

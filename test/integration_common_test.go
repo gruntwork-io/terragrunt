@@ -1,5 +1,5 @@
 // common integration test functions
-package test
+package integration_test
 
 import (
 	"archive/zip"
@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/NYTimes/gziphandler"
@@ -43,7 +44,7 @@ func testRunAllPlan(t *testing.T, args string) (string, string, string, error) {
 	return tmpEnvPath, stdout, stderr, err
 }
 
-func runNetworkMirrorServer(t *testing.T, ctx context.Context, urlPrefix, providerDir string) *url.URL {
+func runNetworkMirrorServer(t *testing.T, ctx context.Context, urlPrefix, providerDir, token string) *url.URL {
 	serverTLSConf, clientTLSConf := certSetup(t)
 
 	http.DefaultTransport = &http.Transport{
@@ -56,7 +57,14 @@ func runNetworkMirrorServer(t *testing.T, ctx context.Context, urlPrefix, provid
 
 	withGz := gziphandler.GzipHandler(http.StripPrefix(urlPrefix, fs))
 
-	mux.Handle(urlPrefix, withGz)
+	mux.HandleFunc(urlPrefix, func(resp http.ResponseWriter, req *http.Request) {
+		if token != "" {
+			authHeaders := req.Header.Values("Authorization")
+			assert.Contains(t, authHeaders, "Bearer "+token)
+		}
+
+		withGz.ServeHTTP(resp, req)
+	})
 
 	ln, err := tls.Listen("tcp", "localhost:8888", serverTLSConf)
 	require.NoError(t, err)
@@ -119,7 +127,7 @@ func (provider *FakeProvider) createVersionJSON(t *testing.T, providerDir string
 	}
 
 	version := &Version{Archives: make(map[string]VersionProvider)}
-	filename := filepath.Join(providerDir, fmt.Sprintf("%s.json", provider.Version))
+	filename := filepath.Join(providerDir, provider.Version+".json")
 	platform := fmt.Sprintf("%s_%s", provider.PlatformOS, provider.PlatformArch)
 
 	unmarshalFile(t, filename, version)
@@ -286,7 +294,8 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 	certpool := x509.NewCertPool()
 	certpool.AppendCertsFromPEM(caPEM.Bytes())
 	clientTLSConf := &tls.Config{
-		RootCAs: certpool,
+		RootCAs:            certpool,
+		InsecureSkipVerify: true,
 	}
 
 	return serverTLSConf, clientTLSConf

@@ -1,11 +1,13 @@
-package remote
+package remote_test
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 /**
@@ -14,7 +16,7 @@ import (
 func TestToTerraformInitArgs(t *testing.T) {
 	t.Parallel()
 
-	remoteState := RemoteState{
+	remoteState := remote.RemoteState{
 		Backend: "s3",
 		Config: map[string]interface{}{
 			"encrypt": true,
@@ -52,7 +54,7 @@ func TestToTerraformInitArgs(t *testing.T) {
 func TestToTerraformInitArgsForGCS(t *testing.T) {
 	t.Parallel()
 
-	remoteState := RemoteState{
+	remoteState := remote.RemoteState{
 		Backend: "gcs",
 		Config: map[string]interface{}{
 			"project":  "my-project-123456",
@@ -80,7 +82,7 @@ func TestToTerraformInitArgsForGCS(t *testing.T) {
 func TestToTerraformInitArgsUnknownBackend(t *testing.T) {
 	t.Parallel()
 
-	remoteState := RemoteState{
+	remoteState := remote.RemoteState{
 		Backend: "s4",
 		Config: map[string]interface{}{
 			"encrypt": true,
@@ -97,7 +99,7 @@ func TestToTerraformInitArgsUnknownBackend(t *testing.T) {
 func TestToTerraformInitArgsInitDisabled(t *testing.T) {
 	t.Parallel()
 
-	remoteState := RemoteState{
+	remoteState := remote.RemoteState{
 		Backend:     "s3",
 		DisableInit: true,
 		Config: map[string]interface{}{
@@ -114,7 +116,7 @@ func TestToTerraformInitArgsInitDisabled(t *testing.T) {
 func TestToTerraformInitArgsNoBackendConfigs(t *testing.T) {
 	t.Parallel()
 
-	remoteStates := []RemoteState{
+	remoteStates := []remote.RemoteState{
 		{Backend: "s3"},
 		{Backend: "gcs"},
 	}
@@ -129,101 +131,101 @@ func TestDiffersFrom(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("remote_state_test")
-	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
+	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	testCases := []struct {
 		name            string
-		existingBackend TerraformBackend
-		stateFromConfig RemoteState
+		existingBackend remote.TerraformBackend
+		stateFromConfig remote.RemoteState
 		shouldOverride  bool
 	}{
-		{"both empty", TerraformBackend{}, RemoteState{}, false},
-		{"same backend type value", TerraformBackend{Type: "s3"}, RemoteState{Backend: "s3"}, false},
-		{"different backend type values", TerraformBackend{Type: "s3"}, RemoteState{Backend: "atlas"}, true},
+		{"both empty", remote.TerraformBackend{}, remote.RemoteState{}, false},
+		{"same backend type value", remote.TerraformBackend{Type: "s3"}, remote.RemoteState{Backend: "s3"}, false},
+		{"different backend type values", remote.TerraformBackend{Type: "s3"}, remote.RemoteState{Backend: "atlas"}, true},
 		{
 			"identical S3 configs",
-			TerraformBackend{
+			remote.TerraformBackend{
 				Type:   "s3",
 				Config: map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
-			RemoteState{
+			remote.RemoteState{
 				Backend: "s3",
 				Config:  map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
 			false,
 		}, {
 			"identical GCS configs",
-			TerraformBackend{
+			remote.TerraformBackend{
 				Type:   "gcs",
 				Config: map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "bar"},
 			},
-			RemoteState{
+			remote.RemoteState{
 				Backend: "gcs",
 				Config:  map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "bar"},
 			},
 			false,
 		}, {
 			"different s3 bucket values",
-			TerraformBackend{
+			remote.TerraformBackend{
 				Type:   "s3",
 				Config: map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
-			RemoteState{
+			remote.RemoteState{
 				Backend: "s3",
 				Config:  map[string]interface{}{"bucket": "different", "key": "bar", "region": "us-east-1"},
 			},
 			true,
 		}, {
 			"different gcs bucket values",
-			TerraformBackend{
+			remote.TerraformBackend{
 				Type:   "gcs",
 				Config: map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "bar"},
 			},
-			RemoteState{
+			remote.RemoteState{
 				Backend: "gcs",
 				Config:  map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "different", "prefix": "bar"},
 			},
 			true,
 		}, {
 			"different s3 key values",
-			TerraformBackend{
+			remote.TerraformBackend{
 				Type:   "s3",
 				Config: map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
-			RemoteState{
+			remote.RemoteState{
 				Backend: "s3",
 				Config:  map[string]interface{}{"bucket": "foo", "key": "different", "region": "us-east-1"},
 			},
 			true,
 		}, {
 			"different gcs prefix values",
-			TerraformBackend{
+			remote.TerraformBackend{
 				Type:   "gcs",
 				Config: map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "bar"},
 			},
-			RemoteState{
+			remote.RemoteState{
 				Backend: "gcs",
 				Config:  map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "different"},
 			},
 			true,
 		}, {
 			"different s3 region values",
-			TerraformBackend{
+			remote.TerraformBackend{
 				Type:   "s3",
 				Config: map[string]interface{}{"bucket": "foo", "key": "bar", "region": "us-east-1"},
 			},
-			RemoteState{
+			remote.RemoteState{
 				Backend: "s3",
 				Config:  map[string]interface{}{"bucket": "foo", "key": "bar", "region": "different"},
 			},
 			true,
 		}, {
 			"different gcs location values",
-			TerraformBackend{
+			remote.TerraformBackend{
 				Type:   "gcs",
 				Config: map[string]interface{}{"project": "foo-123456", "location": "europe-west3", "bucket": "foo", "prefix": "bar"},
 			},
-			RemoteState{
+			remote.RemoteState{
 				Backend: "gcs",
 				Config:  map[string]interface{}{"project": "foo-123456", "location": "different", "bucket": "foo", "prefix": "bar"},
 			},
@@ -231,11 +233,11 @@ func TestDiffersFrom(t *testing.T) {
 		},
 		{
 			"different boolean values and boolean conversion",
-			TerraformBackend{
+			remote.TerraformBackend{
 				Type:   "s3",
 				Config: map[string]interface{}{"something": "true"},
 			},
-			RemoteState{
+			remote.RemoteState{
 				Backend: "s3",
 				Config:  map[string]interface{}{"something": false},
 			},
@@ -243,11 +245,11 @@ func TestDiffersFrom(t *testing.T) {
 		},
 		{
 			"different gcs boolean values and boolean conversion",
-			TerraformBackend{
+			remote.TerraformBackend{
 				Type:   "gcs",
 				Config: map[string]interface{}{"something": "true"},
 			},
-			RemoteState{
+			remote.RemoteState{
 				Backend: "gcs",
 				Config:  map[string]interface{}{"something": false},
 			},
@@ -255,11 +257,11 @@ func TestDiffersFrom(t *testing.T) {
 		},
 		{
 			"null values ignored",
-			TerraformBackend{
+			remote.TerraformBackend{
 				Type:   "s3",
 				Config: map[string]interface{}{"something": "foo", "set-to-nil-should-be-ignored": nil},
 			},
-			RemoteState{
+			remote.RemoteState{
 				Backend: "s3",
 				Config:  map[string]interface{}{"something": "foo"},
 			},
@@ -267,11 +269,11 @@ func TestDiffersFrom(t *testing.T) {
 		},
 		{
 			"gcs null values ignored",
-			TerraformBackend{
+			remote.TerraformBackend{
 				Type:   "gcs",
 				Config: map[string]interface{}{"something": "foo", "set-to-nil-should-be-ignored": nil},
 			},
-			RemoteState{
+			remote.RemoteState{
 				Backend: "gcs",
 				Config:  map[string]interface{}{"something": "foo"},
 			},
@@ -285,7 +287,7 @@ func TestDiffersFrom(t *testing.T) {
 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			shouldOverride := testCase.stateFromConfig.differsFrom(&testCase.existingBackend, terragruntOptions)
+			shouldOverride := testCase.stateFromConfig.DiffersFrom(&testCase.existingBackend, terragruntOptions)
 			assert.Equal(t, testCase.shouldOverride, shouldOverride, "Expect differsFrom to return %t but got %t for existingRemoteState %v and remoteStateFromTerragruntConfig %v", testCase.shouldOverride, shouldOverride, testCase.existingBackend, testCase.stateFromConfig)
 		})
 	}

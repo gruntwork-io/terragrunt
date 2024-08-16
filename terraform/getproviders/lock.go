@@ -47,7 +47,8 @@ func UpdateLockfile(ctx context.Context, workingDir string, providers []Provider
 		return err
 	}
 
-	if err := os.WriteFile(filename, file.Bytes(), 0644); err != nil {
+	const ownerWriteGlobalReadPerms = 0644
+	if err := os.WriteFile(filename, file.Bytes(), ownerWriteGlobalReadPerms); err != nil {
 		return errors.WithStackTrace(err)
 	}
 	return nil

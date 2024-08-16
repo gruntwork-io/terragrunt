@@ -2,14 +2,17 @@ package config
 
 import (
 	"context"
+	goErrors "errors"
 	"fmt"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/mitchellh/mapstructure"
@@ -32,11 +35,11 @@ import (
 const (
 	DefaultTerragruntConfigPath     = "terragrunt.hcl"
 	DefaultTerragruntJsonConfigPath = "terragrunt.hcl.json"
-)
+	FoundInFile                     = "found_in_file"
 
-const FoundInFile = "found_in_file"
+	iamRoleCacheName = "iamRoleCache"
 
-const (
+	DefaultEngineType                   = "rpc"
 	MetadataTerraform                   = "terraform"
 	MetadataTerraformBinary             = "terraform_binary"
 	MetadataTerraformVersionConstraint  = "terraform_version_constraint"
@@ -55,6 +58,7 @@ const (
 	MetadataLocals                      = "locals"
 	MetadataLocal                       = "local"
 	MetadataCatalog                     = "catalog"
+	MetadataEngine                      = "engine"
 	MetadataGenerateConfigs             = "generate"
 	MetadataRetryableErrors             = "retryable_errors"
 	MetadataRetryMaxAttempts            = "retry_max_attempts"
@@ -71,8 +75,10 @@ var (
 	}
 
 	DefaultParserOptions = func(opts *options.TerragruntOptions) []hclparse.Option {
+		writer := &util.LogWriter{Logger: opts.Logger, Level: logrus.ErrorLevel}
+
 		return []hclparse.Option{
-			hclparse.WithLogger(opts.Logger),
+			hclparse.WithDiagnosticsWriter(writer, opts.DisableLogColors),
 			hclparse.WithFileUpdate(updateBareIncludeBlock),
 		}
 	}
@@ -99,14 +105,15 @@ type TerragruntConfig struct {
 	IamWebIdentityToken         string
 	Inputs                      map[string]interface{}
 	Locals                      map[string]interface{}
-	TerragruntDependencies      []Dependency
+	TerragruntDependencies      Dependencies
 	GenerateConfigs             map[string]codegen.GenerateConfig
 	RetryableErrors             []string
 	RetryMaxAttempts            *int
 	RetrySleepIntervalSec       *int
+	Engine                      *EngineConfig
 
 	// Fields used for internal tracking
-	// Indicates whether or not this is the result of a partial evaluation
+	// Indicates whether this is the result of a partial evaluation
 	IsPartial bool
 
 	// Map of processed includes
@@ -141,6 +148,7 @@ func (conf *TerragruntConfig) GetIAMRoleOptions() options.IAMRoleOptions {
 // terragrunt.hcl)
 type terragruntConfigFile struct {
 	Catalog                     *CatalogConfig   `hcl:"catalog,block"`
+	Engine                      *EngineConfig    `hcl:"engine,block"`
 	Terraform                   *TerraformConfig `hcl:"terraform,block"`
 	TerraformBinary             *string          `hcl:"terraform_binary,attr"`
 	TerraformVersionConstraint  *string          `hcl:"terraform_version_constraint,attr"`
@@ -231,7 +239,7 @@ func (remoteState *remoteStateConfigFile) String() string {
 // Convert the parsed config file remote state struct to the internal representation struct of remote state
 // configurations.
 func (remoteState *remoteStateConfigFile) toConfig() (*remote.RemoteState, error) {
-	remoteStateConfig, err := parseCtyValueToMap(remoteState.Config)
+	remoteStateConfig, err := ParseCtyValueToMap(remoteState.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -269,7 +277,7 @@ type remoteStateConfigGenerate struct {
 // Struct used to parse generate blocks. This will later be converted to GenerateConfig structs so that we can go
 // through the codegen routine.
 type terragruntGenerateBlock struct {
-	Name             string  `hcl:",label"`
+	Name             string  `hcl:",label" mapstructure:",omitempty"`
 	Path             string  `hcl:"path,attr" mapstructure:"path"`
 	IfExists         string  `hcl:"if_exists,attr" mapstructure:"if_exists"`
 	IfDisabled       *string `hcl:"if_disabled,attr" mapstructure:"if_disabled"`
@@ -307,7 +315,7 @@ func (cfg *IncludeConfig) String() string {
 	}
 	exposeStr := "nil"
 	if cfg.Expose != nil {
-		exposeStr = fmt.Sprintf("%v", *cfg.Expose)
+		exposeStr = strconv.FormatBool(*cfg.Expose)
 	}
 	mergeStrategyStr := "nil"
 	if cfg.MergeStrategy != nil {
@@ -680,23 +688,24 @@ func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOpt
 }
 
 // Read the Terragrunt config file from its default location
-func ReadTerragruntConfig(terragruntOptions *options.TerragruntOptions) (*TerragruntConfig, error) {
+func ReadTerragruntConfig(ctx context.Context, terragruntOptions *options.TerragruntOptions, parserOptions []hclparse.Option) (*TerragruntConfig, error) {
 	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
 
-	ctx := NewParsingContext(context.Background(), terragruntOptions)
-	return ParseConfigFile(terragruntOptions, ctx, terragruntOptions.TerragruntConfigPath, nil)
-}
+	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
+	parcingCtx := NewParsingContext(ctx, terragruntOptions).WithParseOption(parserOptions)
 
-var hclCache = cache.NewCache[*hclparse.File]()
+	// TODO: Remove lint ignore
+	return ParseConfigFile(parcingCtx, terragruntOptions.TerragruntConfigPath, nil) //nolint:contextcheck
+}
 
 // Parse the Terragrunt config file at the given path. If the include parameter is not nil, then treat this as a config
 // included in some other config file when resolving relative paths.
-func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
-
+func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	var config *TerragruntConfig
-	err := telemetry.Telemetry(ctx, opts, "parse_config_file", map[string]interface{}{
+	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
+	err := telemetry.Telemetry(ctx, ctx.TerragruntOptions, "parse_config_file", map[string]interface{}{
 		"config_path": configPath,
-		"working_dir": opts.WorkingDir,
+		"working_dir": ctx.TerragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
 		childKey := "nil"
 		if includeFromChild != nil {
@@ -716,8 +725,9 @@ func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, confi
 			return err
 		}
 		var file *hclparse.File
-		var cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, opts.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
-		if cacheConfig, found := hclCache.Get(cacheKey); found {
+		var cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, ctx.TerragruntOptions.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
+		// TODO: Remove lint ignore
+		if cacheConfig, found := hclCache.Get(ctx, cacheKey); found { //nolint:contextcheck
 			file = cacheConfig
 		} else {
 			// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
@@ -725,9 +735,12 @@ func ParseConfigFile(opts *options.TerragruntOptions, ctx *ParsingContext, confi
 			if err != nil {
 				return err
 			}
-			hclCache.Put(cacheKey, file)
+			// TODO: Remove lint ignore
+			hclCache.Put(ctx, cacheKey, file) //nolint:contextcheck
 		}
-		config, err = ParseConfig(ctx, file, includeFromChild)
+
+		// TODO: Remove lint ignore
+		config, err = ParseConfig(ctx, file, includeFromChild) //nolint:contextcheck
 		if err != nil {
 			return err
 		}
@@ -848,7 +861,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 }
 
 // iamRoleCache - store for cached values of IAM roles
-var iamRoleCache = cache.NewCache[options.IAMRoleOptions]()
+var iamRoleCache = cache.NewCache[options.IAMRoleOptions](iamRoleCacheName)
 
 // setIAMRole - extract IAM role details from Terragrunt flags block
 func setIAMRole(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) error {
@@ -858,14 +871,14 @@ func setIAMRole(ctx *ParsingContext, file *hclparse.File, includeFromChild *Incl
 	} else {
 		// as key is considered HCL code and include configuration
 		var key = fmt.Sprintf("%v-%v", file.Content(), includeFromChild)
-		var config, found = iamRoleCache.Get(key)
+		var config, found = iamRoleCache.Get(ctx, key)
 		if !found {
 			iamConfig, err := TerragruntConfigFromPartialConfig(ctx.WithDecodeList(TerragruntFlags), file, includeFromChild)
 			if err != nil {
 				return err
 			}
 			config = iamConfig.GetIAMRoleOptions()
-			iamRoleCache.Put(key, config)
+			iamRoleCache.Put(ctx, key, config)
 		}
 		// We merge the OriginalIAMRoleOptions into the one from the config, because the CLI passed IAMRoleOptions has
 		// precedence.
@@ -881,19 +894,23 @@ func decodeAsTerragruntConfigFile(ctx *ParsingContext, file *hclparse.File, eval
 	terragruntConfig := terragruntConfigFile{}
 
 	if err := file.Decode(&terragruntConfig, evalContext); err != nil {
-		diagErr, ok := errors.Unwrap(err).(hcl.Diagnostics)
+		var diagErr hcl.Diagnostics
+		// diagErr, ok := errors.Unwrap(err).(hcl.Diagnostics)
+		ok := goErrors.As(err, &diagErr)
 
 		// in case of render-json command and inputs reference error, we update the inputs with default value
 		if !ok || !isRenderJsonCommand(ctx) || !isAttributeAccessError(diagErr) {
 			return nil, err
 		}
 		ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
+	}
 
-		inputs, err := updateUnknownCtyValValues(terragruntConfig.Inputs)
+	if terragruntConfig.Inputs != nil {
+		inputs, err := UpdateUnknownCtyValValues(*terragruntConfig.Inputs)
 		if err != nil {
 			return nil, err
 		}
-		terragruntConfig.Inputs = inputs
+		terragruntConfig.Inputs = &inputs
 	}
 
 	return &terragruntConfig, nil
@@ -966,7 +983,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	}
 
 	if terragruntConfigFromFile.RemoteStateAttr != nil {
-		remoteStateMap, err := parseCtyValueToMap(*terragruntConfigFromFile.RemoteStateAttr)
+		remoteStateMap, err := ParseCtyValueToMap(*terragruntConfigFromFile.RemoteStateAttr)
 		if err != nil {
 			return nil, err
 		}
@@ -1069,11 +1086,16 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 		terragruntConfig.SetFieldMetadata(MetadataIamWebIdentityToken, defaultMetadata)
 	}
 
+	if terragruntConfigFromFile.Engine != nil {
+		terragruntConfig.Engine = terragruntConfigFromFile.Engine
+		terragruntConfig.SetFieldMetadata(MetadataEngine, defaultMetadata)
+	}
+
 	generateBlocks := []terragruntGenerateBlock{}
 	generateBlocks = append(generateBlocks, terragruntConfigFromFile.GenerateBlocks...)
 
 	if terragruntConfigFromFile.GenerateAttrs != nil {
-		generateMap, err := parseCtyValueToMap(*terragruntConfigFromFile.GenerateAttrs)
+		generateMap, err := ParseCtyValueToMap(*terragruntConfigFromFile.GenerateAttrs)
 		if err != nil {
 			return nil, err
 		}
@@ -1133,7 +1155,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	}
 
 	if terragruntConfigFromFile.Inputs != nil {
-		inputs, err := parseCtyValueToMap(*terragruntConfigFromFile.Inputs)
+		inputs, err := ParseCtyValueToMap(*terragruntConfigFromFile.Inputs)
 		if err != nil {
 			return nil, err
 		}
@@ -1143,7 +1165,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	}
 
 	if ctx.Locals != nil && *ctx.Locals != cty.NilVal {
-		localsParsed, err := parseCtyValueToMap(*ctx.Locals)
+		localsParsed, err := ParseCtyValueToMap(*ctx.Locals)
 		if err != nil {
 			return nil, err
 		}
@@ -1273,4 +1295,38 @@ func (conf *TerragruntConfig) GetMapFieldMetadata(fieldType, fieldName string) (
 	}
 
 	return result, found
+}
+
+// EngineOptions fetch engine options
+func (conf *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
+	if conf.Engine == nil {
+		return nil, nil
+	}
+	// in case of Meta is null, set empty meta
+	var meta = map[string]interface{}{}
+	if conf.Engine.Meta != nil {
+		parsedMeta, err := ParseCtyValueToMap(*conf.Engine.Meta)
+		if err != nil {
+			return nil, err
+		}
+		meta = parsedMeta
+	}
+
+	var v, t string
+	if conf.Engine.Version != nil {
+		v = *conf.Engine.Version
+	}
+	if conf.Engine.Type != nil {
+		t = *conf.Engine.Type
+	}
+	// if type is null of empty, set to "rpc"
+	if len(t) == 0 {
+		t = DefaultEngineType
+	}
+	return &options.EngineOptions{
+		Source:  conf.Engine.Source,
+		Version: v,
+		Type:    t,
+		Meta:    meta,
+	}, nil
 }

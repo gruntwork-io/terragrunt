@@ -1,4 +1,4 @@
-package test
+package integration_test
 
 import (
 	"bytes"
@@ -40,13 +40,13 @@ func TestLocalDownload(t *testing.T) {
 
 	cleanupTerraformFolder(t, testFixtureLocalDownloadPath)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureLocalDownloadPath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalDownloadPath)
 
 	// As of Terraform 0.14.0 we should be copying the lock file from .terragrunt-cache to the working directory
 	assert.FileExists(t, util.JoinPath(testFixtureLocalDownloadPath, util.TerraformLockFile))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureLocalDownloadPath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalDownloadPath)
 }
 
 func TestLocalDownloadWithHiddenFolder(t *testing.T) {
@@ -54,10 +54,10 @@ func TestLocalDownloadWithHiddenFolder(t *testing.T) {
 
 	cleanupTerraformFolder(t, testFixtureLocalWithHiddenFolder)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureLocalWithHiddenFolder))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalWithHiddenFolder)
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureLocalWithHiddenFolder))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalWithHiddenFolder)
 }
 
 func TestLocalDownloadWithAllowedHiddenFiles(t *testing.T) {
@@ -88,17 +88,17 @@ func TestLocalDownloadWithRelativePath(t *testing.T) {
 
 	cleanupTerraformFolder(t, testFixtureLocalRelativeDownloadPath)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureLocalRelativeDownloadPath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalRelativeDownloadPath)
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureLocalRelativeDownloadPath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalRelativeDownloadPath)
 }
 
 func TestLocalWithBackend(t *testing.T) {
 	t.Parallel()
 
-	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-	lockTableName := fmt.Sprintf("terragrunt-lock-table-%s", strings.ToLower(uniqueId()))
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
+	lockTableName := "terragrunt-lock-table-" + strings.ToLower(uniqueId())
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
@@ -109,17 +109,17 @@ func TestLocalWithBackend(t *testing.T) {
 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 }
 
 func TestLocalWithMissingBackend(t *testing.T) {
 	t.Parallel()
 
-	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-	lockTableName := fmt.Sprintf("terragrunt-lock-table-%s", strings.ToLower(uniqueId()))
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
+	lockTableName := "terragrunt-lock-table-" + strings.ToLower(uniqueId())
 
 	tmpEnvPath := copyEnvironment(t, "fixture-download")
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLocalMissingBackend)
@@ -127,7 +127,7 @@ func TestLocalWithMissingBackend(t *testing.T) {
 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath), os.Stdout, os.Stderr)
+	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, os.Stdout, os.Stderr)
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
 		assert.IsType(t, terraform.BackendNotDefined{}, underlying)
@@ -139,10 +139,10 @@ func TestRemoteDownload(t *testing.T) {
 
 	cleanupTerraformFolder(t, testFixtureRemoteDownloadPath)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureRemoteDownloadPath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureRemoteDownloadPath)
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureRemoteDownloadPath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureRemoteDownloadPath)
 }
 
 func TestInvalidRemoteDownload(t *testing.T) {
@@ -152,12 +152,12 @@ func TestInvalidRemoteDownload(t *testing.T) {
 	applyStdout := bytes.Buffer{}
 	applyStderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureInvalidRemoteDownloadPath), &applyStdout, &applyStderr)
+	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureInvalidRemoteDownloadPath, &applyStdout, &applyStderr)
 
 	logBufferContentsLineByLine(t, applyStdout, "apply stdout")
 	logBufferContentsLineByLine(t, applyStderr, "apply stderr")
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	errMessage := "downloading source url"
 	assert.Containsf(t, err.Error(), errMessage, "expected error containing %q, got %s", errMessage, err)
 
@@ -168,10 +168,10 @@ func TestRemoteDownloadWithRelativePath(t *testing.T) {
 
 	cleanupTerraformFolder(t, testFixtureRemoteRelativeDownloadPath)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureRemoteRelativeDownloadPath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureRemoteRelativeDownloadPath)
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureRemoteRelativeDownloadPath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureRemoteRelativeDownloadPath)
 }
 
 func TestRemoteDownloadOverride(t *testing.T) {
@@ -188,8 +188,8 @@ func TestRemoteDownloadOverride(t *testing.T) {
 func TestRemoteWithBackend(t *testing.T) {
 	t.Parallel()
 
-	s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s", strings.ToLower(uniqueId()))
-	lockTableName := fmt.Sprintf("terragrunt-lock-table-%s", strings.ToLower(uniqueId()))
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
+	lockTableName := "terragrunt-lock-table-" + strings.ToLower(uniqueId())
 
 	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
 	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
@@ -200,10 +200,10 @@ func TestRemoteWithBackend(t *testing.T) {
 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 }
 
 func TestRemoteWithModuleInRoot(t *testing.T) {
@@ -212,10 +212,10 @@ func TestRemoteWithModuleInRoot(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, testFixtureRemoteModuleInRoot)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureRemoteModuleInRoot)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 }
 
 // As of Terraform 0.14.0, if there's already a lock file in the working directory, we should be copying it into
@@ -227,7 +227,7 @@ func TestCustomLockFile(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, filepath.Dir(testFixtureCustomLockFile))
 	rootPath := util.JoinPath(tmpEnvPath, path)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", rootPath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+rootPath)
 
 	source := "../custom-lock-file-module"
 	downloadDir := util.JoinPath(rootPath, TERRAGRUNT_CACHE)
@@ -235,7 +235,7 @@ func TestCustomLockFile(t *testing.T) {
 	require.NoError(t, err)
 
 	lockFilePath := util.JoinPath(result.WorkingDir, util.TerraformLockFile)
-	require.FileExists(t, lockFilePath)
+	assert.FileExists(t, lockFilePath)
 
 	readFile, err := os.ReadFile(lockFilePath)
 	require.NoError(t, err)
@@ -298,11 +298,11 @@ func TestExcludeDirs(t *testing.T) {
 			showStdout := bytes.Buffer{}
 			showStderr := bytes.Buffer{}
 
-			err = runTerragruntCommand(t, fmt.Sprintf("terragrunt show --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", modulePath), &showStdout, &showStderr)
-			logBufferContentsLineByLine(t, showStdout, fmt.Sprintf("show stdout for %s", modulePath))
-			logBufferContentsLineByLine(t, showStderr, fmt.Sprintf("show stderr for %s", modulePath))
+			err = runTerragruntCommand(t, "terragrunt show --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+modulePath, &showStdout, &showStderr)
+			logBufferContentsLineByLine(t, showStdout, "show stdout for "+modulePath)
+			logBufferContentsLineByLine(t, showStderr, "show stderr for "+modulePath)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			output := showStdout.String()
 			for _, excludedModuleOutput := range testCase.excludedModuleOutputs {
 				assert.NotContains(t, output, excludedModuleOutput)
@@ -329,6 +329,7 @@ func TestIncludeDirs(t *testing.T) {
 		includeArgs           string
 		includedModuleOutputs []string
 	}{
+		{testFixtureLocalWithIncludeDir, "--terragrunt-include-dir xyz", []string{}},
 		{testFixtureLocalWithIncludeDir, "--terragrunt-include-dir */aws", []string{"Module GCE B", "Module GCE C", "Module GCE E"}},
 		{testFixtureLocalWithIncludeDir, "--terragrunt-include-dir production-env --terragrunt-include-dir **/module-gce-c", []string{"Module GCE B", "Module AWS A"}},
 		{testFixtureLocalWithIncludeDir, "--terragrunt-include-dir integration-env/gce/module-gce-b --terragrunt-include-dir integration-env/gce/module-gce-c --terragrunt-include-dir **/module-aws*", []string{"Module GCE E"}},
@@ -364,11 +365,11 @@ func TestIncludeDirs(t *testing.T) {
 			showStdout := bytes.Buffer{}
 			showStderr := bytes.Buffer{}
 
-			err = runTerragruntCommand(t, fmt.Sprintf("terragrunt show --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", modulePath), &showStdout, &showStderr)
-			logBufferContentsLineByLine(t, showStdout, fmt.Sprintf("show stdout for %s", modulePath))
-			logBufferContentsLineByLine(t, showStderr, fmt.Sprintf("show stderr for %s", modulePath))
+			err = runTerragruntCommand(t, "terragrunt show --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+modulePath, &showStdout, &showStderr)
+			logBufferContentsLineByLine(t, showStdout, "show stdout for "+modulePath)
+			logBufferContentsLineByLine(t, showStderr, "show stderr for "+modulePath)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			output := showStdout.String()
 			for _, includedModuleOutput := range testCase.includedModuleOutputs {
 				assert.NotContains(t, output, includedModuleOutput)
@@ -394,7 +395,7 @@ func TestIncludeDirsDependencyConsistencyRegression(t *testing.T) {
 	}
 
 	includedModulesWithNone := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{}, false)
-	assert.Greater(t, len(includedModulesWithNone), 0)
+	assert.NotEmpty(t, includedModulesWithNone)
 
 	includedModulesWithAmzApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"amazing-app/k8s"}, false)
 	assert.Equal(t, []string{"amazing-app/k8s", "clusters/eks"}, includedModulesWithAmzApp)
@@ -450,7 +451,7 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 	rootPath := copyEnvironment(t, TEST_FIXTURE_EXTERNAL_DEPENDENCE)
 	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_EXTERNAL_DEPENDENCE, "module-b")
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-include-external-dependencies --terragrunt-working-dir %s", modulePath), &applyAllStdout, &applyAllStderr)
+	err := runTerragruntCommand(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-include-external-dependencies --terragrunt-working-dir "+modulePath, &applyAllStdout, &applyAllStderr)
 	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
 	logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
 	applyAllStdoutString := applyAllStdout.String()
@@ -460,6 +461,6 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 	}
 
 	for _, module := range modules {
-		assert.Contains(t, applyAllStdoutString, fmt.Sprintf("Hello World, %s", module))
+		assert.Contains(t, applyAllStdoutString, "Hello World, "+module)
 	}
 }
