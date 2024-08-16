@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"net/url"
 	"path"
 	"strings"
 )
@@ -73,16 +74,24 @@ type ResponseBody struct {
 	SigningKeys SigningKeyList `json:"signing_keys,omitempty"`
 }
 
+func (body ResponseBody) ResolveRelativeReferences(base *url.URL) *ResponseBody {
+	body.DownloadURL = resolveRelativeReference(base, body.DownloadURL)
+	body.SHA256SumsSignatureURL = resolveRelativeReference(base, body.SHA256SumsSignatureURL)
+	body.SHA256SumsURL = resolveRelativeReference(base, body.SHA256SumsURL)
+	return &body
+}
+
 // Provider represents the details of the Terraform provider.
 type Provider struct {
 	*ResponseBody
 
-	RegistryName string
-	Namespace    string
-	Name         string
-	Version      string
-	OS           string
-	Arch         string
+	RegistryPrefix string
+	RegistryName   string
+	Namespace      string
+	Name           string
+	Version        string
+	OS             string
+	Arch           string
 }
 
 func ParseProvider(str string) *Provider {

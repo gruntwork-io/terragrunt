@@ -1,16 +1,21 @@
-package configstack
+package configstack_test
 
 import (
 	"context"
+	goErrors "errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,10 +41,10 @@ func TestFindStackInSubfolders(t *testing.T) {
 
 	terragruntOptions.WorkingDir = envFolder
 
-	stack, err := FindStackInSubfolders(context.Background(), terragruntOptions, nil)
+	stack, err := configstack.FindStackInSubfolders(context.Background(), terragruntOptions)
 	require.NoError(t, err)
 
-	var modulePaths []string
+	var modulePaths = make([]string, 0, len(stack.Modules))
 
 	for _, module := range stack.Modules {
 		relPath := strings.Replace(module.Path, tempFolder, "", 1)
@@ -50,7 +55,7 @@ func TestFindStackInSubfolders(t *testing.T) {
 
 	for _, filePath := range filePaths {
 		filePathFound := util.ListContainsElement(modulePaths, filePath)
-		assert.True(t, filePathFound, "The filePath %s was not found by Terragrunt.\n", filePath)
+		require.True(t, filePathFound, "The filePath %s was not found by Terragrunt.\n", filePath)
 	}
 }
 
@@ -58,12 +63,12 @@ func TestGetModuleRunGraphApplyOrder(t *testing.T) {
 	t.Parallel()
 
 	stack := createTestStack()
-	runGraph, err := stack.getModuleRunGraph("apply")
+	runGraph, err := stack.GetModuleRunGraph(terraform.CommandNameApply)
 	require.NoError(t, err)
 
-	assert.Equal(
+	require.Equal(
 		t,
-		[][]*TerraformModule{
+		[]configstack.TerraformModules{
 			{
 				stack.Modules[1],
 			},
@@ -83,12 +88,12 @@ func TestGetModuleRunGraphDestroyOrder(t *testing.T) {
 	t.Parallel()
 
 	stack := createTestStack()
-	runGraph, err := stack.getModuleRunGraph("destroy")
+	runGraph, err := stack.GetModuleRunGraph(terraform.CommandNameDestroy)
 	require.NoError(t, err)
 
-	assert.Equal(
+	require.Equal(
 		t,
-		[][]*TerraformModule{
+		[]configstack.TerraformModules{
 			{
 				stack.Modules[5],
 			},
@@ -105,7 +110,7 @@ func TestGetModuleRunGraphDestroyOrder(t *testing.T) {
 
 }
 
-func createTestStack() *Stack {
+func createTestStack() *configstack.Stack {
 	// Create the following module stack:
 	// - account-baseline (excluded)
 	// - vpc; depends on account-baseline
@@ -114,42 +119,43 @@ func createTestStack() *Stack {
 	// - redis; depends on vpc
 	// - myapp; depends on mysql and redis
 	basePath := "/stage/mystack"
-	accountBaseline := &TerraformModule{
+	accountBaseline := &configstack.TerraformModule{
 		Path:         filepath.Join(basePath, "account-baseline"),
 		FlagExcluded: true,
 	}
-	vpc := &TerraformModule{
+	vpc := &configstack.TerraformModule{
 		Path:         filepath.Join(basePath, "vpc"),
-		Dependencies: []*TerraformModule{accountBaseline},
+		Dependencies: configstack.TerraformModules{accountBaseline},
 	}
-	lambda := &TerraformModule{
+	lambda := &configstack.TerraformModule{
 		Path:                 filepath.Join(basePath, "lambda"),
-		Dependencies:         []*TerraformModule{vpc},
+		Dependencies:         configstack.TerraformModules{vpc},
 		AssumeAlreadyApplied: true,
 	}
-	mysql := &TerraformModule{
+	mysql := &configstack.TerraformModule{
 		Path:         filepath.Join(basePath, "mysql"),
-		Dependencies: []*TerraformModule{vpc},
+		Dependencies: configstack.TerraformModules{vpc},
 	}
-	redis := &TerraformModule{
+	redis := &configstack.TerraformModule{
 		Path:         filepath.Join(basePath, "redis"),
-		Dependencies: []*TerraformModule{vpc},
+		Dependencies: configstack.TerraformModules{vpc},
 	}
-	myapp := &TerraformModule{
+	myapp := &configstack.TerraformModule{
 		Path:         filepath.Join(basePath, "myapp"),
-		Dependencies: []*TerraformModule{mysql, redis},
+		Dependencies: configstack.TerraformModules{mysql, redis},
 	}
-	return &Stack{
-		Path: "/stage/mystack",
-		Modules: []*TerraformModule{
-			accountBaseline,
-			vpc,
-			lambda,
-			mysql,
-			redis,
-			myapp,
-		},
+
+	stack := configstack.NewStack(&options.TerragruntOptions{WorkingDir: "/stage/mystack"})
+	stack.Modules = configstack.TerraformModules{
+		accountBaseline,
+		vpc,
+		lambda,
+		mysql,
+		redis,
+		myapp,
 	}
+
+	return stack
 }
 
 func createTempFolder(t *testing.T) string {
@@ -183,5 +189,1002 @@ func createDirIfNotExist(t *testing.T, path string) {
 		if err != nil {
 			t.Fatalf("Failed to create directory: %s\n", err.Error())
 		}
+	}
+}
+
+func TestResolveTerraformModulesNoPaths(t *testing.T) {
+	t.Parallel()
+
+	configPaths := []string{}
+	expected := configstack.TerraformModules{}
+	stack := configstack.NewStack(mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesOneModuleNoDependencies(t *testing.T) {
+	t.Parallel()
+
+	moduleA := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-a"),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-a/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath}
+	expected := configstack.TerraformModules{moduleA}
+
+	stack := configstack.NewStack(mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesOneJsonModuleNoDependencies(t *testing.T) {
+	t.Parallel()
+
+	moduleA := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/json-module-a"),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/json-module-a/"+config.DefaultTerragruntJsonConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/json-module-a/" + config.DefaultTerragruntJsonConfigPath}
+	expected := configstack.TerraformModules{moduleA}
+
+	stack := configstack.NewStack(mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesOneModuleWithIncludesNoDependencies(t *testing.T) {
+	t.Parallel()
+
+	moduleB := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-b/module-b-child"),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			Terraform: &config.TerraformConfig{Source: ptr("...")},
+			IsPartial: true,
+			ProcessedIncludes: map[string]config.IncludeConfig{
+				"": {Path: canonical(t, "../test/fixture-modules/module-b/terragrunt.hcl")},
+			},
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-b/module-b-child/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/module-b/module-b-child/" + config.DefaultTerragruntConfigPath}
+	expected := configstack.TerraformModules{moduleB}
+
+	stack := configstack.NewStack(mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
+	t.Parallel()
+
+	childDir := "../test/fixture-modules/module-m/module-m-child"
+	childConfigPath := filepath.Join(childDir, config.DefaultTerragruntConfigPath)
+
+	parentDir := "../test/fixture-modules/module-m"
+	parentCofnigPath := filepath.Join(parentDir, config.DefaultTerragruntConfigPath)
+
+	localsConfigPaths := map[string]string{
+		"env_vars":  "../test/fixture-modules/module-m/env.hcl",
+		"tier_vars": "../test/fixture-modules/module-m/module-m-child/tier.hcl",
+	}
+
+	localsConfigs := make(map[string]interface{})
+
+	for name, configPath := range localsConfigPaths {
+		opts, err := options.NewTerragruntOptionsWithConfigPath(configPath)
+		require.NoError(t, err)
+
+		ctx := config.NewParsingContext(context.Background(), opts)
+		cfg, err := config.PartialParseConfigFile(ctx, configPath, nil)
+		require.NoError(t, err)
+
+		localsConfigs[name] = map[string]interface{}{
+			"dependencies":                  interface{}(nil),
+			"download_dir":                  "",
+			"generate":                      map[string]interface{}{},
+			"iam_assume_role_duration":      interface{}(nil),
+			"iam_assume_role_session_name":  "",
+			"iam_role":                      "",
+			"iam_web_identity_token":        "",
+			"inputs":                        interface{}(nil),
+			"locals":                        cfg.Locals,
+			"retry_max_attempts":            interface{}(nil),
+			"retry_sleep_interval_sec":      interface{}(nil),
+			"retryable_errors":              interface{}(nil),
+			"skip":                          false,
+			"terraform_binary":              "",
+			"terraform_version_constraint":  "",
+			"terragrunt_version_constraint": "",
+		}
+	}
+
+	moduleM := &configstack.TerraformModule{
+		Path:         canonical(t, childDir),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			Terraform: &config.TerraformConfig{Source: ptr("...")},
+			IsPartial: true,
+			ProcessedIncludes: map[string]config.IncludeConfig{
+				"": {Path: canonical(t, "../test/fixture-modules/module-m/terragrunt.hcl")},
+			},
+			Locals:          localsConfigs,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+			FieldsMetadata: map[string]map[string]interface{}{
+				"locals-env_vars": {
+					"found_in_file": canonical(t, "../test/fixture-modules/module-m/terragrunt.hcl"),
+				},
+				"locals-tier_vars": {
+					"found_in_file": canonical(t, "../test/fixture-modules/module-m/terragrunt.hcl"),
+				},
+			},
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, childConfigPath)),
+	}
+
+	configPaths := []string{childConfigPath}
+	childTerragruntConfig := &config.TerragruntConfig{
+		ProcessedIncludes: map[string]config.IncludeConfig{
+			"": {
+				Path: parentCofnigPath,
+			},
+		},
+	}
+	expected := configstack.TerraformModules{moduleM}
+
+	mockOptions, _ := options.NewTerragruntOptionsForTest("running_module_test")
+	mockOptions.OriginalTerragruntConfigPath = childConfigPath
+
+	stack := configstack.NewStack(mockOptions, configstack.WithChildTerragruntConfig(childTerragruntConfig))
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesOneJsonModuleWithIncludesNoDependencies(t *testing.T) {
+	t.Parallel()
+
+	moduleB := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/json-module-b/module-b-child"),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			Terraform: &config.TerraformConfig{Source: ptr("...")},
+			IsPartial: true,
+			ProcessedIncludes: map[string]config.IncludeConfig{
+				"": {Path: canonical(t, "../test/fixture-modules/json-module-b/terragrunt.hcl")},
+			},
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/json-module-b/module-b-child/"+config.DefaultTerragruntJsonConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/json-module-b/module-b-child/" + config.DefaultTerragruntJsonConfigPath}
+	expected := configstack.TerraformModules{moduleB}
+
+	stack := configstack.NewStack(mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesOneHclModuleWithIncludesNoDependencies(t *testing.T) {
+	t.Parallel()
+
+	moduleB := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/hcl-module-b/module-b-child"),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			Terraform: &config.TerraformConfig{Source: ptr("...")},
+			IsPartial: true,
+			ProcessedIncludes: map[string]config.IncludeConfig{
+				"": {Path: canonical(t, "../test/fixture-modules/hcl-module-b/terragrunt.hcl.json")},
+			},
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/hcl-module-b/module-b-child/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/hcl-module-b/module-b-child/" + config.DefaultTerragruntConfigPath}
+	expected := configstack.TerraformModules{moduleB}
+
+	stack := configstack.NewStack(mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesTwoModulesWithDependencies(t *testing.T) {
+	t.Parallel()
+
+	moduleA := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-a"),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-a/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleC := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-c"),
+		Dependencies: configstack.TerraformModules{moduleA},
+		Config: config.TerragruntConfig{
+			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
+			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-c/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath}
+	expected := configstack.TerraformModules{moduleA, moduleC}
+
+	stack := configstack.NewStack(mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesJsonModulesWithHclDependencies(t *testing.T) {
+	t.Parallel()
+
+	moduleA := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-a"),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-a/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleC := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/json-module-c"),
+		Dependencies: configstack.TerraformModules{moduleA},
+		Config: config.TerragruntConfig{
+			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
+			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/json-module-c/"+config.DefaultTerragruntJsonConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/json-module-c/" + config.DefaultTerragruntJsonConfigPath}
+	expected := configstack.TerraformModules{moduleA, moduleC}
+
+	stack := configstack.NewStack(mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesHclModulesWithJsonDependencies(t *testing.T) {
+	t.Parallel()
+
+	moduleA := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/json-module-a"),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/json-module-a/"+config.DefaultTerragruntJsonConfigPath)),
+	}
+
+	moduleC := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/hcl-module-c"),
+		Dependencies: configstack.TerraformModules{moduleA},
+		Config: config.TerragruntConfig{
+			Dependencies:    &config.ModuleDependencies{Paths: []string{"../json-module-a"}},
+			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/hcl-module-c/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/json-module-a/" + config.DefaultTerragruntJsonConfigPath, "../test/fixture-modules/hcl-module-c/" + config.DefaultTerragruntConfigPath}
+	expected := configstack.TerraformModules{moduleA, moduleC}
+
+	stack := configstack.NewStack(mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDependency(t *testing.T) {
+	t.Parallel()
+
+	opts, _ := options.NewTerragruntOptionsForTest("running_module_test")
+	opts.ExcludeDirs = []string{canonical(t, "../test/fixture-modules/module-a")}
+
+	moduleA := &configstack.TerraformModule{
+		Path:              canonical(t, "../test/fixture-modules/module-a"),
+		Dependencies:      configstack.TerraformModules{},
+		TerragruntOptions: opts.Clone(canonical(t, "../test/fixture-modules/module-a/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleC := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-c"),
+		Dependencies: configstack.TerraformModules{moduleA},
+		Config: config.TerragruntConfig{
+			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
+			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: opts.Clone(canonical(t, "../test/fixture-modules/module-c/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath}
+
+	stack := configstack.NewStack(opts)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+
+	// construct the expected list
+	moduleA.FlagExcluded = true
+	expected := configstack.TerraformModules{moduleA, moduleC}
+
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDependencyAndConflictingNaming(t *testing.T) {
+	t.Parallel()
+
+	opts, _ := options.NewTerragruntOptionsForTest("running_module_test")
+	opts.ExcludeDirs = []string{canonical(t, "../test/fixture-modules/module-a")}
+
+	moduleA := &configstack.TerraformModule{
+		Path:              canonical(t, "../test/fixture-modules/module-a"),
+		Dependencies:      configstack.TerraformModules{},
+		TerragruntOptions: opts.Clone(canonical(t, "../test/fixture-modules/module-a/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleC := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-c"),
+		Dependencies: configstack.TerraformModules{moduleA},
+		Config: config.TerragruntConfig{
+			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
+			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: opts.Clone(canonical(t, "../test/fixture-modules/module-c/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleAbba := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-abba"),
+		Dependencies: configstack.TerraformModules{moduleA},
+		Config: config.TerragruntConfig{
+			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
+			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: opts.Clone(canonical(t, "../test/fixture-modules/module-abba/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-abba/" + config.DefaultTerragruntConfigPath}
+
+	stack := configstack.NewStack(opts)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+
+	// construct the expected list
+	moduleA.FlagExcluded = true
+	expected := configstack.TerraformModules{moduleA, moduleC, moduleAbba}
+
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithDependencyAndConflictingNamingAndGlob(t *testing.T) {
+	t.Parallel()
+
+	opts, _ := options.NewTerragruntOptionsForTest("running_module_test")
+	opts.ExcludeDirs = globCanonical(t, "../test/fixture-modules/module-a*")
+
+	moduleA := &configstack.TerraformModule{
+		Path:              canonical(t, "../test/fixture-modules/module-a"),
+		Dependencies:      configstack.TerraformModules{},
+		TerragruntOptions: opts.Clone(canonical(t, "../test/fixture-modules/module-a/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleC := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-c"),
+		Dependencies: configstack.TerraformModules{moduleA},
+		Config: config.TerragruntConfig{
+			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
+			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: opts.Clone(canonical(t, "../test/fixture-modules/module-c/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleAbba := &configstack.TerraformModule{
+		Path:              canonical(t, "../test/fixture-modules/module-abba"),
+		Dependencies:      configstack.TerraformModules{},
+		TerragruntOptions: opts.Clone(canonical(t, "../test/fixture-modules/module-abba/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-abba/" + config.DefaultTerragruntConfigPath}
+
+	stack := configstack.NewStack(opts)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+	// construct the expected list
+	moduleA.FlagExcluded = true
+	moduleAbba.FlagExcluded = true
+	expected := configstack.TerraformModules{moduleA, moduleC, moduleAbba}
+
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesTwoModulesWithDependenciesExcludedDirsWithNoDependency(t *testing.T) {
+	t.Parallel()
+
+	opts, _ := options.NewTerragruntOptionsForTest("running_module_test")
+	opts.ExcludeDirs = []string{canonical(t, "../test/fixture-modules/module-c")}
+
+	moduleA := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-a"),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: opts.Clone(canonical(t, "../test/fixture-modules/module-a/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleC := &configstack.TerraformModule{
+		Path:              canonical(t, "../test/fixture-modules/module-c"),
+		TerragruntOptions: opts.Clone(canonical(t, "../test/fixture-modules/module-c/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath}
+
+	stack := configstack.NewStack(opts)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+
+	// construct the expected list
+	moduleC.FlagExcluded = true
+	expected := configstack.TerraformModules{moduleA, moduleC}
+
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDependency(t *testing.T) {
+	t.Parallel()
+
+	opts, _ := options.NewTerragruntOptionsForTest("running_module_test")
+	opts.IncludeDirs = []string{canonical(t, "../test/fixture-modules/module-c")}
+
+	moduleA := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-a"),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: opts.Clone(canonical(t, "../test/fixture-modules/module-a/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleC := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-c"),
+		Dependencies: configstack.TerraformModules{moduleA},
+		Config: config.TerragruntConfig{
+			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
+			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: opts.Clone(canonical(t, "../test/fixture-modules/module-c/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath}
+
+	stack := configstack.NewStack(opts)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+
+	// construct the expected list
+	moduleA.FlagExcluded = false
+	expected := configstack.TerraformModules{moduleA, moduleC}
+
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithNoDependency(t *testing.T) {
+	t.Parallel()
+
+	opts, _ := options.NewTerragruntOptionsForTest("running_module_test")
+	opts.IncludeDirs = []string{canonical(t, "../test/fixture-modules/module-a")}
+	opts.ExcludeByDefault = true
+
+	moduleA := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-a"),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: opts.Clone(canonical(t, "../test/fixture-modules/module-a/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleC := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-c"),
+		Dependencies: configstack.TerraformModules{moduleA},
+		Config: config.TerragruntConfig{
+			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
+			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: opts.Clone(canonical(t, "../test/fixture-modules/module-c/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath}
+
+	stack := configstack.NewStack(opts)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+
+	// construct the expected list
+	moduleC.FlagExcluded = true
+	expected := configstack.TerraformModules{moduleA, moduleC}
+
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesTwoModulesWithDependenciesIncludedDirsWithDependencyExcludeModuleWithNoDependency(t *testing.T) {
+	t.Parallel()
+
+	opts, _ := options.NewTerragruntOptionsForTest("running_module_test")
+	opts.IncludeDirs = []string{canonical(t, "../test/fixture-modules/module-c"), canonical(t, "../test/fixture-modules/module-f")}
+	opts.ExcludeDirs = []string{canonical(t, "../test/fixture-modules/module-f")}
+
+	moduleA := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-a"),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: opts.Clone(canonical(t, "../test/fixture-modules/module-a/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleC := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-c"),
+		Dependencies: configstack.TerraformModules{moduleA},
+		Config: config.TerragruntConfig{
+			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
+			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: opts.Clone(canonical(t, "../test/fixture-modules/module-c/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleF := &configstack.TerraformModule{
+		Path:                 canonical(t, "../test/fixture-modules/module-f"),
+		Dependencies:         configstack.TerraformModules{},
+		TerragruntOptions:    mockOptions.Clone(canonical(t, "../test/fixture-modules/module-f/"+config.DefaultTerragruntConfigPath)),
+		AssumeAlreadyApplied: false,
+	}
+
+	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-f/" + config.DefaultTerragruntConfigPath}
+
+	stack := configstack.NewStack(opts)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+
+	// construct the expected list
+	moduleF.FlagExcluded = true
+	expected := configstack.TerraformModules{moduleA, moduleC, moduleF}
+
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
+	t.Parallel()
+
+	moduleA := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-a"),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-a/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleB := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-b/module-b-child"),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			Terraform: &config.TerraformConfig{Source: ptr("...")},
+			IsPartial: true,
+			ProcessedIncludes: map[string]config.IncludeConfig{
+				"": {Path: canonical(t, "../test/fixture-modules/module-b/terragrunt.hcl")},
+			},
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-b/module-b-child/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleC := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-c"),
+		Dependencies: configstack.TerraformModules{moduleA},
+		Config: config.TerragruntConfig{
+			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
+			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-c/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleD := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-d"),
+		Dependencies: configstack.TerraformModules{moduleA, moduleB, moduleC},
+		Config: config.TerragruntConfig{
+			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a", "../module-b/module-b-child", "../module-c"}},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-d/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-b/module-b-child/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-d/" + config.DefaultTerragruntConfigPath}
+	expected := configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD}
+
+	stack := configstack.NewStack(mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.T) {
+	t.Parallel()
+
+	moduleA := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-a"),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-a/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleB := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/json-module-b/module-b-child"),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			Terraform: &config.TerraformConfig{Source: ptr("...")},
+			IsPartial: true,
+			ProcessedIncludes: map[string]config.IncludeConfig{
+				"": {Path: canonical(t, "../test/fixture-modules/json-module-b/terragrunt.hcl")},
+			},
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/json-module-b/module-b-child/"+config.DefaultTerragruntJsonConfigPath)),
+	}
+
+	moduleC := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-c"),
+		Dependencies: configstack.TerraformModules{moduleA},
+		Config: config.TerragruntConfig{
+			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a"}},
+			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-c/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleD := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/json-module-d"),
+		Dependencies: configstack.TerraformModules{moduleA, moduleB, moduleC},
+		Config: config.TerragruntConfig{
+			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-a", "../json-module-b/module-b-child", "../module-c"}},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/json-module-d/"+config.DefaultTerragruntJsonConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/json-module-b/module-b-child/" + config.DefaultTerragruntJsonConfigPath, "../test/fixture-modules/module-c/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/json-module-d/" + config.DefaultTerragruntJsonConfigPath}
+	expected := configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD}
+
+	stack := configstack.NewStack(mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *testing.T) {
+	t.Parallel()
+
+	moduleA := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-a"),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-a/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleB := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-b/module-b-child"),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			Terraform: &config.TerraformConfig{Source: ptr("...")},
+			IsPartial: true,
+			ProcessedIncludes: map[string]config.IncludeConfig{
+				"": {Path: canonical(t, "../test/fixture-modules/module-b/terragrunt.hcl")},
+			},
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-b/module-b-child/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleE := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-e/module-e-child"),
+		Dependencies: configstack.TerraformModules{moduleA, moduleB},
+		Config: config.TerragruntConfig{
+			Dependencies: &config.ModuleDependencies{Paths: []string{"../../module-a", "../../module-b/module-b-child"}},
+			Terraform:    &config.TerraformConfig{Source: ptr("test")},
+			IsPartial:    true,
+			ProcessedIncludes: map[string]config.IncludeConfig{
+				"": {Path: canonical(t, "../test/fixture-modules/module-e/terragrunt.hcl")},
+			},
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-e/module-e-child/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/module-a/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-b/module-b-child/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-e/module-e-child/" + config.DefaultTerragruntConfigPath}
+	expected := configstack.TerraformModules{moduleA, moduleB, moduleE}
+
+	stack := configstack.NewStack(mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesMultipleModulesWithExternalDependencies(t *testing.T) {
+	t.Parallel()
+
+	moduleF := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-f"),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions:    mockOptions.Clone(canonical(t, "../test/fixture-modules/module-f/"+config.DefaultTerragruntConfigPath)),
+		AssumeAlreadyApplied: true,
+	}
+
+	moduleG := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-g"),
+		Dependencies: configstack.TerraformModules{moduleF},
+		Config: config.TerragruntConfig{
+			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-f"}},
+			Terraform:       &config.TerraformConfig{Source: ptr("test")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-g/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/module-g/" + config.DefaultTerragruntConfigPath}
+	expected := configstack.TerraformModules{moduleF, moduleG}
+
+	stack := configstack.NewStack(mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesMultipleModulesWithNestedExternalDependencies(t *testing.T) {
+	t.Parallel()
+
+	moduleH := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-h"),
+		Dependencies: configstack.TerraformModules{},
+		Config: config.TerragruntConfig{
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions:    mockOptions.Clone(canonical(t, "../test/fixture-modules/module-h/"+config.DefaultTerragruntConfigPath)),
+		AssumeAlreadyApplied: true,
+	}
+
+	moduleI := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-i"),
+		Dependencies: configstack.TerraformModules{moduleH},
+		Config: config.TerragruntConfig{
+			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-h"}},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions:    mockOptions.Clone(canonical(t, "../test/fixture-modules/module-i/"+config.DefaultTerragruntConfigPath)),
+		AssumeAlreadyApplied: true,
+	}
+
+	moduleJ := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-j"),
+		Dependencies: configstack.TerraformModules{moduleI},
+		Config: config.TerragruntConfig{
+			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-i"}},
+			Terraform:       &config.TerraformConfig{Source: ptr("temp")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-j/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	moduleK := &configstack.TerraformModule{
+		Path:         canonical(t, "../test/fixture-modules/module-k"),
+		Dependencies: configstack.TerraformModules{moduleH},
+		Config: config.TerragruntConfig{
+			Dependencies:    &config.ModuleDependencies{Paths: []string{"../module-h"}},
+			Terraform:       &config.TerraformConfig{Source: ptr("fire")},
+			IsPartial:       true,
+			GenerateConfigs: make(map[string]codegen.GenerateConfig),
+		},
+		TerragruntOptions: mockOptions.Clone(canonical(t, "../test/fixture-modules/module-k/"+config.DefaultTerragruntConfigPath)),
+	}
+
+	configPaths := []string{"../test/fixture-modules/module-j/" + config.DefaultTerragruntConfigPath, "../test/fixture-modules/module-k/" + config.DefaultTerragruntConfigPath}
+	expected := configstack.TerraformModules{moduleH, moduleI, moduleJ, moduleK}
+
+	stack := configstack.NewStack(mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+	require.NoError(t, actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestResolveTerraformModulesInvalidPaths(t *testing.T) {
+	t.Parallel()
+
+	configPaths := []string{"../test/fixture-modules/module-missing-dependency/" + config.DefaultTerragruntConfigPath}
+
+	stack := configstack.NewStack(mockOptions)
+	_, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+	require.Error(t, actualErr)
+
+	var processingModuleError configstack.ProcessingModuleError
+	ok := goErrors.As(actualErr, &processingModuleError)
+	require.True(t, ok)
+
+	unwrapped := errors.Unwrap(processingModuleError.UnderlyingError)
+	require.True(t, os.IsNotExist(unwrapped), "Expected a file not exists error but got %v", processingModuleError.UnderlyingError)
+}
+
+func TestResolveTerraformModuleNoTerraformConfig(t *testing.T) {
+	t.Parallel()
+
+	configPaths := []string{"../test/fixture-modules/module-l/" + config.DefaultTerragruntConfigPath}
+	expected := configstack.TerraformModules{}
+
+	stack := configstack.NewStack(mockOptions)
+	actualModules, actualErr := stack.ResolveTerraformModules(context.Background(), configPaths)
+	require.NoError(t, actualErr, "Unexpected error: %v", actualErr)
+	assertModuleListsEqual(t, expected, actualModules)
+}
+
+func TestBasicDependency(t *testing.T) {
+	t.Parallel()
+
+	moduleC := &configstack.TerraformModule{Path: "C", Dependencies: configstack.TerraformModules{}}
+	moduleB := &configstack.TerraformModule{Path: "B", Dependencies: configstack.TerraformModules{moduleC}}
+	moduleA := &configstack.TerraformModule{Path: "A", Dependencies: configstack.TerraformModules{moduleB}}
+
+	stack := configstack.NewStack(&options.TerragruntOptions{WorkingDir: "test-stack"})
+	stack.Modules = configstack.TerraformModules{moduleA, moduleB, moduleC}
+
+	expected := map[string][]string{
+		"B": {"A"},
+		"C": {"B", "A"},
+	}
+
+	result := stack.ListStackDependentModules()
+
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("Expected %v, got %v", expected, result)
+	}
+}
+func TestNestedDependencies(t *testing.T) {
+	t.Parallel()
+
+	moduleD := &configstack.TerraformModule{Path: "D", Dependencies: configstack.TerraformModules{}}
+	moduleC := &configstack.TerraformModule{Path: "C", Dependencies: configstack.TerraformModules{moduleD}}
+	moduleB := &configstack.TerraformModule{Path: "B", Dependencies: configstack.TerraformModules{moduleC}}
+	moduleA := &configstack.TerraformModule{Path: "A", Dependencies: configstack.TerraformModules{moduleB}}
+
+	// Create a mock stack
+	stack := configstack.NewStack(&options.TerragruntOptions{WorkingDir: "nested-stack"})
+	stack.Modules = configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD}
+
+	// Expected result
+	expected := map[string][]string{
+		"B": {"A"},
+		"C": {"B", "A"},
+		"D": {"C", "B", "A"},
+	}
+
+	// Run the function
+	result := stack.ListStackDependentModules()
+
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("Expected %v, got %v", expected, result)
+	}
+}
+
+func TestCircularDependencies(t *testing.T) {
+	t.Parallel()
+
+	// Mock modules with circular dependencies
+	moduleA := &configstack.TerraformModule{Path: "A"}
+	moduleB := &configstack.TerraformModule{Path: "B"}
+	moduleC := &configstack.TerraformModule{Path: "C"}
+
+	moduleA.Dependencies = configstack.TerraformModules{moduleB}
+	moduleB.Dependencies = configstack.TerraformModules{moduleC}
+	moduleC.Dependencies = configstack.TerraformModules{moduleA} // Circular dependency
+
+	stack := configstack.NewStack(&options.TerragruntOptions{WorkingDir: "circular-stack"})
+	stack.Modules = configstack.TerraformModules{moduleA, moduleB, moduleC}
+
+	expected := map[string][]string{
+		"A": {"C", "B"},
+		"B": {"A", "C"},
+		"C": {"B", "A"},
+	}
+
+	// Run the function
+	result := stack.ListStackDependentModules()
+
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf("Expected %v, got %v", expected, result)
 	}
 }

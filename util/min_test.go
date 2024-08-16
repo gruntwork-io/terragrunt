@@ -1,15 +1,17 @@
-package util
+package util_test
 
 import (
+	"strconv"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestMin(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	tc := []struct {
 		x        int
 		y        int
 		expected int
@@ -22,7 +24,13 @@ func TestMin(t *testing.T) {
 		{1, 1, 1},
 	}
 
-	for _, testCase := range testCases {
-		assert.Equal(t, testCase.expected, Min(testCase.x, testCase.y))
+	for i, tt := range tc {
+		tt := tt
+
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.expected, util.Min(tt.x, tt.y))
+		})
 	}
 }

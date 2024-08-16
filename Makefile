@@ -39,13 +39,13 @@ clean:
 	rm -f terragrunt
 
 install-lint:
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.2
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.1
 
 run-lint:
 	golangci-lint run -v --timeout=5m ./...
 
 install-mockery:
-	go install github.com/vektra/mockery/v2@v2.36.0
+	go install github.com/vektra/mockery/v2@v2.44.1
 
 generate-mocks:
 	go generate ./...

@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclwrite"
+	svchost "github.com/hashicorp/terraform-svchost"
 )
 
 // ConfigHost is the structure of the "host" nested block within the CLI configuration, which can be used to override the default service host discovery behavior for a particular hostname.
@@ -80,7 +81,7 @@ func (cfg *Config) AddHost(name string, services map[string]string) {
 	})
 }
 
-// AddProviderInstallationMethods adds installation methods, https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation
+// AddProviderInstallationMethods merges new installation methods with the current ones, https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation
 //
 //	provider_installation {
 //		filesystem_mirror {
@@ -91,11 +92,12 @@ func (cfg *Config) AddHost(name string, services map[string]string) {
 //			exclude = ["example.com/*/*"]
 //		}
 //	}
-func (cfg *Config) AddProviderInstallationMethods(methods ...ProviderInstallationMethod) {
+
+func (cfg *Config) AddProviderInstallationMethods(newMethods ...ProviderInstallationMethod) {
 	if cfg.ProviderInstallation == nil {
 		cfg.ProviderInstallation = &ProviderInstallation{}
 	}
-	cfg.ProviderInstallation.Methods = append(cfg.ProviderInstallation.Methods, methods...)
+	cfg.ProviderInstallation.Methods = cfg.ProviderInstallation.Methods.Merge(newMethods...)
 }
 
 // Save marshalls and saves CLI config with the given config path.
@@ -103,9 +105,27 @@ func (cfg *Config) Save(configPath string) error {
 	file := hclwrite.NewEmptyFile()
 	gohcl.EncodeIntoBody(cfg, file.Body())
 
-	if err := os.WriteFile(configPath, file.Bytes(), os.FileMode(0644)); err != nil {
+	const ownerWriteGlobalReadPerms = 0644
+	if err := os.WriteFile(configPath, file.Bytes(), os.FileMode(ownerWriteGlobalReadPerms)); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
 	return nil
+}
+
+// CredentialsSource creates and returns a service credentials source whose behavior depends on which "credentials" if are present in the receiving config.
+func (cfg *Config) CredentialsSource() *CredentialsSource {
+	configured := make(map[svchost.Hostname]string)
+	for _, creds := range cfg.Credentials {
+		host, err := svchost.ForComparison(creds.Name)
+		if err != nil {
+			// We expect the config was already validated by the time we get here, so we'll just ignore invalid hostnames.
+			continue
+		}
+		configured[host] = creds.Token
+	}
+
+	return &CredentialsSource{
+		configured: configured,
+	}
 }

@@ -1,9 +1,10 @@
-package cli
+package cli_test
 
 import (
 	"fmt"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -27,7 +28,7 @@ func TestLexicographicLess(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			actual := LexicographicLess(testCase.i, testCase.j)
+			actual := cli.LexicographicLess(testCase.i, testCase.j)
 			assert.Equal(t, testCase.expected, actual, testCase)
 		})
 	}

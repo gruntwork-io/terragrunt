@@ -31,7 +31,6 @@ package awsproviderpatch
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -73,7 +72,7 @@ func runAwsProviderPatch(ctx context.Context, opts *options.TerragruntOptions, c
 			return err
 		}
 
-		updatedTerraformFileContents, codeWasUpdated, err := patchAwsProviderInTerraformCode(originalTerraformFileContents, terraformFile, opts.AwsProviderPatchOverrides)
+		updatedTerraformFileContents, codeWasUpdated, err := PatchAwsProviderInTerraformCode(originalTerraformFileContents, terraformFile, opts.AwsProviderPatchOverrides)
 		if err != nil {
 			return err
 		}
@@ -91,13 +90,13 @@ func runAwsProviderPatch(ctx context.Context, opts *options.TerragruntOptions, c
 
 // The format we expect in the .terraform/modules/modules.json file
 type TerraformModulesJson struct {
-	Modules []TerraformModule
+	Modules []TerraformModule `json:"Modules"`
 }
 
 type TerraformModule struct {
-	Key    string
-	Source string
-	Dir    string
+	Key    string `json:"Key"`
+	Source string `json:"Source"`
+	Dir    string `json:"Dir"`
 }
 
 // findAllTerraformFiles returns all Terraform source files within the modules being used by this Terragrunt
@@ -142,7 +141,7 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 			// Ideally, we'd use a builtin Go library like filepath.Glob here, but per https://github.com/golang/go/issues/11862,
 			// the current go implementation doesn't support treating ** as zero or more directories, just zero or one.
 			// So we use a third-party library.
-			matches, err := zglob.Glob(fmt.Sprintf("%s/**/*.tf", moduleAbsPath))
+			matches, err := zglob.Glob(moduleAbsPath + "/**/*.tf")
 			if err != nil {
 				return nil, errors.WithStackTrace(err)
 			}
@@ -154,7 +153,7 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 	return terraformFiles, nil
 }
 
-// patchAwsProviderInTerraformCode looks for provider "aws" { ... } blocks in the given Terraform code and overwrites
+// PatchAwsProviderInTerraformCode looks for provider "aws" { ... } blocks in the given Terraform code and overwrites
 // the attributes in those provider blocks with the given attributes. It returns the new Terraform code and a boolean
 // true if that code was updated.
 //
@@ -173,7 +172,7 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 // This is a temporary workaround for a Terraform bug (https://github.com/hashicorp/terraform/issues/13018) where
 // any dynamic values in nested provider blocks are not handled correctly when you call 'terraform import', so by
 // temporarily hard-coding them, we can allow 'import' to work.
-func patchAwsProviderInTerraformCode(terraformCode string, terraformFilePath string, attributesToOverride map[string]string) (string, bool, error) {
+func PatchAwsProviderInTerraformCode(terraformCode string, terraformFilePath string, attributesToOverride map[string]string) (string, bool, error) {
 	if len(attributesToOverride) == 0 {
 		return terraformCode, false, nil
 	}

@@ -1,12 +1,13 @@
-package cli
+package cli_test
 
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/stretchr/testify/assert"
 )
 
-var mockArgs = Args([]string{"one", "-foo", "two", "--bar", "value"})
+var mockArgs = cli.Args([]string{"one", "-foo", "two", "--bar", "value"})
 
 func TestArgsSlice(t *testing.T) {
 	t.Parallel()
@@ -55,7 +56,7 @@ func TestArgsPresent(t *testing.T) {
 	expected := true
 	assert.Equal(t, expected, actual)
 
-	mockArgs := Args([]string{})
+	mockArgs := cli.Args([]string{})
 	actual = mockArgs.Present()
 	expected = false
 	assert.Equal(t, expected, actual)
@@ -77,11 +78,11 @@ func TestArgsCommandName(t *testing.T) {
 func TestArgsNormalize(t *testing.T) {
 	t.Parallel()
 
-	actual := mockArgs.Normalize(SingleDashFlag).Slice()
+	actual := mockArgs.Normalize(cli.SingleDashFlag).Slice()
 	expected := []string{"one", "-foo", "two", "-bar", "value"}
 	assert.Equal(t, expected, actual)
 
-	actual = mockArgs.Normalize(DoubleDashFlag).Slice()
+	actual = mockArgs.Normalize(cli.DoubleDashFlag).Slice()
 	expected = []string{"one", "--foo", "two", "--bar", "value"}
 	assert.Equal(t, expected, actual)
 }

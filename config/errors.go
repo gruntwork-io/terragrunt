@@ -32,7 +32,7 @@ func (err TooManyLevelsOfInheritanceError) Error() string {
 type CouldNotResolveTerragruntConfigInFileError string
 
 func (err CouldNotResolveTerragruntConfigInFileError) Error() string {
-	return fmt.Sprintf("Could not find Terragrunt configuration settings in %s", string(err))
+	return "Could not find Terragrunt configuration settings in " + string(err)
 }
 
 type InvalidMergeStrategyTypeError string
@@ -134,7 +134,7 @@ func (err InvalidEnvParamNameError) Error() string {
 type EmptyStringNotAllowedError string
 
 func (err EmptyStringNotAllowedError) Error() string {
-	return fmt.Sprintf("Empty string value is not allowed for %s", string(err))
+	return "Empty string value is not allowed for " + string(err)
 }
 
 type TerragruntConfigNotFoundError struct {
@@ -195,7 +195,7 @@ type DependencyConfigNotFound struct {
 }
 
 func (err DependencyConfigNotFound) Error() string {
-	return fmt.Sprintf("%s does not exist", err.Path)
+	return err.Path + " does not exist"
 }
 
 type TerragruntOutputParsingError struct {
@@ -238,8 +238,8 @@ func (err TerragruntOutputTargetNoOutputs) Error() string {
 	)
 }
 
-type DependencyCycle []string
+type DependencyCycleError []string
 
-func (err DependencyCycle) Error() string {
-	return fmt.Sprintf("Found a dependency cycle between modules: %s", strings.Join([]string(err), " -> "))
+func (err DependencyCycleError) Error() string {
+	return "Found a dependency cycle between modules: " + strings.Join([]string(err), " -> ")
 }

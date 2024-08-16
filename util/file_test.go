@@ -1,4 +1,4 @@
-package util
+package util_test
 
 import (
 	"errors"
@@ -6,11 +6,13 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"testing"
 
 	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +20,7 @@ import (
 func TestGetPathRelativeTo(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	tc := []struct {
 		path     string
 		basePath string
 		expected string
@@ -33,17 +35,23 @@ func TestGetPathRelativeTo(t *testing.T) {
 		{helpers.RootFolder + "root", helpers.RootFolder + "other-root/sub-child/sub-sub-child", "../../../root"},
 	}
 
-	for _, testCase := range testCases {
-		actual, err := GetPathRelativeTo(testCase.path, testCase.basePath)
-		assert.Nil(t, err, "Unexpected error for path %s and basePath %s: %v", testCase.path, testCase.basePath, err)
-		assert.Equal(t, testCase.expected, actual, "For path %s and basePath %s", testCase.path, testCase.basePath)
+	for i, tt := range tc {
+		tt := tt
+
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
+
+			actual, err := util.GetPathRelativeTo(tt.path, tt.basePath)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, actual, "For path %s and basePath %s", tt.path, tt.basePath)
+		})
 	}
 }
 
 func TestCanonicalPath(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	tc := []struct {
 		path     string
 		basePath string
 		expected string
@@ -62,10 +70,16 @@ func TestCanonicalPath(t *testing.T) {
 		{helpers.RootFolder + "other/../blah", helpers.RootFolder + "foo", helpers.RootFolder + "blah"},
 	}
 
-	for _, testCase := range testCases {
-		actual, err := CanonicalPath(testCase.path, testCase.basePath)
-		assert.Nil(t, err, "Unexpected error for path %s and basePath %s: %v", testCase.path, testCase.basePath, err)
-		assert.Equal(t, testCase.expected, actual, "For path %s and basePath %s", testCase.path, testCase.basePath)
+	for i, tt := range tc {
+		tt := tt
+
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
+
+			actual, err := util.CanonicalPath(tt.path, tt.basePath)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, actual, "For path %s and basePath %s", tt.path, tt.basePath)
+		})
 	}
 }
 
@@ -76,11 +90,11 @@ func TestGlobCanonicalPath(t *testing.T) {
 
 	expectedHelper := func(path string) string {
 		basePath, err := filepath.Abs(basePath)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		return filepath.ToSlash(filepath.Join(basePath, path))
 	}
 
-	testCases := []struct {
+	tc := []struct {
 		paths    []string
 		expected []string
 	}{
@@ -91,26 +105,32 @@ func TestGlobCanonicalPath(t *testing.T) {
 		{[]string{"module-*/**/*.hcl"}, []string{expectedHelper("module-a/terragrunt.hcl"), expectedHelper("module-b/terragrunt.hcl"), expectedHelper("module-b/module-b-child/terragrunt.hcl")}},
 	}
 
-	for _, testCase := range testCases {
-		actual, err := GlobCanonicalPath(basePath, testCase.paths...)
+	for i, tt := range tc {
+		tt := tt
 
-		sort.Slice(actual, func(i, j int) bool {
-			return actual[i] < actual[j]
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
+
+			actual, err := util.GlobCanonicalPath(basePath, tt.paths...)
+
+			sort.Slice(actual, func(i, j int) bool {
+				return actual[i] < actual[j]
+			})
+
+			sort.Slice(tt.expected, func(i, j int) bool {
+				return tt.expected[i] < tt.expected[j]
+			})
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, actual, "For path %s and basePath %s", tt.paths, basePath)
 		})
-
-		sort.Slice(testCase.expected, func(i, j int) bool {
-			return testCase.expected[i] < testCase.expected[j]
-		})
-
-		assert.Nil(t, err, "Unexpected error for paths %s and basePath %s: %v", testCase.paths, basePath, err)
-		assert.Equal(t, testCase.expected, actual, "For path %s and basePath %s", testCase.paths, basePath)
 	}
 }
 
 func TestPathContainsHiddenFileOrFolder(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	tc := []struct {
 		path     string
 		expected bool
 	}{
@@ -130,17 +150,23 @@ func TestPathContainsHiddenFileOrFolder(t *testing.T) {
 		{"/foo/.././.bar/", true},
 	}
 
-	for _, testCase := range testCases {
-		path := filepath.FromSlash(testCase.path)
-		actual := TerragruntExcludes(path)
-		assert.Equal(t, testCase.expected, actual, "For path %s", path)
+	for _, tt := range tc {
+		tt := tt
+
+		t.Run(tt.path, func(t *testing.T) {
+			t.Parallel()
+
+			path := filepath.FromSlash(tt.path)
+			actual := util.TerragruntExcludes(path)
+			assert.Equal(t, tt.expected, actual, "For path %s", path)
+		})
 	}
 }
 
 func TestJoinTerraformModulePath(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	tc := []struct {
 		modulesFolder string
 		path          string
 		expected      string
@@ -161,10 +187,14 @@ func TestJoinTerraformModulePath(t *testing.T) {
 		{"/foo/bar/baz/?ref=feature/1", "//a/b/c", "/foo/bar/baz//a/b/c?ref=feature/1"},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(fmt.Sprintf("%s-%s", testCase.modulesFolder, testCase.path), func(t *testing.T) {
-			actual := JoinTerraformModulePath(testCase.modulesFolder, testCase.path)
-			assert.Equal(t, testCase.expected, actual)
+	for _, tt := range tc {
+		tt := tt
+
+		t.Run(fmt.Sprintf("%s-%s", tt.modulesFolder, tt.path), func(t *testing.T) {
+			t.Parallel()
+
+			actual := util.JoinTerraformModulePath(tt.modulesFolder, tt.path)
+			assert.Equal(t, tt.expected, actual)
 		})
 	}
 }
@@ -172,35 +202,36 @@ func TestJoinTerraformModulePath(t *testing.T) {
 func TestFileManifest(t *testing.T) {
 	t.Parallel()
 
-	var testfiles []string
+	files := []string{"file1", "file2"}
+	var testfiles = make([]string, 0, len(files))
 
 	// create temp dir
 	dir, err := os.MkdirTemp("", ".terragrunt-test-dir")
 	require.NoError(t, err)
-	for _, file := range []string{"file1", "file2"} {
+	for _, file := range files {
 		// create temp files in the dir
 		f, err := os.CreateTemp(dir, file)
-		assert.NoError(t, err, f.Close())
+		require.NoError(t, err)
 		testfiles = append(testfiles, f.Name())
 	}
 	// will later test if the file already doesn't exist
 	testfiles = append(testfiles, path.Join(dir, "ephemeral-file-that-doesnt-exist.txt"))
 
 	// create a manifest
-	manifest := newFileManifest(dir, ".terragrunt-test-manifest")
-	require.Nil(t, manifest.Create())
+	manifest := util.NewFileManifest(dir, ".terragrunt-test-manifest")
+	require.NoError(t, manifest.Create())
 	// check the file manifest has been created
-	require.FileExists(t, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
+	assert.FileExists(t, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
 	for _, file := range testfiles {
-		assert.NoError(t, manifest.AddFile(file))
+		require.NoError(t, manifest.AddFile(file))
 	}
 	// check for a non-existent directory as well
 	assert.NoError(t, manifest.AddDirectory(path.Join(dir, "ephemeral-directory-that-doesnt-exist")))
 
-	require.NoError(t, manifest.Clean())
+	assert.NoError(t, manifest.Clean())
 	// test if the files have been deleted
 	for _, file := range testfiles {
-		assert.Equal(t, FileExists(file), false)
+		assert.False(t, util.FileExists(file))
 	}
 
 }
@@ -208,7 +239,7 @@ func TestFileManifest(t *testing.T) {
 func TestSplitPath(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	tc := []struct {
 		path     string
 		expected []string
 	}{
@@ -218,16 +249,22 @@ func TestSplitPath(t *testing.T) {
 		{"foo//////bar/.tf/tg.hcl", []string{"foo", "bar", ".tf", "tg.hcl"}},
 	}
 
-	for _, testCase := range testCases {
-		actual := SplitPath(testCase.path)
-		assert.Equal(t, testCase.expected, actual, "For path %s", testCase.path)
+	for i, tt := range tc {
+		tt := tt
+
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
+
+			actual := util.SplitPath(tt.path)
+			assert.Equal(t, tt.expected, actual, "For path %s", tt.path)
+		})
 	}
 }
 
 func TestContainsPath(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	tc := []struct {
 		path     string
 		subpath  string
 		expected bool
@@ -247,16 +284,21 @@ func TestContainsPath(t *testing.T) {
 		{"foo/bar/.tf/tg.hcl", "foo/ba", false},
 	}
 
-	for _, testCase := range testCases {
-		actual := ContainsPath(testCase.path, testCase.subpath)
-		assert.Equal(t, testCase.expected, actual, "For path %s and subpath %s", testCase.path, testCase.subpath)
+	for i, tt := range tc {
+		tt := tt
+
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
+			actual := util.ContainsPath(tt.path, tt.subpath)
+			assert.Equal(t, tt.expected, actual, "For path %s and subpath %s", tt.path, tt.subpath)
+		})
 	}
 }
 
 func TestHasPathPrefix(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	tc := []struct {
 		path     string
 		prefix   string
 		expected bool
@@ -276,16 +318,24 @@ func TestHasPathPrefix(t *testing.T) {
 		{"/foo/bar/.tf/tg.hcl", "/foo/ba", false},
 	}
 
-	for _, testCase := range testCases {
-		actual := HasPathPrefix(testCase.path, testCase.prefix)
-		assert.Equal(t, testCase.expected, actual, "For path %s and prefix %s", testCase.path, testCase.prefix)
+	for i, tt := range tc {
+		tt := tt
+
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
+
+			actual := util.HasPathPrefix(tt.path, tt.prefix)
+			assert.Equal(t, tt.expected, actual, "For path %s and prefix %s", tt.path, tt.prefix)
+		})
 	}
 }
 
 func TestIncludeInCopy(t *testing.T) {
+	t.Parallel()
+
 	includeInCopy := []string{"_module/.region2", "**/app2", "**/.include-me-too"}
 
-	testCases := []struct {
+	tc := []struct {
 		path         string
 		copyExpected bool
 	}{
@@ -305,36 +355,47 @@ func TestIncludeInCopy(t *testing.T) {
 	destination := filepath.Join(tempDir, "destination")
 
 	fileContent := []byte("source file")
-	for _, testCase := range testCases {
-		path := filepath.Join(source, testCase.path)
-		require.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
-		require.NoError(t, os.WriteFile(path, fileContent, 0644))
+	for _, tt := range tc {
+		path := filepath.Join(source, tt.path)
+		assert.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
+		assert.NoError(t, os.WriteFile(path, fileContent, 0644))
 	}
 
-	require.NoError(t, CopyFolderContents(source, destination, ".terragrunt-test", includeInCopy))
+	require.NoError(t, util.CopyFolderContents(source, destination, ".terragrunt-test", includeInCopy))
 
-	for _, testCase := range testCases {
-		_, err := os.Stat(filepath.Join(destination, testCase.path))
-		assert.True(t,
-			testCase.copyExpected && err == nil ||
-				!testCase.copyExpected && errors.Is(err, os.ErrNotExist),
-			"Unexpected copy result for file '%s' (should be copied: '%t') - got error: %s", testCase.path, testCase.copyExpected, err)
+	for i, tt := range tc {
+		tt := tt
+
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
+
+			_, err := os.Stat(filepath.Join(destination, tt.path))
+			assert.True(t,
+				tt.copyExpected && err == nil ||
+					!tt.copyExpected && errors.Is(err, os.ErrNotExist),
+				"Unexpected copy result for file '%s' (should be copied: '%t') - got error: %s", tt.path, tt.copyExpected, err)
+		})
 	}
 }
 
 func TestEmptyDir(t *testing.T) {
 	t.Parallel()
-	testCases := []struct {
+	tc := []struct {
 		path        string
 		expectEmpty bool
 	}{
 		{t.TempDir(), true},
 		{os.TempDir(), false},
 	}
-	for _, testCase := range testCases {
-		emptyValue, err := IsDirectoryEmpty(testCase.path)
-		assert.NoError(t, err)
-		assert.Equal(t, testCase.expectEmpty, emptyValue, "For path %s", testCase.path)
-	}
+	for i, tt := range tc {
+		tt := tt
 
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
+
+			emptyValue, err := util.IsDirectoryEmpty(tt.path)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectEmpty, emptyValue, "For path %s", tt.path)
+		})
+	}
 }

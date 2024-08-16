@@ -1,9 +1,15 @@
-package remote
+package remote_test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/gruntwork-io/terragrunt/remote"
+)
 
 func TestWrapMapToSingleLineHcl(t *testing.T) {
-	tests := []struct {
+	t.Parallel()
+
+	tc := []struct {
 		name     string
 		input    map[string]interface{}
 		expected string
@@ -20,9 +26,13 @@ func TestWrapMapToSingleLineHcl(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range tc {
+		tt := tt
+
 		t.Run(tt.name, func(t *testing.T) {
-			result := wrapMapToSingleLineHcl(tt.input)
+			t.Parallel()
+
+			result := remote.WrapMapToSingleLineHcl(tt.input)
 			if result != tt.expected {
 				t.Errorf("Expected %s, but got %s", tt.expected, result)
 			}

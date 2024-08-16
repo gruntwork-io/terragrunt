@@ -1,4 +1,4 @@
-package cli
+package cli_test
 
 import (
 	libflag "flag"
@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,42 +16,42 @@ func TestSliceFlagStringApply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		flag          SliceFlag[string]
+		flag          cli.SliceFlag[string]
 		args          []string
 		envs          map[string]string
 		expectedValue []string
 		expectedErr   error
 	}{
 		{
-			SliceFlag[string]{Name: "foo", EnvVar: "FOO"},
+			cli.SliceFlag[string]{Name: "foo", EnvVar: "FOO"},
 			[]string{"--foo", "arg-value1", "--foo", "arg-value2"},
 			map[string]string{"FOO": "env-value"},
 			[]string{"arg-value1", "arg-value2"},
 			nil,
 		},
 		{
-			SliceFlag[string]{Name: "foo", EnvVar: "FOO"},
+			cli.SliceFlag[string]{Name: "foo", EnvVar: "FOO"},
 			nil,
 			map[string]string{"FOO": "env-value1,env-value2"},
 			[]string{"env-value1", "env-value2"},
 			nil,
 		},
 		{
-			SliceFlag[string]{Name: "foo", EnvVar: "FOO"},
+			cli.SliceFlag[string]{Name: "foo", EnvVar: "FOO"},
 			nil,
 			nil,
 			nil,
 			nil,
 		},
 		{
-			SliceFlag[string]{Name: "foo", EnvVar: "FOO", Destination: mockDestValue([]string{"default-value1", "default-value2"})},
+			cli.SliceFlag[string]{Name: "foo", EnvVar: "FOO", Destination: mockDestValue([]string{"default-value1", "default-value2"})},
 			[]string{"--foo", "arg-value1", "--foo", "arg-value2"},
 			map[string]string{"FOO": "env-value1,env-value2"},
 			[]string{"arg-value1", "arg-value2"},
 			nil,
 		},
 		{
-			SliceFlag[string]{Name: "foo", Destination: mockDestValue([]string{"default-value1", "default-value2"})},
+			cli.SliceFlag[string]{Name: "foo", Destination: mockDestValue([]string{"default-value1", "default-value2"})},
 			nil,
 			nil,
 			[]string{"default-value1", "default-value2"},
@@ -73,28 +74,28 @@ func TestSliceFlagIntApply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		flag          SliceFlag[int]
+		flag          cli.SliceFlag[int]
 		args          []string
 		envs          map[string]string
 		expectedValue []int
 		expectedErr   error
 	}{
 		{
-			SliceFlag[int]{Name: "foo", EnvVar: "FOO"},
+			cli.SliceFlag[int]{Name: "foo", EnvVar: "FOO"},
 			[]string{"--foo", "10", "--foo", "11"},
 			map[string]string{"FOO": "20,21"},
 			[]int{10, 11},
 			nil,
 		},
 		{
-			SliceFlag[int]{Name: "foo", EnvVar: "FOO"},
+			cli.SliceFlag[int]{Name: "foo", EnvVar: "FOO"},
 			[]string{},
 			map[string]string{"FOO": "20,21"},
 			[]int{20, 21},
 			nil,
 		},
 		{
-			SliceFlag[int]{Name: "foo", Destination: mockDestValue([]int{50, 51})},
+			cli.SliceFlag[int]{Name: "foo", Destination: mockDestValue([]int{50, 51})},
 			nil,
 			nil,
 			[]int{50, 51},
@@ -117,28 +118,28 @@ func TestSliceFlagInt64Apply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		flag          SliceFlag[int64]
+		flag          cli.SliceFlag[int64]
 		args          []string
 		envs          map[string]string
 		expectedValue []int64
 		expectedErr   error
 	}{
 		{
-			SliceFlag[int64]{Name: "foo", EnvVar: "FOO"},
+			cli.SliceFlag[int64]{Name: "foo", EnvVar: "FOO"},
 			[]string{"--foo", "10", "--foo", "11"},
 			map[string]string{"FOO": "20,21"},
 			[]int64{10, 11},
 			nil,
 		},
 		{
-			SliceFlag[int64]{Name: "foo", EnvVar: "FOO"},
+			cli.SliceFlag[int64]{Name: "foo", EnvVar: "FOO"},
 			[]string{},
 			map[string]string{"FOO": "20,21"},
 			[]int64{20, 21},
 			nil,
 		},
 		{
-			SliceFlag[int64]{Name: "foo", Destination: mockDestValue([]int64{50, 51})},
+			cli.SliceFlag[int64]{Name: "foo", Destination: mockDestValue([]int64{50, 51})},
 			nil,
 			nil,
 			[]int64{50, 51},
@@ -157,7 +158,7 @@ func TestSliceFlagInt64Apply(t *testing.T) {
 	}
 }
 
-func testSliceFlagApply[T SliceFlagType](t *testing.T, flag *SliceFlag[T], args []string, envs map[string]string, expectedValue []T, expectedErr error) {
+func testSliceFlagApply[T cli.SliceFlagType](t *testing.T, flag *cli.SliceFlag[T], args []string, envs map[string]string, expectedValue []T, expectedErr error) {
 
 	var (
 		actualValue          []T

@@ -39,7 +39,7 @@ func MustWalkTerraformOutput(value interface{}, path ...string) interface{} {
 	found := value
 	for _, p := range path {
 		v := reflect.ValueOf(found)
-		switch reflect.TypeOf(found).Kind() {
+		switch reflect.TypeOf(found).Kind() { //nolint:exhaustive
 		case reflect.Map:
 			if !v.MapIndex(reflect.ValueOf(p)).IsValid() {
 				return nil

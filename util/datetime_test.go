@@ -1,17 +1,19 @@
-package util
+package util_test
 
 import (
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseTimestamp(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	tc := []struct {
 		arg   string
 		value time.Time
 		err   string
@@ -22,20 +24,20 @@ func TestParseTimestamp(t *testing.T) {
 		{"2017-11-22 00:00:00Z", time.Time{}, `not a valid RFC3339 timestamp: missing required time introducer 'T'`},
 	}
 
-	for _, testCase := range testCases {
-		testCase := testCase
+	for _, tt := range tc {
+		tt := tt
 
-		t.Run(fmt.Sprintf("ParseTimestamp(%#v)", testCase.arg), func(t *testing.T) {
+		t.Run(fmt.Sprintf("ParseTimestamp(%#v)", tt.arg), func(t *testing.T) {
 			t.Parallel()
 
-			actual, err := ParseTimestamp(testCase.arg)
-			if testCase.err != "" {
-				assert.EqualError(t, err, testCase.err)
+			actual, err := util.ParseTimestamp(tt.arg)
+			if tt.err != "" {
+				require.EqualError(t, err, tt.err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
-			assert.Equal(t, testCase.value, actual)
+			assert.Equal(t, tt.value, actual)
 		})
 	}
 }

@@ -35,7 +35,7 @@ func (provider *Provider) GetCredentials(ctx context.Context) (*providers.Creden
 		return nil, nil
 	}
 
-	if cached, hit := credentialsCache.Get(iamRoleOpts.RoleARN); hit {
+	if cached, hit := credentialsCache.Get(ctx, iamRoleOpts.RoleARN); hit {
 		provider.terragruntOptions.Logger.Debugf("Using cached credentials for IAM role %s.", iamRoleOpts.RoleARN)
 		return cached, nil
 	}
@@ -56,10 +56,10 @@ func (provider *Provider) GetCredentials(ctx context.Context) (*providers.Creden
 		},
 	}
 
-	credentialsCache.Put(iamRoleOpts.RoleARN, creds, time.Now().Add(time.Duration(iamRoleOpts.AssumeRoleDuration)*time.Second))
+	credentialsCache.Put(ctx, iamRoleOpts.RoleARN, creds, time.Now().Add(time.Duration(iamRoleOpts.AssumeRoleDuration)*time.Second))
 
 	return creds, nil
 }
 
 // credentialsCache is a cache of credentials.
-var credentialsCache = cache.NewExpiringCache[*providers.Credentials]()
+var credentialsCache = cache.NewExpiringCache[*providers.Credentials]("credentialsCache")

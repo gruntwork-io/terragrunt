@@ -2,6 +2,7 @@ package terraform
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/url"
 	"os"
@@ -84,7 +85,7 @@ func (terraformSource Source) EncodeSourceVersion() (string, error) {
 		})
 
 		if err == nil {
-			hash := fmt.Sprintf("%x", sourceHash.Sum(nil))
+			hash := hex.EncodeToString(sourceHash.Sum(nil))
 
 			return hash, nil
 		}
@@ -111,7 +112,8 @@ func (terraformSource Source) WriteVersionFile() error {
 		}
 	}
 
-	return errors.WithStackTrace(os.WriteFile(terraformSource.VersionFile, []byte(version), 0640))
+	const ownerReadWriteGroupReadPerms = 0640
+	return errors.WithStackTrace(os.WriteFile(terraformSource.VersionFile, []byte(version), ownerReadWriteGroupReadPerms))
 }
 
 // Take the given source path and create a Source struct from it, including the folder where the source should
@@ -270,7 +272,7 @@ func IsLocalSource(sourceUrl *url.URL) bool {
 // path is everything after the double slash. If there is no double-slash in the URL, the root repo is the entire
 // sourceUrl and the path is an empty string.
 func SplitSourceUrl(sourceUrl *url.URL, logger *logrus.Entry) (*url.URL, string, error) {
-	pathSplitOnDoubleSlash := strings.SplitN(sourceUrl.Path, "//", 2)
+	pathSplitOnDoubleSlash := strings.SplitN(sourceUrl.Path, "//", 2) //nolint:mnd
 
 	if len(pathSplitOnDoubleSlash) > 1 {
 		sourceUrlModifiedPath, err := parseSourceUrl(sourceUrl.String())

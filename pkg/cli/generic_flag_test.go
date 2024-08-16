@@ -1,4 +1,4 @@
-package cli
+package cli_test
 
 import (
 	"errors"
@@ -7,6 +7,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,49 +16,49 @@ func TestGenericFlagStringApply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		flag          GenericFlag[string]
+		flag          cli.GenericFlag[string]
 		args          []string
 		envs          map[string]string
 		expectedValue string
 		expectedErr   error
 	}{
 		{
-			GenericFlag[string]{Name: "foo", EnvVar: "FOO"},
+			cli.GenericFlag[string]{Name: "foo", EnvVar: "FOO"},
 			[]string{"--foo", "arg-value"},
 			map[string]string{"FOO": "env-value"},
 			"arg-value",
 			nil,
 		},
 		{
-			GenericFlag[string]{Name: "foo", EnvVar: "FOO"},
+			cli.GenericFlag[string]{Name: "foo", EnvVar: "FOO"},
 			nil,
 			map[string]string{"FOO": "env-value"},
 			"env-value",
 			nil,
 		},
 		{
-			GenericFlag[string]{Name: "foo", EnvVar: "FOO"},
+			cli.GenericFlag[string]{Name: "foo", EnvVar: "FOO"},
 			nil,
 			nil,
 			"",
 			nil,
 		},
 		{
-			GenericFlag[string]{Name: "foo", EnvVar: "FOO", Destination: mockDestValue("default-value")},
+			cli.GenericFlag[string]{Name: "foo", EnvVar: "FOO", Destination: mockDestValue("default-value")},
 			[]string{"--foo", "arg-value"},
 			map[string]string{"FOO": "env-value"},
 			"arg-value",
 			nil,
 		},
 		{
-			GenericFlag[string]{Name: "foo", Destination: mockDestValue("default-value")},
+			cli.GenericFlag[string]{Name: "foo", Destination: mockDestValue("default-value")},
 			nil,
 			nil,
 			"default-value",
 			nil,
 		},
 		{
-			GenericFlag[string]{Name: "foo", EnvVar: "FOO"},
+			cli.GenericFlag[string]{Name: "foo", EnvVar: "FOO"},
 			[]string{"--foo", "arg-value1", "--foo", "arg-value2"},
 			nil,
 			"",
@@ -80,28 +81,28 @@ func TestGenericFlagIntApply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		flag          GenericFlag[int]
+		flag          cli.GenericFlag[int]
 		args          []string
 		envs          map[string]string
 		expectedValue int
 		expectedErr   error
 	}{
 		{
-			GenericFlag[int]{Name: "foo", EnvVar: "FOO"},
+			cli.GenericFlag[int]{Name: "foo", EnvVar: "FOO"},
 			[]string{"--foo", "10"},
 			map[string]string{"FOO": "20"},
 			10,
 			nil,
 		},
 		{
-			GenericFlag[int]{Name: "foo", EnvVar: "FOO"},
+			cli.GenericFlag[int]{Name: "foo", EnvVar: "FOO"},
 			[]string{},
 			map[string]string{"FOO": "20"},
 			20,
 			nil,
 		},
 		{
-			GenericFlag[int]{Name: "foo", Destination: mockDestValue(55)},
+			cli.GenericFlag[int]{Name: "foo", Destination: mockDestValue(55)},
 			nil,
 			nil,
 			55,
@@ -124,28 +125,28 @@ func TestGenericFlagInt64Apply(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		flag          GenericFlag[int64]
+		flag          cli.GenericFlag[int64]
 		args          []string
 		envs          map[string]string
 		expectedValue int64
 		expectedErr   error
 	}{
 		{
-			GenericFlag[int64]{Name: "foo", EnvVar: "FOO"},
+			cli.GenericFlag[int64]{Name: "foo", EnvVar: "FOO"},
 			[]string{"--foo", "10"},
 			map[string]string{"FOO": "20"},
 			10,
 			nil,
 		},
 		{
-			GenericFlag[int64]{Name: "foo", EnvVar: "FOO"},
+			cli.GenericFlag[int64]{Name: "foo", EnvVar: "FOO"},
 			[]string{},
 			map[string]string{"FOO": "20"},
 			20,
 			nil,
 		},
 		{
-			GenericFlag[int64]{Name: "foo", Destination: mockDestValue(int64(55))},
+			cli.GenericFlag[int64]{Name: "foo", Destination: mockDestValue(int64(55))},
 			nil,
 			nil,
 			55,
@@ -164,7 +165,7 @@ func TestGenericFlagInt64Apply(t *testing.T) {
 	}
 }
 
-func testGenericFlagApply[T GenericType](t *testing.T, flag *GenericFlag[T], args []string, envs map[string]string, expectedValue T, expectedErr error) {
+func testGenericFlagApply[T cli.GenericType](t *testing.T, flag *cli.GenericFlag[T], args []string, envs map[string]string, expectedValue T, expectedErr error) {
 	var (
 		actualValue          T
 		destDefined          bool

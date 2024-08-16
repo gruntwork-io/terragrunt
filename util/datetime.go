@@ -2,6 +2,7 @@
 package util
 
 import (
+	"errors"
 	"fmt"
 	"time"
 )
@@ -9,7 +10,8 @@ import (
 func ParseTimestamp(ts string) (time.Time, error) {
 	t, err := time.Parse(time.RFC3339, ts)
 	if err != nil {
-		switch err := err.(type) {
+		// TODO: Remove this lint suppression
+		switch err := err.(type) { //nolint:errorlint
 		case *time.ParseError:
 			// If err is a time.ParseError then its string representation is not
 			// appropriate since it relies on details of Go's strange date format
@@ -43,7 +45,7 @@ func ParseTimestamp(ts string) (time.Time, error) {
 			case "Z07:00":
 				what = "UTC offset"
 			case "T":
-				return time.Time{}, fmt.Errorf("not a valid RFC3339 timestamp: missing required time introducer 'T'")
+				return time.Time{}, errors.New("not a valid RFC3339 timestamp: missing required time introducer 'T'")
 			case ":", "-":
 				if err.ValueElem == "" {
 					return time.Time{}, fmt.Errorf("not a valid RFC3339 timestamp: end of string where %q is expected", err.LayoutElem)

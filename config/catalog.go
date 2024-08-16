@@ -2,11 +2,11 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -71,7 +71,8 @@ func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOption
 	ctx.ParserOptions = append(ctx.ParserOptions, hclparse.WithHaltOnErrorOnlyForBlocks([]string{MetadataCatalog}))
 	ctx.ConvertToTerragruntConfigFunc = convertToTerragruntCatalogConfig
 
-	config, err := ParseConfigString(ctx, configPath, configString, nil)
+	// TODO: Resolve lint error
+	config, err := ParseConfigString(ctx, configPath, configString, nil) //nolint:contextcheck
 	if err != nil {
 		return nil, err
 	}
@@ -101,9 +102,10 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 			// continue
 		}
 
-		newConfigPath, err := findInParentFolders(NewParsingContext(ctx, opts), []string{configName})
+		newConfigPath, err := FindInParentFolders(NewParsingContext(ctx, opts), []string{configName})
 		if err != nil {
-			if _, ok := errors.Unwrap(err).(ParentFileNotFoundError); ok {
+			var parentFileNotFoundError ParentFileNotFoundError
+			if ok := errors.As(err, &parentFileNotFoundError); ok {
 				break
 			}
 			return "", "", err
@@ -151,11 +153,16 @@ func convertToTerragruntCatalogConfig(ctx *ParsingContext, configPath string, te
 		terragruntConfig.SetFieldMetadata(MetadataCatalog, defaultMetadata)
 	}
 
+	if terragruntConfigFromFile.Engine != nil {
+		terragruntConfig.Engine = terragruntConfigFromFile.Engine
+		terragruntConfig.SetFieldMetadata(MetadataEngine, defaultMetadata)
+	}
+
 	if ctx.Locals != nil && *ctx.Locals != cty.NilVal {
 		// we should ignore any errors from `parseCtyValueToMap` as some `locals` values might have been incorrectly evaluated, that results to `json.Unmarshal` error.
 		// for example if the locals block looks like `{"var1":, "var2":"value2"}`, `parseCtyValueToMap` returns the map with "var2" value and an syntax error,
 		// but since we consciously understand that not all variables can be evaluated correctly due to the fact that parsing may not start from the real root file, we can safely ignore this error.
-		localsParsed, _ := parseCtyValueToMap(*ctx.Locals)
+		localsParsed, _ := ParseCtyValueToMap(*ctx.Locals)
 		terragruntConfig.Locals = localsParsed
 		terragruntConfig.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)
 	}

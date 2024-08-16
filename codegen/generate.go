@@ -121,7 +121,8 @@ func WriteToFile(terragruntOptions *options.TerragruntOptions, basePath string, 
 	}
 	contentsToWrite := fmt.Sprintf("%s%s", prefix, config.Contents)
 
-	if err := os.WriteFile(targetPath, []byte(contentsToWrite), 0644); err != nil {
+	const ownerWriteGlobalReadPerms = 0644
+	if err := os.WriteFile(targetPath, []byte(contentsToWrite), ownerWriteGlobalReadPerms); err != nil {
 		return errors.WithStackTrace(err)
 	}
 	terragruntOptions.Logger.Debugf("Generated file %s.", targetPath)
@@ -131,7 +132,8 @@ func WriteToFile(terragruntOptions *options.TerragruntOptions, basePath string, 
 // Whether or not file generation should continue if the file path already exists. The answer depends on the
 // ifExists configuration.
 func shouldContinueWithFileExists(terragruntOptions *options.TerragruntOptions, path string, ifExists GenerateConfigExists) (bool, error) {
-	switch ifExists {
+	// TODO: Make exhaustive
+	switch ifExists { //nolint:exhaustive
 	case ExistsError:
 		return false, errors.WithStackTrace(GenerateFileExistsError{path: path})
 	case ExistsSkip:
@@ -165,7 +167,8 @@ func shouldContinueWithFileExists(terragruntOptions *options.TerragruntOptions, 
 
 // shouldRemoveWithFileExists returns true if the already existing file should be removed.
 func shouldRemoveWithFileExists(terragruntOptions *options.TerragruntOptions, path string, ifDisable GenerateConfigDisabled) (bool, error) {
-	switch ifDisable {
+	// TODO: Make exhaustive
+	switch ifDisable { //nolint:exhaustive
 	case DisabledSkip:
 		// Do nothing since skip was configured.
 		terragruntOptions.Logger.Debugf("The file path %s already exists and if_disabled for code generation set to \"skip\", will not remove file.", path)
@@ -216,7 +219,7 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]interfac
 	f := hclwrite.NewEmptyFile()
 	backendBlock := f.Body().AppendNewBlock("terraform", nil).Body().AppendNewBlock("backend", []string{backend})
 	backendBlockBody := backendBlock.Body()
-	var backendKeys []string
+	var backendKeys = make([]string, 0, len(config))
 
 	for key := range config {
 		backendKeys = append(backendKeys, key)

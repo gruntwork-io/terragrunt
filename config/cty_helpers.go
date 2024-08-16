@@ -147,7 +147,7 @@ func wrapStaticValueToStringSliceAsFuncImpl(out []string) function.Function {
 // Convert the slice of cty values to a slice of strings. If any of the values in the given slice is not a string,
 // return an error.
 func ctySliceToStringSlice(args []cty.Value) ([]string, error) {
-	var out []string
+	var out = make([]string, 0, len(args))
 	for _, arg := range args {
 		if arg.Type() != cty.String {
 			return nil, errors.WithStackTrace(InvalidParameterTypeError{Expected: "string", Actual: arg.Type().FriendlyName()})
@@ -159,11 +159,11 @@ func ctySliceToStringSlice(args []cty.Value) ([]string, error) {
 
 // shallowMergeCtyMaps performs a shallow merge of two cty value objects.
 func shallowMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
-	outMap, err := parseCtyValueToMap(target)
+	outMap, err := ParseCtyValueToMap(target)
 	if err != nil {
 		return nil, err
 	}
-	SourceMap, err := parseCtyValueToMap(source)
+	SourceMap, err := ParseCtyValueToMap(source)
 	if err != nil {
 		return nil, err
 	}
@@ -190,11 +190,11 @@ func deepMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
 // are already maps or objects in HCL land.
 func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*mergo.Config)) (*cty.Value, error) {
 	outMap := make(map[string]interface{})
-	targetMap, err := parseCtyValueToMap(target)
+	targetMap, err := ParseCtyValueToMap(target)
 	if err != nil {
 		return nil, err
 	}
-	sourceMap, err := parseCtyValueToMap(source)
+	sourceMap, err := ParseCtyValueToMap(source)
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +219,13 @@ func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*m
 // requires you to specify all the output types and will error out when it hits interface{}. So, as an ugly workaround,
 // we convert the given value to JSON using cty's JSON library and then convert the JSON back to a
 // map[string]interface{} using the Go json library.
-func parseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
+func ParseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
+	updatedValue, err := UpdateUnknownCtyValValues(value)
+	if err != nil {
+		return nil, err
+	}
+	value = updatedValue
+
 	jsonBytes, err := ctyjson.Marshal(value, cty.DynamicPseudoType)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
@@ -238,8 +244,8 @@ func parseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
 // a value field. This struct is used to capture that information so when we parse the JSON back into a Go struct, we
 // can pull out just the Value field we need.
 type CtyJsonOutput struct {
-	Value map[string]interface{}
-	Type  interface{}
+	Value map[string]interface{} `json:"Value"`
+	Type  interface{}            `json:"Type"`
 }
 
 // convertValuesMapToCtyVal takes a map of name - cty.Value pairs and converts to a single cty.Value object.
@@ -313,22 +319,49 @@ func includeConfigAsCtyVal(ctx *ParsingContext, includeConfig IncludeConfig) (ct
 	return cty.NilVal, nil
 }
 
-// updateUnknownCtyValValues updates unknown values with default value
-func updateUnknownCtyValValues(value *cty.Value) (*cty.Value, error) {
-	updatedValue := map[string]cty.Value{}
+// UpdateUnknownCtyValValues deeply updates unknown values with default value
+func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
+	var updatedValue any
 
-	for key, value := range value.AsValueMap() {
-		if value.IsKnown() {
-			updatedValue[key] = value
-		} else {
-			updatedValue[key] = cty.StringVal("")
+	switch {
+	case !value.IsKnown():
+		return cty.StringVal(""), nil
+	case value.IsNull():
+		return value, nil
+	case value.Type().IsMapType(), value.Type().IsObjectType():
+		mapVals := value.AsValueMap()
+		for key, val := range mapVals {
+			val, err := UpdateUnknownCtyValValues(val)
+			if err != nil {
+				return cty.NilVal, err
+			}
+			mapVals[key] = val
+		}
+		if len(mapVals) > 0 {
+			updatedValue = mapVals
+		}
+
+	case value.Type().IsTupleType(), value.Type().IsListType():
+		sliceVals := value.AsValueSlice()
+		for key, val := range sliceVals {
+			val, err := UpdateUnknownCtyValValues(val)
+			if err != nil {
+				return cty.NilVal, err
+			}
+			sliceVals[key] = val
+		}
+		if len(sliceVals) > 0 {
+			updatedValue = sliceVals
 		}
 	}
 
-	res, err := gocty.ToCtyValue(updatedValue, value.Type())
-	if err != nil {
-		return nil, err
+	if updatedValue == nil {
+		return value, nil
 	}
 
-	return &res, nil
+	value, err := gocty.ToCtyValue(updatedValue, value.Type())
+	if err != nil {
+		return cty.NilVal, errors.WithStackTrace(err)
+	}
+	return value, nil
 }

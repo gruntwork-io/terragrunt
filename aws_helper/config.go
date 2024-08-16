@@ -3,6 +3,7 @@ package aws_helper
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/request"
@@ -109,7 +110,10 @@ func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *opt
 
 	if iamRoleOptions.RoleARN != "" {
 		sess.Config.Credentials = getSTSCredentialsFromIAMRoleOptions(sess, iamRoleOptions, credentialOptFn)
+	} else if creds := getCredentialsFromEnvs(terragruntOptions); creds != nil {
+		sess.Config.Credentials = creds
 	}
+
 	return sess, nil
 }
 
@@ -120,7 +124,8 @@ type tokenFetcher string
 func (f tokenFetcher) FetchToken(ctx credentials.Context) ([]byte, error) {
 	// Check if token is a raw value
 	if _, err := os.Stat(string(f)); err != nil {
-		return []byte(f), nil
+		// TODO: See if this lint error should be ignored
+		return []byte(f), nil //nolint: nilerr
 	}
 	token, err := os.ReadFile(string(f))
 	if err != nil {
@@ -133,7 +138,7 @@ func getWebIdentityCredentialsFromIAMRoleOptions(sess *session.Session, iamRoleO
 	roleSessionName := iamRoleOptions.AssumeRoleSessionName
 	if roleSessionName == "" {
 		// Set a unique session name in the same way it is done in the SDK
-		roleSessionName = fmt.Sprintf("%d", time.Now().UTC().UnixNano())
+		roleSessionName = strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
 	}
 	svc := sts.New(sess)
 	p := stscreds.NewWebIdentityRoleProviderWithOptions(svc, iamRoleOptions.RoleARN, roleSessionName, tokenFetcher(iamRoleOptions.WebIdentityToken))
@@ -157,6 +162,19 @@ func getSTSCredentialsFromIAMRoleOptions(sess *session.Session, iamRoleOptions o
 		}
 	})
 	return stscreds.NewCredentials(sess, iamRoleOptions.RoleARN, optFns...)
+}
+
+func getCredentialsFromEnvs(opts *options.TerragruntOptions) *credentials.Credentials {
+	var (
+		accessKeyID     = opts.Env["AWS_ACCESS_KEY_ID"]
+		secretAccessKey = opts.Env["AWS_SECRET_ACCESS_KEY"]
+		sessionToken    = opts.Env["AWS_SESSION_TOKEN"]
+	)
+
+	if accessKeyID == "" || secretAccessKey == "" {
+		return nil
+	}
+	return credentials.NewStaticCredentials(accessKeyID, secretAccessKey, sessionToken)
 }
 
 // Returns an AWS session object. The session is configured by either:
@@ -184,6 +202,8 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 				terragruntOptions.Logger.Debugf("Assuming role %s", terragruntOptions.IAMRoleOptions.RoleARN)
 				sess.Config.Credentials = getSTSCredentialsFromIAMRoleOptions(sess, terragruntOptions.IAMRoleOptions)
 			}
+		} else if creds := getCredentialsFromEnvs(terragruntOptions); creds != nil {
+			sess.Config.Credentials = creds
 		}
 	} else {
 		sess, err = CreateAwsSessionFromConfig(config, terragruntOptions)

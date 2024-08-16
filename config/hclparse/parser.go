@@ -1,4 +1,4 @@
-// The package wraps `hclparse.Parser` to be able to handle diagnostic errors from one place, see `diagnosticsError(diags hcl.Diagnostics) error` func.
+// The package wraps `hclparse.Parser` to be able to handle diagnostic errors from one place, see `handleDiagnostics(diags hcl.Diagnostics) error` func.
 // This allows us to halt the process only when certain errors occur, such as skipping all errors not related to the `catalog` block.
 
 package hclparse
@@ -11,13 +11,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
-	"github.com/sirupsen/logrus"
 )
 
 type Parser struct {
 	*hclparse.Parser
-	logger                *logrus.Entry
-	diagnosticsErrorFunc  func(*File, hcl.Diagnostics) (hcl.Diagnostics, error)
+	diagsWriterFunc       func(hcl.Diagnostics) error
+	handleDiagnosticsFunc func(*File, hcl.Diagnostics) (hcl.Diagnostics, error)
 	fileUpdateHandlerFunc func(*File) error
 }
 
@@ -29,9 +28,8 @@ func NewParser() *Parser {
 
 func (parser *Parser) WithOptions(opts ...Option) *Parser {
 	for _, opt := range opts {
-		*parser = opt(*parser)
+		parser = opt(parser)
 	}
-
 	return parser
 }
 
@@ -71,14 +69,37 @@ func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *F
 		hclFile, diags = parser.ParseHCL(content, configPath)
 	}
 
-	if diags.HasErrors() {
+	file = &File{
+		Parser:     parser,
+		File:       hclFile,
+		ConfigPath: configPath,
+	}
+
+	if err := parser.handleDiagnostics(file, diags); err != nil {
 		log.Warnf("Failed to parse HCL in file %s: %v", configPath, diags)
 		return nil, errors.WithStackTrace(diags)
 	}
 
-	return &File{
-		Parser:     parser,
-		File:       hclFile,
-		ConfigPath: configPath,
-	}, nil
+	return file, nil
+}
+
+func (parser *Parser) handleDiagnostics(file *File, diags hcl.Diagnostics) error {
+	if len(diags) == 0 {
+		return nil
+	}
+
+	if fn := parser.handleDiagnosticsFunc; fn != nil {
+		var err error
+		if diags, err = fn(file, diags); err != nil || diags == nil {
+			return err
+		}
+	}
+
+	if fn := parser.diagsWriterFunc; fn != nil {
+		if err := fn(diags); err != nil {
+			return err
+		}
+	}
+
+	return diags
 }

@@ -151,7 +151,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case rendererErrMsg:
-		m.viewport.SetContent(fmt.Sprintf("there was an error rendering markdown: %s", msg.err.Error()))
+		m.viewport.SetContent("there was an error rendering markdown: " + msg.err.Error())
 		// ensure we show the viewport
 		m.state = pagerState
 	}
