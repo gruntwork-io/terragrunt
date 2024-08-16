@@ -743,7 +743,11 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 		return nil
 	})
 
-	return configFiles, fmt.Errorf("error finding Terragrunt config files in path %s: %w", rootPath, err)
+	if err != nil {
+		return configFiles, fmt.Errorf("error finding Terragrunt config files in path %s: %w", rootPath, err)
+	}
+
+	return configFiles, nil
 }
 
 // isTerragruntModuleDir returns true if the given path contains a Terragrunt module and false otherwise. The path
@@ -864,7 +868,7 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("error parsing Terragrunt config file at %s: %w", config, err)
+		return nil, fmt.Errorf("error parsing Terragrunt config file at %s: %w", configPath, err)
 	}
 
 	return config, nil

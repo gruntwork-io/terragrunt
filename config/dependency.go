@@ -483,13 +483,14 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, dependencyConfigs []Depende
 	convertedOutput, err := gocty.ToCtyValue(dependencyMap, generateTypeFromValuesMap(dependencyMap))
 	if err != nil {
 		err = TerragruntOutputListEncodingError{Paths: paths, Err: err}
+		return &convertedOutput, fmt.Errorf(
+			"%w: %s",
+			errors.WithStackTrace(err),
+			strings.Join(paths, ", "),
+		)
 	}
 
-	return &convertedOutput, fmt.Errorf(
-		"%w: %s",
-		errors.WithStackTrace(err),
-		strings.Join(paths, ", "),
-	)
+	return &convertedOutput, nil
 }
 
 // This will attempt to get the outputs from the target terragrunt config if it is applied. If it is not applied, the
@@ -630,9 +631,10 @@ func getTerragruntOutput(ctx *ParsingContext, dependencyConfig Dependency) (*cty
 	convertedOutput, err := gocty.ToCtyValue(outputMap, generateTypeFromValuesMap(outputMap))
 	if err != nil {
 		err = TerragruntOutputEncodingError{Path: targetConfigPath, Err: err}
+		return &convertedOutput, isEmpty, fmt.Errorf("%w: %s", errors.WithStackTrace(err), targetConfigPath)
 	}
 
-	return &convertedOutput, isEmpty, fmt.Errorf("%w: %s", errors.WithStackTrace(err), targetConfigPath)
+	return &convertedOutput, isEmpty, nil
 }
 
 // isRenderJSONCommand This function will true if terragrunt was invoked with render-json.

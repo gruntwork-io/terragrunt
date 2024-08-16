@@ -259,7 +259,6 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 	})
 
 	err := errGroup.Wait()
-
 	if err != nil {
 		return fmt.Errorf("failed to run action: %w", err)
 	}
