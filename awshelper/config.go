@@ -85,7 +85,7 @@ func CreateAwsSessionFromConfig(config *AwsSessionConfig, terragruntOptions *opt
 
 	sess, err := session.NewSessionWithOptions(sessionOptions)
 	if err != nil {
-		return nil, fmt.Errorf("error creating new AWS session: %w", errors.WithStackTrace(err))
+		return nil, errors.WithStackTrace(err)
 	}
 
 	sess.Handlers.Build.PushFrontNamed(addUserAgent)
@@ -136,7 +136,7 @@ func (f tokenFetcher) FetchToken(_ credentials.Context) ([]byte, error) {
 
 	token, err := os.ReadFile(string(f))
 	if err != nil {
-		return nil, fmt.Errorf("error reading token file: %w", errors.WithStackTrace(err))
+		return nil, errors.WithStackTrace(err)
 	}
 
 	return token, nil
@@ -214,7 +214,7 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 		sess, err = session.NewSessionWithOptions(sessionOptions)
 
 		if err != nil {
-			return nil, fmt.Errorf("error creating new AWS session: %w", err)
+			return nil, err
 		}
 
 		sess.Handlers.Build.PushFrontNamed(addUserAgent)
@@ -233,7 +233,7 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 	} else {
 		sess, err = CreateAwsSessionFromConfig(config, terragruntOptions)
 		if err != nil {
-			return nil, fmt.Errorf("error creating AWS session from config: %w", errors.WithStackTrace(err))
+			return nil, errors.WithStackTrace(err)
 		}
 	}
 
@@ -246,7 +246,7 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 			)
 		}
 
-		return nil, fmt.Errorf("%s: %w", msg, errors.WithStackTrace(err))
+		return nil, errors.WithStackTraceAndPrefix(err, msg)
 	}
 
 	return sess, nil
@@ -259,7 +259,7 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 
 	sess, err := session.NewSessionWithOptions(sessionOptions)
 	if err != nil {
-		return nil, fmt.Errorf("error creating new AWS session: %w", err)
+		return nil, err
 	}
 
 	sess.Handlers.Build.PushFrontNamed(addUserAgent)
@@ -270,10 +270,7 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 
 	_, err = sess.Config.Credentials.Get()
 	if err != nil {
-		return nil, fmt.Errorf(
-			"error finding AWS credentials (did you set the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables?): %w", //nolint:lll
-			errors.WithStackTrace(err),
-		)
+		return nil, errors.WithStackTrace(err)
 	}
 
 	stsClient := sts.New(sess)
@@ -298,7 +295,7 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 
 		output, err := stsClient.AssumeRole(&input)
 		if err != nil {
-			return nil, fmt.Errorf("error assuming role %s: %w", iamRoleOpts.RoleARN, errors.WithStackTrace(err))
+			return nil, errors.WithStackTrace(err)
 		}
 
 		return output.Credentials, nil
@@ -312,7 +309,7 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 	} else {
 		tb, err := os.ReadFile(iamRoleOpts.WebIdentityToken)
 		if err != nil {
-			return nil, fmt.Errorf("error reading token file: %w", errors.WithStackTrace(err))
+			return nil, errors.WithStackTrace(err)
 		}
 
 		token = string(tb)
@@ -330,7 +327,7 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 	// N.B: copied from SDK implementation
 	req.RetryErrorCodes = append(req.RetryErrorCodes, sts.ErrCodeInvalidIdentityTokenException)
 	if err := req.Send(); err != nil {
-		return nil, fmt.Errorf("error assuming role %s: %w", iamRoleOpts.RoleARN, errors.WithStackTrace(err))
+		return nil, errors.WithStackTrace(err)
 	}
 
 	return resp.Credentials, nil
@@ -340,12 +337,12 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 func GetAWSCallerIdentity(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (sts.GetCallerIdentityOutput, error) { //nolint:lll
 	sess, err := CreateAwsSession(config, terragruntOptions)
 	if err != nil {
-		return sts.GetCallerIdentityOutput{}, fmt.Errorf("error creating AWS session: %w", errors.WithStackTrace(err))
+		return sts.GetCallerIdentityOutput{}, errors.WithStackTrace(err)
 	}
 
 	identity, err := sts.New(sess).GetCallerIdentity(nil)
 	if err != nil {
-		return sts.GetCallerIdentityOutput{}, fmt.Errorf("error getting AWS caller identity: %w", errors.WithStackTrace(err))
+		return sts.GetCallerIdentityOutput{}, errors.WithStackTrace(err)
 	}
 
 	return *identity, nil
@@ -363,12 +360,12 @@ func ValidateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Ter
 func GetAWSPartition(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
 	if err != nil {
-		return "", fmt.Errorf("error getting AWS caller identity: %w", errors.WithStackTrace(err))
+		return "", errors.WithStackTrace(err)
 	}
 
 	arn, err := arn.Parse(*identity.Arn)
 	if err != nil {
-		return "", fmt.Errorf("error parsing ARN: %w", errors.WithStackTrace(err))
+		return "", errors.WithStackTrace(err)
 	}
 
 	return arn.Partition, nil
@@ -378,7 +375,7 @@ func GetAWSPartition(config *AwsSessionConfig, terragruntOptions *options.Terrag
 func GetAWSAccountID(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
 	if err != nil {
-		return "", fmt.Errorf("error getting AWS caller identity: %w", errors.WithStackTrace(err))
+		return "", errors.WithStackTrace(err)
 	}
 
 	return *identity.Account, nil
@@ -388,7 +385,7 @@ func GetAWSAccountID(config *AwsSessionConfig, terragruntOptions *options.Terrag
 func GetAWSIdentityArn(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
 	if err != nil {
-		return "", fmt.Errorf("error getting AWS caller identity ARN: %w", errors.WithStackTrace(err))
+		return "", errors.WithStackTrace(err)
 	}
 
 	return *identity.Arn, nil
@@ -398,7 +395,7 @@ func GetAWSIdentityArn(config *AwsSessionConfig, terragruntOptions *options.Terr
 func GetAWSUserID(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (string, error) {
 	identity, err := GetAWSCallerIdentity(config, terragruntOptions)
 	if err != nil {
-		return "", fmt.Errorf("error getting AWS caller identity user ID: %w", errors.WithStackTrace(err))
+		return "", errors.WithStackTrace(err)
 	}
 
 	return *identity.UserId, nil

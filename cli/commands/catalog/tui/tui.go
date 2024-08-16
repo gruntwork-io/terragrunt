@@ -4,7 +4,6 @@ package tui
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -18,13 +17,13 @@ func Run(ctx context.Context, modules module.Modules, opts *options.TerragruntOp
 		if err := context.Cause(ctx); errors.Is(err, context.Canceled) {
 			return nil
 		} else if err != nil {
-			return fmt.Errorf("error running TUI: %w", err)
+			return err
 		}
 
 		// TODO: Work out why there's two of these.
 		// Can't we just remove the one above?
 
-		return fmt.Errorf("error running TUI: %w", err)
+		return err
 	}
 
 	return nil

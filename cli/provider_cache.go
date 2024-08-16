@@ -84,7 +84,7 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 	}
 
 	if opts.ProviderCacheDir, err = filepath.Abs(opts.ProviderCacheDir); err != nil {
-		return nil, fmt.Errorf("unable to get absolute path for %q: %w", opts.ProviderCacheDir, err)
+		return nil, err
 	}
 
 	if opts.ProviderCacheToken == "" {
@@ -98,12 +98,12 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 
 	cliCfg, err := cliconfig.LoadUserConfig()
 	if err != nil {
-		return nil, fmt.Errorf("unable to load user config: %w", err)
+		return nil, err
 	}
 
 	userProviderDir, err := cliconfig.UserProviderDir()
 	if err != nil {
-		return nil, fmt.Errorf("unable to get user provider directory: %w", err)
+		return nil, err
 	}
 
 	providerService := services.NewProviderService(opts.ProviderCacheDir, userProviderDir, cliCfg.CredentialsSource())
@@ -210,7 +210,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 		// skip cache creation for all other commands
 		out, err := shell.RunTerraformCommandWithOutput(ctx, opts, args...)
 		if err != nil {
-			return out, fmt.Errorf("unable to run terraform command: %w", err)
+			return out, err
 		}
 
 		return out, nil
@@ -236,11 +236,11 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 
 	caches, err := cache.providerService.WaitForCacheReady(cacheRequestID)
 	if err != nil {
-		return nil, fmt.Errorf("unable to wait for cache ready: %w", err)
+		return nil, err
 	}
 
 	if err := getproviders.UpdateLockfile(ctx, opts.WorkingDir, caches); err != nil {
-		return nil, fmt.Errorf("unable to update lockfile: %w", err)
+		return nil, err
 	}
 
 	// Create terraform cli config file that uses provider cache dir
@@ -259,7 +259,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	// return shell.RunTerraformCommandWithOutput(ctx, cloneOpts, args...)
 	out, err := runTerraformCommand(ctx, cloneOpts, args, envs)
 	if err != nil {
-		return out, fmt.Errorf("unable to run terraform command: %w", err)
+		return out, err
 	}
 
 	return out, nil

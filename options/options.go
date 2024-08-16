@@ -454,7 +454,7 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
 	if err != nil {
 		// return nil, errors.WithStackTrace(err)
-		return nil, fmt.Errorf("error getting default working and download directories: %w", err)
+		return nil, err
 	}
 
 	opts.WorkingDir = workingDir
@@ -469,7 +469,7 @@ func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string,
 
 	downloadDir, err := filepath.Abs(filepath.Join(workingDir, util.TerragruntCacheDir))
 	if err != nil {
-		return "", "", fmt.Errorf("error getting absolute path for download directory: %w", errors.WithStackTrace(err))
+		return "", "", errors.WithStackTrace(err)
 	}
 
 	return filepath.ToSlash(workingDir), filepath.ToSlash(downloadDir), nil

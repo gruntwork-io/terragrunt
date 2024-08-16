@@ -32,7 +32,6 @@ import (
 	"context"
 	"encoding/json"
 	goErrors "errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -57,7 +56,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 	err := terraform.RunWithTarget(ctx, opts, target)
 	if err != nil {
-		return fmt.Errorf("error running aws-provider-patch: %w", err)
+		return err
 	}
 
 	return nil
@@ -65,10 +64,8 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 func runAwsProviderPatch(_ context.Context, opts *options.TerragruntOptions, _ *config.TerragruntConfig) error {
 	if len(opts.AwsProviderPatchOverrides) == 0 {
-		// return errors.WithStackTrace(MissingOverrideAttrError(FlagNameTerragruntOverrideAttr))
-		return fmt.Errorf("no overrides provided for the aws provider: %w", errors.WithStackTrace(
-			MissingOverrideAttrError(FlagNameTerragruntOverrideAttr)),
-		)
+		return errors.WithStackTrace(MissingOverrideAttrError(FlagNameTerragruntOverrideAttr))
+
 	}
 
 	terraformFilesInModules, err := findAllTerraformFilesInModules(opts)
@@ -81,7 +78,7 @@ func runAwsProviderPatch(_ context.Context, opts *options.TerragruntOptions, _ *
 
 		originalTerraformFileContents, err := util.ReadFileAsString(terraformFile)
 		if err != nil {
-			return fmt.Errorf("error reading file %s: %w", terraformFile, err)
+			return err
 		}
 
 		updatedTerraformFileContents, codeWasUpdated, err := PatchAwsProviderInTerraformCode(
@@ -101,7 +98,7 @@ func runAwsProviderPatch(_ context.Context, opts *options.TerragruntOptions, _ *
 				terraformFile,
 				[]byte(updatedTerraformFileContents),
 			); err != nil {
-				return fmt.Errorf("error writing file %s: %w", terraformFile, err)
+				return err
 			}
 		}
 	}
@@ -147,12 +144,12 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 
 	modulesJSONContents, err := os.ReadFile(modulesJSONPath)
 	if err != nil {
-		return nil, fmt.Errorf("error reading file %s: %w", modulesJSONPath, errors.WithStackTrace(err))
+		return nil, errors.WithStackTrace(err)
 	}
 
 	var terraformModulesJSON TerraformModulesJSON
 	if err := json.Unmarshal(modulesJSONContents, &terraformModulesJSON); err != nil {
-		return nil, fmt.Errorf("error unmarshalling JSON from file %s: %w", modulesJSONPath, errors.WithStackTrace(err))
+		return nil, errors.WithStackTrace(err)
 	}
 
 	var terraformFiles []string
@@ -169,7 +166,7 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 			// So we use a third-party library.
 			matches, err := zglob.Glob(moduleAbsPath + "/**/*.tf")
 			if err != nil {
-				return nil, fmt.Errorf("error finding Terraform files in %s: %w", moduleAbsPath, errors.WithStackTrace(err))
+				return nil, errors.WithStackTrace(err)
 			}
 
 			terraformFiles = append(terraformFiles, matches...)
@@ -205,7 +202,7 @@ func PatchAwsProviderInTerraformCode(terraformCode string, terraformFilePath str
 
 	hclFile, err := hclwrite.ParseConfig([]byte(terraformCode), terraformFilePath, hcl.InitialPos)
 	if err != nil {
-		return "", false, fmt.Errorf("error parsing HCL file %s: %w", terraformFilePath, errors.WithStackTrace(err))
+		return "", false, errors.WithStackTrace(err)
 	}
 
 	codeWasUpdated := false
@@ -290,7 +287,7 @@ func overrideAttributeInBlock(block *hclwrite.Block, key string, value string) (
 		// Wrap error in a custom error type that has better error messaging to the user.
 		returnErr := TypeInferenceError{value: value, underlyingErr: err}
 
-		return false, fmt.Errorf("error inferring type for value %s: %w", value, errors.WithStackTrace(returnErr))
+		return false, errors.WithStackTrace(returnErr)
 	}
 
 	ctyVal, err := ctyjson.Unmarshal(valueBytes, ctyType)
@@ -298,7 +295,7 @@ func overrideAttributeInBlock(block *hclwrite.Block, key string, value string) (
 		// Wrap error in a custom error type that has better error messaging to the user.
 		returnErr := MalformedJSONValError{value: value, underlyingErr: err}
 
-		return false, fmt.Errorf("error unmarshalling value %s: %w", value, errors.WithStackTrace(returnErr))
+		return false, errors.WithStackTrace(returnErr)
 	}
 
 	body.SetAttributeValue(attr, ctyVal)

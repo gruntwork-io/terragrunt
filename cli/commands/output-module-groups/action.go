@@ -12,17 +12,17 @@ import (
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	stack, err := configstack.FindStackInSubfolders(ctx, opts)
 	if err != nil {
-		return fmt.Errorf("could not find stack in subfolders: %w", err)
+		return err
 	}
 
 	js, err := stack.JSONModuleDeployOrder(opts.TerraformCommand)
 	if err != nil {
-		return fmt.Errorf("could not get JSON module deploy order: %w", err)
+		return err
 	}
 
 	_, err = fmt.Fprintf(opts.Writer, "%s\n", js)
 	if err != nil {
-		return fmt.Errorf("could not write JSON module deploy order: %w", err)
+		return err
 	}
 
 	return nil

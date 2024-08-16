@@ -532,7 +532,7 @@ func NewHelpFlag(opts *options.TerragruntOptions) *cli.BoolFlag {
 					return shell.RunTerraformCommand(ctx, opts, terraformHelpCmd...)
 				}
 
-				return fmt.Errorf("failed to show help for command %s: %w", cmdName, err)
+				return err
 			}
 
 			// In other cases, show the App help.

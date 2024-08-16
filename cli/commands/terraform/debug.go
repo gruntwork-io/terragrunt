@@ -30,7 +30,7 @@ func WriteTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terr
 
 	required, optional, err := terraform.ModuleVariables(terragruntOptions.WorkingDir)
 	if err != nil {
-		return fmt.Errorf("failed to get module variables: %w", err)
+		return err
 	}
 
 	variables := append(required, optional...)
@@ -47,7 +47,7 @@ func WriteTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terr
 	fileName := filepath.Join(configFolder, TerragruntTFVarsFile)
 
 	if err := os.WriteFile(fileName, fileContents, os.FileMode(defaultPermissions)); err != nil {
-		return fmt.Errorf("failed to write debug file: %w", errors.WithStackTrace(err))
+		return errors.WithStackTrace(err)
 	}
 
 	terragruntOptions.Logger.Debugf("Variables passed to terraform are located in \"%s\"", fileName)
@@ -104,7 +104,7 @@ func terragruntDebugFileContents(
 	jsonContent, err := json.MarshalIndent(jsonValuesByKey, "", "  ")
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal json: %w", errors.WithStackTrace(err))
+		return nil, errors.WithStackTrace(err)
 	}
 
 	return jsonContent, nil

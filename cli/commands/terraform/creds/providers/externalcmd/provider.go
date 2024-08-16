@@ -53,7 +53,7 @@ func (provider *Provider) GetCredentials(ctx context.Context) (*providers.Creden
 
 	output, err := shell.RunShellCommandWithOutput(ctx, provider.terragruntOptions, "", true, false, command, args...)
 	if err != nil {
-		return nil, fmt.Errorf("error running command %s: %w", command, err)
+		return nil, err
 	}
 
 	if output.Stdout == "" {

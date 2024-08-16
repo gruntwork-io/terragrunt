@@ -33,7 +33,7 @@ var runAllDisabledCommands = map[string]string{ //nolint:gochecknoglobals
 // Run runs the command.
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	if opts.TerraformCommand == "" {
-		return fmt.Errorf("command is missing: %w", errors.WithStackTrace(MissingCommandError{}))
+		return errors.WithStackTrace(MissingCommandError{})
 	}
 
 	reason, isDisabled := runAllDisabledCommands[opts.TerraformCommand]
@@ -46,7 +46,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 	stack, err := configstack.FindStackInSubfolders(ctx, opts)
 	if err != nil {
-		return fmt.Errorf("could not find stack in subfolders: %w", err)
+		return err
 	}
 
 	return OnStack(ctx, opts, stack)
@@ -57,7 +57,7 @@ func OnStack(ctx context.Context, opts *options.TerragruntOptions, stack *config
 	opts.Logger.Debugf("%s", stack.String())
 
 	if err := stack.LogModuleDeployOrder(opts.Logger, opts.TerraformCommand); err != nil {
-		return fmt.Errorf("error logging module deploy order: %w", err)
+		return err
 	}
 
 	var prompt string
@@ -74,7 +74,7 @@ func OnStack(ctx context.Context, opts *options.TerragruntOptions, stack *config
 	if prompt != "" {
 		shouldRunAll, err := shell.PromptUserForYesNo(prompt, opts)
 		if err != nil {
-			return fmt.Errorf("error prompting user: %w", err)
+			return err
 		}
 
 		if !shouldRunAll {
@@ -89,14 +89,14 @@ func OnStack(ctx context.Context, opts *options.TerragruntOptions, stack *config
 		// BUG: This might be a bug. Should this be `childCtx` instead of `ctx`? For now, I'm going to leave it as is.
 		err := stack.Run(ctx, opts)
 		if err != nil {
-			return fmt.Errorf("error running stack: %w", err)
+			return err
 		}
 
 		return nil
 	})
 
 	if err != nil {
-		return fmt.Errorf("error running telemetry: %w", err)
+		return err
 	}
 
 	return nil

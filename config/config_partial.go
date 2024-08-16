@@ -157,7 +157,7 @@ func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *Inc
 
 	fileInfo, err := os.Stat(configPath)
 	if err != nil {
-		return nil, fmt.Errorf("error reading file %s: %w", configPath, err)
+		return nil, err
 	}
 
 	var file *hclparse.File
@@ -169,7 +169,7 @@ func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *Inc
 	} else {
 		file, err = hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing file %s: %w", configPath, err)
+			return nil, err
 		}
 	}
 
@@ -253,7 +253,7 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File,
 func PartialParseConfigString(ctx *ParsingContext, configPath, configString string, include *IncludeConfig) (*TerragruntConfig, error) { //nolint:lll
 	file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromString(configString, configPath)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing file %s: %w", configPath, err)
+		return nil, err
 	}
 
 	return PartialParseConfig(ctx, file, include)
@@ -297,7 +297,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
-				return nil, fmt.Errorf("error decoding dependencies block: %w", err)
+				return nil, err
 			}
 
 			// If we already decoded some dependencies, merge them in. Otherwise, set as the new list.
@@ -312,7 +312,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
-				return nil, fmt.Errorf("error decoding terraform block: %w", err)
+				return nil, err
 			}
 
 			output.Terraform = decoded.Terraform
@@ -322,7 +322,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
-				return nil, fmt.Errorf("error decoding terraform block: %w", err)
+				return nil, err
 			}
 
 			if decoded.Terraform != nil {
@@ -334,7 +334,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
-				return nil, fmt.Errorf("error decoding dependency block: %w", err)
+				return nil, err
 			}
 
 			// In normal operation, if a dependency block does not have a `config_path` attribute,
@@ -359,7 +359,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
-				return nil, fmt.Errorf("error decoding terragrunt flags: %w", err)
+				return nil, err
 			}
 
 			if decoded.PreventDestroy != nil {
@@ -397,7 +397,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 				// in case of render-json command and inputs reference error, we update the inputs with default value
 				if !ok || !isRenderJSONCommand(ctx) || !isAttributeAccessError(diagErr) {
-					return nil, fmt.Errorf("error decoding inputs block: %w", err)
+					return nil, err
 				}
 
 				ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
@@ -417,7 +417,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
-				return nil, fmt.Errorf("error decoding terragrunt version constraints: %w", err)
+				return nil, err
 			}
 
 			if decoded.TerragruntVersionConstraint != nil {
@@ -437,7 +437,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
-				return nil, fmt.Errorf("error decoding remote_state block: %w", err)
+				return nil, err
 			}
 
 			if decoded.RemoteState != nil {
@@ -472,12 +472,9 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 func partialParseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
-		return nil, fmt.Errorf(
-			"included config missing path: %w",
-			errors.WithStackTrace(
-				IncludedConfigMissingPathError(
-					ctx.TerragruntOptions.TerragruntConfigPath,
-				),
+		return nil, errors.WithStackTrace(
+			IncludedConfigMissingPathError(
+				ctx.TerragruntOptions.TerragruntConfigPath,
 			),
 		)
 	}
@@ -502,7 +499,7 @@ func partialParseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConf
 func decodeAsTerragruntInclude(file *hclparse.File, evalParsingContext *hcl.EvalContext) ([]IncludeConfig, error) {
 	tgInc := terragruntIncludeMultiple{}
 	if err := file.Decode(&tgInc, evalParsingContext); err != nil {
-		return nil, fmt.Errorf("error decoding include block: %w", err)
+		return nil, err
 	}
 
 	return tgInc.Include, nil

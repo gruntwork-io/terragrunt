@@ -4,7 +4,6 @@ package amazonsts
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -53,7 +52,7 @@ func (provider *Provider) GetCredentials(ctx context.Context) (*providers.Creden
 
 	resp, err := awshelper.AssumeIamRole(iamRoleOpts)
 	if err != nil {
-		return nil, fmt.Errorf("error assuming IAM role %s: %w", iamRoleOpts.RoleARN, err)
+		return nil, err
 	}
 
 	creds := &providers.Credentials{

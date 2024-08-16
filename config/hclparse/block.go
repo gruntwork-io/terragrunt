@@ -1,8 +1,6 @@
 package hclparse
 
 import (
-	"fmt"
-
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/hashicorp/hcl/v2"
 )
@@ -27,7 +25,7 @@ func (block *Block) JustAttributes() (Attributes, error) {
 	hclAttrs, diags := block.Body.JustAttributes()
 
 	if err := block.HandleDiagnostics(diags); err != nil {
-		return nil, fmt.Errorf("error parsing block attributes: %w", errors.WithStackTrace(err))
+		return nil, errors.WithStackTrace(err)
 	}
 
 	attrs := NewAttributes(block.File, hclAttrs)

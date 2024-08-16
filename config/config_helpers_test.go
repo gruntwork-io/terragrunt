@@ -226,7 +226,7 @@ func TestRunCommand(t *testing.T) {
 			actualOutput, actualErr := config.RunCommand(ctx, tt.params)
 			if tt.expectedErr != nil {
 				if assert.Error(t, actualErr) {
-					assert.IsType(t, tt.expectedErr, errors.Unwrap(actualErr))
+					assert.ErrorIs(t, actualErr, tt.expectedErr)
 				}
 			} else {
 				require.NoError(t, actualErr)

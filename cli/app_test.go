@@ -2,7 +2,6 @@ package cli_test
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -500,7 +499,7 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 
 	err := app.Run(append([]string{"--"}, args...))
 
-	return opts, fmt.Errorf("app encountered an error: %w", err)
+	return opts, err
 }
 
 func doubleDashed(name string) string {

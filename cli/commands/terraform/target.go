@@ -122,7 +122,7 @@ func (target *Target) runErrorCallback(opts *options.TerragruntOptions, config *
 
 	err := target.errorCallbackFunc(opts, config, e)
 	if err != nil {
-		return fmt.Errorf("error running error callback: %w", err)
+		return err
 	}
 
 	return nil

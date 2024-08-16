@@ -22,7 +22,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 	err := terraform.RunWithTarget(ctx, opts, target)
 	if err != nil {
-		return fmt.Errorf("encountered error while running terragrunt-info: %w", err)
+		return err
 	}
 
 	return nil
@@ -52,11 +52,11 @@ func printTerragruntInfo(opts *options.TerragruntOptions) error {
 	if err != nil {
 		opts.Logger.Errorf("JSON error marshalling terragrunt-info")
 
-		return fmt.Errorf("error marshalling terragrunt-info: %w", errors.WithStackTrace(err))
+		return errors.WithStackTrace(err)
 	}
 
 	if _, err := fmt.Fprintf(opts.Writer, "%s\n", b); err != nil {
-		return fmt.Errorf("error writing terragrunt-info: %w", errors.WithStackTrace(err))
+		return errors.WithStackTrace(err)
 	}
 
 	return nil

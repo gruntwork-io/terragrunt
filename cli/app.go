@@ -128,7 +128,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		ErrWriter:  app.ErrWriter,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to initialize telemetry: %w", err)
+		return err
 	}
 	defer func(ctx context.Context) {
 		if err := telemetry.ShutdownTelemetry(ctx); err != nil {
@@ -150,7 +150,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	}(ctx)
 
 	if err := app.App.RunContext(ctx, args); err != nil && !goerrors.Is(err, context.Canceled) {
-		return fmt.Errorf("error encountered while running Terragrunt: %w", err)
+		return err
 	}
 
 	return nil
@@ -235,7 +235,7 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 		ln, err := server.Listen()
 
 		if err != nil {
-			return fmt.Errorf("failed to start provider cache server: %w", err)
+			return err
 		}
 
 		defer ln.Close() //nolint:errcheck
@@ -260,7 +260,7 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 
 	err := errGroup.Wait()
 	if err != nil {
-		return fmt.Errorf("failed to run action: %w", err)
+		return err
 	}
 
 	return nil
@@ -325,7 +325,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	if opts.WorkingDir == "" {
 		currentDir, err := os.Getwd()
 		if err != nil {
-			return fmt.Errorf("failed to get current working directory: %w", errors.WithStackTrace(err))
+			return errors.WithStackTrace(err)
 		}
 
 		opts.WorkingDir = currentDir
@@ -341,7 +341,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	downloadDir, err := filepath.Abs(opts.DownloadDir)
 
 	if err != nil {
-		return fmt.Errorf("failed to get absolute path for download directory: %w", errors.WithStackTrace(err))
+		return errors.WithStackTrace(err)
 	}
 
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
@@ -355,14 +355,14 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	opts.TerragruntConfigPath, err = filepath.Abs(opts.TerragruntConfigPath)
 	if err != nil {
-		return fmt.Errorf("failed to get absolute path for terragrunt config path: %w", errors.WithStackTrace(err))
+		return errors.WithStackTrace(err)
 	}
 
 	opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)
 
 	opts.ExcludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.ExcludeDirs...)
 	if err != nil {
-		return fmt.Errorf("failed to get exclude directories: %w", errors.WithStackTrace(err))
+		return errors.WithStackTrace(err)
 	}
 
 	if len(opts.IncludeDirs) > 0 {
@@ -372,12 +372,12 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	opts.IncludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.IncludeDirs...)
 	if err != nil {
-		return fmt.Errorf("failed to get include directories: %w", errors.WithStackTrace(err))
+		return errors.WithStackTrace(err)
 	}
 
 	excludeDirs, err := util.GetExcludeDirsFromFile(opts.WorkingDir, opts.ExcludesFile)
 	if err != nil {
-		return fmt.Errorf("failed to get exclude directories from file: %w", errors.WithStackTrace(err))
+		return errors.WithStackTrace(err)
 	}
 
 	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirs...)
@@ -387,7 +387,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	if err != nil {
 		// Malformed Terragrunt version; set the version to 0.0
 		if terragruntVersion, err = hashicorpversion.NewVersion("0.0"); err != nil {
-			return fmt.Errorf("failed to get terragrunt version: %w", errors.WithStackTrace(err))
+			return errors.WithStackTrace(err)
 		}
 	}
 

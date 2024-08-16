@@ -36,7 +36,7 @@ func Run(ctx context.Context, opts *Options) error {
 	opts.RunTerragrunt = func(ctx context.Context, opts *options.TerragruntOptions) error {
 		_, err := config.ReadTerragruntConfig(ctx, opts, parseOptions)
 
-		return fmt.Errorf("failed to read terragrunt config: %w", err)
+		return err
 	}
 
 	stack, err := configstack.FindStackInSubfolders(
@@ -46,7 +46,7 @@ func Run(ctx context.Context, opts *Options) error {
 	)
 
 	if err != nil {
-		return fmt.Errorf("failed to find stack in subfolders: %w", err)
+		return err
 	}
 
 	stackErr := stack.Run(ctx, opts.TerragruntOptions)
@@ -66,7 +66,7 @@ func Run(ctx context.Context, opts *Options) error {
 	}
 
 	if stackErr != nil {
-		return fmt.Errorf("failed to run stack: %w", stackErr)
+		return stackErr
 	}
 
 	return nil
@@ -83,7 +83,7 @@ func writeDiagnostics(opts *Options, diags diagnostic.Diagnostics) error {
 	if opts.ShowConfigPath {
 		err := writer.ShowConfigPath(diags)
 		if err != nil {
-			return fmt.Errorf("failed to show config path: %w", err)
+			return err
 		}
 
 		return nil
@@ -91,7 +91,7 @@ func writeDiagnostics(opts *Options, diags diagnostic.Diagnostics) error {
 
 	err := writer.Diagnostics(diags)
 	if err != nil {
-		return fmt.Errorf("failed to write summary: %w", err)
+		return err
 	}
 
 	return nil

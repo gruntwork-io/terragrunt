@@ -105,7 +105,7 @@ func (repo *Repo) FindModules(_ context.Context) (Modules, error) {
 				return nil
 			})
 		if err != nil {
-			return nil, fmt.Errorf("error walking the path %q: %w", modulesPath, err)
+			return nil, err
 		}
 	}
 
@@ -120,7 +120,7 @@ func (repo *Repo) ModuleURL(moduleDir string) (string, error) {
 
 	remote, err := vcsurl.Parse(repo.remoteURL)
 	if err != nil {
-		return "", fmt.Errorf("error parsing remote URL %q: %w", repo.remoteURL, errors.WithStackTrace(err))
+		return "", errors.WithStackTrace(err)
 	}
 
 	switch remote.Host {
@@ -142,7 +142,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 	if repo.cloneURL == "" {
 		currentDir, err := os.Getwd()
 		if err != nil {
-			return fmt.Errorf("error getting current directory: %w", errors.WithStackTrace(err))
+			return errors.WithStackTrace(err)
 		}
 
 		repo.cloneURL = currentDir
@@ -152,7 +152,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 		if !filepath.IsAbs(repoPath) {
 			absRepoPath, err := filepath.Abs(repoPath)
 			if err != nil {
-				return fmt.Errorf("error getting absolute path for %q: %w", repoPath, errors.WithStackTrace(err))
+				return errors.WithStackTrace(err)
 			}
 
 			log.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
@@ -164,7 +164,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 	}
 
 	if err := os.MkdirAll(repo.path, os.ModePerm); err != nil {
-		return fmt.Errorf("error creating directory %q: %w", repo.path, errors.WithStackTrace(err))
+		return errors.WithStackTrace(err)
 	}
 
 	repoName := "temp"
@@ -188,13 +188,13 @@ func (repo *Repo) clone(ctx context.Context) error {
 		)
 
 		if err := os.RemoveAll(repo.path); err != nil {
-			return fmt.Errorf("error removing directory %q: %w", repo.path, errors.WithStackTrace(err))
+			return errors.WithStackTrace(err)
 		}
 	}
 
 	sourceURL, err := terraform.ToSourceURL(repo.cloneURL, "")
 	if err != nil {
-		return fmt.Errorf("error converting source URL %q: %w", repo.cloneURL, errors.WithStackTrace(err))
+		return errors.WithStackTrace(err)
 	}
 
 	repo.cloneURL = sourceURL.String()
@@ -202,7 +202,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 	log.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
 
 	if err := getter.Get(repo.path, strings.Trim(sourceURL.String(), "/"), getter.WithContext(ctx)); err != nil {
-		return fmt.Errorf("error cloning repository %q: %w", repo.cloneURL, errors.WithStackTrace(err))
+		return errors.WithStackTrace(err)
 	}
 
 	return nil
@@ -221,7 +221,7 @@ func (repo *Repo) parseRemoteURL() error {
 
 	inidata, err := ini.Load(gitConfigPath)
 	if err != nil {
-		return fmt.Errorf("error loading git config %q: %w", gitConfigPath, errors.WithStackTrace(err))
+		return errors.WithStackTrace(err)
 	}
 
 	var sectionName string

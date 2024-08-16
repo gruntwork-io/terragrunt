@@ -58,7 +58,7 @@ func replaceDeprecatedCommandFunc(terragruntCommandName, terraformCommandName st
 			err := command.Run(ctx, args)
 
 			if err != nil {
-				return fmt.Errorf("error running command '%s': %w", newCommandFriendly, err)
+				return err
 			}
 
 			return nil

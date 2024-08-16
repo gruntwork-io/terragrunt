@@ -103,7 +103,7 @@ func (module *Module) TerraformSourcePath() string {
 func (module *Module) isValid() (bool, error) {
 	files, err := os.ReadDir(filepath.Join(module.repoPath, module.moduleDir))
 	if err != nil {
-		return false, fmt.Errorf("failed to read directory %q: %w", module.moduleDir, errors.WithStackTrace(err))
+		return false, errors.WithStackTrace(err)
 	}
 
 	for _, file := range files {

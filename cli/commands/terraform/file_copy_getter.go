@@ -1,7 +1,6 @@
 package terraform
 
 import (
-	"fmt"
 	"net/url"
 	"os"
 
@@ -42,7 +41,7 @@ func (g *FileCopyGetter) Get(dst string, u *url.URL) error {
 	}
 
 	if err := util.CopyFolderContents(path, dst, SourceManifestName, g.IncludeInCopy); err != nil {
-		return fmt.Errorf("error copying folder contents: %w", err)
+		return err
 	}
 
 	return nil
@@ -53,7 +52,7 @@ func (g *FileCopyGetter) Get(dst string, u *url.URL) error {
 func (g *FileCopyGetter) GetFile(dst string, u *url.URL) error {
 	underlying := &getter.FileGetter{Copy: true}
 	if err := underlying.GetFile(dst, u); err != nil {
-		return fmt.Errorf("error copying file: %w", errors.WithStackTrace(err))
+		return errors.WithStackTrace(err)
 	}
 
 	return nil

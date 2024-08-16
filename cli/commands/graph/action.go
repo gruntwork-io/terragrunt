@@ -22,7 +22,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 	err := terraform.RunWithTarget(ctx, opts, target)
 	if err != nil {
-		return fmt.Errorf("error running graph command: %w", err)
+		return err
 	}
 
 	return nil
@@ -45,7 +45,7 @@ func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.Ter
 	if rootDir == "" {
 		gitRoot, err := shell.GitTopLevelDir(ctx, opts, opts.WorkingDir)
 		if err != nil {
-			return fmt.Errorf("error when trying to find the root of the git repo: %w", err)
+			return err
 		}
 
 		rootDir = gitRoot
@@ -57,7 +57,7 @@ func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.Ter
 	stack, err := configstack.FindStackInSubfolders(ctx, rootOptions)
 
 	if err != nil {
-		return fmt.Errorf("error when trying to find the stack in subfolders: %w", err)
+		return err
 	}
 
 	dependentModules := stack.ListStackDependentModules()
@@ -77,7 +77,7 @@ func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.Ter
 
 	err = runall.OnStack(ctx, opts, stack)
 	if err != nil {
-		return fmt.Errorf("error when trying to run all on stack: %w", err)
+		return err
 	}
 
 	return nil

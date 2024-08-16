@@ -12,7 +12,6 @@ import (
 	"context"
 	"encoding/json"
 	goErrors "errors"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -34,7 +33,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 	err := terraform.RunWithTarget(ctx, opts, target)
 	if err != nil {
-		return fmt.Errorf("error running render-json: %w", err)
+		return err
 	}
 
 	return nil
@@ -73,14 +72,14 @@ func runRenderJSON(ctx context.Context, opts *options.TerragruntOptions, cfg *co
 	if opts.RenderJSONWithMetadata {
 		cty, err := config.TerragruntConfigAsCtyWithMetadata(cfg)
 		if err != nil {
-			return fmt.Errorf("error rendering config as cty with metadata: %w", err)
+			return err
 		}
 
 		terragruntConfigCty = cty
 	} else {
 		cty, err := config.TerragruntConfigAsCty(cfg)
 		if err != nil {
-			return fmt.Errorf("error rendering config as cty: %w", err)
+			return err
 		}
 
 		terragruntConfigCty = cty
@@ -98,7 +97,7 @@ func runRenderJSON(ctx context.Context, opts *options.TerragruntOptions, cfg *co
 	}
 
 	if err := util.EnsureDirectory(filepath.Dir(jsonOutPath)); err != nil {
-		return fmt.Errorf("error ensuring directory for json output: %w", err)
+		return err
 	}
 
 	opts.Logger.Debugf("Rendering config %s to JSON %s", opts.TerragruntConfigPath, jsonOutPath)
@@ -106,7 +105,7 @@ func runRenderJSON(ctx context.Context, opts *options.TerragruntOptions, cfg *co
 	const ownerWriteGlobalReadPerms = 0644
 
 	if err := os.WriteFile(jsonOutPath, jsonBytes, ownerWriteGlobalReadPerms); err != nil {
-		return fmt.Errorf("error writing json output to %s: %w", jsonOutPath, errors.WithStackTrace(err))
+		return errors.WithStackTrace(err)
 	}
 
 	return nil
@@ -119,18 +118,18 @@ func runRenderJSON(ctx context.Context, opts *options.TerragruntOptions, cfg *co
 func marshalCtyValueJSONWithoutType(ctyVal cty.Value) ([]byte, error) {
 	jsonBytesIntermediate, err := ctyjson.Marshal(ctyVal, cty.DynamicPseudoType)
 	if err != nil {
-		return nil, fmt.Errorf("error marshalling cty value to json: %w", errors.WithStackTrace(err))
+		return nil, errors.WithStackTrace(err)
 	}
 
 	var ctyJSONOutput config.CtyJSONOutput
 
 	if err := json.Unmarshal(jsonBytesIntermediate, &ctyJSONOutput); err != nil {
-		return nil, fmt.Errorf("error unmarshalling cty value to json: %w", errors.WithStackTrace(err))
+		return nil, errors.WithStackTrace(err)
 	}
 
 	jsonBytes, err := json.Marshal(ctyJSONOutput.Value)
 	if err != nil {
-		return nil, fmt.Errorf("error marshalling cty value to json: %w", errors.WithStackTrace(err))
+		return nil, errors.WithStackTrace(err)
 	}
 
 	return jsonBytes, nil

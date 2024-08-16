@@ -208,7 +208,7 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 
 	decodedDependency := TerragruntDependency{}
 	if err := file.Decode(&decodedDependency, evalParsingContext); err != nil {
-		return nil, fmt.Errorf("%w: %s", err, file.ConfigPath)
+		return nil, err
 	}
 
 	// In normal operation, if a dependency block does not have a `config_path` attribute,
@@ -356,14 +356,11 @@ func checkForDependencyBlockCyclesUsingDFS(
 	}
 
 	if util.ListContainsElement(*currentTraversalPaths, dependencyPath) {
-		return fmt.Errorf(
-			"dependency cycle detected: %w",
-			errors.WithStackTrace(
-				DependencyCycleErrors(
-					append(
-						*currentTraversalPaths,
-						dependencyPath,
-					),
+		return errors.WithStackTrace(
+			DependencyCycleErrors(
+				append(
+					*currentTraversalPaths,
+					dependencyPath,
 				),
 			),
 		)
@@ -476,18 +473,14 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, dependencyConfigs []Depende
 	}
 
 	if err := dependencyErrGroup.Wait(); err != nil {
-		return nil, fmt.Errorf("%w: %s", err, strings.Join(paths, ", "))
+		return nil, err
 	}
 
 	// We need to convert the value map to a single cty.Value at the end so that it can be used in the execution ctx
 	convertedOutput, err := gocty.ToCtyValue(dependencyMap, generateTypeFromValuesMap(dependencyMap))
 	if err != nil {
 		err = TerragruntOutputListEncodingError{Paths: paths, Err: err}
-		return &convertedOutput, fmt.Errorf(
-			"%w: %s",
-			errors.WithStackTrace(err),
-			strings.Join(paths, ", "),
-		)
+		return &convertedOutput, errors.WithStackTrace(err)
 	}
 
 	return &convertedOutput, nil
@@ -527,10 +520,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, depe
 			case DeepMergeMapOnly:
 				return deepMergeCtyMapsMapOnly(*dependencyConfig.MockOutputs, *outputVal)
 			default:
-				// return nil, errors.WithStackTrace(InvalidMergeStrategyTypeError(mockMergeStrategy))
-				return nil, fmt.Errorf("invalid merge strategy type '%s': %w", mockMergeStrategy,
-					errors.WithStackTrace(InvalidMergeStrategyTypeError(mockMergeStrategy)),
-				)
+				return nil, errors.WithStackTrace(InvalidMergeStrategyTypeError(mockMergeStrategy))
 			}
 		} else if !isEmpty {
 			return outputVal, err
@@ -594,10 +584,7 @@ func getTerragruntOutput(ctx *ParsingContext, dependencyConfig Dependency) (*cty
 	)
 
 	if !util.FileExists(targetConfigPath) {
-		// return nil, true, errors.WithStackTrace(DependencyConfigNotFound{Path: targetConfigPath})
-		return nil, true, fmt.Errorf("dependency config not found at '%s': %w", targetConfigPath,
-			errors.WithStackTrace(DependencyConfigNotFoundError{Path: targetConfigPath}),
-		)
+		return nil, true, errors.WithStackTrace(DependencyConfigNotFoundError{Path: targetConfigPath})
 	}
 
 	jsonBytes, err := getOutputJSONWithCaching(ctx, targetConfigPath)
@@ -616,7 +603,7 @@ func getTerragruntOutput(ctx *ParsingContext, dependencyConfig Dependency) (*cty
 
 		jsonBytes, err = json.Marshal(dependencyConfig.MockOutputs)
 		if err != nil {
-			return nil, true, fmt.Errorf("failed to marshal mock outputs for dependency %s: %w", dependencyConfig.Name, err)
+			return nil, true, err
 		}
 	}
 
@@ -631,7 +618,7 @@ func getTerragruntOutput(ctx *ParsingContext, dependencyConfig Dependency) (*cty
 	convertedOutput, err := gocty.ToCtyValue(outputMap, generateTypeFromValuesMap(outputMap))
 	if err != nil {
 		err = TerragruntOutputEncodingError{Path: targetConfigPath, Err: err}
-		return &convertedOutput, isEmpty, fmt.Errorf("%w: %s", errors.WithStackTrace(err), targetConfigPath)
+		return &convertedOutput, isEmpty, errors.WithStackTrace(err)
 	}
 
 	return &convertedOutput, isEmpty, nil
@@ -759,14 +746,14 @@ func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, targetConfig
 	// DownloadDir needs to be updated to be in the ctx of the new config, if using default
 	_, originalDefaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(ctx.TerragruntOptions.TerragruntConfigPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get default working and download dirs: %w", errors.WithStackTrace(err))
+		return nil, errors.WithStackTrace(err)
 	}
 
 	// Using default, so compute new download dir and update
 	if ctx.TerragruntOptions.DownloadDir == originalDefaultDownloadDir {
 		_, downloadDir, err := options.DefaultWorkingAndDownloadDirs(targetConfig)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get default working and download dirs: %w", errors.WithStackTrace(err))
+			return nil, errors.WithStackTrace(err)
 		}
 
 		targetOptions.DownloadDir = downloadDir
@@ -909,7 +896,7 @@ func terragruntAlreadyInit(terragruntOptions *options.TerragruntOptions, configP
 			terragruntOptions.Logger,
 		)
 		if err != nil {
-			return false, "", fmt.Errorf("failed to create terraform source: %w", err)
+			return false, "", err
 		}
 		// We're only interested in the computed working dir.
 		workingDir = terraformSource.WorkingDir
@@ -938,7 +925,7 @@ func getTerragruntOutputJSONFromInitFolder(ctx *ParsingContext, terraformWorking
 
 	out, err := shell.RunTerraformCommandWithOutput(ctx, targetTGOptions, terraform.CommandNameOutput, "-json")
 	if err != nil {
-		return nil, fmt.Errorf("failed to run terraform output: %w", err)
+		return nil, err
 	}
 
 	jsonString := out.Stdout
@@ -972,12 +959,12 @@ func getTerragruntOutputJSONFromRemoteState(
 	// directory for consistency with other file generation capabilities of terragrunt. Make sure it is cleaned up
 	// before the function returns.
 	if err := util.EnsureDirectory(ctx.TerragruntOptions.DownloadDir); err != nil {
-		return nil, fmt.Errorf("failed to ensure directory %s: %w", ctx.TerragruntOptions.DownloadDir, err)
+		return nil, err
 	}
 
 	tempWorkDir, err := os.MkdirTemp(ctx.TerragruntOptions.DownloadDir, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create temporary directory in %s: %w", ctx.TerragruntOptions.DownloadDir, err)
+		return nil, err
 	}
 
 	defer func(path string) {
@@ -1033,7 +1020,7 @@ func getTerragruntOutputJSONFromRemoteState(
 	}
 
 	if err := remoteState.GenerateTerraformCode(targetTGOptions); err != nil {
-		return nil, fmt.Errorf("failed to generate terraform code: %w", err)
+		return nil, err
 	}
 
 	ctx.TerragruntOptions.Logger.Debugf("Generated remote state configuration in working dir %s", tempWorkDir)
@@ -1041,7 +1028,7 @@ func getTerragruntOutputJSONFromRemoteState(
 	// Check for a provider lock file and copy it to the working dir if it exists.
 	terragruntDir := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)
 	if err := util.CopyLockFile(terragruntDir, tempWorkDir, ctx.TerragruntOptions.Logger); err != nil {
-		return nil, fmt.Errorf("failed to copy provider lock file: %w", err)
+		return nil, err
 	}
 
 	// The working directory is now set up to interact with the state, so pull it down to get the json output.
@@ -1052,7 +1039,7 @@ func getTerragruntOutputJSONFromRemoteState(
 	// Now that the backend is initialized, run terraform output to get the data and return it.
 	out, err := shell.RunTerraformCommandWithOutput(ctx, targetTGOptions, terraform.CommandNameOutput, "-json")
 	if err != nil {
-		return nil, fmt.Errorf("failed to run terraform output: %w", err)
+		return nil, err
 	}
 
 	jsonString := out.Stdout
@@ -1073,14 +1060,14 @@ func getTerragruntOutputJSONFromRemoteStateS3(terragruntOptions *options.Terragr
 
 	s3ConfigExtended, err := remote.ParseExtendedS3Config(remoteState.Config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse extended s3 config: %w", err)
+		return nil, err
 	}
 
 	sessionConfig := s3ConfigExtended.GetAwsSessionConfig()
 
 	s3Client, err := remote.CreateS3Client(sessionConfig, terragruntOptions)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create s3 client: %w", err)
+		return nil, err
 	}
 
 	result, err := s3Client.GetObject(&s3.GetObjectInput{
@@ -1106,7 +1093,7 @@ func getTerragruntOutputJSONFromRemoteStateS3(terragruntOptions *options.Terragr
 
 	steateBody, err := io.ReadAll(result.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read remote state response: %w", err)
+		return nil, err
 	}
 
 	jsonState := string(steateBody)
@@ -1114,12 +1101,12 @@ func getTerragruntOutputJSONFromRemoteStateS3(terragruntOptions *options.Terragr
 
 	err = json.Unmarshal([]byte(jsonState), &jsonMap)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal remote state response: %w", err)
+		return nil, err
 	}
 
 	jsonOutputs, err := json.Marshal(jsonMap["outputs"])
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal remote state outputs: %w", err)
+		return nil, err
 	}
 
 	return jsonOutputs, nil
@@ -1145,7 +1132,7 @@ func setupTerragruntOptionsForBareTerraform(ctx *ParsingContext, workingDir stri
 		externalcmd.NewProvider(targetTGOptions),
 		amazonsts.NewProvider(targetTGOptions),
 	); err != nil {
-		return nil, fmt.Errorf("failed to obtain and update env: %w", err)
+		return nil, err
 	}
 
 	return targetTGOptions, nil
@@ -1167,12 +1154,12 @@ func runTerragruntOutputJSON(ctx *ParsingContext, targetConfig string) ([]byte, 
 
 	err := ctx.TerragruntOptions.RunTerragrunt(ctx, ctx.TerragruntOptions)
 	if err != nil {
-		return nil, fmt.Errorf("failed to run terragrunt output: %w", err)
+		return nil, err
 	}
 
 	err = stdoutBufferWriter.Flush()
 	if err != nil {
-		return nil, fmt.Errorf("failed to flush stdout buffer: %w", err)
+		return nil, err
 	}
 
 	jsonString := stdoutBuffer.String()
@@ -1199,9 +1186,9 @@ func TerraformOutputJSONToCtyValueMap(targetConfigPath string, jsonBytes []byte)
 
 	err := json.Unmarshal(jsonBytes, &outputs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal json bytes: %w", errors.WithStackTrace(
+		return nil, errors.WithStackTrace(
 			TerragruntOutputParsingError{Path: targetConfigPath, Err: err},
-		))
+		)
 	}
 
 	flattenedOutput := map[string]cty.Value{}
@@ -1209,16 +1196,16 @@ func TerraformOutputJSONToCtyValueMap(targetConfigPath string, jsonBytes []byte)
 	for k, v := range outputs {
 		outputType, err := ctyjson.UnmarshalType(v.Type)
 		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal type for output %s: %w", k, errors.WithStackTrace(
+			return nil, errors.WithStackTrace(
 				TerragruntOutputParsingError{Path: targetConfigPath, Err: err},
-			))
+			)
 		}
 
 		outputVal, err := ctyjson.Unmarshal(v.Value, outputType)
 		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal value for output %s: %w", k, errors.WithStackTrace(
+			return nil, errors.WithStackTrace(
 				TerragruntOutputParsingError{Path: targetConfigPath, Err: err},
-			))
+			)
 		}
 
 		flattenedOutput[k] = outputVal

@@ -610,12 +610,12 @@ func dependencyBlocksAsCty(dependencyBlocks Dependencies) (cty.Value, error) {
 func convertToCtyWithJSON(val interface{}) (cty.Value, error) {
 	jsonBytes, err := json.Marshal(val)
 	if err != nil {
-		return cty.NilVal, fmt.Errorf("failed to convert to cty: %w", err)
+		return cty.NilVal, err
 	}
 
 	var ctyJSONVal ctyjson.SimpleJSONValue
 	if err := ctyJSONVal.UnmarshalJSON(jsonBytes); err != nil {
-		return cty.NilVal, fmt.Errorf("failed to convert to cty: %w", err)
+		return cty.NilVal, err
 	}
 
 	return ctyJSONVal.Value, nil
@@ -626,12 +626,12 @@ func convertToCtyWithJSON(val interface{}) (cty.Value, error) {
 func goTypeToCty(val interface{}) (cty.Value, error) {
 	ctyType, err := gocty.ImpliedType(val)
 	if err != nil {
-		return cty.NilVal, fmt.Errorf("failed to convert to cty: %w", errors.WithStackTrace(err))
+		return cty.NilVal, errors.WithStackTrace(err)
 	}
 
 	ctyOut, err := gocty.ToCtyValue(val, ctyType)
 	if err != nil {
-		return cty.NilVal, fmt.Errorf("failed to convert to cty: %w", errors.WithStackTrace(err))
+		return cty.NilVal, errors.WithStackTrace(err)
 	}
 
 	return ctyOut, nil

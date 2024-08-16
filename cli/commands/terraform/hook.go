@@ -96,7 +96,7 @@ func processErrorHooks(ctx context.Context, hooks []config.ErrorHook, terragrunt
 		}
 	}
 
-	return fmt.Errorf("error running error hooks: %w", errorsOccured.ErrorOrNil())
+	return errorsOccured.ErrorOrNil()
 }
 
 func processHooks(ctx context.Context, hooks []config.Hook, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, previousExecErrors *multierror.Error) error { //nolint:lll
@@ -123,7 +123,7 @@ func processHooks(ctx context.Context, hooks []config.Hook, terragruntOptions *o
 		}
 	}
 
-	return fmt.Errorf("error running hooks: %w", errorsOccured.ErrorOrNil())
+	return errorsOccured.ErrorOrNil()
 }
 
 // shouldRunHook determines if a hook should be run based on the hook configuration and the previous execution errors.
@@ -170,7 +170,7 @@ func runHook(ctx context.Context, terragruntOptions *options.TerragruntOptions, 
 		if possibleError != nil {
 			terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, possibleError.Error())
 
-			return fmt.Errorf("error running hook %s: %w", curHook.Name, possibleError)
+			return possibleError
 		}
 	}
 
@@ -198,7 +198,7 @@ func executeTFLint(ctx context.Context, terragruntOptions *options.TerragruntOpt
 	if err != nil {
 		terragruntOptions.Logger.Errorf("Error running hook %s with message: %s", curHook.Name, err.Error())
 
-		return fmt.Errorf("error running hook %s: %w", curHook.Name, err)
+		return err
 	}
 
 	return nil

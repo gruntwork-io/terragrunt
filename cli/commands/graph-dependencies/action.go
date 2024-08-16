@@ -2,7 +2,6 @@ package graphdependencies
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -12,7 +11,7 @@ import (
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	stack, err := configstack.FindStackInSubfolders(ctx, opts)
 	if err != nil {
-		return fmt.Errorf("error finding stack: %w", err)
+		return err
 	}
 
 	// Exit early if the operation wanted is to get the graph

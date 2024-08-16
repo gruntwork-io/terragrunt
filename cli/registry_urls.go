@@ -50,31 +50,31 @@ func DiscoveryURL(ctx context.Context, registryName string) (*RegistryURLs, erro
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build request: %w", err)
+		return nil, err
 	}
 
 	resp, err := (&http.Client{}).Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
+		return nil, err
 	}
 	defer resp.Body.Close() //nolint:errcheck
 
 	switch resp.StatusCode {
 	case http.StatusNotFound, http.StatusInternalServerError:
-		return nil, fmt.Errorf("request to URL %s failed: %w", url, NotFoundWellKnownURLError{wellKnownURL})
+		return nil, NotFoundWellKnownURLError{wellKnownURL}
 	case http.StatusOK:
 	default:
-		return nil, fmt.Errorf("%w: %s returned %s", ErrDefaultDiscoveryURL, url, resp.Status)
+		return nil, ErrDefaultDiscoveryURL
 	}
 
 	content, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", errors.WithStackTrace(err))
+		return nil, errors.WithStackTrace(err)
 	}
 
 	urls := new(RegistryURLs)
 	if err := json.Unmarshal(content, urls); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response body: %w", errors.WithStackTrace(err))
+		return nil, errors.WithStackTrace(err)
 	}
 
 	return urls, nil

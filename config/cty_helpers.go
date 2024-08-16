@@ -158,15 +158,11 @@ func ctySliceToStringSlice(args []cty.Value) ([]string, error) {
 
 	for _, arg := range args {
 		if arg.Type() != cty.String {
-			return nil, fmt.Errorf(
-				"expected string, got %s: %w",
-				arg.Type().FriendlyName(),
-				errors.WithStackTrace(
-					InvalidParameterTypeError{
-						Expected: "string",
-						Actual:   arg.Type().FriendlyName(),
-					},
-				),
+			return nil, errors.WithStackTrace(
+				InvalidParameterTypeError{
+					Expected: "string",
+					Actual:   arg.Type().FriendlyName(),
+				},
 			)
 		}
 
@@ -229,7 +225,7 @@ func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*m
 	}
 
 	if err := mergo.Merge(&outMap, sourceMap, append(opts, mergo.WithOverride)...); err != nil {
-		return nil, fmt.Errorf("error merging maps: %w", err)
+		return nil, err
 	}
 
 	outCty, err := convertToCtyWithJSON(outMap)
@@ -256,12 +252,12 @@ func ParseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
 
 	jsonBytes, err := ctyjson.Marshal(value, cty.DynamicPseudoType)
 	if err != nil {
-		return nil, fmt.Errorf("error marshalling cty value to JSON: %w", errors.WithStackTrace(err))
+		return nil, errors.WithStackTrace(err)
 	}
 
 	var ctyJSONOutput CtyJSONOutput
 	if err := json.Unmarshal(jsonBytes, &ctyJSONOutput); err != nil {
-		return nil, fmt.Errorf("error unmarshalling cty value to JSON: %w", errors.WithStackTrace(err))
+		return nil, errors.WithStackTrace(err)
 	}
 
 	return ctyJSONOutput.Value, nil
@@ -287,7 +283,7 @@ func convertValuesMapToCtyVal(valMap map[string]cty.Value) (cty.Value, error) {
 
 		valMapAsCty, err = gocty.ToCtyValue(valMap, generateTypeFromValuesMap(valMap))
 		if err != nil {
-			return valMapAsCty, fmt.Errorf("error converting map to cty value: %w", errors.WithStackTrace(err))
+			return valMapAsCty, errors.WithStackTrace(err)
 		}
 	}
 
@@ -407,7 +403,7 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 
 	value, err := gocty.ToCtyValue(updatedValue, value.Type())
 	if err != nil {
-		return cty.NilVal, fmt.Errorf("error converting map to cty value: %w", errors.WithStackTrace(err))
+		return cty.NilVal, errors.WithStackTrace(err)
 	}
 
 	return value, nil

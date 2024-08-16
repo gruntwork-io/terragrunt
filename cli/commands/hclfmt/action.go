@@ -43,7 +43,7 @@ func Run(opts *options.TerragruntOptions) error {
 	// zglob normalizes paths to "/"
 	tgHclFiles, err := zglob.Glob(util.JoinPath(workingDir, "**", "*.hcl"))
 	if err != nil {
-		return fmt.Errorf("error finding hcl files: %w", err)
+		return err
 	}
 
 	filteredTgHclFiles := []string{}
@@ -79,7 +79,7 @@ func Run(opts *options.TerragruntOptions) error {
 
 	err = formatErrors.ErrorOrNil()
 	if err != nil {
-		return fmt.Errorf("error formatting hcl files: %w", err)
+		return err
 	}
 
 	return nil
@@ -99,14 +99,14 @@ func formatTgHCL(opts *options.TerragruntOptions, tgHclFile string) error {
 	if err != nil {
 		opts.Logger.Errorf("Error retrieving file info of %s", tgHclFile)
 
-		return fmt.Errorf("error retrieving file info of %s: %w", tgHclFile, err)
+		return err
 	}
 
 	contentsStr, err := util.ReadFileAsString(tgHclFile)
 	if err != nil {
 		opts.Logger.Errorf("Error reading %s", tgHclFile)
 
-		return fmt.Errorf("error reading %s: %w", tgHclFile, err)
+		return err
 	}
 
 	contents := []byte(contentsStr)
@@ -127,7 +127,7 @@ func formatTgHCL(opts *options.TerragruntOptions, tgHclFile string) error {
 		if err != nil {
 			opts.Logger.Errorf("Failed to generate diff for %s", tgHclFile)
 
-			return fmt.Errorf("failed to generate diff for %s: %w", tgHclFile, err)
+			return err
 		}
 
 		_, err = fmt.Fprintf(opts.Writer, "%s\n", diff)
@@ -135,13 +135,12 @@ func formatTgHCL(opts *options.TerragruntOptions, tgHclFile string) error {
 		if err != nil {
 			opts.Logger.Errorf("Failed to print diff for %s", tgHclFile)
 
-			return fmt.Errorf("failed to print diff for %s: %w", tgHclFile, err)
+			return err
 		}
 	}
 
 	if opts.Check && fileUpdated {
-		// return fmt.Errorf("Invalid file format %s", tgHclFile)
-		return fmt.Errorf("%w: %s", ErrInvalidFileFormat, tgHclFile)
+		return fmt.Errorf("Invalid file format %s", tgHclFile)
 	}
 
 	if fileUpdated {
@@ -149,7 +148,7 @@ func formatTgHCL(opts *options.TerragruntOptions, tgHclFile string) error {
 
 		err = os.WriteFile(tgHclFile, newContents, info.Mode())
 		if err != nil {
-			return fmt.Errorf("error writing to %s: %w", tgHclFile, err)
+			return err
 		}
 
 		return nil
@@ -168,7 +167,7 @@ func checkErrors(logger *logrus.Entry, disableColor bool, contents []byte, tgHcl
 	err := diagWriter.WriteDiagnostics(diags)
 
 	if err != nil {
-		return fmt.Errorf("error writing diagnostics: %w", errors.WithStackTrace(err))
+		return errors.WithStackTrace(err)
 	}
 
 	if diags.HasErrors() {
@@ -182,7 +181,7 @@ func checkErrors(logger *logrus.Entry, disableColor bool, contents []byte, tgHcl
 func bytesDiff(opts *options.TerragruntOptions, b1, b2 []byte, path string) ([]byte, error) {
 	f1, err := os.CreateTemp("", "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create temp file: %w", err)
+		return nil, err
 	}
 
 	defer func() {
@@ -198,7 +197,7 @@ func bytesDiff(opts *options.TerragruntOptions, b1, b2 []byte, path string) ([]b
 	f2, err := os.CreateTemp("", "")
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to create temp file: %w", err)
+		return nil, err
 	}
 
 	defer func() {
@@ -212,11 +211,11 @@ func bytesDiff(opts *options.TerragruntOptions, b1, b2 []byte, path string) ([]b
 	}()
 
 	if _, err := f1.Write(b1); err != nil {
-		return nil, fmt.Errorf("failed to write to temp file: %w", err)
+		return nil, err
 	}
 
 	if _, err := f2.Write(b2); err != nil {
-		return nil, fmt.Errorf("failed to write to temp file: %w", err)
+		return nil, err
 	}
 
 	data, err := exec.Command(

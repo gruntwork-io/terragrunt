@@ -44,7 +44,7 @@ func checkVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 		nil,
 	)
 	if err != nil {
-		return fmt.Errorf("error parsing Terragrunt configuration file %s: %w", terragruntOptions.TerragruntConfigPath, err)
+		return err
 	}
 
 	// Change the terraform binary path before checking the version
@@ -94,7 +94,7 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 
 	output, err := shell.RunTerraformCommandWithOutput(ctx, terragruntOptionsCopy, "--version")
 	if err != nil {
-		return fmt.Errorf("error executing tofu/terraform --version: %w", err)
+		return err
 	}
 
 	terraformVersion, err := ParseTerraformVersion(output.Stdout)
@@ -140,7 +140,7 @@ func CheckTerragruntVersion(constraint string, terragruntOptions *options.Terrag
 func CheckTerragruntVersionMeetsConstraint(currentVersion *version.Version, constraint string) error {
 	versionConstraint, err := version.NewConstraint(constraint)
 	if err != nil {
-		return fmt.Errorf("error parsing version constraint %s: %w", constraint, err)
+		return err
 	}
 
 	if !versionConstraint.Check(currentVersion) {
@@ -165,7 +165,7 @@ func CheckTerragruntVersionMeetsConstraint(currentVersion *version.Version, cons
 func CheckTerraformVersionMeetsConstraint(currentVersion *version.Version, constraint string) error {
 	versionConstraint, err := version.NewConstraint(constraint)
 	if err != nil {
-		return fmt.Errorf("error parsing version constraint %s: %w", constraint, err)
+		return err
 	}
 
 	if !versionConstraint.Check(currentVersion) {
@@ -199,7 +199,7 @@ func ParseTerraformVersion(versionCommandOutput string) (*version.Version, error
 
 	version, err := version.NewVersion(matches[2])
 	if err != nil {
-		return version, fmt.Errorf("error parsing version %s: %w", matches[2], err)
+		return version, err
 	}
 
 	return version, nil

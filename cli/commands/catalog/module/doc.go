@@ -146,7 +146,7 @@ func FindDoc(dir string) (*Doc, error) {
 
 	files, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, fmt.Errorf("error reading directory: %w", errors.WithStackTrace(err))
+		return nil, errors.WithStackTrace(err)
 	}
 
 	for _, file := range files {
@@ -175,7 +175,7 @@ func FindDoc(dir string) (*Doc, error) {
 
 	contentByte, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("error reading file: %w", errors.WithStackTrace(err))
+		return nil, errors.WithStackTrace(err)
 	}
 
 	rawContent := string(contentByte)

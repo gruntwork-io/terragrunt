@@ -306,7 +306,7 @@ func (remoteState *remoteStateConfigFile) toConfig() (*remote.State, error) {
 	config.FillDefaults()
 
 	if err := config.Validate(); err != nil {
-		return nil, fmt.Errorf("error validating remote state configuration: %w", err)
+		return nil, err
 	}
 
 	return config, err
@@ -402,11 +402,7 @@ func (cfg *IncludeConfig) GetMergeStrategy() (MergeStrategyType, error) {
 		return DeepMergeMapOnly, nil
 	default:
 		// return NoMerge, errors.WithStackTrace(InvalidMergeStrategyTypeError(strategy))
-		return NoMerge, fmt.Errorf(
-			"invalid merge strategy type '%s': %w",
-			strategy,
-			errors.WithStackTrace(InvalidMergeStrategyTypeError(strategy)),
-		)
+		return NoMerge, errors.WithStackTrace(InvalidMergeStrategyTypeError(strategy))
 	}
 }
 
@@ -633,12 +629,7 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 
 	// if both URL and subdir are missing, something went terribly wrong
 	if moduleURL == "" && moduleSubdir == "" {
-		return "", fmt.Errorf(
-			"invalid source URL with map for module path '%s' and source URL '%s': %w",
-			modulePath,
-			source,
-			errors.WithStackTrace(InvalidSourceURLWithMapError{ModulePath: modulePath, ModuleSourceURL: source}),
-		)
+		return "", errors.WithStackTrace(InvalidSourceURLWithMapError{ModulePath: modulePath, ModuleSourceURL: source})
 	}
 
 	// If module URL is missing, return the source as is as it will not match anything in the map.
@@ -649,12 +640,7 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 	// Before looking up in sourceMap, make sure to drop any query parameters.
 	moduleURLParsed, err := url.Parse(moduleURL)
 	if err != nil {
-		return "", fmt.Errorf(
-			"error parsing module URL '%s' for module path '%s': %w",
-			moduleURL,
-			modulePath,
-			errors.WithStackTrace(err),
-		)
+		return "", errors.WithStackTrace(err)
 	}
 
 	moduleURLParsed.RawQuery = ""
@@ -744,7 +730,7 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 	})
 
 	if err != nil {
-		return configFiles, fmt.Errorf("error finding Terragrunt config files in path %s: %w", rootPath, err)
+		return configFiles, err
 	}
 
 	return configFiles, nil
@@ -772,12 +758,12 @@ func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOpt
 
 	canonicalPath, err := util.CanonicalPath(path, "")
 	if err != nil {
-		return false, fmt.Errorf("error getting canonical path for %s: %w", path, err)
+		return false, err
 	}
 
 	canonicalDownloadPath, err := util.CanonicalPath(terragruntOptions.DownloadDir, "")
 	if err != nil {
-		return false, fmt.Errorf("error getting canonical path for %s: %w", terragruntOptions.DownloadDir, err)
+		return false, err
 	}
 
 	// Skip any custom download dir specified by the user
@@ -823,12 +809,12 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 
 		dir, err := os.Getwd()
 		if err != nil {
-			return fmt.Errorf("error getting current working directory: %w", err)
+			return err
 		}
 
 		fileInfo, err := os.Stat(configPath)
 		if err != nil {
-			return fmt.Errorf("error getting file info for %s: %w", configPath, err)
+			return err
 		}
 
 		var (
@@ -851,7 +837,7 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 			// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
 			file, err = hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
 			if err != nil {
-				return fmt.Errorf("error parsing HCL file %s: %w", config, err)
+				return err
 			}
 
 			// TODO: Remove lint ignore
@@ -868,7 +854,7 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("error parsing Terragrunt config file at %s: %w", configPath, err)
+		return nil, err
 	}
 
 	return config, nil
@@ -879,7 +865,7 @@ func ParseConfigString(ctx *ParsingContext, configPath string, configString stri
 	// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
 	file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromString(configString, configPath)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing HCL file %s: %w", configPath, err)
+		return nil, err
 	}
 
 	config, err := ParseConfig(ctx, file, includeFromChild)
@@ -975,11 +961,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 	}
 
 	if terragruntConfigFile == nil {
-		return nil, fmt.Errorf(
-			"could not resolve Terragrunt config in file %s: %w",
-			file.ConfigPath,
-			errors.WithStackTrace(CouldNotResolveTerragruntConfigInFileError(file.ConfigPath)),
-		)
+		return nil, errors.WithStackTrace(CouldNotResolveTerragruntConfigInFileError(file.ConfigPath))
 	}
 
 	config, err := convertToTerragruntConfig(ctx, file.ConfigPath, terragruntConfigFile)
@@ -1052,7 +1034,7 @@ func decodeAsTerragruntConfigFile(ctx *ParsingContext, file *hclparse.File, eval
 
 		// in case of render-json command and inputs reference error, we update the inputs with default value
 		if !ok || !isRenderJSONCommand(ctx) || !isAttributeAccessError(diagErr) {
-			return nil, fmt.Errorf("error decoding HCL file %s: %w", file.ConfigPath, err)
+			return nil, err
 		}
 
 		ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
@@ -1150,7 +1132,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 
 		var remoteState *remote.State
 		if err := mapstructure.Decode(remoteStateMap, &remoteState); err != nil {
-			return nil, fmt.Errorf("error decoding remote state: %w", err)
+			return nil, err
 		}
 
 		terragruntConfig.RemoteState = remoteState
@@ -1264,7 +1246,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 		for name, block := range generateMap {
 			var generateBlock terragruntGenerateBlock
 			if err := mapstructure.Decode(block, &generateBlock); err != nil {
-				return nil, fmt.Errorf("error decoding generate block: %w", err)
+				return nil, err
 			}
 
 			generateBlock.Name = name
@@ -1279,7 +1261,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	for _, block := range generateBlocks {
 		ifExists, err := codegen.GenerateConfigExistsFromString(block.IfExists)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing generate block: %w", err)
+			return nil, err
 		}
 
 		if block.IfDisabled == nil {
@@ -1288,7 +1270,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 
 		ifDisabled, err := codegen.GenerateConfigDisabledFromString(*block.IfDisabled)
 		if err != nil {
-			return nil, fmt.Errorf("error generating config disabled from string: %w", err)
+			return nil, err
 		}
 
 		genConfig := codegen.GenerateConfig{
@@ -1401,7 +1383,7 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 func configFileHasDependencyBlock(configPath string) (bool, error) {
 	configBytes, err := os.ReadFile(configPath)
 	if err != nil {
-		return false, fmt.Errorf("error reading file %s: %w", configPath, err)
+		return false, err
 	}
 
 	// We use hclwrite to parse the config instead of the normal parser because the normal parser doesn't give us an AST
@@ -1409,7 +1391,7 @@ func configFileHasDependencyBlock(configPath string) (bool, error) {
 	// avoid weird parsing errors due to missing dependency data, we do a structural scan here.
 	hclFile, diags := hclwrite.ParseConfig(configBytes, configPath, hcl.InitialPos)
 	if diags.HasErrors() {
-		return false, fmt.Errorf("error parsing HCL file %s: %w", configPath, diags)
+		return false, diags
 	}
 
 	for _, block := range hclFile.Body().Blocks() {

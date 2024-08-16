@@ -5,7 +5,6 @@ package command
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
@@ -35,7 +34,7 @@ func (cmd *Scaffold) Run() error {
 
 	err := scaffold.Run(context.Background(), cmd.terragruntOptions, cmd.module.TerraformSourcePath(), "")
 	if err != nil {
-		return fmt.Errorf("error running scaffold: %w", err)
+		return err
 	}
 
 	return nil

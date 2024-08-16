@@ -4,7 +4,6 @@ package creds
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/amazonsts"
@@ -34,7 +33,7 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, opts *o
 		}
 
 		if err != nil {
-			return fmt.Errorf("error obtaining credentials from provider %s: %w", provider.Name(), err)
+			return err
 		}
 
 		for providerName, prevCreds := range getter.obtainedCreds {

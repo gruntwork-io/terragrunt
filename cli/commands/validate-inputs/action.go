@@ -26,7 +26,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 	err := terraform.RunWithTarget(ctx, opts, target)
 	if err != nil {
-		return fmt.Errorf("error encountered running validate-inputs command: %w", err)
+		return err
 	}
 
 	return nil
@@ -40,7 +40,7 @@ var (
 func runValidateInputs(_ context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	required, optional, err := tr.ModuleVariables(opts.WorkingDir)
 	if err != nil {
-		return fmt.Errorf("error encountered while getting module variables: %w", err)
+		return err
 	}
 
 	allVars := append(required, optional...)
@@ -273,14 +273,14 @@ func getTerraformInputNamesFromAutomaticVarFiles(opts *options.TerragruntOptions
 
 	varFiles, err := filepath.Glob(filepath.Join(base, "*.auto.tfvars"))
 	if err != nil {
-		return nil, fmt.Errorf("error encountered while getting auto.tfvars files: %w", err)
+		return nil, err
 	}
 
 	automaticVarFiles = append(automaticVarFiles, varFiles...)
 
 	jsonVarFiles, err := filepath.Glob(filepath.Join(base, "*.auto.tfvars.json"))
 	if err != nil {
-		return nil, fmt.Errorf("error encountered while getting auto.tfvars.json files: %w", err)
+		return nil, err
 	}
 
 	automaticVarFiles = append(automaticVarFiles, jsonVarFiles...)
@@ -310,17 +310,17 @@ func getVarNamesFromVarFiles(varFiles []string) ([]string, error) {
 func getVarNamesFromVarFile(varFile string) ([]string, error) {
 	fileContents, err := os.ReadFile(varFile)
 	if err != nil {
-		return nil, fmt.Errorf("error encountered while reading var file %s: %w", varFile, err)
+		return nil, err
 	}
 
 	var variables map[string]interface{}
 	if strings.HasSuffix(varFile, "json") {
 		if err := json.Unmarshal(fileContents, &variables); err != nil {
-			return nil, fmt.Errorf("error encountered while unmarshalling json var file %s: %w", varFile, err)
+			return nil, err
 		}
 	} else {
 		if err := config.ParseAndDecodeVarFile(varFile, fileContents, &variables); err != nil {
-			return nil, fmt.Errorf("error encountered while parsing var file %s: %w", varFile, err)
+			return nil, err
 		}
 	}
 
@@ -355,7 +355,7 @@ func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 		// -var='foo'=bar
 		shlexedArgSlice, err := shlex.Split(arg)
 		if err != nil {
-			return vars, varFiles, fmt.Errorf("error encountered while parsing arg %s: %w", arg, err)
+			return vars, varFiles, err
 		}
 		// Since we expect each element in extra_args.arguments to correspond to a single arg for terraform, we join
 		// back the shlex split slice even if it thinks there are multiple.

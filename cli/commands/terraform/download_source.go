@@ -41,7 +41,7 @@ func downloadTerraformSource(ctx context.Context, source string, terragruntOptio
 		terragruntOptions.Logger,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create OpenTofu/Terraform source for %s: %w", source, err)
+		return nil, err
 	}
 
 	if err := DownloadTerraformSourceIfNecessary(ctx, terraformSource, terragruntOptions, terragruntConfig); err != nil {
@@ -68,12 +68,8 @@ func downloadTerraformSource(ctx context.Context, source string, terragruntOptio
 		ModuleManifestName,
 		includeInCopy,
 	); err != nil {
-		return nil, fmt.Errorf(
-			"failed to copy files from %s to %s: %w",
-			terragruntOptions.WorkingDir,
-			terraformSource.WorkingDir,
-			err,
-		)
+		return nil, err
+
 	}
 
 	updatedTerragruntOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
@@ -95,7 +91,7 @@ func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *te
 		)
 
 		if err := os.RemoveAll(terraformSource.DownloadDir); err != nil {
-			return fmt.Errorf("failed to remove %s: %w", terraformSource.DownloadDir, errors.WithStackTrace(err))
+			return errors.WithStackTrace(err)
 		}
 	}
 
@@ -148,7 +144,7 @@ func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *te
 	}
 
 	if err := terraformSource.WriteVersionFile(); err != nil {
-		return fmt.Errorf("failed to write version file %s: %w", terraformSource.VersionFile, err)
+		return err
 	}
 
 	if err := ValidateWorkingDir(terraformSource); err != nil {
@@ -163,7 +159,7 @@ func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *te
 		f, createErr := os.Create(initFile)
 
 		if createErr != nil {
-			return fmt.Errorf("failed to create init file %s: %w", initFile, createErr)
+			return createErr
 		}
 
 		defer f.Close()
@@ -185,7 +181,7 @@ func AlreadyHaveLatestCode(terraformSource *terraform.Source, terragruntOptions 
 
 	tfFiles, err := filepath.Glob(terraformSource.WorkingDir + "/*.tf")
 	if err != nil {
-		return false, fmt.Errorf("failed to glob %s: %w", terraformSource.WorkingDir, err)
+		return false, err
 	}
 
 	if len(tfFiles) == 0 {
@@ -203,7 +199,7 @@ func AlreadyHaveLatestCode(terraformSource *terraform.Source, terragruntOptions 
 	if err != nil {
 		currentVersion, err = util.GenerateRandomSha256()
 		if err != nil {
-			return false, fmt.Errorf("failed to generate random sha256: %w", err)
+			return false, err
 		}
 	}
 
@@ -222,7 +218,7 @@ func AlreadyHaveLatestCode(terraformSource *terraform.Source, terragruntOptions 
 func readVersionFile(terraformSource *terraform.Source) (string, error) {
 	str, err := util.ReadFileAsString(terraformSource.VersionFile)
 	if err != nil {
-		return "", fmt.Errorf("failed to read version file %s: %w", terraformSource.VersionFile, err)
+		return "", err
 	}
 
 	return str, nil
@@ -278,11 +274,7 @@ func downloadSource(terraformSource *terraform.Source, terragruntOptions *option
 		terraformSource.CanonicalSourceURL.String(),
 		updateGetters(terragruntOptions, terragruntConfig),
 	); err != nil {
-		return fmt.Errorf(
-			"failed to download source from %s: %w",
-			terraformSource.CanonicalSourceURL.String(),
-			errors.WithStackTrace(err),
-		)
+		return errors.WithStackTrace(err)
 	}
 
 	return nil

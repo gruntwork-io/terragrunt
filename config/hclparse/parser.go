@@ -47,7 +47,7 @@ func (parser *Parser) ParseFromFile(configPath string) (*File, error) {
 	if err != nil {
 		log.Warnf("Error reading file %s: %v", configPath, err)
 
-		return nil, fmt.Errorf("error reading file %s: %w", configPath, errors.WithStackTrace(err))
+		return nil, errors.WithStackTrace(err)
 	}
 
 	return parser.ParseFromBytes(content, configPath)
@@ -89,7 +89,7 @@ func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *F
 	if err := parser.handleDiagnostics(file, diags); err != nil {
 		log.Warnf("Failed to parse HCL in file %s: %v", configPath, diags)
 
-		return nil, fmt.Errorf("failed to parse HCL in file %s: %w", configPath, errors.WithStackTrace(diags))
+		return nil, errors.WithStackTrace(diags)
 	}
 
 	return file, nil

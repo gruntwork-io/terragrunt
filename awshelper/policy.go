@@ -2,7 +2,6 @@ package awshelper
 
 import (
 	"encoding/json"
-	"fmt"
 )
 
 // Policy - representation of the policy for AWS.
@@ -31,7 +30,7 @@ func UnmarshalPolicy(policy string) (Policy, error) {
 
 	err := json.Unmarshal([]byte(policy), &p)
 	if err != nil {
-		return p, fmt.Errorf("error unmarshalling policy: %w", err)
+		return p, err
 	}
 
 	return p, nil
@@ -41,7 +40,7 @@ func UnmarshalPolicy(policy string) (Policy, error) {
 func MarshalPolicy(policy Policy) ([]byte, error) {
 	policyJSON, err := json.Marshal(policy)
 	if err != nil {
-		return nil, fmt.Errorf("error marshalling policy: %w", err)
+		return nil, err
 	}
 
 	return policyJSON, nil
