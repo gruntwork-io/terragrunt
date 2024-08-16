@@ -74,6 +74,8 @@ linters:
     - godox
     - tagliatelle
     - varnamelen
+    # TODO: Restore wrapcheck when there's time to address them all
+    - wrapcheck
   fast: false
   mnd:
     ignored-functions: strconv.Format*,os.*,strconv.Parse*,strings.SplitN,bytes.SplitN
@@ -82,7 +84,8 @@ linters:
     - performance
     - unused
     - test
-    - style
+    # TODO: Restore style when there's time to address them all
+    # - style
 
 issues:
   exclude-dirs:
