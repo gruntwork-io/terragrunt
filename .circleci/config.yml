@@ -373,7 +373,7 @@ jobs:
           path: logs
 
   strict_lint:
-    resource_class: small
+    resource_class: medium
     <<: *defaults
     steps:
       - checkout
