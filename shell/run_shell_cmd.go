@@ -136,10 +136,15 @@ func RunShellCommandWithOutput(
 		cmd.Dir = commandDir
 
 		// Inspired by https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
-		cmdStderr := io.MultiWriter(log.TFStderrWriter(errWriter, terragruntOptions.Logger.Logger.Formatter, terragruntOptions.OutputPrefix), &stderrBuf)
+		cmdStderr := io.MultiWriter(log.TFStderrWriter(
+			errWriter,
+			terragruntOptions.Logger.Logger.Formatter,
+			terragruntOptions.OutputPrefix,
+			terragruntOptions.TerraformPath,
+		), &stderrBuf)
 		var cmdStdout io.Writer
 		if !suppressStdout {
-			if !terragruntOptions.NoIncludeModulePrefix && len(args) > 0 && !strings.EqualFold(args[0], terraform.CommandNameOutput) {
+			if !terragruntOptions.DisableModuleOutputFormatting && len(args) > 0 && !strings.EqualFold(args[0], terraform.CommandNameOutput) {
 				// do not add prefix if args contains `-json` flag
 				var jsonOutput bool
 				for _, arg := range args {
@@ -150,7 +155,12 @@ func RunShellCommandWithOutput(
 				}
 
 				if !jsonOutput {
-					outWriter = log.TFStdoutWriter(outWriter, terragruntOptions.Logger.Logger.Formatter, terragruntOptions.OutputPrefix)
+					outWriter = log.TFStdoutWriter(
+						outWriter,
+						terragruntOptions.Logger.Logger.Formatter,
+						terragruntOptions.OutputPrefix,
+						terragruntOptions.TerraformPath,
+					)
 				}
 			}
 			cmdStdout = io.MultiWriter(outWriter, &stdoutBuf)

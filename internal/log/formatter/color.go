@@ -15,6 +15,7 @@ var (
 		DebugLevelStyle: "blue+h",
 		TraceLevelStyle: "white",
 		PrefixStyle:     "cyan",
+		BinaryStyle:     "cyan",
 		TimestampStyle:  "black+h",
 	}
 )
@@ -29,6 +30,7 @@ const (
 	DebugLevelStyle
 	TraceLevelStyle
 	PrefixStyle
+	BinaryStyle
 	TimestampStyle
 )
 

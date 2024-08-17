@@ -281,6 +281,10 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 		util.DisableLogColors()
 	}
 
+	if opts.DisableLogFormatting {
+		util.DisableLogFormatting()
+	}
+
 	if opts.JsonLogFormat {
 		util.JsonFormat()
 	}
@@ -295,6 +299,12 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	}
 	opts.WorkingDir = filepath.ToSlash(opts.WorkingDir)
 
+	workingDir, err := filepath.Abs(opts.WorkingDir)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+	opts.OriginalWorkingDir = filepath.ToSlash(workingDir)
+
 	// --- Download Dir
 	if opts.DownloadDir == "" {
 		opts.DownloadDir = util.JoinPath(opts.WorkingDir, util.TerragruntCacheDir)
@@ -307,7 +317,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
 
 	opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
-	opts.Logger = util.CreateLogEntry(filepath.Base(opts.WorkingDir), opts.LogLevel)
+	opts.Logger = util.CreateLogEntry("", opts.LogLevel)
 	opts.Logger.Logger.SetOutput(cliCtx.App.ErrWriter)
 
 	log.SetLogger(opts.Logger.Logger)
@@ -358,7 +368,6 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.TerragruntVersion = terragruntVersion
 	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of terragrunt used.
 	opts.Logger.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
-	opts.OutputPrefix = filepath.Base(opts.WorkingDir)
 
 	// --- Others
 	if !opts.RunAllAutoApprove {

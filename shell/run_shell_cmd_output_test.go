@@ -84,10 +84,9 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	withOptions(terragruntOptions)
 
 	out, err := RunShellCommandWithOutput(context.Background(), terragruntOptions, "", !allocateStdout, false, "../testdata/test_outputs.sh", "same")
-
-	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")
 
+	assert.NotNil(t, out, "Should get output")
 	assertResults(allOutputBuffer.String(), out)
 }
 
@@ -99,7 +98,10 @@ func assertOutputs(
 ) func(string, *util.CmdOutput) {
 	return func(allOutput string, out *util.CmdOutput) {
 		allOutputs := strings.Split(strings.TrimSpace(allOutput), "\n")
-		assert.Equal(t, expectedAllOutputs, allOutputs)
+		assert.Equal(t, len(expectedAllOutputs), len(allOutputs))
+		for i := 0; i < len(allOutputs); i++ {
+			assert.Contains(t, allOutputs[i], expectedAllOutputs[i])
+		}
 
 		stdOutputs := strings.Split(strings.TrimSpace(out.Stdout), "\n")
 		assert.Equal(t, expectedStdOutputs, stdOutputs)

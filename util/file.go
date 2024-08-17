@@ -18,7 +18,6 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/mattn/go-zglob"
 	homedir "github.com/mitchellh/go-homedir"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -208,7 +207,8 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 		return "", errors.WithStackTrace(err)
 	}
 
-	return filepath.ToSlash(relPath), nil
+	relPath = "." + string(filepath.Separator) + filepath.ToSlash(relPath)
+	return relPath, nil
 }
 
 // Return the contents of the file at the given path as a string
@@ -589,20 +589,6 @@ func (err PathIsNotFile) Error() string {
 	return err.path + " is not a file"
 }
 
-// Terraform 0.14 now generates a lock file when you run `terraform init`.
-// If any such file exists, this function will copy the lock file to the destination folder
-func CopyLockFile(sourceFolder string, destinationFolder string, logger *logrus.Entry) error {
-	sourceLockFilePath := JoinPath(sourceFolder, TerraformLockFile)
-	destinationLockFilePath := JoinPath(destinationFolder, TerraformLockFile)
-
-	if FileExists(sourceLockFilePath) {
-		logger.Debugf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
-		return CopyFile(sourceLockFilePath, destinationLockFilePath)
-	}
-
-	return nil
-}
-
 // ListTfFiles returns a list of all TF files in the specified directory.
 func ListTfFiles(directoryPath string) ([]string, error) {
 	var tfFiles []string
@@ -744,4 +730,13 @@ func FileSHA256(filePath string) ([]byte, error) {
 	}
 
 	return hash.Sum(nil), nil
+}
+
+func FindCommonPathForAllPaths(paths []string) string {
+	commonPath := FindCommonPrefixForAllElements(paths)
+	if FileExists(commonPath) && IsDir(commonPath) {
+		return commonPath
+	}
+
+	return filepath.Dir(commonPath)
 }

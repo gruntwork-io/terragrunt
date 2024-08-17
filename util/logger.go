@@ -19,7 +19,7 @@ const (
 	defaultTimestampFormat = time.RFC3339
 
 	logLevelEnvVar        = "TERRAGRUNT_LOG_LEVEL"
-	timestampFormatEnvVar = "TERRAGRUNT_LOG_TIMESTAMP_FOFRMAT"
+	timestampFormatEnvVar = "TERRAGRUNT_LOG_TIMESTAMP_FORMAT"
 )
 
 var (
@@ -31,8 +31,9 @@ var (
 	// (see https://github.com/gruntwork-io/terragrunt/blob/master/cli/args.go#L29)
 	GlobalFallbackLogEntry *logrus.Entry
 
-	disableLogColors bool
-	jsonLogFormat    bool
+	disableLogColors     bool
+	disableLogFormatting bool
+	jsonLogFormat        bool
 )
 
 func init() {
@@ -40,22 +41,32 @@ func init() {
 	GlobalFallbackLogEntry = CreateLogEntry("", defaultLogLevel)
 }
 
+func updateGlobalLogger() {
+	GlobalFallbackLogEntry = CreateLogEntry("", defaultLogLevel)
+}
+
 func DisableLogColors() {
 	disableLogColors = true
 	// Needs to re-create the global logger
-	GlobalFallbackLogEntry = CreateLogEntry("", defaultLogLevel)
+	updateGlobalLogger()
+}
+
+func DisableLogFormatting() {
+	disableLogFormatting = true
+	// Needs to re-create the global logger
+	updateGlobalLogger()
 }
 
 func JsonFormat() {
 	jsonLogFormat = true
 	// Needs to re-create the global logger
-	GlobalFallbackLogEntry = CreateLogEntry("", defaultLogLevel)
+	updateGlobalLogger()
 }
 
 func DisableJsonFormat() {
 	jsonLogFormat = false
 	// Needs to re-create the global logger
-	GlobalFallbackLogEntry = CreateLogEntry("", defaultLogLevel)
+	updateGlobalLogger()
 }
 
 // CreateLogger creates a logger. If debug is set, we use ErrorLevel to enable verbose output, otherwise - only errors are shown
@@ -66,11 +77,12 @@ func CreateLogger(lvl logrus.Level) *logrus.Logger {
 	if jsonLogFormat {
 		logger.SetFormatter(&logrus.JSONFormatter{})
 	} else {
-		timestampFormat := os.Getenv(timestampFormatEnvVar)
-		if timestampFormat == "" {
-			timestampFormat = defaultTimestampFormat
+		logFormatter := formatter.NewFormatter(disableLogColors, disableLogFormatting)
+		if timestampFormat := os.Getenv(timestampFormatEnvVar); timestampFormat != "" {
+			logFormatter.TimestampFormat = timestampFormat
 		}
-		logger.SetFormatter(formatter.NewFormatter(disableLogColors, timestampFormat))
+
+		logger.SetFormatter(logFormatter)
 	}
 	return logger
 }

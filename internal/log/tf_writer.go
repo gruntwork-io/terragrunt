@@ -2,7 +2,6 @@ package log
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"regexp"
 	"strings"
@@ -14,36 +13,38 @@ import (
 )
 
 const tfTimestampFormat = "2006-01-02T15:04:05.000-0700"
-const TFPrefixFmt = "%s:tf"
 
 var extractTimeAndLevelReg = regexp.MustCompile(`(\S+)\s*\[(\S+)\]\s*(.+\S)`)
 
-func TFStdoutWriter(writer io.Writer, formatter logrus.Formatter, prefix string) io.Writer {
+func TFStdoutWriter(writer io.Writer, formatter logrus.Formatter, prefix, tfpath string) io.Writer {
 	return &tfWriter{
+		Writer:    writer,
 		formatter: formatter,
-		writer:    writer,
 		prefix:    prefix,
+		tfpath:    tfpath,
 		isStdout:  true,
 	}
 }
 
-func TFStderrWriter(writer io.Writer, formatter logrus.Formatter, prefix string) io.Writer {
+func TFStderrWriter(writer io.Writer, formatter logrus.Formatter, prefix, tfpath string) io.Writer {
 	return &tfWriter{
+		Writer:    writer,
 		formatter: formatter,
-		writer:    writer,
 		prefix:    prefix,
+		tfpath:    tfpath,
 		isStdout:  false,
 	}
 }
 
 type tfWriter struct {
+	io.Writer
 	formatter logrus.Formatter
-	writer    io.Writer
 	prefix    string
+	tfpath    string
 	isStdout  bool
 }
 
-func (tf *tfWriter) Write(p []byte) (int, error) {
+func (writer *tfWriter) Write(p []byte) (int, error) {
 	var (
 		msgs  []byte
 		lines = bytes.Split(p, []byte{'\n'})
@@ -58,19 +59,23 @@ func (tf *tfWriter) Write(p []byte) (int, error) {
 			timeStr, levelStr string
 			msg               = string(line)
 		)
-		if !tf.isStdout {
+		if !writer.isStdout {
 			timeStr, levelStr, msg = extractTimeAndLevel(msg)
 		}
 
 		entry := &logrus.Entry{
-			Logger:  &logrus.Logger{Out: tf.writer},
+			Logger:  &logrus.Logger{Out: writer.Writer},
 			Time:    time.Now(),
 			Data:    make(map[string]any),
 			Message: msg,
 		}
 
-		if tf.prefix != "" {
-			entry.Data[formatter.PrefixKeyName] = fmt.Sprintf(TFPrefixFmt, tf.prefix)
+		if writer.prefix != "" {
+			entry.Data[formatter.PrefixKeyName] = writer.prefix
+		}
+
+		if writer.tfpath != "" {
+			entry.Data[formatter.TFPathKeyName] = writer.tfpath
 		}
 
 		level, err := logrus.ParseLevel(strings.ToLower(levelStr))
@@ -87,14 +92,14 @@ func (tf *tfWriter) Write(p []byte) (int, error) {
 			entry.Time = t
 		}
 
-		b, err := tf.formatter.Format(entry)
+		b, err := writer.formatter.Format(entry)
 		if err != nil {
 			return 0, err
 		}
 		msgs = append(msgs, b...)
 	}
 
-	if _, err := tf.writer.Write(msgs); err != nil {
+	if _, err := writer.Writer.Write(msgs); err != nil {
 		return 0, errors.WithStackTrace(err)
 	}
 	return len(p), nil

@@ -36,13 +36,14 @@ const (
 	TerragruntParallelismFlagName                    = "terragrunt-parallelism"
 	TerragruntDebugFlagName                          = "terragrunt-debug"
 	TerragruntLogLevelFlagName                       = "terragrunt-log-level"
+	TerragruntDisableLogFormattingFlagName           = "terragrunt-disable-log-formatting"
 	TerragruntNoColorFlagName                        = "terragrunt-no-color"
 	TerragruntJsonLogFlagName                        = "terragrunt-json-log"
 	TerragruntTfLogJsonFlagName                      = "terragrunt-tf-logs-to-json"
 	TerragruntModulesThatIncludeFlagName             = "terragrunt-modules-that-include"
 	TerragruntFetchDependencyOutputFromStateFlagName = "terragrunt-fetch-dependency-output-from-state"
 	TerragruntUsePartialParseConfigCacheFlagName     = "terragrunt-use-partial-parse-config-cache"
-	TerragruntIncludeModulePrefixFlagName            = "terragrunt-include-module-prefix"
+	TerragruntDisableModuleOutputFormattingFlagName  = "terragrunt-disable-module-output-formatting"
 	TerragruntFailOnStateBucketCreationFlagName      = "terragrunt-fail-on-state-bucket-creation"
 	TerragruntDisableBucketUpdateFlagName            = "terragrunt-disable-bucket-update"
 	TerragruntDisableCommandValidationFlagName       = "terragrunt-disable-command-validation"
@@ -228,6 +229,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "Sets the logging level for Terragrunt. Supported levels: panic, fatal, error, warn, info, debug, trace.",
 		},
 		&cli.BoolFlag{
+			Name:        TerragruntDisableLogFormattingFlagName,
+			Destination: &opts.DisableLogFormatting,
+			EnvVar:      "TERRAGRUNT_DISABLE_LOG_FORMATTING",
+			Usage:       "If specified, logs will be displayed in key/value format, by default logs are formatted in a human readable format.",
+		},
+		&cli.BoolFlag{
 			Name:        TerragruntNoColorFlagName,
 			Destination: &opts.DisableLogColors,
 			EnvVar:      "TERRAGRUNT_NO_COLOR",
@@ -258,11 +265,10 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "The option fetchs dependency output directly from the state file instead of init dependencies and running terraform on them.",
 		},
 		&cli.BoolFlag{
-			Name:        TerragruntIncludeModulePrefixFlagName,
-			Destination: &opts.NoIncludeModulePrefix,
-			Negative:    true,
-			EnvVar:      "TERRAGRUNT_INCLUDE_MODULE_PREFIX",
-			Usage:       "If this flag is set to false, the output of Terraform commands will not be prefixed with the module short path.",
+			Name:        TerragruntDisableModuleOutputFormattingFlagName,
+			Destination: &opts.DisableModuleOutputFormatting,
+			EnvVar:      "TERRAGRUNT_DISABLE_MODULE_OUTPUT_FORMATTING",
+			Usage:       "If specified, the output of Terraform commands will be printed as is, without formatting.",
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntStrictIncludeFlagName,

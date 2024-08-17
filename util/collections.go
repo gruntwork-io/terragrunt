@@ -205,7 +205,7 @@ func SplitUrls(s, sep string) []string {
 	return urls
 }
 
-func FindCommonPrefixFromList(strs []string) string {
+func FindCommonPrefixForAllElements(strs []string) string {
 	// Handle the case where the slice is empty
 	if len(strs) == 0 {
 		return ""

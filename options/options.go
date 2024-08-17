@@ -72,6 +72,9 @@ type TerragruntOptions struct {
 	// Location of the Terragrunt config file
 	TerragruntConfigPath string
 
+	// RelativeTerragruntConfigPath is the relative path to originally `WorkingDir` that was specified in CLI. We use this path for logs to reduce the path length.
+	RelativeTerragruntConfigPath string
+
 	// Location of the original Terragrunt config file. This is primarily useful when one Terragrunt config is being
 	// read from another: e.g., if /terraform-code/terragrunt.hcl calls read_terragrunt_config("/foo/bar.hcl"),
 	// and within bar.hcl, you call get_original_terragrunt_dir(), you'll get back /terraform-code.
@@ -116,6 +119,9 @@ type TerragruntOptions struct {
 	// The working directory in which to run Terraform
 	WorkingDir string
 
+	// Unlike `WorkingDir`, this path is the same for dependencies and points to the initial working directory.
+	OriginalWorkingDir string
+
 	// Basic log entry
 	Logger *logrus.Entry
 
@@ -133,6 +139,9 @@ type TerragruntOptions struct {
 
 	// Raw log level value
 	LogLevelStr string
+
+	// If true, logs will be displayed in format key/value, by default logs are formatted in human-readable format.
+	DisableLogFormatting bool
 
 	// ValidateStrict mode for the validate-inputs command
 	ValidateStrict bool
@@ -260,8 +269,8 @@ type TerragruntOptions struct {
 	// Prefix for shell commands' outputs
 	OutputPrefix string
 
-	// Controls if a module prefix will be prepended to TF outputs
-	NoIncludeModulePrefix bool
+	// Disable TF output formatting
+	DisableModuleOutputFormatting bool
 
 	// Fail execution if is required to create S3 bucket
 	FailIfBucketCreationRequired bool
@@ -411,7 +420,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 		FetchDependencyOutputFromState: false,
 		UsePartialParseConfigCache:     false,
 		OutputPrefix:                   "",
-		NoIncludeModulePrefix:          false,
+		DisableModuleOutputFormatting:  false,
 		JSONOut:                        DefaultJSONOutName,
 		TerraformImplementation:        UnknownImpl,
 		JsonLogFormat:                  false,
@@ -490,14 +499,20 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 
 // Create a copy of this TerragruntOptions, but with different values for the given variables. This is useful for
 // creating a TerragruntOptions that behaves the same way, but is used for a Terraform module in a different folder.
-func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOptions {
+func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOptions, error) {
 	workingDir := filepath.Dir(terragruntConfigPath)
+
+	relTerragruntConfigPath, err := util.GetPathRelativeTo(terragruntConfigPath, opts.OriginalWorkingDir)
+	if err != nil {
+		return nil, err
+	}
 
 	// Note that we clone lists and maps below as TerragruntOptions may be used and modified concurrently in the code
 	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
 	// for more info.
 	return &TerragruntOptions{
 		TerragruntConfigPath:           terragruntConfigPath,
+		RelativeTerragruntConfigPath:   relTerragruntConfigPath,
 		OriginalTerragruntConfigPath:   opts.OriginalTerragruntConfigPath,
 		TerraformPath:                  opts.TerraformPath,
 		OriginalTerraformCommand:       opts.OriginalTerraformCommand,
@@ -509,6 +524,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		NonInteractive:                 opts.NonInteractive,
 		TerraformCliArgs:               util.CloneStringList(opts.TerraformCliArgs),
 		WorkingDir:                     workingDir,
+		OriginalWorkingDir:             opts.OriginalWorkingDir,
 		Logger:                         util.CreateLogEntryWithWriter(opts.ErrWriter, opts.OutputPrefix, opts.LogLevel, opts.Logger.Logger.Hooks),
 		LogLevel:                       opts.LogLevel,
 		ValidateStrict:                 opts.ValidateStrict,
@@ -547,7 +563,8 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		FetchDependencyOutputFromState: opts.FetchDependencyOutputFromState,
 		UsePartialParseConfigCache:     opts.UsePartialParseConfigCache,
 		OutputPrefix:                   opts.OutputPrefix,
-		NoIncludeModulePrefix:          opts.NoIncludeModulePrefix,
+		DisableModuleOutputFormatting:  opts.DisableModuleOutputFormatting,
+		DisableLogFormatting:           opts.DisableLogFormatting,
 		FailIfBucketCreationRequired:   opts.FailIfBucketCreationRequired,
 		DisableBucketUpdate:            opts.DisableBucketUpdate,
 		TerraformImplementation:        opts.TerraformImplementation,
@@ -567,7 +584,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		AuthProviderCmd:                opts.AuthProviderCmd,
 		SkipOutput:                     opts.SkipOutput,
 		Engine:                         cloneEngineOptions(opts.Engine),
-	}
+	}, nil
 }
 
 // cloneEngineOptions creates a deep copy of the given EngineOptions

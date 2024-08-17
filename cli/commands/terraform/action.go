@@ -112,7 +112,10 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 	}
 	terragruntOptions.Engine = engine
 
-	terragruntOptionsClone := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	terragruntOptionsClone, err := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	if err != nil {
+		return err
+	}
 	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
 
 	if err := processHooks(ctx, terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone, terragruntConfig, nil); err != nil {
@@ -315,7 +318,7 @@ func runTerragruntWithConfig(ctx context.Context, originalTerragruntOptions *opt
 			// case, we are using the user's working dir here, rather than just looking at the parent dir of the
 			// terragrunt.hcl. However, the default value for the user's working dir, set in options.go, IS just the
 			// parent dir of terragrunt.hcl, so these will likely always be the same.
-			lockFileError = util.CopyLockFile(terragruntOptions.WorkingDir, originalTerragruntOptions.WorkingDir, terragruntOptions.Logger)
+			lockFileError = config.CopyLockFile(terragruntOptions, originalTerragruntOptions.WorkingDir)
 		}
 
 		return multierror.Append(runTerraformError, lockFileError).ErrorOrNil()
@@ -588,10 +591,12 @@ func runTerraformInit(ctx context.Context, originalTerragruntOptions *options.Te
 		return nil
 	}
 
-	initOptions := prepareInitOptions(terragruntOptions)
-
-	err := runTerragruntWithConfig(ctx, originalTerragruntOptions, initOptions, terragruntConfig, new(Target))
+	initOptions, err := prepareInitOptions(terragruntOptions)
 	if err != nil {
+		return err
+	}
+
+	if err := runTerragruntWithConfig(ctx, originalTerragruntOptions, initOptions, terragruntConfig, new(Target)); err != nil {
 		return err
 	}
 
@@ -602,9 +607,13 @@ func runTerraformInit(ctx context.Context, originalTerragruntOptions *options.Te
 	return nil
 }
 
-func prepareInitOptions(terragruntOptions *options.TerragruntOptions) *options.TerragruntOptions {
+func prepareInitOptions(terragruntOptions *options.TerragruntOptions) (*options.TerragruntOptions, error) {
 	// Need to clone the terragruntOptions, so the TerraformCliArgs can be configured to run the init command
-	initOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	initOptions, err := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
 	initOptions.TerraformCliArgs = []string{terraform.CommandNameInit}
 	initOptions.WorkingDir = terragruntOptions.WorkingDir
 	initOptions.TerraformCommand = terraform.CommandNameInit
@@ -620,7 +629,7 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions) *options.T
 		initOptions.TerraformCliArgs = append(initOptions.TerraformCliArgs, terraform.FlagNameNoColor)
 	}
 
-	return initOptions
+	return initOptions, nil
 }
 
 // Return true if modules aren't already downloaded and the Terraform templates in this project reference modules.

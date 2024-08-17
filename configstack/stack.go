@@ -99,7 +99,7 @@ func (stack *Stack) LogModuleDeployOrder(logger *logrus.Entry, terraformCommand 
 	for i, group := range runGraph {
 		outStr += fmt.Sprintf("Group %d\n", i+1)
 		for _, module := range group {
-			outStr += fmt.Sprintf("- Module %s\n", module.ShortPath)
+			outStr += fmt.Sprintf("- Module %s\n", module.RelativePath)
 		}
 		outStr += "\n"
 	}
@@ -213,7 +213,7 @@ func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.Terragrunt
 			}
 			terragruntOptions.Logger.Infof("%v%v refers to remote state "+
 				"you may have to apply your changes in the dependencies prior running terragrunt run-all plan.\n",
-				stack.Modules[i].Path,
+				stack.Modules[i].RelativePath,
 				dependenciesMsg,
 			)
 		}
@@ -228,7 +228,7 @@ func (stack *Stack) syncTerraformCliArgs(terragruntOptions *options.TerragruntOp
 		planFile := module.planFile(terragruntOptions)
 
 		if planFile != "" {
-			terragruntOptions.Logger.Debugf("Using output file %s for module %s", planFile, module.TerragruntOptions.TerragruntConfigPath)
+			terragruntOptions.Logger.Debugf("Using output file %s for module %s", planFile, module.TerragruntOptions.RelativeTerragruntConfigPath)
 			if module.TerragruntOptions.TerraformCommand == terraform.CommandNamePlan {
 				// for plan command add -out=<file> to the terraform cli args
 				module.TerragruntOptions.TerraformCliArgs = util.StringListInsert(module.TerragruntOptions.TerraformCliArgs, "-out="+planFile, len(module.TerragruntOptions.TerraformCliArgs))
@@ -270,11 +270,6 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 	err := telemetry.Telemetry(ctx, stack.terragruntOptions, "create_stack_for_terragrunt_config_paths", map[string]interface{}{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
-		workingDir, err := filepath.Abs(stack.terragruntOptions.WorkingDir)
-		if err != nil {
-			return errors.WithStackTrace(err)
-		}
-
 		if len(terragruntConfigPaths) == 0 {
 			return errors.WithStackTrace(NoTerraformModulesFound)
 		}
@@ -290,17 +285,11 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 			opts.OutputPrefix = strings.TrimPrefix(module.Path, commonDir)
 			opts.Logger = util.CreateLogEntryWithWriter(opts.ErrWriter, opts.OutputPrefix, opts.LogLevel, opts.Logger.Logger.Hooks)
 
-			relPath, err := filepath.Rel(workingDir, module.Path)
+			relPath, err := util.GetPathRelativeTo(module.Path, stack.terragruntOptions.OriginalWorkingDir)
 			if err != nil {
-				return errors.WithStackTrace(err)
+				return err
 			}
-			relPath = fmt.Sprintf(".%s%s", string(filepath.Separator), relPath)
-
-			if len(workingDir) < len(relPath) {
-				module.ShortPath = workingDir
-			} else {
-				module.ShortPath = relPath
-			}
+			module.RelativePath = relPath
 		}
 
 		stack.Modules = modules
@@ -477,13 +466,21 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 		return nil, err
 	}
 
+	moduleRelativePath, err := util.GetPathRelativeTo(modulePath, stack.terragruntOptions.OriginalWorkingDir)
+	if err != nil {
+		return nil, err
+	}
+
 	if _, ok := modulesMap[modulePath]; ok {
 		return nil, nil
 	}
 
 	// Clone the options struct so we don't modify the original one. This is especially important as run-all operations
 	// happen concurrently.
-	opts := stack.terragruntOptions.Clone(terragruntConfigPath)
+	opts, err := stack.terragruntOptions.Clone(terragruntConfigPath)
+	if err != nil {
+		return nil, err
+	}
 
 	// We need to reset the original path for each module. Otherwise, this path will be set to wherever you ran run-all
 	// from, which is not what any of the modules will want.
@@ -553,7 +550,13 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 		if err != nil {
 			return nil, err
 		}
-		stack.terragruntOptions.Logger.Debugf("Setting download directory for module %s to %s", modulePath, downloadDir)
+
+		downloadDirRelativePath, err := util.GetPathRelativeTo(downloadDir, stack.terragruntOptions.OriginalWorkingDir)
+		if err != nil {
+			return nil, err
+		}
+
+		stack.terragruntOptions.Logger.Debugf("Setting download directory for module %s to %s", moduleRelativePath, downloadDirRelativePath)
 		opts.DownloadDir = downloadDir
 	}
 

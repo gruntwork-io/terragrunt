@@ -3,34 +3,35 @@ package formatter
 import (
 	"bytes"
 	"fmt"
-	"runtime"
+	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/sirupsen/logrus"
 )
 
 const (
+	defaultTimestampForFormattedLayout = "15:04:05.000"
+	defaultTimestamp                   = time.RFC3339
+
 	PrefixKeyName = "prefix"
+	TFPathKeyName = "tfbinary"
 	NoneLevel     = logrus.Level(10)
 )
 
+var _ logrus.Formatter = new(Formatter)
+
 type Formatter struct {
-	// Set to true to bypass checking for a TTY before outputting colors.
-	ForceColors bool
+	// Disable formatted layout
+	DisableLogFormatting bool
 
 	// Force disabling colors. For a TTY colors are enabled by default.
 	DisableColors bool
 
 	// Disable the conversion of the log levels to uppercase
 	DisableUppercase bool
-
-	// Enable logging the full timestamp when a TTY is attached instead of just the time passed since beginning of execution.
-	FullTimestamp bool
-
-	// Force formatted layout, even for non-TTY output.
-	ForceFormatting bool
 
 	// Timestamp format to use for display when a full timestamp is printed.
 	TimestampFormat string
@@ -49,12 +50,17 @@ type Formatter struct {
 }
 
 // NewFormatter returns a new Formatter instance with default values.
-func NewFormatter(disableColors bool, timestampFormat string) logrus.Formatter {
+func NewFormatter(disableColors, disableLogFormatting bool) *Formatter {
+	timestampFormat := defaultTimestampForFormattedLayout
+	if disableLogFormatting {
+		timestampFormat = defaultTimestamp
+	}
+
 	return &Formatter{
-		FullTimestamp:   true,
-		DisableColors:   disableColors,
-		TimestampFormat: timestampFormat,
-		colorScheme:     defaultColorScheme.Complite(),
+		DisableColors:        disableColors,
+		DisableLogFormatting: disableLogFormatting,
+		TimestampFormat:      timestampFormat,
+		colorScheme:          defaultColorScheme.Complite(),
 	}
 }
 
@@ -62,13 +68,14 @@ func (formatter *Formatter) SetColorScheme(colorScheme *ColorScheme) {
 	formatter.colorScheme = colorScheme.Complite()
 }
 
+// Format implements logrus.Formatter
 func (formatter *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 	buf := entry.Buffer
 	if buf == nil {
 		buf = new(bytes.Buffer)
 	}
 
-	if formatter.ForceFormatting || isTerminal {
+	if !formatter.DisableLogFormatting {
 		if err := formatter.printFormatted(buf, entry); err != nil {
 			return nil, err
 		}
@@ -89,8 +96,20 @@ func (formatter *Formatter) printKeyValue(buf *bytes.Buffer, entry *logrus.Entry
 		return err
 	}
 
-	if err := formatter.appendKeyValue(buf, "level", entry.Level.String(), true); err != nil {
+	if err := formatter.appendKeyValue(buf, "level", formatter.levelText(entry.Level), true); err != nil {
 		return err
+	}
+
+	if val, ok := entry.Data[PrefixKeyName]; ok && val != nil {
+		if val := val.(string); val != "" {
+			formatter.appendKeyValue(buf, "prefix", val, true)
+		}
+	}
+
+	if val, ok := entry.Data[TFPathKeyName]; ok && val != nil {
+		if val := val.(string); val != "" {
+			formatter.appendKeyValue(buf, "binary", filepath.Base(val), true)
+		}
 	}
 
 	if entry.Message != "" {
@@ -99,7 +118,8 @@ func (formatter *Formatter) printKeyValue(buf *bytes.Buffer, entry *logrus.Entry
 		}
 	}
 
-	for _, key := range formatter.keys(entry.Data) {
+	keys := formatter.keys(entry.Data, PrefixKeyName, TFPathKeyName)
+	for _, key := range keys {
 		if err := formatter.appendKeyValue(buf, key, entry.Data[key], true); err != nil {
 			return err
 		}
@@ -109,33 +129,42 @@ func (formatter *Formatter) printKeyValue(buf *bytes.Buffer, entry *logrus.Entry
 }
 
 func (formatter *Formatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entry) error {
-	level := fmt.Sprintf("%5s ", formatter.levelText(entry.Level))
+	level := fmt.Sprintf("%-6s ", formatter.levelText(entry.Level))
 
-	prefix := ""
-	if val, ok := entry.Data[PrefixKeyName]; ok {
-		prefix = fmt.Sprintf("[%s]  ", val)
+	var prefix string
+	if val, ok := entry.Data[PrefixKeyName]; ok && val != nil {
+		if val := val.(string); val != "" {
+			prefix = fmt.Sprintf("[%s] ", val)
+		}
+	}
+
+	var tfbinary string
+	if val, ok := entry.Data[TFPathKeyName]; ok && val != nil {
+		if val := val.(string); val != "" {
+			tfbinary = filepath.Base(val) + ": "
+		}
 	}
 
 	var timestamp string
-	if formatter.FullTimestamp {
-		timestamp = entry.Time.Format(formatter.TimestampFormat)
-	} else {
-		timestamp = fmt.Sprintf("%04d", miniTS())
+	if formatter.TimestampFormat != "" {
+		timestamp = entry.Time.Format(formatter.TimestampFormat) + " "
 	}
 
-	if formatter.isColored() {
+	if !formatter.DisableColors {
 		level = formatter.colorScheme.LevelColorFunc(entry.Level)(level)
 		prefix = formatter.colorScheme.ColorFunc(PrefixStyle)(prefix)
+		tfbinary = formatter.colorScheme.ColorFunc(BinaryStyle)(tfbinary)
 		timestamp = formatter.colorScheme.ColorFunc(TimestampStyle)(timestamp)
 	}
 
-	if _, err := fmt.Fprintf(buf, "%s %s%s%s", timestamp, level, prefix, entry.Message); err != nil {
+	if _, err := fmt.Fprintf(buf, "%s%s%s%s%s", timestamp, level, prefix, tfbinary, entry.Message); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	for i, key := range formatter.keys(entry.Data, PrefixKeyName) {
+	keys := formatter.keys(entry.Data, PrefixKeyName, TFPathKeyName)
+	for _, key := range keys {
 		value := entry.Data[key]
-		if err := formatter.appendKeyValue(buf, key, value, i != 0); err != nil {
+		if err := formatter.appendKeyValue(buf, key, value, true); err != nil {
 			return err
 		}
 	}
@@ -191,7 +220,7 @@ func (formatter *Formatter) levelText(level logrus.Level) string {
 		levelText = "warn"
 	}
 	if levelText == "unknown" {
-		levelText = ""
+		levelText = "stdout"
 	}
 
 	if !formatter.DisableUppercase {
@@ -240,9 +269,4 @@ func (formatter *Formatter) needsQuoting(text string) bool {
 		}
 	}
 	return false
-}
-
-func (formatter *Formatter) isColored() bool {
-	isColored := formatter.ForceColors || (isTerminal && (runtime.GOOS != "windows"))
-	return isColored && !formatter.DisableColors
 }
