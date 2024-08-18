@@ -872,7 +872,9 @@ func getTerragruntOutputJsonFromRemoteState(
 	// The working directory is now set up to interact with the state, so pull it down to get the json output.
 
 	// First run init to setup the backend configuration so that we can run output.
-	runTerraformInitForDependencyOutput(ctx, tempWorkDir, targetConfigPath)
+	if err := runTerraformInitForDependencyOutput(ctx, tempWorkDir, targetConfigPath); err != nil {
+		return nil, err
+	}
 
 	// Now that the backend is initialized, run terraform output to get the data and return it.
 	out, err := shell.RunTerraformCommandWithOutput(ctx, targetTGOptions, terraform.CommandNameOutput, "-json")

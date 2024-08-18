@@ -103,13 +103,17 @@ func (formatter *Formatter) printKeyValue(buf *bytes.Buffer, entry *logrus.Entry
 
 	if val, ok := entry.Data[PrefixKeyName]; ok && val != nil {
 		if val := val.(string); val != "" {
-			formatter.appendKeyValue(buf, "prefix", val, true)
+			if err := formatter.appendKeyValue(buf, "prefix", val, true); err != nil {
+				return err
+			}
 		}
 	}
 
 	if val, ok := entry.Data[TFBinaryKeyName]; ok && val != nil {
 		if val := val.(string); val != "" {
-			formatter.appendKeyValue(buf, "binary", filepath.Base(val), true)
+			if err := formatter.appendKeyValue(buf, "binary", filepath.Base(val), true); err != nil {
+				return err
+			}
 		}
 	}
 

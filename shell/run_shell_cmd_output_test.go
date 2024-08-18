@@ -53,15 +53,16 @@ func testCommandOutputOrder(t *testing.T, withPtty bool, fullOutput []string, st
 }
 
 func TestCommandOutputPrefix(t *testing.T) {
+	t.Parallel()
 	prefix := "PREFIX"
 	prefixedOutput := []string{}
 	for _, line := range FULL_OUTPUT {
-		prefixedOutput = append(prefixedOutput, fmt.Sprintf("msg=%s prefix="+log.TFPrefixFmt, line, prefix))
+		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s msg=%s", prefix, line))
 	}
 	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
-		terragruntOptions.NoIncludeModulePrefix = false
+		terragruntOptions.TerraformPath = ""
 		terragruntOptions.OutputPrefix = prefix
-		terragruntOptions.Logger.Logger.Formatter = formatter.NewFormatter(false, "")
+		terragruntOptions.Logger.Logger.Formatter = formatter.NewFormatter(false, true)
 	}, assertOutputs(t,
 		prefixedOutput,
 		STDOUT,
