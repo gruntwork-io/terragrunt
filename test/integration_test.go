@@ -4464,6 +4464,7 @@ func removeFolder(t *testing.T, path string) {
 
 func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {
 	args := strings.Split(command, " ")
+	args = append(args, "--terragrunt-disable-module-output-formatting", "--terragrunt-disable-log-formatting")
 	t.Log(args)
 
 	app := cli.NewApp(writer, errwriter)
