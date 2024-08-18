@@ -207,8 +207,15 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 		return "", errors.WithStackTrace(err)
 	}
 
-	relPath = "." + string(filepath.Separator) + filepath.ToSlash(relPath)
 	return relPath, nil
+}
+
+func GetPathRelativeToWithSeparator(path string, basePath string) (string, error) {
+	relPath, err := GetPathRelativeTo(path, basePath)
+	if err == nil {
+		relPath = "." + string(filepath.Separator) + filepath.ToSlash(relPath)
+	}
+	return relPath, err
 }
 
 // Return the contents of the file at the given path as a string

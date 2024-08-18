@@ -502,7 +502,7 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOptions, error) {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
-	relTerragruntConfigPath, err := util.GetPathRelativeTo(terragruntConfigPath, opts.RootWorkingDir)
+	relTerragruntConfigPath, err := util.GetPathRelativeToWithSeparator(terragruntConfigPath, opts.RootWorkingDir)
 	if err != nil {
 		return nil, err
 	}

@@ -35,7 +35,6 @@ type TerraformModule struct {
 	TerragruntOptions    *options.TerragruntOptions
 	AssumeAlreadyApplied bool
 	FlagExcluded         bool
-	PrefixStyle          string
 }
 
 // Render this module as a human-readable string

@@ -294,7 +294,7 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 			opts.OutputPrefix = strings.TrimPrefix(module.Path, commonDir)
 			opts.Logger = util.CreateLogEntryWithWriter(opts.ErrWriter, opts.OutputPrefix, opts.LogLevel, opts.Logger.Logger.Hooks, stack.nextColorScheme())
 
-			relPath, err := util.GetPathRelativeTo(module.Path, stack.terragruntOptions.RootWorkingDir)
+			relPath, err := util.GetPathRelativeToWithSeparator(module.Path, stack.terragruntOptions.RootWorkingDir)
 			if err != nil {
 				return err
 			}
@@ -486,7 +486,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 		return nil, err
 	}
 
-	moduleRelativePath, err := util.GetPathRelativeTo(modulePath, stack.terragruntOptions.RootWorkingDir)
+	moduleRelativePath, err := util.GetPathRelativeToWithSeparator(modulePath, stack.terragruntOptions.RootWorkingDir)
 	if err != nil {
 		return nil, err
 	}

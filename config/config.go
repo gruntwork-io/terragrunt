@@ -304,11 +304,11 @@ type IncludeConfigs []IncludeConfig
 
 func (confs *IncludeConfigs) UpdateRelativePaths(basePath string) error {
 	for _, conf := range *confs {
-		relPath, err := util.GetPathRelativeTo(conf.Path, basePath)
+		relPath, err := util.GetPathRelativeToWithSeparator(conf.Path, basePath)
 		if err != nil {
 			return err
 		}
-		conf.RelativePath = relPath
+		conf.relativePath = relPath
 	}
 	return nil
 }
@@ -320,7 +320,7 @@ type IncludeConfig struct {
 	Path          string  `hcl:"path,attr"`
 	Expose        *bool   `hcl:"expose,attr"`
 	MergeStrategy *string `hcl:"merge_strategy,attr"`
-	RelativePath  string  `hcl:"-"`
+	relativePath  string
 }
 
 func (cfg *IncludeConfig) String() string {
