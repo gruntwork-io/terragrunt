@@ -15,7 +15,7 @@ func CopyLockFile(opts *options.TerragruntOptions, destinationFolder string) err
 	sourceLockFilePath := util.JoinPath(sourceFolder, terraform.TerraformLockFile)
 	destinationLockFilePath := util.JoinPath(destinationFolder, terraform.TerraformLockFile)
 
-	relDestinationFolder, err := util.GetPathRelativeTo(destinationFolder, opts.OriginalWorkingDir)
+	relDestinationFolder, err := util.GetPathRelativeTo(destinationFolder, opts.RootWorkingDir)
 	if err != nil {
 		return err
 	}

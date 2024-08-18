@@ -15,7 +15,7 @@ var (
 		DebugLevelStyle: "blue+h",
 		TraceLevelStyle: "white",
 		PrefixStyle:     "cyan",
-		BinaryStyle:     "cyan",
+		TFBinaryStyle:   "cyan",
 		TimestampStyle:  "black+h",
 	}
 )
@@ -30,7 +30,7 @@ const (
 	DebugLevelStyle
 	TraceLevelStyle
 	PrefixStyle
-	BinaryStyle
+	TFBinaryStyle
 	TimestampStyle
 )
 

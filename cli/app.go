@@ -303,7 +303,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
-	opts.OriginalWorkingDir = filepath.ToSlash(workingDir)
+	opts.RootWorkingDir = filepath.ToSlash(workingDir)
 
 	// --- Download Dir
 	if opts.DownloadDir == "" {
@@ -317,7 +317,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
 
 	opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
-	opts.Logger = util.CreateLogEntry("", opts.LogLevel)
+	opts.Logger = util.CreateLogEntry("", opts.LogLevel, nil)
 	opts.Logger.Logger.SetOutput(cliCtx.App.ErrWriter)
 
 	log.SetLogger(opts.Logger.Logger)

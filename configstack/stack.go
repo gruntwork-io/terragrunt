@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/log/formatter"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
 
@@ -27,6 +28,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// prefixStyles contains ANSI color codes that are assigned sequentially to modules.
+// https://user-images.githubusercontent.com/995050/47952855-ecb12480-df75-11e8-89d4-ac26c50e80b9.png
+// https://www.hackitu.de/termcolor256/
+var prefixStyles = []formatter.ColorStyle{
+	"66", "67", "95", "96", "102", "103", "108", "109", "139", "138", "144", "145",
+}
+
 // Represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or
 // "spin down" in a single command
 type Stack struct {
@@ -34,6 +42,7 @@ type Stack struct {
 	terragruntOptions     *options.TerragruntOptions
 	childTerragruntConfig *config.TerragruntConfig
 	Modules               TerraformModules
+	nextPrefixStyle       int
 }
 
 // Find all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
@@ -283,9 +292,9 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 		for _, module := range modules {
 			opts := module.TerragruntOptions
 			opts.OutputPrefix = strings.TrimPrefix(module.Path, commonDir)
-			opts.Logger = util.CreateLogEntryWithWriter(opts.ErrWriter, opts.OutputPrefix, opts.LogLevel, opts.Logger.Logger.Hooks)
+			opts.Logger = util.CreateLogEntryWithWriter(opts.ErrWriter, opts.OutputPrefix, opts.LogLevel, opts.Logger.Logger.Hooks, stack.nextColorScheme())
 
-			relPath, err := util.GetPathRelativeTo(module.Path, stack.terragruntOptions.OriginalWorkingDir)
+			relPath, err := util.GetPathRelativeTo(module.Path, stack.terragruntOptions.RootWorkingDir)
 			if err != nil {
 				return err
 			}
@@ -311,6 +320,17 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 	}
 
 	return nil
+}
+
+func (stack *Stack) nextColorScheme() *formatter.ColorScheme {
+	if stack.nextPrefixStyle >= len(prefixStyles) {
+		stack.nextPrefixStyle = 0
+	}
+
+	prefixStyle := prefixStyles[stack.nextPrefixStyle]
+	stack.nextPrefixStyle++
+
+	return &formatter.ColorScheme{formatter.PrefixStyle: prefixStyle}
 }
 
 // Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents
@@ -466,7 +486,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 		return nil, err
 	}
 
-	moduleRelativePath, err := util.GetPathRelativeTo(modulePath, stack.terragruntOptions.OriginalWorkingDir)
+	moduleRelativePath, err := util.GetPathRelativeTo(modulePath, stack.terragruntOptions.RootWorkingDir)
 	if err != nil {
 		return nil, err
 	}
@@ -551,7 +571,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 			return nil, err
 		}
 
-		downloadDirRelativePath, err := util.GetPathRelativeTo(downloadDir, stack.terragruntOptions.OriginalWorkingDir)
+		downloadDirRelativePath, err := util.GetPathRelativeTo(downloadDir, stack.terragruntOptions.RootWorkingDir)
 		if err != nil {
 			return nil, err
 		}

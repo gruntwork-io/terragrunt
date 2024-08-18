@@ -10,15 +10,16 @@ import (
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 )
 
 const (
 	defaultTimestampForFormattedLayout = "15:04:05.000"
 	defaultTimestamp                   = time.RFC3339
 
-	PrefixKeyName = "prefix"
-	TFPathKeyName = "tfbinary"
-	NoneLevel     = logrus.Level(10)
+	PrefixKeyName   = "prefix"
+	TFBinaryKeyName = "tfBinary"
+	NoneLevel       = logrus.Level(10)
 )
 
 var _ logrus.Formatter = new(Formatter)
@@ -65,7 +66,7 @@ func NewFormatter(disableColors, disableLogFormatting bool) *Formatter {
 }
 
 func (formatter *Formatter) SetColorScheme(colorScheme *ColorScheme) {
-	formatter.colorScheme = colorScheme.Complite()
+	maps.Copy(formatter.colorScheme, colorScheme.Complite())
 }
 
 // Format implements logrus.Formatter
@@ -106,7 +107,7 @@ func (formatter *Formatter) printKeyValue(buf *bytes.Buffer, entry *logrus.Entry
 		}
 	}
 
-	if val, ok := entry.Data[TFPathKeyName]; ok && val != nil {
+	if val, ok := entry.Data[TFBinaryKeyName]; ok && val != nil {
 		if val := val.(string); val != "" {
 			formatter.appendKeyValue(buf, "binary", filepath.Base(val), true)
 		}
@@ -118,7 +119,7 @@ func (formatter *Formatter) printKeyValue(buf *bytes.Buffer, entry *logrus.Entry
 		}
 	}
 
-	keys := formatter.keys(entry.Data, PrefixKeyName, TFPathKeyName)
+	keys := formatter.keys(entry.Data, PrefixKeyName, TFBinaryKeyName)
 	for _, key := range keys {
 		if err := formatter.appendKeyValue(buf, key, entry.Data[key], true); err != nil {
 			return err
@@ -138,10 +139,10 @@ func (formatter *Formatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entr
 		}
 	}
 
-	var tfbinary string
-	if val, ok := entry.Data[TFPathKeyName]; ok && val != nil {
+	var tfBinary string
+	if val, ok := entry.Data[TFBinaryKeyName]; ok && val != nil {
 		if val := val.(string); val != "" {
-			tfbinary = filepath.Base(val) + ": "
+			tfBinary = val + ": "
 		}
 	}
 
@@ -153,15 +154,15 @@ func (formatter *Formatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entr
 	if !formatter.DisableColors {
 		level = formatter.colorScheme.LevelColorFunc(entry.Level)(level)
 		prefix = formatter.colorScheme.ColorFunc(PrefixStyle)(prefix)
-		tfbinary = formatter.colorScheme.ColorFunc(BinaryStyle)(tfbinary)
+		tfBinary = formatter.colorScheme.ColorFunc(TFBinaryStyle)(tfBinary)
 		timestamp = formatter.colorScheme.ColorFunc(TimestampStyle)(timestamp)
 	}
 
-	if _, err := fmt.Fprintf(buf, "%s%s%s%s%s", timestamp, level, prefix, tfbinary, entry.Message); err != nil {
+	if _, err := fmt.Fprintf(buf, "%s%s%s%s%s", timestamp, level, prefix, tfBinary, entry.Message); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	keys := formatter.keys(entry.Data, PrefixKeyName, TFPathKeyName)
+	keys := formatter.keys(entry.Data, PrefixKeyName, TFBinaryKeyName)
 	for _, key := range keys {
 		value := entry.Data[key]
 		if err := formatter.appendKeyValue(buf, key, value, true); err != nil {

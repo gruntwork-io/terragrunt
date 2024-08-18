@@ -3,6 +3,7 @@ package log
 import (
 	"bytes"
 	"io"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -21,7 +22,7 @@ func TFStdoutWriter(writer io.Writer, formatter logrus.Formatter, prefix, tfpath
 		Writer:    writer,
 		formatter: formatter,
 		prefix:    prefix,
-		tfpath:    tfpath,
+		tfBinary:  filepath.Base(tfpath),
 		isStdout:  true,
 	}
 }
@@ -31,7 +32,7 @@ func TFStderrWriter(writer io.Writer, formatter logrus.Formatter, prefix, tfpath
 		Writer:    writer,
 		formatter: formatter,
 		prefix:    prefix,
-		tfpath:    tfpath,
+		tfBinary:  filepath.Base(tfpath),
 		isStdout:  false,
 	}
 }
@@ -40,7 +41,7 @@ type tfWriter struct {
 	io.Writer
 	formatter logrus.Formatter
 	prefix    string
-	tfpath    string
+	tfBinary  string
 	isStdout  bool
 }
 
@@ -74,8 +75,8 @@ func (writer *tfWriter) Write(p []byte) (int, error) {
 			entry.Data[formatter.PrefixKeyName] = writer.prefix
 		}
 
-		if writer.tfpath != "" {
-			entry.Data[formatter.TFPathKeyName] = writer.tfpath
+		if writer.tfBinary != "" {
+			entry.Data[formatter.TFBinaryKeyName] = writer.tfBinary
 		}
 
 		level, err := logrus.ParseLevel(strings.ToLower(levelStr))

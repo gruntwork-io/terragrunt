@@ -72,7 +72,7 @@ type TerragruntOptions struct {
 	// Location of the Terragrunt config file
 	TerragruntConfigPath string
 
-	// RelativeTerragruntConfigPath is the relative path to originally `WorkingDir` that was specified in CLI. We use this path for logs to reduce the path length.
+	// // Relative path to `RootWorkingDir`. We use this path for logs to shorten the path length.
 	RelativeTerragruntConfigPath string
 
 	// Location of the original Terragrunt config file. This is primarily useful when one Terragrunt config is being
@@ -119,8 +119,8 @@ type TerragruntOptions struct {
 	// The working directory in which to run Terraform
 	WorkingDir string
 
-	// Unlike `WorkingDir`, this path is the same for dependencies and points to the initial working directory.
-	OriginalWorkingDir string
+	// Unlike `WorkingDir`, this path is the same for all dependencies and points to the root working directory specified in the CLI.
+	RootWorkingDir string
 
 	// Basic log entry
 	Logger *logrus.Entry
@@ -470,13 +470,13 @@ func GetDefaultIAMAssumeRoleSessionName() string {
 func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...TerragruntOptionsFunc) (*TerragruntOptions, error) {
 	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
 	if err != nil {
-		logger := util.CreateLogEntry("", util.GetDefaultLogLevel())
+		logger := util.CreateLogEntry("", util.GetDefaultLogLevel(), nil)
 		logger.Errorf("%v\n", errors.WithStackTrace(err))
 		return nil, err
 	}
 
 	opts.NonInteractive = true
-	opts.Logger = util.CreateLogEntry("", logrus.DebugLevel)
+	opts.Logger = util.CreateLogEntry("", logrus.DebugLevel, nil)
 	opts.LogLevel = logrus.DebugLevel
 
 	for _, opt := range options {
@@ -502,10 +502,13 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOptions, error) {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
-	relTerragruntConfigPath, err := util.GetPathRelativeTo(terragruntConfigPath, opts.OriginalWorkingDir)
+	relTerragruntConfigPath, err := util.GetPathRelativeTo(terragruntConfigPath, opts.RootWorkingDir)
 	if err != nil {
 		return nil, err
 	}
+
+	logger := util.CreateLogEntryWithWriter(opts.ErrWriter, opts.OutputPrefix, opts.LogLevel, opts.Logger.Logger.Hooks, nil)
+	logger.Logger.Formatter = opts.Logger.Logger.Formatter
 
 	// Note that we clone lists and maps below as TerragruntOptions may be used and modified concurrently in the code
 	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
@@ -524,8 +527,8 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		NonInteractive:                 opts.NonInteractive,
 		TerraformCliArgs:               util.CloneStringList(opts.TerraformCliArgs),
 		WorkingDir:                     workingDir,
-		OriginalWorkingDir:             opts.OriginalWorkingDir,
-		Logger:                         util.CreateLogEntryWithWriter(opts.ErrWriter, opts.OutputPrefix, opts.LogLevel, opts.Logger.Logger.Hooks),
+		RootWorkingDir:                 opts.RootWorkingDir,
+		Logger:                         logger,
 		LogLevel:                       opts.LogLevel,
 		ValidateStrict:                 opts.ValidateStrict,
 		Env:                            util.CloneStringMap(opts.Env),

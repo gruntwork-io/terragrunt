@@ -120,7 +120,7 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 		return nil, nil, err
 	}
 
-	if err := terragruntIncludeList.UpdateRelativePaths(ctx.TerragruntOptions.OriginalWorkingDir); err != nil {
+	if err := terragruntIncludeList.UpdateRelativePaths(ctx.TerragruntOptions.RootWorkingDir); err != nil {
 		return nil, nil, err
 	}
 
