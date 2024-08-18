@@ -865,7 +865,8 @@ func getTerragruntOutputJsonFromRemoteState(
 	ctx.TerragruntOptions.Logger.Debugf("Generated remote state configuration in working dir %s", tempWorkDir)
 
 	// Check for a provider lock file and copy it to the working dir if it exists.
-	if err := CopyLockFile(ctx.TerragruntOptions, tempWorkDir); err != nil {
+	terragruntDir := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)
+	if err := CopyLockFile(ctx.TerragruntOptions, terragruntDir, tempWorkDir); err != nil {
 		return nil, err
 	}
 

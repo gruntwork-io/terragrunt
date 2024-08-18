@@ -132,7 +132,7 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(
 		t,
-		"terragrunt run-all plan --terragrunt-non-interactive --terragrunt-include-module-prefix --terragrunt-working-dir "+modulePath,
+		"terragrunt run-all plan --terragrunt-non-interactive --terragrunt-working-dir "+modulePath,
 		&stdout,
 		&stderr,
 	)
@@ -148,13 +148,13 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	stdoutLines := strings.Split(planOutput, "\n")
 	for _, line := range stdoutLines {
 		if strings.Contains(line, "alpha") {
-			assert.Contains(t, line, includeRunAllFixturePath+"a")
+			assert.Contains(t, line, "prefix=a")
 		}
 		if strings.Contains(line, "beta") {
-			assert.Contains(t, line, includeRunAllFixturePath+"b")
+			assert.Contains(t, line, "prefix=b")
 		}
 		if strings.Contains(line, "charlie") {
-			assert.Contains(t, line, includeRunAllFixturePath+"c")
+			assert.Contains(t, line, "prefix=c")
 		}
 	}
 }

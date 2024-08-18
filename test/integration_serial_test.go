@@ -707,8 +707,8 @@ func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {
 	}{
 		{"--terragrunt-json-log"},
 		{"--terragrunt-json-log --terragrunt-tf-logs-to-json"},
-		{"--terragrunt-include-module-prefix"},
-		{"--terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-include-module-prefix"},
+		{"--terragrunt-disable-module-output-formatting"},
+		{"--terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-disable-module-output-formatting"},
 	}
 	for _, testCase := range testCases {
 		testCase := testCase
@@ -739,8 +739,8 @@ func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
 	}{
 		{"--terragrunt-json-log"},
 		{"--terragrunt-json-log --terragrunt-tf-logs-to-json"},
-		{"--terragrunt-include-module-prefix"},
-		{"--terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-include-module-prefix"},
+		{"--terragrunt-disable-module-output-formatting"},
+		{"--terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-disable-module-output-formatting"},
 	}
 	for _, testCase := range testCases {
 		testCase := testCase

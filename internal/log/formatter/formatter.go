@@ -135,6 +135,9 @@ func (formatter *Formatter) printKeyValue(buf *bytes.Buffer, entry *logrus.Entry
 
 func (formatter *Formatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entry) error {
 	level := fmt.Sprintf("%-6s ", formatter.levelText(entry.Level))
+	if !formatter.DisableUppercase {
+		level = strings.ToUpper(level)
+	}
 
 	var prefix string
 	if val, ok := entry.Data[PrefixKeyName]; ok && val != nil {
@@ -228,9 +231,6 @@ func (formatter *Formatter) levelText(level logrus.Level) string {
 		levelText = "stdout"
 	}
 
-	if !formatter.DisableUppercase {
-		return strings.ToUpper(levelText)
-	}
 	return levelText
 
 }
