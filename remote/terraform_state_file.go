@@ -77,7 +77,7 @@ func ParseTerraformStateFile(path string) (*TerraformState, error) {
 		return nil, errors.WithStackTrace(CantParseTerraformStateFileError{Path: path, UnderlyingErr: err})
 	}
 
-	state, err := parseTerraformState(bytes)
+	state, err := ParseTerraformState(bytes)
 
 	if err != nil {
 		return nil, errors.WithStackTrace(CantParseTerraformStateFileError{Path: path, UnderlyingErr: err})
@@ -86,8 +86,8 @@ func ParseTerraformStateFile(path string) (*TerraformState, error) {
 	return state, nil
 }
 
-// parseTerraformState parses the Terraform state file data from the provided byte slice.
-func parseTerraformState(terraformStateData []byte) (*TerraformState, error) {
+// ParseTerraformState parses the Terraform state file data from the provided byte slice.
+func ParseTerraformState(terraformStateData []byte) (*TerraformState, error) {
 	terraformState := &TerraformState{}
 
 	if len(terraformStateData) == 0 {

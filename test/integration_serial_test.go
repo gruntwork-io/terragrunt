@@ -1,4 +1,5 @@
-package test
+//nolint:paralleltest
+package integration_test
 
 import (
 	"bytes"

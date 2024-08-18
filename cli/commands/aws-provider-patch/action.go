@@ -72,7 +72,7 @@ func runAwsProviderPatch(ctx context.Context, opts *options.TerragruntOptions, c
 			return err
 		}
 
-		updatedTerraformFileContents, codeWasUpdated, err := patchAwsProviderInTerraformCode(originalTerraformFileContents, terraformFile, opts.AwsProviderPatchOverrides)
+		updatedTerraformFileContents, codeWasUpdated, err := PatchAwsProviderInTerraformCode(originalTerraformFileContents, terraformFile, opts.AwsProviderPatchOverrides)
 		if err != nil {
 			return err
 		}
@@ -153,7 +153,7 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 	return terraformFiles, nil
 }
 
-// patchAwsProviderInTerraformCode looks for provider "aws" { ... } blocks in the given Terraform code and overwrites
+// PatchAwsProviderInTerraformCode looks for provider "aws" { ... } blocks in the given Terraform code and overwrites
 // the attributes in those provider blocks with the given attributes. It returns the new Terraform code and a boolean
 // true if that code was updated.
 //
@@ -172,7 +172,7 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 // This is a temporary workaround for a Terraform bug (https://github.com/hashicorp/terraform/issues/13018) where
 // any dynamic values in nested provider blocks are not handled correctly when you call 'terraform import', so by
 // temporarily hard-coding them, we can allow 'import' to work.
-func patchAwsProviderInTerraformCode(terraformCode string, terraformFilePath string, attributesToOverride map[string]string) (string, bool, error) {
+func PatchAwsProviderInTerraformCode(terraformCode string, terraformFilePath string, attributesToOverride map[string]string) (string, bool, error) {
 	if len(attributesToOverride) == 0 {
 		return terraformCode, false, nil
 	}

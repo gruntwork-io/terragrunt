@@ -51,7 +51,7 @@ func Trace(ctx context.Context, name string, attrs map[string]interface{}, fn fu
 
 // configureTraceCollection - configure the traces collection
 func configureTraceCollection(ctx context.Context, opts *TelemetryOptions) error {
-	exp, err := newTraceExporter(ctx, opts)
+	exp, err := NewTraceExporter(ctx, opts)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -122,8 +122,8 @@ func newTraceProvider(opts *TelemetryOptions, exp sdktrace.SpanExporter) (*sdktr
 	), nil
 }
 
-// newTraceExporter - create a new exporter based on the telemetry options.
-func newTraceExporter(ctx context.Context, opts *TelemetryOptions) (sdktrace.SpanExporter, error) {
+// NewTraceExporter - create a new exporter based on the telemetry options.
+func NewTraceExporter(ctx context.Context, opts *TelemetryOptions) (sdktrace.SpanExporter, error) {
 	exporterType := traceExporterType(env.GetString(opts.Vars["TERRAGRUNT_TELEMETRY_TRACE_EXPORTER"], string(noneTraceExporterType)))
 	insecure := env.GetBool(opts.GetValue("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER_INSECURE_ENDPOINT", "TERRAGRUNT_TELEMERTY_TRACE_EXPORTER_INSECURE_ENDPOINT"), false)
 

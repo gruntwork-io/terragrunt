@@ -1,4 +1,4 @@
-package cli
+package cli_test
 
 import (
 	"context"
@@ -7,28 +7,29 @@ import (
 	"io"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/urfave/cli/v2"
+	urfaveCli "github.com/urfave/cli/v2"
 )
 
 func TestCommandRun(t *testing.T) {
 	t.Parallel()
 
-	type TestActionFunc func(expectedOrder int, expectedArgs []string) ActionFunc
+	type TestActionFunc func(expectedOrder int, expectedArgs []string) cli.ActionFunc
 
 	type TestCase struct {
 		args        []string
-		command     Command
+		command     cli.Command
 		expectedErr error
 	}
 
-	testCaseFuncs := []func(action TestActionFunc, skip ActionFunc) TestCase{
-		func(action TestActionFunc, skip ActionFunc) TestCase {
+	testCaseFuncs := []func(action TestActionFunc, skip cli.ActionFunc) TestCase{
+		func(action TestActionFunc, skip cli.ActionFunc) TestCase {
 			return TestCase{
 				[]string{"--foo", "--foo", "cmd-bar", "--bar", "one", "-two"},
-				Command{
-					Flags:  Flags{&BoolFlag{Name: "foo"}},
+				cli.Command{
+					Flags:  cli.Flags{&cli.BoolFlag{Name: "foo"}},
 					Before: skip,
 					Action: skip,
 					After:  skip,
@@ -37,25 +38,25 @@ func TestCommandRun(t *testing.T) {
 			}
 		},
 
-		func(action TestActionFunc, skip ActionFunc) TestCase {
+		func(action TestActionFunc, skip cli.ActionFunc) TestCase {
 			return TestCase{
 				[]string{"--foo", "cmd-bar", "--bar", "one", "-two"},
-				Command{
-					Flags:  Flags{&BoolFlag{Name: "foo"}},
+				cli.Command{
+					Flags:  cli.Flags{&cli.BoolFlag{Name: "foo"}},
 					Before: action(1, nil),
 					Action: skip,
 					After:  action(5, nil),
-					Subcommands: Commands{
-						{
+					Subcommands: cli.Commands{
+						&cli.Command{
 							Name:   "cmd-cux",
-							Flags:  Flags{&BoolFlag{Name: "bar"}},
+							Flags:  cli.Flags{&cli.BoolFlag{Name: "bar"}},
 							Before: skip,
 							Action: skip,
 							After:  skip,
 						},
-						{
+						&cli.Command{
 							Name:   "cmd-bar",
-							Flags:  Flags{&BoolFlag{Name: "bar"}},
+							Flags:  cli.Flags{&cli.BoolFlag{Name: "bar"}},
 							Before: action(2, nil),
 							Action: action(3, []string{"one", "-two"}),
 							After:  action(4, nil),
@@ -65,18 +66,18 @@ func TestCommandRun(t *testing.T) {
 				nil,
 			}
 		},
-		func(action TestActionFunc, skip ActionFunc) TestCase {
+		func(action TestActionFunc, skip cli.ActionFunc) TestCase {
 			return TestCase{
 				[]string{"--foo", "cmd-bar", "--bar", "one", "-two"},
-				Command{
-					Flags:  Flags{&BoolFlag{Name: "foo"}},
+				cli.Command{
+					Flags:  cli.Flags{&cli.BoolFlag{Name: "foo"}},
 					Before: action(1, nil),
 					Action: skip,
 					After:  action(4, nil),
-					Subcommands: Commands{
-						{
+					Subcommands: cli.Commands{
+						&cli.Command{
 							Name:   "cmd-bar",
-							Flags:  Flags{&BoolFlag{Name: "bar"}},
+							Flags:  cli.Flags{&cli.BoolFlag{Name: "bar"}},
 							Before: action(2, nil),
 							After:  action(3, nil),
 						},
@@ -85,18 +86,18 @@ func TestCommandRun(t *testing.T) {
 				nil,
 			}
 		},
-		func(action TestActionFunc, skip ActionFunc) TestCase {
+		func(action TestActionFunc, skip cli.ActionFunc) TestCase {
 			return TestCase{
 				[]string{"--foo", "--bar", "cmd-bar", "one", "-two"},
-				Command{
-					Flags:  Flags{&BoolFlag{Name: "foo"}},
+				cli.Command{
+					Flags:  cli.Flags{&cli.BoolFlag{Name: "foo"}},
 					Before: action(1, nil),
 					Action: action(2, []string{"--bar", "cmd-bar", "one", "-two"}),
 					After:  action(3, nil),
-					Subcommands: Commands{
-						{
+					Subcommands: cli.Commands{
+						&cli.Command{
 							Name:   "cmd-bar",
-							Flags:  Flags{&BoolFlag{Name: "bar"}},
+							Flags:  cli.Flags{&cli.BoolFlag{Name: "bar"}},
 							Before: skip,
 							After:  skip,
 							Action: skip,
@@ -106,18 +107,18 @@ func TestCommandRun(t *testing.T) {
 				nil,
 			}
 		},
-		func(action TestActionFunc, skip ActionFunc) TestCase {
+		func(action TestActionFunc, skip cli.ActionFunc) TestCase {
 			return TestCase{
 				[]string{"--foo", "cmd-bar", "--bar", "value", "one", "-two"},
-				Command{
-					Flags:  Flags{&BoolFlag{Name: "foo"}},
+				cli.Command{
+					Flags:  cli.Flags{&cli.BoolFlag{Name: "foo"}},
 					Before: action(1, nil),
 					Action: skip,
 					After:  action(5, nil),
-					Subcommands: Commands{
-						{
+					Subcommands: cli.Commands{
+						&cli.Command{
 							Name:   "cmd-bar",
-							Flags:  Flags{&GenericFlag[string]{Name: "bar"}},
+							Flags:  cli.Flags{&cli.GenericFlag[string]{Name: "bar"}},
 							Before: action(2, nil),
 							Action: action(3, []string{"one", "-two"}),
 							After:  action(4, nil),
@@ -127,18 +128,18 @@ func TestCommandRun(t *testing.T) {
 				nil,
 			}
 		},
-		func(action TestActionFunc, skip ActionFunc) TestCase {
+		func(action TestActionFunc, skip cli.ActionFunc) TestCase {
 			return TestCase{
 				[]string{"--foo", "cmd-bar", "--bar", "value", "one", "-two"},
-				Command{
-					Flags:  Flags{&BoolFlag{Name: "foo"}},
+				cli.Command{
+					Flags:  cli.Flags{&cli.BoolFlag{Name: "foo"}},
 					Before: action(1, nil),
 					Action: action(2, []string{"cmd-bar", "--bar", "value", "one", "-two"}),
 					After:  action(3, nil),
-					Subcommands: Commands{
-						{
+					Subcommands: cli.Commands{
+						&cli.Command{
 							Name:        "cmd-bar",
-							Flags:       Flags{&GenericFlag[string]{Name: "bar"}},
+							Flags:       cli.Flags{&cli.GenericFlag[string]{Name: "bar"}},
 							SkipRunning: true,
 							Before:      skip,
 							Action:      skip,
@@ -158,8 +159,8 @@ func TestCommandRun(t *testing.T) {
 			t.Parallel()
 
 			var actualOrder = new(int)
-			action := func(expectedOrder int, expectedArgs []string) ActionFunc {
-				return func(ctx *Context) error {
+			action := func(expectedOrder int, expectedArgs []string) cli.ActionFunc {
+				return func(ctx *cli.Context) error {
 					(*actualOrder)++
 					assert.Equal(t, expectedOrder, *actualOrder)
 
@@ -172,15 +173,15 @@ func TestCommandRun(t *testing.T) {
 				}
 			}
 
-			skip := func(ctx *Context) error {
+			skip := func(ctx *cli.Context) error {
 				assert.Fail(t, "this action must be skipped")
 				return nil
 			}
 
 			testCase := testCaseFn(action, skip)
 
-			app := &App{App: &cli.App{Writer: io.Discard}}
-			ctx := newContext(context.Background(), app)
+			app := &cli.App{App: &urfaveCli.App{Writer: io.Discard}}
+			ctx := cli.NewContext(context.Background(), app)
 
 			err := testCase.command.Run(ctx, testCase.args)
 			if testCase.expectedErr != nil {
@@ -197,22 +198,22 @@ func TestCommandHasName(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		command  Command
+		command  cli.Command
 		hasName  string
 		expected bool
 	}{
 		{
-			Command{Name: "foo"},
+			cli.Command{Name: "foo"},
 			"bar",
 			false,
 		},
 		{
-			Command{Name: "foo", Aliases: []string{"bar"}},
+			cli.Command{Name: "foo", Aliases: []string{"bar"}},
 			"bar",
 			true,
 		},
 		{
-			Command{Name: "bar"},
+			cli.Command{Name: "bar"},
 			"bar",
 			true,
 		},
@@ -234,15 +235,15 @@ func TestCommandNames(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		command  Command
+		command  cli.Command
 		expected []string
 	}{
 		{
-			Command{Name: "foo"},
+			cli.Command{Name: "foo"},
 			[]string{"foo"},
 		},
 		{
-			Command{Name: "foo", Aliases: []string{"bar", "baz"}},
+			cli.Command{Name: "foo", Aliases: []string{"bar", "baz"}},
 			[]string{"foo", "bar", "baz"},
 		},
 	}
@@ -263,17 +264,17 @@ func TestCommandSubcommand(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		command       Command
+		command       cli.Command
 		searchCmdName string
-		expected      *Command
+		expected      *cli.Command
 	}{
 		{
-			Command{Name: "foo", Subcommands: Commands{{Name: "bar"}, {Name: "baz"}}},
+			cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar"}, &cli.Command{Name: "baz"}}},
 			"baz",
-			&Command{Name: "baz"},
+			&cli.Command{Name: "baz"},
 		},
 		{
-			Command{Name: "foo", Subcommands: Commands{{Name: "bar"}, {Name: "baz"}}},
+			cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar"}, &cli.Command{Name: "baz"}}},
 			"qux",
 			nil,
 		},
@@ -295,16 +296,16 @@ func TestCommandVisibleSubcommand(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		command  Command
-		expected []*cli.Command
+		command  cli.Command
+		expected []*urfaveCli.Command
 	}{
 		{
-			Command{Name: "foo", Subcommands: Commands{{Name: "bar"}, {Name: "baz", HelpName: "helpBaz"}}},
-			[]*cli.Command{{Name: "bar", HelpName: "bar"}, {Name: "baz", HelpName: "helpBaz"}},
+			cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar"}, &cli.Command{Name: "baz", HelpName: "helpBaz"}}},
+			[]*urfaveCli.Command{{Name: "bar", HelpName: "bar"}, {Name: "baz", HelpName: "helpBaz"}},
 		},
 		{
-			Command{Name: "foo", Subcommands: Commands{{Name: "bar", Hidden: true}, {Name: "baz"}}},
-			[]*cli.Command{{Name: "baz", HelpName: "baz"}},
+			cli.Command{Name: "foo", Subcommands: cli.Commands{&cli.Command{Name: "bar", Hidden: true}, &cli.Command{Name: "baz"}}},
+			[]*urfaveCli.Command{{Name: "baz", HelpName: "baz"}},
 		},
 	}
 

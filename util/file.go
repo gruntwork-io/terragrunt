@@ -291,7 +291,7 @@ func CopyFolderContentsWithFilter(source, destination, manifestFile string, filt
 	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
 		return errors.WithStackTrace(err)
 	}
-	manifest := newFileManifest(destination, manifestFile)
+	manifest := NewFileManifest(destination, manifestFile)
 	if err := manifest.Clean(); err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -565,7 +565,7 @@ func (manifest *fileManifest) Close() error {
 	return manifest.fileHandle.Close()
 }
 
-func newFileManifest(manifestFolder string, manifestFile string) *fileManifest {
+func NewFileManifest(manifestFolder string, manifestFile string) *fileManifest {
 	return &fileManifest{ManifestFolder: manifestFolder, ManifestFile: manifestFile}
 }
 

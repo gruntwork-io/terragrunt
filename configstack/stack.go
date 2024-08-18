@@ -101,7 +101,7 @@ func (stack *Stack) String() string {
 // in reverse.
 func (stack *Stack) LogModuleDeployOrder(logger *logrus.Entry, terraformCommand string) error {
 	outStr := fmt.Sprintf("The stack at %s will be processed in the following order for command %s:\n", stack.terragruntOptions.WorkingDir, terraformCommand)
-	runGraph, err := stack.getModuleRunGraph(terraformCommand)
+	runGraph, err := stack.GetModuleRunGraph(terraformCommand)
 	if err != nil {
 		return err
 	}
@@ -119,7 +119,7 @@ func (stack *Stack) LogModuleDeployOrder(logger *logrus.Entry, terraformCommand 
 // JsonModuleDeployOrder will return the modules that will be deployed by a plan/apply operation, in the order
 // that the operations happen.
 func (stack *Stack) JsonModuleDeployOrder(terraformCommand string) (string, error) {
-	runGraph, err := stack.getModuleRunGraph(terraformCommand)
+	runGraph, err := stack.GetModuleRunGraph(terraformCommand)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
@@ -248,20 +248,20 @@ func (stack *Stack) syncTerraformCliArgs(terragruntOptions *options.TerragruntOp
 	}
 }
 
-func (stack *Stack) toRunningModules(terraformCommand string) (runningModules, error) {
+func (stack *Stack) toRunningModules(terraformCommand string) (RunningModules, error) {
 	switch terraformCommand {
 	case terraform.CommandNameDestroy:
-		return stack.Modules.toRunningModules(ReverseOrder)
+		return stack.Modules.ToRunningModules(ReverseOrder)
 	default:
-		return stack.Modules.toRunningModules(NormalOrder)
+		return stack.Modules.ToRunningModules(NormalOrder)
 	}
 }
 
-// getModuleRunGraph converts the module list to a graph that shows the order in which the modules will be
+// GetModuleRunGraph converts the module list to a graph that shows the order in which the modules will be
 // applied/destroyed. The return structure is a list of lists, where the nested list represents modules that can be
 // deployed concurrently, and the outer list indicates the order. This will only include those modules that do NOT have
 // the exclude flag set.
-func (stack *Stack) getModuleRunGraph(terraformCommand string) ([]TerraformModules, error) {
+func (stack *Stack) GetModuleRunGraph(terraformCommand string) ([]TerraformModules, error) {
 	moduleRunGraph, err := stack.toRunningModules(terraformCommand)
 	if err != nil {
 		return nil, err

@@ -92,7 +92,7 @@ func (gcsInitializer GCSInitializer) NeedsInitialization(remoteState *RemoteStat
 	}
 
 	project := remoteState.Config["project"]
-	if !gcsConfigValuesEqual(remoteState.Config, existingBackend, terragruntOptions) {
+	if !GCSConfigValuesEqual(remoteState.Config, existingBackend, terragruntOptions) {
 		return true, nil
 	}
 	if project != nil {
@@ -120,7 +120,7 @@ func (gcsInitializer GCSInitializer) NeedsInitialization(remoteState *RemoteStat
 }
 
 // Return true if the given config is in any way different than what is configured for the backend
-func gcsConfigValuesEqual(config map[string]interface{}, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) bool {
+func GCSConfigValuesEqual(config map[string]interface{}, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) bool {
 	if existingBackend == nil {
 		return len(config) == 0
 	}

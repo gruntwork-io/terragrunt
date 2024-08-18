@@ -1,4 +1,4 @@
-package module
+package module_test
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -61,7 +62,7 @@ func TestFindModules(t *testing.T) {
 
 			ctx := context.Background()
 
-			repo, err := NewRepo(ctx, testCase.repoPath, "")
+			repo, err := module.NewRepo(ctx, testCase.repoPath, "")
 			require.NoError(t, err)
 
 			modules, err := repo.FindModules(ctx)
@@ -75,7 +76,7 @@ func TestFindModules(t *testing.T) {
 					title:       module.Title(),
 					description: module.Description(),
 					url:         module.URL(),
-					moduleDir:   module.moduleDir,
+					moduleDir:   module.ModuleDir(),
 				})
 			}
 

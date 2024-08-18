@@ -1,10 +1,11 @@
-package config
+package config_test
 
 import (
 	"context"
 	"os"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 
 	"github.com/gruntwork-io/go-commons/env"
@@ -19,7 +20,7 @@ import (
 func TestDecodeDependencyBlockMultiple(t *testing.T) {
 	t.Parallel()
 
-	config := `
+	cfg := `
 dependency "vpc" {
   config_path = "../vpc"
 }
@@ -28,11 +29,11 @@ dependency "sql" {
   config_path = "../sql"
 }
 `
-	filename := DefaultTerragruntConfigPath
-	file, err := hclparse.NewParser().ParseFromString(config, filename)
+	filename := config.DefaultTerragruntConfigPath
+	file, err := hclparse.NewParser().ParseFromString(cfg, filename)
 	require.NoError(t, err)
 
-	decoded := terragruntDependency{}
+	decoded := config.TerragruntDependency{}
 	require.NoError(t, file.Decode(&decoded, &hcl.EvalContext{}))
 
 	assert.Len(t, decoded.Dependencies, 2)
@@ -45,16 +46,16 @@ dependency "sql" {
 func TestDecodeNoDependencyBlock(t *testing.T) {
 	t.Parallel()
 
-	config := `
+	cfg := `
 locals {
   path = "../vpc"
 }
 `
-	filename := DefaultTerragruntConfigPath
-	file, err := hclparse.NewParser().ParseFromString(config, filename)
+	filename := config.DefaultTerragruntConfigPath
+	file, err := hclparse.NewParser().ParseFromString(cfg, filename)
 	require.NoError(t, err)
 
-	decoded := terragruntDependency{}
+	decoded := config.TerragruntDependency{}
 	require.NoError(t, file.Decode(&decoded, &hcl.EvalContext{}))
 	assert.Empty(t, decoded.Dependencies)
 }
@@ -62,23 +63,23 @@ locals {
 func TestDecodeDependencyNoLabelIsError(t *testing.T) {
 	t.Parallel()
 
-	config := `
+	cfg := `
 dependency {
   config_path = "../vpc"
 }
 `
-	filename := DefaultTerragruntConfigPath
-	file, err := hclparse.NewParser().ParseFromString(config, filename)
+	filename := config.DefaultTerragruntConfigPath
+	file, err := hclparse.NewParser().ParseFromString(cfg, filename)
 	require.NoError(t, err)
 
-	decoded := terragruntDependency{}
-	assert.Error(t, file.Decode(&decoded, &hcl.EvalContext{}))
+	decoded := config.TerragruntDependency{}
+	require.Error(t, file.Decode(&decoded, &hcl.EvalContext{}))
 }
 
 func TestDecodeDependencyMockOutputs(t *testing.T) {
 	t.Parallel()
 
-	config := `
+	cfg := `
 dependency "hitchhiker" {
   config_path = "../answers"
   mock_outputs = {
@@ -87,11 +88,11 @@ dependency "hitchhiker" {
   mock_outputs_allowed_terraform_commands = ["validate", "apply"]
 }
 `
-	filename := DefaultTerragruntConfigPath
-	file, err := hclparse.NewParser().ParseFromString(config, filename)
+	filename := config.DefaultTerragruntConfigPath
+	file, err := hclparse.NewParser().ParseFromString(cfg, filename)
 	require.NoError(t, err)
 
-	decoded := terragruntDependency{}
+	decoded := config.TerragruntDependency{}
 	require.NoError(t, file.Decode(&decoded, &hcl.EvalContext{}))
 
 	assert.Len(t, decoded.Dependencies, 1)
@@ -116,13 +117,13 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 	t.Parallel()
 
 	filename := "../test/fixture-regressions/multiple-dependency-load-sync/main/terragrunt.hcl"
-	ctx := NewParsingContext(context.Background(), mockOptionsForTestWithConfigPath(t, filename))
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTestWithConfigPath(t, filename))
 	opts, err := options.NewTerragruntOptionsForTest(filename)
 	require.NoError(t, err)
 	ctx.TerragruntOptions = opts
 	ctx.TerragruntOptions.FetchDependencyOutputFromState = true
 	ctx.TerragruntOptions.Env = env.Parse(os.Environ())
-	tfConfig, err := ParseConfigFile(ctx, filename, nil)
+	tfConfig, err := config.ParseConfigFile(ctx, filename, nil)
 	require.NoError(t, err)
 	assert.Len(t, tfConfig.TerragruntDependencies, 2)
 	assert.Equal(t, "dependency_1", tfConfig.TerragruntDependencies[0].Name)
@@ -132,7 +133,7 @@ func TestParseDependencyBlockMultiple(t *testing.T) {
 func TestDisabledDependency(t *testing.T) {
 	t.Parallel()
 
-	config := `
+	cfg := `
 dependency "ec2" {
   config_path = "../ec2"
   enabled    = false
@@ -141,11 +142,11 @@ dependency "vpc" {
   config_path = "../vpc"
 }
 `
-	filename := DefaultTerragruntConfigPath
-	file, err := hclparse.NewParser().ParseFromString(config, filename)
+	filename := config.DefaultTerragruntConfigPath
+	file, err := hclparse.NewParser().ParseFromString(cfg, filename)
 	require.NoError(t, err)
 
-	decoded := terragruntDependency{}
+	decoded := config.TerragruntDependency{}
 	require.NoError(t, file.Decode(&decoded, &hcl.EvalContext{}))
 	assert.Len(t, decoded.Dependencies, 2)
 }

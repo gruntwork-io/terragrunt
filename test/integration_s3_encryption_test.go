@@ -1,4 +1,4 @@
-package test
+package integration_test
 
 import (
 	"fmt"
@@ -152,6 +152,28 @@ func TestTerragruntS3EncryptionWarning(t *testing.T) {
 	require.NoError(t, err)
 	output = fmt.Sprintf(stdout, stderr)
 	assert.NotContains(t, output, "Encryption is not enabled on the S3 remote state bucket "+s3BucketName)
+}
+
+func TestTerragruntSkipBackend(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, s3SSEAESFixturePath)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, s3SSEAESFixturePath)
+
+	// The bucket and table name here are intentionally invalid.
+	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, s3SSEAESFixturePath, "N/A", "N/A", config.DefaultTerragruntConfigPath)
+
+	_, _, err := runTerragruntCommandWithOutput(t, "terragrunt init --terragrunt-non-interactive --terragrunt-config "+tmpTerragruntConfigPath+" --terragrunt-working-dir "+testPath+" -backend=false")
+	require.Error(t, err)
+
+	lockFile := util.JoinPath(testPath, ".terraform.lock.hcl")
+	assert.False(t, util.FileExists(lockFile), "Lock file %s exists", lockFile)
+
+	_, _, err = runTerragruntCommandWithOutput(t, "terragrunt init --terragrunt-non-interactive --terragrunt-config "+tmpTerragruntConfigPath+" --terragrunt-working-dir "+testPath+" --terragrunt-disable-bucket-update -backend=false")
+	require.NoError(t, err)
+
+	assert.True(t, util.FileExists(lockFile), "Lock file %s does not exist", lockFile)
 }
 
 func applyCommand(configPath, fixturePath string) string {

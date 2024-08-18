@@ -325,7 +325,7 @@ func (modules TerraformModules) WriteDot(w io.Writer, terragruntOptions *options
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
 func (modules TerraformModules) RunModules(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
-	runningModules, err := modules.toRunningModules(NormalOrder)
+	runningModules, err := modules.ToRunningModules(NormalOrder)
 	if err != nil {
 		return err
 	}
@@ -336,7 +336,7 @@ func (modules TerraformModules) RunModules(ctx context.Context, opts *options.Te
 // TerragruntOptions object. The modules will be executed in the reverse order of their inter-dependencies, using
 // as much concurrency as possible.
 func (modules TerraformModules) RunModulesReverseOrder(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
-	runningModules, err := modules.toRunningModules(ReverseOrder)
+	runningModules, err := modules.ToRunningModules(ReverseOrder)
 	if err != nil {
 		return err
 	}
@@ -346,7 +346,7 @@ func (modules TerraformModules) RunModulesReverseOrder(ctx context.Context, opts
 // Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed without caring for inter-dependencies.
 func (modules TerraformModules) RunModulesIgnoreOrder(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
-	runningModules, err := modules.toRunningModules(IgnoreOrder)
+	runningModules, err := modules.ToRunningModules(IgnoreOrder)
 	if err != nil {
 		return err
 	}
@@ -356,8 +356,8 @@ func (modules TerraformModules) RunModulesIgnoreOrder(ctx context.Context, opts 
 // Convert the list of modules to a map from module path to a runningModule struct. This struct contains information
 // about executing the module, such as whether it has finished running or not and any errors that happened. Note that
 // this does NOT actually run the module. For that, see the RunModules method.
-func (modules TerraformModules) toRunningModules(dependencyOrder DependencyOrder) (runningModules, error) {
-	runningModules := runningModules{}
+func (modules TerraformModules) ToRunningModules(dependencyOrder DependencyOrder) (RunningModules, error) {
+	runningModules := RunningModules{}
 	for _, module := range modules {
 		runningModules[module.Path] = newRunningModule(module)
 	}
@@ -367,7 +367,7 @@ func (modules TerraformModules) toRunningModules(dependencyOrder DependencyOrder
 		return crossLinkedModules, err
 	}
 
-	return crossLinkedModules.removeFlagExcluded(), nil
+	return crossLinkedModules.RemoveFlagExcluded(), nil
 }
 
 // Check for dependency cycles in the given list of modules and return an error if one is found

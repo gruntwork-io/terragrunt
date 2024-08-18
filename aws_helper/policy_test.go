@@ -1,8 +1,9 @@
-package aws_helper
+package aws_helper_test
 
 import (
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,7 +54,7 @@ const arraysPolicy = `
 func TestUnmarshalStringActionResource(t *testing.T) {
 	t.Parallel()
 
-	bucketPolicy, err := UnmarshalPolicy(simplePolicy)
+	bucketPolicy, err := aws_helper.UnmarshalPolicy(simplePolicy)
 	require.NoError(t, err)
 	assert.NotNil(t, bucketPolicy)
 	assert.Len(t, bucketPolicy.Statement, 1)
@@ -74,14 +75,14 @@ func TestUnmarshalStringActionResource(t *testing.T) {
 		assert.Fail(t, "Expected string type for Resource")
 	}
 
-	out, err := MarshalPolicy(bucketPolicy)
+	out, err := aws_helper.MarshalPolicy(bucketPolicy)
 	require.NoError(t, err)
 	assert.NotContains(t, string(out), "null")
 }
 
 func TestUnmarshalActionResourceList(t *testing.T) {
 	t.Parallel()
-	bucketPolicy, err := UnmarshalPolicy(arraysPolicy)
+	bucketPolicy, err := aws_helper.UnmarshalPolicy(arraysPolicy)
 	require.NoError(t, err)
 	assert.NotNil(t, bucketPolicy)
 	assert.Len(t, bucketPolicy.Statement, 1)
@@ -104,7 +105,7 @@ func TestUnmarshalActionResourceList(t *testing.T) {
 		assert.Fail(t, "Expected []string type for Resource")
 	}
 
-	out, err := MarshalPolicy(bucketPolicy)
+	out, err := aws_helper.MarshalPolicy(bucketPolicy)
 	require.NoError(t, err)
 	assert.NotContains(t, string(out), "null")
 }

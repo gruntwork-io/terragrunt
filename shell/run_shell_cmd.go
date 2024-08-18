@@ -371,11 +371,11 @@ func GitLastReleaseTag(ctx context.Context, opts *options.TerragruntOptions, git
 	if len(tags) == 0 {
 		return "", nil
 	}
-	return lastReleaseTag(tags), nil
+	return LastReleaseTag(tags), nil
 }
 
-// lastReleaseTag - return last release tag from passed tags slice.
-func lastReleaseTag(tags []string) string {
+// LastReleaseTag - return last release tag from passed tags slice.
+func LastReleaseTag(tags []string) string {
 	semverTags := extractSemVerTags(tags)
 	if len(semverTags) == 0 {
 		return ""

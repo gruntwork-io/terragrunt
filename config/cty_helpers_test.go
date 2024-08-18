@@ -1,9 +1,10 @@
-package config
+package config_test
 
 import (
 	"fmt"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -12,7 +13,7 @@ import (
 func TestUpdateUnknownCtyValValues(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	tc := []struct {
 		value         cty.Value
 		expectedValue cty.Value
 	}{
@@ -44,13 +45,13 @@ func TestUpdateUnknownCtyValValues(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
+	for i, tt := range tc {
+		testCase := tt
 
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			actualValue, err := updateUnknownCtyValValues(testCase.value)
+			actualValue, err := config.UpdateUnknownCtyValValues(testCase.value)
 			require.NoError(t, err)
 
 			assert.Equal(t, testCase.expectedValue, actualValue)

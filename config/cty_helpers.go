@@ -159,11 +159,11 @@ func ctySliceToStringSlice(args []cty.Value) ([]string, error) {
 
 // shallowMergeCtyMaps performs a shallow merge of two cty value objects.
 func shallowMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
-	outMap, err := parseCtyValueToMap(target)
+	outMap, err := ParseCtyValueToMap(target)
 	if err != nil {
 		return nil, err
 	}
-	SourceMap, err := parseCtyValueToMap(source)
+	SourceMap, err := ParseCtyValueToMap(source)
 	if err != nil {
 		return nil, err
 	}
@@ -190,11 +190,11 @@ func deepMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
 // are already maps or objects in HCL land.
 func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*mergo.Config)) (*cty.Value, error) {
 	outMap := make(map[string]interface{})
-	targetMap, err := parseCtyValueToMap(target)
+	targetMap, err := ParseCtyValueToMap(target)
 	if err != nil {
 		return nil, err
 	}
-	sourceMap, err := parseCtyValueToMap(source)
+	sourceMap, err := ParseCtyValueToMap(source)
 	if err != nil {
 		return nil, err
 	}
@@ -219,8 +219,8 @@ func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*m
 // requires you to specify all the output types and will error out when it hits interface{}. So, as an ugly workaround,
 // we convert the given value to JSON using cty's JSON library and then convert the JSON back to a
 // map[string]interface{} using the Go json library.
-func parseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
-	updatedValue, err := updateUnknownCtyValValues(value)
+func ParseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
+	updatedValue, err := UpdateUnknownCtyValValues(value)
 	if err != nil {
 		return nil, err
 	}
@@ -319,8 +319,8 @@ func includeConfigAsCtyVal(ctx *ParsingContext, includeConfig IncludeConfig) (ct
 	return cty.NilVal, nil
 }
 
-// updateUnknownCtyValValues deeply updates unknown values with default value
-func updateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
+// UpdateUnknownCtyValValues deeply updates unknown values with default value
+func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 	var updatedValue any
 
 	switch {
@@ -331,7 +331,7 @@ func updateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 	case value.Type().IsMapType(), value.Type().IsObjectType():
 		mapVals := value.AsValueMap()
 		for key, val := range mapVals {
-			val, err := updateUnknownCtyValValues(val)
+			val, err := UpdateUnknownCtyValValues(val)
 			if err != nil {
 				return cty.NilVal, err
 			}
@@ -344,7 +344,7 @@ func updateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 	case value.Type().IsTupleType(), value.Type().IsListType():
 		sliceVals := value.AsValueSlice()
 		for key, val := range sliceVals {
-			val, err := updateUnknownCtyValValues(val)
+			val, err := UpdateUnknownCtyValValues(val)
 			if err != nil {
 				return cty.NilVal, err
 			}

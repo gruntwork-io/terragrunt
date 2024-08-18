@@ -82,8 +82,8 @@ type terragruntVersionConstraints struct {
 	Remain                      hcl.Body `hcl:",remain"`
 }
 
-// terragruntDependency is a struct that can be used to only decode the dependency blocks in the terragrunt config
-type terragruntDependency struct {
+// TerragruntDependency is a struct that can be used to only decode the dependency blocks in the terragrunt config
+type TerragruntDependency struct {
 	Dependencies Dependencies `hcl:"dependency,block"`
 	Remain       hcl.Body     `hcl:",remain"`
 }
@@ -131,7 +131,7 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 
 	// Evaluate all the expressions in the locals block separately and generate the variables list to use in the
 	// evaluation ctx.
-	locals, err := evaluateLocalsBlock(ctx.WithTrackInclude(trackInclude), file)
+	locals, err := EvaluateLocalsBlock(ctx.WithTrackInclude(trackInclude), file)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -283,7 +283,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			}
 
 		case DependencyBlock:
-			decoded := terragruntDependency{}
+			decoded := TerragruntDependency{}
 			err := file.Decode(&decoded, evalParsingContext)
 			if err != nil {
 				return nil, err
@@ -343,7 +343,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			}
 
 			if decoded.Inputs != nil {
-				inputs, err := parseCtyValueToMap(*decoded.Inputs)
+				inputs, err := ParseCtyValueToMap(*decoded.Inputs)
 				if err != nil {
 					return nil, err
 				}

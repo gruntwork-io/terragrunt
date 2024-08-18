@@ -1,7 +1,7 @@
 //go:build linux || darwin
 // +build linux darwin
 
-package shell
+package shell_test
 
 import (
 	"bytes"
@@ -11,8 +11,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/log"
 	"github.com/gruntwork-io/terragrunt/internal/log/formatter"
+	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/stretchr/testify/assert"
@@ -83,7 +83,9 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 
 	withOptions(terragruntOptions)
 
-	out, err := RunShellCommandWithOutput(context.Background(), terragruntOptions, "", !allocateStdout, false, "../testdata/test_outputs.sh", "same")
+	out, err := shell.RunShellCommandWithOutput(context.Background(), terragruntOptions, "", !allocateStdout, false, "../testdata/test_outputs.sh", "same")
+
+	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")
 
 	assert.NotNil(t, out, "Should get output")

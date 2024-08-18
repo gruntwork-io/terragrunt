@@ -239,7 +239,7 @@ func (remoteState *remoteStateConfigFile) String() string {
 // Convert the parsed config file remote state struct to the internal representation struct of remote state
 // configurations.
 func (remoteState *remoteStateConfigFile) toConfig() (*remote.RemoteState, error) {
-	remoteStateConfig, err := parseCtyValueToMap(remoteState.Config)
+	remoteStateConfig, err := ParseCtyValueToMap(remoteState.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -920,7 +920,7 @@ func decodeAsTerragruntConfigFile(ctx *ParsingContext, file *hclparse.File, eval
 	}
 
 	if terragruntConfig.Inputs != nil {
-		inputs, err := updateUnknownCtyValValues(*terragruntConfig.Inputs)
+		inputs, err := UpdateUnknownCtyValValues(*terragruntConfig.Inputs)
 		if err != nil {
 			return nil, err
 		}
@@ -997,7 +997,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	}
 
 	if terragruntConfigFromFile.RemoteStateAttr != nil {
-		remoteStateMap, err := parseCtyValueToMap(*terragruntConfigFromFile.RemoteStateAttr)
+		remoteStateMap, err := ParseCtyValueToMap(*terragruntConfigFromFile.RemoteStateAttr)
 		if err != nil {
 			return nil, err
 		}
@@ -1109,7 +1109,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	generateBlocks = append(generateBlocks, terragruntConfigFromFile.GenerateBlocks...)
 
 	if terragruntConfigFromFile.GenerateAttrs != nil {
-		generateMap, err := parseCtyValueToMap(*terragruntConfigFromFile.GenerateAttrs)
+		generateMap, err := ParseCtyValueToMap(*terragruntConfigFromFile.GenerateAttrs)
 		if err != nil {
 			return nil, err
 		}
@@ -1169,7 +1169,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	}
 
 	if terragruntConfigFromFile.Inputs != nil {
-		inputs, err := parseCtyValueToMap(*terragruntConfigFromFile.Inputs)
+		inputs, err := ParseCtyValueToMap(*terragruntConfigFromFile.Inputs)
 		if err != nil {
 			return nil, err
 		}
@@ -1179,7 +1179,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	}
 
 	if ctx.Locals != nil && *ctx.Locals != cty.NilVal {
-		localsParsed, err := parseCtyValueToMap(*ctx.Locals)
+		localsParsed, err := ParseCtyValueToMap(*ctx.Locals)
 		if err != nil {
 			return nil, err
 		}
@@ -1319,7 +1319,7 @@ func (conf *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 	// in case of Meta is null, set empty meta
 	var meta = map[string]interface{}{}
 	if conf.Engine.Meta != nil {
-		parsedMeta, err := parseCtyValueToMap(*conf.Engine.Meta)
+		parsedMeta, err := ParseCtyValueToMap(*conf.Engine.Meta)
 		if err != nil {
 			return nil, err
 		}
