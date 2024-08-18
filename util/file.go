@@ -207,13 +207,17 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 		return "", errors.WithStackTrace(err)
 	}
 
-	return relPath, nil
+	return filepath.ToSlash(relPath), nil
 }
 
 func GetPathRelativeToWithSeparator(path string, basePath string) (string, error) {
 	relPath, err := GetPathRelativeTo(path, basePath)
 	if err == nil {
-		relPath = "." + string(filepath.Separator) + filepath.ToSlash(relPath)
+		if relPath == "." {
+			relPath += string(filepath.Separator)
+		} else {
+			relPath = "." + string(filepath.Separator) + relPath
+		}
 	}
 	return relPath, err
 }

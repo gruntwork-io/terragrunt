@@ -7057,18 +7057,18 @@ func TestTerragruntApplyGraph(t *testing.T) {
 	}{
 		{
 			path:               "services/eks-service-3-v2",
-			expectedModules:    []string{"services/eks-service-3-v2", "services/eks-service-3-v3"},
-			notExpectedModules: []string{"lambda", "eks", "services/eks-service-3"},
+			expectedModules:    []string{"./", "./../eks-service-3-v3"},
+			notExpectedModules: []string{"./../../lambda", "./../../eks", "./../eks-service-3"},
 		},
 		{
 			path:               "lambda",
-			expectedModules:    []string{"lambda", "services/lambda-service-1", "services/lambda-service-2"},
-			notExpectedModules: []string{"eks", "services/eks-service-1", "services/eks-service-2", "services/eks-service-3"},
+			expectedModules:    []string{"./", "./../services/lambda-service-1", "./../services/lambda-service-2"},
+			notExpectedModules: []string{"./../eks", "./../services/eks-service-1", "./../services/eks-service-2", "./../services/eks-service-3"},
 		},
 		{
 			path:               "services/eks-service-5",
-			expectedModules:    []string{"services/eks-service-5"},
-			notExpectedModules: []string{"eks", "lambda", "services/eks-service-1", "services/eks-service-2", "services/eks-service-3"},
+			expectedModules:    []string{"./"},
+			notExpectedModules: []string{"./../../eks", "./../../lambda", "./../eks-service-1", "./../eks-service-2", "./../eks-service-3"},
 		},
 	}
 
@@ -7086,11 +7086,11 @@ func TestTerragruntApplyGraph(t *testing.T) {
 			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
 
 			for _, module := range tt.expectedModules {
-				assert.Containsf(t, output, "/"+module+"\n", "Expected module %s to be in output", module)
+				assert.Containsf(t, output, "Module "+module+"\n", "Expected module %s to be in output", module)
 			}
 
 			for _, module := range tt.notExpectedModules {
-				assert.NotContainsf(t, output, "Module "+tmpModulePath+"/"+module+"\n", "Expected module %s must not to be in output", module)
+				assert.NotContainsf(t, output, "Module "+module+"\n", "Expected module %s must not to be in output", module)
 			}
 		})
 	}

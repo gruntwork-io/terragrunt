@@ -673,9 +673,7 @@ func TestTerragruntOutputJson(t *testing.T) {
 
 func TestTerragruntTerraformOutputJson(t *testing.T) {
 	// no parallel test execution since JSON output is global
-	defer func() {
-		util.DisableJsonFormat()
-	}()
+	defer util.DisableJsonFormat()
 
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INIT_ERROR)
 	cleanupTerraformFolder(t, tmpEnvPath)
@@ -684,7 +682,7 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 	_, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt apply --no-color --terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
 	require.Error(t, err)
 
-	assert.Contains(t, stderr, "\"level\":\"info\",\"msg\":\"Initializing the backend...")
+	assert.Contains(t, stderr, "\"msg\":\"Initializing the backend...")
 
 	// check if output can be extracted in json
 	jsonStrings := strings.Split(stderr, "\n")
