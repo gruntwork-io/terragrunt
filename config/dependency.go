@@ -322,6 +322,7 @@ func checkForDependencyBlockCyclesUsingDFS(
 	if err != nil {
 		return err
 	}
+
 	for _, dependency := range dependencyPaths {
 		dependencyPath := getCleanedTargetConfigPath(dependency, dependencyPath)
 		dependencyOpts, err := cloneTerragruntOptionsForDependency(ctx, dependencyPath)

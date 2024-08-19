@@ -124,6 +124,12 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 		return nil, nil, err
 	}
 
+	if includeFromChild != nil {
+		if err := includeFromChild.UpdateRelativePath(ctx.TerragruntOptions.RootWorkingDir); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	trackInclude, err := getTrackInclude(ctx, terragruntIncludeList, includeFromChild)
 	if err != nil {
 		return nil, nil, err

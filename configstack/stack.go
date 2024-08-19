@@ -511,7 +511,15 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 	// for the built-in functions `read-terragrunt-config()`, `path_relative_to_include()` to work correctly.
 	var includeConfig *config.IncludeConfig
 	if stack.childTerragruntConfig != nil && stack.childTerragruntConfig.ProcessedIncludes.ContainsPath(terragruntConfigPath) {
-		includeConfig = &config.IncludeConfig{Path: terragruntConfigPath}
+		relTerragruntConfigPath, err := util.GetPathRelativeToWithSeparator(terragruntConfigPath, stack.terragruntOptions.RootWorkingDir)
+		if err != nil {
+			return nil, err
+		}
+
+		includeConfig = &config.IncludeConfig{
+			Path:         terragruntConfigPath,
+			RelativePath: relTerragruntConfigPath,
+		}
 		opts.TerragruntConfigPath = stack.terragruntOptions.OriginalTerragruntConfigPath
 	}
 
