@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
@@ -510,6 +511,11 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 	logger := util.CreateLogEntryWithWriter(opts.ErrWriter, opts.OutputPrefix, opts.LogLevel, opts.Logger.Logger.Hooks, nil)
 	logger.Logger.Formatter = opts.Logger.Logger.Formatter
 
+	outputPrefix := filepath.Dir(relTerragruntConfigPath)
+	if strings.HasSuffix(opts.OutputPrefix, outputPrefix) {
+		outputPrefix = opts.OutputPrefix
+	}
+
 	// Note that we clone lists and maps below as TerragruntOptions may be used and modified concurrently in the code
 	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
 	// for more info.
@@ -565,7 +571,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		CheckDependentModules:          opts.CheckDependentModules,
 		FetchDependencyOutputFromState: opts.FetchDependencyOutputFromState,
 		UsePartialParseConfigCache:     opts.UsePartialParseConfigCache,
-		OutputPrefix:                   opts.OutputPrefix,
+		OutputPrefix:                   outputPrefix,
 		PrintRawModuleOutput:           opts.PrintRawModuleOutput,
 		DisableLogFormatting:           opts.DisableLogFormatting,
 		FailIfBucketCreationRequired:   opts.FailIfBucketCreationRequired,

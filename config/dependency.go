@@ -483,8 +483,8 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, depe
 	// returning mocks is not allowed. So return a useful error message indicating that we expected outputs, but they
 	// did not exist.
 	err = TerragruntOutputTargetNoOutputs{
-		targetConfig:  targetConfig,
-		currentConfig: ctx.TerragruntOptions.TerragruntConfigPath,
+		targetConfig:  targetOpts.RelativeTerragruntConfigPath,
+		currentConfig: ctx.TerragruntOptions.RelativeTerragruntConfigPath,
 	}
 	return nil, err
 }
@@ -825,7 +825,13 @@ func getTerragruntOutputJsonFromRemoteState(
 			ctx.TerragruntOptions.Logger.Warnf("Failed to remove %s: %v", path, err)
 		}
 	}(tempWorkDir)
-	ctx.TerragruntOptions.Logger.Debugf("Setting dependency working directory to %s", tempWorkDir)
+
+	relTempWorkDir, err := util.GetPathRelativeToWithSeparator(tempWorkDir, ctx.TerragruntOptions.RootWorkingDir)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.TerragruntOptions.Logger.Debugf("Setting dependency working directory to %s", relTempWorkDir)
 
 	targetTGOptions, err := setupTerragruntOptionsForBareTerraform(ctx, tempWorkDir, targetConfigPath, iamRoleOpts)
 	if err != nil {
@@ -862,7 +868,7 @@ func getTerragruntOutputJsonFromRemoteState(
 	if err := remoteState.GenerateTerraformCode(targetTGOptions); err != nil {
 		return nil, err
 	}
-	ctx.TerragruntOptions.Logger.Debugf("Generated remote state configuration in working dir %s", tempWorkDir)
+	ctx.TerragruntOptions.Logger.Debugf("Generated remote state configuration in working dir %s", relTempWorkDir)
 
 	// Check for a provider lock file and copy it to the working dir if it exists.
 	terragruntDir := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)

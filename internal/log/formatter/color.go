@@ -14,7 +14,7 @@ var (
 		PanicLevelStyle: "red",
 		DebugLevelStyle: "blue+h",
 		TraceLevelStyle: "white",
-		PrefixStyle:     "cyan",
+		PrefixStyle:     "66",
 		TFBinaryStyle:   "cyan",
 		TimestampStyle:  "black+h",
 	}
