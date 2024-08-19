@@ -5350,7 +5350,7 @@ func TestTerragruntMockOutputsFromRemoteState(t *testing.T) { //nolint: parallel
 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUTPUT_FROM_REMOTE_STATE, config.DefaultTerragruntConfigPath)
 	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
-	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, TEST_FIXTURE_OUTPUT_FROM_REMOTE_STATE)
+	environmentPath := filepath.Join(tmpEnvPath, TEST_FIXTURE_OUTPUT_FROM_REMOTE_STATE, "env1")
 
 	// applying only the app1 dependency, the app3 dependency was purposely not applied and should be mocked when running the app2 module
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-fetch-dependency-output-from-state --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s/app1", environmentPath))
@@ -5359,16 +5359,11 @@ func TestTerragruntMockOutputsFromRemoteState(t *testing.T) { //nolint: parallel
 	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app1/.terraform/terraform.tfstate")))
 	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app1/.terraform")))
 
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt init --terragrunt-fetch-dependency-output-from-state --terragrunt-non-interactive --terragrunt-working-dir %s/app2", environmentPath), &stdout, &stderr)
+	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt init --terragrunt-fetch-dependency-output-from-state --terragrunt-non-interactive --terragrunt-working-dir %s/app2", environmentPath))
+	require.NoError(t, err)
 
-	errOutput := stderr.String()
-
-	assert.True(t, strings.Contains(errOutput, "Failed to read outputs"))
-	assert.True(t, strings.Contains(errOutput, "fallback to mock outputs"))
+	assert.True(t, strings.Contains(stderr, "Failed to read outputs"))
+	assert.True(t, strings.Contains(stderr, "fallback to mock outputs"))
 }
 
 func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
