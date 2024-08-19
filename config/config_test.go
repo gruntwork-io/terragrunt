@@ -1200,7 +1200,7 @@ skip = true
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Dependencies)
 	assert.NotNil(t, terragruntConfig.Skip)
-	assert.Equal(t, true, *terragruntConfig.Skip)
+	assert.True(t, *terragruntConfig.Skip)
 }
 
 func TestParseTerragruntConfigSkipFalse(t *testing.T) {
@@ -1220,7 +1220,7 @@ skip = false
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Dependencies)
 	assert.NotNil(t, terragruntConfig.Skip)
-	assert.Equal(t, false, *terragruntConfig.Skip)
+	assert.False(t, *terragruntConfig.Skip)
 }
 
 func TestIncludeFunctionsWorkInChildConfig(t *testing.T) {

@@ -254,21 +254,21 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 		// skip related tests
 		{
 			"skip - preserve target",
-			&TerragruntConfig{},
-			&TerragruntConfig{Skip: &testTrue},
-			&TerragruntConfig{Skip: &testTrue},
+			&config.TerragruntConfig{},
+			&config.TerragruntConfig{Skip: &testTrue},
+			&config.TerragruntConfig{Skip: &testTrue},
 		},
 		{
 			"skip - copy source",
-			&TerragruntConfig{Skip: &testFalse},
-			&TerragruntConfig{Skip: &testTrue},
-			&TerragruntConfig{Skip: &testFalse},
+			&config.TerragruntConfig{Skip: &testFalse},
+			&config.TerragruntConfig{Skip: &testTrue},
+			&config.TerragruntConfig{Skip: &testFalse},
 		},
 		{
 			"skip - still copy source",
-			&TerragruntConfig{Skip: &testTrue},
-			&TerragruntConfig{Skip: &testTrue},
-			&TerragruntConfig{Skip: &testTrue},
+			&config.TerragruntConfig{Skip: &testTrue},
+			&config.TerragruntConfig{Skip: &testTrue},
+			&config.TerragruntConfig{Skip: &testTrue},
 		},
 		// Deep merge dependencies
 		{
