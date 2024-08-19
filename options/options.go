@@ -270,7 +270,7 @@ type TerragruntOptions struct {
 	OutputPrefix string
 
 	// Disable TF output formatting
-	DisableModuleOutputFormatting bool
+	PrintRawModuleOutput bool
 
 	// Fail execution if is required to create S3 bucket
 	FailIfBucketCreationRequired bool
@@ -420,7 +420,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 		FetchDependencyOutputFromState: false,
 		UsePartialParseConfigCache:     false,
 		OutputPrefix:                   "",
-		DisableModuleOutputFormatting:  false,
+		PrintRawModuleOutput:           false,
 		JSONOut:                        DefaultJSONOutName,
 		TerraformImplementation:        UnknownImpl,
 		JsonLogFormat:                  false,
@@ -566,7 +566,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		FetchDependencyOutputFromState: opts.FetchDependencyOutputFromState,
 		UsePartialParseConfigCache:     opts.UsePartialParseConfigCache,
 		OutputPrefix:                   opts.OutputPrefix,
-		DisableModuleOutputFormatting:  opts.DisableModuleOutputFormatting,
+		PrintRawModuleOutput:           opts.PrintRawModuleOutput,
 		DisableLogFormatting:           opts.DisableLogFormatting,
 		FailIfBucketCreationRequired:   opts.FailIfBucketCreationRequired,
 		DisableBucketUpdate:            opts.DisableBucketUpdate,

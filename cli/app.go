@@ -334,6 +334,11 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 		return errors.WithStackTrace(err)
 	}
 
+	opts.RelativeTerragruntConfigPath, err = util.GetPathRelativeToWithSeparator(opts.TerragruntConfigPath, opts.RootWorkingDir)
+	if err != nil {
+		return err
+	}
+
 	opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)
 
 	opts.ExcludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.ExcludeDirs...)

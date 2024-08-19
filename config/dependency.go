@@ -620,7 +620,7 @@ func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, targetConfig
 	if err != nil {
 		return nil, err
 	}
-	targetOptions.DisableModuleOutputFormatting = false
+	targetOptions.PrintRawModuleOutput = false
 	// just read outputs, so no need to check for dependent modules
 	targetOptions.CheckDependentModules = false
 	targetOptions.TerraformCommand = "output"
@@ -976,7 +976,7 @@ func runTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, 
 	newOpts := *ctx.TerragruntOptions
 	// explicit disable json formatting and prefixing to read json output
 	newOpts.TerraformLogsToJson = false
-	newOpts.DisableModuleOutputFormatting = false
+	newOpts.PrintRawModuleOutput = false
 	newOpts.Writer = stdoutBufferWriter
 	ctx = ctx.WithTerragruntOptions(&newOpts)
 

@@ -43,7 +43,7 @@ const (
 	TerragruntModulesThatIncludeFlagName             = "terragrunt-modules-that-include"
 	TerragruntFetchDependencyOutputFromStateFlagName = "terragrunt-fetch-dependency-output-from-state"
 	TerragruntUsePartialParseConfigCacheFlagName     = "terragrunt-use-partial-parse-config-cache"
-	TerragruntDisableModuleOutputFormattingFlagName  = "terragrunt-disable-module-output-formatting"
+	TerragruntPrintRawModuleOutputFlagName           = "terragrunt-print-raw-module-output"
 	TerragruntFailOnStateBucketCreationFlagName      = "terragrunt-fail-on-state-bucket-creation"
 	TerragruntDisableBucketUpdateFlagName            = "terragrunt-disable-bucket-update"
 	TerragruntDisableCommandValidationFlagName       = "terragrunt-disable-command-validation"
@@ -265,9 +265,9 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "The option fetchs dependency output directly from the state file instead of init dependencies and running terraform on them.",
 		},
 		&cli.BoolFlag{
-			Name:        TerragruntDisableModuleOutputFormattingFlagName,
-			Destination: &opts.DisableModuleOutputFormatting,
-			EnvVar:      "TERRAGRUNT_DISABLE_MODULE_OUTPUT_FORMATTING",
+			Name:        TerragruntPrintRawModuleOutputFlagName,
+			Destination: &opts.PrintRawModuleOutput,
+			EnvVar:      "TERRAGRUNT_PRINT_RAW_MODULE_OUTPUT",
 			Usage:       "If specified, the output of Terraform commands will be printed as is, without formatting.",
 		},
 		&cli.BoolFlag{
