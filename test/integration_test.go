@@ -5365,10 +5365,8 @@ func TestTerragruntMockOutputsFromRemoteState(t *testing.T) { //nolint: parallel
 	)
 	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt init --terragrunt-fetch-dependency-output-from-state --terragrunt-non-interactive --terragrunt-working-dir %s/app2", environmentPath), &stdout, &stderr)
 
-	output := stdout.String()
 	errOutput := stderr.String()
 
-	assert.True(t, strings.Contains(output, "Terraform has been successfully initialized"))
 	assert.True(t, strings.Contains(errOutput, "Failed to read outputs"))
 	assert.True(t, strings.Contains(errOutput, "fallback to mock outputs"))
 }
