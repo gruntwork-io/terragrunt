@@ -65,6 +65,7 @@ func (err ProcessingModuleDependencyError) ExitStatus() (int, error) {
 	if exitCode, err := util.GetExitCode(err.Err); err == nil {
 		return exitCode, nil
 	}
+
 	return -1, err
 }
 

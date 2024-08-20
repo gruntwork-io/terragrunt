@@ -30,6 +30,7 @@ func (lockfile *Lockfile) Unlock() error {
 			return errors.WithStackTrace(err)
 		}
 	}
+
 	return nil
 }
 
@@ -39,5 +40,6 @@ func (lockfile *Lockfile) TryLock() error {
 	} else if !locked {
 		return errors.Errorf("unable to lock file %s", lockfile.Path())
 	}
+
 	return nil
 }

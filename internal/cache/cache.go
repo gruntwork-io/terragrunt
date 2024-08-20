@@ -31,15 +31,19 @@ func NewCache[V any](name string) *Cache[V] {
 func (c *Cache[V]) Get(ctx context.Context, key string) (V, bool) {
 	c.Mutex.RLock()
 	defer c.Mutex.RUnlock()
+
 	keyHash := sha256.Sum256([]byte(key))
 	cacheKey := hex.EncodeToString(keyHash[:])
 	value, found := c.Cache[cacheKey]
+
 	telemetry.Count(ctx, c.Name+"_cache_get", 1)
+
 	if found {
 		telemetry.Count(ctx, c.Name+"_cache_hit", 1)
 	} else {
 		telemetry.Count(ctx, c.Name+"_cache_miss", 1)
 	}
+
 	return value, found
 }
 
@@ -48,6 +52,7 @@ func (c *Cache[V]) Put(ctx context.Context, key string, value V) {
 	c.Mutex.Lock()
 	defer c.Mutex.Unlock()
 	telemetry.Count(ctx, c.Name+"_cache_put", 1)
+
 	keyHash := sha256.Sum256([]byte(key))
 	cacheKey := hex.EncodeToString(keyHash[:])
 	c.Cache[cacheKey] = value
@@ -81,16 +86,21 @@ func (c *ExpiringCache[V]) Get(ctx context.Context, key string) (V, bool) {
 	defer c.Mutex.RUnlock()
 	item, found := c.Cache[key]
 	telemetry.Count(ctx, c.Name+"_cache_get", 1)
+
 	if !found {
 		telemetry.Count(ctx, c.Name+"_cache_miss", 1)
 		return item.Value, false
 	}
+
 	if time.Now().After(item.Expiration) {
 		telemetry.Count(ctx, c.Name+"_cache_expiry", 1)
 		delete(c.Cache, key)
+
 		return item.Value, false
 	}
+
 	telemetry.Count(ctx, c.Name+"_cache_hit", 1)
+
 	return item.Value, true
 }
 
@@ -109,5 +119,6 @@ func ContextCache[T any](ctx context.Context, key any) *Cache[T] {
 	if !ok || cacheInstance == nil {
 		cacheInstance = NewCache[T](fmt.Sprintf("%v", key))
 	}
+
 	return cacheInstance
 }

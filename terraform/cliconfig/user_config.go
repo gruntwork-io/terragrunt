@@ -94,6 +94,7 @@ func getUserHosts(cfg *cliconfig.Config) []ConfigHost {
 
 	for name, host := range cfg.Hosts {
 		services := make(map[string]string)
+
 		if host != nil {
 			for key, val := range host.Services {
 				if val, ok := val.(string); ok {

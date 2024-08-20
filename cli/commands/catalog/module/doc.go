@@ -40,6 +40,7 @@ func (regs DocRegs) Replace(str string) string {
 	for _, reg := range regs {
 		str = reg.ReplaceAllString(str, "$1")
 	}
+
 	return str
 }
 
@@ -149,6 +150,7 @@ func FindDoc(dir string) (*Doc, error) {
 			if strings.EqualFold(readmeFile, file.Name()) {
 				filePath = filepath.Join(dir, file.Name())
 				fileExt = filepath.Ext(filePath)
+
 				break
 			}
 		}
@@ -167,6 +169,7 @@ func FindDoc(dir string) (*Doc, error) {
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
+
 	rawContent := string(contentByte)
 
 	return NewDoc(rawContent, fileExt), nil
@@ -207,6 +210,7 @@ func (doc *Doc) Description(maxLenght int) string {
 			}
 
 			desc += "."
+
 			break
 		}
 	}
@@ -265,6 +269,7 @@ func (doc *Doc) parseTag(key docDataKey) string {
 
 	if doc.tagCache == nil {
 		doc.tagCache = make(map[docDataKey]string)
+
 		var h1Body, h2Body string
 
 		for tagName, tagReg := range doc.tagRegs {
@@ -272,12 +277,14 @@ func (doc *Doc) parseTag(key docDataKey) string {
 			if len(match) == 0 {
 				continue
 			}
+
 			lines := strings.Split(match[1], "\n")
 
 			switch tagName {
 			case tagH1Block:
 				// header title
 				doc.tagCache[docTitle] = lines[0]
+
 				if len(lines) > 1 {
 					h1Body = strings.Join(lines[1:], "\n")
 				}

@@ -437,6 +437,7 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 
 	opts.WorkingDir = workingDir
 	opts.DownloadDir = downloadDir
+
 	return opts, nil
 }
 
@@ -463,6 +464,7 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...Terragr
 	if err != nil {
 		logger := util.CreateLogEntry("", util.GetDefaultLogLevel())
 		logger.Errorf("%v\n", errors.WithStackTrace(err))
+
 		return nil, err
 	}
 
@@ -575,6 +577,7 @@ func cloneEngineOptions(opts *EngineOptions) *EngineOptions {
 	if opts == nil {
 		return nil
 	}
+
 	return &EngineOptions{
 		Source:  opts.Source,
 		Version: opts.Version,
@@ -591,6 +594,7 @@ func checkIfPlanFile(arg string) bool {
 // Extract planfile from arguments list
 func extractPlanFile(argsToInsert []string) (*string, []string) {
 	planFile := ""
+
 	var filteredArgs []string
 
 	for _, arg := range argsToInsert {
@@ -644,6 +648,7 @@ func (opts *TerragruntOptions) TerraformDataDir() string {
 	if tfDataDir, ok := opts.Env["TF_DATA_DIR"]; ok {
 		return tfDataDir
 	}
+
 	return DefaultTFDataDir
 }
 
@@ -654,6 +659,7 @@ func (opts *TerragruntOptions) DataDir() string {
 	if filepath.IsAbs(tfDataDir) {
 		return tfDataDir
 	}
+
 	return util.JoinPath(opts.WorkingDir, tfDataDir)
 }
 

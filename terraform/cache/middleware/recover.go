@@ -13,6 +13,7 @@ func Recover() echo.MiddlewareFunc {
 				log.Debugf(errors.PrintErrorWithStackTrace(err))
 				er = err
 			})
+
 			return next(ctx)
 		}
 	}

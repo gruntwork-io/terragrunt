@@ -99,6 +99,7 @@ func (handler *ProviderFilesystemMirrorHandler) GetPlatform(ctx echo.Context, pr
 
 	// start caching and return 423 status
 	handler.providerService.CacheProvider(ctx.Request().Context(), cacheRequestID, provider)
+
 	return ctx.NoContent(handler.cacheProviderHTTPStatusCode)
 }
 

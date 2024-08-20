@@ -135,5 +135,4 @@ func Logf(level logrus.Level, format string, args ...interface{}) {
 // WithField allocates a new entry and adds a field to it.
 func WithField(key string, value interface{}) *logrus.Entry {
 	return logger.WithField(key, value)
-
 }

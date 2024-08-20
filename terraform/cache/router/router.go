@@ -52,6 +52,7 @@ func (router *Router) Use(middlewares ...echo.MiddlewareFunc) {
 				if strings.HasPrefix(strings.Trim(ctx.Path(), "/"), strings.Trim(router.urlPath, "/")) {
 					return middleware(next)(ctx)
 				}
+
 				return next(ctx)
 			}
 		}

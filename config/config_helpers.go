@@ -182,9 +182,11 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 	for k, v := range tfscope.Functions() {
 		functions[k] = v
 	}
+
 	for k, v := range terragruntFunctions {
 		functions[k] = v
 	}
+
 	for k, v := range ctx.PredefinedFunctions {
 		functions[k] = v
 	}
@@ -192,6 +194,7 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 	evalCtx := &hcl.EvalContext{
 		Functions: functions,
 	}
+
 	evalCtx.Variables = map[string]cty.Value{}
 	if ctx.Locals != nil {
 		evalCtx.Variables[MetadataLocal] = *ctx.Locals
@@ -200,6 +203,7 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 	if ctx.DecodedDependencies != nil {
 		evalCtx.Variables[MetadataDependency] = *ctx.DecodedDependencies
 	}
+
 	if ctx.TrackInclude != nil && len(ctx.TrackInclude.CurrentList) > 0 {
 		// For each include block, check if we want to expose the included config, and if so, add under the include
 		// variable.
@@ -207,8 +211,10 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 		if err != nil {
 			return evalCtx, err
 		}
+
 		evalCtx.Variables[MetadataInclude] = exposedInclude
 	}
+
 	return evalCtx, nil
 }
 
@@ -283,6 +289,7 @@ func GetParentTerragruntDir(ctx *ParsingContext, params []string) (string, error
 	}
 
 	currentPath := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)
+
 	parentPath, err = filepath.Abs(filepath.Join(currentPath, parentPath))
 	if err != nil {
 		return "", errors.WithStackTrace(err)
@@ -308,6 +315,7 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 	if envVariable.Name == "" {
 		return envVariable, errors.WithStackTrace(InvalidEnvParamNameError{EnvVarName: parameters[0]})
 	}
+
 	return envVariable, nil
 }
 
@@ -332,9 +340,11 @@ func RunCommand(ctx *ParsingContext, args []string) (string, error) {
 		switch args[0] {
 		case "--terragrunt-quiet":
 			suppressOutput = true
+
 			args = append(args[:0], args[1:]...)
 		case "--terragrunt-global-cache":
 			cachePath = "_global_"
+
 			args = append(args[:0], args[1:]...)
 		default:
 			checkOptions = false
@@ -344,6 +354,7 @@ func RunCommand(ctx *ParsingContext, args []string) (string, error) {
 	// To avoid re-run of the same run_cmd command, is used in memory cache for command results, with caching key path + arguments
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 	cacheKey := fmt.Sprintf("%v-%v", cachePath, args)
+
 	cachedValue, foundInCache := runCommandCache.Get(ctx, cacheKey)
 	if foundInCache {
 		if suppressOutput {
@@ -351,6 +362,7 @@ func RunCommand(ctx *ParsingContext, args []string) (string, error) {
 		} else {
 			ctx.TerragruntOptions.Logger.Debugf("run_cmd, cached output: [%s]", cachedValue)
 		}
+
 		return cachedValue, nil
 	}
 
@@ -370,6 +382,7 @@ func RunCommand(ctx *ParsingContext, args []string) (string, error) {
 	// Persisting result in cache to avoid future re-evaluation
 	// see: https://github.com/gruntwork-io/terragrunt/issues/1427
 	runCommandCache.Put(ctx, cacheKey, value)
+
 	return value, nil
 }
 
@@ -379,12 +392,14 @@ func getEnvironmentVariable(ctx *ParsingContext, parameters []string) (string, e
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
+
 	envValue, exists := ctx.TerragruntOptions.Env[parameterMap.Name]
 
 	if !exists {
 		if parameterMap.IsRequired {
 			return "", errors.WithStackTrace(EnvVarNotFoundError{EnvVar: parameterMap.Name})
 		}
+
 		envValue = parameterMap.DefaultValue
 	}
 
@@ -399,15 +414,19 @@ func FindInParentFolders(
 ) (string, error) {
 	numParams := len(params)
 
-	var fileToFindParam string
-	var fallbackParam string
+	var (
+		fileToFindParam string
+		fallbackParam   string
+	)
 
 	if numParams > 0 {
 		fileToFindParam = params[0]
 	}
+
 	if numParams > 1 {
 		fallbackParam = params[1]
 	}
+
 	if numParams > matchedPats {
 		return "", errors.WithStackTrace(WrongNumberOfParamsError{Func: "find_in_parent_folders", Expected: "0, 1, or 2", Actual: numParams})
 	}
@@ -432,6 +451,7 @@ func FindInParentFolders(
 			if numParams == matchedPats {
 				return fallbackParam, nil
 			}
+
 			return "", errors.WithStackTrace(ParentFileNotFoundError{Path: ctx.TerragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: "Traversed all the way to the root"})
 		}
 
@@ -459,6 +479,7 @@ func PathRelativeToInclude(ctx *ParsingContext, params []string) (string, error)
 	}
 
 	var included IncludeConfig
+
 	switch {
 	case ctx.TrackInclude.Original != nil:
 		included = *ctx.TrackInclude.Original
@@ -468,6 +489,7 @@ func PathRelativeToInclude(ctx *ParsingContext, params []string) (string, error)
 		if err != nil {
 			return "", err
 		}
+
 		included = *selected
 	default:
 		return ".", nil
@@ -481,6 +503,7 @@ func PathRelativeToInclude(ctx *ParsingContext, params []string) (string, error)
 	}
 
 	relativePath, err := util.GetPathRelativeTo(currentPath, includePath)
+
 	return relativePath, err
 }
 
@@ -560,6 +583,7 @@ func getAWSAccountID(ctx *ParsingContext) (string, error) {
 	if err == nil {
 		return accountID, nil
 	}
+
 	return "", err
 }
 
@@ -569,6 +593,7 @@ func getAWSCallerIdentityARN(ctx *ParsingContext) (string, error) {
 	if err == nil {
 		return identityARN, nil
 	}
+
 	return "", err
 }
 
@@ -578,6 +603,7 @@ func getAWSCallerIdentityUserID(ctx *ParsingContext) (string, error) {
 	if err == nil {
 		return userID, nil
 	}
+
 	return "", err
 }
 
@@ -588,6 +614,7 @@ func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *c
 	// return an error. If the file does not exist but there is a default val, return the default val. Otherwise,
 	// proceed to parse the file as a terragrunt config file.
 	targetConfig := getCleanedTargetConfigPath(configPath, ctx.TerragruntOptions.TerragruntConfigPath)
+
 	targetConfigFileExists := util.FileExists(targetConfig)
 	if !targetConfigFileExists && defaultVal == nil {
 		return cty.NilVal, errors.WithStackTrace(TerragruntConfigNotFoundError{Path: targetConfig})
@@ -597,6 +624,7 @@ func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *c
 
 	// We update the ctx of terragruntOptions to the config being read in.
 	ctx = ctx.WithTerragruntOptions(ctx.TerragruntOptions.Clone(targetConfig))
+
 	config, err := ParseConfigFile(ctx, targetConfig, nil)
 	if err != nil {
 		return cty.NilVal, err
@@ -653,13 +681,16 @@ func readTerragruntConfigAsFuncImpl(ctx *ParsingContext) function.Function {
 // path is a directory.
 func getCleanedTargetConfigPath(configPath string, workingPath string) string {
 	cwd := filepath.Dir(workingPath)
+
 	targetConfig := configPath
 	if !filepath.IsAbs(targetConfig) {
 		targetConfig = util.JoinPath(cwd, targetConfig)
 	}
+
 	if util.IsDir(targetConfig) {
 		targetConfig = GetDefaultConfigPath(targetConfig)
 	}
+
 	return util.CleanPath(targetConfig)
 }
 
@@ -688,12 +719,14 @@ func GetTerragruntSourceForModule(sourcePath string, modulePath string, moduleTe
 	if moduleUrl == "" && moduleSubdir == "" {
 		return "", errors.WithStackTrace(InvalidSourceUrlError{ModulePath: modulePath, ModuleSourceUrl: *moduleTerragruntConfig.Terraform.Source, TerragruntSource: sourcePath})
 	}
+
 	// if only subdir is missing, check if we can obtain a valid module name from the URL portion
 	if moduleUrl != "" && moduleSubdir == "" {
 		moduleSubdirFromUrl, err := getModulePathFromSourceUrl(moduleUrl)
 		if err != nil {
 			return moduleSubdirFromUrl, err
 		}
+
 		return util.JoinTerraformModulePath(sourcePath, moduleSubdirFromUrl), nil
 	}
 
@@ -705,9 +738,7 @@ func GetTerragruntSourceForModule(sourcePath string, modulePath string, moduleTe
 //
 // sourceUrl = "git::ssh://git@ghe.ourcorp.com/OurOrg/module-name.git"
 // will return "module-name".
-
 func getModulePathFromSourceUrl(sourceUrl string) (string, error) {
-
 	// Regexp for module name extraction. It assumes that the query string has already been stripped off.
 	// Then we simply capture anything after the last slash, and before `.` or end of string.
 	var moduleNameRegexp = regexp.MustCompile(`(?:.+/)(.+?)(?:\.|$)`)
@@ -742,13 +773,16 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 	if numParams > 0 {
 		sourceFile = params[0]
 	}
+
 	if numParams != 1 {
 		return "", errors.WithStackTrace(WrongNumberOfParamsError{Func: "sops_decrypt_file", Expected: "1", Actual: numParams})
 	}
+
 	format, err := getSopsFileFormat(sourceFile)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
+
 	canonicalSourceFile, err := util.CanonicalPath(sourceFile, filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath))
 	if err != nil {
 		return "", errors.WithStackTrace(err)
@@ -766,6 +800,7 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 	if utf8.Valid(rawData) {
 		value := string(rawData)
 		sopsCache.Put(ctx, canonicalSourceFile, value)
+
 		return value, nil
 	}
 
@@ -784,10 +819,12 @@ var sopsFormatToString = map[formats.Format]string{
 // getSopsFileFormat - Return file format for SOPS library
 func getSopsFileFormat(sourceFile string) (string, error) {
 	fileFormat := formats.FormatForPath(sourceFile)
+
 	format, found := sopsFormatToString[fileFormat]
 	if !found {
 		return "", InvalidSopsFormatError{SourceFilePath: sourceFile}
 	}
+
 	return format, nil
 }
 
@@ -825,10 +862,12 @@ func getSelectedIncludeBlock(trackInclude TrackInclude, params []string) (*Inclu
 	}
 
 	importName := params[0]
+
 	imported, hasKey := importMap[importName]
 	if !hasKey {
 		return nil, errors.WithStackTrace(InvalidIncludeKeyError{name: importName})
 	}
+
 	return &imported, nil
 }
 
@@ -837,6 +876,7 @@ func StartsWith(ctx *ParsingContext, args []string) (bool, error) {
 	if len(args) == 0 {
 		return false, errors.WithStackTrace(EmptyStringNotAllowedError("parameter to the startswith function"))
 	}
+
 	str := args[0]
 	prefix := args[1]
 
@@ -852,6 +892,7 @@ func EndsWith(ctx *ParsingContext, args []string) (bool, error) {
 	if len(args) == 0 {
 		return false, errors.WithStackTrace(EmptyStringNotAllowedError("parameter to the endswith function"))
 	}
+
 	str := args[0]
 	suffix := args[1]
 
@@ -872,6 +913,7 @@ func TimeCmp(ctx *ParsingContext, args []string) (int64, error) {
 	if err != nil {
 		return 0, errors.WithStackTrace(fmt.Errorf("could not parse first parameter %q: %w", args[0], err))
 	}
+
 	tsB, err := util.ParseTimestamp(args[1])
 	if err != nil {
 		return 0, errors.WithStackTrace(fmt.Errorf("could not parse second parameter %q: %w", args[1], err))
@@ -893,6 +935,7 @@ func StrContains(ctx *ParsingContext, args []string) (bool, error) {
 	if len(args) == 0 {
 		return false, errors.WithStackTrace(EmptyStringNotAllowedError("parameter to the strcontains function"))
 	}
+
 	str := args[0]
 	substr := args[1]
 
@@ -905,12 +948,12 @@ func StrContains(ctx *ParsingContext, args []string) (bool, error) {
 
 // readTFVarsFile reads a *.tfvars or *.tfvars.json file and returns the contents as a JSON encoded string
 func readTFVarsFile(ctx *ParsingContext, args []string) (string, error) {
-
 	if len(args) != 1 {
 		return "", errors.WithStackTrace(WrongNumberOfParamsError{Func: "read_tfvars_file", Expected: "1", Actual: len(args)})
 	}
 
 	varFile := args[0]
+
 	varFile, err := util.CanonicalPath(varFile, ctx.TerragruntOptions.WorkingDir)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
@@ -931,6 +974,7 @@ func readTFVarsFile(ctx *ParsingContext, args []string) (string, error) {
 		if err := json.Unmarshal(fileContents, &variables); err != nil {
 			return "", errors.WithStackTrace(fmt.Errorf("could not unmarshal json body of tfvar file: %w", err))
 		}
+
 		return string(fileContents), nil
 	}
 
@@ -951,6 +995,7 @@ func readTFVarsFile(ctx *ParsingContext, args []string) (string, error) {
 // into the provided output.
 func ParseAndDecodeVarFile(varFile string, fileContents []byte, out interface{}) error {
 	parser := hclparse.NewParser()
+
 	file, err := parser.ParseFromBytes(fileContents, varFile)
 	if err != nil {
 		return err
@@ -962,11 +1007,13 @@ func ParseAndDecodeVarFile(varFile string, fileContents []byte, out interface{})
 	}
 
 	valMap := map[string]cty.Value{}
+
 	for _, attr := range attrs {
 		val, err := attr.Value(nil) // nil because no function calls or variable references are allowed here
 		if err != nil {
 			return err
 		}
+
 		valMap[attr.Name] = val
 	}
 
@@ -986,9 +1033,12 @@ func ParseAndDecodeVarFile(varFile string, fileContents []byte, out interface{})
 		if err != nil {
 			return err
 		}
+
 		*typedOut = genericMap
+
 		return nil
 	}
+
 	return gocty.FromCtyValue(ctyVal, out)
 }
 
@@ -1003,6 +1053,7 @@ func extractSopsErrors(err error) *multierror.Error {
 	if errValue.Kind() == reflect.Ptr {
 		errValue = errValue.Elem()
 	}
+
 	if errValue.Type().Name() == "getDataKeyError" {
 		groupResultsField := errValue.FieldByName("GroupResults")
 		if groupResultsField.IsValid() && groupResultsField.Kind() == reflect.Slice {
@@ -1019,5 +1070,6 @@ func extractSopsErrors(err error) *multierror.Error {
 	if errs.Len() == 0 {
 		errs = multierror.Append(errs, err)
 	}
+
 	return errs
 }

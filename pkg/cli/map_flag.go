@@ -55,6 +55,7 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 	}
 
 	var err error
+
 	keyType := FlagType[K](new(genericType[K]))
 	valType := FlagType[V](new(genericType[V]))
 
@@ -65,6 +66,7 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 	for _, name := range flag.Names() {
 		set.Var(flag.FlagValue, name, flag.Usage)
 	}
+
 	return nil
 }
 
@@ -78,6 +80,7 @@ func (flag *MapFlag[K, V]) GetEnvVars() []string {
 	if flag.EnvVar == "" {
 		return nil
 	}
+
 	return []string{flag.EnvVar}
 }
 
@@ -86,6 +89,7 @@ func (flag *MapFlag[K, V]) GetDefaultText() string {
 	if flag.DefaultText == "" && flag.FlagValue != nil {
 		return flag.FlagValue.GetDefaultText()
 	}
+
 	return flag.DefaultText
 }
 
@@ -173,6 +177,7 @@ func (flag *mapValue[K, V]) Set(str string) error {
 	}
 
 	(*flag.values)[key.Get().(K)] = val.Get().(V)
+
 	return nil
 }
 
@@ -180,6 +185,7 @@ func (flag *mapValue[K, V]) GetDefaultText() string {
 	if flag.IsBoolFlag() {
 		return ""
 	}
+
 	return flag.defaultText
 }
 
@@ -206,5 +212,6 @@ func (flag *mapValue[K, V]) String() string {
 	if flag.values == nil {
 		return ""
 	}
+
 	return collections.MapJoin(*flag.values, flag.argSep, flag.valSep)
 }

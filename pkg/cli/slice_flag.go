@@ -51,6 +51,7 @@ func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
 	}
 
 	var err error
+
 	valType := FlagType[T](new(genericType[T]))
 
 	if flag.FlagValue, err = newSliceValue(valType, flag.LookupEnv(flag.EnvVar), flag.EnvVarSep, flag.Splitter, flag.Destination); err != nil {
@@ -60,6 +61,7 @@ func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
 	for _, name := range flag.Names() {
 		set.Var(flag.FlagValue, name, flag.Usage)
 	}
+
 	return nil
 }
 
@@ -73,6 +75,7 @@ func (flag *SliceFlag[T]) GetEnvVars() []string {
 	if flag.EnvVar == "" {
 		return nil
 	}
+
 	return []string{flag.EnvVar}
 }
 
@@ -81,6 +84,7 @@ func (flag *SliceFlag[T]) GetDefaultText() string {
 	if flag.DefaultText == "" && flag.FlagValue != nil {
 		return flag.FlagValue.GetDefaultText()
 	}
+
 	return flag.DefaultText
 }
 
@@ -153,6 +157,7 @@ func (flag *sliceValue[T]) Set(str string) error {
 	}
 
 	*flag.values = append(*flag.values, value.Get().(T))
+
 	return nil
 }
 
@@ -160,6 +165,7 @@ func (flag *sliceValue[T]) GetDefaultText() string {
 	if flag.IsBoolFlag() {
 		return ""
 	}
+
 	return flag.defaultText
 }
 
@@ -175,6 +181,7 @@ func (flag *sliceValue[T]) Get() any {
 	var vals []T
 
 	vals = append(vals, *flag.values...)
+
 	return vals
 }
 

@@ -55,6 +55,7 @@ func PackageHashLegacyZipSHA(path string) (Hash, error) {
 	}
 
 	gotHash := hash.Sum(nil)
+
 	return HashSchemeZip.New(hex.EncodeToString(gotHash)), nil
 }
 
@@ -78,6 +79,7 @@ func PackageHashV1(path string) (Hash, error) {
 	}
 
 	s, err := dirhash.HashDir(packageDir, "", dirhash.Hash1)
+
 	return Hash(s), err
 }
 
@@ -87,6 +89,7 @@ func DocumentHashes(doc []byte) []Hash {
 	sc := bufio.NewScanner(bytes.NewReader(doc))
 	for sc.Scan() {
 		parts := bytes.Fields(sc.Bytes())
+
 		columns := 2
 		if len(parts) != columns {
 			// Doesn't look like a valid sums file line, so we'll assume this whole thing isn't a checksums file.
@@ -95,6 +98,7 @@ func DocumentHashes(doc []byte) []Hash {
 
 		// If this is a checksums file then the first part should be a hex-encoded SHA256 hash, so it should be 64 characters long and contain only hex digits.
 		hashStr := parts[0]
+
 		hashLen := 64
 		if len(hashStr) != hashLen {
 			return nil // doesn't look like a checksums file

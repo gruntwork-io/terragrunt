@@ -27,6 +27,7 @@ func (args Args) Get(n int) string {
 	if len(args) > 0 && len(args) > n {
 		return (args)[n]
 	}
+
 	return ""
 }
 
@@ -47,8 +48,10 @@ func (args Args) Tail() []string {
 		tail := []string((args)[1:])
 		ret := make([]string, len(tail))
 		copy(ret, tail)
+
 		return ret
 	}
+
 	return []string{}
 }
 
@@ -66,6 +69,7 @@ func (args Args) Present() bool {
 func (args Args) Slice() []string {
 	ret := make([]string, len(args))
 	copy(ret, args)
+
 	return ret
 }
 

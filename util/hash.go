@@ -20,6 +20,7 @@ func EncodeBase64Sha1(str string) string {
 
 func GenerateRandomSha256() (string, error) {
 	randomBytes := make([]byte, sha256InputSize)
+
 	_, err := rand.Read(randomBytes)
 	if err != nil {
 		return "", err

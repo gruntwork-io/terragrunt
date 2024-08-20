@@ -75,12 +75,15 @@ func NewApp(writer io.Writer, errWriter io.Writer) *App {
 	app.Version = version.GetVersion()
 	app.Writer = writer
 	app.ErrWriter = errWriter
+
 	app.Flags = append(
 		commands.NewGlobalFlags(opts),
 		commands.NewHelpVersionFlags(opts)...)
+
 	app.Commands = append(
 		DeprecatedCommands(opts),
 		TerragruntCommands(opts)...).WrapAction(WrapWithTelemetry(opts))
+
 	app.Before = beforeAction(opts)
 	app.DefaultCommand = terraformCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
 	app.OsExiter = OSExiter
@@ -133,6 +136,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	if engine.IsEngineEnabled() {
 		ctx = engine.WithEngineValues(ctx)
 	}
+
 	defer func(ctx context.Context) {
 		if err := engine.Shutdown(ctx); err != nil {
 			_, _ = app.ErrWriter.Write([]byte(err.Error()))
@@ -142,6 +146,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	if err := app.App.RunContext(ctx, args); err != nil && !goerrors.Is(err, context.Canceled) {
 		return err
 	}
+
 	return nil
 }
 
@@ -198,6 +203,7 @@ func beforeAction(_ *options.TerragruntOptions) cli.ActionFunc {
 			// exit the app
 			return cli.NewExitError(err, 0)
 		}
+
 		return nil
 	}
 }
@@ -235,6 +241,7 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 		if action != nil {
 			return action(cliCtx)
 		}
+
 		return nil
 	})
 
@@ -298,8 +305,10 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
+
 		opts.WorkingDir = currentDir
 	}
+
 	opts.WorkingDir = filepath.ToSlash(opts.WorkingDir)
 
 	// --- Download Dir
@@ -311,6 +320,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
+
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
 
 	// --- Terragrunt ConfigPath
@@ -346,6 +356,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	if err != nil {
 		return err
 	}
+
 	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirs...)
 
 	// --- Terragrunt Version
@@ -356,18 +367,21 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 			return errors.WithStackTrace(err)
 		}
 	}
+
 	opts.TerragruntVersion = terragruntVersion
 	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of terragrunt used.
 	opts.Logger.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
 
 	// --- IncludeModulePrefix
 	jsonOutput := false
+
 	for _, arg := range opts.TerraformCliArgs {
 		if strings.EqualFold(arg, "-json") {
 			jsonOutput = true
 			break
 		}
 	}
+
 	if opts.IncludeModulePrefix && !jsonOutput {
 		opts.OutputPrefix = fmt.Sprintf("[%s] ", opts.WorkingDir)
 	} else {

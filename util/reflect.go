@@ -11,6 +11,7 @@ func KindOf(value interface{}) reflect.Kind {
 	if valueType == nil {
 		return reflect.Invalid
 	}
+
 	return valueType.Kind()
 }
 
@@ -36,14 +37,17 @@ func MustWalkTerraformOutput(value interface{}, path ...string) interface{} {
 	if value == nil {
 		return nil
 	}
+
 	found := value
 	for _, p := range path {
 		v := reflect.ValueOf(found)
+
 		switch reflect.TypeOf(found).Kind() { //nolint:exhaustive
 		case reflect.Map:
 			if !v.MapIndex(reflect.ValueOf(p)).IsValid() {
 				return nil
 			}
+
 			found = v.MapIndex(reflect.ValueOf(p)).Interface()
 
 		case reflect.Slice, reflect.Array:
@@ -51,14 +55,17 @@ func MustWalkTerraformOutput(value interface{}, path ...string) interface{} {
 			if err != nil {
 				return nil
 			}
+
 			if v.Len()-1 < i {
 				return nil
 			}
+
 			found = v.Index(i).Interface()
 
 		default:
 			return found
 		}
 	}
+
 	return found
 }

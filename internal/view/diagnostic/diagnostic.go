@@ -12,6 +12,7 @@ func (diags *Diagnostics) Contains(find *Diagnostic) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -39,6 +40,7 @@ func NewDiagnostic(file *hcl.File, hclDiag *hcl.Diagnostic) *Diagnostic {
 		highlightRange.End.Byte++
 		highlightRange.End.Column++
 	}
+
 	diag.Snippet = NewSnippet(file, hclDiag, highlightRange)
 
 	diag.Range = &Range{
@@ -54,5 +56,6 @@ func NewDiagnostic(file *hcl.File, hclDiag *hcl.Diagnostic) *Diagnostic {
 			Byte:   highlightRange.End.Byte,
 		},
 	}
+
 	return diag
 }

@@ -63,6 +63,7 @@ func (cmd *Command) HasName(name string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -88,6 +89,7 @@ func (cmd Command) VisibleSubcommands() []*cli.Command {
 	if cmd.Subcommands == nil {
 		return nil
 	}
+
 	return cmd.Subcommands.VisibleCommands()
 }
 
@@ -207,7 +209,9 @@ func (cmd *Command) flagSetParse(flagSet *libflag.FlagSet, args []string) ([]str
 
 		// check if the error is due to an undefArgs flag
 		var undefArg string
+
 		errStr := err.Error()
+
 		if cmd.DisallowUndefinedFlags || !strings.HasPrefix(errStr, errFlagUndefined) {
 			return nil, errors.WithStackTrace(err)
 		}
@@ -216,6 +220,7 @@ func (cmd *Command) flagSetParse(flagSet *libflag.FlagSet, args []string) ([]str
 
 		// cut off the args
 		var notFoundMatch bool
+
 		for i, arg := range args {
 			// `--var=input=from_env` trims to `var`
 			trimmed := strings.SplitN(strings.Trim(arg, "-"), "=", 2)[0] //nolint:mnd
@@ -223,9 +228,9 @@ func (cmd *Command) flagSetParse(flagSet *libflag.FlagSet, args []string) ([]str
 				undefArgs = append(undefArgs, arg)
 				notFoundMatch = true
 				args = args[i+1:]
+
 				break
 			}
-
 		}
 
 		// This should be an impossible to reach code path, but in case the arg
@@ -236,6 +241,7 @@ func (cmd *Command) flagSetParse(flagSet *libflag.FlagSet, args []string) ([]str
 	}
 
 	undefArgs = append(undefArgs, flagSet.Args()...)
+
 	return undefArgs, nil
 }
 

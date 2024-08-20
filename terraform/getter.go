@@ -85,6 +85,7 @@ func (tfrGetter *RegistryGetter) Context() context.Context {
 	if tfrGetter == nil || tfrGetter.client == nil {
 		return context.Background()
 	}
+
 	return tfrGetter.client.Ctx
 }
 
@@ -102,6 +103,7 @@ func (tfrGetter *RegistryGetter) registryDomain() string {
 	if tfrGetter.TerragruntOptions.TerraformImplementation == options.OpenTofuImpl {
 		return defaultOtRegistryDomain
 	}
+
 	return defaultRegistryDomain
 }
 
@@ -122,6 +124,7 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 	if registryDomain == "" {
 		registryDomain = tfrGetter.registryDomain()
 	}
+
 	queryValues := srcURL.Query()
 	modulePath, moduleSubDir := getter.SourceDirSubdir(srcURL.Path)
 
@@ -129,9 +132,11 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 	if !hasVersion {
 		return errors.WithStackTrace(MalformedRegistryURLErr{reason: "missing version query"})
 	}
+
 	if len(versionList) != 1 {
 		return errors.WithStackTrace(MalformedRegistryURLErr{reason: "more than one version query"})
 	}
+
 	version := versionList[0]
 
 	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, registryDomain)
@@ -163,6 +168,7 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 		if tfrGetter.client != nil {
 			opts = tfrGetter.client.Options
 		}
+
 		return getter.Get(dstPath, source, opts...)
 	}
 
@@ -226,12 +232,14 @@ func (tfrGetter *RegistryGetter) getSubdir(_ context.Context, dstPath, sourceURL
 	// back to it.
 	manifestFname := ".tgmanifest"
 	manifestPath := filepath.Join(dstPath, manifestFname)
+
 	defer func(name string) {
 		err := os.Remove(name)
 		if err != nil {
 			util.GlobalFallbackLogEntry.Warnf("Error removing temporary directory %s: %v", name, err)
 		}
 	}(manifestPath)
+
 	return util.CopyFolderContentsWithFilter(sourcePath, dstPath, manifestFname, func(path string) bool { return true })
 }
 
@@ -245,6 +253,7 @@ func GetModuleRegistryURLBasePath(ctx context.Context, domain string) (string, e
 		Host:   domain,
 		Path:   serviceDiscoveryPath,
 	}
+
 	bodyData, _, err := httpGETAndGetResponse(ctx, sdURL)
 	if err != nil {
 		return "", err
@@ -255,6 +264,7 @@ func GetModuleRegistryURLBasePath(ctx context.Context, domain string) (string, e
 		reason := fmt.Sprintf("Error parsing response body %s: %s", string(bodyData), err)
 		return "", errors.WithStackTrace(ServiceDiscoveryErr{reason: reason})
 	}
+
 	return respJSON.ModulesPath, nil
 }
 
@@ -288,6 +298,7 @@ func GetTerraformGetHeader(ctx context.Context, url url.URL) (string, error) {
 		details := "no source URL was returned in header X-Terraform-Get and in location response from download URL"
 		return "", errors.WithStackTrace(ModuleDownloadErr{sourceURL: url.String(), details: details})
 	}
+
 	return terraformGet, nil
 }
 
@@ -303,9 +314,11 @@ func GetDownloadURLFromHeader(moduleURL url.URL, terraformGet string) (string, e
 		if err != nil {
 			return "", errors.WithStackTrace(err)
 		}
+
 		terraformGetURL := moduleURL.ResolveReference(relativePathURL)
 		terraformGet = terraformGetURL.String()
 	}
+
 	return terraformGet, nil
 }
 
@@ -341,6 +354,7 @@ func httpGETAndGetResponse(ctx context.Context, getURL url.URL) ([]byte, *http.H
 	}
 
 	bodyData, err := io.ReadAll(resp.Body)
+
 	return bodyData, &resp.Header, errors.WithStackTrace(err)
 }
 
@@ -356,8 +370,10 @@ func BuildRequestUrl(registryDomain string, moduleRegistryBasePath string, modul
 	if err != nil {
 		return nil, err
 	}
+
 	if moduleURL.Scheme != "" {
 		return moduleURL, nil
 	}
+
 	return &url.URL{Scheme: "https", Host: registryDomain, Path: moduleFullPath}, nil
 }

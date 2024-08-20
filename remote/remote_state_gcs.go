@@ -92,9 +92,11 @@ func (gcsInitializer GCSInitializer) NeedsInitialization(remoteState *RemoteStat
 	}
 
 	project := remoteState.Config["project"]
+
 	if !GCSConfigValuesEqual(remoteState.Config, existingBackend, terragruntOptions) {
 		return true, nil
 	}
+
 	if project != nil {
 		remoteState.Config["project"] = project
 	}
@@ -112,6 +114,7 @@ func (gcsInitializer GCSInitializer) NeedsInitialization(remoteState *RemoteStat
 	if !DoesGCSBucketExist(gcsClient, gcsConfig) {
 		return true, nil
 	}
+
 	if project != nil {
 		delete(remoteState.Config, "project")
 	}
@@ -246,8 +249,10 @@ func parseGCSConfig(config map[string]interface{}) (*RemoteStateConfigGCS, error
 
 // Parse the given map into a GCS config
 func parseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteStateConfigGCS, error) {
-	var gcsConfig RemoteStateConfigGCS
-	var extendedConfig ExtendedRemoteStateConfigGCS
+	var (
+		gcsConfig      RemoteStateConfigGCS
+		extendedConfig ExtendedRemoteStateConfigGCS
+	)
 
 	if err := mapstructure.Decode(config, &gcsConfig); err != nil {
 		return nil, errors.WithStackTrace(err)
@@ -295,6 +300,7 @@ func createGCSBucketIfNecessary(ctx context.Context, gcsClient *storage.Client, 
 		}
 
 		prompt := fmt.Sprintf("Remote state GCS bucket %s does not exist or you don't have permissions to access it. Would you like Terragrunt to create it?", config.remoteStateConfigGCS.Bucket)
+
 		shouldCreateBucket, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
 		if err != nil {
 			return err
@@ -375,7 +381,6 @@ func AddLabelsToGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteState
 	}
 
 	return nil
-
 }
 
 // Create the GCS bucket specified in the given config
@@ -401,15 +406,18 @@ func CreateGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteStateConfi
 		terragruntOptions.Logger.Debugf("Versioning is disabled for the remote state GCS bucket %s using 'skip_bucket_versioning' config.", config.remoteStateConfigGCS.Bucket)
 	} else {
 		terragruntOptions.Logger.Debugf("Enabling versioning on GCS bucket %s", config.remoteStateConfigGCS.Bucket)
+
 		bucketAttrs.VersioningEnabled = true
 	}
 
 	if config.EnableBucketPolicyOnly {
 		terragruntOptions.Logger.Debugf("Enabling uniform bucket-level access on GCS bucket %s", config.remoteStateConfigGCS.Bucket)
+
 		bucketAttrs.BucketPolicyOnly = storage.BucketPolicyOnly{Enabled: true}
 	}
 
 	err := bucket.Create(ctx, projectID, bucketAttrs)
+
 	return errors.WithStackTraceAndPrefix(err, "Error creating GCS bucket %s", config.remoteStateConfigGCS.Bucket)
 }
 
@@ -417,6 +425,7 @@ func CreateGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteStateConfi
 // about that GCS bucket has propagated everywhere.
 func WaitUntilGCSBucketExists(gcsClient *storage.Client, config *RemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Debugf("Waiting for bucket %s to be created", config.Bucket)
+
 	for retries := 0; retries < MAX_RETRIES_WAITING_FOR_GCS_BUCKET; retries++ {
 		if DoesGCSBucketExist(gcsClient, config) {
 			terragruntOptions.Logger.Debugf("GCS bucket %s created.", config.Bucket)
@@ -458,6 +467,7 @@ func DoesGCSBucketExist(gcsClient *storage.Client, config *RemoteStateConfigGCS)
 // CreateGCSClient creates an authenticated client for GCS
 func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, error) {
 	ctx := context.Background()
+
 	var opts []option.ClientOption
 
 	if gcsConfigRemote.Credentials != "" {
@@ -476,6 +486,7 @@ func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, err
 		var account accountFile
 		// to mirror how Terraform works, we have to accept either the file path or the contents
 		creds := os.Getenv("GOOGLE_CREDENTIALS")
+
 		contents, err := util.FileOrData(creds)
 		if err != nil {
 			return nil, fmt.Errorf("Error loading credentials: %w", err)
@@ -509,6 +520,7 @@ func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, err
 		if err != nil {
 			return nil, err
 		}
+
 		opts = append(opts, option.WithTokenSource(ts))
 	}
 
