@@ -4,12 +4,15 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	goErrors "errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/aws/aws-sdk-go/aws/awserr"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 
@@ -500,7 +503,7 @@ func getTerragruntOutput(ctx *ParsingContext, dependencyConfig Dependency) (*cty
 
 	jsonBytes, err := getOutputJsonWithCaching(ctx, targetConfigPath)
 	if err != nil {
-		if !isRenderJsonCommand(ctx) {
+		if !isRenderJsonCommand(ctx) && !isAwsS3NoSuchKey(err) {
 			return nil, true, err
 		}
 		ctx.TerragruntOptions.Logger.Warnf("Failed to read outputs from %s referenced in %s as %s, fallback to mock outputs. Error: %v", targetConfigPath, ctx.TerragruntOptions.TerragruntConfigPath, dependencyConfig.Name, err)
@@ -522,6 +525,14 @@ func getTerragruntOutput(ctx *ParsingContext, dependencyConfig Dependency) (*cty
 		err = TerragruntOutputEncodingError{Path: targetConfigPath, Err: err}
 	}
 	return &convertedOutput, isEmpty, errors.WithStackTrace(err)
+}
+
+func isAwsS3NoSuchKey(err error) bool {
+	var awsErr awserr.Error
+	if goErrors.As(errors.Unwrap(err), &awsErr) {
+		return awsErr.Code() == "NoSuchKey"
+	}
+	return false
 }
 
 // isRenderJsonCommand This function will true if terragrunt was invoked with render-json
