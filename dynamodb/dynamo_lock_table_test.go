@@ -103,7 +103,7 @@ func TestTableTagging(t *testing.T) {
 	withLockTableTagged(t, tags, func(tableName string, client *awsDynamodb.DynamoDB) {
 		assertCanWriteToTable(t, tableName, client)
 
-		assertTags(tags, tableName, client, t)
+		assertTags(t, tags, tableName, client)
 
 		// Try to create the table the second time and make sure you get no errors
 		err = dynamodb.CreateLockTableIfNecessary(tableName, nil, client, mockOptions)
@@ -111,7 +111,9 @@ func TestTableTagging(t *testing.T) {
 	})
 }
 
-func assertTags(expectedTags map[string]string, tableName string, client *awsDynamodb.DynamoDB, t *testing.T) {
+func assertTags(t *testing.T, expectedTags map[string]string, tableName string, client *awsDynamodb.DynamoDB) {
+	t.Helper()
+
 	var description, err = client.DescribeTable(&awsDynamodb.DescribeTableInput{TableName: aws.String(tableName)})
 
 	if err != nil {

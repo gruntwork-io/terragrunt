@@ -123,6 +123,7 @@ func TestMapFlagStringIntApply(t *testing.T) {
 }
 
 func testMapFlagApply[K cli.MapFlagKeyType, V cli.MapFlagValueType](t *testing.T, flag *cli.MapFlag[K, V], args []string, envs map[string]string, expectedValue map[K]V, expectedErr error) {
+	t.Helper()
 
 	var (
 		actualValue          = map[K]V{}

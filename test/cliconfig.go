@@ -66,6 +66,8 @@ type CLIConfigSettings struct {
 }
 
 func createCLIConfig(t *testing.T, file *os.File, settings *CLIConfigSettings) {
+	t.Helper()
+
 	tmp, err := template.New("cliconfig").Parse(testCLIConfigTemplate)
 	require.NoError(t, err)
 

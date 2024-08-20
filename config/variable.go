@@ -51,7 +51,8 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 					if len(block.Labels[0]) > 0 {
 						// extract variable attributes
 						name := block.Labels[0]
-						descriptionAttrText := ""
+
+						var descriptionAttrText string
 
 						descriptionAttr, err := readBlockAttribute(ctx, block, "description")
 						if err != nil {
@@ -66,13 +67,11 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 							descriptionAttrText = fmt.Sprintf("(variable %s did not define a description)", name)
 						}
 
-						typeAttrText := ""
+						var typeAttrText string
 
 						typeAttr, err := readBlockAttribute(ctx, block, "type")
 						if err != nil {
 							opts.Logger.Warnf("Failed to read type attribute for %s %v", name, err)
-
-							descriptionAttr = nil
 						}
 
 						if typeAttr != nil {

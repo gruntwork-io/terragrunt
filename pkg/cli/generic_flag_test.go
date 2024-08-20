@@ -166,6 +166,8 @@ func TestGenericFlagInt64Apply(t *testing.T) {
 }
 
 func testGenericFlagApply[T cli.GenericType](t *testing.T, flag *cli.GenericFlag[T], args []string, envs map[string]string, expectedValue T, expectedErr error) {
+	t.Helper()
+
 	var (
 		actualValue          T
 		destDefined          bool

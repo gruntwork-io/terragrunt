@@ -47,6 +47,8 @@ var STDOUT = []string{"stdout1", "stdout2"}
 var STDERR = []string{"stderr1", "stderr2", "stderr3"}
 
 func testCommandOutputOrder(t *testing.T, withPtty bool, fullOutput []string, stdout []string, stderr []string) {
+	t.Helper()
+
 	testCommandOutput(t, noop[*options.TerragruntOptions], assertOutputs(t, fullOutput, stdout, stderr), withPtty)
 }
 
@@ -69,6 +71,8 @@ func TestCommandOutputPrefix(t *testing.T) {
 }
 
 func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions), assertResults func(string, *util.CmdOutput), allocateStdout bool) {
+	t.Helper()
+
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
@@ -96,6 +100,8 @@ func assertOutputs(
 	expectedStdOutputs []string,
 	expectedStdErrs []string,
 ) func(string, *util.CmdOutput) {
+	t.Helper()
+
 	return func(allOutput string, out *util.CmdOutput) {
 		allOutputs := strings.Split(strings.TrimSpace(allOutput), "\n")
 		assert.Equal(t, expectedAllOutputs, allOutputs)

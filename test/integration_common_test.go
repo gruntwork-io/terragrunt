@@ -45,6 +45,8 @@ func testRunAllPlan(t *testing.T, args string) (string, string, string, error) {
 }
 
 func runNetworkMirrorServer(t *testing.T, ctx context.Context, urlPrefix, providerDir, token string) *url.URL {
+	t.Helper()
+
 	serverTLSConf, clientTLSConf := certSetup(t)
 
 	http.DefaultTransport = &http.Transport{
@@ -107,6 +109,8 @@ func (provider *FakeProvider) filename() string {
 }
 
 func (provider *FakeProvider) CreateMirror(t *testing.T, rootDir string) {
+	t.Helper()
+
 	providerDir := filepath.Join(rootDir, provider.RegistryName, provider.Namespace, provider.Name)
 
 	err := os.MkdirAll(providerDir, os.ModePerm)
@@ -118,6 +122,8 @@ func (provider *FakeProvider) CreateMirror(t *testing.T, rootDir string) {
 }
 
 func (provider *FakeProvider) createVersionJSON(t *testing.T, providerDir string) {
+	t.Helper()
+
 	type VersionProvider struct {
 		Hashes []string `json:"hashes"`
 		URL    string   `json:"url"`
@@ -136,6 +142,8 @@ func (provider *FakeProvider) createVersionJSON(t *testing.T, providerDir string
 }
 
 func (provider *FakeProvider) createIndexJSON(t *testing.T, providerDir string) {
+	t.Helper()
+
 	type Index struct {
 		Versions map[string]any `json:"versions"`
 	}
@@ -149,6 +157,8 @@ func (provider *FakeProvider) createIndexJSON(t *testing.T, providerDir string) 
 }
 
 func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string) {
+	t.Helper()
+
 	file, err := os.Create(filepath.Join(providerDir, provider.filename()))
 	require.NoError(t, err)
 	defer func() {
@@ -186,6 +196,8 @@ func (provider *FakeProvider) createZipArchive(t *testing.T, providerDir string)
 }
 
 func unmarshalFile(t *testing.T, filename string, dest any) {
+	t.Helper()
+
 	if !util.FileExists(filename) {
 		return
 	}
@@ -197,6 +209,8 @@ func unmarshalFile(t *testing.T, filename string, dest any) {
 }
 
 func marshalFile(t *testing.T, filename string, dest any) {
+	t.Helper()
+
 	data, err := json.Marshal(dest)
 	require.NoError(t, err)
 	err = os.WriteFile(filename, data, 0666)
@@ -204,6 +218,8 @@ func marshalFile(t *testing.T, filename string, dest any) {
 }
 
 func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
+	t.Helper()
+
 	// set up our CA certificate
 	serialNumber, err := strconv.ParseInt(time.Now().Format("20060102150405"), 10, 64)
 	require.NoError(t, err)

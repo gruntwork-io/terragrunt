@@ -294,6 +294,8 @@ func TestDiffersFrom(t *testing.T) {
 }
 
 func assertTerraformInitArgsEqual(t *testing.T, actualArgs []string, expectedArgs string) {
+	t.Helper()
+
 	expected := strings.Split(expectedArgs, " ")
 	assert.Len(t, actualArgs, len(expected))
 
