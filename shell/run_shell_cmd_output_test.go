@@ -44,9 +44,11 @@ func TestCommandOutputOrder(t *testing.T) {
 
 func noop[T any](t T) {}
 
-var FULL_OUTPUT = []string{"stdout1", "stderr1", "stdout2", "stderr2", "stderr3"}
-var STDOUT = []string{"stdout1", "stdout2"}
-var STDERR = []string{"stderr1", "stderr2", "stderr3"}
+var (
+	FullOutput = []string{"stdout1", "stderr1", "stdout2", "stderr2", "stderr3"}
+	Stdout     = []string{"stdout1", "stdout2"}
+	Stderr     = []string{"stderr1", "stderr2", "stderr3"}
+)
 
 func testCommandOutputOrder(t *testing.T, withPtty bool, fullOutput []string, stdout []string, stderr []string) {
 	t.Helper()
@@ -58,7 +60,7 @@ func TestCommandOutputPrefix(t *testing.T) {
 	t.Parallel()
 	prefix := "PREFIX"
 	prefixedOutput := []string{}
-	for _, line := range FULL_OUTPUT {
+	for _, line := range FullOutput {
 		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s msg=%s", prefix, line))
 	}
 
@@ -71,8 +73,8 @@ func TestCommandOutputPrefix(t *testing.T) {
 		terragruntOptions.Logger.Logger.Formatter = formatter
 	}, assertOutputs(t,
 		prefixedOutput,
-		STDOUT,
-		STDERR,
+		Stdout,
+		Stderr,
 	), true)
 }
 

@@ -178,7 +178,7 @@ func shallowMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error)
 		}
 	}
 
-	outCty, err := convertToCtyWithJson(outMap)
+	outCty, err := convertToCtyWithJSON(outMap)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +214,7 @@ func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*m
 		return nil, err
 	}
 
-	outCty, err := convertToCtyWithJson(outMap)
+	outCty, err := convertToCtyWithJSON(outMap)
 	if err != nil {
 		return nil, err
 	}
@@ -222,6 +222,8 @@ func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*m
 	return &outCty, nil
 }
 
+// ParseCtyValueToMap converts a cty.Value to a map[string]interface{}.
+//
 // This is a hacky workaround to convert a cty Value to a Go map[string]interface{}. cty does not support this directly
 // (https://github.com/hashicorp/hcl2/issues/108) and doing it with gocty.FromCtyValue is nearly impossible, as cty
 // requires you to specify all the output types and will error out when it hits interface{}. So, as an ugly workaround,
@@ -240,19 +242,21 @@ func ParseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
 		return nil, errors.WithStackTrace(err)
 	}
 
-	var ctyJsonOutput CtyJsonOutput
-	if err := json.Unmarshal(jsonBytes, &ctyJsonOutput); err != nil {
+	var ctyJSONOutput CtyJSONOutput
+	if err := json.Unmarshal(jsonBytes, &ctyJSONOutput); err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
 
-	return ctyJsonOutput.Value, nil
+	return ctyJSONOutput.Value, nil
 }
 
+// CtyJSONOutput is a struct that captures the output of cty's JSON marshalling.
+//
 // When you convert a cty value to JSON, if any of that types are not yet known (i.e., are labeled as
 // DynamicPseudoType), cty's Marshall method will write the type information to a type field and the actual value to
 // a value field. This struct is used to capture that information so when we parse the JSON back into a Go struct, we
 // can pull out just the Value field we need.
-type CtyJsonOutput struct {
+type CtyJSONOutput struct {
 	Value map[string]interface{} `json:"Value"`
 	Type  interface{}            `json:"Type"`
 }

@@ -1,3 +1,5 @@
+// Package catalog provides the ability to interact with a catalog of OpenTofu/Terraform modules
+// via the `terragrunt catalog` command.
 package catalog
 
 import (

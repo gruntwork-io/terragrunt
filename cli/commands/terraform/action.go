@@ -163,7 +163,7 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 
 	if terragruntConfig.RetryMaxAttempts != nil {
 		if *terragruntConfig.RetryMaxAttempts < 1 {
-			return fmt.Errorf("Cannot have less than 1 max retry, but you specified %d", *terragruntConfig.RetryMaxAttempts)
+			return fmt.Errorf("cannot have less than 1 max retry, but you specified %d", *terragruntConfig.RetryMaxAttempts)
 		}
 
 		terragruntOptions.RetryMaxAttempts = *terragruntConfig.RetryMaxAttempts
@@ -171,24 +171,24 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 
 	if terragruntConfig.RetrySleepIntervalSec != nil {
 		if *terragruntConfig.RetrySleepIntervalSec < 0 {
-			return fmt.Errorf("Cannot sleep for less than 0 seconds, but you specified %d", *terragruntConfig.RetrySleepIntervalSec)
+			return fmt.Errorf("cannot sleep for less than 0 seconds, but you specified %d", *terragruntConfig.RetrySleepIntervalSec)
 		}
 
-		terragruntOptions.RetrySleepIntervalSec = time.Duration(*terragruntConfig.RetrySleepIntervalSec) * time.Second
+		terragruntOptions.RetrySleepInterval = time.Duration(*terragruntConfig.RetrySleepIntervalSec) * time.Second
 	}
 
 	updatedTerragruntOptions := terragruntOptions
 
-	sourceUrl, err := config.GetTerraformSourceUrl(terragruntOptions, terragruntConfig)
+	sourceURL, err := config.GetTerraformSourceURL(terragruntOptions, terragruntConfig)
 	if err != nil {
 		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
 	}
 
-	if sourceUrl != "" {
+	if sourceURL != "" {
 		err = telemetry.Telemetry(ctx, terragruntOptions, "download_terraform_source", map[string]interface{}{
-			"sourceUrl": sourceUrl,
+			"sourceUrl": sourceURL,
 		}, func(childCtx context.Context) error {
-			updatedTerragruntOptions, err = downloadTerraformSource(ctx, sourceUrl, terragruntOptions, terragruntConfig)
+			updatedTerragruntOptions, err = downloadTerraformSource(ctx, sourceURL, terragruntOptions, terragruntConfig)
 			return err
 		})
 
@@ -416,8 +416,8 @@ func runActionWithHooks(ctx context.Context, description string, terragruntOptio
 	return allErrors.ErrorOrNil()
 }
 
-// The Terragrunt configuration can contain a set of inputs to pass to Terraform as environment variables. This method
-// sets these environment variables in the given terragruntOptions.
+// SetTerragruntInputsAsEnvVars sets the inputs from Terragrunt configurations to TF_VAR_* environment variables for
+// OpenTofu/Terraform.
 func SetTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	asEnvVars, err := ToTerraformEnvVars(terragruntConfig.Inputs)
 	if err != nil {
@@ -446,9 +446,9 @@ func RunTerraformWithRetry(ctx context.Context, terragruntOptions *options.Terra
 				terragruntOptions.Logger.WithError(err).Errorf("%s invocation failed in %s", terragruntOptions.TerraformImplementation, terragruntOptions.WorkingDir)
 				return err
 			} else {
-				terragruntOptions.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.RetrySleepIntervalSec)
+				terragruntOptions.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.RetrySleepInterval)
 				select {
-				case <-time.After(terragruntOptions.RetrySleepIntervalSec):
+				case <-time.After(terragruntOptions.RetrySleepInterval):
 					// try again
 				case <-ctx.Done():
 					return errors.WithStackTrace(ctx.Err())
@@ -722,8 +722,8 @@ func FilterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 	cmd := util.FirstArg(terragruntOptions.TerraformCliArgs)
 
 	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
-		for _, arg_cmd := range arg.Commands {
-			if cmd == arg_cmd {
+		for _, argCmd := range arg.Commands {
+			if cmd == argCmd {
 				lastArg := util.LastArg(terragruntOptions.TerraformCliArgs)
 				skipVars := (cmd == terraform.CommandNameApply || cmd == terraform.CommandNameDestroy) && util.IsFile(lastArg)
 
@@ -778,7 +778,7 @@ func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOp
 	return out
 }
 
-// Convert the given variables to a map of environment variables that will expose those variables to Terraform. The
+// ToTerraformEnvVars converts the given variables to a map of environment variables that will expose those variables to Terraform. The
 // keys will be of the format TF_VAR_xxx and the values will be converted to JSON, which Terraform knows how to read
 // natively.
 func ToTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) {
@@ -792,7 +792,7 @@ func ToTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) 
 
 		envVarName := fmt.Sprintf(terraform.EnvNameTFVarFmt, varName)
 
-		envVarValue, err := util.AsTerraformEnvVarJsonValue(varValue)
+		envVarValue, err := util.AsTerraformEnvVarJSONValue(varValue)
 		if err != nil {
 			return nil, err
 		}

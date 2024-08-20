@@ -57,13 +57,13 @@ func DisableLogFormatting() {
 	setGlobalFallbackLogEntry()
 }
 
-func JsonFormat() {
+func JSONFormat() {
 	jsonLogFormat = true
 
 	setGlobalFallbackLogEntry()
 }
 
-func DisableJsonFormat() {
+func DisableJSONFormat() {
 	jsonLogFormat = false
 
 	setGlobalFallbackLogEntry()

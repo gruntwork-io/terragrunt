@@ -1,3 +1,4 @@
+// Package helpers provides utility functions for working with HTTP requests and responses.
 package helpers
 
 import (

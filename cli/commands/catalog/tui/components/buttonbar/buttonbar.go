@@ -1,3 +1,4 @@
+// Package buttonbar provides a bubbletea component that displays an inline list of buttons.
 package buttonbar
 
 import (

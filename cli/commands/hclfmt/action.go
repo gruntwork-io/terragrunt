@@ -124,7 +124,7 @@ func formatTgHCL(opts *options.TerragruntOptions, tgHclFile string) error {
 	}
 
 	if opts.Check && fileUpdated {
-		return fmt.Errorf("Invalid file format %s", tgHclFile)
+		return fmt.Errorf("invalid file format %s", tgHclFile)
 	}
 
 	if fileUpdated {

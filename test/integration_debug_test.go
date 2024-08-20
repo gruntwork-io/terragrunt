@@ -72,10 +72,10 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	validateInputs(t, outputs)
 
 	// Also make sure the undefined variable is not included in the json file
-	debugJsonContents, err := os.ReadFile(debugFile)
+	debugJSONContents, err := os.ReadFile(debugFile)
 	require.NoError(t, err)
 	var data map[string]interface{}
-	require.NoError(t, json.Unmarshal(debugJsonContents, &data))
+	require.NoError(t, json.Unmarshal(debugJSONContents, &data))
 	_, isDefined := data["undefined_var"]
 	assert.False(t, isDefined)
 }
@@ -206,8 +206,8 @@ func TestRenderJSONConfig(t *testing.T) {
 		assert.Equal(t, "./module", source)
 	}
 
-	// Make sure included remote_state is rendered out
-	remote_state, hasRemoteState := rendered["remote_state"]
+	// Make sure included remoteState is rendered out
+	remoteState, hasRemoteState := rendered["remote_state"]
 	if assert.True(t, hasRemoteState) {
 		assert.Equal(
 			t,
@@ -223,7 +223,7 @@ func TestRenderJSONConfig(t *testing.T) {
 				"disable_init":                    false,
 				"disable_dependency_optimization": false,
 			},
-			remote_state.(map[string]interface{}),
+			remoteState.(map[string]interface{}),
 		)
 	}
 

@@ -34,8 +34,8 @@ func TestAwsS3SSEAES(t *testing.T) {
 	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, s3SSEAESFixturePath)
 
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueId())
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueID())
 
 	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
 	defer cleanupTableForTest(t, lockTableName, terraformRemoteStateS3Region)
@@ -61,8 +61,8 @@ func TestAwsS3SSECustomKey(t *testing.T) {
 	testPath := util.JoinPath(tmpEnvPath, s3SSECustomKeyFixturePath)
 	cleanupTerraformFolder(t, testPath)
 
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueId())
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueID())
 
 	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
 	defer cleanupTableForTest(t, lockTableName, terraformRemoteStateS3Region)
@@ -117,8 +117,8 @@ func TestAwsS3SSEKeyNotReverted(t *testing.T) {
 
 	cleanupTerraformFolder(t, s3SSBasicEncryptionFixturePath)
 
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueId())
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueID())
 
 	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
 	defer cleanupTableForTest(t, lockTableName, terraformRemoteStateS3Region)
@@ -155,8 +155,8 @@ func TestAwsS3EncryptionWarning(t *testing.T) {
 	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, s3SSEKMSFixturePath)
 
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueId())
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueID())
 
 	require.NoError(t, createS3BucketE(t, terraformRemoteStateS3Region, s3BucketName))
 

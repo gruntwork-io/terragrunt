@@ -42,7 +42,7 @@ func createFakeProvider(t *testing.T, cacheDir, relativePath string) string {
 func TestProviderCache(t *testing.T) {
 	t.Parallel()
 
-	token := fmt.Sprintf("%s:%s", cli.API_KEY_AUTH, uuid.New().String())
+	token := fmt.Sprintf("%s:%s", cli.APIKeyAuth, uuid.New().String())
 
 	providerCacheDir := t.TempDir()
 	pluginCacheDir := t.TempDir()
@@ -114,7 +114,7 @@ func TestProviderCache(t *testing.T) {
 			errGroup, ctx := errgroup.WithContext(ctx)
 
 			providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil)
-			providerHandler := handlers.NewProviderDirectHandler(providerService, cli.CACHE_PROVIDER_HTTP_STATUS_CODE, new(cliconfig.ProviderInstallationDirect), nil)
+			providerHandler := handlers.NewProviderDirectHandler(providerService, cli.CacheProviderHTTPStatusCode, new(cliconfig.ProviderInstallationDirect), nil)
 
 			testCase.opts = append(testCase.opts, cache.WithServices(providerService), cache.WithProviderHandlers(providerHandler))
 

@@ -100,7 +100,7 @@ func parseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*T
 // user.
 func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool) (*TerragruntConfig, error) {
 	if ctx.TrackInclude == nil {
-		return nil, goErrors.New("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_NIL_INCLUDE_CONFIG")
+		return nil, goErrors.New("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_NIL_INCLUDE_CONFIG")
 	}
 
 	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
@@ -153,7 +153,7 @@ func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool
 
 			baseConfig = parsedIncludeConfig
 		default:
-			return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s", mergeStrategy)
+			return nil, fmt.Errorf("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s", mergeStrategy)
 		}
 	}
 
@@ -166,7 +166,7 @@ func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool
 // child.
 func handleIncludeForDependency(ctx *ParsingContext, childDecodedDependency TerragruntDependency) (*TerragruntDependency, error) {
 	if ctx.TrackInclude == nil {
-		return nil, goErrors.New("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_DEPENDENCY_NIL_INCLUDE_CONFIG")
+		return nil, goErrors.New("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_DEPENDENCY_NIL_INCLUDE_CONFIG")
 	}
 	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
 	// those in earlier includes, so we need to merge bottom up instead of top down to ensure this.
@@ -205,7 +205,7 @@ func handleIncludeForDependency(ctx *ParsingContext, childDecodedDependency Terr
 
 			baseDependencyBlock = mergedDependencyBlock
 		default:
-			return nil, fmt.Errorf("You reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s_DEPENDENCY", mergeStrategy)
+			return nil, fmt.Errorf("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: UNKNOWN_MERGE_STRATEGY_%s_DEPENDENCY", mergeStrategy)
 		}
 	}
 
@@ -221,105 +221,105 @@ func handleIncludeForDependency(ctx *ParsingContext, childDecodedDependency Terr
 // NOTE: dependencies block is a special case and is merged deeply. This is necessary to ensure the configstack system
 // works correctly, as it uses the `Dependencies` list to track the dependencies of modules for graph building purposes.
 // This list includes the dependencies added from dependency blocks, which is handled in a different stage.
-func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terragruntOptions *options.TerragruntOptions) error {
+func (t *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terragruntOptions *options.TerragruntOptions) error {
 	// Merge simple attributes first
 	if sourceConfig.DownloadDir != "" {
-		targetConfig.DownloadDir = sourceConfig.DownloadDir
+		t.DownloadDir = sourceConfig.DownloadDir
 	}
 
 	if sourceConfig.IamRole != "" {
-		targetConfig.IamRole = sourceConfig.IamRole
+		t.IamRole = sourceConfig.IamRole
 	}
 
 	if sourceConfig.IamAssumeRoleDuration != nil {
-		targetConfig.IamAssumeRoleDuration = sourceConfig.IamAssumeRoleDuration
+		t.IamAssumeRoleDuration = sourceConfig.IamAssumeRoleDuration
 	}
 
 	if sourceConfig.TerraformVersionConstraint != "" {
-		targetConfig.TerraformVersionConstraint = sourceConfig.TerraformVersionConstraint
+		t.TerraformVersionConstraint = sourceConfig.TerraformVersionConstraint
 	}
 
 	if sourceConfig.TerraformBinary != "" {
-		targetConfig.TerraformBinary = sourceConfig.TerraformBinary
+		t.TerraformBinary = sourceConfig.TerraformBinary
 	}
 
 	if sourceConfig.PreventDestroy != nil {
-		targetConfig.PreventDestroy = sourceConfig.PreventDestroy
+		t.PreventDestroy = sourceConfig.PreventDestroy
 	}
 
 	if sourceConfig.RetryMaxAttempts != nil {
-		targetConfig.RetryMaxAttempts = sourceConfig.RetryMaxAttempts
+		t.RetryMaxAttempts = sourceConfig.RetryMaxAttempts
 	}
 
 	if sourceConfig.RetrySleepIntervalSec != nil {
-		targetConfig.RetrySleepIntervalSec = sourceConfig.RetrySleepIntervalSec
+		t.RetrySleepIntervalSec = sourceConfig.RetrySleepIntervalSec
 	}
 
 	if sourceConfig.TerragruntVersionConstraint != "" {
-		targetConfig.TerragruntVersionConstraint = sourceConfig.TerragruntVersionConstraint
+		t.TerragruntVersionConstraint = sourceConfig.TerragruntVersionConstraint
 	}
 
 	if sourceConfig.Engine != nil {
-		targetConfig.Engine = sourceConfig.Engine.Clone()
+		t.Engine = sourceConfig.Engine.Clone()
 	}
 
 	// Skip has to be set specifically in each file that should be skipped
-	targetConfig.Skip = sourceConfig.Skip
+	t.Skip = sourceConfig.Skip
 
 	if sourceConfig.RemoteState != nil {
-		targetConfig.RemoteState = sourceConfig.RemoteState
+		t.RemoteState = sourceConfig.RemoteState
 	}
 
 	if sourceConfig.Terraform != nil {
-		if targetConfig.Terraform == nil {
-			targetConfig.Terraform = sourceConfig.Terraform
+		if t.Terraform == nil {
+			t.Terraform = sourceConfig.Terraform
 		} else {
 			if sourceConfig.Terraform.Source != nil {
-				targetConfig.Terraform.Source = sourceConfig.Terraform.Source
+				t.Terraform.Source = sourceConfig.Terraform.Source
 			}
 
-			mergeExtraArgs(terragruntOptions, sourceConfig.Terraform.ExtraArgs, &targetConfig.Terraform.ExtraArgs)
+			mergeExtraArgs(terragruntOptions, sourceConfig.Terraform.ExtraArgs, &t.Terraform.ExtraArgs)
 
-			mergeHooks(terragruntOptions, sourceConfig.Terraform.BeforeHooks, &targetConfig.Terraform.BeforeHooks)
-			mergeHooks(terragruntOptions, sourceConfig.Terraform.AfterHooks, &targetConfig.Terraform.AfterHooks)
-			mergeErrorHooks(terragruntOptions, sourceConfig.Terraform.ErrorHooks, &targetConfig.Terraform.ErrorHooks)
+			mergeHooks(terragruntOptions, sourceConfig.Terraform.BeforeHooks, &t.Terraform.BeforeHooks)
+			mergeHooks(terragruntOptions, sourceConfig.Terraform.AfterHooks, &t.Terraform.AfterHooks)
+			mergeErrorHooks(terragruntOptions, sourceConfig.Terraform.ErrorHooks, &t.Terraform.ErrorHooks)
 		}
 	}
 
 	// Dependency blocks are shallow merged by name
-	targetConfig.TerragruntDependencies = mergeDependencyBlocks(targetConfig.TerragruntDependencies, sourceConfig.TerragruntDependencies)
+	t.TerragruntDependencies = mergeDependencyBlocks(t.TerragruntDependencies, sourceConfig.TerragruntDependencies)
 
 	// Deep merge the dependencies list. This is different from dependency blocks, and refers to the deprecated
 	// dependencies block!
 	if sourceConfig.Dependencies != nil {
-		if targetConfig.Dependencies == nil {
-			targetConfig.Dependencies = sourceConfig.Dependencies
+		if t.Dependencies == nil {
+			t.Dependencies = sourceConfig.Dependencies
 		} else {
-			targetConfig.Dependencies.Merge(sourceConfig.Dependencies)
+			t.Dependencies.Merge(sourceConfig.Dependencies)
 		}
 	}
 
 	if sourceConfig.RetryableErrors != nil {
-		targetConfig.RetryableErrors = sourceConfig.RetryableErrors
+		t.RetryableErrors = sourceConfig.RetryableErrors
 	}
 
 	// Merge the generate configs. This is a shallow merge. Meaning, if the child has the same name generate block, then the
 	// child's generate block will override the parent's block.
 
-	err := validateGenerateConfigs(&sourceConfig.GenerateConfigs, &targetConfig.GenerateConfigs)
+	err := validateGenerateConfigs(&sourceConfig.GenerateConfigs, &t.GenerateConfigs)
 	if err != nil {
 		return err
 	}
 
 	for key, val := range sourceConfig.GenerateConfigs {
-		targetConfig.GenerateConfigs[key] = val
+		t.GenerateConfigs[key] = val
 	}
 
 	if sourceConfig.Inputs != nil {
-		targetConfig.Inputs = mergeInputs(sourceConfig.Inputs, targetConfig.Inputs)
+		t.Inputs = mergeInputs(sourceConfig.Inputs, t.Inputs)
 	}
 
-	CopyFieldsMetadata(sourceConfig, targetConfig)
+	CopyFieldsMetadata(sourceConfig, t)
 
 	return nil
 }
@@ -338,63 +338,63 @@ func (targetConfig *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terr
 //   - dependency blocks (TerragruntDependencies) [These blocks need to retrieve outputs, so we need to merge during
 //     the parsing step, not after the full config is decoded]
 //   - locals [These blocks are not merged by design]
-func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, terragruntOptions *options.TerragruntOptions) error {
+func (t *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, terragruntOptions *options.TerragruntOptions) error {
 	// Merge simple attributes first
 	if sourceConfig.DownloadDir != "" {
-		targetConfig.DownloadDir = sourceConfig.DownloadDir
+		t.DownloadDir = sourceConfig.DownloadDir
 	}
 
 	if sourceConfig.IamRole != "" {
-		targetConfig.IamRole = sourceConfig.IamRole
+		t.IamRole = sourceConfig.IamRole
 	}
 
 	if sourceConfig.IamAssumeRoleDuration != nil {
-		targetConfig.IamAssumeRoleDuration = sourceConfig.IamAssumeRoleDuration
+		t.IamAssumeRoleDuration = sourceConfig.IamAssumeRoleDuration
 	}
 
 	if sourceConfig.TerraformVersionConstraint != "" {
-		targetConfig.TerraformVersionConstraint = sourceConfig.TerraformVersionConstraint
+		t.TerraformVersionConstraint = sourceConfig.TerraformVersionConstraint
 	}
 
 	if sourceConfig.TerraformBinary != "" {
-		targetConfig.TerraformBinary = sourceConfig.TerraformBinary
+		t.TerraformBinary = sourceConfig.TerraformBinary
 	}
 
 	if sourceConfig.PreventDestroy != nil {
-		targetConfig.PreventDestroy = sourceConfig.PreventDestroy
+		t.PreventDestroy = sourceConfig.PreventDestroy
 	}
 
 	if sourceConfig.RetryMaxAttempts != nil {
-		targetConfig.RetryMaxAttempts = sourceConfig.RetryMaxAttempts
+		t.RetryMaxAttempts = sourceConfig.RetryMaxAttempts
 	}
 
 	if sourceConfig.RetrySleepIntervalSec != nil {
-		targetConfig.RetrySleepIntervalSec = sourceConfig.RetrySleepIntervalSec
+		t.RetrySleepIntervalSec = sourceConfig.RetrySleepIntervalSec
 	}
 
 	if sourceConfig.TerragruntVersionConstraint != "" {
-		targetConfig.TerragruntVersionConstraint = sourceConfig.TerragruntVersionConstraint
+		t.TerragruntVersionConstraint = sourceConfig.TerragruntVersionConstraint
 	}
 
 	if sourceConfig.Engine != nil {
-		if targetConfig.Engine == nil {
-			targetConfig.Engine = &EngineConfig{}
+		if t.Engine == nil {
+			t.Engine = &EngineConfig{}
 		}
 
-		targetConfig.Engine.Merge(sourceConfig.Engine)
+		t.Engine.Merge(sourceConfig.Engine)
 	}
 
 	// Skip has to be set specifically in each file that should be skipped
-	targetConfig.Skip = sourceConfig.Skip
+	t.Skip = sourceConfig.Skip
 
 	// Copy only dependencies which doesn't exist in source
 	if sourceConfig.Dependencies != nil {
 		resultModuleDependencies := &ModuleDependencies{}
 
-		if targetConfig.Dependencies != nil {
+		if t.Dependencies != nil {
 			// take in result dependencies only paths which aren't defined in source
 			// Fix for issue: https://github.com/gruntwork-io/terragrunt/issues/1900
-			targetPathMap := fetchDependencyPaths(targetConfig)
+			targetPathMap := fetchDependencyPaths(t)
 			sourcePathMap := fetchDependencyPaths(sourceConfig)
 
 			for key, value := range targetPathMap {
@@ -405,7 +405,7 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 			}
 			// copy target paths which are defined only in Dependencies and not in TerragruntDependencies
 			// if TerragruntDependencies will be empty, all targetConfig.Dependencies.Paths will be copied to resultModuleDependencies.Paths
-			for _, dependencyPath := range targetConfig.Dependencies.Paths {
+			for _, dependencyPath := range t.Dependencies.Paths {
 				var addPath = true
 
 				for _, targetPath := range targetPathMap {
@@ -422,71 +422,71 @@ func (targetConfig *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, 
 		}
 
 		resultModuleDependencies.Paths = append(resultModuleDependencies.Paths, sourceConfig.Dependencies.Paths...)
-		targetConfig.Dependencies = resultModuleDependencies
+		t.Dependencies = resultModuleDependencies
 	}
 
 	// Dependency blocks are deep merged by name
-	mergedDeps, err := deepMergeDependencyBlocks(targetConfig.TerragruntDependencies, sourceConfig.TerragruntDependencies)
+	mergedDeps, err := deepMergeDependencyBlocks(t.TerragruntDependencies, sourceConfig.TerragruntDependencies)
 	if err != nil {
 		return err
 	}
 
-	targetConfig.TerragruntDependencies = mergedDeps
+	t.TerragruntDependencies = mergedDeps
 
 	if sourceConfig.RetryableErrors != nil {
-		targetConfig.RetryableErrors = append(targetConfig.RetryableErrors, sourceConfig.RetryableErrors...)
+		t.RetryableErrors = append(t.RetryableErrors, sourceConfig.RetryableErrors...)
 	}
 
 	// Handle complex structs by recursively merging the structs together
 	if sourceConfig.Terraform != nil {
-		if targetConfig.Terraform == nil {
-			targetConfig.Terraform = sourceConfig.Terraform
+		if t.Terraform == nil {
+			t.Terraform = sourceConfig.Terraform
 		} else {
 			if sourceConfig.Terraform.Source != nil {
-				targetConfig.Terraform.Source = sourceConfig.Terraform.Source
+				t.Terraform.Source = sourceConfig.Terraform.Source
 			}
 
 			if sourceConfig.Terraform.IncludeInCopy != nil {
 				srcList := *sourceConfig.Terraform.IncludeInCopy
 
-				if targetConfig.Terraform.IncludeInCopy != nil {
-					targetList := *targetConfig.Terraform.IncludeInCopy
+				if t.Terraform.IncludeInCopy != nil {
+					targetList := *t.Terraform.IncludeInCopy
 					combinedList := append(srcList, targetList...)
-					targetConfig.Terraform.IncludeInCopy = &combinedList
+					t.Terraform.IncludeInCopy = &combinedList
 				} else {
-					targetConfig.Terraform.IncludeInCopy = &srcList
+					t.Terraform.IncludeInCopy = &srcList
 				}
 			}
 
-			mergeExtraArgs(terragruntOptions, sourceConfig.Terraform.ExtraArgs, &targetConfig.Terraform.ExtraArgs)
+			mergeExtraArgs(terragruntOptions, sourceConfig.Terraform.ExtraArgs, &t.Terraform.ExtraArgs)
 
-			mergeHooks(terragruntOptions, sourceConfig.Terraform.BeforeHooks, &targetConfig.Terraform.BeforeHooks)
-			mergeHooks(terragruntOptions, sourceConfig.Terraform.AfterHooks, &targetConfig.Terraform.AfterHooks)
-			mergeErrorHooks(terragruntOptions, sourceConfig.Terraform.ErrorHooks, &targetConfig.Terraform.ErrorHooks)
+			mergeHooks(terragruntOptions, sourceConfig.Terraform.BeforeHooks, &t.Terraform.BeforeHooks)
+			mergeHooks(terragruntOptions, sourceConfig.Terraform.AfterHooks, &t.Terraform.AfterHooks)
+			mergeErrorHooks(terragruntOptions, sourceConfig.Terraform.ErrorHooks, &t.Terraform.ErrorHooks)
 		}
 	}
 
 	if sourceConfig.Inputs != nil {
-		mergedInputs, err := deepMergeInputs(sourceConfig.Inputs, targetConfig.Inputs)
+		mergedInputs, err := deepMergeInputs(sourceConfig.Inputs, t.Inputs)
 		if err != nil {
 			return err
 		}
 
-		targetConfig.Inputs = mergedInputs
+		t.Inputs = mergedInputs
 	}
 
 	// MAINTAINER'S NOTE: The following structs cannot be deep merged due to an implementation detail (they do not
 	// support nil attributes, so we can't determine if an attribute was intentionally set, or was defaulted from
 	// unspecified - this is especially problematic for bool attributes).
 	if sourceConfig.RemoteState != nil {
-		targetConfig.RemoteState = sourceConfig.RemoteState
+		t.RemoteState = sourceConfig.RemoteState
 	}
 
 	for key, val := range sourceConfig.GenerateConfigs {
-		targetConfig.GenerateConfigs[key] = val
+		t.GenerateConfigs[key] = val
 	}
 
-	CopyFieldsMetadata(sourceConfig, targetConfig)
+	CopyFieldsMetadata(sourceConfig, t)
 
 	return nil
 }

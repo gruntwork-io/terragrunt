@@ -91,7 +91,7 @@ func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg
 	// an error will only be returned if required inputs are missing. When strict mode is true, an error will be
 	// returned if required inputs are missing OR if any unused variables are passed
 	if len(missingVars) > 0 || len(unusedVars) > 0 && opts.ValidateStrict {
-		return fmt.Errorf("Terragrunt configuration has misaligned inputs. Strict mode enabled: %t.", opts.ValidateStrict)
+		return fmt.Errorf("terragrunt configuration has misaligned inputs. Strict mode enabled: %t", opts.ValidateStrict)
 	} else if len(unusedVars) > 0 {
 		opts.Logger.Warn("Terragrunt configuration has misaligned inputs, but running in relaxed mode so ignoring.")
 	}
@@ -258,9 +258,9 @@ func getTerraformInputNamesFromAutomaticVarFiles(opts *options.TerragruntOptions
 		automaticVarFiles = append(automaticVarFiles, tfTFVarsFile)
 	}
 
-	tfTFVarsJsonFile := filepath.Join(base, "terraform.tfvars.json")
-	if util.FileExists(tfTFVarsJsonFile) {
-		automaticVarFiles = append(automaticVarFiles, tfTFVarsJsonFile)
+	tfTFVarsJSONFile := filepath.Join(base, "terraform.tfvars.json")
+	if util.FileExists(tfTFVarsJSONFile) {
+		automaticVarFiles = append(automaticVarFiles, tfTFVarsJSONFile)
 	}
 
 	varFiles, err := filepath.Glob(filepath.Join(base, "*.auto.tfvars"))
@@ -324,8 +324,8 @@ func getVarNamesFromVarFile(varFile string) ([]string, error) {
 	return out, nil
 }
 
-// Returns the CLI flags defined on the provided arguments list that correspond to -var and -var-file. Returns two
-// slices, one for `-var` args (the first one) and one for `-var-file` args (the second one).
+// GetVarFlagsFromArgList returns the CLI flags defined on the provided arguments list that correspond to -var and -var-file.
+// Returns two slices, one for `-var` args (the first one) and one for `-var-file` args (the second one).
 func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 	vars := []string{}
 	varFiles := []string{}
@@ -348,7 +348,7 @@ func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 			// -var is passed in in the format -var=VARNAME=VALUE, so we split on '=' and take the middle value.
 			splitArg := strings.Split(shlexedArg, "=")
 			if len(splitArg) < splitCount {
-				return vars, varFiles, fmt.Errorf("Unexpected -var arg format in terraform.extra_arguments.arguments. Expected '-var=VARNAME=VALUE', got %s.", arg)
+				return vars, varFiles, fmt.Errorf("unexpected -var arg format in terraform.extra_arguments.arguments. Expected '-var=VARNAME=VALUE', got %s", arg)
 			}
 
 			vars = append(vars, splitArg[1])

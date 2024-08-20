@@ -143,15 +143,15 @@ func TestTFRGetterSubModule(t *testing.T) {
 
 func TestBuildRequestUrlFullPath(t *testing.T) {
 	t.Parallel()
-	requestUrl, err := terraform.BuildRequestUrl("gruntwork.io", "https://gruntwork.io/registry/modules/v1/", "/tfr-project/terraform-aws-tfr", "6.6.6")
+	requestURL, err := terraform.BuildRequestURL("gruntwork.io", "https://gruntwork.io/registry/modules/v1/", "/tfr-project/terraform-aws-tfr", "6.6.6")
 	require.NoError(t, err)
-	assert.Equal(t, "https://gruntwork.io/registry/modules/v1/tfr-project/terraform-aws-tfr/6.6.6/download", requestUrl.String())
+	assert.Equal(t, "https://gruntwork.io/registry/modules/v1/tfr-project/terraform-aws-tfr/6.6.6/download", requestURL.String())
 }
 
 func TestBuildRequestUrlRelativePath(t *testing.T) {
 	t.Parallel()
-	requestUrl, err := terraform.BuildRequestUrl("gruntwork.io", "/registry/modules/v1", "/tfr-project/terraform-aws-tfr", "6.6.6")
+	requestURL, err := terraform.BuildRequestURL("gruntwork.io", "/registry/modules/v1", "/tfr-project/terraform-aws-tfr", "6.6.6")
 	require.NoError(t, err)
-	assert.Equal(t, "https://gruntwork.io/registry/modules/v1/tfr-project/terraform-aws-tfr/6.6.6/download", requestUrl.String())
+	assert.Equal(t, "https://gruntwork.io/registry/modules/v1/tfr-project/terraform-aws-tfr/6.6.6/download", requestURL.String())
 
 }

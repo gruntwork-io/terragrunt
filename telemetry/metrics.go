@@ -25,8 +25,8 @@ type metricsExporterType string
 const (
 	noneMetricsExporterType     metricsExporterType = "none"
 	consoleMetricsExporterType  metricsExporterType = "console"
-	oltpHttpMetricsExporterType metricsExporterType = "otlpHttp"
-	grpcHttpMetricsExporterType metricsExporterType = "grpcHttp"
+	oltpHTTPMetricsExporterType metricsExporterType = "otlpHttp"
+	grpcHTTPMetricsExporterType metricsExporterType = "grpcHttp"
 
 	ErrorsCounter = "errors"
 
@@ -111,14 +111,14 @@ func NewMetricsExporter(ctx context.Context, opts *TelemetryOptions) (metric.Exp
 
 	// TODO: Remove this lint suppression
 	switch exporterType { //nolint:exhaustive
-	case oltpHttpMetricsExporterType:
+	case oltpHTTPMetricsExporterType:
 		var config []otlpmetrichttp.Option
 		if insecure {
 			config = append(config, otlpmetrichttp.WithInsecure())
 		}
 
 		return otlpmetrichttp.New(ctx, config...)
-	case grpcHttpMetricsExporterType:
+	case grpcHTTPMetricsExporterType:
 		var config []otlpmetricgrpc.Option
 		if insecure {
 			config = append(config, otlpmetricgrpc.WithInsecure())

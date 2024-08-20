@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/go-version"
 )
 
-// This uses the constraint syntax from https://github.com/hashicorp/go-version
+// DefaultTerraformVersionConstraint uses the constraint syntax from https://github.com/hashicorp/go-version
 // This version of Terragrunt was tested to work with Terraform 0.12.0 and above only
 const DefaultTerraformVersionConstraint = ">= v0.12.0"
 
@@ -74,7 +74,7 @@ func checkVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 	return nil
 }
 
-// Populate the currently installed version of Terraform into the given terragruntOptions
+// PopulateTerraformVersion populates the currently installed version of Terraform into the given terragruntOptions.
 func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
 	// Discard all log output to make sure we don't pollute stdout or stderr with this extra call to '--version'
 	terragruntOptionsCopy, err := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
@@ -122,19 +122,19 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 	return nil
 }
 
-// Check that the currently installed Terraform version works meets the specified version constraint and return an error
+// CheckTerraformVersion checks that the currently installed Terraform version works meets the specified version constraint and return an error
 // if it doesn't
 func CheckTerraformVersion(constraint string, terragruntOptions *options.TerragruntOptions) error {
 	return CheckTerraformVersionMeetsConstraint(terragruntOptions.TerraformVersion, constraint)
 }
 
-// Check that the currently running Terragrunt version meets the specified version constraint and return an error
+// CheckTerragruntVersion checks that the currently running Terragrunt version meets the specified version constraint and return an error
 // if it doesn't
 func CheckTerragruntVersion(constraint string, terragruntOptions *options.TerragruntOptions) error {
 	return CheckTerragruntVersionMeetsConstraint(terragruntOptions.TerragruntVersion, constraint)
 }
 
-// Check that the current version of Terragrunt meets the specified constraint and return an error if it doesn't
+// CheckTerragruntVersionMeetsConstraint checks that the current version of Terragrunt meets the specified constraint and return an error if it doesn't
 func CheckTerragruntVersionMeetsConstraint(currentVersion *version.Version, constraint string) error {
 	versionConstraint, err := version.NewConstraint(constraint)
 	if err != nil {
@@ -148,7 +148,7 @@ func CheckTerragruntVersionMeetsConstraint(currentVersion *version.Version, cons
 	return nil
 }
 
-// Check that the current version of Terraform meets the specified constraint and return an error if it doesn't
+// CheckTerraformVersionMeetsConstraint checks that the current version of Terraform meets the specified constraint and return an error if it doesn't
 func CheckTerraformVersionMeetsConstraint(currentVersion *version.Version, constraint string) error {
 	versionConstraint, err := version.NewConstraint(constraint)
 	if err != nil {
@@ -162,7 +162,7 @@ func CheckTerraformVersionMeetsConstraint(currentVersion *version.Version, const
 	return nil
 }
 
-// Parse the output of the terraform --version command
+// ParseTerraformVersion parses the output of the terraform --version command
 func ParseTerraformVersion(versionCommandOutput string) (*version.Version, error) {
 	matches := TerraformVersionRegex.FindStringSubmatch(versionCommandOutput)
 

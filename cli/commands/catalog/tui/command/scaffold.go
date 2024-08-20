@@ -1,3 +1,5 @@
+// Package command provides the implementation of the terragrunt scaffold command
+// This command is used to scaffold a new Terragrunt unit in the current directory.
 package command
 
 import (

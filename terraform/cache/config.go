@@ -76,14 +76,14 @@ func NewConfig(opts ...Option) *Config {
 	return cfg.WithOptions(opts...)
 }
 
-func (config *Config) WithOptions(opts ...Option) *Config {
+func (c *Config) WithOptions(opts ...Option) *Config {
 	for _, opt := range opts {
-		*config = opt(*config)
+		*c = opt(*c)
 	}
 
-	return config
+	return c
 }
 
-func (cfg *Config) Addr() string {
-	return net.JoinHostPort(cfg.hostname, strconv.Itoa(cfg.port))
+func (c *Config) Addr() string {
+	return net.JoinHostPort(c.hostname, strconv.Itoa(c.port))
 }

@@ -1,3 +1,4 @@
+// Package telemetry provides a way to collect telemetry from function execution - metrics and traces.
 package telemetry
 
 import (
@@ -13,7 +14,6 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	oteltrace "go.opentelemetry.io/otel/sdk/trace"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -27,7 +27,7 @@ type TelemetryOptions struct {
 	ErrWriter  io.Writer
 }
 
-var spanExporter oteltrace.SpanExporter
+var spanExporter sdktrace.SpanExporter
 var traceProvider *sdktrace.TracerProvider
 var rootTracer trace.Tracer
 

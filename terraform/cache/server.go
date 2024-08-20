@@ -1,3 +1,4 @@
+// Package cache provides a private OpenTofu/Terraform provider cache server.
 package cache
 
 import (

@@ -1,3 +1,4 @@
+// Package commands provides the implementation of the Terragrunt commands.
 package commands
 
 import (
@@ -85,8 +86,8 @@ const (
 	TerragruntDebugFlagName = "terragrunt-debug"
 	TerragruntDebugEnvName  = "TERRAGRUNT_DEBUG"
 
-	TerragruntTfLogJsonFlagName = "terragrunt-tf-logs-to-json"
-	TerragruntTfLogJsonEnvName  = "TERRAGRUNT_TF_JSON_LOG"
+	TerragruntTfLogJSONFlagName = "terragrunt-tf-logs-to-json"
+	TerragruntTfLogJSONEnvName  = "TERRAGRUNT_TF_JSON_LOG"
 
 	TerragruntModulesThatIncludeFlagName = "terragrunt-modules-that-include"
 	TerragruntModulesThatIncludeEnvName  = "TERRAGRUNT_MODULES_THAT_INCLUDE"
@@ -112,13 +113,13 @@ const (
 	TerragruntOutDirFlagEnvName = "TERRAGRUNT_OUT_DIR"
 	TerragruntOutDirFlagName    = "terragrunt-out-dir"
 
-	TerragruntJsonOutDirFlagEnvName = "TERRAGRUNT_JSON_OUT_DIR"
-	TerragruntJsonOutDirFlagName    = "terragrunt-json-out-dir"
+	TerragruntJSONOutDirFlagEnvName = "TERRAGRUNT_JSON_OUT_DIR"
+	TerragruntJSONOutDirFlagName    = "terragrunt-json-out-dir"
 
 	// Logs related flags/envs
 
-	TerragruntJsonLogFlagName = "terragrunt-json-log"
-	TerragruntJsonLogEnvName  = "TERRAGRUNT_JSON_LOG"
+	TerragruntJSONLogFlagName = "terragrunt-json-log"
+	TerragruntJSONLogEnvName  = "TERRAGRUNT_JSON_LOG"
 
 	TerragruntLogLevelFlagName = "terragrunt-log-level"
 	TerragruntLogLevelEnvName  = "TERRAGRUNT_LOG_LEVEL"
@@ -338,15 +339,15 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage: "If specified, Terragrunt output won't contain any color.",
 		},
 		&cli.BoolFlag{
-			Name:        TerragruntJsonLogFlagName,
-			EnvVar:      TerragruntJsonLogEnvName,
-			Destination: &opts.JsonLogFormat,
+			Name:        TerragruntJSONLogFlagName,
+			EnvVar:      TerragruntJSONLogEnvName,
+			Destination: &opts.JSONLogFormat,
 			Usage:       "If specified, Terragrunt will output its logs in JSON format.",
 		},
 		&cli.BoolFlag{
-			Name:        TerragruntTfLogJsonFlagName,
-			EnvVar:      TerragruntTfLogJsonEnvName,
-			Destination: &opts.TerraformLogsToJson,
+			Name:        TerragruntTfLogJSONFlagName,
+			EnvVar:      TerragruntTfLogJSONEnvName,
+			Destination: &opts.TerraformLogsToJSON,
 			Usage:       "If specified, Terragrunt will wrap Terraform stdout and stderr in JSON.",
 		},
 		&cli.BoolFlag{

@@ -1,3 +1,4 @@
+// Package log provides a global logger for the application. It is a thin wrapper around logrus.
 package log
 
 import (
@@ -25,7 +26,7 @@ func Logger() *logrus.Logger {
 	return logger
 }
 
-// Logger returns logger
+// SetLogger returns logger
 func SetLogger(l *logrus.Logger) {
 	logger = l
 }

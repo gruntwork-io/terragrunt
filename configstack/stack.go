@@ -1,3 +1,5 @@
+// Package configstack contains the logic for managing a stack of Terraform modules (i.e. folders with Terraform templates)
+// that you can "spin up" or "spin down" in a single command.
 package configstack
 
 import (
@@ -27,7 +29,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// Represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or
+// Stack represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or
 // "spin down" in a single command
 type Stack struct {
 	parserOptions         []hclparse.Option
@@ -36,7 +38,7 @@ type Stack struct {
 	Modules               TerraformModules
 }
 
-// Find all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
+// FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
 // assemble them into a Stack object that can be applied or destroyed in a single command
 func FindStackInSubfolders(ctx context.Context, terragruntOptions *options.TerragruntOptions, opts ...Option) (*Stack, error) {
 	var terragruntConfigFiles []string
@@ -83,7 +85,7 @@ func (stack *Stack) WithOptions(opts ...Option) *Stack {
 	return stack
 }
 
-// Render this stack as a human-readable string
+// String renders this stack as a human-readable string
 func (stack *Stack) String() string {
 	modules := []string{}
 	for _, module := range stack.Modules {
@@ -120,9 +122,9 @@ func (stack *Stack) LogModuleDeployOrder(logger *logrus.Entry, terraformCommand 
 	return nil
 }
 
-// JsonModuleDeployOrder will return the modules that will be deployed by a plan/apply operation, in the order
+// JSONModuleDeployOrder will return the modules that will be deployed by a plan/apply operation, in the order
 // that the operations happen.
-func (stack *Stack) JsonModuleDeployOrder(terraformCommand string) (string, error) {
+func (stack *Stack) JSONModuleDeployOrder(terraformCommand string) (string, error) {
 	runGraph, err := stack.GetModuleRunGraph(terraformCommand)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
@@ -174,7 +176,7 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 
 	// For any command that needs input, run in non-interactive mode to avoid cominglint stdin across multiple
 	// concurrent runs.
-	if util.ListContainsElement(config.TERRAFORM_COMMANDS_NEED_INPUT, stackCmd) {
+	if util.ListContainsElement(config.TerraformCommandsNeedInput, stackCmd) {
 		// to support potential positional args in the args list, we append the input=false arg after the first element,
 		// which is the target command.
 		terragruntOptions.TerraformCliArgs = util.StringListInsert(terragruntOptions.TerraformCliArgs, "-input=false", 1)
@@ -295,7 +297,7 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
 		if len(terragruntConfigPaths) == 0 {
-			return errors.WithStackTrace(NoTerraformModulesFound)
+			return errors.WithStackTrace(ErrNoTerraformModulesFound)
 		}
 
 		modules, err := stack.ResolveTerraformModules(ctx, terragruntConfigPaths)
@@ -337,8 +339,9 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 	return nil
 }
 
-// Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents
-// into a TerraformModule struct. Return the list of these TerraformModule structs.
+// ResolveTerraformModules goes through each of the given Terragrunt configuration files
+// and resolve the module that configuration file represents into a TerraformModule struct.
+// Return the list of these TerraformModule structs.
 func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfigPaths []string) (TerraformModules, error) {
 	canonicalTerragruntConfigPaths, err := util.CanonicalPaths(terragruntConfigPaths, ".")
 	if err != nil {

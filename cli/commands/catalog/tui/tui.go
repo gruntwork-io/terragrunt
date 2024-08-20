@@ -1,3 +1,4 @@
+// Package tui provides a text-based user interface for the Terragrunt catalog command.
 package tui
 
 import (

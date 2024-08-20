@@ -25,7 +25,7 @@ type traceExporterType string
 const (
 	noneTraceExporterType     traceExporterType = "none"
 	consoleTraceExporterType  traceExporterType = "console"
-	otlpHttpTraceExporterType traceExporterType = "otlpHttp"
+	otlpHTTPTraceExporterType traceExporterType = "otlpHttp"
 	otlpGrpcTraceExporterType traceExporterType = "otlpGrpc"
 	httpTraceExporterType     traceExporterType = "http"
 
@@ -80,7 +80,7 @@ func configureTraceCollection(ctx context.Context, opts *TelemetryOptions) error
 			return fmt.Errorf("invalid TRACEPARENT value %s", traceParent)
 		}
 
-		_, traceIdHex, spanIdHex, traceFlagsStr := parts[0], parts[1], parts[2], parts[3]
+		_, traceIDHex, spanIDHex, traceFlagsStr := parts[0], parts[1], parts[2], parts[3]
 
 		parsedFlag, err := strconv.Atoi(traceFlagsStr)
 		if err != nil {
@@ -92,12 +92,12 @@ func configureTraceCollection(ctx context.Context, opts *TelemetryOptions) error
 			traceFlags = 0
 		}
 
-		traceID, err := trace.TraceIDFromHex(traceIdHex)
+		traceID, err := trace.TraceIDFromHex(traceIDHex)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 
-		spanID, err := trace.SpanIDFromHex(spanIdHex)
+		spanID, err := trace.SpanIDFromHex(spanIDHex)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -154,7 +154,7 @@ func NewTraceExporter(ctx context.Context, opts *TelemetryOptions) (sdktrace.Spa
 		}
 
 		return otlptracehttp.New(ctx, config...)
-	case otlpHttpTraceExporterType:
+	case otlpHTTPTraceExporterType:
 		var config []otlptracehttp.Option
 		if insecure {
 			config = append(config, otlptracehttp.WithInsecure())

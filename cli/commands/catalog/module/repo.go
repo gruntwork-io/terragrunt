@@ -182,16 +182,16 @@ func (repo *Repo) clone(ctx context.Context) error {
 		}
 	}
 
-	sourceUrl, err := terraform.ToSourceUrl(repo.cloneURL, "")
+	sourceURL, err := terraform.ToSourceURL(repo.cloneURL, "")
 	if err != nil {
 		return err
 	}
 
-	repo.cloneURL = sourceUrl.String()
+	repo.cloneURL = sourceURL.String()
 
 	log.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
 
-	if err := getter.Get(repo.path, strings.Trim(sourceUrl.String(), "/"), getter.WithContext(ctx)); err != nil {
+	if err := getter.Get(repo.path, strings.Trim(sourceURL.String(), "/"), getter.WithContext(ctx)); err != nil {
 		return errors.WithStackTrace(err)
 	}
 

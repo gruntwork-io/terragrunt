@@ -11,7 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/remote"
 )
 
-// Serialize TerragruntConfig struct to a cty Value that can be used to reference the attributes in other config. Note
+// TerragruntConfigAsCty serializes TerragruntConfig struct to a cty Value that can be used to reference the attributes in other config. Note
 // that we can't straight up convert the struct using cty tags due to differences in the desired representation.
 // Specifically, we want to reference blocks by named attributes, but blocks are rendered to lists in the
 // TerragruntConfig struct, so we need to do some massaging of the data to convert the list of blocks in to a map going
@@ -132,7 +132,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output[MetadataRetrySleepIntervalSec] = retrySleepIntervalSecCty
 	}
 
-	inputsCty, err := convertToCtyWithJson(config.Inputs)
+	inputsCty, err := convertToCtyWithJSON(config.Inputs)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -141,7 +141,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output[MetadataInputs] = inputsCty
 	}
 
-	localsCty, err := convertToCtyWithJson(config.Locals)
+	localsCty, err := convertToCtyWithJSON(config.Locals)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -151,7 +151,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 	}
 
 	if len(config.DependentModulesPath) > 0 {
-		dependentModulesCty, err := convertToCtyWithJson(config.DependentModulesPath)
+		dependentModulesCty, err := convertToCtyWithJSON(config.DependentModulesPath)
 		if err != nil {
 			return cty.NilVal, err
 		}
@@ -365,7 +365,7 @@ func wrapCtyMapWithMetadata(config *TerragruntConfig, data *map[string]interface
 	for key, value := range *data {
 		var content = ValueWithMetadata{}
 
-		ctyValue, err := convertToCtyWithJson(value)
+		ctyValue, err := convertToCtyWithJSON(value)
 		if err != nil {
 			return err
 		}
@@ -416,13 +416,13 @@ func wrapWithMetadata(config *TerragruntConfig, value interface{}, metadataName 
 		valueWithMetadata.Metadata = metadata
 	}
 
-	ctyJson, err := goTypeToCty(valueWithMetadata)
+	ctyJSON, err := goTypeToCty(valueWithMetadata)
 	if err != nil {
 		return err
 	}
 
-	if ctyJson != cty.NilVal {
-		(*output)[metadataName] = ctyJson
+	if ctyJSON != cty.NilVal {
+		(*output)[metadataName] = ctyJSON
 	}
 
 	return nil
@@ -468,7 +468,7 @@ func engineConfigAsCty(config *EngineConfig) (cty.Value, error) {
 		return cty.NilVal, nil
 	}
 
-	ctyMetaVal, err := convertToCtyWithJson(config.Meta)
+	ctyMetaVal, err := convertToCtyWithJSON(config.Meta)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -537,7 +537,8 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 	return goTypeToCty(configCty)
 }
 
-// Serialize RemoteState to a cty Value. We can't directly serialize the struct because `config` is an arbitrary
+// RemoteStateAsCty serializes RemoteState to a cty Value. We can't directly
+// serialize the struct because `config` is an arbitrary
 // interface whose type we do not know, so we have to do a hack to go through json.
 func RemoteStateAsCty(remoteState *remote.RemoteState) (cty.Value, error) {
 	if remoteState == nil {
@@ -556,12 +557,12 @@ func RemoteStateAsCty(remoteState *remote.RemoteState) (cty.Value, error) {
 
 	output["generate"] = generateCty
 
-	ctyJsonVal, err := convertToCtyWithJson(remoteState.Config)
+	ctyJSONVal, err := convertToCtyWithJSON(remoteState.Config)
 	if err != nil {
 		return cty.NilVal, err
 	}
 
-	output["config"] = ctyJsonVal
+	output["config"] = ctyJSONVal
 
 	return convertValuesMapToCtyVal(output)
 }
@@ -585,18 +586,18 @@ func dependencyBlocksAsCty(dependencyBlocks Dependencies) (cty.Value, error) {
 // Converts arbitrary go types that are json serializable to a cty Value by using json as an intermediary
 // representation. This avoids the strict type nature of cty, where you need to know the output type beforehand to
 // serialize to cty.
-func convertToCtyWithJson(val interface{}) (cty.Value, error) {
+func convertToCtyWithJSON(val interface{}) (cty.Value, error) {
 	jsonBytes, err := json.Marshal(val)
 	if err != nil {
 		return cty.NilVal, errors.WithStackTrace(err)
 	}
 
-	var ctyJsonVal ctyjson.SimpleJSONValue
-	if err := ctyJsonVal.UnmarshalJSON(jsonBytes); err != nil {
+	var ctyJSONVal ctyjson.SimpleJSONValue
+	if err := ctyJSONVal.UnmarshalJSON(jsonBytes); err != nil {
 		return cty.NilVal, errors.WithStackTrace(err)
 	}
 
-	return ctyJsonVal.Value, nil
+	return ctyJSONVal.Value, nil
 }
 
 // Converts arbitrary go type (struct that has cty tags, slice, map with string keys, string, bool, int

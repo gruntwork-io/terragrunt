@@ -103,8 +103,8 @@ func TestLocalDownloadWithRelativePath(t *testing.T) {
 func TestLocalWithMissingBackend(t *testing.T) {
 	t.Parallel()
 
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-lock-table-" + strings.ToLower(uniqueId())
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	lockTableName := "terragrunt-lock-table-" + strings.ToLower(uniqueID())
 
 	tmpEnvPath := copyEnvironment(t, "fixtures/download")
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLocalMissingBackend)
@@ -194,7 +194,7 @@ func TestCustomLockFile(t *testing.T) {
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+rootPath)
 
 	source := "../custom-lock-file-module"
-	downloadDir := util.JoinPath(rootPath, terragruntCache)
+	downloadDir := util.JoinPath(rootPath, util.TerragruntCacheDir)
 	result, err := tfsource.NewSource(source, downloadDir, rootPath, util.CreateLogEntry("", util.GetDefaultLogLevel(), nil, true, true))
 	require.NoError(t, err)
 

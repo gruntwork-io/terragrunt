@@ -34,7 +34,8 @@ type CmdOutput struct {
 	Stderr string
 }
 
-// Return the exit code of a command. If the error does not implement iErrorCode or is not an exec.ExitError
+// GetExitCode returns the exit code of a command. If the error does not
+// implement iErrorCode or is not an exec.ExitError
 // or *multierror.Error type, the error is returned.
 func GetExitCode(err error) (int, error) {
 	// Interface to determine if we can retrieve an exit status from an error

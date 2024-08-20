@@ -1,4 +1,3 @@
-// nolint:unparam
 package terraform
 
 import (
@@ -144,7 +143,7 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 		return err
 	}
 
-	moduleURL, err := BuildRequestUrl(registryDomain, moduleRegistryBasePath, modulePath, version)
+	moduleURL, err := BuildRequestURL(registryDomain, moduleRegistryBasePath, modulePath, version)
 	if err != nil {
 		return err
 	}
@@ -358,8 +357,8 @@ func httpGETAndGetResponse(ctx context.Context, getURL url.URL) ([]byte, *http.H
 	return bodyData, &resp.Header, errors.WithStackTrace(err)
 }
 
-// BuildRequestUrl - create url to download module using moduleRegistryBasePath
-func BuildRequestUrl(registryDomain string, moduleRegistryBasePath string, modulePath string, version string) (*url.URL, error) {
+// BuildRequestURL - create url to download module using moduleRegistryBasePath
+func BuildRequestURL(registryDomain string, moduleRegistryBasePath string, modulePath string, version string) (*url.URL, error) {
 	moduleRegistryBasePath = strings.TrimSuffix(moduleRegistryBasePath, "/")
 	modulePath = strings.TrimSuffix(modulePath, "/")
 	modulePath = strings.TrimPrefix(modulePath, "/")

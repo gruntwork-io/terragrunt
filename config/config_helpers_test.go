@@ -527,19 +527,19 @@ func TestResolveCommandsInterpolationConfigString(t *testing.T) {
 			"inputs = { foo = get_terraform_commands_that_need_locking() }",
 			nil,
 			terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath),
-			config.TERRAFORM_COMMANDS_NEED_LOCKING,
+			config.TerraformCommandsNeedLocking,
 		},
 		{
 			`inputs = { foo = get_terraform_commands_that_need_vars() }`,
 			nil,
 			terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath),
-			config.TERRAFORM_COMMANDS_NEED_VARS,
+			config.TerraformCommandsNeedVars,
 		},
 		{
 			"inputs = { foo = get_terraform_commands_that_need_parallelism() }",
 			nil,
 			terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath),
-			config.TERRAFORM_COMMANDS_NEED_PARALLELISM,
+			config.TerraformCommandsNeedParallelism,
 		},
 	}
 
@@ -891,7 +891,7 @@ func TestTerraformOutputJsonToCtyValueMap(t *testing.T) {
 
 	mockTargetConfig := config.DefaultTerragruntConfigPath
 	for _, tt := range tc {
-		converted, err := config.TerraformOutputJsonToCtyValueMap(mockTargetConfig, []byte(tt.input))
+		converted, err := config.TerraformOutputJSONToCtyValueMap(mockTargetConfig, []byte(tt.input))
 		require.NoError(t, err)
 		assert.Equal(t, getKeys(converted), getKeys(tt.expected))
 		for k, v := range converted {
@@ -1228,9 +1228,9 @@ func TestReadTFVarsFiles(t *testing.T) {
 	assert.False(t, locals["json_bool_var"].(bool))
 }
 
-func mockConfigWithSource(sourceUrl string) *config.TerragruntConfig {
+func mockConfigWithSource(sourceURL string) *config.TerragruntConfig {
 	cfg := config.TerragruntConfig{IsPartial: true}
-	cfg.Terraform = &config.TerraformConfig{Source: &sourceUrl}
+	cfg.Terraform = &config.TerraformConfig{Source: &sourceURL}
 	return &cfg
 }
 

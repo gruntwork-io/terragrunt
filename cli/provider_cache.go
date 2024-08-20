@@ -33,10 +33,10 @@ const (
 
 	// The status returned when making a request to the caching provider.
 	// It is needed to prevent further loading of providers by terraform, and at the same time make sure that the request was processed successfully.
-	CACHE_PROVIDER_HTTP_STATUS_CODE = http.StatusLocked
+	CacheProviderHTTPStatusCode = http.StatusLocked
 
 	// Authentication type on the Terragrunt Provider Cache server.
-	API_KEY_AUTH = "x-api-key"
+	APIKeyAuth = "x-api-key"
 )
 
 var (
@@ -54,7 +54,7 @@ var (
 	//    │ provider registry for registry.terraform.io/snowflake-labs/snowflake: 423
 	//    │ Locked
 	//    ╵
-	httpStatusCacheProviderReg = regexp.MustCompile(`(?smi)` + strconv.Itoa(CACHE_PROVIDER_HTTP_STATUS_CODE) + `.*` + http.StatusText(CACHE_PROVIDER_HTTP_STATUS_CODE))
+	httpStatusCacheProviderReg = regexp.MustCompile(`(?smi)` + strconv.Itoa(CacheProviderHTTPStatusCode) + `.*` + http.StatusText(CacheProviderHTTPStatusCode))
 )
 
 type ProviderCache struct {
@@ -83,8 +83,8 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 		opts.ProviderCacheToken = uuid.New().String()
 	}
 	// Currently, the cache server only supports the `x-api-key` token.
-	if !strings.HasPrefix(strings.ToLower(opts.ProviderCacheToken), API_KEY_AUTH+":") {
-		opts.ProviderCacheToken = fmt.Sprintf("%s:%s", API_KEY_AUTH, opts.ProviderCacheToken)
+	if !strings.HasPrefix(strings.ToLower(opts.ProviderCacheToken), APIKeyAuth+":") {
+		opts.ProviderCacheToken = fmt.Sprintf("%s:%s", APIKeyAuth, opts.ProviderCacheToken)
 	}
 
 	cliCfg, err := cliconfig.LoadUserConfig()
@@ -112,16 +112,16 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 	for _, method := range cliCfg.ProviderInstallation.Methods {
 		switch method := method.(type) {
 		case *cliconfig.ProviderInstallationFilesystemMirror:
-			providerHandlers = append(providerHandlers, handlers.NewProviderFilesystemMirrorHandler(providerService, CACHE_PROVIDER_HTTP_STATUS_CODE, method))
+			providerHandlers = append(providerHandlers, handlers.NewProviderFilesystemMirrorHandler(providerService, CacheProviderHTTPStatusCode, method))
 		case *cliconfig.ProviderInstallationNetworkMirror:
-			networkMirrorHandler, err := handlers.NewProviderNetworkMirrorHandler(providerService, CACHE_PROVIDER_HTTP_STATUS_CODE, method, cliCfg.CredentialsSource())
+			networkMirrorHandler, err := handlers.NewProviderNetworkMirrorHandler(providerService, CacheProviderHTTPStatusCode, method, cliCfg.CredentialsSource())
 			if err != nil {
 				return nil, err
 			}
 
 			providerHandlers = append(providerHandlers, networkMirrorHandler)
 		case *cliconfig.ProviderInstallationDirect:
-			providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, CACHE_PROVIDER_HTTP_STATUS_CODE, method, cliCfg.CredentialsSource()))
+			providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, CacheProviderHTTPStatusCode, method, cliCfg.CredentialsSource()))
 			directIsdefined = true
 		}
 		method.AppendExclude(excludeAddrs)
@@ -129,7 +129,7 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 
 	if !directIsdefined {
 		// In a case if none of direct provider installation methods `cliCfg.ProviderInstallation.Methods` are specified.
-		providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, CACHE_PROVIDER_HTTP_STATUS_CODE, new(cliconfig.ProviderInstallationDirect), cliCfg.CredentialsSource()))
+		providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, CacheProviderHTTPStatusCode, new(cliconfig.ProviderInstallationDirect), cliCfg.CredentialsSource()))
 	}
 
 	cache := cache.NewServer(
