@@ -106,6 +106,9 @@ func TestAwsTableTagging(t *testing.T) {
 	withLockTableTagged(t, tags, func(tableName string, client *awsDynamodb.DynamoDB) {
 		assertCanWriteToTable(t, tableName, client)
 
+		t.Logf("Not worth immediately checking tags on dynamo table. Tags can take a while to show up. Trying in 1 second.")
+		time.Sleep(1 * time.Second)
+
 		assertTags(t, tags, tableName, client)
 
 		// Try to create the table the second time and make sure you get no errors
