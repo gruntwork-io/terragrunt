@@ -508,7 +508,21 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		return nil, err
 	}
 
-	outputPrefix := filepath.Dir(relTerragruntConfigPath)
+	absFilePath, err := filepath.Abs(terragruntConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
+	absRootWorkingDir, err := filepath.Abs(opts.RootWorkingDir)
+	if err != nil {
+		return nil, err
+	}
+
+	commonPrefix := util.FindCommonPrefixForAllElements([]string{absRootWorkingDir, absFilePath})
+
+	filePathWithoutCommonPrefix := strings.TrimPrefix(absFilePath, commonPrefix)
+
+	outputPrefix := filepath.Dir(filePathWithoutCommonPrefix)
 	if outputPrefix == "." || strings.HasSuffix(opts.OutputPrefix, outputPrefix) {
 		outputPrefix = opts.OutputPrefix
 	}
