@@ -76,8 +76,8 @@ func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 func TestWindowsTflintIsInvoked(t *testing.T) {
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
-	rootPath := copyEnvironmentWithTflint(t, testFixtureTflintNoIssuesFound)
-	modulePath := util.JoinPath(rootPath, testFixtureTflintNoIssuesFound)
+	rootPath := copyEnvironmentWithTflint(t, TestFixtureTflintNoIssuesFound)
+	modulePath := util.JoinPath(rootPath, TestFixtureTflintNoIssuesFound)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level debug --terragrunt-working-dir %s", modulePath), out, errOut)
 	assert.NoError(t, err)
 
