@@ -2290,7 +2290,7 @@ func TestDependencyOutputOptimizationSkipInit(t *testing.T) {
 	t.Parallel()
 
 	expectOutputLogs := []string{
-		`prefix=../dep .+Detected module ./../dep/terragrunt.hcl is already init-ed. Retrieving outputs directly from working directory.`,
+		`prefix=../dep .+Detected module ../dep/terragrunt.hcl is already init-ed. Retrieving outputs directly from working directory.`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization", false, expectOutputLogs)
 }
@@ -4406,7 +4406,7 @@ func TestLogFailedLocalsEvaluation(t *testing.T) {
 	require.Error(t, err)
 
 	output := stderr.String()
-	assert.Contains(t, output, "Encountered error while evaluating locals in file ./terragrunt.hcl")
+	assert.Contains(t, output, "Encountered error while evaluating locals in file terragrunt.hcl")
 }
 
 func TestLogFailingDependencies(t *testing.T) {
@@ -5111,7 +5111,7 @@ func runValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath
 
 	require.NoError(t, err)
 
-	includedModulesRegexp, err := regexp.Compile(`=> Module \./(.+) \(excluded: (true|false)`)
+	includedModulesRegexp, err := regexp.Compile(`=> Module (.+) \(excluded: (true|false)`)
 	require.NoError(t, err)
 
 	matches := includedModulesRegexp.FindAllStringSubmatch(validateAllStderr.String(), -1)
@@ -6315,7 +6315,7 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 	require.Error(t, err)
 	output := fmt.Sprintf("%s\n%s\n%v\n", stdout.String(), stderr.String(), err.Error())
 	assert.Contains(t, output, "finished with an error")
-	assert.Contains(t, output, "Module ./d1", output)
+	assert.Contains(t, output, "Module d1", output)
 }
 
 func TestHclFmtDiff(t *testing.T) {
