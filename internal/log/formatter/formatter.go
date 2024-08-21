@@ -84,6 +84,7 @@ func (formatter *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 	if err := buf.WriteByte('\n'); err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
+
 	return buf.Bytes(), nil
 }
 
@@ -134,34 +135,35 @@ func (formatter *Formatter) printKeyValue(buf *bytes.Buffer, entry *logrus.Entry
 }
 
 func (formatter *Formatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entry) error {
-	timestampFormat := formatter.TimestampFormat
-	if timestampFormat == "" {
-		timestampFormat = defaultTimestampForFormattedLayout
-	}
-
 	level := fmt.Sprintf("%-6s ", formatter.levelText(entry.Level))
 	if !formatter.DisableUppercase {
 		level = strings.ToUpper(level)
 	}
 
-	var prefix string
+	var (
+		prefix    string
+		tfBinary  string
+		timestamp string
+	)
+
 	if val, ok := entry.Data[PrefixKeyName]; ok && val != nil {
 		if val := val.(string); val != "" {
 			prefix = fmt.Sprintf("[%s] ", val)
 		}
 	}
 
-	var tfBinary string
 	if val, ok := entry.Data[TFBinaryKeyName]; ok && val != nil {
 		if val := val.(string); val != "" {
 			tfBinary = val + ": "
 		}
 	}
 
-	var timestamp string
-	if timestampFormat != "" {
-		timestamp = entry.Time.Format(timestampFormat) + " "
+	timestampFormat := formatter.TimestampFormat
+	if timestampFormat == "" {
+		timestampFormat = defaultTimestampForFormattedLayout
 	}
+
+	timestamp = entry.Time.Format(timestampFormat) + " "
 
 	if !formatter.DisableColors {
 		level = formatter.colorScheme.LevelColorFunc(entry.Level)(level)
@@ -198,6 +200,7 @@ func (formatter *Formatter) appendKeyValue(buf *bytes.Buffer, key string, value 
 	if err := formatter.appendValue(buf, value); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -213,6 +216,7 @@ func (formatter *Formatter) appendValue(buf *bytes.Buffer, value interface{}) er
 		if _, err := fmt.Fprint(buf, value); err != nil {
 			return errors.WithStackTrace(err)
 		}
+
 		return nil
 	}
 
@@ -224,6 +228,7 @@ func (formatter *Formatter) appendValue(buf *bytes.Buffer, value interface{}) er
 	if _, err := fmt.Fprintf(buf, valueFmt, value); err != nil {
 		return errors.WithStackTrace(err)
 	}
+
 	return nil
 }
 
@@ -232,12 +237,12 @@ func (formatter *Formatter) levelText(level logrus.Level) string {
 	if level == logrus.WarnLevel {
 		levelText = "warn"
 	}
+
 	if levelText == "unknown" {
 		levelText = "stdout"
 	}
 
 	return levelText
-
 }
 
 func (formatter *Formatter) keys(data logrus.Fields, removeKeys ...string) []string {
@@ -247,6 +252,7 @@ func (formatter *Formatter) keys(data logrus.Fields, removeKeys ...string) []str
 
 	for key := range data {
 		var skip bool
+
 		for _, removeKey := range removeKeys {
 			if key == removeKey {
 				skip = true
@@ -270,6 +276,7 @@ func (formatter *Formatter) needsQuoting(text string) bool {
 	if formatter.QuoteEmptyFields && len(text) == 0 {
 		return true
 	}
+
 	for _, ch := range text {
 		if !((ch >= 'a' && ch <= 'z') ||
 			(ch >= 'A' && ch <= 'Z') ||
@@ -278,5 +285,6 @@ func (formatter *Formatter) needsQuoting(text string) bool {
 			return true
 		}
 	}
+
 	return false
 }

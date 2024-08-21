@@ -17,7 +17,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/engine"
 	"github.com/gruntwork-io/terragrunt/internal/log"
 	"github.com/gruntwork-io/terragrunt/terraform"
-	"github.com/mgutz/ansi"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
@@ -111,6 +110,7 @@ func RunShellCommandWithOutput(
 		"dir":     commandDir,
 	}, func(childCtx context.Context) error {
 		terragruntOptions.Logger.Infof("Running command: %s %s", command, strings.Join(args, " "))
+
 		if suppressStdout {
 			terragruntOptions.Logger.Debugf("Command output will be suppressed.")
 		}
@@ -150,12 +150,14 @@ func RunShellCommandWithOutput(
 			terragruntOptions.OutputPrefix,
 			terragruntOptions.TerraformPath,
 		), &stderrBuf)
+
 		var cmdStdout io.Writer
 
 		if !suppressStdout {
 			if !terragruntOptions.PrintRawModuleOutput && len(args) > 0 && !strings.EqualFold(args[0], terraform.CommandNameOutput) {
 				// do not add prefix if args contains `-json` flag
 				var jsonOutput bool
+
 				for _, arg := range args {
 					if strings.EqualFold(arg, terraform.FlagNameJSON) {
 						jsonOutput = true
@@ -172,6 +174,7 @@ func RunShellCommandWithOutput(
 					)
 				}
 			}
+
 			cmdStdout = io.MultiWriter(outWriter, &stdoutBuf)
 		} else {
 			cmdStdout = io.MultiWriter(&stdoutBuf)
@@ -250,6 +253,7 @@ func RunShellCommandWithOutput(
 				WorkingDir: cmd.Dir,
 			}
 		}
+
 		return errors.WithStackTrace(err)
 	})
 
@@ -437,23 +441,4 @@ func extractSemVerTags(tags []string) []*version.Version {
 	}
 
 	return semverTags
-}
-
-// ColorFunc creates a closure to avoid computation ANSI color code.
-func ColorFunc(style string) func(string) string {
-	if style == "" {
-		return func(s string) string {
-			return s
-		}
-	}
-	color := ansi.ColorCode(style)
-
-	fmt.Println("--------------------------------", color)
-	return func(s string) string {
-		buf := bytes.NewBufferString(color)
-		buf.WriteString(s)
-		buf.WriteString(ansi.Reset)
-		result := buf.String()
-		return result
-	}
 }

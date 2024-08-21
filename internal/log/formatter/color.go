@@ -50,6 +50,7 @@ func (scheme ColorScheme) Complite() compiledColorScheme {
 	for name, style := range scheme {
 		compiled[name] = style.ColorFunc()
 	}
+
 	return compiled
 }
 
@@ -80,5 +81,6 @@ func (scheme compiledColorScheme) ColorFunc(name ColorStyleName) ColorFunc {
 	if colorFunc, ok := scheme[name]; ok {
 		return colorFunc
 	}
+
 	return func(s string) string { return s }
 }

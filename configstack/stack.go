@@ -232,6 +232,7 @@ func (stack *Stack) summarizePlanAllErrors(terragruntOptions *options.Terragrunt
 			if len(stack.Modules[i].Dependencies) > 0 {
 				dependenciesMsg = fmt.Sprintf(" contains dependencies to %v and", stack.Modules[i].Config.Dependencies.Paths)
 			}
+
 			terragruntOptions.Logger.Infof("%v%v refers to remote state "+
 				"you may have to apply your changes in the dependencies prior running terragrunt run-all plan.\n",
 				stack.Modules[i].RelativePath,
@@ -250,6 +251,7 @@ func (stack *Stack) syncTerraformCliArgs(terragruntOptions *options.TerragruntOp
 
 		if planFile != "" {
 			terragruntOptions.Logger.Debugf("Using output file %s for module %s", planFile, module.TerragruntOptions.RelativeTerragruntConfigPath)
+
 			if module.TerragruntOptions.TerraformCommand == terraform.CommandNamePlan {
 				// for plan command add -out=<file> to the terraform cli args
 				module.TerragruntOptions.TerraformCliArgs = util.StringListInsert(module.TerragruntOptions.TerraformCliArgs, "-out="+planFile, len(module.TerragruntOptions.TerraformCliArgs))
@@ -306,6 +308,7 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 			if err != nil {
 				return err
 			}
+
 			module.RelativePath = relPath
 		}
 
@@ -536,6 +539,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 	// which implies that `TerragruntConfigPath` must refer to a child configuration file, and the defined `IncludeConfig` must contain the path to the file itself
 	// for the built-in functions `read-terragrunt-config()`, `path_relative_to_include()` to work correctly.
 	var includeConfig *config.IncludeConfig
+
 	if stack.childTerragruntConfig != nil && stack.childTerragruntConfig.ProcessedIncludes.ContainsPath(terragruntConfigPath) {
 		relTerragruntConfigPath, err := util.GetPathRelativeToWithSeparator(terragruntConfigPath, stack.terragruntOptions.RootWorkingDir)
 		if err != nil {

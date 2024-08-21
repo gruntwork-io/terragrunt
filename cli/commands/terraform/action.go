@@ -117,6 +117,7 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 	if err != nil {
 		return err
 	}
+
 	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
 
 	if err := processHooks(ctx, terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone, terragruntConfig, nil); err != nil {

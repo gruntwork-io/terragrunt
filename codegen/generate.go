@@ -132,7 +132,9 @@ func WriteToFile(terragruntOptions *options.TerragruntOptions, basePath string, 
 	if err != nil {
 		return err
 	}
+
 	terragruntOptions.Logger.Debugf("Generated file %s.", relTargetPath)
+
 	return nil
 }
 

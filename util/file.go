@@ -224,6 +224,7 @@ func GetPathRelativeToWithSeparator(path string, basePath string) (string, error
 			relPath += string(filepath.Separator)
 		}
 	}
+
 	return relPath, err
 }
 

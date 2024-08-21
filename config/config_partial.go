@@ -185,6 +185,7 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File,
 	if ctx.TerragruntOptions.UsePartialParseConfigCache {
 		if config, found := terragruntConfigCache.Get(ctx, cacheKey); found {
 			ctx.TerragruntOptions.Logger.Debugf("Cache hit for '%s' (partial parsing), decodeList: '%v'.", ctx.TerragruntOptions.RelativeTerragruntConfigPath, ctx.PartialParseDecodeList)
+
 			deepCopy := clone.Clone(config).(*TerragruntConfig)
 
 			return deepCopy, nil

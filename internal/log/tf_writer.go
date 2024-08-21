@@ -60,6 +60,7 @@ func (writer *tfWriter) Write(p []byte) (int, error) {
 			timeStr, levelStr string
 			msg               = string(line)
 		)
+
 		if !writer.isStdout {
 			timeStr, levelStr, msg = extractTimeAndLevel(msg)
 		}
@@ -83,6 +84,7 @@ func (writer *tfWriter) Write(p []byte) (int, error) {
 		if err != nil {
 			level = formatter.NoneLevel
 		}
+
 		entry.Level = level
 
 		if timeStr != "" {
@@ -90,6 +92,7 @@ func (writer *tfWriter) Write(p []byte) (int, error) {
 			if err != nil {
 				return 0, errors.WithStackTrace(err)
 			}
+
 			entry.Time = t
 		}
 
@@ -97,12 +100,14 @@ func (writer *tfWriter) Write(p []byte) (int, error) {
 		if err != nil {
 			return 0, err
 		}
+
 		msgs = append(msgs, b...)
 	}
 
 	if _, err := writer.Writer.Write(msgs); err != nil {
 		return 0, errors.WithStackTrace(err)
 	}
+
 	return len(p), nil
 }
 
@@ -111,5 +116,6 @@ func extractTimeAndLevel(msg string) (string, string, string) {
 		match := extractTimeAndLevelReg.FindStringSubmatch(msg)
 		return match[1], match[2], match[3]
 	}
+
 	return "", "", msg
 }

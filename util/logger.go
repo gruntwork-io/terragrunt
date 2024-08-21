@@ -81,6 +81,7 @@ func CreateLogger(lvl logrus.Level, prefixStyle *formatter.PrefixStyle) *logrus.
 		logFormatter := formatter.NewFormatter()
 		logFormatter.DisableColors = disableLogColors
 		logFormatter.DisableLogFormatting = disableLogFormatting
+
 		if prefixStyle != nil {
 			logFormatter.PrefixStyle = prefixStyle
 		}

@@ -314,6 +314,7 @@ func (confs *IncludeConfigs) UpdateRelativePaths(basePath string) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -332,7 +333,9 @@ func (conf *IncludeConfig) UpdateRelativePath(basePath string) error {
 	if err != nil {
 		return err
 	}
+
 	conf.RelativePath = relPath
+
 	return nil
 }
 

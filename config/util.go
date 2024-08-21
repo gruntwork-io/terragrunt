@@ -26,5 +26,6 @@ func CopyLockFile(opts *options.TerragruntOptions, sourceFolder, destinationFold
 		opts.Logger.Debugf("Copying lock file from %s to %s", relSourceLockFilePath, relDestinationFolder)
 		return util.CopyFile(sourceLockFilePath, destinationLockFilePath)
 	}
+
 	return nil
 }

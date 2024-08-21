@@ -138,6 +138,7 @@ func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool
 			ctx.TerragruntOptions.Logger.Debugf("%sIncluded config %s has strategy no merge: not merging config in.", logPrefix, includeConfig.RelativePath)
 		case ShallowMerge:
 			ctx.TerragruntOptions.Logger.Debugf("%sIncluded config %s has strategy shallow merge: merging config in (shallow).", logPrefix, includeConfig.RelativePath)
+
 			if err := parsedIncludeConfig.Merge(baseConfig, ctx.TerragruntOptions); err != nil {
 				return nil, err
 			}
@@ -145,6 +146,7 @@ func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool
 			baseConfig = parsedIncludeConfig
 		case DeepMerge:
 			ctx.TerragruntOptions.Logger.Debugf("%sIncluded config %s has strategy deep merge: merging config in (deep).", logPrefix, includeConfig.RelativePath)
+
 			if err := parsedIncludeConfig.DeepMerge(baseConfig, ctx.TerragruntOptions); err != nil {
 				return nil, err
 			}
@@ -190,10 +192,12 @@ func handleIncludeForDependency(ctx *ParsingContext, childDecodedDependency Terr
 			ctx.TerragruntOptions.Logger.Debugf("Included config %s has strategy no merge: not merging config in for dependency.", includeConfig.RelativePath)
 		case ShallowMerge:
 			ctx.TerragruntOptions.Logger.Debugf("Included config %s has strategy shallow merge: merging config in (shallow) for dependency.", includeConfig.RelativePath)
+
 			mergedDependencyBlock := mergeDependencyBlocks(includedPartialParse.TerragruntDependencies, baseDependencyBlock)
 			baseDependencyBlock = mergedDependencyBlock
 		case DeepMerge:
 			ctx.TerragruntOptions.Logger.Debugf("Included config %s has strategy deep merge: merging config in (deep) for dependency.", includeConfig.RelativePath)
+
 			mergedDependencyBlock, err := deepMergeDependencyBlocks(includedPartialParse.TerragruntDependencies, baseDependencyBlock)
 			if err != nil {
 				return nil, err

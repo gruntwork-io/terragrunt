@@ -629,6 +629,7 @@ func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *c
 	}
 
 	ctx = ctx.WithTerragruntOptions(opts)
+
 	config, err := ParseConfigFile(ctx, targetConfig, nil)
 	if err != nil {
 		return cty.NilVal, err
@@ -660,6 +661,7 @@ func readTerragruntConfigAsFuncImpl(ctx *ParsingContext) function.Function {
 		Type: function.StaticReturnType(cty.DynamicPseudoType),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			numParams := len(args)
+
 			if numParams == 0 || numParams > 2 {
 				return cty.NilVal, errors.WithStackTrace(WrongNumberOfParamsError{Func: "read_terragrunt_config", Expected: "1 or 2", Actual: numParams})
 			}

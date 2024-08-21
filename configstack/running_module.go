@@ -89,6 +89,7 @@ func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *optio
 // with an error. Return immediately if this module has no dependencies.
 func (module *RunningModule) waitForDependencies() error {
 	module.Module.TerragruntOptions.Logger.Debugf("Module %s must wait for %d dependencies to finish", module.Module.RelativePath, len(module.Dependencies))
+
 	for len(module.Dependencies) > 0 {
 		doneDependency := <-module.DependencyDone
 		delete(module.Dependencies, doneDependency.Module.Path)
@@ -117,6 +118,7 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 		return nil
 	} else {
 		module.Module.TerragruntOptions.Logger.Debugf("Running module %s now", module.Module.RelativePath)
+
 		if err := module.Module.TerragruntOptions.RunTerragrunt(ctx, module.Module.TerragruntOptions); err != nil {
 			return err
 		}
