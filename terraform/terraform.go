@@ -54,6 +54,7 @@ func ModuleVariables(modulePath string) ([]string, []string, error) {
 
 	required := []string{}
 	optional := []string{}
+
 	for _, variable := range module.Variables {
 		if variable.Required {
 			required = append(required, variable.Name)
@@ -61,5 +62,6 @@ func ModuleVariables(modulePath string) ([]string, []string, error) {
 			optional = append(optional, variable.Name)
 		}
 	}
+
 	return required, optional, nil
 }

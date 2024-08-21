@@ -87,5 +87,6 @@ func (target *Target) runErrorCallback(opts *options.TerragruntOptions, config *
 	if target.errorCallbackFunc == nil {
 		return e
 	}
+
 	return target.errorCallbackFunc(opts, config, e)
 }

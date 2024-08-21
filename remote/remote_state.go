@@ -85,6 +85,7 @@ func (remoteState *RemoteState) Validate() error {
 // using S3 or GCS for remote state storage, this may create the bucket if it doesn't exist already.
 func (remoteState *RemoteState) Initialize(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
 	terragruntOptions.Logger.Debugf("Initializing remote state for the %s backend", remoteState.Backend)
+
 	initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]
 	if hasInitializer {
 		return initializer.Initialize(ctx, remoteState, terragruntOptions)
@@ -143,6 +144,7 @@ func (remoteState *RemoteState) DiffersFrom(existingBackend *TerraformBackend, t
 	}
 
 	terragruntOptions.Logger.Debugf("Backend %s has not changed.", existingBackend.Type)
+
 	return false
 }
 
@@ -164,6 +166,7 @@ func terraformStateConfigEqual(existingConfig map[string]interface{}, newConfig 
 // Copy the non-nil values from the existingMap to a new map
 func copyExistingNotNullValues(existingMap map[string]interface{}, newMap map[string]interface{}) map[string]interface{} {
 	existingConfigNonNil := map[string]interface{}{}
+
 	for existingKey, existingValue := range existingMap {
 		newValue, newValueIsSet := newMap[existingKey]
 		if existingValue == nil && !newValueIsSet {
@@ -175,14 +178,17 @@ func copyExistingNotNullValues(existingMap map[string]interface{}, newMap map[st
 				existingValue = copyExistingNotNullValues(existingValueMap, newValueMap)
 			}
 		}
+
 		existingConfigNonNil[existingKey] = existingValue
 	}
+
 	return existingConfigNonNil
 }
 
 // Convert the RemoteState config into the format used by the terraform init command
 func (remoteState RemoteState) ToTerraformInitArgs() []string {
 	config := remoteState.Config
+
 	if remoteState.DisableInit {
 		return []string{"-backend=false"}
 	}
@@ -216,6 +222,7 @@ func (remoteState *RemoteState) GenerateTerraformCode(terragruntOptions *options
 
 	// Make sure to strip out terragrunt specific configurations from the config.
 	config := remoteState.Config
+
 	initializer, hasInitializer := remoteStateInitializers[remoteState.Backend]
 	if hasInitializer {
 		config = initializer.GetTerraformInitArgs(config)
@@ -231,6 +238,7 @@ func (remoteState *RemoteState) GenerateTerraformCode(terragruntOptions *options
 	if err != nil {
 		return err
 	}
+
 	codegenConfig := codegen.GenerateConfig{
 		Path:          remoteState.Generate.Path,
 		IfExists:      ifExistsEnum,
@@ -238,6 +246,7 @@ func (remoteState *RemoteState) GenerateTerraformCode(terragruntOptions *options
 		Contents:      string(configBytes),
 		CommentPrefix: codegen.DefaultCommentPrefix,
 	}
+
 	return codegen.WriteToFile(terragruntOptions, terragruntOptions.WorkingDir, codegenConfig)
 }
 
@@ -282,5 +291,6 @@ func (locks *stateAccess) StateBucketUpdate(bucket string, logic func() error) e
 
 	mutex.Lock()
 	defer mutex.Unlock()
+
 	return logic()
 }

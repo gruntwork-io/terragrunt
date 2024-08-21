@@ -96,6 +96,7 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 	if err != nil {
 		return nil, err
 	}
+
 	providerService := services.NewProviderService(opts.ProviderCacheDir, userProviderDir, cliCfg.CredentialsSource())
 
 	var (
@@ -117,6 +118,7 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 			if err != nil {
 				return nil, err
 			}
+
 			providerHandlers = append(providerHandlers, networkMirrorHandler)
 		case *cliconfig.ProviderInstallationDirect:
 			providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, CACHE_PROVIDER_HTTP_STATUS_CODE, method, cliCfg.CredentialsSource()))
@@ -190,6 +192,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	if err != nil {
 		return nil, err
 	}
+
 	if err := getproviders.UpdateLockfile(ctx, opts.WorkingDir, caches); err != nil {
 		return nil, err
 	}
@@ -210,6 +213,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	if skipRunTargetCommand {
 		return &util.CmdOutput{}, nil
 	}
+
 	return shell.RunTerraformCommandWithOutput(ctx, cloneOpts, args...)
 }
 
@@ -256,6 +260,7 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 			if !liberrors.As(err, &NotFoundWellKnownURL{}) {
 				return err
 			}
+
 			urls = DefaultRegistryURLs
 			opts.Logger.Debugf("Unable to discover %q registry URLs, reason: %q, use default URLs: %s", registryName, err, urls)
 		} else {
@@ -376,8 +381,10 @@ func convertToMultipleCommandsByPlatforms(args []string) [][]string {
 
 	for _, platformArg := range platformArgs {
 		var commandArgs = make([]string, len(filteredArgs), len(filteredArgs)+1)
+
 		copy(commandArgs, filteredArgs)
 		commandsArgs = append(commandsArgs, append(commandArgs, platformArg))
 	}
+
 	return commandsArgs
 }

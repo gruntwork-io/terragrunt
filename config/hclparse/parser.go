@@ -30,6 +30,7 @@ func (parser *Parser) WithOptions(opts ...Option) *Parser {
 	for _, opt := range opts {
 		parser = opt(parser)
 	}
+
 	return parser
 }
 

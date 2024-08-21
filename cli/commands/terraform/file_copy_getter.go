@@ -48,5 +48,6 @@ func (g *FileCopyGetter) GetFile(dst string, u *url.URL) error {
 	if err := underlying.GetFile(dst, u); err != nil {
 		return errors.WithStackTrace(err)
 	}
+
 	return nil
 }

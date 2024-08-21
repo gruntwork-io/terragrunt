@@ -141,6 +141,7 @@ func (conf *TerragruntConfig) GetIAMRoleOptions() options.IAMRoleOptions {
 	if conf.IamAssumeRoleDuration != nil {
 		configIAMRoleOptions.AssumeRoleDuration = *conf.IamAssumeRoleDuration
 	}
+
 	return configIAMRoleOptions
 }
 
@@ -245,6 +246,7 @@ func (remoteState *remoteStateConfigFile) toConfig() (*remote.RemoteState, error
 	}
 
 	config := &remote.RemoteState{}
+
 	config.Backend = remoteState.Backend
 	if remoteState.Generate != nil {
 		config.Generate = &remote.RemoteStateGenerate{
@@ -252,19 +254,23 @@ func (remoteState *remoteStateConfigFile) toConfig() (*remote.RemoteState, error
 			IfExists: remoteState.Generate.IfExists,
 		}
 	}
+
 	config.Config = remoteStateConfig
 
 	if remoteState.DisableInit != nil {
 		config.DisableInit = *remoteState.DisableInit
 	}
+
 	if remoteState.DisableDependencyOptimization != nil {
 		config.DisableDependencyOptimization = *remoteState.DisableDependencyOptimization
 	}
 
 	config.FillDefaults()
+
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
+
 	return config, err
 }
 
@@ -334,14 +340,17 @@ func (cfg *IncludeConfig) String() string {
 	if cfg == nil {
 		return "IncludeConfig{nil}"
 	}
+
 	exposeStr := "nil"
 	if cfg.Expose != nil {
 		exposeStr = strconv.FormatBool(*cfg.Expose)
 	}
+
 	mergeStrategyStr := "nil"
 	if cfg.MergeStrategy != nil {
 		mergeStrategyStr = fmt.Sprintf("%v", cfg.MergeStrategy)
 	}
+
 	return fmt.Sprintf("IncludeConfig{Path = %v, Expose = %v, MergeStrategy = %v}", cfg.Path, exposeStr, mergeStrategyStr)
 }
 
@@ -349,6 +358,7 @@ func (cfg *IncludeConfig) GetExpose() bool {
 	if cfg == nil || cfg.Expose == nil {
 		return false
 	}
+
 	return *cfg.Expose
 }
 
@@ -588,6 +598,7 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 	if err != nil {
 		return source, err
 	}
+
 	moduleUrlParsed.RawQuery = ""
 	moduleUrlQuery := moduleUrlParsed.String()
 
@@ -606,10 +617,11 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 		if err != nil {
 			return moduleSubdirFromUrl, err
 		}
+
 		moduleSubdir = moduleSubdirFromUrl
 	}
-	return util.JoinTerraformModulePath(sourcePath, moduleSubdir), nil
 
+	return util.JoinTerraformModulePath(sourcePath, moduleSubdir), nil
 }
 
 // Return the default path to use for the Terragrunt configuration that exists within the path giving preference to `terragrunt.hcl`
@@ -625,6 +637,7 @@ func GetDefaultConfigPath(workingDir string) string {
 		if !filepath.IsAbs(configPath) {
 			configPath = util.JoinPath(workingDir, configPath)
 		}
+
 		if files.FileExists(configPath) {
 			break
 		}
@@ -723,7 +736,9 @@ func ReadTerragruntConfig(ctx context.Context, terragruntOptions *options.Terrag
 // included in some other config file when resolving relative paths.
 func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	var config *TerragruntConfig
+
 	hclCache := cache.ContextCache[*hclparse.File](ctx, HclCacheContextKey)
+
 	err := telemetry.Telemetry(ctx, ctx.TerragruntOptions, "parse_config_file", map[string]interface{}{
 		"config_path": configPath,
 		"working_dir": ctx.TerragruntOptions.WorkingDir,
@@ -732,10 +747,12 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 		if includeFromChild != nil {
 			childKey = includeFromChild.String()
 		}
+
 		decodeListKey := "nil"
 		if ctx.PartialParseDecodeList != nil {
 			decodeListKey = fmt.Sprintf("%v", ctx.PartialParseDecodeList)
 		}
+
 		dir, err := os.Getwd()
 		if err != nil {
 			return err
@@ -745,8 +762,12 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 		if err != nil {
 			return err
 		}
-		var file *hclparse.File
-		var cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, ctx.TerragruntOptions.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
+
+		var (
+			file     *hclparse.File
+			cacheKey = fmt.Sprintf("parse-config-%v-%v-%v-%v-%v-%v", configPath, childKey, decodeListKey, ctx.TerragruntOptions.WorkingDir, dir, fileInfo.ModTime().UnixMicro())
+		)
+
 		// TODO: Remove lint ignore
 		if cacheConfig, found := hclCache.Get(ctx, cacheKey); found { //nolint:contextcheck
 			file = cacheConfig
@@ -765,11 +786,13 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 		if err != nil {
 			return err
 		}
+
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
+
 	return config, nil
 }
 
@@ -828,6 +851,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 	if err != nil {
 		return nil, err
 	}
+
 	ctx = ctx.WithTrackInclude(trackInclude)
 	ctx = ctx.WithLocals(locals)
 
@@ -838,6 +862,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 		if err != nil {
 			return nil, err
 		}
+
 		ctx.DecodedDependencies = retrievedOutputs
 	}
 
@@ -852,6 +877,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 	if err != nil {
 		return nil, err
 	}
+
 	if terragruntConfigFile == nil {
 		return nil, errors.WithStackTrace(CouldNotResolveTerragruntConfigInFileError(file.ConfigPath))
 	}
@@ -878,6 +904,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 
 		return mergedConfig, nil
 	}
+
 	return config, nil
 }
 
@@ -891,13 +918,17 @@ func setIAMRole(ctx *ParsingContext, file *hclparse.File, includeFromChild *Incl
 		ctx.TerragruntOptions.IAMRoleOptions = ctx.TerragruntOptions.OriginalIAMRoleOptions
 	} else {
 		// as key is considered HCL code and include configuration
-		var key = fmt.Sprintf("%v-%v", file.Content(), includeFromChild)
-		var config, found = iamRoleCache.Get(ctx, key)
+		var (
+			key           = fmt.Sprintf("%v-%v", file.Content(), includeFromChild)
+			config, found = iamRoleCache.Get(ctx, key)
+		)
+
 		if !found {
 			iamConfig, err := TerragruntConfigFromPartialConfig(ctx.WithDecodeList(TerragruntFlags), file, includeFromChild)
 			if err != nil {
 				return err
 			}
+
 			config = iamConfig.GetIAMRoleOptions()
 			iamRoleCache.Put(ctx, key, config)
 		}
@@ -908,6 +939,7 @@ func setIAMRole(ctx *ParsingContext, file *hclparse.File, includeFromChild *Incl
 			ctx.TerragruntOptions.OriginalIAMRoleOptions,
 		)
 	}
+
 	return nil
 }
 
@@ -923,6 +955,7 @@ func decodeAsTerragruntConfigFile(ctx *ParsingContext, file *hclparse.File, eval
 		if !ok || !isRenderJsonCommand(ctx) || !isAttributeAccessError(diagErr) {
 			return nil, err
 		}
+
 		ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
 	}
 
@@ -931,6 +964,7 @@ func decodeAsTerragruntConfigFile(ctx *ParsingContext, file *hclparse.File, eval
 		if err != nil {
 			return nil, err
 		}
+
 		terragruntConfig.Inputs = &inputs
 	}
 
@@ -945,6 +979,7 @@ func getIndexOfHookWithName(hooks []Hook, name string) int {
 			return i
 		}
 	}
+
 	return -1
 }
 
@@ -955,6 +990,7 @@ func isAttributeAccessError(diagnostics hcl.Diagnostics) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -967,6 +1003,7 @@ func getIndexOfErrorHookWithName(hooks []ErrorHook, name string) int {
 			return i
 		}
 	}
+
 	return -1
 }
 
@@ -978,6 +1015,7 @@ func getIndexOfExtraArgsWithName(extraArgs []TerraformExtraArguments, name strin
 			return i
 		}
 	}
+
 	return -1
 }
 
@@ -994,11 +1032,13 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	}
 
 	defaultMetadata := map[string]interface{}{FoundInFile: configPath}
+
 	if terragruntConfigFromFile.RemoteState != nil {
 		remoteState, err := terragruntConfigFromFile.RemoteState.toConfig()
 		if err != nil {
 			return nil, err
 		}
+
 		terragruntConfig.RemoteState = remoteState
 		terragruntConfig.SetFieldMetadata(MetadataRemoteState, defaultMetadata)
 	}
@@ -1030,6 +1070,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	if err := validateDependencies(ctx, terragruntConfigFromFile.Dependencies); err != nil {
 		return nil, err
 	}
+
 	terragruntConfig.Dependencies = terragruntConfigFromFile.Dependencies
 	if terragruntConfig.Dependencies != nil {
 		for _, item := range terragruntConfig.Dependencies.Paths {
@@ -1126,13 +1167,16 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 			if err := mapstructure.Decode(block, &generateBlock); err != nil {
 				return nil, err
 			}
+
 			generateBlock.Name = name
 			generateBlocks = append(generateBlocks, generateBlock)
 		}
 	}
+
 	if err := validateGenerateBlocks(&generateBlocks); err != nil {
 		return nil, err
 	}
+
 	for _, block := range generateBlocks {
 		ifExists, err := codegen.GenerateConfigExistsFromString(block.IfExists)
 		if err != nil {
@@ -1161,16 +1205,19 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 		} else {
 			genConfig.CommentPrefix = *block.CommentPrefix
 		}
+
 		if block.DisableSignature == nil {
 			genConfig.DisableSignature = false
 		} else {
 			genConfig.DisableSignature = *block.DisableSignature
 		}
+
 		if block.Disable == nil {
 			genConfig.Disable = false
 		} else {
 			genConfig.Disable = *block.Disable
 		}
+
 		terragruntConfig.GenerateConfigs[block.Name] = genConfig
 		terragruntConfig.SetFieldMetadataWithType(MetadataGenerateConfigs, block.Name, defaultMetadata)
 	}
@@ -1190,6 +1237,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 		if err != nil {
 			return nil, err
 		}
+
 		terragruntConfig.Locals = localsParsed
 		terragruntConfig.SetFieldMetadataMap(MetadataLocals, localsParsed, defaultMetadata)
 	}
@@ -1200,18 +1248,22 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 // Iterate over dependencies paths and check if directories exists, return error with all missing dependencies
 func validateDependencies(ctx *ParsingContext, dependencies *ModuleDependencies) error {
 	var missingDependencies []string
+
 	if dependencies == nil {
 		return nil
 	}
+
 	for _, dependencyPath := range dependencies.Paths {
 		fullPath := filepath.FromSlash(dependencyPath)
 		if !filepath.IsAbs(fullPath) {
 			fullPath = path.Join(ctx.TerragruntOptions.WorkingDir, fullPath)
 		}
+
 		if !util.IsDir(fullPath) {
 			missingDependencies = append(missingDependencies, fmt.Sprintf("%s (%s)", dependencyPath, fullPath))
 		}
 	}
+
 	if len(missingDependencies) > 0 {
 		return DependencyDirNotFoundError{missingDependencies}
 	}
@@ -1221,8 +1273,10 @@ func validateDependencies(ctx *ParsingContext, dependencies *ModuleDependencies)
 
 // Iterate over generate blocks and detect duplicate names, return error with list of duplicated names
 func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
-	var blockNames = map[string]bool{}
-	var duplicatedGenerateBlockNames []string
+	var (
+		blockNames                   = map[string]bool{}
+		duplicatedGenerateBlockNames []string
+	)
 
 	for _, block := range *blocks {
 		_, found := blockNames[block.Name]
@@ -1230,11 +1284,14 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 			duplicatedGenerateBlockNames = append(duplicatedGenerateBlockNames, block.Name)
 			continue
 		}
+
 		blockNames[block.Name] = true
 	}
+
 	if len(duplicatedGenerateBlockNames) != 0 {
 		return DuplicatedGenerateBlocksError{duplicatedGenerateBlockNames}
 	}
+
 	return nil
 }
 
@@ -1254,11 +1311,13 @@ func configFileHasDependencyBlock(configPath string) (bool, error) {
 	if diags.HasErrors() {
 		return false, errors.WithStackTrace(diags)
 	}
+
 	for _, block := range hclFile.Body().Blocks() {
 		if block.Type() == "dependency" || block.Type() == "dependencies" {
 			return true, nil
 		}
 	}
+
 	return false, nil
 }
 
@@ -1275,9 +1334,11 @@ func (conf *TerragruntConfig) SetFieldMetadataWithType(fieldType, fieldName stri
 	if !found {
 		metadata = make(map[string]interface{})
 	}
+
 	for key, value := range m {
 		metadata[key] = value
 	}
+
 	conf.FieldsMetadata[field] = metadata
 }
 
@@ -1304,12 +1365,14 @@ func (conf *TerragruntConfig) GetMapFieldMetadata(fieldType, fieldName string) (
 	if conf.FieldsMetadata == nil {
 		return nil, false
 	}
+
 	field := fmt.Sprintf("%s-%s", fieldType, fieldName)
 
 	value, found := conf.FieldsMetadata[field]
 	if !found {
 		return nil, false
 	}
+
 	var result = make(map[string]string)
 	for key, value := range value {
 		result[key] = fmt.Sprintf("%v", value)
@@ -1325,11 +1388,13 @@ func (conf *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 	}
 	// in case of Meta is null, set empty meta
 	var meta = map[string]interface{}{}
+
 	if conf.Engine.Meta != nil {
 		parsedMeta, err := ParseCtyValueToMap(*conf.Engine.Meta)
 		if err != nil {
 			return nil, err
 		}
+
 		meta = parsedMeta
 	}
 
@@ -1337,6 +1402,7 @@ func (conf *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 	if conf.Engine.Version != nil {
 		v = *conf.Engine.Version
 	}
+
 	if conf.Engine.Type != nil {
 		t = *conf.Engine.Type
 	}
@@ -1344,6 +1410,7 @@ func (conf *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 	if len(t) == 0 {
 		t = DefaultEngineType
 	}
+
 	return &options.EngineOptions{
 		Source:  conf.Engine.Source,
 		Version: v,

@@ -105,6 +105,7 @@ func printFlagSuggestions(arg string, flags []Flag, writer io.Writer) error {
 	cur := strings.TrimPrefix(arg, "-")
 
 	errs := []error{}
+
 	for _, flag := range flags {
 		for _, name := range flag.Names() {
 			name = strings.TrimSpace(name)
@@ -137,10 +138,12 @@ func printFlagSuggestions(arg string, flags []Flag, writer io.Writer) error {
 func cliArgContains(flagName string) bool {
 	for _, name := range strings.Split(flagName, ",") {
 		name = strings.TrimSpace(name)
+
 		count := utf8.RuneCountInString(name)
 		if count > maxDashesInFlag {
 			count = maxDashesInFlag
 		}
+
 		flag := fmt.Sprintf("%s%s", strings.Repeat("-", count), name)
 		for _, a := range os.Args {
 			if a == flag {
@@ -148,5 +151,6 @@ func cliArgContains(flagName string) bool {
 			}
 		}
 	}
+
 	return false
 }

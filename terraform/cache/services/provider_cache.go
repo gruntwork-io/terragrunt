@@ -70,6 +70,7 @@ func (caches ProviderCaches) removeArchive() error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -103,11 +104,13 @@ func (cache *ProviderCache) DocumentSHA256Sums(ctx context.Context) ([]byte, err
 	if err != nil {
 		return nil, err
 	}
+
 	if err := helpers.Fetch(ctx, req, documentSHA256Sums); err != nil {
 		return nil, fmt.Errorf("failed to retrieve authentication checksums for provider %q: %w", cache.Provider, err)
 	}
 
 	cache.documentSHA256Sums = documentSHA256Sums.Bytes()
+
 	return cache.documentSHA256Sums, nil
 }
 
@@ -122,11 +125,13 @@ func (cache *ProviderCache) Signature(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if err := helpers.Fetch(ctx, req, signature); err != nil {
 		return nil, fmt.Errorf("failed to retrieve authentication signature for provider %q: %w", cache.Provider, err)
 	}
 
 	cache.signature = signature.Bytes()
+
 	return cache.signature, nil
 }
 
@@ -181,6 +186,7 @@ func (cache *ProviderCache) ArchivePath() string {
 	if util.FileExists(cache.archivePath) {
 		return cache.archivePath
 	}
+
 	return ""
 }
 
@@ -202,10 +208,13 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 
 	if util.FileExists(cache.userProviderDir) {
 		log.Debugf("Create symlink file %s to %s", cache.packageDir, cache.userProviderDir)
+
 		if err := os.Symlink(cache.userProviderDir, cache.packageDir); err != nil {
 			return errors.WithStackTrace(err)
 		}
+
 		log.Infof("Cached %s from user plugins directory", cache.Provider)
+
 		return nil
 	}
 
@@ -225,6 +234,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 		}); err != nil {
 			return err
 		}
+
 		cache.archiveCached = true
 	}
 
@@ -238,6 +248,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	log.Infof("Cached %s (%s)", cache.Provider, auth)
 
 	return nil
@@ -264,10 +275,12 @@ func (cache *ProviderCache) newRequest(ctx context.Context, url string) (*http.R
 func (cache *ProviderCache) removeArchive() error {
 	if cache.archiveCached && util.FileExists(cache.archivePath) {
 		log.Debugf("Remove provider cached archive %s", cache.archivePath)
+
 		if err := os.Remove(cache.archivePath); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
+
 	return nil
 }
 
@@ -330,10 +343,12 @@ func (service *ProviderService) WaitForCacheReady(requestID string) ([]getprovid
 		if provider.err != nil {
 			merr = multierror.Append(merr, fmt.Errorf("unable to cache provider: %s, err: %w", provider, provider.err))
 		}
+
 		if provider.ready {
 			providers = append(providers, provider)
 		}
 	}
+
 	return providers, merr.ErrorOrNil()
 }
 
@@ -366,10 +381,10 @@ func (service *ProviderService) CacheProvider(ctx context.Context, requestID str
 		<-cache.started
 		service.providerCaches = append(service.providerCaches, cache)
 	case <-ctx.Done():
-		// quit
 	}
 
 	cache.addRequestID(requestID)
+
 	return cache
 }
 
@@ -381,6 +396,7 @@ func (service *ProviderService) GetProviderCache(provider *models.Provider) *Pro
 	if cache := service.providerCaches.Find(provider); cache != nil && cache.ready {
 		return cache
 	}
+
 	return nil
 }
 
@@ -389,6 +405,7 @@ func (service *ProviderService) Run(ctx context.Context) error {
 	if service.cacheDir == "" {
 		return errors.Errorf("provider cache directory not specified")
 	}
+
 	log.Debugf("Provider cache dir %q", service.cacheDir)
 
 	if err := os.MkdirAll(service.cacheDir, os.ModePerm); err != nil {
@@ -399,10 +416,12 @@ func (service *ProviderService) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	service.tempDir = filepath.Join(tempDir, "providers")
 
 	merr := &multierror.Error{}
 	errGroup, ctx := errgroup.WithContext(ctx)
+
 	for {
 		select {
 		case cache := <-service.providerCacheWarmUpCh:
@@ -410,6 +429,7 @@ func (service *ProviderService) Run(ctx context.Context) error {
 				if err := service.startProviderCaching(ctx, cache); err != nil {
 					merr = multierror.Append(merr, err)
 				}
+
 				return nil
 			})
 		case <-ctx.Done():
@@ -442,8 +462,10 @@ func (service *ProviderService) startProviderCaching(ctx context.Context, cache 
 	if cache.err = cache.warmUp(ctx); cache.err != nil {
 		os.Remove(cache.packageDir)  //nolint:errcheck
 		os.Remove(cache.archivePath) //nolint:errcheck
+
 		return cache.err
 	}
+
 	cache.ready = true
 
 	return nil

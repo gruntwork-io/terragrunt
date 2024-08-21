@@ -35,6 +35,7 @@ func (ee *exitError) Error() string {
 	if ee.err == nil {
 		return ""
 	}
+
 	return ee.err.Error()
 }
 
@@ -79,7 +80,9 @@ func handleExitCoder(err error, osExiter func(code int)) error {
 		if err.Error() != "" {
 			_, _ = fmt.Fprintln(cli.ErrWriter, err)
 		}
+
 		osExiter(exitErr.ExitCode())
+
 		return nil
 	}
 

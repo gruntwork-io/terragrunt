@@ -37,6 +37,7 @@ func UpdateLockfile(ctx context.Context, workingDir string, providers []Provider
 		}
 
 		var diags hcl.Diagnostics
+
 		file, diags = hclwrite.ParseConfig(content, filename, hcl.Pos{Line: 1, Column: 1})
 		if diags.HasErrors() {
 			return errors.WithStackTrace(diags)
@@ -51,6 +52,7 @@ func UpdateLockfile(ctx context.Context, workingDir string, providers []Provider
 	if err := os.WriteFile(filename, file.Bytes(), ownerWriteGlobalReadPerms); err != nil {
 		return errors.WithStackTrace(err)
 	}
+
 	return nil
 }
 
@@ -96,12 +98,14 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 	if err != nil {
 		return err
 	}
+
 	newHashes := []Hash{h1Hash}
 
 	documentSHA256Sums, err := provider.DocumentSHA256Sums(ctx)
 	if err != nil {
 		return err
 	}
+
 	if documentSHA256Sums != nil {
 		zipHashes := DocumentHashes(documentSHA256Sums)
 		newHashes = append(newHashes, zipHashes...)
@@ -117,6 +121,7 @@ func updateProviderBlock(ctx context.Context, providerBlock *hclwrite.Block, pro
 	slices.Sort(hashes)
 
 	providerBlock.Body().SetAttributeRaw("hashes", tokensForListPerLine(hashes))
+
 	return nil
 }
 
@@ -173,6 +178,7 @@ func getAttributeValueAsSlice(attr *hclwrite.Attribute) ([]string, error) {
 		if unicode.IsSpace(r) || r == ']' || r == ',' {
 			return true
 		}
+
 		return false
 	})
 	valBytes = append(valBytes, ']')
@@ -182,6 +188,7 @@ func getAttributeValueAsSlice(attr *hclwrite.Attribute) ([]string, error) {
 	if err := json.Unmarshal(valBytes, &val); err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
+
 	return val, nil
 }
 
@@ -201,5 +208,6 @@ func tokensForListPerLine(hashes []Hash) hclwrite.Tokens {
 	}
 
 	tokens = append(tokens, &hclwrite.Token{Type: hclsyntax.TokenCBrack, Bytes: []byte{']'}})
+
 	return tokens
 }

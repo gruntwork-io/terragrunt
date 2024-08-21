@@ -31,6 +31,7 @@ type BoolFlag struct {
 // Apply applies Flag settings to the given flag set.
 func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
 	var err error
+
 	valType := FlagType[bool](&boolFlagType{negative: flag.Negative})
 
 	if flag.FlagValue, err = newGenericValue(valType, flag.LookupEnv(flag.EnvVar), flag.Destination); err != nil {
@@ -40,6 +41,7 @@ func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
 	for _, name := range flag.Names() {
 		set.Var(flag.FlagValue, name, flag.Usage)
 	}
+
 	return nil
 }
 
@@ -53,6 +55,7 @@ func (flag *BoolFlag) GetEnvVars() []string {
 	if flag.EnvVar == "" {
 		return nil
 	}
+
 	return []string{flag.EnvVar}
 }
 
@@ -61,6 +64,7 @@ func (flag *BoolFlag) GetDefaultText() string {
 	if flag.DefaultText == "" && flag.FlagValue != nil {
 		return flag.FlagValue.GetDefaultText()
 	}
+
 	return flag.DefaultText
 }
 
@@ -104,5 +108,6 @@ func (val *boolFlagType) Set(str string) error {
 	if val.negative {
 		*val.genericType.dest = !*val.genericType.dest
 	}
+
 	return nil
 }

@@ -43,6 +43,7 @@ func (module *TerraformModule) String() string {
 	for _, dependency := range module.Dependencies {
 		dependencies = append(dependencies, dependency.RelativePath)
 	}
+
 	return fmt.Sprintf(
 		"Module %s (excluded: %v, assume applied: %v, dependencies: [%s])",
 		module.RelativePath, module.FlagExcluded, module.AssumeAlreadyApplied, strings.Join(dependencies, ", "),
@@ -96,28 +97,33 @@ func (module *TerraformModule) planFile(terragruntOptions *options.TerragruntOpt
 	if planCommand && planFile == "" && module.TerragruntOptions.JsonOutputFolder != "" {
 		planFile = terraform.TerraformPlanFile
 	}
+
 	return planFile
 }
 
 // outputFile - return plan file location, if output folder is set
 func (module *TerraformModule) outputFile(opts *options.TerragruntOptions) string {
 	planFile := ""
+
 	if opts.OutputFolder != "" {
 		path, _ := filepath.Rel(opts.WorkingDir, module.Path)
 		dir := filepath.Join(opts.OutputFolder, path)
 		planFile = filepath.Join(dir, terraform.TerraformPlanFile)
 	}
+
 	return planFile
 }
 
 // outputJsonFile - return plan JSON file location, if JSON output folder is set
 func (module *TerraformModule) outputJsonFile(opts *options.TerragruntOptions) string {
 	jsonPlanFile := ""
+
 	if opts.JsonOutputFolder != "" {
 		path, _ := filepath.Rel(opts.WorkingDir, module.Path)
 		dir := filepath.Join(opts.JsonOutputFolder, path)
 		jsonPlanFile = filepath.Join(dir, terraform.TerraformPlanJsonFile)
 	}
+
 	return jsonPlanFile
 }
 
@@ -128,6 +134,7 @@ func (module *TerraformModule) findModuleInPath(targetDirs []string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -154,6 +161,7 @@ func (module *TerraformModule) confirmShouldApplyExternalDependency(dependency *
 	}
 
 	prompt := fmt.Sprintf("Module: \t\t %s\nExternal dependency: \t %s\nShould Terragrunt apply the external dependency?", module.Path, dependency.Path)
+
 	return shell.PromptUserForYesNo(prompt, terragruntOptions)
 }
 
@@ -183,8 +191,10 @@ func (module *TerraformModule) getDependenciesForModule(modulesMap TerraformModu
 				DependencyPath:        dependencyPath,
 				TerragruntConfigPaths: terragruntConfigPaths,
 			}
+
 			return dependencies, errors.WithStackTrace(err)
 		}
+
 		dependencies = append(dependencies, dependencyModule)
 	}
 
@@ -198,8 +208,10 @@ type TerraformModules []*TerraformModule
 // 2. Iterate over includes from terragruntOptions if git top level directory detection failed
 // 3. Filter found module only items which has in dependencies working directory
 func FindWhereWorkingDirIsIncluded(ctx context.Context, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) TerraformModules {
-	var pathsToCheck []string
-	var matchedModulesMap = make(TerraformModulesMap)
+	var (
+		pathsToCheck      []string
+		matchedModulesMap = make(TerraformModulesMap)
+	)
 
 	if gitTopLevelDir, err := shell.GitTopLevelDir(ctx, terragruntOptions, terragruntOptions.WorkingDir); err == nil {
 		pathsToCheck = append(pathsToCheck, gitTopLevelDir)
@@ -209,6 +221,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, terragruntOptions *optio
 		for _, includePath := range terragruntConfig.ProcessedIncludes {
 			uniquePaths[filepath.Dir(includePath.Path)] = true
 		}
+
 		for path := range uniquePaths {
 			pathsToCheck = append(pathsToCheck, path)
 		}
@@ -216,6 +229,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, terragruntOptions *optio
 
 	for _, dir := range pathsToCheck { // iterate over detected paths, build stacks and filter modules by working dir
 		dir += filepath.FromSlash("/")
+
 		cfgOptions, err := options.NewTerragruntOptionsWithConfigPath(dir)
 		if err != nil {
 			terragruntOptions.Logger.Debugf("Failed to build terragrunt options from %s %v", dir, err)
@@ -229,6 +243,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, terragruntOptions *optio
 		cfgOptions.NonInteractive = true
 
 		var hook = NewForceLogLevelHook(logrus.DebugLevel)
+
 		cfgOptions.Logger.Logger.AddHook(hook)
 
 		// build stack from config directory
@@ -241,6 +256,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, terragruntOptions *optio
 		}
 
 		dependentModules := stack.ListStackDependentModules()
+
 		deps, found := dependentModules[terragruntOptions.WorkingDir]
 		if found {
 			for _, module := range stack.Modules {
@@ -301,6 +317,7 @@ func (modules TerraformModules) WriteDot(w io.Writer, terragruntOptions *options
 				strings.TrimPrefix(source.Path, prefix),
 				strings.TrimPrefix(target.Path, prefix),
 			)
+
 			_, err := w.Write([]byte(line))
 			if err != nil {
 				return errors.WithStackTrace(err)
@@ -319,6 +336,7 @@ func (modules TerraformModules) RunModules(ctx context.Context, opts *options.Te
 	if err != nil {
 		return err
 	}
+
 	return runningModules.runModules(ctx, opts, parallelism)
 }
 
@@ -330,6 +348,7 @@ func (modules TerraformModules) RunModulesReverseOrder(ctx context.Context, opts
 	if err != nil {
 		return err
 	}
+
 	return runningModules.runModules(ctx, opts, parallelism)
 }
 
@@ -340,6 +359,7 @@ func (modules TerraformModules) RunModulesIgnoreOrder(ctx context.Context, opts 
 	if err != nil {
 		return err
 	}
+
 	return runningModules.runModules(ctx, opts, parallelism)
 }
 
@@ -404,6 +424,7 @@ func (modules TerraformModules) flagIncludedDirs(terragruntOptions *options.Terr
 		if terragruntOptions.StrictInclude {
 			return TerraformModules{}
 		}
+
 		return modules
 	}
 
@@ -439,6 +460,7 @@ func (modules TerraformModules) flagModulesThatDontInclude(terragruntOptions *op
 	}
 
 	modulesThatIncludeCanonicalPath := []string{}
+
 	for _, includePath := range terragruntOptions.ModulesThatInclude {
 		canonicalPath, err := util.CanonicalPath(includePath, terragruntOptions.WorkingDir)
 		if err != nil {
@@ -465,6 +487,7 @@ func (modules TerraformModules) flagModulesThatDontInclude(terragruntOptions *op
 			if err != nil {
 				return nil, err
 			}
+
 			if util.ListContainsElement(modulesThatIncludeCanonicalPath, canonicalPath) {
 				module.FlagExcluded = false
 			}
@@ -483,6 +506,7 @@ func (modules TerraformModules) flagModulesThatDontInclude(terragruntOptions *op
 				if err != nil {
 					return nil, err
 				}
+
 				if util.ListContainsElement(modulesThatIncludeCanonicalPath, canonicalPath) {
 					dependency.FlagExcluded = false
 				}
@@ -521,6 +545,7 @@ func (modulesMap TerraformModulesMap) crosslinkDependencies(canonicalTerragruntC
 	keys := modulesMap.getSortedKeys()
 	for _, key := range keys {
 		module := modulesMap[key]
+
 		dependencies, err := module.getDependenciesForModule(modulesMap, canonicalTerragruntConfigPaths)
 		if err != nil {
 			return modules, err

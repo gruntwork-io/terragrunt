@@ -74,6 +74,7 @@ func CreateLogger(lvl logrus.Level, prefixStyle *formatter.PrefixStyle) *logrus.
 	logger := logrus.New()
 	logger.SetLevel(lvl)
 	logger.SetOutput(os.Stderr) // Terragrunt should output all it's logs to stderr by default
+
 	if jsonLogFormat {
 		logger.SetFormatter(&logrus.JSONFormatter{})
 	} else {
@@ -90,6 +91,7 @@ func CreateLogger(lvl logrus.Level, prefixStyle *formatter.PrefixStyle) *logrus.
 
 		logger.SetFormatter(logFormatter)
 	}
+
 	return logger
 }
 
@@ -99,6 +101,7 @@ func CreateLogEntry(prefix string, level logrus.Level, prefixStyle *formatter.Pr
 	fields := logrus.Fields{
 		formatter.PrefixKeyName: prefix,
 	}
+
 	return logger.WithFields(fields)
 }
 
@@ -107,16 +110,19 @@ func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Leve
 	logger := CreateLogEntry(prefix, level, prefixStyle)
 	logger.Logger.SetOutput(writer)
 	logger.Logger.ReplaceHooks(hooks)
+
 	return logger
 }
 
 // GetDiagnosticsWriter returns a hcl2 parsing diagnostics emitter for the current terminal.
 func GetDiagnosticsWriter(writer io.Writer, parser *hclparse.Parser, disableColor bool) hcl.DiagnosticWriter {
 	termColor := !disableColor && term.IsTerminal(int(os.Stderr.Fd()))
+
 	termWidth, _, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
 		termWidth = 80
 	}
+
 	return hcl.NewDiagnosticTextWriter(writer, parser.Files(), uint(termWidth), termColor)
 }
 
@@ -127,6 +133,7 @@ func GetDefaultLogLevel() logrus.Level {
 	if defaultLogLevelStr == "" {
 		return defaultLogLevel
 	}
+
 	return ParseLogLevel(defaultLogLevelStr)
 }
 
@@ -139,8 +146,10 @@ func ParseLogLevel(logLevelStr string) logrus.Level {
 			logLevelStr,
 			defaultLogLevel,
 		)
+
 		return defaultLogLevel
 	}
+
 	return parsedLogLevel
 }
 

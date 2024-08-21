@@ -57,6 +57,7 @@ func RunTerraformCommand(ctx context.Context, terragruntOptions *options.Terragr
 	}
 
 	_, err = RunShellCommandWithOutput(ctx, terragruntOptions, "", false, needPTY, terragruntOptions.TerraformPath, args...)
+
 	return err
 }
 
@@ -95,11 +96,15 @@ func RunShellCommandWithOutput(
 		}
 	}
 
-	var output *util.CmdOutput = nil
-	var commandDir = workingDir
+	var (
+		output     *util.CmdOutput = nil
+		commandDir                 = workingDir
+	)
+
 	if workingDir == "" {
 		commandDir = terragruntOptions.WorkingDir
 	}
+
 	err := telemetry.Telemetry(ctx, terragruntOptions, "run_"+command, map[string]interface{}{
 		"command": command,
 		"args":    fmt.Sprintf("%v", args),
@@ -110,20 +115,23 @@ func RunShellCommandWithOutput(
 			terragruntOptions.Logger.Debugf("Command output will be suppressed.")
 		}
 
-		var stdoutBuf bytes.Buffer
-		var stderrBuf bytes.Buffer
+		var (
+			stdoutBuf bytes.Buffer
+			stderrBuf bytes.Buffer
+		)
 
 		cmd := exec.Command(command, args...)
 
 		// TODO: consider adding prefix from terragruntOptions logger to stdout and stderr
 		cmd.Env = toEnvVarsList(terragruntOptions.Env)
 
-		var outWriter = terragruntOptions.Writer
-		var errWriter = terragruntOptions.ErrWriter
+		var (
+			outWriter = terragruntOptions.Writer
+			errWriter = terragruntOptions.ErrWriter
+		)
 
 		// redirect output through logger with json wrapping
 		if terragruntOptions.JsonLogFormat && terragruntOptions.TerraformLogsToJson {
-
 			jsonWriter := terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args)
 			jsonWriter.Logger.Out = outWriter
 			outWriter = jsonWriter.Writer()
@@ -143,6 +151,7 @@ func RunShellCommandWithOutput(
 			terragruntOptions.TerraformPath,
 		), &stderrBuf)
 		var cmdStdout io.Writer
+
 		if !suppressStdout {
 			if !terragruntOptions.PrintRawModuleOutput && len(args) > 0 && !strings.EqualFold(args[0], terraform.CommandNameOutput) {
 				// do not add prefix if args contains `-json` flag
@@ -171,10 +180,13 @@ func RunShellCommandWithOutput(
 		if command == terragruntOptions.TerraformPath && terragruntOptions.Engine != nil && !engine.IsEngineEnabled() {
 			terragruntOptions.Logger.Debugf("Engine is not enabled, running command directly in %s", commandDir)
 		}
+
 		useEngine := terragruntOptions.Engine != nil && engine.IsEngineEnabled()
+
 		// If the engine is enabled and the command is IaC executable, use the engine to run the command.
 		if useEngine && command == terragruntOptions.TerraformPath {
 			terragruntOptions.Logger.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
+
 			cmdOutput, err := engine.Run(ctx, &engine.ExecutionOptions{
 				TerragruntOptions: terragruntOptions,
 				CmdStdout:         cmdStdout,
@@ -188,7 +200,9 @@ func RunShellCommandWithOutput(
 			if err != nil {
 				return errors.WithStackTrace(err)
 			}
+
 			output = cmdOutput
+
 			return err
 		}
 
@@ -202,6 +216,7 @@ func RunShellCommandWithOutput(
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = cmdStdout
 			cmd.Stderr = cmdStderr
+
 			if err := cmd.Start(); err != nil {
 				// bad path, binary not executable, &c
 				return errors.WithStackTrace(err)
@@ -211,6 +226,7 @@ func RunShellCommandWithOutput(
 		// Make sure to forward signals to the subcommand.
 		cmdChannel := make(chan error) // used for closing the signals forwarder goroutine
 		signalChannel := NewSignalsForwarder(InterruptSignals, cmd, terragruntOptions.Logger, cmdChannel)
+
 		defer func(signalChannel *SignalsForwarder) {
 			err := signalChannel.Close()
 			if err != nil {
@@ -245,6 +261,7 @@ func toEnvVarsList(envVarsAsMap map[string]string) []string {
 	for key, value := range envVarsAsMap {
 		envVarsAsList = append(envVarsAsList, fmt.Sprintf("%s=%s", key, value))
 	}
+
 	return envVarsAsList
 }
 
@@ -281,6 +298,7 @@ func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *logrus.Entry,
 				select {
 				case <-time.After(SignalForwardingDelay):
 					logger.Debugf("Forward signal %v to terraform.", s)
+
 					err := c.Process.Signal(s)
 					if err != nil {
 						logger.Errorf("Error forwarding signal: %v", err)
@@ -291,7 +309,6 @@ func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *logrus.Entry,
 			case <-cmdChannel:
 				return
 			}
-
 		}
 	}()
 
@@ -302,6 +319,7 @@ func (signalChannel *SignalsForwarder) Close() error {
 	signal.Stop(*signalChannel)
 	*signalChannel <- nil
 	close(*signalChannel)
+
 	return nil
 }
 
@@ -309,25 +327,32 @@ func (signalChannel *SignalsForwarder) Close() error {
 func GitTopLevelDir(ctx context.Context, terragruntOptions *options.TerragruntOptions, path string) (string, error) {
 	runCache := cache.ContextCache[string](ctx, RunCmdCacheContextKey)
 	cacheKey := "top-level-dir-" + path
+
 	if gitTopLevelDir, found := runCache.Get(ctx, cacheKey); found {
 		return gitTopLevelDir, nil
 	}
+
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
+
 	opts, err := options.NewTerragruntOptionsWithConfigPath(path)
 	if err != nil {
 		return "", err
 	}
+
 	opts.Env = terragruntOptions.Env
 	opts.Writer = &stdout
 	opts.ErrWriter = &stderr
+
 	cmd, err := RunShellCommandWithOutput(ctx, opts, path, true, false, "git", "rev-parse", "--show-toplevel")
 	if err != nil {
 		return "", err
 	}
+
 	cmdOutput := strings.TrimSpace(cmd.Stdout)
 	terragruntOptions.Logger.Debugf("git show-toplevel result: \n%v\n%v\n%v\n", stdout.String(), stderr.String(), cmdOutput)
 	runCache.Put(ctx, cacheKey, cmdOutput)
+
 	return cmdOutput, nil
 }
 
@@ -339,10 +364,12 @@ func GitRepoTags(ctx context.Context, opts *options.TerragruntOptions, gitRepo *
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
+
 	gitOpts, err := options.NewTerragruntOptionsWithConfigPath(opts.WorkingDir)
 	if err != nil {
 		return nil, err
 	}
+
 	gitOpts.Env = opts.Env
 	gitOpts.Writer = &stdout
 	gitOpts.ErrWriter = &stderr
@@ -351,14 +378,18 @@ func GitRepoTags(ctx context.Context, opts *options.TerragruntOptions, gitRepo *
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
+
 	var tags []string
+
 	tagLines := strings.Split(output.Stdout, "\n")
+
 	for _, line := range tagLines {
 		fields := strings.Fields(line)
 		if len(fields) >= tagSplitPart {
 			tags = append(tags, fields[1])
 		}
 	}
+
 	return tags, nil
 }
 
@@ -368,9 +399,11 @@ func GitLastReleaseTag(ctx context.Context, opts *options.TerragruntOptions, git
 	if err != nil {
 		return "", err
 	}
+
 	if len(tags) == 0 {
 		return "", nil
 	}
+
 	return LastReleaseTag(tags), nil
 }
 
@@ -387,12 +420,14 @@ func LastReleaseTag(tags []string) string {
 			lastVersion = ver
 		}
 	}
+
 	return lastVersion.Original()
 }
 
 // extractSemVerTags - extract semver tags from passed tags slice.
 func extractSemVerTags(tags []string) []*version.Version {
 	var semverTags []*version.Version
+
 	for _, tag := range tags {
 		t := strings.TrimPrefix(tag, refsTags)
 		if v, err := version.NewVersion(t); err == nil {
@@ -400,6 +435,7 @@ func extractSemVerTags(tags []string) []*version.Version {
 			semverTags = append(semverTags, v)
 		}
 	}
+
 	return semverTags
 }
 

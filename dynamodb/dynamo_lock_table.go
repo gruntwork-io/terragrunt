@@ -124,7 +124,6 @@ func CreateLockTable(tableName string, tags map[string]string, client *dynamodb.
 
 	if createTableOutput != nil && createTableOutput.TableDescription != nil && createTableOutput.TableDescription.TableArn != nil {
 		// Do not tag in case somebody else had created the table
-
 		err = tagTableIfTagsGiven(tags, createTableOutput.TableDescription.TableArn, client, terragruntOptions)
 
 		if err != nil {
@@ -136,7 +135,6 @@ func CreateLockTable(tableName string, tags map[string]string, client *dynamodb.
 }
 
 func tagTableIfTagsGiven(tags map[string]string, tableArn *string, client *dynamodb.DynamoDB, terragruntOptions *options.TerragruntOptions) error {
-
 	if len(tags) == 0 {
 		terragruntOptions.Logger.Debugf("No tags for lock table given.")
 		return nil
@@ -176,8 +174,8 @@ func DeleteTable(tableName string, dbClient *dynamodb.DynamoDB) error {
 		NumMaxRetries: maxRetries,
 		MinRetryDelay: minRetryDelay,
 	}}
-	return req.Send()
 
+	return req.Send()
 }
 
 type DeleteTableRetryer struct {
@@ -188,6 +186,7 @@ func (retryer DeleteTableRetryer) ShouldRetry(req *request.Request) bool {
 	if req.HTTPResponse.StatusCode == http.StatusBadRequest {
 		return true
 	}
+
 	return retryer.DefaultRetryer.ShouldRetry(req)
 }
 
@@ -196,6 +195,7 @@ func (retryer DeleteTableRetryer) ShouldRetry(req *request.Request) bool {
 func isTableAlreadyBeingCreatedOrUpdatedError(err error) bool {
 	var awsErr awserr.Error
 	ok := goErrors.As(err, &awsErr)
+
 	return ok && awsErr.Code() == "ResourceInUseException"
 }
 

@@ -22,6 +22,7 @@ func ShowAppHelp(ctx *Context) error {
 	if tpl == "" {
 		tpl = AppHelpTemplate
 	}
+
 	if tpl == "" {
 		return errors.Errorf("app help template not defined")
 	}
@@ -31,6 +32,7 @@ func ShowAppHelp(ctx *Context) error {
 	}
 
 	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, nil)
+
 	return nil
 }
 
@@ -42,6 +44,7 @@ func ShowCommandHelp(ctx *Context, cmdName string) error {
 			if tpl == "" {
 				tpl = CommandHelpTemplate
 			}
+
 			if tpl == "" {
 				return errors.Errorf("command help template not defined")
 			}
@@ -53,6 +56,7 @@ func ShowCommandHelp(ctx *Context, cmdName string) error {
 			ctx = ctx.Clone(cmd, ctx.Args().Tail())
 
 			cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, nil)
+
 			return nil
 		}
 	}
@@ -65,10 +69,12 @@ func ShowVersion(ctx *Context) error {
 	if tpl == "" {
 		tpl = AppVersionTemplate
 	}
+
 	if tpl == "" {
 		return errors.Errorf("app version template not defined")
 	}
 
 	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, nil)
+
 	return nil
 }

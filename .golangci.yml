@@ -65,6 +65,7 @@ linters:
     - unconvert
     - unused
     - unparam
+    - wsl
   enable-all: false
   disable:
     - depguard

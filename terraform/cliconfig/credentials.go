@@ -35,6 +35,7 @@ func hostCredentialsFromEnv(host svchost.Hostname) svcauth.HostCredentials {
 	if !ok {
 		return nil
 	}
+
 	return svcauth.HostCredentialsToken(token)
 }
 
@@ -42,16 +43,20 @@ func collectCredentialsFromEnv() map[svchost.Hostname]string {
 	const prefix = "TF_TOKEN_"
 
 	ret := make(map[svchost.Hostname]string)
+
 	for _, ev := range os.Environ() {
 		eqIdx := strings.Index(ev, "=")
 		if eqIdx < 0 {
 			continue
 		}
+
 		name := ev[:eqIdx]
 		value := ev[eqIdx+1:]
+
 		if !strings.HasPrefix(name, prefix) {
 			continue
 		}
+
 		rawHost := name[len(prefix):]
 
 		// We accept double underscores in place of hyphens because hyphens are not valid identifiers in most shells and are therefore hard to set.
@@ -63,6 +68,7 @@ func collectCredentialsFromEnv() map[svchost.Hostname]string {
 
 		// Because environment variables are often set indirectly by OS libraries that might interfere with how they are encoded, we'll be tolerant of them being given either directly as UTF-8 IDNs or in Punycode form, normalizing to Punycode form here because that is what the OpenTofu credentials helper protocol will use in its requests.
 		dispHost := svchost.ForDisplay(rawHost)
+
 		hostname, err := svchost.ForComparison(dispHost)
 		if err != nil {
 			// Ignore invalid hostnames

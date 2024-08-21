@@ -61,13 +61,16 @@ func DescribeFunction(name string, f function.Function) *Function {
 	params := f.Params()
 	ret.Params = make([]FunctionParam, len(params))
 	typeCheckArgs := make([]cty.Type, len(params), len(params)+1)
+
 	for i, param := range params {
 		ret.Params[i] = DescribeFunctionParam(&param)
 		typeCheckArgs[i] = param.Type
 	}
+
 	if varParam := f.VarParam(); varParam != nil {
 		descParam := DescribeFunctionParam(varParam)
 		ret.VariadicParam = &descParam
+
 		typeCheckArgs = append(typeCheckArgs, varParam.Type)
 	}
 
@@ -102,6 +105,7 @@ func DescribeFunctionCall(hclDiag *hcl.Diagnostic) *FunctionCall {
 	}
 
 	calledAs := callInfo.CalledFunctionName()
+
 	baseName := calledAs
 	if idx := strings.LastIndex(baseName, "::"); idx >= 0 {
 		baseName = baseName[idx+2:]

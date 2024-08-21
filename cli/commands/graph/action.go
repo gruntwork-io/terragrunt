@@ -35,6 +35,7 @@ func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.Ter
 		if err != nil {
 			return err
 		}
+
 		rootDir = gitRoot
 	}
 
@@ -49,6 +50,7 @@ func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.Ter
 	if err != nil {
 		return err
 	}
+
 	dependentModules := stack.ListStackDependentModules()
 
 	workDir := opts.WorkingDir

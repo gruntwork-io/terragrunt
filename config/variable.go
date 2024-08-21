@@ -30,10 +30,12 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
+
 	parser := hclparse.NewParser().WithOptions(DefaultParserOptions(opts)...)
 
 	// iterate over files and parse variables.
 	var parsedInputs []*ParsedVariable
+
 	for _, tfFile := range tfFiles {
 		if _, err := parser.ParseFromFile(tfFile); err != nil {
 			return nil, err
@@ -49,24 +51,30 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 					if len(block.Labels[0]) > 0 {
 						// extract variable attributes
 						name := block.Labels[0]
-						descriptionAttr, err := readBlockAttribute(ctx, block, "description")
 						descriptionAttrText := ""
+
+						descriptionAttr, err := readBlockAttribute(ctx, block, "description")
 						if err != nil {
 							opts.Logger.Warnf("Failed to read descriptionAttr for %s %v", name, err)
+
 							descriptionAttr = nil
 						}
+
 						if descriptionAttr != nil {
 							descriptionAttrText = descriptionAttr.AsString()
 						} else {
 							descriptionAttrText = fmt.Sprintf("(variable %s did not define a description)", name)
 						}
 
-						typeAttr, err := readBlockAttribute(ctx, block, "type")
 						typeAttrText := ""
+
+						typeAttr, err := readBlockAttribute(ctx, block, "type")
 						if err != nil {
 							opts.Logger.Warnf("Failed to read type attribute for %s %v", name, err)
+
 							descriptionAttr = nil
 						}
+
 						if typeAttr != nil {
 							typeAttrText = typeAttr.AsString()
 						} else {
@@ -76,10 +84,12 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 						defaultValue, err := readBlockAttribute(ctx, block, "default")
 						if err != nil {
 							opts.Logger.Warnf("Failed to read default value for %s %v", name, err)
+
 							defaultValue = nil
 						}
 
 						defaultValueText := ""
+
 						if defaultValue != nil {
 							jsonBytes, err := ctyjson.Marshal(*defaultValue, cty.DynamicPseudoType)
 							if err != nil {
@@ -95,6 +105,7 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 							if err != nil {
 								return nil, errors.WithStackTrace(err)
 							}
+
 							defaultValueText = string(jsonBytes)
 						}
 
@@ -112,6 +123,7 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 			}
 		}
 	}
+
 	return parsedInputs, nil
 }
 
@@ -161,8 +173,10 @@ func readBlockAttribute(ctx *hcl.EvalContext, block *hclsyntax.Block, name strin
 			if err != nil {
 				return nil, err
 			}
+
 			return &value, nil
 		}
 	}
+
 	return nil, nil
 }

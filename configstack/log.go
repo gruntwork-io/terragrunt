@@ -27,6 +27,7 @@ func (hook *ForceLogLevelHook) Fire(entry *logrus.Entry) error {
 	// special formatter to skip printing of log entries since after hook evaluation, entries are printed directly
 	formatter := LogEntriesDropperFormatter{OriginalFormatter: entry.Logger.Formatter}
 	entry.Logger.Formatter = &formatter
+
 	return nil
 }
 
@@ -40,5 +41,6 @@ func (formatter *LogEntriesDropperFormatter) Format(entry *logrus.Entry) ([]byte
 	if entry.Logger.Level >= entry.Level {
 		return formatter.OriginalFormatter.Format(entry)
 	}
+
 	return []byte(""), nil
 }

@@ -22,8 +22,10 @@ func WithDiagnosticsWriter(writer io.Writer, disableColor bool) Option {
 			if err := diagsWriter.WriteDiagnostics(diags); err != nil {
 				return errors.WithStackTrace(err)
 			}
+
 			return nil
 		}
+
 		return parser
 	}
 }
@@ -66,6 +68,7 @@ func WithHaltOnErrorOnlyForBlocks(blockNames []string) Option {
 
 			return nil, nil
 		})
+
 		return parser
 	}
 }
@@ -75,6 +78,7 @@ func WithDiagnosticsHandler(fn func(file *hcl.File, diags hcl.Diagnostics) (hcl.
 		parser.handleDiagnosticsFunc = appendHandleDiagnosticsFunc(parser.handleDiagnosticsFunc, func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
 			return fn(file.File, diags)
 		})
+
 		return parser
 	}
 }

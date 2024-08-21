@@ -21,10 +21,9 @@ import (
 // interactive commands, so that terminal features like readline work through the subcommand when stdin, stdout, and
 // stderr is being shared.
 // NOTE: This is based on the quickstart example from https://github.com/creack/pty
-func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.Cmd, cmdStdout io.Writer, cmdStderr io.Writer) (err error) {
+func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.Cmd, cmdStdout io.Writer, _ io.Writer) (err error) {
 	// NOTE: in order to ensure we can return errors that occur in cleanup, we use a variable binding for the return
 	// value so that it can be updated.
-
 	pseudoTerminal, startErr := pty.Start(cmd)
 	defer func() {
 		if closeErr := pseudoTerminal.Close(); closeErr != nil {
@@ -36,6 +35,7 @@ func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.
 			}
 		}
 	}()
+
 	if startErr != nil {
 		return errors.WithStackTrace(startErr)
 	}
@@ -43,11 +43,12 @@ func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.
 	// Every time the current terminal size changes, we need to make sure the PTY also updates the size.
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGWINCH)
+
 	go func() {
 		for range ch {
 			if inheritSizeErr := pty.InheritSize(os.Stdin, pseudoTerminal); inheritSizeErr != nil {
-				terragruntOptions.Logger.Errorf("error resizing pty: %s", inheritSizeErr)
 				// We don't propagate this error upstream because it does not affect normal operation of the command
+				terragruntOptions.Logger.Errorf("error resizing pty: %s", inheritSizeErr)
 			}
 		}
 	}()
@@ -58,6 +59,7 @@ func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.
 	if setRawErr != nil {
 		return errors.WithStackTrace(setRawErr)
 	}
+
 	defer func() {
 		if restoreErr := term.Restore(int(os.Stdin.Fd()), oldState); restoreErr != nil {
 			terragruntOptions.Logger.Errorf("Error restoring terminal state: %s", restoreErr)
@@ -72,9 +74,9 @@ func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.
 	// Copy stdin to the pty
 	go func() {
 		_, copyStdinErr := io.Copy(pseudoTerminal, os.Stdin)
-		terragruntOptions.Logger.Errorf("Error forwarding stdin: %s", copyStdinErr)
 		// We don't propagate this error upstream because it does not affect normal operation of the command. A repeat
 		// of the same stdin in this case should resolve the issue.
+		terragruntOptions.Logger.Errorf("Error forwarding stdin: %s", copyStdinErr)
 	}()
 
 	// ... and the pty to stdout.

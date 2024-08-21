@@ -64,6 +64,7 @@ func DiscoveryURL(ctx context.Context, registryName string) (*RegistryURLs, erro
 	if err := json.Unmarshal(content, urls); err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
+
 	return urls, nil
 }
 

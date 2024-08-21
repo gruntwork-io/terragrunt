@@ -56,6 +56,7 @@ func action(opts *options.TerragruntOptions) cli.ActionFunc {
 				cliCtx := cliCtx.WithValue(options.ContextKey, opts)
 				return cmd.Action(cliCtx)
 			}
+
 			return terraform.Run(ctx, opts)
 		}
 

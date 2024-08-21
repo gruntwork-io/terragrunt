@@ -64,5 +64,6 @@ func (reverseProxy *ReverseProxy) NewRequest(ctx echo.Context, targetURL *url.UR
 	}
 
 	proxy.ServeHTTP(ctx.Response(), ctx.Request())
+
 	return nil
 }
