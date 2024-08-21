@@ -570,6 +570,7 @@ func isAwsS3NoSuchKey(err error) bool {
 	if goErrors.As(errors.Unwrap(err), &awsErr) {
 		return awsErr.Code() == "NoSuchKey"
 	}
+
 	return false
 }
 
