@@ -1,6 +1,5 @@
 engine {
   source  = "__hardcoded_url__"
-  version = "v0.0.4"
 }
 
 inputs = {
