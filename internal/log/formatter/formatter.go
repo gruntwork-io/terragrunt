@@ -48,20 +48,15 @@ type Formatter struct {
 
 	// Color scheme to use.
 	colorScheme compiledColorScheme
+
+	PrefixStyle *PrefixStyle
 }
 
 // NewFormatter returns a new Formatter instance with default values.
-func NewFormatter(disableColors, disableLogFormatting bool) *Formatter {
-	timestampFormat := defaultTimestampForFormattedLayout
-	if disableLogFormatting {
-		timestampFormat = defaultTimestamp
-	}
-
+func NewFormatter() *Formatter {
 	return &Formatter{
-		DisableColors:        disableColors,
-		DisableLogFormatting: disableLogFormatting,
-		TimestampFormat:      timestampFormat,
-		colorScheme:          defaultColorScheme.Complite(),
+		colorScheme: defaultColorScheme.Complite(),
+		PrefixStyle: NewPrefixStyle(),
 	}
 }
 
@@ -93,7 +88,12 @@ func (formatter *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 }
 
 func (formatter *Formatter) printKeyValue(buf *bytes.Buffer, entry *logrus.Entry) error {
-	if err := formatter.appendKeyValue(buf, "time", entry.Time.Format(formatter.TimestampFormat), false); err != nil {
+	timestampFormat := formatter.TimestampFormat
+	if timestampFormat == "" {
+		timestampFormat = defaultTimestamp
+	}
+
+	if err := formatter.appendKeyValue(buf, "time", entry.Time.Format(timestampFormat), false); err != nil {
 		return err
 	}
 
@@ -134,6 +134,11 @@ func (formatter *Formatter) printKeyValue(buf *bytes.Buffer, entry *logrus.Entry
 }
 
 func (formatter *Formatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entry) error {
+	timestampFormat := formatter.TimestampFormat
+	if timestampFormat == "" {
+		timestampFormat = defaultTimestampForFormattedLayout
+	}
+
 	level := fmt.Sprintf("%-6s ", formatter.levelText(entry.Level))
 	if !formatter.DisableUppercase {
 		level = strings.ToUpper(level)
@@ -154,13 +159,13 @@ func (formatter *Formatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entr
 	}
 
 	var timestamp string
-	if formatter.TimestampFormat != "" {
-		timestamp = entry.Time.Format(formatter.TimestampFormat) + " "
+	if timestampFormat != "" {
+		timestamp = entry.Time.Format(timestampFormat) + " "
 	}
 
 	if !formatter.DisableColors {
 		level = formatter.colorScheme.LevelColorFunc(entry.Level)(level)
-		prefix = formatter.colorScheme.ColorFunc(PrefixStyle)(prefix)
+		prefix = formatter.PrefixStyle.ColorFunc(prefix)(prefix)
 		tfBinary = formatter.colorScheme.ColorFunc(TFBinaryStyle)(tfBinary)
 		timestamp = formatter.colorScheme.ColorFunc(TimestampStyle)(timestamp)
 	}

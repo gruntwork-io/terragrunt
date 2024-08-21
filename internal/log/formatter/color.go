@@ -14,7 +14,6 @@ var (
 		PanicLevelStyle: "red",
 		DebugLevelStyle: "blue+h",
 		TraceLevelStyle: "white",
-		PrefixStyle:     "66",
 		TFBinaryStyle:   "cyan",
 		TimestampStyle:  "black+h",
 	}
@@ -29,7 +28,6 @@ const (
 	PanicLevelStyle
 	DebugLevelStyle
 	TraceLevelStyle
-	PrefixStyle
 	TFBinaryStyle
 	TimestampStyle
 )

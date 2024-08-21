@@ -263,15 +263,6 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, terragruntOptions *optio
 	return matchedModules
 }
 
-func (modules TerraformModules) FindCommonPath() string {
-	var paths = make([]string, len(modules))
-	for i, module := range modules {
-		paths[i] = module.Path
-	}
-
-	return util.FindCommonPathForAllPaths(paths)
-}
-
 // WriteDot is used to emit a GraphViz compatible definition
 // for a directed graph. It can be used to dump a .dot file.
 // This is a similar implementation to terraform's digraph https://github.com/hashicorp/terraform/blob/master/digraph/graphviz.go

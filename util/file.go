@@ -215,8 +215,6 @@ func GetPathRelativeToWithSeparator(path string, basePath string) (string, error
 	if err == nil {
 		if relPath == "." {
 			relPath += string(filepath.Separator)
-		} else {
-			relPath = "." + string(filepath.Separator) + relPath
 		}
 	}
 	return relPath, err
@@ -741,13 +739,4 @@ func FileSHA256(filePath string) ([]byte, error) {
 	}
 
 	return hash.Sum(nil), nil
-}
-
-func FindCommonPathForAllPaths(paths []string) string {
-	commonPath := FindCommonPrefixForAllElements(paths)
-	if FileExists(commonPath) && IsDir(commonPath) {
-		return commonPath
-	}
-
-	return filepath.Dir(commonPath)
 }

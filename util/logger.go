@@ -70,17 +70,20 @@ func DisableJsonFormat() {
 }
 
 // CreateLogger creates a logger. If debug is set, we use ErrorLevel to enable verbose output, otherwise - only errors are shown
-func CreateLogger(lvl logrus.Level, scheme *formatter.ColorScheme) *logrus.Logger {
+func CreateLogger(lvl logrus.Level, prefixStyle *formatter.PrefixStyle) *logrus.Logger {
 	logger := logrus.New()
 	logger.SetLevel(lvl)
 	logger.SetOutput(os.Stderr) // Terragrunt should output all it's logs to stderr by default
 	if jsonLogFormat {
 		logger.SetFormatter(&logrus.JSONFormatter{})
 	} else {
-		logFormatter := formatter.NewFormatter(disableLogColors, disableLogFormatting)
-		if scheme != nil {
-			logFormatter.SetColorScheme(scheme)
+		logFormatter := formatter.NewFormatter()
+		logFormatter.DisableColors = disableLogColors
+		logFormatter.DisableLogFormatting = disableLogFormatting
+		if prefixStyle != nil {
+			logFormatter.PrefixStyle = prefixStyle
 		}
+
 		if timestampFormat := os.Getenv(timestampFormatEnvVar); timestampFormat != "" {
 			logFormatter.TimestampFormat = timestampFormat
 		}
@@ -91,8 +94,8 @@ func CreateLogger(lvl logrus.Level, scheme *formatter.ColorScheme) *logrus.Logge
 }
 
 // CreateLogEntry creates a logger entry with the given prefix field
-func CreateLogEntry(prefix string, level logrus.Level, scheme *formatter.ColorScheme) *logrus.Entry {
-	logger := CreateLogger(level, scheme)
+func CreateLogEntry(prefix string, level logrus.Level, prefixStyle *formatter.PrefixStyle) *logrus.Entry {
+	logger := CreateLogger(level, prefixStyle)
 	fields := logrus.Fields{
 		formatter.PrefixKeyName: prefix,
 	}
@@ -100,8 +103,8 @@ func CreateLogEntry(prefix string, level logrus.Level, scheme *formatter.ColorSc
 }
 
 // CreateLogEntryWithWriter Create a logger around the given output stream and prefix
-func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Level, hooks logrus.LevelHooks, scheme *formatter.ColorScheme) *logrus.Entry {
-	logger := CreateLogEntry(prefix, level, scheme)
+func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Level, hooks logrus.LevelHooks, prefixStyle *formatter.PrefixStyle) *logrus.Entry {
+	logger := CreateLogEntry(prefix, level, prefixStyle)
 	logger.Logger.SetOutput(writer)
 	logger.Logger.ReplaceHooks(hooks)
 	return logger

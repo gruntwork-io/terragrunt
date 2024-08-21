@@ -17,7 +17,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
-	"github.com/gruntwork-io/terragrunt/internal/log/formatter"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
 
@@ -28,13 +27,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// prefixStyles contains ANSI color codes that are assigned sequentially to modules.
-// https://user-images.githubusercontent.com/995050/47952855-ecb12480-df75-11e8-89d4-ac26c50e80b9.png
-// https://www.hackitu.de/termcolor256/
-var prefixStyles = []formatter.ColorStyle{
-	"66", "67", "95", "96", "102", "103", "108", "109", "139", "138", "144", "145",
-}
-
 // Represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or
 // "spin down" in a single command
 type Stack struct {
@@ -42,7 +34,6 @@ type Stack struct {
 	terragruntOptions     *options.TerragruntOptions
 	childTerragruntConfig *config.TerragruntConfig
 	Modules               TerraformModules
-	nextPrefixStyle       int
 }
 
 // Find all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
@@ -288,12 +279,7 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 			return errors.WithStackTrace(err)
 		}
 
-		commonDir := modules.FindCommonPath()
 		for _, module := range modules {
-			opts := module.TerragruntOptions
-			opts.OutputPrefix = strings.TrimPrefix(module.Path, commonDir)
-			opts.Logger = util.CreateLogEntryWithWriter(opts.ErrWriter, opts.OutputPrefix, opts.LogLevel, opts.Logger.Logger.Hooks, stack.nextColorScheme())
-
 			relPath, err := util.GetPathRelativeToWithSeparator(module.Path, stack.terragruntOptions.RootWorkingDir)
 			if err != nil {
 				return err
@@ -320,17 +306,6 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 	}
 
 	return nil
-}
-
-func (stack *Stack) nextColorScheme() *formatter.ColorScheme {
-	if stack.nextPrefixStyle >= len(prefixStyles) {
-		stack.nextPrefixStyle = 0
-	}
-
-	prefixStyle := prefixStyles[stack.nextPrefixStyle]
-	stack.nextPrefixStyle++
-
-	return &formatter.ColorScheme{formatter.PrefixStyle: prefixStyle}
 }
 
 // Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents
@@ -486,11 +461,6 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 		return nil, err
 	}
 
-	moduleRelativePath, err := util.GetPathRelativeToWithSeparator(modulePath, stack.terragruntOptions.RootWorkingDir)
-	if err != nil {
-		return nil, err
-	}
-
 	if _, ok := modulesMap[modulePath]; ok {
 		return nil, nil
 	}
@@ -584,7 +554,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 			return nil, err
 		}
 
-		stack.terragruntOptions.Logger.Debugf("Setting download directory for module %s to %s", moduleRelativePath, downloadDirRelativePath)
+		opts.Logger.Debugf("Setting download directory for module %s to %s", filepath.Dir(opts.RelativeTerragruntConfigPath), downloadDirRelativePath)
 		opts.DownloadDir = downloadDir
 	}
 
@@ -665,6 +635,11 @@ func (stack *Stack) resolveExternalDependenciesForModules(ctx context.Context, m
 			return externalDependencies, err
 		}
 
+		moduleOpts, err := stack.terragruntOptions.Clone(config.GetDefaultConfigPath(module.Path))
+		if err != nil {
+			return nil, err
+		}
+
 		for _, externalDependency := range externalDependencies {
 			if _, alreadyFound := modulesToSkip[externalDependency.Path]; alreadyFound {
 				continue
@@ -672,7 +647,7 @@ func (stack *Stack) resolveExternalDependenciesForModules(ctx context.Context, m
 
 			shouldApply := false
 			if !stack.terragruntOptions.IgnoreExternalDependencies {
-				shouldApply, err = module.confirmShouldApplyExternalDependency(externalDependency, stack.terragruntOptions)
+				shouldApply, err = module.confirmShouldApplyExternalDependency(externalDependency, moduleOpts)
 				if err != nil {
 					return externalDependencies, err
 				}

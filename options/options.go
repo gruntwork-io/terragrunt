@@ -8,10 +8,10 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/log/formatter"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
 	"github.com/sirupsen/logrus"
@@ -50,13 +50,13 @@ var (
 		"registry.terraform.io",
 		"registry.opentofu.org",
 	}
-)
 
-var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
-	"debug",
-	"force-unlock",
-	"state",
-}
+	TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
+		"debug",
+		"force-unlock",
+		"state",
+	}
+)
 
 type ctxKey byte
 
@@ -327,6 +327,10 @@ type TerragruntOptions struct {
 
 	// Options to use engine for running IaC operations.
 	Engine *EngineOptions
+
+	// LogPrefixStyle stores unique prefixes with their color schemes. When we clone the TerragruntOptions instance and create a new Logger we need to pass this cache to be able  assign the same color to the prefix if it has been already discovered before.
+	// Since TerragruntOptions can be cloned multiple times and branched as a tree, we always need to have access to the same value from all instances, so we use a pointer.
+	LogPrefixStyle *formatter.PrefixStyle
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -433,6 +437,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
 		OutputFolder:               "",
 		JsonOutputFolder:           "",
+		LogPrefixStyle:             formatter.NewPrefixStyle(),
 	}
 }
 
@@ -509,12 +514,8 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 	}
 
 	outputPrefix := filepath.Dir(relTerragruntConfigPath)
-	if outputPrefix == "." || strings.HasSuffix(opts.OutputPrefix, outputPrefix) {
-		outputPrefix = opts.OutputPrefix
-	}
-
-	logger := util.CreateLogEntryWithWriter(opts.ErrWriter, outputPrefix, opts.LogLevel, opts.Logger.Logger.Hooks, nil)
-	logger.Logger.Formatter = opts.Logger.Logger.Formatter
+	logger := util.CreateLogEntryWithWriter(opts.ErrWriter, outputPrefix, opts.LogLevel, opts.Logger.Logger.Hooks, opts.LogPrefixStyle)
+	logger.Logger.SetFormatter(opts.Logger.Logger.Formatter)
 
 	// Note that we clone lists and maps below as TerragruntOptions may be used and modified concurrently in the code
 	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
@@ -536,6 +537,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		RootWorkingDir:                 opts.RootWorkingDir,
 		Logger:                         logger,
 		LogLevel:                       opts.LogLevel,
+		LogPrefixStyle:                 opts.LogPrefixStyle,
 		ValidateStrict:                 opts.ValidateStrict,
 		Env:                            util.CloneStringMap(opts.Env),
 		Source:                         opts.Source,
