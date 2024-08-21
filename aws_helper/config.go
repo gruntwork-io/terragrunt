@@ -127,10 +127,12 @@ func (f tokenFetcher) FetchToken(ctx credentials.Context) ([]byte, error) {
 		// TODO: See if this lint error should be ignored
 		return []byte(f), nil //nolint: nilerr
 	}
+
 	token, err := os.ReadFile(string(f))
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
+
 	return token, nil
 }
 
@@ -140,13 +142,16 @@ func getWebIdentityCredentialsFromIAMRoleOptions(sess *session.Session, iamRoleO
 		// Set a unique session name in the same way it is done in the SDK
 		roleSessionName = strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
 	}
+
 	svc := sts.New(sess)
 	p := stscreds.NewWebIdentityRoleProviderWithOptions(svc, iamRoleOptions.RoleARN, roleSessionName, tokenFetcher(iamRoleOptions.WebIdentityToken))
+
 	if iamRoleOptions.AssumeRoleDuration > 0 {
 		p.Duration = time.Second * time.Duration(iamRoleOptions.AssumeRoleDuration)
 	} else {
 		p.Duration = time.Second * time.Duration(options.DefaultIAMAssumeRoleDuration)
 	}
+
 	return credentials.NewCredentials(p)
 }
 
@@ -157,10 +162,12 @@ func getSTSCredentialsFromIAMRoleOptions(sess *session.Session, iamRoleOptions o
 		} else {
 			p.Duration = time.Second * time.Duration(options.DefaultIAMAssumeRoleDuration)
 		}
+
 		if iamRoleOptions.AssumeRoleSessionName != "" {
 			p.RoleSessionName = iamRoleOptions.AssumeRoleSessionName
 		}
 	})
+
 	return stscreds.NewCredentials(sess, iamRoleOptions.RoleARN, optFns...)
 }
 
@@ -174,6 +181,7 @@ func getCredentialsFromEnvs(opts *options.TerragruntOptions) *credentials.Creden
 	if accessKeyID == "" || secretAccessKey == "" {
 		return nil
 	}
+
 	return credentials.NewStaticCredentials(accessKeyID, secretAccessKey, sessionToken)
 }
 
@@ -185,15 +193,21 @@ func getCredentialsFromEnvs(opts *options.TerragruntOptions) *credentials.Creden
 // Note that if the AwsSessionConfig object is null, this will return default session credentials using the default
 // credentials chain of the AWS SDK.
 func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (*session.Session, error) {
-	var sess *session.Session
-	var err error
+	var (
+		sess *session.Session
+		err  error
+	)
+
 	if config == nil {
 		sessionOptions := session.Options{SharedConfigState: session.SharedConfigEnable}
+
 		sess, err = session.NewSessionWithOptions(sessionOptions)
 		if err != nil {
 			return nil, errors.WithStackTrace(err)
 		}
+
 		sess.Handlers.Build.PushFrontNamed(addUserAgent)
+
 		if terragruntOptions.IAMRoleOptions.RoleARN != "" {
 			if terragruntOptions.IAMRoleOptions.WebIdentityToken != "" {
 				terragruntOptions.Logger.Debugf("Assuming role %s using WebIdentity token", terragruntOptions.IAMRoleOptions.RoleARN)
@@ -227,6 +241,7 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 // Make API calls to AWS to assume the IAM role specified and return the temporary AWS credentials to use that role
 func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error) {
 	sessionOptions := session.Options{SharedConfigState: session.SharedConfigEnable}
+
 	sess, err := session.NewSessionWithOptions(sessionOptions)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
@@ -281,8 +296,10 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 		if err != nil {
 			return nil, errors.WithStackTrace(err)
 		}
+
 		token = string(tb)
 	}
+
 	input := sts.AssumeRoleWithWebIdentityInput{
 		RoleArn:          aws.String(iamRoleOpts.RoleARN),
 		RoleSessionName:  aws.String(sessionName),
@@ -297,6 +314,7 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 	if err := req.Send(); err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
+
 	return resp.Credentials, nil
 }
 
@@ -333,6 +351,7 @@ func GetAWSPartition(config *AwsSessionConfig, terragruntOptions *options.Terrag
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
+
 	return arn.Partition, nil
 }
 

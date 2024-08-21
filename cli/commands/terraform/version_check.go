@@ -51,6 +51,7 @@ func checkVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 	if terragruntOptions.TerraformPath == options.DefaultWrappedPath && partialTerragruntConfig.TerraformBinary != "" {
 		terragruntOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
 	}
+
 	if err := PopulateTerraformVersion(ctx, terragruntOptions); err != nil {
 		return err
 	}
@@ -59,6 +60,7 @@ func checkVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 	if partialTerragruntConfig.TerraformVersionConstraint != "" {
 		terraformVersionConstraint = partialTerragruntConfig.TerraformVersionConstraint
 	}
+
 	if err := CheckTerraformVersion(terraformVersionConstraint, terragruntOptions); err != nil {
 		return err
 	}
@@ -68,6 +70,7 @@ func checkVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -112,6 +115,7 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 	} else {
 		terragruntOptions.Logger.Debugf("%s version: %s", tfImplementation, terraformVersion)
 	}
+
 	return nil
 }
 
@@ -173,6 +177,7 @@ func parseTerraformImplementationType(versionCommandOutput string) (options.Terr
 	if len(matches) != versionParts {
 		return options.UnknownImpl, errors.WithStackTrace(InvalidTerraformVersionSyntax(versionCommandOutput))
 	}
+
 	rawType := strings.ToLower(matches[1])
 	switch rawType {
 	case "terraform":

@@ -97,11 +97,13 @@ func (app *App) Run(arguments []string) error {
 func (app *App) RunContext(ctx context.Context, arguments []string) (err error) {
 	// remove empty args
 	filteredArguments := []string{}
+
 	for _, arg := range arguments {
 		if trimmedArg := strings.TrimSpace(arg); len(trimmedArg) > 0 {
 			filteredArguments = append(filteredArguments, trimmedArg)
 		}
 	}
+
 	arguments = filteredArguments
 
 	app.SkipFlagParsing = true
@@ -127,6 +129,7 @@ func (app *App) RunContext(ctx context.Context, arguments []string) (err error) 
 				ctx.shellComplete = true
 			}
 		}
+
 		return cmd.Run(ctx, args.Normalize(SingleDashFlag))
 	}
 
@@ -143,6 +146,7 @@ func (app *App) VisibleCommands() []*cli.Command {
 	if app.Commands == nil {
 		return nil
 	}
+
 	return app.Commands.VisibleCommands()
 }
 

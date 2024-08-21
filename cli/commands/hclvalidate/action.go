@@ -47,6 +47,7 @@ func Run(ctx context.Context, opts *Options) (er error) {
 			if diags[i].Range != nil && diags[j].Range != nil && diags[i].Range.Filename > diags[j].Range.Filename {
 				return false
 			}
+
 			return true
 		})
 

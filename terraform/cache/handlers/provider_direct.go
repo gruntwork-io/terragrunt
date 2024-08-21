@@ -91,7 +91,6 @@ func (handler *ProviderDirectHandler) GetPlatform(ctx echo.Context, provider *mo
 			return proxyGetVersionsRequest(resp, downloaderController)
 		}).
 		NewRequest(ctx, handler.platformURL(provider))
-
 }
 
 // Download implements ProviderHandler.Download
@@ -110,6 +109,7 @@ func (handler *ProviderDirectHandler) Download(ctx echo.Context, provider *model
 			Host:   provider.RegistryName,
 			Path:   filepath.Join(provider.RegistryPrefix, provider.RegistryName, provider.Namespace, provider.Name, provider.DownloadURL),
 		}
+
 		return handler.ReverseProxy.NewRequest(ctx, downloadURL)
 	}
 
@@ -117,6 +117,7 @@ func (handler *ProviderDirectHandler) Download(ctx echo.Context, provider *model
 	if err != nil {
 		return err
 	}
+
 	return handler.ReverseProxy.NewRequest(ctx, downloadURL)
 }
 
@@ -140,6 +141,7 @@ func proxyGetVersionsRequest(resp *http.Response, downloaderController router.Co
 			if !ok || linkBytes == nil {
 				continue
 			}
+
 			link := string(linkBytes)
 
 			link, err := strconv.Unquote(link)

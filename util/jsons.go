@@ -17,6 +17,7 @@ func AsTerraformEnvVarJsonValue(value interface{}) (string, error) {
 		if err != nil {
 			return "", err
 		}
+
 		return string(envVarValue), nil
 	}
 }

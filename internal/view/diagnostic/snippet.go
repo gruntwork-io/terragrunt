@@ -51,19 +51,25 @@ func NewSnippet(file *hcl.File, hclDiag *hcl.Diagnostic, highlightRange hcl.Rang
 	if file != nil && file.Bytes != nil {
 		snippet.Context = hcled.ContextString(file, hclDiag.Subject.Start.Byte-1)
 
-		var codeStartByte int
+		var (
+			codeStartByte int
+			code          strings.Builder
+		)
+
 		sc := hcl.NewRangeScanner(file.Bytes, hclDiag.Subject.Filename, bufio.ScanLines)
-		var code strings.Builder
+
 		for sc.Scan() {
 			lineRange := sc.Range()
 			if lineRange.Overlaps(snipRange) {
 				if codeStartByte == 0 && code.Len() == 0 {
 					codeStartByte = lineRange.Start.Byte
 				}
+
 				code.Write(lineRange.SliceBytes(file.Bytes))
 				code.WriteRune('\n')
 			}
 		}
+
 		codeStr := strings.TrimSuffix(code.String(), "\n")
 		snippet.Code = codeStr
 
@@ -75,6 +81,7 @@ func NewSnippet(file *hcl.File, hclDiag *hcl.Diagnostic, highlightRange hcl.Rang
 		} else if start > len(codeStr) {
 			start = len(codeStr)
 		}
+
 		if end < 0 {
 			end = 0
 		} else if end > len(codeStr) {
@@ -91,5 +98,6 @@ func NewSnippet(file *hcl.File, hclDiag *hcl.Diagnostic, highlightRange hcl.Rang
 
 	snippet.Values = DescribeExpressionValues(hclDiag)
 	snippet.FunctionCall = DescribeFunctionCall(hclDiag)
+
 	return snippet
 }

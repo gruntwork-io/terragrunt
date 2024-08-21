@@ -21,6 +21,7 @@ func WithHostname(hostname string) Option {
 		if hostname != "" {
 			cfg.hostname = hostname
 		}
+
 		return cfg
 	}
 }
@@ -30,6 +31,7 @@ func WithPort(port int) Option {
 		if port != 0 {
 			cfg.port = port
 		}
+
 		return cfg
 	}
 }

@@ -52,11 +52,13 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 func RunAllOnStack(ctx context.Context, opts *options.TerragruntOptions, stack *configstack.Stack) error {
 	opts.Logger.Debugf("%s", stack.String())
+
 	if err := stack.LogModuleDeployOrder(opts.Logger, opts.TerraformCommand); err != nil {
 		return err
 	}
 
 	var prompt string
+
 	switch opts.TerraformCommand {
 	case terraform.CommandNameApply:
 		prompt = "Are you sure you want to run 'terragrunt apply' in each folder of the stack described above?"
@@ -65,11 +67,13 @@ func RunAllOnStack(ctx context.Context, opts *options.TerragruntOptions, stack *
 	case terraform.CommandNameState:
 		prompt = "Are you sure you want to manipulate the state with `terragrunt state` in each folder of the stack described above? Note that absolute paths are shared, while relative paths will be relative to each working directory."
 	}
+
 	if prompt != "" {
 		shouldRunAll, err := shell.PromptUserForYesNo(prompt, opts)
 		if err != nil {
 			return err
 		}
+
 		if !shouldRunAll {
 			return nil
 		}

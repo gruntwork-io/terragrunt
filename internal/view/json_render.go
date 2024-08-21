@@ -32,5 +32,6 @@ func (render *JSONRender) toJSON(val any) (string, error) {
 	}
 
 	jsonBytes = append(jsonBytes, '\n')
+
 	return string(jsonBytes), nil
 }

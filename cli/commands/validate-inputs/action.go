@@ -34,6 +34,7 @@ func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg
 	if err != nil {
 		return err
 	}
+
 	allVars := append(required, optional...)
 
 	allInputs, err := getDefinedTerragruntInputs(opts, cfg)
@@ -43,6 +44,7 @@ func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg
 
 	// Unused variables are those that are passed in by terragrunt, but are not defined in terraform.
 	unusedVars := []string{}
+
 	for _, varName := range allInputs {
 		if !util.ListContainsElement(allVars, varName) {
 			unusedVars = append(unusedVars, varName)
@@ -51,6 +53,7 @@ func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg
 
 	// Missing variables are those that are required by the terraform config, but not defined in terragrunt.
 	missingVars := []string{}
+
 	for _, varName := range required {
 		if !util.ListContainsElement(allInputs, varName) {
 			missingVars = append(missingVars, varName)
@@ -60,9 +63,11 @@ func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg
 	// Now print out all the information
 	if len(unusedVars) > 0 {
 		opts.Logger.Warn("The following inputs passed in by terragrunt are unused:\n")
+
 		for _, varName := range unusedVars {
 			opts.Logger.Warnf("\t- %s", varName)
 		}
+
 		opts.Logger.Warn("")
 	} else {
 		opts.Logger.Info("All variables passed in by terragrunt are in use.")
@@ -71,9 +76,11 @@ func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg
 
 	if len(missingVars) > 0 {
 		opts.Logger.Error("The following required inputs are missing:\n")
+
 		for _, varName := range missingVars {
 			opts.Logger.Errorf("\t- %s", varName)
 		}
+
 		opts.Logger.Error("")
 	} else {
 		opts.Logger.Info("All required inputs are passed in by terragrunt")
@@ -103,14 +110,17 @@ func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg
 func getDefinedTerragruntInputs(opts *options.TerragruntOptions, cfg *config.TerragruntConfig) ([]string, error) {
 	envVarTFVars := getTerraformInputNamesFromEnvVar(opts, cfg)
 	inputsTFVars := getTerraformInputNamesFromConfig(cfg)
+
 	varFileTFVars, err := getTerraformInputNamesFromVarFiles(opts, cfg)
 	if err != nil {
 		return nil, err
 	}
+
 	cliArgsTFVars, err := getTerraformInputNamesFromCLIArgs(opts, cfg)
 	if err != nil {
 		return nil, err
 	}
+
 	autoVarFileTFVars, err := getTerraformInputNamesFromAutomaticVarFiles(opts)
 	if err != nil {
 		return nil, err
@@ -121,15 +131,19 @@ func getDefinedTerragruntInputs(opts *options.TerragruntOptions, cfg *config.Ter
 	for _, varName := range envVarTFVars {
 		tmpOut[varName] = true
 	}
+
 	for _, varName := range inputsTFVars {
 		tmpOut[varName] = true
 	}
+
 	for _, varName := range varFileTFVars {
 		tmpOut[varName] = true
 	}
+
 	for _, varName := range cliArgsTFVars {
 		tmpOut[varName] = true
 	}
+
 	for _, varName := range autoVarFileTFVars {
 		tmpOut[varName] = true
 	}
@@ -138,6 +152,7 @@ func getDefinedTerragruntInputs(opts *options.TerragruntOptions, cfg *config.Ter
 	for varName := range tmpOut {
 		out = append(out, varName)
 	}
+
 	return out, nil
 }
 
@@ -163,12 +178,14 @@ func getTerraformInputNamesFromEnvVar(opts *options.TerragruntOptions, terragrun
 		out         = []string{}
 		tfVarPrefix = fmt.Sprintf(tr.EnvNameTFVarFmt, "")
 	)
+
 	for envName := range envVars {
 		if strings.HasPrefix(envName, tfVarPrefix) {
 			inputName := strings.TrimPrefix(envName, tfVarPrefix)
 			out = append(out, inputName)
 		}
 	}
+
 	return out
 }
 
@@ -179,6 +196,7 @@ func getTerraformInputNamesFromConfig(terragruntConfig *config.TerragruntConfig)
 	for inputName := range terragruntConfig.Inputs {
 		out = append(out, inputName)
 	}
+
 	return out
 }
 
@@ -213,6 +231,7 @@ func getTerraformInputNamesFromCLIArgs(opts *options.TerragruntOptions, terragru
 				if err != nil {
 					return inputNames, err
 				}
+
 				inputNames = append(inputNames, vars...)
 				varFiles = append(varFiles, rawVarFiles...)
 			}
@@ -223,6 +242,7 @@ func getTerraformInputNamesFromCLIArgs(opts *options.TerragruntOptions, terragru
 	if err != nil {
 		return inputNames, err
 	}
+
 	inputNames = append(inputNames, fileVars...)
 
 	return inputNames, nil
@@ -247,12 +267,16 @@ func getTerraformInputNamesFromAutomaticVarFiles(opts *options.TerragruntOptions
 	if err != nil {
 		return nil, err
 	}
+
 	automaticVarFiles = append(automaticVarFiles, varFiles...)
+
 	jsonVarFiles, err := filepath.Glob(filepath.Join(base, "*.auto.tfvars.json"))
 	if err != nil {
 		return nil, err
 	}
+
 	automaticVarFiles = append(automaticVarFiles, jsonVarFiles...)
+
 	return getVarNamesFromVarFiles(automaticVarFiles)
 }
 
@@ -260,13 +284,16 @@ func getTerraformInputNamesFromAutomaticVarFiles(opts *options.TerragruntOptions
 // configured in all of them combined together.
 func getVarNamesFromVarFiles(varFiles []string) ([]string, error) {
 	inputNames := []string{}
+
 	for _, varFile := range varFiles {
 		fileVars, err := getVarNamesFromVarFile(varFile)
 		if err != nil {
 			return inputNames, err
 		}
+
 		inputNames = append(inputNames, fileVars...)
 	}
+
 	return inputNames, nil
 }
 
@@ -293,6 +320,7 @@ func getVarNamesFromVarFile(varFile string) ([]string, error) {
 	for varName := range variables {
 		out = append(out, varName)
 	}
+
 	return out, nil
 }
 
@@ -322,8 +350,10 @@ func GetVarFlagsFromArgList(argList []string) ([]string, []string, error) {
 			if len(splitArg) < splitCount {
 				return vars, varFiles, fmt.Errorf("Unexpected -var arg format in terraform.extra_arguments.arguments. Expected '-var=VARNAME=VALUE', got %s.", arg)
 			}
+
 			vars = append(vars, splitArg[1])
 		}
+
 		if strings.HasPrefix(shlexedArg, "-var-file=") {
 			varFiles = append(varFiles, strings.TrimPrefix(shlexedArg, "-var-file="))
 		}

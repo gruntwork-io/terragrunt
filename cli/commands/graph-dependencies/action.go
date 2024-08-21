@@ -16,5 +16,6 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 	// Exit early if the operation wanted is to get the graph
 	stack.Graph(opts)
+
 	return nil
 }

@@ -43,9 +43,11 @@ func printTerragruntInfo(opts *options.TerragruntOptions) error {
 		opts.Logger.Errorf("JSON error marshalling terragrunt-info")
 		return errors.WithStackTrace(err)
 	}
+
 	if _, err := fmt.Fprintf(opts.Writer, "%s\n", b); err != nil {
 		return errors.WithStackTrace(err)
 	}
+
 	return nil
 }
 
@@ -55,8 +57,10 @@ func runTerragruntInfo(ctx context.Context, opts *options.TerragruntOptions, cfg
 
 func runErrorTerragruntInfo(opts *options.TerragruntOptions, cfg *config.TerragruntConfig, err error) error {
 	opts.Logger.Debugf("Fetching terragrunt-info: %v", err)
+
 	if err := printTerragruntInfo(opts); err != nil {
 		opts.Logger.Errorf("Error printing terragrunt-info: %v", err)
 	}
+
 	return err
 }

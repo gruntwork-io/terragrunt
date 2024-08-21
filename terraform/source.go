@@ -91,6 +91,7 @@ func (terraformSource Source) EncodeSourceVersion() (string, error) {
 		}
 
 		terraformSource.Logger.WithError(err).Warningf("Could not encode version for local source")
+
 		return "", err
 	}
 
@@ -113,6 +114,7 @@ func (terraformSource Source) WriteVersionFile() error {
 	}
 
 	const ownerReadWriteGroupReadPerms = 0640
+
 	return errors.WithStackTrace(os.WriteFile(terraformSource.VersionFile, []byte(version), ownerReadWriteGroupReadPerms))
 }
 
@@ -144,7 +146,6 @@ func (terraformSource Source) WriteVersionFile() error {
 //  2. Only download source URLs pointing to remote paths if /T/W/H doesn't already exist or, if it does exist, if the
 //     version number in /T/W/H/.terragrunt-source-version doesn't match the current version.
 func NewSource(source string, downloadDir string, workingDir string, logger *logrus.Entry) (*Source, error) {
-
 	canonicalWorkingDir, err := util.CanonicalPath(workingDir, "")
 	if err != nil {
 		return nil, err
@@ -168,6 +169,7 @@ func NewSource(source string, downloadDir string, workingDir string, logger *log
 		if err != nil {
 			return nil, err
 		}
+
 		rootSourceUrl.Path = canonicalFilePath
 	}
 
@@ -228,10 +230,12 @@ func normalizeSourceURL(source string, workingDir string) (string, error) {
 		if err != nil {
 			return source, errors.WithStackTrace(err)
 		}
+
 		if ok {
 			return newSource, nil
 		}
 	}
+
 	return source, nil
 }
 
@@ -281,6 +285,7 @@ func SplitSourceUrl(sourceUrl *url.URL, logger *logrus.Entry) (*url.URL, string,
 		}
 
 		sourceUrlModifiedPath.Path = pathSplitOnDoubleSlash[0]
+
 		return sourceUrlModifiedPath, pathSplitOnDoubleSlash[1], nil
 	}
 	// check if path is remote URL
@@ -293,6 +298,7 @@ func SplitSourceUrl(sourceUrl *url.URL, logger *logrus.Entry) (*url.URL, string,
 		// log warning message to notify user that sourceUrl.Path may not work
 		logger.Warningf("No double-slash (//) found in source URL %s. Relative paths in downloaded Terraform code may not work.", sourceUrl.Path)
 	}
+
 	return sourceUrl, "", nil
 }
 

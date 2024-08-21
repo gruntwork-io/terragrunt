@@ -22,8 +22,10 @@ func IsCommandExecutable(command string, args ...string) bool {
 		if ok := goErrors.As(err, &exitErr); ok {
 			return exitErr.ExitCode() == 0
 		}
+
 		return false
 	}
+
 	return true
 }
 

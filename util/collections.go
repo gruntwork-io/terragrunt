@@ -12,6 +12,7 @@ func MatchesAny(regExps []string, s string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -20,11 +21,13 @@ func ListEquals[S ~[]E, E comparable](a, b S) bool {
 	if len(a) != len(b) {
 		return false
 	}
+
 	for i := range a {
 		if a[i] != b[i] {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -45,14 +48,17 @@ func ListContainsSublist[S ~[]E, E comparable](list, sublist S) bool {
 	if len(sublist) == 0 {
 		return false
 	}
+
 	if len(sublist) > len(list) {
 		return false
 	}
+
 	for i := 0; len(list[i:]) >= len(sublist); i++ {
 		if ListEquals(list[i:i+len(sublist)], sublist) {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -61,20 +67,24 @@ func ListHasPrefix[S ~[]E, E comparable](list, prefix S) bool {
 	if len(prefix) == 0 {
 		return false
 	}
+
 	if len(prefix) > len(list) {
 		return false
 	}
+
 	return ListEquals(list[:len(prefix)], prefix)
 }
 
 // Return a copy of the given list with all instances of the given element removed
 func RemoveElementFromList[S ~[]E, E comparable](list S, element E) S {
 	var out S
+
 	for _, item := range list {
 		if item != element {
 			out = append(out, item)
 		}
 	}
+
 	return out
 }
 
@@ -84,6 +94,7 @@ func RemoveSublistFromList[S ~[]E, E comparable](list, sublist S) S {
 	for _, item := range sublist {
 		out = RemoveElementFromList(out, item)
 	}
+
 	return out
 }
 
@@ -109,9 +120,11 @@ func removeDuplicatesFromList[S ~[]E, E comparable](list S, keepLast bool) S {
 				continue
 			}
 		}
+
 		out = append(out, value)
 		present[value] = true
 	}
+
 	return out
 }
 
@@ -121,6 +134,7 @@ func CommaSeparatedStrings(list []string) string {
 	for _, value := range list {
 		values = append(values, fmt.Sprintf(`"%s"`, value))
 	}
+
 	return strings.Join(values, ", ")
 }
 
@@ -128,6 +142,7 @@ func CommaSeparatedStrings(list []string) string {
 func CloneStringList(listToClone []string) []string {
 	var out []string
 	out = append(out, listToClone...)
+
 	return out
 }
 
@@ -137,6 +152,7 @@ func CloneStringMap(mapToClone map[string]string) map[string]string {
 	for key, value := range mapToClone {
 		out[key] = value
 	}
+
 	return out
 }
 
@@ -148,6 +164,7 @@ func FirstArg[S ~[]E, E comparable](args S) E {
 	}
 
 	var empty E
+
 	return empty
 }
 
@@ -159,6 +176,7 @@ func SecondArg[S ~[]E, E comparable](args S) E {
 	}
 
 	var empty E
+
 	return empty
 }
 
@@ -169,6 +187,7 @@ func LastArg[S ~[]E, E comparable](args S) E {
 	}
 
 	var empty E
+
 	return empty
 }
 

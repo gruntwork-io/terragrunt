@@ -42,6 +42,7 @@ func (provider *Provider) GetCredentials(ctx context.Context) (*providers.Creden
 
 	provider.terragruntOptions.Logger.Debugf("Assuming IAM role %s with a session duration of %d seconds.", iamRoleOpts.RoleARN, iamRoleOpts.AssumeRoleDuration)
 	resp, err := aws_helper.AssumeIamRole(iamRoleOpts)
+
 	if err != nil {
 		return nil, err
 	}

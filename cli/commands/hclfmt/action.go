@@ -33,7 +33,9 @@ func Run(opts *options.TerragruntOptions) error {
 		if !filepath.IsAbs(targetFile) {
 			targetFile = util.JoinPath(workingDir, targetFile)
 		}
+
 		opts.Logger.Debugf("Formatting hcl file at: %s.", targetFile)
+
 		return formatTgHCL(opts, targetFile)
 	}
 
@@ -45,15 +47,18 @@ func Run(opts *options.TerragruntOptions) error {
 	}
 
 	filteredTgHclFiles := []string{}
+
 	for _, fname := range tgHclFiles {
 		skipFile := false
 		// Ignore any files that are in the cache or scaffold dir
 		if util.ListContainsElement(strings.Split(fname, "/"), util.TerragruntCacheDir) {
 			skipFile = true
 		}
+
 		if util.ListContainsElement(strings.Split(fname, "/"), util.DefaultBoilerplateDir) {
 			skipFile = true
 		}
+
 		if skipFile {
 			opts.Logger.Debugf("%s was ignored", fname)
 		} else {
@@ -64,6 +69,7 @@ func Run(opts *options.TerragruntOptions) error {
 	opts.Logger.Debugf("Found %d hcl files", len(filteredTgHclFiles))
 
 	var formatErrors *multierror.Error
+
 	for _, tgHclFile := range filteredTgHclFiles {
 		err := formatTgHCL(opts, tgHclFile)
 		if err != nil {
@@ -90,6 +96,7 @@ func formatTgHCL(opts *options.TerragruntOptions, tgHclFile string) error {
 		opts.Logger.Errorf("Error reading %s", tgHclFile)
 		return err
 	}
+
 	contents := []byte(contentsStr)
 
 	err = checkErrors(opts.Logger, opts.DisableLogColors, contents, tgHclFile)
@@ -108,6 +115,7 @@ func formatTgHCL(opts *options.TerragruntOptions, tgHclFile string) error {
 			opts.Logger.Errorf("Failed to generate diff for %s", tgHclFile)
 			return err
 		}
+
 		_, err = fmt.Fprintf(opts.Writer, "%s\n", diff)
 		if err != nil {
 			opts.Logger.Errorf("Failed to print diff for %s", tgHclFile)
@@ -134,13 +142,16 @@ func checkErrors(logger *logrus.Entry, disableColor bool, contents []byte, tgHcl
 
 	writer := &util.LogWriter{Logger: logger, Level: logrus.ErrorLevel}
 	diagWriter := util.GetDiagnosticsWriter(writer, parser, disableColor)
+
 	err := diagWriter.WriteDiagnostics(diags)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
+
 	if diags.HasErrors() {
 		return diags
 	}
+
 	return nil
 }
 
@@ -150,10 +161,12 @@ func bytesDiff(opts *options.TerragruntOptions, b1, b2 []byte, path string) ([]b
 	if err != nil {
 		return nil, err
 	}
+
 	defer func() {
 		if err := f1.Close(); err != nil {
 			opts.Logger.Warnf("Failed to close file %s %v", f1.Name(), err)
 		}
+
 		if err := os.Remove(f1.Name()); err != nil {
 			opts.Logger.Warnf("Failed to remove file %s %v", f1.Name(), err)
 		}
@@ -163,25 +176,31 @@ func bytesDiff(opts *options.TerragruntOptions, b1, b2 []byte, path string) ([]b
 	if err != nil {
 		return nil, err
 	}
+
 	defer func() {
 		if err := f2.Close(); err != nil {
 			opts.Logger.Warnf("Failed to close file %s %v", f2.Name(), err)
 		}
+
 		if err := os.Remove(f2.Name()); err != nil {
 			opts.Logger.Warnf("Failed to remove file %s %v", f2.Name(), err)
 		}
 	}()
+
 	if _, err := f1.Write(b1); err != nil {
 		return nil, err
 	}
+
 	if _, err := f2.Write(b2); err != nil {
 		return nil, err
 	}
+
 	data, err := exec.Command("diff", "--label="+filepath.Join("old", path), "--label="+filepath.Join("new/", path), "-u", f1.Name(), f2.Name()).CombinedOutput()
 	if len(data) > 0 {
 		// diff exits with a non-zero status when the files don't match.
 		// Ignore that failure as long as we get output.
 		err = nil
 	}
+
 	return data, err
 }

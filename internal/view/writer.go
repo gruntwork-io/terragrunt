@@ -60,5 +60,6 @@ func (writer *Writer) output(output string) error {
 	if _, err := fmt.Fprint(writer, output); err != nil {
 		return errors.WithStackTrace(err)
 	}
+
 	return nil
 }
