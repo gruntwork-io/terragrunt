@@ -19,7 +19,7 @@ To try it out, all you need to do is include the following in your `terragrunt.h
 ```hcl
 engine {
   source  = "github.com/gruntwork-io/terragrunt-engine-opentofu"
-  version = "v0.0.2"
+  version = "v0.0.5"
 }
 ```
 
@@ -49,9 +49,7 @@ Use an HTTP(S) URL to specify the path to the plugin:
 
 ```hcl
 engine {
-  source  = "https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/v0.0.2/terragrunt-iac-engine-opentofu_rpc_v0.0.2_linux_amd64.zip"
-  version = "v0.0.2"
- }
+  source  = "https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/v0.0.5/terragrunt-iac-engine-opentofu_rpc_v0.0.5_linux_amd64.zip"
 }
 
 ```
