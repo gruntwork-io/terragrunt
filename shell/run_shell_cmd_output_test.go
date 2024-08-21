@@ -59,10 +59,14 @@ func TestCommandOutputPrefix(t *testing.T) {
 	for _, line := range FULL_OUTPUT {
 		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s msg=%s", prefix, line))
 	}
+
+	formatter := formatter.NewFormatter()
+	formatter.DisableLogFormatting = true
+
 	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
 		terragruntOptions.TerraformPath = ""
 		terragruntOptions.OutputPrefix = prefix
-		terragruntOptions.Logger.Logger.Formatter = formatter.NewFormatter(false, true)
+		terragruntOptions.Logger.Logger.Formatter = formatter
 	}, assertOutputs(t,
 		prefixedOutput,
 		STDOUT,
