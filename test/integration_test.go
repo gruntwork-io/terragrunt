@@ -58,8 +58,9 @@ import (
 
 // hard-code this to match the test fixture for now
 const (
-	TERRAFORM_REMOTE_STATE_S3_REGION                                         = "us-west-2"
-	TERRAFORM_REMOTE_STATE_GCP_REGION                                        = "eu"
+	TERRAFORM_REMOTE_STATE_S3_REGION  = "us-west-2"
+	TERRAFORM_REMOTE_STATE_GCP_REGION = "eu"
+
 	TEST_FIXTURE_PATH                                                        = "fixture/"
 	TEST_FIXTURE_HCLVALIDATE                                                 = "fixture-hclvalidate"
 	TEST_FIXTURE_EXCLUDES_FILE                                               = "fixutre-excludes-file"
@@ -205,6 +206,7 @@ const (
 	TEST_FIXTURE_OUT_DIR                                                     = "fixture-out-dir"
 	TEST_FIXTURE_SOPS_ERRORS                                                 = "fixture-sops-errors"
 	TEST_FIXTURE_AUTH_PROVIDER_CMD                                           = "fixture-auth-provider-cmd"
+	testFixtureLogFormatter                                                  = "fixture-log-formatter"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -215,6 +217,40 @@ const (
 	qaMyAppRelPath  = "qa/my-app"
 	fixtureDownload = "fixture-download"
 )
+
+func TestLogFormatterPrettyOutput(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureLogFormatter)
+	tmpEnvPath := copyEnvironment(t, testFixtureLogFormatter)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
+
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-disable-log-formatting=false --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	for _, prefixName := range []string{"app", "dep"} {
+		assert.Regexp(t, regexp.QuoteMeta("\x1b[0mSTDOUT \x1b[38;5;")+`\d+`+regexp.QuoteMeta("m["+prefixName+"] \x1b[0m\x1b[36m"+wrappedBinary()+": \x1b[0m\x1b[0m\x1b[1mInitializing provider plugins..."), stdout)
+		assert.Regexp(t, regexp.QuoteMeta("\x1b[0m\x1b[94mDEBUG  \x1b[0m\x1b[38;5;")+`\d+`+regexp.QuoteMeta("m["+prefixName+"] \x1b[0mReading Terragrunt config file at "+prefixName+"/terragrunt.hcl"), stderr)
+	}
+	assert.Contains(t, stderr, "\x1b[0m\x1b[94mDEBUG  \x1b[0mTerragrunt Version:")
+}
+
+func TestLogFormatterKeyValueOutput(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureLogFormatter)
+	tmpEnvPath := copyEnvironment(t, testFixtureLogFormatter)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
+
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt run-all init -no-color --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-disable-log-formatting --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	for _, prefixName := range []string{"app", "dep"} {
+		assert.Contains(t, stdout, "level=stdout prefix="+prefixName+" binary="+wrappedBinary()+" msg=Initializing provider plugins...\n")
+		assert.Contains(t, stderr, "level=debug prefix="+prefixName+" msg=Reading Terragrunt config file at "+prefixName+"/terragrunt.hcl\n")
+	}
+	assert.Contains(t, stderr, "level=debug msg=Terragrunt Version:")
+}
 
 func TestTerragruntExcludesFile(t *testing.T) {
 	t.Parallel()
@@ -4458,7 +4494,11 @@ func removeFolder(t *testing.T, path string) {
 
 func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {
 	args := strings.Split(command, " ")
-	args = append(args, "--terragrunt-disable-log-formatting")
+
+	if !strings.Contains(command, "-terragrunt-disable-log-formatting") {
+		args = append(args, "--terragrunt-disable-log-formatting")
+	}
+
 	t.Log(args)
 
 	app := cli.NewApp(writer, errwriter)
