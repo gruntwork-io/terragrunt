@@ -7,6 +7,8 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+var _ Flag = new(SliceFlag[string])
+
 var (
 	SliceFlagEnvVarSep = ","
 )
@@ -36,8 +38,10 @@ type SliceFlag[T SliceFlagType] struct {
 	Destination *[]T
 	// The func used to split the EvnVar, by default `strings.Split`
 	Splitter SplitterFunc
-	// The Env Var separator that is passed to the Splitter function as an argument
+	// The EnvVarSep value is passed to the Splitter function as an argument.
 	EnvVarSep string
+	// if set to true, the flag will be hidden from the help.
+	Hidden bool
 }
 
 // Apply applies Flag settings to the given flag set.
@@ -63,6 +67,11 @@ func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
 	}
 
 	return nil
+}
+
+// GetHidden returns true if the flag should be hidden from the help.
+func (flag *SliceFlag[T]) GetHidden() bool {
+	return flag.Hidden
 }
 
 // GetUsage returns the usage string for the flag.

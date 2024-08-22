@@ -9,6 +9,8 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+var _ Flag = new(GenericFlag[string])
+
 type GenericType interface {
 	string | int | int64 | uint
 }
@@ -31,6 +33,8 @@ type GenericFlag[T GenericType] struct {
 	// The pointer to which the value of the flag or env var is assigned.
 	// It also uses as the default value displayed in the help.
 	Destination *T
+	// if set to true, the flag will be hidden from the help.
+	Hidden bool
 }
 
 // Apply applies Flag settings to the given flag set.
@@ -48,6 +52,11 @@ func (flag *GenericFlag[T]) Apply(set *libflag.FlagSet) error {
 	}
 
 	return nil
+}
+
+// GetHidden returns true if the flag should be hidden from the help.
+func (flag *GenericFlag[T]) GetHidden() bool {
+	return flag.Hidden
 }
 
 // GetUsage returns the usage string for the flag.

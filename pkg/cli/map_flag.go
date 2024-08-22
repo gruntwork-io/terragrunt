@@ -9,6 +9,8 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+var _ Flag = new(MapFlag[string, string])
+
 var (
 	MapFlagEnvVarSep = ","
 	MapFlagKeyValSep = "="
@@ -27,17 +29,29 @@ type MapFlagValueType interface {
 type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	flag
 
-	Name        string
+	// The name of the flag.
+	Name string
+	// The default value of the flag to display in the help, if it is empty, the value is taken from `Destination`.
 	DefaultText string
-	Usage       string
-	Aliases     []string
-	Action      ActionFunc
-	EnvVar      string
-
+	// A short usage description to display in help.
+	Usage string
+	// Aliases are usually used for the short flag name, like `-h`.
+	Aliases []string
+	// The action to execute when flag is specified
+	Action ActionFunc
+	// The name of the env variable that is parsed and assigned to `Destination` before the flag value.
+	EnvVar string
+	// The pointer to which the value of the flag or env var is assigned.
+	// It also uses as the default value displayed in the help.
 	Destination *map[K]V
-	Splitter    SplitterFunc
-	EnvVarSep   string
-	KeyValSep   string
+	// The func used to split the EvnVar, by default `strings.Split`
+	Splitter SplitterFunc
+	// The EnvVarSep value is passed to the Splitter function as an argument to split the args.
+	EnvVarSep string
+	// The KeyValSep value is passed to the Splitter function as an argument to split `key` and `val` of the arg.
+	KeyValSep string
+	// if set to true, the flag will be hidden from the help.
+	Hidden bool
 }
 
 // Apply applies Flag settings to the given flag set.
@@ -68,6 +82,11 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 	}
 
 	return nil
+}
+
+// GetHidden returns true if the flag should be hidden from the help.
+func (flag *MapFlag[K, V]) GetHidden() bool {
+	return flag.Hidden
 }
 
 // GetUsage returns the usage string for the flag.

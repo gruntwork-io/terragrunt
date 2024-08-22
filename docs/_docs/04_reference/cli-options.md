@@ -71,7 +71,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
   - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
   - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
-  - [terragrunt-include-module-prefix](#terragrunt-include-module-prefix)
+  - [terragrunt-include-module-prefix (DEPRECATED: use terragrunt-raw-module-output)](#terragrunt-raw-module-output)
   - [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
   - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
   - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
@@ -85,6 +85,8 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-provider-cache-registry-names](#terragrunt-provider-cache-registry-names)
   - [terragrunt-out-dir](#terragrunt-out-dir)
   - [terragrunt-json-out-dir](#terragrunt-json-out-dir)
+  - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting)
+  - [terragrunt-raw-module-output](#terragrunt-raw-module-output)
 
 ## CLI commands
 
@@ -771,7 +773,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
   - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
   - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
   - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
-  - [terragrunt-include-module-prefix](#terragrunt-include-module-prefix)
+  - [terragrunt-include-module-prefix (DEPRECATED: use terragrunt-raw-module-output)](#terragrunt-raw-module-output)
   - [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
   - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
   - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
@@ -785,6 +787,8 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
   - [terragrunt-provider-cache-registry-names](#terragrunt-provider-cache-registry-names)
   - [terragrunt-out-dir](#terragrunt-out-dir)
   - [terragrunt-json-out-dir](#terragrunt-json-out-dir)
+  - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting)
+  - [terragrunt-raw-module-output](#terragrunt-raw-module-output)
 
 ### terragrunt-config
 
@@ -1269,13 +1273,6 @@ These configurations are generally safe to cache, but due to the nature of HCL b
 
 Once this flag has been tested thoroughly, we will consider making it the default behavior.
 
-### terragrunt-include-module-prefix
-
-**CLI Arg**: `--terragrunt-include-module-prefix`<br/>
-**Environment Variable**: `TERRAGRUNT_INCLUDE_MODULE_PREFIX` (set to `true`)<br/>
-
-When this flag is set output from OpenTofu/Terraform sub-commands is prefixed with module path.
-
 ### terragrunt-fail-on-state-bucket-creation
 
 **CLI Arg**: `--terragrunt-fail-on-state-bucket-creation`<br/>
@@ -1433,3 +1430,17 @@ Note that more specific configurations (e.g. `awsCredentials`) take precedence o
 If you would like to set credentials for AWS with this method, you are encouraged to use `awsCredentials` instead of `envs`, as these keys will be validated to conform to the officially supported environment variables expected by the AWS SDK.
 
 Other credential configurations will be supported in the future, but until then, if your provider authenticates via environment variables, you can use the `envs` field to fetch credentials dynamically from a secret store, etc before Terragrunt executes any IAC.
+
+### terragrunt-disable-log-formatting
+
+**CLI Arg**: `--terragrunt-disable-log-formatting`<br/>
+**Environment Variable**: `TERRAGRUNT_DISABLE_LOG_FORMATTING`<br/>
+
+If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.
+
+### terragrunt-raw-module-output
+
+**CLI Arg**: `--terragrunt-raw-module-output`<br/>
+**Environment Variable**: `TERRAGRUNT_RAW_MODULE_OUTPUT`<br/>
+
+If specified, the output of Terraform/OpenTofu commands will be printed as is. By default, all logs, except when using the `output` command or `-json` flags, are integrated into the Terragrunt log.
