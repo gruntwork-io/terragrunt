@@ -213,6 +213,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 		&cli.SliceFlag[string]{
 			Name:        TerragruntIncludeDirFlagName,
 			Destination: &opts.IncludeDirs,
+			EnvVar:      "TERRAGRUNT_INCLUDE_DIR",
 			Usage:       "Unix-style glob of directories to include when running *-all commands",
 		},
 		&cli.BoolFlag{
