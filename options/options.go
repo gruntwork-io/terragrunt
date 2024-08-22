@@ -477,14 +477,14 @@ func GetDefaultIAMAssumeRoleSessionName() string {
 func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...TerragruntOptionsFunc) (*TerragruntOptions, error) {
 	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
 	if err != nil {
-		logger := util.CreateLogEntry("", util.GetDefaultLogLevel(), nil)
+		logger := util.CreateLogEntry("", util.GetDefaultLogLevel(), nil, opts.DisableLogColors, opts.DisableLogFormatting)
 		logger.Errorf("%v\n", errors.WithStackTrace(err))
 
 		return nil, err
 	}
 
 	opts.NonInteractive = true
-	opts.Logger = util.CreateLogEntry("", logrus.DebugLevel, nil)
+	opts.Logger = util.CreateLogEntry("", logrus.DebugLevel, nil, opts.DisableLogColors, opts.DisableLogFormatting)
 	opts.LogLevel = logrus.DebugLevel
 
 	for _, opt := range options {
@@ -516,7 +516,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 	}
 
 	outputPrefix := filepath.Dir(relTerragruntConfigPath)
-	logger := util.CreateLogEntryWithWriter(opts.ErrWriter, outputPrefix, opts.LogLevel, opts.Logger.Logger.Hooks, opts.LogPrefixStyle)
+	logger := util.CreateLogEntryWithWriter(opts.ErrWriter, outputPrefix, opts.LogLevel, opts.Logger.Logger.Hooks, opts.LogPrefixStyle, opts.DisableLogColors, opts.DisableLogFormatting)
 	logger.Logger.SetFormatter(opts.Logger.Logger.Formatter)
 
 	// Note that we clone lists and maps below as TerragruntOptions may be used and modified concurrently in the code

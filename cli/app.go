@@ -328,7 +328,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
 
 	opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
-	opts.Logger = util.CreateLogEntry("", opts.LogLevel, nil)
+	opts.Logger = util.CreateLogEntry("", opts.LogLevel, nil, opts.DisableLogColors, opts.DisableLogFormatting)
 	opts.Logger.Logger.SetOutput(cliCtx.App.ErrWriter)
 
 	log.SetLogger(opts.Logger.Logger)

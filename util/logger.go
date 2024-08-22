@@ -31,28 +31,28 @@ var (
 	// (see https://github.com/gruntwork-io/terragrunt/blob/master/cli/args.go#L29)
 	GlobalFallbackLogEntry *logrus.Entry
 
-	disableLogColors     bool
-	disableLogFormatting bool
-	jsonLogFormat        bool
+	globalDisableColors     bool
+	globalDisableFormatting bool
+	jsonLogFormat           bool
 )
 
 func init() {
 	logLevel := GetDefaultLogLevel()
-	GlobalFallbackLogEntry = CreateLogEntry("", logLevel, nil)
+	GlobalFallbackLogEntry = CreateLogEntry("", logLevel, nil, globalDisableColors, globalDisableFormatting)
 }
 
 func updateGlobalLogger() {
-	GlobalFallbackLogEntry = CreateLogEntry("", defaultLogLevel, nil)
+	GlobalFallbackLogEntry = CreateLogEntry("", defaultLogLevel, nil, globalDisableColors, globalDisableFormatting)
 }
 
 func DisableLogColors() {
-	disableLogColors = true
+	globalDisableColors = true
 	// Needs to re-create the global logger
 	updateGlobalLogger()
 }
 
 func DisableLogFormatting() {
-	disableLogFormatting = true
+	globalDisableFormatting = true
 	// Needs to re-create the global logger
 	updateGlobalLogger()
 }
@@ -70,7 +70,7 @@ func DisableJsonFormat() {
 }
 
 // CreateLogger creates a logger. If debug is set, we use ErrorLevel to enable verbose output, otherwise - only errors are shown
-func CreateLogger(lvl logrus.Level, prefixStyle *formatter.PrefixStyle) *logrus.Logger {
+func CreateLogger(lvl logrus.Level, prefixStyle *formatter.PrefixStyle, disableColors, disableFormatting bool) *logrus.Logger {
 	logger := logrus.New()
 	logger.SetLevel(lvl)
 	logger.SetOutput(os.Stderr) // Terragrunt should output all it's logs to stderr by default
@@ -79,8 +79,8 @@ func CreateLogger(lvl logrus.Level, prefixStyle *formatter.PrefixStyle) *logrus.
 		logger.SetFormatter(&logrus.JSONFormatter{})
 	} else {
 		logFormatter := formatter.NewFormatter()
-		logFormatter.DisableColors = disableLogColors
-		logFormatter.DisableLogFormatting = disableLogFormatting
+		logFormatter.DisableColors = disableColors
+		logFormatter.DisableLogFormatting = disableFormatting
 
 		if prefixStyle != nil {
 			logFormatter.PrefixStyle = prefixStyle
@@ -97,8 +97,8 @@ func CreateLogger(lvl logrus.Level, prefixStyle *formatter.PrefixStyle) *logrus.
 }
 
 // CreateLogEntry creates a logger entry with the given prefix field
-func CreateLogEntry(prefix string, level logrus.Level, prefixStyle *formatter.PrefixStyle) *logrus.Entry {
-	logger := CreateLogger(level, prefixStyle)
+func CreateLogEntry(prefix string, level logrus.Level, prefixStyle *formatter.PrefixStyle, disableColors, disableFormatting bool) *logrus.Entry {
+	logger := CreateLogger(level, prefixStyle, disableColors, disableFormatting)
 	fields := logrus.Fields{
 		formatter.PrefixKeyName: prefix,
 	}
@@ -107,8 +107,8 @@ func CreateLogEntry(prefix string, level logrus.Level, prefixStyle *formatter.Pr
 }
 
 // CreateLogEntryWithWriter Create a logger around the given output stream and prefix
-func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Level, hooks logrus.LevelHooks, prefixStyle *formatter.PrefixStyle) *logrus.Entry {
-	logger := CreateLogEntry(prefix, level, prefixStyle)
+func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Level, hooks logrus.LevelHooks, prefixStyle *formatter.PrefixStyle, disableColors, disableFormatting bool) *logrus.Entry {
+	logger := CreateLogEntry(prefix, level, prefixStyle, disableColors, disableFormatting)
 	logger.Logger.SetOutput(writer)
 	logger.Logger.ReplaceHooks(hooks)
 
@@ -141,7 +141,7 @@ func GetDefaultLogLevel() logrus.Level {
 func ParseLogLevel(logLevelStr string) logrus.Level {
 	parsedLogLevel, err := logrus.ParseLevel(logLevelStr)
 	if err != nil {
-		CreateLogEntry("", defaultLogLevel, nil).Errorf(
+		CreateLogEntry("", defaultLogLevel, nil, globalDisableColors, globalDisableFormatting).Errorf(
 			"Could not parse log level from environment variable %s (%s) - falling back to default %s",
 			logLevelEnvVar,
 			logLevelStr,
