@@ -103,6 +103,9 @@ func TestTableTagging(t *testing.T) {
 	withLockTableTagged(t, tags, func(tableName string, client *awsDynamodb.DynamoDB) {
 		assertCanWriteToTable(t, tableName, client)
 
+		// TODO: switch to AWS retry method
+		time.Sleep(5 * time.Second)
+
 		assertTags(tags, tableName, client, t)
 
 		// Try to create the table the second time and make sure you get no errors
