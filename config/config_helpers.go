@@ -313,7 +313,7 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 	}
 
 	if envVariable.Name == "" {
-		return envVariable, errors.WithStackTrace(InvalidEnvParamNameError{EnvVarName: parameters[0]})
+		return envVariable, errors.WithStackTrace(InvalidEnvParamNameError{EnvName: parameters[0]})
 	}
 
 	return envVariable, nil

@@ -29,12 +29,12 @@ var httpClient = cleanhttp.DefaultClient()
 
 // Constants relevant to the module registry
 const (
-	defaultRegistryDomain     = "registry.terraform.io"
-	defaultOtRegistryDomain   = "registry.opentofu.org"
-	serviceDiscoveryPath      = "/.well-known/terraform.json"
-	versionQueryKey           = "version"
-	authTokenEnvVarName       = "TG_TF_REGISTRY_TOKEN"
-	defaultRegistryEnvVarName = "TG_TF_DEFAULT_REGISTRY_HOST"
+	defaultRegistryDomain   = "registry.terraform.io"
+	defaultOtRegistryDomain = "registry.opentofu.org"
+	serviceDiscoveryPath    = "/.well-known/terraform.json"
+	versionQueryKey         = "version"
+	authTokenEnvName        = "TG_TF_REGISTRY_TOKEN"
+	defaultRegistryEnvName  = "TG_TF_DEFAULT_REGISTRY_HOST"
 )
 
 // RegistryServicePath is a struct for extracting the modules service path in the Registry.
@@ -96,7 +96,7 @@ func (tfrGetter *RegistryGetter) registryDomain() string {
 	}
 
 	// if is set TG_TF_DEFAULT_REGISTRY env var, use it as default registry
-	if defaultRegistry := os.Getenv(defaultRegistryEnvVarName); defaultRegistry != "" {
+	if defaultRegistry := os.Getenv(defaultRegistryEnvName); defaultRegistry != "" {
 		return defaultRegistry
 	}
 	// if binary is set to use OpenTofu registry, use OpenTofu as default registry
@@ -332,7 +332,7 @@ func httpGETAndGetResponse(ctx context.Context, getURL url.URL) ([]byte, *http.H
 
 	// Handle authentication via env var. Authentication is done by providing the registry token as a bearer token in
 	// the request header.
-	authToken := os.Getenv(authTokenEnvVarName)
+	authToken := os.Getenv(authTokenEnvName)
 	if authToken != "" {
 		req.Header.Add("Authorization", "Bearer "+authToken)
 	}
