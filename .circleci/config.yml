@@ -580,15 +580,14 @@ workflows:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
-      # TODO: requires more fine-tuning
-      # - strict_lint:
-      #     filters:
-      #       tags:
-      #         only: /^v.*/
-      #     context:
-      #       - AWS__PHXDEVOPS__circle-ci-test
-      #       - GCP__automated-tests
-      #       - GITHUB__PAT__gruntwork-ci
+      - strict_lint:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
       - integration_test_tofu_engine:
           filters:
             tags:
