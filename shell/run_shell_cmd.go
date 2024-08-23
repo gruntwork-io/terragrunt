@@ -154,7 +154,7 @@ func RunShellCommandWithOutput(
 		var cmdStdout io.Writer
 
 		if !suppressStdout {
-			if !terragruntOptions.PrintRawModuleOutput && len(args) > 0 && !strings.EqualFold(args[0], terraform.CommandNameOutput) {
+			if !terragruntOptions.PrintRawModuleOutput && len(args) > 0 {
 				// do not add prefix if args contains `-json` flag
 				var jsonOutput bool
 
