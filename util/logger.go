@@ -47,21 +47,25 @@ func setGlobalFallbackLogEntry() {
 
 func DisableLogColors() {
 	globalDisableColors = true
+
 	setGlobalFallbackLogEntry()
 }
 
 func DisableLogFormatting() {
 	globalDisableFormatting = true
+
 	setGlobalFallbackLogEntry()
 }
 
 func JsonFormat() {
 	jsonLogFormat = true
+
 	setGlobalFallbackLogEntry()
 }
 
 func DisableJsonFormat() {
 	jsonLogFormat = false
+
 	setGlobalFallbackLogEntry()
 }
 

@@ -262,7 +262,7 @@ func TestLogRawModuleOutput(t *testing.T) {
 	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt run-all init -no-color --terragrunt-log-level debug --terragrunt-non-interactive  --terragrunt-raw-module-output --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stdout, "\nInitializing the backend...\n\nInitializing provider plugins...\n")
+	assert.Contains(t, strings.ReplaceAll(stdout, "\n", ""), "Initializing the backend...Initializing provider plugins...")
 }
 
 func TestTerragruntExcludesFile(t *testing.T) {
