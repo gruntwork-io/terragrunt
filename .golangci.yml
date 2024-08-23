@@ -66,12 +66,16 @@ linters:
     - unused
     - unparam
     - wsl
+    - thelper
+    - wastedassign
+
   enable-all: false
   disable:
     - depguard
     - gosec
     - gocyclo
     - exhaustruct
+
   fast: false
   mnd:
     ignored-functions: strconv.Format*,os.*,strconv.Parse*,strings.SplitN,bytes.SplitN

@@ -371,6 +371,8 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 }
 
 func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool, expectedFileContents string, requireInitFile bool) {
+	t.Helper()
+
 	terraformSource, terragruntOptions, terragruntConfig, err := createConfig(t, canonicalUrl, downloadDir, sourceUpdate)
 
 	require.NoError(t, err)
@@ -391,6 +393,8 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalUrl string, d
 }
 
 func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceUpdate bool) (*tgTerraform.Source, *options.TerragruntOptions, *config.TerragruntConfig, error) {
+	t.Helper()
+
 	logger := logrus.New()
 	logger.Out = io.Discard
 	terraformSource := &tgTerraform.Source{
@@ -420,6 +424,8 @@ func createConfig(t *testing.T, canonicalUrl string, downloadDir string, sourceU
 }
 
 func testAlreadyHaveLatestCode(t *testing.T, canonicalUrl string, downloadDir string, expected bool) {
+	t.Helper()
+
 	logger := logrus.New()
 	logger.Out = io.Discard
 	terraformSource := &tgTerraform.Source{
@@ -439,6 +445,8 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalUrl string, downloadDir st
 }
 
 func tmpDir(t *testing.T) string {
+	t.Helper()
+
 	dir, err := os.MkdirTemp("", "download-source-test")
 	if err != nil {
 		t.Fatal(err)
@@ -447,6 +455,8 @@ func tmpDir(t *testing.T) string {
 }
 
 func absPath(t *testing.T, path string) string {
+	t.Helper()
+
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		t.Fatal(err)
@@ -455,6 +465,8 @@ func absPath(t *testing.T, path string) string {
 }
 
 func parseUrl(t *testing.T, str string) *url.URL {
+	t.Helper()
+
 	// URLs should have only forward slashes, whereas on Windows, the file paths may be backslashes
 	rawUrl := strings.Join(strings.Split(str, string(filepath.Separator)), "/")
 
@@ -466,6 +478,8 @@ func parseUrl(t *testing.T, str string) *url.URL {
 }
 
 func readFile(t *testing.T, path string) string {
+	t.Helper()
+
 	contents, err := util.ReadFileAsString(path)
 	if err != nil {
 		t.Fatal(err)
@@ -474,6 +488,8 @@ func readFile(t *testing.T, path string) string {
 }
 
 func copyFolder(t *testing.T, src string, dest string) {
+	t.Helper()
+
 	err := util.CopyFolderContents(filepath.FromSlash(src), filepath.FromSlash(dest), ".terragrunt-test", nil)
 	require.NoError(t, err)
 }

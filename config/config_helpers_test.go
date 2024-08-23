@@ -238,6 +238,8 @@ func TestRunCommand(t *testing.T) {
 }
 
 func absPath(t *testing.T, path string) string {
+	t.Helper()
+
 	out, err := filepath.Abs(path)
 	require.NoError(t, err)
 	return out
@@ -613,6 +615,8 @@ func TestResolveCliArgsInterpolationConfigString(t *testing.T) {
 }
 
 func toStringSlice(t *testing.T, value interface{}) []string {
+	t.Helper()
+
 	if value == nil {
 		return nil
 	}
@@ -652,6 +656,8 @@ func TestGetTerragruntDirRelPath(t *testing.T) {
 }
 
 func testGetTerragruntDir(t *testing.T, configPath string, expectedPath string) {
+	t.Helper()
+
 	terragruntOptions, err := options.NewTerragruntOptionsForTest(configPath)
 	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
@@ -663,6 +669,8 @@ func testGetTerragruntDir(t *testing.T, configPath string, expectedPath string) 
 }
 
 func terragruntOptionsForTest(t *testing.T, configPath string) *options.TerragruntOptions {
+	t.Helper()
+
 	opts, err := options.NewTerragruntOptionsForTest(configPath)
 	if err != nil {
 		t.Fatalf("Failed to create TerragruntOptions: %v", err)
@@ -671,12 +679,16 @@ func terragruntOptionsForTest(t *testing.T, configPath string) *options.Terragru
 }
 
 func terragruntOptionsForTestWithMaxFolders(t *testing.T, configPath string, maxFoldersToCheck int) *options.TerragruntOptions {
+	t.Helper()
+
 	opts := terragruntOptionsForTest(t, configPath)
 	opts.MaxFoldersToCheck = maxFoldersToCheck
 	return opts
 }
 
 func terragruntOptionsForTestWithEnv(t *testing.T, configPath string, env map[string]string) *options.TerragruntOptions {
+	t.Helper()
+
 	opts := terragruntOptionsForTest(t, configPath)
 	opts.Env = env
 	return opts

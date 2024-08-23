@@ -465,6 +465,8 @@ func TestDependencyGraphWithMultiInclude(t *testing.T) {
 }
 
 func runTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []string, isSuccessTest bool) {
+	t.Helper()
+
 	maybeNested := filepath.Join(moduleDir, "module")
 	if util.FileExists(maybeNested) {
 		// Nested module test case with included file, so run terragrunt from the nested module.

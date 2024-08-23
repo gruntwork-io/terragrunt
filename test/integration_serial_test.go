@@ -503,6 +503,8 @@ func TestTerragruntLogLevelEnvVarUnparsableLogsErrorButContinues(t *testing.T) {
 // run.
 
 func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules int, timeToDeployEachModule time.Duration, expectedTimings []int) {
+	t.Helper()
+
 	output, testStart, err := testRemoteFixtureParallelism(t, parallelism, numberOfModules, timeToDeployEachModule)
 	require.NoError(t, err)
 

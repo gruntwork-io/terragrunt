@@ -85,7 +85,7 @@ func (module *TerraformModule) checkForCyclesUsingDepthFirstSearch(visitedPaths 
 
 // planFile - return plan file location, if output folder is set
 func (module *TerraformModule) planFile(terragruntOptions *options.TerragruntOptions) string {
-	planFile := ""
+	var planFile string
 
 	// set plan file location if output folder is set
 	planFile = module.outputFile(terragruntOptions)
