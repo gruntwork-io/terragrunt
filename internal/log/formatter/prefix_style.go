@@ -1,5 +1,9 @@
 package formatter
 
+import (
+	"github.com/puzpuzpuz/xsync/v3"
+)
+
 var (
 	// defeultPrefixStyles contains ANSI color codes that are assigned sequentially to each unique prefix in a rotating order
 	// https://user-images.githubusercontent.com/995050/47952855-ecb12480-df75-11e8-89d4-ac26c50e80b9.png
@@ -14,9 +18,9 @@ var (
 
 type prefixStyle struct {
 	// cache stores prefixes with their color schemes.
-	cache map[string]ColorFunc
+	cache *xsync.MapOf[string, ColorFunc]
 
-	styles []ColorStyle
+	availableStyles []ColorStyle
 
 	// nextStyleIndex is used to get the next style from the `defeultPrefixStyles` list for a newly discovered prefix.
 	nextStyleIndex int
@@ -24,23 +28,22 @@ type prefixStyle struct {
 
 func NewPrefixStyle() *prefixStyle {
 	return &prefixStyle{
-		cache:  make(map[string]ColorFunc),
-		styles: defeultPrefixStyles,
+		cache:           xsync.NewMapOf[string, ColorFunc](),
+		availableStyles: defeultPrefixStyles,
 	}
 }
 
 func (prefix *prefixStyle) ColorFunc(prefixName string) ColorFunc {
-	if colorFunc, ok := prefix.cache[prefixName]; ok {
+	if colorFunc, ok := prefix.cache.Load(prefixName); ok {
 		return colorFunc
 	}
 
-	if prefix.nextStyleIndex >= len(defeultPrefixStyles) {
+	if prefix.nextStyleIndex >= len(prefix.availableStyles) {
 		prefix.nextStyleIndex = 0
 	}
+	colorFunc := prefix.availableStyles[prefix.nextStyleIndex].ColorFunc()
 
-	colorFunc := prefix.styles[prefix.nextStyleIndex].ColorFunc()
-
-	prefix.cache[prefixName] = colorFunc
+	prefix.cache.Store(prefixName, colorFunc)
 	prefix.nextStyleIndex++
 
 	return colorFunc
