@@ -174,7 +174,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 		&cli.BoolFlag{
 			Name:        TerragruntNoAutoInitFlagName,
 			EnvVar:      TerragruntNoAutoInitEnvName,
-			Usage:       "Don't automatically run 'terraform init' during other terragrunt commands. You must run 'terragrunt init' manually.",
+			Usage:       "Don't automatically run 'terraform/tofu init' during other terragrunt commands. You must run 'terragrunt init' manually.",
 			Negative:    true,
 			Destination: &opts.AutoInit,
 		},
@@ -189,7 +189,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        TerragruntNoAutoApproveFlagName,
 			EnvVar:      TerragruntNoAutoApproveEnvName,
 			Destination: &opts.RunAllAutoApprove,
-			Usage:       "Don't automatically append `-auto-approve` to the underlying Terraform commands run with 'run-all'.",
+			Usage:       "Don't automatically append `-auto-approve` to the underlying OpenTofu/Terraform commands run with 'run-all'.",
 			Negative:    true,
 		},
 		&cli.BoolFlag{
@@ -202,19 +202,19 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        TerragruntWorkingDirFlagName,
 			EnvVar:      TerragruntWorkingDirEnvName,
 			Destination: &opts.WorkingDir,
-			Usage:       "The path to the Terraform templates. Default is current directory.",
+			Usage:       "The path to the directory of Terragrunt configurations. Default is current directory.",
 		},
 		&cli.GenericFlag[string]{
 			Name:        TerragruntDownloadDirFlagName,
 			EnvVar:      TerragruntDownloadDirEnvName,
 			Destination: &opts.DownloadDir,
-			Usage:       "The path where to download Terraform code. Default is .terragrunt-cache in the working directory.",
+			Usage:       "The path to download OpenTofu/Terraform modules into. Default is .terragrunt-cache in the working directory.",
 		},
 		&cli.GenericFlag[string]{
 			Name:        TerragruntSourceFlagName,
 			EnvVar:      TerragruntSourceEnvName,
 			Destination: &opts.Source,
-			Usage:       "Download Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.",
+			Usage:       "Download OpenTofu/Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.",
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntSourceUpdateFlagName,
@@ -233,7 +233,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        TerragruntIAMRoleFlagName,
 			EnvVar:      TerragruntIAMRoleEnvName,
 			Destination: &opts.IAMRoleOptions.RoleARN,
-			Usage:       "Assume the specified IAM role before executing Terraform. Can also be set via the TERRAGRUNT_IAM_ROLE environment variable.",
+			Usage:       "Assume the specified IAM role before executing OpenTofu/Terraform. Can also be set via the TERRAGRUNT_IAM_ROLE environment variable.",
 		},
 		&cli.GenericFlag[int64]{
 			Name:        TerragruntIAMAssumeRoleDurationFlagName,
@@ -317,13 +317,25 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        TerragruntDisableLogFormattingFlagName,
 			EnvVar:      TerragruntDisableLogFormattingEnvName,
 			Destination: &opts.DisableLogFormatting,
-			Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
+			Action: func(ctx *cli.Context) error {
+				if opts.DisableLogFormatting {
+					util.DisableLogFormatting()
+				}
+				return nil
+			},
+			Usage: "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntNoColorFlagName,
 			EnvVar:      TerragruntNoColorEnvName,
 			Destination: &opts.DisableLogColors,
-			Usage:       "If specified, Terragrunt output won't contain any color.",
+			Action: func(ctx *cli.Context) error {
+				if opts.DisableLogColors {
+					util.DisableLogColors()
+				}
+				return nil
+			},
+			Usage: "If specified, Terragrunt output won't contain any color.",
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntJsonLogFlagName,
@@ -353,7 +365,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        TerragruntRawModuleOutputFlagName,
 			EnvVar:      TerragruntRawModuleOutputEnvName,
 			Destination: &opts.PrintRawModuleOutput,
-			Usage:       "If specified, the output of Terraform commands will be printed as is, without being integrated into the Terragrunt log.",
+			Usage:       "If specified, the output of OpenTofu/Terraform commands will be printed as is, without being integrated into the Terragrunt log.",
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntStrictIncludeFlagName,

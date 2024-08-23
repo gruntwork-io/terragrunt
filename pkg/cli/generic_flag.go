@@ -9,6 +9,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// GenericFlag implements Flag
 var _ Flag = new(GenericFlag[string])
 
 type GenericType interface {
@@ -33,7 +34,7 @@ type GenericFlag[T GenericType] struct {
 	// The pointer to which the value of the flag or env var is assigned.
 	// It also uses as the default value displayed in the help.
 	Destination *T
-	// if set to true, the flag will be hidden from the help.
+	// Hidden hides the flag from the help, if set to true.
 	Hidden bool
 }
 

@@ -44,7 +44,7 @@ func (style ColorStyle) ColorFunc() ColorFunc {
 
 type ColorScheme map[ColorStyleName]ColorStyle
 
-func (scheme ColorScheme) Complite() compiledColorScheme {
+func (scheme ColorScheme) Compile() compiledColorScheme {
 	compiled := make(compiledColorScheme, len(scheme))
 
 	for name, style := range scheme {

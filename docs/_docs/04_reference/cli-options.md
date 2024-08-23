@@ -71,7 +71,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
   - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
   - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
-  - [terragrunt-include-module-prefix (DEPRECATED: use terragrunt-raw-module-output)](#terragrunt-raw-module-output)
+  - [terragrunt-include-module-prefix (DEPRECATED: use terragrunt-raw-module-output)](#terragrunt-include-module-prefix)
   - [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
   - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
   - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
@@ -773,7 +773,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
   - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
   - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
   - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
-  - [terragrunt-include-module-prefix (DEPRECATED: use terragrunt-raw-module-output)](#terragrunt-raw-module-output)
+  - [terragrunt-include-module-prefix (DEPRECATED: use terragrunt-raw-module-output)](#terragrunt-include-module-prefix)
   - [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
   - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
   - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
@@ -946,6 +946,7 @@ When passed in, delete the contents of the temporary folder before downloading O
 ### terragrunt-ignore-dependency-errors
 
 **CLI Arg**: `--terragrunt-ignore-dependency-errors`<br/>
+**Environment Variable**: `TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS`<br/>
 
 When passed in, the `*-all` commands continue processing components even if a dependency fails
 
@@ -1006,6 +1007,7 @@ module, not its dependencies.
 ### terragrunt-include-dir
 
 **CLI Arg**: `--terragrunt-include-dir`<br/>
+**Environment Variable**: `TERRAGRUNT_INCLUDE_DIR`<br/>
 **Requires an argument**: `--terragrunt-include-dir /path/to/dirs/to/include*`<br/>
 
 Can be supplied multiple times: `--terragrunt-include-dir /path/to/dirs/to/include --terragrunt-include-dir /another/path/to/dirs/to/include`
@@ -1017,6 +1019,7 @@ relative from `--terragrunt-working-dir`. Flag can be specified multiple times.
 ### terragrunt-strict-include
 
 **CLI Arg**: `--terragrunt-strict-include`<br/>
+**Environment Variable**: `TERRAGRUNT_STRICT_INCLUDE`<br/>
 
 When passed in, only modules under the directories passed in with [--terragrunt-include-dir](#terragrunt-include-dir)
 will be included. All dependencies of the included directories will be excluded if they are not in the included
@@ -1032,12 +1035,14 @@ When passed in, and running `terragrunt validate-inputs`, enables strict mode fo
 ### terragrunt-ignore-dependency-order
 
 **CLI Arg**: `--terragrunt-ignore-dependency-order`<br/>
+**Environment Variable**: `TERRAGRUNT_IGNORE_DEPENDENCY_ORDER`<br/>
 
 When passed in, ignore the depedencies between modules when running `*-all` commands.
 
 ### terragrunt-ignore-external-dependencies
 
 **CLI Arg**: `--terragrunt-ignore-external-dependencies`<br/>
+**Environment Variable**: `TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES`<br/>
 
 When passed in, don't attempt to include any external dependencies when running `*-all` commands. Note that an external
 dependency is a dependency that is outside the current terragrunt working directory, and is not respective to the
@@ -1179,6 +1184,7 @@ This lead to a faster rendering process, but the output will not include any dep
 ### terragrunt-modules-that-include
 
 **CLI Arg**: `--terragrunt-modules-that-include`<br/>
+**Environment Variable**: `TERRAGRUNT_MODULES_THAT_INCLUDE`<br/>
 **Requires an argument**: `--terragrunt-modules-that-include /path/to/included-terragrunt.hcl`<br/>
 **Commands**:
 
@@ -1272,6 +1278,15 @@ This is the case for scenarios like:
 These configurations are generally safe to cache, but due to the nature of HCL being a dynamic configuration language, there are some edge cases where caching these can lead to incorrect behavior.
 
 Once this flag has been tested thoroughly, we will consider making it the default behavior.
+
+### terragrunt-include-module-prefix
+
+DEPRECATED: Since this behavior has become by default, this flag has been removed. In order to get raw Terraform/OpenTofu output, use [terragrunt-raw-module-output](#terragrunt-raw-module-output).
+
+**CLI Arg**: `--terragrunt-include-module-prefix`<br/>
+**Environment Variable**: `TERRAGRUNT_INCLUDE_MODULE_PREFIX` (set to `true`)<br/>
+
+When this flag is set output from OpenTofu/Terraform sub-commands is prefixed with module path.
 
 ### terragrunt-fail-on-state-bucket-creation
 
@@ -1438,9 +1453,51 @@ Other credential configurations will be supported in the future, but until then,
 
 If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.
 
+The example of what the log looks like without the `--terragrunt-disable-log-formatting` flag specified:
+
+```bash
+14:19:25.081 INFO   [app] Running command: tofu plan -input=false
+14:19:25.174 STDOUT [app] tofu: OpenTofu used the selected providers to generate the following execution
+14:19:25.174 STDOUT [app] tofu: plan. Resource actions are indicated with the following symbols:
+14:19:25.174 STDOUT [app] tofu:   + create
+14:19:25.174 STDOUT [app] tofu: OpenTofu will perform the following actions:
+```
+
+The example of what the log looks like with the `--terragrunt-raw-module-output` flag specified:
+
+```bash
+time=2024-08-23T11:47:18+03:00 level=info prefix=app msg=Running command: tofu plan -input=false
+time=2024-08-23T11:47:18+03:00 level=stdout prefix=app binary=tofu msg=OpenTofu used the selected providers to generate the following execution
+time=2024-08-23T11:47:18+03:00 level=stdout prefix=app binary=tofu msg=plan. Resource actions are indicated with the following symbols:
+time=2024-08-23T11:47:18+03:00 level=stdout prefix=app binary=tofu msg=  + create
+time=2024-08-23T11:47:18+03:00 level=stdout prefix=app binary=tofu msg=OpenTofu will perform the following actions:
+```
+
 ### terragrunt-raw-module-output
 
 **CLI Arg**: `--terragrunt-raw-module-output`<br/>
 **Environment Variable**: `TERRAGRUNT_RAW_MODULE_OUTPUT`<br/>
 
 If specified, the output of Terraform/OpenTofu commands will be printed as is. By default, all logs, except when using the `output` command or `-json` flags, are integrated into the Terragrunt log.
+
+The example of what the log looks like without the `--terragrunt-raw-module-output` flag specified:
+
+```bash
+14:19:25.081 INFO   [app] Running command: tofu plan -input=false
+14:19:25.174 STDOUT [app] tofu: OpenTofu used the selected providers to generate the following execution
+14:19:25.174 STDOUT [app] tofu: plan. Resource actions are indicated with the following symbols:
+14:19:25.174 STDOUT [app] tofu:   + create
+14:19:25.174 STDOUT [app] tofu: OpenTofu will perform the following actions:
+```
+
+The example of what the log looks like with the `--terragrunt-raw-module-output` flag specified:
+
+```bash
+14:19:25.081 INFO   [app] Running command: tofu plan -input=false
+
+OpenTofu used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+OpenTofu will perform the following actions:
+```

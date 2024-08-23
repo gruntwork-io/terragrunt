@@ -22,7 +22,13 @@ const (
 	NoneLevel       = logrus.Level(10)
 )
 
+// Formatter implements logrus.Formatter
 var _ logrus.Formatter = new(Formatter)
+
+type PrefixStyle interface {
+	// ColorFunc creates a closure to avoid computation ANSI color code.
+	ColorFunc(prefixName string) ColorFunc
+}
 
 type Formatter struct {
 	// Disable formatted layout
@@ -46,22 +52,23 @@ type Formatter struct {
 	// Can be set to the override the default quoting character " with something else. For example: ', or `.
 	QuoteCharacter string
 
+	// PrefixStyle is used to assign different styles (colors) to each prefix.
+	PrefixStyle PrefixStyle
+
 	// Color scheme to use.
 	colorScheme compiledColorScheme
-
-	PrefixStyle *PrefixStyle
 }
 
 // NewFormatter returns a new Formatter instance with default values.
 func NewFormatter() *Formatter {
 	return &Formatter{
-		colorScheme: defaultColorScheme.Complite(),
+		colorScheme: defaultColorScheme.Compile(),
 		PrefixStyle: NewPrefixStyle(),
 	}
 }
 
 func (formatter *Formatter) SetColorScheme(colorScheme *ColorScheme) {
-	maps.Copy(formatter.colorScheme, colorScheme.Complite())
+	maps.Copy(formatter.colorScheme, colorScheme.Compile())
 }
 
 // Format implements logrus.Formatter
@@ -147,13 +154,13 @@ func (formatter *Formatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entr
 	)
 
 	if val, ok := entry.Data[PrefixKeyName]; ok && val != nil {
-		if val := val.(string); val != "" {
+		if val, ok := val.(string); ok && val != "" {
 			prefix = fmt.Sprintf("[%s] ", val)
 		}
 	}
 
 	if val, ok := entry.Data[TFBinaryKeyName]; ok && val != nil {
-		if val := val.(string); val != "" {
+		if val, ok := val.(string); ok && val != "" {
 			tfBinary = val + ": "
 		}
 	}

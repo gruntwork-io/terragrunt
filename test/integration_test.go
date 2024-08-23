@@ -252,6 +252,19 @@ func TestLogFormatterKeyValueOutput(t *testing.T) {
 	assert.Contains(t, stderr, "level=debug msg=Terragrunt Version:")
 }
 
+func TestLogRawModuleOutput(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureLogFormatter)
+	tmpEnvPath := copyEnvironment(t, testFixtureLogFormatter)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
+
+	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt run-all init -no-color --terragrunt-log-level debug --terragrunt-non-interactive  --terragrunt-raw-module-output --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "\nInitializing the backend...\n\nInitializing provider plugins...\n")
+}
+
 func TestTerragruntExcludesFile(t *testing.T) {
 	t.Parallel()
 

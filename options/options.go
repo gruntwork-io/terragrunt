@@ -73,7 +73,7 @@ type TerragruntOptions struct {
 	// Location of the Terragrunt config file
 	TerragruntConfigPath string
 
-	// // Relative path to `RootWorkingDir`. We use this path for logs to shorten the path length.
+	// Relative path to `RootWorkingDir`. We use this path for logs to shorten the path length.
 	RelativeTerragruntConfigPath string
 
 	// Location of the original Terragrunt config file. This is primarily useful when one Terragrunt config is being
@@ -328,9 +328,9 @@ type TerragruntOptions struct {
 	// Options to use engine for running IaC operations.
 	Engine *EngineOptions
 
-	// LogPrefixStyle stores unique prefixes with their color schemes. When we clone the TerragruntOptions instance and create a new Logger we need to pass this cache to be able  assign the same color to the prefix if it has been already discovered before.
+	// LogPrefixStyle stores unique prefixes with their color schemes. When we clone the TerragruntOptions instance and create a new Logger we need to pass this cache to assign the same color to the prefix if it has been already discovered before.
 	// Since TerragruntOptions can be cloned multiple times and branched as a tree, we always need to have access to the same value from all instances, so we use a pointer.
-	LogPrefixStyle *formatter.PrefixStyle
+	LogPrefixStyle formatter.PrefixStyle
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests

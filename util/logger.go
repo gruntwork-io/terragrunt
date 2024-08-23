@@ -37,40 +37,36 @@ var (
 )
 
 func init() {
+	setGlobalFallbackLogEntry()
+}
+
+func setGlobalFallbackLogEntry() {
 	logLevel := GetDefaultLogLevel()
 	GlobalFallbackLogEntry = CreateLogEntry("", logLevel, nil, globalDisableColors, globalDisableFormatting)
 }
 
-func updateGlobalLogger() {
-	GlobalFallbackLogEntry = CreateLogEntry("", defaultLogLevel, nil, globalDisableColors, globalDisableFormatting)
-}
-
 func DisableLogColors() {
 	globalDisableColors = true
-	// Needs to re-create the global logger
-	updateGlobalLogger()
+	setGlobalFallbackLogEntry()
 }
 
 func DisableLogFormatting() {
 	globalDisableFormatting = true
-	// Needs to re-create the global logger
-	updateGlobalLogger()
+	setGlobalFallbackLogEntry()
 }
 
 func JsonFormat() {
 	jsonLogFormat = true
-	// Needs to re-create the global logger
-	updateGlobalLogger()
+	setGlobalFallbackLogEntry()
 }
 
 func DisableJsonFormat() {
 	jsonLogFormat = false
-	// Needs to re-create the global logger
-	updateGlobalLogger()
+	setGlobalFallbackLogEntry()
 }
 
 // CreateLogger creates a logger. If debug is set, we use ErrorLevel to enable verbose output, otherwise - only errors are shown
-func CreateLogger(lvl logrus.Level, prefixStyle *formatter.PrefixStyle, disableColors, disableFormatting bool) *logrus.Logger {
+func CreateLogger(lvl logrus.Level, prefixStyle formatter.PrefixStyle, disableColors, disableFormatting bool) *logrus.Logger {
 	logger := logrus.New()
 	logger.SetLevel(lvl)
 	logger.SetOutput(os.Stderr) // Terragrunt should output all it's logs to stderr by default
@@ -97,7 +93,7 @@ func CreateLogger(lvl logrus.Level, prefixStyle *formatter.PrefixStyle, disableC
 }
 
 // CreateLogEntry creates a logger entry with the given prefix field
-func CreateLogEntry(prefix string, level logrus.Level, prefixStyle *formatter.PrefixStyle, disableColors, disableFormatting bool) *logrus.Entry {
+func CreateLogEntry(prefix string, level logrus.Level, prefixStyle formatter.PrefixStyle, disableColors, disableFormatting bool) *logrus.Entry {
 	logger := CreateLogger(level, prefixStyle, disableColors, disableFormatting)
 	fields := logrus.Fields{
 		formatter.PrefixKeyName: prefix,
@@ -107,7 +103,7 @@ func CreateLogEntry(prefix string, level logrus.Level, prefixStyle *formatter.Pr
 }
 
 // CreateLogEntryWithWriter Create a logger around the given output stream and prefix
-func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Level, hooks logrus.LevelHooks, prefixStyle *formatter.PrefixStyle, disableColors, disableFormatting bool) *logrus.Entry {
+func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Level, hooks logrus.LevelHooks, prefixStyle formatter.PrefixStyle, disableColors, disableFormatting bool) *logrus.Entry {
 	logger := CreateLogEntry(prefix, level, prefixStyle, disableColors, disableFormatting)
 	logger.Logger.SetOutput(writer)
 	logger.Logger.ReplaceHooks(hooks)

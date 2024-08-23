@@ -76,8 +76,8 @@ func NewApp(writer io.Writer, errWriter io.Writer) *App {
 	app.ErrWriter = errWriter
 
 	app.Flags = append(
-		NewDeprecatedFlags(opts),
-		commands.NewGlobalFlags(opts)...)
+		commands.NewGlobalFlags(opts),
+		NewDeprecatedFlags(opts)...)
 
 	app.Commands = append(
 		DeprecatedCommands(opts),

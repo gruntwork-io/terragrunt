@@ -6,6 +6,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// BoolFlag implements Flag
 var _ Flag = new(BoolFlag)
 
 type BoolFlag struct {
@@ -28,7 +29,7 @@ type BoolFlag struct {
 	Destination *bool
 	// If set to true, then the assigned flag value will be inverted
 	Negative bool
-	// if set to true, the flag will be hidden from the help.
+	// Hidden hides the flag from the help, if set to true.
 	Hidden bool
 }
 

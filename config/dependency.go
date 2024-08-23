@@ -316,8 +316,8 @@ func checkForDependencyBlockCycles(ctx *ParsingContext, configPath string, decod
 			return err
 		}
 
-		dependencyConetxt := ctx.WithTerragruntOptions(dependencyOpts)
-		if err := checkForDependencyBlockCyclesUsingDFS(dependencyConetxt, dependencyPath, &visitedPaths, &currentTraversalPaths); err != nil {
+		dependencyContext := ctx.WithTerragruntOptions(dependencyOpts)
+		if err := checkForDependencyBlockCyclesUsingDFS(dependencyContext, dependencyPath, &visitedPaths, &currentTraversalPaths); err != nil {
 			return err
 		}
 	}
@@ -358,8 +358,8 @@ func checkForDependencyBlockCyclesUsingDFS(
 			return err
 		}
 
-		dependencyConetxt := ctx.WithTerragruntOptions(dependencyOpts)
-		if err := checkForDependencyBlockCyclesUsingDFS(dependencyConetxt, dependencyPath, visitedPaths, currentTraversalPaths); err != nil {
+		dependencyContext := ctx.WithTerragruntOptions(dependencyOpts)
+		if err := checkForDependencyBlockCyclesUsingDFS(dependencyContext, dependencyPath, visitedPaths, currentTraversalPaths); err != nil {
 			return err
 		}
 	}

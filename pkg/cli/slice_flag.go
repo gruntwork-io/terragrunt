@@ -7,6 +7,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// SliceFlag implements Flag
 var _ Flag = new(SliceFlag[string])
 
 var (
@@ -40,7 +41,7 @@ type SliceFlag[T SliceFlagType] struct {
 	Splitter SplitterFunc
 	// The EnvVarSep value is passed to the Splitter function as an argument.
 	EnvVarSep string
-	// if set to true, the flag will be hidden from the help.
+	// Hidden hides the flag from the help, if set to true.
 	Hidden bool
 }
 

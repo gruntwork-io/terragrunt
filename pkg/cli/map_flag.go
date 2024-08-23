@@ -9,6 +9,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// MapFlag implements Flag
 var _ Flag = new(MapFlag[string, string])
 
 var (
@@ -50,7 +51,7 @@ type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	EnvVarSep string
 	// The KeyValSep value is passed to the Splitter function as an argument to split `key` and `val` of the arg.
 	KeyValSep string
-	// if set to true, the flag will be hidden from the help.
+	// Hidden hides the flag from the help, if set to true.
 	Hidden bool
 }
 
