@@ -234,6 +234,8 @@ func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 }
 
 func validateMultipleIncludeTestOutput(t *testing.T, outputs map[string]TerraformOutput) {
+	t.Helper()
+
 	assert.Equal(t, "mock", outputs["attribute"].Value.(string))
 	assert.Equal(t, "new val", outputs["new_attribute"].Value.(string))
 	assert.Equal(t, "old val", outputs["old_attribute"].Value.(string))
@@ -257,6 +259,8 @@ func validateMultipleIncludeTestOutput(t *testing.T, outputs map[string]Terrafor
 }
 
 func validateIncludeRemoteStateReflection(t *testing.T, s3BucketName string, keyPath string, configPath string, workingDir string) {
+	t.Helper()
+
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-config %s --terragrunt-working-dir %s", configPath, workingDir), &stdout, &stderr)

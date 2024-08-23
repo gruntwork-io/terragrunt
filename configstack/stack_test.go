@@ -159,6 +159,8 @@ func createTestStack() *configstack.Stack {
 }
 
 func createTempFolder(t *testing.T) string {
+	t.Helper()
+
 	tmpFolder, err := os.MkdirTemp("", "")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %s\n", err.Error())
@@ -169,6 +171,8 @@ func createTempFolder(t *testing.T) string {
 
 // Create a dummy Terragrunt config file at each of the given paths
 func writeDummyTerragruntConfigs(t *testing.T, tmpFolder string, paths []string) {
+	t.Helper()
+
 	contents := []byte("terraform {\nsource = \"test\"\n}\n")
 	for _, path := range paths {
 		absPath := util.JoinPath(tmpFolder, path)
@@ -184,6 +188,8 @@ func writeDummyTerragruntConfigs(t *testing.T, tmpFolder string, paths []string)
 }
 
 func createDirIfNotExist(t *testing.T, path string) {
+	t.Helper()
+
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		err = os.MkdirAll(path, os.ModePerm)
 		if err != nil {

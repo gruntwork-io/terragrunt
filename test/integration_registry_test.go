@@ -39,6 +39,8 @@ func TestTerraformRegistryFetchingSubdirWithReferenceModule(t *testing.T) {
 }
 
 func testTerraformRegistryFetching(t *testing.T, modPath, expectedOutputKey string) {
+	t.Helper()
+
 	modFullPath := util.JoinPath(registryFixturePath, modPath)
 	cleanupTerraformFolder(t, modFullPath)
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+modFullPath)

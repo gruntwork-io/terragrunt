@@ -1134,6 +1134,8 @@ func TestFindConfigFilesIgnoresDownloadDir(t *testing.T) {
 }
 
 func mockOptionsForTestWithConfigPath(t *testing.T, configPath string) *options.TerragruntOptions {
+	t.Helper()
+
 	opts, err := options.NewTerragruntOptionsForTest(configPath)
 	if err != nil {
 		t.Fatalf("Failed to create TerragruntOptions: %v", err)
@@ -1142,6 +1144,8 @@ func mockOptionsForTestWithConfigPath(t *testing.T, configPath string) *options.
 }
 
 func mockOptionsForTest(t *testing.T) *options.TerragruntOptions {
+	t.Helper()
+
 	return mockOptionsForTestWithConfigPath(t, "test-time-mock")
 }
 

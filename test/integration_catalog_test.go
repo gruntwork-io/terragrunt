@@ -111,6 +111,8 @@ func TestScaffoldGitModuleHttps(t *testing.T) {
 }
 
 func readConfig(t *testing.T, opts *options.TerragruntOptions) *config.TerragruntConfig {
+	t.Helper()
+
 	assert.FileExists(t, opts.WorkingDir+"/terragrunt.hcl")
 
 	opts, err := options.NewTerragruntOptionsForTest(filepath.Join(opts.WorkingDir, "terragrunt.hcl"))

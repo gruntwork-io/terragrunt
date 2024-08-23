@@ -1356,6 +1356,8 @@ func TestTerragruntOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *tes
 }
 
 func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules int, timeToDeployEachModule time.Duration) (string, int, error) {
+	t.Helper()
+
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
 
 	// copy the template `numberOfModules` times into the app
@@ -1924,6 +1926,8 @@ func TestPreventDestroyDependencies(t *testing.T) {
 }
 
 func validateInputs(t *testing.T, outputs map[string]TerraformOutput) {
+	t.Helper()
+
 	assert.Equal(t, true, outputs["bool"].Value)
 	assert.Equal(t, []interface{}{true, false}, outputs["list_bool"].Value)
 	assert.Equal(t, []interface{}{1.0, 2.0, 3.0}, outputs["list_number"].Value)
@@ -2354,6 +2358,8 @@ func TestDependencyOutputOptimizationNoGenerate(t *testing.T) {
 }
 
 func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit bool, expectedOutputLogs []string) {
+	t.Helper()
+
 	expectedOutput := `They said, "No, The answer is 42"`
 	generatedUniqueId := uniqueId()
 
@@ -4479,6 +4485,8 @@ func TestLogFailingDependencies(t *testing.T) {
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
+	t.Helper()
+
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE))
 	removeFile(t, util.JoinPath(templatesPath, TERRAFORM_STATE_BACKUP))
 	removeFile(t, util.JoinPath(templatesPath, terragruntDebugFile))
@@ -4486,10 +4494,14 @@ func cleanupTerraformFolder(t *testing.T, templatesPath string) {
 }
 
 func cleanupTerragruntFolder(t *testing.T, templatesPath string) {
+	t.Helper()
+
 	removeFolder(t, util.JoinPath(templatesPath, TERRAGRUNT_CACHE))
 }
 
 func removeFile(t *testing.T, path string) {
+	t.Helper()
+
 	if util.FileExists(path) {
 		if err := os.Remove(path); err != nil {
 			t.Fatalf("Error while removing %s: %v", path, err)
@@ -4498,6 +4510,8 @@ func removeFile(t *testing.T, path string) {
 }
 
 func removeFolder(t *testing.T, path string) {
+	t.Helper()
+
 	if util.FileExists(path) {
 		if err := os.RemoveAll(path); err != nil {
 			t.Fatalf("Error while removing %s: %v", path, err)
@@ -4506,6 +4520,8 @@ func removeFolder(t *testing.T, path string) {
 }
 
 func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {
+	t.Helper()
+
 	args := strings.Split(command, " ")
 
 	if !strings.Contains(command, "-terragrunt-disable-log-formatting") {
@@ -4519,15 +4535,21 @@ func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwri
 }
 
 func runTerragruntVersionCommand(t *testing.T, ver string, command string, writer io.Writer, errwriter io.Writer) error {
+	t.Helper()
+
 	version.Version = ver
 	return runTerragruntCommand(t, command, writer, errwriter)
 }
 
 func runTerragrunt(t *testing.T, command string) {
+	t.Helper()
+
 	runTerragruntRedirectOutput(t, command, os.Stdout, os.Stderr)
 }
 
 func runTerragruntCommandWithOutput(t *testing.T, command string) (string, string, error) {
+	t.Helper()
+
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, command, &stdout, &stderr)
@@ -4537,6 +4559,8 @@ func runTerragruntCommandWithOutput(t *testing.T, command string) (string, strin
 }
 
 func runTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer, errwriter io.Writer) {
+	t.Helper()
+
 	if err := runTerragruntCommand(t, command, writer, errwriter); err != nil {
 		stdout := "(see log output above)"
 		if stdoutAsBuffer, stdoutIsBuffer := writer.(*bytes.Buffer); stdoutIsBuffer {
@@ -4553,6 +4577,8 @@ func runTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer,
 }
 
 func copyEnvironment(t *testing.T, environmentPath string, includeInCopy ...string) string {
+	t.Helper()
+
 	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir due to error: %v", err)
@@ -4566,6 +4592,8 @@ func copyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 }
 
 func createTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string, childRelPath string, s3BucketName string, parentConfigFileName string, childConfigFileName string) string {
+	t.Helper()
+
 	tmpDir, err := os.MkdirTemp("", "terragrunt-parent-child-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir due to error: %v", err)
@@ -4589,6 +4617,8 @@ func createTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string
 }
 
 func createTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName string, lockTableName string, configFileName string) string {
+	t.Helper()
+
 	tmpFolder, err := os.MkdirTemp("", "terragrunt-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp folder due to error: %v", err)
@@ -4602,6 +4632,8 @@ func createTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName 
 }
 
 func createTmpTerragruntConfigContent(t *testing.T, contents string, configFileName string) string {
+	t.Helper()
+
 	tmpFolder, err := os.MkdirTemp("", "terragrunt-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp folder due to error: %v", err)
@@ -4617,6 +4649,8 @@ func createTmpTerragruntConfigContent(t *testing.T, contents string, configFileN
 }
 
 func createTmpTerragruntGCSConfig(t *testing.T, templatesPath string, project string, location string, gcsBucketName string, configFileName string) string {
+	t.Helper()
+
 	tmpFolder, err := os.MkdirTemp("", "terragrunt-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp folder due to error: %v", err)
@@ -4630,6 +4664,8 @@ func createTmpTerragruntGCSConfig(t *testing.T, templatesPath string, project st
 }
 
 func copyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string, configDestPath string, s3BucketName string, lockTableName string, region string) {
+	t.Helper()
+
 	copyAndFillMapPlaceholders(t, configSrcPath, configDestPath, map[string]string{
 		"__FILL_IN_BUCKET_NAME__":      s3BucketName,
 		"__FILL_IN_LOCK_TABLE_NAME__":  lockTableName,
@@ -4639,6 +4675,8 @@ func copyTerragruntConfigAndFillPlaceholders(t *testing.T, configSrcPath string,
 }
 
 func copyAndFillMapPlaceholders(t *testing.T, srcPath string, destPath string, placeholders map[string]string) {
+	t.Helper()
+
 	contents, err := util.ReadFileAsString(srcPath)
 	if err != nil {
 		t.Fatalf("Error reading file at %s: %v", srcPath, err)
@@ -4654,6 +4692,8 @@ func copyAndFillMapPlaceholders(t *testing.T, srcPath string, destPath string, p
 }
 
 func copyTerragruntGCSConfigAndFillPlaceholders(t *testing.T, configSrcPath string, configDestPath string, project string, location string, gcsBucketName string) {
+	t.Helper()
+
 	email := os.Getenv("GOOGLE_IDENTITY_EMAIL")
 
 	copyAndFillMapPlaceholders(t, configSrcPath, configDestPath, map[string]string{
@@ -4683,6 +4723,8 @@ func uniqueId() string {
 // Check that the S3 Bucket of the given name and region exists. Terragrunt should create this bucket during the test.
 // Also check if bucket got tagged properly and that public access is disabled completely.
 func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketName string, expectedTags map[string]string) {
+	t.Helper()
+
 	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
 	if err != nil {
 		t.Fatalf("Error creating mockOptions: %v", err)
@@ -4700,7 +4742,7 @@ func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketNam
 	assert.True(t, remote.DoesS3BucketExist(s3Client, &bucketName), "Terragrunt failed to create remote state S3 bucket %s", bucketName)
 
 	if expectedTags != nil {
-		assertS3Tags(expectedTags, bucketName, s3Client, t)
+		assertS3Tags(t, expectedTags, bucketName, s3Client)
 	}
 
 	assertS3PublicAccessBlocks(t, s3Client, bucketName)
@@ -4709,6 +4751,8 @@ func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketNam
 // Check that the DynamoDB table of the given name and region exists. Terragrunt should create this table during the test.
 // Also check if table got tagged properly
 func validateDynamoDBTableExistsAndIsTagged(t *testing.T, awsRegion string, tableName string, expectedTags map[string]string) {
+	t.Helper()
+
 	client := createDynamoDbClientForTest(t, awsRegion)
 
 	var description, err = client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
@@ -4733,7 +4777,8 @@ func validateDynamoDBTableExistsAndIsTagged(t *testing.T, awsRegion string, tabl
 	assert.Equal(t, expectedTags, actualTags, "Did not find expected tags on dynamo table.")
 }
 
-func assertS3Tags(expectedTags map[string]string, bucketName string, client *s3.S3, t *testing.T) {
+func assertS3Tags(t *testing.T, expectedTags map[string]string, bucketName string, client *s3.S3) {
+	t.Helper()
 
 	var in = s3.GetBucketTaggingInput{}
 	in.SetBucket(bucketName)
@@ -4754,6 +4799,8 @@ func assertS3Tags(expectedTags map[string]string, bucketName string, client *s3.
 }
 
 func assertS3PublicAccessBlocks(t *testing.T, client *s3.S3, bucketName string) {
+	t.Helper()
+
 	resp, err := client.GetPublicAccessBlock(
 		&s3.GetPublicAccessBlockInput{Bucket: aws.String(bucketName)},
 	)
@@ -4768,12 +4815,16 @@ func assertS3PublicAccessBlocks(t *testing.T, client *s3.S3, bucketName string) 
 
 // createS3Bucket creates a test S3 bucket for state.
 func createS3Bucket(t *testing.T, awsRegion string, bucketName string) {
+	t.Helper()
+
 	err := createS3BucketE(t, awsRegion, bucketName)
 	require.NoError(t, err)
 }
 
 // createS3BucketE create test S3 bucket.
 func createS3BucketE(t *testing.T, awsRegion string, bucketName string) error {
+	t.Helper()
+
 	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
 	if err != nil {
 		t.Logf("Error creating mockOptions: %v", err)
@@ -4800,12 +4851,16 @@ func createS3BucketE(t *testing.T, awsRegion string, bucketName string) error {
 
 // createDynamoDbTable creates a test DynamoDB table.
 func createDynamoDbTable(t *testing.T, awsRegion string, tableName string) {
+	t.Helper()
+
 	err := createDynamoDbTableE(t, awsRegion, tableName)
 	require.NoError(t, err)
 }
 
 // createDynamoDbTableE creates a test DynamoDB table, and returns an error if the table creation fails.
 func createDynamoDbTableE(t *testing.T, awsRegion string, tableName string) error {
+	t.Helper()
+
 	client := createDynamoDbClientForTest(t, awsRegion)
 	_, err := client.CreateTable(&dynamodb.CreateTableInput{
 		AttributeDefinitions: []*dynamodb.AttributeDefinition{
@@ -4836,6 +4891,8 @@ func createDynamoDbTableE(t *testing.T, awsRegion string, tableName string) erro
 // deleteS3BucketWithRetry will attempt to delete the specified S3 bucket, retrying up to 3 times if there are errors to
 // handle eventual consistency issues.
 func deleteS3BucketWithRetry(t *testing.T, awsRegion string, bucketName string) {
+	t.Helper()
+
 	for i := 0; i < 3; i++ {
 		err := deleteS3BucketE(t, awsRegion, bucketName)
 		if err == nil {
@@ -4850,9 +4907,13 @@ func deleteS3BucketWithRetry(t *testing.T, awsRegion string, bucketName string) 
 
 // Delete the specified S3 bucket to clean up after a test
 func deleteS3Bucket(t *testing.T, awsRegion string, bucketName string, opts ...options.TerragruntOptionsFunc) {
+	t.Helper()
+
 	require.NoError(t, deleteS3BucketE(t, awsRegion, bucketName, opts...))
 }
 func deleteS3BucketE(t *testing.T, awsRegion string, bucketName string, opts ...options.TerragruntOptionsFunc) error {
+	t.Helper()
+
 	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test", opts...)
 	if err != nil {
 		t.Logf("Error creating mockOptions: %v", err)
@@ -4904,6 +4965,8 @@ func deleteS3BucketE(t *testing.T, awsRegion string, bucketName string, opts ...
 }
 
 func bucketEncryption(t *testing.T, awsRegion string, bucketName string) (*s3.GetBucketEncryptionOutput, error) {
+	t.Helper()
+
 	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
 	if err != nil {
 		t.Logf("Error creating mockOptions: %v", err)
@@ -4931,6 +4994,8 @@ func bucketEncryption(t *testing.T, awsRegion string, bucketName string) (*s3.Ge
 }
 
 func bucketPolicy(t *testing.T, awsRegion string, bucketName string) (*s3.GetBucketPolicyOutput, error) {
+	t.Helper()
+
 	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
 	if err != nil {
 		t.Logf("Error creating mockOptions: %v", err)
@@ -4976,6 +5041,8 @@ func createDynamoDbClient(awsRegion, awsProfile string, iamRoleArn string) (*dyn
 }
 
 func createDynamoDbClientForTest(t *testing.T, awsRegion string) *dynamodb.DynamoDB {
+	t.Helper()
+
 	client, err := createDynamoDbClient(awsRegion, "", "")
 	if err != nil {
 		t.Fatal(err)
@@ -4984,6 +5051,8 @@ func createDynamoDbClientForTest(t *testing.T, awsRegion string) *dynamodb.Dynam
 }
 
 func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
+	t.Helper()
+
 	client := createDynamoDbClientForTest(t, awsRegion)
 	err := terragruntDynamoDb.DeleteTable(tableName, client)
 	require.NoError(t, err)
@@ -4992,6 +5061,8 @@ func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
 // Check that the GCS Bucket of the given name and location exists. Terragrunt should create this bucket during the test.
 // Also check if bucket got labeled properly.
 func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketName string, expectedLabels map[string]string) {
+	t.Helper()
+
 	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
 
 	gcsClient, err := remote.CreateGCSClient(remoteStateConfig)
@@ -5019,6 +5090,8 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 
 // gcsObjectAttrs returns the attributes of the specified object in the bucket
 func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage.ObjectAttrs {
+	t.Helper()
+
 	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
 
 	gcsClient, err := remote.CreateGCSClient(remoteStateConfig)
@@ -5038,6 +5111,8 @@ func gcsObjectAttrs(t *testing.T, bucketName string, objectName string) *storage
 }
 
 func assertGCSLabels(t *testing.T, expectedLabels map[string]string, bucketName string, client *storage.Client) {
+	t.Helper()
+
 	ctx := context.Background()
 	bucket := client.Bucket(bucketName)
 
@@ -5057,6 +5132,8 @@ func assertGCSLabels(t *testing.T, expectedLabels map[string]string, bucketName 
 
 // Create the specified GCS bucket
 func createGCSBucket(t *testing.T, projectID string, location string, bucketName string) {
+	t.Helper()
+
 	var gcsConfig remote.RemoteStateConfigGCS
 	gcsClient, err := remote.CreateGCSClient(gcsConfig)
 	if err != nil {
@@ -5080,6 +5157,8 @@ func createGCSBucket(t *testing.T, projectID string, location string, bucketName
 
 // Delete the specified GCS bucket to clean up after a test
 func deleteGCSBucket(t *testing.T, bucketName string) {
+	t.Helper()
+
 	var gcsConfig remote.RemoteStateConfigGCS
 	gcsClient, err := remote.CreateGCSClient(gcsConfig)
 	if err != nil {
@@ -5120,6 +5199,8 @@ func deleteGCSBucket(t *testing.T, bucketName string) {
 }
 
 func fileIsInFolder(t *testing.T, name string, path string) bool {
+	t.Helper()
+
 	found := false
 	err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
 		require.NoError(t, err)
@@ -5133,6 +5214,8 @@ func fileIsInFolder(t *testing.T, name string, path string) bool {
 }
 
 func runValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath string, includeModulePaths []string, strictInclude bool) []string {
+	t.Helper()
+
 	cmd_parts := []string{
 		"terragrunt", "run-all", "validate",
 		"--terragrunt-non-interactive",
