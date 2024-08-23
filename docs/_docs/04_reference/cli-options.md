@@ -1002,6 +1002,7 @@ module, not its dependencies.
 ### terragrunt-include-dir
 
 **CLI Arg**: `--terragrunt-include-dir`<br/>
+**Environment Variable**: `TERRAGRUNT_INCLUDE_DIR`<br/>
 **Requires an argument**: `--terragrunt-include-dir /path/to/dirs/to/include*`<br/>
 
 Can be supplied multiple times: `--terragrunt-include-dir /path/to/dirs/to/include --terragrunt-include-dir /another/path/to/dirs/to/include`
