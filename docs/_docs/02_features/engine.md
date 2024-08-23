@@ -61,7 +61,6 @@ Specify a local absolute path as the source:
 ```hcl
 engine {
    source  = "/home/users/iac-engines/terragrunt-iac-engine-opentofu_v0.0.1"
-  }
 }
 ```
 
