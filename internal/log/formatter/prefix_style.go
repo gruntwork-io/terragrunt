@@ -41,9 +41,11 @@ func (prefix *prefixStyle) ColorFunc(prefixName string) ColorFunc {
 	if prefix.nextStyleIndex >= len(prefix.availableStyles) {
 		prefix.nextStyleIndex = 0
 	}
+
 	colorFunc := prefix.availableStyles[prefix.nextStyleIndex].ColorFunc()
 
 	prefix.cache.Store(prefixName, colorFunc)
+
 	prefix.nextStyleIndex++
 
 	return colorFunc
