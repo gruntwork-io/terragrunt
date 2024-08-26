@@ -109,7 +109,7 @@ func RunShellCommandWithOutput(
 		"args":    fmt.Sprintf("%v", args),
 		"dir":     commandDir,
 	}, func(childCtx context.Context) error {
-		terragruntOptions.Logger.Infof("Running command: %s %s", command, strings.Join(args, " "))
+		terragruntOptions.Logger.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 
 		if suppressStdout {
 			terragruntOptions.Logger.Debugf("Command output will be suppressed.")
@@ -151,33 +151,34 @@ func RunShellCommandWithOutput(
 			terragruntOptions.TerraformPath,
 		), &stderrBuf)
 
-		var cmdStdout io.Writer
+		cmdStdout := io.MultiWriter(&stdoutBuf)
 
 		if !suppressStdout {
-			if !terragruntOptions.PrintRawModuleOutput && len(args) > 0 && !strings.EqualFold(args[0], terraform.CommandNameOutput) {
-				// do not add prefix if args contains `-json` flag
-				var jsonOutput bool
+			// display TF stdout as is (without wrapping to TG log) if args contains `-json` flag or `output` command is specified
+			var rawStdout bool
 
-				for _, arg := range args {
-					if strings.EqualFold(arg, terraform.FlagNameJSON) {
-						jsonOutput = true
-						break
-					}
-				}
-
-				if !jsonOutput {
-					outWriter = log.TFStdoutWriter(
-						outWriter,
-						terragruntOptions.Logger.Logger.Formatter,
-						terragruntOptions.OutputPrefix,
-						terragruntOptions.TerraformPath,
-					)
+			for i, arg := range args {
+				if (i == 0 && strings.EqualFold(arg, terraform.CommandNameOutput)) || strings.EqualFold(arg, terraform.FlagNameJSON) {
+					rawStdout = true
+					break
 				}
 			}
 
+			if terragruntOptions.PrintRawModuleOutput || rawStdout {
+				outWriter = log.WriterNotifier(outWriter, func(p []byte) {
+					//terragruntOptions.Logger.Debugf("Retrieved output from %s as json: %s", terragruntOptions.RelativeTerragruntConfigPath, jsonString)
+					terragruntOptions.Logger.Debugf("Retrieved output from %s", terragruntOptions.RelativeTerragruntConfigPath)
+				})
+			} else {
+				outWriter = log.TFStdoutWriter(
+					outWriter,
+					terragruntOptions.Logger.Logger.Formatter,
+					terragruntOptions.OutputPrefix,
+					terragruntOptions.TerraformPath,
+				)
+			}
+
 			cmdStdout = io.MultiWriter(outWriter, &stdoutBuf)
-		} else {
-			cmdStdout = io.MultiWriter(&stdoutBuf)
 		}
 
 		if command == terragruntOptions.TerraformPath && terragruntOptions.Engine != nil && !engine.IsEngineEnabled() {

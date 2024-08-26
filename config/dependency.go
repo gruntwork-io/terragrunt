@@ -858,7 +858,7 @@ func getTerragruntOutputJsonFromInitFolder(ctx *ParsingContext, terraformWorking
 	jsonString := strings.TrimSpace(out.Stdout)
 	jsonBytes := []byte(jsonString)
 
-	ctx.TerragruntOptions.Logger.Debugf("Retrieved output from %s as json: %s", targetTGOptions.RelativeTerragruntConfigPath, jsonString)
+	ctx.TerragruntOptions.Logger.Debugf("Json output: %s", jsonString)
 
 	return jsonBytes, nil
 }
@@ -969,7 +969,7 @@ func getTerragruntOutputJsonFromRemoteState(
 
 	jsonString := strings.TrimSpace(out.Stdout)
 	jsonBytes := []byte(jsonString)
-	ctx.TerragruntOptions.Logger.Debugf("Retrieved output from %s as json: %s", targetTGOptions.RelativeTerragruntConfigPath, jsonString)
+	ctx.TerragruntOptions.Logger.Debugf("Json output: %s", jsonString)
 
 	return jsonBytes, nil
 }
@@ -1084,12 +1084,7 @@ func runTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, 
 	jsonString := strings.TrimSpace(stdoutBuffer.String())
 	jsonBytes := []byte(jsonString)
 
-	targetOpts, err := cloneTerragruntOptionsForDependency(ctx, targetConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	ctx.TerragruntOptions.Logger.Debugf("Retrieved output from %s as json: %s", targetOpts.RelativeTerragruntConfigPath, jsonString)
+	ctx.TerragruntOptions.Logger.Debugf("Json output: %s", jsonString)
 
 	return jsonBytes, nil
 }

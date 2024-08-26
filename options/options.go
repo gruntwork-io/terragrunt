@@ -515,9 +515,11 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		return nil, err
 	}
 
-	outputPrefix := filepath.Dir(relTerragruntConfigPath)
+	var outputPrefix string
+	if filepath.Dir(terragruntConfigPath) != opts.RootWorkingDir {
+		outputPrefix = filepath.Dir(relTerragruntConfigPath)
+	}
 	logger := util.CreateLogEntryWithWriter(opts.ErrWriter, outputPrefix, opts.LogLevel, opts.Logger.Logger.Hooks, opts.LogPrefixStyle, opts.DisableLogColors, opts.DisableLogFormatting)
-	logger.Logger.SetFormatter(opts.Logger.Logger.Formatter)
 
 	// Note that we clone lists and maps below as TerragruntOptions may be used and modified concurrently in the code
 	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367

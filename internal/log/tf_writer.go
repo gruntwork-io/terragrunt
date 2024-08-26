@@ -17,6 +17,14 @@ const tfTimestampFormat = "2006-01-02T15:04:05.000-0700"
 
 var extractTimeAndLevelReg = regexp.MustCompile(`(\S+)\s*\[(\S+)\]\s*(.+\S)`)
 
+type tfWriter struct {
+	io.Writer
+	formatter logrus.Formatter
+	prefix    string
+	tfPath    string
+	isStdout  bool
+}
+
 func TFStdoutWriter(writer io.Writer, formatter logrus.Formatter, prefix, tfpath string) io.Writer {
 	return &tfWriter{
 		Writer:    writer,
@@ -35,14 +43,6 @@ func TFStderrWriter(writer io.Writer, formatter logrus.Formatter, prefix, tfpath
 		tfPath:    tfpath,
 		isStdout:  false,
 	}
-}
-
-type tfWriter struct {
-	io.Writer
-	formatter logrus.Formatter
-	prefix    string
-	tfPath    string
-	isStdout  bool
 }
 
 func (writer *tfWriter) Write(p []byte) (int, error) {
