@@ -166,7 +166,7 @@ func RunShellCommandWithOutput(
 
 			if terragruntOptions.PrintRawModuleOutput || rawStdout {
 				outWriter = util.WriterNotifier(outWriter, func(p []byte) {
-					terragruntOptions.Logger.Debugf("Retrieved output from %s", terragruntOptions.RelativeTerragruntConfigPath)
+					terragruntOptions.Logger.Infof("Retrieved output from %s", terragruntOptions.RelativeTerragruntConfigPath)
 				})
 			} else {
 				outWriter = log.TFStdoutWriter(
