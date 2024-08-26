@@ -129,8 +129,8 @@ const (
 	TerragruntDisableLogFormattingFlagName = "terragrunt-disable-log-formatting"
 	TerragruntDisableLogFormattingEnvName  = "TERRAGRUNT_DISABLE_LOG_FORMATTING"
 
-	TerragruntRawModuleOutputFlagName = "terragrunt-raw-module-output"
-	TerragruntRawModuleOutputEnvName  = "TERRAGRUNT_RAW_MODULE_OUTPUT"
+	TerragruntForwardTFOutputFlagName = "terragrunt-forward-tf-stdout"
+	TerragruntForwardTFOutputEnvName  = "TERRAGRUNT_FORWARD_TF_STDOUT"
 
 	// Terragrunt Provider Cache related flags/envs
 
@@ -362,8 +362,8 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "The option fetchs dependency output directly from the state file instead of init dependencies and running terraform on them.",
 		},
 		&cli.BoolFlag{
-			Name:        TerragruntRawModuleOutputFlagName,
-			EnvVar:      TerragruntRawModuleOutputEnvName,
+			Name:        TerragruntForwardTFOutputFlagName,
+			EnvVar:      TerragruntForwardTFOutputEnvName,
 			Destination: &opts.PrintRawModuleOutput,
 			Usage:       "If specified, the output of OpenTofu/Terraform commands will be printed as is, without being integrated into the Terragrunt log.",
 		},

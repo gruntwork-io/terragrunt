@@ -71,7 +71,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
   - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
   - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
-  - [terragrunt-include-module-prefix (DEPRECATED: use terragrunt-raw-module-output)](#terragrunt-include-module-prefix)
+  - [terragrunt-include-module-prefix (DEPRECATED: use terragrunt-forward-tf-stdout)](#terragrunt-include-module-prefix)
   - [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
   - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
   - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
@@ -86,7 +86,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-out-dir](#terragrunt-out-dir)
   - [terragrunt-json-out-dir](#terragrunt-json-out-dir)
   - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting)
-  - [terragrunt-raw-module-output](#terragrunt-raw-module-output)
+  - [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout)
 
 ## CLI commands
 
@@ -773,7 +773,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
   - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
   - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
   - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
-  - [terragrunt-include-module-prefix (DEPRECATED: use terragrunt-raw-module-output)](#terragrunt-include-module-prefix)
+  - [terragrunt-include-module-prefix (DEPRECATED: use terragrunt-forward-tf-stdout)](#terragrunt-include-module-prefix)
   - [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
   - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
   - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
@@ -788,7 +788,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
   - [terragrunt-out-dir](#terragrunt-out-dir)
   - [terragrunt-json-out-dir](#terragrunt-json-out-dir)
   - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting)
-  - [terragrunt-raw-module-output](#terragrunt-raw-module-output)
+  - [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout)
 
 ### terragrunt-config
 
@@ -1281,7 +1281,7 @@ Once this flag has been tested thoroughly, we will consider making it the defaul
 
 ### terragrunt-include-module-prefix
 
-DEPRECATED: Since this behavior has become by default, this flag has been removed. In order to get raw Terraform/OpenTofu output, use [terragrunt-raw-module-output](#terragrunt-raw-module-output).
+DEPRECATED: Since this behavior has become by default, this flag has been removed. In order to get raw Terraform/OpenTofu output, use [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout).
 
 **CLI Arg**: `--terragrunt-include-module-prefix`<br/>
 **Environment Variable**: `TERRAGRUNT_INCLUDE_MODULE_PREFIX` (set to `true`)<br/>
@@ -1463,7 +1463,7 @@ The example of what the log looks like without the `--terragrunt-disable-log-for
 14:19:25.174 STDOUT [app] tofu: OpenTofu will perform the following actions:
 ```
 
-The example of what the log looks like with the `--terragrunt-raw-module-output` flag specified:
+The example of what the log looks like with the `--terragrunt-forward-tf-stdout` flag specified:
 
 ```bash
 time=2024-08-23T11:47:18+03:00 level=info prefix=app msg=Running command: tofu plan -input=false
@@ -1473,14 +1473,14 @@ time=2024-08-23T11:47:18+03:00 level=stdout prefix=app binary=tofu msg=  + creat
 time=2024-08-23T11:47:18+03:00 level=stdout prefix=app binary=tofu msg=OpenTofu will perform the following actions:
 ```
 
-### terragrunt-raw-module-output
+### terragrunt-forward-tf-stdout
 
-**CLI Arg**: `--terragrunt-raw-module-output`<br/>
-**Environment Variable**: `TERRAGRUNT_RAW_MODULE_OUTPUT`<br/>
+**CLI Arg**: `--terragrunt-forward-tf-stdout`<br/>
+**Environment Variable**: `TERRAGRUNT_FORWARD_TF_STDOUT`<br/>
 
 If specified, the output of Terraform/OpenTofu commands will be printed as is. By default, all logs, except when using the `output` command or `-json` flags, are integrated into the Terragrunt log.
 
-The example of what the log looks like without the `--terragrunt-raw-module-output` flag specified:
+The example of what the log looks like without the `--terragrunt-forward-tf-stdout` flag specified:
 
 ```bash
 14:19:25.081 INFO   [app] Running command: tofu plan -input=false
@@ -1490,7 +1490,7 @@ The example of what the log looks like without the `--terragrunt-raw-module-outp
 14:19:25.174 STDOUT [app] tofu: OpenTofu will perform the following actions:
 ```
 
-The example of what the log looks like with the `--terragrunt-raw-module-output` flag specified:
+The example of what the log looks like with the `--terragrunt-forward-tf-stdout` flag specified:
 
 ```bash
 14:19:25.081 INFO   [app] Running command: tofu plan -input=false

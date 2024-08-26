@@ -681,7 +681,7 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INIT_ERROR)
 
-	_, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt apply --no-color --terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-non-interactive --terragrunt-raw-module-output --terragrunt-working-dir "+testPath)
+	_, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt apply --no-color --terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+testPath)
 	require.Error(t, err)
 
 	assert.Contains(t, stderr, "\"msg\":\"Initializing the backend...")
@@ -707,8 +707,8 @@ func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {
 	}{
 		{"--terragrunt-json-log"},
 		{"--terragrunt-json-log --terragrunt-tf-logs-to-json"},
-		{"--terragrunt-raw-module-output"},
-		{"--terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-raw-module-output"},
+		{"--terragrunt-forward-tf-stdout"},
+		{"--terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-forward-tf-stdout"},
 	}
 	for _, testCase := range testCases {
 		testCase := testCase
@@ -739,8 +739,8 @@ func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
 	}{
 		{"--terragrunt-json-log"},
 		{"--terragrunt-json-log --terragrunt-tf-logs-to-json"},
-		{"--terragrunt-raw-module-output"},
-		{"--terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-raw-module-output"},
+		{"--terragrunt-forward-tf-stdout"},
+		{"--terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-forward-tf-stdout"},
 	}
 	for _, testCase := range testCases {
 		testCase := testCase
