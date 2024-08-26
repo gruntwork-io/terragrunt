@@ -775,7 +775,7 @@ func getTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, 
 		ctx.TerragruntOptions.Logger.Debugf("Could not parse remote_state block from target config %s", targetOpts.RelativeTerragruntConfigPath)
 		ctx.TerragruntOptions.Logger.Debugf("Falling back to terragrunt output.")
 
-		return runTerragruntOutputJson(ctx, targetConfig)
+		return runTerragruntOutputJson(ctx)
 	}
 
 	// In optimization mode, see if there is already an init-ed folder that terragrunt can use, and if so, run
@@ -1059,7 +1059,7 @@ func setupTerragruntOptionsForBareTerraform(ctx *ParsingContext, workingDir stri
 
 // runTerragruntOutputJson uses terragrunt running functions to extract the json output from the target config.
 // NOTE: targetTGOptions should be in the ctx of the targetConfig.
-func runTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, error) {
+func runTerragruntOutputJson(ctx *ParsingContext) ([]byte, error) {
 	// Update the stdout buffer so we can capture the output
 	var stdoutBuffer bytes.Buffer
 	stdoutBufferWriter := bufio.NewWriter(&stdoutBuffer)

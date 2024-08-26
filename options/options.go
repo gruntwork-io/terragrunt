@@ -519,6 +519,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 	if filepath.Dir(terragruntConfigPath) != opts.RootWorkingDir {
 		outputPrefix = filepath.Dir(relTerragruntConfigPath)
 	}
+
 	logger := util.CreateLogEntryWithWriter(opts.ErrWriter, outputPrefix, opts.LogLevel, opts.Logger.Logger.Hooks, opts.LogPrefixStyle, opts.DisableLogColors, opts.DisableLogFormatting)
 
 	// Note that we clone lists and maps below as TerragruntOptions may be used and modified concurrently in the code
