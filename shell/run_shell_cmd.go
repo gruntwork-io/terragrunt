@@ -163,6 +163,7 @@ func RunShellCommandWithOutput(
 
 		if suppressStdout {
 			terragruntOptions.Logger.Debugf("Command output will be suppressed.")
+
 			cmdStdout = io.MultiWriter(&stdoutBuf)
 		}
 
