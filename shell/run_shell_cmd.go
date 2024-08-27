@@ -124,13 +124,25 @@ func RunShellCommandWithOutput(
 
 		// redirect output through logger with json wrapping
 		if terragruntOptions.JsonLogFormat && terragruntOptions.TerraformLogsToJson {
-			jsonWriter := terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args)
-			jsonWriter.Logger.Out = outWriter
-			outWriter = jsonWriter.Writer()
+			jsonWriter := util.CreateLogEntryWithWriter(
+				terragruntOptions.Writer,
+				terragruntOptions.OutputPrefix,
+				terragruntOptions.LogLevel,
+				terragruntOptions.Logger.Logger.Hooks,
+				terragruntOptions.LogPrefixStyle,
+				terragruntOptions.DisableLogColors,
+				terragruntOptions.DisableLogFormatting)
+			outWriter = jsonWriter.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args).Writer()
 
-			jsonErrorWriter := terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args)
-			jsonErrorWriter.Logger.Out = errWriter
-			errWriter = jsonErrorWriter.WriterLevel(logrus.ErrorLevel)
+			jsonErrorWriter := util.CreateLogEntryWithWriter(
+				terragruntOptions.ErrWriter,
+				terragruntOptions.OutputPrefix,
+				terragruntOptions.LogLevel,
+				terragruntOptions.Logger.Logger.Hooks,
+				terragruntOptions.LogPrefixStyle,
+				terragruntOptions.DisableLogColors,
+				terragruntOptions.DisableLogFormatting)
+			errWriter = jsonErrorWriter.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args).WriterLevel(logrus.ErrorLevel)
 		} else {
 			errWriter = log.TFStderrWriter(
 				errWriter,
