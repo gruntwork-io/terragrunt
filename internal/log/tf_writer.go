@@ -10,6 +10,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/internal/log/formatter"
+	"github.com/mgutz/ansi"
 	"github.com/sirupsen/logrus"
 )
 
@@ -102,6 +103,7 @@ func (writer *tfWriter) Write(p []byte) (int, error) {
 		}
 
 		msgs = append(msgs, b...)
+		msgs = append(msgs, []byte(ansi.Reset)...)
 	}
 
 	if _, err := writer.Writer.Write(msgs); err != nil {
