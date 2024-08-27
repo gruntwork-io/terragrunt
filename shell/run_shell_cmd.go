@@ -111,10 +111,6 @@ func RunShellCommandWithOutput(
 	}, func(childCtx context.Context) error {
 		terragruntOptions.Logger.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 
-		if suppressStdout {
-			terragruntOptions.Logger.Debugf("Command output will be suppressed.")
-		}
-
 		cmd := exec.Command(command, args...)
 
 		// TODO: consider adding prefix from terragruntOptions logger to stdout and stderr
@@ -124,12 +120,6 @@ func RunShellCommandWithOutput(
 		var (
 			outWriter = terragruntOptions.Writer
 			errWriter = terragruntOptions.ErrWriter
-
-			stdoutBuf bytes.Buffer
-			stderrBuf bytes.Buffer
-
-			cmdStderr io.Writer
-			cmdStdout io.Writer
 		)
 
 		// redirect output through logger with json wrapping
@@ -138,15 +128,9 @@ func RunShellCommandWithOutput(
 			jsonErrorWriter.Logger.Out = errWriter
 			errWriter = jsonErrorWriter.WriterLevel(logrus.ErrorLevel)
 
-			cmdStderr = io.MultiWriter(errWriter, &stderrBuf)
-			cmdStdout = io.MultiWriter(&stdoutBuf)
-
-			if !suppressStdout {
-				jsonWriter := terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args)
-				jsonWriter.Logger.Out = outWriter
-				outWriter = jsonWriter.Writer()
-				cmdStdout = io.MultiWriter(outWriter, &stdoutBuf)
-			}
+			jsonWriter := terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args)
+			jsonWriter.Logger.Out = outWriter
+			outWriter = jsonWriter.Writer()
 		} else {
 			errWriter = log.TFStderrWriter(
 				errWriter,
@@ -155,25 +139,31 @@ func RunShellCommandWithOutput(
 				terragruntOptions.TerraformPath,
 			)
 
-			cmdStderr = io.MultiWriter(errWriter, &stderrBuf)
-			cmdStdout = io.MultiWriter(&stdoutBuf)
-
-			if !suppressStdout {
-				if terragruntOptions.ForwardTFStdout || shouldForwardTFStdout(args) {
-					outWriter = util.WriterNotifier(outWriter, func(p []byte) {
-						terragruntOptions.Logger.Infof("Retrieved output from %s", terragruntOptions.RelativeTerragruntConfigPath)
-					})
-				} else {
-					outWriter = log.TFStdoutWriter(
-						outWriter,
-						terragruntOptions.Logger.Logger.Formatter,
-						terragruntOptions.OutputPrefix,
-						terragruntOptions.TerraformPath,
-					)
-				}
-
-				cmdStdout = io.MultiWriter(outWriter, &stdoutBuf)
+			if terragruntOptions.ForwardTFStdout || shouldForwardTFStdout(args) {
+				outWriter = util.WriterNotifier(outWriter, func(p []byte) {
+					terragruntOptions.Logger.Infof("Retrieved output from %s", terragruntOptions.RelativeTerragruntConfigPath)
+				})
+			} else {
+				outWriter = log.TFStdoutWriter(
+					outWriter,
+					terragruntOptions.Logger.Logger.Formatter,
+					terragruntOptions.OutputPrefix,
+					terragruntOptions.TerraformPath,
+				)
 			}
+		}
+
+		var (
+			stdoutBuf bytes.Buffer
+			stderrBuf bytes.Buffer
+
+			cmdStderr = io.MultiWriter(errWriter, &stderrBuf)
+			cmdStdout = io.MultiWriter(outWriter, &stdoutBuf)
+		)
+
+		if suppressStdout {
+			terragruntOptions.Logger.Debugf("Command output will be suppressed.")
+			cmdStdout = io.MultiWriter(&stdoutBuf)
 		}
 
 		if command == terragruntOptions.TerraformPath && terragruntOptions.Engine != nil && !engine.IsEngineEnabled() {
