@@ -115,69 +115,66 @@ func RunShellCommandWithOutput(
 			terragruntOptions.Logger.Debugf("Command output will be suppressed.")
 		}
 
-		var (
-			stdoutBuf bytes.Buffer
-			stderrBuf bytes.Buffer
-		)
-
 		cmd := exec.Command(command, args...)
 
 		// TODO: consider adding prefix from terragruntOptions logger to stdout and stderr
 		cmd.Env = toEnvVarsList(terragruntOptions.Env)
+		cmd.Dir = commandDir
 
 		var (
 			outWriter = terragruntOptions.Writer
 			errWriter = terragruntOptions.ErrWriter
+
+			stdoutBuf bytes.Buffer
+			stderrBuf bytes.Buffer
+
+			cmdStderr io.Writer
+			cmdStdout io.Writer
 		)
 
 		// redirect output through logger with json wrapping
 		if terragruntOptions.JsonLogFormat && terragruntOptions.TerraformLogsToJson {
-			jsonWriter := terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args)
-			jsonWriter.Logger.Out = outWriter
-			outWriter = jsonWriter.Writer()
-
 			jsonErrorWriter := terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args)
 			jsonErrorWriter.Logger.Out = errWriter
 			errWriter = jsonErrorWriter.WriterLevel(logrus.ErrorLevel)
-		}
 
-		cmd.Dir = commandDir
+			cmdStderr = io.MultiWriter(errWriter, &stderrBuf)
+			cmdStdout = io.MultiWriter(&stdoutBuf)
 
-		// Inspired by https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
-		cmdStderr := io.MultiWriter(log.TFStderrWriter(
-			errWriter,
-			terragruntOptions.Logger.Logger.Formatter,
-			terragruntOptions.OutputPrefix,
-			terragruntOptions.TerraformPath,
-		), &stderrBuf)
+			if !suppressStdout {
+				jsonWriter := terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args)
+				jsonWriter.Logger.Out = outWriter
+				outWriter = jsonWriter.Writer()
+				cmdStdout = io.MultiWriter(outWriter, &stdoutBuf)
+			}
+		} else {
+			// Inspired by https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
+			errWriter = log.TFStderrWriter(
+				errWriter,
+				terragruntOptions.Logger.Logger.Formatter,
+				terragruntOptions.OutputPrefix,
+				terragruntOptions.TerraformPath,
+			)
 
-		cmdStdout := io.MultiWriter(&stdoutBuf)
+			cmdStderr = io.MultiWriter(errWriter, &stdoutBuf)
+			cmdStdout = io.MultiWriter(&stdoutBuf)
 
-		if !suppressStdout {
-			// display TF stdout as is (without wrapping to TG log) if args contains `-json` flag or `output` command is specified
-			var rawStdout bool
-
-			for i, arg := range args {
-				if (i == 0 && strings.EqualFold(arg, terraform.CommandNameOutput)) || strings.EqualFold(arg, terraform.FlagNameJSON) {
-					rawStdout = true
-					break
+			if !suppressStdout {
+				if terragruntOptions.ForwardTFStdout || shouldForwardTFStdout(args) {
+					outWriter = util.WriterNotifier(outWriter, func(p []byte) {
+						terragruntOptions.Logger.Infof("Retrieved output from %s", terragruntOptions.RelativeTerragruntConfigPath)
+					})
+				} else {
+					outWriter = log.TFStdoutWriter(
+						outWriter,
+						terragruntOptions.Logger.Logger.Formatter,
+						terragruntOptions.OutputPrefix,
+						terragruntOptions.TerraformPath,
+					)
 				}
-			}
 
-			if terragruntOptions.PrintRawModuleOutput || rawStdout {
-				outWriter = util.WriterNotifier(outWriter, func(p []byte) {
-					terragruntOptions.Logger.Infof("Retrieved output from %s", terragruntOptions.RelativeTerragruntConfigPath)
-				})
-			} else {
-				outWriter = log.TFStdoutWriter(
-					outWriter,
-					terragruntOptions.Logger.Logger.Formatter,
-					terragruntOptions.OutputPrefix,
-					terragruntOptions.TerraformPath,
-				)
+				cmdStdout = io.MultiWriter(outWriter, &stdoutBuf)
 			}
-
-			cmdStdout = io.MultiWriter(outWriter, &stdoutBuf)
 		}
 
 		if command == terragruntOptions.TerraformPath && terragruntOptions.Engine != nil && !engine.IsEngineEnabled() {
@@ -441,4 +438,15 @@ func extractSemVerTags(tags []string) []*version.Version {
 	}
 
 	return semverTags
+}
+
+// shouldForwardTFStdout returns true if args contains `-json` flag or `output` command is specified as the first arg.
+func shouldForwardTFStdout(args []string) bool {
+	for i, arg := range args {
+		if (i == 0 && strings.EqualFold(arg, terraform.CommandNameOutput)) || strings.EqualFold(arg, terraform.FlagNameJSON) {
+			return true
+		}
+	}
+
+	return false
 }

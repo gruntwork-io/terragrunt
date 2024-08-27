@@ -131,7 +131,7 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 			}
 
 			stdout := bytes.Buffer{}
-			jsonOptions.PrintRawModuleOutput = true
+			jsonOptions.ForwardTFStdout = true
 			jsonOptions.TerraformLogsToJson = false
 			jsonOptions.OutputPrefix = ""
 			jsonOptions.Writer = &stdout

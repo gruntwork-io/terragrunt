@@ -218,6 +218,7 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 }
 
 // GetPathRelativeToWithSeparator is a wrapper for the `GetPathRelativeTo` func, and appends a separator, if the relative path consists only of a dot.
+// The function is intended for use in logs, and so that a path with single dot would not seem like the end of a sentence, we add trail slash.
 func GetPathRelativeToWithSeparator(path string, basePath string) (string, error) {
 	relPath, err := GetPathRelativeTo(path, basePath)
 	if err != nil {
