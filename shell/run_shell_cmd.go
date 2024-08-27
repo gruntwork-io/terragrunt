@@ -124,13 +124,13 @@ func RunShellCommandWithOutput(
 
 		// redirect output through logger with json wrapping
 		if terragruntOptions.JsonLogFormat && terragruntOptions.TerraformLogsToJson {
-			jsonErrorWriter := terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args)
-			jsonErrorWriter.Logger.Out = errWriter
-			errWriter = jsonErrorWriter.WriterLevel(logrus.ErrorLevel)
-
 			jsonWriter := terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args)
 			jsonWriter.Logger.Out = outWriter
 			outWriter = jsonWriter.Writer()
+
+			jsonErrorWriter := terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args)
+			jsonErrorWriter.Logger.Out = errWriter
+			errWriter = jsonErrorWriter.WriterLevel(logrus.ErrorLevel)
 		} else {
 			errWriter = log.TFStderrWriter(
 				errWriter,
