@@ -35,8 +35,8 @@ const (
 
 // terragruntIncludeMultiple is a struct that can be used to only decode the include block with labels.
 type terragruntIncludeMultiple struct {
-	Include []IncludeConfig `hcl:"include,block"`
-	Remain  hcl.Body        `hcl:",remain"`
+	Include IncludeConfigs `hcl:"include,block"`
+	Remain  hcl.Body       `hcl:",remain"`
 }
 
 // terragruntDependencies is a struct that can be used to only decode the dependencies block.
@@ -120,6 +120,16 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 		return nil, nil, err
 	}
 
+	if err := terragruntIncludeList.UpdateRelativePaths(ctx.TerragruntOptions.RootWorkingDir); err != nil {
+		return nil, nil, err
+	}
+
+	if includeFromChild != nil {
+		if err := includeFromChild.UpdateRelativePath(ctx.TerragruntOptions.RootWorkingDir); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	trackInclude, err := getTrackInclude(ctx, terragruntIncludeList, includeFromChild)
 	if err != nil {
 		return nil, nil, err
@@ -174,14 +184,14 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File,
 	terragruntConfigCache := cache.ContextCache[*TerragruntConfig](ctx, RunCmdCacheContextKey)
 	if ctx.TerragruntOptions.UsePartialParseConfigCache {
 		if config, found := terragruntConfigCache.Get(ctx, cacheKey); found {
-			ctx.TerragruntOptions.Logger.Debugf("Cache hit for '%s' (partial parsing), decodeList: '%v'.", file.ConfigPath, ctx.PartialParseDecodeList)
+			ctx.TerragruntOptions.Logger.Debugf("Cache hit for '%s' (partial parsing), decodeList: '%v'.", ctx.TerragruntOptions.RelativeTerragruntConfigPath, ctx.PartialParseDecodeList)
 
 			deepCopy := clone.Clone(config).(*TerragruntConfig)
 
 			return deepCopy, nil
 		}
 
-		ctx.TerragruntOptions.Logger.Debugf("Cache miss for '%s' (partial parsing), decodeList: '%v'.", file.ConfigPath, ctx.PartialParseDecodeList)
+		ctx.TerragruntOptions.Logger.Debugf("Cache miss for '%s' (partial parsing), decodeList: '%v'.", ctx.TerragruntOptions.RelativeTerragruntConfigPath, ctx.PartialParseDecodeList)
 	}
 
 	config, err := PartialParseConfig(ctx, file, includeFromChild)
@@ -446,7 +456,7 @@ func partialParseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConf
 // the config.
 // For consistency, `include` in the call to `file.Decode` is always assumed to be nil. Either it really is nil (parsing
 // the child config), or it shouldn't be used anyway (the parent config shouldn't have an include block).
-func decodeAsTerragruntInclude(file *hclparse.File, evalParsingContext *hcl.EvalContext) ([]IncludeConfig, error) {
+func decodeAsTerragruntInclude(file *hclparse.File, evalParsingContext *hcl.EvalContext) (IncludeConfigs, error) {
 	tgInc := terragruntIncludeMultiple{}
 	if err := file.Decode(&tgInc, evalParsingContext); err != nil {
 		return nil, err

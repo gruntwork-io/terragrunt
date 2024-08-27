@@ -15,8 +15,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/log"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/terraform/cache"
@@ -202,7 +202,11 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 		return nil, err
 	}
 
-	cloneOpts := opts.Clone(opts.TerragruntConfigPath)
+	cloneOpts, err := opts.Clone(opts.TerragruntConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
 	cloneOpts.WorkingDir = opts.WorkingDir
 	cloneOpts.Env = envs
 
@@ -300,7 +304,11 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 		args = append(args, terraform.FlagNameNoColor)
 	}
 
-	cloneOpts := opts.Clone(opts.TerragruntConfigPath)
+	cloneOpts, err := opts.Clone(opts.TerragruntConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
 	cloneOpts.Writer = io.Discard
 	cloneOpts.ErrWriter = errWriter
 	cloneOpts.WorkingDir = opts.WorkingDir

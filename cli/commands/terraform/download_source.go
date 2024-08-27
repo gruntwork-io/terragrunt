@@ -54,7 +54,10 @@ func downloadTerraformSource(ctx context.Context, source string, terragruntOptio
 		return nil, err
 	}
 
-	updatedTerragruntOptions := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	updatedTerragruntOptions, err := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	if err != nil {
+		return nil, err
+	}
 
 	terragruntOptions.Logger.Debugf("Setting working directory to %s", terraformSource.WorkingDir)
 	updatedTerragruntOptions.WorkingDir = terraformSource.WorkingDir
@@ -100,7 +103,11 @@ func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *te
 	// When downloading source, we need to process any hooks waiting on `init-from-module`. Therefore, we clone the
 	// options struct, set the command to the value the hooks are expecting, and run the download action surrounded by
 	// before and after hooks (if any).
-	terragruntOptionsForDownload := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	terragruntOptionsForDownload, err := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	if err != nil {
+		return err
+	}
+
 	terragruntOptionsForDownload.TerraformCommand = terraform.CommandNameInitFromModule
 	downloadErr := runActionWithHooks(ctx, "download source", terragruntOptionsForDownload, terragruntConfig, func(ctx context.Context) error {
 		return downloadSource(terraformSource, terragruntOptions, terragruntConfig)

@@ -6,6 +6,9 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// BoolFlag implements Flag
+var _ Flag = new(BoolFlag)
+
 type BoolFlag struct {
 	flag
 
@@ -26,6 +29,8 @@ type BoolFlag struct {
 	Destination *bool
 	// If set to true, then the assigned flag value will be inverted
 	Negative bool
+	// Hidden hides the flag from the help, if set to true.
+	Hidden bool
 }
 
 // Apply applies Flag settings to the given flag set.
@@ -43,6 +48,11 @@ func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
 	}
 
 	return nil
+}
+
+// GetHidden returns true if the flag should be hidden from the help.
+func (flag *BoolFlag) GetHidden() bool {
+	return flag.Hidden
 }
 
 // GetUsage returns the usage string for the flag.

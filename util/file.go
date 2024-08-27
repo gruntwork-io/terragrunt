@@ -18,7 +18,6 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/mattn/go-zglob"
 	homedir "github.com/mitchellh/go-homedir"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -216,6 +215,21 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 	}
 
 	return filepath.ToSlash(relPath), nil
+}
+
+// GetPathRelativeToWithSeparator is a wrapper for the `GetPathRelativeTo` func, and appends a separator, if the relative path consists only of a dot.
+// The function is intended for use in logs, and so that a path with single dot would not seem like the end of a sentence, we add trail slash.
+func GetPathRelativeToWithSeparator(path string, basePath string) (string, error) {
+	relPath, err := GetPathRelativeTo(path, basePath)
+	if err != nil {
+		return relPath, err
+	}
+
+	if relPath == "." {
+		relPath += string(filepath.Separator)
+	}
+
+	return relPath, nil
 }
 
 // Return the contents of the file at the given path as a string
@@ -627,20 +641,6 @@ type PathIsNotFile struct {
 
 func (err PathIsNotFile) Error() string {
 	return err.path + " is not a file"
-}
-
-// Terraform 0.14 now generates a lock file when you run `terraform init`.
-// If any such file exists, this function will copy the lock file to the destination folder
-func CopyLockFile(sourceFolder string, destinationFolder string, logger *logrus.Entry) error {
-	sourceLockFilePath := JoinPath(sourceFolder, TerraformLockFile)
-	destinationLockFilePath := JoinPath(destinationFolder, TerraformLockFile)
-
-	if FileExists(sourceLockFilePath) {
-		logger.Debugf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
-		return CopyFile(sourceLockFilePath, destinationLockFilePath)
-	}
-
-	return nil
 }
 
 // ListTfFiles returns a list of all TF files in the specified directory.

@@ -15,6 +15,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 
 	"github.com/gruntwork-io/terragrunt/engine"
+	"github.com/gruntwork-io/terragrunt/internal/log"
+	"github.com/gruntwork-io/terragrunt/terraform"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
@@ -109,19 +111,11 @@ func RunShellCommandWithOutput(
 	}, func(childCtx context.Context) error {
 		terragruntOptions.Logger.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 
-		if suppressStdout {
-			terragruntOptions.Logger.Debugf("Command output will be suppressed.")
-		}
-
-		var (
-			stdoutBuf bytes.Buffer
-			stderrBuf bytes.Buffer
-		)
-
 		cmd := exec.Command(command, args...)
 
 		// TODO: consider adding prefix from terragruntOptions logger to stdout and stderr
 		cmd.Env = toEnvVarsList(terragruntOptions.Env)
+		cmd.Dir = commandDir
 
 		var (
 			outWriter = terragruntOptions.Writer
@@ -137,23 +131,39 @@ func RunShellCommandWithOutput(
 			jsonErrorWriter := terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args)
 			jsonErrorWriter.Logger.Out = errWriter
 			errWriter = jsonErrorWriter.WriterLevel(logrus.ErrorLevel)
-		}
-
-		var prefix = ""
-		if terragruntOptions.IncludeModulePrefix {
-			prefix = terragruntOptions.OutputPrefix
-		}
-
-		cmd.Dir = commandDir
-
-		// Inspired by https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
-		cmdStderr := io.MultiWriter(withPrefix(errWriter, prefix), &stderrBuf)
-
-		var cmdStdout io.Writer
-
-		if !suppressStdout {
-			cmdStdout = io.MultiWriter(withPrefix(outWriter, prefix), &stdoutBuf)
 		} else {
+			errWriter = log.TFStderrWriter(
+				errWriter,
+				terragruntOptions.Logger.Logger.Formatter,
+				terragruntOptions.OutputPrefix,
+				terragruntOptions.TerraformPath,
+			)
+
+			if terragruntOptions.ForwardTFStdout || shouldForceForwardTFStdout(args) {
+				outWriter = util.WriterNotifier(outWriter, func(p []byte) {
+					terragruntOptions.Logger.Infof("Retrieved output from %s", terragruntOptions.RelativeTerragruntConfigPath)
+				})
+			} else {
+				outWriter = log.TFStdoutWriter(
+					outWriter,
+					terragruntOptions.Logger.Logger.Formatter,
+					terragruntOptions.OutputPrefix,
+					terragruntOptions.TerraformPath,
+				)
+			}
+		}
+
+		var (
+			stdoutBuf bytes.Buffer
+			stderrBuf bytes.Buffer
+
+			cmdStderr = io.MultiWriter(errWriter, &stderrBuf)
+			cmdStdout = io.MultiWriter(outWriter, &stdoutBuf)
+		)
+
+		if suppressStdout {
+			terragruntOptions.Logger.Debugf("Command output will be suppressed.")
+
 			cmdStdout = io.MultiWriter(&stdoutBuf)
 		}
 
@@ -217,7 +227,7 @@ func RunShellCommandWithOutput(
 		err := cmd.Wait()
 		cmdChannel <- err
 
-		cmdOutput := util.CmdOutput{
+		output = &util.CmdOutput{
 			Stdout: stdoutBuf.String(),
 			Stderr: stderrBuf.String(),
 		}
@@ -230,8 +240,6 @@ func RunShellCommandWithOutput(
 				WorkingDir: cmd.Dir,
 			}
 		}
-
-		output = &cmdOutput
 
 		return errors.WithStackTrace(err)
 	})
@@ -265,14 +273,6 @@ func isTerraformCommandThatNeedsPty(args []string) (bool, error) {
 	}
 
 	return true, nil
-}
-
-func withPrefix(writer io.Writer, prefix string) io.Writer {
-	if prefix == "" {
-		return writer
-	}
-
-	return util.PrefixedWriter(writer, prefix)
 }
 
 type SignalsForwarder chan os.Signal
@@ -428,4 +428,15 @@ func extractSemVerTags(tags []string) []*version.Version {
 	}
 
 	return semverTags
+}
+
+// shouldForceForwardTFStdout returns true if args contains `-json` flag or `output` command is specified as the first arg.
+func shouldForceForwardTFStdout(args []string) bool {
+	for i, arg := range args {
+		if (i == 0 && strings.EqualFold(arg, terraform.CommandNameOutput)) || strings.EqualFold(arg, terraform.FlagNameJSON) {
+			return true
+		}
+	}
+
+	return false
 }

@@ -11,24 +11,24 @@ import (
 const (
 	CommandName = "hclvalidate"
 
-	ShowConfigPathFlagName   = "terragrunt-hclvalidate-show-config-path"
-	ShowConfigPathEnvVarName = "TERRAGRUNT_HCLVALIDATE_SHOW_CONFIG_PATH"
+	ShowConfigPathFlagName = "terragrunt-hclvalidate-show-config-path"
+	ShowConfigPathEnvName  = "TERRAGRUNT_HCLVALIDATE_SHOW_CONFIG_PATH"
 
-	JSONOutputFlagName   = "terragrunt-hclvalidate-json"
-	JSONOutputEnvVarName = "TERRAGRUNT_HCLVALIDATE_JSON"
+	JSONOutputFlagName = "terragrunt-hclvalidate-json"
+	JSONOutputEnvName  = "TERRAGRUNT_HCLVALIDATE_JSON"
 )
 
 func NewFlags(opts *Options) cli.Flags {
 	return cli.Flags{
 		&cli.BoolFlag{
 			Name:        ShowConfigPathFlagName,
-			EnvVar:      ShowConfigPathEnvVarName,
+			EnvVar:      ShowConfigPathEnvName,
 			Usage:       "Show a list of files with invalid configuration.",
 			Destination: &opts.ShowConfigPath,
 		},
 		&cli.BoolFlag{
 			Name:        JSONOutputFlagName,
-			EnvVar:      JSONOutputEnvVarName,
+			EnvVar:      JSONOutputEnvName,
 			Destination: &opts.JSONOutput,
 			Usage:       "Output the result in JSON format.",
 		},

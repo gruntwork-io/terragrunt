@@ -237,7 +237,11 @@ func decodeDependencies(ctx *ParsingContext, decodedDependency TerragruntDepende
 
 			cachedDependency, found := depCache.Get(ctx, cacheKey)
 			if !found {
-				depOpts := cloneTerragruntOptionsForDependency(ctx, depPath)
+				depOpts, err := cloneTerragruntOptionsForDependency(ctx, depPath)
+				if err != nil {
+					return nil, err
+				}
+
 				depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
 
 				if depConfig, err := PartialParseConfigFile(depCtx, depPath, nil); err == nil {
@@ -306,9 +310,14 @@ func checkForDependencyBlockCycles(ctx *ParsingContext, configPath string, decod
 		}
 
 		dependencyPath := getCleanedTargetConfigPath(dependency.ConfigPath.AsString(), configPath)
-		dependencyConetxt := ctx.WithTerragruntOptions(cloneTerragruntOptionsForDependency(ctx, dependencyPath))
+		dependencyOpts, err := cloneTerragruntOptionsForDependency(ctx, dependencyPath)
 
-		if err := checkForDependencyBlockCyclesUsingDFS(dependencyConetxt, dependencyPath, &visitedPaths, &currentTraversalPaths); err != nil {
+		if err != nil {
+			return err
+		}
+
+		dependencyContext := ctx.WithTerragruntOptions(dependencyOpts)
+		if err := checkForDependencyBlockCyclesUsingDFS(dependencyContext, dependencyPath, &visitedPaths, &currentTraversalPaths); err != nil {
 			return err
 		}
 	}
@@ -343,9 +352,14 @@ func checkForDependencyBlockCyclesUsingDFS(
 
 	for _, dependency := range dependencyPaths {
 		dependencyPath := getCleanedTargetConfigPath(dependency, dependencyPath)
-		dependencyConetxt := ctx.WithTerragruntOptions(cloneTerragruntOptionsForDependency(ctx, dependencyPath))
 
-		if err := checkForDependencyBlockCyclesUsingDFS(dependencyConetxt, dependencyPath, visitedPaths, currentTraversalPaths); err != nil {
+		dependencyOpts, err := cloneTerragruntOptionsForDependency(ctx, dependencyPath)
+		if err != nil {
+			return err
+		}
+
+		dependencyContext := ctx.WithTerragruntOptions(dependencyOpts)
+		if err := checkForDependencyBlockCyclesUsingDFS(dependencyContext, dependencyPath, visitedPaths, currentTraversalPaths); err != nil {
 			return err
 		}
 	}
@@ -487,11 +501,15 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, depe
 	// return error.
 	targetConfig := getCleanedTargetConfigPath(dependencyConfig.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
 
-	currentConfig := ctx.TerragruntOptions.TerragruntConfigPath
+	targetOpts, err := cloneTerragruntOptionsForDependency(ctx, targetConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	if dependencyConfig.shouldReturnMockOutputs(ctx) {
-		ctx.TerragruntOptions.Logger.Debugf("WARNING: config %s is a dependency of %s that has no outputs, but mock outputs provided and returning those in dependency output.",
-			targetConfig,
-			currentConfig,
+		ctx.TerragruntOptions.Logger.Warnf("Config %s is a dependency of %s that has no outputs, but mock outputs provided and returning those in dependency output.",
+			targetOpts.RelativeTerragruntConfigPath,
+			ctx.TerragruntOptions.RelativeTerragruntConfigPath,
 		)
 
 		return dependencyConfig.MockOutputs, nil
@@ -500,9 +518,9 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, depe
 	// At this point, we expect outputs to exist because there is a `dependency` block without skip_outputs = true, and
 	// returning mocks is not allowed. So return a useful error message indicating that we expected outputs, but they
 	// did not exist.
-	err := TerragruntOutputTargetNoOutputs{
-		targetConfig:  targetConfig,
-		currentConfig: currentConfig,
+	err = TerragruntOutputTargetNoOutputs{
+		targetConfig:  targetOpts.RelativeTerragruntConfigPath,
+		currentConfig: ctx.TerragruntOptions.RelativeTerragruntConfigPath,
 	}
 
 	return nil, err
@@ -587,16 +605,21 @@ func getOutputJsonWithCaching(ctx *ParsingContext, targetConfig string) ([]byte,
 	defer actualLock.Unlock()
 	actualLock.Lock()
 
+	targetOpts, err := cloneTerragruntOptionsForDependency(ctx, targetConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	// This debug log is useful for validating if the locking mechanism is working. If the locking mechanism is working,
 	// we should only see one pair of logs at a time that begin with this statement, and then the relevant "terraform
 	// output" log for the dependency.
-	ctx.TerragruntOptions.Logger.Debugf("Getting output of dependency %s for config %s", targetConfig, ctx.TerragruntOptions.TerragruntConfigPath)
+	ctx.TerragruntOptions.Logger.Debugf("Getting output of dependency %s for config %s", targetOpts.RelativeTerragruntConfigPath, ctx.TerragruntOptions.RelativeTerragruntConfigPath)
 
 	// Look up if we have already run terragrunt output for this target config
 	rawJsonBytes, hasRun := jsonOutputCache.Load(targetConfig)
 	if hasRun {
 		// Cache hit, so return cached output
-		ctx.TerragruntOptions.Logger.Debugf("%s was run before. Using cached output.", targetConfig)
+		ctx.TerragruntOptions.Logger.Debugf("%s was run before. Using cached output.", targetOpts.RelativeTerragruntConfigPath)
 		return rawJsonBytes.([]byte), nil
 	}
 
@@ -624,8 +647,12 @@ func getOutputJsonWithCaching(ctx *ParsingContext, targetConfig string) ([]byte,
 // - The original config path to the dependency module's config
 //
 // That way, everything in that dependnecy happens within its own ctx.
-func cloneTerragruntOptionsForDependency(ctx *ParsingContext, targetConfigPath string) *options.TerragruntOptions {
-	targetOptions := ctx.TerragruntOptions.Clone(targetConfigPath)
+func cloneTerragruntOptionsForDependency(ctx *ParsingContext, targetConfigPath string) (*options.TerragruntOptions, error) {
+	targetOptions, err := ctx.TerragruntOptions.Clone(targetConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
 	targetOptions.OriginalTerragruntConfigPath = targetConfigPath
 
 	// `needUpdateDownloadDir` is true if `DownloadDir` was not explicitly specified by the user and we need to assign the default download dir, otherwise leave as is.
@@ -640,13 +667,17 @@ func cloneTerragruntOptionsForDependency(ctx *ParsingContext, targetConfigPath s
 		targetOptions.IAMRoleOptions = options.IAMRoleOptions{}
 	}
 
-	return targetOptions
+	return targetOptions, nil
 }
 
 // Clone terragrunt options and update ctx for dependency block so that the outputs can be read correctly
 func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, targetConfig string) (*options.TerragruntOptions, error) {
-	targetOptions := cloneTerragruntOptionsForDependency(ctx, targetConfig)
-	targetOptions.IncludeModulePrefix = false
+	targetOptions, err := cloneTerragruntOptionsForDependency(ctx, targetConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	targetOptions.ForwardTFStdout = false
 	// just read outputs, so no need to check for dependent modules
 	targetOptions.CheckDependentModules = false
 	targetOptions.TerraformCommand = "output"
@@ -736,10 +767,15 @@ func getTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, 
 
 	remoteStateTGConfig, err := PartialParseConfigFile(ctx.WithParseOption(parseOptions).WithDecodeList(RemoteStateBlock, TerragruntFlags), targetConfig, nil)
 	if err != nil || !canGetRemoteState(remoteStateTGConfig.RemoteState) {
-		ctx.TerragruntOptions.Logger.Debugf("Could not parse remote_state block from target config %s", targetConfig)
+		targetOpts, err := cloneTerragruntOptionsForDependency(ctx, targetConfig)
+		if err != nil {
+			return nil, err
+		}
+
+		ctx.TerragruntOptions.Logger.Debugf("Could not parse remote_state block from target config %s", targetOpts.RelativeTerragruntConfigPath)
 		ctx.TerragruntOptions.Logger.Debugf("Falling back to terragrunt output.")
 
-		return runTerragruntOutputJson(ctx, targetConfig)
+		return runTerragruntOutputJson(ctx)
 	}
 
 	// In optimization mode, see if there is already an init-ed folder that terragrunt can use, and if so, run
@@ -807,21 +843,22 @@ func terragruntAlreadyInit(terragruntOptions *options.TerragruntOptions, configP
 func getTerragruntOutputJsonFromInitFolder(ctx *ParsingContext, terraformWorkingDir string, iamRoleOpts options.IAMRoleOptions) ([]byte, error) {
 	targetConfigPath := ctx.TerragruntOptions.TerragruntConfigPath
 
-	ctx.TerragruntOptions.Logger.Debugf("Detected module %s is already init-ed. Retrieving outputs directly from working directory.", targetConfigPath)
-
 	targetTGOptions, err := setupTerragruntOptionsForBareTerraform(ctx, terraformWorkingDir, targetConfigPath, iamRoleOpts)
 	if err != nil {
 		return nil, err
 	}
+
+	ctx.TerragruntOptions.Logger.Debugf("Detected module %s is already init-ed. Retrieving outputs directly from working directory.", targetTGOptions.RelativeTerragruntConfigPath)
 
 	out, err := shell.RunTerraformCommandWithOutput(ctx, targetTGOptions, terraform.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
 
-	jsonString := out.Stdout
-	jsonBytes := []byte(strings.TrimSpace(jsonString))
-	ctx.TerragruntOptions.Logger.Debugf("Retrieved output from %s as json: %s", targetConfigPath, jsonString)
+	jsonString := strings.TrimSpace(out.Stdout)
+	jsonBytes := []byte(jsonString)
+
+	ctx.TerragruntOptions.Logger.Debugf("Json output: %s", jsonString)
 
 	return jsonBytes, nil
 }
@@ -861,7 +898,13 @@ func getTerragruntOutputJsonFromRemoteState(
 			ctx.TerragruntOptions.Logger.Warnf("Failed to remove %s: %v", path, err)
 		}
 	}(tempWorkDir)
-	ctx.TerragruntOptions.Logger.Debugf("Setting dependency working directory to %s", tempWorkDir)
+
+	relTempWorkDir, err := util.GetPathRelativeToWithSeparator(tempWorkDir, ctx.TerragruntOptions.RootWorkingDir)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.TerragruntOptions.Logger.Debugf("Setting dependency working directory to %s", relTempWorkDir)
 
 	targetTGOptions, err := setupTerragruntOptionsForBareTerraform(ctx, tempWorkDir, targetConfigPath, iamRoleOpts)
 	if err != nil {
@@ -882,7 +925,7 @@ func getTerragruntOutputJsonFromRemoteState(
 				return nil, err
 			}
 
-			ctx.TerragruntOptions.Logger.Debugf("Retrieved output from %s as json: %s using s3 bucket", targetConfigPath, jsonBytes)
+			ctx.TerragruntOptions.Logger.Debugf("Retrieved output from %s as json: %s using s3 bucket", targetTGOptions.RelativeTerragruntConfigPath, jsonBytes)
 
 			return jsonBytes, nil
 		default:
@@ -903,18 +946,20 @@ func getTerragruntOutputJsonFromRemoteState(
 		return nil, err
 	}
 
-	ctx.TerragruntOptions.Logger.Debugf("Generated remote state configuration in working dir %s", tempWorkDir)
+	ctx.TerragruntOptions.Logger.Debugf("Generated remote state configuration in working dir %s", relTempWorkDir)
 
 	// Check for a provider lock file and copy it to the working dir if it exists.
 	terragruntDir := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)
-	if err := util.CopyLockFile(terragruntDir, tempWorkDir, ctx.TerragruntOptions.Logger); err != nil {
+	if err := CopyLockFile(ctx.TerragruntOptions, terragruntDir, tempWorkDir); err != nil {
 		return nil, err
 	}
 
 	// The working directory is now set up to interact with the state, so pull it down to get the json output.
 
 	// First run init to setup the backend configuration so that we can run output.
-	runTerraformInitForDependencyOutput(ctx, tempWorkDir, targetConfigPath)
+	if err := runTerraformInitForDependencyOutput(ctx, tempWorkDir, targetConfigPath); err != nil {
+		return nil, err
+	}
 
 	// Now that the backend is initialized, run terraform output to get the data and return it.
 	out, err := shell.RunTerraformCommandWithOutput(ctx, targetTGOptions, terraform.CommandNameOutput, "-json")
@@ -922,9 +967,9 @@ func getTerragruntOutputJsonFromRemoteState(
 		return nil, err
 	}
 
-	jsonString := out.Stdout
-	jsonBytes := []byte(strings.TrimSpace(jsonString))
-	ctx.TerragruntOptions.Logger.Debugf("Retrieved output from %s as json: %s", targetConfigPath, jsonString)
+	jsonString := strings.TrimSpace(out.Stdout)
+	jsonBytes := []byte(jsonString)
+	ctx.TerragruntOptions.Logger.Debugf("Json output: %s", jsonString)
 
 	return jsonBytes, nil
 }
@@ -989,7 +1034,11 @@ func setupTerragruntOptionsForBareTerraform(ctx *ParsingContext, workingDir stri
 	// terraform directly.
 	// Set the terraform working dir to the tempdir, and set stdout writer to io.Discard so that output content is
 	// not logged.
-	targetTGOptions := cloneTerragruntOptionsForDependency(ctx, configPath)
+	targetTGOptions, err := cloneTerragruntOptionsForDependency(ctx, configPath)
+	if err != nil {
+		return nil, err
+	}
+
 	targetTGOptions.WorkingDir = workingDir
 	targetTGOptions.Writer = io.Discard
 
@@ -1010,7 +1059,7 @@ func setupTerragruntOptionsForBareTerraform(ctx *ParsingContext, workingDir stri
 
 // runTerragruntOutputJson uses terragrunt running functions to extract the json output from the target config.
 // NOTE: targetTGOptions should be in the ctx of the targetConfig.
-func runTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, error) {
+func runTerragruntOutputJson(ctx *ParsingContext) ([]byte, error) {
 	// Update the stdout buffer so we can capture the output
 	var stdoutBuffer bytes.Buffer
 	stdoutBufferWriter := bufio.NewWriter(&stdoutBuffer)
@@ -1018,7 +1067,7 @@ func runTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, 
 	newOpts := *ctx.TerragruntOptions
 	// explicit disable json formatting and prefixing to read json output
 	newOpts.TerraformLogsToJson = false
-	newOpts.IncludeModulePrefix = false
+	newOpts.ForwardTFStdout = false
 	newOpts.Writer = stdoutBufferWriter
 	ctx = ctx.WithTerragruntOptions(&newOpts)
 
@@ -1032,9 +1081,10 @@ func runTerragruntOutputJson(ctx *ParsingContext, targetConfig string) ([]byte, 
 		return nil, errors.WithStackTrace(err)
 	}
 
-	jsonString := stdoutBuffer.String()
-	jsonBytes := []byte(strings.TrimSpace(jsonString))
-	ctx.TerragruntOptions.Logger.Debugf("Retrieved output from %s as json: %s", targetConfig, jsonString)
+	jsonString := strings.TrimSpace(stdoutBuffer.String())
+	jsonBytes := []byte(jsonString)
+
+	ctx.TerragruntOptions.Logger.Debugf("Json output: %s", jsonString)
 
 	return jsonBytes, nil
 }
@@ -1087,18 +1137,24 @@ func ClearOutputCache() {
 // plugins are available, even though we don't need it for our purposes (terraform output does not depend on any of the
 // plugins being available). As such this command will ignore errors in the init command.
 // To help with debuggability, the errors will be printed to the console when TG_LOG=debug is set.
-func runTerraformInitForDependencyOutput(ctx *ParsingContext, workingDir string, targetConfigPath string) {
+func runTerraformInitForDependencyOutput(ctx *ParsingContext, workingDir string, targetConfigPath string) error {
 	stderr := bytes.Buffer{}
-	initTGOptions := cloneTerragruntOptionsForDependency(ctx, targetConfigPath)
+
+	initTGOptions, err := cloneTerragruntOptionsForDependency(ctx, targetConfigPath)
+	if err != nil {
+		return err
+	}
+
 	initTGOptions.WorkingDir = workingDir
 	initTGOptions.ErrWriter = &stderr
 
-	err := shell.RunTerraformCommand(ctx, initTGOptions, terraform.CommandNameInit, "-get=false")
-	if err != nil {
+	if err = shell.RunTerraformCommand(ctx, initTGOptions, terraform.CommandNameInit, "-get=false"); err != nil {
 		ctx.TerragruntOptions.Logger.Debugf("Ignoring expected error from dependency init call")
 		ctx.TerragruntOptions.Logger.Debugf("Init call stderr:")
 		ctx.TerragruntOptions.Logger.Debugf(stderr.String())
 	}
+
+	return nil
 }
 
 func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
