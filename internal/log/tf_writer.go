@@ -10,11 +10,17 @@ import (
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/internal/log/formatter"
-	"github.com/mgutz/ansi"
 	"github.com/sirupsen/logrus"
 )
 
-const tfTimestampFormat = "2006-01-02T15:04:05.000-0700"
+const (
+	tfTimestampFormat = "2006-01-02T15:04:05.000-0700"
+
+	// start is the ANSI start sequence
+	start = "\033["
+	// reset is the ANSI reset escape sequence
+	reset = "\033[0m"
+)
 
 var extractTimeAndLevelReg = regexp.MustCompile(`(\S+)\s*\[(\S+)\]\s*(.+\S)`)
 
@@ -66,6 +72,11 @@ func (writer *tfWriter) Write(p []byte) (int, error) {
 			timeStr, levelStr, msg = extractTimeAndLevel(msg)
 		}
 
+		// Reset ANSI styles at the end of a line so that TG log does not inherit them on a new line
+		if strings.Contains(msg, start) {
+			msg += reset
+		}
+
 		entry := &logrus.Entry{
 			Logger:  &logrus.Logger{Out: writer.Writer},
 			Time:    time.Now(),
@@ -103,7 +114,6 @@ func (writer *tfWriter) Write(p []byte) (int, error) {
 		}
 
 		msgs = append(msgs, b...)
-		msgs = append(msgs, []byte(ansi.Reset)...)
 	}
 
 	if _, err := writer.Writer.Write(msgs); err != nil {
