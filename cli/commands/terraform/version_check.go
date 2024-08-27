@@ -77,10 +77,13 @@ func checkVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 // Populate the currently installed version of Terraform into the given terragruntOptions
 func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
 	// Discard all log output to make sure we don't pollute stdout or stderr with this extra call to '--version'
-	terragruntOptionsCopy := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	terragruntOptionsCopy, err := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	if err != nil {
+		return err
+	}
+
 	terragruntOptionsCopy.Writer = io.Discard
 	terragruntOptionsCopy.ErrWriter = io.Discard
-
 	// Remove any TF_CLI_ARGS before version checking. These are appended to
 	// the arguments supplied on the command line and cause issues when running
 	// the --version command.

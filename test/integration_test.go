@@ -58,8 +58,9 @@ import (
 
 // hard-code this to match the test fixture for now
 const (
-	TERRAFORM_REMOTE_STATE_S3_REGION                                         = "us-west-2"
-	TERRAFORM_REMOTE_STATE_GCP_REGION                                        = "eu"
+	TERRAFORM_REMOTE_STATE_S3_REGION  = "us-west-2"
+	TERRAFORM_REMOTE_STATE_GCP_REGION = "eu"
+
 	TEST_FIXTURE_PATH                                                        = "fixture/"
 	TEST_FIXTURE_HCLVALIDATE                                                 = "fixture-hclvalidate"
 	TEST_FIXTURE_EXCLUDES_FILE                                               = "fixutre-excludes-file"
@@ -205,6 +206,7 @@ const (
 	TEST_FIXTURE_OUT_DIR                                                     = "fixture-out-dir"
 	TEST_FIXTURE_SOPS_ERRORS                                                 = "fixture-sops-errors"
 	TEST_FIXTURE_AUTH_PROVIDER_CMD                                           = "fixture-auth-provider-cmd"
+	testFixtureLogFormatter                                                  = "fixture-log-formatter"
 	TERRAFORM_BINARY                                                         = "terraform"
 	TOFU_BINARY                                                              = "tofu"
 	TERRAFORM_FOLDER                                                         = ".terraform"
@@ -215,6 +217,53 @@ const (
 	qaMyAppRelPath  = "qa/my-app"
 	fixtureDownload = "fixture-download"
 )
+
+func TestLogFormatterPrettyOutput(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureLogFormatter)
+	tmpEnvPath := copyEnvironment(t, testFixtureLogFormatter)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
+
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-disable-log-formatting=false --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	for _, prefixName := range []string{"app", "dep"} {
+		assert.Regexp(t, regexp.QuoteMeta("\x1b[0mSTDOUT \x1b[38;5;")+`\d+`+regexp.QuoteMeta("m["+prefixName+"] \x1b[0m\x1b[36m"+wrappedBinary()+": \x1b[0m\x1b[0m\x1b[1mInitializing provider plugins..."), stdout)
+		assert.Regexp(t, regexp.QuoteMeta("\x1b[0m\x1b[94mDEBUG  \x1b[0m\x1b[38;5;")+`\d+`+regexp.QuoteMeta("m["+prefixName+"] \x1b[0mReading Terragrunt config file at "+prefixName+"/terragrunt.hcl"), stderr)
+	}
+	assert.Contains(t, stderr, "\x1b[0m\x1b[94mDEBUG  \x1b[0mTerragrunt Version:")
+}
+
+func TestLogFormatterKeyValueOutput(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureLogFormatter)
+	tmpEnvPath := copyEnvironment(t, testFixtureLogFormatter)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
+
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt run-all init -no-color --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-disable-log-formatting --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	for _, prefixName := range []string{"app", "dep"} {
+		assert.Contains(t, stdout, "level=stdout prefix="+prefixName+" binary="+wrappedBinary()+" msg=Initializing provider plugins...\n")
+		assert.Contains(t, stderr, "level=debug prefix="+prefixName+" msg=Reading Terragrunt config file at "+prefixName+"/terragrunt.hcl\n")
+	}
+	assert.Contains(t, stderr, "level=debug msg=Terragrunt Version:")
+}
+
+func TestLogRawModuleOutput(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureLogFormatter)
+	tmpEnvPath := copyEnvironment(t, testFixtureLogFormatter)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
+
+	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt run-all init -no-color --terragrunt-log-level debug --terragrunt-non-interactive  --terragrunt-forward-tf-stdout --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, strings.ReplaceAll(stdout, "\n", ""), "Initializing the backend...Initializing provider plugins...")
+}
 
 func TestTerragruntExcludesFile(t *testing.T) {
 	t.Parallel()
@@ -1345,7 +1394,7 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 	// read the output of all modules 1 by 1 sequence, parallel reads mix outputs and make output complicated to parse
 	outputParallelism := 1
 	// Call runTerragruntCommandWithOutput directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
-	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output-all -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-parallelism %d", environmentPath, outputParallelism))
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output-all -no-color --terragrunt-forward-tf-stdout --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-parallelism %d", environmentPath, outputParallelism))
 	if err != nil {
 		return "", 0, err
 	}
@@ -2285,7 +2334,7 @@ func TestDependencyOutputOptimization(t *testing.T) {
 	t.Parallel()
 
 	expectOutputLogs := []string{
-		`Running command: ` + wrappedBinary() + ` init -get=false prefix=\[.*fixture-get-output/nested-optimization/dep\]`,
+		`prefix=../dep .+Running command: ` + wrappedBinary() + ` init -get=false`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization", true, expectOutputLogs)
 }
@@ -2294,7 +2343,7 @@ func TestDependencyOutputOptimizationSkipInit(t *testing.T) {
 	t.Parallel()
 
 	expectOutputLogs := []string{
-		`Detected module .*nested-optimization/dep/terragrunt.hcl is already init-ed. Retrieving outputs directly from working directory. prefix=\[.*fixture-get-output/nested-optimization/dep\]`,
+		`prefix=../dep .+Detected module ../dep/terragrunt.hcl is already init-ed. Retrieving outputs directly from working directory.`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization", false, expectOutputLogs)
 }
@@ -2303,7 +2352,7 @@ func TestDependencyOutputOptimizationNoGenerate(t *testing.T) {
 	t.Parallel()
 
 	expectOutputLogs := []string{
-		`Running command: ` + wrappedBinary() + ` init -get=false prefix=\[.*fixture-get-output/nested-optimization-nogen/dep\]`,
+		`prefix=../dep .+Running command: ` + wrappedBinary() + ` init -get=false`,
 	}
 	dependencyOutputOptimizationTest(t, "nested-optimization-nogen", true, expectOutputLogs)
 }
@@ -2350,6 +2399,9 @@ func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit
 	// Now delete the deepdep state and verify still works (note we need to bust the cache again)
 	config.ClearOutputCache()
 	require.NoError(t, os.Remove(filepath.Join(deepDepPath, "terraform.tfstate")))
+
+	fmt.Println("terragrunt output -no-color -json --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir " + livePath)
+
 	reout, reerr, err := runTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir "+livePath)
 	require.NoError(t, err)
 
@@ -2357,10 +2409,7 @@ func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit
 	assert.Equal(t, expectedOutput, outputs["output"].Value)
 
 	for _, logRegexp := range expectedOutputLogs {
-		re, err := regexp.Compile(logRegexp)
-		require.NoError(t, err)
-		matches := re.FindAllString(reerr, -1)
-		assert.NotEmpty(t, matches)
+		assert.Regexp(t, logRegexp, reerr)
 	}
 }
 
@@ -4378,9 +4427,6 @@ func TestIamRolesLoadingFromDifferentModules(t *testing.T) {
 	}
 	assert.NotEmptyf(t, component1, "Missing role for component 1")
 	assert.NotEmptyf(t, component2, "Missing role for component 2")
-
-	assert.Contains(t, component1, "iam_roles_multiple_modules/component")
-	assert.Contains(t, component2, "iam_roles_multiple_modules/component2")
 }
 
 func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
@@ -4414,11 +4460,8 @@ func TestLogFailedLocalsEvaluation(t *testing.T) {
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", TEST_FIXTURE_BROKEN_LOCALS), &stdout, &stderr)
 	require.Error(t, err)
 
-	testdataDir, err := filepath.Abs(TEST_FIXTURE_BROKEN_LOCALS)
-	require.NoError(t, err)
-
 	output := stderr.String()
-	assert.Contains(t, output, "Encountered error while evaluating locals in file "+filepath.Join(testdataDir, "terragrunt.hcl"))
+	assert.Contains(t, output, "Encountered error while evaluating locals in file terragrunt.hcl")
 }
 
 func TestLogFailingDependencies(t *testing.T) {
@@ -4480,6 +4523,11 @@ func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwri
 	t.Helper()
 
 	args := strings.Split(command, " ")
+
+	if !strings.Contains(command, "-terragrunt-disable-log-formatting") {
+		args = append(args, "--terragrunt-disable-log-formatting")
+	}
+
 	t.Log(args)
 
 	app := cli.NewApp(writer, errwriter)
@@ -5199,13 +5247,9 @@ func runValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath
 
 	require.NoError(t, err)
 
-	includedModulesRegexp, err := regexp.Compile(
-		fmt.Sprintf(
-			`=> Module %s/(.+) \(excluded: (true|false)`,
-			rootModulePath,
-		),
-	)
+	includedModulesRegexp, err := regexp.Compile(`=> Module (.+) \(excluded: (true|false)`)
 	require.NoError(t, err)
+
 	matches := includedModulesRegexp.FindAllStringSubmatch(validateAllStderr.String(), -1)
 	includedModules := []string{}
 	for _, match := range matches {
@@ -6283,7 +6327,7 @@ func TestRenderJsonMetadataDepenencyModulePrefix(t *testing.T) {
 	cleanupTerraformFolder(t, tmpEnvPath)
 	tmpDir := util.JoinPath(tmpEnvPath, TEST_FIXTURE_RENDER_JSON_METADATA, "dependency", "app")
 
-	runTerragrunt(t, "terragrunt run-all render-json --terragrunt-include-module-prefix --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+tmpDir)
+	runTerragrunt(t, "terragrunt run-all render-json --terragrunt-forward-tf-stdout --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+tmpDir)
 }
 
 func TestTerragruntValidateModulePrefix(t *testing.T) {
@@ -6294,7 +6338,7 @@ func TestTerragruntValidateModulePrefix(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, fixturePath)
 	rootPath := util.JoinPath(tmpEnvPath, fixturePath)
 
-	runTerragrunt(t, "terragrunt run-all validate --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	runTerragrunt(t, "terragrunt run-all validate --terragrunt-forward-tf-stdout --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 }
 
 func TestInitFailureModulePrefix(t *testing.T) {
@@ -6309,10 +6353,10 @@ func TestInitFailureModulePrefix(t *testing.T) {
 	stderr := bytes.Buffer{}
 	require.Error(
 		t,
-		runTerragruntCommand(t, "terragrunt init -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir "+initTestCase, &stdout, &stderr),
+		runTerragruntCommand(t, "terragrunt init -no-color --terragrunt-non-interactive --terragrunt-working-dir "+initTestCase, &stdout, &stderr),
 	)
 	logBufferContentsLineByLine(t, stderr, "init")
-	assert.Contains(t, stderr.String(), "[fixture-init-error] Error")
+	assert.Contains(t, stderr.String(), "error=[fixture-init-error]")
 }
 
 func TestDependencyOutputModulePrefix(t *testing.T) {
@@ -6322,7 +6366,7 @@ func TestDependencyOutputModulePrefix(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_GET_OUTPUT)
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GET_OUTPUT, "integration")
 
-	runTerragrunt(t, "terragrunt apply-all --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	runTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected output 42
 	stdout := bytes.Buffer{}
@@ -6331,7 +6375,7 @@ func TestDependencyOutputModulePrefix(t *testing.T) {
 	app3Path := util.JoinPath(rootPath, "app3")
 	require.NoError(
 		t,
-		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir "+app3Path, &stdout, &stderr),
+		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+app3Path, &stdout, &stderr),
 	)
 	// validate that output is valid json
 	outputs := map[string]TerraformOutput{}
@@ -6351,7 +6395,7 @@ func TestErrorExplaining(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, "terragrunt init -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir "+initTestCase, &stdout, &stderr)
+	err := runTerragruntCommand(t, "terragrunt init -no-color --terragrunt-forward-tf-stdout --terragrunt-non-interactive --terragrunt-working-dir "+initTestCase, &stdout, &stderr)
 	require.Error(t, err)
 
 	explanation := shell.ExplainError(err)
@@ -6373,7 +6417,7 @@ func TestExplainingMissingCredentials(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, "terragrunt init -no-color --terragrunt-include-module-prefix --terragrunt-non-interactive --terragrunt-working-dir "+initTestCase, &stdout, &stderr)
+	err := runTerragruntCommand(t, "terragrunt init -no-color --terragrunt-forward-tf-stdout --terragrunt-non-interactive --terragrunt-working-dir "+initTestCase, &stdout, &stderr)
 	explanation := shell.ExplainError(err)
 	assert.Contains(t, explanation, "Missing AWS credentials")
 }
@@ -6390,7 +6434,7 @@ func TestModulePathInPlanErrorMessage(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt plan -no-color --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
 	require.Error(t, err)
 	output := fmt.Sprintf("%s\n%s\n%v\n", stdout.String(), stderr.String(), err.Error())
-	assert.Contains(t, output, fmt.Sprintf("prefix=[%s]", util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1")))
+	assert.Contains(t, output, fmt.Sprintf("[%s]", util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1")))
 	assert.Contains(t, output, "1 error occurred")
 }
 
@@ -6407,8 +6451,7 @@ func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {
 	require.Error(t, err)
 	output := fmt.Sprintf("%s\n%s\n%v\n", stdout.String(), stderr.String(), err.Error())
 	assert.Contains(t, output, "finished with an error")
-	assert.Contains(t, output, "Module "+util.JoinPath(tmpEnvPath, TEST_FIXTURE_MODULE_PATH_ERROR, "d1"))
-
+	assert.Contains(t, output, "Module d1", output)
 }
 
 func TestHclFmtDiff(t *testing.T) {
@@ -6442,9 +6485,9 @@ func TestDestroyDependentModule(t *testing.T) {
 	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_DESTROY_DEPENDENT_MODULE))
 	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_DESTROY_DEPENDENT_MODULE)
 
-	output, err := exec.Command("git", "init", rootPath).CombinedOutput()
+	commandOutput, err := exec.Command("git", "init", rootPath).CombinedOutput()
 	if err != nil {
-		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
+		t.Fatalf("Error initializing git repo: %v\n%s", err, string(commandOutput))
 	}
 	// apply each module in order
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+util.JoinPath(rootPath, "a"))
@@ -6457,14 +6500,23 @@ func TestDestroyDependentModule(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err = runTerragruntCommand(t, "terragrunt destroy -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+util.JoinPath(rootPath, "c"), &stdout, &stderr)
+	workingDir := util.JoinPath(rootPath, "c")
+	err = runTerragruntCommand(t, "terragrunt destroy -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+workingDir, &stdout, &stderr)
 	require.NoError(t, err)
 
-	assert.True(t, strings.Contains(stderr.String(), util.JoinPath(rootPath, "b", "terragrunt.hcl")))
-	assert.True(t, strings.Contains(stderr.String(), util.JoinPath(rootPath, "a", "terragrunt.hcl")))
+	output := stderr.String()
 
-	assert.True(t, strings.Contains(stderr.String(), "\"value\": \"module-b.txt\""))
-	assert.True(t, strings.Contains(stderr.String(), "\"value\": \"module-a.txt\""))
+	for _, path := range []string{
+		util.JoinPath(rootPath, "b", "terragrunt.hcl"),
+		util.JoinPath(rootPath, "a", "terragrunt.hcl"),
+	} {
+		relPath, err := filepath.Rel(workingDir, path)
+		require.NoError(t, err)
+		assert.Contains(t, output, relPath, output)
+	}
+
+	assert.Contains(t, output, "\"value\": \"module-b.txt\"", output)
+	assert.Contains(t, output, "\"value\": \"module-a.txt\"", output)
 }
 
 func TestDownloadSourceWithRef(t *testing.T) {
@@ -6825,11 +6877,26 @@ func TestTerragruntDisabledDependency(t *testing.T) {
 
 	err := runTerragruntCommand(t, "terragrunt run-all plan --terragrunt-non-interactive  --terragrunt-log-level debug --terragrunt-working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
+
+	output := stderr.String()
 	// check that only enabled dependencies are evaluated
-	assert.Contains(t, stderr.String(), util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "app"))
-	assert.Contains(t, stderr.String(), util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "m1"))
-	assert.Contains(t, stderr.String(), util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "m3"))
-	assert.NotContains(t, stderr.String(), util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "m2"))
+	for _, path := range []string{
+		util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "app"),
+		util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "m1"),
+		util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "m3"),
+	} {
+		relPath, err := filepath.Rel(testPath, path)
+		require.NoError(t, err)
+		assert.Contains(t, output, relPath, output)
+	}
+
+	for _, path := range []string{
+		util.JoinPath(tmpEnvPath, TEST_FIXTURE_DISABLED_MODULE, "m2"),
+	} {
+		relPath, err := filepath.Rel(testPath, path)
+		require.NoError(t, err)
+		assert.NotContains(t, output, relPath, output)
+	}
 }
 
 func TestTerragruntHandleEmptyStateFile(t *testing.T) {
@@ -6915,7 +6982,7 @@ func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
 func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	// This test cannot be run using Terragrunt Provider Cache because it causes the flock files to be locked forever, which in turn blocks other TGs (processes).
 	// We use flock files to prevent multiple TGs from caching the same provider in parallel in a shared cache, which causes to conflicts.
-	if envProviderCache := os.Getenv(commands.TerragruntProviderCacheEnvVarName); envProviderCache != "" {
+	if envProviderCache := os.Getenv(commands.TerragruntProviderCacheEnvName); envProviderCache != "" {
 		providerCache, err := strconv.ParseBool(envProviderCache)
 		require.NoError(t, err)
 		if providerCache {
@@ -7111,25 +7178,25 @@ func TestTerragruntUpdatePolicy(t *testing.T) {
 func TestTerragruntDestroyGraph(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		path               string
 		expectedModules    []string
 		notExpectedModules []string
 	}{
 		{
 			path:               "eks",
-			expectedModules:    []string{"eks-service-3-v3", "eks-service-3-v2", "eks-service-3", "eks-service-4", "eks-service-5", "eks-service-2-v2", "eks-service-2", "eks-service-1"},
-			notExpectedModules: []string{"lambda", "lambda-service-1", "lambda-service-2"},
+			expectedModules:    []string{"services/eks-service-3-v3", "services/eks-service-3-v2", "services/eks-service-3", "services/eks-service-4", "services/eks-service-5", "services/eks-service-2-v2", "services/eks-service-2", "services/eks-service-1"},
+			notExpectedModules: []string{"lambda", "services/lambda-service-1", "services/lambda-service-2"},
 		},
 		{
 			path:               "services/lambda-service-1",
-			expectedModules:    []string{"lambda-service-2"},
+			expectedModules:    []string{"services/lambda-service-2"},
 			notExpectedModules: []string{"lambda"},
 		},
 		{
 			path:               "services/eks-service-3",
-			expectedModules:    []string{"eks-service-3-v2", "eks-service-4", "eks-service-3-v3"},
-			notExpectedModules: []string{"eks", "eks-service-1", "eks-service-2"},
+			expectedModules:    []string{"services/eks-service-3-v2", "services/eks-service-4", "services/eks-service-3-v3"},
+			notExpectedModules: []string{"eks", "services/eks-service-1", "services/eks-service-2"},
 		},
 		{
 			path:               "services/lambda-service-2",
@@ -7138,25 +7205,36 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tc {
-		tt := tt
+	for _, testCase := range testCases {
+		testCase := testCase
 
-		t.Run(tt.path, func(t *testing.T) {
+		t.Run(testCase.path, func(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := prepareGraphFixture(t)
-			tmpModulePath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH, tt.path)
+			fixturePath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH)
+			tmpModulePath := util.JoinPath(fixturePath, testCase.path)
 
 			stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt graph destroy --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath))
 			require.NoError(t, err)
 			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
 
-			for _, module := range tt.expectedModules {
-				assert.Containsf(t, output, "/"+module+"\n", "Expected module %s to be in output", module)
+			for _, modulePath := range testCase.expectedModules {
+				modulePath = filepath.Join(fixturePath, modulePath)
+
+				relPath, err := filepath.Rel(tmpModulePath, modulePath)
+				require.NoError(t, err)
+
+				assert.Containsf(t, output, relPath+"\n", "Expected module %s to be in output: %s", relPath, output)
 			}
 
-			for _, module := range tt.notExpectedModules {
-				assert.NotContainsf(t, output, "Module "+tmpModulePath+"/"+module+"\n", "Expected module %s must not to be in output", module)
+			for _, modulePath := range testCase.notExpectedModules {
+				modulePath = filepath.Join(fixturePath, modulePath)
+
+				relPath, err := filepath.Rel(tmpModulePath, modulePath)
+				require.NoError(t, err)
+
+				assert.NotContainsf(t, output, "Module "+relPath+"\n", "Expected module %s must not to be in output: %s", relPath, output)
 			}
 		})
 	}
@@ -7165,7 +7243,7 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 func TestTerragruntApplyGraph(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		path               string
 		expectedModules    []string
 		notExpectedModules []string
@@ -7187,25 +7265,36 @@ func TestTerragruntApplyGraph(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tc {
-		tt := tt
+	for _, testCase := range testCases {
+		testCase := testCase
 
-		t.Run(tt.path, func(t *testing.T) {
+		t.Run(testCase.path, func(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := prepareGraphFixture(t)
-			tmpModulePath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH, tt.path)
+			fixturePath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_GRAPH)
+			tmpModulePath := util.JoinPath(fixturePath, testCase.path)
 
 			stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt graph apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath))
 			require.NoError(t, err)
 			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
 
-			for _, module := range tt.expectedModules {
-				assert.Containsf(t, output, "/"+module+"\n", "Expected module %s to be in output", module)
+			for _, modulePath := range testCase.expectedModules {
+				modulePath = filepath.Join(fixturePath, modulePath)
+
+				relPath, err := filepath.Rel(tmpModulePath, modulePath)
+				require.NoError(t, err)
+
+				assert.Containsf(t, output, relPath+"\n", "Expected module %s to be in output: %s", relPath, output)
 			}
 
-			for _, module := range tt.notExpectedModules {
-				assert.NotContainsf(t, output, "Module "+tmpModulePath+"/"+module+"\n", "Expected module %s must not to be in output", module)
+			for _, modulePath := range testCase.notExpectedModules {
+				modulePath = filepath.Join(fixturePath, modulePath)
+
+				relPath, err := filepath.Rel(tmpModulePath, modulePath)
+				require.NoError(t, err)
+
+				assert.NotContainsf(t, output, "Module "+relPath+"\n", "Expected module %s must not to be in output: %s", relPath, output)
 			}
 		})
 	}

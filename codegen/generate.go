@@ -128,7 +128,12 @@ func WriteToFile(terragruntOptions *options.TerragruntOptions, basePath string, 
 		return errors.WithStackTrace(err)
 	}
 
-	terragruntOptions.Logger.Debugf("Generated file %s.", targetPath)
+	relTargetPath, err := util.GetPathRelativeToWithSeparator(targetPath, terragruntOptions.RootWorkingDir)
+	if err != nil {
+		return err
+	}
+
+	terragruntOptions.Logger.Debugf("Generated file %s.", relTargetPath)
 
 	return nil
 }

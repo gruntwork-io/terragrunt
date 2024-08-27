@@ -124,7 +124,7 @@ type TrackInclude struct {
 	// CurrentList is used to track the list of configs that should be imported and merged before the final
 	// TerragruntConfig is returned. This preserves the order of the blocks as they appear in the config, so that we can
 	// merge the included config in the right order.
-	CurrentList []IncludeConfig
+	CurrentList IncludeConfigs
 
 	// CurrentMap is the map version of CurrentList that maps the block labels to the included config.
 	CurrentMap map[string]IncludeConfig
@@ -313,7 +313,7 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 	}
 
 	if envVariable.Name == "" {
-		return envVariable, errors.WithStackTrace(InvalidEnvParamNameError{EnvVarName: parameters[0]})
+		return envVariable, errors.WithStackTrace(InvalidEnvParamNameError{EnvName: parameters[0]})
 	}
 
 	return envVariable, nil
@@ -623,7 +623,12 @@ func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *c
 	}
 
 	// We update the ctx of terragruntOptions to the config being read in.
-	ctx = ctx.WithTerragruntOptions(ctx.TerragruntOptions.Clone(targetConfig))
+	opts, err := ctx.TerragruntOptions.Clone(targetConfig)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	ctx = ctx.WithTerragruntOptions(opts)
 
 	config, err := ParseConfigFile(ctx, targetConfig, nil)
 	if err != nil {
@@ -656,6 +661,7 @@ func readTerragruntConfigAsFuncImpl(ctx *ParsingContext) function.Function {
 		Type: function.StaticReturnType(cty.DynamicPseudoType),
 		Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
 			numParams := len(args)
+
 			if numParams == 0 || numParams > 2 {
 				return cty.NilVal, errors.WithStackTrace(WrongNumberOfParamsError{Func: "read_terragrunt_config", Expected: "1 or 2", Actual: numParams})
 			}

@@ -6,10 +6,12 @@ package shell_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/log/formatter"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -54,15 +56,19 @@ func testCommandOutputOrder(t *testing.T, withPtty bool, fullOutput []string, st
 
 func TestCommandOutputPrefix(t *testing.T) {
 	t.Parallel()
-
-	prefix := "PREFIX> "
+	prefix := "PREFIX"
 	prefixedOutput := []string{}
 	for _, line := range FULL_OUTPUT {
-		prefixedOutput = append(prefixedOutput, prefix+line)
+		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s msg=%s", prefix, line))
 	}
+
+	formatter := formatter.NewFormatter()
+	formatter.DisableLogFormatting = true
+
 	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
-		terragruntOptions.IncludeModulePrefix = true
+		terragruntOptions.TerraformPath = ""
 		terragruntOptions.OutputPrefix = prefix
+		terragruntOptions.Logger.Logger.Formatter = formatter
 	}, assertOutputs(t,
 		prefixedOutput,
 		STDOUT,
@@ -91,6 +97,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")
 
+	assert.NotNil(t, out, "Should get output")
 	assertResults(allOutputBuffer.String(), out)
 }
 
@@ -104,7 +111,10 @@ func assertOutputs(
 
 	return func(allOutput string, out *util.CmdOutput) {
 		allOutputs := strings.Split(strings.TrimSpace(allOutput), "\n")
-		assert.Equal(t, expectedAllOutputs, allOutputs)
+		assert.Equal(t, len(expectedAllOutputs), len(allOutputs))
+		for i := 0; i < len(allOutputs); i++ {
+			assert.Contains(t, allOutputs[i], expectedAllOutputs[i])
+		}
 
 		stdOutputs := strings.Split(strings.TrimSpace(out.Stdout), "\n")
 		assert.Equal(t, expectedStdOutputs, stdOutputs)

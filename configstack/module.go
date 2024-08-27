@@ -29,6 +29,7 @@ const existingModulesCacheName = "existingModules"
 // module and the list of other modules that this module depends on
 type TerraformModule struct {
 	Path                 string
+	RelativePath         string
 	Dependencies         TerraformModules
 	Config               config.TerragruntConfig
 	TerragruntOptions    *options.TerragruntOptions
@@ -40,12 +41,12 @@ type TerraformModule struct {
 func (module *TerraformModule) String() string {
 	dependencies := []string{}
 	for _, dependency := range module.Dependencies {
-		dependencies = append(dependencies, dependency.Path)
+		dependencies = append(dependencies, dependency.RelativePath)
 	}
 
 	return fmt.Sprintf(
 		"Module %s (excluded: %v, assume applied: %v, dependencies: [%s])",
-		module.Path, module.FlagExcluded, module.AssumeAlreadyApplied, strings.Join(dependencies, ", "),
+		module.RelativePath, module.FlagExcluded, module.AssumeAlreadyApplied, strings.Join(dependencies, ", "),
 	)
 }
 
@@ -144,18 +145,18 @@ func (module *TerraformModule) findModuleInPath(targetDirs []string) bool {
 // with the --terragrunt-include-external-dependencies or --terragrunt-include-dir flags.
 func (module *TerraformModule) confirmShouldApplyExternalDependency(dependency *TerraformModule, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	if terragruntOptions.IncludeExternalDependencies {
-		terragruntOptions.Logger.Debugf("The --terragrunt-include-external-dependencies flag is set, so automatically including all external dependencies, and will run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
+		terragruntOptions.Logger.Debugf("The --terragrunt-include-external-dependencies flag is set, so automatically including all external dependencies, and will run this command against module %s, which is a dependency of module %s.", dependency.RelativePath, module.RelativePath)
 		return true, nil
 	}
 
 	if terragruntOptions.NonInteractive {
-		terragruntOptions.Logger.Debugf("The --non-interactive flag is set. To avoid accidentally affecting external dependencies with a run-all command, will not run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
+		terragruntOptions.Logger.Debugf("The --non-interactive flag is set. To avoid accidentally affecting external dependencies with a run-all command, will not run this command against module %s, which is a dependency of module %s.", dependency.RelativePath, module.RelativePath)
 		return false, nil
 	}
 
 	stackCmd := terragruntOptions.TerraformCommand
 	if stackCmd == "destroy" {
-		terragruntOptions.Logger.Debugf("run-all command called with destroy. To avoid accidentally having destructive effects on external dependencies with run-all command, will not run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
+		terragruntOptions.Logger.Debugf("run-all command called with destroy. To avoid accidentally having destructive effects on external dependencies with run-all command, will not run this command against module %s, which is a dependency of module %s.", dependency.RelativePath, module.RelativePath)
 		return false, nil
 	}
 
@@ -283,8 +284,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, terragruntOptions *optio
 // This is a similar implementation to terraform's digraph https://github.com/hashicorp/terraform/blob/master/digraph/graphviz.go
 // adding some styling to modules that are excluded from the execution in *-all commands
 func (modules TerraformModules) WriteDot(w io.Writer, terragruntOptions *options.TerragruntOptions) error {
-	_, err := w.Write([]byte("digraph {\n"))
-	if err != nil {
+	if _, err := w.Write([]byte("digraph {\n")); err != nil {
 		return errors.WithStackTrace(err)
 	}
 	defer func(w io.Writer, p []byte) {

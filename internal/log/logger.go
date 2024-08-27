@@ -3,6 +3,7 @@ package log
 import (
 	"sync"
 
+	"github.com/gruntwork-io/terragrunt/internal/log/formatter"
 	"github.com/sirupsen/logrus"
 )
 
@@ -31,4 +32,5 @@ func SetLogger(l *logrus.Logger) {
 
 func init() {
 	logger = logrus.New()
+	logger.Formatter = formatter.NewFormatter()
 }

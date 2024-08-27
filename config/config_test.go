@@ -465,7 +465,7 @@ include {
 	opts := &options.TerragruntOptions{
 		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath,
 		NonInteractive:       true,
-		Logger:               util.CreateLogEntry("", util.GetDefaultLogLevel()),
+		Logger:               util.CreateLogEntry("", util.GetDefaultLogLevel(), nil, true, true),
 	}
 
 	ctx := config.NewParsingContext(context.Background(), opts)
@@ -1240,7 +1240,7 @@ terraform {
 		TerragruntConfigPath: "../test/fixture-parent-folders/terragrunt-in-root/child/" + config.DefaultTerragruntConfigPath,
 		NonInteractive:       true,
 		MaxFoldersToCheck:    5,
-		Logger:               util.CreateLogEntry("", util.GetDefaultLogLevel()),
+		Logger:               util.CreateLogEntry("", util.GetDefaultLogLevel(), nil, true, true),
 	}
 
 	ctx := config.NewParsingContext(context.Background(), opts)

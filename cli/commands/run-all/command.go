@@ -36,13 +36,13 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
 		&cli.GenericFlag[string]{
 			Name:        commands.TerragruntOutDirFlagName,
-			EnvVar:      commands.TerragruntOutDirFlagEnvVarName,
+			EnvVar:      commands.TerragruntOutDirFlagEnvName,
 			Destination: &opts.OutputFolder,
 			Usage:       "Directory to store plan files.",
 		},
 		&cli.GenericFlag[string]{
 			Name:        commands.TerragruntJsonOutDirFlagName,
-			EnvVar:      commands.TerragruntJsonOutDirFlagEnvVarName,
+			EnvVar:      commands.TerragruntJsonOutDirFlagEnvName,
 			Destination: &opts.JsonOutputFolder,
 			Usage:       "Directory to store json plan files.",
 		},

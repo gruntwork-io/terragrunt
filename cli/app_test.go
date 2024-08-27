@@ -487,8 +487,8 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 	app.Writer = &bytes.Buffer{}
 	app.ErrWriter = &bytes.Buffer{}
 	app.Flags = append(
-		commands.NewGlobalFlags(opts),
-		commands.NewHelpVersionFlags(opts)...)
+		cli.NewDeprecatedFlags(opts),
+		commands.NewGlobalFlags(opts)...)
 	app.Commands = append(
 		cli.DeprecatedCommands(opts),
 		terragruntCommands...).WrapAction(cli.WrapWithTelemetry(opts))

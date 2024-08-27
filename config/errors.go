@@ -124,11 +124,11 @@ func (err EnvVarNotFoundError) Error() string {
 }
 
 type InvalidEnvParamNameError struct {
-	EnvVarName string
+	EnvName string
 }
 
 func (err InvalidEnvParamNameError) Error() string {
-	return fmt.Sprintf("InvalidEnvParamNameError: Invalid environment variable name - (%s) ", err.EnvVarName)
+	return fmt.Sprintf("InvalidEnvParamNameError: Invalid environment variable name - (%s) ", err.EnvName)
 }
 
 type EmptyStringNotAllowedError string

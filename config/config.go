@@ -117,7 +117,7 @@ type TerragruntConfig struct {
 	IsPartial bool
 
 	// Map of processed includes
-	ProcessedIncludes IncludeConfigs
+	ProcessedIncludes IncludeConfigsMap
 
 	// Map to store fields metadata
 	FieldsMetadata map[string]map[string]interface{}
@@ -293,10 +293,10 @@ type terragruntGenerateBlock struct {
 	Disable          *bool   `hcl:"disable,attr" mapstructure:"disable"`
 }
 
-type IncludeConfigs map[string]IncludeConfig
+type IncludeConfigsMap map[string]IncludeConfig
 
 // ContainsPath returns true if the given path is contained in at least one configuration.
-func (cfgs IncludeConfigs) ContainsPath(path string) bool {
+func (cfgs IncludeConfigsMap) ContainsPath(path string) bool {
 	for _, cfg := range cfgs {
 		if cfg.Path == path {
 			return true
@@ -306,6 +306,18 @@ func (cfgs IncludeConfigs) ContainsPath(path string) bool {
 	return false
 }
 
+type IncludeConfigs []IncludeConfig
+
+func (confs *IncludeConfigs) UpdateRelativePaths(basePath string) error {
+	for _, conf := range *confs {
+		if err := conf.UpdateRelativePath(basePath); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
 // include into a child Terragrunt configuration file. You can have more than one include config.
 type IncludeConfig struct {
@@ -313,6 +325,18 @@ type IncludeConfig struct {
 	Path          string  `hcl:"path,attr"`
 	Expose        *bool   `hcl:"expose,attr"`
 	MergeStrategy *string `hcl:"merge_strategy,attr"`
+	RelativePath  string
+}
+
+func (conf *IncludeConfig) UpdateRelativePath(basePath string) error {
+	relPath, err := util.GetPathRelativeToWithSeparator(conf.Path, basePath)
+	if err != nil {
+		return err
+	}
+
+	conf.RelativePath = relPath
+
+	return nil
 }
 
 func (cfg *IncludeConfig) String() string {
@@ -702,7 +726,7 @@ func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOpt
 
 // Read the Terragrunt config file from its default location
 func ReadTerragruntConfig(ctx context.Context, terragruntOptions *options.TerragruntOptions, parserOptions []hclparse.Option) (*TerragruntConfig, error) {
-	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
+	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.RelativeTerragruntConfigPath)
 
 	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
 	parcingCtx := NewParsingContext(ctx, terragruntOptions).WithParseOption(parserOptions)
