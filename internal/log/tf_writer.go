@@ -112,8 +112,10 @@ func (writer *tfWriter) Write(p []byte) (int, error) {
 }
 
 func extractTimeAndLevel(msg string) (string, string, string) {
+	const numberOfValues = 4
+
 	if extractTimeAndLevelReg.MatchString(msg) {
-		if match := extractTimeAndLevelReg.FindStringSubmatch(msg); len(match) == 4 {
+		if match := extractTimeAndLevelReg.FindStringSubmatch(msg); len(match) == numberOfValues {
 			return match[1], match[2], match[3]
 		}
 	}
