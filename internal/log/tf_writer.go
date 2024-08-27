@@ -113,8 +113,9 @@ func (writer *tfWriter) Write(p []byte) (int, error) {
 
 func extractTimeAndLevel(msg string) (string, string, string) {
 	if extractTimeAndLevelReg.MatchString(msg) {
-		match := extractTimeAndLevelReg.FindStringSubmatch(msg)
-		return match[1], match[2], match[3]
+		if match := extractTimeAndLevelReg.FindStringSubmatch(msg); len(match) == 4 {
+			return match[1], match[2], match[3]
+		}
 	}
 
 	return "", "", msg
