@@ -148,7 +148,6 @@ func RunShellCommandWithOutput(
 				cmdStdout = io.MultiWriter(outWriter, &stdoutBuf)
 			}
 		} else {
-			// Inspired by https://blog.kowalczyk.info/article/wOYk/advanced-command-execution-in-go-with-osexec.html
 			errWriter = log.TFStderrWriter(
 				errWriter,
 				terragruntOptions.Logger.Logger.Formatter,
@@ -156,7 +155,7 @@ func RunShellCommandWithOutput(
 				terragruntOptions.TerraformPath,
 			)
 
-			cmdStderr = io.MultiWriter(errWriter, &stdoutBuf)
+			cmdStderr = io.MultiWriter(errWriter, &stderrBuf)
 			cmdStdout = io.MultiWriter(&stdoutBuf)
 
 			if !suppressStdout {
