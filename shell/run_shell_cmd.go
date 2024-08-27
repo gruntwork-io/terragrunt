@@ -139,7 +139,7 @@ func RunShellCommandWithOutput(
 				terragruntOptions.TerraformPath,
 			)
 
-			if terragruntOptions.ForwardTFStdout || shouldForwardTFStdout(args) {
+			if terragruntOptions.ForwardTFStdout || shouldForceForwardTFStdout(args) {
 				outWriter = util.WriterNotifier(outWriter, func(p []byte) {
 					terragruntOptions.Logger.Infof("Retrieved output from %s", terragruntOptions.RelativeTerragruntConfigPath)
 				})
@@ -429,8 +429,8 @@ func extractSemVerTags(tags []string) []*version.Version {
 	return semverTags
 }
 
-// shouldForwardTFStdout returns true if args contains `-json` flag or `output` command is specified as the first arg.
-func shouldForwardTFStdout(args []string) bool {
+// shouldForceForwardTFStdout returns true if args contains `-json` flag or `output` command is specified as the first arg.
+func shouldForceForwardTFStdout(args []string) bool {
 	for i, arg := range args {
 		if (i == 0 && strings.EqualFold(arg, terraform.CommandNameOutput)) || strings.EqualFold(arg, terraform.FlagNameJSON) {
 			return true
