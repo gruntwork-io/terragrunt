@@ -3,7 +3,6 @@
 package test_test
 
 import (
-	"bytes"
 	"context"
 	goErrors "errors"
 	"fmt"
@@ -83,10 +82,8 @@ func TestTerragruntCheckMissingGCSBucket(t *testing.T) {
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
 	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsNoBucket, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsNoBucket), &stdout, &stderr)
+	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsNoBucket))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Missing required GCS remote state configuration bucket")
 }
@@ -102,10 +99,8 @@ func TestTerragruntNoPrefixGCSBucket(t *testing.T) {
 
 	defer deleteGCSBucket(t, gcsBucketName)
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsNoPrefix, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsNoPrefix), &stdout, &stderr)
+	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsNoPrefix))
 	require.NoError(t, err)
 }
 
