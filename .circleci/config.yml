@@ -352,7 +352,7 @@ jobs:
       - run:
           name: Run GCP integration tests
           command: |
-            run-go-tests --packages "-tags=gcp ^TestTerragruntGCS ./test" | tee logs/test-results.log
+            run-go-tests --packages "-tags=gcp ^TestGCS ./test" | tee logs/test-results.log
           no_output_timeout: 30m
           environment:
             TERRAGRUNT_TFPATH: tofu

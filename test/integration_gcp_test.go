@@ -32,7 +32,7 @@ const (
 	testFixtureGcsParallelStateInit = "fixture-gcs-parallel-state-init"
 )
 
-func TestTerragruntGCSWorksWithBackend(t *testing.T) {
+func TestGCSWorksWithBackend(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, testFixtureGcsPath)
@@ -52,7 +52,7 @@ func TestTerragruntGCSWorksWithBackend(t *testing.T) {
 	validateGCSBucketExistsAndIsLabeled(t, terraformRemoteStateGcpRegion, gcsBucketName, expectedGCSLabels)
 }
 
-func TestTerragruntGCSWorksWithExistingBucket(t *testing.T) {
+func TestGCSWorksWithExistingBucket(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, testFixtureGcsByoBucketPath)
@@ -73,7 +73,7 @@ func TestTerragruntGCSWorksWithExistingBucket(t *testing.T) {
 	validateGCSBucketExistsAndIsLabeled(t, location, gcsBucketName, nil)
 }
 
-func TestTerragruntGCSCheckMissingBucket(t *testing.T) {
+func TestGCSCheckMissingBucket(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, testFixtureGcsNoBucket)
@@ -88,7 +88,7 @@ func TestTerragruntGCSCheckMissingBucket(t *testing.T) {
 	assert.Contains(t, err.Error(), "Missing required GCS remote state configuration bucket")
 }
 
-func TestTerragruntGCSNoPrefixBucket(t *testing.T) {
+func TestGCSNoPrefixBucket(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, testFixtureGcsNoPrefix)
@@ -104,7 +104,7 @@ func TestTerragruntGCSNoPrefixBucket(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestTerragruntGCSParallelStateInit(t *testing.T) {
+func TestGCSParallelStateInit(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")

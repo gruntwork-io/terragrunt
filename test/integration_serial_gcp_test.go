@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestTerragruntGCSWorksWithImpersonateBackend(t *testing.T) {
+func TestGCSWorksWithImpersonateBackend(t *testing.T) {
 	impersonatorKey := os.Getenv("GCLOUD_SERVICE_KEY_IMPERSONATOR")
 	if impersonatorKey == "" {
 		t.Fatalf("required environment variable `%s` - not found", "GCLOUD_SERVICE_KEY_IMPERSONATOR")
@@ -45,7 +45,7 @@ func TestTerragruntGCSWorksWithImpersonateBackend(t *testing.T) {
 	assert.True(t, ownerEmail, "Identity email should match the impersonated account")
 }
 
-func TestTerragruntGCSCorrectlyMirrorsTerraformGCPAuth(t *testing.T) {
+func TestGCSCorrectlyMirrorsTerraformGCPAuth(t *testing.T) {
 	// We need to ensure Terragrunt works correctly when GOOGLE_CREDENTIALS are specified.
 	// There is no true way to properly unset env vars from the environment, but we still try
 	// to unset the CI credentials during this test.
