@@ -340,6 +340,29 @@ jobs:
       - store_test_results:
           path: logs
 
+  integration_test_gcp_engine:
+    <<: *defaults
+    <<: *env
+    steps:
+      - checkout
+      - run:
+          <<: *install_tofu
+      - run:
+          <<: *setup_test_environment
+      - run:
+          name: Run GCP integration tests
+          command: |
+            run-go-tests --packages "-tags=gcp ./test" | tee logs/test-results.log
+          no_output_timeout: 30m
+          environment:
+            TERRAGRUNT_TFPATH: tofu
+      - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
   test_mocks:
     resource_class: small
     <<: *defaults
@@ -581,6 +604,15 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
       - integration_test_tofu_engine:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+            - APPLE__OSX__code-signing
+      - integration_test_gcp_engine:
           filters:
             tags:
               only: /^v.*/
