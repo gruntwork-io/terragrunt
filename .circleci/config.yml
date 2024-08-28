@@ -373,7 +373,7 @@ jobs:
       - run:
           <<: *setup_test_environment
       - run:
-          name: Run GCP integration tests
+          name: Run AWS integration tests
           command: |
             run-go-tests --packages "-tags=aws -run ^TestAws ./test" | tee logs/test-results.log
           no_output_timeout: 30m

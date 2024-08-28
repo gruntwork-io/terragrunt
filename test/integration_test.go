@@ -5805,57 +5805,6 @@ func TestTerragruntPassNullValues(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestTerragruntPrintAwsErrors(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := copyEnvironment(t, testFixtureS3Errors)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureS3Errors)
-	cleanupTerraformFolder(t, rootPath)
-
-	s3BucketName := "test-tg-2023-02"
-	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueId())
-
-	tmpTerragruntConfigFile := util.JoinPath(rootPath, "terragrunt.hcl")
-	originalTerragruntConfigPath := util.JoinPath(rootPath, "terragrunt.hcl")
-	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-2")
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigFile, rootPath), &stdout, &stderr)
-	require.Error(t, err)
-	message := err.Error()
-	assert.True(t, strings.Contains(message, "AllAccessDisabled: All access to this object has been disabled") || strings.Contains(message, "BucketRegionError: incorrect region"))
-	assert.Contains(t, message, s3BucketName)
-}
-
-func TestTerragruntErrorWhenStateBucketIsInDifferentRegion(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := copyEnvironment(t, testFixtureS3Errors)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureS3Errors)
-	cleanupTerraformFolder(t, rootPath)
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueId())
-
-	originalTerragruntConfigPath := util.JoinPath(testFixtureS3Errors, "terragrunt.hcl")
-	tmpTerragruntConfigFile := util.JoinPath(rootPath, "terragrunt.hcl")
-	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-1")
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigFile, rootPath), &stdout, &stderr)
-	require.NoError(t, err)
-
-	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-west-2")
-
-	stdout = bytes.Buffer{}
-	stderr = bytes.Buffer{}
-	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigFile, rootPath), &stdout, &stderr)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "BucketRegionError: incorrect region")
-}
-
 func TestTerragruntNoWarningLocalPath(t *testing.T) {
 	t.Parallel()
 

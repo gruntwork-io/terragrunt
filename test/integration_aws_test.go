@@ -452,7 +452,7 @@ func TestAwsLocalWithBackend(t *testing.T) {
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 }
 
-func TestAWSGetCallerIdentityFunctions(t *testing.T) {
+func TestAwsGetCallerIdentityFunctions(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, testFixtureAwsGetCallerIdentity)
@@ -494,7 +494,7 @@ func TestAWSGetCallerIdentityFunctions(t *testing.T) {
 // - Running apply on the root module
 // If output optimization is working, we should still get the same correct output even though the state of the upmost
 // module has been destroyed.
-func TestDependencyOutputOptimization(t *testing.T) {
+func TestAwsDependencyOutputOptimization(t *testing.T) {
 	t.Parallel()
 
 	expectOutputLogs := []string{
@@ -503,7 +503,7 @@ func TestDependencyOutputOptimization(t *testing.T) {
 	dependencyOutputOptimizationTest(t, "nested-optimization", true, expectOutputLogs)
 }
 
-func TestDependencyOutputOptimizationSkipInit(t *testing.T) {
+func TestAwsDependencyOutputOptimizationSkipInit(t *testing.T) {
 	t.Parallel()
 
 	expectOutputLogs := []string{
@@ -512,7 +512,7 @@ func TestDependencyOutputOptimizationSkipInit(t *testing.T) {
 	dependencyOutputOptimizationTest(t, "nested-optimization", false, expectOutputLogs)
 }
 
-func TestDependencyOutputOptimizationNoGenerate(t *testing.T) {
+func TestAwsDependencyOutputOptimizationNoGenerate(t *testing.T) {
 	t.Parallel()
 
 	expectOutputLogs := []string{
@@ -521,7 +521,7 @@ func TestDependencyOutputOptimizationNoGenerate(t *testing.T) {
 	dependencyOutputOptimizationTest(t, "nested-optimization-nogen", true, expectOutputLogs)
 }
 
-func TestDependencyOutputOptimizationDisableTest(t *testing.T) {
+func TestAwsDependencyOutputOptimizationDisableTest(t *testing.T) {
 	t.Parallel()
 
 	expectedOutput := `They said, "No, The answer is 42"`
@@ -593,6 +593,57 @@ func TestAwsProviderPatch(t *testing.T) {
 		t,
 		runTerragruntCommand(t, "terragrunt validate --terragrunt-working-dir "+modulePath, os.Stdout, os.Stderr),
 	)
+}
+
+func TestAwsPrintAwsErrors(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, testFixtureS3Errors)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureS3Errors)
+	cleanupTerraformFolder(t, rootPath)
+
+	s3BucketName := "test-tg-2023-02"
+	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueId())
+
+	tmpTerragruntConfigFile := util.JoinPath(rootPath, "terragrunt.hcl")
+	originalTerragruntConfigPath := util.JoinPath(rootPath, "terragrunt.hcl")
+	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-2")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigFile, rootPath), &stdout, &stderr)
+	require.Error(t, err)
+	message := err.Error()
+	assert.True(t, strings.Contains(message, "AllAccessDisabled: All access to this object has been disabled") || strings.Contains(message, "BucketRegionError: incorrect region"))
+	assert.Contains(t, message, s3BucketName)
+}
+
+func TestAwsErrorWhenStateBucketIsInDifferentRegion(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, testFixtureS3Errors)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureS3Errors)
+	cleanupTerraformFolder(t, rootPath)
+
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
+	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueId())
+
+	originalTerragruntConfigPath := util.JoinPath(testFixtureS3Errors, "terragrunt.hcl")
+	tmpTerragruntConfigFile := util.JoinPath(rootPath, "terragrunt.hcl")
+	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-1")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigFile, rootPath), &stdout, &stderr)
+	require.NoError(t, err)
+
+	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-west-2")
+
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt apply --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigFile, rootPath), &stdout, &stderr)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "BucketRegionError: incorrect region")
 }
 
 func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit bool, expectedOutputLogs []string) {
