@@ -94,27 +94,6 @@ func TestLocalDownloadWithRelativePath(t *testing.T) {
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalRelativeDownloadPath)
 }
 
-func TestLocalWithBackend(t *testing.T) {
-	t.Parallel()
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-lock-table-" + strings.ToLower(uniqueId())
-
-	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
-	defer cleanupTableForTest(t, lockTableName, terraformRemoteStateS3Region)
-
-	tmpEnvPath := copyEnvironment(t, "fixture-download")
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureLocalWithBackend)
-
-	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
-
-	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
-
-	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
-}
-
 func TestLocalWithMissingBackend(t *testing.T) {
 	t.Parallel()
 
@@ -183,27 +162,6 @@ func TestRemoteDownloadOverride(t *testing.T) {
 
 	// Run a second time to make sure the temporary folder can be reused without errors
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", testFixtureOverrideDonwloadPath, "../hello-world"))
-}
-
-func TestRemoteWithBackend(t *testing.T) {
-	t.Parallel()
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-lock-table-" + strings.ToLower(uniqueId())
-
-	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
-	defer cleanupTableForTest(t, lockTableName, terraformRemoteStateS3Region)
-
-	tmpEnvPath := copyEnvironment(t, testFixtureRemoteWithBackend)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureRemoteWithBackend)
-
-	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
-
-	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
-
-	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 }
 
 func TestRemoteWithModuleInRoot(t *testing.T) {

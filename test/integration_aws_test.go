@@ -27,7 +27,7 @@ const (
 	testFixtureS3Errors             = "fixture-s3-errors/"
 )
 
-func TestTerragruntInitHookNoSourceWithBackend(t *testing.T) {
+func TestAwsInitHookNoSourceWithBackend(t *testing.T) {
 	t.Parallel()
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
@@ -57,7 +57,7 @@ func TestTerragruntInitHookNoSourceWithBackend(t *testing.T) {
 	assert.NotContains(t, output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE", "Hooks on init-from-module command executed when no source was specified")
 }
 
-func TestTerragruntInitHookWithSourceWithBackend(t *testing.T) {
+func TestAwsInitHookWithSourceWithBackend(t *testing.T) {
 	t.Parallel()
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
@@ -89,7 +89,7 @@ func TestTerragruntInitHookWithSourceWithBackend(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE"), "Hooks on init-from-module command executed more than once")
 }
 
-func TestTerragruntBeforeAfterAndErrorMergeHook(t *testing.T) {
+func TestAwsBeforeAfterAndErrorMergeHook(t *testing.T) {
 	t.Parallel()
 
 	childPath := util.JoinPath(testFixtureHooksBeforeAfterAndErrorMergePath, qaMyAppRelPath)
@@ -127,7 +127,7 @@ func TestTerragruntBeforeAfterAndErrorMergeHook(t *testing.T) {
 	require.Error(t, errorHookOverridenParentException)
 }
 
-func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
+func TestAwsWorksWithLocalTerraformVersion(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, testFixturePath)
@@ -156,7 +156,7 @@ func TestTerragruntWorksWithLocalTerraformVersion(t *testing.T) {
 // Regression test to ensure that `accesslogging_bucket_name` and `accesslogging_target_prefix` are taken into account
 // & the TargetLogs bucket is set to a new S3 bucket, different from the origin S3 bucket
 // & the logs objects are prefixed with the `accesslogging_target_prefix` value
-func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetPrefix(t *testing.T) {
+func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGivenTargetPrefix(t *testing.T) {
 	t.Parallel()
 
 	examplePath := filepath.Join(testFixtureRegressions, "accesslogging-bucket/with-target-prefix-input")
@@ -215,7 +215,7 @@ func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithGiven
 
 // Regression test to ensure that `accesslogging_bucket_name` is taken into account
 // & when no `accesslogging_target_prefix` provided, then **default** value is used for TargetPrefix
-func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithDefaultTargetPrefix(t *testing.T) {
+func TestAwsSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithDefaultTargetPrefix(t *testing.T) {
 	t.Parallel()
 
 	examplePath := filepath.Join(testFixtureRegressions, "accesslogging-bucket/no-target-prefix-input")
@@ -257,7 +257,7 @@ func TestTerragruntSetsAccessLoggingForTfSTateS3BuckeToADifferentBucketWithDefau
 	assert.Equal(t, remote.DefaultS3BucketAccessLoggingTargetPrefix, targetLoggingBucketPrefix)
 }
 
-func TestTerragruntRunAllCommand(t *testing.T) {
+func TestAwsRunAllCommand(t *testing.T) {
 	t.Parallel()
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
@@ -273,7 +273,7 @@ func TestTerragruntRunAllCommand(t *testing.T) {
 	runTerragrunt(t, "terragrunt run-all init --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath)
 }
 
-func TestTerragruntOutputAllCommand(t *testing.T) {
+func TestAwsOutputAllCommand(t *testing.T) {
 	t.Parallel()
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
@@ -302,7 +302,7 @@ func TestTerragruntOutputAllCommand(t *testing.T) {
 	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
 }
 
-func TestTerragruntOutputFromDependency(t *testing.T) {
+func TestAwsOutputFromDependency(t *testing.T) {
 	// t.Parallel() cannot be used together with t.Setenv()
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
@@ -329,7 +329,7 @@ func TestTerragruntOutputFromDependency(t *testing.T) {
 	assert.NotContains(t, output, "invalid character")
 }
 
-func TestTerragruntValidateAllCommand(t *testing.T) {
+func TestAwsValidateAllCommand(t *testing.T) {
 	t.Parallel()
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
@@ -345,7 +345,7 @@ func TestTerragruntValidateAllCommand(t *testing.T) {
 	runTerragrunt(t, "terragrunt validate-all --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath)
 }
 
-func TestTerragruntOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *testing.T) {
+func TestAwsOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *testing.T) {
 	t.Parallel()
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
@@ -375,7 +375,7 @@ func TestTerragruntOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *tes
 	assert.True(t, strings.Contains(output, "app2 output"))
 }
 
-func TestTerragruntStackCommands(t *testing.T) { //nolint paralleltest
+func TestAwsStackCommands(t *testing.T) { //nolint paralleltest
 	// It seems that disabling parallel test execution helps avoid the CircleCi error: “NoSuchBucket Policy: The bucket policy does not exist.”
 	// t.Parallel()
 
@@ -404,4 +404,46 @@ func TestTerragruntStackCommands(t *testing.T) { //nolint paralleltest
 
 	runTerragrunt(t, "terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir "+stageEnvironmentPath)
 	runTerragrunt(t, "terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir "+mgmtEnvironmentPath)
+}
+
+func TestAwsRemoteWithBackend(t *testing.T) {
+	t.Parallel()
+
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
+	lockTableName := "terragrunt-lock-table-" + strings.ToLower(uniqueId())
+
+	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, terraformRemoteStateS3Region)
+
+	tmpEnvPath := copyEnvironment(t, testFixtureRemoteWithBackend)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureRemoteWithBackend)
+
+	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
+
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	// Run a second time to make sure the temporary folder can be reused without errors
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+}
+
+func TestAwsLocalWithBackend(t *testing.T) {
+	t.Parallel()
+
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
+	lockTableName := "terragrunt-lock-table-" + strings.ToLower(uniqueId())
+
+	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, terraformRemoteStateS3Region)
+
+	tmpEnvPath := copyEnvironment(t, "fixture-download")
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureLocalWithBackend)
+
+	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
+
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	// Run a second time to make sure the temporary folder can be reused without errors
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 }
