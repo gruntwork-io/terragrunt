@@ -3957,99 +3957,6 @@ func uniqueId() string {
 	return out.String()
 }
 
-// Check that the S3 Bucket of the given name and region exists. Terragrunt should create this bucket during the test.
-// Also check if bucket got tagged properly and that public access is disabled completely.
-func validateS3BucketExistsAndIsTagged(t *testing.T, awsRegion string, bucketName string, expectedTags map[string]string) {
-	t.Helper()
-
-	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
-	if err != nil {
-		t.Fatalf("Error creating mockOptions: %v", err)
-	}
-
-	sessionConfig := &aws_helper.AwsSessionConfig{
-		Region: awsRegion,
-	}
-
-	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
-	if err != nil {
-		t.Fatalf("Error creating S3 client: %v", err)
-	}
-
-	assert.True(t, remote.DoesS3BucketExist(s3Client, &bucketName), "Terragrunt failed to create remote state S3 bucket %s", bucketName)
-
-	if expectedTags != nil {
-		assertS3Tags(t, expectedTags, bucketName, s3Client)
-	}
-
-	assertS3PublicAccessBlocks(t, s3Client, bucketName)
-}
-
-// Check that the DynamoDB table of the given name and region exists. Terragrunt should create this table during the test.
-// Also check if table got tagged properly
-func validateDynamoDBTableExistsAndIsTagged(t *testing.T, awsRegion string, tableName string, expectedTags map[string]string) {
-	t.Helper()
-
-	client := createDynamoDbClientForTest(t, awsRegion)
-
-	var description, err = client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
-
-	if err != nil {
-		// This is a ResourceNotFoundException in case the table does not exist
-		t.Fatal(err)
-	}
-
-	var tags, err2 = client.ListTagsOfResource(&dynamodb.ListTagsOfResourceInput{ResourceArn: description.Table.TableArn})
-
-	if err2 != nil {
-		t.Fatal(err2)
-	}
-
-	var actualTags = make(map[string]string)
-
-	for _, element := range tags.Tags {
-		actualTags[*element.Key] = *element.Value
-	}
-
-	assert.Equal(t, expectedTags, actualTags, "Did not find expected tags on dynamo table.")
-}
-
-func assertS3Tags(t *testing.T, expectedTags map[string]string, bucketName string, client *s3.S3) {
-	t.Helper()
-
-	var in = s3.GetBucketTaggingInput{}
-	in.SetBucket(bucketName)
-
-	var tags, err2 = client.GetBucketTagging(&in)
-
-	if err2 != nil {
-		t.Fatal(err2)
-	}
-
-	var actualTags = make(map[string]string)
-
-	for _, element := range tags.TagSet {
-		actualTags[*element.Key] = *element.Value
-	}
-
-	assert.Equal(t, expectedTags, actualTags, "Did not find expected tags on s3 bucket.")
-}
-
-func assertS3PublicAccessBlocks(t *testing.T, client *s3.S3, bucketName string) {
-	t.Helper()
-
-	resp, err := client.GetPublicAccessBlock(
-		&s3.GetPublicAccessBlockInput{Bucket: aws.String(bucketName)},
-	)
-	require.NoError(t, err)
-
-	publicAccessBlockConfig := resp.PublicAccessBlockConfiguration
-	assert.True(t, aws.BoolValue(publicAccessBlockConfig.BlockPublicAcls))
-	assert.True(t, aws.BoolValue(publicAccessBlockConfig.BlockPublicPolicy))
-	assert.True(t, aws.BoolValue(publicAccessBlockConfig.IgnorePublicAcls))
-	assert.True(t, aws.BoolValue(publicAccessBlockConfig.RestrictPublicBuckets))
-}
-
 // createS3Bucket creates a test S3 bucket for state.
 func createS3Bucket(t *testing.T, awsRegion string, bucketName string) {
 	t.Helper()
@@ -4199,35 +4106,6 @@ func deleteS3BucketE(t *testing.T, awsRegion string, bucketName string, opts ...
 		return err
 	}
 	return nil
-}
-
-func bucketEncryption(t *testing.T, awsRegion string, bucketName string) (*s3.GetBucketEncryptionOutput, error) {
-	t.Helper()
-
-	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
-	if err != nil {
-		t.Logf("Error creating mockOptions: %v", err)
-		return nil, err
-	}
-
-	sessionConfig := &aws_helper.AwsSessionConfig{
-		Region: awsRegion,
-	}
-
-	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
-	if err != nil {
-		t.Logf("Error creating S3 client: %v", err)
-		return nil, err
-	}
-
-	input := &s3.GetBucketEncryptionInput{Bucket: aws.String(bucketName)}
-	output, err := s3Client.GetBucketEncryption(input)
-	if err != nil {
-		// TODO: Remove this lint suppression
-		return nil, nil //nolint:nilerr
-	}
-
-	return output, nil
 }
 
 func bucketPolicy(t *testing.T, awsRegion string, bucketName string) (*s3.GetBucketPolicyOutput, error) {
