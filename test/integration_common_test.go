@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"io"
 	"math/big"
 	"net"
@@ -24,6 +23,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
