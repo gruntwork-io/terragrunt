@@ -141,15 +141,6 @@ const (
 	testFixtureTimecmp                                            = "fixture-timecmp"
 	testFixtureTimecmpInvalidTimestamp                            = "fixture-timecmp-errors/invalid-timestamp"
 	testFixtureEndswith                                           = "fixture-endswith"
-	testFixtureTflintNoIssuesFound                                = "fixture-tflint/no-issues-found"
-	testFixtureTflintIssuesFound                                  = "fixture-tflint/issues-found"
-	testFixtureTflintNoConfigFile                                 = "fixture-tflint/no-config-file"
-	testFixtureTflintModuleFound                                  = "fixture-tflint/module-found"
-	testFixtureTflintNoTfSourcePath                               = "fixture-tflint/no-tf-source"
-	testFixtureTflintExternalTflint                               = "fixture-tflint/external-tflint"
-	testFixtureTflintTfvarPassing                                 = "fixture-tflint/tfvar-passing"
-	testFixtureTflintArgs                                         = "fixture-tflint/tflint-args"
-	testFixtureTflintCustomConfig                                 = "fixture-tflint/custom-tflint-config"
 	testFixtureParallelRun                                        = "fixture-parallel-run"
 	testFixtureInitError                                          = "fixture-init-error"
 	testFixtureModulePathError                                    = "fixture-module-path-in-error"
@@ -6210,51 +6201,4 @@ func TestGetRepoRootCaching(t *testing.T) {
 	output := fmt.Sprintf("%s %s", stdout, stderr)
 	count := strings.Count(output, "git show-toplevel result")
 	assert.Equal(t, 1, count)
-}
-
-func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
-	t.Helper()
-	output, hasPlatform := outputs[key]
-	assert.Truef(t, hasPlatform, "Expected output %s to be defined", key)
-	assert.Equalf(t, output.Value, value, "Expected output %s to be %t", key, value)
-}
-
-// wrappedBinary - return which binary will be wrapped by Terragrunt, useful in CICD to run same tests against tofu and terraform
-func wrappedBinary() string {
-	value, found := os.LookupEnv("TERRAGRUNT_TFPATH")
-	if !found {
-		// if env variable is not defined, try to check through executing command
-		if util.IsCommandExecutable(tofuBinary, "-version") {
-			return tofuBinary
-		}
-		return terraformBinary
-	}
-	return filepath.Base(value)
-}
-
-// expectedWrongCommandErr - return expected error message for wrong command
-func expectedWrongCommandErr(command string) error {
-	if wrappedBinary() == tofuBinary {
-		return terraform.WrongTofuCommand(command)
-	}
-	return terraform.WrongTerraformCommand(command)
-}
-
-func isTerraform() bool {
-	return wrappedBinary() == terraformBinary
-}
-
-func findFilesWithExtension(dir string, ext string) ([]string, error) {
-	var files []string
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() && filepath.Ext(path) == ext {
-			files = append(files, path)
-		}
-		return nil
-	})
-
-	return files, err
 }

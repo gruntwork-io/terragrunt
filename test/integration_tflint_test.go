@@ -16,6 +16,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testFixtureTflintNoIssuesFound  = "fixture-tflint/no-issues-found"
+	testFixtureTflintIssuesFound    = "fixture-tflint/issues-found"
+	testFixtureTflintNoConfigFile   = "fixture-tflint/no-config-file"
+	testFixtureTflintModuleFound    = "fixture-tflint/module-found"
+	testFixtureTflintNoTfSourcePath = "fixture-tflint/no-tf-source"
+	testFixtureTflintExternalTflint = "fixture-tflint/external-tflint"
+	testFixtureTflintTfvarPassing   = "fixture-tflint/tfvar-passing"
+	testFixtureTflintArgs           = "fixture-tflint/tflint-args"
+	testFixtureTflintCustomConfig   = "fixture-tflint/custom-tflint-config"
+)
+
 func TestTflintFindsNoIssuesWithValidCode(t *testing.T) {
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
