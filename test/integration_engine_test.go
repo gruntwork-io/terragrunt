@@ -1,6 +1,6 @@
 //go:build engine
 
-package integration_test
+package test_test
 
 import (
 	"fmt"

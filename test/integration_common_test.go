@@ -1,5 +1,5 @@
 // common integration test functions
-package integration_test
+package test_test
 
 import (
 	"archive/zip"

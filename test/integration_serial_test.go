@@ -1,5 +1,5 @@
 //nolint:paralleltest
-package integration_test
+package test_test
 
 import (
 	"bytes"
@@ -18,6 +18,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/test"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -77,15 +79,15 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 
 	t.Logf("%s=%s", terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
 
-	cliConfigSettings := &CLIConfigSettings{
-		FilesystemMirrorMethods: []CLIConfigProviderInstallationFilesystemMirror{
+	cliConfigSettings := &test.CLIConfigSettings{
+		FilesystemMirrorMethods: []test.CLIConfigProviderInstallationFilesystemMirror{
 			{
 				Path:    providersMirrorPath,
 				Include: []string{"example.com/*/*"},
 			},
 		},
 	}
-	createCLIConfig(t, cliConfigFilename, cliConfigSettings)
+	test.CreateCLIConfig(t, cliConfigFilename, cliConfigSettings)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-registry-names example.com --terragrunt-provider-cache-registry-names registry.opentofu.org --terragrunt-provider-cache-registry-names registry.terraform.io --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, appPath))
 
@@ -163,26 +165,26 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 
 	t.Logf("%s=%s", terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
 
-	cliConfigSettings := &CLIConfigSettings{
-		DirectMethods: []CLIConfigProviderInstallationDirect{
+	cliConfigSettings := &test.CLIConfigSettings{
+		DirectMethods: []test.CLIConfigProviderInstallationDirect{
 			{
 				Exclude: []string{"example.com/*/*"},
 			},
 		},
-		FilesystemMirrorMethods: []CLIConfigProviderInstallationFilesystemMirror{
+		FilesystemMirrorMethods: []test.CLIConfigProviderInstallationFilesystemMirror{
 			{
 				Path:    providersFilesystemMirrorPath,
 				Include: []string{"example.com/hashicorp/azurerm"},
 			},
 		},
-		NetworkMirrorMethods: []CLIConfigProviderInstallationNetworkMirror{
+		NetworkMirrorMethods: []test.CLIConfigProviderInstallationNetworkMirror{
 			{
 				URL:     networkMirrorURL.String(),
 				Exclude: []string{"example.com/hashicorp/azurerm"},
 			},
 		},
 	}
-	createCLIConfig(t, cliConfigFilename, cliConfigSettings)
+	test.CreateCLIConfig(t, cliConfigFilename, cliConfigSettings)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all init --terragrunt-provider-cache --terragrunt-provider-cache-registry-names example.com --terragrunt-provider-cache-registry-names registry.opentofu.org --terragrunt-provider-cache-registry-names registry.terraform.io --terragrunt-provider-cache-dir %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", providerCacheDir, appPath))
 

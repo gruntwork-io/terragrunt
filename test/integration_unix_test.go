@@ -1,7 +1,7 @@
 //go:build linux || darwin
 // +build linux darwin
 
-package integration_test
+package test_test
 
 import (
 	"testing"
