@@ -3,13 +3,14 @@ package test_test
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"regexp"
+	"testing"
+
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"os"
-	"regexp"
-	"testing"
 )
 
 const (

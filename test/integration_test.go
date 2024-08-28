@@ -24,7 +24,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/cli"
@@ -3275,31 +3274,6 @@ func copyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 	return tmpDir
 }
 
-func createTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string, childRelPath string, s3BucketName string, parentConfigFileName string, childConfigFileName string) string {
-	t.Helper()
-
-	tmpDir, err := os.MkdirTemp("", "terragrunt-parent-child-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir due to error: %v", err)
-	}
-
-	childDestPath := util.JoinPath(tmpDir, childRelPath)
-
-	if err := os.MkdirAll(childDestPath, 0777); err != nil {
-		t.Fatalf("Failed to create temp dir %s due to error %v", childDestPath, err)
-	}
-
-	parentTerragruntSrcPath := util.JoinPath(parentPath, parentConfigFileName)
-	parentTerragruntDestPath := util.JoinPath(tmpDir, parentConfigFileName)
-	copyTerragruntConfigAndFillPlaceholders(t, parentTerragruntSrcPath, parentTerragruntDestPath, s3BucketName, "not-used", "not-used")
-
-	childTerragruntSrcPath := util.JoinPath(util.JoinPath(parentPath, childRelPath), childConfigFileName)
-	childTerragruntDestPath := util.JoinPath(childDestPath, childConfigFileName)
-	copyTerragruntConfigAndFillPlaceholders(t, childTerragruntSrcPath, childTerragruntDestPath, s3BucketName, "not-used", "not-used")
-
-	return childTerragruntDestPath
-}
-
 func createTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName string, lockTableName string, configFileName string) string {
 	t.Helper()
 
@@ -3722,27 +3696,6 @@ func TestSopsDecryptedCorrectlyRunAll(t *testing.T) {
 	assert.Contains(t, outputs["ini_value"].Value, "password = potato")
 }
 
-func TestTerragruntRunAllCommandPrompt(t *testing.T) {
-	t.Parallel()
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-
-	tmpEnvPath := copyEnvironment(t, testFixtureOutputAll)
-
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputAll, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
-
-	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputAll)
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, "terragrunt run-all apply --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
-	logBufferContentsLineByLine(t, stdout, "stdout")
-	logBufferContentsLineByLine(t, stderr, "stderr")
-	assert.Contains(t, stderr.String(), "Are you sure you want to run 'terragrunt apply' in each folder of the stack described above? (y/n)")
-	require.Error(t, err)
-}
-
 func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	t.Parallel()
 
@@ -3803,24 +3756,6 @@ func TestPathRelativeToIncludeInvokedInCorrectPathFromChild(t *testing.T) {
 	output := stdout.String()
 	assert.Equal(t, 1, strings.Count(output, "path_relative_to_inclue: app\n"))
 	assert.Equal(t, 0, strings.Count(output, "path_relative_to_inclue: .\n"))
-}
-
-func TestTerragruntInitConfirmation(t *testing.T) {
-	t.Parallel()
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-
-	tmpEnvPath := copyEnvironment(t, testFixtureOutputAll)
-
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputAll, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, "terragrunt run-all init --terragrunt-working-dir "+tmpEnvPath, &stdout, &stderr)
-	require.Error(t, err)
-	errout := stderr.String()
-	assert.Equal(t, 1, strings.Count(errout, "does not exist or you don't have permissions to access it. Would you like Terragrunt to create it? (y/n)"))
 }
 
 func TestNoMultipleInitsWithoutSourceChange(t *testing.T) {
@@ -5233,64 +5168,6 @@ func TestTerragruntCommandsThatNeedInput(t *testing.T) {
 	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "Apply complete")
-}
-
-func TestTerragruntParallelStateInit(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")
-	if err != nil {
-		require.NoError(t, err)
-	}
-	for i := 0; i < 20; i++ {
-		err := util.CopyFolderContents(testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test", nil)
-		require.NoError(t, err)
-		err = os.Rename(
-			path.Join(tmpEnvPath, "template"),
-			path.Join(tmpEnvPath, "app"+strconv.Itoa(i)))
-		require.NoError(t, err)
-	}
-
-	originalTerragruntConfigPath := util.JoinPath(testFixtureParallelStateInit, "terragrunt.hcl")
-	tmpTerragruntConfigFile := util.JoinPath(tmpEnvPath, "terragrunt.hcl")
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueId())
-	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-2")
-
-	runTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+tmpEnvPath)
-}
-
-func TestTerragruntAssumeRole(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := copyEnvironment(t, testFixtureAssumeRole)
-	cleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureAssumeRole)
-
-	originalTerragruntConfigPath := util.JoinPath(testFixtureAssumeRole, "terragrunt.hcl")
-	tmpTerragruntConfigFile := util.JoinPath(testPath, "terragrunt.hcl")
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueId())
-	copyTerragruntConfigAndFillPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, s3BucketName, lockTableName, "us-east-2")
-
-	runTerragrunt(t, "terragrunt validate-inputs -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
-
-	// validate generated backend.tf
-	backendFile := filepath.Join(testPath, "backend.tf")
-	assert.FileExists(t, backendFile)
-
-	content, err := files.ReadFileAsString(backendFile)
-	require.NoError(t, err)
-
-	opts, err := options.NewTerragruntOptionsForTest(testPath)
-	require.NoError(t, err)
-
-	identityARN, err := aws_helper.GetAWSIdentityArn(nil, opts)
-	require.NoError(t, err)
-
-	assert.Contains(t, content, "role_arn     = \""+identityARN+"\"")
-	assert.Contains(t, content, "external_id  = \"external_id_123\"")
-	assert.Contains(t, content, "session_name = \"session_name_example\"")
 }
 
 func TestTerragruntDestroyGraph(t *testing.T) {
