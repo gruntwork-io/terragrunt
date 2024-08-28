@@ -20,12 +20,12 @@ import (
 )
 
 const (
-	TestFixtureLocalEngine    = "fixture-engine/local-engine"
-	TestFixtureRemoteEngine   = "fixture-engine/remote-engine"
-	TestFixtureOpenTofuEngine = "fixture-engine/opentofu-engine"
-	TestFixtureOpenTofuRunAll = "fixture-engine/opentofu-run-all"
+	testFixtureLocalEngine    = "fixture-engine/local-engine"
+	testFixtureRemoteEngine   = "fixture-engine/remote-engine"
+	testFixtureOpenTofuEngine = "fixture-engine/opentofu-engine"
+	testFixtureOpenTofuRunAll = "fixture-engine/opentofu-run-all"
 
-	EnvVarExperimental = "TG_EXPERIMENTAL_ENGINE"
+	envVarExperimental = "TG_EXPERIMENTAL_ENGINE"
 )
 
 var LocalEngineBinaryPath = "terragrunt-iac-engine-opentofu_rpc_" + testEngineVersion() + "_" + runtime.GOOS + "_" + runtime.GOARCH
@@ -55,11 +55,11 @@ func TestEngineLocalApply(t *testing.T) {
 }
 
 func TestEngineOpentofu(t *testing.T) {
-	t.Setenv(EnvVarExperimental, "1")
+	t.Setenv(envVarExperimental, "1")
 
-	cleanupTerraformFolder(t, TestFixtureOpenTofuEngine)
-	tmpEnvPath := copyEnvironment(t, TestFixtureOpenTofuEngine)
-	rootPath := util.JoinPath(tmpEnvPath, TestFixtureOpenTofuEngine)
+	cleanupTerraformFolder(t, testFixtureOpenTofuEngine)
+	tmpEnvPath := copyEnvironment(t, testFixtureOpenTofuEngine)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureOpenTofuEngine)
 
 	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)
@@ -71,11 +71,11 @@ func TestEngineOpentofu(t *testing.T) {
 }
 
 func TestEngineRunAllOpentofu(t *testing.T) {
-	t.Setenv(EnvVarExperimental, "1")
+	t.Setenv(envVarExperimental, "1")
 
-	cleanupTerraformFolder(t, TestFixtureOpenTofuRunAll)
-	tmpEnvPath := copyEnvironment(t, TestFixtureOpenTofuRunAll)
-	rootPath := util.JoinPath(tmpEnvPath, TestFixtureOpenTofuRunAll)
+	cleanupTerraformFolder(t, testFixtureOpenTofuRunAll)
+	tmpEnvPath := copyEnvironment(t, testFixtureOpenTofuRunAll)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureOpenTofuRunAll)
 
 	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)
@@ -90,7 +90,7 @@ func TestEngineRunAllOpentofu(t *testing.T) {
 }
 
 func TestEngineRunAllOpentofuCustomPath(t *testing.T) {
-	t.Setenv(EnvVarExperimental, "1")
+	t.Setenv(envVarExperimental, "1")
 
 	cacheDir, rootPath := setupEngineCache(t)
 
@@ -110,16 +110,16 @@ func TestEngineRunAllOpentofuCustomPath(t *testing.T) {
 }
 
 func TestEngineDownloadOverHttp(t *testing.T) {
-	t.Setenv(EnvVarExperimental, "1")
+	t.Setenv(envVarExperimental, "1")
 
-	cleanupTerraformFolder(t, TestFixtureRemoteEngine)
-	tmpEnvPath := copyEnvironment(t, TestFixtureRemoteEngine)
-	rootPath := util.JoinPath(tmpEnvPath, TestFixtureRemoteEngine)
+	cleanupTerraformFolder(t, testFixtureRemoteEngine)
+	tmpEnvPath := copyEnvironment(t, testFixtureRemoteEngine)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureRemoteEngine)
 
 	platform := runtime.GOOS
 	arch := runtime.GOARCH
 
-	copyAndFillMapPlaceholders(t, util.JoinPath(TestFixtureRemoteEngine, "terragrunt.hcl"), util.JoinPath(rootPath, config.DefaultTerragruntConfigPath), map[string]string{
+	copyAndFillMapPlaceholders(t, util.JoinPath(testFixtureRemoteEngine, "terragrunt.hcl"), util.JoinPath(rootPath, config.DefaultTerragruntConfigPath), map[string]string{
 		"__hardcoded_url__": fmt.Sprintf("https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/v0.0.4/terragrunt-iac-engine-opentofu_rpc_v0.0.4_%s_%s.zip", platform, arch),
 	})
 
@@ -133,7 +133,7 @@ func TestEngineDownloadOverHttp(t *testing.T) {
 }
 
 func TestEngineChecksumVerification(t *testing.T) {
-	t.Setenv(EnvVarExperimental, "1")
+	t.Setenv(envVarExperimental, "1")
 
 	cachePath, rootPath := setupEngineCache(t)
 
@@ -163,7 +163,7 @@ func TestEngineChecksumVerification(t *testing.T) {
 }
 
 func TestEngineDisableChecksumCheck(t *testing.T) {
-	t.Setenv(EnvVarExperimental, "1")
+	t.Setenv(envVarExperimental, "1")
 
 	cachePath, rootPath := setupEngineCache(t)
 
@@ -185,9 +185,9 @@ func TestEngineDisableChecksumCheck(t *testing.T) {
 	require.NoError(t, err)
 
 	// create separated directory for new tests
-	cleanupTerraformFolder(t, TestFixtureOpenTofuRunAll)
-	tmpEnvPath := copyEnvironment(t, TestFixtureOpenTofuRunAll)
-	rootPath = util.JoinPath(tmpEnvPath, TestFixtureOpenTofuRunAll)
+	cleanupTerraformFolder(t, testFixtureOpenTofuRunAll)
+	tmpEnvPath := copyEnvironment(t, testFixtureOpenTofuRunAll)
+	rootPath = util.JoinPath(tmpEnvPath, testFixtureOpenTofuRunAll)
 
 	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 	require.Error(t, err)
@@ -205,24 +205,24 @@ func setupEngineCache(t *testing.T) (string, string) {
 	cacheDir := t.TempDir()
 	t.Setenv("TG_ENGINE_CACHE_PATH", cacheDir)
 
-	cleanupTerraformFolder(t, TestFixtureOpenTofuRunAll)
-	tmpEnvPath := copyEnvironment(t, TestFixtureOpenTofuRunAll)
-	rootPath := util.JoinPath(tmpEnvPath, TestFixtureOpenTofuRunAll)
+	cleanupTerraformFolder(t, testFixtureOpenTofuRunAll)
+	tmpEnvPath := copyEnvironment(t, testFixtureOpenTofuRunAll)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureOpenTofuRunAll)
 	return cacheDir, rootPath
 }
 
 func setupLocalEngine(t *testing.T) string {
-	t.Setenv(EnvVarExperimental, "1")
+	t.Setenv(envVarExperimental, "1")
 
-	cleanupTerraformFolder(t, TestFixtureLocalEngine)
-	tmpEnvPath := copyEnvironment(t, TestFixtureLocalEngine)
-	rootPath := util.JoinPath(tmpEnvPath, TestFixtureLocalEngine)
+	cleanupTerraformFolder(t, testFixtureLocalEngine)
+	tmpEnvPath := copyEnvironment(t, testFixtureLocalEngine)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureLocalEngine)
 
 	// get pwd
 	pwd, err := os.Getwd()
 	require.NoError(t, err)
 
-	copyAndFillMapPlaceholders(t, util.JoinPath(TestFixtureLocalEngine, "terragrunt.hcl"), util.JoinPath(rootPath, config.DefaultTerragruntConfigPath), map[string]string{
+	copyAndFillMapPlaceholders(t, util.JoinPath(testFixtureLocalEngine, "terragrunt.hcl"), util.JoinPath(rootPath, config.DefaultTerragruntConfigPath), map[string]string{
 		"__engine_source__": pwd + "/../" + LocalEngineBinaryPath,
 	})
 	return rootPath
