@@ -4,24 +4,28 @@ package test_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
 	terraws "github.com/gruntwork-io/terratest/modules/aws"
+	"github.com/gruntwork-io/terratest/modules/git"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"os"
-	"path/filepath"
-	"strings"
-	"testing"
 )
 
 const (
-	terraformRemoteStateS3Region = "us-west-2"
-
 	testFixtureAwsProviderPatch     = "fixture-aws-provider-patch"
 	testFixtureAwsGetCallerIdentity = "fixture-get-aws-caller-identity"
 	testFixtureS3Errors             = "fixture-s3-errors/"
@@ -446,4 +450,203 @@ func TestAwsLocalWithBackend(t *testing.T) {
 
 	// Run a second time to make sure the temporary folder can be reused without errors
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+}
+
+func TestAWSGetCallerIdentityFunctions(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureAwsGetCallerIdentity)
+	tmpEnvPath := copyEnvironment(t, testFixtureAwsGetCallerIdentity)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureAwsGetCallerIdentity)
+
+	runTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
+	)
+
+	// Get values from STS
+	sess, err := session.NewSession()
+	if err != nil {
+		t.Fatalf("Error while creating AWS session: %v", err)
+	}
+
+	identity, err := sts.New(sess).GetCallerIdentity(nil)
+	if err != nil {
+		t.Fatalf("Error while getting AWS caller identity: %v", err)
+	}
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	assert.Equal(t, outputs["account"].Value, *identity.Account)
+	assert.Equal(t, outputs["arn"].Value, *identity.Arn)
+	assert.Equal(t, outputs["user_id"].Value, *identity.UserId)
+}
+
+// We test the path with remote_state blocks by:
+// - Applying all modules initially
+// - Deleting the local state of the nested deep dependency
+// - Running apply on the root module
+// If output optimization is working, we should still get the same correct output even though the state of the upmost
+// module has been destroyed.
+func TestDependencyOutputOptimization(t *testing.T) {
+	t.Parallel()
+
+	expectOutputLogs := []string{
+		`prefix=../dep .+Running command: ` + wrappedBinary() + ` init -get=false`,
+	}
+	dependencyOutputOptimizationTest(t, "nested-optimization", true, expectOutputLogs)
+}
+
+func TestDependencyOutputOptimizationSkipInit(t *testing.T) {
+	t.Parallel()
+
+	expectOutputLogs := []string{
+		`prefix=../dep .+Detected module ../dep/terragrunt.hcl is already init-ed. Retrieving outputs directly from working directory.`,
+	}
+	dependencyOutputOptimizationTest(t, "nested-optimization", false, expectOutputLogs)
+}
+
+func TestDependencyOutputOptimizationNoGenerate(t *testing.T) {
+	t.Parallel()
+
+	expectOutputLogs := []string{
+		`prefix=../dep .+Running command: ` + wrappedBinary() + ` init -get=false`,
+	}
+	dependencyOutputOptimizationTest(t, "nested-optimization-nogen", true, expectOutputLogs)
+}
+
+func TestDependencyOutputOptimizationDisableTest(t *testing.T) {
+	t.Parallel()
+
+	expectedOutput := `They said, "No, The answer is 42"`
+	generatedUniqueId := uniqueId()
+
+	cleanupTerraformFolder(t, testFixtureGetOutput)
+	tmpEnvPath := copyEnvironment(t, testFixtureGetOutput)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, "nested-optimization-disable")
+	rootTerragruntConfigPath := filepath.Join(rootPath, config.DefaultTerragruntConfigPath)
+	livePath := filepath.Join(rootPath, "live")
+	deepDepPath := filepath.Join(rootPath, "deepdep")
+
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(generatedUniqueId)
+	lockTableName := "terragrunt-test-locks-" + strings.ToLower(generatedUniqueId)
+	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, terraformRemoteStateS3Region)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, terraformRemoteStateS3Region)
+
+	runTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
+	// This is only a problem during testing, where the process is shared across terragrunt runs.
+	config.ClearOutputCache()
+
+	// verify expected output
+	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+livePath)
+	require.NoError(t, err)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+	assert.Equal(t, expectedOutput, outputs["output"].Value)
+
+	// Now delete the deepdep state and verify it no longer works, because it tries to fetch the deepdep dependency
+	config.ClearOutputCache()
+	require.NoError(t, os.Remove(filepath.Join(deepDepPath, "terraform.tfstate")))
+	require.NoError(t, os.RemoveAll(filepath.Join(deepDepPath, ".terraform")))
+	_, _, err = runTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+livePath)
+	require.Error(t, err)
+}
+
+func TestAwsProviderPatch(t *testing.T) {
+	t.Parallel()
+
+	stderr := new(bytes.Buffer)
+	rootPath := copyEnvironment(t, testFixtureAwsProviderPatch)
+	modulePath := util.JoinPath(rootPath, testFixtureAwsProviderPatch)
+	mainTFFile := filepath.Join(modulePath, "main.tf")
+
+	// fill in branch so we can test against updates to the test case file
+	mainContents, err := util.ReadFileAsString(mainTFFile)
+	require.NoError(t, err)
+	branchName := git.GetCurrentBranchName(t)
+	// https://www.terraform.io/docs/language/modules/sources.html#modules-in-package-sub-directories
+	// https://github.com/gruntwork-io/terragrunt/issues/1778
+	branchName = url.QueryEscape(branchName)
+	mainContents = strings.ReplaceAll(mainContents, "__BRANCH_NAME__", branchName)
+	require.NoError(t, os.WriteFile(mainTFFile, []byte(mainContents), 0444))
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, fmt.Sprintf("terragrunt aws-provider-patch --terragrunt-override-attr region=\"eu-west-1\" --terragrunt-override-attr allowed_account_ids=[\"00000000000\"] --terragrunt-working-dir %s --terragrunt-log-level debug", modulePath), os.Stdout, stderr),
+	)
+	t.Log(stderr.String())
+
+	assert.Regexp(t, "Patching AWS provider in .+test/fixture-aws-provider-patch/example-module/main.tf", stderr.String())
+
+	// Make sure the resulting terraform code is still valid
+	require.NoError(
+		t,
+		runTerragruntCommand(t, "terragrunt validate --terragrunt-working-dir "+modulePath, os.Stdout, os.Stderr),
+	)
+}
+
+func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit bool, expectedOutputLogs []string) {
+	t.Helper()
+
+	expectedOutput := `They said, "No, The answer is 42"`
+	generatedUniqueId := uniqueId()
+
+	cleanupTerraformFolder(t, testFixtureGetOutput)
+	tmpEnvPath := copyEnvironment(t, testFixtureGetOutput)
+	rootPath := filepath.Join(tmpEnvPath, testFixtureGetOutput, moduleName)
+	rootTerragruntConfigPath := filepath.Join(rootPath, config.DefaultTerragruntConfigPath)
+	livePath := filepath.Join(rootPath, "live")
+	deepDepPath := filepath.Join(rootPath, "deepdep")
+	depPath := filepath.Join(rootPath, "dep")
+
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(generatedUniqueId)
+	lockTableName := "terragrunt-test-locks-" + strings.ToLower(generatedUniqueId)
+	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, terraformRemoteStateS3Region)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, terraformRemoteStateS3Region)
+
+	runTerragrunt(t, "terragrunt apply-all --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
+	// This is only a problem during testing, where the process is shared across terragrunt runs.
+	config.ClearOutputCache()
+
+	// verify expected output
+	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir "+livePath)
+	require.NoError(t, err)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+	assert.Equal(t, expectedOutput, outputs["output"].Value)
+
+	// If we want to force reinit, delete the relevant .terraform directories
+	if forceInit {
+		cleanupTerraformFolder(t, depPath)
+	}
+
+	// Now delete the deepdep state and verify still works (note we need to bust the cache again)
+	config.ClearOutputCache()
+	require.NoError(t, os.Remove(filepath.Join(deepDepPath, "terraform.tfstate")))
+
+	fmt.Println("terragrunt output -no-color -json --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir " + livePath)
+
+	reout, reerr, err := runTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir "+livePath)
+	require.NoError(t, err)
+
+	require.NoError(t, json.Unmarshal([]byte(reout), &outputs))
+	assert.Equal(t, expectedOutput, outputs["output"].Value)
+
+	for _, logRegexp := range expectedOutputLogs {
+		assert.Regexp(t, logRegexp, reerr)
+	}
 }
