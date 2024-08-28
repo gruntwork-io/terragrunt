@@ -340,7 +340,7 @@ jobs:
       - store_test_results:
           path: logs
 
-  integration_test_gcp_engine:
+  integration_test_gcp:
     <<: *defaults
     <<: *env
     steps:
@@ -612,7 +612,7 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
             - APPLE__OSX__code-signing
-      - integration_test_gcp_engine:
+      - integration_test_gcp:
           filters:
             tags:
               only: /^v.*/
