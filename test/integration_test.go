@@ -51,126 +51,110 @@ import (
 const (
 	terraformRemoteStateS3Region = "us-west-2"
 
-	testFixturePath                                               = "fixture/"
-	testFixtureHclvalidate                                        = "fixture-hclvalidate"
-	testFixtureExcludesFile                                       = "fixutre-excludes-file"
-	testFixtureInitOnce                                           = "fixture-init-once"
-	testFixtureProviderCacheMultiplePlatforms                     = "fixture-provider-cache/multiple-platforms"
-	testFixtureProviderCacheDirect                                = "fixture-provider-cache/direct"
-	testFixtureProviderCacheNetworkMirror                         = "fixture-provider-cache/network-mirror"
-	testFixtureProviderCacheFilesystemMirror                      = "fixture-provider-cache/filesystem-mirror"
-	testFixtureDestroyOrder                                       = "fixture-destroy-order"
-	testFixtureCodegenPath                                        = "fixture-codegen"
-	testFixtureStack                                              = "fixture-stack/"
-	testFixtureGraphDependencies                                  = "fixture-graph-dependencies"
-	testFixtureOutputAll                                          = "fixture-output-all"
-	testFixtureOutputFromRemoteState                              = "fixture-output-from-remote-state"
-	testFixtureOutputFromDependency                               = "fixture-output-from-dependency"
-	testFixtureInputsFromDependency                               = "fixture-inputs-from-dependency"
-	testFixtureStdout                                             = "fixture-download/stdout-test"
-	testFixtureExtraArgsPath                                      = "fixture-extra-args/"
-	testFixtureEnvVarsBlockPath                                   = "fixture-env-vars-block/"
-	testFixtureSkip                                               = "fixture-skip/"
-	testFixtureConfigSingleJsonPath                               = "fixture-config-files/single-json-config"
-	testFixtureConfigWithNonDefaultNames                          = "fixture-config-files/with-non-default-names"
-	testFixturePreventDestroyOverride                             = "fixture-prevent-destroy-override/child"
-	testFixturePreventDestroyNotSet                               = "fixture-prevent-destroy-not-set/child"
-	testFixtureLocalPreventDestroy                                = "fixture-download/local-with-prevent-destroy"
-	testFixtureLocalPreventDestroyDependencies                    = "fixture-download/local-with-prevent-destroy-dependencies"
-	testFixtureLocalIncludePreventDestroyDependencies             = "fixture-download/local-include-with-prevent-destroy-dependencies"
-	testFixtureNotExistingSource                                  = "fixture-download/invalid-path"
-	testFixtureExternalDependence                                 = "fixture-external-dependencies"
-	testFixtureMissingDependence                                  = "fixture-missing-dependencies/main"
-	testFixtureGetOutput                                          = "fixture-get-output"
-	testFixtureHooksBeforeOnlyPath                                = "fixture-hooks/before-only"
-	testFixtureHooksAllPath                                       = "fixture-hooks/all"
-	testFixtureHooksAfterOnlyPath                                 = "fixture-hooks/after-only"
-	testFixtureHooksBeforeAndAfterPath                            = "fixture-hooks/before-and-after"
-	testFixtureHooksBeforeAfterAndErrorMergePath                  = "fixture-hooks/before-after-and-error-merge"
-	testFixtureHooksSkipOnErrorPath                               = "fixture-hooks/skip-on-error"
-	testFixtureErrorHooksPath                                     = "fixture-hooks/error-hooks"
-	testFixtureHooksOneArgActionPath                              = "fixture-hooks/one-arg-action"
-	testFixtureHooksEmptyStringCommandPath                        = "fixture-hooks/bad-arg-action/empty-string-command"
-	testFixtureHooksEmptyCommandListPath                          = "fixture-hooks/bad-arg-action/empty-command-list"
-	testFixtureHooksInterpolationsPath                            = "fixture-hooks/interpolations"
-	testFixtureHooksInitOnceNoSourceNoBackend                     = "fixture-hooks/init-once/no-source-no-backend"
-	testFixtureHooksInitOnceNoSourceWithBackend                   = "fixture-hooks/init-once/no-source-with-backend"
-	testFixtureHooksInitOnceWithSourceNoBackend                   = "fixture-hooks/init-once/with-source-no-backend"
-	testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStdout = "fixture-hooks/init-once/with-source-no-backend-suppress-hook-stdout"
-	testFixtureHooksInitOnceWithSourceWithBackend                 = "fixture-hooks/init-once/with-source-with-backend"
-	testFixtureFailedTerraform                                    = "fixture-failure"
-	testFixtureExitCode                                           = "fixture-exit-code"
-	testFixtureAutoRetryRerun                                     = "fixture-auto-retry/re-run"
-	testFixtureAutoRetryExhaust                                   = "fixture-auto-retry/exhaust"
-	testFixtureAutoRetryGetDefaultErrors                          = "fixture-auto-retry/get-default-errors"
-	testFixtureAutoRetryCustomErrors                              = "fixture-auto-retry/custom-errors"
-	testFixtureAutoRetryCustomErrorsNotSet                        = "fixture-auto-retry/custom-errors-not-set"
-	testFixtureAutoRetryApplyAllRetries                           = "fixture-auto-retry/apply-all"
-	testFixtureAutoRetryConfigurableRetries                       = "fixture-auto-retry/configurable-retries"
-	testFixtureAutoRetryConfigurableRetriesError1                 = "fixture-auto-retry/configurable-retries-incorrect-retry-attempts"
-	testFixtureAutoRetryConfigurableRetriesError2                 = "fixture-auto-retry/configurable-retries-incorrect-sleep-interval"
-	testFixtureInputs                                             = "fixture-inputs"
-	testFixtureNoColor                                            = "fixture-no-color"
-	testFixtureReadConfig                                         = "fixture-read-config"
-	testFixtureReadIamRole                                        = "fixture-read-config/iam_role_in_file"
-	testFixtureIamRolesMultipleModules                            = "fixture-read-config/iam_roles_multiple_modules"
-	testFixtureRelativeIncludeCmd                                 = "fixture-relative-include-cmd"
-	testFixtureGetRepoRoot                                        = "fixture-get-repo-root"
-	testFixtureGetWorkingDir                                      = "fixture-get-working-dir"
-	testFixturePathRelativeFromInclude                            = "fixture-get-path/fixture-path_relative_from_include"
-	testFixtureGetPathFromRepoRoot                                = "fixture-get-path/fixture-get-path-from-repo-root"
-	testFixtureGetPathToRepoRoot                                  = "fixture-get-path/fixture-get-path-to-repo-root"
-	testFixtureGetPlatform                                        = "fixture-get-platform"
-	testFixtureGetTerragruntSourceHcl                             = "fixture-get-terragrunt-source-hcl"
-	testFixtureGetTerragruntSourceCli                             = "fixture-get-terragrunt-source-cli"
-	testFixtureRegressions                                        = "fixture-regressions"
-	testFixturePlanfileOrder                                      = "fixture-planfile-order-test"
-	testFixtureDirsPath                                           = "fixture-dirs"
-	testFixtureParallelism                                        = "fixture-parallelism"
-	testFixtureSops                                               = "fixture-sops"
-	testFixtureDestroyWarning                                     = "fixture-destroy-warning"
-	testFixtureIncludeParent                                      = "fixture-include-parent"
-	testFixtureAutoInit                                           = "fixture-download/init-on-source-change"
-	testFixtureDisjoint                                           = "fixture-stack/disjoint"
-	testFixtureBrokenDependency                                   = "fixture-broken-dependency"
-	testFixtureRenderJsonMetadata                                 = "fixture-render-json-metadata"
-	testFixtureRenderJsonMockOutputs                              = "fixture-render-json-mock-outputs"
-	testFixtureRenderJsonInputs                                   = "fixture-render-json-inputs"
-	testFixtureOutputModuleGroups                                 = "fixture-output-module-groups"
-	testFixtureStartswith                                         = "fixture-startswith"
-	testFixtureTimecmp                                            = "fixture-timecmp"
-	testFixtureTimecmpInvalidTimestamp                            = "fixture-timecmp-errors/invalid-timestamp"
-	testFixtureEndswith                                           = "fixture-endswith"
-	testFixtureParallelRun                                        = "fixture-parallel-run"
-	testFixtureInitError                                          = "fixture-init-error"
-	testFixtureModulePathError                                    = "fixture-module-path-in-error"
-	testFixtureHclfmtDiff                                         = "fixture-hclfmt-diff"
-	testFixtureDestroyDependentModule                             = "fixture-destroy-dependent-module"
-	testFixtureRefSource                                          = "fixture-download/remote-ref"
-	testFixtureSourceMapSlashes                                   = "fixture-source-map/slashes-in-ref"
-	testFixtureStrcontains                                        = "fixture-strcontains"
-	testFixtureInitCache                                          = "fixture-init-cache"
-	testFixtureNullValue                                          = "fixture-null-values"
-	testFixtureDisabledPath                                       = "fixture-disabled-path/"
-	testFixtureNoSubmodules                                       = "fixture-no-submodules/"
-	testFixtureDisabledModule                                     = "fixture-disabled/"
-	testFixtureEmptyState                                         = "fixture-empty-state/"
-	testFixtureExternalDependency                                 = "fixture-external-dependency/"
-	testFixtureTfTest                                             = "fixture-tftest/"
-	testCommandsThatNeedInput                                     = "fixture-commands-that-need-input"
-	testFixtureParallelStateInit                                  = "fixture-parallel-state-init"
-	testFixtureAssumeRole                                         = "fixture-assume-role/external-id"
-	testFixtureAssumeRoleDuration                                 = "fixture-assume-role/duration"
-	testFixtureAssumeRoleWebIdentityEnv                           = "fixture-assume-role-web-identity/env-var"
-	testFixtureAssumeRoleWebIdentityFile                          = "fixture-assume-role-web-identity/file-path"
-	testFixtureGraph                                              = "fixture-graph"
-	testFixtureSkipDependencies                                   = "fixture-skip-dependencies"
-	testFixtureInfoError                                          = "fixture-terragrunt-info-error"
-	testFixtureDependencyOutput                                   = "fixture-dependency-output"
-	testFixtureOutDir                                             = "fixture-out-dir"
-	testFixtureSopsErrors                                         = "fixture-sops-errors"
-	testFixtureAuthProviderCmd                                    = "fixture-auth-provider-cmd"
-	testFixtureLogFormatter                                       = "fixture-log-formatter"
+	testFixturePath                                   = "fixture/"
+	testFixtureHclvalidate                            = "fixture-hclvalidate"
+	testFixtureExcludesFile                           = "fixutre-excludes-file"
+	testFixtureInitOnce                               = "fixture-init-once"
+	testFixtureProviderCacheMultiplePlatforms         = "fixture-provider-cache/multiple-platforms"
+	testFixtureProviderCacheDirect                    = "fixture-provider-cache/direct"
+	testFixtureProviderCacheNetworkMirror             = "fixture-provider-cache/network-mirror"
+	testFixtureProviderCacheFilesystemMirror          = "fixture-provider-cache/filesystem-mirror"
+	testFixtureDestroyOrder                           = "fixture-destroy-order"
+	testFixtureCodegenPath                            = "fixture-codegen"
+	testFixtureStack                                  = "fixture-stack/"
+	testFixtureGraphDependencies                      = "fixture-graph-dependencies"
+	testFixtureOutputAll                              = "fixture-output-all"
+	testFixtureOutputFromRemoteState                  = "fixture-output-from-remote-state"
+	testFixtureOutputFromDependency                   = "fixture-output-from-dependency"
+	testFixtureInputsFromDependency                   = "fixture-inputs-from-dependency"
+	testFixtureStdout                                 = "fixture-download/stdout-test"
+	testFixtureExtraArgsPath                          = "fixture-extra-args/"
+	testFixtureEnvVarsBlockPath                       = "fixture-env-vars-block/"
+	testFixtureSkip                                   = "fixture-skip/"
+	testFixtureConfigSingleJsonPath                   = "fixture-config-files/single-json-config"
+	testFixtureConfigWithNonDefaultNames              = "fixture-config-files/with-non-default-names"
+	testFixturePreventDestroyOverride                 = "fixture-prevent-destroy-override/child"
+	testFixturePreventDestroyNotSet                   = "fixture-prevent-destroy-not-set/child"
+	testFixtureLocalPreventDestroy                    = "fixture-download/local-with-prevent-destroy"
+	testFixtureLocalPreventDestroyDependencies        = "fixture-download/local-with-prevent-destroy-dependencies"
+	testFixtureLocalIncludePreventDestroyDependencies = "fixture-download/local-include-with-prevent-destroy-dependencies"
+	testFixtureNotExistingSource                      = "fixture-download/invalid-path"
+	testFixtureExternalDependence                     = "fixture-external-dependencies"
+	testFixtureMissingDependence                      = "fixture-missing-dependencies/main"
+	testFixtureGetOutput                              = "fixture-get-output"
+	testFixtureFailedTerraform                        = "fixture-failure"
+	testFixtureExitCode                               = "fixture-exit-code"
+	testFixtureAutoRetryRerun                         = "fixture-auto-retry/re-run"
+	testFixtureAutoRetryExhaust                       = "fixture-auto-retry/exhaust"
+	testFixtureAutoRetryGetDefaultErrors              = "fixture-auto-retry/get-default-errors"
+	testFixtureAutoRetryCustomErrors                  = "fixture-auto-retry/custom-errors"
+	testFixtureAutoRetryCustomErrorsNotSet            = "fixture-auto-retry/custom-errors-not-set"
+	testFixtureAutoRetryApplyAllRetries               = "fixture-auto-retry/apply-all"
+	testFixtureAutoRetryConfigurableRetries           = "fixture-auto-retry/configurable-retries"
+	testFixtureAutoRetryConfigurableRetriesError1     = "fixture-auto-retry/configurable-retries-incorrect-retry-attempts"
+	testFixtureAutoRetryConfigurableRetriesError2     = "fixture-auto-retry/configurable-retries-incorrect-sleep-interval"
+	testFixtureInputs                                 = "fixture-inputs"
+	testFixtureNoColor                                = "fixture-no-color"
+	testFixtureReadConfig                             = "fixture-read-config"
+	testFixtureReadIamRole                            = "fixture-read-config/iam_role_in_file"
+	testFixtureIamRolesMultipleModules                = "fixture-read-config/iam_roles_multiple_modules"
+	testFixtureRelativeIncludeCmd                     = "fixture-relative-include-cmd"
+	testFixtureGetRepoRoot                            = "fixture-get-repo-root"
+	testFixtureGetWorkingDir                          = "fixture-get-working-dir"
+	testFixturePathRelativeFromInclude                = "fixture-get-path/fixture-path_relative_from_include"
+	testFixtureGetPathFromRepoRoot                    = "fixture-get-path/fixture-get-path-from-repo-root"
+	testFixtureGetPathToRepoRoot                      = "fixture-get-path/fixture-get-path-to-repo-root"
+	testFixtureGetPlatform                            = "fixture-get-platform"
+	testFixtureGetTerragruntSourceHcl                 = "fixture-get-terragrunt-source-hcl"
+	testFixtureGetTerragruntSourceCli                 = "fixture-get-terragrunt-source-cli"
+	testFixtureRegressions                            = "fixture-regressions"
+	testFixturePlanfileOrder                          = "fixture-planfile-order-test"
+	testFixtureDirsPath                               = "fixture-dirs"
+	testFixtureParallelism                            = "fixture-parallelism"
+	testFixtureSops                                   = "fixture-sops"
+	testFixtureDestroyWarning                         = "fixture-destroy-warning"
+	testFixtureIncludeParent                          = "fixture-include-parent"
+	testFixtureAutoInit                               = "fixture-download/init-on-source-change"
+	testFixtureDisjoint                               = "fixture-stack/disjoint"
+	testFixtureBrokenDependency                       = "fixture-broken-dependency"
+	testFixtureRenderJsonMetadata                     = "fixture-render-json-metadata"
+	testFixtureRenderJsonMockOutputs                  = "fixture-render-json-mock-outputs"
+	testFixtureRenderJsonInputs                       = "fixture-render-json-inputs"
+	testFixtureOutputModuleGroups                     = "fixture-output-module-groups"
+	testFixtureStartswith                             = "fixture-startswith"
+	testFixtureTimecmp                                = "fixture-timecmp"
+	testFixtureTimecmpInvalidTimestamp                = "fixture-timecmp-errors/invalid-timestamp"
+	testFixtureEndswith                               = "fixture-endswith"
+	testFixtureParallelRun                            = "fixture-parallel-run"
+	testFixtureInitError                              = "fixture-init-error"
+	testFixtureModulePathError                        = "fixture-module-path-in-error"
+	testFixtureHclfmtDiff                             = "fixture-hclfmt-diff"
+	testFixtureDestroyDependentModule                 = "fixture-destroy-dependent-module"
+	testFixtureRefSource                              = "fixture-download/remote-ref"
+	testFixtureSourceMapSlashes                       = "fixture-source-map/slashes-in-ref"
+	testFixtureStrcontains                            = "fixture-strcontains"
+	testFixtureInitCache                              = "fixture-init-cache"
+	testFixtureNullValue                              = "fixture-null-values"
+	testFixtureDisabledPath                           = "fixture-disabled-path/"
+	testFixtureNoSubmodules                           = "fixture-no-submodules/"
+	testFixtureDisabledModule                         = "fixture-disabled/"
+	testFixtureEmptyState                             = "fixture-empty-state/"
+	testFixtureExternalDependency                     = "fixture-external-dependency/"
+	testFixtureTfTest                                 = "fixture-tftest/"
+	testCommandsThatNeedInput                         = "fixture-commands-that-need-input"
+	testFixtureParallelStateInit                      = "fixture-parallel-state-init"
+	testFixtureAssumeRole                             = "fixture-assume-role/external-id"
+	testFixtureAssumeRoleDuration                     = "fixture-assume-role/duration"
+	testFixtureAssumeRoleWebIdentityEnv               = "fixture-assume-role-web-identity/env-var"
+	testFixtureAssumeRoleWebIdentityFile              = "fixture-assume-role-web-identity/file-path"
+	testFixtureGraph                                  = "fixture-graph"
+	testFixtureSkipDependencies                       = "fixture-skip-dependencies"
+	testFixtureInfoError                              = "fixture-terragrunt-info-error"
+	testFixtureDependencyOutput                       = "fixture-dependency-output"
+	testFixtureOutDir                                 = "fixture-out-dir"
+	testFixtureSopsErrors                             = "fixture-sops-errors"
+	testFixtureAuthProviderCmd                        = "fixture-auth-provider-cmd"
+	testFixtureLogFormatter                           = "fixture-log-formatter"
 
 	terraformFolder = ".terraform"
 
@@ -509,305 +493,6 @@ func TestTerragruntApplyDestroyOrder(t *testing.T) {
 	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt run-all apply -destroy --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 	assert.Regexp(t, regexp.MustCompile(`(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`), stdout)
-}
-
-func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureHooksInitOnceNoSourceNoBackend)
-	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksInitOnceNoSourceNoBackend)
-
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-
-	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
-	output := stdout.String()
-
-	if err != nil {
-		t.Errorf("Did not expect to get error: %s", err.Error())
-	}
-
-	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
-	// With no source, `init-from-module` should not execute
-	assert.NotContains(t, output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE", "Hooks on init-from-module command executed when no source was specified")
-}
-
-func TestTerragruntInitHookWithSourceNoBackend(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureHooksInitOnceWithSourceNoBackend)
-	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksInitOnceWithSourceNoBackend)
-
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", rootPath), &stdout, &stderr)
-	logBufferContentsLineByLine(t, stdout, "apply stdout")
-	logBufferContentsLineByLine(t, stderr, "apply stderr")
-	output := stdout.String()
-
-	if err != nil {
-		t.Errorf("Did not expect to get error: %s", err.Error())
-	}
-
-	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE\n"), "Hooks on init command executed more than once")
-	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE\n"), "Hooks on init-from-module command executed more than once")
-}
-
-func TestTerragruntHookRunAllApply(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureHooksAllPath)
-	tmpEnvPath := copyEnvironment(t, testFixtureHooksAllPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksAllPath)
-	beforeOnlyPath := util.JoinPath(rootPath, "before-only")
-	afterOnlyPath := util.JoinPath(rootPath, "after-only")
-
-	runTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
-
-	_, beforeErr := os.ReadFile(beforeOnlyPath + "/file.out")
-	require.NoError(t, beforeErr)
-	_, afterErr := os.ReadFile(afterOnlyPath + "/file.out")
-	require.NoError(t, afterErr)
-}
-
-func TestTerragruntHookApplyAll(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureHooksAllPath)
-	tmpEnvPath := copyEnvironment(t, testFixtureHooksAllPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksAllPath)
-	beforeOnlyPath := util.JoinPath(rootPath, "before-only")
-	afterOnlyPath := util.JoinPath(rootPath, "after-only")
-
-	runTerragrunt(t, "terragrunt apply-all -auto-approve --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
-
-	_, beforeErr := os.ReadFile(beforeOnlyPath + "/file.out")
-	require.NoError(t, beforeErr)
-	_, afterErr := os.ReadFile(afterOnlyPath + "/file.out")
-	require.NoError(t, afterErr)
-}
-
-func TestTerragruntBeforeHook(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureHooksBeforeOnlyPath)
-	tmpEnvPath := copyEnvironment(t, testFixtureHooksBeforeOnlyPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksBeforeOnlyPath)
-
-	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
-
-	_, exception := os.ReadFile(rootPath + "/file.out")
-
-	require.NoError(t, exception)
-}
-
-func TestTerragruntHookWorkingDir(t *testing.T) {
-	t.Parallel()
-
-	fixturePath := "fixture-hooks/working_dir"
-	cleanupTerraformFolder(t, fixturePath)
-	tmpEnvPath := copyEnvironment(t, fixturePath)
-	rootPath := util.JoinPath(tmpEnvPath, fixturePath)
-
-	runTerragrunt(t, "terragrunt validate --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
-}
-
-func TestTerragruntAfterHook(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureHooksAfterOnlyPath)
-	tmpEnvPath := copyEnvironment(t, testFixtureHooksAfterOnlyPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksAfterOnlyPath)
-
-	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
-
-	_, exception := os.ReadFile(rootPath + "/file.out")
-
-	require.NoError(t, exception)
-}
-
-func TestTerragruntBeforeAndAfterHook(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
-	tmpEnvPath := copyEnvironment(t, testFixtureHooksBeforeAndAfterPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksBeforeAndAfterPath)
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
-
-	_, beforeException := os.ReadFile(rootPath + "/before.out")
-	_, afterException := os.ReadFile(rootPath + "/after.out")
-
-	output := stdout.String()
-
-	if err != nil {
-		t.Errorf("Did not expect to get error: %s", err.Error())
-	}
-
-	assert.Equal(t, 0, strings.Count(output, "BEFORE_TERRAGRUNT_READ_CONFIG"), "terragrunt-read-config before_hook should not be triggered")
-	t.Logf("output: %s", output)
-
-	assert.Equal(t, 1, strings.Count(output, "AFTER_TERRAGRUNT_READ_CONFIG"), "Hooks on terragrunt-read-config command executed more than once")
-
-	expectedHookOutput := fmt.Sprintf("TF_PATH=%s COMMAND=terragrunt-read-config HOOK_NAME=after_hook_3", wrappedBinary())
-	assert.Equal(t, 1, strings.Count(output, expectedHookOutput))
-
-	require.NoError(t, beforeException)
-	require.NoError(t, afterException)
-}
-
-func TestTerragruntSkipOnError(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureHooksSkipOnErrorPath)
-	tmpEnvPath := copyEnvironment(t, testFixtureHooksSkipOnErrorPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksSkipOnErrorPath)
-
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-
-	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
-
-	require.Error(t, err)
-
-	output := stdout.String()
-
-	assert.Contains(t, output, "BEFORE_SHOULD_DISPLAY")
-	assert.NotContains(t, output, "BEFORE_NODISPLAY")
-
-	assert.Contains(t, output, "AFTER_SHOULD_DISPLAY")
-	assert.NotContains(t, output, "AFTER_NODISPLAY")
-
-	assert.Contains(t, output, "ERROR_HOOK_EXECUTED")
-	assert.NotContains(t, output, "NOT_MATCHING_ERROR_HOOK")
-	assert.Contains(t, output, "PATTERN_MATCHING_ERROR_HOOK")
-}
-
-func TestTerragruntCatchErrorsInTerraformExecution(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureErrorHooksPath)
-	tmpEnvPath := copyEnvironment(t, testFixtureErrorHooksPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureErrorHooksPath)
-
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-
-	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
-
-	require.Error(t, err)
-
-	output := stderr.String()
-
-	assert.Contains(t, output, "pattern_matching_hook")
-	assert.Contains(t, output, "catch_all_matching_hook")
-	assert.NotContains(t, output, "not_matching_hook")
-
-}
-
-func TestTerragruntBeforeOneArgAction(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureHooksOneArgActionPath)
-	tmpEnvPath := copyEnvironment(t, testFixtureHooksOneArgActionPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksOneArgActionPath)
-
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", rootPath), &stdout, &stderr)
-	output := stderr.String()
-
-	if err != nil {
-		t.Error("Expected successful execution of terragrunt with 1 before hook execution.")
-	} else {
-		assert.Contains(t, output, "Running command: date")
-	}
-}
-
-func TestTerragruntEmptyStringCommandHook(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureHooksEmptyStringCommandPath)
-	tmpEnvPath := copyEnvironment(t, testFixtureHooksEmptyStringCommandPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksEmptyStringCommandPath)
-
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-
-	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
-
-	if err != nil {
-		assert.Contains(t, err.Error(), "Need at least one non-empty argument in 'execute'.")
-	} else {
-		t.Error("Expected an Error with message: 'Need at least one argument'")
-	}
-}
-
-func TestTerragruntEmptyCommandListHook(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureHooksEmptyCommandListPath)
-	tmpEnvPath := copyEnvironment(t, testFixtureHooksEmptyCommandListPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksEmptyCommandListPath)
-
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-
-	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
-
-	if err != nil {
-		assert.Contains(t, err.Error(), "Need at least one non-empty argument in 'execute'.")
-	} else {
-		t.Error("Expected an Error with message: 'Need at least one argument'")
-	}
-}
-
-func TestTerragruntHookInterpolation(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureHooksInterpolationsPath)
-	tmpEnvPath := copyEnvironment(t, testFixtureHooksInterpolationsPath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksInterpolationsPath)
-
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-
-	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
-	output := stdout.String()
-
-	homePath := os.Getenv("HOME")
-	if homePath == "" {
-		homePath = "HelloWorld"
-	}
-
-	if err != nil {
-		t.Errorf("Did not expect to get error: %s", err.Error())
-	}
-
-	assert.Contains(t, output, homePath)
-
 }
 
 func TestTerragruntWorksWithSingleJsonConfig(t *testing.T) {
@@ -1709,30 +1394,6 @@ func TestApplyAllSkipFalse(t *testing.T) {
 	assert.Contains(t, stdout, "hello, Ernie")
 	assert.Contains(t, stdout, "hello, Bert")
 	assert.NotContains(t, stderr, "Skipping terragrunt module")
-}
-
-func TestTerragruntInfo(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStdout)
-	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStdout)
-
-	showStdout := bytes.Buffer{}
-	showStderr := bytes.Buffer{}
-
-	err := runTerragruntCommand(t, "terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &showStdout, &showStderr)
-	require.NoError(t, err)
-
-	logBufferContentsLineByLine(t, showStdout, "show stdout")
-
-	var dat terragruntinfo.TerragruntInfoGroup
-	errUnmarshal := json.Unmarshal(showStdout.Bytes(), &dat)
-	require.NoError(t, errUnmarshal)
-
-	assert.Equal(t, fmt.Sprintf("%s/%s", rootPath, terragruntCache), dat.DownloadDir)
-	assert.Equal(t, wrappedBinary(), dat.TerraformBinary)
-	assert.Empty(t, dat.IamRole)
 }
 
 // Test case for yamldecode bug: https://github.com/gruntwork-io/terragrunt/issues/834
