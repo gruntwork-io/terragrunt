@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -1228,4 +1229,161 @@ func bucketEncryption(t *testing.T, awsRegion string, bucketName string) (*s3.Ge
 	}
 
 	return output, nil
+}
+
+// deleteS3BucketWithRetry will attempt to delete the specified S3 bucket, retrying up to 3 times if there are errors to
+// handle eventual consistency issues.
+func deleteS3BucketWithRetry(t *testing.T, awsRegion string, bucketName string) {
+	t.Helper()
+
+	for i := 0; i < 3; i++ {
+		err := deleteS3BucketE(t, awsRegion, bucketName)
+		if err == nil {
+			return
+		}
+
+		t.Logf("Error deleting s3 bucket %s. Sleeping for 10 seconds before retrying.", bucketName)
+		time.Sleep(10 * time.Second)
+	}
+	t.Fatalf("Max retries attempting to delete s3 bucket %s in region %s", bucketName, awsRegion)
+}
+
+// createS3Bucket creates a test S3 bucket for state.
+func createS3Bucket(t *testing.T, awsRegion string, bucketName string) {
+	t.Helper()
+
+	err := createS3BucketE(t, awsRegion, bucketName)
+	require.NoError(t, err)
+}
+
+// createS3BucketE create test S3 bucket.
+func createS3BucketE(t *testing.T, awsRegion string, bucketName string) error {
+	t.Helper()
+
+	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
+	if err != nil {
+		t.Logf("Error creating mockOptions: %v", err)
+		return err
+	}
+
+	sessionConfig := &aws_helper.AwsSessionConfig{
+		Region: awsRegion,
+	}
+
+	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
+	if err != nil {
+		t.Logf("Error creating S3 client: %v", err)
+		return err
+	}
+
+	t.Logf("Creating test s3 bucket %s", bucketName)
+	if _, err := s3Client.CreateBucket(&s3.CreateBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+		t.Logf("Failed to create S3 bucket %s: %v", bucketName, err)
+		return err
+	}
+	return nil
+}
+
+func cleanupTableForTest(t *testing.T, tableName string, awsRegion string) {
+	t.Helper()
+
+	client := createDynamoDbClientForTest(t, awsRegion)
+	err := terragruntDynamoDb.DeleteTable(tableName, client)
+	require.NoError(t, err)
+}
+
+// Create an authenticated client for DynamoDB
+func createDynamoDbClient(awsRegion, awsProfile string, iamRoleArn string) (*dynamodb.DynamoDB, error) {
+	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
+	if err != nil {
+		return nil, err
+	}
+
+	sessionConfig := &aws_helper.AwsSessionConfig{
+		Region:  awsRegion,
+		Profile: awsProfile,
+		RoleArn: iamRoleArn,
+	}
+
+	session, err := aws_helper.CreateAwsSession(sessionConfig, mockOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	return dynamodb.New(session), nil
+}
+
+func bucketPolicy(t *testing.T, awsRegion string, bucketName string) (*s3.GetBucketPolicyOutput, error) {
+	t.Helper()
+
+	mockOptions, err := options.NewTerragruntOptionsForTest("integration_test")
+	if err != nil {
+		t.Logf("Error creating mockOptions: %v", err)
+		return nil, err
+	}
+
+	sessionConfig := &aws_helper.AwsSessionConfig{
+		Region: awsRegion,
+	}
+
+	s3Client, err := remote.CreateS3Client(sessionConfig, mockOptions)
+	if err != nil {
+		return nil, err
+	}
+	policyOutput, err := s3Client.GetBucketPolicy(&s3.GetBucketPolicyInput{
+		Bucket: aws.String(bucketName),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return policyOutput, nil
+}
+
+func createDynamoDbClientForTest(t *testing.T, awsRegion string) *dynamodb.DynamoDB {
+	t.Helper()
+
+	client, err := createDynamoDbClient(awsRegion, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return client
+}
+
+// createDynamoDbTableE creates a test DynamoDB table, and returns an error if the table creation fails.
+func createDynamoDbTableE(t *testing.T, awsRegion string, tableName string) error {
+	t.Helper()
+
+	client := createDynamoDbClientForTest(t, awsRegion)
+	_, err := client.CreateTable(&dynamodb.CreateTableInput{
+		AttributeDefinitions: []*dynamodb.AttributeDefinition{
+			{
+				AttributeName: aws.String("LockID"),
+				AttributeType: aws.String("S"),
+			},
+		},
+		KeySchema: []*dynamodb.KeySchemaElement{
+			{
+				AttributeName: aws.String("LockID"),
+				KeyType:       aws.String("HASH"),
+			},
+		},
+		TableName: aws.String(tableName),
+		ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(1),
+			WriteCapacityUnits: aws.Int64(1),
+		},
+	})
+	if err != nil {
+		return err
+	}
+	client.WaitUntilTableExists(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
+	return nil
+}
+
+// createDynamoDbTable creates a test DynamoDB table.
+func createDynamoDbTable(t *testing.T, awsRegion string, tableName string) {
+	t.Helper()
+
+	err := createDynamoDbTableE(t, awsRegion, tableName)
+	require.NoError(t, err)
 }
