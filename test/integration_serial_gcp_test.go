@@ -4,11 +4,12 @@ package test_test
 
 import (
 	"fmt"
-	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestTerragruntWorksWithImpersonateGCSBackend(t *testing.T) {
