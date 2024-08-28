@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -18,21 +20,25 @@ import (
 )
 
 const (
-	testFixtureLocalDownloadPath          = "fixture-download/local"
-	testFixtureCustomLockFile             = "fixture-download/custom-lock-file"
-	testFixtureRemoteDownloadPath         = "fixture-download/remote"
-	testFixtureInvalidRemoteDownloadPath  = "fixture-download/remote-invalid"
-	testFixtureOverrideDonwloadPath       = "fixture-download/override"
-	testFixtureLocalRelativeDownloadPath  = "fixture-download/local-relative"
-	testFixtureRemoteRelativeDownloadPath = "fixture-download/remote-relative"
-	testFixtureLocalWithBackend           = "fixture-download/local-with-backend"
-	testFixtureLocalWithExcludeDir        = "fixture-download/local-with-exclude-dir"
-	testFixtureLocalWithIncludeDir        = "fixture-download/local-with-include-dir"
-	testFixtureRemoteWithBackend          = "fixture-download/remote-with-backend"
-	testFixtureRemoteModuleInRoot         = "fixture-download/remote-module-in-root"
-	testFixtureLocalMissingBackend        = "fixture-download/local-with-missing-backend"
-	testFixtureLocalWithHiddenFolder      = "fixture-download/local-with-hidden-folder"
-	testFixtureLocalWithAllowedHidden     = "fixture-download/local-with-allowed-hidden"
+	testFixtureLocalDownloadPath                      = "fixture-download/local"
+	testFixtureCustomLockFile                         = "fixture-download/custom-lock-file"
+	testFixtureRemoteDownloadPath                     = "fixture-download/remote"
+	testFixtureInvalidRemoteDownloadPath              = "fixture-download/remote-invalid"
+	testFixtureOverrideDonwloadPath                   = "fixture-download/override"
+	testFixtureLocalRelativeDownloadPath              = "fixture-download/local-relative"
+	testFixtureRemoteRelativeDownloadPath             = "fixture-download/remote-relative"
+	testFixtureLocalWithBackend                       = "fixture-download/local-with-backend"
+	testFixtureLocalWithExcludeDir                    = "fixture-download/local-with-exclude-dir"
+	testFixtureLocalWithIncludeDir                    = "fixture-download/local-with-include-dir"
+	testFixtureRemoteWithBackend                      = "fixture-download/remote-with-backend"
+	testFixtureRemoteModuleInRoot                     = "fixture-download/remote-module-in-root"
+	testFixtureLocalMissingBackend                    = "fixture-download/local-with-missing-backend"
+	testFixtureLocalWithHiddenFolder                  = "fixture-download/local-with-hidden-folder"
+	testFixtureLocalWithAllowedHidden                 = "fixture-download/local-with-allowed-hidden"
+	testFixtureLocalPreventDestroy                    = "fixture-download/local-with-prevent-destroy"
+	testFixtureLocalPreventDestroyDependencies        = "fixture-download/local-with-prevent-destroy-dependencies"
+	testFixtureLocalIncludePreventDestroyDependencies = "fixture-download/local-include-with-prevent-destroy-dependencies"
+	testFixtureNotExistingSource                      = "fixture-download/invalid-path"
 )
 
 func TestLocalDownload(t *testing.T) {
@@ -420,5 +426,115 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 
 	for _, module := range modules {
 		assert.Contains(t, applyAllStdoutString, "Hello World, "+module)
+	}
+}
+
+func TestPreventDestroy(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, "fixture-download")
+	fixtureRoot := util.JoinPath(tmpEnvPath, testFixtureLocalPreventDestroy)
+
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+fixtureRoot)
+
+	err := runTerragruntCommand(t, "terragrunt destroy -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+fixtureRoot, os.Stdout, os.Stderr)
+
+	if assert.Error(t, err) {
+		underlying := errors.Unwrap(err)
+		assert.IsType(t, terraform.ModuleIsProtected{}, underlying)
+	}
+}
+
+func TestPreventDestroyApply(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, "fixture-download")
+
+	fixtureRoot := util.JoinPath(tmpEnvPath, testFixtureLocalPreventDestroy)
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+fixtureRoot)
+
+	err := runTerragruntCommand(t, "terragrunt apply -destroy -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+fixtureRoot, os.Stdout, os.Stderr)
+
+	if assert.Error(t, err) {
+		underlying := errors.Unwrap(err)
+		assert.IsType(t, terraform.ModuleIsProtected{}, underlying)
+	}
+}
+
+func TestPreventDestroyDependencies(t *testing.T) {
+	t.Parallel()
+
+	// Populate module paths.
+	moduleNames := []string{
+		"module-a",
+		"module-b",
+		"module-c",
+		"module-d",
+		"module-e",
+	}
+	modulePaths := make(map[string]string, len(moduleNames))
+	for _, moduleName := range moduleNames {
+		modulePaths[moduleName] = util.JoinPath(testFixtureLocalPreventDestroyDependencies, moduleName)
+	}
+
+	// Cleanup all modules directories.
+	cleanupTerraformFolder(t, testFixtureLocalPreventDestroyDependencies)
+	for _, modulePath := range modulePaths {
+		cleanupTerraformFolder(t, modulePath)
+	}
+
+	var (
+		applyAllStdout bytes.Buffer
+		applyAllStderr bytes.Buffer
+	)
+
+	// Apply and destroy all modules.
+	err := runTerragruntCommand(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalPreventDestroyDependencies, &applyAllStdout, &applyAllStderr)
+	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
+	logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
+
+	if err != nil {
+		t.Fatalf("apply-all in TestPreventDestroyDependencies failed with error: %v. Full std", err)
+	}
+
+	var (
+		destroyAllStdout bytes.Buffer
+		destroyAllStderr bytes.Buffer
+	)
+
+	err = runTerragruntCommand(t, "terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalPreventDestroyDependencies, &destroyAllStdout, &destroyAllStderr)
+	logBufferContentsLineByLine(t, destroyAllStdout, "destroy-all stdout")
+	logBufferContentsLineByLine(t, destroyAllStderr, "destroy-all stderr")
+
+	if assert.Error(t, err) {
+		underlying := errors.Unwrap(err)
+		assert.IsType(t, &multierror.Error{}, underlying)
+	}
+
+	// Check that modules C, D and E were deleted and modules A and B weren't.
+	for moduleName, modulePath := range modulePaths {
+		var (
+			showStdout bytes.Buffer
+			showStderr bytes.Buffer
+		)
+
+		err = runTerragruntCommand(t, "terragrunt show --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, &showStdout, &showStderr)
+		logBufferContentsLineByLine(t, showStdout, "show stdout for "+modulePath)
+		logBufferContentsLineByLine(t, showStderr, "show stderr for "+modulePath)
+
+		require.NoError(t, err)
+		output := showStdout.String()
+		switch moduleName {
+		case "module-a":
+			assert.Contains(t, output, "Hello, Module A")
+		case "module-b":
+			assert.Contains(t, output, "Hello, Module B")
+		case "module-c":
+			assert.NotContains(t, output, "Hello, Module C")
+		case "module-d":
+			assert.NotContains(t, output, "Hello, Module D")
+		case "module-e":
+			assert.NotContains(t, output, "Hello, Module E")
+		}
 	}
 }

@@ -32,9 +32,13 @@ import (
 )
 
 const (
-	testFixtureAwsProviderPatch     = "fixture-aws-provider-patch"
-	testFixtureAwsGetCallerIdentity = "fixture-get-aws-caller-identity"
-	testFixtureS3Errors             = "fixture-s3-errors/"
+	testFixtureAwsProviderPatch          = "fixture-aws-provider-patch"
+	testFixtureAwsGetCallerIdentity      = "fixture-get-aws-caller-identity"
+	testFixtureS3Errors                  = "fixture-s3-errors/"
+	testFixtureAssumeRole                = "fixture-assume-role/external-id"
+	testFixtureAssumeRoleDuration        = "fixture-assume-role/duration"
+	testFixtureAssumeRoleWebIdentityEnv  = "fixture-assume-role-web-identity/env-var"
+	testFixtureAssumeRoleWebIdentityFile = "fixture-assume-role-web-identity/file-path"
 )
 
 func TestAwsInitHookNoSourceWithBackend(t *testing.T) {
