@@ -2508,46 +2508,6 @@ func TestDependencyOutputRegression854(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// Regression testing for https://github.com/gruntwork-io/terragrunt/issues/906
-func TestDependencyOutputSameOutputConcurrencyRegression(t *testing.T) {
-	t.Parallel()
-
-	// Use func to isolate each test run to a single s3 bucket that is deleted. We run the test multiple times
-	// because the underlying error we are trying to test against is nondeterministic, and thus may not always work
-	// the first time.
-	tt := func() {
-		cleanupTerraformFolder(t, testFixtureGetOutput)
-		tmpEnvPath := copyEnvironment(t, testFixtureGetOutput)
-		rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "regression-906")
-
-		// Make sure to fill in the s3 bucket to the config. Also ensure the bucket is deleted before the next for
-		// loop call.
-		s3BucketName := fmt.Sprintf("terragrunt-test-bucket-%s%s", strings.ToLower(uniqueId()), strings.ToLower(uniqueId()))
-		defer deleteS3BucketWithRetry(t, terraformRemoteStateS3Region, s3BucketName)
-		commonDepConfigPath := util.JoinPath(rootPath, "common-dep", "terragrunt.hcl")
-		copyTerragruntConfigAndFillPlaceholders(t, commonDepConfigPath, commonDepConfigPath, s3BucketName, "not-used", "not-used")
-
-		stdout := bytes.Buffer{}
-		stderr := bytes.Buffer{}
-		err := runTerragruntCommand(
-			t,
-			"terragrunt apply-all --terragrunt-source-update --terragrunt-non-interactive --terragrunt-working-dir "+rootPath,
-			&stdout,
-			&stderr,
-		)
-		logBufferContentsLineByLine(t, stdout, "stdout")
-		logBufferContentsLineByLine(t, stderr, "stderr")
-		require.NoError(t, err)
-	}
-
-	for i := 0; i < 3; i++ {
-		tt()
-		// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
-		// This is only a problem during testing, where the process is shared across terragrunt runs.
-		config.ClearOutputCache()
-	}
-}
-
 // Regression testing for bug where terragrunt output runs on dependency blocks are done in the terragrunt-cache for the
 // child, not the parent.
 func TestDependencyOutputCachePathBug(t *testing.T) {
@@ -3483,25 +3443,6 @@ func TestTerragruntRemoteStateCodegenOverwrites(t *testing.T) {
 	assert.False(t, fileIsInFolder(t, "bar.tfstate", generateTestCase))
 }
 
-func TestTerragruntRemoteStateCodegenGeneratesBackendBlockS3(t *testing.T) {
-	t.Parallel()
-
-	generateTestCase := filepath.Join(testFixtureCodegenPath, "remote-state", "s3")
-
-	cleanupTerraformFolder(t, generateTestCase)
-	cleanupTerragruntFolder(t, generateTestCase)
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueId())
-
-	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
-	defer cleanupTableForTest(t, lockTableName, terraformRemoteStateS3Region)
-
-	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, generateTestCase, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
-
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, generateTestCase))
-}
-
 func TestTerragruntRemoteStateCodegenErrorsIfExists(t *testing.T) {
 	t.Parallel()
 
@@ -4355,76 +4296,6 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	output := stderr.String()
 	assert.Equal(t, 1, strings.Count(output, appV1Path))
 	assert.Equal(t, 1, strings.Count(output, appV2Path))
-}
-
-func TestTerragruntOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
-	// NOTE: We can't run this test in parallel because there are other tests that also call `config.ClearOutputCache()`, but this function uses a global variable and sometimes it throws an unexpected error:
-	// "fixture-output-from-remote-state/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
-	// t.Parallel()
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
-
-	tmpEnvPath := copyEnvironment(t, testFixtureOutputFromRemoteState)
-
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputFromRemoteState, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
-
-	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputFromRemoteState)
-
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-fetch-dependency-output-from-state --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s/app1", environmentPath))
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-fetch-dependency-output-from-state --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s/app3", environmentPath))
-	// Now delete dependencies cached state
-	config.ClearOutputCache()
-	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app1/.terraform/terraform.tfstate")))
-	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app1/.terraform")))
-	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app3/.terraform/terraform.tfstate")))
-	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app3/.terraform")))
-
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-fetch-dependency-output-from-state --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s/app2", environmentPath))
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-
-	runTerragruntRedirectOutput(t, "terragrunt run-all output --terragrunt-fetch-dependency-output-from-state --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
-	output := stdout.String()
-
-	assert.True(t, strings.Contains(output, "app1 output"))
-	assert.True(t, strings.Contains(output, "app2 output"))
-	assert.True(t, strings.Contains(output, "app3 output"))
-	assert.False(t, strings.Contains(stderr.String(), "terraform output -json"))
-
-	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
-}
-
-func TestTerragruntMockOutputsFromRemoteState(t *testing.T) { //nolint: paralleltest
-	// NOTE: We can't run this test in parallel because there are other tests that also call `config.ClearOutputCache()`, but this function uses a global variable and sometimes it throws an unexpected error:
-	// "fixture-output-from-remote-state/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
-	// t.Parallel()
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
-
-	tmpEnvPath := copyEnvironment(t, testFixtureOutputFromRemoteState)
-
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputFromRemoteState, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
-
-	environmentPath := filepath.Join(tmpEnvPath, testFixtureOutputFromRemoteState, "env1")
-
-	// applying only the app1 dependency, the app3 dependency was purposely not applied and should be mocked when running the app2 module
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply --terragrunt-fetch-dependency-output-from-state --auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s/app1", environmentPath))
-	// Now delete dependencies cached state
-	config.ClearOutputCache()
-	require.NoError(t, os.Remove(filepath.Join(environmentPath, "/app1/.terraform/terraform.tfstate")))
-	require.NoError(t, os.RemoveAll(filepath.Join(environmentPath, "/app1/.terraform")))
-
-	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt init --terragrunt-fetch-dependency-output-from-state --terragrunt-non-interactive --terragrunt-working-dir %s/app2", environmentPath))
-	require.NoError(t, err)
-
-	assert.True(t, strings.Contains(stderr, "Failed to read outputs"))
-	assert.True(t, strings.Contains(stderr, "fallback to mock outputs"))
 }
 
 func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
@@ -5616,31 +5487,6 @@ func TestTerragruntFailIfBucketCreationIsrequired(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestTerragruntDisableBucketUpdate(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := copyEnvironment(t, testFixturePath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
-	cleanupTerraformFolder(t, rootPath)
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueId())
-
-	createS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
-	createDynamoDbTable(t, terraformRemoteStateS3Region, lockTableName)
-
-	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
-	defer cleanupTableForTest(t, lockTableName, terraformRemoteStateS3Region)
-
-	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, rootPath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
-
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-disable-bucket-update --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, rootPath))
-
-	_, err := bucketPolicy(t, terraformRemoteStateS3Region, s3BucketName)
-	// validate that bucket policy is not updated, because of --terragrunt-disable-bucket-update
-	require.Error(t, err)
-}
-
 func TestTerragruntPassNullValues(t *testing.T) {
 	t.Parallel()
 
@@ -5969,34 +5815,6 @@ func TestTerragruntAssumeRole(t *testing.T) {
 	assert.Contains(t, content, "session_name = \"session_name_example\"")
 }
 
-func TestTerragruntUpdatePolicy(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := copyEnvironment(t, testFixturePath)
-	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
-	cleanupTerraformFolder(t, rootPath)
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueId())
-
-	createS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
-
-	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
-	defer cleanupTableForTest(t, lockTableName, terraformRemoteStateS3Region)
-
-	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, rootPath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
-
-	// check that there is no policy on created bucket
-	_, err := bucketPolicy(t, terraformRemoteStateS3Region, s3BucketName)
-	require.Error(t, err)
-
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, rootPath))
-
-	// check that policy is created
-	_, err = bucketPolicy(t, terraformRemoteStateS3Region, s3BucketName)
-	require.NoError(t, err)
-}
-
 func TestTerragruntDestroyGraph(t *testing.T) {
 	t.Parallel()
 
@@ -6167,123 +5985,6 @@ func TestTerragruntSkipDependenciesWithSkipFlag(t *testing.T) {
 	require.Error(t, err)
 	_, err = os.Stat(util.JoinPath(tmpEnvPath, testFixtureSkipDependencies, "second", "test_file.txt"))
 	require.Error(t, err)
-}
-
-func TestTerragruntAssumeRoleDuration(t *testing.T) {
-	t.Parallel()
-	if isTerraform() {
-		t.Skip("New assume role duration config not supported by Terraform 1.5.x")
-		return
-	}
-
-	tmpEnvPath := copyEnvironment(t, testFixtureAssumeRoleDuration)
-	cleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureAssumeRoleDuration)
-
-	originalTerragruntConfigPath := util.JoinPath(testFixtureAssumeRoleDuration, "terragrunt.hcl")
-	tmpTerragruntConfigFile := util.JoinPath(testPath, "terragrunt.hcl")
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-
-	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
-
-	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
-
-	copyAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
-		"__FILL_IN_BUCKET_NAME__":      s3BucketName,
-		"__FILL_IN_REGION__":           terraformRemoteStateS3Region,
-		"__FILL_IN_LOGS_BUCKET_NAME__": s3BucketName + "-tf-state-logs",
-		"__FILL_IN_ASSUME_ROLE__":      assumeRole,
-	})
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := runTerragruntCommand(t, "terragrunt apply  -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
-	require.NoError(t, err)
-
-	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
-	assert.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
-	// run one more time to check that no init is performed
-	stdout = bytes.Buffer{}
-	stderr = bytes.Buffer{}
-
-	err = runTerragruntCommand(t, "terragrunt apply  -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
-	require.NoError(t, err)
-
-	output = fmt.Sprintf("%s %s", stderr.String(), stdout.String())
-	assert.NotContains(t, output, "Initializing the backend...")
-	assert.NotContains(t, output, "has been successfully initialized!")
-	assert.Contains(t, output, "no changes are needed.")
-}
-
-func TestTerragruntAssumeRoleWebIdentityEnv(t *testing.T) {
-	t.Parallel()
-
-	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
-	tokenEnvVar := os.Getenv("AWS_TEST_S3_IDENTITY_TOKEN_VAR")
-	if tokenEnvVar == "" {
-		t.Skip("Missing required env var AWS_TEST_S3_IDENTITY_TOKEN_VAR")
-		return
-	}
-
-	tmpEnvPath := copyEnvironment(t, testFixtureAssumeRoleWebIdentityEnv)
-	cleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureAssumeRoleWebIdentityEnv)
-
-	originalTerragruntConfigPath := util.JoinPath(testFixtureAssumeRoleWebIdentityEnv, "terragrunt.hcl")
-	tmpTerragruntConfigFile := util.JoinPath(testPath, "terragrunt.hcl")
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-
-	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName, options.WithIAMRoleARN(assumeRole), options.WithIAMWebIdentityToken(os.Getenv(tokenEnvVar)))
-
-	copyAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
-		"__FILL_IN_BUCKET_NAME__":            s3BucketName,
-		"__FILL_IN_REGION__":                 terraformRemoteStateS3Region,
-		"__FILL_IN_ASSUME_ROLE__":            assumeRole,
-		"__FILL_IN_IDENTITY_TOKEN_ENV_VAR__": tokenEnvVar,
-	})
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := runTerragruntCommand(t, "terragrunt apply  -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
-	require.NoError(t, err)
-
-	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
-	assert.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
-}
-
-func TestTerragruntAssumeRoleWebIdentityFile(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := copyEnvironment(t, testFixtureAssumeRoleWebIdentityFile)
-	cleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureAssumeRoleWebIdentityFile)
-
-	originalTerragruntConfigPath := util.JoinPath(testFixtureAssumeRoleWebIdentityFile, "terragrunt.hcl")
-	tmpTerragruntConfigFile := util.JoinPath(testPath, "terragrunt.hcl")
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-
-	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
-	tokenFilePath := os.Getenv("AWS_TEST_S3_IDENTITY_TOKEN_FILE_PATH")
-
-	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName, options.WithIAMRoleARN(assumeRole), options.WithIAMWebIdentityToken(tokenFilePath))
-
-	copyAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
-		"__FILL_IN_BUCKET_NAME__":              s3BucketName,
-		"__FILL_IN_REGION__":                   terraformRemoteStateS3Region,
-		"__FILL_IN_ASSUME_ROLE__":              assumeRole,
-		"__FILL_IN_IDENTITY_TOKEN_FILE_PATH__": tokenFilePath,
-	})
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := runTerragruntCommand(t, "terragrunt apply  -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
-	require.NoError(t, err)
-
-	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
-	assert.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
 }
 
 func prepareGraphFixture(t *testing.T) string {
