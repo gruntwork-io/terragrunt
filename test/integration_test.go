@@ -3951,11 +3951,27 @@ func TestTerragruntDisabledDependency(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt run-all plan --terragrunt-non-interactive  --terragrunt-log-level debug --terragrunt-working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 
+	output := stderr.String()
+
 	// check that only enabled dependencies are evaluated
-	assert.Contains(t, stderr.String(), util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "app"))
-	assert.Contains(t, stderr.String(), util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "m1"))
-	assert.Contains(t, stderr.String(), util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "m3"))
-	assert.NotContains(t, stderr.String(), util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "m2"))
+
+	for _, path := range []string{
+		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "app"),
+		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "m1"),
+		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "m3"),
+	} {
+		relPath, err := filepath.Rel(testPath, path)
+		require.NoError(t, err)
+		assert.Contains(t, output, relPath, output)
+	}
+
+	for _, path := range []string{
+		util.JoinPath(tmpEnvPath, testFixtureDisabledModule, "m2"),
+	} {
+		relPath, err := filepath.Rel(testPath, path)
+		require.NoError(t, err)
+		assert.NotContains(t, output, relPath, output)
+	}
 }
 
 func TestTerragruntHandleEmptyStateFile(t *testing.T) {

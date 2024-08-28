@@ -297,7 +297,7 @@ type terragruntGenerateBlock struct {
 type IncludeConfigsMap map[string]IncludeConfig
 
 // ContainsPath returns true if the given path is contained in at least one configuration.
-func (i IncludeConfigs) ContainsPath(path string) bool {
+func (i IncludeConfigsMap) ContainsPath(path string) bool {
 	for _, cfg := range i {
 		if cfg.Path == path {
 			return true
@@ -309,8 +309,8 @@ func (i IncludeConfigs) ContainsPath(path string) bool {
 
 type IncludeConfigs []IncludeConfig
 
-func (confs *IncludeConfigs) UpdateRelativePaths(basePath string) error {
-	for _, conf := range *confs {
+func (i *IncludeConfigs) UpdateRelativePaths(basePath string) error {
+	for _, conf := range *i {
 		if err := conf.UpdateRelativePath(basePath); err != nil {
 			return err
 		}
@@ -329,13 +329,13 @@ type IncludeConfig struct {
 	RelativePath  string
 }
 
-func (conf *IncludeConfig) UpdateRelativePath(basePath string) error {
-	relPath, err := util.GetPathRelativeToWithSeparator(conf.Path, basePath)
+func (i *IncludeConfig) UpdateRelativePath(basePath string) error {
+	relPath, err := util.GetPathRelativeToWithSeparator(i.Path, basePath)
 	if err != nil {
 		return err
 	}
 
-	conf.RelativePath = relPath
+	i.RelativePath = relPath
 
 	return nil
 }

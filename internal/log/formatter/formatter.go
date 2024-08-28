@@ -1,3 +1,4 @@
+// Package formatter provides a logrus formatter that formats log entries in a structured way.
 package formatter
 
 import (
