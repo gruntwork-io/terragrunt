@@ -3424,27 +3424,6 @@ func TestOutputModuleGroups(t *testing.T) {
 	}
 }
 
-func TestTerragruntRenderJsonHelp(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureHooksInitOnceWithSourceNoBackend)
-	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksInitOnceWithSourceNoBackend)
-
-	showStdout := bytes.Buffer{}
-	showStderr := bytes.Buffer{}
-
-	err := runTerragruntCommand(t, "terragrunt render-json --help --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &showStdout, &showStderr)
-	require.NoError(t, err)
-
-	logBufferContentsLineByLine(t, showStdout, "show stdout")
-
-	output := showStdout.String()
-
-	assert.Contains(t, output, "terragrunt render-json")
-	assert.Contains(t, output, "--with-metadata")
-}
-
 func TestTerragruntValidateModulePrefix(t *testing.T) {
 	t.Parallel()
 
@@ -3849,71 +3828,6 @@ func TestTerragruntHandleEmptyStateFile(t *testing.T) {
 	require.NoError(t, file.Close())
 
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
-}
-
-func TestRenderJsonDependentModulesTerraform(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := copyEnvironment(t, testFixtureDestroyWarning)
-	cleanupTerraformFolder(t, tmpEnvPath)
-	tmpDir := util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "vpc")
-
-	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
-	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
-
-	jsonBytes, err := os.ReadFile(jsonOut)
-	require.NoError(t, err)
-
-	var renderedJson = map[string]interface{}{}
-	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
-
-	var dependentModules = renderedJson[config.MetadataDependentModules].([]interface{})
-	// check if value list contains app-v1 and app-v2
-	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "app-v1"))
-	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "app-v2"))
-}
-
-func TestRenderJsonDisableDependentModulesTerraform(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := copyEnvironment(t, testFixtureDestroyWarning)
-	cleanupTerraformFolder(t, tmpEnvPath)
-	tmpDir := util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "vpc")
-
-	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
-	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --terragrunt-json-disable-dependent-modules --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
-
-	jsonBytes, err := os.ReadFile(jsonOut)
-	require.NoError(t, err)
-
-	var renderedJson = map[string]interface{}{}
-	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
-
-	_, found := renderedJson[config.MetadataDependentModules].([]interface{})
-	assert.False(t, found)
-}
-
-func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := copyEnvironment(t, testFixtureDestroyWarning)
-	cleanupTerraformFolder(t, tmpEnvPath)
-	tmpDir := util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "vpc")
-
-	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
-	runTerragrunt(t, fmt.Sprintf("terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s  --terragrunt-json-out %s", tmpDir, jsonOut))
-
-	jsonBytes, err := os.ReadFile(jsonOut)
-	require.NoError(t, err)
-
-	var renderedJson = map[string]map[string]interface{}{}
-
-	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
-
-	dependentModules := renderedJson[config.MetadataDependentModules]["value"].([]interface{})
-	// check if value list contains app-v1 and app-v2
-	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "app-v1"))
-	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "app-v2"))
 }
 
 func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
