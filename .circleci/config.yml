@@ -42,6 +42,7 @@ install_tofu: &install_tofu
     popd
     tofu --version
     export TERRAGRUNT_TFPATH=tofu
+    sudo rm -f $(which terraform)
 
 install_tflint: &install_tflint
   name: Install TFlint
@@ -291,9 +292,6 @@ jobs:
       - run:
           <<: *setup_test_environment
       - run:
-          # Remove terraform
-          sudo rm -f $(which terraform)
-      - run:
           <<: *run_integration_test
           environment:
             TERRAGRUNT_TFPATH: tofu
@@ -315,9 +313,6 @@ jobs:
           <<: *install_tflint
       - run:
           <<: *setup_test_environment
-      - run:
-          # Remove terraform
-          sudo rm -f $(which terraform)
       - run:
           <<: *run_integration_test
           environment:
@@ -342,9 +337,6 @@ jobs:
           <<: *install_tofu_engine
       - run:
           <<: *setup_test_environment
-      - run:
-          # Remove terraform
-          sudo rm -f $(which terraform)
       - run:
           <<: *run_integration_engine_test
       - run:
@@ -432,9 +424,6 @@ jobs:
           <<: *install_tofu
       - run:
           <<: *setup_test_environment
-      - run:
-          # Remove terraform
-          sudo rm -f $(which terraform)
       - run:
           name: generate mocks
           command: |
