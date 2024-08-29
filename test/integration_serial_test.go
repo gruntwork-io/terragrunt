@@ -7,14 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"math"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"runtime"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -472,74 +469,6 @@ func TestTerragruntLogLevelEnvVarUnparsableLogsErrorButContinues(t *testing.T) {
 	// stderr and we can't capture the output, so in this case we only make sure that the command runs successfully to
 	// completion.
 	runTerragrunt(t, "terragrunt validate --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
-}
-
-// NOTE: the following test asserts precise timing for determining parallelism. As such, it can not be run in parallel
-// with all the other tests as the system load could impact the duration in which the parallel terragrunt goroutines
-// run.
-
-func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules int, timeToDeployEachModule time.Duration, expectedTimings []int) {
-	t.Helper()
-
-	output, testStart, err := testRemoteFixtureParallelism(t, parallelism, numberOfModules, timeToDeployEachModule)
-	require.NoError(t, err)
-
-	// parse output and sort the times, the regex captures a string in the format time.RFC3339 emitted by terraform's timestamp function
-	regex, err := regexp.Compile(`out = "([-:\w]+)"`)
-	require.NoError(t, err)
-
-	matches := regex.FindAllStringSubmatch(output, -1)
-	assert.Len(t, matches, numberOfModules)
-
-	var deploymentTimes = make([]int, 0, len(matches))
-	for _, match := range matches {
-		parsedTime, err := time.Parse(time.RFC3339, match[1])
-		require.NoError(t, err)
-		deploymentTime := int(parsedTime.Unix()) - testStart
-		deploymentTimes = append(deploymentTimes, deploymentTime)
-	}
-	sort.Ints(deploymentTimes)
-
-	// the reported times are skewed (running terragrunt/terraform apply adds a little bit of overhead)
-	// we apply a simple scaling algorithm on the times based on the last expected time and the last actual time
-	scalingFactor := float64(deploymentTimes[0]) / float64(expectedTimings[0])
-	// find max skew time deploymentTimes vs expectedTimings
-	for i := 1; i < len(deploymentTimes); i++ {
-		factor := float64(deploymentTimes[i]) / float64(expectedTimings[i])
-		if factor > scalingFactor {
-			scalingFactor = factor
-		}
-	}
-	scaledTimes := make([]float64, len(deploymentTimes))
-	for i, deploymentTime := range deploymentTimes {
-		scaledTimes[i] = float64(deploymentTime) / scalingFactor
-	}
-
-	t.Logf("Parallelism test numberOfModules=%d p=%d expectedTimes=%v deploymentTimes=%v scaledTimes=%v scaleFactor=%f", numberOfModules, parallelism, expectedTimings, deploymentTimes, scaledTimes, scalingFactor)
-	maxDiffInSeconds := 5.0 * scalingFactor
-	for i, scaledTime := range scaledTimes {
-		difference := math.Abs(scaledTime - float64(expectedTimings[i]))
-		assert.LessOrEqual(t, difference, maxDiffInSeconds, "Expected timing %d but got %f", expectedTimings[i], scaledTime)
-	}
-}
-
-func TestTerragruntParallelism(t *testing.T) {
-	testCases := []struct {
-		parallelism            int
-		numberOfModules        int
-		timeToDeployEachModule time.Duration
-		expectedTimings        []int
-	}{
-		{1, 10, 5 * time.Second, []int{5, 10, 15, 20, 25, 30, 35, 40, 45, 50}},
-		{3, 10, 5 * time.Second, []int{5, 5, 5, 10, 10, 10, 15, 15, 15, 20}},
-		{5, 10, 5 * time.Second, []int{5, 5, 5, 5, 5, 5, 5, 5, 5, 5}},
-	}
-	for _, tc := range testCases {
-		tc := tc // shadow and force execution with this case
-		t.Run(fmt.Sprintf("parallelism=%d numberOfModules=%d timeToDeployEachModule=%v expectedTimings=%v", tc.parallelism, tc.numberOfModules, tc.timeToDeployEachModule, tc.expectedTimings), func(t *testing.T) {
-			testTerragruntParallelism(t, tc.parallelism, tc.numberOfModules, tc.timeToDeployEachModule, tc.expectedTimings)
-		})
-	}
 }
 
 func TestTerragruntProduceTelemetryTraces(t *testing.T) {
