@@ -86,7 +86,6 @@ const (
 	testFixtureGetPlatform                    = "fixture-get-platform"
 	testFixtureGetTerragruntSourceHcl         = "fixture-get-terragrunt-source-hcl"
 	testFixtureGetTerragruntSourceCli         = "fixture-get-terragrunt-source-cli"
-	testFixtureRegressions                    = "fixture-regressions"
 	testFixturePlanfileOrder                  = "fixture-planfile-order-test"
 	testFixtureDirsPath                       = "fixture-dirs"
 	testFixtureParallelism                    = "fixture-parallelism"
@@ -804,22 +803,6 @@ func TestInputsPassedThroughCorrectly(t *testing.T) {
 	validateInputs(t, outputs)
 }
 
-func TestNoAutoInit(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureRegressions)
-	tmpEnvPath := copyEnvironment(t, testFixtureRegressions)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureRegressions, "skip-init")
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, "terragrunt apply --terragrunt-no-auto-init --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
-	logBufferContentsLineByLine(t, stdout, "no force apply stdout")
-	logBufferContentsLineByLine(t, stderr, "no force apply stderr")
-	require.Error(t, err)
-	assert.Contains(t, stderr.String(), "This module is not yet installed.")
-}
-
 type TerraformOutput struct {
 	Sensitive bool        `json:"Sensitive"`
 	Type      interface{} `json:"Type"`
@@ -1038,32 +1021,6 @@ func TestApplyAllSkipFalse(t *testing.T) {
 	assert.Contains(t, stdout, "hello, Ernie")
 	assert.Contains(t, stdout, "hello, Bert")
 	assert.NotContains(t, stderr, "Skipping terragrunt module")
-}
-
-// Test case for yamldecode bug: https://github.com/gruntwork-io/terragrunt/issues/834
-func TestYamlDecodeRegressions(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureRegressions)
-	tmpEnvPath := copyEnvironment(t, testFixtureRegressions)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureRegressions, "yamldecode")
-
-	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
-
-	// Check the output of yamldecode and make sure it doesn't parse the string incorrectly
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	require.NoError(
-		t,
-		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
-	)
-
-	outputs := map[string]TerraformOutput{}
-	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-	assert.Equal(t, "003", outputs["test1"].Value)
-	assert.Equal(t, "1.00", outputs["test2"].Value)
-	assert.Equal(t, "0ba", outputs["test3"].Value)
 }
 
 func TestDependencyOutput(t *testing.T) {
@@ -3486,35 +3443,6 @@ func TestTerragruntRenderJsonHelp(t *testing.T) {
 
 	assert.Contains(t, output, "terragrunt render-json")
 	assert.Contains(t, output, "--with-metadata")
-}
-
-func TestMockOutputsMergeWithState(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureRegressions)
-	tmpEnvPath := copyEnvironment(t, testFixtureRegressions)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureRegressions, "mocks-merge-with-state")
-
-	modulePath := util.JoinPath(rootPath, "module")
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, "terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir "+modulePath, &stdout, &stderr)
-	logBufferContentsLineByLine(t, stdout, "module-executed")
-	require.NoError(t, err)
-
-	deepMapPath := util.JoinPath(rootPath, "deep-map")
-	stdout = bytes.Buffer{}
-	stderr = bytes.Buffer{}
-	err = runTerragruntCommand(t, "terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir "+deepMapPath, &stdout, &stderr)
-	logBufferContentsLineByLine(t, stdout, "deep-map-executed")
-	require.NoError(t, err)
-
-	shallowPath := util.JoinPath(rootPath, "shallow")
-	stdout = bytes.Buffer{}
-	stderr = bytes.Buffer{}
-	err = runTerragruntCommand(t, "terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir "+shallowPath, &stdout, &stderr)
-	logBufferContentsLineByLine(t, stdout, "shallow-map-executed")
-	require.NoError(t, err)
 }
 
 func TestTerragruntValidateModulePrefix(t *testing.T) {
