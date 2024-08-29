@@ -79,7 +79,6 @@ const (
 	testFixtureInputs                         = "fixture-inputs"
 	testFixtureNoColor                        = "fixture-no-color"
 	testFixtureReadConfig                     = "fixture-read-config"
-	testFixtureReadIamRole                    = "fixture-read-config/iam_role_in_file"
 	testFixtureIamRolesMultipleModules        = "fixture-read-config/iam_roles_multiple_modules"
 	testFixtureRelativeIncludeCmd             = "fixture-relative-include-cmd"
 	testFixtureGetRepoRoot                    = "fixture-get-repo-root"
@@ -2873,30 +2872,6 @@ func TestTerragruntVersionConstraints(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestReadTerragruntConfigIamRole(t *testing.T) {
-	t.Parallel()
-
-	identityArn, err := aws_helper.GetAWSIdentityArn(nil, &options.TerragruntOptions{})
-	require.NoError(t, err)
-
-	cleanupTerraformFolder(t, testFixtureReadIamRole)
-
-	// Execution outputs to be verified
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	// Invoke terragrunt and verify used IAM role
-	err = runTerragruntCommand(t, "terragrunt init --terragrunt-working-dir "+testFixtureReadIamRole, &stdout, &stderr)
-
-	// Since are used not existing AWS accounts, for validation are used success and error outputs
-	output := fmt.Sprintf("%v %v %v", stderr.String(), stdout.String(), err.Error())
-
-	// Check that output contains value defined in IAM role
-	assert.Contains(t, output, "666666666666")
-	// Ensure that state file wasn't created with default IAM value
-	assert.True(t, util.FileNotExists(util.JoinPath(testFixtureReadIamRole, identityArn+".txt")))
 }
 
 func TestReadTerragruntAuthProviderCmd(t *testing.T) {

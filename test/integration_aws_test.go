@@ -41,6 +41,7 @@ const (
 	testFixtureAssumeRoleDuration        = "fixture-assume-role/duration"
 	testFixtureAssumeRoleWebIdentityEnv  = "fixture-assume-role-web-identity/env-var"
 	testFixtureAssumeRoleWebIdentityFile = "fixture-assume-role-web-identity/file-path"
+	testFixtureReadIamRole               = "fixture-read-config/iam_role_in_file"
 )
 
 func TestAwsInitHookNoSourceWithBackend(t *testing.T) {
@@ -1052,6 +1053,30 @@ func TestAwsRunAllCommandPrompt(t *testing.T) {
 	logBufferContentsLineByLine(t, stderr, "stderr")
 	assert.Contains(t, stderr.String(), "Are you sure you want to run 'terragrunt apply' in each folder of the stack described above? (y/n)")
 	require.Error(t, err)
+}
+
+func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
+	t.Parallel()
+
+	identityArn, err := aws_helper.GetAWSIdentityArn(nil, &options.TerragruntOptions{})
+	require.NoError(t, err)
+
+	cleanupTerraformFolder(t, testFixtureReadIamRole)
+
+	// Execution outputs to be verified
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	// Invoke terragrunt and verify used IAM role
+	err = runTerragruntCommand(t, "terragrunt init --terragrunt-working-dir "+testFixtureReadIamRole, &stdout, &stderr)
+
+	// Since are used not existing AWS accounts, for validation are used success and error outputs
+	output := fmt.Sprintf("%v %v %v", stderr.String(), stdout.String(), err.Error())
+
+	// Check that output contains value defined in IAM role
+	assert.Contains(t, output, "666666666666")
+	// Ensure that state file wasn't created with default IAM value
+	assert.True(t, util.FileNotExists(util.JoinPath(testFixtureReadIamRole, identityArn+".txt")))
 }
 
 func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit bool, expectedOutputLogs []string) {
