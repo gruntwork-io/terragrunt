@@ -1,3 +1,5 @@
+//go:build aws
+
 package dynamodb_test
 
 import (
@@ -16,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCreateLockTableIfNecessaryTableDoesntAlreadyExist(t *testing.T) {
+func TestAwsCreateLockTableIfNecessaryTableDoesntAlreadyExist(t *testing.T) {
 	t.Parallel()
 
 	withLockTable(t, func(tableName string, client *awsDynamodb.DynamoDB) {
@@ -24,7 +26,7 @@ func TestCreateLockTableIfNecessaryTableDoesntAlreadyExist(t *testing.T) {
 	})
 }
 
-func TestCreateLockTableConcurrency(t *testing.T) {
+func TestAwsCreateLockTableConcurrency(t *testing.T) {
 	t.Parallel()
 
 	mockOptions, err := options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
@@ -55,7 +57,7 @@ func TestCreateLockTableConcurrency(t *testing.T) {
 	waitGroup.Wait()
 }
 
-func TestWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
+func TestAwsWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
 	t.Parallel()
 
 	mockOptions, err := options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
@@ -72,7 +74,7 @@ func TestWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
 	assert.True(t, errors.IsError(err, dynamodb.TableActiveRetriesExceeded{TableName: tableName, Retries: retries}), "Unexpected error of type %s: %s", reflect.TypeOf(err), err)
 }
 
-func TestCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
+func TestAwsCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
 	t.Parallel()
 
 	mockOptions, err := options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
@@ -90,7 +92,7 @@ func TestCreateLockTableIfNecessaryTableAlreadyExists(t *testing.T) {
 	})
 }
 
-func TestTableTagging(t *testing.T) {
+func TestAwsTableTagging(t *testing.T) {
 	t.Parallel()
 
 	mockOptions, err := options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
