@@ -81,8 +81,6 @@ const (
 	testFixtureReadConfig                     = "fixture-read-config"
 	testFixtureIamRolesMultipleModules        = "fixture-read-config/iam_roles_multiple_modules"
 	testFixtureRelativeIncludeCmd             = "fixture-relative-include-cmd"
-	testFixtureGetRepoRoot                    = "fixture-get-repo-root"
-	testFixtureGetWorkingDir                  = "fixture-get-working-dir"
 	testFixturePathRelativeFromInclude        = "fixture-get-path/fixture-path_relative_from_include"
 	testFixtureGetPathFromRepoRoot            = "fixture-get-path/fixture-get-path-from-repo-root"
 	testFixtureGetPathToRepoRoot              = "fixture-get-path/fixture-get-path-to-repo-root"
@@ -1893,90 +1891,6 @@ func TestDeepDependencyOutputWithMock(t *testing.T) {
 
 	// Since we haven't applied anything, this should only succeed if mock outputs are used.
 	runTerragrunt(t, "terragrunt validate --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
-}
-
-func TestGetRepoRoot(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureGetRepoRoot)
-	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, testFixtureGetRepoRoot))
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetRepoRoot)
-
-	output, err := exec.Command("git", "init", rootPath).CombinedOutput()
-	if err != nil {
-		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
-	}
-	runTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
-
-	// verify expected outputs are not empty
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	require.NoError(
-		t,
-		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
-	)
-
-	outputs := map[string]TerraformOutput{}
-
-	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-
-	repoRoot, ok := outputs["repo_root"]
-
-	assert.True(t, ok)
-	assert.Regexp(t, "/tmp/terragrunt-.*/fixture-get-repo-root", repoRoot.Value)
-}
-
-func TestGetWorkingDirBuiltInFunc(t *testing.T) {
-	t.Parallel()
-
-	cleanupTerraformFolder(t, testFixtureGetWorkingDir)
-	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, testFixtureGetWorkingDir))
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetWorkingDir)
-
-	output, err := exec.Command("git", "init", rootPath).CombinedOutput()
-	if err != nil {
-		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
-	}
-	runTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
-
-	// verify expected outputs are not empty
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	require.NoError(
-		t,
-		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
-	)
-
-	outputs := map[string]TerraformOutput{}
-
-	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
-
-	workingDir, ok := outputs["working_dir"]
-
-	expectedWorkingDir := filepath.Join(rootPath, util.TerragruntCacheDir)
-	curWalkStep := 0
-
-	err = filepath.Walk(expectedWorkingDir,
-		func(path string, info os.FileInfo, err error) error {
-			if err != nil || !info.IsDir() {
-				return err
-			}
-
-			expectedWorkingDir = path
-
-			if curWalkStep == 2 {
-				return filepath.SkipDir
-			}
-			curWalkStep++
-
-			return nil
-		})
-	require.NoError(t, err)
-
-	assert.True(t, ok)
-	assert.Equal(t, expectedWorkingDir, workingDir.Value)
 }
 
 func TestPathRelativeFromInclude(t *testing.T) {
@@ -5052,25 +4966,6 @@ func TestTerragruntLogSopsErrors(t *testing.T) {
 
 	assert.Contains(t, errorOut, "error decrypting key: [error decrypting key")
 	assert.Contains(t, errorOut, "error base64-decoding encrypted data key: illegal base64 data at input byte")
-}
-
-func TestGetRepoRootCaching(t *testing.T) {
-	t.Parallel()
-	cleanupTerraformFolder(t, testFixtureGetRepoRoot)
-	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, testFixtureGetRepoRoot))
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetRepoRoot)
-
-	gitOutput, err := exec.Command("git", "init", rootPath).CombinedOutput()
-	if err != nil {
-		t.Fatalf("Error initializing git repo: %v\n%s", err, string(gitOutput))
-	}
-
-	stdout, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+rootPath)
-	require.NoError(t, err)
-
-	output := fmt.Sprintf("%s %s", stdout, stderr)
-	count := strings.Count(output, "git show-toplevel result")
-	assert.Equal(t, 1, count)
 }
 
 func createTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string, childRelPath string, s3BucketName string, parentConfigFileName string, childConfigFileName string) string {

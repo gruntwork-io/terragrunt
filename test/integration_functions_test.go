@@ -3,9 +3,15 @@ package test_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,6 +21,8 @@ const (
 	testFixtureTimecmpInvalidTimestamp = "fixture-timecmp-errors/invalid-timestamp"
 	testFixtureEndswith                = "fixture-endswith"
 	testFixtureStrcontains             = "fixture-strcontains"
+	testFixtureGetRepoRoot             = "fixture-get-repo-root"
+	testFixtureGetWorkingDir           = "fixture-get-working-dir"
 )
 
 func TestStartsWith(t *testing.T) {
@@ -154,4 +162,107 @@ func TestStrContains(t *testing.T) {
 
 	validateOutput(t, outputs, "o1", true)
 	validateOutput(t, outputs, "o2", false)
+}
+
+func TestGetRepoRootCaching(t *testing.T) {
+	t.Parallel()
+	cleanupTerraformFolder(t, testFixtureGetRepoRoot)
+	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, testFixtureGetRepoRoot))
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetRepoRoot)
+
+	gitOutput, err := exec.Command("git", "init", rootPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("Error initializing git repo: %v\n%s", err, string(gitOutput))
+	}
+
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	output := fmt.Sprintf("%s %s", stdout, stderr)
+	count := strings.Count(output, "git show-toplevel result")
+	assert.Equal(t, 1, count)
+}
+
+func TestGetRepoRoot(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureGetRepoRoot)
+	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, testFixtureGetRepoRoot))
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetRepoRoot)
+
+	output, err := exec.Command("git", "init", rootPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
+	}
+	runTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+
+	repoRoot, ok := outputs["repo_root"]
+
+	assert.True(t, ok)
+	assert.Regexp(t, "/tmp/terragrunt-.*/fixture-get-repo-root", repoRoot.Value)
+}
+
+func TestGetWorkingDirBuiltInFunc(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureGetWorkingDir)
+	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, testFixtureGetWorkingDir))
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetWorkingDir)
+
+	output, err := exec.Command("git", "init", rootPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
+	}
+	runTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
+	)
+
+	outputs := map[string]TerraformOutput{}
+
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+
+	workingDir, ok := outputs["working_dir"]
+
+	expectedWorkingDir := filepath.Join(rootPath, util.TerragruntCacheDir)
+	curWalkStep := 0
+
+	err = filepath.Walk(expectedWorkingDir,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil || !info.IsDir() {
+				return err
+			}
+
+			expectedWorkingDir = path
+
+			if curWalkStep == 2 {
+				return filepath.SkipDir
+			}
+			curWalkStep++
+
+			return nil
+		})
+	require.NoError(t, err)
+
+	assert.True(t, ok)
+	assert.Equal(t, expectedWorkingDir, workingDir.Value)
 }
