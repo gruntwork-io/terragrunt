@@ -53,8 +53,6 @@ const (
 	testFixtureStack                          = "fixture-stack/"
 	testFixtureGraphDependencies              = "fixture-graph-dependencies"
 	testFixtureOutputAll                      = "fixture-output-all"
-	testFixtureOutputFromRemoteState          = "fixture-output-from-remote-state"
-	testFixtureOutputFromDependency           = "fixture-output-from-dependency"
 	testFixtureInputsFromDependency           = "fixture-inputs-from-dependency"
 	testFixtureStdout                         = "fixture-download/stdout-test"
 	testFixtureExtraArgsPath                  = "fixture-extra-args/"

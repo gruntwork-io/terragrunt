@@ -42,6 +42,8 @@ const (
 	testFixtureAssumeRoleWebIdentityEnv  = "fixture-assume-role-web-identity/env-var"
 	testFixtureAssumeRoleWebIdentityFile = "fixture-assume-role-web-identity/file-path"
 	testFixtureReadIamRole               = "fixture-read-config/iam_role_in_file"
+	testFixtureOutputFromRemoteState     = "fixture-output-from-remote-state"
+	testFixtureOutputFromDependency      = "fixture-output-from-dependency"
 )
 
 func TestAwsInitHookNoSourceWithBackend(t *testing.T) {
