@@ -1,3 +1,5 @@
+//go:build aws
+
 package dynamodb_test
 
 import (
@@ -13,7 +15,7 @@ import (
 )
 
 // For simplicity, do all testing in the us-east-1 region
-const DEFAULT_TEST_REGION = "us-east-1"
+const defaultTestRegion = "us-east-1"
 
 // Create a DynamoDB client we can use at test time. If there are any errors creating the client, fail the test.
 func createDynamoDbClientForTest(t *testing.T) *awsDynamodb.DynamoDB {
@@ -25,7 +27,7 @@ func createDynamoDbClientForTest(t *testing.T) *awsDynamodb.DynamoDB {
 	}
 
 	sessionConfig := &aws_helper.AwsSessionConfig{
-		Region: DEFAULT_TEST_REGION,
+		Region: defaultTestRegion,
 	}
 
 	client, err := dynamodb.CreateDynamoDbClient(sessionConfig, mockOptions)
