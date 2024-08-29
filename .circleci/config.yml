@@ -372,6 +372,22 @@ jobs:
       - store_test_results:
           path: logs
 
+  integration_test_terraform_gcp:
+    <<: *defaults
+    <<: *env
+    steps:
+      - checkout
+      - run:
+          <<: *setup_test_environment
+      - run:
+          <<: *run_integration_gcp_test
+      - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
   integration_test_tofu_aws:
     <<: *defaults
     <<: *env
@@ -379,6 +395,22 @@ jobs:
       - checkout
       - run:
           <<: *install_tofu
+      - run:
+          <<: *setup_test_environment
+      - run:
+          <<: *run_integration_aws_test
+      - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
+  integration_test_terraform_aws:
+    <<: *defaults
+    <<: *env
+    steps:
+      - checkout
       - run:
           <<: *setup_test_environment
       - run:
@@ -648,7 +680,25 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
             - APPLE__OSX__code-signing
+      - integration_test_terraform_gcp:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+            - APPLE__OSX__code-signing
       - integration_test_tofu_aws:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+            - APPLE__OSX__code-signing
+      - integration_test_terraform_aws:
           filters:
             tags:
               only: /^v.*/
