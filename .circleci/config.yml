@@ -352,7 +352,7 @@ jobs:
       - run:
           name: Run GCP integration tests
           command: |
-            run-go-tests --packages "-tags=gcp -run ^TestGcp ./test" | tee logs/test-results.log
+            run-go-tests --packages "-tags=gcp -run ^TestGcp ./..." | tee logs/test-results.log
           no_output_timeout: 30m
           environment:
             TERRAGRUNT_TFPATH: tofu
@@ -375,7 +375,7 @@ jobs:
       - run:
           name: Run AWS integration tests
           command: |
-            run-go-tests --packages "-tags=aws -run ^TestAws ./test" | tee logs/test-results.log
+            run-go-tests --packages "-tags=aws -run ^TestAws ./..." | tee logs/test-results.log
           no_output_timeout: 30m
           environment:
             TERRAGRUNT_TFPATH: tofu

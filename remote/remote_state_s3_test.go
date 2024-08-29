@@ -1,3 +1,5 @@
+//go:build aws
+
 package remote_test
 
 import (
@@ -16,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCreateS3LoggingInput(t *testing.T) {
+func TestAwsCreateS3LoggingInput(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -119,7 +121,7 @@ func TestCreateS3LoggingInput(t *testing.T) {
 	}
 }
 
-func TestConfigValuesEqual(t *testing.T) {
+func TestAwsConfigValuesEqual(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("remote_state_test")
@@ -243,7 +245,7 @@ func TestConfigValuesEqual(t *testing.T) {
 	}
 }
 
-func TestForcePathStyleClientSession(t *testing.T) {
+func TestAwsForcePathStyleClientSession(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("s3_client_test")
@@ -291,7 +293,7 @@ func TestForcePathStyleClientSession(t *testing.T) {
 	}
 }
 
-func TestGetAwsSessionConfig(t *testing.T) {
+func TestAwsGetAwsSessionConfig(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -340,7 +342,7 @@ func TestGetAwsSessionConfig(t *testing.T) {
 	}
 }
 
-func TestGetAwsSessionConfigWithAssumeRole(t *testing.T) {
+func TestAwsGetAwsSessionConfigWithAssumeRole(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -377,7 +379,7 @@ func TestGetAwsSessionConfigWithAssumeRole(t *testing.T) {
 	}
 }
 
-func TestGetTerraformInitArgs(t *testing.T) {
+func TestAwsGetTerraformInitArgs(t *testing.T) {
 	t.Parallel()
 
 	initializer := remote.S3Initializer{}
@@ -527,7 +529,7 @@ func TestGetTerraformInitArgs(t *testing.T) {
 
 // Test to validate cases when is not possible to read all S3 configurations
 // https://github.com/gruntwork-io/terragrunt/issues/2109
-func TestNegativePublicAccessResponse(t *testing.T) {
+func TestAwsNegativePublicAccessResponse(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		name     string
@@ -574,7 +576,7 @@ func TestNegativePublicAccessResponse(t *testing.T) {
 	}
 }
 
-func TestValidateS3Config(t *testing.T) {
+func TestAwsValidateS3Config(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		name           string
