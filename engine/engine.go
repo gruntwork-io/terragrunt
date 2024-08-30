@@ -570,8 +570,7 @@ func processStream(data string, lineBuf *bytes.Buffer, output io.Writer) error {
 // flushBuffer prints any remaining data in the buffer
 func flushBuffer(lineBuf *bytes.Buffer, output io.Writer) error {
 	if lineBuf.Len() > 0 {
-		_, err := fmt.Fprint(output, lineBuf.String())
-		if err != nil {
+		if _, err := fmt.Fprint(output, lineBuf.String()); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
@@ -656,7 +655,7 @@ func shutdown(ctx context.Context, runOptions *ExecutionOptions, terragruntEngin
 	})
 }
 
-// common engine output
+// OutputLine represents the output from the engine
 type OutputLine struct {
 	Stdout string
 	Stderr string
@@ -677,15 +676,13 @@ func ReadEngineOutput(runOptions *ExecutionOptions, output outputFn) error {
 		}
 
 		if response.Stdout != "" {
-			_, err := cmdStdout.Write([]byte(response.Stdout))
-			if err != nil {
+			if _, err := cmdStdout.Write([]byte(response.Stdout)); err != nil {
 				return errors.WithStackTrace(err)
 			}
 		}
 
 		if response.Stderr != "" {
-			_, err := cmdStderr.Write([]byte(response.Stderr))
-			if err != nil {
+			if _, err := cmdStderr.Write([]byte(response.Stderr)); err != nil {
 				return errors.WithStackTrace(err)
 			}
 		}

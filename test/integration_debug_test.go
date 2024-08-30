@@ -1,4 +1,4 @@
-package integration_test
+package test_test
 
 import (
 	"bytes"
@@ -33,9 +33,9 @@ var (
 func TestDebugGeneratedInputs(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS)
-	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
+	cleanupTerraformFolder(t, testFixtureInputs)
+	tmpEnvPath := copyEnvironment(t, testFixtureInputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureInputs)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -83,9 +83,9 @@ func TestDebugGeneratedInputs(t *testing.T) {
 func TestTerragruntInputsWithDashes(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS)
-	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
+	cleanupTerraformFolder(t, testFixtureInputs)
+	tmpEnvPath := copyEnvironment(t, testFixtureInputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureInputs)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir=%s --terragrunt-log-level=debug", rootPath))
 }

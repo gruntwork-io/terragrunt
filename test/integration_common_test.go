@@ -1,5 +1,5 @@
 // common integration test functions
-package integration_test
+package test_test
 
 import (
 	"archive/zip"
@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,9 +36,9 @@ import (
 func testRunAllPlan(t *testing.T, args string) (string, string, string, error) {
 	t.Helper()
 
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_OUT_DIR)
+	tmpEnvPath := copyEnvironment(t, testFixtureOutDir)
 	cleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_OUT_DIR)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
 
 	// run plan with output directory
 	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s %s", testPath, args))
@@ -315,4 +317,51 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 	}
 
 	return serverTLSConf, clientTLSConf
+}
+
+func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
+	t.Helper()
+	output, hasPlatform := outputs[key]
+	assert.Truef(t, hasPlatform, "Expected output %s to be defined", key)
+	assert.Equalf(t, output.Value, value, "Expected output %s to be %t", key, value)
+}
+
+// wrappedBinary - return which binary will be wrapped by Terragrunt, useful in CICD to run same tests against tofu and terraform
+func wrappedBinary() string {
+	value, found := os.LookupEnv("TERRAGRUNT_TFPATH")
+	if !found {
+		// if env variable is not defined, try to check through executing command
+		if util.IsCommandExecutable(tofuBinary, "-version") {
+			return tofuBinary
+		}
+		return terraformBinary
+	}
+	return filepath.Base(value)
+}
+
+// expectedWrongCommandErr - return expected error message for wrong command
+func expectedWrongCommandErr(command string) error {
+	if wrappedBinary() == tofuBinary {
+		return terraform.WrongTofuCommand(command)
+	}
+	return terraform.WrongTerraformCommand(command)
+}
+
+func isTerraform() bool {
+	return wrappedBinary() == terraformBinary
+}
+
+func findFilesWithExtension(dir string, ext string) ([]string, error) {
+	var files []string
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && filepath.Ext(path) == ext {
+			files = append(files, path)
+		}
+		return nil
+	})
+
+	return files, err
 }
