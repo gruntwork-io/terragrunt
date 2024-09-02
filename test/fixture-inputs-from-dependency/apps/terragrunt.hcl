@@ -1,3 +1,0 @@
-inputs = {
-  bar = "parent-bar"
-}

@@ -1,3 +1,0 @@
-locals {
-  tier = "cluster"
-}
