@@ -14,14 +14,14 @@ import (
 )
 
 const (
-	testFixtureLocalsErrorUndefinedLocal         = "fixture-locals-errors/undefined-local"
-	testFixtureLocalsErrorUndefinedLocalButInput = "fixture-locals-errors/undefined-local-but-input"
-	testFixtureLocalsCanonical                   = "fixture-locals/canonical"
-	testFixtureLocalsInInclude                   = "fixture-locals/local-in-include"
-	TestFixtureLocalRunOnce                      = "fixture-locals/run-once"
-	testFixtureLocalRunMultiple                  = "fixture-locals/run-multiple"
+	testFixtureLocalsErrorUndefinedLocal         = "fixtures/fixture-locals-errors/undefined-local"
+	testFixtureLocalsErrorUndefinedLocalButInput = "fixtures/fixture-locals-errors/undefined-local-but-input"
+	testFixtureLocalsCanonical                   = "fixtures/fixture-locals/canonical"
+	testFixtureLocalsInInclude                   = "fixtures/fixture-locals/local-in-include"
+	TestFixtureLocalRunOnce                      = "fixtures/fixture-locals/run-once"
+	testFixtureLocalRunMultiple                  = "fixtures/fixture-locals/run-multiple"
 	testFixtureLocalsInIncludeChildRelPath       = "qa/my-app"
-	testFixtureBrokenLocals                      = "fixture-broken-locals"
+	testFixtureBrokenLocals                      = "fixtures/fixture-broken-locals"
 )
 
 func TestUndefinedLocalsReferenceBreaks(t *testing.T) {

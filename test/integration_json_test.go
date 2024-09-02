@@ -16,9 +16,9 @@ import (
 )
 
 const (
-	testFixtureRenderJsonMetadata    = "fixture-render-json-metadata"
-	testFixtureRenderJsonMockOutputs = "fixture-render-json-mock-outputs"
-	testFixtureRenderJsonInputs      = "fixture-render-json-inputs"
+	testFixtureRenderJsonMetadata    = "fixtures/fixture-render-json-metadata"
+	testFixtureRenderJsonMockOutputs = "fixtures/fixture-render-json-mock-outputs"
+	testFixtureRenderJsonInputs      = "fixtures/fixture-render-json-inputs"
 )
 
 func TestRenderJsonAttributesMetadata(t *testing.T) {
@@ -510,7 +510,7 @@ func TestTerragruntRenderJsonHelp(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, testFixtureHooksInitOnceWithSourceNoBackend)
-	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	tmpEnvPath := copyEnvironment(t, "fixtures/fixture-hooks/init-once")
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksInitOnceWithSourceNoBackend)
 
 	showStdout := bytes.Buffer{}

@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	TEST_FIXTURE_LOCAL_RELATIVE_ARGS_WINDOWS_DOWNLOAD_PATH = "fixture-download/local-relative-extra-args-windows"
-	TEST_FIXTURE_MANIFEST_REMOVAL                          = "fixture-manifest-removal"
-	TEST_FIXTURE_FIND_PARENT                               = "fixture-find-parent"
+	TEST_FIXTURE_LOCAL_RELATIVE_ARGS_WINDOWS_DOWNLOAD_PATH = "fixtures/fixture-download/local-relative-extra-args-windows"
+	TEST_FIXTURE_MANIFEST_REMOVAL                          = "fixtures/fixture-manifest-removal"
+	TEST_FIXTURE_FIND_PARENT                               = "fixtures/fixture-find-parent"
 )
 
 func TestWindowsLocalWithRelativeExtraArgsWindows(t *testing.T) {
@@ -34,7 +34,7 @@ func TestWindowsLocalWithRelativeExtraArgsWindows(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RELATIVE_ARGS_WINDOWS_DOWNLOAD_PATH))
 }
 
-// TestWindowsTerragruntSourceMapDebug copies the test/fixture-source-map directory to a new Windows path
+// TestWindowsTerragruntSourceMapDebug copies the test/fixtures/fixture-source-map directory to a new Windows path
 // and then ensures that the TERRAGRUNT_SOURCE_MAP env var can be used to swap out git sources for local modules
 func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 	testCases := []struct {
@@ -50,7 +50,7 @@ func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
-			fixtureSourceMapPath := "fixture-source-map"
+			fixtureSourceMapPath := "fixtures/fixture-source-map"
 			cleanupTerraformFolder(t, fixtureSourceMapPath)
 			targetPath := "C:\\test\\infrastructure-modules/"
 			copyEnvironmentToPath(t, fixtureSourceMapPath, targetPath)

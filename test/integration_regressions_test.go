@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	testFixtureRegressions = "fixture-regressions"
+	testFixtureRegressions = "fixtures/fixture-regressions"
 )
 
 func TestNoAutoInit(t *testing.T) {

@@ -20,25 +20,25 @@ import (
 )
 
 const (
-	testFixtureLocalDownloadPath                      = "fixture-download/local"
-	testFixtureCustomLockFile                         = "fixture-download/custom-lock-file"
-	testFixtureRemoteDownloadPath                     = "fixture-download/remote"
-	testFixtureInvalidRemoteDownloadPath              = "fixture-download/remote-invalid"
-	testFixtureOverrideDonwloadPath                   = "fixture-download/override"
-	testFixtureLocalRelativeDownloadPath              = "fixture-download/local-relative"
-	testFixtureRemoteRelativeDownloadPath             = "fixture-download/remote-relative"
-	testFixtureLocalWithBackend                       = "fixture-download/local-with-backend"
-	testFixtureLocalWithExcludeDir                    = "fixture-download/local-with-exclude-dir"
-	testFixtureLocalWithIncludeDir                    = "fixture-download/local-with-include-dir"
-	testFixtureRemoteWithBackend                      = "fixture-download/remote-with-backend"
-	testFixtureRemoteModuleInRoot                     = "fixture-download/remote-module-in-root"
-	testFixtureLocalMissingBackend                    = "fixture-download/local-with-missing-backend"
-	testFixtureLocalWithHiddenFolder                  = "fixture-download/local-with-hidden-folder"
-	testFixtureLocalWithAllowedHidden                 = "fixture-download/local-with-allowed-hidden"
-	testFixtureLocalPreventDestroy                    = "fixture-download/local-with-prevent-destroy"
-	testFixtureLocalPreventDestroyDependencies        = "fixture-download/local-with-prevent-destroy-dependencies"
-	testFixtureLocalIncludePreventDestroyDependencies = "fixture-download/local-include-with-prevent-destroy-dependencies"
-	testFixtureNotExistingSource                      = "fixture-download/invalid-path"
+	testFixtureLocalDownloadPath                      = "fixtures/fixture-download/local"
+	testFixtureCustomLockFile                         = "fixtures/fixture-download/custom-lock-file"
+	testFixtureRemoteDownloadPath                     = "fixtures/fixture-download/remote"
+	testFixtureInvalidRemoteDownloadPath              = "fixtures/fixture-download/remote-invalid"
+	testFixtureOverrideDonwloadPath                   = "fixtures/fixture-download/override"
+	testFixtureLocalRelativeDownloadPath              = "fixtures/fixture-download/local-relative"
+	testFixtureRemoteRelativeDownloadPath             = "fixtures/fixture-download/remote-relative"
+	testFixtureLocalWithBackend                       = "fixtures/fixture-download/local-with-backend"
+	testFixtureLocalWithExcludeDir                    = "fixtures/fixture-download/local-with-exclude-dir"
+	testFixtureLocalWithIncludeDir                    = "fixtures/fixture-download/local-with-include-dir"
+	testFixtureRemoteWithBackend                      = "fixtures/fixture-download/remote-with-backend"
+	testFixtureRemoteModuleInRoot                     = "fixtures/fixture-download/remote-module-in-root"
+	testFixtureLocalMissingBackend                    = "fixtures/fixture-download/local-with-missing-backend"
+	testFixtureLocalWithHiddenFolder                  = "fixtures/fixture-download/local-with-hidden-folder"
+	testFixtureLocalWithAllowedHidden                 = "fixtures/fixture-download/local-with-allowed-hidden"
+	testFixtureLocalPreventDestroy                    = "fixtures/fixture-download/local-with-prevent-destroy"
+	testFixtureLocalPreventDestroyDependencies        = "fixtures/fixture-download/local-with-prevent-destroy-dependencies"
+	testFixtureLocalIncludePreventDestroyDependencies = "fixtures/fixture-download/local-include-with-prevent-destroy-dependencies"
+	testFixtureNotExistingSource                      = "fixtures/fixture-download/invalid-path"
 )
 
 func TestLocalDownload(t *testing.T) {
@@ -106,7 +106,7 @@ func TestLocalWithMissingBackend(t *testing.T) {
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
 	lockTableName := "terragrunt-lock-table-" + strings.ToLower(uniqueId())
 
-	tmpEnvPath := copyEnvironment(t, "fixture-download")
+	tmpEnvPath := copyEnvironment(t, "fixtures/fixture-download")
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLocalMissingBackend)
 
 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
@@ -432,7 +432,7 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 func TestPreventDestroy(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := copyEnvironment(t, "fixture-download")
+	tmpEnvPath := copyEnvironment(t, "fixtures/fixture-download")
 	fixtureRoot := util.JoinPath(tmpEnvPath, testFixtureLocalPreventDestroy)
 
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+fixtureRoot)
@@ -448,7 +448,7 @@ func TestPreventDestroy(t *testing.T) {
 func TestPreventDestroyApply(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := copyEnvironment(t, "fixture-download")
+	tmpEnvPath := copyEnvironment(t, "fixtures/fixture-download")
 
 	fixtureRoot := util.JoinPath(tmpEnvPath, testFixtureLocalPreventDestroy)
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+fixtureRoot)

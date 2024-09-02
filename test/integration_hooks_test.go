@@ -15,22 +15,22 @@ import (
 )
 
 const (
-	testFixtureHooksBeforeOnlyPath                                = "fixture-hooks/before-only"
-	testFixtureHooksAllPath                                       = "fixture-hooks/all"
-	testFixtureHooksAfterOnlyPath                                 = "fixture-hooks/after-only"
-	testFixtureHooksBeforeAndAfterPath                            = "fixture-hooks/before-and-after"
-	testFixtureHooksBeforeAfterAndErrorMergePath                  = "fixture-hooks/before-after-and-error-merge"
-	testFixtureHooksSkipOnErrorPath                               = "fixture-hooks/skip-on-error"
-	testFixtureErrorHooksPath                                     = "fixture-hooks/error-hooks"
-	testFixtureHooksOneArgActionPath                              = "fixture-hooks/one-arg-action"
-	testFixtureHooksEmptyStringCommandPath                        = "fixture-hooks/bad-arg-action/empty-string-command"
-	testFixtureHooksEmptyCommandListPath                          = "fixture-hooks/bad-arg-action/empty-command-list"
-	testFixtureHooksInterpolationsPath                            = "fixture-hooks/interpolations"
-	testFixtureHooksInitOnceNoSourceNoBackend                     = "fixture-hooks/init-once/no-source-no-backend"
-	testFixtureHooksInitOnceNoSourceWithBackend                   = "fixture-hooks/init-once/no-source-with-backend"
-	testFixtureHooksInitOnceWithSourceNoBackend                   = "fixture-hooks/init-once/with-source-no-backend"
-	testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStdout = "fixture-hooks/init-once/with-source-no-backend-suppress-hook-stdout"
-	testFixtureHooksInitOnceWithSourceWithBackend                 = "fixture-hooks/init-once/with-source-with-backend"
+	testFixtureHooksBeforeOnlyPath                                = "fixtures/fixture-hooks/before-only"
+	testFixtureHooksAllPath                                       = "fixtures/fixture-hooks/all"
+	testFixtureHooksAfterOnlyPath                                 = "fixtures/fixture-hooks/after-only"
+	testFixtureHooksBeforeAndAfterPath                            = "fixtures/fixture-hooks/before-and-after"
+	testFixtureHooksBeforeAfterAndErrorMergePath                  = "fixtures/fixture-hooks/before-after-and-error-merge"
+	testFixtureHooksSkipOnErrorPath                               = "fixtures/fixture-hooks/skip-on-error"
+	testFixtureErrorHooksPath                                     = "fixtures/fixture-hooks/error-hooks"
+	testFixtureHooksOneArgActionPath                              = "fixtures/fixture-hooks/one-arg-action"
+	testFixtureHooksEmptyStringCommandPath                        = "fixtures/fixture-hooks/bad-arg-action/empty-string-command"
+	testFixtureHooksEmptyCommandListPath                          = "fixtures/fixture-hooks/bad-arg-action/empty-command-list"
+	testFixtureHooksInterpolationsPath                            = "fixtures/fixture-hooks/interpolations"
+	testFixtureHooksInitOnceNoSourceNoBackend                     = "fixtures/fixture-hooks/init-once/no-source-no-backend"
+	testFixtureHooksInitOnceNoSourceWithBackend                   = "fixtures/fixture-hooks/init-once/no-source-with-backend"
+	testFixtureHooksInitOnceWithSourceNoBackend                   = "fixtures/fixture-hooks/init-once/with-source-no-backend"
+	testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStdout = "fixtures/fixture-hooks/init-once/with-source-no-backend-suppress-hook-stdout"
+	testFixtureHooksInitOnceWithSourceWithBackend                 = "fixtures/fixture-hooks/init-once/with-source-with-backend"
 )
 
 func TestTerragruntBeforeHook(t *testing.T) {
@@ -51,7 +51,7 @@ func TestTerragruntInitHookNoSourceNoBackend(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, testFixtureHooksInitOnceNoSourceNoBackend)
-	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	tmpEnvPath := copyEnvironment(t, "fixtures/fixture-hooks/init-once")
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksInitOnceNoSourceNoBackend)
 
 	var (
@@ -75,7 +75,7 @@ func TestTerragruntInitHookWithSourceNoBackend(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, testFixtureHooksInitOnceWithSourceNoBackend)
-	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	tmpEnvPath := copyEnvironment(t, "fixtures/fixture-hooks/init-once")
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksInitOnceWithSourceNoBackend)
 
 	var (
@@ -133,7 +133,7 @@ func TestTerragruntHookApplyAll(t *testing.T) {
 func TestTerragruntHookWorkingDir(t *testing.T) {
 	t.Parallel()
 
-	fixturePath := "fixture-hooks/working_dir"
+	fixturePath := "fixtures/fixture-hooks/working_dir"
 	cleanupTerraformFolder(t, fixturePath)
 	tmpEnvPath := copyEnvironment(t, fixturePath)
 	rootPath := util.JoinPath(tmpEnvPath, fixturePath)
@@ -336,7 +336,7 @@ func TestTerragruntInfo(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStdout)
-	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	tmpEnvPath := copyEnvironment(t, "fixtures/fixture-hooks/init-once")
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStdout)
 
 	showStdout := bytes.Buffer{}

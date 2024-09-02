@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	TEST_FIXTURE_LOCAL_RELATIVE_ARGS_UNIX_DOWNLOAD_PATH = "fixture-download/local-relative-extra-args-unix"
+	TEST_FIXTURE_LOCAL_RELATIVE_ARGS_UNIX_DOWNLOAD_PATH = "fixtures/fixture-download/local-relative-extra-args-unix"
 )
 
 func TestLocalWithRelativeExtraArgsUnix(t *testing.T) {
