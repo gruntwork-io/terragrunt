@@ -56,7 +56,7 @@ func ExplainError(err error) string {
 		var processError util.ProcessExecutionError
 		if ok := goErrors.As(originalError, &processError); ok {
 			errorOutput := processError.Stderr
-			stdOut := processError.StdOut
+			stdOut := processError.Stdout
 			message = fmt.Sprintf("%s\n%s", stdOut, errorOutput)
 		}
 

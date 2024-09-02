@@ -43,7 +43,8 @@ import (
 	terraformCmd "github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
-	"github.com/gruntwork-io/terragrunt/internal/log"
+	"github.com/gruntwork-io/terragrunt/internal/log/formatter"
+	"github.com/gruntwork-io/terragrunt/internal/log/hooks"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -99,16 +100,16 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	defer cancel()
 
 	shell.RegisterSignalHandler(func(signal os.Signal) {
-		log.Infof("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(signal.String()), shell.SignalForwardingDelay)
+		util.GlobalFallbackLogEntry.Infof("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(signal.String()), shell.SignalForwardingDelay)
 		cancel()
 
 		shell.RegisterSignalHandler(func(signal os.Signal) {
-			log.Infof("Second %s signal received, force shutting down...", cases.Title(language.English).String(signal.String()))
+			util.GlobalFallbackLogEntry.Infof("Second %s signal received, force shutting down...", cases.Title(language.English).String(signal.String()))
 			os.Exit(1)
 		})
 
 		time.Sleep(forceExitInterval)
-		log.Infof("Failed to gracefully shutdown within %v, force shutting down...", forceExitInterval)
+		util.GlobalFallbackLogEntry.Infof("Failed to gracefully shutdown within %v, force shutting down...", forceExitInterval)
 		os.Exit(1)
 	}, shell.InterruptSignals...)
 
@@ -327,11 +328,21 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
 
+	logTextFormatter := formatter.NewTextFormatter()
+	logTextFormatter.DisableColors = opts.DisableLogColors
+	logTextFormatter.DisableLogFormatting = opts.DisableLogFormatting
+
 	opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
-	opts.Logger = util.CreateLogEntry("", opts.LogLevel, nil, opts.DisableLogColors, opts.DisableLogFormatting)
+	opts.Logger = util.CreateLogEntry("", opts.LogLevel, logTextFormatter)
 	opts.Logger.Logger.SetOutput(cliCtx.App.ErrWriter)
 
-	log.SetLogger(opts.Logger.Logger)
+	if !opts.DisableLogShortPaths {
+		logRelativePathHook, err := hooks.NewRelativePathHook(opts.RootWorkingDir)
+		if err != nil {
+			return err
+		}
+		opts.Logger.Logger.AddHook(logRelativePathHook)
+	}
 
 	// --- Terragrunt ConfigPath
 	if opts.TerragruntConfigPath == "" {
@@ -343,11 +354,6 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.TerragruntConfigPath, err = filepath.Abs(opts.TerragruntConfigPath)
 	if err != nil {
 		return errors.WithStackTrace(err)
-	}
-
-	opts.RelativeTerragruntConfigPath, err = util.GetPathRelativeToWithSeparator(opts.TerragruntConfigPath, opts.RootWorkingDir)
-	if err != nil {
-		return err
 	}
 
 	opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)

@@ -16,47 +16,30 @@ import (
 const (
 	tfTimestampFormat = "2006-01-02T15:04:05.000-0700"
 
-	// start is the ANSI start sequence
-	start = "\033["
-	// reset is the ANSI reset escape sequence
-	reset = "\033[0m"
+	// startASNISeq is the ANSI start escape sequence
+	startASNISeq = "\033["
+	// resetANSISeq is the ANSI reset escape sequence
+	resetANSISeq = "\033[0m"
 )
 
-var extractTimeAndLevelReg = regexp.MustCompile(`(\S+)\s*\[(\S+)\]\s*(.+\S)`)
+var extractTimeAndLevelReg = regexp.MustCompile(`(?i)(\S+)\s*\[(trace|debug|warn|info|error)\]\s*(.+\S)`)
 
 type tfWriter struct {
-	io.Writer
-	formatter logrus.Formatter
-	prefix    string
-	tfPath    string
-	isStdout  bool
+	entry    *logrus.Entry
+	tfPath   string
+	isStderr bool
 }
 
-func TFStdoutWriter(writer io.Writer, formatter logrus.Formatter, prefix, tfpath string) io.Writer {
+func TFWriter(entry *logrus.Entry, tfPath string, isStderr bool) io.Writer {
 	return &tfWriter{
-		Writer:    writer,
-		formatter: formatter,
-		prefix:    prefix,
-		tfPath:    tfpath,
-		isStdout:  true,
-	}
-}
-
-func TFStderrWriter(writer io.Writer, formatter logrus.Formatter, prefix, tfpath string) io.Writer {
-	return &tfWriter{
-		Writer:    writer,
-		formatter: formatter,
-		prefix:    prefix,
-		tfPath:    tfpath,
-		isStdout:  false,
+		entry:    entry,
+		tfPath:   filepath.Base(tfPath),
+		isStderr: isStderr,
 	}
 }
 
 func (writer *tfWriter) Write(p []byte) (int, error) {
-	var (
-		msgs  []byte
-		lines = bytes.Split(p, []byte{'\n'})
-	)
+	lines := bytes.Split(p, []byte{'\n'})
 
 	for _, line := range lines {
 		if len(line) == 0 {
@@ -66,38 +49,31 @@ func (writer *tfWriter) Write(p []byte) (int, error) {
 		var (
 			timeStr, levelStr string
 			msg               = string(line)
+			tfPath            = writer.tfPath
 		)
 
-		if !writer.isStdout {
+		if writer.isStderr {
 			timeStr, levelStr, msg = extractTimeAndLevel(msg)
+			if timeStr != "" {
+				tfPath += " TF_LOG"
+			}
 		}
 
 		// Reset ANSI styles at the end of a line so that TG log does not inherit them on a new line
-		if strings.Contains(msg, start) {
-			msg += reset
-		}
-
-		entry := &logrus.Entry{
-			Logger:  &logrus.Logger{Out: writer.Writer},
-			Time:    time.Now(),
-			Data:    make(map[string]any),
-			Message: msg,
-		}
-
-		if writer.prefix != "" {
-			entry.Data[formatter.PrefixKeyName] = writer.prefix
+		if strings.Contains(msg, startASNISeq) {
+			msg += resetANSISeq
 		}
 
 		if writer.tfPath != "" {
-			entry.Data[formatter.TFBinaryKeyName] = filepath.Base(writer.tfPath)
+			writer.entry.Data[formatter.TFBinaryKeyName] = tfPath
 		}
 
 		level, err := logrus.ParseLevel(strings.ToLower(levelStr))
 		if err != nil {
-			level = formatter.NoneLevel
+			level = formatter.StdoutLevel
 		}
 
-		entry.Level = level
+		writer.entry.Logger.Level = level
 
 		if timeStr != "" {
 			t, err := time.Parse(tfTimestampFormat, timeStr)
@@ -105,19 +81,10 @@ func (writer *tfWriter) Write(p []byte) (int, error) {
 				return 0, errors.WithStackTrace(err)
 			}
 
-			entry.Time = t
+			writer.entry.Time = t
 		}
 
-		b, err := writer.formatter.Format(entry)
-		if err != nil {
-			return 0, err
-		}
-
-		msgs = append(msgs, b...)
-	}
-
-	if _, err := writer.Writer.Write(msgs); err != nil {
-		return 0, errors.WithStackTrace(err)
+		writer.entry.Log(level, msg)
 	}
 
 	return len(p), nil

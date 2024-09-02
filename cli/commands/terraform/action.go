@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	goerrors "errors"
+
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/externalcmd"
@@ -356,7 +358,7 @@ func confirmActionWithDependentModules(ctx context.Context, terragruntOptions *o
 
 		prompt := "WARNING: Are you sure you want to continue?"
 
-		shouldRun, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
+		shouldRun, err := shell.PromptUserForYesNo(ctx, prompt, terragruntOptions)
 		if err != nil {
 			terragruntOptions.Logger.Error(err)
 			return false
@@ -443,7 +445,25 @@ func RunTerraformWithRetry(ctx context.Context, terragruntOptions *options.Terra
 	for i := 0; i < terragruntOptions.RetryMaxAttempts; i++ {
 		if out, err := shell.RunTerraformCommandWithOutput(ctx, terragruntOptions, terragruntOptions.TerraformCliArgs...); err != nil {
 			if out == nil || !IsRetryable(terragruntOptions, out) {
-				terragruntOptions.Logger.WithError(err).Errorf("%s invocation failed in %s", terragruntOptions.TerraformImplementation, terragruntOptions.WorkingDir)
+				logger := terragruntOptions.Logger.Dup()
+
+				for {
+					var execErr util.ProcessExecutionError
+					if ok := goerrors.As(err, &execErr); ok {
+						if execErr.Stderr != "" {
+							logger = logger.WithField("stderr", "\n"+execErr.Stderr)
+						}
+						if execErr.Stdout != "" {
+							logger = logger.WithField("stdout", "\n"+execErr.Stdout)
+						}
+					}
+
+					if err = goerrors.Unwrap(err); err == nil {
+						break
+					}
+				}
+
+				logger.Errorf("%s invocation failed in %s", terragruntOptions.TerraformImplementation, terragruntOptions.WorkingDir)
 				return err
 			} else {
 				terragruntOptions.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.RetrySleepIntervalSec)

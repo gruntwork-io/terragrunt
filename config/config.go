@@ -80,6 +80,7 @@ var (
 		return []hclparse.Option{
 			hclparse.WithDiagnosticsWriter(writer, opts.DisableLogColors),
 			hclparse.WithFileUpdate(updateBareIncludeBlock),
+			hclparse.WithLogger(opts.Logger),
 		}
 	}
 
@@ -308,16 +309,6 @@ func (cfgs IncludeConfigsMap) ContainsPath(path string) bool {
 
 type IncludeConfigs []IncludeConfig
 
-func (confs *IncludeConfigs) UpdateRelativePaths(basePath string) error {
-	for _, conf := range *confs {
-		if err := conf.UpdateRelativePath(basePath); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
 // include into a child Terragrunt configuration file. You can have more than one include config.
 type IncludeConfig struct {
@@ -325,18 +316,6 @@ type IncludeConfig struct {
 	Path          string  `hcl:"path,attr"`
 	Expose        *bool   `hcl:"expose,attr"`
 	MergeStrategy *string `hcl:"merge_strategy,attr"`
-	RelativePath  string
-}
-
-func (conf *IncludeConfig) UpdateRelativePath(basePath string) error {
-	relPath, err := util.GetPathRelativeToWithSeparator(conf.Path, basePath)
-	if err != nil {
-		return err
-	}
-
-	conf.RelativePath = relPath
-
-	return nil
 }
 
 func (cfg *IncludeConfig) String() string {
@@ -726,7 +705,7 @@ func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOpt
 
 // Read the Terragrunt config file from its default location
 func ReadTerragruntConfig(ctx context.Context, terragruntOptions *options.TerragruntOptions, parserOptions []hclparse.Option) (*TerragruntConfig, error) {
-	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.RelativeTerragruntConfigPath)
+	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
 
 	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
 	parcingCtx := NewParsingContext(ctx, terragruntOptions).WithParseOption(parserOptions)
@@ -776,7 +755,7 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 			file = cacheConfig
 		} else {
 			// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
-			file, err = hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
+			file, err = hclparse.NewParser(ctx.ParserOptions...).ParseFromFile(configPath)
 			if err != nil {
 				return err
 			}
@@ -801,7 +780,7 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 
 func ParseConfigString(ctx *ParsingContext, configPath string, configString string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
-	file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromString(configString, configPath)
+	file, err := hclparse.NewParser(ctx.ParserOptions...).ParseFromString(configString, configPath)
 	if err != nil {
 		return nil, err
 	}

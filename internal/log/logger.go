@@ -1,36 +1,29 @@
 package log
 
-import (
-	"sync"
+// var (
+// 	logger       *logrus.Logger
+// 	logLevelLock = sync.Mutex{}
+// )
 
-	"github.com/gruntwork-io/terragrunt/internal/log/formatter"
-	"github.com/sirupsen/logrus"
-)
+// func SetLogLevel(level logrus.Level) {
+// 	// We need to lock here as this function may be called from multiple threads concurrently (e.g. especially at test time)
+// 	defer logLevelLock.Unlock()
+// 	logLevelLock.Lock()
 
-var (
-	logger       *logrus.Logger
-	logLevelLock = sync.Mutex{}
-)
+// 	logger.Level = level
+// }
 
-func SetLogLevel(level logrus.Level) {
-	// We need to lock here as this function may be called from multiple threads concurrently (e.g. especially at test time)
-	defer logLevelLock.Unlock()
-	logLevelLock.Lock()
+// // Logger returns logger
+// func Logger() *logrus.Logger {
+// 	return logger
+// }
 
-	logger.Level = level
-}
+// // Logger returns logger
+// func SetLogger(l *logrus.Logger) {
+// 	logger = l
+// }
 
-// Logger returns logger
-func Logger() *logrus.Logger {
-	return logger
-}
-
-// Logger returns logger
-func SetLogger(l *logrus.Logger) {
-	logger = l
-}
-
-func init() {
-	logger = logrus.New()
-	logger.Formatter = formatter.NewFormatter()
-}
+// func init() {
+// 	logger = logrus.New()
+// 	logger.Formatter = formatter.NewTextFormatter()
+// }

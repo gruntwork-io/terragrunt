@@ -126,6 +126,9 @@ const (
 	TerragruntNoColorFlagName = "terragrunt-no-color"
 	TerragruntNoColorEnvName  = "TERRAGRUNT_NO_COLOR"
 
+	TerragruntDisableLogShortPathsFlagName = "terragrunt-disable-log-short-paths"
+	TerragruntDisableLogShortPathsEnvName  = "TERRAGRUNT_DISABLE_LOG_SHORT_PATHS"
+
 	TerragruntDisableLogFormattingFlagName = "terragrunt-disable-log-formatting"
 	TerragruntDisableLogFormattingEnvName  = "TERRAGRUNT_DISABLE_LOG_FORMATTING"
 
@@ -324,6 +327,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 				return nil
 			},
 			Usage: "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
+		},
+		&cli.BoolFlag{
+			Name:        TerragruntDisableLogShortPathsFlagName,
+			EnvVar:      TerragruntDisableLogShortPathsEnvName,
+			Destination: &opts.DisableLogShortPaths,
+			Usage:       "Disable replacing full paths in logs with short relative paths",
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntNoColorFlagName,

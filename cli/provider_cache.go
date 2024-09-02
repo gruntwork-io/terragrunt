@@ -15,7 +15,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/internal/log"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/terraform"
@@ -97,7 +96,7 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 		return nil, err
 	}
 
-	providerService := services.NewProviderService(opts.ProviderCacheDir, userProviderDir, cliCfg.CredentialsSource())
+	providerService := services.NewProviderService(opts.ProviderCacheDir, userProviderDir, cliCfg.CredentialsSource(), opts.Logger)
 
 	var (
 		providerHandlers = make([]handlers.ProviderHandler, 0, len(cliCfg.ProviderInstallation.Methods))
@@ -138,6 +137,7 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 		cache.WithToken(opts.ProviderCacheToken),
 		cache.WithServices(providerService),
 		cache.WithProviderHandlers(providerHandlers...),
+		cache.WithLogger(opts.Logger),
 	)
 
 	return &ProviderCache{
@@ -177,7 +177,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 		return nil, err
 	}
 
-	log.Infof("Caching terraform providers for %s", opts.WorkingDir)
+	opts.Logger.Infof("Caching terraform providers for %s", opts.WorkingDir)
 	// Before each init, we warm up the global cache to ensure that all necessary providers are cached.
 	// To do this we are using 'terraform providers lock' to force TF to request all the providers from our TG cache, and that's how we know what providers TF needs, and can load them into the cache.
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
