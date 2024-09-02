@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -82,16 +83,16 @@ func RunTerraformCommandWithOutput(ctx context.Context, terragruntOptions *optio
 // `workingDir`. Terragrunt working directory will be assumed if empty string.
 func RunShellCommandWithOutput(
 	ctx context.Context,
-	terragruntOptions *options.TerragruntOptions,
+	opts *options.TerragruntOptions,
 	workingDir string,
 	suppressStdout bool,
 	allocatePseudoTty bool,
 	command string,
 	args ...string,
 ) (*util.CmdOutput, error) {
-	if command == terragruntOptions.TerraformPath {
+	if command == opts.TerraformPath {
 		if fn := TerraformCommandHookFromContext(ctx); fn != nil {
-			return fn(ctx, terragruntOptions, args)
+			return fn(ctx, opts, args)
 		}
 	}
 
@@ -101,54 +102,53 @@ func RunShellCommandWithOutput(
 	)
 
 	if workingDir == "" {
-		commandDir = terragruntOptions.WorkingDir
+		commandDir = opts.WorkingDir
 	}
 
-	err := telemetry.Telemetry(ctx, terragruntOptions, "run_"+command, map[string]interface{}{
+	err := telemetry.Telemetry(ctx, opts, "run_"+command, map[string]interface{}{
 		"command": command,
 		"args":    fmt.Sprintf("%v", args),
 		"dir":     commandDir,
 	}, func(childCtx context.Context) error {
-		terragruntOptions.Logger.Debugf("Running command: %s %s", command, strings.Join(args, " "))
+		opts.Logger.Debugf("Running command: %s %s", command, strings.Join(args, " "))
 
 		cmd := exec.Command(command, args...)
 
-		// TODO: consider adding prefix from terragruntOptions logger to stdout and stderr
-		cmd.Env = toEnvVarsList(terragruntOptions.Env)
+		// TODO: consider adding prefix from opts logger to stdout and stderr
+		cmd.Env = toEnvVarsList(opts.Env)
 		cmd.Dir = commandDir
 
 		var (
-			outWriter = terragruntOptions.Writer
-			errWriter = terragruntOptions.ErrWriter
+			outWriter = opts.Writer
+			errWriter = opts.ErrWriter
 		)
 
 		// redirect output through logger with json wrapping
-		if terragruntOptions.JsonLogFormat && terragruntOptions.TerraformLogsToJson {
-			jsonWriter := terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args)
-			jsonWriter.Logger.Out = outWriter
-			outWriter = jsonWriter.Writer()
+		if opts.JsonLogFormat && opts.TerraformLogsToJson {
+			jsonWriter := util.CreateLogEntryWithWriter(outWriter, filepath.Dir(opts.TerragruntConfigPath), opts.LogLevel, opts.Logger.Logger.Hooks, opts.Logger.Logger.Formatter)
+			outWriter = jsonWriter.WithField("workingDir", opts.WorkingDir).WithField("executedCommandArgs", args).Writer()
 
-			jsonErrorWriter := terragruntOptions.Logger.Logger.WithField("workingDir", terragruntOptions.WorkingDir).WithField("executedCommandArgs", args)
-			jsonErrorWriter.Logger.Out = errWriter
-			errWriter = jsonErrorWriter.WriterLevel(logrus.ErrorLevel)
-		} else {
-			errWriter = log.TFStderrWriter(
-				errWriter,
-				terragruntOptions.Logger.Logger.Formatter,
-				terragruntOptions.OutputPrefix,
-				terragruntOptions.TerraformPath,
+			jsonErrorWriter := util.CreateLogEntryWithWriter(errWriter, filepath.Dir(opts.TerragruntConfigPath), opts.LogLevel, opts.Logger.Logger.Hooks, opts.Logger.Logger.Formatter)
+			errWriter = jsonErrorWriter.WithField("workingDir", opts.WorkingDir).WithField("executedCommandArgs", args).WriterLevel(logrus.ErrorLevel)
+		} else if command == opts.TerraformPath {
+			errWriter = log.TFWriter(
+				util.CreateLogEntryWithWriter(errWriter, filepath.Dir(opts.TerragruntConfigPath), opts.LogLevel, opts.Logger.Logger.Hooks, opts.Logger.Logger.Formatter),
+				opts.TerraformPath,
+				true,
 			)
 
-			if terragruntOptions.ForwardTFStdout || shouldForceForwardTFStdout(args) {
-				outWriter = util.WriterNotifier(outWriter, func(p []byte) {
-					terragruntOptions.Logger.Infof("Retrieved output from %s", terragruntOptions.RelativeTerragruntConfigPath)
-				})
+			if opts.ForwardTFStdout || shouldForceForwardTFStdout(args) {
+				// We only display the output receipt notification when we show it to the user, and do nothing when we hide it, for example when `outWriter` is io.Discard.
+				if _, ok := outWriter.(*os.File); ok {
+					outWriter = util.WriterNotifier(outWriter, func(p []byte) {
+						opts.Logger.Infof("Retrieved output from %s", opts.TerraformPath)
+					})
+				}
 			} else {
-				outWriter = log.TFStdoutWriter(
-					outWriter,
-					terragruntOptions.Logger.Logger.Formatter,
-					terragruntOptions.OutputPrefix,
-					terragruntOptions.TerraformPath,
+				outWriter = log.TFWriter(
+					util.CreateLogEntryWithWriter(outWriter, filepath.Dir(opts.TerragruntConfigPath), opts.LogLevel, opts.Logger.Logger.Hooks, opts.Logger.Logger.Formatter),
+					opts.TerraformPath,
+					false,
 				)
 			}
 		}
@@ -162,23 +162,23 @@ func RunShellCommandWithOutput(
 		)
 
 		if suppressStdout {
-			terragruntOptions.Logger.Debugf("Command output will be suppressed.")
+			opts.Logger.Debugf("Command output will be suppressed.")
 
 			cmdStdout = io.MultiWriter(&stdoutBuf)
 		}
 
-		if command == terragruntOptions.TerraformPath && terragruntOptions.Engine != nil && !engine.IsEngineEnabled() {
-			terragruntOptions.Logger.Debugf("Engine is not enabled, running command directly in %s", commandDir)
+		if command == opts.TerraformPath && opts.Engine != nil && !engine.IsEngineEnabled() {
+			opts.Logger.Debugf("Engine is not enabled, running command directly in %s", commandDir)
 		}
 
-		useEngine := terragruntOptions.Engine != nil && engine.IsEngineEnabled()
+		useEngine := opts.Engine != nil && engine.IsEngineEnabled()
 
 		// If the engine is enabled and the command is IaC executable, use the engine to run the command.
-		if useEngine && command == terragruntOptions.TerraformPath {
-			terragruntOptions.Logger.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
+		if useEngine && command == opts.TerraformPath {
+			opts.Logger.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
 
 			cmdOutput, err := engine.Run(ctx, &engine.ExecutionOptions{
-				TerragruntOptions: terragruntOptions,
+				TerragruntOptions: opts,
 				CmdStdout:         cmdStdout,
 				CmdStderr:         cmdStderr,
 				WorkingDir:        cmd.Dir,
@@ -199,7 +199,7 @@ func RunShellCommandWithOutput(
 		// If we need to allocate a ptty for the command, route through the ptty routine. Otherwise, directly call the
 		// command.
 		if allocatePseudoTty {
-			if err := runCommandWithPTTY(terragruntOptions, cmd, cmdStdout, cmdStderr); err != nil {
+			if err := runCommandWithPTTY(opts, cmd, cmdStdout, cmdStderr); err != nil {
 				return err
 			}
 		} else {
@@ -215,12 +215,12 @@ func RunShellCommandWithOutput(
 
 		// Make sure to forward signals to the subcommand.
 		cmdChannel := make(chan error) // used for closing the signals forwarder goroutine
-		signalChannel := NewSignalsForwarder(InterruptSignals, cmd, terragruntOptions.Logger, cmdChannel)
+		signalChannel := NewSignalsForwarder(InterruptSignals, cmd, opts.Logger, cmdChannel)
 
 		defer func(signalChannel *SignalsForwarder) {
 			err := signalChannel.Close()
 			if err != nil {
-				terragruntOptions.Logger.Warnf("Error closing signal channel: %v", err)
+				opts.Logger.Warnf("Error closing signal channel: %v", err)
 			}
 		}(&signalChannel)
 
@@ -235,7 +235,7 @@ func RunShellCommandWithOutput(
 		if err != nil {
 			err = util.ProcessExecutionError{
 				Err:        err,
-				StdOut:     stdoutBuf.String(),
+				Stdout:     stdoutBuf.String(),
 				Stderr:     stderrBuf.String(),
 				WorkingDir: cmd.Dir,
 			}

@@ -6,9 +6,18 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/sirupsen/logrus"
 )
 
 type Option func(*Parser) *Parser
+
+func WithLogger(logger *logrus.Entry) Option {
+	return func(parser *Parser) *Parser {
+		parser.logger = logger
+
+		return parser
+	}
+}
 
 func WithDiagnosticsWriter(writer io.Writer, disableColor bool) Option {
 	return func(parser *Parser) *Parser {

@@ -11,9 +11,9 @@ import (
 	"github.com/gitsight/go-vcsurl"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/files"
-	"github.com/gruntwork-io/terragrunt/internal/log"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/hashicorp/go-getter"
+	"github.com/sirupsen/logrus"
 	"gopkg.in/ini.v1"
 )
 
@@ -32,6 +32,8 @@ var (
 )
 
 type Repo struct {
+	logger *logrus.Entry
+
 	cloneURL string
 	path     string
 
@@ -39,8 +41,9 @@ type Repo struct {
 	branchName string
 }
 
-func NewRepo(ctx context.Context, cloneURL, tempDir string) (*Repo, error) {
+func NewRepo(ctx context.Context, logger *logrus.Entry, cloneURL, tempDir string) (*Repo, error) {
 	repo := &Repo{
+		logger:   logger,
 		cloneURL: cloneURL,
 		path:     tempDir,
 	}
@@ -152,7 +155,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 				return errors.WithStackTrace(err)
 			}
 
-			log.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
+			repo.logger.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
 		}
 
 		repo.path = repoPath
@@ -175,7 +178,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 	// For example, in MacOS the service is responsible for deleting unused files deletes only files while leaving the directory structure is untouched, which in turn misleads `go-getter`, which thinks that the repository exists but cannot update it due to the lack of files. In such cases, we simply delete the temporary directory in order to clone the one again.
 	// See https://github.com/gruntwork-io/terragrunt/pull/2888
 	if files.FileExists(repo.path) && !files.FileExists(repo.gitHeadfile()) {
-		log.Debugf("The repo dir exists but git file %q does not. Removing the repo dir for cloning from the remote source.", repo.gitHeadfile())
+		repo.logger.Debugf("The repo dir exists but git file %q does not. Removing the repo dir for cloning from the remote source.", repo.gitHeadfile())
 
 		if err := os.RemoveAll(repo.path); err != nil {
 			return errors.WithStackTrace(err)
@@ -189,7 +192,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 
 	repo.cloneURL = sourceUrl.String()
 
-	log.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
+	repo.logger.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
 
 	if err := getter.Get(repo.path, strings.Trim(sourceUrl.String(), "/"), getter.WithContext(ctx)); err != nil {
 		return errors.WithStackTrace(err)
@@ -206,7 +209,7 @@ func (repo *Repo) parseRemoteURL() error {
 		return errors.Errorf("the specified path %q is not a git repository", repo.path)
 	}
 
-	log.Debugf("Parsing git config %q", gitConfigPath)
+	repo.logger.Debugf("Parsing git config %q", gitConfigPath)
 
 	inidata, err := ini.Load(gitConfigPath)
 	if err != nil {
@@ -233,7 +236,7 @@ func (repo *Repo) parseRemoteURL() error {
 	}
 
 	repo.remoteURL = inidata.Section(sectionName).Key("url").String()
-	log.Debugf("Remote url: %q for repo: %q", repo.remoteURL, repo.path)
+	repo.logger.Debugf("Remote url: %q for repo: %q", repo.remoteURL, repo.path)
 
 	return nil
 }

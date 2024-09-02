@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/internal/log"
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/sirupsen/logrus"
 )
 
 type Parser struct {
@@ -18,15 +19,17 @@ type Parser struct {
 	diagsWriterFunc       func(hcl.Diagnostics) error
 	handleDiagnosticsFunc func(*File, hcl.Diagnostics) (hcl.Diagnostics, error)
 	fileUpdateHandlerFunc func(*File) error
+	logger                *logrus.Entry
 }
 
-func NewParser() *Parser {
-	return &Parser{
+func NewParser(opts ...Option) *Parser {
+	return (&Parser{
 		Parser: hclparse.NewParser(),
-	}
+		logger: util.GlobalFallbackLogEntry,
+	}).withOptions(opts...)
 }
 
-func (parser *Parser) WithOptions(opts ...Option) *Parser {
+func (parser *Parser) withOptions(opts ...Option) *Parser {
 	for _, opt := range opts {
 		parser = opt(parser)
 	}
@@ -37,7 +40,7 @@ func (parser *Parser) WithOptions(opts ...Option) *Parser {
 func (parser *Parser) ParseFromFile(configPath string) (*File, error) {
 	content, err := os.ReadFile(configPath)
 	if err != nil {
-		log.Warnf("Error reading file %s: %v", configPath, err)
+		parser.logger.Warnf("Error reading file %s: %v", configPath, err)
 		return nil, errors.WithStackTrace(err)
 	}
 
@@ -77,7 +80,7 @@ func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *F
 	}
 
 	if err := parser.handleDiagnostics(file, diags); err != nil {
-		log.Warnf("Failed to parse HCL in file %s: %v", configPath, diags)
+		parser.logger.Warnf("Failed to parse HCL in file %s: %v", configPath, diags)
 		return nil, errors.WithStackTrace(diags)
 	}
 

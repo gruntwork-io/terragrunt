@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/terraform/getproviders/mocks"
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -42,6 +43,7 @@ func mockProviderUpdateLock(t *testing.T, address, version string) Provider {
 	provider.On("Address").Return(address)
 	provider.On("Version").Return(version)
 	provider.On("PackageDir").Return(packageDir)
+	provider.On("Logger").Return(util.GlobalFallbackLogEntry)
 	provider.On("DocumentSHA256Sums", mock.Anything).Return([]byte(document), nil)
 
 	return provider

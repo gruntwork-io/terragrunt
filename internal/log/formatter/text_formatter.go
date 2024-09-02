@@ -19,18 +19,18 @@ const (
 
 	PrefixKeyName   = "prefix"
 	TFBinaryKeyName = "tfBinary"
-	NoneLevel       = logrus.Level(10)
+	StdoutLevel     = logrus.Level(10)
 )
 
-// Formatter implements logrus.Formatter
-var _ logrus.Formatter = new(Formatter)
+// TextFormatter implements logrus.TextFormatter
+var _ logrus.Formatter = new(TextFormatter)
 
 type PrefixStyle interface {
 	// ColorFunc creates a closure to avoid computation ANSI color code.
 	ColorFunc(prefixName string) ColorFunc
 }
 
-type Formatter struct {
+type TextFormatter struct {
 	// Disable formatted layout
 	DisableLogFormatting bool
 
@@ -59,20 +59,20 @@ type Formatter struct {
 	colorScheme compiledColorScheme
 }
 
-// NewFormatter returns a new Formatter instance with default values.
-func NewFormatter() *Formatter {
-	return &Formatter{
+// NewTextFormatter returns a new TextFormatter instance with default values.
+func NewTextFormatter() *TextFormatter {
+	return &TextFormatter{
 		colorScheme: defaultColorScheme.Compile(),
 		PrefixStyle: NewPrefixStyle(),
 	}
 }
 
-func (formatter *Formatter) SetColorScheme(colorScheme *ColorScheme) {
+func (formatter *TextFormatter) SetColorScheme(colorScheme *ColorScheme) {
 	maps.Copy(formatter.colorScheme, colorScheme.Compile())
 }
 
-// Format implements logrus.Formatter
-func (formatter *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
+// Format implements logrus.TextFormatter
+func (formatter *TextFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	buf := entry.Buffer
 	if buf == nil {
 		buf = new(bytes.Buffer)
@@ -95,7 +95,7 @@ func (formatter *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (formatter *Formatter) printKeyValue(buf *bytes.Buffer, entry *logrus.Entry) error {
+func (formatter *TextFormatter) printKeyValue(buf *bytes.Buffer, entry *logrus.Entry) error {
 	timestampFormat := formatter.TimestampFormat
 	if timestampFormat == "" {
 		timestampFormat = defaultTimestamp
@@ -141,7 +141,7 @@ func (formatter *Formatter) printKeyValue(buf *bytes.Buffer, entry *logrus.Entry
 	return nil
 }
 
-func (formatter *Formatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entry) error {
+func (formatter *TextFormatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entry) error {
 	level := fmt.Sprintf("%-6s ", formatter.levelText(entry.Level))
 	if !formatter.DisableUppercase {
 		level = strings.ToUpper(level)
@@ -194,7 +194,7 @@ func (formatter *Formatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entr
 	return nil
 }
 
-func (formatter *Formatter) appendKeyValue(buf *bytes.Buffer, key string, value interface{}, appendSpace bool) error {
+func (formatter *TextFormatter) appendKeyValue(buf *bytes.Buffer, key string, value interface{}, appendSpace bool) error {
 	keyFmt := "%s="
 	if appendSpace {
 		keyFmt = " " + keyFmt
@@ -211,7 +211,7 @@ func (formatter *Formatter) appendKeyValue(buf *bytes.Buffer, key string, value 
 	return nil
 }
 
-func (formatter *Formatter) appendValue(buf *bytes.Buffer, value interface{}) error {
+func (formatter *TextFormatter) appendValue(buf *bytes.Buffer, value interface{}) error {
 	var str string
 
 	switch value := value.(type) {
@@ -239,7 +239,7 @@ func (formatter *Formatter) appendValue(buf *bytes.Buffer, value interface{}) er
 	return nil
 }
 
-func (formatter *Formatter) levelText(level logrus.Level) string {
+func (formatter *TextFormatter) levelText(level logrus.Level) string {
 	levelText := level.String()
 	if level == logrus.WarnLevel {
 		levelText = "warn"
@@ -252,7 +252,7 @@ func (formatter *Formatter) levelText(level logrus.Level) string {
 	return levelText
 }
 
-func (formatter *Formatter) keys(data logrus.Fields, removeKeys ...string) []string {
+func (formatter *TextFormatter) keys(data logrus.Fields, removeKeys ...string) []string {
 	var (
 		keys []string
 	)
@@ -279,7 +279,7 @@ func (formatter *Formatter) keys(data logrus.Fields, removeKeys ...string) []str
 	return keys
 }
 
-func (formatter *Formatter) needsQuoting(text string) bool {
+func (formatter *TextFormatter) needsQuoting(text string) bool {
 	if formatter.QuoteEmptyFields && len(text) == 0 {
 		return true
 	}

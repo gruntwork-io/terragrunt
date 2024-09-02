@@ -2,7 +2,11 @@
 
 package getproviders
 
-import "context"
+import (
+	"context"
+
+	"github.com/sirupsen/logrus"
+)
 
 type Provider interface {
 	// Address returns a source address of the provider. e.g.: registry.terraform.io/hashicorp/aws
@@ -16,4 +20,7 @@ type Provider interface {
 
 	// PackageDir returns a directory with the unpacked provider.
 	PackageDir() string
+
+	// Logger returns logger
+	Logger() *logrus.Entry
 }

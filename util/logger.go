@@ -3,7 +3,6 @@ package util
 import (
 	"io"
 	"os"
-	"time"
 
 	"golang.org/x/term"
 
@@ -15,11 +14,8 @@ import (
 
 // used in integration tests
 const (
-	defaultLogLevel        = logrus.InfoLevel
-	defaultTimestampFormat = time.RFC3339
-
-	logLevelEnvVar        = "TERRAGRUNT_LOG_LEVEL"
-	timestampFormatEnvVar = "TERRAGRUNT_LOG_TIMESTAMP_FORMAT"
+	defaultLogLevel = logrus.InfoLevel
+	logLevelEnvVar  = "TERRAGRUNT_LOG_LEVEL"
 )
 
 var (
@@ -34,27 +30,27 @@ var (
 	globalDisableColors     bool
 	globalDisableFormatting bool
 	jsonLogFormat           bool
+
+	defaultTextFormatter *formatter.TextFormatter
 )
 
 func init() {
+	defaultTextFormatter = formatter.NewTextFormatter()
 	setGlobalFallbackLogEntry()
 }
 
 func setGlobalFallbackLogEntry() {
 	logLevel := GetDefaultLogLevel()
-	GlobalFallbackLogEntry = CreateLogEntry("", logLevel, nil, globalDisableColors, globalDisableFormatting)
+
+	GlobalFallbackLogEntry = CreateLogEntry("", logLevel, defaultTextFormatter)
 }
 
 func DisableLogColors() {
-	globalDisableColors = true
-
-	setGlobalFallbackLogEntry()
+	defaultTextFormatter.DisableColors = true
 }
 
 func DisableLogFormatting() {
-	globalDisableFormatting = true
-
-	setGlobalFallbackLogEntry()
+	defaultTextFormatter.DisableLogFormatting = true
 }
 
 func JsonFormat() {
@@ -70,7 +66,7 @@ func DisableJsonFormat() {
 }
 
 // CreateLogger creates a logger. If debug is set, we use ErrorLevel to enable verbose output, otherwise - only errors are shown
-func CreateLogger(lvl logrus.Level, prefixStyle formatter.PrefixStyle, disableColors, disableFormatting bool) *logrus.Logger {
+func CreateLogger(lvl logrus.Level, textFormatter logrus.Formatter) *logrus.Logger {
 	logger := logrus.New()
 	logger.SetLevel(lvl)
 	logger.SetOutput(os.Stderr) // Terragrunt should output all it's logs to stderr by default
@@ -78,27 +74,14 @@ func CreateLogger(lvl logrus.Level, prefixStyle formatter.PrefixStyle, disableCo
 	if jsonLogFormat {
 		logger.SetFormatter(&logrus.JSONFormatter{})
 	} else {
-		logFormatter := formatter.NewFormatter()
-		logFormatter.DisableColors = disableColors
-		logFormatter.DisableLogFormatting = disableFormatting
-
-		if prefixStyle != nil {
-			logFormatter.PrefixStyle = prefixStyle
-		}
-
-		if timestampFormat := os.Getenv(timestampFormatEnvVar); timestampFormat != "" {
-			logFormatter.TimestampFormat = timestampFormat
-		}
-
-		logger.SetFormatter(logFormatter)
+		logger.SetFormatter(textFormatter)
 	}
-
 	return logger
 }
 
 // CreateLogEntry creates a logger entry with the given prefix field
-func CreateLogEntry(prefix string, level logrus.Level, prefixStyle formatter.PrefixStyle, disableColors, disableFormatting bool) *logrus.Entry {
-	logger := CreateLogger(level, prefixStyle, disableColors, disableFormatting)
+func CreateLogEntry(prefix string, level logrus.Level, textFormatter logrus.Formatter) *logrus.Entry {
+	logger := CreateLogger(level, textFormatter)
 	fields := logrus.Fields{
 		formatter.PrefixKeyName: prefix,
 	}
@@ -107,10 +90,11 @@ func CreateLogEntry(prefix string, level logrus.Level, prefixStyle formatter.Pre
 }
 
 // CreateLogEntryWithWriter Create a logger around the given output stream and prefix
-func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Level, hooks logrus.LevelHooks, prefixStyle formatter.PrefixStyle, disableColors, disableFormatting bool) *logrus.Entry {
-	logger := CreateLogEntry(prefix, level, prefixStyle, disableColors, disableFormatting)
+func CreateLogEntryWithWriter(writer io.Writer, prefix string, level logrus.Level, hooks logrus.LevelHooks, textFormatter logrus.Formatter) *logrus.Entry {
+	logger := CreateLogEntry(prefix, level, textFormatter)
 	logger.Logger.SetOutput(writer)
 	logger.Logger.ReplaceHooks(hooks)
+	logger.Logger.ExitFunc = func(int) {}
 
 	return logger
 }
@@ -141,7 +125,7 @@ func GetDefaultLogLevel() logrus.Level {
 func ParseLogLevel(logLevelStr string) logrus.Level {
 	parsedLogLevel, err := logrus.ParseLevel(logLevelStr)
 	if err != nil {
-		CreateLogEntry("", defaultLogLevel, nil, globalDisableColors, globalDisableFormatting).Errorf(
+		CreateLogEntry("", defaultLogLevel, defaultTextFormatter).Errorf(
 			"Could not parse log level from environment variable %s (%s) - falling back to default %s",
 			logLevelEnvVar,
 			logLevelStr,

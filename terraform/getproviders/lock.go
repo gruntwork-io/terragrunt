@@ -13,7 +13,6 @@ import (
 	"unicode"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/internal/log"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
@@ -135,7 +134,7 @@ func getExistingHashes(providerBlock *hclwrite.Block, provider Provider) ([]Hash
 
 	// a version attribute found
 	versionVal := getAttributeValueAsUnquotedString(versionAttr)
-	log.Debugf("Check provider version in lock file: address = %s, lock = %s, config = %s", provider.Address(), versionVal, provider.Version())
+	provider.Logger().Debugf("Check provider version in lock file: address = %s, lock = %s, config = %s", provider.Address(), versionVal, provider.Version())
 
 	if versionVal == provider.Version() {
 		// if version is equal, get already existing hashes from lock file to merge.
