@@ -74,7 +74,7 @@ setup_test_environment: &setup_test_environment
     echo $GCLOUD_SERVICE_KEY > ${HOME}/gcloud-service-key.json
     echo 'export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/gcloud-service-key.json' >> $BASH_ENV
     # Import test / dev key for SOPS
-    gpg --import --no-tty --batch --yes ./test/fixture-sops/test_pgp_key.asc
+    gpg --import --no-tty --batch --yes ./test/fixtures/fixture-sops/test_pgp_key.asc
     mkdir -p logs
   no_output_timeout: 30m
 
