@@ -92,7 +92,7 @@ func TestAutoRetryGetDefaultErrors(t *testing.T) {
 
 	list, hasVal := outputs["retryable_errors"]
 	assert.True(t, hasVal)
-	assert.ElementsMatch(t, list.Value, append(options.DEFAULT_RETRYABLE_ERRORS, "my special snowflake"))
+	assert.ElementsMatch(t, list.Value, append(options.DefaultRetryableErrors, "my special snowflake"))
 }
 
 func TestAutoRetryCustomRetryableErrorsFailsWhenRetryableErrorsNotSet(t *testing.T) {
@@ -169,8 +169,8 @@ func TestAutoRetryConfigurableRetriesErrors(t *testing.T) {
 		fixture      string
 		errorMessage string
 	}{
-		{testFixtureAutoRetryConfigurableRetriesError1, "Cannot have less than 1 max retry"},
-		{testFixtureAutoRetryConfigurableRetriesError2, "Cannot sleep for less than 0 seconds"},
+		{testFixtureAutoRetryConfigurableRetriesError1, "cannot have less than 1 max retry"},
+		{testFixtureAutoRetryConfigurableRetriesError2, "cannot sleep for less than 0 seconds"},
 	}
 	for _, tc := range tc {
 		tc := tc

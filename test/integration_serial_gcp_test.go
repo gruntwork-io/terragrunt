@@ -20,13 +20,13 @@ func TestGcpCorrectlyMirrorsTerraformGCPAuth(t *testing.T) {
 	defaultCreds := os.Getenv("GCLOUD_SERVICE_KEY")
 	defer os.Setenv("GCLOUD_SERVICE_KEY", defaultCreds)
 	os.Unsetenv("GCLOUD_SERVICE_KEY")
-	os.Setenv("GOOGLE_CREDENTIALS", defaultCreds)
+	t.Setenv("GOOGLE_CREDENTIALS", defaultCreds)
 
 	cleanupTerraformFolder(t, testFixtureGcsPath)
 
 	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
+	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
 
 	defer deleteGCSBucket(t, gcsBucketName)
 
@@ -45,11 +45,13 @@ func TestGcpWorksWithImpersonateBackend(t *testing.T) {
 		t.Fatalf("required environment variable `%s` - not found", "GCLOUD_SERVICE_KEY_IMPERSONATOR")
 	}
 	tmpImpersonatorCreds := createTmpTerragruntConfigContent(t, impersonatorKey, "impersonator-key.json")
+	defaultCreds := os.Getenv("GCLOUD_SERVICE_KEY")
+	t.Setenv("GOOGLE_CREDENTIALS", defaultCreds)
 	defer removeFile(t, tmpImpersonatorCreds)
 	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", tmpImpersonatorCreds)
 
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
+	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
 
 	// run with impersonation
 	tmpTerragruntImpersonateGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsImpersonatePath, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)

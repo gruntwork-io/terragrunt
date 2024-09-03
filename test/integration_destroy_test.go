@@ -241,9 +241,9 @@ func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 
 	t.Parallel()
 
-	tmpEnvPath := copyEnvironment(t, testFixtureExternalDependency)
+	tmpEnvPath := copyEnvironment(t, TestFixtureExternalDependency)
 	cleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureExternalDependency)
+	testPath := util.JoinPath(tmpEnvPath, TestFixtureExternalDependency)
 
 	t.Cleanup(func() {
 		os.RemoveAll(filepath.ToSlash("/tmp/external-46521694"))
@@ -285,9 +285,9 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
-	tmpEnvPath := copyEnvironment(t, testFixtureOutDir)
+	tmpEnvPath := copyEnvironment(t, TestFixtureOutDir)
 	cleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
+	testPath := util.JoinPath(tmpEnvPath, TestFixtureOutDir)
 
 	// plan and apply
 	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))

@@ -39,7 +39,7 @@ func TestGcpWorksWithBackend(t *testing.T) {
 
 	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
+	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
 
 	defer deleteGCSBucket(t, gcsBucketName)
 
@@ -59,7 +59,7 @@ func TestGcpWorksWithExistingBucket(t *testing.T) {
 
 	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
+	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
 
 	defer deleteGCSBucket(t, gcsBucketName)
 
@@ -80,7 +80,7 @@ func TestGcpCheckMissingBucket(t *testing.T) {
 
 	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
+	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
 
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsNoBucket, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
 	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsNoBucket))
@@ -95,7 +95,7 @@ func TestGcpNoPrefixBucket(t *testing.T) {
 
 	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
+	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
 
 	defer deleteGCSBucket(t, gcsBucketName)
 
@@ -122,7 +122,7 @@ func TestGcpParallelStateInit(t *testing.T) {
 
 	tmpTerragruntConfigFile := util.JoinPath(tmpEnvPath, "terragrunt.hcl")
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
+	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsParallelStateInit, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
 	err = util.CopyFile(tmpTerragruntGCSConfigPath, tmpTerragruntConfigFile)
 	require.NoError(t, err)

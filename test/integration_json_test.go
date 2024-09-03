@@ -16,19 +16,19 @@ import (
 )
 
 const (
-	testFixtureRenderJsonMetadata    = "fixtures/render-json-metadata"
-	testFixtureRenderJsonMockOutputs = "fixtures/render-json-mock-outputs"
-	testFixtureRenderJsonInputs      = "fixtures/render-json-inputs"
+	testFixtureRenderJSONMetadata    = "fixtures/render-json-metadata"
+	testFixtureRenderJSONMockOutputs = "fixtures/render-json-mock-outputs"
+	testFixtureRenderJSONInputs      = "fixtures/render-json-inputs"
 )
 
 func TestRenderJsonAttributesMetadata(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := copyEnvironment(t, testFixtureRenderJsonMetadata)
+	tmpEnvPath := copyEnvironment(t, testFixtureRenderJSONMetadata)
 	cleanupTerraformFolder(t, tmpEnvPath)
-	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJsonMetadata, "attributes")
+	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "attributes")
 
-	terragruntHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJsonMetadata, "attributes", "terragrunt.hcl")
+	terragruntHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "attributes", "terragrunt.hcl")
 
 	var expectedMetadata = map[string]interface{}{
 		"found_in_file": terragruntHcl,
@@ -41,10 +41,10 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
-	var renderedJson = map[string]interface{}{}
-	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+	var renderedJSON = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJSON))
 
-	var inputs = renderedJson[config.MetadataInputs]
+	var inputs = renderedJSON[config.MetadataInputs]
 	var expectedInputs = map[string]interface{}{
 		"name": map[string]interface{}{
 			"metadata": expectedMetadata,
@@ -57,7 +57,7 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 	}
 	assert.True(t, reflect.DeepEqual(expectedInputs, inputs))
 
-	var locals = renderedJson[config.MetadataLocals]
+	var locals = renderedJSON[config.MetadataLocals]
 	var expectedLocals = map[string]interface{}{
 		"aws_region": map[string]interface{}{
 			"metadata": expectedMetadata,
@@ -66,56 +66,56 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 	}
 	assert.True(t, reflect.DeepEqual(expectedLocals, locals))
 
-	var downloadDir = renderedJson[config.MetadataDownloadDir]
+	var downloadDir = renderedJSON[config.MetadataDownloadDir]
 	var expecteDownloadDir = map[string]interface{}{
 		"metadata": expectedMetadata,
 		"value":    "/tmp",
 	}
 	assert.True(t, reflect.DeepEqual(expecteDownloadDir, downloadDir))
 
-	var iamAssumeRoleDuration = renderedJson[config.MetadataIamAssumeRoleDuration]
+	var iamAssumeRoleDuration = renderedJSON[config.MetadataIamAssumeRoleDuration]
 	expectedIamAssumeRoleDuration := map[string]interface{}{
 		"metadata": expectedMetadata,
 		"value":    float64(666),
 	}
 	assert.True(t, reflect.DeepEqual(expectedIamAssumeRoleDuration, iamAssumeRoleDuration))
 
-	var iamAssumeRoleName = renderedJson[config.MetadataIamAssumeRoleSessionName]
+	var iamAssumeRoleName = renderedJSON[config.MetadataIamAssumeRoleSessionName]
 	expectedIamAssumeRoleName := map[string]interface{}{
 		"metadata": expectedMetadata,
 		"value":    "qwe",
 	}
 	assert.True(t, reflect.DeepEqual(expectedIamAssumeRoleName, iamAssumeRoleName))
 
-	var iamRole = renderedJson[config.MetadataIamRole]
+	var iamRole = renderedJSON[config.MetadataIamRole]
 	expectedIamRole := map[string]interface{}{
 		"metadata": expectedMetadata,
 		"value":    "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME",
 	}
 	assert.True(t, reflect.DeepEqual(expectedIamRole, iamRole))
 
-	var preventDestroy = renderedJson[config.MetadataPreventDestroy]
+	var preventDestroy = renderedJSON[config.MetadataPreventDestroy]
 	expectedPreventDestroy := map[string]interface{}{
 		"metadata": expectedMetadata,
 		"value":    true,
 	}
 	assert.True(t, reflect.DeepEqual(expectedPreventDestroy, preventDestroy))
 
-	var skip = renderedJson[config.MetadataSkip]
+	var skip = renderedJSON[config.MetadataSkip]
 	expectedSkip := map[string]interface{}{
 		"metadata": expectedMetadata,
 		"value":    true,
 	}
 	assert.True(t, reflect.DeepEqual(expectedSkip, skip))
 
-	var terraformBinary = renderedJson[config.MetadataTerraformBinary]
+	var terraformBinary = renderedJSON[config.MetadataTerraformBinary]
 	expectedTerraformBinary := map[string]interface{}{
 		"metadata": expectedMetadata,
 		"value":    wrappedBinary(),
 	}
 	assert.True(t, reflect.DeepEqual(expectedTerraformBinary, terraformBinary))
 
-	var terraformVersionConstraint = renderedJson[config.MetadataTerraformVersionConstraint]
+	var terraformVersionConstraint = renderedJSON[config.MetadataTerraformVersionConstraint]
 	expectedTerraformVersionConstraint := map[string]interface{}{
 		"metadata": expectedMetadata,
 		"value":    ">= 0.11",
@@ -126,10 +126,10 @@ func TestRenderJsonAttributesMetadata(t *testing.T) {
 func TestRenderJsonWithInputsNotExistingOutput(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := copyEnvironment(t, testFixtureRenderJsonInputs)
+	tmpEnvPath := copyEnvironment(t, testFixtureRenderJSONInputs)
 	cleanupTerraformFolder(t, tmpEnvPath)
-	dependencyPath := util.JoinPath(tmpEnvPath, testFixtureRenderJsonInputs, "dependency")
-	appPath := util.JoinPath(tmpEnvPath, testFixtureRenderJsonInputs, "app")
+	dependencyPath := util.JoinPath(tmpEnvPath, testFixtureRenderJSONInputs, "dependency")
+	appPath := util.JoinPath(tmpEnvPath, testFixtureRenderJSONInputs, "app")
 
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+dependencyPath)
 	runTerragrunt(t, "terragrunt render-json --with-metadata --terragrunt-non-interactive --terragrunt-working-dir "+appPath)
@@ -139,14 +139,14 @@ func TestRenderJsonWithInputsNotExistingOutput(t *testing.T) {
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
-	var renderedJson = map[string]interface{}{}
-	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+	var renderedJSON = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJSON))
 
 	var includeMetadata = map[string]interface{}{
 		"found_in_file": util.JoinPath(appPath, "terragrunt.hcl"),
 	}
 
-	var inputs = renderedJson[config.MetadataInputs]
+	var inputs = renderedJSON[config.MetadataInputs]
 	var expectedInputs = map[string]interface{}{
 		"static_value": map[string]interface{}{
 			"metadata": includeMetadata,
@@ -167,9 +167,9 @@ func TestRenderJsonWithInputsNotExistingOutput(t *testing.T) {
 func TestRenderJsonWithMockOutputs(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := copyEnvironment(t, testFixtureRenderJsonMockOutputs)
+	tmpEnvPath := copyEnvironment(t, testFixtureRenderJSONMockOutputs)
 	cleanupTerraformFolder(t, tmpEnvPath)
-	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJsonMockOutputs, "app")
+	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMockOutputs, "app")
 
 	var expectedMetadata = map[string]interface{}{
 		"found_in_file": util.JoinPath(tmpDir, "terragrunt.hcl"),
@@ -182,10 +182,10 @@ func TestRenderJsonWithMockOutputs(t *testing.T) {
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
-	var renderedJson = map[string]interface{}{}
-	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+	var renderedJSON = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJSON))
 
-	dependency := renderedJson[config.MetadataDependency]
+	dependency := renderedJSON[config.MetadataDependency]
 
 	var expectedDependency = map[string]interface{}{
 		"module": map[string]interface{}{
@@ -218,15 +218,15 @@ func TestRenderJsonWithMockOutputs(t *testing.T) {
 func TestRenderJsonMetadataIncludes(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := copyEnvironment(t, testFixtureRenderJsonMetadata)
+	tmpEnvPath := copyEnvironment(t, testFixtureRenderJSONMetadata)
 	cleanupTerraformFolder(t, tmpEnvPath)
-	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJsonMetadata, "includes", "app")
+	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "includes", "app")
 
-	terragruntHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJsonMetadata, "includes", "app", "terragrunt.hcl")
-	localsHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJsonMetadata, "includes", "app", "locals.hcl")
-	inputHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJsonMetadata, "includes", "app", "inputs.hcl")
-	generateHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJsonMetadata, "includes", "app", "generate.hcl")
-	commonHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJsonMetadata, "includes", "common", "common.hcl")
+	terragruntHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "includes", "app", "terragrunt.hcl")
+	localsHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "includes", "app", "locals.hcl")
+	inputHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "includes", "app", "inputs.hcl")
+	generateHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "includes", "app", "generate.hcl")
+	commonHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "includes", "common", "common.hcl")
 
 	var terragruntMetadata = map[string]interface{}{
 		"found_in_file": terragruntHcl,
@@ -251,10 +251,10 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
-	var renderedJson = map[string]interface{}{}
-	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+	var renderedJSON = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJSON))
 
-	var inputs = renderedJson[config.MetadataInputs]
+	var inputs = renderedJSON[config.MetadataInputs]
 	var expectedInputs = map[string]interface{}{
 		"content": map[string]interface{}{
 			"metadata": localsMetadata,
@@ -267,7 +267,7 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 	}
 	assert.True(t, reflect.DeepEqual(expectedInputs, inputs))
 
-	var locals = renderedJson[config.MetadataLocals]
+	var locals = renderedJSON[config.MetadataLocals]
 	var expectedLocals = map[string]interface{}{
 		"abc": map[string]interface{}{
 			"metadata": terragruntMetadata,
@@ -276,7 +276,7 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 	}
 	assert.True(t, reflect.DeepEqual(expectedLocals, locals))
 
-	var generate = renderedJson[config.MetadataGenerateConfigs]
+	var generate = renderedJSON[config.MetadataGenerateConfigs]
 	var expectedGenerate = map[string]interface{}{
 		"provider": map[string]interface{}{
 			"metadata": generateMetadata,
@@ -301,7 +301,7 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 
 	assert.Equal(t, string(serializedExpectedGenerate), string(serializedGenerate))
 
-	var remoteState = renderedJson[config.MetadataRemoteState]
+	var remoteState = renderedJSON[config.MetadataRemoteState]
 	var expectedRemoteState = map[string]interface{}{
 		"metadata": commonMetadata,
 		"value": map[string]interface{}{
@@ -330,11 +330,11 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 func TestRenderJsonMetadataDependency(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := copyEnvironment(t, testFixtureRenderJsonMetadata)
+	tmpEnvPath := copyEnvironment(t, testFixtureRenderJSONMetadata)
 	cleanupTerraformFolder(t, tmpEnvPath)
-	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJsonMetadata, "dependency", "app")
+	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "dependency", "app")
 
-	terragruntHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJsonMetadata, "dependency", "app", "terragrunt.hcl")
+	terragruntHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "dependency", "app", "terragrunt.hcl")
 
 	var terragruntMetadata = map[string]interface{}{
 		"found_in_file": terragruntHcl,
@@ -347,10 +347,10 @@ func TestRenderJsonMetadataDependency(t *testing.T) {
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
-	var renderedJson = map[string]interface{}{}
-	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+	var renderedJSON = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJSON))
 
-	var dependency = renderedJson[config.MetadataDependency]
+	var dependency = renderedJSON[config.MetadataDependency]
 
 	var expectedDependency = map[string]interface{}{
 		"dep": map[string]interface{}{
@@ -402,12 +402,12 @@ func TestRenderJsonMetadataDependency(t *testing.T) {
 func TestRenderJsonMetadataTerraform(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := copyEnvironment(t, testFixtureRenderJsonMetadata)
+	tmpEnvPath := copyEnvironment(t, testFixtureRenderJSONMetadata)
 	cleanupTerraformFolder(t, tmpEnvPath)
-	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJsonMetadata, "terraform-remote-state", "app")
+	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "terraform-remote-state", "app")
 
-	commonHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJsonMetadata, "terraform-remote-state", "common", "terraform.hcl")
-	remoteStateHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJsonMetadata, "terraform-remote-state", "common", "remote_state.hcl")
+	commonHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "terraform-remote-state", "common", "terraform.hcl")
+	remoteStateHcl := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "terraform-remote-state", "common", "remote_state.hcl")
 	var terragruntMetadata = map[string]interface{}{
 		"found_in_file": commonHcl,
 	}
@@ -422,10 +422,10 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
-	var renderedJson = map[string]interface{}{}
-	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+	var renderedJSON = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJSON))
 
-	var terraform = renderedJson[config.MetadataTerraform]
+	var terraform = renderedJSON[config.MetadataTerraform]
 	var expectedTerraform = map[string]interface{}{
 		"metadata": terragruntMetadata,
 		"value": map[string]interface{}{
@@ -447,7 +447,7 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 
 	assert.Equal(t, string(serializedExpectedTerraform), string(serializedTerraform))
 
-	var remoteState = renderedJson[config.MetadataRemoteState]
+	var remoteState = renderedJSON[config.MetadataRemoteState]
 	var expectedRemoteState = map[string]interface{}{
 		"metadata": remoteMetadata,
 		"value": map[string]interface{}{
@@ -476,9 +476,9 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 func TestRenderJsonMetadataDependencyModulePrefix(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := copyEnvironment(t, testFixtureRenderJsonMetadata)
+	tmpEnvPath := copyEnvironment(t, testFixtureRenderJSONMetadata)
 	cleanupTerraformFolder(t, tmpEnvPath)
-	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJsonMetadata, "dependency", "app")
+	tmpDir := util.JoinPath(tmpEnvPath, testFixtureRenderJSONMetadata, "dependency", "app")
 
 	runTerragrunt(t, "terragrunt run-all render-json --terragrunt-forward-tf-stdout --with-metadata --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+tmpDir)
 }
@@ -496,11 +496,11 @@ func TestRenderJsonDependentModulesMetadataTerraform(t *testing.T) {
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
-	var renderedJson = map[string]map[string]interface{}{}
+	var renderedJSON = map[string]map[string]interface{}{}
 
-	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJSON))
 
-	dependentModules := renderedJson[config.MetadataDependentModules]["value"].([]interface{})
+	dependentModules := renderedJSON[config.MetadataDependentModules]["value"].([]interface{})
 	// check if value list contains app-v1 and app-v2
 	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "app-v1"))
 	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "app-v2"))
@@ -540,10 +540,10 @@ func TestRenderJsonDependentModulesTerraform(t *testing.T) {
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
-	var renderedJson = map[string]interface{}{}
-	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+	var renderedJSON = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJSON))
 
-	var dependentModules = renderedJson[config.MetadataDependentModules].([]interface{})
+	var dependentModules = renderedJSON[config.MetadataDependentModules].([]interface{})
 	// check if value list contains app-v1 and app-v2
 	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "app-v1"))
 	assert.Contains(t, dependentModules, util.JoinPath(tmpEnvPath, testFixtureDestroyWarning, "app-v2"))
@@ -562,9 +562,9 @@ func TestRenderJsonDisableDependentModulesTerraform(t *testing.T) {
 	jsonBytes, err := os.ReadFile(jsonOut)
 	require.NoError(t, err)
 
-	var renderedJson = map[string]interface{}{}
-	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJson))
+	var renderedJSON = map[string]interface{}{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &renderedJSON))
 
-	_, found := renderedJson[config.MetadataDependentModules].([]interface{})
+	_, found := renderedJSON[config.MetadataDependentModules].([]interface{})
 	assert.False(t, found)
 }

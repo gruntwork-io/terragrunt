@@ -402,9 +402,9 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 		"module-b",
 	}
 
-	cleanupTerraformFolder(t, testFixtureExternalDependence)
+	cleanupTerraformFolder(t, TestFixtureExternalDependence)
 	for _, module := range modules {
-		cleanupTerraformFolder(t, util.JoinPath(testFixtureExternalDependence, module))
+		cleanupTerraformFolder(t, util.JoinPath(TestFixtureExternalDependence, module))
 	}
 
 	var (
@@ -412,8 +412,8 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 		applyAllStderr bytes.Buffer
 	)
 
-	rootPath := copyEnvironment(t, testFixtureExternalDependence)
-	modulePath := util.JoinPath(rootPath, testFixtureExternalDependence, "module-b")
+	rootPath := copyEnvironment(t, TestFixtureExternalDependence)
+	modulePath := util.JoinPath(rootPath, TestFixtureExternalDependence, "module-b")
 
 	err := runTerragruntCommand(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-include-external-dependencies --terragrunt-working-dir "+modulePath, &applyAllStdout, &applyAllStderr)
 	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")

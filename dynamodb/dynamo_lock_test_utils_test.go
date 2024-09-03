@@ -26,7 +26,7 @@ func createDynamoDBClientForTest(t *testing.T) *awsDynamodb.DynamoDB {
 		t.Fatal(err)
 	}
 
-	sessionConfig := &aws_helper.AwsSessionConfig{
+	sessionConfig := &awshelper.AwsSessionConfig{
 		Region: defaultTestRegion,
 	}
 

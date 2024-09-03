@@ -36,9 +36,9 @@ import (
 func testRunAllPlan(t *testing.T, args string) (string, string, string, error) {
 	t.Helper()
 
-	tmpEnvPath := copyEnvironment(t, testFixtureOutDir)
+	tmpEnvPath := copyEnvironment(t, TestFixtureOutDir)
 	cleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
+	testPath := util.JoinPath(tmpEnvPath, TestFixtureOutDir)
 
 	// run plan with output directory
 	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s %s", testPath, args))
@@ -331,24 +331,24 @@ func wrappedBinary() string {
 	value, found := os.LookupEnv("TERRAGRUNT_TFPATH")
 	if !found {
 		// if env variable is not defined, try to check through executing command
-		if util.IsCommandExecutable(tofuBinary, "-version") {
-			return tofuBinary
+		if util.IsCommandExecutable(TofuBinary, "-version") {
+			return TofuBinary
 		}
-		return terraformBinary
+		return TerraformBinary
 	}
 	return filepath.Base(value)
 }
 
 // expectedWrongCommandErr - return expected error message for wrong command
 func expectedWrongCommandErr(command string) error {
-	if wrappedBinary() == tofuBinary {
+	if wrappedBinary() == TofuBinary {
 		return terraform.WrongTofuCommand(command)
 	}
 	return terraform.WrongTerraformCommand(command)
 }
 
 func isTerraform() bool {
-	return wrappedBinary() == terraformBinary
+	return wrappedBinary() == TerraformBinary
 }
 
 func findFilesWithExtension(dir string, ext string) ([]string, error) {

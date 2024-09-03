@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -22,6 +23,8 @@ import (
 )
 
 func TestTerragruntParallelism(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		parallelism            int
 		numberOfModules        int
@@ -33,11 +36,65 @@ func TestTerragruntParallelism(t *testing.T) {
 		{5, 10, 5 * time.Second, []int{5, 5, 5, 5, 5, 5, 5, 5, 5, 5}},
 	}
 	for _, tc := range testCases {
-		tc := tc // shadow and force execution with this case
+
 		t.Run(fmt.Sprintf("parallelism=%d numberOfModules=%d timeToDeployEachModule=%v expectedTimings=%v", tc.parallelism, tc.numberOfModules, tc.timeToDeployEachModule, tc.expectedTimings), func(t *testing.T) {
+			t.Parallel()
+
 			testTerragruntParallelism(t, tc.parallelism, tc.numberOfModules, tc.timeToDeployEachModule, tc.expectedTimings)
 		})
 	}
+}
+
+func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
+	cleanupTerraformFolder(t, TestFixtureAuthProviderCmd)
+	tmpEnvPath := copyEnvironment(t, TestFixtureAuthProviderCmd)
+	rootPath := util.JoinPath(tmpEnvPath, TestFixtureAuthProviderCmd, "remote-state")
+	mockAuthCmd := filepath.Join(tmpEnvPath, TestFixtureAuthProviderCmd, "mock-auth-cmd.sh")
+
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	defer deleteS3Bucket(t, TerraformRemoteStateS3Region, s3BucketName)
+
+	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", TerraformRemoteStateS3Region)
+
+	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+
+	credsConfig := util.JoinPath(rootPath, "creds.config")
+
+	copyAndFillMapPlaceholders(t, credsConfig, credsConfig, map[string]string{
+		"__FILL_AWS_ACCESS_KEY_ID__":     accessKeyID,
+		"__FILL_AWS_SECRET_ACCESS_KEY__": secretAccessKey,
+	})
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", rootPath, mockAuthCmd))
+}
+
+func TestReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
+	cleanupTerraformFolder(t, TestFixtureAuthProviderCmd)
+	tmpEnvPath := copyEnvironment(t, TestFixtureAuthProviderCmd)
+	rootPath := util.JoinPath(tmpEnvPath, TestFixtureAuthProviderCmd, "creds-for-dependency")
+	mockAuthCmd := filepath.Join(tmpEnvPath, TestFixtureAuthProviderCmd, "mock-auth-cmd.sh")
+
+	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+
+	dependencyCredsConfig := util.JoinPath(rootPath, "dependency", "creds.config")
+	copyAndFillMapPlaceholders(t, dependencyCredsConfig, dependencyCredsConfig, map[string]string{
+		"__FILL_AWS_ACCESS_KEY_ID__":     accessKeyID,
+		"__FILL_AWS_SECRET_ACCESS_KEY__": secretAccessKey,
+	})
+
+	dependentCredsConfig := util.JoinPath(rootPath, "dependent", "creds.config")
+	copyAndFillMapPlaceholders(t, dependentCredsConfig, dependentCredsConfig, map[string]string{
+		"__FILL_AWS_ACCESS_KEY_ID__":     accessKeyID,
+		"__FILL_AWS_SECRET_ACCESS_KEY__": secretAccessKey,
+	})
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", rootPath, mockAuthCmd))
 }
 
 // NOTE: the following test asserts precise timing for determining parallelism. As such, it can not be run in parallel
@@ -92,7 +149,7 @@ func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules in
 func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules int, timeToDeployEachModule time.Duration) (string, int, error) {
 	t.Helper()
 
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
 
 	// copy the template `numberOfModules` times into the app
 	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")
@@ -100,7 +157,7 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 		t.Fatalf("Failed to create temp dir due to error: %v", err)
 	}
 	for i := 0; i < numberOfModules; i++ {
-		err := util.CopyFolderContents(testFixtureParallelism, tmpEnvPath, ".terragrunt-test", nil)
+		err := util.CopyFolderContents(TestFixtureParallelism, tmpEnvPath, ".terragrunt-test", nil)
 		if err != nil {
 			return "", 0, err
 		}
