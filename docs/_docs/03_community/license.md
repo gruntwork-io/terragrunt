@@ -12,4 +12,4 @@ nav_title_link: /docs/
 
 ## License
 
-This code is released under the MIT License. See [LICENSE.txt](https://github.com/gruntwork-io/terragrunt/blob/master/LICENSE.txt).
+This code is released under the MIT License. See [LICENSE.txt](https://github.com/gruntwork-io/terragrunt/blob/main/LICENSE.txt).
