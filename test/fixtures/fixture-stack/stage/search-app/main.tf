@@ -8,7 +8,7 @@ data "template_file" "text" {
 }
 
 module "example_module" {
-  source = "example-module"
+  source = "./example-module"
 }
 
 output "text" {

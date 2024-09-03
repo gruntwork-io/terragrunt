@@ -1,5 +1,5 @@
 module "mod" {
-  source = "module"
+  source = "./module"
 }
 
 output "foo" {

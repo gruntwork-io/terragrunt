@@ -1,0 +1,3 @@
+locals {
+  tier = "cluster"
+}

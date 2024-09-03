@@ -3,7 +3,7 @@ locals {
 }
 
 terraform {
-  source = "${get_terragrunt_dir()}/../../fixtures/fixture-inputs"
+  source = "${get_terragrunt_dir()}/../../fixture-inputs"
 }
 
 inputs = local.config_with_dependency.dependency.inputs.outputs

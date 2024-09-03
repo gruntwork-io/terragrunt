@@ -1,0 +1,6 @@
+
+module "sub" {
+  source = "..//submod"
+}
+
+

@@ -1,5 +1,5 @@
 terraform {
-  source = "git::ssh://git@github.com/gruntwork-io/i-dont-exist.git//test/fixtures/fixture-download/hello-world"
+  source = "git::ssh://git@github.com/gruntwork-io/i-dont-exist.git//test/fixture-download/hello-world"
 }
 
 inputs = {

@@ -1,0 +1,3 @@
+output "env" {
+  value = "test"
+}

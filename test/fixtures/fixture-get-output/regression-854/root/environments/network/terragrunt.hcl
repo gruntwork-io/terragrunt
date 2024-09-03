@@ -1,0 +1,3 @@
+include {
+  path = "../../terragrunt.hcl"
+}

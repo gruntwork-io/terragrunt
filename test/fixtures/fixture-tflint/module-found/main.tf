@@ -5,5 +5,5 @@ terraform {
 }
 
 module "dummy_module" {
-  source = "dummy_module"
+  source = "./dummy_module"
 }
