@@ -28,11 +28,11 @@ import (
 func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
 	t.Parallel()
 
-	canonicalUrl := "file://" + absPath(t, "../../../test/fixture-download-source/hello-world-local-hash")
+	canonicalUrl := "file://" + absPath(t, "../../../test/fixtures/fixture-download-source/hello-world-local-hash")
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
-	copyFolder(t, "../../../test/fixture-download-source/download-dir-version-file-local-hash", downloadDir)
+	copyFolder(t, "../../../test/fixtures/fixture-download-source/download-dir-version-file-local-hash", downloadDir)
 	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, false)
 
 	// Write out a version file so we can test a cache hit
@@ -51,12 +51,12 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
 func TestAlreadyHaveLatestCodeLocalFilePathHashingFailure(t *testing.T) {
 	t.Parallel()
 
-	fixturePath := absPath(t, "../../../test/fixture-download-source/hello-world-local-hash-failed")
+	fixturePath := absPath(t, "../../../test/fixtures/fixture-download-source/hello-world-local-hash-failed")
 	canonicalUrl := "file://" + fixturePath
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
-	copyFolder(t, "../../../test/fixture-download-source/hello-world-local-hash-failed", downloadDir)
+	copyFolder(t, "../../../test/fixtures/fixture-download-source/hello-world-local-hash-failed", downloadDir)
 
 	fileInfo, err := os.Stat(fixturePath)
 	if err != nil {
@@ -79,11 +79,11 @@ func TestAlreadyHaveLatestCodeLocalFilePathHashingFailure(t *testing.T) {
 func TestAlreadyHaveLatestCodeLocalFilePathWithHashChanged(t *testing.T) {
 	t.Parallel()
 
-	canonicalUrl := "file://" + absPath(t, "../../../test/fixture-download-source/hello-world-local-hash")
+	canonicalUrl := "file://" + absPath(t, "../../../test/fixtures/fixture-download-source/hello-world-local-hash")
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
-	copyFolder(t, "../../../test/fixture-download-source/download-dir-version-file-local-hash", downloadDir)
+	copyFolder(t, "../../../test/fixtures/fixture-download-source/download-dir-version-file-local-hash", downloadDir)
 
 	f, err := os.OpenFile(downloadDir+"/version-file.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -100,7 +100,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithHashChanged(t *testing.T) {
 func TestAlreadyHaveLatestCodeLocalFilePath(t *testing.T) {
 	t.Parallel()
 
-	canonicalUrl := "file://" + absPath(t, "../../../test/fixture-download-source/hello-world")
+	canonicalUrl := "file://" + absPath(t, "../../../test/fixtures/fixture-download-source/hello-world")
 	downloadDir := "does-not-exist"
 
 	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, false)
@@ -119,7 +119,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsNoVersionNoVersionF
 	t.Parallel()
 
 	canonicalUrl := "http://www.some-url.com"
-	downloadDir := "../../../test/fixture-download-source/download-dir-empty"
+	downloadDir := "../../../test/fixtures/fixture-download-source/download-dir-empty"
 
 	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, false)
 }
@@ -128,7 +128,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsNoVersionWithVersio
 	t.Parallel()
 
 	canonicalUrl := "http://www.some-url.com"
-	downloadDir := "../../../test/fixture-download-source/download-dir-version-file-no-query"
+	downloadDir := "../../../test/fixtures/fixture-download-source/download-dir-version-file-no-query"
 
 	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, true)
 }
@@ -137,7 +137,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionNoVersio
 	t.Parallel()
 
 	canonicalUrl := "http://www.some-url.com?ref=v0.0.1"
-	downloadDir := "../../../test/fixture-download-source/download-dir-empty"
+	downloadDir := "../../../test/fixtures/fixture-download-source/download-dir-empty"
 
 	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, false)
 }
@@ -146,7 +146,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionAndVersi
 	t.Parallel()
 
 	canonicalUrl := "http://www.some-url.com?ref=v0.0.1"
-	downloadDir := "../../../test/fixture-download-source/download-dir-version-file"
+	downloadDir := "../../../test/fixtures/fixture-download-source/download-dir-version-file"
 
 	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, false)
 }
@@ -155,7 +155,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionAndVersi
 	t.Parallel()
 
 	canonicalUrl := "http://www.some-url.com?ref=v0.0.1"
-	downloadDir := "../../../test/fixture-download-source/download-dir-version-file-tf-code"
+	downloadDir := "../../../test/fixtures/fixture-download-source/download-dir-version-file-tf-code"
 
 	testAlreadyHaveLatestCode(t, canonicalUrl, downloadDir, true)
 }
@@ -163,7 +163,7 @@ func TestAlreadyHaveLatestCodeRemoteFilePathDownloadDirExistsWithVersionAndVersi
 func TestDownloadTerraformSourceIfNecessaryLocalDirToEmptyDir(t *testing.T) {
 	t.Parallel()
 
-	canonicalUrl := "file://" + absPath(t, "../../../test/fixture-download-source/hello-world")
+	canonicalUrl := "file://" + absPath(t, "../../../test/fixtures/fixture-download-source/hello-world")
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
@@ -173,11 +173,11 @@ func TestDownloadTerraformSourceIfNecessaryLocalDirToEmptyDir(t *testing.T) {
 func TestDownloadTerraformSourceIfNecessaryLocalDirToAlreadyDownloadedDir(t *testing.T) {
 	t.Parallel()
 
-	canonicalUrl := "file://" + absPath(t, "../../../test/fixture-download-source/hello-world")
+	canonicalUrl := "file://" + absPath(t, "../../../test/fixtures/fixture-download-source/hello-world")
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
-	copyFolder(t, "../../../test/fixture-download-source/hello-world-2", downloadDir)
+	copyFolder(t, "../../../test/fixtures/fixture-download-source/hello-world-2", downloadDir)
 
 	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World", false)
 }
@@ -199,7 +199,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDir(t *te
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
-	copyFolder(t, "../../../test/fixture-download-source/hello-world-2", downloadDir)
+	copyFolder(t, "../../../test/fixtures/fixture-download-source/hello-world-2", downloadDir)
 
 	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World 2", false)
 }
@@ -211,7 +211,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirDiffer
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
-	copyFolder(t, "../../../test/fixture-download-source/hello-world-2", downloadDir)
+	copyFolder(t, "../../../test/fixtures/fixture-download-source/hello-world-2", downloadDir)
 
 	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World", true)
 }
@@ -223,7 +223,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDirSameVe
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
-	copyFolder(t, "../../../test/fixture-download-source/hello-world-version-remote", downloadDir)
+	copyFolder(t, "../../../test/fixtures/fixture-download-source/hello-world-version-remote", downloadDir)
 
 	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, false, "# Hello, World version remote", false)
 }
@@ -235,7 +235,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlOverrideSource(t *testing.T)
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
-	copyFolder(t, "../../../test/fixture-download-source/hello-world-version-remote", downloadDir)
+	copyFolder(t, "../../../test/fixtures/fixture-download-source/hello-world-version-remote", downloadDir)
 
 	testDownloadTerraformSourceIfNecessary(t, canonicalUrl, downloadDir, true, "# Hello, World", true)
 }
@@ -247,7 +247,7 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
-	copyFolder(t, "../../../test/fixture-download-source/hello-world-version-remote", downloadDir)
+	copyFolder(t, "../../../test/fixtures/fixture-download-source/hello-world-version-remote", downloadDir)
 
 	terraformSource, terragruntOptions, terragruntConfig, err := createConfig(t, canonicalUrl, downloadDir, false)
 
@@ -267,7 +267,7 @@ func TestInvalidModulePath(t *testing.T) {
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
-	copyFolder(t, "../../../test/fixture-download-source/hello-world-version-remote", downloadDir)
+	copyFolder(t, "../../../test/fixtures/fixture-download-source/hello-world-version-remote", downloadDir)
 
 	terraformSource, _, _, err := createConfig(t, canonicalUrl, downloadDir, false)
 	require.NoError(t, err)
@@ -287,7 +287,7 @@ func TestDownloadInvalidPathToFilePath(t *testing.T) {
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
-	copyFolder(t, "../../../test/fixture-download-source/hello-world-version-remote", downloadDir)
+	copyFolder(t, "../../../test/fixtures/fixture-download-source/hello-world-version-remote", downloadDir)
 
 	terraformSource, _, _, err := createConfig(t, canonicalUrl, downloadDir, false)
 	require.NoError(t, err)
@@ -321,25 +321,25 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 		comp      assert.Comparison
 	}{
 		{
-			"test-stale-file-exists", "../../../test/fixture-manifest/version-1",
+			"test-stale-file-exists", "../../../test/fixtures/fixture-manifest/version-1",
 			func() bool {
 				return util.FileExists(filepath.Join(downloadDir, "stale.tf"))
 			},
 		},
 		{
-			"test-stale-file-doesnt-exist-after-source-update", "../../../test/fixture-manifest/version-2",
+			"test-stale-file-doesnt-exist-after-source-update", "../../../test/fixtures/fixture-manifest/version-2",
 			func() bool {
 				return !util.FileExists(filepath.Join(downloadDir, "stale.tf"))
 			},
 		},
 		{
-			"test-tffile-exists-in-subfolder", "../../../test/fixture-manifest/version-3-subfolder",
+			"test-tffile-exists-in-subfolder", "../../../test/fixtures/fixture-manifest/version-3-subfolder",
 			func() bool {
 				return util.FileExists(filepath.Join(downloadDir, "sub", "main.tf"))
 			},
 		},
 		{
-			"test-tffile-doesnt-exist-in-subfolder", "../../../test/fixture-manifest/version-4-subfolder-empty",
+			"test-tffile-doesnt-exist-in-subfolder", "../../../test/fixtures/fixture-manifest/version-4-subfolder-empty",
 			func() bool {
 				return !util.FileExists(filepath.Join(downloadDir, "sub", "main.tf"))
 			},
@@ -351,7 +351,7 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 			},
 		},
 		{
-			"test-empty-folder-gets-populated", "../../../test/fixture-manifest/version-5-not-empty-subfolder",
+			"test-empty-folder-gets-populated", "../../../test/fixtures/fixture-manifest/version-5-not-empty-subfolder",
 			func() bool {
 				return util.FileExists(filepath.Join(downloadDir, "sub2", "main.tf"))
 			},
