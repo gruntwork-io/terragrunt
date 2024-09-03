@@ -2,7 +2,7 @@
 
 This is the code for the [Terragrunt website](https://terragrunt.gruntwork.io).
 
-Terragrunt website is built with Jekyll and published on Github Pages from `docs` folder on `master` branch.
+Terragrunt website is built with Jekyll and published on Github Pages from `docs` folder on `main` branch.
 
 ## Quick Start
 
@@ -51,7 +51,7 @@ We provide `Dockerfile` and `docker-compose.yml` files that can be used for serv
 
 ## Deployment
 
-GitHub Pages automatically rebuilds the website from the `/docs` folder whenever you commit and push to the `master`
+GitHub Pages automatically rebuilds the website from the `/docs` folder whenever you commit and push to the `main`
 branch.
 
 ## Working with the documentation
