@@ -330,8 +330,19 @@ func ConfigValuesEqual(config map[string]interface{}, existingBackend *Terraform
 }
 
 // buildInitializerCacheKey returns a unique key for the given S3 config that can be used to cache the initialization
-func (s3Initializer S3Initializer) buildInitializerCacheKey(s3Config *RemoteStateConfigS3, s3ConfigExtended *ExtendedRemoteStateConfigS3) string {
-	return fmt.Sprintf("%s-%s-%s-%s-%s-%s", s3Config.Bucket, s3Config.Region, s3Config.LockTable, s3Config.DynamoDBTable, s3ConfigExtended.BucketSSEAlgorithm, s3ConfigExtended.BucketSSEKMSKeyID)
+func (s3Initializer S3Initializer) buildInitializerCacheKey(
+	s3Config *RemoteStateConfigS3,
+	s3ConfigExtended *ExtendedRemoteStateConfigS3,
+) string {
+	return fmt.Sprintf(
+		"%s-%s-%s-%s-%s-%s",
+		s3Config.Bucket,
+		s3Config.Region,
+		s3Config.LockTable,
+		s3Config.DynamoDBTable,
+		s3ConfigExtended.BucketSSEAlgorithm,
+		s3ConfigExtended.BucketSSEKMSKeyID,
+	)
 }
 
 // Initialize the remote state S3 bucket specified in the given config. This function will validate the config
@@ -1329,7 +1340,11 @@ func fetchEncryptionAlgorithm(config *ExtendedRemoteStateConfigS3) string {
 	return algorithm
 }
 
-func checkIfSSEForS3MatchesConfig(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, error) {
+func checkIfSSEForS3MatchesConfig(
+	s3Client *s3.S3,
+	config *ExtendedRemoteStateConfigS3,
+	terragruntOptions *options.TerragruntOptions,
+) (bool, error) {
 	terragruntOptions.Logger.Debugf("Checking if SSE is enabled for AWS S3 bucket %s", config.RemoteStateConfigS3.Bucket)
 
 	input := &s3.GetBucketEncryptionInput{Bucket: aws.String(config.RemoteStateConfigS3.Bucket)}
