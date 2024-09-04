@@ -3265,7 +3265,7 @@ func TestSourceMapWithSlashInRef(t *testing.T) {
 
 	tmpEnvPath := copyEnvironment(t, testFixtureSourceMapSlashes)
 	cleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureSourceMapSlashes)
+	testPath := util.JoinPath(tmpEnvPath, "fixtures", testFixtureSourceMapSlashes)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
