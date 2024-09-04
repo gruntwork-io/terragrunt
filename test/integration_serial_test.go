@@ -410,13 +410,13 @@ func TestTerragruntValidateInputsWithEnvVar(t *testing.T) {
 func TestTerragruntValidateInputsWithUnusedEnvVar(t *testing.T) {
 	t.Setenv("TF_VAR_unused", "from the env")
 
-	moduleDir := filepath.Join("fixtures/fixture-validate-inputs", "success-inputs-only")
+	moduleDir := filepath.Join("fixtures", "fixture-validate-inputs", "success-inputs-only")
 	args := []string{"--terragrunt-strict-validate"}
 	runTerragruntValidateInputs(t, moduleDir, args, false)
 }
 
 func TestTerragruntSourceMapEnvArg(t *testing.T) {
-	fixtureSourceMapPath := "fixtures/fixture-source-map"
+	fixtureSourceMapPath := filepath.Join("fixtures", "fixture-source-map")
 	cleanupTerraformFolder(t, fixtureSourceMapPath)
 	tmpEnvPath := copyEnvironment(t, fixtureSourceMapPath)
 	rootPath := filepath.Join(tmpEnvPath, fixtureSourceMapPath)
