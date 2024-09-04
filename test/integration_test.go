@@ -43,7 +43,7 @@ const (
 
 	testFixturePath                           = "fixture/"
 	testFixtureHclvalidate                    = "fixtures/fixture-hclvalidate"
-	testFixtureExcludesFile                   = "fixutre-excludes-file"
+	testFixtureExcludesFile                   = "fixtures/fixture-excludes-file"
 	testFixtureInitOnce                       = "fixtures/fixture-init-once"
 	testFixtureProviderCacheMultiplePlatforms = "fixtures/fixture-provider-cache/multiple-platforms"
 	testFixtureProviderCacheDirect            = "fixtures/fixture-provider-cache/direct"
