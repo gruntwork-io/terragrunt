@@ -3265,12 +3265,12 @@ func TestSourceMapWithSlashInRef(t *testing.T) {
 
 	tmpEnvPath := copyEnvironment(t, testFixtureSourceMapSlashes)
 	cleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, "fixtures", testFixtureSourceMapSlashes)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureSourceMapSlashes)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::git@github.com:gruntwork-io/terragrunt.git?ref=fixture/test --terragrunt-working-dir "+testPath, &stdout, &stderr)
+	err := runTerragruntCommand(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-source-map git::ssh://git@github.com/gruntwork-io/i-dont-exist.git=git::git@github.com:gruntwork-io/terragrunt.git?ref=fixture/test-fixtures --terragrunt-working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 }
 
