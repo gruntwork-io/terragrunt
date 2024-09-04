@@ -330,8 +330,8 @@ func ConfigValuesEqual(config map[string]interface{}, existingBackend *Terraform
 }
 
 // buildInitializerCacheKey returns a unique key for the given S3 config that can be used to cache the initialization
-func (s3Initializer S3Initializer) buildInitializerCacheKey(s3Config *RemoteStateConfigS3) string {
-	return fmt.Sprintf("%s-%s-%s-%s", s3Config.Bucket, s3Config.Region, s3Config.LockTable, s3Config.DynamoDBTable)
+func (s3Initializer S3Initializer) buildInitializerCacheKey(s3Config *RemoteStateConfigS3, s3ConfigExtended *ExtendedRemoteStateConfigS3) string {
+	return fmt.Sprintf("%s-%s-%s-%s-%s-%s", s3Config.Bucket, s3Config.Region, s3Config.LockTable, s3Config.DynamoDBTable, s3ConfigExtended.BucketSSEAlgorithm, s3ConfigExtended.BucketSSEKMSKeyID)
 }
 
 // Initialize the remote state S3 bucket specified in the given config. This function will validate the config
@@ -348,7 +348,7 @@ func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *
 
 	var s3Config = s3ConfigExtended.RemoteStateConfigS3
 
-	cacheKey := s3Initializer.buildInitializerCacheKey(&s3Config)
+	cacheKey := s3Initializer.buildInitializerCacheKey(&s3Config, s3ConfigExtended)
 	if initialized, hit := initializedRemoteStateCache.Get(ctx, cacheKey); initialized && hit {
 		terragruntOptions.Logger.Debugf("S3 bucket %s has already been confirmed to be initialized, skipping initialization checks", s3Config.Bucket)
 		return nil
@@ -538,12 +538,12 @@ func updateS3BucketIfNecessary(s3Client *s3.S3, config *ExtendedRemoteStateConfi
 		return errors.WithStackTrace(fmt.Errorf("remote state S3 bucket %s does not exist or you don't have permissions to access it", config.RemoteStateConfigS3.Bucket))
 	}
 
-	needUpdate, bucketUpdatesRequired, err := checkIfS3BucketNeedsUpdate(s3Client, config, terragruntOptions)
+	needsUpdate, bucketUpdatesRequired, err := checkIfS3BucketNeedsUpdate(s3Client, config, terragruntOptions)
 	if err != nil {
 		return err
 	}
 
-	if !needUpdate {
+	if !needsUpdate {
 		terragruntOptions.Logger.Debug("S3 bucket is already up to date")
 		return nil
 	}
@@ -680,100 +680,100 @@ type S3BucketUpdatesRequired struct {
 
 func checkIfS3BucketNeedsUpdate(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, S3BucketUpdatesRequired, error) {
 	var (
-		needUpdate   []string
-		configBucket S3BucketUpdatesRequired
+		updates  []string
+		toUpdate S3BucketUpdatesRequired
 	)
 
 	if !config.SkipBucketVersioning {
 		enabled, err := checkIfVersioningEnabled(s3Client, &config.RemoteStateConfigS3, terragruntOptions)
 		if err != nil {
-			return false, configBucket, err
+			return false, toUpdate, err
 		}
 
 		if !enabled {
-			configBucket.Versioning = true
+			toUpdate.Versioning = true
 
-			needUpdate = append(needUpdate, "Bucket Versioning")
+			updates = append(updates, "Bucket Versioning")
 		}
 	}
 
 	if !config.SkipBucketSSEncryption {
-		enabled, err := checkIfSSEForS3Enabled(s3Client, config, terragruntOptions)
+		matches, err := checkIfSSEForS3MatchesConfig(s3Client, config, terragruntOptions)
 		if err != nil {
-			return false, configBucket, err
+			return false, toUpdate, err
 		}
 
-		if !enabled {
-			configBucket.SSEEncryption = true
+		if !matches {
+			toUpdate.SSEEncryption = true
 
-			needUpdate = append(needUpdate, "Bucket Server-Side Encryption")
+			updates = append(updates, "Bucket Server-Side Encryption")
 		}
 	}
 
 	if !config.SkipBucketRootAccess {
 		enabled, err := checkIfBucketRootAccess(s3Client, &config.RemoteStateConfigS3, terragruntOptions)
 		if err != nil {
-			return false, configBucket, err
+			return false, toUpdate, err
 		}
 
 		if !enabled {
-			configBucket.RootAccess = true
+			toUpdate.RootAccess = true
 
-			needUpdate = append(needUpdate, "Bucket Root Access")
+			updates = append(updates, "Bucket Root Access")
 		}
 	}
 
 	if !config.SkipBucketEnforcedTLS {
 		enabled, err := checkIfBucketEnforcedTLS(s3Client, &config.RemoteStateConfigS3, terragruntOptions)
 		if err != nil {
-			return false, configBucket, err
+			return false, toUpdate, err
 		}
 
 		if !enabled {
-			configBucket.EnforcedTLS = true
+			toUpdate.EnforcedTLS = true
 
-			needUpdate = append(needUpdate, "Bucket Enforced TLS")
+			updates = append(updates, "Bucket Enforced TLS")
 		}
 	}
 
 	if !config.SkipBucketAccessLogging && config.AccessLoggingBucketName != "" {
 		enabled, err := checkS3AccessLoggingConfiguration(s3Client, config, terragruntOptions)
 		if err != nil {
-			return false, configBucket, err
+			return false, toUpdate, err
 		}
 
 		if !enabled {
-			configBucket.AccessLogging = true
+			toUpdate.AccessLogging = true
 
-			needUpdate = append(needUpdate, "Bucket Access Logging")
+			updates = append(updates, "Bucket Access Logging")
 		}
 	}
 
 	if !config.SkipBucketPublicAccessBlocking {
 		enabled, err := checkIfS3PublicAccessBlockingEnabled(s3Client, &config.RemoteStateConfigS3, terragruntOptions)
 		if err != nil {
-			return false, configBucket, err
+			return false, toUpdate, err
 		}
 
 		if !enabled {
-			configBucket.PublicAccess = true
+			toUpdate.PublicAccess = true
 
-			needUpdate = append(needUpdate, "Bucket Public Access Blocking")
+			updates = append(updates, "Bucket Public Access Blocking")
 		}
 	}
 
 	// show update message if any of the above configs are not set
-	if len(needUpdate) > 0 {
+	if len(updates) > 0 {
 		terragruntOptions.Logger.Warnf("The remote state S3 bucket %s needs to be updated:", config.RemoteStateConfigS3.Bucket)
 
-		for _, update := range needUpdate {
+		for _, update := range updates {
 			terragruntOptions.Logger.Warnf("  - %s", update)
 		}
 
-		return true, configBucket, nil
+		return true, toUpdate, nil
 	}
 
-	return false, configBucket, nil
+	return false, toUpdate, nil
 }
 
 // Check if versioning is enabled for the S3 bucket specified in the given config and warn the user if it is not
@@ -894,7 +894,7 @@ func CreateLogsS3BucketIfNecessary(s3Client *s3.S3, logsBucketName *string, terr
 }
 
 func TagS3BucketAccessLogging(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	if config.AccessLoggingBucketTags == nil || len(config.AccessLoggingBucketTags) == 0 {
+	if len(config.AccessLoggingBucketTags) == 0 {
 		terragruntOptions.Logger.Debugf("No tags specified for bucket %s.", config.AccessLoggingBucketName)
 		return nil
 	}
@@ -922,7 +922,7 @@ func TagS3BucketAccessLogging(s3Client *s3.S3, config *ExtendedRemoteStateConfig
 }
 
 func TagS3Bucket(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) error {
-	if config.S3BucketTags == nil || len(config.S3BucketTags) == 0 {
+	if len(config.S3BucketTags) == 0 {
 		terragruntOptions.Logger.Debugf("No tags specified for bucket %s.", config.RemoteStateConfigS3.Bucket)
 		return nil
 	}
@@ -1329,7 +1329,7 @@ func fetchEncryptionAlgorithm(config *ExtendedRemoteStateConfigS3) string {
 	return algorithm
 }
 
-func checkIfSSEForS3Enabled(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, error) {
+func checkIfSSEForS3MatchesConfig(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	terragruntOptions.Logger.Debugf("Checking if SSE is enabled for AWS S3 bucket %s", config.RemoteStateConfigS3.Bucket)
 
 	input := &s3.GetBucketEncryptionInput{Bucket: aws.String(config.RemoteStateConfigS3.Bucket)}
@@ -1345,14 +1345,18 @@ func checkIfSSEForS3Enabled(s3Client *s3.S3, config *ExtendedRemoteStateConfigS3
 	}
 
 	for _, rule := range output.ServerSideEncryptionConfiguration.Rules {
-		if rule.ApplyServerSideEncryptionByDefault != nil {
-			if rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
-				if *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm == fetchEncryptionAlgorithm(config) {
-					return true, nil
-				}
-
+		if rule.ApplyServerSideEncryptionByDefault != nil && rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
+			if *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != fetchEncryptionAlgorithm(config) {
 				return false, nil
 			}
+
+			if *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm == s3.ServerSideEncryptionAwsKms &&
+				rule.ApplyServerSideEncryptionByDefault.KMSMasterKeyID != nil &&
+				*rule.ApplyServerSideEncryptionByDefault.KMSMasterKeyID != config.BucketSSEKMSKeyID {
+				return false, nil
+			}
+
+			return true, nil
 		}
 	}
 
