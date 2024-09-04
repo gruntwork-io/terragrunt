@@ -4,6 +4,7 @@ package test_test
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -57,8 +58,8 @@ func TestAwsS3SSECustomKey(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := copyEnvironment(t, s3SSECustomKeyFixturePath)
-	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, s3SSECustomKeyFixturePath)
+	cleanupTerraformFolder(t, testPath)
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
 	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueId())
@@ -67,7 +68,6 @@ func TestAwsS3SSECustomKey(t *testing.T) {
 	defer cleanupTableForTest(t, lockTableName, terraformRemoteStateS3Region)
 
 	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, s3SSECustomKeyFixturePath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
-
 	runTerragrunt(t, applyCommand(tmpTerragruntConfigPath, testPath))
 
 	client := terraws.NewS3Client(t, terraformRemoteStateS3Region)
@@ -79,6 +79,29 @@ func TestAwsS3SSECustomKey(t *testing.T) {
 	assert.Equal(t, s3.ServerSideEncryptionAwsKms, aws.StringValue(sseRule.SSEAlgorithm))
 	assert.True(t, strings.HasSuffix(aws.StringValue(sseRule.KMSMasterKeyID), "alias/dedicated-test-key"))
 
+	// Replace the custom key with a new one, and check that the key is updated in s3
+	cleanupTerraformFolder(t, testPath)
+
+	contents, err := util.ReadFileAsString(tmpTerragruntConfigPath)
+	require.NoError(t, err)
+
+	err = os.Remove(tmpTerragruntConfigPath)
+	require.NoError(t, err)
+
+	contents = strings.ReplaceAll(contents, "dedicated-test-key", "other-dedicated-test-key")
+
+	err = os.WriteFile(tmpTerragruntConfigPath, []byte(contents), 0444)
+	require.NoError(t, err)
+
+	runTerragrunt(t, applyCommand(tmpTerragruntConfigPath, testPath))
+
+	resp, err = client.GetBucketEncryption(&s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
+	require.NoError(t, err)
+	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
+	sseRule = resp.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault
+	require.NotNil(t, sseRule)
+	assert.Equal(t, s3.ServerSideEncryptionAwsKms, aws.StringValue(sseRule.SSEAlgorithm))
+	assert.True(t, strings.HasSuffix(aws.StringValue(sseRule.KMSMasterKeyID), "alias/other-dedicated-test-key"))
 }
 
 func TestAwsS3SSEKeyNotReverted(t *testing.T) {
