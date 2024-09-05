@@ -943,7 +943,7 @@ func TestReadTerragruntConfigRemoteState(t *testing.T) {
 
 	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
 	ctx := config.NewParsingContext(context.Background(), options)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixtures/fixture/terragrunt.hcl", nil)
+	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixtures/terragrunt/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
 	tgConfigMap, err := config.ParseCtyValueToMap(tgConfigCty)

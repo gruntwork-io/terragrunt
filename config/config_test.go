@@ -334,7 +334,7 @@ func TestParseTerragruntConfigDependenciesMultiplePaths(t *testing.T) {
 
 	cfg := `
 dependencies {
-	paths = ["../test/fixtures/fixture", "../test/fixtures/dirs", "../test/fixtures/inputs"]
+	paths = ["../test/fixtures/terragrunt", "../test/fixtures/dirs", "../test/fixtures/inputs"]
 }
 `
 
@@ -350,7 +350,7 @@ dependencies {
 	assert.Empty(t, terragruntConfig.IamRole)
 
 	if assert.NotNil(t, terragruntConfig.Dependencies) {
-		assert.Equal(t, []string{"../test/fixtures/fixture", "../test/fixtures/dirs", "../test/fixtures/inputs"}, terragruntConfig.Dependencies.Paths)
+		assert.Equal(t, []string{"../test/fixtures/terragrunt", "../test/fixtures/dirs", "../test/fixtures/inputs"}, terragruntConfig.Dependencies.Paths)
 	}
 }
 
@@ -373,7 +373,7 @@ remote_state {
 }
 
 dependencies {
-	paths = ["../test/fixtures/fixture", "../test/fixtures/dirs", "../test/fixtures/inputs"]
+	paths = ["../test/fixtures/terragrunt", "../test/fixtures/dirs", "../test/fixtures/inputs"]
 }
 `
 
@@ -399,7 +399,7 @@ dependencies {
 	}
 
 	if assert.NotNil(t, terragruntConfig.Dependencies) {
-		assert.Equal(t, []string{"../test/fixtures/fixture", "../test/fixtures/dirs", "../test/fixtures/inputs"}, terragruntConfig.Dependencies.Paths)
+		assert.Equal(t, []string{"../test/fixtures/terragrunt", "../test/fixtures/dirs", "../test/fixtures/inputs"}, terragruntConfig.Dependencies.Paths)
 	}
 }
 
