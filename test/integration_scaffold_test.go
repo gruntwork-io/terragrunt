@@ -13,11 +13,11 @@ import (
 )
 
 const (
-	testScaffoldModuleUrl              = "https://github.com/gruntwork-io/terragrunt.git//test/scaffold/scaffold-module"
-	testScaffoldModuleGit              = "git@github.com:gruntwork-io/terragrunt.git//test/scaffold/scaffold-module"
-	testScaffoldModuleShort            = "github.com/gruntwork-io/terragrunt.git//test/inputs"
-	testScaffoldTemplateModule         = "git@github.com:gruntwork-io/terragrunt.git//test/scaffold/module-with-template"
-	testScaffoldExternalTemplateModule = "git@github.com:gruntwork-io/terragrunt.git//test/scaffold/external-template"
+	testScaffoldModuleUrl              = "https://github.com/gruntwork-io/terragrunt.git//test/fixture-scaffold/scaffold-module"
+	testScaffoldModuleGit              = "git@github.com:gruntwork-io/terragrunt.git//test/fixture-scaffold/scaffold-module"
+	testScaffoldModuleShort            = "github.com/gruntwork-io/terragrunt.git//test/fixture-inputs"
+	testScaffoldTemplateModule         = "git@github.com:gruntwork-io/terragrunt.git//test/fixture-scaffold/module-with-template"
+	testScaffoldExternalTemplateModule = "git@github.com:gruntwork-io/terragrunt.git//test/fixture-scaffold/external-template"
 	testScaffoldLocalModulePath        = "fixtures/scaffold/scaffold-module"
 	testScaffold3rdPartyModulePath     = "git::https://github.com/Azure/terraform-azurerm-avm-res-compute-virtualmachine.git//.?ref=v0.15.0"
 )
@@ -73,7 +73,7 @@ func TestScaffoldModuleDifferentRevision(t *testing.T) {
 	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s --var=Ref=v0.53.1", tmpEnvPath, testScaffoldModuleShort))
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "git::https://github.com/gruntwork-io/terragrunt.git//test/inputs?ref=v0.53.1")
+	assert.Contains(t, stderr, "git::https://github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.1")
 	assert.Contains(t, stderr, "Scaffolding completed")
 }
 
@@ -85,7 +85,7 @@ func TestScaffoldModuleDifferentRevisionAndSsh(t *testing.T) {
 
 	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s --var=Ref=v0.53.1 --var=SourceUrlType=git-ssh", tmpEnvPath, testScaffoldModuleShort))
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/inputs?ref=v0.53.1")
+	assert.Contains(t, stderr, "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.1")
 	assert.Contains(t, stderr, "Scaffolding completed")
 }
 
@@ -154,7 +154,7 @@ SourceUrlType: "git-ssh"
 
 	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s --var-file=%s", tmpEnvPath, testScaffoldModuleShort, varFile))
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/inputs?ref=v0.53.1")
+	assert.Contains(t, stderr, "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.1")
 	assert.Contains(t, stderr, "Scaffolding completed")
 	content, err := util.ReadFileAsString(tmpEnvPath + "/terragrunt.hcl")
 	require.NoError(t, err)
