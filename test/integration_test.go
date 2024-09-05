@@ -40,8 +40,6 @@ import (
 
 // hard-code this to match the test fixture for now
 const (
-	terraformRemoteStateS3Region = "us-west-2"
-
 	testCommandsThatNeedInput                 = "fixtures/commands-that-need-input"
 	testFixtureAuthProviderCmd                = "fixtures/auth-provider-cmd"
 	testFixtureAutoInit                       = "fixtures/download/init-on-source-change"
@@ -108,6 +106,8 @@ const (
 	terraformFolder = ".terraform"
 
 	terraformState = "terraform.tfstate"
+
+	terraformRemoteStateS3Region = "us-west-2"
 
 	terraformStateBackup = "terraform.tfstate.backup"
 	terragruntCache      = ".terragrunt-cache"

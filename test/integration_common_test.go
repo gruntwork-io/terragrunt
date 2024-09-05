@@ -331,24 +331,24 @@ func wrappedBinary() string {
 	value, found := os.LookupEnv("TERRAGRUNT_TFPATH")
 	if !found {
 		// if env variable is not defined, try to check through executing command
-		if util.IsCommandExecutable(TofuBinary, "-version") {
-			return TofuBinary
+		if util.IsCommandExecutable(tofuBinary, "-version") {
+			return tofuBinary
 		}
-		return TerraformBinary
+		return terraformBinary
 	}
 	return filepath.Base(value)
 }
 
 // expectedWrongCommandErr - return expected error message for wrong command
 func expectedWrongCommandErr(command string) error {
-	if wrappedBinary() == TofuBinary {
+	if wrappedBinary() == tofuBinary {
 		return terraform.WrongTofuCommand(command)
 	}
 	return terraform.WrongTerraformCommand(command)
 }
 
 func isTerraform() bool {
-	return wrappedBinary() == TerraformBinary
+	return wrappedBinary() == terraformBinary
 }
 
 func findFilesWithExtension(dir string, ext string) ([]string, error) {

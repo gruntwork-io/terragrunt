@@ -276,7 +276,7 @@ func TestTerragruntDownloadDir(t *testing.T) {
 			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "not-set"),
 			"", // env
 			"", // flag
-			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "not-set", TerragruntCache),
+			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "not-set", terragruntCache),
 		},
 		{
 			"download dir set in config",

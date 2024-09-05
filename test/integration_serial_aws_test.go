@@ -52,10 +52,10 @@ func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
-	defer deleteS3Bucket(t, TerraformRemoteStateS3Region, s3BucketName)
+	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
 
 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", TerraformRemoteStateS3Region)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", terraformRemoteStateS3Region)
 
 	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
 	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")

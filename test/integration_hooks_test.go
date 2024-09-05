@@ -351,7 +351,7 @@ func TestTerragruntInfo(t *testing.T) {
 	errUnmarshal := json.Unmarshal(showStdout.Bytes(), &dat)
 	require.NoError(t, errUnmarshal)
 
-	assert.Equal(t, fmt.Sprintf("%s/%s", rootPath, TerragruntCache), dat.DownloadDir)
+	assert.Equal(t, fmt.Sprintf("%s/%s", rootPath, terragruntCache), dat.DownloadDir)
 	assert.Equal(t, wrappedBinary(), dat.TerraformBinary)
 	assert.Empty(t, dat.IamRole)
 }
