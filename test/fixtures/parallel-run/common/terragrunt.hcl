@@ -1,5 +1,5 @@
 terraform {
-  source = "github.com/gruntwork-io/terragrunt.git//test/dirs?ref=v0.35.1"
+  source = "github.com/gruntwork-io/terragrunt.git//test/fixture-dirs?ref=v0.35.1"
 }
 
 generate "providers" {
