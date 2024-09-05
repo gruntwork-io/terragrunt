@@ -194,7 +194,7 @@ func TestCustomLockFile(t *testing.T) {
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+rootPath)
 
 	source := "../custom-lock-file-module"
-	downloadDir := util.JoinPath(rootPath, util.TerragruntCacheDir)
+	downloadDir := util.JoinPath(rootPath, terragruntCache)
 	result, err := tfsource.NewSource(source, downloadDir, rootPath, util.CreateLogEntry("", util.GetDefaultLogLevel(), nil, true, true))
 	require.NoError(t, err)
 

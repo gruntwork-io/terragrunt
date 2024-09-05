@@ -32,7 +32,7 @@ func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
-	copyFolder(t, "../../../test/fixture-download-source/download-dir-version-file-local-hash", downloadDir)
+	copyFolder(t, "../../../test/fixtures/download-source/download-dir-version-file-local-hash", downloadDir)
 	testAlreadyHaveLatestCode(t, canonicalURL, downloadDir, false)
 
 	// Write out a version file so we can test a cache hit
@@ -195,7 +195,7 @@ func TestDownloadTerraformSourceIfNecessaryRemoteUrlToEmptyDir(t *testing.T) {
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlToAlreadyDownloadedDir(t *testing.T) {
 	t.Parallel()
 
-	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixture-download-source/hello-world"
+	canonicalURL := "github.com/gruntwork-io/terragrunt//test/fixtures/download-source/hello-world"
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 

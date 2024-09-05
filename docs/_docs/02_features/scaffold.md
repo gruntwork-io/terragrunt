@@ -101,32 +101,32 @@ Optional variables which can be passed to `scaffold` command:
 Scaffold new project but use specific module version:
 
 ```bash
-terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixture-inputs --var=Ref=v0.53.1
+terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs --var=Ref=v0.53.1
 ```
 
 Scaffold new project but use Git/SSH URLs:
 
 ```bash
-terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixture-inputs --var=SourceUrlType=git-ssh
+terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs --var=SourceUrlType=git-ssh
 
 ```hcl
 # terragrunt.hcl
 terraform {
-  source = "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.8"
+  source = "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8"
 }
 ```
 
 Scaffold new project using template inside of git repo:
 
 ```bash
-terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixture-scaffold/module-with-template
+terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/scaffold/module-with-template
 # will be used template from .boilerplate directory to generate terragrunt.hcl
 ```
 
 Scaffold new project using external template:
 
 ```bash
-terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixture-inputs git@github.com/gruntwork-io/terragrunt.git//test/fixture-scaffold/external-template
+terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs git@github.com/gruntwork-io/terragrunt.git//test/fixtures/scaffold/external-template
 
 # will be created: external-template.txt terragrunt.hcl , files from external template
 ```

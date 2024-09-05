@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	testFixtureGetTerragruntSourceHcl = "fixture-get-terragrunt-source-hcl"
+	testFixtureGetTerragruntSourceHcl = "fixtures/get-terragrunt-source-hcl"
 )
 
 func TestTerragruntSourceMap(t *testing.T) {

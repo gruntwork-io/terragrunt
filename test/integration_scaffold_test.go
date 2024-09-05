@@ -74,7 +74,7 @@ func TestScaffoldModuleDifferentRevision(t *testing.T) {
 	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s --var=Ref=v0.53.1", tmpEnvPath, testScaffoldModuleShort))
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "git::https://github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.1")
+	assert.Contains(t, stderr, "git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.1")
 	assert.Contains(t, stderr, "Scaffolding completed")
 }
 
@@ -86,7 +86,7 @@ func TestScaffoldModuleDifferentRevisionAndSsh(t *testing.T) {
 
 	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s --var=Ref=v0.53.1 --var=SourceUrlType=git-ssh", tmpEnvPath, testScaffoldModuleShort))
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.1")
+	assert.Contains(t, stderr, "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.1")
 	assert.Contains(t, stderr, "Scaffolding completed")
 }
 
@@ -155,7 +155,7 @@ SourceUrlType: "git-ssh"
 
 	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s --var-file=%s", tmpEnvPath, testScaffoldModuleShort, varFile))
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.1")
+	assert.Contains(t, stderr, "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.1")
 	assert.Contains(t, stderr, "Scaffolding completed")
 	content, err := util.ReadFileAsString(tmpEnvPath + "/terragrunt.hcl")
 	require.NoError(t, err)
