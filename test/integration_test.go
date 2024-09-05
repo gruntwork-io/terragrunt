@@ -1965,7 +1965,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 	assert.Equal(
 		t,
 		map[string]interface{}{
-			"paths": []interface{}{"../../fixture"},
+			"paths": []interface{}{"../../terragrunt"},
 		},
 		depsOut,
 	)

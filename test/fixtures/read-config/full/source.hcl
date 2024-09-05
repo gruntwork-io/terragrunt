@@ -50,7 +50,7 @@ terraform {
 }
 
 dependencies {
-  paths = ["../../fixture"]
+  paths = ["../../terragrunt"]
 }
 
 terraform_binary = "terragrunt"
