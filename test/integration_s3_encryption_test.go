@@ -101,7 +101,15 @@ func TestAwsS3SSECustomKey(t *testing.T) {
 	sseRule = resp.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault
 	require.NotNil(t, sseRule)
 	assert.Equal(t, s3.ServerSideEncryptionAwsKms, aws.StringValue(sseRule.SSEAlgorithm))
-	assert.True(t, strings.HasSuffix(aws.StringValue(sseRule.KMSMasterKeyID), "alias/other-dedicated-test-key"))
+
+	// This check is asserting that the following bug still isn't fixed:
+	// https://github.com/gruntwork-io/terragrunt/issues/3364
+	//
+	// There were unanticipated consequences to addressing it that should be resolved before the fix is implemented:
+	// https://github.com/gruntwork-io/terragrunt/issues/3384
+	//
+	// At the very least, it should be documented as a breaking change.
+	assert.False(t, strings.HasSuffix(aws.StringValue(sseRule.KMSMasterKeyID), "alias/other-dedicated-test-key"))
 }
 
 func TestAwsS3SSEKeyNotReverted(t *testing.T) {
