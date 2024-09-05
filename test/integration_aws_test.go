@@ -580,7 +580,6 @@ func TestAwsDependencyOutputOptimizationDisableTest(t *testing.T) {
 func TestAwsProviderPatch(t *testing.T) {
 	t.Parallel()
 
-	stderr := new(bytes.Buffer)
 	rootPath := copyEnvironment(t, testFixtureAwsProviderPatch)
 	modulePath := util.JoinPath(rootPath, testFixtureAwsProviderPatch)
 	mainTFFile := filepath.Join(modulePath, "main.tf")
@@ -595,13 +594,10 @@ func TestAwsProviderPatch(t *testing.T) {
 	mainContents = strings.ReplaceAll(mainContents, "__BRANCH_NAME__", branchName)
 	require.NoError(t, os.WriteFile(mainTFFile, []byte(mainContents), 0444))
 
-	require.NoError(
-		t,
-		runTerragruntCommand(t, fmt.Sprintf("terragrunt aws-provider-patch --terragrunt-override-attr region=\"eu-west-1\" --terragrunt-override-attr allowed_account_ids=[\"00000000000\"] --terragrunt-working-dir %s --terragrunt-log-level debug", modulePath), os.Stdout, stderr),
-	)
-	t.Log(stderr.String())
+	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt aws-provider-patch --terragrunt-override-attr region=\"eu-west-1\" --terragrunt-override-attr allowed_account_ids=[\"00000000000\"] --terragrunt-working-dir %s --terragrunt-log-level debug", modulePath))
+	require.NoError(t, err)
 
-	assert.Regexp(t, "Patching AWS provider in .+test/fixtures/fixture-aws-provider-patch/example-module/main.tf", stderr.String())
+	assert.Regexp(t, "Patching AWS provider in .+test/fixtures/fixture-aws-provider-patch/example-module/main.tf", stderr)
 
 	// Make sure the resulting terraform code is still valid
 	require.NoError(

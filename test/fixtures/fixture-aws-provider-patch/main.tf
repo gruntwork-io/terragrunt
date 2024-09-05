@@ -4,7 +4,7 @@ provider "aws" {
 }
 
 module "example_module" {
-  source = "github.com/gruntwork-io/terragrunt.git//test/fixture-aws-provider-patch/example-module?ref=__BRANCH_NAME__"
+  source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/fixture-aws-provider-patch/example-module?ref=__BRANCH_NAME__"
 
   allowed_account_ids  = var.allowed_account_ids
   secondary_aws_region = var.secondary_aws_region
