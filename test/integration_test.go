@@ -114,8 +114,6 @@ const (
 
 	terraformBinary = "terraform"
 	tofuBinary      = "tofu"
-
-	qaMyAppRelPath = "qa/my-app"
 )
 
 func TestLogFormatterPrettyOutput(t *testing.T) {
@@ -415,68 +413,6 @@ func TestTerragruntInitOnce(t *testing.T) {
 	assert.NotContains(t, stdout, "Initializing modules", "init command executed more than once")
 }
 
-func TestTerragruntInitHookNoSourceWithBackend(t *testing.T) {
-	t.Parallel()
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
-
-	cleanupTerraformFolder(t, testFixtureHooksInitOnceNoSourceWithBackend)
-	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksInitOnceNoSourceWithBackend)
-
-	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
-
-	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", terraformRemoteStateS3Region)
-
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-
-	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
-	output := stdout.String()
-	if err != nil {
-		t.Errorf("Did not expect to get error: %s", err.Error())
-	}
-
-	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
-	// With no source, `init-from-module` should not execute
-	assert.NotContains(t, output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE", "Hooks on init-from-module command executed when no source was specified")
-}
-
-func TestTerragruntInitHookWithSourceWithBackend(t *testing.T) {
-	t.Parallel()
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
-
-	cleanupTerraformFolder(t, testFixtureHooksInitOnceWithSourceWithBackend)
-	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksInitOnceWithSourceWithBackend)
-
-	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
-
-	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", terraformRemoteStateS3Region)
-
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-
-	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
-	output := stdout.String()
-
-	if err != nil {
-		t.Errorf("Did not expect to get error: %s", err.Error())
-	}
-
-	// `init` hook should execute only once
-	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_ONLY_ONCE"), "Hooks on init command executed more than once")
-	// `init-from-module` hook should execute only once
-	assert.Equal(t, 1, strings.Count(output, "AFTER_INIT_FROM_MODULE_ONLY_ONCE"), "Hooks on init-from-module command executed more than once")
-}
-
 func TestTerragruntWorksWithSingleJsonConfig(t *testing.T) {
 	t.Parallel()
 
@@ -585,67 +521,6 @@ digraph {
 	`)))
 }
 
-func TestTerragruntRunAllCommand(t *testing.T) {
-	t.Parallel()
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
-	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
-
-	tmpEnvPath := copyEnvironment(t, testFixtureOutputAll)
-
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputAll, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
-
-	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputAll)
-
-	runTerragrunt(t, "terragrunt run-all init --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath)
-}
-
-func TestTerragruntOutputAllCommand(t *testing.T) {
-	t.Parallel()
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
-	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
-
-	tmpEnvPath := copyEnvironment(t, testFixtureOutputAll)
-
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputAll, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
-
-	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputAll)
-
-	runTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath)
-
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-	runTerragruntRedirectOutput(t, "terragrunt output-all --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
-	output := stdout.String()
-
-	assert.True(t, strings.Contains(output, "app1 output"))
-	assert.True(t, strings.Contains(output, "app2 output"))
-	assert.True(t, strings.Contains(output, "app3 output"))
-
-	assert.True(t, (strings.Index(output, "app3 output") < strings.Index(output, "app1 output")) && (strings.Index(output, "app1 output") < strings.Index(output, "app2 output")))
-}
-
-func TestTerragruntValidateAllCommand(t *testing.T) {
-	t.Parallel()
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
-	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
-
-	tmpEnvPath := copyEnvironment(t, testFixtureOutputAll)
-
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputAll, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
-
-	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputAll)
-
-	runTerragrunt(t, "terragrunt validate-all --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath)
-}
-
 // Check that Terragrunt does not pollute stdout with anything
 func TestTerragruntStdOut(t *testing.T) {
 	t.Parallel()
@@ -660,36 +535,6 @@ func TestTerragruntStdOut(t *testing.T) {
 
 	output := stdout.String()
 	assert.Equal(t, "\"foo\"\n", output)
-}
-
-func TestTerragruntOutputAllCommandSpecificVariableIgnoreDependencyErrors(t *testing.T) {
-	t.Parallel()
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
-	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
-
-	tmpEnvPath := copyEnvironment(t, testFixtureOutputAll)
-
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputAll, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
-
-	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputAll)
-
-	runTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath)
-
-	var (
-		stdout bytes.Buffer
-		stderr bytes.Buffer
-	)
-	// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
-	runTerragruntCommand(t, "terragrunt output-all app2_text --terragrunt-ignore-dependency-errors --terragrunt-non-interactive --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
-	output := stdout.String()
-
-	logBufferContentsLineByLine(t, stdout, "output-all stdout")
-	logBufferContentsLineByLine(t, stderr, "output-all stderr")
-
-	// Without --terragrunt-ignore-dependency-errors, app2 never runs because its dependencies have "errors" since they don't have the output "app2_text".
-	assert.True(t, strings.Contains(output, "app2 output"))
 }
 
 func TestTerragruntStackCommandsWithPlanFile(t *testing.T) {
@@ -2614,6 +2459,28 @@ func TestTerragruntVersionConstraints(t *testing.T) {
 	}
 }
 
+func TestReadTerragruntAuthProviderCmd(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	tmpEnvPath := copyEnvironment(t, testFixtureAuthProviderCmd)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "multiple-apps")
+	appPath := util.JoinPath(rootPath, "app1")
+	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
+
+	runTerragrunt(t, fmt.Sprintf(`terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s`, rootPath, mockAuthCmd))
+
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output -json --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", appPath, mockAuthCmd))
+	require.NoError(t, err)
+
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+
+	assert.Equal(t, "app1-bar", outputs["foo-app1"].Value)
+	assert.Equal(t, "app2-bar", outputs["foo-app2"].Value)
+	assert.Equal(t, "app3-bar", outputs["foo-app3"].Value)
+}
+
 func TestIamRolesLoadingFromDifferentModules(t *testing.T) {
 	t.Parallel()
 
@@ -3057,27 +2924,6 @@ func TestSopsDecryptedCorrectlyRunAll(t *testing.T) {
 	assert.Equal(t, "Raw Secret Example", outputs["text_value"].Value)
 	assert.Contains(t, outputs["env_value"].Value, "DB_PASSWORD=tomato")
 	assert.Contains(t, outputs["ini_value"].Value, "password = potato")
-}
-
-func TestTerragruntRunAllCommandPrompt(t *testing.T) {
-	t.Parallel()
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
-
-	tmpEnvPath := copyEnvironment(t, testFixtureOutputAll)
-
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, testFixtureOutputAll, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
-
-	environmentPath := fmt.Sprintf("%s/%s/env1", tmpEnvPath, testFixtureOutputAll)
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, "terragrunt run-all apply --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
-	logBufferContentsLineByLine(t, stdout, "stdout")
-	logBufferContentsLineByLine(t, stderr, "stderr")
-	assert.Contains(t, stderr.String(), "Are you sure you want to run 'terragrunt apply' in each folder of the stack described above? (y/n)")
-	require.Error(t, err)
 }
 
 func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {

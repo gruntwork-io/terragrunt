@@ -767,3 +767,65 @@ func TestTerragruntProviderCache(t *testing.T) {
 		assert.Equal(t, expectedApps, actualApps)
 	}
 }
+
+func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
+	cleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	tmpEnvPath := copyEnvironment(t, testFixtureAuthProviderCmd)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state")
+	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
+
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
+
+	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
+	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", terraformRemoteStateS3Region)
+
+	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	os.Setenv("AWS_ACCESS_KEY_ID", "")
+	os.Setenv("AWS_SECRET_ACCESS_KEY", "")
+
+	defer func() {
+		os.Setenv("AWS_ACCESS_KEY_ID", accessKeyID)
+		os.Setenv("AWS_SECRET_ACCESS_KEY", secretAccessKey)
+	}()
+
+	credsConfig := util.JoinPath(rootPath, "creds.config")
+
+	copyAndFillMapPlaceholders(t, credsConfig, credsConfig, map[string]string{
+		"__FILL_AWS_ACCESS_KEY_ID__":     accessKeyID,
+		"__FILL_AWS_SECRET_ACCESS_KEY__": secretAccessKey,
+	})
+
+	runTerragrunt(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", rootPath, mockAuthCmd))
+}
+
+func TestReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
+	cleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	tmpEnvPath := copyEnvironment(t, testFixtureAuthProviderCmd)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "creds-for-dependency")
+	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
+
+	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	os.Setenv("AWS_ACCESS_KEY_ID", "")
+	os.Setenv("AWS_SECRET_ACCESS_KEY", "")
+
+	defer func() {
+		os.Setenv("AWS_ACCESS_KEY_ID", accessKeyID)
+		os.Setenv("AWS_SECRET_ACCESS_KEY", secretAccessKey)
+	}()
+
+	dependencyCredsConfig := util.JoinPath(rootPath, "dependency", "creds.config")
+	copyAndFillMapPlaceholders(t, dependencyCredsConfig, dependencyCredsConfig, map[string]string{
+		"__FILL_AWS_ACCESS_KEY_ID__":     accessKeyID,
+		"__FILL_AWS_SECRET_ACCESS_KEY__": secretAccessKey,
+	})
+
+	dependentCredsConfig := util.JoinPath(rootPath, "dependent", "creds.config")
+	copyAndFillMapPlaceholders(t, dependentCredsConfig, dependentCredsConfig, map[string]string{
+		"__FILL_AWS_ACCESS_KEY_ID__":     accessKeyID,
+		"__FILL_AWS_SECRET_ACCESS_KEY__": secretAccessKey,
+	})
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", rootPath, mockAuthCmd))
+}

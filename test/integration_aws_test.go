@@ -44,6 +44,8 @@ const (
 	testFixtureReadIamRole               = "fixtures/read-config/iam_role_in_file"
 	testFixtureOutputFromRemoteState     = "fixtures/output-from-remote-state"
 	testFixtureOutputFromDependency      = "fixtures/output-from-dependency"
+
+	qaMyAppRelPath = "qa/my-app"
 )
 
 func TestAwsInitHookNoSourceWithBackend(t *testing.T) {
