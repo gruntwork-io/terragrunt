@@ -332,16 +332,13 @@ func ConfigValuesEqual(config map[string]interface{}, existingBackend *Terraform
 // buildInitializerCacheKey returns a unique key for the given S3 config that can be used to cache the initialization
 func (s3Initializer S3Initializer) buildInitializerCacheKey(
 	s3Config *RemoteStateConfigS3,
-	s3ConfigExtended *ExtendedRemoteStateConfigS3,
 ) string {
 	return fmt.Sprintf(
-		"%s-%s-%s-%s-%s-%s",
+		"%s-%s-%s-%s",
 		s3Config.Bucket,
 		s3Config.Region,
 		s3Config.LockTable,
 		s3Config.DynamoDBTable,
-		s3ConfigExtended.BucketSSEAlgorithm,
-		s3ConfigExtended.BucketSSEKMSKeyID,
 	)
 }
 
@@ -359,7 +356,7 @@ func (s3Initializer S3Initializer) Initialize(ctx context.Context, remoteState *
 
 	var s3Config = s3ConfigExtended.RemoteStateConfigS3
 
-	cacheKey := s3Initializer.buildInitializerCacheKey(&s3Config, s3ConfigExtended)
+	cacheKey := s3Initializer.buildInitializerCacheKey(&s3Config)
 	if initialized, hit := initializedRemoteStateCache.Get(ctx, cacheKey); initialized && hit {
 		terragruntOptions.Logger.Debugf("S3 bucket %s has already been confirmed to be initialized, skipping initialization checks", s3Config.Bucket)
 		return nil
@@ -1361,17 +1358,11 @@ func checkIfSSEForS3MatchesConfig(
 
 	for _, rule := range output.ServerSideEncryptionConfiguration.Rules {
 		if rule.ApplyServerSideEncryptionByDefault != nil && rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != nil {
-			if *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm != fetchEncryptionAlgorithm(config) {
-				return false, nil
+			if *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm == fetchEncryptionAlgorithm(config) {
+				return true, nil
 			}
 
-			if *rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm == s3.ServerSideEncryptionAwsKms &&
-				rule.ApplyServerSideEncryptionByDefault.KMSMasterKeyID != nil &&
-				*rule.ApplyServerSideEncryptionByDefault.KMSMasterKeyID != config.BucketSSEKMSKeyID {
-				return false, nil
-			}
-
-			return true, nil
+			return false, nil
 		}
 	}
 
