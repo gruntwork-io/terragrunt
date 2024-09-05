@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	testFixtureGraph = "fixture-graph"
+	testFixtureGraph = "fixtures/graph"
 )
 
 func TestTerragruntDestroyGraph(t *testing.T) {

@@ -18,18 +18,18 @@ import (
 )
 
 const (
-	testFixtureStartswith              = "fixture-startswith"
-	testFixtureTimecmp                 = "fixture-timecmp"
-	testFixtureTimecmpInvalidTimestamp = "fixture-timecmp-errors/invalid-timestamp"
-	testFixtureEndswith                = "fixture-endswith"
-	testFixtureStrcontains             = "fixture-strcontains"
-	testFixtureGetRepoRoot             = "fixture-get-repo-root"
-	testFixtureGetWorkingDir           = "fixture-get-working-dir"
-	testFixtureRelativeIncludeCmd      = "fixture-relative-include-cmd"
-	testFixturePathRelativeFromInclude = "fixture-get-path/fixture-path_relative_from_include"
-	testFixtureGetPathFromRepoRoot     = "fixture-get-path/fixture-get-path-from-repo-root"
-	testFixtureGetPathToRepoRoot       = "fixture-get-path/fixture-get-path-to-repo-root"
-	testFixtureGetPlatform             = "fixture-get-platform"
+	testFixtureStartswith              = "fixtures/startswith"
+	testFixtureTimecmp                 = "fixtures/timecmp"
+	testFixtureTimecmpInvalidTimestamp = "fixtures/timecmp-errors/invalid-timestamp"
+	testFixtureEndswith                = "fixtures/endswith"
+	testFixtureStrcontains             = "fixtures/strcontains"
+	testFixtureGetRepoRoot             = "fixtures/get-repo-root"
+	testFixtureGetWorkingDir           = "fixtures/get-working-dir"
+	testFixtureRelativeIncludeCmd      = "fixtures/relative-include-cmd"
+	testFixturePathRelativeFromInclude = "fixtures/get-path/path_relative_from_include"
+	testFixtureGetPathFromRepoRoot     = "fixtures/get-path/get-path-from-repo-root"
+	testFixtureGetPathToRepoRoot       = "fixtures/get-path/get-path-to-repo-root"
+	testFixtureGetPlatform             = "fixtures/get-platform"
 )
 
 func TestStartsWith(t *testing.T) {
@@ -219,7 +219,7 @@ func TestGetRepoRoot(t *testing.T) {
 	repoRoot, ok := outputs["repo_root"]
 
 	assert.True(t, ok)
-	assert.Regexp(t, "/tmp/terragrunt-.*/fixture-get-repo-root", repoRoot.Value)
+	assert.Regexp(t, "/tmp/terragrunt-.*/fixtures/get-repo-root", repoRoot.Value)
 }
 
 func TestGetWorkingDirBuiltInFunc(t *testing.T) {
@@ -292,7 +292,8 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, testFixturePathRelativeFromInclude)
-	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, testFixturePathRelativeFromInclude))
+	tmpEnvPath, err := filepath.EvalSymlinks(copyEnvironment(t, testFixturePathRelativeFromInclude))
+	require.NoError(t, err)
 	rootPath := util.JoinPath(tmpEnvPath, testFixturePathRelativeFromInclude, "lives/dev")
 	basePath := util.JoinPath(rootPath, "base")
 	clusterPath := util.JoinPath(rootPath, "cluster")
@@ -305,27 +306,21 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	runTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err = runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+clusterPath, &stdout, &stderr)
+	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+clusterPath)
 	require.NoError(t, err)
 
 	outputs := map[string]TerraformOutput{}
-	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
 
 	val, hasVal := outputs["some_output"]
 	assert.True(t, hasVal)
 	assert.Equal(t, "something else", val.Value)
 
 	// try to destroy module and check if warning is printed in output, also test `get_parent_terragrunt_dir()` func in the parent terragrunt config.
-	stdout = bytes.Buffer{}
-	stderr = bytes.Buffer{}
-
-	err = runTerragruntCommand(t, "terragrunt destroy -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+basePath, &stdout, &stderr)
+	_, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt destroy -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+basePath)
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr.String(), "Detected dependent modules:\n"+clusterPath)
+	assert.Contains(t, stderr, "Detected dependent modules:\n"+clusterPath)
 }
 
 func TestGetPathFromRepoRoot(t *testing.T) {

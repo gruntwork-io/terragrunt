@@ -21,10 +21,10 @@ import (
 )
 
 const (
-	s3SSEAESFixturePath            = "fixture-s3-encryption/sse-aes"
-	s3SSECustomKeyFixturePath      = "fixture-s3-encryption/custom-key"
-	s3SSBasicEncryptionFixturePath = "fixture-s3-encryption/basic-encryption"
-	s3SSEKMSFixturePath            = "fixture-s3-encryption/sse-kms"
+	s3SSEAESFixturePath            = "fixtures/s3-encryption/sse-aes"
+	s3SSECustomKeyFixturePath      = "fixtures/s3-encryption/custom-key"
+	s3SSBasicEncryptionFixturePath = "fixtures/s3-encryption/basic-encryption"
+	s3SSEKMSFixturePath            = "fixtures/s3-encryption/sse-kms"
 )
 
 func TestAwsS3SSEAES(t *testing.T) {

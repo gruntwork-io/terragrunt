@@ -13,7 +13,7 @@ func TestScanVariables(t *testing.T) {
 
 	opts := terragruntOptionsForTest(t, "")
 
-	inputs, err := config.ParseVariables(opts, "../test/fixture-inputs")
+	inputs, err := config.ParseVariables(opts, "../test/fixtures/inputs")
 	require.NoError(t, err)
 	assert.Len(t, inputs, 11)
 
@@ -45,7 +45,7 @@ func TestScanDefaultVariables(t *testing.T) {
 	t.Parallel()
 	opts := terragruntOptionsForTest(t, "")
 
-	inputs, err := config.ParseVariables(opts, "../test/fixture-inputs-defaults")
+	inputs, err := config.ParseVariables(opts, "../test/fixtures/inputs-defaults")
 	require.NoError(t, err)
 	assert.Len(t, inputs, 11)
 

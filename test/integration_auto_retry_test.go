@@ -14,15 +14,15 @@ import (
 )
 
 const (
-	testFixtureAutoRetryRerun                     = "fixture-auto-retry/re-run"
-	testFixtureAutoRetryExhaust                   = "fixture-auto-retry/exhaust"
-	testFixtureAutoRetryGetDefaultErrors          = "fixture-auto-retry/get-default-errors"
-	testFixtureAutoRetryCustomErrors              = "fixture-auto-retry/custom-errors"
-	testFixtureAutoRetryCustomErrorsNotSet        = "fixture-auto-retry/custom-errors-not-set"
-	testFixtureAutoRetryApplyAllRetries           = "fixture-auto-retry/apply-all"
-	testFixtureAutoRetryConfigurableRetries       = "fixture-auto-retry/configurable-retries"
-	testFixtureAutoRetryConfigurableRetriesError1 = "fixture-auto-retry/configurable-retries-incorrect-retry-attempts"
-	testFixtureAutoRetryConfigurableRetriesError2 = "fixture-auto-retry/configurable-retries-incorrect-sleep-interval"
+	testFixtureAutoRetryRerun                     = "fixtures/auto-retry/re-run"
+	testFixtureAutoRetryExhaust                   = "fixtures/auto-retry/exhaust"
+	testFixtureAutoRetryGetDefaultErrors          = "fixtures/auto-retry/get-default-errors"
+	testFixtureAutoRetryCustomErrors              = "fixtures/auto-retry/custom-errors"
+	testFixtureAutoRetryCustomErrorsNotSet        = "fixtures/auto-retry/custom-errors-not-set"
+	testFixtureAutoRetryApplyAllRetries           = "fixtures/auto-retry/apply-all"
+	testFixtureAutoRetryConfigurableRetries       = "fixtures/auto-retry/configurable-retries"
+	testFixtureAutoRetryConfigurableRetriesError1 = "fixtures/auto-retry/configurable-retries-incorrect-retry-attempts"
+	testFixtureAutoRetryConfigurableRetriesError2 = "fixtures/auto-retry/configurable-retries-incorrect-sleep-interval"
 )
 
 func TestAutoRetryBasicRerun(t *testing.T) {

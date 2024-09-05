@@ -116,7 +116,7 @@ dependency "hitchhiker" {
 func TestParseDependencyBlockMultiple(t *testing.T) {
 	t.Parallel()
 
-	filename := "../test/fixture-regressions/multiple-dependency-load-sync/main/terragrunt.hcl"
+	filename := "../test/fixtures/regressions/multiple-dependency-load-sync/main/terragrunt.hcl"
 	ctx := config.NewParsingContext(context.Background(), mockOptionsForTestWithConfigPath(t, filename))
 	opts, err := options.NewTerragruntOptionsForTest(filename)
 	require.NoError(t, err)
