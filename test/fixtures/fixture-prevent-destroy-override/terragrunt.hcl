@@ -1,1 +1,0 @@
-prevent_destroy = true

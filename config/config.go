@@ -572,11 +572,11 @@ func GetTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragr
 //
 // and the terraform source is:
 //
-//	git::ssh://git@github.com/gruntwork-io/i-dont-exist.git//fixture-source-map/modules/app?ref=master
+//	git::ssh://git@github.com/gruntwork-io/i-dont-exist.git//source-map/modules/app?ref=master
 //
 // This function will take that source and transform it to:
 //
-//	/path/to/local-modules/fixture-source-map/modules/app
+//	/path/to/local-modules/source-map/modules/app
 func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath string) (string, error) {
 	// Skip logic if source map is not configured
 	if len(sourceMap) == 0 {

@@ -17,15 +17,15 @@ import (
 )
 
 const (
-	testFixtureTflintNoIssuesFound  = "fixtures/fixture-tflint/no-issues-found"
-	testFixtureTflintIssuesFound    = "fixtures/fixture-tflint/issues-found"
-	testFixtureTflintNoConfigFile   = "fixtures/fixture-tflint/no-config-file"
-	testFixtureTflintModuleFound    = "fixtures/fixture-tflint/module-found"
-	testFixtureTflintNoTfSourcePath = "fixtures/fixture-tflint/no-tf-source"
-	testFixtureTflintExternalTflint = "fixtures/fixture-tflint/external-tflint"
-	testFixtureTflintTfvarPassing   = "fixtures/fixture-tflint/tfvar-passing"
-	testFixtureTflintArgs           = "fixtures/fixture-tflint/tflint-args"
-	testFixtureTflintCustomConfig   = "fixtures/fixture-tflint/custom-tflint-config"
+	testFixtureTflintNoIssuesFound  = "fixtures/tflint/no-issues-found"
+	testFixtureTflintIssuesFound    = "fixtures/tflint/issues-found"
+	testFixtureTflintNoConfigFile   = "fixtures/tflint/no-config-file"
+	testFixtureTflintModuleFound    = "fixtures/tflint/module-found"
+	testFixtureTflintNoTfSourcePath = "fixtures/tflint/no-tf-source"
+	testFixtureTflintExternalTflint = "fixtures/tflint/external-tflint"
+	testFixtureTflintTfvarPassing   = "fixtures/tflint/tfvar-passing"
+	testFixtureTflintArgs           = "fixtures/tflint/tflint-args"
+	testFixtureTflintCustomConfig   = "fixtures/tflint/custom-tflint-config"
 )
 
 func TestTflintFindsNoIssuesWithValidCode(t *testing.T) {

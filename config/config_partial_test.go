@@ -110,7 +110,7 @@ func TestPartialParseOmittedItems(t *testing.T) {
 func TestPartialParseDoesNotResolveIgnoredBlockEvenInParent(t *testing.T) {
 	t.Parallel()
 
-	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/fixture-partial-parse/ignore-bad-block-in-parent/child/"+config.DefaultTerragruntConfigPath)
+	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/partial-parse/ignore-bad-block-in-parent/child/"+config.DefaultTerragruntConfigPath)
 
 	ctx := config.NewParsingContext(context.Background(), opts)
 	_, err := config.PartialParseConfigFile(ctx.WithDecodeList(config.TerragruntFlags), opts.TerragruntConfigPath, nil)
@@ -123,7 +123,7 @@ func TestPartialParseDoesNotResolveIgnoredBlockEvenInParent(t *testing.T) {
 func TestPartialParseOnlyInheritsSelectedBlocksFlags(t *testing.T) {
 	t.Parallel()
 
-	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/fixture-partial-parse/partial-inheritance/child/"+config.DefaultTerragruntConfigPath)
+	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/partial-parse/partial-inheritance/child/"+config.DefaultTerragruntConfigPath)
 
 	ctx := config.NewParsingContext(context.Background(), opts).WithDecodeList(config.TerragruntFlags)
 	terragruntConfig, err := config.PartialParseConfigFile(ctx, opts.TerragruntConfigPath, nil)
@@ -142,7 +142,7 @@ func TestPartialParseOnlyInheritsSelectedBlocksFlags(t *testing.T) {
 func TestPartialParseOnlyInheritsSelectedBlocksDependencies(t *testing.T) {
 	t.Parallel()
 
-	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/fixture-partial-parse/partial-inheritance/child/"+config.DefaultTerragruntConfigPath)
+	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/partial-parse/partial-inheritance/child/"+config.DefaultTerragruntConfigPath)
 
 	ctx := config.NewParsingContext(context.Background(), opts).WithDecodeList(config.DependenciesBlock)
 	terragruntConfig, err := config.PartialParseConfigFile(ctx, opts.TerragruntConfigPath, nil)

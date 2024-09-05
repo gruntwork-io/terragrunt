@@ -1,3 +1,0 @@
-output "env" {
-  value = "test"
-}

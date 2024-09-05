@@ -1,3 +1,0 @@
-output "baz" {
-  value = "baz"
-}

@@ -1,3 +1,0 @@
-include {
-  path = "../../terragrunt.hcl"
-}

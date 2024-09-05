@@ -18,18 +18,18 @@ import (
 )
 
 const (
-	testFixtureStartswith              = "fixtures/fixture-startswith"
-	testFixtureTimecmp                 = "fixtures/fixture-timecmp"
-	testFixtureTimecmpInvalidTimestamp = "fixtures/fixture-timecmp-errors/invalid-timestamp"
-	testFixtureEndswith                = "fixtures/fixture-endswith"
-	testFixtureStrcontains             = "fixtures/fixture-strcontains"
-	testFixtureGetRepoRoot             = "fixtures/fixture-get-repo-root"
-	testFixtureGetWorkingDir           = "fixtures/fixture-get-working-dir"
-	testFixtureRelativeIncludeCmd      = "fixtures/fixture-relative-include-cmd"
-	testFixturePathRelativeFromInclude = "fixtures/fixture-get-path/fixture-path_relative_from_include"
-	testFixtureGetPathFromRepoRoot     = "fixtures/fixture-get-path/fixture-get-path-from-repo-root"
-	testFixtureGetPathToRepoRoot       = "fixtures/fixture-get-path/fixture-get-path-to-repo-root"
-	testFixtureGetPlatform             = "fixtures/fixture-get-platform"
+	testFixtureStartswith              = "fixtures/startswith"
+	testFixtureTimecmp                 = "fixtures/timecmp"
+	testFixtureTimecmpInvalidTimestamp = "fixtures/timecmp-errors/invalid-timestamp"
+	testFixtureEndswith                = "fixtures/endswith"
+	testFixtureStrcontains             = "fixtures/strcontains"
+	testFixtureGetRepoRoot             = "fixtures/get-repo-root"
+	testFixtureGetWorkingDir           = "fixtures/get-working-dir"
+	testFixtureRelativeIncludeCmd      = "fixtures/relative-include-cmd"
+	testFixturePathRelativeFromInclude = "fixtures/get-path/path_relative_from_include"
+	testFixtureGetPathFromRepoRoot     = "fixtures/get-path/get-path-from-repo-root"
+	testFixtureGetPathToRepoRoot       = "fixtures/get-path/get-path-to-repo-root"
+	testFixtureGetPlatform             = "fixtures/get-platform"
 )
 
 func TestStartsWith(t *testing.T) {
@@ -219,7 +219,7 @@ func TestGetRepoRoot(t *testing.T) {
 	repoRoot, ok := outputs["repo_root"]
 
 	assert.True(t, ok)
-	assert.Regexp(t, "/tmp/terragrunt-.*/fixtures/fixture-get-repo-root", repoRoot.Value)
+	assert.Regexp(t, "/tmp/terragrunt-.*/fixtures/get-repo-root", repoRoot.Value)
 }
 
 func TestGetWorkingDirBuiltInFunc(t *testing.T) {

@@ -1,5 +1,0 @@
-terraform {
-  source = "../module"
-}
-
-inputs = {}

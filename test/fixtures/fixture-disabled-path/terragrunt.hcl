@@ -1,3 +1,0 @@
-terraform {
-  source = "/dev/null"
-}

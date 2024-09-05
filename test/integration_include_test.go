@@ -16,15 +16,15 @@ import (
 )
 
 const (
-	includeDeepFixturePath      = "fixtures/fixture-include-deep/"
+	includeDeepFixturePath      = "fixtures/include-deep/"
 	includeDeepFixtureChildPath = "child"
-	includeFixturePath          = "fixtures/fixture-include/"
+	includeFixturePath          = "fixtures/include/"
 	includeShallowFixturePath   = "stage/my-app"
 	includeNoMergeFixturePath   = "qa/my-app"
-	includeExposeFixturePath    = "fixtures/fixture-include-expose/"
+	includeExposeFixturePath    = "fixtures/include-expose/"
 	includeChildFixturePath     = "child"
-	includeMultipleFixturePath  = "fixtures/fixture-include-multiple/"
-	includeRunAllFixturePath    = "fixtures/fixture-include-runall/"
+	includeMultipleFixturePath  = "fixtures/include-multiple/"
+	includeRunAllFixturePath    = "fixtures/include-runall/"
 )
 
 func TestTerragruntWorksWithIncludeLocals(t *testing.T) {

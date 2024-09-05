@@ -42,67 +42,67 @@ const (
 	terraformRemoteStateS3Region = "us-west-2"
 
 	testFixturePath                           = "fixtures/fixture/"
-	testFixtureHclvalidate                    = "fixtures/fixture-hclvalidate"
-	testFixtureExcludesFile                   = "fixtures/fixture-excludes-file"
-	testFixtureInitOnce                       = "fixtures/fixture-init-once"
-	testFixtureProviderCacheMultiplePlatforms = "fixtures/fixture-provider-cache/multiple-platforms"
-	testFixtureProviderCacheDirect            = "fixtures/fixture-provider-cache/direct"
-	testFixtureProviderCacheNetworkMirror     = "fixtures/fixture-provider-cache/network-mirror"
-	testFixtureProviderCacheFilesystemMirror  = "fixtures/fixture-provider-cache/filesystem-mirror"
-	testFixtureCodegenPath                    = "fixtures/fixture-codegen"
-	testFixtureStack                          = "fixtures/fixture-stack/"
-	testFixtureGraphDependencies              = "fixtures/fixture-graph-dependencies"
-	testFixtureOutputAll                      = "fixtures/fixture-output-all"
-	testFixtureInputsFromDependency           = "fixtures/fixture-inputs-from-dependency"
-	testFixtureStdout                         = "fixtures/fixture-download/stdout-test"
-	testFixtureExtraArgsPath                  = "fixtures/fixture-extra-args/"
-	testFixtureEnvVarsBlockPath               = "fixtures/fixture-env-vars-block/"
-	testFixtureSkip                           = "fixtures/fixture-skip/"
-	testFixtureConfigSingleJsonPath           = "fixtures/fixture-config-files/single-json-config"
-	testFixtureConfigWithNonDefaultNames      = "fixtures/fixture-config-files/with-non-default-names"
-	testFixtureExternalDependence             = "fixtures/fixture-external-dependencies"
-	testFixtureMissingDependence              = "fixtures/fixture-missing-dependencies/main"
-	testFixtureGetOutput                      = "fixtures/fixture-get-output"
-	testFixtureFailedTerraform                = "fixtures/fixture-failure"
-	testFixtureExitCode                       = "fixtures/fixture-exit-code"
-	testFixtureInputs                         = "fixtures/fixture-inputs"
-	testFixtureNoColor                        = "fixtures/fixture-no-color"
-	testFixtureReadConfig                     = "fixtures/fixture-read-config"
-	testFixtureIamRolesMultipleModules        = "fixtures/fixture-read-config/iam_roles_multiple_modules"
-	testFixtureGetTerragruntSourceHcl         = "fixtures/fixture-get-terragrunt-source-hcl"
-	testFixtureGetTerragruntSourceCli         = "fixtures/fixture-get-terragrunt-source-cli"
-	testFixturePlanfileOrder                  = "fixtures/fixture-planfile-order-test"
-	testFixtureDirsPath                       = "fixtures/fixture-dirs"
-	testFixtureParallelism                    = "fixtures/fixture-parallelism"
-	testFixtureSops                           = "fixtures/fixture-sops"
-	testFixtureIncludeParent                  = "fixtures/fixture-include-parent"
-	testFixtureAutoInit                       = "fixtures/fixture-download/init-on-source-change"
-	testFixtureDisjoint                       = "fixtures/fixture-stack/disjoint"
-	testFixtureBrokenDependency               = "fixtures/fixture-broken-dependency"
-	testFixtureOutputModuleGroups             = "fixtures/fixture-output-module-groups"
-	testFixtureParallelRun                    = "fixtures/fixture-parallel-run"
-	testFixtureInitError                      = "fixtures/fixture-init-error"
-	testFixtureModulePathError                = "fixtures/fixture-module-path-in-error"
-	testFixtureHclfmtDiff                     = "fixtures/fixture-hclfmt-diff"
-	testFixtureRefSource                      = "fixtures/fixture-download/remote-ref"
-	testFixtureSourceMapSlashes               = "fixtures/fixture-source-map/slashes-in-ref"
-	testFixtureInitCache                      = "fixtures/fixture-init-cache"
-	testFixtureNullValue                      = "fixtures/fixture-null-values"
-	testFixtureDisabledPath                   = "fixtures/fixture-disabled-path/"
-	testFixtureNoSubmodules                   = "fixtures/fixture-no-submodules/"
-	testFixtureDisabledModule                 = "fixtures/fixture-disabled/"
-	testFixtureEmptyState                     = "fixtures/fixture-empty-state/"
-	testFixtureExternalDependency             = "fixtures/fixture-external-dependency/"
-	testFixtureTfTest                         = "fixtures/fixture-tftest/"
-	testCommandsThatNeedInput                 = "fixtures/fixture-commands-that-need-input"
-	testFixtureParallelStateInit              = "fixtures/fixture-parallel-state-init"
-	testFixtureSkipDependencies               = "fixtures/fixture-skip-dependencies"
-	testFixtureInfoError                      = "fixtures/fixture-terragrunt-info-error"
-	testFixtureDependencyOutput               = "fixtures/fixture-dependency-output"
-	testFixtureOutDir                         = "fixtures/fixture-out-dir"
-	testFixtureSopsErrors                     = "fixtures/fixture-sops-errors"
-	testFixtureAuthProviderCmd                = "fixtures/fixture-auth-provider-cmd"
-	testFixtureLogFormatter                   = "fixtures/fixture-log-formatter"
+	testFixtureHclvalidate                    = "fixtures/hclvalidate"
+	testFixtureExcludesFile                   = "fixtures/excludes-file"
+	testFixtureInitOnce                       = "fixtures/init-once"
+	testFixtureProviderCacheMultiplePlatforms = "fixtures/provider-cache/multiple-platforms"
+	testFixtureProviderCacheDirect            = "fixtures/provider-cache/direct"
+	testFixtureProviderCacheNetworkMirror     = "fixtures/provider-cache/network-mirror"
+	testFixtureProviderCacheFilesystemMirror  = "fixtures/provider-cache/filesystem-mirror"
+	testFixtureCodegenPath                    = "fixtures/codegen"
+	testFixtureStack                          = "fixtures/stack/"
+	testFixtureGraphDependencies              = "fixtures/graph-dependencies"
+	testFixtureOutputAll                      = "fixtures/output-all"
+	testFixtureInputsFromDependency           = "fixtures/inputs-from-dependency"
+	testFixtureStdout                         = "fixtures/download/stdout-test"
+	testFixtureExtraArgsPath                  = "fixtures/extra-args/"
+	testFixtureEnvVarsBlockPath               = "fixtures/env-vars-block/"
+	testFixtureSkip                           = "fixtures/skip/"
+	testFixtureConfigSingleJsonPath           = "fixtures/config-files/single-json-config"
+	testFixtureConfigWithNonDefaultNames      = "fixtures/config-files/with-non-default-names"
+	testFixtureExternalDependence             = "fixtures/external-dependencies"
+	testFixtureMissingDependence              = "fixtures/missing-dependencies/main"
+	testFixtureGetOutput                      = "fixtures/get-output"
+	testFixtureFailedTerraform                = "fixtures/failure"
+	testFixtureExitCode                       = "fixtures/exit-code"
+	testFixtureInputs                         = "fixtures/inputs"
+	testFixtureNoColor                        = "fixtures/no-color"
+	testFixtureReadConfig                     = "fixtures/read-config"
+	testFixtureIamRolesMultipleModules        = "fixtures/read-config/iam_roles_multiple_modules"
+	testFixtureGetTerragruntSourceHcl         = "fixtures/get-terragrunt-source-hcl"
+	testFixtureGetTerragruntSourceCli         = "fixtures/get-terragrunt-source-cli"
+	testFixturePlanfileOrder                  = "fixtures/planfile-order-test"
+	testFixtureDirsPath                       = "fixtures/dirs"
+	testFixtureParallelism                    = "fixtures/parallelism"
+	testFixtureSops                           = "fixtures/sops"
+	testFixtureIncludeParent                  = "fixtures/include-parent"
+	testFixtureAutoInit                       = "fixtures/download/init-on-source-change"
+	testFixtureDisjoint                       = "fixtures/stack/disjoint"
+	testFixtureBrokenDependency               = "fixtures/broken-dependency"
+	testFixtureOutputModuleGroups             = "fixtures/output-module-groups"
+	testFixtureParallelRun                    = "fixtures/parallel-run"
+	testFixtureInitError                      = "fixtures/init-error"
+	testFixtureModulePathError                = "fixtures/module-path-in-error"
+	testFixtureHclfmtDiff                     = "fixtures/hclfmt-diff"
+	testFixtureRefSource                      = "fixtures/download/remote-ref"
+	testFixtureSourceMapSlashes               = "fixtures/source-map/slashes-in-ref"
+	testFixtureInitCache                      = "fixtures/init-cache"
+	testFixtureNullValue                      = "fixtures/null-values"
+	testFixtureDisabledPath                   = "fixtures/disabled-path/"
+	testFixtureNoSubmodules                   = "fixtures/no-submodules/"
+	testFixtureDisabledModule                 = "fixtures/disabled/"
+	testFixtureEmptyState                     = "fixtures/empty-state/"
+	testFixtureExternalDependency             = "fixtures/external-dependency/"
+	testFixtureTfTest                         = "fixtures/tftest/"
+	testCommandsThatNeedInput                 = "fixtures/commands-that-need-input"
+	testFixtureParallelStateInit              = "fixtures/parallel-state-init"
+	testFixtureSkipDependencies               = "fixtures/skip-dependencies"
+	testFixtureInfoError                      = "fixtures/terragrunt-info-error"
+	testFixtureDependencyOutput               = "fixtures/dependency-output"
+	testFixtureOutDir                         = "fixtures/out-dir"
+	testFixtureSopsErrors                     = "fixtures/sops-errors"
+	testFixtureAuthProviderCmd                = "fixtures/auth-provider-cmd"
+	testFixtureLogFormatter                   = "fixtures/log-formatter"
 
 	terraformFolder = ".terraform"
 
@@ -115,7 +115,7 @@ const (
 	tofuBinary      = "tofu"
 
 	qaMyAppRelPath  = "qa/my-app"
-	fixtureDownload = "fixtures/fixture-download"
+	fixtureDownload = "fixtures/download"
 )
 
 func TestLogFormatterPrettyOutput(t *testing.T) {
@@ -468,7 +468,7 @@ func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 	cleanupTerraformFolder(t, testFixtureFailedTerraform)
 	tmpEnvPath := copyEnvironment(t, testFixtureFailedTerraform)
 
-	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "fixtures/fixture-failure")
+	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, "fixtures/failure")
 
 	cmd := "terragrunt plan-all --terragrunt-non-interactive --terragrunt-working-dir " + rootTerragruntConfigPath
 	var (
@@ -813,7 +813,7 @@ func TestApplySkipTrue(t *testing.T) {
 	stderr := showStderr.String()
 
 	require.NoError(t, err)
-	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixtures/fixture-skip/skip-true/terragrunt.hcl due to skip = true."), stderr)
+	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixtures/skip/skip-true/terragrunt.hcl due to skip = true."), stderr)
 	assert.NotContains(t, stdout, "hello, Hobbs")
 }
 
@@ -855,7 +855,7 @@ func TestApplyAllSkipTrue(t *testing.T) {
 	stderr := showStderr.String()
 
 	require.NoError(t, err)
-	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixtures/fixture-skip/skip-true/terragrunt.hcl due to skip = true."), stderr)
+	assert.Regexp(t, regexp.MustCompile("Skipping terragrunt module .*fixtures/skip/skip-true/terragrunt.hcl due to skip = true."), stderr)
 	assert.Contains(t, stdout, "hello, Ernie")
 	assert.Contains(t, stdout, "hello, Bert")
 }
@@ -2365,7 +2365,7 @@ func TestTerragruntRemoteStateCodegenDoesNotGenerateWithSkip(t *testing.T) {
 func TestTerragruntValidateAllWithVersionChecks(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := copyEnvironment(t, "fixtures/fixture-version-check")
+	tmpEnvPath := copyEnvironment(t, "fixtures/version-check")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -2519,7 +2519,7 @@ func TestIamRolesLoadingFromDifferentModules(t *testing.T) {
 func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
 	t.Parallel()
 
-	fixturePath := "fixtures/fixture-partial-parse/terragrunt-version-constraint"
+	fixturePath := "fixtures/partial-parse/terragrunt-version-constraint"
 	cleanupTerragruntFolder(t, fixturePath)
 
 	stdout := bytes.Buffer{}
@@ -3124,7 +3124,7 @@ func TestInitFailureModulePrefix(t *testing.T) {
 		runTerragruntCommand(t, "terragrunt init -no-color --terragrunt-non-interactive --terragrunt-working-dir "+initTestCase, &stdout, &stderr),
 	)
 	logBufferContentsLineByLine(t, stderr, "init")
-	assert.Contains(t, stderr.String(), "error=[fixtures/fixture-init-error]")
+	assert.Contains(t, stderr.String(), "error=[fixtures/init-error]")
 }
 
 func TestDependencyOutputModulePrefix(t *testing.T) {

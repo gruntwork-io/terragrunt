@@ -1,3 +1,0 @@
-locals {
-  foo = "hello world"
-}

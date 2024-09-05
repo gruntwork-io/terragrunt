@@ -1,3 +1,0 @@
-terraform {
-  source = "../../modules//dependency"
-}

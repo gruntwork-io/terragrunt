@@ -1,3 +1,0 @@
-inputs = {
-  baz = "b-baz"
-}

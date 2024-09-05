@@ -1,3 +1,0 @@
-inputs = {
-  input = "hello world"
-}
