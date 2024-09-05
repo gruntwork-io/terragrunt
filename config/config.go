@@ -127,20 +127,20 @@ type TerragruntConfig struct {
 	DependentModulesPath []*string
 }
 
-func (t *TerragruntConfig) String() string {
-	return fmt.Sprintf("TerragruntConfig{Terraform = %v, RemoteState = %v, Dependencies = %v, PreventDestroy = %v}", t.Terraform, t.RemoteState, t.Dependencies, t.PreventDestroy)
+func (cfg *TerragruntConfig) String() string {
+	return fmt.Sprintf("TerragruntConfig{Terraform = %v, RemoteState = %v, Dependencies = %v, PreventDestroy = %v}", cfg.Terraform, cfg.RemoteState, cfg.Dependencies, cfg.PreventDestroy)
 }
 
 // GetIAMRoleOptions is a helper function that converts the Terragrunt config IAM role attributes to
 // options.IAMRoleOptions struct.
-func (t *TerragruntConfig) GetIAMRoleOptions() options.IAMRoleOptions {
+func (cfg *TerragruntConfig) GetIAMRoleOptions() options.IAMRoleOptions {
 	configIAMRoleOptions := options.IAMRoleOptions{
-		RoleARN:               t.IamRole,
-		AssumeRoleSessionName: t.IamAssumeRoleSessionName,
-		WebIdentityToken:      t.IamWebIdentityToken,
+		RoleARN:               cfg.IamRole,
+		AssumeRoleSessionName: cfg.IamAssumeRoleSessionName,
+		WebIdentityToken:      cfg.IamWebIdentityToken,
 	}
-	if t.IamAssumeRoleDuration != nil {
-		configIAMRoleOptions.AssumeRoleDuration = *t.IamAssumeRoleDuration
+	if cfg.IamAssumeRoleDuration != nil {
+		configIAMRoleOptions.AssumeRoleDuration = *cfg.IamAssumeRoleDuration
 	}
 
 	return configIAMRoleOptions
@@ -234,36 +234,36 @@ type remoteStateConfigFile struct {
 	Config                        cty.Value                  `hcl:"config,attr"`
 }
 
-func (r *remoteStateConfigFile) String() string {
-	return fmt.Sprintf("remoteStateConfigFile{Backend = %v, Config = %v}", r.Backend, r.Config)
+func (remoteState *remoteStateConfigFile) String() string {
+	return fmt.Sprintf("remoteStateConfigFile{Backend = %v, Config = %v}", remoteState.Backend, remoteState.Config)
 }
 
 // Convert the parsed config file remote state struct to the internal representation struct of remote state
 // configurations.
-func (r *remoteStateConfigFile) toConfig() (*remote.RemoteState, error) {
-	remoteStateConfig, err := ParseCtyValueToMap(r.Config)
+func (remoteState *remoteStateConfigFile) toConfig() (*remote.RemoteState, error) {
+	remoteStateConfig, err := ParseCtyValueToMap(remoteState.Config)
 	if err != nil {
 		return nil, err
 	}
 
 	config := &remote.RemoteState{}
 
-	config.Backend = r.Backend
-	if r.Generate != nil {
+	config.Backend = remoteState.Backend
+	if remoteState.Generate != nil {
 		config.Generate = &remote.RemoteStateGenerate{
-			Path:     r.Generate.Path,
-			IfExists: r.Generate.IfExists,
+			Path:     remoteState.Generate.Path,
+			IfExists: remoteState.Generate.IfExists,
 		}
 	}
 
 	config.Config = remoteStateConfig
 
-	if r.DisableInit != nil {
-		config.DisableInit = *r.DisableInit
+	if remoteState.DisableInit != nil {
+		config.DisableInit = *remoteState.DisableInit
 	}
 
-	if r.DisableDependencyOptimization != nil {
-		config.DisableDependencyOptimization = *r.DisableDependencyOptimization
+	if remoteState.DisableDependencyOptimization != nil {
+		config.DisableDependencyOptimization = *remoteState.DisableDependencyOptimization
 	}
 
 	config.FillDefaults()
@@ -297,8 +297,8 @@ type terragruntGenerateBlock struct {
 type IncludeConfigsMap map[string]IncludeConfig
 
 // ContainsPath returns true if the given path is contained in at least one configuration.
-func (i IncludeConfigsMap) ContainsPath(path string) bool {
-	for _, cfg := range i {
+func (cfgs IncludeConfigsMap) ContainsPath(path string) bool {
+	for _, cfg := range cfgs {
 		if cfg.Path == path {
 			return true
 		}
@@ -309,8 +309,8 @@ func (i IncludeConfigsMap) ContainsPath(path string) bool {
 
 type IncludeConfigs []IncludeConfig
 
-func (i *IncludeConfigs) UpdateRelativePaths(basePath string) error {
-	for _, conf := range *i {
+func (cfgs *IncludeConfigs) UpdateRelativePaths(basePath string) error {
+	for _, conf := range *cfgs {
 		if err := conf.UpdateRelativePath(basePath); err != nil {
 			return err
 		}
@@ -329,49 +329,49 @@ type IncludeConfig struct {
 	RelativePath  string
 }
 
-func (i *IncludeConfig) UpdateRelativePath(basePath string) error {
-	relPath, err := util.GetPathRelativeToWithSeparator(i.Path, basePath)
+func (include *IncludeConfig) UpdateRelativePath(basePath string) error {
+	relPath, err := util.GetPathRelativeToWithSeparator(include.Path, basePath)
 	if err != nil {
 		return err
 	}
 
-	i.RelativePath = relPath
+	include.RelativePath = relPath
 
 	return nil
 }
 
-func (i *IncludeConfig) String() string {
-	if i == nil {
+func (include *IncludeConfig) String() string {
+	if include == nil {
 		return "IncludeConfig{nil}"
 	}
 
 	exposeStr := "nil"
-	if i.Expose != nil {
-		exposeStr = strconv.FormatBool(*i.Expose)
+	if include.Expose != nil {
+		exposeStr = strconv.FormatBool(*include.Expose)
 	}
 
 	mergeStrategyStr := "nil"
-	if i.MergeStrategy != nil {
-		mergeStrategyStr = fmt.Sprintf("%v", i.MergeStrategy)
+	if include.MergeStrategy != nil {
+		mergeStrategyStr = fmt.Sprintf("%v", include.MergeStrategy)
 	}
 
-	return fmt.Sprintf("IncludeConfig{Path = %v, Expose = %v, MergeStrategy = %v}", i.Path, exposeStr, mergeStrategyStr)
+	return fmt.Sprintf("IncludeConfig{Path = %v, Expose = %v, MergeStrategy = %v}", include.Path, exposeStr, mergeStrategyStr)
 }
 
-func (i *IncludeConfig) GetExpose() bool {
-	if i == nil || i.Expose == nil {
+func (include *IncludeConfig) GetExpose() bool {
+	if include == nil || include.Expose == nil {
 		return false
 	}
 
-	return *i.Expose
+	return *include.Expose
 }
 
-func (i *IncludeConfig) GetMergeStrategy() (MergeStrategyType, error) {
-	if i.MergeStrategy == nil {
+func (include *IncludeConfig) GetMergeStrategy() (MergeStrategyType, error) {
+	if include.MergeStrategy == nil {
 		return ShallowMerge, nil
 	}
 
-	strategy := *i.MergeStrategy
+	strategy := *include.MergeStrategy
 	switch strategy {
 	case string(NoMerge):
 		return NoMerge, nil
@@ -459,36 +459,36 @@ type TerraformConfig struct {
 	IncludeInCopy *[]string `hcl:"include_in_copy,attr"`
 }
 
-func (t *TerraformConfig) String() string {
-	return fmt.Sprintf("TerraformConfig{Source = %v}", t.Source)
+func (cfg *TerraformConfig) String() string {
+	return fmt.Sprintf("TerraformConfig{Source = %v}", cfg.Source)
 }
 
-func (t *TerraformConfig) GetBeforeHooks() []Hook {
-	if t == nil {
+func (cfg *TerraformConfig) GetBeforeHooks() []Hook {
+	if cfg == nil {
 		return nil
 	}
 
-	return t.BeforeHooks
+	return cfg.BeforeHooks
 }
 
-func (t *TerraformConfig) GetAfterHooks() []Hook {
-	if t == nil {
+func (cfg *TerraformConfig) GetAfterHooks() []Hook {
+	if cfg == nil {
 		return nil
 	}
 
-	return t.AfterHooks
+	return cfg.AfterHooks
 }
 
-func (t *TerraformConfig) GetErrorHooks() []ErrorHook {
-	if t == nil {
+func (cfg *TerraformConfig) GetErrorHooks() []ErrorHook {
+	if cfg == nil {
 		return nil
 	}
 
-	return t.ErrorHooks
+	return cfg.ErrorHooks
 }
 
-func (t *TerraformConfig) ValidateHooks() error {
-	beforeAndAfterHooks := append(t.GetBeforeHooks(), t.GetAfterHooks()...)
+func (cfg *TerraformConfig) ValidateHooks() error {
+	beforeAndAfterHooks := append(cfg.GetBeforeHooks(), cfg.GetAfterHooks()...)
 
 	for _, curHook := range beforeAndAfterHooks {
 		if len(curHook.Execute) < 1 || curHook.Execute[0] == "" {
@@ -496,7 +496,7 @@ func (t *TerraformConfig) ValidateHooks() error {
 		}
 	}
 
-	for _, curHook := range t.GetErrorHooks() {
+	for _, curHook := range cfg.GetErrorHooks() {
 		if len(curHook.Execute) < 1 || curHook.Execute[0] == "" {
 			return InvalidArgError(fmt.Sprintf("Error with hook %s. Need at least one non-empty argument in 'execute'.", curHook.Name))
 		}
@@ -515,28 +515,28 @@ type TerraformExtraArguments struct {
 	EnvVars          *map[string]string `hcl:"env_vars,attr" cty:"env_vars"`
 }
 
-func (t *TerraformExtraArguments) String() string {
+func (args *TerraformExtraArguments) String() string {
 	return fmt.Sprintf(
 		"TerraformArguments{Name = %s, Arguments = %v, Commands = %v, EnvVars = %v}",
-		t.Name,
-		t.Arguments,
-		t.Commands,
-		t.EnvVars)
+		args.Name,
+		args.Arguments,
+		args.Commands,
+		args.EnvVars)
 }
 
-func (t *TerraformExtraArguments) GetVarFiles(logger *logrus.Entry) []string {
+func (args *TerraformExtraArguments) GetVarFiles(logger *logrus.Entry) []string {
 	var varFiles []string
 
 	// Include all specified RequiredVarFiles.
-	if t.RequiredVarFiles != nil {
-		varFiles = append(varFiles, util.RemoveDuplicatesFromListKeepLast(*t.RequiredVarFiles)...)
+	if args.RequiredVarFiles != nil {
+		varFiles = append(varFiles, util.RemoveDuplicatesFromListKeepLast(*args.RequiredVarFiles)...)
 	}
 
 	// If OptionalVarFiles is specified, check for each file if it exists and if so, include in the var
 	// files list. Note that it is possible that many files resolve to the same path, so we remove
 	// duplicates.
-	if t.OptionalVarFiles != nil {
-		for _, file := range util.RemoveDuplicatesFromListKeepLast(*t.OptionalVarFiles) {
+	if args.OptionalVarFiles != nil {
+		for _, file := range util.RemoveDuplicatesFromListKeepLast(*args.OptionalVarFiles) {
 			if util.FileExists(file) {
 				varFiles = append(varFiles, file)
 			} else {
@@ -1330,14 +1330,14 @@ func configFileHasDependencyBlock(configPath string) (bool, error) {
 
 // SetFieldMetadataWithType set metadata on the given field name grouped by type.
 // Example usage - setting metadata on different dependencies, locals, inputs.
-func (t *TerragruntConfig) SetFieldMetadataWithType(fieldType, fieldName string, m map[string]interface{}) {
-	if t.FieldsMetadata == nil {
-		t.FieldsMetadata = map[string]map[string]interface{}{}
+func (cfg *TerragruntConfig) SetFieldMetadataWithType(fieldType, fieldName string, m map[string]interface{}) {
+	if cfg.FieldsMetadata == nil {
+		cfg.FieldsMetadata = map[string]map[string]interface{}{}
 	}
 
 	field := fmt.Sprintf("%s-%s", fieldType, fieldName)
 
-	metadata, found := t.FieldsMetadata[field]
+	metadata, found := cfg.FieldsMetadata[field]
 	if !found {
 		metadata = make(map[string]interface{})
 	}
@@ -1346,36 +1346,36 @@ func (t *TerragruntConfig) SetFieldMetadataWithType(fieldType, fieldName string,
 		metadata[key] = value
 	}
 
-	t.FieldsMetadata[field] = metadata
+	cfg.FieldsMetadata[field] = metadata
 }
 
 // SetFieldMetadata set metadata on the given field name.
-func (t *TerragruntConfig) SetFieldMetadata(fieldName string, m map[string]interface{}) {
-	t.SetFieldMetadataWithType(fieldName, fieldName, m)
+func (cfg *TerragruntConfig) SetFieldMetadata(fieldName string, m map[string]interface{}) {
+	cfg.SetFieldMetadataWithType(fieldName, fieldName, m)
 }
 
 // SetFieldMetadataMap set metadata on fields from map keys.
 // Example usage - setting metadata on all variables from inputs.
-func (t *TerragruntConfig) SetFieldMetadataMap(field string, data map[string]interface{}, metadata map[string]interface{}) {
+func (cfg *TerragruntConfig) SetFieldMetadataMap(field string, data map[string]interface{}, metadata map[string]interface{}) {
 	for name := range data {
-		t.SetFieldMetadataWithType(field, name, metadata)
+		cfg.SetFieldMetadataWithType(field, name, metadata)
 	}
 }
 
 // GetFieldMetadata return field metadata by field name.
-func (t *TerragruntConfig) GetFieldMetadata(fieldName string) (map[string]string, bool) {
-	return t.GetMapFieldMetadata(fieldName, fieldName)
+func (cfg *TerragruntConfig) GetFieldMetadata(fieldName string) (map[string]string, bool) {
+	return cfg.GetMapFieldMetadata(fieldName, fieldName)
 }
 
 // GetMapFieldMetadata return field metadata by field type and name.
-func (t *TerragruntConfig) GetMapFieldMetadata(fieldType, fieldName string) (map[string]string, bool) {
-	if t.FieldsMetadata == nil {
+func (cfg *TerragruntConfig) GetMapFieldMetadata(fieldType, fieldName string) (map[string]string, bool) {
+	if cfg.FieldsMetadata == nil {
 		return nil, false
 	}
 
 	field := fmt.Sprintf("%s-%s", fieldType, fieldName)
 
-	value, found := t.FieldsMetadata[field]
+	value, found := cfg.FieldsMetadata[field]
 	if !found {
 		return nil, false
 	}
@@ -1389,15 +1389,15 @@ func (t *TerragruntConfig) GetMapFieldMetadata(fieldType, fieldName string) (map
 }
 
 // EngineOptions fetch engine options
-func (t *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
-	if t.Engine == nil {
+func (cfg *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
+	if cfg.Engine == nil {
 		return nil, nil
 	}
 	// in case of Meta is null, set empty meta
 	var meta = map[string]interface{}{}
 
-	if t.Engine.Meta != nil {
-		parsedMeta, err := ParseCtyValueToMap(*t.Engine.Meta)
+	if cfg.Engine.Meta != nil {
+		parsedMeta, err := ParseCtyValueToMap(*cfg.Engine.Meta)
 		if err != nil {
 			return nil, err
 		}
@@ -1406,12 +1406,12 @@ func (t *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 	}
 
 	var version, engineType string
-	if t.Engine.Version != nil {
-		version = *t.Engine.Version
+	if cfg.Engine.Version != nil {
+		version = *cfg.Engine.Version
 	}
 
-	if t.Engine.Type != nil {
-		engineType = *t.Engine.Type
+	if cfg.Engine.Type != nil {
+		engineType = *cfg.Engine.Type
 	}
 	// if type is null of empty, set to "rpc"
 	if len(engineType) == 0 {
@@ -1419,7 +1419,7 @@ func (t *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 	}
 
 	return &options.EngineOptions{
-		Source:  t.Engine.Source,
+		Source:  cfg.Engine.Source,
 		Version: version,
 		Type:    engineType,
 		Meta:    meta,

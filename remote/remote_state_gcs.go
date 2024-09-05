@@ -91,7 +91,7 @@ type GCSInitializer struct{}
 //
 // 1. Any of the existing backend settings are different than the current config
 // 2. The configured GCS bucket does not exist
-func (g GCSInitializer) NeedsInitialization(remoteState *RemoteState, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error) {
+func (initializer GCSInitializer) NeedsInitialization(remoteState *RemoteState, existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	if remoteState.DisableInit {
 		return false, nil
 	}
@@ -171,13 +171,13 @@ func GCSConfigValuesEqual(config map[string]interface{}, existingBackend *Terraf
 }
 
 // buildInitializerCacheKey returns a unique key for the given GCS config that can be used to cache the initialization
-func (g GCSInitializer) buildInitializerCacheKey(gcsConfig *RemoteStateConfigGCS) string {
+func (initializer GCSInitializer) buildInitializerCacheKey(gcsConfig *RemoteStateConfigGCS) string {
 	return gcsConfig.Bucket
 }
 
 // Initialize the remote state GCS bucket specified in the given config. This function will validate the config
 // parameters, create the GCS bucket if it doesn't already exist, and check that versioning is enabled.
-func (g GCSInitializer) Initialize(ctx context.Context, remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {
+func (initializer GCSInitializer) Initialize(ctx context.Context, remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {
 	gcsConfigExtended, err := parseExtendedGCSConfig(remoteState.Config)
 	if err != nil {
 		return err
@@ -189,7 +189,7 @@ func (g GCSInitializer) Initialize(ctx context.Context, remoteState *RemoteState
 
 	var gcsConfig = gcsConfigExtended.remoteStateConfigGCS
 
-	cacheKey := g.buildInitializerCacheKey(&gcsConfig)
+	cacheKey := initializer.buildInitializerCacheKey(&gcsConfig)
 	if initialized, hit := initializedRemoteStateCache.Get(ctx, cacheKey); initialized && hit {
 		terragruntOptions.Logger.Debugf("GCS bucket %s has already been confirmed to be initialized, skipping initialization checks", gcsConfig.Bucket)
 		return nil
@@ -231,7 +231,7 @@ func (g GCSInitializer) Initialize(ctx context.Context, remoteState *RemoteState
 
 // GetTerraformInitArgs returns the subset of the given config that should be passed to terraform init
 // when initializing the remote state.
-func (g GCSInitializer) GetTerraformInitArgs(config map[string]interface{}) map[string]interface{} {
+func (initializer GCSInitializer) GetTerraformInitArgs(config map[string]interface{}) map[string]interface{} {
 	var filteredConfig = make(map[string]interface{})
 
 	for key, val := range config {
@@ -366,7 +366,7 @@ func CreateGCSBucketWithVersioning(gcsClient *storage.Client, config *ExtendedRe
 }
 
 func AddLabelsToGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteStateConfigGCS, terragruntOptions *options.TerragruntOptions) error {
-	if config.GCSBucketLabels == nil || len(config.GCSBucketLabels) == 0 {
+	if len(config.GCSBucketLabels) == 0 {
 		terragruntOptions.Logger.Debugf("No labels specified for bucket %s.", config.remoteStateConfigGCS.Bucket)
 		return nil
 	}

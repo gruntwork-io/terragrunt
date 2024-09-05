@@ -38,20 +38,20 @@ type TerraformModule struct {
 }
 
 // String renders this module as a human-readable string
-func (t *TerraformModule) String() string {
+func (module *TerraformModule) String() string {
 	dependencies := []string{}
-	for _, dependency := range t.Dependencies {
+	for _, dependency := range module.Dependencies {
 		dependencies = append(dependencies, dependency.RelativePath)
 	}
 
 	return fmt.Sprintf(
 		"Module %s (excluded: %v, assume applied: %v, dependencies: [%s])",
-		t.RelativePath, t.FlagExcluded, t.AssumeAlreadyApplied, strings.Join(dependencies, ", "),
+		module.RelativePath, module.FlagExcluded, module.AssumeAlreadyApplied, strings.Join(dependencies, ", "),
 	)
 }
 
-func (t *TerraformModule) MarshalJSON() ([]byte, error) {
-	return json.Marshal(t.Path)
+func (module *TerraformModule) MarshalJSON() ([]byte, error) {
+	return json.Marshal(module.Path)
 }
 
 // Check for cycles using a depth-first-search as described here:
@@ -62,39 +62,39 @@ func (t *TerraformModule) MarshalJSON() ([]byte, error) {
 // list doesn't perform well with repeated contains() and remove() checks, so ideally we'd use an ordered Map (e.g.
 // Java's LinkedHashMap), but since Go doesn't have such a data structure built-in, and our lists are going to be very
 // small (at most, a few dozen paths), there is no point in worrying about performance.
-func (t *TerraformModule) checkForCyclesUsingDepthFirstSearch(visitedPaths *[]string, currentTraversalPaths *[]string) error {
-	if util.ListContainsElement(*visitedPaths, t.Path) {
+func (module *TerraformModule) checkForCyclesUsingDepthFirstSearch(visitedPaths *[]string, currentTraversalPaths *[]string) error {
+	if util.ListContainsElement(*visitedPaths, module.Path) {
 		return nil
 	}
 
-	if util.ListContainsElement(*currentTraversalPaths, t.Path) {
-		return errors.WithStackTrace(DependencyCycleError(append(*currentTraversalPaths, t.Path)))
+	if util.ListContainsElement(*currentTraversalPaths, module.Path) {
+		return errors.WithStackTrace(DependencyCycleError(append(*currentTraversalPaths, module.Path)))
 	}
 
-	*currentTraversalPaths = append(*currentTraversalPaths, t.Path)
-	for _, dependency := range t.Dependencies {
+	*currentTraversalPaths = append(*currentTraversalPaths, module.Path)
+	for _, dependency := range module.Dependencies {
 		if err := dependency.checkForCyclesUsingDepthFirstSearch(visitedPaths, currentTraversalPaths); err != nil {
 			return err
 		}
 	}
 
-	*visitedPaths = append(*visitedPaths, t.Path)
-	*currentTraversalPaths = util.RemoveElementFromList(*currentTraversalPaths, t.Path)
+	*visitedPaths = append(*visitedPaths, module.Path)
+	*currentTraversalPaths = util.RemoveElementFromList(*currentTraversalPaths, module.Path)
 
 	return nil
 }
 
 // planFile - return plan file location, if output folder is set
-func (t *TerraformModule) planFile(terragruntOptions *options.TerragruntOptions) string {
+func (module *TerraformModule) planFile(terragruntOptions *options.TerragruntOptions) string {
 	var planFile string
 
 	// set plan file location if output folder is set
-	planFile = t.outputFile(terragruntOptions)
+	planFile = module.outputFile(terragruntOptions)
 
-	planCommand := t.TerragruntOptions.TerraformCommand == terraform.CommandNamePlan || t.TerragruntOptions.TerraformCommand == terraform.CommandNameShow
+	planCommand := module.TerragruntOptions.TerraformCommand == terraform.CommandNamePlan || module.TerragruntOptions.TerraformCommand == terraform.CommandNameShow
 
 	// in case if JSON output is enabled, and not specified planFile, save plan in working dir
-	if planCommand && planFile == "" && t.TerragruntOptions.JSONOutputFolder != "" {
+	if planCommand && planFile == "" && module.TerragruntOptions.JSONOutputFolder != "" {
 		planFile = terraform.TerraformPlanFile
 	}
 
@@ -102,11 +102,11 @@ func (t *TerraformModule) planFile(terragruntOptions *options.TerragruntOptions)
 }
 
 // outputFile - return plan file location, if output folder is set
-func (t *TerraformModule) outputFile(opts *options.TerragruntOptions) string {
+func (module *TerraformModule) outputFile(opts *options.TerragruntOptions) string {
 	planFile := ""
 
 	if opts.OutputFolder != "" {
-		path, _ := filepath.Rel(opts.WorkingDir, t.Path)
+		path, _ := filepath.Rel(opts.WorkingDir, module.Path)
 		dir := filepath.Join(opts.OutputFolder, path)
 		planFile = filepath.Join(dir, terraform.TerraformPlanFile)
 	}
@@ -115,11 +115,11 @@ func (t *TerraformModule) outputFile(opts *options.TerragruntOptions) string {
 }
 
 // outputJSONFile - return plan JSON file location, if JSON output folder is set
-func (t *TerraformModule) outputJSONFile(opts *options.TerragruntOptions) string {
+func (module *TerraformModule) outputJSONFile(opts *options.TerragruntOptions) string {
 	jsonPlanFile := ""
 
 	if opts.JSONOutputFolder != "" {
-		path, _ := filepath.Rel(opts.WorkingDir, t.Path)
+		path, _ := filepath.Rel(opts.WorkingDir, module.Path)
 		dir := filepath.Join(opts.JSONOutputFolder, path)
 		jsonPlanFile = filepath.Join(dir, terraform.TerraformPlanJSONFile)
 	}
@@ -128,9 +128,9 @@ func (t *TerraformModule) outputJSONFile(opts *options.TerragruntOptions) string
 }
 
 // findModuleInPath returns true if a module is located under one of the target directories
-func (t *TerraformModule) findModuleInPath(targetDirs []string) bool {
+func (module *TerraformModule) findModuleInPath(targetDirs []string) bool {
 	for _, targetDir := range targetDirs {
-		if t.Path == targetDir {
+		if module.Path == targetDir {
 			return true
 		}
 	}
@@ -143,38 +143,38 @@ func (t *TerraformModule) findModuleInPath(targetDirs []string) bool {
 // Note that we skip the prompt for `run-all destroy` calls. Given the destructive and irreversible nature of destroy, we don't
 // want to provide any risk to the user of accidentally destroying an external dependency unless explicitly included
 // with the --terragrunt-include-external-dependencies or --terragrunt-include-dir flags.
-func (t *TerraformModule) confirmShouldApplyExternalDependency(dependency *TerraformModule, terragruntOptions *options.TerragruntOptions) (bool, error) {
+func (module *TerraformModule) confirmShouldApplyExternalDependency(dependency *TerraformModule, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	if terragruntOptions.IncludeExternalDependencies {
-		terragruntOptions.Logger.Debugf("The --terragrunt-include-external-dependencies flag is set, so automatically including all external dependencies, and will run this command against module %s, which is a dependency of module %s.", dependency.RelativePath, t.RelativePath)
+		terragruntOptions.Logger.Debugf("The --terragrunt-include-external-dependencies flag is set, so automatically including all external dependencies, and will run this command against module %s, which is a dependency of module %s.", dependency.RelativePath, module.RelativePath)
 		return true, nil
 	}
 
 	if terragruntOptions.NonInteractive {
-		terragruntOptions.Logger.Debugf("The --non-interactive flag is set. To avoid accidentally affecting external dependencies with a run-all command, will not run this command against module %s, which is a dependency of module %s.", dependency.RelativePath, t.RelativePath)
+		terragruntOptions.Logger.Debugf("The --non-interactive flag is set. To avoid accidentally affecting external dependencies with a run-all command, will not run this command against module %s, which is a dependency of module %s.", dependency.RelativePath, module.RelativePath)
 		return false, nil
 	}
 
 	stackCmd := terragruntOptions.TerraformCommand
 	if stackCmd == "destroy" {
-		terragruntOptions.Logger.Debugf("run-all command called with destroy. To avoid accidentally having destructive effects on external dependencies with run-all command, will not run this command against module %s, which is a dependency of module %s.", dependency.RelativePath, t.RelativePath)
+		terragruntOptions.Logger.Debugf("run-all command called with destroy. To avoid accidentally having destructive effects on external dependencies with run-all command, will not run this command against module %s, which is a dependency of module %s.", dependency.RelativePath, module.RelativePath)
 		return false, nil
 	}
 
-	prompt := fmt.Sprintf("Module: \t\t %s\nExternal dependency: \t %s\nShould Terragrunt apply the external dependency?", t.Path, dependency.Path)
+	prompt := fmt.Sprintf("Module: \t\t %s\nExternal dependency: \t %s\nShould Terragrunt apply the external dependency?", module.Path, dependency.Path)
 
 	return shell.PromptUserForYesNo(prompt, terragruntOptions)
 }
 
 // Get the list of modules this module depends on
-func (t *TerraformModule) getDependenciesForModule(modulesMap TerraformModulesMap, terragruntConfigPaths []string) (TerraformModules, error) {
+func (module *TerraformModule) getDependenciesForModule(modulesMap TerraformModulesMap, terragruntConfigPaths []string) (TerraformModules, error) {
 	dependencies := TerraformModules{}
 
-	if t.Config.Dependencies == nil || len(t.Config.Dependencies.Paths) == 0 {
+	if module.Config.Dependencies == nil || len(module.Config.Dependencies.Paths) == 0 {
 		return dependencies, nil
 	}
 
-	for _, dependencyPath := range t.Config.Dependencies.Paths {
-		dependencyModulePath, err := util.CanonicalPath(dependencyPath, t.Path)
+	for _, dependencyPath := range module.Config.Dependencies.Paths {
+		dependencyModulePath, err := util.CanonicalPath(dependencyPath, module.Path)
 		if err != nil {
 			// TODO: Remove lint suppression
 			return dependencies, nil //nolint:nilerr
@@ -187,7 +187,7 @@ func (t *TerraformModule) getDependenciesForModule(modulesMap TerraformModulesMa
 		dependencyModule, foundModule := modulesMap[dependencyModulePath]
 		if !foundModule {
 			err := UnrecognizedDependencyError{
-				ModulePath:            t.Path,
+				ModulePath:            module.Path,
 				DependencyPath:        dependencyPath,
 				TerragruntConfigPaths: terragruntConfigPaths,
 			}
@@ -283,7 +283,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, terragruntOptions *optio
 // for a directed graph. It can be used to dump a .dot file.
 // This is a similar implementation to terraform's digraph https://github.com/hashicorp/terraform/blob/master/digraph/graphviz.go
 // adding some styling to modules that are excluded from the execution in *-all commands
-func (t TerraformModules) WriteDot(w io.Writer, terragruntOptions *options.TerragruntOptions) error {
+func (modules TerraformModules) WriteDot(w io.Writer, terragruntOptions *options.TerragruntOptions) error {
 	if _, err := w.Write([]byte("digraph {\n")); err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -297,7 +297,7 @@ func (t TerraformModules) WriteDot(w io.Writer, terragruntOptions *options.Terra
 	// all paths are relative to the TerragruntConfigPath
 	prefix := filepath.Dir(terragruntOptions.TerragruntConfigPath) + "/"
 
-	for _, source := range t {
+	for _, source := range modules {
 		// apply a different coloring for excluded nodes
 		style := ""
 		if source.FlagExcluded {
@@ -331,8 +331,8 @@ func (t TerraformModules) WriteDot(w io.Writer, terragruntOptions *options.Terra
 // RunModules runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
-func (t TerraformModules) RunModules(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
-	runningModules, err := t.ToRunningModules(NormalOrder)
+func (modules TerraformModules) RunModules(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
+	runningModules, err := modules.ToRunningModules(NormalOrder)
 	if err != nil {
 		return err
 	}
@@ -343,8 +343,8 @@ func (t TerraformModules) RunModules(ctx context.Context, opts *options.Terragru
 // RunModulesReverseOrder runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in the reverse order of their inter-dependencies, using
 // as much concurrency as possible.
-func (t TerraformModules) RunModulesReverseOrder(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
-	runningModules, err := t.ToRunningModules(ReverseOrder)
+func (modules TerraformModules) RunModulesReverseOrder(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
+	runningModules, err := modules.ToRunningModules(ReverseOrder)
 	if err != nil {
 		return err
 	}
@@ -354,8 +354,8 @@ func (t TerraformModules) RunModulesReverseOrder(ctx context.Context, opts *opti
 
 // RunModulesIgnoreOrder runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed without caring for inter-dependencies.
-func (t TerraformModules) RunModulesIgnoreOrder(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
-	runningModules, err := t.ToRunningModules(IgnoreOrder)
+func (modules TerraformModules) RunModulesIgnoreOrder(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
+	runningModules, err := modules.ToRunningModules(IgnoreOrder)
 	if err != nil {
 		return err
 	}
@@ -366,9 +366,9 @@ func (t TerraformModules) RunModulesIgnoreOrder(ctx context.Context, opts *optio
 // ToRunningModules converts the list of modules to a map from module path to a runningModule struct. This struct contains information
 // about executing the module, such as whether it has finished running or not and any errors that happened. Note that
 // this does NOT actually run the module. For that, see the RunModules method.
-func (t TerraformModules) ToRunningModules(dependencyOrder DependencyOrder) (RunningModules, error) {
+func (modules TerraformModules) ToRunningModules(dependencyOrder DependencyOrder) (RunningModules, error) {
 	runningModules := RunningModules{}
-	for _, module := range t {
+	for _, module := range modules {
 		runningModules[module.Path] = newRunningModule(module)
 	}
 
@@ -381,11 +381,11 @@ func (t TerraformModules) ToRunningModules(dependencyOrder DependencyOrder) (Run
 }
 
 // CheckForCycles checks for dependency cycles in the given list of modules and return an error if one is found.
-func (t TerraformModules) CheckForCycles() error {
+func (modules TerraformModules) CheckForCycles() error {
 	visitedPaths := []string{}
 	currentTraversalPaths := []string{}
 
-	for _, module := range t {
+	for _, module := range modules {
 		err := module.checkForCyclesUsingDepthFirstSearch(&visitedPaths, &currentTraversalPaths)
 		if err != nil {
 			return err
@@ -396,8 +396,8 @@ func (t TerraformModules) CheckForCycles() error {
 }
 
 // flagExcludedDirs iterates over a module slice and flags all entries as excluded, which should be ignored via the terragrunt-exclude-dir CLI flag.
-func (t TerraformModules) flagExcludedDirs(terragruntOptions *options.TerragruntOptions) TerraformModules {
-	for _, module := range t {
+func (modules TerraformModules) flagExcludedDirs(terragruntOptions *options.TerragruntOptions) TerraformModules {
+	for _, module := range modules {
 		if module.findModuleInPath(terragruntOptions.ExcludeDirs) {
 			// Mark module itself as excluded
 			module.FlagExcluded = true
@@ -411,11 +411,11 @@ func (t TerraformModules) flagExcludedDirs(terragruntOptions *options.Terragrunt
 		}
 	}
 
-	return t
+	return modules
 }
 
 // flagIncludedDirs iterates over a module slice and flags all entries not in the list specified via the terragrunt-include-dir CLI flag as excluded.
-func (t TerraformModules) flagIncludedDirs(terragruntOptions *options.TerragruntOptions) TerraformModules {
+func (modules TerraformModules) flagIncludedDirs(terragruntOptions *options.TerragruntOptions) TerraformModules {
 	// If we're not excluding by default, we should include everything by default.
 	// This can happen when a user doesn't set include flags.
 	if !terragruntOptions.ExcludeByDefault {
@@ -425,10 +425,10 @@ func (t TerraformModules) flagIncludedDirs(terragruntOptions *options.Terragrunt
 			return TerraformModules{}
 		}
 
-		return t
+		return modules
 	}
 
-	for _, module := range t {
+	for _, module := range modules {
 		if module.findModuleInPath(terragruntOptions.IncludeDirs) {
 			module.FlagExcluded = false
 		} else {
@@ -438,7 +438,7 @@ func (t TerraformModules) flagIncludedDirs(terragruntOptions *options.Terragrunt
 
 	// Mark all affected dependencies as included before proceeding if not in strict include mode.
 	if !terragruntOptions.StrictInclude {
-		for _, module := range t {
+		for _, module := range modules {
 			if !module.FlagExcluded {
 				for _, dependency := range module.Dependencies {
 					dependency.FlagExcluded = false
@@ -447,16 +447,16 @@ func (t TerraformModules) flagIncludedDirs(terragruntOptions *options.Terragrunt
 		}
 	}
 
-	return t
+	return modules
 }
 
 // flagModulesThatDontInclude iterates over a module slice and flags all modules that don't include at least one file in
 // the specified include list on the TerragruntOptions ModulesThatInclude attribute. Flagged modules will be filtered
 // out of the set.
-func (t TerraformModules) flagModulesThatDontInclude(terragruntOptions *options.TerragruntOptions) (TerraformModules, error) {
+func (modules TerraformModules) flagModulesThatDontInclude(terragruntOptions *options.TerragruntOptions) (TerraformModules, error) {
 	// If no ModulesThatInclude is specified return the modules list instantly
 	if len(terragruntOptions.ModulesThatInclude) == 0 {
-		return t, nil
+		return modules, nil
 	}
 
 	modulesThatIncludeCanonicalPath := []string{}
@@ -470,7 +470,7 @@ func (t TerraformModules) flagModulesThatDontInclude(terragruntOptions *options.
 		modulesThatIncludeCanonicalPath = append(modulesThatIncludeCanonicalPath, canonicalPath)
 	}
 
-	for _, module := range t {
+	for _, module := range modules {
 		// Ignore modules that are already excluded because this feature is a filter for excluding the subset, not
 		// including modules that have already been excluded through other means.
 		if module.FlagExcluded {
@@ -514,7 +514,7 @@ func (t TerraformModules) flagModulesThatDontInclude(terragruntOptions *options.
 		}
 	}
 
-	return t, nil
+	return modules, nil
 }
 
 var existingModules = cache.NewCache[*TerraformModulesMap](existingModulesCacheName)
@@ -523,14 +523,14 @@ type TerraformModulesMap map[string]*TerraformModule
 
 // Merge the given external dependencies into the given map of modules if those dependencies aren't already in the
 // modules map
-func (t TerraformModulesMap) mergeMaps(externalDependencies TerraformModulesMap) TerraformModulesMap {
+func (modulesMap TerraformModulesMap) mergeMaps(externalDependencies TerraformModulesMap) TerraformModulesMap {
 	out := TerraformModulesMap{}
 
 	for key, value := range externalDependencies {
 		out[key] = value
 	}
 
-	for key, value := range t {
+	for key, value := range modulesMap {
 		out[key] = value
 	}
 
@@ -539,14 +539,14 @@ func (t TerraformModulesMap) mergeMaps(externalDependencies TerraformModulesMap)
 
 // Go through each module in the given map and cross-link its dependencies to the other modules in that same map. If
 // a dependency is referenced that is not in the given map, return an error.
-func (t TerraformModulesMap) crosslinkDependencies(canonicalTerragruntConfigPaths []string) (TerraformModules, error) {
+func (modulesMap TerraformModulesMap) crosslinkDependencies(canonicalTerragruntConfigPaths []string) (TerraformModules, error) {
 	modules := TerraformModules{}
 
-	keys := t.getSortedKeys()
+	keys := modulesMap.getSortedKeys()
 	for _, key := range keys {
-		module := t[key]
+		module := modulesMap[key]
 
-		dependencies, err := module.getDependenciesForModule(t, canonicalTerragruntConfigPaths)
+		dependencies, err := module.getDependenciesForModule(modulesMap, canonicalTerragruntConfigPaths)
 		if err != nil {
 			return modules, err
 		}
@@ -560,9 +560,9 @@ func (t TerraformModulesMap) crosslinkDependencies(canonicalTerragruntConfigPath
 
 // Return the keys for the given map in sorted order. This is used to ensure we always iterate over maps of modules
 // in a consistent order (Go does not guarantee iteration order for maps, and usually makes it random)
-func (t TerraformModulesMap) getSortedKeys() []string {
+func (modulesMap TerraformModulesMap) getSortedKeys() []string {
 	keys := []string{}
-	for key := range t {
+	for key := range modulesMap {
 		keys = append(keys, key)
 	}
 

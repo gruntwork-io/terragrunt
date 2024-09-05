@@ -40,19 +40,19 @@ type CatalogConfig struct {
 	URLs []string `hcl:"urls,attr" cty:"urls"`
 }
 
-func (c *CatalogConfig) String() string {
-	return fmt.Sprintf("Catalog{URLs = %v}", c.URLs)
+func (cfg *CatalogConfig) String() string {
+	return fmt.Sprintf("Catalog{URLs = %v}", cfg.URLs)
 }
 
-func (c *CatalogConfig) normalize(cofnigPath string) {
+func (cfg *CatalogConfig) normalize(cofnigPath string) {
 	configDir := filepath.Dir(cofnigPath)
 
 	// transform relative paths to absolute ones
-	for i, url := range c.URLs {
+	for i, url := range cfg.URLs {
 		url := filepath.Join(configDir, url)
 
 		if files.FileExists(url) {
-			c.URLs[i] = url
+			cfg.URLs[i] = url
 		}
 	}
 }

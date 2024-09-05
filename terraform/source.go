@@ -42,8 +42,8 @@ type Source struct {
 	Logger logrus.FieldLogger
 }
 
-func (s *Source) String() string {
-	return fmt.Sprintf("Source{CanonicalSourceURL = %v, DownloadDir = %v, WorkingDir = %v, VersionFile = %v}", s.CanonicalSourceURL, s.DownloadDir, s.WorkingDir, s.VersionFile)
+func (src *Source) String() string {
+	return fmt.Sprintf("Source{CanonicalSourceURL = %v, DownloadDir = %v, WorkingDir = %v, VersionFile = %v}", src.CanonicalSourceURL, src.DownloadDir, src.WorkingDir, src.VersionFile)
 }
 
 // EncodeSourceVersion encodes a version number for the given source. When calculating a version number, we take the query
@@ -53,10 +53,10 @@ func (s *Source) String() string {
 // so the same file path (/foo/bar) is always considered the same version. To detect changes the file path will be hashed
 // and returned as version. In case of hash error the default encoded source version will be returned.
 // See also the encodeSourceName and ProcessTerraformSource methods.
-func (s Source) EncodeSourceVersion() (string, error) {
-	if IsLocalSource(s.CanonicalSourceURL) {
+func (src Source) EncodeSourceVersion() (string, error) {
+	if IsLocalSource(src.CanonicalSourceURL) {
 		sourceHash := sha256.New()
-		sourceDir := filepath.Clean(s.CanonicalSourceURL.Path)
+		sourceDir := filepath.Clean(src.CanonicalSourceURL.Path)
 
 		err := filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -90,19 +90,19 @@ func (s Source) EncodeSourceVersion() (string, error) {
 			return hash, nil
 		}
 
-		s.Logger.WithError(err).Warningf("Could not encode version for local source")
+		src.Logger.WithError(err).Warningf("Could not encode version for local source")
 
 		return "", err
 	}
 
-	return util.EncodeBase64Sha1(s.CanonicalSourceURL.Query().Encode()), nil
+	return util.EncodeBase64Sha1(src.CanonicalSourceURL.Query().Encode()), nil
 }
 
 // WriteVersionFile writes a file into the DownloadDir that contains
 // the version number of this source code. The version number is
 // calculated using the EncodeSourceVersion method.
-func (s Source) WriteVersionFile() error {
-	version, err := s.EncodeSourceVersion()
+func (src Source) WriteVersionFile() error {
+	version, err := src.EncodeSourceVersion()
 	if err != nil {
 		// If we failed to calculate a SHA of the downloaded source, write a SHA of
 		// some random data into the version file.
@@ -116,7 +116,7 @@ func (s Source) WriteVersionFile() error {
 
 	const ownerReadWriteGroupReadPerms = 0640
 
-	return errors.WithStackTrace(os.WriteFile(s.VersionFile, []byte(version), ownerReadWriteGroupReadPerms))
+	return errors.WithStackTrace(os.WriteFile(src.VersionFile, []byte(version), ownerReadWriteGroupReadPerms))
 }
 
 // NewSource takes the given source path and create a Source struct from it, including the folder where the source should

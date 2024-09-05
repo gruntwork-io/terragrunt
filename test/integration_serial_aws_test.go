@@ -7,7 +7,6 @@ import (
 	"math"
 	"os"
 	"path"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"

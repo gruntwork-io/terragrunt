@@ -124,7 +124,7 @@ func NewArchiveChecksumAuthentication(wantSHA256Sum [sha256.Size]byte) PackageAu
 	return archiveHashAuthentication{wantSHA256Sum}
 }
 
-func (a archiveHashAuthentication) Authenticate(path string) (*PackageAuthenticationResult, error) {
+func (auth archiveHashAuthentication) Authenticate(path string) (*PackageAuthenticationResult, error) {
 	if fileInfo, err := os.Stat(path); err != nil {
 		return nil, errors.WithStackTrace(err)
 	} else if fileInfo.IsDir() {
@@ -136,7 +136,7 @@ func (a archiveHashAuthentication) Authenticate(path string) (*PackageAuthentica
 		return nil, errors.Errorf("failed to compute checksum for %s: %s", path, err)
 	}
 
-	wantHash := HashLegacyZipSHAFromSHA(a.WantSHA256Sum)
+	wantHash := HashLegacyZipSHAFromSHA(auth.WantSHA256Sum)
 	if gotHash != wantHash {
 		return nil, errors.Errorf("archive has incorrect checksum %s (expected %s)", gotHash, wantHash)
 	}
@@ -144,8 +144,8 @@ func (a archiveHashAuthentication) Authenticate(path string) (*PackageAuthentica
 	return NewPackageAuthenticationResult(VerifiedChecksum), nil
 }
 
-func (a archiveHashAuthentication) AcceptableHashes() []Hash {
-	return []Hash{HashLegacyZipSHAFromSHA(a.WantSHA256Sum)}
+func (auth archiveHashAuthentication) AcceptableHashes() []Hash {
+	return []Hash{HashLegacyZipSHAFromSHA(auth.WantSHA256Sum)}
 }
 
 type matchingChecksumAuthentication struct {

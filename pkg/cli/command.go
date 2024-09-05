@@ -52,13 +52,13 @@ type Command struct {
 }
 
 // Names returns the names including short names and aliases.
-func (c *Command) Names() []string {
-	return append([]string{c.Name}, c.Aliases...)
+func (cmd *Command) Names() []string {
+	return append([]string{cmd.Name}, cmd.Aliases...)
 }
 
 // HasName returns true if Command.Name matches given name
-func (c *Command) HasName(name string) bool {
-	for _, n := range c.Names() {
+func (cmd *Command) HasName(name string) bool {
+	for _, n := range cmd.Names() {
 		if n == name && name != "" {
 			return true
 		}
@@ -68,8 +68,8 @@ func (c *Command) HasName(name string) bool {
 }
 
 // Subcommand returns a subcommand that matches the given name.
-func (c *Command) Subcommand(name string) *Command {
-	for _, c := range c.Subcommands {
+func (cmd *Command) Subcommand(name string) *Command {
+	for _, c := range cmd.Subcommands {
 		if c.HasName(name) {
 			return c
 		}
@@ -79,33 +79,33 @@ func (c *Command) Subcommand(name string) *Command {
 }
 
 // VisibleFlags returns a slice of the Flags, used by `urfave/cli` package to generate help.
-func (c *Command) VisibleFlags() Flags {
-	return c.Flags
+func (cmd *Command) VisibleFlags() Flags {
+	return cmd.Flags
 }
 
 // VisibleSubcommands returns a slice of the Commands with Hidden=false.
 // Used by `urfave/cli` package to generate help.
-func (c Command) VisibleSubcommands() []*cli.Command {
-	if c.Subcommands == nil {
+func (cmd Command) VisibleSubcommands() []*cli.Command {
+	if cmd.Subcommands == nil {
 		return nil
 	}
 
-	return c.Subcommands.VisibleCommands()
+	return cmd.Subcommands.VisibleCommands()
 }
 
 // Run parses the given args for the presence of flags as well as subcommands.
 // If this is the final command, starts its execution.
-func (c *Command) Run(ctx *Context, args Args) (err error) {
-	args, err = c.parseFlags(args.Slice())
+func (cmd *Command) Run(ctx *Context, args Args) (err error) {
+	args, err = cmd.parseFlags(args.Slice())
 	if err != nil {
 		return err
 	}
 
-	ctx = ctx.Clone(c, args)
+	ctx = ctx.Clone(cmd, args)
 
 	subCmdName := ctx.Args().CommandName()
 	subCmdArgs := ctx.Args().Tail()
-	subCmd := c.Subcommand(subCmdName)
+	subCmd := cmd.Subcommand(subCmdName)
 
 	if ctx.shellComplete {
 		if cmd := ctx.Command.Subcommand(args.CommandName()); cmd == nil {
@@ -117,19 +117,19 @@ func (c *Command) Run(ctx *Context, args Args) (err error) {
 		}
 	}
 
-	if err := c.Flags.RunActions(ctx); err != nil {
+	if err := cmd.Flags.RunActions(ctx); err != nil {
 		return ctx.App.handleExitCoder(err)
 	}
 
 	defer func() {
-		if c.After != nil && err == nil {
-			err = c.After(ctx)
+		if cmd.After != nil && err == nil {
+			err = cmd.After(ctx)
 			err = ctx.App.handleExitCoder(err)
 		}
 	}()
 
-	if c.Before != nil {
-		if err := c.Before(ctx); err != nil {
+	if cmd.Before != nil {
+		if err := cmd.Before(ctx); err != nil {
 			return ctx.App.handleExitCoder(err)
 		}
 	}
@@ -138,13 +138,13 @@ func (c *Command) Run(ctx *Context, args Args) (err error) {
 		return subCmd.Run(ctx, subCmdArgs)
 	}
 
-	if c.IsRoot && ctx.App.DefaultCommand != nil {
+	if cmd.IsRoot && ctx.App.DefaultCommand != nil {
 		err = ctx.App.DefaultCommand.Run(ctx, args)
 		return err
 	}
 
-	if c.Action != nil {
-		if err = c.Action(ctx); err != nil {
+	if cmd.Action != nil {
+		if err = cmd.Action(ctx); err != nil {
 			return ctx.App.handleExitCoder(err)
 		}
 	}
@@ -152,20 +152,20 @@ func (c *Command) Run(ctx *Context, args Args) (err error) {
 	return nil
 }
 
-func (c *Command) parseFlags(args []string) ([]string, error) {
+func (cmd *Command) parseFlags(args []string) ([]string, error) {
 	var undefArgs []string
 
-	flagSet, err := c.newFlagSet(libflag.ContinueOnError)
+	flagSet, err := cmd.newFlagSet(libflag.ContinueOnError)
 	if err != nil {
 		return nil, err
 	}
 
-	if c.SkipFlagParsing {
+	if cmd.SkipFlagParsing {
 		return args, nil
 	}
 
 	for {
-		args, err = c.flagSetParse(flagSet, args)
+		args, err = cmd.flagSetParse(flagSet, args)
 		if err != nil {
 			return nil, err
 		}
@@ -181,11 +181,11 @@ func (c *Command) parseFlags(args []string) ([]string, error) {
 	return undefArgs, nil
 }
 
-func (c *Command) newFlagSet(errorHandling libflag.ErrorHandling) (*libflag.FlagSet, error) {
-	flagSet := libflag.NewFlagSet(c.Name, errorHandling)
+func (cmd *Command) newFlagSet(errorHandling libflag.ErrorHandling) (*libflag.FlagSet, error) {
+	flagSet := libflag.NewFlagSet(cmd.Name, errorHandling)
 	flagSet.SetOutput(io.Discard)
 
-	for _, flag := range c.Flags {
+	for _, flag := range cmd.Flags {
 		if err := flag.Apply(flagSet); err != nil {
 			return nil, err
 		}
@@ -194,7 +194,7 @@ func (c *Command) newFlagSet(errorHandling libflag.ErrorHandling) (*libflag.Flag
 	return flagSet, nil
 }
 
-func (c *Command) flagSetParse(flagSet *libflag.FlagSet, args []string) ([]string, error) {
+func (cmd *Command) flagSetParse(flagSet *libflag.FlagSet, args []string) ([]string, error) {
 	var undefArgs []string
 
 	if len(args) == 0 {
@@ -212,7 +212,7 @@ func (c *Command) flagSetParse(flagSet *libflag.FlagSet, args []string) ([]strin
 
 		errStr := err.Error()
 
-		if c.DisallowUndefinedFlags || !strings.HasPrefix(errStr, errFlagUndefined) {
+		if cmd.DisallowUndefinedFlags || !strings.HasPrefix(errStr, errFlagUndefined) {
 			return nil, errors.WithStackTrace(err)
 		}
 
@@ -245,12 +245,12 @@ func (c *Command) flagSetParse(flagSet *libflag.FlagSet, args []string) ([]strin
 	return undefArgs, nil
 }
 
-func (c Command) WrapAction(fn func(ctx *Context, action ActionFunc) error) *Command {
-	action := c.Action
-	c.Action = func(ctx *Context) error {
+func (cmd Command) WrapAction(fn func(ctx *Context, action ActionFunc) error) *Command {
+	action := cmd.Action
+	cmd.Action = func(ctx *Context) error {
 		return fn(ctx, action)
 	}
-	c.Subcommands = c.Subcommands.WrapAction(fn)
+	cmd.Subcommands = cmd.Subcommands.WrapAction(fn)
 
-	return &c
+	return &cmd
 }

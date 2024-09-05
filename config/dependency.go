@@ -72,38 +72,38 @@ type Dependency struct {
 //   - For MockOutputsAllowedTerraformCommands, the source will be concatenated to the target.
 //
 // Note that RenderedOutputs is ignored in the deep merge operation.
-func (d *Dependency) DeepMerge(sourceDepConfig Dependency) error {
+func (dep *Dependency) DeepMerge(sourceDepConfig Dependency) error {
 	if sourceDepConfig.ConfigPath.AsString() != "" {
-		d.ConfigPath = sourceDepConfig.ConfigPath
+		dep.ConfigPath = sourceDepConfig.ConfigPath
 	}
 
 	if sourceDepConfig.Enabled != nil {
-		d.Enabled = sourceDepConfig.Enabled
+		dep.Enabled = sourceDepConfig.Enabled
 	}
 
 	if sourceDepConfig.SkipOutputs != nil {
-		d.SkipOutputs = sourceDepConfig.SkipOutputs
+		dep.SkipOutputs = sourceDepConfig.SkipOutputs
 	}
 
 	if sourceDepConfig.MockOutputs != nil {
-		if d.MockOutputs == nil {
-			d.MockOutputs = sourceDepConfig.MockOutputs
+		if dep.MockOutputs == nil {
+			dep.MockOutputs = sourceDepConfig.MockOutputs
 		} else {
-			newMockOutputs, err := deepMergeCtyMaps(*d.MockOutputs, *sourceDepConfig.MockOutputs)
+			newMockOutputs, err := deepMergeCtyMaps(*dep.MockOutputs, *sourceDepConfig.MockOutputs)
 			if err != nil {
 				return err
 			}
 
-			d.MockOutputs = newMockOutputs
+			dep.MockOutputs = newMockOutputs
 		}
 	}
 
 	if sourceDepConfig.MockOutputsAllowedTerraformCommands != nil {
-		if d.MockOutputsAllowedTerraformCommands == nil {
-			d.MockOutputsAllowedTerraformCommands = sourceDepConfig.MockOutputsAllowedTerraformCommands
+		if dep.MockOutputsAllowedTerraformCommands == nil {
+			dep.MockOutputsAllowedTerraformCommands = sourceDepConfig.MockOutputsAllowedTerraformCommands
 		} else {
-			mergedCmds := append(*d.MockOutputsAllowedTerraformCommands, *sourceDepConfig.MockOutputsAllowedTerraformCommands...)
-			d.MockOutputsAllowedTerraformCommands = &mergedCmds
+			mergedCmds := append(*dep.MockOutputsAllowedTerraformCommands, *sourceDepConfig.MockOutputsAllowedTerraformCommands...)
+			dep.MockOutputsAllowedTerraformCommands = &mergedCmds
 		}
 	}
 
@@ -115,59 +115,59 @@ func (d *Dependency) DeepMerge(sourceDepConfig Dependency) error {
 // - If mock_outputs_merge_strategy_with_state is null and mock_outputs_merge_with_state is not null:
 //   - mock_outputs_merge_with_state being true returns ShallowMerge
 //   - mock_outputs_merge_with_state being false returns NoMerge
-func (d Dependency) getMockOutputsMergeStrategy() MergeStrategyType {
-	if d.MockOutputsMergeStrategyWithState == nil {
-		if d.MockOutputsMergeWithState != nil && (*d.MockOutputsMergeWithState) {
+func (dep Dependency) getMockOutputsMergeStrategy() MergeStrategyType {
+	if dep.MockOutputsMergeStrategyWithState == nil {
+		if dep.MockOutputsMergeWithState != nil && (*dep.MockOutputsMergeWithState) {
 			return ShallowMerge
 		} else {
 			return NoMerge
 		}
 	}
 
-	return *d.MockOutputsMergeStrategyWithState
+	return *dep.MockOutputsMergeStrategyWithState
 }
 
 // Given a dependency config, we should only attempt to get the outputs if SkipOutputs is nil or false
-func (d Dependency) shouldGetOutputs(ctx *ParsingContext) bool {
-	return !ctx.TerragruntOptions.SkipOutput && d.isEnabled() && (d.SkipOutputs == nil || !*d.SkipOutputs)
+func (dep Dependency) shouldGetOutputs(ctx *ParsingContext) bool {
+	return !ctx.TerragruntOptions.SkipOutput && dep.isEnabled() && (dep.SkipOutputs == nil || !*dep.SkipOutputs)
 }
 
 // isEnabled returns true if the dependency is enabled
-func (d Dependency) isEnabled() bool {
-	if d.Enabled == nil {
+func (dep Dependency) isEnabled() bool {
+	if dep.Enabled == nil {
 		return true
 	}
 
-	return *d.Enabled
+	return *dep.Enabled
 }
 
 // isDisabled returns true if the dependency is disabled
-func (d Dependency) isDisabled() bool {
-	return !d.isEnabled()
+func (dep Dependency) isDisabled() bool {
+	return !dep.isEnabled()
 }
 
 // Given a dependency config, we should only attempt to merge mocks outputs with the outputs if MockOutputsMergeWithState is not nil or true
-func (d Dependency) shouldMergeMockOutputsWithState(ctx *ParsingContext) bool {
+func (dep Dependency) shouldMergeMockOutputsWithState(ctx *ParsingContext) bool {
 	allowedCommand :=
-		d.MockOutputsAllowedTerraformCommands == nil ||
-			len(*d.MockOutputsAllowedTerraformCommands) == 0 ||
-			util.ListContainsElement(*d.MockOutputsAllowedTerraformCommands, ctx.TerragruntOptions.OriginalTerraformCommand)
+		dep.MockOutputsAllowedTerraformCommands == nil ||
+			len(*dep.MockOutputsAllowedTerraformCommands) == 0 ||
+			util.ListContainsElement(*dep.MockOutputsAllowedTerraformCommands, ctx.TerragruntOptions.OriginalTerraformCommand)
 
-	return allowedCommand && d.getMockOutputsMergeStrategy() != NoMerge
+	return allowedCommand && dep.getMockOutputsMergeStrategy() != NoMerge
 }
 
-func (d *Dependency) setRenderedOutputs(ctx *ParsingContext) error {
-	if d == nil {
+func (dep *Dependency) setRenderedOutputs(ctx *ParsingContext) error {
+	if dep == nil {
 		return nil
 	}
 
-	if d.shouldGetOutputs(ctx) || d.shouldReturnMockOutputs(ctx) {
-		outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(ctx, *d)
+	if dep.shouldGetOutputs(ctx) || dep.shouldReturnMockOutputs(ctx) {
+		outputVal, err := getTerragruntOutputIfAppliedElseConfiguredDefault(ctx, *dep)
 		if err != nil {
 			return err
 		}
 
-		d.RenderedOutputs = outputVal
+		dep.RenderedOutputs = outputVal
 	}
 
 	return nil
@@ -527,17 +527,17 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, depe
 
 // We should only return default outputs if the mock_outputs attribute is set, and if we are running one of the
 // allowed commands when `mock_outputs_allowed_terraform_commands` is set as well.
-func (d Dependency) shouldReturnMockOutputs(ctx *ParsingContext) bool {
-	if d.isDisabled() {
+func (dep Dependency) shouldReturnMockOutputs(ctx *ParsingContext) bool {
+	if dep.isDisabled() {
 		return true
 	}
 
-	defaultOutputsSet := d.MockOutputs != nil
+	defaultOutputsSet := dep.MockOutputs != nil
 
 	allowedCommand :=
-		d.MockOutputsAllowedTerraformCommands == nil ||
-			len(*d.MockOutputsAllowedTerraformCommands) == 0 ||
-			util.ListContainsElement(*d.MockOutputsAllowedTerraformCommands, ctx.TerragruntOptions.OriginalTerraformCommand)
+		dep.MockOutputsAllowedTerraformCommands == nil ||
+			len(*dep.MockOutputsAllowedTerraformCommands) == 0 ||
+			util.ListContainsElement(*dep.MockOutputsAllowedTerraformCommands, ctx.TerragruntOptions.OriginalTerraformCommand)
 
 	return defaultOutputsSet && allowedCommand || isRenderJSONCommand(ctx)
 }
@@ -1156,10 +1156,10 @@ func runTerraformInitForDependencyOutput(ctx *ParsingContext, workingDir string,
 	return nil
 }
 
-func (d Dependencies) FilteredWithoutConfigPath() Dependencies {
+func (deps Dependencies) FilteredWithoutConfigPath() Dependencies {
 	var filteredDeps Dependencies
 
-	for _, dep := range d {
+	for _, dep := range deps {
 		if !dep.ConfigPath.IsNull() {
 			filteredDeps = append(filteredDeps, dep)
 		}

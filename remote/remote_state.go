@@ -39,14 +39,14 @@ var stateAccessLock = newStateAccess()
 // This is used to avoid checking to see if remote state needs to be initialized multiple times.
 var initializedRemoteStateCache = cache.NewCache[bool](initializedRemoteStateCacheName)
 
-func (r *RemoteState) String() string {
+func (state *RemoteState) String() string {
 	return fmt.Sprintf(
 		"RemoteState{Backend = %v, DisableInit = %v, DisableDependencyOptimization = %v, Generate = %v, Config = %v}",
-		r.Backend,
-		r.DisableInit,
-		r.DisableDependencyOptimization,
-		r.Generate,
-		r.Config,
+		state.Backend,
+		state.DisableInit,
+		state.DisableDependencyOptimization,
+		state.Generate,
+		state.Config,
 	)
 }
 
@@ -75,13 +75,13 @@ var remoteStateInitializers = map[string]RemoteStateInitializer{
 }
 
 // FillDefaults fills in any default configuration for remote state
-func (r *RemoteState) FillDefaults() {
+func (state *RemoteState) FillDefaults() {
 	// Nothing to do
 }
 
 // Validate that the remote state is configured correctly
-func (r *RemoteState) Validate() error {
-	if r.Backend == "" {
+func (state *RemoteState) Validate() error {
+	if state.Backend == "" {
 		return errors.WithStackTrace(ErrRemoteBackendMissing)
 	}
 
@@ -90,12 +90,12 @@ func (r *RemoteState) Validate() error {
 
 // Initialize performs any actions necessary to initialize the remote state before it's used for storage. For example, if you're
 // using S3 or GCS for remote state storage, this may create the bucket if it doesn't exist already.
-func (r *RemoteState) Initialize(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
-	terragruntOptions.Logger.Debugf("Initializing remote state for the %s backend", r.Backend)
+func (state *RemoteState) Initialize(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
+	terragruntOptions.Logger.Debugf("Initializing remote state for the %s backend", state.Backend)
 
-	initializer, hasInitializer := remoteStateInitializers[r.Backend]
+	initializer, hasInitializer := remoteStateInitializers[state.Backend]
 	if hasInitializer {
-		return initializer.Initialize(ctx, r, terragruntOptions)
+		return initializer.Initialize(ctx, state, terragruntOptions)
 	}
 
 	return nil
@@ -107,30 +107,30 @@ func (r *RemoteState) Initialize(ctx context.Context, terragruntOptions *options
 // 2. Remote state has not already been configured
 // 3. Remote state has been configured, but with a different configuration
 // 4. The remote state initializer for this backend type, if there is one, says initialization is necessary
-func (r *RemoteState) NeedsInit(terragruntOptions *options.TerragruntOptions) (bool, error) {
+func (state *RemoteState) NeedsInit(terragruntOptions *options.TerragruntOptions) (bool, error) {
 	if terragruntOptions.DisableBucketUpdate {
 		terragruntOptions.Logger.Debugf("Skipping remote state initialization due to %s flag", commands.TerragruntDisableBucketUpdateFlagName)
 		return false, nil
 	}
 
-	state, err := ParseTerraformStateFileFromLocation(r.Backend, r.Config, terragruntOptions.WorkingDir, terragruntOptions.DataDir())
+	parsedState, err := ParseTerraformStateFileFromLocation(state.Backend, state.Config, terragruntOptions.WorkingDir, terragruntOptions.DataDir())
 	if err != nil {
 		return false, err
 	}
 
-	if r.DisableInit {
+	if state.DisableInit {
 		return false, nil
 	}
 
 	// Remote state not configured
-	if state == nil {
+	if parsedState == nil {
 		return true, nil
 	}
 
-	if initializer, hasInitializer := remoteStateInitializers[r.Backend]; hasInitializer {
+	if initializer, hasInitializer := remoteStateInitializers[state.Backend]; hasInitializer {
 		// Remote state initializer says initialization is necessary
-		return initializer.NeedsInitialization(r, state.Backend, terragruntOptions)
-	} else if state.IsRemote() && r.DiffersFrom(state.Backend, terragruntOptions) {
+		return initializer.NeedsInitialization(state, parsedState.Backend, terragruntOptions)
+	} else if parsedState.IsRemote() && state.DiffersFrom(parsedState.Backend, terragruntOptions) {
 		// If there's no remote state initializer, then just compare the the config values
 		return true, nil
 	}
@@ -140,14 +140,14 @@ func (r *RemoteState) NeedsInit(terragruntOptions *options.TerragruntOptions) (b
 
 // DiffersFrom returns true if this remote state is different than
 // the given remote state that is currently being used by terraform.
-func (r *RemoteState) DiffersFrom(existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) bool {
-	if existingBackend.Type != r.Backend {
-		terragruntOptions.Logger.Infof("Backend type has changed from %s to %s", existingBackend.Type, r.Backend)
+func (state *RemoteState) DiffersFrom(existingBackend *TerraformBackend, terragruntOptions *options.TerragruntOptions) bool {
+	if existingBackend.Type != state.Backend {
+		terragruntOptions.Logger.Infof("Backend type has changed from %s to %s", existingBackend.Type, state.Backend)
 		return true
 	}
 
-	if !terraformStateConfigEqual(existingBackend.Config, r.Config) {
-		terragruntOptions.Logger.Debugf("Changed from %s to %s", existingBackend.Config, r.Config)
+	if !terraformStateConfigEqual(existingBackend.Config, state.Config) {
+		terragruntOptions.Logger.Debugf("Changed from %s to %s", existingBackend.Config, state.Config)
 		return true
 	}
 
@@ -195,22 +195,22 @@ func copyExistingNotNullValues(existingMap map[string]interface{}, newMap map[st
 
 // ToTerraformInitArgs converts the RemoteState config into the
 // format used by the terraform init command
-func (r RemoteState) ToTerraformInitArgs() []string {
-	config := r.Config
+func (state RemoteState) ToTerraformInitArgs() []string {
+	config := state.Config
 
-	if r.DisableInit {
+	if state.DisableInit {
 		return []string{"-backend=false"}
 	}
 
-	if r.Generate != nil {
+	if state.Generate != nil {
 		// When in generate mode, we don't need to use `-backend-config` to initialize the remote state backend
 		return []string{}
 	}
 
-	initializer, hasInitializer := remoteStateInitializers[r.Backend]
+	initializer, hasInitializer := remoteStateInitializers[state.Backend]
 	if hasInitializer {
 		// get modified config from backend, if backend exists
-		config = initializer.GetTerraformInitArgs(r.Config)
+		config = initializer.GetTerraformInitArgs(state.Config)
 	}
 
 	var backendConfigArgs = make([]string, 0, len(config))
@@ -224,34 +224,34 @@ func (r RemoteState) ToTerraformInitArgs() []string {
 }
 
 // GenerateTerraformCode generates the terraform code for configuring remote state backend.
-func (r *RemoteState) GenerateTerraformCode(terragruntOptions *options.TerragruntOptions) error {
-	if r.Generate == nil {
+func (state *RemoteState) GenerateTerraformCode(terragruntOptions *options.TerragruntOptions) error {
+	if state.Generate == nil {
 		return errors.WithStackTrace(ErrGenerateCalledWithNoGenerateAttr)
 	}
 
 	// Make sure to strip out terragrunt specific configurations from the config.
-	config := r.Config
+	config := state.Config
 
-	initializer, hasInitializer := remoteStateInitializers[r.Backend]
+	initializer, hasInitializer := remoteStateInitializers[state.Backend]
 	if hasInitializer {
 		config = initializer.GetTerraformInitArgs(config)
 	}
 
 	// Convert the IfExists setting to the internal enum representation before calling generate.
-	ifExistsEnum, err := codegen.GenerateConfigExistsFromString(r.Generate.IfExists)
+	ifExistsEnum, err := codegen.GenerateConfigExistsFromString(state.Generate.IfExists)
 	if err != nil {
 		return err
 	}
 
-	configBytes, err := codegen.RemoteStateConfigToTerraformCode(r.Backend, config)
+	configBytes, err := codegen.RemoteStateConfigToTerraformCode(state.Backend, config)
 	if err != nil {
 		return err
 	}
 
 	codegenConfig := codegen.GenerateConfig{
-		Path:          r.Generate.Path,
+		Path:          state.Generate.Path,
 		IfExists:      ifExistsEnum,
-		IfExistsStr:   r.Generate.IfExists,
+		IfExistsStr:   state.Generate.IfExists,
 		Contents:      string(configBytes),
 		CommentPrefix: codegen.DefaultCommentPrefix,
 	}

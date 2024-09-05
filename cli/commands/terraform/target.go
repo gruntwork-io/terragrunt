@@ -75,18 +75,18 @@ func NewTargetWithErrorHandler(point TargetPointType, callbackFunc TargetCallbac
 	}
 }
 
-func (t *Target) isPoint(point TargetPointType) bool {
-	return t.point == point
+func (target *Target) isPoint(point TargetPointType) bool {
+	return target.point == point
 }
 
-func (t *Target) runCallback(ctx context.Context, opts *options.TerragruntOptions, config *config.TerragruntConfig) error {
-	return t.callbackFunc(ctx, opts, config)
+func (target *Target) runCallback(ctx context.Context, opts *options.TerragruntOptions, config *config.TerragruntConfig) error {
+	return target.callbackFunc(ctx, opts, config)
 }
 
-func (t *Target) runErrorCallback(opts *options.TerragruntOptions, config *config.TerragruntConfig, e error) error {
-	if t.errorCallbackFunc == nil {
+func (target *Target) runErrorCallback(opts *options.TerragruntOptions, config *config.TerragruntConfig, e error) error {
+	if target.errorCallbackFunc == nil {
 		return e
 	}
 
-	return t.errorCallbackFunc(opts, config, e)
+	return target.errorCallbackFunc(opts, config, e)
 }
