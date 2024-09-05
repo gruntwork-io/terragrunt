@@ -1,0 +1,3 @@
+inputs = {
+  input = "hello world"
+}
