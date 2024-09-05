@@ -46,10 +46,10 @@ func TestTerragruntParallelism(t *testing.T) {
 }
 
 func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
-	cleanupTerraformFolder(t, TestFixtureAuthProviderCmd)
-	tmpEnvPath := copyEnvironment(t, TestFixtureAuthProviderCmd)
-	rootPath := util.JoinPath(tmpEnvPath, TestFixtureAuthProviderCmd, "remote-state")
-	mockAuthCmd := filepath.Join(tmpEnvPath, TestFixtureAuthProviderCmd, "mock-auth-cmd.sh")
+	cleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	tmpEnvPath := copyEnvironment(t, testFixtureAuthProviderCmd)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state")
+	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
 	defer deleteS3Bucket(t, TerraformRemoteStateS3Region, s3BucketName)
@@ -73,10 +73,10 @@ func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 }
 
 func TestReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
-	cleanupTerraformFolder(t, TestFixtureAuthProviderCmd)
-	tmpEnvPath := copyEnvironment(t, TestFixtureAuthProviderCmd)
-	rootPath := util.JoinPath(tmpEnvPath, TestFixtureAuthProviderCmd, "creds-for-dependency")
-	mockAuthCmd := filepath.Join(tmpEnvPath, TestFixtureAuthProviderCmd, "mock-auth-cmd.sh")
+	cleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	tmpEnvPath := copyEnvironment(t, testFixtureAuthProviderCmd)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "creds-for-dependency")
+	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
 	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
 	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
@@ -157,7 +157,7 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 		t.Fatalf("Failed to create temp dir due to error: %v", err)
 	}
 	for i := 0; i < numberOfModules; i++ {
-		err := util.CopyFolderContents(TestFixtureParallelism, tmpEnvPath, ".terragrunt-test", nil)
+		err := util.CopyFolderContents(testFixtureParallelism, tmpEnvPath, ".terragrunt-test", nil)
 		if err != nil {
 			return "", 0, err
 		}

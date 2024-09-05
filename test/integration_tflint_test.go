@@ -31,8 +31,8 @@ const (
 func TestTflintFindsNoIssuesWithValidCode(t *testing.T) {
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
-	rootPath := copyEnvironmentWithTflint(t, TestFixtureTflintNoIssuesFound)
-	modulePath := util.JoinPath(rootPath, TestFixtureTflintNoIssuesFound)
+	rootPath := copyEnvironmentWithTflint(t, testFixtureTflintNoIssuesFound)
+	modulePath := util.JoinPath(rootPath, testFixtureTflintNoIssuesFound)
 	err := runTerragruntCommand(t, "terragrunt plan --terragrunt-log-level debug --terragrunt-working-dir "+modulePath, out, errOut)
 	require.NoError(t, err)
 
@@ -47,8 +47,8 @@ func TestTflintFindsNoIssuesWithValidCode(t *testing.T) {
 func TestTflintFindsModule(t *testing.T) {
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
-	rootPath := copyEnvironmentWithTflint(t, TestFixtureTflintModuleFound)
-	modulePath := util.JoinPath(rootPath, TestFixtureTflintModuleFound)
+	rootPath := copyEnvironmentWithTflint(t, testFixtureTflintModuleFound)
+	modulePath := util.JoinPath(rootPath, testFixtureTflintModuleFound)
 	err := runTerragruntCommand(t, "terragrunt plan --terragrunt-working-dir "+modulePath, out, errOut)
 	require.NoError(t, err)
 
@@ -58,16 +58,16 @@ func TestTflintFindsModule(t *testing.T) {
 
 func TestTflintFindsIssuesWithInvalidInput(t *testing.T) {
 	errOut := new(bytes.Buffer)
-	rootPath := copyEnvironmentWithTflint(t, TestFixtureTflintIssuesFound)
-	modulePath := util.JoinPath(rootPath, TestFixtureTflintIssuesFound)
+	rootPath := copyEnvironmentWithTflint(t, testFixtureTflintIssuesFound)
+	modulePath := util.JoinPath(rootPath, testFixtureTflintIssuesFound)
 	err := runTerragruntCommand(t, "terragrunt plan --terragrunt-working-dir "+modulePath, os.Stdout, errOut)
 	assert.Error(t, err, "Tflint found issues in the project. Check for the tflint logs")
 }
 
 func TestTflintWithoutConfigFile(t *testing.T) {
 	errOut := new(bytes.Buffer)
-	rootPath := copyEnvironmentWithTflint(t, TestFixtureTflintNoConfigFile)
-	modulePath := util.JoinPath(rootPath, TestFixtureTflintNoConfigFile)
+	rootPath := copyEnvironmentWithTflint(t, testFixtureTflintNoConfigFile)
+	modulePath := util.JoinPath(rootPath, testFixtureTflintNoConfigFile)
 	err := runTerragruntCommand(t, "terragrunt plan --terragrunt-working-dir "+modulePath, io.Discard, errOut)
 	assert.Error(t, err, "Could not find .tflint.hcl config file in the parent folders:")
 }
@@ -75,8 +75,8 @@ func TestTflintWithoutConfigFile(t *testing.T) {
 func TestTflintFindsConfigInCurrentPath(t *testing.T) {
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
-	rootPath := copyEnvironmentWithTflint(t, TestFixtureTflintNoTfSourcePath)
-	modulePath := util.JoinPath(rootPath, TestFixtureTflintNoTfSourcePath)
+	rootPath := copyEnvironmentWithTflint(t, testFixtureTflintNoTfSourcePath)
+	modulePath := util.JoinPath(rootPath, testFixtureTflintNoTfSourcePath)
 	err := runTerragruntCommand(t, "terragrunt plan --terragrunt-log-level debug --terragrunt-working-dir "+modulePath, out, errOut)
 	require.NoError(t, err)
 
@@ -85,13 +85,13 @@ func TestTflintFindsConfigInCurrentPath(t *testing.T) {
 }
 
 func TestTflintInitSameModule(t *testing.T) {
-	rootPath := copyEnvironmentWithTflint(t, TestFixtureParallelRun)
+	rootPath := copyEnvironmentWithTflint(t, testFixtureParallelRun)
 	t.Cleanup(func() {
 		removeFolder(t, rootPath)
 	})
-	modulePath := util.JoinPath(rootPath, TestFixtureParallelRun)
-	runPath := util.JoinPath(rootPath, TestFixtureParallelRun, "dev")
-	appTemplate := util.JoinPath(rootPath, TestFixtureParallelRun, "dev", "app")
+	modulePath := util.JoinPath(rootPath, testFixtureParallelRun)
+	runPath := util.JoinPath(rootPath, testFixtureParallelRun, "dev")
+	appTemplate := util.JoinPath(rootPath, testFixtureParallelRun, "dev", "app")
 	// generate multiple "app" modules that will be initialized in parallel
 	for i := 0; i < 50; i++ {
 		appPath := util.JoinPath(modulePath, "dev", fmt.Sprintf("app-%d", i))
@@ -110,8 +110,8 @@ func TestTflintFindsNoIssuesWithValidCodeDifferentDownloadDir(t *testing.T) {
 		t.Fatalf("Failed to create temp dir due to error: %v", err)
 	}
 
-	rootPath := copyEnvironmentWithTflint(t, TestFixtureTflintNoIssuesFound)
-	modulePath := util.JoinPath(rootPath, TestFixtureTflintNoIssuesFound)
+	rootPath := copyEnvironmentWithTflint(t, testFixtureTflintNoIssuesFound)
+	modulePath := util.JoinPath(rootPath, testFixtureTflintNoIssuesFound)
 	err = runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-download-dir %s", modulePath, downloadDir), out, errOut)
 	require.NoError(t, err)
 
@@ -126,11 +126,11 @@ func TestExternalTflint(t *testing.T) {
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
 
-	rootPath := copyEnvironmentWithTflint(t, TestFixtureTflintExternalTflint)
+	rootPath := copyEnvironmentWithTflint(t, testFixtureTflintExternalTflint)
 	t.Cleanup(func() {
 		removeFolder(t, rootPath)
 	})
-	runPath := util.JoinPath(rootPath, TestFixtureTflintExternalTflint)
+	runPath := util.JoinPath(rootPath, testFixtureTflintExternalTflint)
 	err := runTerragruntCommand(t, "terragrunt plan --terragrunt-log-level debug --terragrunt-working-dir "+runPath, out, errOut)
 	require.NoError(t, err)
 
@@ -142,11 +142,11 @@ func TestTfvarsArePassedToTflint(t *testing.T) {
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
 
-	rootPath := copyEnvironmentWithTflint(t, TestFixtureTflintTfvarPassing)
+	rootPath := copyEnvironmentWithTflint(t, testFixtureTflintTfvarPassing)
 	t.Cleanup(func() {
 		removeFolder(t, rootPath)
 	})
-	runPath := util.JoinPath(rootPath, TestFixtureTflintTfvarPassing)
+	runPath := util.JoinPath(rootPath, testFixtureTflintTfvarPassing)
 	err := runTerragruntCommand(t, "terragrunt plan --terragrunt-log-level debug --terragrunt-working-dir "+runPath, out, errOut)
 	require.NoError(t, err)
 
@@ -158,11 +158,11 @@ func TestTflintArgumentsPassedIn(t *testing.T) {
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
 
-	rootPath := copyEnvironmentWithTflint(t, TestFixtureTflintArgs)
+	rootPath := copyEnvironmentWithTflint(t, testFixtureTflintArgs)
 	t.Cleanup(func() {
 		removeFolder(t, rootPath)
 	})
-	runPath := util.JoinPath(rootPath, TestFixtureTflintArgs)
+	runPath := util.JoinPath(rootPath, testFixtureTflintArgs)
 	err := runTerragruntCommand(t, "terragrunt plan --terragrunt-log-level debug --terragrunt-working-dir "+runPath, out, errOut)
 	require.NoError(t, err)
 
@@ -174,11 +174,11 @@ func TestTflintCustomConfig(t *testing.T) {
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
 
-	rootPath := copyEnvironmentWithTflint(t, TestFixtureTflintCustomConfig)
+	rootPath := copyEnvironmentWithTflint(t, testFixtureTflintCustomConfig)
 	t.Cleanup(func() {
 		removeFolder(t, rootPath)
 	})
-	runPath := util.JoinPath(rootPath, TestFixtureTflintCustomConfig)
+	runPath := util.JoinPath(rootPath, testFixtureTflintCustomConfig)
 	err := runTerragruntCommand(t, "terragrunt plan --terragrunt-log-level debug --terragrunt-working-dir "+runPath, out, errOut)
 	require.NoError(t, err)
 

@@ -8,16 +8,16 @@ import (
 )
 
 const (
-	TestFixtureLocalRelativeArgsUnixDownloadPath = "fixtures/download/local-relative-extra-args-unix"
+	testFixtureLocalRelativeArgsUnixDownloadPath = "fixtures/download/local-relative-extra-args-unix"
 )
 
 func TestLocalWithRelativeExtraArgsUnix(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TestFixtureLocalRelativeArgsUnixDownloadPath)
+	cleanupTerraformFolder(t, testFixtureLocalRelativeArgsUnixDownloadPath)
 
-	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+TestFixtureLocalRelativeArgsUnixDownloadPath)
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalRelativeArgsUnixDownloadPath)
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+TestFixtureLocalRelativeArgsUnixDownloadPath)
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalRelativeArgsUnixDownloadPath)
 }

@@ -34,9 +34,9 @@ import (
 func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	// In this test we use os.Setenv to set the Terraform env var TF_CLI_CONFIG_FILE.
 
-	cleanupTerraformFolder(t, TestFixtureProviderCacheFilesystemMirror)
-	tmpEnvPath := copyEnvironment(t, TestFixtureProviderCacheFilesystemMirror)
-	rootPath := util.JoinPath(tmpEnvPath, TestFixtureProviderCacheFilesystemMirror)
+	cleanupTerraformFolder(t, testFixtureProviderCacheFilesystemMirror)
+	tmpEnvPath := copyEnvironment(t, testFixtureProviderCacheFilesystemMirror)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureProviderCacheFilesystemMirror)
 
 	appPath := filepath.Join(rootPath, "app")
 	providersMirrorPath := filepath.Join(rootPath, "providers-mirror")
@@ -100,9 +100,9 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	// In this test we use os.Setenv to set the Terraform env var TF_CLI_CONFIG_FILE.
 
-	cleanupTerraformFolder(t, TestFixtureProviderCacheNetworkMirror)
-	tmpEnvPath := copyEnvironment(t, TestFixtureProviderCacheNetworkMirror)
-	rootPath := util.JoinPath(tmpEnvPath, TestFixtureProviderCacheNetworkMirror)
+	cleanupTerraformFolder(t, testFixtureProviderCacheNetworkMirror)
+	tmpEnvPath := copyEnvironment(t, testFixtureProviderCacheNetworkMirror)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureProviderCacheNetworkMirror)
 
 	appPath := filepath.Join(rootPath, "app")
 	providersNetkworMirrorPath := filepath.Join(rootPath, "providers-network-mirror")
@@ -193,8 +193,8 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 }
 
 func TestTerragruntInputsFromDependency(t *testing.T) {
-	tmpEnvPath := copyEnvironment(t, TestFixtureInputsFromDependency)
-	rootTerragruntPath := util.JoinPath(tmpEnvPath, TestFixtureInputsFromDependency)
+	tmpEnvPath := copyEnvironment(t, testFixtureInputsFromDependency)
+	rootTerragruntPath := util.JoinPath(tmpEnvPath, testFixtureInputsFromDependency)
 	rootPath := util.JoinPath(rootTerragruntPath, "apps")
 
 	curDir, err := os.Getwd()
@@ -258,7 +258,7 @@ func TestTerragruntInputsFromDependency(t *testing.T) {
 
 func TestTerragruntDownloadDir(t *testing.T) {
 	cleanupTerraformFolder(t, testFixtureLocalRelativeDownloadPath)
-	tmpEnvPath := copyEnvironment(t, TestFixtureGetOutput)
+	tmpEnvPath := copyEnvironment(t, testFixtureGetOutput)
 
 	/* we have 2 terragrunt dirs here. One of them doesn't set the download_dir in the config,
 	the other one does. Here we'll be checking for precedence, and if the download_dir is set
@@ -273,38 +273,38 @@ func TestTerragruntDownloadDir(t *testing.T) {
 	}{
 		{
 			"download dir not set",
-			util.JoinPath(tmpEnvPath, TestFixtureGetOutput, "download-dir", "not-set"),
+			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "not-set"),
 			"", // env
 			"", // flag
-			util.JoinPath(tmpEnvPath, TestFixtureGetOutput, "download-dir", "not-set", TerragruntCache),
+			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "not-set", TerragruntCache),
 		},
 		{
 			"download dir set in config",
-			util.JoinPath(tmpEnvPath, TestFixtureGetOutput, "download-dir", "in-config"),
+			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config"),
 			"", // env
 			"", // flag
-			util.JoinPath(tmpEnvPath, TestFixtureGetOutput, "download-dir", "in-config", ".download"),
+			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".download"),
 		},
 		{
 			"download dir set in config and in env var",
-			util.JoinPath(tmpEnvPath, TestFixtureGetOutput, "download-dir", "in-config"),
-			util.JoinPath(tmpEnvPath, TestFixtureGetOutput, "download-dir", "in-config", ".env-var"),
+			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config"),
+			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".env-var"),
 			"", // flag
-			util.JoinPath(tmpEnvPath, TestFixtureGetOutput, "download-dir", "in-config", ".env-var"),
+			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".env-var"),
 		},
 		{
 			"download dir set in config and as a flag",
-			util.JoinPath(tmpEnvPath, TestFixtureGetOutput, "download-dir", "in-config"),
+			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config"),
 			"", // env
-			"--terragrunt-download-dir " + util.JoinPath(tmpEnvPath, TestFixtureGetOutput, "download-dir", "in-config", ".flag-download"),
-			util.JoinPath(tmpEnvPath, TestFixtureGetOutput, "download-dir", "in-config", ".flag-download"),
+			"--terragrunt-download-dir " + util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".flag-download"),
+			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".flag-download"),
 		},
 		{
 			"download dir set in config env and as a flag",
-			util.JoinPath(tmpEnvPath, TestFixtureGetOutput, "download-dir", "in-config"),
-			util.JoinPath(tmpEnvPath, TestFixtureGetOutput, "download-dir", "in-config", ".env-var"),
-			"--terragrunt-download-dir " + util.JoinPath(tmpEnvPath, TestFixtureGetOutput, "download-dir", "in-config", ".flag-download"),
-			util.JoinPath(tmpEnvPath, TestFixtureGetOutput, "download-dir", "in-config", ".flag-download"),
+			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config"),
+			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".env-var"),
+			"--terragrunt-download-dir " + util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".flag-download"),
+			util.JoinPath(tmpEnvPath, testFixtureGetOutput, "download-dir", "in-config", ".flag-download"),
 		},
 	}
 
@@ -337,7 +337,7 @@ func TestTerragruntDownloadDir(t *testing.T) {
 
 func TestExtraArguments(t *testing.T) {
 	out := new(bytes.Buffer)
-	runTerragruntRedirectOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+TestFixtureExtraArgsPath, out, os.Stderr)
+	runTerragruntRedirectOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureExtraArgsPath, out, os.Stderr)
 	t.Log(out.String())
 	assert.Contains(t, out.String(), "Hello, World from dev!")
 }
@@ -345,14 +345,14 @@ func TestExtraArguments(t *testing.T) {
 func TestExtraArgumentsWithEnv(t *testing.T) {
 	out := new(bytes.Buffer)
 	t.Setenv("TF_VAR_env", "prod")
-	runTerragruntRedirectOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+TestFixtureExtraArgsPath, out, os.Stderr)
+	runTerragruntRedirectOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureExtraArgsPath, out, os.Stderr)
 	t.Log(out.String())
 	assert.Contains(t, out.String(), "Hello, World!")
 }
 
 func TestExtraArgumentsWithEnvVarBlock(t *testing.T) {
 	out := new(bytes.Buffer)
-	runTerragruntRedirectOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+TestFixtureEnvVarsBlockPath, out, os.Stderr)
+	runTerragruntRedirectOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureEnvVarsBlockPath, out, os.Stderr)
 	t.Log(out.String())
 	assert.Contains(t, out.String(), "I'm set in extra_arguments env_vars")
 }
@@ -360,7 +360,7 @@ func TestExtraArgumentsWithEnvVarBlock(t *testing.T) {
 func TestExtraArgumentsWithRegion(t *testing.T) {
 	out := new(bytes.Buffer)
 	t.Setenv("TF_VAR_region", "us-west-2")
-	runTerragruntRedirectOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+TestFixtureExtraArgsPath, out, os.Stderr)
+	runTerragruntRedirectOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureExtraArgsPath, out, os.Stderr)
 	t.Log(out.String())
 	assert.Contains(t, out.String(), "Hello, World from Oregon!")
 }
@@ -368,9 +368,9 @@ func TestExtraArgumentsWithRegion(t *testing.T) {
 func TestPreserveEnvVarApplyAll(t *testing.T) {
 	t.Setenv("TF_VAR_seed", "from the env")
 
-	cleanupTerraformFolder(t, TestFixtureRegressions)
-	tmpEnvPath := copyEnvironment(t, TestFixtureRegressions)
-	rootPath := util.JoinPath(tmpEnvPath, TestFixtureRegressions, "apply-all-envvar")
+	cleanupTerraformFolder(t, testFixtureRegressions)
+	tmpEnvPath := copyEnvironment(t, testFixtureRegressions)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureRegressions, "apply-all-envvar")
 
 	stdout := bytes.Buffer{}
 	runTerragruntRedirectOutput(t, "terragrunt apply-all -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, os.Stderr)
@@ -390,7 +390,7 @@ func TestPreserveEnvVarApplyAll(t *testing.T) {
 func TestPriorityOrderOfArgument(t *testing.T) {
 	out := new(bytes.Buffer)
 	injectedValue := "Injected-directly-by-argument"
-	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply -auto-approve -var extra_var=%s --terragrunt-non-interactive --terragrunt-working-dir %s", injectedValue, TestFixtureExtraArgsPath), out, os.Stderr)
+	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply -auto-approve -var extra_var=%s --terragrunt-non-interactive --terragrunt-working-dir %s", injectedValue, testFixtureExtraArgsPath), out, os.Stderr)
 	t.Log(out.String())
 	// And the result value for test should be the injected variable since the injected arguments are injected before the suplied parameters,
 	// so our override of extra_var should be the last argument.
@@ -437,9 +437,9 @@ func TestTerragruntLogLevelEnvVarOverridesDefault(t *testing.T) {
 	// NOTE: this matches logLevelEnvVar const in util/logger.go
 	t.Setenv("TERRAGRUNT_LOG_LEVEL", "debug")
 
-	cleanupTerraformFolder(t, TestFixtureInputs)
+	cleanupTerraformFolder(t, testFixtureInputs)
 	tmpEnvPath := copyEnvironment(t, ".")
-	rootPath := util.JoinPath(tmpEnvPath, TestFixtureInputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureInputs)
 
 	var (
 		stdout bytes.Buffer
@@ -458,9 +458,9 @@ func TestTerragruntLogLevelEnvVarUnparsableLogsErrorButContinues(t *testing.T) {
 	// NOTE: this matches logLevelEnvVar const in util/logger.go
 	t.Setenv("TERRAGRUNT_LOG_LEVEL", "unparsable")
 
-	cleanupTerraformFolder(t, TestFixtureInputs)
+	cleanupTerraformFolder(t, testFixtureInputs)
 	tmpEnvPath := copyEnvironment(t, ".")
-	rootPath := util.JoinPath(tmpEnvPath, TestFixtureInputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureInputs)
 
 	// Ideally, we would check stderr to introspect the error message, but the global fallback logger only logs to real
 	// stderr and we can't capture the output, so in this case we only make sure that the command runs successfully to
@@ -471,9 +471,9 @@ func TestTerragruntLogLevelEnvVarUnparsableLogsErrorButContinues(t *testing.T) {
 func TestTerragruntProduceTelemetryTraces(t *testing.T) {
 	t.Setenv("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER", "console")
 
-	cleanupTerraformFolder(t, TestFixtureHooksBeforeAndAfterPath)
-	tmpEnvPath := copyEnvironment(t, TestFixtureHooksBeforeAndAfterPath)
-	rootPath := util.JoinPath(tmpEnvPath, TestFixtureHooksBeforeAndAfterPath)
+	cleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
+	tmpEnvPath := copyEnvironment(t, testFixtureHooksBeforeAndAfterPath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksBeforeAndAfterPath)
 
 	output, _, err := runTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
@@ -488,9 +488,9 @@ func TestTerragruntProduceTelemetryTraces(t *testing.T) {
 func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
 	t.Setenv("TERRAGRUNT_TELEMETRY_METRIC_EXPORTER", "console")
 
-	cleanupTerraformFolder(t, TestFixtureHooksBeforeAndAfterPath)
-	tmpEnvPath := copyEnvironment(t, TestFixtureHooksBeforeAndAfterPath)
-	rootPath := util.JoinPath(tmpEnvPath, TestFixtureHooksBeforeAndAfterPath)
+	cleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
+	tmpEnvPath := copyEnvironment(t, testFixtureHooksBeforeAndAfterPath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksBeforeAndAfterPath)
 
 	output, _, err := runTerragruntCommandWithOutput(t, "terragrunt apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
@@ -510,9 +510,9 @@ func TestTerragruntOutputJson(t *testing.T) {
 		util.DisableJSONFormat()
 	}()
 
-	tmpEnvPath := copyEnvironment(t, TestFixtureNotExistingSource)
+	tmpEnvPath := copyEnvironment(t, testFixtureNotExistingSource)
 	cleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, TestFixtureNotExistingSource)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureNotExistingSource)
 
 	_, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt apply --terragrunt-json-log --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
 	require.Error(t, err)
@@ -546,9 +546,9 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 	// no parallel test execution since JSON output is global
 	defer util.DisableJSONFormat()
 
-	tmpEnvPath := copyEnvironment(t, TestFixtureInitError)
+	tmpEnvPath := copyEnvironment(t, testFixtureInitError)
 	cleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, TestFixtureInitError)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureInitError)
 
 	_, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt apply --no-color --terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+testPath)
 	require.Error(t, err)
@@ -585,8 +585,8 @@ func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {
 			defer func() {
 				util.DisableJSONFormat()
 			}()
-			tmpEnvPath := copyEnvironment(t, TestFixtureDependencyOutput)
-			rootTerragruntPath := util.JoinPath(tmpEnvPath, TestFixtureDependencyOutput)
+			tmpEnvPath := copyEnvironment(t, testFixtureDependencyOutput)
+			rootTerragruntPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput)
 			// apply dependency first
 			dependencyTerragruntConfigPath := util.JoinPath(rootTerragruntPath, "dependency")
 			_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s ", dependencyTerragruntConfigPath))
@@ -645,9 +645,9 @@ func TestTerragruntProduceTelemetryTracesWithRootSpanAndTraceID(t *testing.T) {
 	t.Setenv("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER", "console")
 	t.Setenv("TRACEPARENT", "00-b2ff2d54551433d53dd807a6c94e81d1-0e6f631d793c718a-01")
 
-	cleanupTerraformFolder(t, TestFixtureHooksBeforeAndAfterPath)
-	tmpEnvPath := copyEnvironment(t, TestFixtureHooksBeforeAndAfterPath)
-	rootPath := util.JoinPath(tmpEnvPath, TestFixtureHooksBeforeAndAfterPath)
+	cleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
+	tmpEnvPath := copyEnvironment(t, testFixtureHooksBeforeAndAfterPath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksBeforeAndAfterPath)
 
 	output, _, err := runTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
@@ -665,9 +665,9 @@ func TestTerragruntProduceTelemetryInCasOfError(t *testing.T) {
 	t.Setenv("TERRAGRUNT_TELEMETRY_TRACE_EXPORTER", "console")
 	t.Setenv("TRACEPARENT", "00-b2ff2d54551433d53dd807a6c94e81d1-0e6f631d793c718a-01")
 
-	cleanupTerraformFolder(t, TestFixtureHooksBeforeAndAfterPath)
-	tmpEnvPath := copyEnvironment(t, TestFixtureHooksBeforeAndAfterPath)
-	rootPath := util.JoinPath(tmpEnvPath, TestFixtureHooksBeforeAndAfterPath)
+	cleanupTerraformFolder(t, testFixtureHooksBeforeAndAfterPath)
+	tmpEnvPath := copyEnvironment(t, testFixtureHooksBeforeAndAfterPath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksBeforeAndAfterPath)
 
 	output, _, err := runTerragruntCommandWithOutput(t, "terragrunt no-existing-command -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.Error(t, err)
@@ -680,9 +680,9 @@ func TestTerragruntProduceTelemetryInCasOfError(t *testing.T) {
 
 // Since this test launches a large number of terraform processes, which sometimes fails with the message `Failed to write to log, write |1: file already closed`, for stability, we need to run it not parallel.
 func TestTerragruntProviderCache(t *testing.T) {
-	cleanupTerraformFolder(t, TestFixtureProviderCacheDirect)
-	tmpEnvPath := copyEnvironment(t, TestFixtureProviderCacheDirect)
-	rootPath := util.JoinPath(tmpEnvPath, TestFixtureProviderCacheDirect)
+	cleanupTerraformFolder(t, testFixtureProviderCacheDirect)
+	tmpEnvPath := copyEnvironment(t, testFixtureProviderCacheDirect)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureProviderCacheDirect)
 
 	cacheDir, err := util.GetCacheDir()
 	require.NoError(t, err)

@@ -36,9 +36,9 @@ import (
 func testRunAllPlan(t *testing.T, args string) (string, string, string, error) {
 	t.Helper()
 
-	tmpEnvPath := copyEnvironment(t, TestFixtureOutDir)
+	tmpEnvPath := copyEnvironment(t, testFixtureOutDir)
 	cleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, TestFixtureOutDir)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
 
 	// run plan with output directory
 	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s %s", testPath, args))
