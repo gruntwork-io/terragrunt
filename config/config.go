@@ -572,7 +572,7 @@ func GetTerraformSourceUrl(terragruntOptions *options.TerragruntOptions, terragr
 //
 // and the terraform source is:
 //
-//	git::ssh://git@github.com/gruntwork-io/i-dont-exist.git//source-map/modules/app?ref=master
+//	git::ssh://git@github.com/gruntwork-io/i-dont-exist.git//fixtures/source-map/modules/app?ref=master
 //
 // This function will take that source and transform it to:
 //
