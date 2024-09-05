@@ -185,7 +185,7 @@ func TestDownloadTerraformSourceIfNecessaryLocalDirToAlreadyDownloadedDir(t *tes
 func TestDownloadTerraformSourceIfNecessaryRemoteUrlToEmptyDir(t *testing.T) {
 	t.Parallel()
 
-	canonicalUrl := "github.com/gruntwork-io/terragrunt//test/fixture-download-source/hello-world"
+	canonicalUrl := "github.com/gruntwork-io/terragrunt//test/fixtures/download-source/hello-world"
 	downloadDir := tmpDir(t)
 	defer os.Remove(downloadDir)
 
