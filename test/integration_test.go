@@ -41,7 +41,7 @@ import (
 const (
 	terraformRemoteStateS3Region = "us-west-2"
 
-	testFixturePath                           = "fixtures/fixture/"
+	testFixturePath                           = "fixtures/terragrunt/"
 	testFixtureHclvalidate                    = "fixtures/hclvalidate"
 	testFixtureExcludesFile                   = "fixtures/excludes-file"
 	testFixtureInitOnce                       = "fixtures/init-once"

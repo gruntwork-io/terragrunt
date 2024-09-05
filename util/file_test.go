@@ -86,7 +86,7 @@ func TestCanonicalPath(t *testing.T) {
 func TestGlobCanonicalPath(t *testing.T) {
 	t.Parallel()
 
-	basePath := "testdata/glob-canonical"
+	basePath := "testdata/fixture-glob-canonical"
 
 	expectedHelper := func(path string) string {
 		basePath, err := filepath.Abs(basePath)

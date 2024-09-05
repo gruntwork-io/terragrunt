@@ -421,7 +421,7 @@ func TestParseTerragruntJsonConfigRemoteStateDynamoDbTerraformConfigAndDependenc
 		}
 	},
 	"dependencies":{
-		"paths": ["../test/fixtures/fixture", "../test/fixtures/dirs", "../test/fixtures/inputs"]
+		"paths": ["../test/fixtures/terragrunt", "../test/fixtures/dirs", "../test/fixtures/inputs"]
 	}
 }
 `
@@ -448,7 +448,7 @@ func TestParseTerragruntJsonConfigRemoteStateDynamoDbTerraformConfigAndDependenc
 	}
 
 	if assert.NotNil(t, terragruntConfig.Dependencies) {
-		assert.Equal(t, []string{"../test/fixtures/fixture", "../test/fixtures/dirs", "../test/fixtures/inputs"}, terragruntConfig.Dependencies.Paths)
+		assert.Equal(t, []string{"../test/fixtures/terragrunt", "../test/fixtures/dirs", "../test/fixtures/inputs"}, terragruntConfig.Dependencies.Paths)
 	}
 }
 
