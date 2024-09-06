@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
 	"github.com/gruntwork-io/terragrunt/terraform/cliconfig"
@@ -22,7 +23,6 @@ import (
 	"github.com/hashicorp/go-getter/v2"
 	"github.com/hashicorp/go-multierror"
 	svchost "github.com/hashicorp/terraform-svchost"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -223,7 +223,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	if util.FileExists(cache.DownloadURL) {
 		cache.archivePath = cache.DownloadURL
 	} else {
-		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %s", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, cache.logger, logrus.DebugLevel, func(ctx context.Context) error {
+		if err := util.DoWithRetry(ctx, fmt.Sprintf("Fetching provider %s", cache.Provider), maxRetriesFetchFile, retryDelayFetchFile, cache.logger, log.DebugLevel, func(ctx context.Context) error {
 			req, err := cache.newRequest(ctx, cache.DownloadURL)
 			if err != nil {
 				return err
@@ -289,7 +289,7 @@ func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile
 		return nil, errors.WithStackTrace(err)
 	}
 
-	if err := util.DoWithRetry(ctx, "Acquiring lock file "+cache.lockfilePath, maxRetriesLockFile, retryDelayLockFile, cache.logger, logrus.DebugLevel, func(ctx context.Context) error {
+	if err := util.DoWithRetry(ctx, "Acquiring lock file "+cache.lockfilePath, maxRetriesLockFile, retryDelayLockFile, cache.logger, log.DebugLevel, func(ctx context.Context) error {
 		return lockfile.TryLock()
 	}); err != nil {
 		return nil, errors.Errorf("unable to acquire lock file %s (already locked?) try to remove the file manually: %w", cache.lockfilePath, err)
@@ -316,10 +316,10 @@ type ProviderService struct {
 
 	credsSource *cliconfig.CredentialsSource
 
-	logger *logrus.Entry
+	logger log.Logger
 }
 
-func NewProviderService(cacheDir, userCacheDir string, credsSource *cliconfig.CredentialsSource, logger *logrus.Entry) *ProviderService {
+func NewProviderService(cacheDir, userCacheDir string, credsSource *cliconfig.CredentialsSource, logger log.Logger) *ProviderService {
 	return &ProviderService{
 		cacheDir:              cacheDir,
 		userCacheDir:          userCacheDir,
@@ -329,7 +329,7 @@ func NewProviderService(cacheDir, userCacheDir string, credsSource *cliconfig.Cr
 	}
 }
 
-func (service *ProviderService) Logger() *logrus.Entry {
+func (service *ProviderService) Logger() log.Logger {
 	return service.logger
 }
 

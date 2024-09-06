@@ -11,9 +11,9 @@ import (
 	"github.com/gitsight/go-vcsurl"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/files"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/hashicorp/go-getter"
-	"github.com/sirupsen/logrus"
 	"gopkg.in/ini.v1"
 )
 
@@ -32,7 +32,7 @@ var (
 )
 
 type Repo struct {
-	logger *logrus.Entry
+	logger log.Logger
 
 	cloneURL string
 	path     string
@@ -41,7 +41,7 @@ type Repo struct {
 	branchName string
 }
 
-func NewRepo(ctx context.Context, logger *logrus.Entry, cloneURL, tempDir string) (*Repo, error) {
+func NewRepo(ctx context.Context, logger log.Logger, cloneURL, tempDir string) (*Repo, error) {
 	repo := &Repo{
 		logger:   logger,
 		cloneURL: cloneURL,

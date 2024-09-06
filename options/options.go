@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
-	"github.com/sirupsen/logrus"
 )
 
 const ContextKey ctxKey = iota
@@ -40,6 +40,9 @@ const (
 	minCommandLength = 2
 
 	defaultExcludesFile = ".terragrunt-excludes"
+
+	defaultLogLevel  = log.InfoLevel
+	defaultLogFormat = log.PrettyFormat
 )
 
 var (
@@ -120,28 +123,22 @@ type TerragruntOptions struct {
 	RootWorkingDir string
 
 	// Basic log entry
-	Logger *logrus.Entry
+	Logger log.Logger
 
 	// Disable Terragrunt colors
 	DisableLogColors bool
 
-	// Output Terragrunt logs in JSON format
-	JsonLogFormat bool
+	// Disable replacing full paths in logs with short relative paths
+	UseLogAbsPaths bool
+
+	// Log level
+	LogLevel log.Level
+
+	// Log format
+	LogFormat log.Format
 
 	// Wrap Terraform logs in JSON format
 	TerraformLogsToJson bool
-
-	// Log level
-	LogLevel logrus.Level
-
-	// Raw log level value
-	LogLevelStr string
-
-	// If true, logs will be displayed in format key/value, by default logs are formatted in human-readable format.
-	DisableLogFormatting bool
-
-	// DisableLogShortPaths disables replacing full paths in logs with short relative paths.
-	DisableLogShortPaths bool
 
 	// ValidateStrict mode for the validate-inputs command
 	ValidateStrict bool
@@ -390,8 +387,9 @@ func NewTerragruntOptions() *TerragruntOptions {
 		RunAllAutoApprove:              true,
 		NonInteractive:                 false,
 		TerraformCliArgs:               []string{},
-		LogLevelStr:                    util.GetDefaultLogLevel().String(),
-		Logger:                         util.GlobalFallbackLogEntry,
+		LogLevel:                       defaultLogLevel,
+		LogFormat:                      defaultLogFormat,
+		Logger:                         log.New(log.SetLevel(defaultLogLevel), log.SetFormat(defaultLogFormat)),
 		Env:                            map[string]string{},
 		Source:                         "",
 		SourceMap:                      map[string]string{},
@@ -419,7 +417,6 @@ func NewTerragruntOptions() *TerragruntOptions {
 		ForwardTFStdout:                false,
 		JSONOut:                        DefaultJSONOutName,
 		TerraformImplementation:        UnknownImpl,
-		JsonLogFormat:                  false,
 		TerraformLogsToJson:            false,
 		JsonDisableDependentModules:    false,
 		RunTerragrunt: func(ctx context.Context, opts *TerragruntOptions) error {
@@ -441,6 +438,7 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 	}
 
 	opts.WorkingDir = workingDir
+	opts.RootWorkingDir = workingDir
 	opts.DownloadDir = downloadDir
 
 	return opts, nil
@@ -467,15 +465,14 @@ func GetDefaultIAMAssumeRoleSessionName() string {
 func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...TerragruntOptionsFunc) (*TerragruntOptions, error) {
 	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
 	if err != nil {
-		logger := util.CreateLogEntry("", util.GetDefaultLogLevel(), opts.Logger.Logger.Formatter)
-		logger.Errorf("%v\n", errors.WithStackTrace(err))
+		log.WithOptions(log.SetLevel(log.DebugLevel)).Errorf("%v\n", errors.WithStackTrace(err))
 
 		return nil, err
 	}
 
 	opts.NonInteractive = true
-	opts.Logger = util.CreateLogEntry("", logrus.DebugLevel, opts.Logger.Logger.Formatter)
-	opts.LogLevel = logrus.DebugLevel
+	opts.Logger.SetOptions(log.SetLevel(log.DebugLevel), log.SetFormat(opts.LogFormat))
+	opts.LogLevel = log.DebugLevel
 
 	for _, opt := range options {
 		opt(opts)
@@ -500,8 +497,6 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOptions, error) {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
-	logger := util.CreateLogEntryWithWriter(opts.ErrWriter, filepath.Dir(terragruntConfigPath), opts.LogLevel, opts.Logger.Logger.Hooks, opts.Logger.Logger.Formatter)
-
 	// Note that we clone lists and maps below as TerragruntOptions may be used and modified concurrently in the code
 	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
 	// for more info.
@@ -519,8 +514,9 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		TerraformCliArgs:               util.CloneStringList(opts.TerraformCliArgs),
 		WorkingDir:                     workingDir,
 		RootWorkingDir:                 opts.RootWorkingDir,
-		Logger:                         logger,
+		Logger:                         opts.Logger.WithField(log.FieldKeyPrefix, filepath.Dir(terragruntConfigPath)),
 		LogLevel:                       opts.LogLevel,
+		LogFormat:                      opts.LogFormat,
 		ValidateStrict:                 opts.ValidateStrict,
 		Env:                            util.CloneStringMap(opts.Env),
 		Source:                         opts.Source,
@@ -557,11 +553,9 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		FetchDependencyOutputFromState: opts.FetchDependencyOutputFromState,
 		UsePartialParseConfigCache:     opts.UsePartialParseConfigCache,
 		ForwardTFStdout:                opts.ForwardTFStdout,
-		DisableLogFormatting:           opts.DisableLogFormatting,
 		FailIfBucketCreationRequired:   opts.FailIfBucketCreationRequired,
 		DisableBucketUpdate:            opts.DisableBucketUpdate,
 		TerraformImplementation:        opts.TerraformImplementation,
-		JsonLogFormat:                  opts.JsonLogFormat,
 		TerraformLogsToJson:            opts.TerraformLogsToJson,
 		GraphRoot:                      opts.GraphRoot,
 		ScaffoldVars:                   opts.ScaffoldVars,

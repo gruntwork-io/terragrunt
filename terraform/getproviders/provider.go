@@ -5,7 +5,7 @@ package getproviders
 import (
 	"context"
 
-	"github.com/sirupsen/logrus"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 type Provider interface {
@@ -22,5 +22,5 @@ type Provider interface {
 	PackageDir() string
 
 	// Logger returns logger
-	Logger() *logrus.Entry
+	Logger() log.Logger
 }

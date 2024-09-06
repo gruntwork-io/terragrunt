@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -20,7 +22,6 @@ import (
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
-	"github.com/sirupsen/logrus"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/go-commons/errors"
@@ -75,7 +76,7 @@ var (
 	}
 
 	DefaultParserOptions = func(opts *options.TerragruntOptions) []hclparse.Option {
-		writer := &util.LogWriter{Logger: opts.Logger, Level: logrus.ErrorLevel}
+		writer := &log.Writer{Logger: opts.Logger, Level: log.ErrorLevel}
 
 		return []hclparse.Option{
 			hclparse.WithDiagnosticsWriter(writer, opts.DisableLogColors),
@@ -502,7 +503,7 @@ func (conf *TerraformExtraArguments) String() string {
 		conf.EnvVars)
 }
 
-func (conf *TerraformExtraArguments) GetVarFiles(logger *logrus.Entry) []string {
+func (conf *TerraformExtraArguments) GetVarFiles(logger log.Logger) []string {
 	var varFiles []string
 
 	// Include all specified RequiredVarFiles.

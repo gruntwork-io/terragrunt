@@ -7,13 +7,13 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // DoWithRetry runs the specified action. If it returns a value, return that value. If it returns an error, sleep for
 // sleepBetweenRetries and try again, up to a maximum of maxRetries retries. If maxRetries is exceeded, return a
 // MaxRetriesExceeded error.
-func DoWithRetry(ctx context.Context, actionDescription string, maxRetries int, sleepBetweenRetries time.Duration, logger *logrus.Entry, logLevel logrus.Level, action func(ctx context.Context) error) error {
+func DoWithRetry(ctx context.Context, actionDescription string, maxRetries int, sleepBetweenRetries time.Duration, logger log.Logger, logLevel log.Level, action func(ctx context.Context) error) error {
 	for i := 0; i <= maxRetries; i++ {
 		logger.Logf(logLevel, actionDescription)
 

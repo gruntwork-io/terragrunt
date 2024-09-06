@@ -140,6 +140,7 @@ type mapValue[K, V comparable] struct {
 	argSep, valSep string
 	splitter       SplitterFunc
 	hasBeenSet     bool
+	envHasBeenSet  bool
 }
 
 func newMapValue[K, V comparable](keyType FlagType[K], valType FlagType[V], envValue *string, argSep, valSep string, splitter SplitterFunc, dest *map[K]V) (FlagValue, error) {
@@ -151,6 +152,8 @@ func newMapValue[K, V comparable](keyType FlagType[K], valType FlagType[V], envV
 
 	defaultText := (&mapValue[K, V]{values: dest, keyType: keyType, valType: valType, argSep: argSep, valSep: valSep, splitter: splitter}).String()
 
+	var envHasBeenSet bool
+
 	if envValue != nil && splitter != nil {
 		value := mapValue[K, V]{values: dest, keyType: keyType, valType: valType, argSep: argSep, valSep: valSep, splitter: splitter}
 
@@ -159,17 +162,19 @@ func newMapValue[K, V comparable](keyType FlagType[K], valType FlagType[V], envV
 			if err := value.Set(strings.TrimSpace(arg)); err != nil {
 				return nil, err
 			}
+			envHasBeenSet = true
 		}
 	}
 
 	return &mapValue[K, V]{
-		values:      dest,
-		keyType:     keyType,
-		valType:     valType,
-		defaultText: defaultText,
-		argSep:      argSep,
-		valSep:      valSep,
-		splitter:    splitter,
+		values:        dest,
+		keyType:       keyType,
+		valType:       valType,
+		defaultText:   defaultText,
+		argSep:        argSep,
+		valSep:        valSep,
+		splitter:      splitter,
+		envHasBeenSet: envHasBeenSet,
 	}, nil
 }
 
@@ -214,7 +219,7 @@ func (flag *mapValue[K, V]) IsBoolFlag() bool {
 }
 
 func (flag *mapValue[K, V]) IsSet() bool {
-	return flag.hasBeenSet
+	return flag.hasBeenSet || flag.envHasBeenSet
 }
 
 func (flag *mapValue[K, V]) Get() any {

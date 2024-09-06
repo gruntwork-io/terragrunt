@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/engine"
-
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"golang.org/x/sync/errgroup"
@@ -43,8 +43,6 @@ import (
 	terraformCmd "github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
-	"github.com/gruntwork-io/terragrunt/internal/log/formatter"
-	"github.com/gruntwork-io/terragrunt/internal/log/hooks"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -60,11 +58,13 @@ func init() {
 
 type App struct {
 	*cli.App
+	logger log.Logger
 }
 
 // NewApp creates the Terragrunt CLI App.
-func NewApp(writer io.Writer, errWriter io.Writer) *App {
+func NewApp(logger log.Logger, writer io.Writer, errWriter io.Writer) *App {
 	opts := options.NewTerragruntOptions()
+	opts.Logger = logger
 	opts.Writer = writer
 	opts.ErrWriter = errWriter
 
@@ -88,7 +88,7 @@ func NewApp(writer io.Writer, errWriter io.Writer) *App {
 	app.DefaultCommand = terraformCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
 	app.OsExiter = OSExiter
 
-	return &App{app}
+	return &App{app, logger}
 }
 
 func (app *App) Run(args []string) error {
@@ -100,16 +100,16 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	defer cancel()
 
 	shell.RegisterSignalHandler(func(signal os.Signal) {
-		util.GlobalFallbackLogEntry.Infof("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(signal.String()), shell.SignalForwardingDelay)
+		app.logger.Infof("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(signal.String()), shell.SignalForwardingDelay)
 		cancel()
 
 		shell.RegisterSignalHandler(func(signal os.Signal) {
-			util.GlobalFallbackLogEntry.Infof("Second %s signal received, force shutting down...", cases.Title(language.English).String(signal.String()))
+			app.logger.Infof("Second %s signal received, force shutting down...", cases.Title(language.English).String(signal.String()))
 			os.Exit(1)
 		})
 
 		time.Sleep(forceExitInterval)
-		util.GlobalFallbackLogEntry.Infof("Failed to gracefully shutdown within %v, force shutting down...", forceExitInterval)
+		app.logger.Infof("Failed to gracefully shutdown within %v, force shutting down...", forceExitInterval)
 		os.Exit(1)
 	}, shell.InterruptSignals...)
 
@@ -250,6 +250,11 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 
 // mostly preparing terragrunt options
 func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
+	opts.Logger.SetOptions(
+		log.SetLevel(opts.LogLevel),
+		log.SetFormat(opts.LogFormat),
+	)
+
 	// The env vars are renamed to "..._NO_AUTO_..." in the gobal flags`. These ones are left for backwards compatibility.
 	opts.AutoInit = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_INIT"), opts.AutoInit)
 	opts.AutoRetry = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_RETRY"), opts.AutoRetry)
@@ -284,19 +289,6 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	opts.Env = env.Parse(os.Environ())
 
-	// --- Logger
-	if opts.DisableLogColors {
-		util.DisableLogColors()
-	}
-
-	if opts.DisableLogFormatting {
-		util.DisableLogFormatting()
-	}
-
-	if opts.JsonLogFormat {
-		util.JsonFormat()
-	}
-
 	// --- Working Dir
 	if opts.WorkingDir == "" {
 		currentDir, err := os.Getwd()
@@ -316,6 +308,15 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	opts.RootWorkingDir = filepath.ToSlash(workingDir)
 
+	if !opts.UseLogAbsPaths {
+		logOpt, err := log.ReplaceAbsPathsWithRel(opts.RootWorkingDir)
+		if err != nil {
+			return err
+		}
+
+		opts.Logger.SetOptions(logOpt)
+	}
+
 	// --- Download Dir
 	if opts.DownloadDir == "" {
 		opts.DownloadDir = util.JoinPath(opts.WorkingDir, util.TerragruntCacheDir)
@@ -327,22 +328,6 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	}
 
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
-
-	logTextFormatter := formatter.NewTextFormatter()
-	logTextFormatter.DisableColors = opts.DisableLogColors
-	logTextFormatter.DisableLogFormatting = opts.DisableLogFormatting
-
-	opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
-	opts.Logger = util.CreateLogEntry("", opts.LogLevel, logTextFormatter)
-	opts.Logger.Logger.SetOutput(cliCtx.App.ErrWriter)
-
-	if !opts.DisableLogShortPaths {
-		logRelativePathHook, err := hooks.NewRelativePathHook(opts.RootWorkingDir)
-		if err != nil {
-			return err
-		}
-		opts.Logger.Logger.AddHook(logRelativePathHook)
-	}
 
 	// --- Terragrunt ConfigPath
 	if opts.TerragruntConfigPath == "" {

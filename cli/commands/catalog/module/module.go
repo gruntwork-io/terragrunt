@@ -6,7 +6,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -65,7 +65,7 @@ func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 	return module, nil
 }
 
-func (module *Module) Logger() *logrus.Entry {
+func (module *Module) Logger() log.Logger {
 	return module.logger
 }
 

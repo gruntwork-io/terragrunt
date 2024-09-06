@@ -1,31 +1,30 @@
-package formatter
+package log
 
 import (
 	"github.com/mgutz/ansi"
-	"github.com/sirupsen/logrus"
 )
 
 var (
 	defaultColorScheme = &ColorScheme{
-		InfoLevelStyle:  "green",
-		WarnLevelStyle:  "yellow",
-		ErrorLevelStyle: "red",
-		FatalLevelStyle: "red",
-		PanicLevelStyle: "red",
-		DebugLevelStyle: "blue+h",
-		TraceLevelStyle: "white",
-		TFBinaryStyle:   "cyan",
-		TimestampStyle:  "black+h",
+		StderrLevelStyle: "red",
+		StdoutLevelStyle: "white",
+		ErrorLevelStyle:  "red",
+		WarnLevelStyle:   "yellow",
+		InfoLevelStyle:   "green",
+		DebugLevelStyle:  "blue+h",
+		TraceLevelStyle:  "white",
+		TFBinaryStyle:    "cyan",
+		TimestampStyle:   "black+h",
 	}
 )
 
 const (
 	None ColorStyleName = iota
-	InfoLevelStyle
-	WarnLevelStyle
+	StderrLevelStyle
+	StdoutLevelStyle
 	ErrorLevelStyle
-	FatalLevelStyle
-	PanicLevelStyle
+	WarnLevelStyle
+	InfoLevelStyle
 	DebugLevelStyle
 	TraceLevelStyle
 	TFBinaryStyle
@@ -56,21 +55,21 @@ func (scheme ColorScheme) Compile() compiledColorScheme {
 
 type compiledColorScheme map[ColorStyleName]ColorFunc
 
-func (scheme compiledColorScheme) LevelColorFunc(level logrus.Level) ColorFunc {
+func (scheme compiledColorScheme) LevelColorFunc(level Level) ColorFunc {
 	switch level {
-	case logrus.InfoLevel:
-		return scheme.ColorFunc(InfoLevelStyle)
-	case logrus.WarnLevel:
-		return scheme.ColorFunc(WarnLevelStyle)
-	case logrus.ErrorLevel:
+	case StdoutLevel:
+		return scheme.ColorFunc(StdoutLevelStyle)
+	case StderrLevel:
+		return scheme.ColorFunc(StderrLevelStyle)
+	case ErrorLevel:
 		return scheme.ColorFunc(ErrorLevelStyle)
-	case logrus.FatalLevel:
-		return scheme.ColorFunc(FatalLevelStyle)
-	case logrus.PanicLevel:
-		return scheme.ColorFunc(PanicLevelStyle)
-	case logrus.DebugLevel:
+	case WarnLevel:
+		return scheme.ColorFunc(WarnLevelStyle)
+	case InfoLevel:
+		return scheme.ColorFunc(InfoLevelStyle)
+	case DebugLevel:
 		return scheme.ColorFunc(DebugLevelStyle)
-	case logrus.TraceLevel:
+	case TraceLevel:
 		return scheme.ColorFunc(TraceLevelStyle)
 	default:
 		return scheme.ColorFunc(None)

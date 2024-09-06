@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/internal/log/formatter"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -25,14 +23,14 @@ const (
 var extractTimeAndLevelReg = regexp.MustCompile(`(?i)(\S+)\s*\[(trace|debug|warn|info|error)\]\s*(.+\S)`)
 
 type tfWriter struct {
-	entry    *logrus.Entry
+	logger   Logger
 	tfPath   string
 	isStderr bool
 }
 
-func TFWriter(entry *logrus.Entry, tfPath string, isStderr bool) io.Writer {
+func TFWriter(logger Logger, tfPath string, isStderr bool) io.Writer {
 	return &tfWriter{
-		entry:    entry,
+		logger:   logger,
 		tfPath:   filepath.Base(tfPath),
 		isStderr: isStderr,
 	}
@@ -50,6 +48,7 @@ func (writer *tfWriter) Write(p []byte) (int, error) {
 			timeStr, levelStr string
 			msg               = string(line)
 			tfPath            = writer.tfPath
+			logger            = writer.logger
 		)
 
 		if writer.isStderr {
@@ -64,16 +63,9 @@ func (writer *tfWriter) Write(p []byte) (int, error) {
 			msg += resetANSISeq
 		}
 
-		if writer.tfPath != "" {
-			writer.entry.Data[formatter.TFBinaryKeyName] = tfPath
+		if tfPath != "" {
+			logger = logger.WithField(FieldKeyTFBinary, tfPath)
 		}
-
-		level, err := logrus.ParseLevel(strings.ToLower(levelStr))
-		if err != nil {
-			level = formatter.StdoutLevel
-		}
-
-		writer.entry.Logger.Level = level
 
 		if timeStr != "" {
 			t, err := time.Parse(tfTimestampFormat, timeStr)
@@ -81,10 +73,19 @@ func (writer *tfWriter) Write(p []byte) (int, error) {
 				return 0, errors.WithStackTrace(err)
 			}
 
-			writer.entry.Time = t
+			logger = logger.WithTime(t)
 		}
 
-		writer.entry.Log(level, msg)
+		level, err := ParseLevel(strings.ToLower(levelStr))
+		if err != nil {
+			if writer.isStderr {
+				level = StderrLevel
+			} else {
+				level = StdoutLevel
+			}
+		}
+
+		logger.Log(level, msg)
 	}
 
 	return len(p), nil

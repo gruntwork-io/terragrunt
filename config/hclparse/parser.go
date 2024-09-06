@@ -4,14 +4,15 @@
 package hclparse
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
-	"github.com/sirupsen/logrus"
+	"golang.org/x/term"
 )
 
 type Parser struct {
@@ -19,13 +20,13 @@ type Parser struct {
 	diagsWriterFunc       func(hcl.Diagnostics) error
 	handleDiagnosticsFunc func(*File, hcl.Diagnostics) (hcl.Diagnostics, error)
 	fileUpdateHandlerFunc func(*File) error
-	logger                *logrus.Entry
+	logger                log.Logger
 }
 
 func NewParser(opts ...Option) *Parser {
 	return (&Parser{
 		Parser: hclparse.NewParser(),
-		logger: util.GlobalFallbackLogEntry,
+		logger: log.DefaultLogger,
 	}).withOptions(opts...)
 }
 
@@ -85,6 +86,18 @@ func (parser *Parser) ParseFromBytes(content []byte, configPath string) (file *F
 	}
 
 	return file, nil
+}
+
+// GetDiagnosticsWriter returns a hcl2 parsing diagnostics emitter for the current terminal.
+func (parser *Parser) GetDiagnosticsWriter(writer io.Writer, disableColor bool) hcl.DiagnosticWriter {
+	termColor := !disableColor && term.IsTerminal(int(os.Stderr.Fd()))
+
+	termWidth, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		termWidth = 80
+	}
+
+	return hcl.NewDiagnosticTextWriter(writer, parser.Files(), uint(termWidth), termColor)
 }
 
 func (parser *Parser) handleDiagnostics(file *File, diags hcl.Diagnostics) error {

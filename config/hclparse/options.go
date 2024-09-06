@@ -4,14 +4,13 @@ import (
 	"io"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/hcl/v2"
-	"github.com/sirupsen/logrus"
 )
 
 type Option func(*Parser) *Parser
 
-func WithLogger(logger *logrus.Entry) Option {
+func WithLogger(logger log.Logger) Option {
 	return func(parser *Parser) *Parser {
 		parser.logger = logger
 
@@ -21,7 +20,7 @@ func WithLogger(logger *logrus.Entry) Option {
 
 func WithDiagnosticsWriter(writer io.Writer, disableColor bool) Option {
 	return func(parser *Parser) *Parser {
-		diagsWriter := util.GetDiagnosticsWriter(writer, parser.Parser, disableColor)
+		diagsWriter := parser.GetDiagnosticsWriter(writer, disableColor)
 
 		parser.diagsWriterFunc = func(diags hcl.Diagnostics) error {
 			if !diags.HasErrors() {

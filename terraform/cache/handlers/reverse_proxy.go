@@ -5,10 +5,10 @@ import (
 	"net/http/httputil"
 	"net/url"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cliconfig"
 	svchost "github.com/hashicorp/terraform-svchost"
 	"github.com/labstack/echo/v4"
-	"github.com/sirupsen/logrus"
 )
 
 type ReverseProxy struct {
@@ -19,7 +19,7 @@ type ReverseProxy struct {
 	ModifyResponse func(resp *http.Response) error
 	ErrorHandler   func(http.ResponseWriter, *http.Request, error)
 
-	logger *logrus.Entry
+	logger log.Logger
 }
 
 func (reverseProxy ReverseProxy) WithRewrite(fn func(req *httputil.ProxyRequest)) *ReverseProxy {

@@ -10,9 +10,8 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/files"
@@ -240,10 +239,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, terragruntOptions *optio
 		cfgOptions.OriginalTerragruntConfigPath = terragruntOptions.OriginalTerragruntConfigPath
 		cfgOptions.TerraformCommand = terragruntOptions.TerraformCommand
 		cfgOptions.NonInteractive = true
-
-		var hook = NewForceLogLevelHook(logrus.DebugLevel)
-
-		cfgOptions.Logger.Logger.AddHook(hook)
+		cfgOptions.Logger.SetOptions(log.ForceLogLevel(log.DebugLevel))
 
 		// build stack from config directory
 		stack, err := FindStackInSubfolders(ctx, cfgOptions, WithChildTerragruntConfig(terragruntConfig))

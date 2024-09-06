@@ -13,10 +13,10 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
-
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
 
@@ -24,7 +24,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/sirupsen/logrus"
 )
 
 // Represents a stack of Terraform modules (i.e. folders with Terraform templates) that you can "spin up" or
@@ -98,7 +97,7 @@ func (stack *Stack) String() string {
 // LogModuleDeployOrder will log the modules that will be deployed by this operation, in the order that the operations
 // happen. For plan and apply, the order will be bottom to top (dependencies first), while for destroy the order will be
 // in reverse.
-func (stack *Stack) LogModuleDeployOrder(logger *logrus.Entry, terraformCommand string) error {
+func (stack *Stack) LogModuleDeployOrder(logger log.Logger, terraformCommand string) error {
 	outStr := fmt.Sprintf("The stack at %s will be processed in the following order for command %s:\n", stack.terragruntOptions.WorkingDir, terraformCommand)
 
 	runGraph, err := stack.GetModuleRunGraph(terraformCommand)

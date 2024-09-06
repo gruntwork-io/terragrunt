@@ -1,7 +1,8 @@
-package formatter
+package log
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -15,30 +16,30 @@ import (
 
 const (
 	defaultTimestampForFormattedLayout = "15:04:05.000"
-	defaultTimestamp                   = time.RFC3339
+	defaultTimestampFormat             = time.RFC3339
+	defaultOutputFormat                = KeyValueFormat
 
 	PrefixKeyName   = "prefix"
 	TFBinaryKeyName = "tfBinary"
-	StdoutLevel     = logrus.Level(10)
 )
 
-// TextFormatter implements logrus.TextFormatter
-var _ logrus.Formatter = new(TextFormatter)
+// Formatter implements logrus.Formatter
+var _ logrus.Formatter = new(Formatter)
 
 type PrefixStyle interface {
 	// ColorFunc creates a closure to avoid computation ANSI color code.
 	ColorFunc(prefixName string) ColorFunc
 }
 
-type TextFormatter struct {
-	// Disable formatted layout
-	DisableLogFormatting bool
-
-	// Force disabling colors. For a TTY colors are enabled by default.
-	DisableColors bool
+type Formatter struct {
+	// OutputFormat specifies the format in which the log will be displayed.
+	OutputFormat Format
 
 	// Disable the conversion of the log levels to uppercase
 	DisableUppercase bool
+
+	// DisableTimestamp allows disabling automatic timestamps in output
+	DisableTimestamp bool
 
 	// Timestamp format to use for display when a full timestamp is printed.
 	TimestampFormat string
@@ -55,57 +56,117 @@ type TextFormatter struct {
 	// PrefixStyle is used to assign different styles (colors) to each prefix.
 	PrefixStyle PrefixStyle
 
+	// FieldMap allows users to customize the names of keys for default fields.
+	// As an example:
+	// formatter := &JSONFormatter{
+	//   	FieldMap: FieldMap{
+	// 		 FieldKeyTime:  "@timestamp",
+	// 		 FieldKeyLevel: "@level",
+	// 		 FieldKeyMsg:   "@message",
+	// 		 FieldKeyFunc:  "@caller",
+	//    },
+	// }
+	FieldMap FieldMap
+
 	// Color scheme to use.
 	colorScheme compiledColorScheme
 }
 
-// NewTextFormatter returns a new TextFormatter instance with default values.
-func NewTextFormatter() *TextFormatter {
-	return &TextFormatter{
-		colorScheme: defaultColorScheme.Compile(),
-		PrefixStyle: NewPrefixStyle(),
+// NewFormatter returns a new Formatter instance with default values.
+func NewFormatter() *Formatter {
+	return &Formatter{
+		PrefixStyle:  NewPrefixStyle(),
+		OutputFormat: defaultOutputFormat,
+		colorScheme:  defaultColorScheme.Compile(),
 	}
 }
 
-func (formatter *TextFormatter) SetColorScheme(colorScheme *ColorScheme) {
+func (formatter *Formatter) SetColorScheme(colorScheme *ColorScheme) {
 	maps.Copy(formatter.colorScheme, colorScheme.Compile())
 }
 
-// Format implements logrus.TextFormatter
-func (formatter *TextFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+// Format implements logrus.Formatter
+func (formatter *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 	buf := entry.Buffer
 	if buf == nil {
 		buf = new(bytes.Buffer)
 	}
 
-	if !formatter.DisableLogFormatting {
-		if err := formatter.printFormatted(buf, entry); err != nil {
+	prefixFieldClashes(Fields(entry.Data), formatter.FieldMap)
+
+	switch formatter.OutputFormat {
+	case JSONFormat, JSONFormatIndent:
+		indent := formatter.OutputFormat == JSONFormatIndent
+		if err := formatter.printJSON(buf, entry, indent); err != nil {
 			return nil, err
 		}
-	} else {
+
+	case KeyValueFormat:
 		if err := formatter.printKeyValue(buf, entry); err != nil {
 			return nil, err
 		}
-	}
 
-	if err := buf.WriteByte('\n'); err != nil {
-		return nil, errors.WithStackTrace(err)
+	case PrettyFormat, PrettyFormatNoColor:
+		fallthrough
+	default:
+		noColor := formatter.OutputFormat == PrettyFormatNoColor
+		if err := formatter.printPretty(buf, entry, noColor); err != nil {
+			return nil, err
+		}
 	}
 
 	return buf.Bytes(), nil
 }
 
-func (formatter *TextFormatter) printKeyValue(buf *bytes.Buffer, entry *logrus.Entry) error {
-	timestampFormat := formatter.TimestampFormat
-	if timestampFormat == "" {
-		timestampFormat = defaultTimestamp
+func (formatter *Formatter) printJSON(buf *bytes.Buffer, entry *logrus.Entry, indent bool) error {
+	data := make(Fields, len(entry.Data)+3)
+
+	for k, v := range entry.Data {
+		switch v := v.(type) {
+		case error:
+			// Otherwise errors are ignored by `encoding/json` https://github.com/sirupsen/logrus/issues/137
+			data[k] = v.Error()
+		default:
+			data[k] = v
+		}
 	}
 
-	if err := formatter.appendKeyValue(buf, "time", entry.Time.Format(timestampFormat), false); err != nil {
-		return err
+	if !formatter.DisableTimestamp {
+		timestampFormat := formatter.TimestampFormat
+		if timestampFormat == "" {
+			timestampFormat = defaultTimestampFormat
+		}
+
+		data[FieldKeyTime] = entry.Time.Format(timestampFormat)
+	}
+	data[FieldKeyMsg] = entry.Message
+	data[FieldKeyLevel] = fromLogrusLevel(entry.Level).String()
+
+	encoder := json.NewEncoder(buf)
+	if indent {
+		encoder.SetIndent("", "  ")
 	}
 
-	if err := formatter.appendKeyValue(buf, "level", formatter.levelText(entry.Level), true); err != nil {
+	if err := encoder.Encode(data); err != nil {
+		return errors.Errorf("failed to marshal fields to JSON, %w", err)
+	}
+
+	return nil
+}
+
+func (formatter *Formatter) printKeyValue(buf *bytes.Buffer, entry *logrus.Entry) error {
+	if !formatter.DisableTimestamp {
+		timestampFormat := formatter.TimestampFormat
+		if timestampFormat == "" {
+			timestampFormat = defaultTimestampFormat
+		}
+
+		if err := formatter.appendKeyValue(buf, "time", entry.Time.Format(timestampFormat), false); err != nil {
+			return err
+		}
+	}
+
+	if err := formatter.appendKeyValue(buf, "level", fromLogrusLevel(entry.Level), true); err != nil {
 		return err
 	}
 
@@ -138,11 +199,16 @@ func (formatter *TextFormatter) printKeyValue(buf *bytes.Buffer, entry *logrus.E
 		}
 	}
 
+	if err := buf.WriteByte('\n'); err != nil {
+		return errors.WithStackTrace(err)
+	}
+
 	return nil
 }
 
-func (formatter *TextFormatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entry) error {
-	level := fmt.Sprintf("%-6s ", formatter.levelText(entry.Level))
+func (formatter *Formatter) printPretty(buf *bytes.Buffer, entry *logrus.Entry, noColor bool) error {
+	level := fmt.Sprintf("%-6s ", fromLogrusLevel(entry.Level))
+
 	if !formatter.DisableUppercase {
 		level = strings.ToUpper(level)
 	}
@@ -165,15 +231,17 @@ func (formatter *TextFormatter) printFormatted(buf *bytes.Buffer, entry *logrus.
 		}
 	}
 
-	timestampFormat := formatter.TimestampFormat
-	if timestampFormat == "" {
-		timestampFormat = defaultTimestampForFormattedLayout
+	if !formatter.DisableTimestamp {
+		timestampFormat := formatter.TimestampFormat
+		if timestampFormat == "" {
+			timestampFormat = defaultTimestampForFormattedLayout
+		}
+
+		timestamp = entry.Time.Format(timestampFormat) + " "
 	}
 
-	timestamp = entry.Time.Format(timestampFormat) + " "
-
-	if !formatter.DisableColors {
-		level = formatter.colorScheme.LevelColorFunc(entry.Level)(level)
+	if !noColor {
+		level = formatter.colorScheme.LevelColorFunc(fromLogrusLevel(entry.Level))(level)
 		prefix = formatter.PrefixStyle.ColorFunc(prefix)(prefix)
 		tfBinary = formatter.colorScheme.ColorFunc(TFBinaryStyle)(tfBinary)
 		timestamp = formatter.colorScheme.ColorFunc(TimestampStyle)(timestamp)
@@ -191,10 +259,14 @@ func (formatter *TextFormatter) printFormatted(buf *bytes.Buffer, entry *logrus.
 		}
 	}
 
+	if err := buf.WriteByte('\n'); err != nil {
+		return errors.WithStackTrace(err)
+	}
+
 	return nil
 }
 
-func (formatter *TextFormatter) appendKeyValue(buf *bytes.Buffer, key string, value interface{}, appendSpace bool) error {
+func (formatter *Formatter) appendKeyValue(buf *bytes.Buffer, key string, value interface{}, appendSpace bool) error {
 	keyFmt := "%s="
 	if appendSpace {
 		keyFmt = " " + keyFmt
@@ -211,7 +283,7 @@ func (formatter *TextFormatter) appendKeyValue(buf *bytes.Buffer, key string, va
 	return nil
 }
 
-func (formatter *TextFormatter) appendValue(buf *bytes.Buffer, value interface{}) error {
+func (formatter *Formatter) appendValue(buf *bytes.Buffer, value interface{}) error {
 	var str string
 
 	switch value := value.(type) {
@@ -239,20 +311,7 @@ func (formatter *TextFormatter) appendValue(buf *bytes.Buffer, value interface{}
 	return nil
 }
 
-func (formatter *TextFormatter) levelText(level logrus.Level) string {
-	levelText := level.String()
-	if level == logrus.WarnLevel {
-		levelText = "warn"
-	}
-
-	if levelText == "unknown" {
-		levelText = "stdout"
-	}
-
-	return levelText
-}
-
-func (formatter *TextFormatter) keys(data logrus.Fields, removeKeys ...string) []string {
+func (formatter *Formatter) keys(data logrus.Fields, removeKeys ...string) []string {
 	var (
 		keys []string
 	)
@@ -279,7 +338,7 @@ func (formatter *TextFormatter) keys(data logrus.Fields, removeKeys ...string) [
 	return keys
 }
 
-func (formatter *TextFormatter) needsQuoting(text string) bool {
+func (formatter *Formatter) needsQuoting(text string) bool {
 	if formatter.QuoteEmptyFields && len(text) == 0 {
 		return true
 	}

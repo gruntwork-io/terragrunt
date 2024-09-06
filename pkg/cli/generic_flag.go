@@ -104,9 +104,10 @@ func (flag *GenericFlag[T]) RunAction(ctx *Context) error {
 
 // -- generic Value
 type genericValue[T comparable] struct {
-	value       FlagType[T]
-	defaultText string
-	hasBeenSet  bool
+	value         FlagType[T]
+	defaultText   string
+	hasBeenSet    bool
+	envHasBeenSet bool
 }
 
 func newGenericValue[T comparable](value FlagType[T], envValue *string, dest *T) (FlagValue, error) {
@@ -118,15 +119,19 @@ func newGenericValue[T comparable](value FlagType[T], envValue *string, dest *T)
 	defaultText := value.Clone(dest).String()
 	value = value.Clone(dest)
 
+	var envHasBeenSet bool
+
 	if envValue != nil {
 		if err := value.Set(*envValue); err != nil {
 			return nil, err
 		}
+		envHasBeenSet = true
 	}
 
 	return &genericValue[T]{
-		value:       value,
-		defaultText: defaultText,
+		value:         value,
+		defaultText:   defaultText,
+		envHasBeenSet: envHasBeenSet,
 	}, nil
 }
 
@@ -150,7 +155,7 @@ func (flag *genericValue[T]) IsBoolFlag() bool {
 }
 
 func (flag *genericValue[T]) IsSet() bool {
-	return flag.hasBeenSet
+	return flag.hasBeenSet || flag.envHasBeenSet
 }
 
 func (flag *genericValue[T]) String() string {

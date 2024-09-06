@@ -1,4 +1,4 @@
-package hooks
+package log
 
 import (
 	"os"
@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/internal/log/formatter"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -74,7 +73,7 @@ func NewRelativePathHook(baseDir string) (*RelativePathHook, error) {
 
 // Levels implements logrus.Hook.Levels()
 func (hook *RelativePathHook) Levels() []logrus.Level {
-	return append(logrus.AllLevels, formatter.StdoutLevel)
+	return AllLevels.toLogrusLevels()
 }
 
 // Fire implements logrus.Hook.Fire()
@@ -85,7 +84,7 @@ func (hook *RelativePathHook) Fire(entry *logrus.Entry) error {
 		if val, ok := field.(string); ok {
 			val = hook.replaceAbsPathsWithRel(val)
 
-			if key == formatter.PrefixKeyName && strings.HasPrefix(val, curDirWithSeparator) {
+			if key == FieldKeyPrefix && strings.HasPrefix(val, curDirWithSeparator) {
 				val = val[len(curDirWithSeparator):]
 			}
 

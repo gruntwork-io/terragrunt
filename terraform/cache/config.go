@@ -5,10 +5,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
-	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -59,7 +58,7 @@ func WithProviderHandlers(handlers ...handlers.ProviderHandler) Option {
 	}
 }
 
-func WithLogger(logger *logrus.Entry) Option {
+func WithLogger(logger log.Logger) Option {
 	return func(cfg Config) Config {
 		cfg.logger = logger
 		return cfg
@@ -75,14 +74,14 @@ type Config struct {
 	services         []services.Service
 	providerHandlers []handlers.ProviderHandler
 
-	logger *logrus.Entry
+	logger log.Logger
 }
 
 func NewConfig(opts ...Option) *Config {
 	cfg := &Config{
 		hostname:        defaultHostname,
 		shutdownTimeout: defaultShutdownTimeout,
-		logger:          util.GlobalFallbackLogEntry,
+		logger:          log.DefaultLogger,
 	}
 
 	return cfg.WithOptions(opts...)

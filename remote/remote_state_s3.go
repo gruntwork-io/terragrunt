@@ -15,10 +15,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/aws_helper"
 	"github.com/gruntwork-io/terragrunt/dynamodb"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/mitchellh/mapstructure"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -512,7 +512,7 @@ func createS3BucketIfNecessary(ctx context.Context, s3Client *s3.S3, config *Ext
 		// been performed should be a no-op.
 		description := "Create S3 bucket with retry " + config.RemoteStateConfigS3.Bucket
 
-		return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, terragruntOptions.Logger, logrus.DebugLevel, func(ctx context.Context) error {
+		return util.DoWithRetry(ctx, description, s3MaxRetries, s3SleepBetweenRetries, terragruntOptions.Logger, log.DebugLevel, func(ctx context.Context) error {
 			err := CreateS3BucketWithVersioningSSEncryptionAndAccessLogging(ctx, s3Client, config, terragruntOptions)
 			if err != nil {
 				if isBucketCreationErrorRetriable(err) {

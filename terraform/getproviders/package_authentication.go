@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/go-commons/errors"
@@ -251,7 +252,7 @@ func (auth signatureAuthentication) checkDetachedSignature(keyring openpgp.KeyRi
 
 	if goErrors.Is(err, openpgpErrors.ErrKeyExpired) {
 		for id := range entity.Identities {
-			util.GlobalFallbackLogEntry.Warnf("expired openpgp key from %s\n", id)
+			log.Warnf("expired openpgp key from %s\n", id)
 		}
 
 		err = nil

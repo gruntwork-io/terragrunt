@@ -9,14 +9,14 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 
 	"github.com/gruntwork-io/terragrunt/engine"
-	"github.com/gruntwork-io/terragrunt/internal/log"
+	"github.com/gruntwork-io/terragrunt/pkg/cli"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -26,7 +26,6 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/sirupsen/logrus"
 )
 
 // The signal can be sent to the main process (only `terragrunt`) as well as the process group (`terragrunt` and `terraform`), for example:
@@ -124,19 +123,12 @@ func RunShellCommandWithOutput(
 		)
 
 		// redirect output through logger with json wrapping
-		if opts.JsonLogFormat && opts.TerraformLogsToJson {
-			jsonWriter := util.CreateLogEntryWithWriter(outWriter, filepath.Dir(opts.TerragruntConfigPath), opts.LogLevel, opts.Logger.Logger.Hooks, opts.Logger.Logger.Formatter)
-			outWriter = jsonWriter.WithField("workingDir", opts.WorkingDir).WithField("executedCommandArgs", args).Writer()
+		if opts.LogFormat == log.JSONFormat && opts.TerraformLogsToJson {
+			logger := opts.Logger.WithField("workingDir", opts.WorkingDir).WithField("executedCommandArgs", args)
 
-			jsonErrorWriter := util.CreateLogEntryWithWriter(errWriter, filepath.Dir(opts.TerragruntConfigPath), opts.LogLevel, opts.Logger.Logger.Hooks, opts.Logger.Logger.Formatter)
-			errWriter = jsonErrorWriter.WithField("workingDir", opts.WorkingDir).WithField("executedCommandArgs", args).WriterLevel(logrus.ErrorLevel)
+			outWriter = logger.WithOptions(log.SetOutput(outWriter)).Writer()
+			errWriter = logger.WithOptions(log.SetOutput(errWriter)).WriterLevel(log.ErrorLevel)
 		} else if command == opts.TerraformPath {
-			errWriter = log.TFWriter(
-				util.CreateLogEntryWithWriter(errWriter, filepath.Dir(opts.TerragruntConfigPath), opts.LogLevel, opts.Logger.Logger.Hooks, opts.Logger.Logger.Formatter),
-				opts.TerraformPath,
-				true,
-			)
-
 			if opts.ForwardTFStdout || shouldForceForwardTFStdout(args) {
 				// We only display the output receipt notification when we show it to the user, and do nothing when we hide it, for example when `outWriter` is io.Discard.
 				if _, ok := outWriter.(*os.File); ok {
@@ -145,11 +137,8 @@ func RunShellCommandWithOutput(
 					})
 				}
 			} else {
-				outWriter = log.TFWriter(
-					util.CreateLogEntryWithWriter(outWriter, filepath.Dir(opts.TerragruntConfigPath), opts.LogLevel, opts.Logger.Logger.Hooks, opts.Logger.Logger.Formatter),
-					opts.TerraformPath,
-					false,
-				)
+				outWriter = log.TFWriter(opts.Logger.WithOptions(log.SetOutput(outWriter)), opts.TerraformPath, false)
+				errWriter = log.TFWriter(opts.Logger.WithOptions(log.SetOutput(errWriter)), opts.TerraformPath, true)
 			}
 		}
 
@@ -278,7 +267,7 @@ func isTerraformCommandThatNeedsPty(args []string) (bool, error) {
 type SignalsForwarder chan os.Signal
 
 // NewSignalsForwarder Forwards signals to a command, waiting for the command to finish.
-func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger *logrus.Entry, cmdChannel chan error) SignalsForwarder {
+func NewSignalsForwarder(signals []os.Signal, c *exec.Cmd, logger log.Logger, cmdChannel chan error) SignalsForwarder {
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, signals...)
 
@@ -430,12 +419,14 @@ func extractSemVerTags(tags []string) []*version.Version {
 	return semverTags
 }
 
-// shouldForceForwardTFStdout returns true if args contains `-json` flag or `output` command is specified as the first arg.
-func shouldForceForwardTFStdout(args []string) bool {
-	for i, arg := range args {
-		if (i == 0 && strings.EqualFold(arg, terraform.CommandNameOutput)) || strings.EqualFold(arg, terraform.FlagNameJSON) {
-			return true
-		}
+// shouldForceForwardTFStdout returns true if at least one of the conditions is met, args contains the `-json` flag or the `output` or `state` command.
+func shouldForceForwardTFStdout(args cli.Args) bool {
+	if cmd := args.CommandName(); cmd == terraform.CommandNameOutput || cmd == terraform.CommandNameState {
+		return true
+	}
+
+	if args.Tail().Contains(terraform.FlagNameJSON) {
+		return true
 	}
 
 	return false

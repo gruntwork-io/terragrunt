@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/log/formatter"
+	"github.com/gruntwork-io/terragrunt/pkg/log/formatter"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 

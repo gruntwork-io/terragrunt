@@ -5,6 +5,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -117,20 +118,17 @@ const (
 
 	// Logs related flags/envs
 
-	TerragruntJsonLogFlagName = "terragrunt-json-log"
-	TerragruntJsonLogEnvName  = "TERRAGRUNT_JSON_LOG"
-
 	TerragruntLogLevelFlagName = "terragrunt-log-level"
 	TerragruntLogLevelEnvName  = "TERRAGRUNT_LOG_LEVEL"
+
+	TerragruntLogFormatFlagName = "terragrunt-log-format"
+	TerragruntLogFormatEnvName  = "TERRAGRUNT_LOG_FORMAT"
 
 	TerragruntNoColorFlagName = "terragrunt-no-color"
 	TerragruntNoColorEnvName  = "TERRAGRUNT_NO_COLOR"
 
-	TerragruntDisableLogShortPathsFlagName = "terragrunt-disable-log-short-paths"
-	TerragruntDisableLogShortPathsEnvName  = "TERRAGRUNT_DISABLE_LOG_SHORT_PATHS"
-
-	TerragruntDisableLogFormattingFlagName = "terragrunt-disable-log-formatting"
-	TerragruntDisableLogFormattingEnvName  = "TERRAGRUNT_DISABLE_LOG_FORMATTING"
+	TerragruntUseLogAbsPathsFlagName = "terragrunt-log-use-abs-paths"
+	TerragruntUseLogAbsPathsEnvName  = "TERRAGRUNT_LOG_USE_ABS_PATHS"
 
 	TerragruntForwardTFStdoutFlagName = "terragrunt-forward-tf-stdout"
 	TerragruntForwardTFStdoutEnvName  = "TERRAGRUNT_FORWARD_TF_STDOUT"
@@ -161,6 +159,11 @@ const (
 
 // NewGlobalFlags creates and returns global flags.
 func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
+	var (
+		logLevelStr  = opts.LogLevel.String()
+		logFormatStr = opts.LogFormat.String()
+	)
+
 	flags := cli.Flags{
 		&cli.GenericFlag[string]{
 			Name:        TerragruntConfigFlagName,
@@ -313,44 +316,44 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 		&cli.GenericFlag[string]{
 			Name:        TerragruntLogLevelFlagName,
 			EnvVar:      TerragruntLogLevelEnvName,
-			Destination: &opts.LogLevelStr,
-			Usage:       "Sets the logging level for Terragrunt. Supported levels: panic, fatal, error, warn, info, debug, trace.",
-		},
-		&cli.BoolFlag{
-			Name:        TerragruntDisableLogFormattingFlagName,
-			EnvVar:      TerragruntDisableLogFormattingEnvName,
-			Destination: &opts.DisableLogFormatting,
+			Destination: &logLevelStr,
+			Usage:       "Sets the logging level for Terragrunt. Supported levels: stderr, stdout, error, warn, info, debug, trace.",
 			Action: func(ctx *cli.Context) error {
-				if opts.DisableLogFormatting {
-					util.DisableLogFormatting()
+				logLevel, err := log.ParseLevel(logLevelStr)
+				if err != nil {
+					return err
 				}
+
+				opts.LogLevel = logLevel
 				return nil
 			},
-			Usage: "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
+		},
+		&cli.GenericFlag[string]{
+			Name:        TerragruntLogFormatFlagName,
+			EnvVar:      TerragruntLogFormatEnvName,
+			Destination: &logFormatStr,
+			Usage:       "Sets the logging format for Terragrunt. Supported levels: json, pretty, key-value.",
+			Action: func(ctx *cli.Context) error {
+				logFormat, err := log.ParseFormat(logFormatStr)
+				if err != nil {
+					return err
+				}
+
+				opts.LogFormat = logFormat
+				return nil
+			},
 		},
 		&cli.BoolFlag{
-			Name:        TerragruntDisableLogShortPathsFlagName,
-			EnvVar:      TerragruntDisableLogShortPathsEnvName,
-			Destination: &opts.DisableLogShortPaths,
+			Name:        TerragruntUseLogAbsPathsFlagName,
+			EnvVar:      TerragruntUseLogAbsPathsEnvName,
+			Destination: &opts.UseLogAbsPaths,
 			Usage:       "Disable replacing full paths in logs with short relative paths",
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntNoColorFlagName,
 			EnvVar:      TerragruntNoColorEnvName,
 			Destination: &opts.DisableLogColors,
-			Action: func(ctx *cli.Context) error {
-				if opts.DisableLogColors {
-					util.DisableLogColors()
-				}
-				return nil
-			},
-			Usage: "If specified, Terragrunt output won't contain any color.",
-		},
-		&cli.BoolFlag{
-			Name:        TerragruntJsonLogFlagName,
-			EnvVar:      TerragruntJsonLogEnvName,
-			Destination: &opts.JsonLogFormat,
-			Usage:       "If specified, Terragrunt will output its logs in JSON format.",
+			Usage:       "If specified, Terragrunt output won't contain any color.",
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntTfLogJsonFlagName,

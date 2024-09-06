@@ -15,10 +15,10 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/mitchellh/mapstructure"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jwt"
 	"google.golang.org/api/option"
@@ -310,7 +310,7 @@ func createGCSBucketIfNecessary(ctx context.Context, gcsClient *storage.Client, 
 			// To avoid any eventual consistency issues with creating a GCS bucket we use a retry loop.
 			description := "Create GCS bucket " + config.remoteStateConfigGCS.Bucket
 
-			return util.DoWithRetry(ctx, description, gcpMaxRetries, gcpSleepBetweenRetries, terragruntOptions.Logger, logrus.DebugLevel, func(ctx context.Context) error {
+			return util.DoWithRetry(ctx, description, gcpMaxRetries, gcpSleepBetweenRetries, terragruntOptions.Logger, log.DebugLevel, func(ctx context.Context) error {
 				// TODO: Remove lint suppression
 				return CreateGCSBucketWithVersioning(gcsClient, config, terragruntOptions) //nolint:contextcheck
 			})

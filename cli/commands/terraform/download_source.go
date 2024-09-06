@@ -50,7 +50,7 @@ func downloadTerraformSource(ctx context.Context, source string, terragruntOptio
 	}
 	// Always include the .tflint.hcl file, if it exists
 	includeInCopy = append(includeInCopy, tfLintConfig)
-	if err := util.CopyFolderContents(terragruntOptions.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, includeInCopy); err != nil {
+	if err := util.CopyFolderContents(terragruntOptions.Logger, terragruntOptions.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, includeInCopy); err != nil {
 		return nil, err
 	}
 
@@ -210,7 +210,7 @@ func updateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfi
 					includeInCopy = *terragruntConfig.Terraform.IncludeInCopy
 				}
 
-				client.Getters[getterName] = &FileCopyGetter{IncludeInCopy: includeInCopy}
+				client.Getters[getterName] = &FileCopyGetter{IncludeInCopy: includeInCopy, Logger: terragruntOptions.Logger}
 			} else {
 				client.Getters[getterName] = getterValue
 			}

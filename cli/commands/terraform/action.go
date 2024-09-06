@@ -445,7 +445,7 @@ func RunTerraformWithRetry(ctx context.Context, terragruntOptions *options.Terra
 	for i := 0; i < terragruntOptions.RetryMaxAttempts; i++ {
 		if out, err := shell.RunTerraformCommandWithOutput(ctx, terragruntOptions, terragruntOptions.TerraformCliArgs...); err != nil {
 			if out == nil || !IsRetryable(terragruntOptions, out) {
-				logger := terragruntOptions.Logger.Dup()
+				logger := terragruntOptions.Logger
 
 				for {
 					var execErr util.ProcessExecutionError

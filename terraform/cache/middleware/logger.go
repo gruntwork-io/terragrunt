@@ -1,12 +1,12 @@
 package middleware
 
 import (
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/sirupsen/logrus"
 )
 
-func Logger(logger *logrus.Entry) echo.MiddlewareFunc {
+func Logger(logger log.Logger) echo.MiddlewareFunc {
 	return middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		LogStatus:   true,
 		LogURI:      true,
