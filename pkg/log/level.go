@@ -50,14 +50,14 @@ var levelNames = map[Level]string{
 type Level uint32
 
 // ParseLevel takes a string and returns the Level constant.
-func ParseLevel(str string) (Level, bool) {
+func ParseLevel(str string) (Level, error) {
 	for level, name := range levelNames {
 		if strings.EqualFold(name, str) {
-			return level, true
+			return level, nil
 		}
 	}
 
-	return Level(0), false
+	return Level(0), errors.Errorf("invalid level %q, supported levels: %s", str, AllLevels)
 }
 
 // String implements fmt.Stringer.
@@ -71,12 +71,13 @@ func (level Level) String() string {
 
 // UnmarshalText implements encoding.TextUnmarshaler.
 func (level *Level) UnmarshalText(text []byte) error {
-	if lvl, ok := ParseLevel(string(text)); ok {
-		*level = lvl
-		return nil
+	lvl, err := ParseLevel(string(text))
+	if err != nil {
+		return errors.Errorf("invalid: %q", string(text))
 	}
 
-	return errors.Errorf("invalid: %q", string(text))
+	*level = lvl
+	return nil
 }
 
 // MarshalText implements encoding.MarshalText.
@@ -118,6 +119,10 @@ func (levels Levels) Names() []string {
 	}
 
 	return strs
+}
+
+func (levels Levels) String() string {
+	return strings.Join(levels.Names(), ", ")
 }
 
 func (level Level) ToLogrusLevel() logrus.Level {

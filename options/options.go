@@ -137,7 +137,7 @@ type TerragruntOptions struct {
 	LogLevel log.Level
 
 	// Log formatter
-	LogFormatter formatters.Formatter
+	LogFormatter log.Formatter
 
 	// Wrap Terraform logs in JSON format
 	TerraformLogsToJson bool

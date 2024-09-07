@@ -76,8 +76,8 @@ func (writer *tfWriter) Write(p []byte) (int, error) {
 			logger = logger.WithTime(t)
 		}
 
-		level, ok := ParseLevel(strings.ToLower(levelStr))
-		if !ok {
+		level, err := ParseLevel(strings.ToLower(levelStr))
+		if err != nil {
 			if writer.isStderr {
 				level = StderrLevel
 			} else {

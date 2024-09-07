@@ -1,31 +1,26 @@
 package formatters
 
 import (
-	"fmt"
 	"reflect"
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"golang.org/x/exp/maps"
 )
 
-type Formatter interface {
-	logrus.Formatter
-	fmt.Stringer
+const tagName = "opt"
 
-	Name() string
-}
-
-// ParseFormat takes a string and returns the Formatter instance with defined options.
-func ParseFormat(str string) (Formatter, error) {
-	formatters := []Formatter{
+// ParseFormat takes a string and returns a Formatter instance with defined options.
+func ParseFormat(str string) (log.Formatter, error) {
+	formatters := []log.Formatter{
 		NewJSONFormatter(),
 		NewKeyValueFormatter(),
 		NewPrettyFormatter(),
 	}
 
 	var (
-		formatter Formatter
+		formatter log.Formatter
 		name      string
 		opts      = make(map[string]any)
 	)
@@ -40,19 +35,20 @@ func ParseFormat(str string) (Formatter, error) {
 		opts[part] = true
 	}
 
-	for _, f := range formatters {
+	formatterNames := make([]string, len(formatters))
+	for i, f := range formatters {
 		if strings.EqualFold(f.Name(), name) {
 			formatter = f
-			break
 		}
+		formatterNames[i] = f.Name()
 	}
 
 	if formatter == nil {
-		return nil, errors.Errorf("invalid format name: %q", name)
+		return nil, errors.Errorf("invalid format %q, supported formats: %s", name, strings.Join(formatterNames, ", "))
 	}
 
 	for name, value := range opts {
-		if err := setField(formatter, name, value); err != nil {
+		if err := setOpt(formatter, name, value); err != nil {
 			return nil, err
 		}
 	}
@@ -60,30 +56,30 @@ func ParseFormat(str string) (Formatter, error) {
 	return formatter, nil
 }
 
-func setField(item interface{}, fieldName string, value interface{}) error {
-	val := reflect.ValueOf(item).Elem()
+func setOpt(formatter log.Formatter, optName string, value interface{}) error {
+	val := reflect.ValueOf(formatter).Elem()
 	if !val.CanAddr() {
 		return errors.Errorf("cannot assign to the item passed, item must be a pointer in order to assign")
 	}
 
-	fieldNames := map[string]int{}
+	optNames := map[string]int{}
 
 	for i := 0; i < val.NumField(); i++ {
 		typeField := val.Type().Field(i)
 		tag := typeField.Tag
 
-		tagVal, ok := tag.Lookup("opt")
+		tagVal, ok := tag.Lookup(tagName)
 		if !ok {
 			continue
 		}
 
 		tagName := strings.Split(tagVal, ",")[0]
-		fieldNames[tagName] = i
+		optNames[tagName] = i
 	}
 
-	fieldNum, ok := fieldNames[fieldName]
+	fieldNum, ok := optNames[optName]
 	if !ok {
-		return errors.Errorf("field %s does not exist within the provided item", fieldName)
+		return errors.Errorf("invalid option %q for the format %q, supprted options: %s", optName, formatter, strings.Join(maps.Keys(optNames), ", "))
 	}
 
 	fieldVal := val.Field(fieldNum)

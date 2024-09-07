@@ -8,6 +8,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type Formatter interface {
+	logrus.Formatter
+
+	Name() string
+}
+
 type Logger interface {
 	//
 	SetOptions(opts ...Option)

@@ -17,8 +17,8 @@ const (
 	defaultPrettyFormatterTimestampFormat = "15:04:05.000"
 )
 
-// PrettyFormatter implements logrus.Wrapper
-var _ logrus.Formatter = new(PrettyFormatter)
+// PrettyFormatter implements log.Formatter
+var _ log.Formatter = new(PrettyFormatter)
 
 type PrettyFormatter struct {
 	// Disable the conversion of the log levels to uppercase
@@ -43,7 +43,7 @@ type PrettyFormatter struct {
 	keyValueFormatter *KeyValueFormatter
 }
 
-// NewPrettyFormatter returns a PrettyFormatter Wrapper instance with default values.
+// NewPrettyFormatter returns a new PrettyFormatter instance with default values.
 func NewPrettyFormatter() *PrettyFormatter {
 	return &PrettyFormatter{
 		TimestampFormat:   defaultPrettyFormatterTimestampFormat,
@@ -59,11 +59,6 @@ func (formatter *PrettyFormatter) SetColorScheme(colorScheme *ColorScheme) {
 
 // Name implements Formatter
 func (formatter *PrettyFormatter) Name() string {
-	return PrettyFormatterName
-}
-
-// Name implements fmt.Stringer
-func (formatter *PrettyFormatter) String() string {
 	return PrettyFormatterName
 }
 

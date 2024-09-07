@@ -17,8 +17,8 @@ const (
 	defaultKeyValueFormatterTimestampFormat = time.RFC3339
 )
 
-// KeyValueFormatter implements logrus.Wrapper
-var _ logrus.Formatter = new(KeyValueFormatter)
+// KeyValueFormatter implements log.Formatter
+var _ log.Formatter = new(KeyValueFormatter)
 
 type KeyValueFormatter struct {
 	// DisableTimestamp allows disabling automatic timestamps in output
@@ -34,7 +34,7 @@ type KeyValueFormatter struct {
 	QuoteCharacter string
 }
 
-// NewKeyValueFormatter returns a KeyValueFormatter Wrapper instance with default values.
+// NewKeyValueFormatter returns a new KeyValueFormatter instance with default values.
 func NewKeyValueFormatter() *KeyValueFormatter {
 	return &KeyValueFormatter{
 		TimestampFormat: defaultKeyValueFormatterTimestampFormat,
@@ -43,11 +43,6 @@ func NewKeyValueFormatter() *KeyValueFormatter {
 
 // Name implements Formatter
 func (formatter *KeyValueFormatter) Name() string {
-	return KeyValueFormatterName
-}
-
-// Name implements fmt.Stringer
-func (formatter *KeyValueFormatter) String() string {
 	return KeyValueFormatterName
 }
 

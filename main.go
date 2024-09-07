@@ -74,9 +74,9 @@ func newLogger(out io.Writer) log.Logger {
 	logger := log.New(log.WithOutput(out), log.WithFormatter(options.DefaultLogFormatter))
 
 	if levelStr := os.Getenv(commands.TerragruntLogLevelEnvName); levelStr != "" {
-		level, ok := log.ParseLevel(levelStr)
-		if !ok {
-			err := errors.Errorf("Could not parse log level from environment variable %s=%s, allowed values: \"%s\"", commands.TerragruntLogLevelEnvName, levelStr, strings.Join(log.AllLevels.Names(), `","`))
+		level, err := log.ParseLevel(levelStr)
+		if err != nil {
+			err := errors.Errorf("Could not parse log level from environment variable %s=%s, %w", commands.TerragruntLogLevelEnvName, levelStr, err)
 			checkForErrorsAndExit(logger)(err)
 		}
 
@@ -86,7 +86,7 @@ func newLogger(out io.Writer) log.Logger {
 	if formatterStr := os.Getenv(commands.TerragruntLogFormatEnvName); formatterStr != "" {
 		formatter, err := formatters.ParseFormat(formatterStr)
 		if err != nil {
-			err = errors.Errorf("Could not parse log format from environment variable %s=%s: %w", commands.TerragruntLogFormatEnvName, formatterStr, err)
+			err = errors.Errorf("Could not parse log format from environment variable %s=%s, %w", commands.TerragruntLogFormatEnvName, formatterStr, err)
 			checkForErrorsAndExit(logger)(err)
 		}
 

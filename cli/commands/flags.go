@@ -2,7 +2,7 @@ package commands
 
 import (
 	goErrors "errors"
-	"strings"
+	"fmt"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -164,7 +164,7 @@ const (
 func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 	var (
 		logLevelStr     = opts.LogLevel.String()
-		logFormatterStr = opts.LogFormatter.String()
+		logFormatterStr = opts.LogFormatter.Name()
 	)
 
 	flags := cli.Flags{
@@ -320,25 +320,27 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        TerragruntLogLevelFlagName,
 			EnvVar:      TerragruntLogLevelEnvName,
 			Destination: &logLevelStr,
-			Usage:       "Sets the logging level for Terragrunt. Supported levels: stderr, stdout, error, warn, info, debug, trace.",
+			Usage:       fmt.Sprintf("Sets the logging level for Terragrunt. Supported levels: %s", log.AllLevels),
 			Action: func(ctx *cli.Context) error {
-				if level, ok := log.ParseLevel(logLevelStr); ok {
-					opts.LogLevel = level
-					return nil
+				level, err := log.ParseLevel(logLevelStr)
+				if err != nil {
+					return errors.Errorf("flag --%s, %w", TerragruntLogLevelFlagName, err)
 				}
 
-				return errors.Errorf("invalid value %q for flag %q, allowed values: \"%s\"", logLevelStr, TerragruntLogLevelFlagName, strings.Join(log.AllLevels.Names(), `","`))
+				opts.LogLevel = level
+				return nil
+
 			},
 		},
 		&cli.GenericFlag[string]{
 			Name:        TerragruntLogFormatFlagName,
 			EnvVar:      TerragruntLogFormatEnvName,
 			Destination: &logFormatterStr,
-			Usage:       "Sets the logging format for Terragrunt. Supported levels: json, pretty, key-value.",
+			Usage:       "Sets the logging format for Terragrunt. Supported formats: json, pretty, key-value.",
 			Action: func(ctx *cli.Context) error {
 				formatter, err := formatters.ParseFormat(logFormatterStr)
 				if err != nil {
-					return err
+					return errors.Errorf("flag --%s, %w", TerragruntLogFormatFlagName, err)
 				}
 
 				opts.LogFormatter = formatter

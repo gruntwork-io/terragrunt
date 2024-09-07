@@ -16,8 +16,8 @@ const (
 	defaultJSONFormatterTimestampFormat = time.RFC3339
 )
 
-// JSONFormatter implements logrus.Wrapper
-var _ logrus.Formatter = new(JSONFormatter)
+// JSONFormatter implements log.Formatter
+var _ log.Formatter = new(JSONFormatter)
 
 type JSONFormatter struct {
 	// DisableTimestamp allows disabling automatic timestamps in output
@@ -30,7 +30,7 @@ type JSONFormatter struct {
 	EnableIndent bool `opt:"indent"`
 }
 
-// NewJSONFormatter returns a JSONFormatter Wrapper instance with default values.
+// NewJSONFormatter returns a new JSONFormatter instance with default values.
 func NewJSONFormatter() *JSONFormatter {
 	return &JSONFormatter{
 		TimestampFormat: defaultJSONFormatterTimestampFormat,
@@ -39,11 +39,6 @@ func NewJSONFormatter() *JSONFormatter {
 
 // Name implements Formatter
 func (formatter *JSONFormatter) Name() string {
-	return JSONFormatterName
-}
-
-// Name implements fmt.Stringer
-func (formatter *JSONFormatter) String() string {
 	return JSONFormatterName
 }
 
