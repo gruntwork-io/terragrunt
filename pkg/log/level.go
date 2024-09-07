@@ -90,13 +90,13 @@ func (level Level) MarshalText() ([]byte, error) {
 }
 
 var logrusLevels = map[Level]logrus.Level{
-	StderrLevel: logrus.Level(1),
-	StdoutLevel: logrus.Level(2),
-	ErrorLevel:  logrus.Level(3),
-	WarnLevel:   logrus.Level(4),
-	InfoLevel:   logrus.Level(5),
-	DebugLevel:  logrus.Level(6),
-	TraceLevel:  logrus.Level(7),
+	StderrLevel: logrus.Level(2),
+	StdoutLevel: logrus.Level(3),
+	ErrorLevel:  logrus.Level(4),
+	WarnLevel:   logrus.Level(5),
+	InfoLevel:   logrus.Level(6),
+	DebugLevel:  logrus.Level(7),
+	TraceLevel:  logrus.Level(8),
 }
 
 type Levels []Level

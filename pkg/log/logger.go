@@ -16,6 +16,9 @@ type Formatter interface {
 
 type Logger interface {
 	//
+	Clone() Logger
+
+	//
 	SetOptions(opts ...Option)
 
 	//
@@ -78,10 +81,14 @@ func New(opts ...Option) Logger {
 	logger := &logger{
 		Entry: logrus.NewEntry(logrus.New()),
 	}
-	logger.Logger.ExitFunc = func(int) {}
 	logger.SetOptions(opts...)
 
 	return logger
+}
+
+// Clone implements Logger.Clone
+func (logger *logger) Clone() Logger {
+	return logger.clone()
 }
 
 // SetOptions implements Logger.SetOptions
@@ -245,7 +252,6 @@ func (logger logger) clone() *logger {
 	logger.Logger.SetLevel(parentLogger.Level)
 	logger.Logger.SetFormatter(parentLogger.Formatter)
 	logger.Logger.ReplaceHooks(parentLogger.Hooks)
-	logger.Logger.ExitFunc = parentLogger.ExitFunc
 	logger.Entry = logger.Entry.Dup()
 
 	return &logger

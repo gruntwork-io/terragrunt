@@ -11,40 +11,58 @@ import (
 
 const tagName = "opt"
 
-// ParseFormat takes a string and returns a Formatter instance with defined options.
-func ParseFormat(str string) (log.Formatter, error) {
-	formatters := []log.Formatter{
-		NewJSONFormatter(),
-		NewKeyValueFormatter(),
-		NewPrettyFormatter(),
+type Formatters []log.Formatter
+
+func (formatters Formatters) Names() []string {
+	strs := make([]string, len(formatters))
+
+	for i, formatter := range formatters {
+		strs[i] = formatter.Name()
 	}
 
+	return strs
+}
+
+func (formatters Formatters) String() string {
+	return strings.Join(formatters.Names(), ", ")
+}
+
+func AllFormatters() Formatters {
+	return []log.Formatter{
+		NewPrettyFormatter(),
+		NewKeyValueFormatter(),
+		NewJSONFormatter(),
+	}
+}
+
+// ParseFormat takes a string and returns a Formatter instance with defined options.
+func ParseFormat(str string) (log.Formatter, error) {
 	var (
-		formatter log.Formatter
-		name      string
-		opts      = make(map[string]any)
+		allFormatters = AllFormatters()
+		opts          = make(map[string]any)
+		formatter     log.Formatter
 	)
 
+	formatters := make(map[string]log.Formatter, len(allFormatters))
+	for _, f := range allFormatters {
+		formatters[f.Name()] = f
+	}
+
 	parts := strings.Split(str, ",")
-	for i, part := range parts {
-		if i == 0 {
-			name = part
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		part = strings.ToLower(part)
+
+		if f, ok := formatters[part]; ok {
+			formatter = f
 			continue
 		}
 
 		opts[part] = true
 	}
 
-	formatterNames := make([]string, len(formatters))
-	for i, f := range formatters {
-		if strings.EqualFold(f.Name(), name) {
-			formatter = f
-		}
-		formatterNames[i] = f.Name()
-	}
-
 	if formatter == nil {
-		return nil, errors.Errorf("invalid format %q, supported formats: %s", name, strings.Join(formatterNames, ", "))
+		return nil, errors.Errorf("invalid format, supported formats: %s", strings.Join(maps.Keys(formatters), ", "))
 	}
 
 	for name, value := range opts {
