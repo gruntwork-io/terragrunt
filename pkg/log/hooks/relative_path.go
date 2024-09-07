@@ -1,4 +1,4 @@
-package log
+package hooks
 
 import (
 	"os"
@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -27,9 +28,10 @@ const (
 //
 // This way, using the standard `strings.ReplaceAll`, we can replace absolute paths with relative ones for different lengths, iterating from longest to shortest.
 type RelativePathHook struct {
-	relPaths map[string]string
 	// absPaths are the keys of the `realPath` map, we store them in the order we iterate over them when replacing.
-	absPaths []string
+	absPaths      []string
+	relPaths      map[string]string
+	triggerLevels []logrus.Level
 }
 
 // NewRelativePathHook returns a new RelativePathHook instance.
@@ -66,14 +68,15 @@ func NewRelativePathHook(baseDir string) (*RelativePathHook, error) {
 	})
 
 	return &RelativePathHook{
-		relPaths: relPaths,
-		absPaths: absPaths,
+		absPaths:      absPaths,
+		relPaths:      relPaths,
+		triggerLevels: log.AllLevels.ToLogrusLevels(),
 	}, nil
 }
 
 // Levels implements logrus.Hook.Levels()
 func (hook *RelativePathHook) Levels() []logrus.Level {
-	return AllLevels.toLogrusLevels()
+	return hook.triggerLevels
 }
 
 // Fire implements logrus.Hook.Fire()
@@ -84,7 +87,7 @@ func (hook *RelativePathHook) Fire(entry *logrus.Entry) error {
 		if val, ok := field.(string); ok {
 			val = hook.replaceAbsPathsWithRel(val)
 
-			if key == FieldKeyPrefix && strings.HasPrefix(val, curDirWithSeparator) {
+			if key == log.FieldKeyPrefix && strings.HasPrefix(val, curDirWithSeparator) {
 				val = val[len(curDirWithSeparator):]
 			}
 

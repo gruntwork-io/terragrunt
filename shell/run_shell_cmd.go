@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/engine"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/formatters"
 	"github.com/gruntwork-io/terragrunt/terraform"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -123,11 +124,11 @@ func RunShellCommandWithOutput(
 		)
 
 		// redirect output through logger with json wrapping
-		if opts.LogFormat == log.JSONFormat && opts.TerraformLogsToJson {
+		if opts.LogFormatter.Name() == formatters.JSONFormatterName && opts.TerraformLogsToJson {
 			logger := opts.Logger.WithField("workingDir", opts.WorkingDir).WithField("executedCommandArgs", args)
 
-			outWriter = logger.WithOptions(log.SetOutput(outWriter)).Writer()
-			errWriter = logger.WithOptions(log.SetOutput(errWriter)).WriterLevel(log.ErrorLevel)
+			outWriter = logger.WithOptions(log.WithOutput(outWriter)).Writer()
+			errWriter = logger.WithOptions(log.WithOutput(errWriter)).WriterLevel(log.ErrorLevel)
 		} else if command == opts.TerraformPath {
 			if opts.ForwardTFStdout || shouldForceForwardTFStdout(args) {
 				// We only display the output receipt notification when we show it to the user, and do nothing when we hide it, for example when `outWriter` is io.Discard.
@@ -137,8 +138,8 @@ func RunShellCommandWithOutput(
 					})
 				}
 			} else {
-				outWriter = log.TFWriter(opts.Logger.WithOptions(log.SetOutput(outWriter)), opts.TerraformPath, false)
-				errWriter = log.TFWriter(opts.Logger.WithOptions(log.SetOutput(errWriter)), opts.TerraformPath, true)
+				outWriter = log.TFWriter(opts.Logger.WithOptions(log.WithOutput(outWriter)), opts.TerraformPath, false)
+				errWriter = log.TFWriter(opts.Logger.WithOptions(log.WithOutput(errWriter)), opts.TerraformPath, true)
 			}
 		}
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/formatters"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
 )
@@ -41,8 +42,7 @@ const (
 
 	defaultExcludesFile = ".terragrunt-excludes"
 
-	defaultLogLevel  = log.InfoLevel
-	defaultLogFormat = log.PrettyFormat
+	defaultLogLevel = log.InfoLevel
 )
 
 var (
@@ -58,6 +58,8 @@ var (
 		"force-unlock",
 		"state",
 	}
+
+	DefaultLogFormatter = formatters.NewPrettyFormatter()
 )
 
 type ctxKey byte
@@ -134,8 +136,8 @@ type TerragruntOptions struct {
 	// Log level
 	LogLevel log.Level
 
-	// Log format
-	LogFormat log.Format
+	// Log formatter
+	LogFormatter formatters.Formatter
 
 	// Wrap Terraform logs in JSON format
 	TerraformLogsToJson bool
@@ -388,8 +390,8 @@ func NewTerragruntOptions() *TerragruntOptions {
 		NonInteractive:                 false,
 		TerraformCliArgs:               []string{},
 		LogLevel:                       defaultLogLevel,
-		LogFormat:                      defaultLogFormat,
-		Logger:                         log.New(log.SetLevel(defaultLogLevel), log.SetFormat(defaultLogFormat)),
+		LogFormatter:                   DefaultLogFormatter,
+		Logger:                         log.New(log.WithLevel(defaultLogLevel), log.WithFormatter(DefaultLogFormatter)),
 		Env:                            map[string]string{},
 		Source:                         "",
 		SourceMap:                      map[string]string{},
@@ -465,13 +467,13 @@ func GetDefaultIAMAssumeRoleSessionName() string {
 func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...TerragruntOptionsFunc) (*TerragruntOptions, error) {
 	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
 	if err != nil {
-		log.WithOptions(log.SetLevel(log.DebugLevel)).Errorf("%v\n", errors.WithStackTrace(err))
+		log.WithOptions(log.WithLevel(log.DebugLevel)).Errorf("%v\n", errors.WithStackTrace(err))
 
 		return nil, err
 	}
 
 	opts.NonInteractive = true
-	opts.Logger.SetOptions(log.SetLevel(log.DebugLevel), log.SetFormat(opts.LogFormat))
+	opts.Logger.SetOptions(log.WithLevel(log.DebugLevel))
 	opts.LogLevel = log.DebugLevel
 
 	for _, opt := range options {
@@ -516,7 +518,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		RootWorkingDir:                 opts.RootWorkingDir,
 		Logger:                         opts.Logger.WithField(log.FieldKeyPrefix, filepath.Dir(terragruntConfigPath)),
 		LogLevel:                       opts.LogLevel,
-		LogFormat:                      opts.LogFormat,
+		LogFormatter:                   opts.LogFormatter,
 		ValidateStrict:                 opts.ValidateStrict,
 		Env:                            util.CloneStringMap(opts.Env),
 		Source:                         opts.Source,

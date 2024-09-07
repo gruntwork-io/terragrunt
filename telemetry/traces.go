@@ -11,7 +11,7 @@ import (
 	"github.com/gruntwork-io/go-commons/env"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 
-	"github.com/pkg/errors"
+	"github.com/gruntwork-io/go-commons/errors"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -54,7 +54,7 @@ func Trace(ctx context.Context, name string, attrs map[string]interface{}, fn fu
 func configureTraceCollection(ctx context.Context, opts *TelemetryOptions) error {
 	exp, err := NewTraceExporter(ctx, opts)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackTrace(err)
 	}
 
 	if exp == nil { // no exporter
@@ -65,7 +65,7 @@ func configureTraceCollection(ctx context.Context, opts *TelemetryOptions) error
 
 	traceProvider, err = newTraceProvider(opts, spanExporter)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.WithStackTrace(err)
 	}
 
 	otel.SetTracerProvider(traceProvider)
@@ -94,12 +94,12 @@ func configureTraceCollection(ctx context.Context, opts *TelemetryOptions) error
 
 		traceID, err := trace.TraceIDFromHex(traceIdHex)
 		if err != nil {
-			return errors.WithStack(err)
+			return errors.WithStackTrace(err)
 		}
 
 		spanID, err := trace.SpanIDFromHex(spanIdHex)
 		if err != nil {
-			return errors.WithStack(err)
+			return errors.WithStackTrace(err)
 		}
 
 		parentTraceID = &traceID
@@ -122,7 +122,7 @@ func newTraceProvider(opts *TelemetryOptions, exp sdktrace.SpanExporter) (*sdktr
 	)
 
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.WithStackTrace(err)
 	}
 
 	return sdktrace.NewTracerProvider(

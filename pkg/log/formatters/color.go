@@ -1,6 +1,7 @@
-package log
+package formatters
 
 import (
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mgutz/ansi"
 )
 
@@ -55,21 +56,21 @@ func (scheme ColorScheme) Compile() compiledColorScheme {
 
 type compiledColorScheme map[ColorStyleName]ColorFunc
 
-func (scheme compiledColorScheme) LevelColorFunc(level Level) ColorFunc {
+func (scheme compiledColorScheme) LevelColorFunc(level log.Level) ColorFunc {
 	switch level {
-	case StdoutLevel:
+	case log.StdoutLevel:
 		return scheme.ColorFunc(StdoutLevelStyle)
-	case StderrLevel:
+	case log.StderrLevel:
 		return scheme.ColorFunc(StderrLevelStyle)
-	case ErrorLevel:
+	case log.ErrorLevel:
 		return scheme.ColorFunc(ErrorLevelStyle)
-	case WarnLevel:
+	case log.WarnLevel:
 		return scheme.ColorFunc(WarnLevelStyle)
-	case InfoLevel:
+	case log.InfoLevel:
 		return scheme.ColorFunc(InfoLevelStyle)
-	case DebugLevel:
+	case log.DebugLevel:
 		return scheme.ColorFunc(DebugLevelStyle)
-	case TraceLevel:
+	case log.TraceLevel:
 		return scheme.ColorFunc(TraceLevelStyle)
 	default:
 		return scheme.ColorFunc(None)

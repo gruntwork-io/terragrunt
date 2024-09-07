@@ -3,7 +3,7 @@ package log
 import (
 	"strings"
 
-	"github.com/pkg/errors"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -50,14 +50,14 @@ var levelNames = map[Level]string{
 type Level uint32
 
 // ParseLevel takes a string and returns the Level constant.
-func ParseLevel(str string) (Level, error) {
+func ParseLevel(str string) (Level, bool) {
 	for level, name := range levelNames {
 		if strings.EqualFold(name, str) {
-			return level, nil
+			return level, true
 		}
 	}
 
-	return Level(0), errors.Errorf("not a valid log level: %q", str)
+	return Level(0), false
 }
 
 // String implements fmt.Stringer.
@@ -71,14 +71,12 @@ func (level Level) String() string {
 
 // UnmarshalText implements encoding.TextUnmarshaler.
 func (level *Level) UnmarshalText(text []byte) error {
-	lvl, err := ParseLevel(string(text))
-	if err != nil {
-		return err
+	if lvl, ok := ParseLevel(string(text)); ok {
+		*level = lvl
+		return nil
 	}
 
-	*level = lvl
-
-	return nil
+	return errors.Errorf("invalid: %q", string(text))
 }
 
 // MarshalText implements encoding.MarshalText.
@@ -87,7 +85,7 @@ func (level Level) MarshalText() ([]byte, error) {
 		return []byte(name), nil
 	}
 
-	return nil, errors.Errorf("not a valid log level %q", level)
+	return nil, errors.Errorf("invalid: %q", level)
 }
 
 var logrusLevels = map[Level]logrus.Level{
@@ -100,7 +98,29 @@ var logrusLevels = map[Level]logrus.Level{
 	TraceLevel:  logrus.Level(7),
 }
 
-func (level Level) toLogrusLevel() logrus.Level {
+type Levels []Level
+
+func (levels Levels) ToLogrusLevels() []logrus.Level {
+	logrusLevels := make([]logrus.Level, len(levels))
+
+	for i, level := range levels {
+		logrusLevels[i] = level.ToLogrusLevel()
+	}
+
+	return logrusLevels
+}
+
+func (levels Levels) Names() []string {
+	strs := make([]string, len(levels))
+
+	for i, level := range levels {
+		strs[i] = level.String()
+	}
+
+	return strs
+}
+
+func (level Level) ToLogrusLevel() logrus.Level {
 	if logrusLevel, ok := logrusLevels[level]; ok {
 		return logrusLevel
 	}
@@ -108,7 +128,7 @@ func (level Level) toLogrusLevel() logrus.Level {
 	return logrus.Level(0)
 }
 
-func fromLogrusLevel(lvl logrus.Level) Level {
+func FromLogrusLevel(lvl logrus.Level) Level {
 	for level, logrusLevel := range logrusLevels {
 		if logrusLevel == lvl {
 			return level
@@ -116,16 +136,4 @@ func fromLogrusLevel(lvl logrus.Level) Level {
 	}
 
 	return Level(0)
-}
-
-type Levels []Level
-
-func (levels Levels) toLogrusLevels() []logrus.Level {
-	logrusLevels := make([]logrus.Level, len(levels))
-
-	for i, level := range levels {
-		logrusLevels[i] = level.toLogrusLevel()
-	}
-
-	return logrusLevels
 }

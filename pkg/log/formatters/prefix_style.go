@@ -1,4 +1,4 @@
-package log
+package formatters
 
 import (
 	"github.com/puzpuzpuz/xsync/v3"
@@ -15,6 +15,11 @@ var (
 	// prefixStyle implements PrefixStyle
 	_ PrefixStyle = new(prefixStyle)
 )
+
+type PrefixStyle interface {
+	// ColorFunc creates a closure to avoid computation ANSI color code.
+	ColorFunc(prefixName string) ColorFunc
+}
 
 type prefixStyle struct {
 	// cache stores prefixes with their color schemes.

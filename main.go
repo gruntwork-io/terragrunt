@@ -9,7 +9,9 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/cli/commands"
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/formatters"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-multierror"
@@ -69,26 +71,26 @@ func printErrorWithStackTrace(err error) string {
 }
 
 func newLogger(out io.Writer) log.Logger {
-	logger := log.New(log.SetOutput(out))
+	logger := log.New(log.WithOutput(out), log.WithFormatter(options.DefaultLogFormatter))
 
 	if levelStr := os.Getenv(commands.TerragruntLogLevelEnvName); levelStr != "" {
-		level, err := log.ParseLevel(levelStr)
-		if err != nil {
-			err = errors.Errorf("Could not parse log level from environment variable %s=%s: %w", commands.TerragruntLogLevelEnvName, levelStr, err)
+		level, ok := log.ParseLevel(levelStr)
+		if !ok {
+			err := errors.Errorf("Could not parse log level from environment variable %s=%s, allowed values: \"%s\"", commands.TerragruntLogLevelEnvName, levelStr, strings.Join(log.AllLevels.Names(), `","`))
 			checkForErrorsAndExit(logger)(err)
 		}
 
-		logger.SetOptions(log.SetLevel(level))
+		logger.SetOptions(log.WithLevel(level))
 	}
 
-	if formatStr := os.Getenv(commands.TerragruntLogFormatEnvName); formatStr != "" {
-		format, err := log.ParseFormat(formatStr)
+	if formatterStr := os.Getenv(commands.TerragruntLogFormatEnvName); formatterStr != "" {
+		formatter, err := formatters.ParseFormat(formatterStr)
 		if err != nil {
-			err = errors.Errorf("Could not parse log format from environment variable %s=%s: %w", commands.TerragruntLogFormatEnvName, formatStr, err)
+			err = errors.Errorf("Could not parse log format from environment variable %s=%s: %w", commands.TerragruntLogFormatEnvName, formatterStr, err)
 			checkForErrorsAndExit(logger)(err)
 		}
 
-		logger.SetOptions(log.SetFormat(format))
+		logger.SetOptions(log.WithFormatter(formatter))
 	}
 
 	return logger

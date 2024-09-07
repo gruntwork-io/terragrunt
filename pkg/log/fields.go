@@ -1,27 +1,45 @@
 package log
 
+import "sort"
+
 const (
 	FieldKeyPrefix   = "prefix"
-	FieldKeyTFBinary = "tfBinary"
+	FieldKeyTFBinary = "tf-binary"
 	FieldKeyMsg      = "msg"
 	FieldKeyLevel    = "level"
 	FieldKeyTime     = "time"
 )
 
+var logKeys = []string{
+	FieldKeyMsg,
+	FieldKeyLevel,
+	FieldKeyTime,
+}
+
 // Fields type, used to pass to `WithFields`.
 type Fields map[string]interface{}
 
-type fieldKey string
+func (fields Fields) Keys(removeKeys ...string) []string {
+	var keys []string
 
-// FieldMap allows customization of the key names for default fields.
-type FieldMap map[fieldKey]string
+	for key := range fields {
+		var skip bool
 
-func (f FieldMap) resolve(key fieldKey) string {
-	if k, ok := f[key]; ok {
-		return k
+		for _, removeKey := range removeKeys {
+			if key == removeKey {
+				skip = true
+				break
+			}
+		}
+
+		if !skip {
+			keys = append(keys, key)
+		}
 	}
 
-	return string(key)
+	sort.Strings(keys)
+
+	return keys
 }
 
 // This is to not silently overwrite `time`, `msg` and `level` fields when
@@ -33,25 +51,11 @@ func (f FieldMap) resolve(key fieldKey) string {
 // it'll logged as:
 //
 //	{"level": "info", "fields.level": 1, "msg": "hello", "time": "..."}
-//
-// It's not exported because it's still using Data in an opinionated way. It's to
-// avoid code duplication between the two default formatters.
-func prefixFieldClashes(data Fields, fieldMap FieldMap) {
-	timeKey := fieldMap.resolve(FieldKeyTime)
-	if t, ok := data[timeKey]; ok {
-		data["fields."+timeKey] = t
-		delete(data, timeKey)
-	}
-
-	msgKey := fieldMap.resolve(FieldKeyMsg)
-	if m, ok := data[msgKey]; ok {
-		data["fields."+msgKey] = m
-		delete(data, msgKey)
-	}
-
-	levelKey := fieldMap.resolve(FieldKeyLevel)
-	if l, ok := data[levelKey]; ok {
-		data["fields."+levelKey] = l
-		delete(data, levelKey)
+func (fields Fields) fixKeyClashes() {
+	for _, key := range logKeys {
+		if val, ok := fields[key]; ok {
+			fields["fields."+key] = val
+			delete(fields, key)
+		}
 	}
 }

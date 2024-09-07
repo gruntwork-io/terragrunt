@@ -2,43 +2,34 @@ package log
 
 import (
 	"io"
+
+	"github.com/sirupsen/logrus"
 )
 
 type Option func(logger *logger)
 
-func SetLevel(level Level) Option {
+func WithLevel(level Level) Option {
 	return func(logger *logger) {
-		logger.Logger.SetLevel(level.toLogrusLevel())
+		logger.Logger.SetLevel(level.ToLogrusLevel())
 	}
 }
 
-func SetOutput(output io.Writer) Option {
+func WithOutput(output io.Writer) Option {
 	return func(logger *logger) {
 		logger.Logger.SetOutput(output)
 	}
 }
 
-func SetFormat(format Format) Option {
+func WithFormatter(formatter logrus.Formatter) Option {
 	return func(logger *logger) {
-		logger.formatter.OutputFormat = format
+		logger.Logger.SetFormatter(formatter)
 	}
 }
 
-func ReplaceAbsPathsWithRel(basePath string) (Option, error) {
-	hook, err := NewRelativePathHook(basePath)
-	if err != nil {
-		return nil, err
-	}
-
+func WithHooks(hooks ...logrus.Hook) Option {
 	return func(logger *logger) {
-		logger.Logger.AddHook(hook)
-	}, nil
-}
-
-func ForceLogLevel(forcedLevel Level) Option {
-	hook := NewForceLogLevelHook(forcedLevel)
-
-	return func(logger *logger) {
-		logger.Logger.AddHook(hook)
+		for _, hook := range hooks {
+			logger.Logger.AddHook(hook)
+		}
 	}
 }

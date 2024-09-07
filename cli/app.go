@@ -12,6 +12,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/engine"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/hooks"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"golang.org/x/sync/errgroup"
@@ -251,8 +252,8 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 // mostly preparing terragrunt options
 func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.Logger.SetOptions(
-		log.SetLevel(opts.LogLevel),
-		log.SetFormat(opts.LogFormat),
+		log.WithLevel(opts.LogLevel),
+		log.WithFormatter(opts.LogFormatter),
 	)
 
 	// The env vars are renamed to "..._NO_AUTO_..." in the gobal flags`. These ones are left for backwards compatibility.
@@ -309,12 +310,12 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.RootWorkingDir = filepath.ToSlash(workingDir)
 
 	if !opts.UseLogAbsPaths {
-		logOpt, err := log.ReplaceAbsPathsWithRel(opts.RootWorkingDir)
+		hook, err := hooks.NewRelativePathHook(opts.RootWorkingDir)
 		if err != nil {
 			return err
 		}
 
-		opts.Logger.SetOptions(logOpt)
+		opts.Logger.SetOptions(log.WithHooks(hook))
 	}
 
 	// --- Download Dir

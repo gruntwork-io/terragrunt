@@ -1,11 +1,14 @@
 package commands
 
 import (
-	"errors"
+	goErrors "errors"
+	"strings"
 
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/formatters"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -160,8 +163,8 @@ const (
 // NewGlobalFlags creates and returns global flags.
 func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 	var (
-		logLevelStr  = opts.LogLevel.String()
-		logFormatStr = opts.LogFormat.String()
+		logLevelStr     = opts.LogLevel.String()
+		logFormatterStr = opts.LogFormatter.String()
 	)
 
 	flags := cli.Flags{
@@ -319,27 +322,26 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &logLevelStr,
 			Usage:       "Sets the logging level for Terragrunt. Supported levels: stderr, stdout, error, warn, info, debug, trace.",
 			Action: func(ctx *cli.Context) error {
-				logLevel, err := log.ParseLevel(logLevelStr)
-				if err != nil {
-					return err
+				if level, ok := log.ParseLevel(logLevelStr); ok {
+					opts.LogLevel = level
+					return nil
 				}
 
-				opts.LogLevel = logLevel
-				return nil
+				return errors.Errorf("invalid value %q for flag %q, allowed values: \"%s\"", logLevelStr, TerragruntLogLevelFlagName, strings.Join(log.AllLevels.Names(), `","`))
 			},
 		},
 		&cli.GenericFlag[string]{
 			Name:        TerragruntLogFormatFlagName,
 			EnvVar:      TerragruntLogFormatEnvName,
-			Destination: &logFormatStr,
+			Destination: &logFormatterStr,
 			Usage:       "Sets the logging format for Terragrunt. Supported levels: json, pretty, key-value.",
 			Action: func(ctx *cli.Context) error {
-				logFormat, err := log.ParseFormat(logFormatStr)
+				formatter, err := formatters.ParseFormat(logFormatterStr)
 				if err != nil {
 					return err
 				}
 
-				opts.LogFormat = logFormat
+				opts.LogFormatter = formatter
 				return nil
 			},
 		},
@@ -484,7 +486,7 @@ func NewHelpFlag(opts *options.TerragruntOptions) cli.Flag {
 
 				// If the command name is not found, it is most likely a terraform command, show Terraform help.
 				var invalidCommandNameError cli.InvalidCommandNameError
-				if ok := errors.As(err, &invalidCommandNameError); ok {
+				if ok := goErrors.As(err, &invalidCommandNameError); ok {
 					terraformHelpCmd := append([]string{cmdName, "-help"}, ctx.Args().Tail()...)
 					return shell.RunTerraformCommand(ctx, opts, terraformHelpCmd...)
 				}

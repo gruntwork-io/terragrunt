@@ -66,16 +66,13 @@ type Logger interface {
 
 type logger struct {
 	*logrus.Entry
-	formatter *Formatter
 }
 
 func New(opts ...Option) Logger {
 	logger := &logger{
-		Entry:     logrus.NewEntry(logrus.New()),
-		formatter: NewFormatter(),
+		Entry: logrus.NewEntry(logrus.New()),
 	}
 	logger.Logger.ExitFunc = func(int) {}
-	logger.Logger.SetFormatter(logger.formatter)
 	logger.SetOptions(opts...)
 
 	return logger
@@ -105,14 +102,15 @@ func (logger *logger) WithOptions(opts ...Option) Logger {
 }
 
 func (logger *logger) WriterLevel(level Level) *io.PipeWriter {
-	return logger.Logger.WriterLevel(level.toLogrusLevel())
+	return logger.Logger.WriterLevel(level.ToLogrusLevel())
 }
 
 func (logger *logger) WithField(key string, value any) Logger {
-	return logger.setEntry(logger.Entry.WithFields(logrus.Fields(Fields{key: value})))
+	return logger.WithFields(Fields(Fields{key: value}))
 }
 
 func (logger *logger) WithFields(fields Fields) Logger {
+	fields.fixKeyClashes()
 	return logger.setEntry(logger.Entry.WithFields(logrus.Fields(fields)))
 }
 
@@ -129,15 +127,15 @@ func (logger *logger) WithTime(t time.Time) Logger {
 }
 
 func (logger *logger) Logf(level Level, format string, args ...any) {
-	logger.Entry.Logf(level.toLogrusLevel(), format, args...)
+	logger.Entry.Logf(level.ToLogrusLevel(), format, args...)
 }
 
 func (logger *logger) Log(level Level, args ...any) {
-	logger.Entry.Log(level.toLogrusLevel(), args...)
+	logger.Entry.Log(level.ToLogrusLevel(), args...)
 }
 
 func (logger *logger) Logln(level Level, args ...any) {
-	logger.Entry.Logln(level.toLogrusLevel(), args...)
+	logger.Entry.Logln(level.ToLogrusLevel(), args...)
 }
 
 func (logger *logger) Trace(args ...interface{}) {
@@ -239,14 +237,10 @@ func (logger logger) clone() *logger {
 	logger.Logger = logrus.New()
 	logger.Logger.SetOutput(parentLogger.Out)
 	logger.Logger.SetLevel(parentLogger.Level)
+	logger.Logger.SetFormatter(parentLogger.Formatter)
 	logger.Logger.ReplaceHooks(parentLogger.Hooks)
 	logger.Logger.ExitFunc = parentLogger.ExitFunc
-
 	logger.Entry = logger.Entry.Dup()
-
-	formatter := *logger.formatter
-	logger.formatter = &formatter
-	logger.Logger.SetFormatter(&formatter)
 
 	return &logger
 }
