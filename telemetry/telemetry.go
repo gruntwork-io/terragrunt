@@ -7,7 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/options"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/pkg/errors"
 	otelmetric "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/sdk/metric"
 
@@ -42,11 +42,11 @@ var parentTraceFlags *trace.TraceFlags
 // InitTelemetry - initialize the telemetry provider.
 func InitTelemetry(ctx context.Context, opts *TelemetryOptions) error {
 	if err := configureTraceCollection(ctx, opts); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.WithStack(err)
 	}
 
 	if err := configureMetricsCollection(ctx, opts); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.WithStack(err)
 	}
 
 	return nil
@@ -56,7 +56,7 @@ func InitTelemetry(ctx context.Context, opts *TelemetryOptions) error {
 func ShutdownTelemetry(ctx context.Context) error {
 	if traceProvider != nil {
 		if err := traceProvider.Shutdown(ctx); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.WithStack(err)
 		}
 
 		traceProvider = nil
@@ -64,7 +64,7 @@ func ShutdownTelemetry(ctx context.Context) error {
 
 	if metricProvider != nil {
 		if err := metricProvider.Shutdown(ctx); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.WithStack(err)
 		}
 
 		metricProvider = nil

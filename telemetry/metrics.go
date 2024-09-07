@@ -9,7 +9,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 
 	"github.com/gruntwork-io/go-commons/env"
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
@@ -46,7 +46,7 @@ func Time(ctx context.Context, name string, attrs map[string]interface{}, fn fun
 
 	histogram, err := meter.Int64Histogram(CleanMetricName(name + "_duration"))
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.WithStack(err)
 	}
 
 	startTime := time.Now()
@@ -83,7 +83,7 @@ func Count(ctx context.Context, name string, value int64) {
 func configureMetricsCollection(ctx context.Context, opts *TelemetryOptions) error {
 	exporter, err := NewMetricsExporter(ctx, opts)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.WithStack(err)
 	}
 
 	metricExporter = exporter
@@ -93,7 +93,7 @@ func configureMetricsCollection(ctx context.Context, opts *TelemetryOptions) err
 
 	provider, err := newMetricsProvider(opts, metricExporter)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.WithStack(err)
 	}
 
 	metricProvider = provider
@@ -144,7 +144,7 @@ func newMetricsProvider(opts *TelemetryOptions, exp metric.Exporter) (*metric.Me
 	)
 
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.WithStack(err)
 	}
 
 	meterProvider := metric.NewMeterProvider(
