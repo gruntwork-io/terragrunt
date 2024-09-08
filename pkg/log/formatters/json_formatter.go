@@ -20,26 +20,26 @@ const (
 var _ log.Formatter = new(JSONFormatter)
 
 type JSONFormatter struct {
+	*CommonFormatter
+
 	// DisableTimestamp allows disabling automatic timestamps in output
-	DisableTimestamp bool `opt:"no-timestamp"`
+	DisableTimestamp bool
 
 	// Timestamp format to use for display when a full timestamp is printed.
 	TimestampFormat string
 
 	// EnableIndent enables indent.
-	EnableIndent bool `opt:"indent"`
+	EnableIndent bool
 }
 
 // NewJSONFormatter returns a new JSONFormatter instance with default values.
 func NewJSONFormatter() *JSONFormatter {
 	return &JSONFormatter{
-		TimestampFormat: defaultJSONFormatterTimestampFormat,
+		CommonFormatter: &CommonFormatter{
+			TimestampFormat: defaultJSONFormatterTimestampFormat,
+			name:            JSONFormatterName,
+		},
 	}
-}
-
-// Name implements Formatter
-func (formatter *JSONFormatter) Name() string {
-	return JSONFormatterName
 }
 
 // Format implements logrus.Formatter

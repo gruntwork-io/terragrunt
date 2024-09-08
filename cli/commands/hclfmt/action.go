@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 
 	"github.com/gruntwork-io/go-commons/errors"
 
@@ -140,7 +141,7 @@ func checkErrors(logger log.Logger, disableColor bool, contents []byte, tgHclFil
 	parser := hclparse.NewParser()
 	_, diags := parser.ParseHCL(contents, tgHclFile)
 
-	writer := &log.Writer{Logger: logger, Level: log.ErrorLevel}
+	writer := writer.New(writer.WithLogger(logger), writer.WithDefaultLevel(log.ErrorLevel))
 	diagWriter := parser.GetDiagnosticsWriter(writer, disableColor)
 
 	err := diagWriter.WriteDiagnostics(diags)

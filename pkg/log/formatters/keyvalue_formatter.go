@@ -21,11 +21,13 @@ const (
 var _ log.Formatter = new(KeyValueFormatter)
 
 type KeyValueFormatter struct {
+	*CommonFormatter
+
 	// DisableTimestamp allows disabling automatic timestamps in output
 	DisableTimestamp bool
 
 	// Timestamp format to use for display when a full timestamp is printed.
-	TimestampFormat string `opt:"no-timestamp"`
+	TimestampFormat string
 
 	// Wrap empty fields in quotes if true.
 	QuoteEmptyFields bool
@@ -37,13 +39,11 @@ type KeyValueFormatter struct {
 // NewKeyValueFormatter returns a new KeyValueFormatter instance with default values.
 func NewKeyValueFormatter() *KeyValueFormatter {
 	return &KeyValueFormatter{
-		TimestampFormat: defaultKeyValueFormatterTimestampFormat,
+		CommonFormatter: &CommonFormatter{
+			TimestampFormat: defaultKeyValueFormatterTimestampFormat,
+			name:            KeyValueFormatterName,
+		},
 	}
-}
-
-// Name implements Formatter
-func (formatter *KeyValueFormatter) Name() string {
-	return KeyValueFormatterName
 }
 
 // Format implements logrus.Formatter

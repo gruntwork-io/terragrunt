@@ -516,7 +516,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		TerraformCliArgs:               util.CloneStringList(opts.TerraformCliArgs),
 		WorkingDir:                     workingDir,
 		RootWorkingDir:                 opts.RootWorkingDir,
-		Logger:                         opts.Logger.WithField(log.FieldKeyPrefix, filepath.Dir(terragruntConfigPath)),
+		Logger:                         opts.Logger.WithField(log.FieldKeyPrefix, workingDir),
 		LogLevel:                       opts.LogLevel,
 		LogFormatter:                   opts.LogFormatter,
 		ValidateStrict:                 opts.ValidateStrict,

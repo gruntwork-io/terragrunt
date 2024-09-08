@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -76,7 +77,7 @@ var (
 	}
 
 	DefaultParserOptions = func(opts *options.TerragruntOptions) []hclparse.Option {
-		writer := &log.Writer{Logger: opts.Logger, Level: log.ErrorLevel}
+		writer := writer.New(writer.WithLogger(opts.Logger), writer.WithDefaultLevel(log.ErrorLevel))
 
 		return []hclparse.Option{
 			hclparse.WithDiagnosticsWriter(writer, opts.DisableLogColors),

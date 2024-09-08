@@ -18,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/formatters"
+	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 	"github.com/gruntwork-io/terragrunt/terraform"
 
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -138,8 +139,21 @@ func RunShellCommandWithOutput(
 					})
 				}
 			} else {
-				outWriter = log.TFWriter(opts.Logger.WithOptions(log.WithOutput(outWriter)), opts.TerraformPath, false)
-				errWriter = log.TFWriter(opts.Logger.WithOptions(log.WithOutput(errWriter)), opts.TerraformPath, true)
+				logger := opts.Logger.WithField(log.FieldKeyTFBinary, opts.TerraformPath)
+
+				outWriter = writer.New(
+					writer.WithLogger(logger.WithOptions(log.WithOutput(outWriter))),
+					writer.WithDefaultLevel(log.StdoutLevel),
+					writer.WithSplitLines(),
+					writer.WithParseFunc(terraform.ParseLog),
+				)
+
+				errWriter = writer.New(
+					writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
+					writer.WithDefaultLevel(log.StderrLevel),
+					writer.WithSplitLines(),
+					writer.WithParseFunc(terraform.ParseLog),
+				)
 			}
 		}
 

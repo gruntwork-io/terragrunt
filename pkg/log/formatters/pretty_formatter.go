@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -21,17 +22,10 @@ const (
 var _ log.Formatter = new(PrettyFormatter)
 
 type PrettyFormatter struct {
-	// Disable the conversion of the log levels to uppercase
-	DisableUppercase bool
-
-	// DisableTimestamp allows disabling automatic timestamps in output
-	DisableTimestamp bool `opt:"no-timestamp"`
-
-	// Timestamp format to use for display when a full timestamp is printed.
-	TimestampFormat string
+	*CommonFormatter
 
 	// Force disabling colors. For a TTY colors are enabled by default.
-	DisableColors bool `opt:"no-color"`
+	DisableColors bool
 
 	// PrefixStyle is used to assign different styles (colors) to each prefix.
 	PrefixStyle PrefixStyle
@@ -46,7 +40,13 @@ type PrettyFormatter struct {
 // NewPrettyFormatter returns a new PrettyFormatter instance with default values.
 func NewPrettyFormatter() *PrettyFormatter {
 	return &PrettyFormatter{
-		TimestampFormat:   defaultPrettyFormatterTimestampFormat,
+		CommonFormatter: &CommonFormatter{
+			TimestampFormat:  defaultPrettyFormatterTimestampFormat,
+			name:             PrettyFormatterName,
+			options:          make(map[string]any),
+			supportedOptions: commonSupportedOptions,
+			baseTimestamp:    time.Now(),
+		},
 		PrefixStyle:       NewPrefixStyle(),
 		colorScheme:       defaultColorScheme.Compile(),
 		keyValueFormatter: &KeyValueFormatter{},
@@ -57,11 +57,6 @@ func (formatter *PrettyFormatter) SetColorScheme(colorScheme *ColorScheme) {
 	maps.Copy(formatter.colorScheme, colorScheme.Compile())
 }
 
-// Name implements Formatter
-func (formatter *PrettyFormatter) Name() string {
-	return PrettyFormatterName
-}
-
 // Format implements logrus.Formatter
 func (formatter *PrettyFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	buf := entry.Buffer
@@ -69,26 +64,26 @@ func (formatter *PrettyFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 		buf = new(bytes.Buffer)
 	}
 
-	level := fmt.Sprintf("%-6s ", log.FromLogrusLevel(entry.Level))
-
-	if !formatter.DisableUppercase {
-		level = strings.ToUpper(level)
-	}
-
-	if !formatter.DisableUppercase {
-		level = strings.ToUpper(level)
-	}
-
 	var (
+		level     string
 		prefix    string
 		tfBinary  string
 		timestamp string
 		fields    = log.Fields(entry.Data)
 	)
 
+	if level = formatter.getLevel(log.FromLogrusLevel(entry.Level)); level != "" {
+		level += " "
+	}
+
 	if val, ok := fields[log.FieldKeyPrefix]; ok && val != nil {
-		if val, ok := val.(string); ok && val != "" {
-			prefix = fmt.Sprintf("[%s] ", val)
+		if prefix = formatter.getPrefix(val); prefix != "" {
+			if strings.HasPrefix(prefix, log.CurDirWithSeparator) {
+				prefix = prefix[len(log.CurDirWithSeparator):]
+			}
+			if prefix != "" {
+				prefix = fmt.Sprintf("[%s] ", prefix)
+			}
 		}
 	}
 
@@ -98,8 +93,8 @@ func (formatter *PrettyFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 		}
 	}
 
-	if !formatter.DisableTimestamp && formatter.TimestampFormat != "" {
-		timestamp = entry.Time.Format(formatter.TimestampFormat) + " "
+	if timestamp = formatter.getTimestamp(entry.Time); timestamp != "" {
+		timestamp += " "
 	}
 
 	if !formatter.DisableColors {

@@ -12,11 +12,6 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-const (
-	curDir              = "."
-	curDirWithSeparator = curDir + string(os.PathSeparator)
-)
-
 // RelativePathHook represents a hook for logrus logger.
 // The purpose is to replace all absolute paths found in the main message or data fields with paths relative to `baseDir`.
 // For better performance, during instance creation, we creating a cache of relative paths for each subdirectory of baseDir.
@@ -51,9 +46,9 @@ func NewRelativePathHook(baseDir string) (*RelativePathHook, error) {
 		}
 
 		// if relPath is the current directory `.`, we add PathSeperator `./` to avoid confusion with the dot at the end of the sentence.
-		if relPath == curDir {
-			relPath = curDirWithSeparator
-			relPaths[absPath+string(os.PathSeparator)] = curDirWithSeparator
+		if relPath == log.CurDir {
+			relPath = log.CurDirWithSeparator
+			relPaths[absPath+string(os.PathSeparator)] = log.CurDirWithSeparator
 		}
 
 		relPaths[absPath] = relPath
@@ -85,13 +80,23 @@ func (hook *RelativePathHook) Fire(entry *logrus.Entry) error {
 
 	for key, field := range entry.Data {
 		if val, ok := field.(string); ok {
-			val = hook.replaceAbsPathsWithRel(val)
+			var (
+				val    = val
+				newVal = hook.replaceAbsPathsWithRel(val)
+			)
 
-			if key == log.FieldKeyPrefix && strings.HasPrefix(val, curDirWithSeparator) {
-				val = val[len(curDirWithSeparator):]
+			if newVal == val {
+				continue
 			}
 
-			entry.Data[key] = val
+			if key == log.FieldKeyPrefix {
+				entry.Data[key] = func() (string, string) {
+					return val, newVal
+				}
+				continue
+			}
+
+			entry.Data[key] = newVal
 		}
 	}
 
