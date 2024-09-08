@@ -11,7 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/formatters"
+	"github.com/gruntwork-io/terragrunt/pkg/log/formats"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-multierror"
@@ -84,7 +84,7 @@ func newLogger(out io.Writer) log.Logger {
 	}
 
 	if formatterStr := os.Getenv(commands.TerragruntLogFormatEnvName); formatterStr != "" {
-		formatter, err := formatters.ParseFormat(formatterStr)
+		formatter, err := formats.ParseFormat(formatterStr, formats.PrettyFormatterName)
 		if err != nil {
 			err = errors.Errorf("Could not parse log format from environment variable %s=%s, %w", commands.TerragruntLogFormatEnvName, formatterStr, err)
 			checkForErrorsAndExit(logger)(err)

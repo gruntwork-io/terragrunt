@@ -5,7 +5,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
-	"github.com/gruntwork-io/terragrunt/pkg/log/formatters"
+	"github.com/gruntwork-io/terragrunt/pkg/log/formats"
 )
 
 // The following flags are DEPRECATED
@@ -39,7 +39,7 @@ func NewDeprecatedFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:  "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
 			Hidden: true,
 			Action: func(ctx *cli.Context) error {
-				opts.LogFormatter = formatters.NewKeyValueFormatter()
+				opts.LogFormatter = formats.NewKeyValueFormatter()
 				opts.Logger.Warnf("The %q flag is deprecated. Use the %q flag instead.", TerragruntDisableLogFormattingFlagName, commands.TerragruntLogFormatFlagName)
 				return nil
 			},
@@ -50,7 +50,7 @@ func NewDeprecatedFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:  "If specified, Terragrunt will output its logs in JSON format.",
 			Hidden: true,
 			Action: func(ctx *cli.Context) error {
-				opts.LogFormatter = formatters.NewJSONFormatter()
+				opts.LogFormatter = formats.NewJSONFormatter()
 				opts.Logger.Warnf("The %q flag is deprecated. Use the %q flag instead.", TerragruntJsonLogFlagName, commands.TerragruntLogFormatFlagName)
 				return nil
 			},

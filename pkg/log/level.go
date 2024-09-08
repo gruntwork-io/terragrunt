@@ -46,6 +46,16 @@ var levelNames = map[Level]string{
 	TraceLevel:  "trace",
 }
 
+var levelShortNames = map[Level]string{
+	StderrLevel: "s",
+	StdoutLevel: "s",
+	ErrorLevel:  "e",
+	WarnLevel:   "w",
+	InfoLevel:   "i",
+	DebugLevel:  "d",
+	TraceLevel:  "t",
+}
+
 // Level type
 type Level uint32
 
@@ -63,6 +73,14 @@ func ParseLevel(str string) (Level, error) {
 // String implements fmt.Stringer.
 func (level Level) String() string {
 	if name, ok := levelNames[level]; ok {
+		return name
+	}
+
+	return ""
+}
+
+func (level Level) ShortName() string {
+	if name, ok := levelShortNames[level]; ok {
 		return name
 	}
 

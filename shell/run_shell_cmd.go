@@ -17,7 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/engine"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/formatters"
+	"github.com/gruntwork-io/terragrunt/pkg/log/formats"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 	"github.com/gruntwork-io/terragrunt/terraform"
 
@@ -41,6 +41,14 @@ const (
 	refsTags  = "refs/tags/"
 
 	tagSplitPart = 2
+)
+
+const (
+	// tfLogMsgPrefix is a message prefix that is prepended to each TF_LOG output lines when the output is integrated in TG log, for example:
+	//
+	// TF_LOG: using github.com/zclconf/go-cty v1.14.3
+	// TF_LOG: Go runtime version: go1.22.1
+	tfLogMsgPrefix = "TF_LOG: "
 )
 
 // Commands that implement a REPL need a pseudo TTY when run as a subprocess in order for the readline properties to be
@@ -125,7 +133,7 @@ func RunShellCommandWithOutput(
 		)
 
 		// redirect output through logger with json wrapping
-		if opts.LogFormatter.Name() == formatters.JSONFormatterName && opts.TerraformLogsToJson {
+		if opts.LogFormatter.Name() == formats.JSONFormatterName && opts.TerraformLogsToJson {
 			logger := opts.Logger.WithField("workingDir", opts.WorkingDir).WithField("executedCommandArgs", args)
 
 			outWriter = logger.WithOptions(log.WithOutput(outWriter)).Writer()
@@ -139,20 +147,19 @@ func RunShellCommandWithOutput(
 					})
 				}
 			} else {
-				logger := opts.Logger.WithField(log.FieldKeyTFBinary, opts.TerraformPath)
+				logger := opts.Logger.WithField(log.FieldKeyCmd, opts.TerraformPath)
 
 				outWriter = writer.New(
 					writer.WithLogger(logger.WithOptions(log.WithOutput(outWriter))),
 					writer.WithDefaultLevel(log.StdoutLevel),
 					writer.WithSplitLines(),
-					writer.WithParseFunc(terraform.ParseLog),
 				)
 
 				errWriter = writer.New(
 					writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
 					writer.WithDefaultLevel(log.StderrLevel),
 					writer.WithSplitLines(),
-					writer.WithParseFunc(terraform.ParseLog),
+					writer.WithParseFunc(terraform.ParseLog(tfLogMsgPrefix)),
 				)
 			}
 		}

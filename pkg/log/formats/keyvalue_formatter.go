@@ -1,4 +1,4 @@
-package formatters
+package formats
 
 import (
 	"bytes"
@@ -17,8 +17,8 @@ const (
 	defaultKeyValueFormatterTimestampFormat = time.RFC3339
 )
 
-// KeyValueFormatter implements log.Formatter
-var _ log.Formatter = new(KeyValueFormatter)
+// KeyValueFormatter implements formats.Formatter
+var _ Formatter = new(KeyValueFormatter)
 
 type KeyValueFormatter struct {
 	*CommonFormatter
@@ -40,8 +40,7 @@ type KeyValueFormatter struct {
 func NewKeyValueFormatter() *KeyValueFormatter {
 	return &KeyValueFormatter{
 		CommonFormatter: &CommonFormatter{
-			TimestampFormat: defaultKeyValueFormatterTimestampFormat,
-			name:            KeyValueFormatterName,
+			name: KeyValueFormatterName,
 		},
 	}
 }
@@ -73,9 +72,9 @@ func (formatter *KeyValueFormatter) Format(entry *logrus.Entry) ([]byte, error) 
 		}
 	}
 
-	if val, ok := fields[log.FieldKeyTFBinary]; ok && val != nil {
+	if val, ok := fields[log.FieldKeyCmd]; ok && val != nil {
 		if val := val.(string); val != "" {
-			if err := formatter.appendKeyValue(buf, log.FieldKeyTFBinary, filepath.Base(val), true); err != nil {
+			if err := formatter.appendKeyValue(buf, log.FieldKeyCmd, filepath.Base(val), true); err != nil {
 				return nil, err
 			}
 		}
@@ -87,7 +86,7 @@ func (formatter *KeyValueFormatter) Format(entry *logrus.Entry) ([]byte, error) 
 		}
 	}
 
-	keys := fields.Keys(log.FieldKeyPrefix, log.FieldKeyTFBinary)
+	keys := fields.Keys(log.FieldKeyPrefix, log.FieldKeyCmd)
 	for _, key := range keys {
 		if err := formatter.appendKeyValue(buf, key, fields[key], true); err != nil {
 			return nil, err

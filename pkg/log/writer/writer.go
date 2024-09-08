@@ -28,14 +28,17 @@ func New(opts ...Option) *Writer {
 	writer := &Writer{
 		logger:       log.DefaultLogger,
 		defaultLevel: log.InfoLevel,
-		parseFunc:    func(str string) (msg string, time *time.Time, level *log.Level, err error) { return msg, nil, nil, nil },
+		parseFunc:    func(str string) (msg string, time *time.Time, level *log.Level, err error) { return str, nil, nil, nil },
 	}
+	writer.SetOption(opts...)
 
+	return writer
+}
+
+func (writer *Writer) SetOption(opts ...Option) {
 	for _, opt := range opts {
 		opt(writer)
 	}
-
-	return writer
 }
 
 func (writer *Writer) Write(p []byte) (n int, err error) {

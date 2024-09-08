@@ -1,4 +1,4 @@
-package formatters
+package formats
 
 import (
 	"bytes"
@@ -16,8 +16,8 @@ const (
 	defaultJSONFormatterTimestampFormat = time.RFC3339
 )
 
-// JSONFormatter implements log.Formatter
-var _ log.Formatter = new(JSONFormatter)
+// JSONFormatter implements formats.Formatter
+var _ Formatter = new(JSONFormatter)
 
 type JSONFormatter struct {
 	*CommonFormatter
@@ -36,8 +36,7 @@ type JSONFormatter struct {
 func NewJSONFormatter() *JSONFormatter {
 	return &JSONFormatter{
 		CommonFormatter: &CommonFormatter{
-			TimestampFormat: defaultJSONFormatterTimestampFormat,
-			name:            JSONFormatterName,
+			name: JSONFormatterName,
 		},
 	}
 }

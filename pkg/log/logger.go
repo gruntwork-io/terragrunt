@@ -3,35 +3,10 @@ package log
 import (
 	"context"
 	"io"
-	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
 )
-
-type Formatters []Formatter
-
-func (formatters Formatters) Names() []string {
-	strs := make([]string, len(formatters))
-
-	for i, formatter := range formatters {
-		strs[i] = formatter.Name()
-	}
-
-	return strs
-}
-
-func (formatters Formatters) String() string {
-	return strings.Join(formatters.Names(), ", ")
-}
-
-type Formatter interface {
-	logrus.Formatter
-
-	Name() string
-	SetOption(name string, value any) error
-	SupportedOption() []string
-}
 
 type Logger interface {
 	//
