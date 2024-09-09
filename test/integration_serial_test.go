@@ -539,7 +539,7 @@ func TestTerragruntOutputJson(t *testing.T) {
 		msgs = append(msgs, msg)
 	}
 
-	assert.Contains(t, strings.Join(msgs, ""), "Downloading Terraform configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=5a58053a6a08bac1c7b184e21f536a83cd48a3fa")
+	assert.Contains(t, strings.Join(msgs, ""), "Downloading Terraform configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=v0.9.9")
 }
 
 func TestTerragruntTerraformOutputJson(t *testing.T) {
