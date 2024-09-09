@@ -787,9 +787,7 @@ func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOp
 // natively.
 func ToTerraformEnvVars(opts *options.TerragruntOptions, vars map[string]interface{}) (map[string]string, error) {
 	if useLegacyNullValues() {
-		opts.Logger.Warnf("%s is a temporary workaround to bypass the breaking change in #2663.", useLegacyNullValuesEnvVar)
-		opts.Logger.Warn("This flag will be removed in the future.")
-		opts.Logger.Warn("Do not rely on it.")
+		opts.Logger.Warnf("%s is a temporary workaround to bypass the breaking change in #2663.\nThis flag will be removed in the future.\nDo not rely on it.", useLegacyNullValuesEnvVar)
 	}
 
 	out := map[string]string{}
@@ -847,5 +845,5 @@ func setTerragruntNullValues(terragruntOptions *options.TerragruntOptions, terra
 }
 
 func useLegacyNullValues() bool {
-	return os.Getenv(useLegacyNullValuesEnvVar) != ""
+	return os.Getenv(useLegacyNullValuesEnvVar) == "1"
 }
