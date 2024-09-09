@@ -787,7 +787,7 @@ func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOp
 // natively.
 func ToTerraformEnvVars(opts *options.TerragruntOptions, vars map[string]interface{}) (map[string]string, error) {
 	if useLegacyNullValues() {
-		opts.Logger.Warnf("%s is a temporary workaround to bypass the breaking change in #2663.\nThis flag will be removed in the future.\nDo not rely on it.", useLegacyNullValuesEnvVar)
+		opts.Logger.Warnf("⚠️ %s is a temporary workaround to bypass the breaking change in #2663.\nThis flag will be removed in the future.\nDo not rely on it.", useLegacyNullValuesEnvVar)
 	}
 
 	out := map[string]string{}
@@ -795,7 +795,7 @@ func ToTerraformEnvVars(opts *options.TerragruntOptions, vars map[string]interfa
 	for varName, varValue := range vars {
 		if varValue == nil {
 			if useLegacyNullValues() {
-				opts.Logger.Warnf("Input `%s` has value `null`. Quoting due to %s.", varName, useLegacyNullValuesEnvVar)
+				opts.Logger.Warnf("⚠️ Input `%s` has value `null`. Quoting due to %s.", varName, useLegacyNullValuesEnvVar)
 			} else {
 				continue
 			}
