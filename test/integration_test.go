@@ -3390,10 +3390,11 @@ func TestTerragruntHandleLegacyNullValues(t *testing.T) {
 	cleanupTerragruntFolder(t, tmpEnv)
 	tmpEnv = util.JoinPath(tmpEnv, generateTestCase)
 
-	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+tmpEnv)
+	_, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+tmpEnv)
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Input `var1` has value `null`. Quoting due to TERRAGRUNT_TEMP_QUOTE_NULL")
 
 	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+tmpEnv)
-
 	require.NoError(t, err)
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
