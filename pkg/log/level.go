@@ -46,6 +46,16 @@ var levelNames = map[Level]string{
 	TraceLevel:  "trace",
 }
 
+var levelMiddleNames = map[Level]string{
+	StderrLevel: "std",
+	StdoutLevel: "std",
+	ErrorLevel:  "err",
+	WarnLevel:   "wrn",
+	InfoLevel:   "inf",
+	DebugLevel:  "deb",
+	TraceLevel:  "trc",
+}
+
 var levelShortNames = map[Level]string{
 	StderrLevel: "s",
 	StdoutLevel: "s",
@@ -81,6 +91,14 @@ func (level Level) String() string {
 
 func (level Level) ShortName() string {
 	if name, ok := levelShortNames[level]; ok {
+		return name
+	}
+
+	return ""
+}
+
+func (level Level) MiddleName() string {
+	if name, ok := levelMiddleNames[level]; ok {
 		return name
 	}
 

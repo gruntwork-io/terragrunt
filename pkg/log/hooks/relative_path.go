@@ -78,27 +78,27 @@ func (hook *RelativePathHook) Levels() []logrus.Level {
 func (hook *RelativePathHook) Fire(entry *logrus.Entry) error {
 	entry.Message = hook.replaceAbsPathsWithRel(entry.Message)
 
-	for key, field := range entry.Data {
-		if val, ok := field.(string); ok {
-			var (
-				val    = val
-				newVal = hook.replaceAbsPathsWithRel(val)
-			)
+	// for key, field := range entry.Data {
+	// 	if val, ok := field.(string); ok {
+	// 		var (
+	// 			val    = val
+	// 			newVal = hook.replaceAbsPathsWithRel(val)
+	// 		)
 
-			if newVal == val {
-				continue
-			}
+	// 		if newVal == val {
+	// 			continue
+	// 		}
 
-			if key == log.FieldKeyPrefix {
-				entry.Data[key] = func() (string, string) {
-					return val, newVal
-				}
-				continue
-			}
+	// 		if key == log.FieldKeyPrefix {
+	// 			entry.Data[key] = func() (string, string) {
+	// 				return val, newVal
+	// 			}
+	// 			continue
+	// 		}
 
-			entry.Data[key] = newVal
-		}
-	}
+	// 		entry.Data[key] = newVal
+	// 	}
+	// }
 
 	return nil
 }

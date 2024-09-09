@@ -336,9 +336,9 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        TerragruntLogFormatFlagName,
 			EnvVar:      TerragruntLogFormatEnvName,
 			Destination: &logFormatterStr,
-			Usage:       fmt.Sprintf("Sets the logging format for Terragrunt. Supported formats: %s", formats.AllFormatters()),
+			Usage:       fmt.Sprintf("Sets the logging format for Terragrunt. Supported formats: %s", formats.AllFormats()),
 			Action: func(ctx *cli.Context) error {
-				formatter, err := formats.ParseFormat(logFormatterStr, formats.PrettyFormatterName)
+				formatter, err := formats.ParseFormat(logFormatterStr, formats.PrettyFormatName)
 				if err != nil {
 					return errors.Errorf("flag --%s, %w", TerragruntLogFormatFlagName, err)
 				}

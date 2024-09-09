@@ -84,7 +84,7 @@ func newLogger(out io.Writer) log.Logger {
 	}
 
 	if formatterStr := os.Getenv(commands.TerragruntLogFormatEnvName); formatterStr != "" {
-		formatter, err := formats.ParseFormat(formatterStr, formats.PrettyFormatterName)
+		formatter, err := formats.ParseFormat(formatterStr, formats.PrettyFormatName)
 		if err != nil {
 			err = errors.Errorf("Could not parse log format from environment variable %s=%s, %w", commands.TerragruntLogFormatEnvName, formatterStr, err)
 			checkForErrorsAndExit(logger)(err)

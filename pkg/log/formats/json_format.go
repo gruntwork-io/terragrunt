@@ -11,16 +11,16 @@ import (
 )
 
 const (
-	JSONFormatterName = "json"
+	JSONFormatName = "json"
 
-	defaultJSONFormatterTimestampFormat = time.RFC3339
+	defaultJSONFormatTimestampFormat = time.RFC3339
 )
 
-// JSONFormatter implements formats.Formatter
-var _ Formatter = new(JSONFormatter)
+// JSONFormat implements formats.Format
+var _ Format = new(JSONFormat)
 
-type JSONFormatter struct {
-	*CommonFormatter
+type JSONFormat struct {
+	*CommonFormat
 
 	// DisableTimestamp allows disabling automatic timestamps in output
 	DisableTimestamp bool
@@ -32,17 +32,17 @@ type JSONFormatter struct {
 	EnableIndent bool
 }
 
-// NewJSONFormatter returns a new JSONFormatter instance with default values.
-func NewJSONFormatter() *JSONFormatter {
-	return &JSONFormatter{
-		CommonFormatter: &CommonFormatter{
-			name: JSONFormatterName,
+// NewJSONFormat returns a new JSONFormat instance with default values.
+func NewJSONFormat() *JSONFormat {
+	return &JSONFormat{
+		CommonFormat: &CommonFormat{
+			name: JSONFormatName,
 		},
 	}
 }
 
 // Format implements logrus.Formatter
-func (formatter *JSONFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+func (format *JSONFormat) Format(entry *logrus.Entry) ([]byte, error) {
 	buf := entry.Buffer
 	if buf == nil {
 		buf = new(bytes.Buffer)
@@ -60,14 +60,14 @@ func (formatter *JSONFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 		}
 	}
 
-	if !formatter.DisableTimestamp && formatter.TimestampFormat != "" {
-		fields[log.FieldKeyTime] = entry.Time.Format(formatter.TimestampFormat)
+	if !format.DisableTimestamp && format.TimestampFormat != "" {
+		fields[log.FieldKeyTime] = entry.Time.Format(format.TimestampFormat)
 	}
 	fields[log.FieldKeyMsg] = entry.Message
 	fields[log.FieldKeyLevel] = log.FromLogrusLevel(entry.Level).String()
 
 	encoder := json.NewEncoder(buf)
-	if formatter.EnableIndent {
+	if format.EnableIndent {
 		encoder.SetIndent("", "  ")
 	}
 

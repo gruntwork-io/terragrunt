@@ -59,7 +59,7 @@ var (
 		"state",
 	}
 
-	DefaultLogFormatter = formats.NewPrettyFormatter()
+	DefaultLogFormatter = formats.NewPrettyFormat(formats.DefaultPrettyFormatPreset)
 )
 
 type ctxKey byte
@@ -137,7 +137,7 @@ type TerragruntOptions struct {
 	LogLevel log.Level
 
 	// Log formatter
-	LogFormatter formats.Formatter
+	LogFormatter formats.Format
 
 	// Wrap Terraform logs in JSON format
 	TerraformLogsToJson bool
@@ -499,6 +499,11 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOptions, error) {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
+	relWorkingDir, err := util.GetPathRelativeTo(workingDir, opts.RootWorkingDir)
+	if err != nil {
+		return nil, err
+	}
+
 	// Note that we clone lists and maps below as TerragruntOptions may be used and modified concurrently in the code
 	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
 	// for more info.
@@ -516,7 +521,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		TerraformCliArgs:               util.CloneStringList(opts.TerraformCliArgs),
 		WorkingDir:                     workingDir,
 		RootWorkingDir:                 opts.RootWorkingDir,
-		Logger:                         opts.Logger.WithField(log.FieldKeyPrefix, workingDir),
+		Logger:                         opts.Logger.WithField(log.FieldKeyPrefix, workingDir).WithField("rel-prefix", relWorkingDir),
 		LogLevel:                       opts.LogLevel,
 		LogFormatter:                   opts.LogFormatter,
 		ValidateStrict:                 opts.ValidateStrict,

@@ -13,11 +13,11 @@ func (presets Presets) Find(name string) *Preset {
 }
 
 func (presets Presets) Names() []string {
-	names := make([]string, len(presets))
+	var names []string
 
-	for i, preset := range presets {
+	for _, preset := range presets {
 		if preset.name != "" {
-			names[i] = preset.name
+			names = append(names, preset.name)
 		}
 	}
 

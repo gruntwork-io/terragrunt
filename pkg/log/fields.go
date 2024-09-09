@@ -3,11 +3,11 @@ package log
 import "sort"
 
 const (
-	FieldKeyTime   = "time"
-	FieldKeyLevel  = "level"
-	FieldKeyPrefix = "prefix"
-	FieldKeyCmd    = "command"
-	FieldKeyMsg    = "msg"
+	FieldKeyTime      = "time"
+	FieldKeyLevel     = "level"
+	FieldKeyPrefix    = "prefix"
+	FieldKeySubPrefix = "sub-prefix"
+	FieldKeyMsg       = "msg"
 )
 
 // Fields type, used to pass to `WithFields`.

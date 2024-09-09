@@ -14,7 +14,7 @@ var (
 		InfoLevelStyle:   "green",
 		DebugLevelStyle:  "blue+h",
 		TraceLevelStyle:  "white",
-		TFBinaryStyle:    "cyan",
+		SubPrefixStyle:   "cyan",
 		TimestampStyle:   "black+h",
 	}
 )
@@ -28,8 +28,8 @@ const (
 	InfoLevelStyle
 	DebugLevelStyle
 	TraceLevelStyle
-	TFBinaryStyle
 	TimestampStyle
+	SubPrefixStyle
 )
 
 type ColorStyleName byte

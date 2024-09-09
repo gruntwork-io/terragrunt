@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -133,7 +134,7 @@ func RunShellCommandWithOutput(
 		)
 
 		// redirect output through logger with json wrapping
-		if opts.LogFormatter.Name() == formats.JSONFormatterName && opts.TerraformLogsToJson {
+		if opts.LogFormatter.Name() == formats.JSONFormatName && opts.TerraformLogsToJson {
 			logger := opts.Logger.WithField("workingDir", opts.WorkingDir).WithField("executedCommandArgs", args)
 
 			outWriter = logger.WithOptions(log.WithOutput(outWriter)).Writer()
@@ -147,7 +148,7 @@ func RunShellCommandWithOutput(
 					})
 				}
 			} else {
-				logger := opts.Logger.WithField(log.FieldKeyCmd, opts.TerraformPath)
+				logger := opts.Logger.WithField(log.FieldKeySubPrefix, filepath.Base(opts.TerraformPath))
 
 				outWriter = writer.New(
 					writer.WithLogger(logger.WithOptions(log.WithOutput(outWriter))),

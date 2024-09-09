@@ -6,101 +6,109 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type Formatters []Formatter
+type Formats []Format
 
-func (formatters Formatters) Names() []string {
-	strs := make([]string, len(formatters))
+func (formats Formats) Names() []string {
+	strs := make([]string, len(formats))
 
-	for i, formatter := range formatters {
-		strs[i] = formatter.Name()
+	for i, format := range formats {
+		strs[i] = format.Name()
 	}
 
 	return strs
 }
 
-func (formatters Formatters) String() string {
-	return strings.Join(formatters.Names(), ", ")
+func (formats Formats) String() string {
+	return strings.Join(formats.Names(), ", ")
 }
 
-type Formatter interface {
+type Format interface {
 	logrus.Formatter
 
 	Name() string
-	SetOptions(presetName string, opts ...*Option) error
+	UsePreset(presetName string) error
+	SetOptions(opts ...*Option) error
 }
 
-func AllFormatters() Formatters {
-	return []Formatter{
-		NewPrettyFormatter(
-			NewPreset("",
-				NewOption(OptionTime, true, ""),
-				NewOption(OptionLevel, true, ""),
-				NewOption(OptionPrefix, true, ""),
-				NewOption(OptionColor, true, ""),
-			),
-			NewPreset("tiny",
-				NewOption(OptionTime, true, "@mini"),
-				NewOption(OptionLevel, true, OptionLevelShort),
-				NewOption(OptionColor, true, ""),
-			),
-		),
-		NewKeyValueFormatter(),
-		NewJSONFormatter(),
+var DefaultPrettyFormatPreset *Preset
+
+var TinyPrettyFormatPreset *Preset
+
+func init() {
+	DefaultPrettyFormatPreset = NewPreset("",
+		NewOption(OptionColor, true, nil),
+		NewOption(OptionTime, true, NewLayout("%s:%s:%s%s", NewArg("H"), NewArg("i"), NewArg("s"), NewArg("v"))),
+		NewOption(OptionLevel, true, NewLayout("%-6s", NewArg("LEVEL"))),
+		NewOption(OptionPrefix, true, NewLayout("[%s]", NewArg("fields.rel-prefix", ArgOptRequireValue))),
+		NewOption(OptionMsg, true, NewLayout("%s", NewArg("message"))),
+	)
+
+	TinyPrettyFormatPreset = NewPreset("tiny",
+		NewOption(OptionColor, true, nil),
+		NewOption(OptionTime, true, NewLayout("%s:%s:%s%s", NewArg("H"), NewArg("i"), NewArg("s"), NewArg("v"))),
+		NewOption(OptionLevel, true, NewLayout("%s", NewArg("LVL"))),
+		NewOption(OptionMsg, true, NewLayout("%s", NewArg("message"))),
+	)
+}
+
+func AllFormats() Formats {
+	return []Format{
+		NewPrettyFormat(DefaultPrettyFormatPreset, TinyPrettyFormatPreset),
+		NewKeyValueFormat(),
+		NewJSONFormat(),
 	}
 }
 
-// ParseFormat takes a string and returns a Formatter instance with defined options.
-func ParseFormat(str string, defaultFormatterName string) (Formatter, error) {
+// ParseFormat takes a string and returns a Format instance with defined options.
+
+// pretty:tiny@no-color@ident:%s %s %s@time@level@prefix
+func ParseFormat(str string, defaultFormatterName string) (Format, error) {
 	var (
-		allFormatters = AllFormatters()
-		formatter     Formatter
+		allFormatters = AllFormats()
+		format        Format
 		opts          Options
-		presetName    string
 	)
 
-	formatters := make(map[string]Formatter, len(allFormatters))
+	formats := make(map[string]Format, len(allFormatters))
 	for _, f := range allFormatters {
-		formatters[f.Name()] = f
+		formats[f.Name()] = f
 	}
 
 	parts := strings.Split(str, ",")
 	for _, str := range parts {
-		str = strings.TrimSpace(str)
-		str = strings.ToLower(str)
-
 		var (
-			name  = str
-			value string
+			name       = str
+			presetName string
 		)
 
 		if parts := strings.SplitN(name, ":", 2); len(parts) > 1 {
 			name = parts[0]
-			value = parts[1]
+			presetName = parts[1]
 		}
 
-		if f, ok := formatters[name]; ok {
-			formatter = f
-			presetName = value
+		if f, ok := formats[name]; ok {
+			format = f
+			format.UsePreset(presetName)
 			continue
 		}
 
-		opt, err := ParseOption(str)
+		col, err := ParseOption(str)
 		if err != nil {
 			return nil, err
 		}
 
-		opts = append(opts, opt)
+		opts = append(opts, col)
 	}
 
-	if formatter == nil {
-		if f, ok := formatters[defaultFormatterName]; ok {
-			formatter = f
+	if format == nil {
+		if f, ok := formats[defaultFormatterName]; ok {
+			format = f
 		}
 	}
 
-	if err := formatter.SetOptions(presetName, opts...); err != nil {
+	if err := format.SetOptions(opts...); err != nil {
 		return nil, err
 	}
 
-	return formatter, nil
+	return format, nil
 }

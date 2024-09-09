@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"path/filepath"
-	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -12,16 +11,14 @@ import (
 )
 
 const (
-	KeyValueFormatterName = "key-value"
-
-	defaultKeyValueFormatterTimestampFormat = time.RFC3339
+	KeyValueFormatName = "key-value"
 )
 
-// KeyValueFormatter implements formats.Formatter
-var _ Formatter = new(KeyValueFormatter)
+// KeyValueFormat implements formats.Format
+var _ Format = new(KeyValueFormat)
 
-type KeyValueFormatter struct {
-	*CommonFormatter
+type KeyValueFormat struct {
+	*CommonFormat
 
 	// DisableTimestamp allows disabling automatic timestamps in output
 	DisableTimestamp bool
@@ -36,17 +33,17 @@ type KeyValueFormatter struct {
 	QuoteCharacter string
 }
 
-// NewKeyValueFormatter returns a new KeyValueFormatter instance with default values.
-func NewKeyValueFormatter() *KeyValueFormatter {
-	return &KeyValueFormatter{
-		CommonFormatter: &CommonFormatter{
-			name: KeyValueFormatterName,
+// NewKeyValueFormat returns a new KeyValueFormat instance with default values.
+func NewKeyValueFormat() *KeyValueFormat {
+	return &KeyValueFormat{
+		CommonFormat: &CommonFormat{
+			name: KeyValueFormatName,
 		},
 	}
 }
 
 // Format implements logrus.Formatter
-func (formatter *KeyValueFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+func (format *KeyValueFormat) Format(entry *logrus.Entry) ([]byte, error) {
 	buf := entry.Buffer
 	if buf == nil {
 		buf = new(bytes.Buffer)
@@ -54,41 +51,41 @@ func (formatter *KeyValueFormatter) Format(entry *logrus.Entry) ([]byte, error) 
 
 	var fields = log.Fields(entry.Data)
 
-	if !formatter.DisableTimestamp && formatter.TimestampFormat != "" {
-		if err := formatter.appendKeyValue(buf, log.FieldKeyTime, entry.Time.Format(formatter.TimestampFormat), false); err != nil {
+	if !format.DisableTimestamp && format.TimestampFormat != "" {
+		if err := format.appendKeyValue(buf, log.FieldKeyTime, entry.Time.Format(format.TimestampFormat), false); err != nil {
 			return nil, err
 		}
 	}
 
-	if err := formatter.appendKeyValue(buf, log.FieldKeyLevel, log.FromLogrusLevel(entry.Level), true); err != nil {
+	if err := format.appendKeyValue(buf, log.FieldKeyLevel, log.FromLogrusLevel(entry.Level), true); err != nil {
 		return nil, err
 	}
 
 	if val, ok := fields[log.FieldKeyPrefix]; ok && val != nil {
 		if val := val.(string); val != "" {
-			if err := formatter.appendKeyValue(buf, log.FieldKeyPrefix, val, true); err != nil {
+			if err := format.appendKeyValue(buf, log.FieldKeyPrefix, val, true); err != nil {
 				return nil, err
 			}
 		}
 	}
 
-	if val, ok := fields[log.FieldKeyCmd]; ok && val != nil {
+	if val, ok := fields[log.FieldKeySubPrefix]; ok && val != nil {
 		if val := val.(string); val != "" {
-			if err := formatter.appendKeyValue(buf, log.FieldKeyCmd, filepath.Base(val), true); err != nil {
+			if err := format.appendKeyValue(buf, log.FieldKeySubPrefix, filepath.Base(val), true); err != nil {
 				return nil, err
 			}
 		}
 	}
 
 	if entry.Message != "" {
-		if err := formatter.appendKeyValue(buf, log.FieldKeyMsg, entry.Message, true); err != nil {
+		if err := format.appendKeyValue(buf, log.FieldKeyMsg, entry.Message, true); err != nil {
 			return nil, err
 		}
 	}
 
-	keys := fields.Keys(log.FieldKeyPrefix, log.FieldKeyCmd)
+	keys := fields.Keys(log.FieldKeyPrefix, log.FieldKeySubPrefix)
 	for _, key := range keys {
-		if err := formatter.appendKeyValue(buf, key, fields[key], true); err != nil {
+		if err := format.appendKeyValue(buf, key, fields[key], true); err != nil {
 			return nil, err
 		}
 	}
@@ -100,7 +97,7 @@ func (formatter *KeyValueFormatter) Format(entry *logrus.Entry) ([]byte, error) 
 	return buf.Bytes(), nil
 }
 
-func (formatter *KeyValueFormatter) appendKeyValue(buf *bytes.Buffer, key string, value interface{}, appendSpace bool) error {
+func (format *KeyValueFormat) appendKeyValue(buf *bytes.Buffer, key string, value interface{}, appendSpace bool) error {
 	keyFmt := "%s="
 	if appendSpace {
 		keyFmt = " " + keyFmt
@@ -110,14 +107,14 @@ func (formatter *KeyValueFormatter) appendKeyValue(buf *bytes.Buffer, key string
 		return errors.WithStackTrace(err)
 	}
 
-	if err := formatter.appendValue(buf, value); err != nil {
+	if err := format.appendValue(buf, value); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (formatter *KeyValueFormatter) appendValue(buf *bytes.Buffer, value interface{}) error {
+func (format *KeyValueFormat) appendValue(buf *bytes.Buffer, value interface{}) error {
 	var str string
 
 	switch value := value.(type) {
@@ -134,8 +131,8 @@ func (formatter *KeyValueFormatter) appendValue(buf *bytes.Buffer, value interfa
 	}
 
 	valueFmt := "%v"
-	if formatter.needsQuoting(str) {
-		valueFmt = formatter.QuoteCharacter + valueFmt + formatter.QuoteCharacter
+	if format.needsQuoting(str) {
+		valueFmt = format.QuoteCharacter + valueFmt + format.QuoteCharacter
 	}
 
 	if _, err := fmt.Fprintf(buf, valueFmt, value); err != nil {
@@ -145,8 +142,8 @@ func (formatter *KeyValueFormatter) appendValue(buf *bytes.Buffer, value interfa
 	return nil
 }
 
-func (formatter *KeyValueFormatter) needsQuoting(text string) bool {
-	if formatter.QuoteEmptyFields && len(text) == 0 {
+func (format *KeyValueFormat) needsQuoting(text string) bool {
+	if format.QuoteEmptyFields && len(text) == 0 {
 		return true
 	}
 
