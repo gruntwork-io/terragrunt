@@ -3399,7 +3399,7 @@ func TestTerragruntHandleLegacyNullValues(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
 
 	// check that null value is passed as "null"
-	assert.Equal(t, outputs["output1"].Value, "null")
+	assert.Equal(t, "null", outputs["output1"].Value)
 	assert.Equal(t, "variable 2", outputs["output2"].Value)
 }
 

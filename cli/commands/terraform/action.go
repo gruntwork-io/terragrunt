@@ -791,13 +791,14 @@ func ToTerraformEnvVars(opts *options.TerragruntOptions, vars map[string]interfa
 		opts.Logger.Warn("This flag will be removed in the future.")
 		opts.Logger.Warn("Do not rely on it.")
 	}
+
 	out := map[string]string{}
+
 	for varName, varValue := range vars {
-		if useLegacyNullValues() {
-			opts.Logger.Warnf("Input `%s` has value `null`. Quoting due to %s.", varName, useLegacyNullValuesEnvVar)
-		} else {
-			// skip variables with null values
-			if varValue == nil {
+		if varValue == nil {
+			if useLegacyNullValues() {
+				opts.Logger.Warnf("Input `%s` has value `null`. Quoting due to %s.", varName, useLegacyNullValuesEnvVar)
+			} else {
 				continue
 			}
 		}
