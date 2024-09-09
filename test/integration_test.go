@@ -3346,31 +3346,28 @@ func TestTerragruntPassNullValues(t *testing.T) {
 	t.Parallel()
 
 	generateTestCase := testFixtureNullValue
-	cleanupTerraformFolder(t, generateTestCase)
-	cleanupTerragruntFolder(t, generateTestCase)
+	tmpEnv := copyEnvironment(t, generateTestCase)
+	cleanupTerraformFolder(t, tmpEnv)
+	cleanupTerragruntFolder(t, tmpEnv)
+	tmpEnv = util.JoinPath(tmpEnv, generateTestCase)
 
-	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+generateTestCase)
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+tmpEnv)
 
 	// Now check the outputs to make sure they are as expected
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
+	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+tmpEnv)
 
-	require.NoError(
-		t,
-		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+generateTestCase, &stdout, &stderr),
-	)
-
+	require.NoError(t, err)
 	outputs := map[string]TerraformOutput{}
-	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
 
 	// check that the null values are passed correctly
 	assert.Nil(t, outputs["output1"].Value)
 	assert.Equal(t, "variable 2", outputs["output2"].Value)
 
 	// check that file with null values is removed
-	cachePath := filepath.Join(testFixtureNullValue, terragruntCache)
+	cachePath := filepath.Join(tmpEnv, terragruntCache)
 	foundNullValuesFile := false
-	err := filepath.Walk(cachePath,
+	err = filepath.Walk(cachePath,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
@@ -3382,6 +3379,29 @@ func TestTerragruntPassNullValues(t *testing.T) {
 		})
 	assert.Falsef(t, foundNullValuesFile, "Found %s file in cache directory", terraform.NullTFVarsFile)
 	require.NoError(t, err)
+}
+
+func TestTerragruntHandleLegacyNullValues(t *testing.T) {
+	// no parallel since we need to set env vars
+	t.Setenv("TERRAGRUNT_TEMP_QUOTE_NULL", "1")
+	generateTestCase := testFixtureNullValue
+	tmpEnv := copyEnvironment(t, generateTestCase)
+	cleanupTerraformFolder(t, tmpEnv)
+	cleanupTerragruntFolder(t, tmpEnv)
+	tmpEnv = util.JoinPath(tmpEnv, generateTestCase)
+
+	_, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+tmpEnv)
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Input `var1` has value `null`. Quoting due to TERRAGRUNT_TEMP_QUOTE_NULL")
+
+	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+tmpEnv)
+	require.NoError(t, err)
+	outputs := map[string]TerraformOutput{}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
+
+	// check that null value is passed as "null"
+	assert.Equal(t, "null", outputs["output1"].Value)
+	assert.Equal(t, "variable 2", outputs["output2"].Value)
 }
 
 func TestTerragruntNoWarningLocalPath(t *testing.T) {
