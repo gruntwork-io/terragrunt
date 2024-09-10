@@ -8,7 +8,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/formats"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -163,8 +162,8 @@ const (
 // NewGlobalFlags creates and returns global flags.
 func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 	var (
-		logLevelStr     = opts.LogLevel.String()
-		logFormatterStr = opts.LogFormatter.Name()
+		logLevelStr  = opts.LogLevel.String()
+		logFormatStr = opts.LogFormatter.String()
 	)
 
 	flags := cli.Flags{
@@ -335,16 +334,10 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 		&cli.GenericFlag[string]{
 			Name:        TerragruntLogFormatFlagName,
 			EnvVar:      TerragruntLogFormatEnvName,
-			Destination: &logFormatterStr,
-			Usage:       fmt.Sprintf("Sets the logging format for Terragrunt. Supported formats: %s", formats.AllFormats()),
+			Destination: &logFormatStr,
+			Usage:       "Sets the logging format",
 			Action: func(ctx *cli.Context) error {
-				formatter, err := formats.ParseFormat(logFormatterStr, formats.PrettyFormatName)
-				if err != nil {
-					return errors.Errorf("flag --%s, %w", TerragruntLogFormatFlagName, err)
-				}
-
-				opts.LogFormatter = formatter
-				return nil
+				return opts.LogFormatter.SetFormat(logFormatStr)
 			},
 		},
 		&cli.BoolFlag{

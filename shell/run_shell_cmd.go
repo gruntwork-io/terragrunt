@@ -18,7 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/engine"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/formats"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 	"github.com/gruntwork-io/terragrunt/terraform"
 
@@ -134,7 +134,7 @@ func RunShellCommandWithOutput(
 		)
 
 		// redirect output through logger with json wrapping
-		if opts.LogFormatter.Name() == formats.JSONFormatName && opts.TerraformLogsToJson {
+		if formatOpt := opts.LogFormatter.GetOption(format.OptionJSON); formatOpt != nil && formatOpt.Enable() && opts.TerraformLogsToJson {
 			logger := opts.Logger.WithField("workingDir", opts.WorkingDir).WithField("executedCommandArgs", args)
 
 			outWriter = logger.WithOptions(log.WithOutput(outWriter)).Writer()
@@ -160,7 +160,7 @@ func RunShellCommandWithOutput(
 					writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
 					writer.WithDefaultLevel(log.StderrLevel),
 					writer.WithSplitLines(),
-					writer.WithParseFunc(terraform.ParseLog(tfLogMsgPrefix)),
+					writer.WithParseFunc(terraform.ParseLogFuncWithMsgPrefix(tfLogMsgPrefix)),
 				)
 			}
 		}

@@ -4,7 +4,6 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -59,23 +58,18 @@ func init() {
 
 type App struct {
 	*cli.App
-	logger log.Logger
+	opts *options.TerragruntOptions
 }
 
 // NewApp creates the Terragrunt CLI App.
-func NewApp(logger log.Logger, writer io.Writer, errWriter io.Writer) *App {
-	opts := options.NewTerragruntOptions()
-	opts.Logger = logger
-	opts.Writer = writer
-	opts.ErrWriter = errWriter
-
+func NewApp(opts *options.TerragruntOptions) *App {
 	app := cli.NewApp()
 	app.Name = "terragrunt"
 	app.Usage = "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale. For documentation, see https://terragrunt.gruntwork.io/."
 	app.Author = "Gruntwork <www.gruntwork.io>"
 	app.Version = version.GetVersion()
-	app.Writer = writer
-	app.ErrWriter = errWriter
+	app.Writer = opts.Writer
+	app.ErrWriter = opts.ErrWriter
 
 	app.Flags = append(
 		commands.NewGlobalFlags(opts),
@@ -89,7 +83,7 @@ func NewApp(logger log.Logger, writer io.Writer, errWriter io.Writer) *App {
 	app.DefaultCommand = terraformCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
 	app.OsExiter = OSExiter
 
-	return &App{app, logger}
+	return &App{app, opts}
 }
 
 func (app *App) Run(args []string) error {
@@ -101,16 +95,16 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	defer cancel()
 
 	shell.RegisterSignalHandler(func(signal os.Signal) {
-		app.logger.Infof("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(signal.String()), shell.SignalForwardingDelay)
+		app.opts.Logger.Infof("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(signal.String()), shell.SignalForwardingDelay)
 		cancel()
 
 		shell.RegisterSignalHandler(func(signal os.Signal) {
-			app.logger.Infof("Second %s signal received, force shutting down...", cases.Title(language.English).String(signal.String()))
+			app.opts.Logger.Infof("Second %s signal received, force shutting down...", cases.Title(language.English).String(signal.String()))
 			os.Exit(1)
 		})
 
 		time.Sleep(forceExitInterval)
-		app.logger.Infof("Failed to gracefully shutdown within %v, force shutting down...", forceExitInterval)
+		app.opts.Logger.Infof("Failed to gracefully shutdown within %v, force shutting down...", forceExitInterval)
 		os.Exit(1)
 	}, shell.InterruptSignals...)
 

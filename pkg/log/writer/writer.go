@@ -7,13 +7,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-const (
-	// startASNISeq is the ANSI start escape sequence
-	startASNISeq = "\033["
-	// resetANSISeq is the ANSI reset escape sequence
-	resetANSISeq = "\033[0m"
-)
-
 type WriterParseFunc func(str string) (msg string, time *time.Time, level *log.Level, err error)
 
 // Writer redirects Write requests to configured logger and level
@@ -62,9 +55,7 @@ func (writer *Writer) Write(p []byte) (n int, err error) {
 		}
 
 		// Reset ANSI styles at the end of a line so that the new line does not inherit them
-		if strings.Contains(msg, startASNISeq) {
-			msg += resetANSISeq
-		}
+		msg = log.ResetASCISeq(msg)
 
 		logger := writer.logger
 

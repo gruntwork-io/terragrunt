@@ -1,4 +1,4 @@
-package formats
+package preset
 
 type Presets []*Preset
 
@@ -29,7 +29,11 @@ type Preset struct {
 	opts Options
 }
 
-func NewPreset(name string, opts ...*Option) *Preset {
+func (preset *Preset) Options() Options {
+	return preset.opts
+}
+
+func New(name string, opts ...*Option) *Preset {
 	return &Preset{
 		name: name,
 		opts: opts,

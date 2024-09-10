@@ -2,7 +2,6 @@ package main
 
 import (
 	goErrors "errors"
-	"io"
 	"os"
 	"strings"
 
@@ -11,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/formats"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-multierror"
@@ -19,14 +17,15 @@ import (
 
 // The main entrypoint for Terragrunt
 func main() {
-	logger := newLogger(os.Stderr)
+	opts := options.NewTerragruntOptions()
+	parseAndSetLogEnvs(opts)
 
-	defer errors.Recover(checkForErrorsAndExit(logger))
+	defer errors.Recover(checkForErrorsAndExit(opts.Logger))
 
-	app := cli.NewApp(logger, os.Stdout, os.Stderr)
+	app := cli.NewApp(opts)
 	err := app.Run(os.Args)
 
-	checkForErrorsAndExit(logger)(err)
+	checkForErrorsAndExit(opts.Logger)(err)
 }
 
 // If there is an error, display it in the console and exit with a non-zero exit code. Otherwise, exit 0.
@@ -70,28 +69,21 @@ func printErrorWithStackTrace(err error) string {
 	return errors.PrintErrorWithStackTrace(err)
 }
 
-func newLogger(out io.Writer) log.Logger {
-	logger := log.New(log.WithOutput(out), log.WithFormatter(options.DefaultLogFormatter))
-
+func parseAndSetLogEnvs(opts *options.TerragruntOptions) {
 	if levelStr := os.Getenv(commands.TerragruntLogLevelEnvName); levelStr != "" {
 		level, err := log.ParseLevel(levelStr)
 		if err != nil {
 			err := errors.Errorf("Could not parse log level from environment variable %s=%s, %w", commands.TerragruntLogLevelEnvName, levelStr, err)
-			checkForErrorsAndExit(logger)(err)
+			checkForErrorsAndExit(opts.Logger)(err)
 		}
 
-		logger.SetOptions(log.WithLevel(level))
+		opts.Logger.SetOptions(log.WithLevel(level))
 	}
 
 	if formatterStr := os.Getenv(commands.TerragruntLogFormatEnvName); formatterStr != "" {
-		formatter, err := formats.ParseFormat(formatterStr, formats.PrettyFormatName)
-		if err != nil {
+		if err := opts.LogFormatter.SetFormat(formatterStr); err != nil {
 			err = errors.Errorf("Could not parse log format from environment variable %s=%s, %w", commands.TerragruntLogFormatEnvName, formatterStr, err)
-			checkForErrorsAndExit(logger)(err)
+			checkForErrorsAndExit(opts.Logger)(err)
 		}
-
-		logger.SetOptions(log.WithFormatter(formatter))
 	}
-
-	return logger
 }

@@ -12,7 +12,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/formats"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
 )
@@ -59,7 +59,7 @@ var (
 		"state",
 	}
 
-	DefaultLogFormatter = formats.NewPrettyFormat(formats.DefaultPrettyFormatPreset)
+	LogFormatter = format.NewFormatter(format.WithPresets(format.DefaultPreset, format.TinyPreset))
 )
 
 type ctxKey byte
@@ -137,7 +137,7 @@ type TerragruntOptions struct {
 	LogLevel log.Level
 
 	// Log formatter
-	LogFormatter formats.Format
+	LogFormatter *format.Formatter
 
 	// Wrap Terraform logs in JSON format
 	TerraformLogsToJson bool
@@ -390,8 +390,8 @@ func NewTerragruntOptions() *TerragruntOptions {
 		NonInteractive:                 false,
 		TerraformCliArgs:               []string{},
 		LogLevel:                       defaultLogLevel,
-		LogFormatter:                   DefaultLogFormatter,
-		Logger:                         log.New(log.WithLevel(defaultLogLevel), log.WithFormatter(DefaultLogFormatter)),
+		LogFormatter:                   LogFormatter,
+		Logger:                         log.New(log.WithLevel(defaultLogLevel), log.WithFormatter(LogFormatter)),
 		Env:                            map[string]string{},
 		Source:                         "",
 		SourceMap:                      map[string]string{},

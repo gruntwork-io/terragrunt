@@ -25,7 +25,7 @@ const (
 	TraceLevel
 )
 
-// A constant exposing all logging levels
+// AllLevels exposes all logging levels
 var AllLevels = Levels{
 	StderrLevel,
 	StdoutLevel,
@@ -46,7 +46,7 @@ var levelNames = map[Level]string{
 	TraceLevel:  "trace",
 }
 
-var levelMiddleNames = map[Level]string{
+var levelShortNames = map[Level]string{
 	StderrLevel: "std",
 	StdoutLevel: "std",
 	ErrorLevel:  "err",
@@ -56,7 +56,7 @@ var levelMiddleNames = map[Level]string{
 	TraceLevel:  "trc",
 }
 
-var levelShortNames = map[Level]string{
+var levelTinyNames = map[Level]string{
 	StderrLevel: "s",
 	StdoutLevel: "s",
 	ErrorLevel:  "e",
@@ -89,16 +89,16 @@ func (level Level) String() string {
 	return ""
 }
 
-func (level Level) ShortName() string {
-	if name, ok := levelShortNames[level]; ok {
+func (level Level) TinyName() string {
+	if name, ok := levelTinyNames[level]; ok {
 		return name
 	}
 
 	return ""
 }
 
-func (level Level) MiddleName() string {
-	if name, ok := levelMiddleNames[level]; ok {
+func (level Level) ShortName() string {
+	if name, ok := levelShortNames[level]; ok {
 		return name
 	}
 
@@ -136,6 +136,16 @@ var logrusLevels = map[Level]logrus.Level{
 }
 
 type Levels []Level
+
+func (levels Levels) Contains(search Level) bool {
+	for _, level := range levels {
+		if level == search {
+			return true
+		}
+	}
+
+	return false
+}
 
 func (levels Levels) ToLogrusLevels() []logrus.Level {
 	logrusLevels := make([]logrus.Level, len(levels))
