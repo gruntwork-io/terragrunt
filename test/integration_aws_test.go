@@ -34,16 +34,16 @@ import (
 )
 
 const (
-	testFixtureAwsProviderPatch          = "fixture-aws-provider-patch"
-	testFixtureAwsGetCallerIdentity      = "fixture-get-aws-caller-identity"
-	testFixtureS3Errors                  = "fixture-s3-errors/"
-	testFixtureAssumeRole                = "fixture-assume-role/external-id"
-	testFixtureAssumeRoleDuration        = "fixture-assume-role/duration"
-	testFixtureAssumeRoleWebIdentityEnv  = "fixture-assume-role-web-identity/env-var"
-	testFixtureAssumeRoleWebIdentityFile = "fixture-assume-role-web-identity/file-path"
-	testFixtureReadIamRole               = "fixture-read-config/iam_role_in_file"
-	testFixtureOutputFromRemoteState     = "fixture-output-from-remote-state"
-	testFixtureOutputFromDependency      = "fixture-output-from-dependency"
+	testFixtureAwsProviderPatch          = "fixtures/aws-provider-patch"
+	testFixtureAwsGetCallerIdentity      = "fixtures/get-aws-caller-identity"
+	testFixtureS3Errors                  = "fixtures/s3-errors/"
+	testFixtureAssumeRole                = "fixtures/assume-role/external-id"
+	testFixtureAssumeRoleDuration        = "fixtures/assume-role/duration"
+	testFixtureAssumeRoleWebIdentityEnv  = "fixtures/assume-role-web-identity/env-var"
+	testFixtureAssumeRoleWebIdentityFile = "fixtures/assume-role-web-identity/file-path"
+	testFixtureReadIamRole               = "fixtures/read-config/iam_role_in_file"
+	testFixtureOutputFromRemoteState     = "fixtures/output-from-remote-state"
+	testFixtureOutputFromDependency      = "fixtures/output-from-dependency"
 )
 
 func TestAwsInitHookNoSourceWithBackend(t *testing.T) {
@@ -52,7 +52,7 @@ func TestAwsInitHookNoSourceWithBackend(t *testing.T) {
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
 
 	cleanupTerraformFolder(t, testFixtureHooksInitOnceNoSourceWithBackend)
-	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	tmpEnvPath := copyEnvironment(t, "fixtures/hooks/init-once")
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksInitOnceNoSourceWithBackend)
 
 	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
@@ -82,7 +82,7 @@ func TestAwsInitHookWithSourceWithBackend(t *testing.T) {
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
 
 	cleanupTerraformFolder(t, testFixtureHooksInitOnceWithSourceWithBackend)
-	tmpEnvPath := copyEnvironment(t, "fixture-hooks/init-once")
+	tmpEnvPath := copyEnvironment(t, "fixtures/hooks/init-once")
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksInitOnceWithSourceWithBackend)
 
 	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
@@ -455,7 +455,7 @@ func TestAwsLocalWithBackend(t *testing.T) {
 	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
 	defer cleanupTableForTest(t, lockTableName, terraformRemoteStateS3Region)
 
-	tmpEnvPath := copyEnvironment(t, "fixture-download")
+	tmpEnvPath := copyEnvironment(t, "fixtures/download")
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLocalWithBackend)
 
 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
@@ -580,7 +580,6 @@ func TestAwsDependencyOutputOptimizationDisableTest(t *testing.T) {
 func TestAwsProviderPatch(t *testing.T) {
 	t.Parallel()
 
-	stderr := new(bytes.Buffer)
 	rootPath := copyEnvironment(t, testFixtureAwsProviderPatch)
 	modulePath := util.JoinPath(rootPath, testFixtureAwsProviderPatch)
 	mainTFFile := filepath.Join(modulePath, "main.tf")
@@ -595,13 +594,10 @@ func TestAwsProviderPatch(t *testing.T) {
 	mainContents = strings.ReplaceAll(mainContents, "__BRANCH_NAME__", branchName)
 	require.NoError(t, os.WriteFile(mainTFFile, []byte(mainContents), 0444))
 
-	require.NoError(
-		t,
-		runTerragruntCommand(t, fmt.Sprintf("terragrunt aws-provider-patch --terragrunt-override-attr region=\"eu-west-1\" --terragrunt-override-attr allowed_account_ids=[\"00000000000\"] --terragrunt-working-dir %s --terragrunt-log-level debug", modulePath), os.Stdout, stderr),
-	)
-	t.Log(stderr.String())
+	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt aws-provider-patch --terragrunt-override-attr region=\"eu-west-1\" --terragrunt-override-attr allowed_account_ids=[\"00000000000\"] --terragrunt-working-dir %s --terragrunt-log-level debug", modulePath))
+	require.NoError(t, err)
 
-	assert.Regexp(t, "Patching AWS provider in .+test/fixture-aws-provider-patch/example-module/main.tf", stderr.String())
+	assert.Regexp(t, "Patching AWS provider in .+test/fixtures/aws-provider-patch/example-module/main.tf", stderr)
 
 	// Make sure the resulting terraform code is still valid
 	require.NoError(
@@ -892,7 +888,7 @@ func TestAwsRemoteStateCodegenGeneratesBackendBlockS3(t *testing.T) {
 
 func TestAwsOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 	// NOTE: We can't run this test in parallel because there are other tests that also call `config.ClearOutputCache()`, but this function uses a global variable and sometimes it throws an unexpected error:
-	// "fixture-output-from-remote-state/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
+	// "fixtures/output-from-remote-state/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
 	// t.Parallel()
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
@@ -933,7 +929,7 @@ func TestAwsOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 
 func TestAwsMockOutputsFromRemoteState(t *testing.T) { //nolint: paralleltest
 	// NOTE: We can't run this test in parallel because there are other tests that also call `config.ClearOutputCache()`, but this function uses a global variable and sometimes it throws an unexpected error:
-	// "fixture-output-from-remote-state/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
+	// "fixtures/output-from-remote-state/env1/app2/terragrunt.hcl:23,38-48: Unsupported attribute; This object does not have an attribute named "app3_text"."
 	// t.Parallel()
 
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())

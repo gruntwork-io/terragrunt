@@ -24,11 +24,11 @@ import (
 )
 
 const (
-	testFixtureDestroyOrder           = "fixture-destroy-order"
-	testFixturePreventDestroyOverride = "fixture-prevent-destroy-override/child"
-	testFixturePreventDestroyNotSet   = "fixture-prevent-destroy-not-set/child"
-	testFixtureDestroyWarning         = "fixture-destroy-warning"
-	testFixtureDestroyDependentModule = "fixture-destroy-dependent-module"
+	testFixtureDestroyOrder           = "fixtures/destroy-order"
+	testFixturePreventDestroyOverride = "fixtures/prevent-destroy-override/child"
+	testFixturePreventDestroyNotSet   = "fixtures/prevent-destroy-not-set/child"
+	testFixtureDestroyWarning         = "fixtures/destroy-warning"
+	testFixtureDestroyDependentModule = "fixtures/destroy-dependent-module"
 )
 
 func TestTerragruntDestroyOrder(t *testing.T) {

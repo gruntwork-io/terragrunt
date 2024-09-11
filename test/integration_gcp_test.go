@@ -24,12 +24,12 @@ import (
 const (
 	terraformRemoteStateGcpRegion = "eu"
 
-	testFixtureGcsPath              = "fixture-gcs/"
-	testFixtureGcsByoBucketPath     = "fixture-gcs-byo-bucket/"
-	testFixtureGcsImpersonatePath   = "fixture-gcs-impersonate/"
-	testFixtureGcsNoBucket          = "fixture-gcs-no-bucket/"
-	testFixtureGcsNoPrefix          = "fixture-gcs-no-prefix/"
-	testFixtureGcsParallelStateInit = "fixture-gcs-parallel-state-init"
+	testFixtureGcsPath              = "fixtures/gcs/"
+	testFixtureGcsByoBucketPath     = "fixtures/gcs-byo-bucket/"
+	testFixtureGcsImpersonatePath   = "fixtures/gcs-impersonate/"
+	testFixtureGcsNoBucket          = "fixtures/gcs-no-bucket/"
+	testFixtureGcsNoPrefix          = "fixtures/gcs-no-prefix/"
+	testFixtureGcsParallelStateInit = "fixtures/gcs-parallel-state-init"
 )
 
 func TestGcpWorksWithBackend(t *testing.T) {

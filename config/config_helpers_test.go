@@ -256,56 +256,56 @@ func TestFindInParentFolders(t *testing.T) {
 	}{
 		{
 			nil,
-			terragruntOptionsForTest(t, "../test/fixture-parent-folders/terragrunt-in-root/child/"+config.DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixture-parent-folders/terragrunt-in-root/"+config.DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/"+config.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/"+config.DefaultTerragruntConfigPath),
 			nil,
 		},
 		{
 			nil,
-			terragruntOptionsForTest(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixture-parent-folders/terragrunt-in-root/"+config.DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/"+config.DefaultTerragruntConfigPath),
 			nil,
 		},
 		{
 			nil,
-			terragruntOptionsForTestWithMaxFolders(t, "../test/fixture-parent-folders/no-terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath, 3),
+			terragruntOptionsForTestWithMaxFolders(t, "../test/fixtures/parent-folders/no-terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath, 3),
 			"",
 			config.ParentFileNotFoundError{},
 		},
 		{
 			nil,
-			terragruntOptionsForTest(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/"+config.DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/"+config.DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/"+config.DefaultTerragruntConfigPath),
 			nil,
 		},
 		{
 			nil,
-			terragruntOptionsForTest(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/"+config.DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.DefaultTerragruntConfigPath),
 			nil,
 		},
 		{
 			nil,
-			terragruntOptionsForTest(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixture-parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.DefaultTerragruntConfigPath),
 			nil,
 		},
 		{
 			[]string{"foo.txt"},
-			terragruntOptionsForTest(t, "../test/fixture-parent-folders/other-file-names/child/"+config.DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixture-parent-folders/other-file-names/foo.txt"),
+			terragruntOptionsForTest(t, "../test/fixtures/parent-folders/other-file-names/child/"+config.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixtures/parent-folders/other-file-names/foo.txt"),
 			nil,
 		},
 		{
 			[]string{"common/foo.txt"},
-			terragruntOptionsForTest(t, "../test/fixture-parent-folders/in-another-subfolder/live/"+config.DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixture-parent-folders/in-another-subfolder/common/foo.txt"),
+			terragruntOptionsForTest(t, "../test/fixtures/parent-folders/in-another-subfolder/live/"+config.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixtures/parent-folders/in-another-subfolder/common/foo.txt"),
 			nil,
 		},
 		{
 			[]string{"tfwork"},
-			terragruntOptionsForTest(t, "../test/fixture-parent-folders/with-params/tfwork/tg/"+config.DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixture-parent-folders/with-params/tfwork"),
+			terragruntOptionsForTest(t, "../test/fixtures/parent-folders/with-params/tfwork/tg/"+config.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixtures/parent-folders/with-params/tfwork"),
 			nil,
 		},
 		{
@@ -375,21 +375,21 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 		{
 			"terraform { source = find_in_parent_folders() }",
 			nil,
-			terragruntOptionsForTest(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixture-parent-folders/terragrunt-in-root/"+config.DefaultTerragruntConfigPath),
+			terragruntOptionsForTest(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/"+config.DefaultTerragruntConfigPath),
 			"",
 		},
 		{
 			"terraform { source = find_in_parent_folders() }",
 			nil,
-			terragruntOptionsForTestWithMaxFolders(t, "../test/fixture-parent-folders/terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath, 1),
+			terragruntOptionsForTestWithMaxFolders(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath, 1),
 			"",
 			"ParentFileNotFoundError",
 		},
 		{
 			"terraform { source = find_in_parent_folders() }",
 			nil,
-			terragruntOptionsForTestWithMaxFolders(t, "../test/fixture-parent-folders/no-terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath, 3),
+			terragruntOptionsForTestWithMaxFolders(t, "../test/fixtures/parent-folders/no-terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath, 3),
 			"",
 			"ParentFileNotFoundError",
 		},
@@ -816,7 +816,7 @@ func TestTerraformBuiltInFunctions(t *testing.T) {
 		t.Run(tt.input, func(t *testing.T) {
 			t.Parallel()
 
-			terragruntOptions := terragruntOptionsForTest(t, "../test/fixture-config-terraform-functions/"+config.DefaultTerragruntConfigPath)
+			terragruntOptions := terragruntOptionsForTest(t, "../test/fixtures/config-terraform-functions/"+config.DefaultTerragruntConfigPath)
 			configString := fmt.Sprintf("inputs = { test = %s }", tt.input)
 			ctx := config.NewParsingContext(context.Background(), terragruntOptions)
 			actual, err := config.ParseConfigString(ctx, terragruntOptions.TerragruntConfigPath, configString, nil)
@@ -906,7 +906,7 @@ func TestReadTerragruntConfigInputs(t *testing.T) {
 	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
 
 	ctx := config.NewParsingContext(context.Background(), options)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixture-inputs/terragrunt.hcl", nil)
+	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixtures/inputs/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
 	tgConfigMap, err := config.ParseCtyValueToMap(tgConfigCty)
@@ -943,7 +943,7 @@ func TestReadTerragruntConfigRemoteState(t *testing.T) {
 
 	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
 	ctx := config.NewParsingContext(context.Background(), options)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixture/terragrunt.hcl", nil)
+	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixtures/terragrunt/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
 	tgConfigMap, err := config.ParseCtyValueToMap(tgConfigCty)
@@ -976,7 +976,7 @@ func TestReadTerragruntConfigHooks(t *testing.T) {
 
 	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
 	ctx := config.NewParsingContext(context.Background(), options)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixture-hooks/before-after-and-on-error/terragrunt.hcl", nil)
+	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixtures/hooks/before-after-and-on-error/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
 	tgConfigMap, err := config.ParseCtyValueToMap(tgConfigCty)
@@ -1019,7 +1019,7 @@ func TestReadTerragruntConfigLocals(t *testing.T) {
 
 	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
 	ctx := config.NewParsingContext(context.Background(), options)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixture-locals/canonical/terragrunt.hcl", nil)
+	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixtures/locals/canonical/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
 	tgConfigMap, err := config.ParseCtyValueToMap(tgConfigCty)
@@ -1210,7 +1210,7 @@ func TestReadTFVarsFiles(t *testing.T) {
 
 	options := terragruntOptionsForTest(t, config.DefaultTerragruntConfigPath)
 	ctx := config.NewParsingContext(context.Background(), options)
-	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixture-read-tf-vars/terragrunt.hcl", nil)
+	tgConfigCty, err := config.ParseTerragruntConfig(ctx, "../test/fixtures/read-tf-vars/terragrunt.hcl", nil)
 	require.NoError(t, err)
 
 	tgConfigMap, err := config.ParseCtyValueToMap(tgConfigCty)

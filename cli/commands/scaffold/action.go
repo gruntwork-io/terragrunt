@@ -306,7 +306,7 @@ func parseModuleUrl(ctx context.Context, opts *options.TerragruntOptions, vars m
 }
 
 // rewriteModuleUrl rewrites module url to git ssh if required
-// github.com/gruntwork-io/terragrunt.git//test/fixture-inputs => git::https://github.com/gruntwork-io/terragrunt.git//test/fixture-inputs
+// github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs => git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
 func rewriteModuleUrl(opts *options.TerragruntOptions, vars map[string]interface{}, moduleUrl string) (*url.URL, error) {
 	var updatedModuleUrl = moduleUrl
 
@@ -328,7 +328,7 @@ func rewriteModuleUrl(opts *options.TerragruntOptions, vars map[string]interface
 		return parsedModuleUrl, nil
 	}
 	// try to rewrite module url if is https and is requested to be git
-	// git::https://github.com/gruntwork-io/terragrunt.git//test/fixture-inputs => git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixture-inputs
+	// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs => git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
 	if parsedValue.scheme == "https" && sourceUrlType == sourceUrlTypeGit {
 		gitUser := sourceGitSshUser
 		if value, found := vars[sourceGitSshUserVar]; found {
@@ -390,7 +390,7 @@ func addRefToModuleUrl(ctx context.Context, opts *options.TerragruntOptions, par
 	ref := params.Get(refParam)
 	if ref == "" {
 		// if ref is not passed, find last release tag
-		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixture-inputs => git::https://github.com/gruntwork-io/terragrunt.git//test/fixture-inputs?ref=v0.53.8
+		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs => git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8
 		rootSourceUrl, _, err := terraform.SplitSourceUrl(moduleUrl, opts.Logger)
 		if err != nil {
 			return nil, errors.WithStackTrace(err)

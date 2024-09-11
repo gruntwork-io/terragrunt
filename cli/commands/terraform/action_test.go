@@ -321,8 +321,9 @@ func TestToTerraformEnvVars(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.description, func(t *testing.T) {
 			t.Parallel()
-
-			actual, err := terraform.ToTerraformEnvVars(testCase.vars)
+			opts, err := options.NewTerragruntOptionsForTest("")
+			require.NoError(t, err)
+			actual, err := terraform.ToTerraformEnvVars(opts, testCase.vars)
 			require.NoError(t, err)
 			assert.Equal(t, testCase.expected, actual)
 		})

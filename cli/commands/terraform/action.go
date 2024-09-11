@@ -38,6 +38,8 @@ import (
 const (
 	CommandNameTerragruntReadConfig = "terragrunt-read-config"
 	NullTFVarsFile                  = ".terragrunt-null-vars.auto.tfvars.json"
+
+	useLegacyNullValuesEnvVar = "TERRAGRUNT_TEMP_QUOTE_NULL"
 )
 
 var TerraformCommandsThatUseState = []string{
@@ -299,18 +301,20 @@ func runTerragruntWithConfig(ctx context.Context, originalTerragruntOptions *opt
 		}
 	}
 
-	fileName, err := setTerragruntNullValues(terragruntOptions, terragruntConfig)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		if fileName != "" {
-			if err := os.Remove(fileName); err != nil {
-				terragruntOptions.Logger.Debugf("Failed to remove null values file %s: %v", fileName, err)
-			}
+	if !useLegacyNullValues() {
+		fileName, err := setTerragruntNullValues(terragruntOptions, terragruntConfig)
+		if err != nil {
+			return err
 		}
-	}()
+
+		defer func() {
+			if fileName != "" {
+				if err := os.Remove(fileName); err != nil {
+					terragruntOptions.Logger.Debugf("Failed to remove null values file %s: %v", fileName, err)
+				}
+			}
+		}()
+	}
 
 	// Now that we've run 'init' and have all the source code locally, we can finally run the patch command
 	if target.isPoint(TargetPointInitCommand) {
@@ -421,7 +425,7 @@ func runActionWithHooks(ctx context.Context, description string, terragruntOptio
 // The Terragrunt configuration can contain a set of inputs to pass to Terraform as environment variables. This method
 // sets these environment variables in the given terragruntOptions.
 func SetTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	asEnvVars, err := ToTerraformEnvVars(terragruntConfig.Inputs)
+	asEnvVars, err := ToTerraformEnvVars(terragruntOptions, terragruntConfig.Inputs)
 	if err != nil {
 		return err
 	}
@@ -801,13 +805,20 @@ func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOp
 // Convert the given variables to a map of environment variables that will expose those variables to Terraform. The
 // keys will be of the format TF_VAR_xxx and the values will be converted to JSON, which Terraform knows how to read
 // natively.
-func ToTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) {
+func ToTerraformEnvVars(opts *options.TerragruntOptions, vars map[string]interface{}) (map[string]string, error) {
+	if useLegacyNullValues() {
+		opts.Logger.Warnf("⚠️ %s is a temporary workaround to bypass the breaking change in #2663.\nThis flag will be removed in the future.\nDo not rely on it.", useLegacyNullValuesEnvVar)
+	}
+
 	out := map[string]string{}
 
 	for varName, varValue := range vars {
-		// skip variables with null values
 		if varValue == nil {
-			continue
+			if useLegacyNullValues() {
+				opts.Logger.Warnf("⚠️ Input `%s` has value `null`. Quoting due to %s.", varName, useLegacyNullValuesEnvVar)
+			} else {
+				continue
+			}
 		}
 
 		envVarName := fmt.Sprintf(terraform.EnvNameTFVarFmt, varName)
@@ -851,4 +862,8 @@ func setTerragruntNullValues(terragruntOptions *options.TerragruntOptions, terra
 	}
 
 	return varFile, nil
+}
+
+func useLegacyNullValues() bool {
+	return os.Getenv(useLegacyNullValuesEnvVar) == "1"
 }

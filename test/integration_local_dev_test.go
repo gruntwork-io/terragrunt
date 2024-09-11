@@ -15,7 +15,7 @@ import (
 func TestTerragruntSourceMap(t *testing.T) {
 	t.Parallel()
 
-	fixtureSourceMapPath := "fixture-source-map"
+	fixtureSourceMapPath := filepath.Join("fixtures", "source-map")
 	cleanupTerraformFolder(t, fixtureSourceMapPath)
 	tmpEnvPath := copyEnvironment(t, fixtureSourceMapPath)
 	rootPath := filepath.Join(tmpEnvPath, fixtureSourceMapPath)
