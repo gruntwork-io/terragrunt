@@ -4,52 +4,60 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/format/preset"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/config"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 )
 
 const (
-	defaultOptionSeparator = ","
-	defaultPresetName      = ""
-	columnPrefix           = "#"
+	optionSeparator = ","
+
+	columnPrefix    = "#"
+	columnPrefixLen = len(columnPrefix)
+
+	defaultConfigName     = ""
+	defaultQuoteCharacter = "\""
+)
+
+var (
+	optionSeparatorReg = regexp.MustCompile(`.*?[^\\](` + optionSeparator + `|$)`)
 )
 
 const (
-	OptionColor  = "color"
-	OptionJSON   = "json"
-	OptionIndent = "indent"
+	OptionColor    = "color"
+	OptionKeyValue = "key-value"
+	OptionJSON     = "json"
+	OptionIndent   = "indent"
 )
 
 type Formatter struct {
-	optionSeparator string
-	baseTime        time.Time
+	baseTime time.Time
 
-	presets            preset.Presets
-	selectedPresetName string
+	presetConfigs      config.Configs
+	selectedConfigName string
 
-	userOpts preset.Options
+	userOpts config.Options
 
-	// Wrap empty fields in quotes if true.
-	QuoteEmptyFields bool
+	quoteEmptyFields bool
 
-	// Can be set to the override the default quoting character " with something else. For example: ', or `.
-	QuoteCharacter string
+	quoteCharacter string
 }
 
 func NewFormatter(opts ...Option) *Formatter {
 	formatter := &Formatter{
-		presets: preset.Presets{DefaultPreset},
+		presetConfigs: config.Configs{DefaultConfig},
 
 		baseTime:           time.Now(),
-		selectedPresetName: defaultPresetName,
-		optionSeparator:    defaultOptionSeparator,
+		selectedConfigName: defaultConfigName,
+
+		quoteCharacter: defaultQuoteCharacter,
 	}
 
 	formatter.SetOption(opts...)
@@ -67,42 +75,44 @@ func (formatter *Formatter) SetOption(opts ...Option) {
 func (formatter *Formatter) String() string {
 	var strs []string
 
-	if presetName := formatter.selectedPresetName; presetName != "" {
-		strs = append(strs, presetName)
+	if configName := formatter.selectedConfigName; configName != "" {
+		strs = append(strs, configName)
 	}
 
 	// get all non-column options
 	opts := formatter.Options().FilterByNamePrefixes(false, columnPrefix)
 
 	strs = append(strs, opts.Names()...)
+	strs = util.RemoveDuplicatesFromList(strs)
 
 	return strings.Join(strs, ",")
 }
 
-func (formatter *Formatter) Options() preset.Options {
-	var opts preset.Options
+func (formatter *Formatter) Options() config.Options {
+	var opts config.Options
 
-	if preset := formatter.presets.Find(formatter.selectedPresetName); preset != nil {
+	if preset := formatter.presetConfigs.Find(formatter.selectedConfigName); preset != nil {
 		opts = preset.Options()
 	}
 
 	return append(opts, formatter.userOpts...)
 }
 
-// TODO: ParseFormat takes a string and returns a Format instance with defined options.
-
-// pretty:tiny@no-color@ident:%s %s %s@time@level@prefix
+// SetFormat parses options in the given `str` and sets them to the formatter.
 func (formatter *Formatter) SetFormat(str string) error {
-	parts := strings.Split(str, formatter.optionSeparator)
-	for _, str := range parts {
-		presetName := parts[0]
+	parts := optionSeparatorReg.FindAllString(str, -1)
+	for i, str := range parts {
+		if i < len(parts)-1 {
+			str = str[:len(str)-1]
+		}
+		str = strings.ReplaceAll(str, `\`+optionSeparator, optionSeparator)
 
-		if selectedPreset := formatter.presets.Find(presetName); selectedPreset != nil {
-			formatter.selectedPresetName = presetName
+		if selectedConfig := formatter.presetConfigs.Find(str); selectedConfig != nil {
+			formatter.selectedConfigName = selectedConfig.Name()
 			continue
 		}
 
-		opt, err := preset.ParseOption(str)
+		opt, err := config.ParseOption(str)
 		if err != nil {
 			return err
 		}
@@ -113,10 +123,10 @@ func (formatter *Formatter) SetFormat(str string) error {
 	return nil
 }
 
-func (formatter *Formatter) GetOption(name string, levels ...log.Level) *preset.Option {
-	var opts preset.Options
+func (formatter *Formatter) GetOption(name string, levels ...log.Level) *config.Option {
+	var opts config.Options
 
-	if preset := formatter.presets.Find(formatter.selectedPresetName); preset != nil {
+	if preset := formatter.presetConfigs.Find(formatter.selectedConfigName); preset != nil {
 		if opt := preset.Options().FindByName(name).MergeIntoOneWithPriorityByLevels(levels...); opt != nil {
 			opts = append(opts, opt)
 		}
@@ -129,11 +139,11 @@ func (formatter *Formatter) GetOption(name string, levels ...log.Level) *preset.
 	return opts.MergeIntoOne()
 }
 
-func (formatter *Formatter) getOptionsByNamePrefixAndLevel(prefix string, levels ...log.Level) preset.Options {
+func (formatter *Formatter) getOptionsByNamePrefixAndLevel(prefix string, levels ...log.Level) config.Options {
 	optsNames := formatter.Options().FilterByNamePrefixes(true, columnPrefix).Names()
 	optsNames = util.RemoveDuplicatesFromList(optsNames)
 
-	opts := make(preset.Options, len(optsNames))
+	opts := make(config.Options, len(optsNames))
 
 	for i, optName := range optsNames {
 		opts[i] = formatter.GetOption(optName, levels...)
@@ -142,13 +152,13 @@ func (formatter *Formatter) getOptionsByNamePrefixAndLevel(prefix string, levels
 	return opts
 }
 
-func (formatter *Formatter) optionValue(name string, level log.Level, entry *preset.Entry) (string, bool) {
+func (formatter *Formatter) optionValue(name string, level log.Level, entry *config.Entry) (string, bool) {
 	opt := formatter.GetOption(name, level)
 	if opt == nil {
 		return "", true
 	}
 
-	return opt.Value(entry)
+	return opt.Value(entry), opt.Enable()
 }
 
 // Format implements logrus.Formatter
@@ -159,14 +169,16 @@ func (formatter *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 	}
 
 	var (
-		cols         []string
-		colsFields   = make(log.Fields)
-		level        = log.FromLogrusLevel(entry.Level)
-		fields       = log.Fields(entry.Data)
-		msg          = entry.Message
-		curTime      = entry.Time
-		disableColor bool
-		jsonFormat   bool
+		colsFields     = make(log.Fields)
+		colsNames      []string
+		colsValues     []string
+		level          = log.FromLogrusLevel(entry.Level)
+		fields         = log.Fields(entry.Data)
+		msg            = entry.Message
+		curTime        = entry.Time
+		disableColor   bool
+		jsonFormat     bool
+		keyValueFormat bool
 	)
 
 	if opt := formatter.GetOption(OptionColor, level); opt != nil && !opt.Enable() {
@@ -178,25 +190,35 @@ func (formatter *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 		jsonFormat = true
 	}
 
-	presetEntry := preset.NewEntry(formatter.baseTime, curTime, level, msg, fields, disableColor)
+	if opt := formatter.GetOption(OptionKeyValue, level); opt != nil && opt.Enable() {
+		disableColor = true
+		keyValueFormat = true
+	}
 
-	opts := formatter.getOptionsByNamePrefixAndLevel(columnPrefix, level)
+	presetEntry := config.NewEntry(formatter.baseTime, curTime, level, msg, fields, disableColor)
+
+	opts := formatter.getOptionsByNamePrefixAndLevel(columnPrefix, level).MergeByName().SortByValue()
+
 	for _, opt := range opts {
-		if val, ok := opt.Value(presetEntry); ok && val != "" {
+		if !opt.Enable() {
+			continue
+		}
+		if val := opt.Value(presetEntry); val != "" {
 			if disableColor {
 				val = log.RemoveAllASCISeq(val)
 			}
 
-			cols = append(cols, val)
-
-			key := opt.Name()[len(columnPrefix):]
-			colsFields[key] = val
+			colName := opt.Name()[columnPrefixLen:]
+			colsNames = append(colsNames, colName)
+			colsValues = append(colsValues, val)
+			colsFields[colName] = val
 		}
 	}
 
 	for key, value := range fields {
 		if val, ok := formatter.optionValue(key, level, presetEntry); !ok {
 			delete(fields, key)
+			continue
 		} else if val != "" {
 			fields[key] = val
 			continue
@@ -207,21 +229,54 @@ func (formatter *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 		}
 	}
 
+	if len(colsValues) == 0 && len(fields) == 0 {
+		return nil, nil
+	}
+
+	if keyValueFormat {
+		return formatter.keyValueFormat(buf, level, colsNames, colsFields, fields)
+	}
+
 	if jsonFormat {
 		return formatter.jsonFormat(buf, level, fields, colsFields)
 	}
 
-	return formatter.textFormat(buf, fields, cols)
+	return formatter.textFormat(buf, fields, colsValues)
 }
 
-func (formatter *Formatter) textFormat(buf *bytes.Buffer, fields log.Fields, cols []string) ([]byte, error) {
-	if _, err := fmt.Fprint(buf, strings.Join(cols, " ")); err != nil {
+func (formatter *Formatter) textFormat(buf *bytes.Buffer, fields log.Fields, colsValues []string) ([]byte, error) {
+	if _, err := fmt.Fprint(buf, strings.Join(colsValues, " ")); err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
 
 	for _, key := range fields.Keys() {
 		value := fields[key]
-		if err := formatter.appendKeyValue(buf, key, value, true); err != nil {
+		if err := formatter.appendKeyValue(buf, key, value); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := buf.WriteByte('\n'); err != nil {
+		return nil, errors.WithStackTrace(err)
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (formatter *Formatter) keyValueFormat(buf *bytes.Buffer, level log.Level, colsNames []string, colsFields, fields log.Fields) ([]byte, error) {
+	for _, key := range colsNames {
+		val, ok := colsFields[key]
+		if !ok {
+			continue
+		}
+		if err := formatter.appendKeyValue(buf, key, val); err != nil {
+			return nil, err
+		}
+	}
+
+	for _, key := range fields.Keys() {
+		val := fields[key]
+		if err := formatter.appendKeyValue(buf, key, val); err != nil {
 			return nil, err
 		}
 	}
@@ -249,18 +304,26 @@ func (formatter *Formatter) jsonFormat(buf *bytes.Buffer, level log.Level, field
 	return buf.Bytes(), nil
 }
 
-func (formatter *Formatter) appendKeyValue(buf *bytes.Buffer, key string, value interface{}, appendSpace bool) error {
+func (formatter *Formatter) appendKeyValue(buf *bytes.Buffer, key string, value interface{}) error {
+	if err := formatter.appendKey(buf, key); err != nil {
+		return err
+	}
+
+	if err := formatter.appendValue(buf, value); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (format *Formatter) appendKey(buf *bytes.Buffer, key interface{}) error {
 	keyFmt := "%s="
-	if appendSpace {
+	if buf.Len() > 0 {
 		keyFmt = " " + keyFmt
 	}
 
 	if _, err := fmt.Fprintf(buf, keyFmt, key); err != nil {
 		return errors.WithStackTrace(err)
-	}
-
-	if err := formatter.appendValue(buf, value); err != nil {
-		return err
 	}
 
 	return nil
@@ -284,7 +347,7 @@ func (format *Formatter) appendValue(buf *bytes.Buffer, value interface{}) error
 
 	valueFmt := "%v"
 	if format.needsQuoting(str) {
-		valueFmt = format.QuoteCharacter + valueFmt + format.QuoteCharacter
+		valueFmt = format.quoteCharacter + valueFmt + format.quoteCharacter
 	}
 
 	if _, err := fmt.Fprintf(buf, valueFmt, value); err != nil {
@@ -295,7 +358,7 @@ func (format *Formatter) appendValue(buf *bytes.Buffer, value interface{}) error
 }
 
 func (format *Formatter) needsQuoting(text string) bool {
-	if format.QuoteEmptyFields && len(text) == 0 {
+	if format.quoteEmptyFields && len(text) == 0 {
 		return true
 	}
 

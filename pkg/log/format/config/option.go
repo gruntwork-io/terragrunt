@@ -1,9 +1,9 @@
-package preset
+package config
 
 import (
+	"sort"
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -19,11 +19,19 @@ func (opts Options) Names() []string {
 	return strs
 }
 
+func (opts Options) SortByValue() Options {
+	sort.Slice(opts, func(i, j int) bool {
+		return opts[i].value <= opts[j].value
+	})
+
+	return opts
+}
+
 func (opts Options) FindByName(name string) Options {
 	var foundOpts Options
 
 	for _, opt := range opts {
-		if opt.name == name {
+		if opt.name == name || opt.name == "" || opt.value == name {
 			foundOpts = append(foundOpts, opt)
 		}
 	}
@@ -78,6 +86,7 @@ func (opts Options) MergeIntoOne() *Option {
 		if new == nil {
 			new = &Option{
 				name:        opt.name,
+				value:       opt.value,
 				enable:      opt.enable,
 				layout:      opt.layout,
 				levels:      opt.levels,
@@ -85,7 +94,10 @@ func (opts Options) MergeIntoOne() *Option {
 			}
 		} else {
 			if opt.layout != nil {
-				new.layout = opt.layout.Clone()
+				new.layout = opt.layout
+			}
+			if opt.value != "" {
+				new.value = opt.value
 			}
 
 			new.enable = opt.enable
@@ -97,12 +109,33 @@ func (opts Options) MergeIntoOne() *Option {
 	return new
 }
 
+func (opts Options) MergeByName() Options {
+	var news Options
+
+	for _, opt := range opts {
+		isNew := true
+		for i, new := range news {
+			if opt.name == new.name {
+				news[i] = opt
+				isNew = false
+				break
+			}
+		}
+		if isNew {
+			news = append(news, opt)
+		}
+	}
+
+	return news
+}
+
 func (opts Options) MergeIntoOneWithPriorityByLevels(levels ...log.Level) *Option {
 	return append(opts.FindWithoutLevels(), opts.FindByLevels(levels...)...).MergeIntoOne()
 }
 
 type Option struct {
 	name   string
+	value  string
 	enable bool
 	layout *Layout
 	levels log.Levels
@@ -126,21 +159,29 @@ func (opt *Option) Layout() *Layout {
 	return opt.layout
 }
 
-func (opt *Option) Value(entry *Entry) (string, bool) {
+func (opt *Option) Value(entry *Entry) string {
 	if opt.layout == nil {
-		return "", true
+		return ""
 	}
 
-	return opt.layout.Value(opt, entry), opt.enable
+	return opt.layout.Value(opt, entry)
 }
 
 func NewOption(name string, enable bool, layout *Layout, levels ...log.Level) *Option {
 	if layout == nil {
-		layout = NewLayout("%s", NewArg(name))
+		layout = NewLayout("%s", NewVar(name))
+	}
+
+	var value string
+
+	if parts := strings.SplitN(name, "=", 2); len(parts) > 1 {
+		name = parts[0]
+		value = parts[1]
 	}
 
 	return &Option{
 		name:        name,
+		value:       value,
 		enable:      enable,
 		layout:      layout,
 		levels:      levels,
@@ -154,6 +195,7 @@ func ParseOption(str string) (*Option, error) {
 		enable = true
 		layout *Layout
 		levels log.Levels
+		value  string
 		err    error
 	)
 
@@ -172,8 +214,9 @@ func ParseOption(str string) (*Option, error) {
 		}
 	}
 
-	if name == "" {
-		return nil, errors.Errorf("specified empty option name")
+	if parts := strings.SplitN(name, "=", 2); len(parts) > 1 {
+		name = parts[0]
+		value = parts[1]
 	}
 
 	if len(parts) > 1 {
@@ -184,6 +227,7 @@ func ParseOption(str string) (*Option, error) {
 
 	return &Option{
 		name:        name,
+		value:       value,
 		enable:      enable,
 		layout:      layout,
 		levels:      levels,

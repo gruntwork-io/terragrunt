@@ -59,7 +59,7 @@ var (
 		"state",
 	}
 
-	LogFormatter = format.NewFormatter(format.WithPresets(format.DefaultPreset, format.TinyPreset))
+	LogFormatter = format.NewFormatter(format.WithPresetConfigs(format.Configs...))
 )
 
 type ctxKey byte

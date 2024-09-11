@@ -1,4 +1,4 @@
-package preset
+package config
 
 import (
 	"github.com/mgutz/ansi"

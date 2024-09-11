@@ -2,76 +2,78 @@ package format
 
 import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/format/preset"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/config"
 )
 
 const (
-	ColumnTime    = "#time"
-	ColumnLevel   = "#level"
-	ColumnPrefix  = "#prefix"
-	ColumnMessage = "#message"
+	ColumnTime    = "#time=#1"
+	ColumnLevel   = "#level=#2"
+	ColumnPrefix  = "#prefix=#3"
+	ColumnMessage = "#message=#4"
 )
 
 var (
-	DefaultPreset = preset.New(defaultPresetName,
-		preset.NewOption(OptionColor, true, nil),
-		preset.NewOption(ColumnTime, true,
-			preset.NewLayout("%s%s:%s:%s%s",
-				preset.NewArg(preset.ArgNameColorBlackH),
-				preset.NewArg(preset.ArgNameHour24Zero),
-				preset.NewArg(preset.ArgNameMinZero),
-				preset.NewArg(preset.ArgNameSecZero),
-				preset.NewArg(preset.ArgNameMilliSec)),
+	DefaultConfig = config.New(defaultConfigName,
+		config.NewOption(OptionColor, true, nil),
+		config.NewOption(ColumnTime, true,
+			config.NewLayout("%s%s:%s:%s%s",
+				config.NewVar(config.VarColorBlackH),
+				config.NewVar(config.VarHour24Zero),
+				config.NewVar(config.VarMinZero),
+				config.NewVar(config.VarSecZero),
+				config.NewVar(config.VarMilliSec)),
 		),
 
-		preset.NewOption(ColumnLevel, true,
-			preset.NewLayout("%-6s",
-				preset.NewArg(preset.ArgNameLevel, preset.ArgOptUpper)),
+		config.NewOption(ColumnLevel, true,
+			config.NewLayout("%-6s",
+				config.NewVar(config.VarLevel, config.FilterUpper)),
 		),
 
-		preset.NewOption(ColumnLevel, true,
-			preset.NewLayout("%s%-6s",
-				preset.NewArg(preset.ArgNameColorRed),
-				preset.NewArg(preset.ArgNameLevel, preset.ArgOptUpper)),
+		config.NewOption(ColumnLevel, true,
+			config.NewLayout("%s%-6s",
+				config.NewVar(config.VarColorRed),
+				config.NewVar(config.VarLevel, config.FilterUpper)),
 			log.ErrorLevel, log.StderrLevel,
 		),
 
-		preset.NewOption(ColumnLevel, true,
-			preset.NewLayout("%s%-6s",
-				preset.NewArg(preset.ArgNameColorYellow),
-				preset.NewArg(preset.ArgNameLevel, preset.ArgOptUpper)),
+		config.NewOption(ColumnLevel, true,
+			config.NewLayout("%s%-6s",
+				config.NewVar(config.VarColorYellow),
+				config.NewVar(config.VarLevel, config.FilterUpper)),
 			log.WarnLevel,
 		),
 
-		preset.NewOption(ColumnLevel, true,
-			preset.NewLayout("%s%-6s",
-				preset.NewArg(preset.ArgNameColorGreen),
-				preset.NewArg(preset.ArgNameLevel, preset.ArgOptUpper)),
+		config.NewOption(ColumnLevel, true,
+			config.NewLayout("%s%-6s",
+				config.NewVar(config.VarColorGreen),
+				config.NewVar(config.VarLevel, config.FilterUpper)),
 			log.InfoLevel,
 		),
 
-		preset.NewOption(ColumnLevel, true,
-			preset.NewLayout("%s%-6s",
-				preset.NewArg(preset.ArgNameColorBlueH),
-				preset.NewArg(preset.ArgNameLevel, preset.ArgOptUpper)),
+		config.NewOption(ColumnLevel, true,
+			config.NewLayout("%s%-6s",
+				config.NewVar(config.VarColorBlueH),
+				config.NewVar(config.VarLevel, config.FilterUpper)),
 			log.DebugLevel,
 		),
 
-		preset.NewOption(ColumnPrefix, true,
-			preset.NewLayout("%s[%s]",
-				preset.NewArg(preset.ArgNameColorRandom),
-				preset.NewArg("rel-prefix", preset.ArgOptRequired))),
+		config.NewOption(ColumnPrefix, true,
+			config.NewLayout("%s[%s]",
+				config.NewVar(config.VarColorRandom),
+				config.NewVar("rel-prefix"))),
 
-		preset.NewOption("prefix", false, nil),
-		preset.NewOption("rel-prefix", false, nil),
-		preset.NewOption("sub-prefix", false, nil),
-		preset.NewOption(ColumnMessage, true, preset.NewLayout("%s", preset.NewArg(preset.ArgNameMessage))),
+		config.NewOption("prefix", false, nil),
+		config.NewOption("rel-prefix", false, nil),
+		config.NewOption("sub-prefix", false, nil),
+		config.NewOption(ColumnMessage, true, config.NewLayout("%s", config.NewVar(config.VarMessage))),
 	)
 
-	TinyPreset = preset.New("tiny",
-		preset.NewOption(OptionColor, true, nil),
-		preset.NewOption(ColumnTime, true, preset.NewLayout("%s", preset.NewArg(preset.ArgNameSinceStartSec))),
-		preset.NewOption(ColumnLevel, true, preset.NewLayout("%s", preset.NewArg(preset.ArgNameLevelShort, preset.ArgOptUpper))),
-		preset.NewOption(ColumnMessage, true, preset.NewLayout("%s", preset.NewArg("message"))),
+	TinyConfig = config.New("tiny",
+		config.NewOption(OptionColor, true, nil),
+		config.NewOption(ColumnTime, true, config.NewLayout("%s", config.NewVar(config.VarSinceStartSec))),
+		config.NewOption(ColumnLevel, true, config.NewLayout("%s", config.NewVar(config.VarLevelShort, config.FilterUpper))),
+		config.NewOption(ColumnMessage, true, config.NewLayout("%s", config.NewVar("message"))),
 	)
+
+	Configs = config.Configs{DefaultConfig, TinyConfig}
 )
