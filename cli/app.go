@@ -11,6 +11,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/engine"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/formatter"
 	"github.com/gruntwork-io/terragrunt/pkg/log/hooks"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
@@ -295,6 +296,8 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
+
+	opts.Logger = opts.Logger.WithField(formatter.PrefixKeyName, workingDir)
 
 	opts.RootWorkingDir = filepath.ToSlash(workingDir)
 

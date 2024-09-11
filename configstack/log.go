@@ -1,4 +1,4 @@
-package hooks
+package configstack
 
 import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
