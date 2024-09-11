@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"testing"
 
@@ -39,7 +40,7 @@ func TestTflintFindsNoIssuesWithValidCode(t *testing.T) {
 	assert.NotContains(t, errOut.String(), "Error while running tflint with args:")
 	assert.NotContains(t, errOut.String(), "Tflint found issues in the project. Check for the tflint logs above.")
 
-	found, err := regexp.MatchString(fmt.Sprintf("--config %s/.terragrunt-cache/.*/.tflint.hcl", modulePath), errOut.String())
+	found, err := regexp.MatchString("--config ./.terragrunt-cache/.*/.tflint.hcl", errOut.String())
 	assert.NoError(t, err)
 	assert.True(t, found)
 }
@@ -81,7 +82,7 @@ func TestTflintFindsConfigInCurrentPath(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Contains(t, errOut.String(), "Tflint has run successfully. No issues found")
-	assert.Contains(t, errOut.String(), fmt.Sprintf("--config %s/.tflint.hcl", modulePath))
+	assert.Contains(t, errOut.String(), "--config ./.tflint.hcl")
 }
 
 func TestTflintInitSameModule(t *testing.T) {
@@ -117,7 +118,11 @@ func TestTflintFindsNoIssuesWithValidCodeDifferentDownloadDir(t *testing.T) {
 
 	assert.NotContains(t, errOut.String(), "Error while running tflint with args:")
 	assert.NotContains(t, errOut.String(), "Tflint found issues in the project. Check for the tflint logs above.")
-	found, err := regexp.MatchString(fmt.Sprintf("--config %s/.*/.tflint.hcl", downloadDir), errOut.String())
+
+	relPath, err := filepath.Rel(modulePath, downloadDir)
+	assert.NoError(t, err)
+
+	found, err := regexp.MatchString(fmt.Sprintf("--config %s/.*/.tflint.hcl", relPath), errOut.String())
 	assert.NoError(t, err)
 	assert.True(t, found)
 }
