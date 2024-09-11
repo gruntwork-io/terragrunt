@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -101,7 +100,7 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 		t.Fatalf("Failed to create temp dir due to error: %v", err)
 	}
 	for i := 0; i < numberOfModules; i++ {
-		err := util.CopyFolderContents(log.New(), testFixtureParallelism, tmpEnvPath, ".terragrunt-test", nil)
+		err := util.CopyFolderContents(createLogger(), testFixtureParallelism, tmpEnvPath, ".terragrunt-test", nil)
 		if err != nil {
 			return "", 0, err
 		}
