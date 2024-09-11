@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/formatter"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -62,13 +63,13 @@ func TestCommandOutputPrefix(t *testing.T) {
 		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s msg=%s", prefix, line))
 	}
 
-	formatter := formatter.NewFormatter()
-	formatter.DisableLogFormatting = true
+	logFormatter := formatter.NewFormatter()
+	logFormatter.DisableLogFormatting = true
 
 	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
 		terragruntOptions.TerraformPath = ""
-		terragruntOptions.OutputPrefix = prefix
-		terragruntOptions.Logger.Logger.Formatter = formatter
+		terragruntOptions.Logger.SetOptions(log.WithFormatter(logFormatter))
+		terragruntOptions.Logger = terragruntOptions.Logger.WithField(formatter.PrefixKeyName, prefix)
 	}, assertOutputs(t,
 		prefixedOutput,
 		STDOUT,

@@ -449,9 +449,5 @@ func shouldForceForwardTFStdout(args cli.Args) bool {
 		return true
 	}
 
-	if args.Tail().Contains(terraform.FlagNameJSON) {
-		return true
-	}
-
-	return false
+	return args.Tail().Contains(terraform.FlagNameJSON)
 }

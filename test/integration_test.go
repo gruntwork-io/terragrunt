@@ -2602,7 +2602,8 @@ func runTerragruntCommand(t *testing.T, command string, writer io.Writer, errwri
 
 	t.Log(args)
 
-	app := cli.NewApp(writer, errwriter)
+	opts := options.NewTerragruntOptionsWithWriters(writer, errwriter)
+	app := cli.NewApp(opts)
 	return app.Run(args)
 }
 
@@ -2658,7 +2659,7 @@ func copyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
-	require.NoError(t, util.CopyFolderContents(environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", includeInCopy))
+	require.NoError(t, util.CopyFolderContents(createLogger(), environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", includeInCopy))
 
 	return tmpDir
 }

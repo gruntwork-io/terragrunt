@@ -145,6 +145,7 @@ func newSliceValue[T comparable](valueType FlagType[T], envValue *string, valSep
 			if err := value.Set(val); err != nil {
 				return nil, err
 			}
+
 			envHasBeenSet = true
 		}
 	}

@@ -7,6 +7,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const shiftLogrusLevel = 2
+
 // These are the different logging levels.
 const (
 	//
@@ -113,6 +115,7 @@ func (level *Level) UnmarshalText(text []byte) error {
 	}
 
 	*level = lvl
+
 	return nil
 }
 
@@ -126,13 +129,13 @@ func (level Level) MarshalText() ([]byte, error) {
 }
 
 var logrusLevels = map[Level]logrus.Level{
-	StderrLevel: logrus.Level(2),
-	StdoutLevel: logrus.Level(3),
-	ErrorLevel:  logrus.Level(4),
-	WarnLevel:   logrus.Level(5),
-	InfoLevel:   logrus.Level(6),
-	DebugLevel:  logrus.Level(7),
-	TraceLevel:  logrus.Level(8),
+	StderrLevel: logrus.Level(StderrLevel + shiftLogrusLevel),
+	StdoutLevel: logrus.Level(StdoutLevel + shiftLogrusLevel),
+	ErrorLevel:  logrus.Level(ErrorLevel + shiftLogrusLevel),
+	WarnLevel:   logrus.Level(WarnLevel + shiftLogrusLevel),
+	InfoLevel:   logrus.Level(InfoLevel + shiftLogrusLevel),
+	DebugLevel:  logrus.Level(DebugLevel + shiftLogrusLevel),
+	TraceLevel:  logrus.Level(TraceLevel + shiftLogrusLevel),
 }
 
 type Levels []Level

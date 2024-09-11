@@ -457,17 +457,19 @@ func RunTerraformWithRetry(ctx context.Context, terragruntOptions *options.Terra
 						if execErr.Stderr != "" {
 							logger = logger.WithField("stderr", "\n"+execErr.Stderr)
 						}
+
 						if execErr.Stdout != "" {
 							logger = logger.WithField("stdout", "\n"+execErr.Stdout)
 						}
 					}
 
-					if err = goerrors.Unwrap(err); err == nil {
+					if err := goerrors.Unwrap(err); err == nil {
 						break
 					}
 				}
 
 				logger.Errorf("%s invocation failed in %s", terragruntOptions.TerraformImplementation, terragruntOptions.WorkingDir)
+
 				return err
 			} else {
 				terragruntOptions.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.RetrySleepIntervalSec)

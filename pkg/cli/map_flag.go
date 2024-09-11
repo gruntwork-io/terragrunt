@@ -162,6 +162,7 @@ func newMapValue[K, V comparable](keyType FlagType[K], valType FlagType[V], envV
 			if err := value.Set(strings.TrimSpace(arg)); err != nil {
 				return nil, err
 			}
+
 			envHasBeenSet = true
 		}
 	}

@@ -508,10 +508,7 @@ func TestTerragruntProduceTelemetryMetrics(t *testing.T) {
 }
 
 func TestTerragruntOutputJson(t *testing.T) {
-	// no parallel test execution since JSON output is global
-	defer func() {
-		util.DisableJsonFormat()
-	}()
+	t.Parallel()
 
 	tmpEnvPath := copyEnvironment(t, testFixtureNotExistingSource)
 	cleanupTerraformFolder(t, tmpEnvPath)
@@ -546,8 +543,7 @@ func TestTerragruntOutputJson(t *testing.T) {
 }
 
 func TestTerragruntTerraformOutputJson(t *testing.T) {
-	// no parallel test execution since JSON output is global
-	defer util.DisableJsonFormat()
+	t.Parallel()
 
 	tmpEnvPath := copyEnvironment(t, testFixtureInitError)
 	cleanupTerraformFolder(t, tmpEnvPath)
@@ -573,6 +569,7 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 }
 
 func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {
+	t.Parallel()
 	// no parallel test execution since JSON output is global
 	testCases := []struct {
 		arg string
@@ -585,9 +582,7 @@ func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run("terragrunt output with "+testCase.arg, func(t *testing.T) {
-			defer func() {
-				util.DisableJsonFormat()
-			}()
+			t.Parallel()
 			tmpEnvPath := copyEnvironment(t, testFixtureDependencyOutput)
 			rootTerragruntPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput)
 			// apply dependency first
@@ -605,6 +600,7 @@ func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {
 }
 
 func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
+	t.Parallel()
 	// no parallel test execution since JSON output is global
 	testCases := []struct {
 		arg string
@@ -617,9 +613,7 @@ func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run("terragrunt with "+testCase.arg, func(t *testing.T) {
-			defer func() {
-				util.DisableJsonFormat()
-			}()
+			t.Parallel()
 			tmpDir := t.TempDir()
 			_, _, _, err := testRunAllPlan(t, fmt.Sprintf("--terragrunt-json-out-dir %s %s", tmpDir, testCase.arg))
 			require.NoError(t, err)

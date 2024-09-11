@@ -113,7 +113,7 @@ func (logger *logger) WriterLevel(level Level) *io.PipeWriter {
 }
 
 func (logger *logger) WithField(key string, value any) Logger {
-	return logger.WithFields(Fields(Fields{key: value}))
+	return logger.WithFields(Fields{key: value})
 }
 
 func (logger *logger) WithFields(fields Fields) Logger {

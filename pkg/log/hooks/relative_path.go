@@ -3,6 +3,7 @@ package hooks
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/errors"
@@ -26,6 +27,7 @@ import (
 type RelativePathHook struct {
 	// absPaths are the keys of the `realPath` map, we store them in the order we iterate over them when replacing.
 	absPaths      []string
+	absPathsReg   []*regexp.Regexp
 	relPaths      map[string]string
 	triggerLevels []logrus.Level
 }
@@ -38,18 +40,13 @@ func NewRelativePathHook(baseDir string) (*RelativePathHook, error) {
 
 	dirs := strings.Split(baseDir, string(os.PathSeparator))
 	absPath := dirs[0]
+
 	for _, dir := range dirs[1:] {
 		absPath = filepath.Join(absPath, string(os.PathSeparator), dir)
 
 		relPath, err := filepath.Rel(baseDir, absPath)
 		if err != nil {
 			return nil, errors.WithStackTrace(err)
-		}
-
-		// if relPath is the current directory `.`, we add PathSeperator `./` to avoid confusion with the dot at the end of the sentence.
-		if relPath == log.CurDir {
-			relPath = log.CurDirWithSeparator
-			relPaths[absPath+string(os.PathSeparator)] = log.CurDirWithSeparator
 		}
 
 		relPaths[absPath] = relPath
@@ -60,11 +57,18 @@ func NewRelativePathHook(baseDir string) (*RelativePathHook, error) {
 		if a > b {
 			return -1
 		}
+
 		return 0
 	})
 
+	absPathsReg := make([]*regexp.Regexp, len(absPaths))
+	for i, absPath := range absPaths {
+		absPathsReg[i] = regexp.MustCompile(regexp.QuoteMeta(absPath) + `([/"' ]|$)`)
+	}
+
 	return &RelativePathHook{
 		absPaths:      absPaths,
+		absPathsReg:   absPathsReg,
 		relPaths:      relPaths,
 		triggerLevels: log.AllLevels.ToLogrusLevels(),
 	}, nil
@@ -99,8 +103,9 @@ func (hook *RelativePathHook) Fire(entry *logrus.Entry) error {
 }
 
 func (hook *RelativePathHook) replaceAbsPathsWithRel(text string) string {
-	for _, absPath := range hook.absPaths {
-		text = strings.ReplaceAll(text, absPath, hook.relPaths[absPath])
+	for i, absPath := range hook.absPaths {
+		text = hook.absPathsReg[i].ReplaceAllString(text, hook.relPaths[absPath]+"$1")
 	}
+
 	return text
 }

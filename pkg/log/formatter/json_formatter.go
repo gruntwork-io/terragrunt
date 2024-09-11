@@ -12,6 +12,7 @@ import (
 
 // Default key names for the default fields
 const (
+	reservedFourFields     = 4
 	defaultTimestampFormat = time.RFC3339
 	FieldKeyMsg            = "msg"
 	FieldKeyLevel          = "level"
@@ -57,7 +58,8 @@ type JSONFormatter struct {
 
 // Format renders a single log entry
 func (f *JSONFormatter) Format(entry *logrus.Entry) ([]byte, error) {
-	data := make(logrus.Fields, len(entry.Data)+4)
+	data := make(logrus.Fields, len(entry.Data)+reservedFourFields)
+
 	for k, v := range entry.Data {
 		switch v := v.(type) {
 		case error:
@@ -70,7 +72,7 @@ func (f *JSONFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	}
 
 	if f.DataKey != "" {
-		newData := make(logrus.Fields, 4)
+		newData := make(logrus.Fields, reservedFourFields)
 		newData[f.DataKey] = data
 		data = newData
 	}
@@ -85,6 +87,7 @@ func (f *JSONFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	if !f.DisableTimestamp {
 		data[f.FieldMap.resolve(FieldKeyTime)] = entry.Time.Format(timestampFormat)
 	}
+
 	data[f.FieldMap.resolve(FieldKeyMsg)] = entry.Message
 	data[f.FieldMap.resolve(FieldKeyLevel)] = log.FromLogrusLevel(entry.Level).String()
 
@@ -97,9 +100,11 @@ func (f *JSONFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 
 	encoder := json.NewEncoder(b)
 	encoder.SetEscapeHTML(!f.DisableHTMLEscape)
+
 	if f.PrettyPrint {
 		encoder.SetIndent("", "  ")
 	}
+
 	if err := encoder.Encode(data); err != nil {
 		return nil, fmt.Errorf("failed to marshal fields to JSON, %w", err)
 	}
@@ -139,7 +144,9 @@ func prefixFieldClashes(data logrus.Fields, fieldMap FieldMap, reportCaller bool
 		if l, ok := data[funcKey]; ok {
 			data["fields."+funcKey] = l
 		}
+
 		fileKey := fieldMap.resolve(FieldKeyFile)
+
 		if l, ok := data[fileKey]; ok {
 			data["fields."+fileKey] = l
 		}

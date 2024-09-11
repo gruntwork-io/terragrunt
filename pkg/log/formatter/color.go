@@ -58,6 +58,8 @@ type compiledColorScheme map[ColorStyleName]ColorFunc
 
 func (scheme compiledColorScheme) LevelColorFunc(level log.Level) ColorFunc {
 	switch level {
+	case log.TraceLevel:
+		return scheme.ColorFunc(TraceLevelStyle)
 	case log.DebugLevel:
 		return scheme.ColorFunc(DebugLevelStyle)
 	case log.InfoLevel:

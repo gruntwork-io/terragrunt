@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terratest/modules/files"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +17,7 @@ import (
 func TestGetModuleRegistryURLBasePath(t *testing.T) {
 	t.Parallel()
 
-	basePath, err := terraform.GetModuleRegistryURLBasePath(context.Background(), "registry.terraform.io")
+	basePath, err := terraform.GetModuleRegistryURLBasePath(context.Background(), log.New(), "registry.terraform.io")
 	require.NoError(t, err)
 	assert.Equal(t, "/v1/modules/", basePath)
 }
@@ -29,7 +30,7 @@ func TestGetTerraformHeader(t *testing.T) {
 		Host:   "registry.terraform.io",
 		Path:   "/v1/modules/terraform-aws-modules/vpc/aws/3.3.0/download",
 	}
-	terraformGetHeader, err := terraform.GetTerraformGetHeader(context.Background(), testModuleURL)
+	terraformGetHeader, err := terraform.GetTerraformGetHeader(context.Background(), log.New(), testModuleURL)
 	require.NoError(t, err)
 	assert.Contains(t, terraformGetHeader, "github.com/terraform-aws-modules/terraform-aws-vpc")
 }

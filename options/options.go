@@ -384,6 +384,10 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage
 func NewTerragruntOptions() *TerragruntOptions {
+	return NewTerragruntOptionsWithWriters(os.Stdout, os.Stderr)
+}
+
+func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
 	var logFormatter = formatter.NewFormatter()
 
 	return &TerragruntOptions{
@@ -397,7 +401,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 		TerraformCliArgs:               []string{},
 		LogLevel:                       defaultLogLevel,
 		LogFormatter:                   logFormatter,
-		Logger:                         log.New(log.WithLevel(defaultLogLevel), log.WithFormatter(logFormatter)),
+		Logger:                         log.New(log.WithOutput(stderr), log.WithLevel(defaultLogLevel), log.WithFormatter(logFormatter)),
 		Env:                            map[string]string{},
 		Source:                         "",
 		SourceMap:                      map[string]string{},
@@ -406,8 +410,8 @@ func NewTerragruntOptions() *TerragruntOptions {
 		IgnoreDependencyOrder:          false,
 		IgnoreExternalDependencies:     false,
 		IncludeExternalDependencies:    false,
-		Writer:                         os.Stdout,
-		ErrWriter:                      os.Stderr,
+		Writer:                         stdout,
+		ErrWriter:                      stderr,
 		MaxFoldersToCheck:              DefaultMaxFoldersToCheck,
 		AutoRetry:                      true,
 		RetryMaxAttempts:               DEFAULT_RETRY_MAX_ATTEMPTS,

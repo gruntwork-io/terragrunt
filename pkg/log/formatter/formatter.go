@@ -153,7 +153,7 @@ func (formatter *Formatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entr
 		timestamp string
 	)
 
-	if val, ok := entry.Data[PrefixKeyName]; ok && val != nil {
+	if val, ok := entry.Data[PrefixKeyName]; ok && val != nil && val != "." {
 		if val, ok := val.(string); ok && val != "" {
 			prefix = fmt.Sprintf("[%s] ", val)
 		}

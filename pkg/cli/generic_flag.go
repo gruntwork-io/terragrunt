@@ -125,6 +125,7 @@ func newGenericValue[T comparable](value FlagType[T], envValue *string, dest *T)
 		if err := value.Set(*envValue); err != nil {
 			return nil, err
 		}
+
 		envHasBeenSet = true
 	}
 
