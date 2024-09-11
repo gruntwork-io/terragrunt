@@ -12,8 +12,6 @@ import (
 	"sync"
 	"time"
 
-	goerrors "errors"
-
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/externalcmd"
@@ -451,20 +449,9 @@ func RunTerraformWithRetry(ctx context.Context, terragruntOptions *options.Terra
 			if out == nil || !IsRetryable(terragruntOptions, out) {
 				logger := terragruntOptions.Logger
 
-				for {
-					var execErr util.ProcessExecutionError
-					if ok := goerrors.As(err, &execErr); ok {
-						if execErr.Stderr != "" {
-							logger = logger.WithField("stderr", "\n"+execErr.Stderr)
-						}
-
-						if execErr.Stdout != "" {
-							logger = logger.WithField("stdout", "\n"+execErr.Stdout)
-						}
-					}
-
-					if err := goerrors.Unwrap(err); err == nil {
-						break
+				if execErr := util.Unwrap[util.ProcessExecutionError](err); execErr != nil {
+					if execErr.Stderr != "" {
+						logger = logger.WithField("stderr", "\n"+execErr.Stderr)
 					}
 				}
 
