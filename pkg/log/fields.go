@@ -2,14 +2,6 @@ package log
 
 import "sort"
 
-const (
-	FieldKeyTime      = "time"
-	FieldKeyLevel     = "level"
-	FieldKeyPrefix    = "prefix"
-	FieldKeySubPrefix = "sub-prefix"
-	FieldKeyMsg       = "msg"
-)
-
 // Fields type, used to pass to `WithFields`.
 type Fields map[string]interface{}
 

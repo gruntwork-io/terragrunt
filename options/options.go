@@ -12,7 +12,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/format"
+	"github.com/gruntwork-io/terragrunt/pkg/log/formatter"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
 )
@@ -58,8 +58,6 @@ var (
 		"force-unlock",
 		"state",
 	}
-
-	LogFormatter = format.NewFormatter(format.WithPresetConfigs(format.Configs...))
 )
 
 type ctxKey byte
@@ -130,6 +128,9 @@ type TerragruntOptions struct {
 	// Disable Terragrunt colors
 	DisableLogColors bool
 
+	// Output Terragrunt logs in JSON format
+	JsonLogFormat bool
+
 	// Disable replacing full paths in logs with short relative paths
 	UseLogAbsPaths bool
 
@@ -137,7 +138,10 @@ type TerragruntOptions struct {
 	LogLevel log.Level
 
 	// Log formatter
-	LogFormatter *format.Formatter
+	LogFormatter *formatter.Formatter
+
+	// If true, logs will be displayed in format key/value, by default logs are formatted in human-readable format.
+	DisableLogFormatting bool
 
 	// Wrap Terraform logs in JSON format
 	TerraformLogsToJson bool
@@ -380,6 +384,8 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 
 // Create a new TerragruntOptions object with reasonable defaults for real usage
 func NewTerragruntOptions() *TerragruntOptions {
+	var logFormatter = formatter.NewFormatter()
+
 	return &TerragruntOptions{
 		TerraformPath:                  DefaultWrappedPath,
 		ExcludesFile:                   defaultExcludesFile,
@@ -390,8 +396,8 @@ func NewTerragruntOptions() *TerragruntOptions {
 		NonInteractive:                 false,
 		TerraformCliArgs:               []string{},
 		LogLevel:                       defaultLogLevel,
-		LogFormatter:                   LogFormatter,
-		Logger:                         log.New(log.WithLevel(defaultLogLevel), log.WithFormatter(LogFormatter)),
+		LogFormatter:                   logFormatter,
+		Logger:                         log.New(log.WithLevel(defaultLogLevel), log.WithFormatter(logFormatter)),
 		Env:                            map[string]string{},
 		Source:                         "",
 		SourceMap:                      map[string]string{},
@@ -499,11 +505,6 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOptions, error) {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
-	relWorkingDir, err := util.GetPathRelativeTo(workingDir, opts.RootWorkingDir)
-	if err != nil {
-		return nil, err
-	}
-
 	// Note that we clone lists and maps below as TerragruntOptions may be used and modified concurrently in the code
 	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
 	// for more info.
@@ -521,7 +522,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		TerraformCliArgs:               util.CloneStringList(opts.TerraformCliArgs),
 		WorkingDir:                     workingDir,
 		RootWorkingDir:                 opts.RootWorkingDir,
-		Logger:                         opts.Logger.WithField(log.FieldKeyPrefix, workingDir).WithField("rel-prefix", relWorkingDir),
+		Logger:                         opts.Logger.WithField(formatter.PrefixKeyName, workingDir),
 		LogLevel:                       opts.LogLevel,
 		LogFormatter:                   opts.LogFormatter,
 		ValidateStrict:                 opts.ValidateStrict,

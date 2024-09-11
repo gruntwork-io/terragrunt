@@ -79,11 +79,4 @@ func parseAndSetLogEnvs(opts *options.TerragruntOptions) {
 
 		opts.Logger.SetOptions(log.WithLevel(level))
 	}
-
-	if formatterStr := os.Getenv(commands.TerragruntLogFormatEnvName); formatterStr != "" {
-		if err := opts.LogFormatter.SetFormat(formatterStr); err != nil {
-			err = errors.Errorf("Could not parse log format from environment variable %s=%s, %w", commands.TerragruntLogFormatEnvName, formatterStr, err)
-			checkForErrorsAndExit(opts.Logger)(err)
-		}
-	}
 }

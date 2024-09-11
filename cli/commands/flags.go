@@ -8,11 +8,18 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/formatter"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const (
+	TerragruntDisableLogFormattingFlagName = "terragrunt-disable-log-formatting"
+	TerragruntDisableLogFormattingEnvName  = "TERRAGRUNT_DISABLE_LOG_FORMATTING"
+
+	TerragruntJsonLogFlagName = "terragrunt-json-log"
+	TerragruntJsonLogEnvName  = "TERRAGRUNT_JSON_LOG"
+
 	TerragruntConfigFlagName = "terragrunt-config"
 	TerragruntConfigEnvName  = "TERRAGRUNT_CONFIG"
 
@@ -123,9 +130,6 @@ const (
 	TerragruntLogLevelFlagName = "terragrunt-log-level"
 	TerragruntLogLevelEnvName  = "TERRAGRUNT_LOG_LEVEL"
 
-	TerragruntLogFormatFlagName = "terragrunt-log-format"
-	TerragruntLogFormatEnvName  = "TERRAGRUNT_LOG_FORMAT"
-
 	TerragruntNoColorFlagName = "terragrunt-no-color"
 	TerragruntNoColorEnvName  = "TERRAGRUNT_NO_COLOR"
 
@@ -162,8 +166,7 @@ const (
 // NewGlobalFlags creates and returns global flags.
 func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 	var (
-		logLevelStr  = opts.LogLevel.String()
-		logFormatStr = opts.LogFormatter.String()
+		logLevelStr = opts.LogLevel.String()
 	)
 
 	flags := cli.Flags{
@@ -326,18 +329,30 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 					return errors.Errorf("flag --%s, %w", TerragruntLogLevelFlagName, err)
 				}
 
+				opts.Logger.SetOptions(log.WithLevel(level))
 				opts.LogLevel = level
 				return nil
 
 			},
 		},
-		&cli.GenericFlag[string]{
-			Name:        TerragruntLogFormatFlagName,
-			EnvVar:      TerragruntLogFormatEnvName,
-			Destination: &logFormatStr,
-			Usage:       "Sets the logging format",
+		&cli.BoolFlag{
+			Name:        TerragruntDisableLogFormattingFlagName,
+			EnvVar:      TerragruntDisableLogFormattingEnvName,
+			Destination: &opts.DisableLogFormatting,
+			Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
 			Action: func(ctx *cli.Context) error {
-				return opts.LogFormatter.SetFormat(logFormatStr)
+				opts.LogFormatter.DisableLogFormatting = opts.DisableLogFormatting
+				return nil
+			},
+		},
+		&cli.BoolFlag{
+			Name:        TerragruntJsonLogFlagName,
+			EnvVar:      TerragruntJsonLogEnvName,
+			Destination: &opts.JsonLogFormat,
+			Usage:       "If specified, Terragrunt will output its logs in JSON format.",
+			Action: func(ctx *cli.Context) error {
+				opts.Logger.SetOptions(log.WithFormatter(&formatter.JSONFormatter{}))
+				return nil
 			},
 		},
 		&cli.BoolFlag{
@@ -351,6 +366,10 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      TerragruntNoColorEnvName,
 			Destination: &opts.DisableLogColors,
 			Usage:       "If specified, Terragrunt output won't contain any color.",
+			Action: func(ctx *cli.Context) error {
+				opts.LogFormatter.DisableColors = opts.DisableLogColors
+				return nil
+			},
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntTfLogJsonFlagName,

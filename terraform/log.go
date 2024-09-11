@@ -23,15 +23,13 @@ var (
 	tfLogTimeLevelMsgReg = regexp.MustCompile(`(?i)(^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}[-+]\d{4})\s*\[(trace|debug|warn|info|error)\]\s*(.+\S)$`)
 )
 
-func ParseLogFuncWithMsgPrefix(msgPrefix string) writer.WriterParseFunc {
+func ParseLogFunc(msgPrefix string) writer.WriterParseFunc {
 	return func(str string) (msg string, ptrTime *time.Time, ptrLevel *log.Level, err error) {
-		msg, ptrTime, ptrLevel, err = ParseLog(str)
-		msg = msgPrefix + msg
-		return msg, ptrTime, ptrLevel, err
+		return ParseLog(msgPrefix, str)
 	}
 }
 
-func ParseLog(str string) (msg string, ptrTime *time.Time, ptrLevel *log.Level, err error) {
+func ParseLog(msgPrefix, str string) (msg string, ptrTime *time.Time, ptrLevel *log.Level, err error) {
 	const numberOfValues = 4
 
 	if !tfLogTimeLevelMsgReg.MatchString(str) {
@@ -63,5 +61,5 @@ func ParseLog(str string) (msg string, ptrTime *time.Time, ptrLevel *log.Level, 
 		ptrLevel = &level
 	}
 
-	return msg, ptrTime, ptrLevel, nil
+	return msgPrefix + msg, ptrTime, ptrLevel, nil
 }

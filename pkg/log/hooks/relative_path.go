@@ -7,6 +7,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/formatter"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -78,27 +79,21 @@ func (hook *RelativePathHook) Levels() []logrus.Level {
 func (hook *RelativePathHook) Fire(entry *logrus.Entry) error {
 	entry.Message = hook.replaceAbsPathsWithRel(entry.Message)
 
-	// for key, field := range entry.Data {
-	// 	if val, ok := field.(string); ok {
-	// 		var (
-	// 			val    = val
-	// 			newVal = hook.replaceAbsPathsWithRel(val)
-	// 		)
+	for key, field := range entry.Data {
+		if val, ok := field.(string); ok {
+			newVal := hook.replaceAbsPathsWithRel(val)
 
-	// 		if newVal == val {
-	// 			continue
-	// 		}
+			if newVal == val {
+				continue
+			}
 
-	// 		if key == log.FieldKeyPrefix {
-	// 			entry.Data[key] = func() (string, string) {
-	// 				return val, newVal
-	// 			}
-	// 			continue
-	// 		}
+			if key == formatter.PrefixKeyName && strings.HasPrefix(newVal, log.CurDirWithSeparator) {
+				newVal = newVal[len(log.CurDirWithSeparator):]
+			}
 
-	// 		entry.Data[key] = newVal
-	// 	}
-	// }
+			entry.Data[key] = newVal
+		}
+	}
 
 	return nil
 }
