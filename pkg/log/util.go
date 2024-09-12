@@ -23,6 +23,7 @@ var (
 	ansiReg = regexp.MustCompile(ansiSeq)
 )
 
+// RemoveAllASCISeq returns a string with all ASCII color characters removed.
 func RemoveAllASCISeq(str string) string {
 	if strings.Contains(str, startASNISeq) {
 		str = ansiReg.ReplaceAllString(str, "")
@@ -31,6 +32,7 @@ func RemoveAllASCISeq(str string) string {
 	return str
 }
 
+// ResetASCISeq returns a string with the ASCI color reset to the default one.
 func ResetASCISeq(str string) string {
 	if strings.Contains(str, startASNISeq) {
 		str += resetANSISeq

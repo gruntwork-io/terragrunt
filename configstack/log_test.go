@@ -7,7 +7,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/formatter"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -22,7 +22,7 @@ func TestLogReductionHook(t *testing.T) {
 
 	stdout := bytes.Buffer{}
 
-	formatter := formatter.NewFormatter()
+	formatter := format.NewFormatter()
 	formatter.DisableColors = true
 	formatter.DisableLogFormatting = true
 

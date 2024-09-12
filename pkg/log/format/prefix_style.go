@@ -1,4 +1,4 @@
-package formatter
+package format
 
 import (
 	"github.com/puzpuzpuz/xsync/v3"

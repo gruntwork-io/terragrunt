@@ -2,7 +2,7 @@ package log
 
 import "sort"
 
-// Fields type, used to pass to `WithFields`.
+// Fields is the type used to pass arguments to `WithFields`.
 type Fields map[string]interface{}
 
 func (fields Fields) Keys(removeKeys ...string) []string {

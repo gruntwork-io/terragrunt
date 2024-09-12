@@ -18,7 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/engine"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/formatter"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 	"github.com/gruntwork-io/terragrunt/terraform"
 
@@ -42,6 +42,8 @@ const (
 	refsTags  = "refs/tags/"
 
 	tagSplitPart = 2
+
+	logMsgSeparator = "\n"
 )
 
 const (
@@ -147,18 +149,18 @@ func RunShellCommandWithOutput(
 					})
 				}
 			} else {
-				logger := opts.Logger.WithField(formatter.TFBinaryKeyName, filepath.Base(opts.TerraformPath))
+				logger := opts.Logger.WithField(format.TFBinaryKeyName, filepath.Base(opts.TerraformPath))
 
 				outWriter = writer.New(
 					writer.WithLogger(logger.WithOptions(log.WithOutput(outWriter))),
 					writer.WithDefaultLevel(log.StdoutLevel),
-					writer.WithSplitLines(),
+					writer.WithMsgSeparator(logMsgSeparator),
 				)
 
 				errWriter = writer.New(
 					writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
 					writer.WithDefaultLevel(log.StderrLevel),
-					writer.WithSplitLines(),
+					writer.WithMsgSeparator(logMsgSeparator),
 					writer.WithParseFunc(terraform.ParseLogFunc(tfLogMsgPrefix)),
 				)
 			}

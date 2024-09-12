@@ -81,7 +81,7 @@ func NewConfig(opts ...Option) *Config {
 	cfg := &Config{
 		hostname:        defaultHostname,
 		shutdownTimeout: defaultShutdownTimeout,
-		logger:          log.DefaultLogger,
+		logger:          log.Default(),
 	}
 
 	return cfg.WithOptions(opts...)

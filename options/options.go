@@ -12,7 +12,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/formatter"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
 )
@@ -132,13 +132,13 @@ type TerragruntOptions struct {
 	JsonLogFormat bool
 
 	// Disable replacing full paths in logs with short relative paths
-	UseLogAbsPaths bool
+	LogShowAbsPaths bool
 
 	// Log level
 	LogLevel log.Level
 
 	// Log formatter
-	LogFormatter *formatter.Formatter
+	LogFormatter *format.Formatter
 
 	// If true, logs will be displayed in format key/value, by default logs are formatted in human-readable format.
 	DisableLogFormatting bool
@@ -388,7 +388,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 }
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
-	var logFormatter = formatter.NewFormatter()
+	var logFormatter = format.NewFormatter()
 
 	return &TerragruntOptions{
 		TerraformPath:                  DefaultWrappedPath,
@@ -526,7 +526,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		TerraformCliArgs:               util.CloneStringList(opts.TerraformCliArgs),
 		WorkingDir:                     workingDir,
 		RootWorkingDir:                 opts.RootWorkingDir,
-		Logger:                         opts.Logger.WithField(formatter.PrefixKeyName, workingDir),
+		Logger:                         opts.Logger.WithField(format.PrefixKeyName, workingDir),
 		LogLevel:                       opts.LogLevel,
 		LogFormatter:                   opts.LogFormatter,
 		ValidateStrict:                 opts.ValidateStrict,

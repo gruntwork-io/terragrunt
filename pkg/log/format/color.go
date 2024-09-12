@@ -1,4 +1,4 @@
-package formatter
+package format
 
 import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"

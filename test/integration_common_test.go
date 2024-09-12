@@ -26,7 +26,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/formatter"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -58,7 +58,7 @@ func getPathsRelativeTo(t *testing.T, basePath string, paths []string) []string 
 }
 
 func createLogger() log.Logger {
-	formatter := formatter.NewFormatter()
+	formatter := format.NewFormatter()
 	formatter.DisableColors = true
 	formatter.DisableLogFormatting = true
 

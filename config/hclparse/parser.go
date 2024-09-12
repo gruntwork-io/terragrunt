@@ -26,7 +26,7 @@ type Parser struct {
 func NewParser(opts ...Option) *Parser {
 	return (&Parser{
 		Parser: hclparse.NewParser(),
-		logger: log.DefaultLogger,
+		logger: log.Default(),
 	}).withOptions(opts...)
 }
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/formatter"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/sirupsen/logrus"
 )
 
@@ -77,7 +77,7 @@ func (hook *RelativePathHook) Fire(entry *logrus.Entry) error {
 				continue
 			}
 
-			if key == formatter.PrefixKeyName && strings.HasPrefix(newVal, log.CurDirWithSeparator) {
+			if key == format.PrefixKeyName && strings.HasPrefix(newVal, log.CurDirWithSeparator) {
 				newVal = newVal[len(log.CurDirWithSeparator):]
 			}
 

@@ -1,117 +1,123 @@
 package log
 
-var DefaultLogger Logger
+var (
+	// std is the name of the default logger.
+	std = New()
+)
 
-func init() {
-	DefaultLogger = New()
+// Default returns the standard logger used by the package-level output functions.
+// Typically used as the default logger for various packages.
+// It is highly recommended not to use it to avoid conflicts in tests.
+func Default() Logger {
+	return std
 }
 
 // Debug logs a message at level Debug on the standard logger.
 func Debug(args ...any) {
-	DefaultLogger.Debug(args...)
+	std.Debug(args...)
 }
 
 // Trace logs a message at level Trace on the standard logger.
 func Trace(args ...any) {
-	DefaultLogger.Trace(args...)
+	std.Trace(args...)
 }
 
 // Info logs a message at level Info on the standard logger.
 func Info(args ...any) {
-	DefaultLogger.Info(args...)
+	std.Info(args...)
 }
 
 // Print logs a message at level Info on the standard logger.
 func Print(args ...any) {
-	DefaultLogger.Print(args...)
+	std.Print(args...)
 }
 
 // Warn logs a message at level Warn on the standard logger.
 func Warn(args ...any) {
-	DefaultLogger.Warn(args...)
+	std.Warn(args...)
 }
 
 // Error logs a message at level Error on the standard logger.
 func Error(args ...any) {
-	DefaultLogger.Error(args...)
+	std.Error(args...)
 }
 
 // Debugln logs a message at level Debug on the standard logger.
 func Debugln(args ...any) {
-	DefaultLogger.Debugln(args...)
+	std.Debugln(args...)
 }
 
 // Infoln logs a message at level Info on the standard logger.
 func Infoln(args ...any) {
-	DefaultLogger.Infoln(args...)
+	std.Infoln(args...)
 }
 
 // Println logs a message at level Info on the standard logger.
 func Println(args ...any) {
-	DefaultLogger.Println(args...)
+	std.Println(args...)
 }
 
 // Warnln logs a message at level Warn on the standard logger.
 func Warnln(args ...any) {
-	DefaultLogger.Warnln(args...)
+	std.Warnln(args...)
 }
 
 // Errorln logs a message at level Error on the standard logger.
 func Errorln(args ...any) {
-	DefaultLogger.Errorln(args...)
+	std.Errorln(args...)
 }
 
 // Debugf logs a message at level Debug on the standard logger.
 func Debugf(format string, args ...any) {
-	DefaultLogger.Debugf(format, args...)
+	std.Debugf(format, args...)
 }
 
 // Tracef logs a message at level Trace on the standard logger.
 func Tracef(format string, args ...any) {
-	DefaultLogger.Tracef(format, args...)
+	std.Tracef(format, args...)
 }
 
 // Infof logs a message at level Info on the standard logger.
 func Infof(format string, args ...any) {
-	DefaultLogger.Infof(format, args...)
+	std.Infof(format, args...)
 }
 
 // Printf logs a message at level Info on the standard logger.
 func Printf(args ...any) {
-	DefaultLogger.Print(args...)
+	std.Print(args...)
 }
 
 // Warnf logs a message at level Warn on the standard logger.
 func Warnf(format string, args ...any) {
-	DefaultLogger.Warnf(format, args...)
+	std.Warnf(format, args...)
 }
 
 // Errorf logs a message at level Error on the standard logger.
 func Errorf(format string, args ...any) {
-	DefaultLogger.Errorf(format, args...)
+	std.Errorf(format, args...)
 }
 
 // WithField allocates a new entry and adds a field to it.
 func WithField(key string, value interface{}) Logger {
-	return DefaultLogger.WithField(key, value)
+	return std.WithField(key, value)
 }
 
 // WithFields adds a struct of fields to the logger. All it does is call `WithField` for each `Field`.
 func WithFields(fields Fields) Logger {
-	return DefaultLogger.WithFields(fields)
+	return std.WithFields(fields)
 }
 
 // WithError adds an error to log entry, using the value defined in ErrorKey as key.
 func WithError(err error) Logger {
-	return DefaultLogger.WithError(err)
+	return std.WithError(err)
 }
 
 // WithOptions
 func WithOptions(opts ...Option) Logger {
-	return DefaultLogger.WithOptions(opts...)
+	return std.WithOptions(opts...)
 }
 
 // SetOptions
 func SetOptions(opts ...Option) {
-	DefaultLogger.SetOptions(opts...)
+	std.SetOptions(opts...)
 }

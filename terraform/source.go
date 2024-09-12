@@ -90,7 +90,7 @@ func (terraformSource Source) EncodeSourceVersion() (string, error) {
 			return hash, nil
 		}
 
-		terraformSource.Logger.WithError(err).Warningf("Could not encode version for local source")
+		terraformSource.Logger.WithError(err).Warnf("Could not encode version for local source")
 
 		return "", err
 	}
@@ -296,7 +296,7 @@ func SplitSourceUrl(sourceUrl *url.URL, logger log.Logger) (*url.URL, string, er
 	_, err := os.Stat(sourceUrl.Path)
 	if err != nil {
 		// log warning message to notify user that sourceUrl.Path may not work
-		logger.Warningf("No double-slash (//) found in source URL %s. Relative paths in downloaded Terraform code may not work.", sourceUrl.Path)
+		logger.Warnf("No double-slash (//) found in source URL %s. Relative paths in downloaded Terraform code may not work.", sourceUrl.Path)
 	}
 
 	return sourceUrl, "", nil

@@ -8,7 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/formatter"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -133,8 +133,8 @@ const (
 	TerragruntNoColorFlagName = "terragrunt-no-color"
 	TerragruntNoColorEnvName  = "TERRAGRUNT_NO_COLOR"
 
-	TerragruntUseLogAbsPathsFlagName = "terragrunt-log-use-abs-paths"
-	TerragruntUseLogAbsPathsEnvName  = "TERRAGRUNT_LOG_USE_ABS_PATHS"
+	TerragruntShowLogAbsPathsFlagName = "terragrunt-log-show-abs-paths"
+	TerragruntShowLogAbsPathsEnvName  = "TERRAGRUNT_LOG_SHOW_ABS_PATHS"
 
 	TerragruntForwardTFStdoutFlagName = "terragrunt-forward-tf-stdout"
 	TerragruntForwardTFStdoutEnvName  = "TERRAGRUNT_FORWARD_TF_STDOUT"
@@ -351,15 +351,15 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.JsonLogFormat,
 			Usage:       "If specified, Terragrunt will output its logs in JSON format.",
 			Action: func(ctx *cli.Context) error {
-				opts.Logger.SetOptions(log.WithFormatter(&formatter.JSONFormatter{}))
+				opts.Logger.SetOptions(log.WithFormatter(&format.JSONFormatter{}))
 				return nil
 			},
 		},
 		&cli.BoolFlag{
-			Name:        TerragruntUseLogAbsPathsFlagName,
-			EnvVar:      TerragruntUseLogAbsPathsEnvName,
-			Destination: &opts.UseLogAbsPaths,
-			Usage:       "Disable replacing full paths in logs with short relative paths",
+			Name:        TerragruntShowLogAbsPathsFlagName,
+			EnvVar:      TerragruntShowLogAbsPathsEnvName,
+			Destination: &opts.LogShowAbsPaths,
+			Usage:       "Show absolute paths in logs",
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntNoColorFlagName,
