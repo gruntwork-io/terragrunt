@@ -560,6 +560,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		AwsProviderPatchOverrides:      opts.AwsProviderPatchOverrides,
 		HclFile:                        opts.HclFile,
 		JSONOut:                        opts.JSONOut,
+		JsonLogFormat:                  opts.JsonLogFormat,
 		Check:                          opts.Check,
 		CheckDependentModules:          opts.CheckDependentModules,
 		FetchDependencyOutputFromState: opts.FetchDependencyOutputFromState,

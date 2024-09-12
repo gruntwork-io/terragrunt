@@ -3762,10 +3762,10 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureInitError)
 
-	stdout, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt apply --no-color --terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
+	_, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt apply --no-color --terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-forward-tf-stdout --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
 	require.Error(t, err)
 
-	assert.Contains(t, stdout, `"msg":"Initializing the backend..."`)
+	assert.Contains(t, stderr, `"msg":"Initializing the backend..."`)
 
 	// check if output can be extracted in json
 	jsonStrings := strings.Split(stderr, "\n")

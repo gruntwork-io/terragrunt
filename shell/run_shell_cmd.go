@@ -136,8 +136,7 @@ func RunShellCommandWithOutput(
 		// redirect output through logger with json wrapping
 		if opts.JsonLogFormat && opts.TerraformLogsToJson {
 			logger := opts.Logger.WithField("workingDir", opts.WorkingDir).WithField("executedCommandArgs", args)
-
-			outWriter = logger.WithOptions(log.WithOutput(outWriter)).Writer()
+			outWriter = logger.WithOptions(log.WithOutput(errWriter)).Writer()
 			errWriter = logger.WithOptions(log.WithOutput(errWriter)).WriterLevel(log.ErrorLevel)
 		} else if command == opts.TerraformPath {
 			if opts.ForwardTFStdout || shouldForceForwardTFStdout(args) {
