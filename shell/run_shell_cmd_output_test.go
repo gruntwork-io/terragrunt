@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -58,16 +59,17 @@ func testCommandOutputOrder(t *testing.T, withPtty bool, fullOutput []string, st
 func TestCommandOutputPrefix(t *testing.T) {
 	t.Parallel()
 	prefix := "PREFIX"
+	terraformPath := "../testdata/test_outputs.sh"
 	prefixedOutput := []string{}
 	for _, line := range FULL_OUTPUT {
-		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s msg=%s", prefix, line))
+		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s binary=%s msg=%s", prefix, filepath.Base(terraformPath), line))
 	}
 
 	logFormatter := formatter.NewFormatter()
 	logFormatter.DisableLogFormatting = true
 
 	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
-		terragruntOptions.TerraformPath = ""
+		terragruntOptions.TerraformPath = terraformPath
 		terragruntOptions.Logger.SetOptions(log.WithFormatter(logFormatter))
 		terragruntOptions.Logger = terragruntOptions.Logger.WithField(formatter.PrefixKeyName, prefix)
 	}, assertOutputs(t,
@@ -83,11 +85,12 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
-	// Specify a single (locking) buffer for both as a way to check that the output is being written in the correct
+	// `Specify a single (locking) buffer for both as a way to check that the output is being written in the correct
 	// order
 	var allOutputBuffer BufferWithLocking
 	terragruntOptions.Writer = &allOutputBuffer
 	terragruntOptions.ErrWriter = &allOutputBuffer
+	//terragruntOptions.Logger.SetOptions(log.WithOutput(&allOutputBuffer))
 
 	terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, "same")
 
@@ -114,7 +117,7 @@ func assertOutputs(
 		allOutputs := strings.Split(strings.TrimSpace(allOutput), "\n")
 		assert.Equal(t, len(expectedAllOutputs), len(allOutputs))
 		for i := 0; i < len(allOutputs); i++ {
-			assert.Contains(t, allOutputs[i], expectedAllOutputs[i])
+			assert.Contains(t, allOutputs[i], expectedAllOutputs[i], allOutputs[i])
 		}
 
 		stdOutputs := strings.Split(strings.TrimSpace(out.Stdout), "\n")

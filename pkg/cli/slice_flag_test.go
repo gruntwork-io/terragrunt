@@ -214,7 +214,7 @@ func testSliceFlagApply[T cli.SliceFlagType](t *testing.T, flag *cli.SliceFlag[T
 
 	assert.Equal(t, expectedStringValueFn(expectedValue), flag.GetValue(), "GetValue()")
 
-	assert.Equal(t, len(args) > 0, flag.Value().IsSet(), "IsSet()")
+	assert.Equal(t, len(args) > 0 || len(envs) > 0, flag.Value().IsSet(), "IsSet()")
 	assert.Equal(t, expectedStringValueFn(expectedDefaultValue), flag.Value().GetDefaultText(), "GetDefaultText()")
 
 	assert.False(t, flag.Value().IsBoolFlag(), "IsBoolFlag()")
