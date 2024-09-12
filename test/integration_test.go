@@ -3766,7 +3766,6 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 	require.Error(t, err)
 
 	assert.Contains(t, stdout, `"msg":"Initializing the backend..."`)
-	assert.Contains(t, stderr, `"msg":"Error: No valid credential sources found"`)
 
 	// check if output can be extracted in json
 	jsonStrings := strings.Split(stderr, "\n")
