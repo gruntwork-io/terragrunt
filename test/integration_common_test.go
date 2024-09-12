@@ -36,12 +36,16 @@ import (
 )
 
 func getPathRelativeTo(t *testing.T, path string, basePath string) string {
+	t.Helper()
+
 	relPath, err := util.GetPathRelativeTo(path, basePath)
 	require.NoError(t, err)
 	return relPath
 }
 
 func getPathsRelativeTo(t *testing.T, basePath string, paths []string) []string {
+	t.Helper()
+
 	relPaths := make([]string, len(paths))
 
 	for i, path := range paths {

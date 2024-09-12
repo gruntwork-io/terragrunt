@@ -465,10 +465,10 @@ func TestTerragruntLogLevelEnvVarUnparsableLogsError(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, ".")
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureInputs)
 
-	_, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt validate --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	err := runTerragruntCommand(t, "terragrunt validate --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, os.Stdout, os.Stderr)
 	require.Error(t, err)
 
-	assert.Contains(t, stderr, "invalid level")
+	assert.Contains(t, err.Error(), "invalid level")
 }
 
 func TestTerragruntProduceTelemetryTraces(t *testing.T) {
