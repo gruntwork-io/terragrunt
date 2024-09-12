@@ -446,7 +446,7 @@ func extractSemVerTags(tags []string) []*version.Version {
 // shouldForceForwardTFStdout returns true if at least one of the conditions is met, args contains the `-json` flag or the `output` or `state` command.
 func shouldForceForwardTFStdout(args cli.Args) bool {
 	switch args.CommandName() {
-	case terraform.CommandNameOutput, terraform.CommandNameState, terraform.CommandNameVersion:
+	case terraform.CommandNameOutput, terraform.CommandNameState, terraform.CommandNameVersion, terraform.CommandNameConsole:
 		return true
 	}
 
