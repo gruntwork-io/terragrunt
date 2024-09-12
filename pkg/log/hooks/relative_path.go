@@ -10,8 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/formatter"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 )
 
 // RelativePathHook represents a hook for logrus logger.
@@ -25,10 +23,8 @@ import (
 //
 // This way, using the standard `strings.ReplaceAll`, we can replace absolute paths with relative ones for different lengths, iterating from longest to shortest.
 type RelativePathHook struct {
-	// absPaths are the keys of the `realPath` map, we store them in the order we iterate over them when replacing.
-	absPaths      []string
+	relPaths      []string
 	absPathsReg   []*regexp.Regexp
-	relPaths      map[string]string
 	triggerLevels []logrus.Level
 }
 
@@ -36,12 +32,15 @@ type RelativePathHook struct {
 // It returns an error if the cache of relative paths could not be created for the given `baseDir`.
 func NewRelativePathHook(baseDir string) (*RelativePathHook, error) {
 	baseDir = filepath.Clean(baseDir)
-	relPaths := make(map[string]string)
 
 	dirs := strings.Split(baseDir, string(os.PathSeparator))
 	absPath := dirs[0]
+	dirs = dirs[1:]
 
-	for _, dir := range dirs[1:] {
+	relPaths := make([]string, len(dirs))
+	absPathsReg := make([]*regexp.Regexp, len(dirs))
+
+	for i, dir := range dirs {
 		absPath = filepath.Join(absPath, string(os.PathSeparator), dir)
 
 		relPath, err := filepath.Rel(baseDir, absPath)
@@ -49,25 +48,12 @@ func NewRelativePathHook(baseDir string) (*RelativePathHook, error) {
 			return nil, errors.WithStackTrace(err)
 		}
 
-		relPaths[absPath] = relPath
-	}
-
-	absPaths := maps.Keys(relPaths)
-	slices.SortFunc(absPaths, func(a, b string) int {
-		if a > b {
-			return -1
-		}
-
-		return 0
-	})
-
-	absPathsReg := make([]*regexp.Regexp, len(absPaths))
-	for i, absPath := range absPaths {
-		absPathsReg[i] = regexp.MustCompile(regexp.QuoteMeta(absPath) + `([/"' ]|$)`)
+		reversIndex := len(dirs) - i - 1
+		relPaths[reversIndex] = relPath
+		absPathsReg[reversIndex] = regexp.MustCompile(regexp.QuoteMeta(absPath) + `([/"' ]|$)`)
 	}
 
 	return &RelativePathHook{
-		absPaths:      absPaths,
 		absPathsReg:   absPathsReg,
 		relPaths:      relPaths,
 		triggerLevels: log.AllLevels.ToLogrusLevels(),
@@ -103,8 +89,8 @@ func (hook *RelativePathHook) Fire(entry *logrus.Entry) error {
 }
 
 func (hook *RelativePathHook) replaceAbsPathsWithRel(text string) string {
-	for i, absPath := range hook.absPaths {
-		text = hook.absPathsReg[i].ReplaceAllString(text, hook.relPaths[absPath]+"$1")
+	for i, absPath := range hook.absPathsReg {
+		text = absPath.ReplaceAllString(text, hook.relPaths[i]+"$1")
 	}
 
 	return text
