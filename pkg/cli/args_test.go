@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var mockArgs = cli.Args(cli.Args{"one", "-foo", "two", "--bar", "value"})
+var mockArgs = cli.Args{"one", "-foo", "two", "--bar", "value"}
 
 func TestArgsSlice(t *testing.T) {
 	t.Parallel()
@@ -21,7 +21,7 @@ func TestArgsTail(t *testing.T) {
 	t.Parallel()
 
 	actual := mockArgs.Tail()
-	expected := cli.Args(mockArgs[1:])
+	expected := mockArgs[1:]
 	assert.Equal(t, expected, actual)
 }
 
