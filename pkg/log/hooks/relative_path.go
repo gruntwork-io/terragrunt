@@ -39,8 +39,9 @@ func NewRelativePathHook(baseDir string) (*RelativePathHook, error) {
 
 	relPaths := make([]string, len(dirs))
 	absPathsReg := make([]*regexp.Regexp, len(dirs))
+	reversIndex := len(dirs)
 
-	for i, dir := range dirs {
+	for _, dir := range dirs {
 		absPath = filepath.Join(absPath, string(os.PathSeparator), dir)
 
 		relPath, err := filepath.Rel(baseDir, absPath)
@@ -48,7 +49,7 @@ func NewRelativePathHook(baseDir string) (*RelativePathHook, error) {
 			return nil, errors.WithStackTrace(err)
 		}
 
-		reversIndex := len(dirs) - i - 1
+		reversIndex--
 		relPaths[reversIndex] = relPath
 		absPathsReg[reversIndex] = regexp.MustCompile(regexp.QuoteMeta(absPath) + `([/"' ]|$)`)
 	}
