@@ -218,21 +218,6 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 	return filepath.ToSlash(relPath), nil
 }
 
-// GetPathRelativeToWithSeparator is a wrapper for the `GetPathRelativeTo` func, and appends a separator, if the relative path consists only of a dot.
-// The function is intended for use in logs, and so that a path with single dot would not seem like the end of a sentence, we add trail slash.
-func GetPathRelativeToWithSeparator(path string, basePath string) (string, error) {
-	relPath, err := GetPathRelativeTo(path, basePath)
-	if err != nil {
-		return relPath, err
-	}
-
-	if relPath == "." {
-		relPath += string(filepath.Separator)
-	}
-
-	return relPath, nil
-}
-
 // Return the contents of the file at the given path as a string
 func ReadFileAsString(path string) (string, error) {
 	bytes, err := os.ReadFile(path)

@@ -35,6 +35,24 @@ import (
 	"github.com/NYTimes/gziphandler"
 )
 
+func getPathRelativeTo(t *testing.T, path string, basePath string) string {
+	relPath, err := util.GetPathRelativeTo(path, basePath)
+	require.NoError(t, err)
+	return relPath
+}
+
+func getPathsRelativeTo(t *testing.T, basePath string, paths []string) []string {
+	relPaths := make([]string, len(paths))
+
+	for i, path := range paths {
+		relPath, err := util.GetPathRelativeTo(path, basePath)
+		require.NoError(t, err)
+		relPaths[i] = relPath
+	}
+
+	return relPaths
+}
+
 func createLogger() log.Logger {
 	formatter := formatter.NewFormatter()
 	formatter.DisableColors = true

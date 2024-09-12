@@ -2855,7 +2855,7 @@ func runValidateAllWithIncludeAndGetIncludedModules(t *testing.T, rootModulePath
 	includedModules := []string{}
 	for _, match := range matches {
 		if match[2] == "false" {
-			includedModules = append(includedModules, match[1])
+			includedModules = append(includedModules, getPathRelativeTo(t, match[1], rootModulePath))
 		}
 	}
 	sort.Strings(includedModules)
@@ -3718,4 +3718,135 @@ func createTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string
 	copyTerragruntConfigAndFillPlaceholders(t, childTerragruntSrcPath, childTerragruntDestPath, s3BucketName, "not-used", "not-used")
 
 	return childTerragruntDestPath
+}
+
+func TestTerragruntOutputJson(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, testFixtureNotExistingSource)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureNotExistingSource)
+
+	_, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt apply --terragrunt-json-log --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
+	require.Error(t, err)
+
+	// for windows OS
+	output := bytes.ReplaceAll([]byte(stderr), []byte("\r\n"), []byte("\n"))
+
+	multipeJSONs := bytes.Split(output, []byte("\n"))
+
+	var msgs = make([]string, 0, len(multipeJSONs))
+
+	for _, jsonBytes := range multipeJSONs {
+		if len(jsonBytes) == 0 {
+			continue
+		}
+
+		var output map[string]interface{}
+
+		err = json.Unmarshal(jsonBytes, &output)
+		require.NoError(t, err)
+
+		msg, ok := output["msg"].(string)
+		assert.True(t, ok)
+		msgs = append(msgs, msg)
+	}
+
+	assert.Contains(t, strings.Join(msgs, ""), "Downloading Terraform configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=v0.9.9")
+}
+
+func TestTerragruntTerraformOutputJson(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, testFixtureInitError)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureInitError)
+
+	_, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt apply --no-color --terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+testPath)
+	require.Error(t, err)
+
+	assert.Contains(t, stderr, "\"msg\":\"Initializing the backend...")
+
+	// check if output can be extracted in json
+	jsonStrings := strings.Split(stderr, "\n")
+	for _, jsonString := range jsonStrings {
+		if len(jsonString) == 0 {
+			continue
+		}
+		var output map[string]interface{}
+		err = json.Unmarshal([]byte(jsonString), &output)
+		require.NoErrorf(t, err, "Failed to parse json %s", jsonString)
+		assert.NotNil(t, output["level"])
+		assert.NotNil(t, output["time"])
+	}
+}
+
+func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		arg string
+	}{
+		{"--terragrunt-json-log"},
+		{"--terragrunt-json-log --terragrunt-tf-logs-to-json"},
+		{"--terragrunt-forward-tf-stdout"},
+		{"--terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-forward-tf-stdout"},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run("terragrunt output with "+testCase.arg, func(t *testing.T) {
+			t.Parallel()
+			tmpEnvPath := copyEnvironment(t, testFixtureDependencyOutput)
+			rootTerragruntPath := util.JoinPath(tmpEnvPath, testFixtureDependencyOutput)
+			// apply dependency first
+			dependencyTerragruntConfigPath := util.JoinPath(rootTerragruntPath, "dependency")
+			_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s ", dependencyTerragruntConfigPath))
+			require.NoError(t, err)
+			appTerragruntConfigPath := util.JoinPath(rootTerragruntPath, "app")
+			stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s %s", appTerragruntConfigPath, testCase.arg))
+			require.NoError(t, err)
+			output := fmt.Sprintf("%s %s", stderr, stdout)
+			assert.NotContains(t, output, "invalid character")
+		})
+
+	}
+}
+
+func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		arg string
+	}{
+		{"--terragrunt-json-log"},
+		{"--terragrunt-json-log --terragrunt-tf-logs-to-json"},
+		{"--terragrunt-forward-tf-stdout"},
+		{"--terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-forward-tf-stdout"},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run("terragrunt with "+testCase.arg, func(t *testing.T) {
+			t.Parallel()
+			tmpDir := t.TempDir()
+			_, _, _, err := testRunAllPlan(t, fmt.Sprintf("--terragrunt-json-out-dir %s %s", tmpDir, testCase.arg))
+			require.NoError(t, err)
+			list, err := findFilesWithExtension(tmpDir, ".json")
+			require.NoError(t, err)
+			assert.Len(t, list, 2)
+			for _, file := range list {
+				assert.Equal(t, "tfplan.json", filepath.Base(file))
+				// verify that file is not empty
+				content, err := os.ReadFile(file)
+				require.NoError(t, err)
+				assert.NotEmpty(t, content)
+				// check that produced json is valid and can be unmarshalled
+				var plan map[string]interface{}
+				err = json.Unmarshal(content, &plan)
+				require.NoError(t, err)
+				// check that plan is not empty
+				assert.NotEmpty(t, plan)
+			}
+		})
+
+	}
 }
