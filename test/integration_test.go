@@ -118,6 +118,23 @@ const (
 	fixtureDownload = "fixtures/download"
 )
 
+func TestLogWithAbsPath(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureLogFormatter)
+	tmpEnvPath := copyEnvironment(t, testFixtureLogFormatter)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
+
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level debug --terragrunt-log-show-abs-paths --terragrunt-non-interactive --terragrunt-disable-log-formatting=false -no-color --terragrunt-no-color --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	for _, prefixName := range []string{"app", "dep"} {
+		prefixName := filepath.Join(rootPath, prefixName)
+		assert.Contains(t, stdout, "STDOUT ["+prefixName+"] "+wrappedBinary()+": Initializing provider plugins...")
+		assert.Contains(t, stderr, "DEBUG  ["+prefixName+"] Reading Terragrunt config file at "+prefixName+"/terragrunt.hcl")
+	}
+}
+
 func TestLogFormatterPrettyOutput(t *testing.T) {
 	t.Parallel()
 
