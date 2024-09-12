@@ -20,8 +20,6 @@ import (
 // /path/to/dir ./
 // /path/to     ../
 // /path        ../..
-//
-// This way, using the standard `strings.ReplaceAll`, we can replace absolute paths with relative ones for different lengths, iterating from longest to shortest.
 type RelativePathHook struct {
 	relPaths      []string
 	absPathsReg   []*regexp.Regexp
@@ -51,7 +49,7 @@ func NewRelativePathHook(baseDir string) (*RelativePathHook, error) {
 
 		reversIndex--
 		relPaths[reversIndex] = relPath
-		absPathsReg[reversIndex] = regexp.MustCompile(regexp.QuoteMeta(absPath) + `([/"' ]|$)`)
+		absPathsReg[reversIndex] = regexp.MustCompile(regexp.QuoteMeta(absPath) + `([` + regexp.QuoteMeta(string(os.PathSeparator)) + `"'\s]|$)`)
 	}
 
 	return &RelativePathHook{
