@@ -31,7 +31,8 @@ type RelativePathHook struct {
 func NewRelativePathHook(baseDir string) (*RelativePathHook, error) {
 	baseDir = filepath.Clean(baseDir)
 
-	dirs := strings.Split(baseDir, string(os.PathSeparator))
+	pathSeparator := string(os.PathSeparator)
+	dirs := strings.Split(baseDir, pathSeparator)
 	absPath := dirs[0]
 	dirs = dirs[1:]
 
@@ -40,7 +41,7 @@ func NewRelativePathHook(baseDir string) (*RelativePathHook, error) {
 	reversIndex := len(dirs)
 
 	for _, dir := range dirs {
-		absPath = filepath.Join(absPath, string(os.PathSeparator), dir)
+		absPath = filepath.Join(absPath, pathSeparator, dir)
 
 		relPath, err := filepath.Rel(baseDir, absPath)
 		if err != nil {
@@ -49,7 +50,7 @@ func NewRelativePathHook(baseDir string) (*RelativePathHook, error) {
 
 		reversIndex--
 		relPaths[reversIndex] = relPath
-		absPathsReg[reversIndex] = regexp.MustCompile(regexp.QuoteMeta(absPath) + `([` + regexp.QuoteMeta(string(os.PathSeparator)) + `"'\s]|$)`)
+		absPathsReg[reversIndex] = regexp.MustCompile(regexp.QuoteMeta(absPath) + `([` + regexp.QuoteMeta(pathSeparator) + `"'\s]|$)`)
 	}
 
 	return &RelativePathHook{
