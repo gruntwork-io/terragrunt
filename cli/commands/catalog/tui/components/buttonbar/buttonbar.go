@@ -55,6 +55,7 @@ func (b *ButtonBar) Init() tea.Cmd {
 // Update implements tea.Model.
 func (b *ButtonBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds := make([]tea.Cmd, 0)
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -71,18 +72,22 @@ func (b *ButtonBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			b.activeButton = int(msg)
 		}
 	}
+
 	return b, tea.Batch(cmds...)
 }
 
 // View implements tea.Model.
 func (b *ButtonBar) View() string {
 	s := strings.Builder{}
+
 	for i, btn := range b.buttons {
 		style := b.BlurredStyle.Copy()
 		if i == b.activeButton {
 			style = b.FocusedStyle.Copy()
 		}
+
 		s.WriteString(fmt.Sprintf(b.nameFmt, style.Render(btn)))
+
 		if i != len(b.buttons)-1 {
 			s.WriteString(b.SeparatorStyle.String())
 		}

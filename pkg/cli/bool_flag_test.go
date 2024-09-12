@@ -100,6 +100,8 @@ func TestBoolFlagApply(t *testing.T) {
 }
 
 func testBoolFlagApply(t *testing.T, flag *cli.BoolFlag, args []string, envs map[string]string, expectedValue bool, expectedErr error) {
+	t.Helper()
+
 	var (
 		actualValue          bool
 		destDefined          bool

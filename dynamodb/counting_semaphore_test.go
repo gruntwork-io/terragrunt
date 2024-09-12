@@ -11,7 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/dynamodb"
 )
 
-func TestCountingSemaphoreHappyPath(t *testing.T) {
+func TestAwsCountingSemaphoreHappyPath(t *testing.T) {
 	t.Parallel()
 
 	semaphore := dynamodb.NewCountingSemaphore(1)
@@ -23,7 +23,7 @@ func TestCountingSemaphoreHappyPath(t *testing.T) {
 // and then firing up M >> N goroutines that all try to Acquire the semaphore. As each goroutine executes, it uses an
 // atomic increment operation to record how many goroutines are running simultaneously. We check the number of running
 // goroutines to ensure that it goes up to N, but does not exceed it.
-func TestCountingSemaphoreConcurrency(t *testing.T) {
+func TestAwsCountingSemaphoreConcurrency(t *testing.T) {
 	t.Parallel()
 
 	permits := 10

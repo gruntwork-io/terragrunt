@@ -37,6 +37,7 @@ func GetRandomTime(lowerBound, upperBound time.Duration) time.Duration {
 	upperBoundMsInt := int(upperBoundMs)
 
 	randTimeInt := random(lowerBoundMsInt, upperBoundMsInt)
+
 	return time.Duration(randTimeInt) * time.Millisecond
 }
 

@@ -9,6 +9,9 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// MapFlag implements Flag
+var _ Flag = new(MapFlag[string, string])
+
 var (
 	MapFlagEnvVarSep = ","
 	MapFlagKeyValSep = "="
@@ -27,17 +30,29 @@ type MapFlagValueType interface {
 type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	flag
 
-	Name        string
+	// The name of the flag.
+	Name string
+	// The default value of the flag to display in the help, if it is empty, the value is taken from `Destination`.
 	DefaultText string
-	Usage       string
-	Aliases     []string
-	Action      ActionFunc
-	EnvVar      string
-
+	// A short usage description to display in help.
+	Usage string
+	// Aliases are usually used for the short flag name, like `-h`.
+	Aliases []string
+	// The action to execute when flag is specified
+	Action ActionFunc
+	// The name of the env variable that is parsed and assigned to `Destination` before the flag value.
+	EnvVar string
+	// The pointer to which the value of the flag or env var is assigned.
+	// It also uses as the default value displayed in the help.
 	Destination *map[K]V
-	Splitter    SplitterFunc
-	EnvVarSep   string
-	KeyValSep   string
+	// The func used to split the EvnVar, by default `strings.Split`
+	Splitter SplitterFunc
+	// The EnvVarSep value is passed to the Splitter function as an argument to split the args.
+	EnvVarSep string
+	// The KeyValSep value is passed to the Splitter function as an argument to split `key` and `val` of the arg.
+	KeyValSep string
+	// Hidden hides the flag from the help, if set to true.
+	Hidden bool
 }
 
 // Apply applies Flag settings to the given flag set.
@@ -55,6 +70,7 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 	}
 
 	var err error
+
 	keyType := FlagType[K](new(genericType[K]))
 	valType := FlagType[V](new(genericType[V]))
 
@@ -65,7 +81,13 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 	for _, name := range flag.Names() {
 		set.Var(flag.FlagValue, name, flag.Usage)
 	}
+
 	return nil
+}
+
+// GetHidden returns true if the flag should be hidden from the help.
+func (flag *MapFlag[K, V]) GetHidden() bool {
+	return flag.Hidden
 }
 
 // GetUsage returns the usage string for the flag.
@@ -78,6 +100,7 @@ func (flag *MapFlag[K, V]) GetEnvVars() []string {
 	if flag.EnvVar == "" {
 		return nil
 	}
+
 	return []string{flag.EnvVar}
 }
 
@@ -86,6 +109,7 @@ func (flag *MapFlag[K, V]) GetDefaultText() string {
 	if flag.DefaultText == "" && flag.FlagValue != nil {
 		return flag.FlagValue.GetDefaultText()
 	}
+
 	return flag.DefaultText
 }
 
@@ -173,6 +197,7 @@ func (flag *mapValue[K, V]) Set(str string) error {
 	}
 
 	(*flag.values)[key.Get().(K)] = val.Get().(V)
+
 	return nil
 }
 
@@ -180,6 +205,7 @@ func (flag *mapValue[K, V]) GetDefaultText() string {
 	if flag.IsBoolFlag() {
 		return ""
 	}
+
 	return flag.defaultText
 }
 
@@ -206,5 +232,6 @@ func (flag *mapValue[K, V]) String() string {
 	if flag.values == nil {
 		return ""
 	}
+
 	return collections.MapJoin(*flag.values, flag.argSep, flag.valSep)
 }

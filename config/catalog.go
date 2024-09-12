@@ -65,6 +65,7 @@ func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOption
 	if err != nil || configPath == "" {
 		return nil, err
 	}
+
 	opts.TerragruntConfigPath = configPath
 
 	ctx := NewParsingContext(parentCtx, opts)
@@ -98,8 +99,7 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 		select {
 		case <-ctx.Done():
 			return "", "", nil
-		default:
-			// continue
+		default: // continue
 		}
 
 		newConfigPath, err := FindInParentFolders(NewParsingContext(ctx, opts), []string{configName})
@@ -108,6 +108,7 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 			if ok := errors.As(err, &parentFileNotFoundError); ok {
 				break
 			}
+
 			return "", "", err
 		}
 

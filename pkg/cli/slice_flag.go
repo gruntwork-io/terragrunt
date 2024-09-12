@@ -7,6 +7,9 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// SliceFlag implements Flag
+var _ Flag = new(SliceFlag[string])
+
 var (
 	SliceFlagEnvVarSep = ","
 )
@@ -36,8 +39,10 @@ type SliceFlag[T SliceFlagType] struct {
 	Destination *[]T
 	// The func used to split the EvnVar, by default `strings.Split`
 	Splitter SplitterFunc
-	// The Env Var separator that is passed to the Splitter function as an argument
+	// The EnvVarSep value is passed to the Splitter function as an argument.
 	EnvVarSep string
+	// Hidden hides the flag from the help, if set to true.
+	Hidden bool
 }
 
 // Apply applies Flag settings to the given flag set.
@@ -51,6 +56,7 @@ func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
 	}
 
 	var err error
+
 	valType := FlagType[T](new(genericType[T]))
 
 	if flag.FlagValue, err = newSliceValue(valType, flag.LookupEnv(flag.EnvVar), flag.EnvVarSep, flag.Splitter, flag.Destination); err != nil {
@@ -60,7 +66,13 @@ func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
 	for _, name := range flag.Names() {
 		set.Var(flag.FlagValue, name, flag.Usage)
 	}
+
 	return nil
+}
+
+// GetHidden returns true if the flag should be hidden from the help.
+func (flag *SliceFlag[T]) GetHidden() bool {
+	return flag.Hidden
 }
 
 // GetUsage returns the usage string for the flag.
@@ -73,6 +85,7 @@ func (flag *SliceFlag[T]) GetEnvVars() []string {
 	if flag.EnvVar == "" {
 		return nil
 	}
+
 	return []string{flag.EnvVar}
 }
 
@@ -81,6 +94,7 @@ func (flag *SliceFlag[T]) GetDefaultText() string {
 	if flag.DefaultText == "" && flag.FlagValue != nil {
 		return flag.FlagValue.GetDefaultText()
 	}
+
 	return flag.DefaultText
 }
 
@@ -153,6 +167,7 @@ func (flag *sliceValue[T]) Set(str string) error {
 	}
 
 	*flag.values = append(*flag.values, value.Get().(T))
+
 	return nil
 }
 
@@ -160,6 +175,7 @@ func (flag *sliceValue[T]) GetDefaultText() string {
 	if flag.IsBoolFlag() {
 		return ""
 	}
+
 	return flag.defaultText
 }
 
@@ -175,6 +191,7 @@ func (flag *sliceValue[T]) Get() any {
 	var vals []T
 
 	vals = append(vals, *flag.values...)
+
 	return vals
 }
 

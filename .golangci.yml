@@ -2,7 +2,7 @@ run:
   timeout: 2m
   issues-exit-code: 1
   tests: true
-  go: "1.21"
+  go: "1.22"
 output:
   formats:
     - format: colored-line-number
@@ -65,12 +65,17 @@ linters:
     - unconvert
     - unused
     - unparam
+    - wsl
+    - thelper
+    - wastedassign
+
   enable-all: false
   disable:
     - depguard
     - gosec
     - gocyclo
     - exhaustruct
+
   fast: false
   mnd:
     ignored-functions: strconv.Format*,os.*,strconv.Parse*,strings.SplitN,bytes.SplitN
@@ -79,6 +84,9 @@ linters:
     - performance
     - unused
     - test
+    # NOTE: These two are only in the strict lint right now
+    # - style
+    # - complexity
 
 issues:
   exclude-dirs:

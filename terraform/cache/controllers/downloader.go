@@ -52,5 +52,6 @@ func (controller *DownloaderController) downloadProviderAction(ctx echo.Context)
 			}
 		}
 	}
+
 	return ctx.NoContent(http.StatusNotFound)
 }

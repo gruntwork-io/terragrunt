@@ -34,11 +34,14 @@ var terraformErrorsMatcher = map[string]string{
 // ExplainError will try to explain the error to the user, if we know how to do so.
 func ExplainError(err error) string {
 	errorsToProcess := []error{err}
+
 	var multiErrors *multierror.Error
+
 	// multiErrors, ok := err.(*multierror.Error)
 	if ok := goErrors.As(err, &multiErrors); ok {
 		errorsToProcess = multiErrors.Errors
 	}
+
 	explanations := map[string]string{}
 
 	// iterate over each error, unwrap it, and check for error output
@@ -47,6 +50,7 @@ func ExplainError(err error) string {
 		if originalError == nil {
 			continue
 		}
+
 		message := originalError.Error()
 		// extract process output, if it is the case
 		var processError util.ProcessExecutionError
@@ -55,6 +59,7 @@ func ExplainError(err error) string {
 			stdOut := processError.StdOut
 			message = fmt.Sprintf("%s\n%s", stdOut, errorOutput)
 		}
+
 		for regex, explanation := range terraformErrorsMatcher {
 			if match, _ := regexp.MatchString(regex, message); match {
 				// collect matched explanations
@@ -62,5 +67,6 @@ func ExplainError(err error) string {
 			}
 		}
 	}
+
 	return strings.Join(collections.Keys(explanations), "\n")
 }

@@ -91,6 +91,7 @@ Traversals:
 
 func traversalStr(traversal hcl.Traversal) string {
 	var buf bytes.Buffer
+
 	for _, step := range traversal {
 		switch tStep := step.(type) {
 		case hcl.TraverseRoot:
@@ -100,15 +101,18 @@ func traversalStr(traversal hcl.Traversal) string {
 			buf.WriteString(tStep.Name)
 		case hcl.TraverseIndex:
 			buf.WriteByte('[')
+
 			if keyTy := tStep.Key.Type(); keyTy.IsPrimitiveType() {
 				buf.WriteString(valueStr(tStep.Key))
 			} else {
 				// We'll just use a placeholder for more complex values, since otherwise our result could grow ridiculously long.
 				buf.WriteString("...")
 			}
+
 			buf.WriteByte(']')
 		}
 	}
+
 	return buf.String()
 }
 
@@ -116,7 +120,9 @@ func valueStr(val cty.Value) string {
 	if val.HasMark(Sensitive) {
 		return "(sensitive value)"
 	}
+
 	ty := val.Type()
+
 	switch {
 	case val.IsNull():
 		return "null"
@@ -126,10 +132,12 @@ func valueStr(val cty.Value) string {
 		if val.True() {
 			return "true"
 		}
+
 		return "false"
 	case ty == cty.Number:
 		bf := val.AsBigFloat()
 		prec := 10
+
 		return bf.Text('g', prec)
 	case ty == cty.String:
 		return fmt.Sprintf("%q", val.AsString())
@@ -146,6 +154,7 @@ func valueStr(val cty.Value) string {
 	case ty.IsObjectType():
 		atys := ty.AttributeTypes()
 		l := len(atys)
+
 		switch l {
 		case 0:
 			return "object with no attributes"
@@ -154,6 +163,7 @@ func valueStr(val cty.Value) string {
 			for k := range atys {
 				name = k
 			}
+
 			return fmt.Sprintf("object with 1 attribute %q", name)
 		default:
 			return fmt.Sprintf("object with %d attributes", l)

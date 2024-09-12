@@ -1,3 +1,5 @@
+//go:build aws
+
 package dynamodb_test
 
 import (
@@ -13,17 +15,19 @@ import (
 )
 
 // For simplicity, do all testing in the us-east-1 region
-const DEFAULT_TEST_REGION = "us-east-1"
+const defaultTestRegion = "us-east-1"
 
 // Create a DynamoDB client we can use at test time. If there are any errors creating the client, fail the test.
 func createDynamoDbClientForTest(t *testing.T) *awsDynamodb.DynamoDB {
+	t.Helper()
+
 	mockOptions, err := options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	sessionConfig := &aws_helper.AwsSessionConfig{
-		Region: DEFAULT_TEST_REGION,
+		Region: defaultTestRegion,
 	}
 
 	client, err := dynamodb.CreateDynamoDbClient(sessionConfig, mockOptions)
@@ -38,11 +42,15 @@ func uniqueTableNameForTest() string {
 }
 
 func cleanupTableForTest(t *testing.T, tableName string, client *awsDynamodb.DynamoDB) {
+	t.Helper()
+
 	err := dynamodb.DeleteTable(tableName, client)
 	require.NoError(t, err, "Unexpected error: %v", err)
 }
 
 func assertCanWriteToTable(t *testing.T, tableName string, client *awsDynamodb.DynamoDB) {
+	t.Helper()
+
 	item := createKeyFromItemId(util.UniqueId())
 
 	_, err := client.PutItem(&awsDynamodb.PutItemInput{
@@ -54,10 +62,14 @@ func assertCanWriteToTable(t *testing.T, tableName string, client *awsDynamodb.D
 }
 
 func withLockTable(t *testing.T, action func(tableName string, client *awsDynamodb.DynamoDB)) {
+	t.Helper()
+
 	withLockTableTagged(t, nil, action)
 }
 
 func withLockTableTagged(t *testing.T, tags map[string]string, action func(tableName string, client *awsDynamodb.DynamoDB)) {
+	t.Helper()
+
 	client := createDynamoDbClientForTest(t)
 	tableName := uniqueTableNameForTest()
 

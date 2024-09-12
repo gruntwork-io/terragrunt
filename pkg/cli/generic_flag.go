@@ -9,6 +9,9 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// GenericFlag implements Flag
+var _ Flag = new(GenericFlag[string])
+
 type GenericType interface {
 	string | int | int64 | uint
 }
@@ -31,6 +34,8 @@ type GenericFlag[T GenericType] struct {
 	// The pointer to which the value of the flag or env var is assigned.
 	// It also uses as the default value displayed in the help.
 	Destination *T
+	// Hidden hides the flag from the help, if set to true.
+	Hidden bool
 }
 
 // Apply applies Flag settings to the given flag set.
@@ -46,7 +51,13 @@ func (flag *GenericFlag[T]) Apply(set *libflag.FlagSet) error {
 	for _, name := range flag.Names() {
 		set.Var(flag.FlagValue, name, flag.Usage)
 	}
+
 	return nil
+}
+
+// GetHidden returns true if the flag should be hidden from the help.
+func (flag *GenericFlag[T]) GetHidden() bool {
+	return flag.Hidden
 }
 
 // GetUsage returns the usage string for the flag.
@@ -59,6 +70,7 @@ func (flag *GenericFlag[T]) GetEnvVars() []string {
 	if flag.EnvVar == "" {
 		return nil
 	}
+
 	return []string{flag.EnvVar}
 }
 
@@ -67,6 +79,7 @@ func (flag *GenericFlag[T]) GetDefaultText() string {
 	if flag.DefaultText == "" && flag.FlagValue != nil {
 		return flag.FlagValue.GetDefaultText()
 	}
+
 	return flag.DefaultText
 }
 
@@ -121,6 +134,7 @@ func (flag *genericValue[T]) Set(str string) error {
 	if flag.hasBeenSet {
 		return errors.Errorf("setting the flag multiple times")
 	}
+
 	flag.hasBeenSet = true
 
 	return flag.value.Set(str)
@@ -143,6 +157,7 @@ func (flag *genericValue[T]) String() string {
 	if flag.value == nil {
 		return ""
 	}
+
 	return flag.value.String()
 }
 
@@ -150,6 +165,7 @@ func (flag *genericValue[T]) GetDefaultText() string {
 	if val, ok := flag.Get().(bool); ok && !val {
 		return ""
 	}
+
 	return flag.defaultText
 }
 
@@ -172,6 +188,7 @@ func (val *genericType[T]) Set(str string) error {
 		if err != nil {
 			return errors.Errorf("error parse: %w", err)
 		}
+
 		*dest = v
 
 	case *int:
@@ -179,6 +196,7 @@ func (val *genericType[T]) Set(str string) error {
 		if err != nil {
 			return errors.Errorf("error parse: %w", err)
 		}
+
 		*dest = int(v)
 
 	case *uint:
@@ -186,6 +204,7 @@ func (val *genericType[T]) Set(str string) error {
 		if err != nil {
 			return errors.Errorf("error parse: %w", err)
 		}
+
 		*dest = uint(v)
 
 	case *int64:
@@ -193,6 +212,7 @@ func (val *genericType[T]) Set(str string) error {
 		if err != nil {
 			return errors.Errorf("error parse: %w", err)
 		}
+
 		*dest = v
 
 	default:

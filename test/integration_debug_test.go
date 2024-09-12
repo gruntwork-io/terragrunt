@@ -1,4 +1,4 @@
-package integration_test
+package test_test
 
 import (
 	"bytes"
@@ -20,9 +20,9 @@ import (
 const (
 	terragruntDebugFile = "terragrunt-debug.tfvars.json"
 
-	fixtureMultiIncludeDependency = "fixture-multiinclude-dependency"
-	fixtureRenderJSON             = "fixture-render-json"
-	fixtureRenderJSONRegression   = "fixture-render-json-regression"
+	fixtureMultiIncludeDependency = "fixtures/multiinclude-dependency"
+	fixtureRenderJSON             = "fixtures/render-json"
+	fixtureRenderJSONRegression   = "fixtures/render-json-regression"
 )
 
 var (
@@ -33,9 +33,9 @@ var (
 func TestDebugGeneratedInputs(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS)
-	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
+	cleanupTerraformFolder(t, testFixtureInputs)
+	tmpEnvPath := copyEnvironment(t, testFixtureInputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureInputs)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
@@ -83,9 +83,9 @@ func TestDebugGeneratedInputs(t *testing.T) {
 func TestTerragruntInputsWithDashes(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_INPUTS)
-	tmpEnvPath := copyEnvironment(t, TEST_FIXTURE_INPUTS)
-	rootPath := util.JoinPath(tmpEnvPath, TEST_FIXTURE_INPUTS)
+	cleanupTerraformFolder(t, testFixtureInputs)
+	tmpEnvPath := copyEnvironment(t, testFixtureInputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureInputs)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt init --terragrunt-working-dir=%s --terragrunt-log-level=debug", rootPath))
 }
@@ -93,7 +93,7 @@ func TestTerragruntInputsWithDashes(t *testing.T) {
 func TestTerragruntValidateInputs(t *testing.T) {
 	t.Parallel()
 
-	moduleDirs, err := filepath.Glob(filepath.Join("fixture-validate-inputs", "*"))
+	moduleDirs, err := filepath.Glob(filepath.Join("fixtures/validate-inputs", "*"))
 	require.NoError(t, err)
 
 	for _, module := range moduleDirs {
@@ -114,7 +114,7 @@ func TestTerragruntValidateInputs(t *testing.T) {
 func TestTerragruntValidateInputsWithCLIVars(t *testing.T) {
 	t.Parallel()
 
-	moduleDir := filepath.Join("fixture-validate-inputs", "fail-no-inputs")
+	moduleDir := filepath.Join("fixtures/validate-inputs", "fail-no-inputs")
 	args := []string{"-var=input=from_env"}
 	runTerragruntValidateInputs(t, moduleDir, args, true)
 }
@@ -125,15 +125,15 @@ func TestTerragruntValidateInputsWithCLIVarFile(t *testing.T) {
 	curdir, err := os.Getwd()
 	require.NoError(t, err)
 
-	moduleDir := filepath.Join("fixture-validate-inputs", "fail-no-inputs")
-	args := []string{fmt.Sprintf("-var-file=%s/fixture-validate-inputs/success-var-file/varfiles/main.tfvars", curdir)}
+	moduleDir := filepath.Join("fixtures/validate-inputs", "fail-no-inputs")
+	args := []string{fmt.Sprintf("-var-file=%s/fixtures/validate-inputs/success-var-file/varfiles/main.tfvars", curdir)}
 	runTerragruntValidateInputs(t, moduleDir, args, true)
 }
 
 func TestTerragruntValidateInputsWithStrictMode(t *testing.T) {
 	t.Parallel()
 
-	moduleDir := filepath.Join("fixture-validate-inputs", "success-inputs-only")
+	moduleDir := filepath.Join("fixtures/validate-inputs", "success-inputs-only")
 	args := []string{"--terragrunt-strict-validate"}
 	runTerragruntValidateInputs(t, moduleDir, args, true)
 }
@@ -141,7 +141,7 @@ func TestTerragruntValidateInputsWithStrictMode(t *testing.T) {
 func TestTerragruntValidateInputsWithStrictModeDisabledAndUnusedVar(t *testing.T) {
 	t.Parallel()
 
-	moduleDir := filepath.Join("fixture-validate-inputs", "success-inputs-only")
+	moduleDir := filepath.Join("fixtures/validate-inputs", "success-inputs-only")
 	args := []string{"-var=testvariable=testvalue"}
 	runTerragruntValidateInputs(t, moduleDir, args, true)
 }
@@ -149,7 +149,7 @@ func TestTerragruntValidateInputsWithStrictModeDisabledAndUnusedVar(t *testing.T
 func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedVar(t *testing.T) {
 	t.Parallel()
 
-	moduleDir := filepath.Join("fixture-validate-inputs", "success-inputs-only")
+	moduleDir := filepath.Join("fixtures/validate-inputs", "success-inputs-only")
 	args := []string{"-var=testvariable=testvalue", "--terragrunt-strict-validate"}
 	runTerragruntValidateInputs(t, moduleDir, args, false)
 }
@@ -157,7 +157,7 @@ func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedVar(t *testing.T)
 func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedInputs(t *testing.T) {
 	t.Parallel()
 
-	moduleDir := filepath.Join("fixture-validate-inputs", "fail-unused-inputs")
+	moduleDir := filepath.Join("fixtures/validate-inputs", "fail-unused-inputs")
 	cleanupTerraformFolder(t, moduleDir)
 	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, moduleDir))
 	rootPath := util.JoinPath(tmpEnvPath, moduleDir)
@@ -169,7 +169,7 @@ func TestTerragruntValidateInputsWithStrictModeEnabledAndUnusedInputs(t *testing
 func TestTerragruntValidateInputsWithStrictModeDisabledAndUnusedInputs(t *testing.T) {
 	t.Parallel()
 
-	moduleDir := filepath.Join("fixture-validate-inputs", "fail-unused-inputs")
+	moduleDir := filepath.Join("fixtures/validate-inputs", "fail-unused-inputs")
 	cleanupTerraformFolder(t, moduleDir)
 	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, moduleDir))
 	rootPath := util.JoinPath(tmpEnvPath, moduleDir)
@@ -465,6 +465,8 @@ func TestDependencyGraphWithMultiInclude(t *testing.T) {
 }
 
 func runTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []string, isSuccessTest bool) {
+	t.Helper()
+
 	maybeNested := filepath.Join(moduleDir, "module")
 	if util.FileExists(maybeNested) {
 		// Nested module test case with included file, so run terragrunt from the nested module.

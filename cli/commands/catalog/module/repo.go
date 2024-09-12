@@ -11,7 +11,7 @@ import (
 	"github.com/gitsight/go-vcsurl"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/files"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/internal/log"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/hashicorp/go-getter"
 	"gopkg.in/ini.v1"
@@ -83,6 +83,7 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 				if err != nil {
 					return err
 				}
+
 				if !remote.IsDir() {
 					return nil
 				}
@@ -103,7 +104,6 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 		if err != nil {
 			return nil, err
 		}
-
 	}
 
 	return modules, nil
@@ -154,6 +154,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 
 			log.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
 		}
+
 		repo.path = repoPath
 
 		return nil
@@ -185,6 +186,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	repo.cloneURL = sourceUrl.String()
 
 	log.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
@@ -212,10 +214,12 @@ func (repo *Repo) parseRemoteURL() error {
 	}
 
 	var sectionName string
+
 	for _, name := range inidata.SectionStrings() {
 		if !strings.HasPrefix(name, "remote") {
 			continue
 		}
+
 		sectionName = name
 
 		if sectionName == `remote "origin"` {

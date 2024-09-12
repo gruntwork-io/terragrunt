@@ -24,6 +24,7 @@ type Statement struct {
 
 func UnmarshalPolicy(policy string) (Policy, error) {
 	var p Policy
+
 	err := json.Unmarshal([]byte(policy), &p)
 	if err != nil {
 		return p, err

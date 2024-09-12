@@ -24,6 +24,8 @@ import (
 )
 
 func createFakeProvider(t *testing.T, cacheDir, relativePath string) string {
+	t.Helper()
+
 	err := os.MkdirAll(filepath.Join(cacheDir, filepath.Dir(relativePath)), os.ModePerm)
 	require.NoError(t, err)
 

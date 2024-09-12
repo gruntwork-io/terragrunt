@@ -44,7 +44,15 @@ func (flags *Flags) Add(newFlags ...Flag) {
 // VisibleFlags returns a slice of the Flags.
 // Used by `urfave/cli` package to generate help.
 func (flags Flags) VisibleFlags() Flags {
-	return flags
+	var visibleFlags Flags
+
+	for _, flag := range flags {
+		if !flag.GetHidden() {
+			visibleFlags = append(visibleFlags, flag)
+		}
+	}
+
+	return visibleFlags
 }
 
 func (flags Flags) Len() int {

@@ -6,10 +6,12 @@ package shell_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/log/formatter"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -47,20 +49,26 @@ var STDOUT = []string{"stdout1", "stdout2"}
 var STDERR = []string{"stderr1", "stderr2", "stderr3"}
 
 func testCommandOutputOrder(t *testing.T, withPtty bool, fullOutput []string, stdout []string, stderr []string) {
+	t.Helper()
+
 	testCommandOutput(t, noop[*options.TerragruntOptions], assertOutputs(t, fullOutput, stdout, stderr), withPtty)
 }
 
 func TestCommandOutputPrefix(t *testing.T) {
 	t.Parallel()
-
-	prefix := "PREFIX> "
+	prefix := "PREFIX"
 	prefixedOutput := []string{}
 	for _, line := range FULL_OUTPUT {
-		prefixedOutput = append(prefixedOutput, prefix+line)
+		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s msg=%s", prefix, line))
 	}
+
+	formatter := formatter.NewFormatter()
+	formatter.DisableLogFormatting = true
+
 	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
-		terragruntOptions.IncludeModulePrefix = true
+		terragruntOptions.TerraformPath = ""
 		terragruntOptions.OutputPrefix = prefix
+		terragruntOptions.Logger.Logger.Formatter = formatter
 	}, assertOutputs(t,
 		prefixedOutput,
 		STDOUT,
@@ -69,6 +77,8 @@ func TestCommandOutputPrefix(t *testing.T) {
 }
 
 func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions), assertResults func(string, *util.CmdOutput), allocateStdout bool) {
+	t.Helper()
+
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
@@ -87,6 +97,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")
 
+	assert.NotNil(t, out, "Should get output")
 	assertResults(allOutputBuffer.String(), out)
 }
 
@@ -96,9 +107,14 @@ func assertOutputs(
 	expectedStdOutputs []string,
 	expectedStdErrs []string,
 ) func(string, *util.CmdOutput) {
+	t.Helper()
+
 	return func(allOutput string, out *util.CmdOutput) {
 		allOutputs := strings.Split(strings.TrimSpace(allOutput), "\n")
-		assert.Equal(t, expectedAllOutputs, allOutputs)
+		assert.Equal(t, len(expectedAllOutputs), len(allOutputs))
+		for i := 0; i < len(allOutputs); i++ {
+			assert.Contains(t, allOutputs[i], expectedAllOutputs[i])
+		}
 
 		stdOutputs := strings.Split(strings.TrimSpace(out.Stdout), "\n")
 		assert.Equal(t, expectedStdOutputs, stdOutputs)

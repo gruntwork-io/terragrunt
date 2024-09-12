@@ -79,6 +79,7 @@ func (controller *ProviderController) getVersionsAction(ctx echo.Context) error 
 			}
 		}
 	}
+
 	return ctx.NoContent(http.StatusNotFound)
 }
 
@@ -116,5 +117,6 @@ func (controller *ProviderController) getPlatformsAction(ctx echo.Context) (er e
 			}
 		}
 	}
+
 	return ctx.NoContent(http.StatusNotFound)
 }

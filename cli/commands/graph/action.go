@@ -35,16 +35,22 @@ func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.Ter
 		if err != nil {
 			return err
 		}
+
 		rootDir = gitRoot
 	}
 
-	rootOptions := opts.Clone(rootDir)
+	rootOptions, err := opts.Clone(rootDir)
+	if err != nil {
+		return err
+	}
+
 	rootOptions.WorkingDir = rootDir
 
 	stack, err := configstack.FindStackInSubfolders(ctx, rootOptions)
 	if err != nil {
 		return err
 	}
+
 	dependentModules := stack.ListStackDependentModules()
 
 	workDir := opts.WorkingDir

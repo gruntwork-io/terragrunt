@@ -7,9 +7,18 @@ import (
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var mockOptions, _ = options.NewTerragruntOptionsForTest("running_module_test")
+
+func cloneOptions(t *testing.T, opts *options.TerragruntOptions, terragruntConfigPath string) *options.TerragruntOptions {
+	t.Helper()
+
+	newOpts, err := opts.Clone(canonical(t, terragruntConfigPath))
+	require.NoError(t, err)
+	return newOpts
+}
 
 func TestToRunningModulesNoModules(t *testing.T) {
 	t.Parallel()
@@ -487,6 +496,8 @@ func TestToRunningModulesMultipleModulesWithAndWithoutDependenciesIgnoreOrder(t 
 }
 
 func testToRunningModules(t *testing.T, modules configstack.TerraformModules, order configstack.DependencyOrder, expected configstack.RunningModules) {
+	t.Helper()
+
 	actual, err := modules.ToRunningModules(order)
 	if assert.NoError(t, err, "For modules %v and order %v", modules, order) {
 		assertRunningModuleMapsEqual(t, expected, actual, true, "For modules %v and order %v", modules, order)

@@ -28,6 +28,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.GraphRoot,
 			Usage:       "Root directory from where to build graph dependencies.",
 		})
+
 	return globalFlags
 }
 

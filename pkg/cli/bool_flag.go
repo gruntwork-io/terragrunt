@@ -6,6 +6,9 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// BoolFlag implements Flag
+var _ Flag = new(BoolFlag)
+
 type BoolFlag struct {
 	flag
 
@@ -26,11 +29,14 @@ type BoolFlag struct {
 	Destination *bool
 	// If set to true, then the assigned flag value will be inverted
 	Negative bool
+	// Hidden hides the flag from the help, if set to true.
+	Hidden bool
 }
 
 // Apply applies Flag settings to the given flag set.
 func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
 	var err error
+
 	valType := FlagType[bool](&boolFlagType{negative: flag.Negative})
 
 	if flag.FlagValue, err = newGenericValue(valType, flag.LookupEnv(flag.EnvVar), flag.Destination); err != nil {
@@ -40,7 +46,13 @@ func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
 	for _, name := range flag.Names() {
 		set.Var(flag.FlagValue, name, flag.Usage)
 	}
+
 	return nil
+}
+
+// GetHidden returns true if the flag should be hidden from the help.
+func (flag *BoolFlag) GetHidden() bool {
+	return flag.Hidden
 }
 
 // GetUsage returns the usage string for the flag.
@@ -53,6 +65,7 @@ func (flag *BoolFlag) GetEnvVars() []string {
 	if flag.EnvVar == "" {
 		return nil
 	}
+
 	return []string{flag.EnvVar}
 }
 
@@ -61,6 +74,7 @@ func (flag *BoolFlag) GetDefaultText() string {
 	if flag.DefaultText == "" && flag.FlagValue != nil {
 		return flag.FlagValue.GetDefaultText()
 	}
+
 	return flag.DefaultText
 }
 
@@ -104,5 +118,6 @@ func (val *boolFlagType) Set(str string) error {
 	if val.negative {
 		*val.genericType.dest = !*val.genericType.dest
 	}
+
 	return nil
 }

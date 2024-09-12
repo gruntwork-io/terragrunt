@@ -55,6 +55,7 @@ func DiagnosticCausedByUnknown(diag *hcl.Diagnostic) bool {
 	if maybe == nil {
 		return false
 	}
+
 	return maybe.DiagnosticCausedByUnknown()
 }
 
@@ -69,5 +70,6 @@ func DiagnosticCausedBySensitive(diag *hcl.Diagnostic) bool {
 	if maybe == nil {
 		return false
 	}
+
 	return maybe.DiagnosticCausedBySensitive()
 }

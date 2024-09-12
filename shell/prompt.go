@@ -17,13 +17,16 @@ func PromptUserForInput(prompt string, terragruntOptions *options.TerragruntOpti
 	if terragruntOptions.NonInteractive {
 		terragruntOptions.Logger.Debugf(prompt)
 		terragruntOptions.Logger.Debugf("The non-interactive flag is set to true, so assuming 'yes' for all prompts")
+
 		return "yes", nil
 	}
+
 	n, err := terragruntOptions.ErrWriter.Write([]byte(prompt))
 	if err != nil {
 		terragruntOptions.Logger.Error(err)
 		return "", errors.WithStackTrace(err)
 	}
+
 	if n != len(prompt) {
 		terragruntOptions.Logger.Errorln("Failed to write data")
 		return "", errors.WithStackTrace(err)

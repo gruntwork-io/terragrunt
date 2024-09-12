@@ -27,6 +27,7 @@ func (pf *prefixedWriter) Write(p []byte) (int, error) {
 	if n > len(p) {
 		n = len(p)
 	}
+
 	return n, err
 }
 

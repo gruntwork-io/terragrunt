@@ -7,8 +7,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
+	"github.com/gruntwork-io/terragrunt/internal/log"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 type Scaffold struct {

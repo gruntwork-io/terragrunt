@@ -18,7 +18,6 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/mattn/go-zglob"
 	homedir "github.com/mitchellh/go-homedir"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -44,10 +43,12 @@ func FileOrData(maybePath string) (string, error) {
 		if err != nil {
 			return "", errors.WithStackTrace(err)
 		}
+
 		return string(contents), nil
 	} else if IsDir(expandedMaybePath) {
 		return "", errors.WithStackTrace(PathIsNotFile{path: expandedMaybePath})
 	}
+
 	return expandedMaybePath, nil
 }
 
@@ -71,6 +72,7 @@ func EnsureDirectory(path string) error {
 		const ownerReadWriteExecutePerms = 0700
 		return errors.WithStackTrace(os.MkdirAll(path, ownerReadWriteExecutePerms))
 	}
+
 	return nil
 }
 
@@ -81,6 +83,7 @@ func CanonicalPath(path string, basePath string) (string, error) {
 	if !filepath.IsAbs(path) {
 		path = JoinPath(basePath, path)
 	}
+
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return "", errors.WithStackTrace(err)
@@ -139,6 +142,7 @@ func CanonicalPaths(paths []string, basePath string) ([]string, error) {
 		if err != nil {
 			return canonicalPaths, err
 		}
+
 		canonicalPaths = append(canonicalPaths, canonicalPath)
 	}
 
@@ -159,6 +163,7 @@ func Grep(regex *regexp.Regexp, glob string) (bool, error) {
 		if IsDir(match) {
 			continue
 		}
+
 		bytes, err := os.ReadFile(match)
 		if err != nil {
 			return false, errors.WithStackTrace(err)
@@ -189,6 +194,7 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 	if path == "" {
 		path = "."
 	}
+
 	if basePath == "" {
 		basePath = "."
 	}
@@ -211,6 +217,21 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 	return filepath.ToSlash(relPath), nil
 }
 
+// GetPathRelativeToWithSeparator is a wrapper for the `GetPathRelativeTo` func, and appends a separator, if the relative path consists only of a dot.
+// The function is intended for use in logs, and so that a path with single dot would not seem like the end of a sentence, we add trail slash.
+func GetPathRelativeToWithSeparator(path string, basePath string) (string, error) {
+	relPath, err := GetPathRelativeTo(path, basePath)
+	if err != nil {
+		return relPath, err
+	}
+
+	if relPath == "." {
+		relPath += string(filepath.Separator)
+	}
+
+	return relPath, nil
+}
+
 // Return the contents of the file at the given path as a string
 func ReadFileAsString(path string) (string, error) {
 	bytes, err := os.ReadFile(path)
@@ -227,25 +248,30 @@ func listContainsElementWithPrefix(list []string, elementPrefix string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
 // Takes apbsolute glob path and returns an array of expanded relative paths
 func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 	includeExpandedGlobs := []string{}
+
 	absoluteExpandGlob, err := zglob.Glob(absoluteGlobPath)
 	if err != nil && !goErrors.Is(err, os.ErrNotExist) {
 		// we ignore not exist error as we only care about the globs that exist in the src dir
 		return nil, errors.WithStackTrace(err)
 	}
+
 	for _, absoluteExpandGlobPath := range absoluteExpandGlob {
 		if strings.Contains(absoluteExpandGlobPath, TerragruntCacheDir) {
 			continue
 		}
+
 		relativeExpandGlobPath, err := GetPathRelativeTo(absoluteExpandGlobPath, source)
 		if err != nil {
 			return nil, err
 		}
+
 		includeExpandedGlobs = append(includeExpandedGlobs, relativeExpandGlobPath)
 
 		if IsDir(absoluteExpandGlobPath) {
@@ -253,9 +279,11 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 			if err != nil {
 				return nil, errors.WithStackTrace(err)
 			}
+
 			includeExpandedGlobs = append(includeExpandedGlobs, dirExpandGlob...)
 		}
 	}
+
 	return includeExpandedGlobs, nil
 }
 
@@ -265,12 +293,15 @@ func CopyFolderContents(source, destination, manifestFile string, includeInCopy 
 	// Expand all the includeInCopy glob paths, converting the globbed results to relative paths so that they work in
 	// the copy filter.
 	includeExpandedGlobs := []string{}
+
 	for _, includeGlob := range includeInCopy {
 		globPath := filepath.Join(source, includeGlob)
+
 		expandGlob, err := expandGlobPath(source, globPath)
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
+
 		includeExpandedGlobs = append(includeExpandedGlobs, expandGlob...)
 	}
 
@@ -279,6 +310,7 @@ func CopyFolderContents(source, destination, manifestFile string, includeInCopy 
 		if err == nil && listContainsElementWithPrefix(includeExpandedGlobs, relativePath) {
 			return true
 		}
+
 		return !TerragruntExcludes(filepath.FromSlash(relativePath))
 	})
 }
@@ -291,13 +323,16 @@ func CopyFolderContentsWithFilter(source, destination, manifestFile string, filt
 	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
 		return errors.WithStackTrace(err)
 	}
+
 	manifest := NewFileManifest(destination, manifestFile)
 	if err := manifest.Clean(); err != nil {
 		return errors.WithStackTrace(err)
 	}
+
 	if err := manifest.Create(); err != nil {
 		return errors.WithStackTrace(err)
 	}
+
 	defer func(manifest *fileManifest) {
 		err := manifest.Close()
 		if err != nil {
@@ -338,18 +373,22 @@ func CopyFolderContentsWithFilter(source, destination, manifestFile string, filt
 			if err := CopyFolderContentsWithFilter(file, dest, manifestFile, filter); err != nil {
 				return err
 			}
+
 			if err := manifest.AddDirectory(dest); err != nil {
 				return err
 			}
 		} else {
 			parentDir := filepath.Dir(dest)
+
 			const ownerReadWriteExecutePerms = 0700
 			if err := os.MkdirAll(parentDir, ownerReadWriteExecutePerms); err != nil {
 				return errors.WithStackTrace(err)
 			}
+
 			if err := CopyFile(file, dest); err != nil {
 				return err
 			}
+
 			if err := manifest.AddFile(dest); err != nil {
 				return err
 			}
@@ -371,12 +410,14 @@ func TerragruntExcludes(path string) bool {
 	if filepath.Base(path) == TerraformLockFile {
 		return false
 	}
+
 	pathParts := strings.Split(path, string(filepath.Separator))
 	for _, pathPart := range pathParts {
 		if strings.HasPrefix(pathPart, ".") && pathPart != "." && pathPart != ".." {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -427,6 +468,7 @@ func ContainsPath(path, subpath string) bool {
 	splitPath := SplitPath(CleanPath(path))
 	splitSubpath := SplitPath(CleanPath(subpath))
 	contains := ListContainsSublist(splitPath, splitSubpath)
+
 	return contains
 }
 
@@ -438,6 +480,7 @@ func HasPathPrefix(path, prefix string) bool {
 	splitPath := SplitPath(CleanPath(path))
 	splitPrefix := SplitPath(CleanPath(prefix))
 	hasPrefix := ListHasPrefix(splitPath, splitPrefix)
+
 	return hasPrefix
 }
 
@@ -457,10 +500,12 @@ func JoinTerraformModulePath(modulesFolder string, path string) string {
 			} else {
 				canonicalSourceUrl.Path = fmt.Sprintf("%s//%s", strings.TrimRight(canonicalSourceUrl.Path, `/\`), cleanPath)
 			}
+
 			return canonicalSourceUrl.String()
 		}
-		// fallback to old behavior if we can't parse the url
 	}
+
+	// fallback to old behavior if we can't parse the url
 	return fmt.Sprintf("%s//%s", cleanModulesFolder, cleanPath)
 }
 
@@ -498,23 +543,28 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 	if !FileExists(manifestPath) {
 		return nil
 	}
+
 	file, err := os.Open(manifestPath)
 	if err != nil {
 		return err
 	}
+
 	// cleaning manifest file
 	defer func(name string) {
 		if err := file.Close(); err != nil {
 			GlobalFallbackLogEntry.Warnf("Error closing file %s: %v", name, err)
 		}
+
 		if err := os.Remove(name); err != nil {
 			GlobalFallbackLogEntry.Warnf("Error removing manifest file %s: %v", name, err)
 		}
 	}(manifestPath)
+
 	decoder := gob.NewDecoder(file)
 	// decode paths one by one
 	for {
 		var manifestEntry fileManifestEntry
+
 		err = decoder.Decode(&manifestEntry)
 		if err != nil {
 			if goErrors.Is(err, io.EOF) {
@@ -523,6 +573,7 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 				return err
 			}
 		}
+
 		if manifestEntry.IsDir {
 			// join the directory entry path with the manifest file name and call clean()
 			if err := manifest.clean(filepath.Join(manifestEntry.Path, manifest.ManifestFile)); err != nil {
@@ -534,16 +585,19 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 			}
 		}
 	}
+
 	return nil
 }
 
 // Create will create the manifest file
 func (manifest *fileManifest) Create() error {
 	const ownerWriteGlobalReadPerms = 0644
+
 	fileHandle, err := os.OpenFile(filepath.Join(manifest.ManifestFolder, manifest.ManifestFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, ownerWriteGlobalReadPerms)
 	if err != nil {
 		return err
 	}
+
 	manifest.fileHandle = fileHandle
 	manifest.encoder = gob.NewEncoder(manifest.fileHandle)
 
@@ -589,20 +643,6 @@ func (err PathIsNotFile) Error() string {
 	return err.path + " is not a file"
 }
 
-// Terraform 0.14 now generates a lock file when you run `terraform init`.
-// If any such file exists, this function will copy the lock file to the destination folder
-func CopyLockFile(sourceFolder string, destinationFolder string, logger *logrus.Entry) error {
-	sourceLockFilePath := JoinPath(sourceFolder, TerraformLockFile)
-	destinationLockFilePath := JoinPath(destinationFolder, TerraformLockFile)
-
-	if FileExists(sourceLockFilePath) {
-		logger.Debugf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
-		return CopyFile(sourceLockFilePath, destinationLockFilePath)
-	}
-
-	return nil
-}
-
 // ListTfFiles returns a list of all TF files in the specified directory.
 func ListTfFiles(directoryPath string) ([]string, error) {
 	var tfFiles []string
@@ -611,9 +651,11 @@ func ListTfFiles(directoryPath string) ([]string, error) {
 		if err != nil {
 			return err
 		}
+
 		if !info.IsDir() && filepath.Ext(path) == TfFileExtension {
 			tfFiles = append(tfFiles, path)
 		}
+
 		return nil
 	})
 
@@ -626,6 +668,7 @@ func IsDirectoryEmpty(dirPath string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	defer func() {
 		_ = dir.Close()
 	}()
@@ -634,6 +677,7 @@ func IsDirectoryEmpty(dirPath string) (bool, error) {
 	if err == nil {
 		return false, nil
 	}
+
 	return true, nil
 }
 
@@ -643,6 +687,7 @@ func GetCacheDir() (string, error) {
 	if err != nil {
 		return "", errors.WithStackTrace(err)
 	}
+
 	cacheDir = filepath.Join(cacheDir, "terragrunt")
 
 	if !FileExists(cacheDir) {
@@ -705,6 +750,7 @@ func GetExcludeDirsFromFile(baseDir, filename string) ([]string, error) {
 // MatchSha256Checksum returns the SHA256 checksum for the given file and filename.
 func MatchSha256Checksum(file, filename []byte) []byte {
 	var checksum []byte
+
 	for _, line := range bytes.Split(file, []byte("\n")) {
 		parts := bytes.Fields(line)
 		if len(parts) > 1 && bytes.Equal(parts[1], filename) {
@@ -712,6 +758,7 @@ func MatchSha256Checksum(file, filename []byte) []byte {
 			break
 		}
 	}
+
 	if checksum == nil {
 		return nil
 	}
@@ -729,11 +776,13 @@ func FileSHA256(filePath string) ([]byte, error) {
 
 	hash := sha256.New()
 	buffer := make([]byte, ChecksumReadBlock)
+
 	for {
 		n, err := file.Read(buffer)
 		if err != nil && err != io.EOF {
 			return nil, errors.WithStackTrace(err)
 		}
+
 		if n == 0 {
 			break
 		}

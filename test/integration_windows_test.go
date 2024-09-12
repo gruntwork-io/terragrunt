@@ -1,7 +1,7 @@
 //go:build windows
 // +build windows
 
-package integration_test
+package test_test
 
 import (
 	"bytes"
@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	TEST_FIXTURE_LOCAL_RELATIVE_ARGS_WINDOWS_DOWNLOAD_PATH = "fixture-download/local-relative-extra-args-windows"
-	TEST_FIXTURE_MANIFEST_REMOVAL                          = "fixture-manifest-removal"
-	TEST_FIXTURE_FIND_PARENT                               = "fixture-find-parent"
+	TEST_FIXTURE_LOCAL_RELATIVE_ARGS_WINDOWS_DOWNLOAD_PATH = "fixtures/download/local-relative-extra-args-windows"
+	TEST_FIXTURE_MANIFEST_REMOVAL                          = "fixtures/manifest-removal"
+	TEST_FIXTURE_FIND_PARENT                               = "fixtures/find-parent"
 )
 
 func TestWindowsLocalWithRelativeExtraArgsWindows(t *testing.T) {
@@ -34,7 +34,7 @@ func TestWindowsLocalWithRelativeExtraArgsWindows(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RELATIVE_ARGS_WINDOWS_DOWNLOAD_PATH))
 }
 
-// TestWindowsTerragruntSourceMapDebug copies the test/fixture-source-map directory to a new Windows path
+// TestWindowsTerragruntSourceMapDebug copies the test/fixtures/source-map directory to a new Windows path
 // and then ensures that the TERRAGRUNT_SOURCE_MAP env var can be used to swap out git sources for local modules
 func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 	testCases := []struct {
@@ -50,7 +50,7 @@ func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
-			fixtureSourceMapPath := "fixture-source-map"
+			fixtureSourceMapPath := "fixtures/source-map"
 			cleanupTerraformFolder(t, fixtureSourceMapPath)
 			targetPath := "C:\\test\\infrastructure-modules/"
 			copyEnvironmentToPath(t, fixtureSourceMapPath, targetPath)
@@ -76,8 +76,8 @@ func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 func TestWindowsTflintIsInvoked(t *testing.T) {
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
-	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_TFLINT_NO_ISSUES_FOUND)
-	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_TFLINT_NO_ISSUES_FOUND)
+	rootPath := copyEnvironmentWithTflint(t, testFixtureTflintNoIssuesFound)
+	modulePath := util.JoinPath(rootPath, testFixtureTflintNoIssuesFound)
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-log-level debug --terragrunt-working-dir %s", modulePath), out, errOut)
 	assert.NoError(t, err)
 

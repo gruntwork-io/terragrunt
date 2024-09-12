@@ -113,6 +113,7 @@ func DecodeJSONBody(resp *http.Response, value any) error {
 	}
 
 	resp.Body = io.NopCloser(buffer)
+
 	return nil
 }
 

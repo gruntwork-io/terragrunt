@@ -15,8 +15,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/log"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/terraform/cache"
@@ -96,6 +96,7 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 	if err != nil {
 		return nil, err
 	}
+
 	providerService := services.NewProviderService(opts.ProviderCacheDir, userProviderDir, cliCfg.CredentialsSource())
 
 	var (
@@ -117,6 +118,7 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 			if err != nil {
 				return nil, err
 			}
+
 			providerHandlers = append(providerHandlers, networkMirrorHandler)
 		case *cliconfig.ProviderInstallationDirect:
 			providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, CACHE_PROVIDER_HTTP_STATUS_CODE, method, cliCfg.CredentialsSource()))
@@ -190,6 +192,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	if err != nil {
 		return nil, err
 	}
+
 	if err := getproviders.UpdateLockfile(ctx, opts.WorkingDir, caches); err != nil {
 		return nil, err
 	}
@@ -199,13 +202,18 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 		return nil, err
 	}
 
-	cloneOpts := opts.Clone(opts.TerragruntConfigPath)
+	cloneOpts, err := opts.Clone(opts.TerragruntConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
 	cloneOpts.WorkingDir = opts.WorkingDir
 	cloneOpts.Env = envs
 
 	if skipRunTargetCommand {
 		return &util.CmdOutput{}, nil
 	}
+
 	return shell.RunTerraformCommandWithOutput(ctx, cloneOpts, args...)
 }
 
@@ -252,6 +260,7 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 			if !liberrors.As(err, &NotFoundWellKnownURL{}) {
 				return err
 			}
+
 			urls = DefaultRegistryURLs
 			opts.Logger.Debugf("Unable to discover %q registry URLs, reason: %q, use default URLs: %s", registryName, err, urls)
 		} else {
@@ -295,7 +304,11 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 		args = append(args, terraform.FlagNameNoColor)
 	}
 
-	cloneOpts := opts.Clone(opts.TerragruntConfigPath)
+	cloneOpts, err := opts.Clone(opts.TerragruntConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
 	cloneOpts.Writer = io.Discard
 	cloneOpts.ErrWriter = errWriter
 	cloneOpts.WorkingDir = opts.WorkingDir
@@ -368,8 +381,10 @@ func convertToMultipleCommandsByPlatforms(args []string) [][]string {
 
 	for _, platformArg := range platformArgs {
 		var commandArgs = make([]string, len(filteredArgs), len(filteredArgs)+1)
+
 		copy(commandArgs, filteredArgs)
 		commandsArgs = append(commandsArgs, append(commandArgs, platformArg))
 	}
+
 	return commandsArgs
 }

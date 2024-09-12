@@ -1,3 +1,5 @@
+//go:build aws
+
 package aws_helper_test
 
 import (
@@ -11,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTerragruntIsAddedInUserAgent(t *testing.T) {
+func TestAwsIsAddedInUserAgent(t *testing.T) {
 	t.Parallel()
 
 	sess, err := aws_helper.CreateAwsSession(nil, options.NewTerragruntOptions())

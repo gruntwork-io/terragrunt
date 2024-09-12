@@ -108,6 +108,7 @@ func (handler *ProviderNetworkMirrorHandler) GetPlatform(ctx echo.Context, provi
 
 	// start caching and return 423 status
 	handler.providerService.CacheProvider(ctx.Request().Context(), cacheRequestID, provider)
+
 	return ctx.NoContent(handler.cacheProviderHTTPStatusCode)
 }
 

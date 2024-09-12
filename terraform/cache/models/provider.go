@@ -17,6 +17,7 @@ func ParseProviders(strs ...string) Providers {
 			prvoiders = append(prvoiders, provider)
 		}
 	}
+
 	return prvoiders
 }
 
@@ -26,6 +27,7 @@ func (providers Providers) Find(target *Provider) *Provider {
 			return provider
 		}
 	}
+
 	return nil
 }
 
@@ -45,6 +47,7 @@ func (list SigningKeyList) Keys() map[string]string {
 	for _, key := range list.GPGPublicKeys {
 		keys[key.ASCIIArmor] = key.TrustSignature
 	}
+
 	return keys
 }
 
@@ -78,6 +81,7 @@ func (body ResponseBody) ResolveRelativeReferences(base *url.URL) *ResponseBody 
 	body.DownloadURL = resolveRelativeReference(base, body.DownloadURL)
 	body.SHA256SumsSignatureURL = resolveRelativeReference(base, body.SHA256SumsSignatureURL)
 	body.SHA256SumsURL = resolveRelativeReference(base, body.SHA256SumsURL)
+
 	return &body
 }
 
@@ -145,5 +149,6 @@ func (provider *Provider) Match(target *Provider) bool {
 	if registryNameMatch && namespaceMatch && nameMatch && osMatch && archMatch && downloadURLMatch {
 		return true
 	}
+
 	return false
 }

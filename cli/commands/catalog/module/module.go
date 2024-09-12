@@ -6,7 +6,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/internal/log"
 )
 
 const (
@@ -48,6 +48,7 @@ func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	module.url = moduleURL
 
 	modulePath := filepath.Join(module.repoPath, module.moduleDir)
@@ -56,6 +57,7 @@ func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	module.Doc = doc
 
 	return module, nil

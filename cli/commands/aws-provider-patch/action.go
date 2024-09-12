@@ -67,6 +67,7 @@ func runAwsProviderPatch(ctx context.Context, opts *options.TerragruntOptions, c
 
 	for _, terraformFile := range terraformFilesInModules {
 		opts.Logger.Debugf("Looking at file %s", terraformFile)
+
 		originalTerraformFileContents, err := util.ReadFileAsString(terraformFile)
 		if err != nil {
 			return err
@@ -79,6 +80,7 @@ func runAwsProviderPatch(ctx context.Context, opts *options.TerragruntOptions, c
 
 		if codeWasUpdated {
 			opts.Logger.Debugf("Patching AWS provider in %s", terraformFile)
+
 			if err := util.WriteFileWithSamePermissions(terraformFile, terraformFile, []byte(updatedTerraformFileContents)); err != nil {
 				return err
 			}
@@ -191,6 +193,7 @@ func PatchAwsProviderInTerraformCode(terraformCode string, terraformFilePath str
 				if err != nil {
 					return string(hclFile.Bytes()), codeWasUpdated, err
 				}
+
 				codeWasUpdated = codeWasUpdated || attributeOverridden
 			}
 		}
@@ -257,12 +260,14 @@ func overrideAttributeInBlock(block *hclwrite.Block, key string, value string) (
 	// we maintain a mapping of all possible provider configurations (which is unmaintainable). To handle this, we
 	// assume the user provided input is json, and convert to cty that way.
 	valueBytes := []byte(value)
+
 	ctyType, err := ctyjson.ImpliedType(valueBytes)
 	if err != nil {
 		// Wrap error in a custom error type that has better error messaging to the user.
 		returnErr := TypeInferenceError{value: value, underlyingErr: err}
 		return false, errors.WithStackTrace(returnErr)
 	}
+
 	ctyVal, err := ctyjson.Unmarshal(valueBytes, ctyType)
 	if err != nil {
 		// Wrap error in a custom error type that has better error messaging to the user.
@@ -271,6 +276,7 @@ func overrideAttributeInBlock(block *hclwrite.Block, key string, value string) (
 	}
 
 	body.SetAttributeValue(attr, ctyVal)
+
 	return true, nil
 }
 
@@ -317,5 +323,6 @@ func traverseBlock(block *hclwrite.Block, keyParts []string) (*hclwrite.Body, st
 	}
 
 	blockName := keyParts[0]
+
 	return traverseBlock(block.Body().FirstMatchingBlock(blockName, nil), keyParts[1:])
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/internal/log"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
 	openpgpArmor "github.com/ProtonMail/go-crypto/openpgp/armor"
@@ -89,11 +89,13 @@ func (checks packageAuthenticationAll) Authenticate(path string) (*PackageAuthen
 
 	for _, check := range checks {
 		var err error
+
 		authResult, err = check.Authenticate(path)
 		if err != nil {
 			return authResult, err
 		}
 	}
+
 	return authResult, nil
 }
 
@@ -103,11 +105,13 @@ func (checks packageAuthenticationAll) AcceptableHashes() []Hash {
 		if !ok {
 			continue
 		}
+
 		allHashes := check.AcceptableHashes()
 		if len(allHashes) > 0 {
 			return allHashes
 		}
 	}
+
 	return nil
 }
 
@@ -131,6 +135,7 @@ func (auth archiveHashAuthentication) Authenticate(path string) (*PackageAuthent
 	if err != nil {
 		return nil, errors.Errorf("failed to compute checksum for %s: %s", path, err)
 	}
+
 	wantHash := HashLegacyZipSHAFromSHA(auth.WantSHA256Sum)
 	if gotHash != wantHash {
 		return nil, errors.Errorf("archive has incorrect checksum %s (expected %s)", gotHash, wantHash)
@@ -162,6 +167,7 @@ func NewMatchingChecksumAuthentication(document []byte, filename string, wantSHA
 func (auth matchingChecksumAuthentication) Authenticate(location string) (*PackageAuthenticationResult, error) {
 	// Find the checksum in the list with matching filename. The document is in the form "0123456789abcdef filename.zip".
 	filename := []byte(auth.Filename)
+
 	checksum := util.MatchSha256Checksum(auth.Document, filename)
 	if checksum == nil {
 		return nil, errors.Errorf("checksum list has no SHA-256 hash for %q", auth.Filename)
@@ -248,8 +254,10 @@ func (auth signatureAuthentication) checkDetachedSignature(keyring openpgp.KeyRi
 		for id := range entity.Identities {
 			log.Warnf("expired openpgp key from %s\n", id)
 		}
+
 		err = nil
 	}
+
 	return err
 }
 

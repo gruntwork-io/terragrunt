@@ -202,6 +202,8 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 // We can't do a direct comparison between TerragruntOptions objects because we can't compare Logger or RunTerragrunt
 // instances. Therefore, we have to manually check everything else.
 func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual options.TerragruntOptions, msgAndArgs ...interface{}) {
+	t.Helper()
+
 	assert.NotNil(t, expected.Logger, msgAndArgs...)
 	assert.NotNil(t, actual.Logger, msgAndArgs...)
 
@@ -219,6 +221,8 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 }
 
 func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, includeExternalDependencies bool, logLevel logrus.Level, debug bool) *options.TerragruntOptions {
+	t.Helper()
+
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
 	if err != nil {
 		t.Fatalf("error: %v\n", errors.WithStackTrace(err))
@@ -237,6 +241,8 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 }
 
 func mockOptionsWithIamRole(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, iamRole string) *options.TerragruntOptions {
+	t.Helper()
+
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
 	opts.OriginalIAMRoleOptions.RoleARN = iamRole
 	opts.IAMRoleOptions.RoleARN = iamRole
@@ -245,6 +251,8 @@ func mockOptionsWithIamRole(t *testing.T, terragruntConfigPath string, workingDi
 }
 
 func mockOptionsWithIamAssumeRoleDuration(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, iamAssumeRoleDuration int64) *options.TerragruntOptions {
+	t.Helper()
+
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
 	opts.OriginalIAMRoleOptions.AssumeRoleDuration = iamAssumeRoleDuration
 	opts.IAMRoleOptions.AssumeRoleDuration = iamAssumeRoleDuration
@@ -253,6 +261,8 @@ func mockOptionsWithIamAssumeRoleDuration(t *testing.T, terragruntConfigPath str
 }
 
 func mockOptionsWithIamAssumeRoleSessionName(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, iamAssumeRoleSessionName string) *options.TerragruntOptions {
+	t.Helper()
+
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
 	opts.OriginalIAMRoleOptions.AssumeRoleSessionName = iamAssumeRoleSessionName
 	opts.IAMRoleOptions.AssumeRoleSessionName = iamAssumeRoleSessionName
@@ -261,6 +271,8 @@ func mockOptionsWithIamAssumeRoleSessionName(t *testing.T, terragruntConfigPath 
 }
 
 func mockOptionsWithIamWebIdentityToken(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, webIdentityToken string) *options.TerragruntOptions {
+	t.Helper()
+
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, nonInteractive, terragruntSource, ignoreDependencyErrors, false, defaultLogLevel, false)
 	opts.OriginalIAMRoleOptions.WebIdentityToken = webIdentityToken
 	opts.IAMRoleOptions.WebIdentityToken = webIdentityToken
@@ -268,6 +280,8 @@ func mockOptionsWithIamWebIdentityToken(t *testing.T, terragruntConfigPath strin
 }
 
 func mockOptionsWithSourceMap(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, sourceMap map[string]string) *options.TerragruntOptions {
+	t.Helper()
+
 	opts := mockOptions(t, terragruntConfigPath, workingDir, terraformCliArgs, false, "", false, false, defaultLogLevel, false)
 	opts.SourceMap = sourceMap
 	return opts
@@ -473,8 +487,8 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 	app.Writer = &bytes.Buffer{}
 	app.ErrWriter = &bytes.Buffer{}
 	app.Flags = append(
-		commands.NewGlobalFlags(opts),
-		commands.NewHelpVersionFlags(opts)...)
+		cli.NewDeprecatedFlags(opts),
+		commands.NewGlobalFlags(opts)...)
 	app.Commands = append(
 		cli.DeprecatedCommands(opts),
 		terragruntCommands...).WrapAction(cli.WrapWithTelemetry(opts))

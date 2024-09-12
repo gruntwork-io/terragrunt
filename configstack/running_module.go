@@ -61,7 +61,6 @@ func newRunningModule(module *TerraformModule) *RunningModule {
 
 // Run a module once all of its dependencies have finished executing.
 func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *options.TerragruntOptions, semaphore chan struct{}) {
-
 	err := telemetry.Telemetry(ctx, opts, "wait_for_module_ready", map[string]interface{}{
 		"path":             module.Module.Path,
 		"terraformCommand": module.Module.TerragruntOptions.TerraformCommand,
@@ -73,6 +72,7 @@ func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *optio
 	defer func() {
 		<-semaphore // Remove one from the buffered channel
 	}()
+
 	if err == nil {
 		err = telemetry.Telemetry(ctx, opts, "run_module", map[string]interface{}{
 			"path":             module.Module.Path,
@@ -81,26 +81,28 @@ func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *optio
 			return module.runNow(ctx, opts)
 		})
 	}
+
 	module.moduleFinished(err)
 }
 
 // Wait for all of this modules dependencies to finish executing. Return an error if any of those dependencies complete
 // with an error. Return immediately if this module has no dependencies.
 func (module *RunningModule) waitForDependencies() error {
-	module.Module.TerragruntOptions.Logger.Debugf("Module %s must wait for %d dependencies to finish", module.Module.Path, len(module.Dependencies))
+	module.Module.TerragruntOptions.Logger.Debugf("Module %s must wait for %d dependencies to finish", module.Module.RelativePath, len(module.Dependencies))
+
 	for len(module.Dependencies) > 0 {
 		doneDependency := <-module.DependencyDone
 		delete(module.Dependencies, doneDependency.Module.Path)
 
 		if doneDependency.Err != nil {
 			if module.Module.TerragruntOptions.IgnoreDependencyErrors {
-				module.Module.TerragruntOptions.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too. However, because of --terragrunt-ignore-dependency-errors, module %s will run anyway.", doneDependency.Module.Path, module.Module.Path, module.Module.Path, module.Module.Path)
+				module.Module.TerragruntOptions.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too. However, because of --terragrunt-ignore-dependency-errors, module %s will run anyway.", doneDependency.Module.RelativePath, module.Module.RelativePath, module.Module.RelativePath, module.Module.RelativePath)
 			} else {
-				module.Module.TerragruntOptions.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too.", doneDependency.Module.Path, module.Module.Path, module.Module.Path)
+				module.Module.TerragruntOptions.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too.", doneDependency.Module.RelativePath, module.Module.RelativePath, module.Module.RelativePath)
 				return ProcessingModuleDependencyError{module.Module, doneDependency.Module, doneDependency.Err}
 			}
 		} else {
-			module.Module.TerragruntOptions.Logger.Debugf("Dependency %s of module %s just finished successfully. Module %s must wait on %d more dependencies.", doneDependency.Module.Path, module.Module.Path, module.Module.Path, len(module.Dependencies))
+			module.Module.TerragruntOptions.Logger.Debugf("Dependency %s of module %s just finished successfully. Module %s must wait on %d more dependencies.", doneDependency.Module.RelativePath, module.Module.RelativePath, module.Module.RelativePath, len(module.Dependencies))
 		}
 	}
 
@@ -112,36 +114,47 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 	module.Status = Running
 
 	if module.Module.AssumeAlreadyApplied {
-		module.Module.TerragruntOptions.Logger.Debugf("Assuming module %s has already been applied and skipping it", module.Module.Path)
+		module.Module.TerragruntOptions.Logger.Debugf("Assuming module %s has already been applied and skipping it", module.Module.RelativePath)
 		return nil
 	} else {
-		module.Module.TerragruntOptions.Logger.Debugf("Running module %s now", module.Module.Path)
+		module.Module.TerragruntOptions.Logger.Debugf("Running module %s now", module.Module.RelativePath)
+
 		if err := module.Module.TerragruntOptions.RunTerragrunt(ctx, module.Module.TerragruntOptions); err != nil {
 			return err
 		}
+
 		// convert terragrunt output to json
 		if module.Module.outputJsonFile(module.Module.TerragruntOptions) != "" {
-			jsonOptions := module.Module.TerragruntOptions.Clone(module.Module.TerragruntOptions.TerragruntConfigPath)
+			jsonOptions, err := module.Module.TerragruntOptions.Clone(module.Module.TerragruntOptions.TerragruntConfigPath)
+			if err != nil {
+				return err
+			}
+
 			stdout := bytes.Buffer{}
-			jsonOptions.IncludeModulePrefix = false
+			jsonOptions.ForwardTFStdout = true
 			jsonOptions.TerraformLogsToJson = false
 			jsonOptions.OutputPrefix = ""
 			jsonOptions.Writer = &stdout
 			jsonOptions.TerraformCommand = terraform.CommandNameShow
 			jsonOptions.TerraformCliArgs = []string{terraform.CommandNameShow, "-json", module.Module.planFile(rootOptions)}
+
 			if err := jsonOptions.RunTerragrunt(ctx, jsonOptions); err != nil {
 				return err
 			}
+
 			// save the json output to the file plan file
 			outputFile := module.Module.outputJsonFile(rootOptions)
 			jsonDir := filepath.Dir(outputFile)
+
 			if err := os.MkdirAll(jsonDir, os.ModePerm); err != nil {
 				return err
 			}
+
 			if err := os.WriteFile(outputFile, stdout.Bytes(), os.ModePerm); err != nil {
 				return err
 			}
 		}
+
 		return nil
 	}
 }
@@ -149,9 +162,9 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 // Record that a module has finished executing and notify all of this module's dependencies
 func (module *RunningModule) moduleFinished(moduleErr error) {
 	if moduleErr == nil {
-		module.Module.TerragruntOptions.Logger.Debugf("Module %s has finished successfully!", module.Module.Path)
+		module.Module.TerragruntOptions.Logger.Debugf("Module %s has finished successfully!", module.Module.RelativePath)
 	} else {
-		module.Module.TerragruntOptions.Logger.Errorf("Module %s has finished with an error: %v", module.Module.Path, moduleErr)
+		module.Module.TerragruntOptions.Logger.Errorf("Module %s has finished with an error: %v", module.Module.RelativePath, moduleErr)
 	}
 
 	module.Status = Finished
@@ -215,6 +228,7 @@ func (modules RunningModules) toTerraformModuleGroups(maxDepth int) []TerraformM
 
 		// Finally, update the trackers so that the next iteration runs.
 		modules = next
+
 		if len(currentIterationDeploy) > 0 {
 			groups = append(groups, currentIterationDeploy)
 		}
@@ -259,7 +273,6 @@ func (modules RunningModules) RemoveFlagExcluded() map[string]*RunningModule {
 	var finalModules = make(map[string]*RunningModule)
 
 	for key, module := range modules {
-
 		// Only add modules that should not be excluded
 		if !module.FlagExcluded {
 			finalModules[key] = &RunningModule{
@@ -287,11 +300,14 @@ func (modules RunningModules) RemoveFlagExcluded() map[string]*RunningModule {
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
 func (modules RunningModules) runModules(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
-	var waitGroup sync.WaitGroup
-	var semaphore = make(chan struct{}, parallelism) // Make a semaphore from a buffered channel
+	var (
+		waitGroup sync.WaitGroup
+		semaphore = make(chan struct{}, parallelism) // Make a semaphore from a buffered channel
+	)
 
 	for _, module := range modules {
 		waitGroup.Add(1)
+
 		go func(module *RunningModule) {
 			defer waitGroup.Done()
 			module.runModuleWhenReady(ctx, opts, semaphore)
@@ -307,6 +323,7 @@ func (modules RunningModules) runModules(ctx context.Context, opts *options.Terr
 // occurred
 func (modules RunningModules) collectErrors() error {
 	var result *multierror.Error
+
 	for _, module := range modules {
 		if module.Err != nil {
 			result = multierror.Append(result, module.Err)

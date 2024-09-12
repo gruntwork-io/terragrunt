@@ -1,3 +1,5 @@
+//go:build aws
+
 package aws_helper_test
 
 import (
@@ -51,7 +53,7 @@ const arraysPolicy = `
 		}
 	`
 
-func TestUnmarshalStringActionResource(t *testing.T) {
+func TestAwsUnmarshalStringActionResource(t *testing.T) {
 	t.Parallel()
 
 	bucketPolicy, err := aws_helper.UnmarshalPolicy(simplePolicy)
@@ -80,7 +82,7 @@ func TestUnmarshalStringActionResource(t *testing.T) {
 	assert.NotContains(t, string(out), "null")
 }
 
-func TestUnmarshalActionResourceList(t *testing.T) {
+func TestAwsUnmarshalActionResourceList(t *testing.T) {
 	t.Parallel()
 	bucketPolicy, err := aws_helper.UnmarshalPolicy(arraysPolicy)
 	require.NoError(t, err)
