@@ -26,6 +26,7 @@ import (
 
 	"github.com/hashicorp/go-version"
 
+	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -445,10 +446,12 @@ func extractSemVerTags(tags []string) []*version.Version {
 
 // shouldForceForwardTFStdout returns true if at least one of the conditions is met, args contains the `-json` flag or the `output` or `state` command.
 func shouldForceForwardTFStdout(args cli.Args) bool {
-	switch args.CommandName() {
-	case terraform.CommandNameOutput, terraform.CommandNameState, terraform.CommandNameVersion, terraform.CommandNameConsole:
-		return true
+	tfCommands := []string{
+		terraform.CommandNameOutput,
+		terraform.CommandNameState,
+		terraform.CommandNameVersion,
+		terraform.CommandNameConsole,
 	}
 
-	return args.Tail().Contains(terraform.FlagNameJSON)
+	return collections.ListContainsElement(tfCommands, args.CommandName()) || args.Tail().Contains(terraform.FlagNameJSON)
 }
