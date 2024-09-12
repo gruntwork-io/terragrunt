@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terratest/modules/files"
@@ -119,6 +120,7 @@ func TestTFRGetterRootDir(t *testing.T) {
 	assert.False(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 
 	tfrGetter := new(terraform.RegistryGetter)
+	tfrGetter.TerragruntOptions, _ = options.NewTerragruntOptionsForTest("")
 	require.NoError(t, tfrGetter.Get(moduleDestPath, testModuleURL))
 	assert.True(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 }
@@ -138,6 +140,7 @@ func TestTFRGetterSubModule(t *testing.T) {
 	assert.False(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 
 	tfrGetter := new(terraform.RegistryGetter)
+	tfrGetter.TerragruntOptions, _ = options.NewTerragruntOptionsForTest("")
 	require.NoError(t, tfrGetter.Get(moduleDestPath, testModuleURL))
 	assert.True(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 }
