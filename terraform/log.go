@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	// logTimestampFormat is TF_LOG timestamp formats, may differ in different OS.
+	// logTimestampFormat is TF_LOG timestamp formats, may depend on OS.
 	logTimestampFormats = []string{
 		"2006-01-02T15:04:05.000-0700",
 		"2006-01-02T15:04:05.000Z",
