@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 )
@@ -44,21 +43,15 @@ func ParseLog(msgPrefix, str string) (msg string, ptrTime *time.Time, ptrLevel *
 	timeStr, levelStr, msg := match[1], match[2], match[3]
 
 	if timeStr != "" {
-		time, err := time.Parse(logTimestampFormat, timeStr)
-		if err != nil {
-			return "", nil, nil, errors.WithStackTrace(err)
+		if time, err := time.Parse(logTimestampFormat, timeStr); err == nil {
+			ptrTime = &time
 		}
-
-		ptrTime = &time
 	}
 
 	if levelStr != "" {
-		level, err := log.ParseLevel(strings.ToLower(levelStr))
-		if err != nil {
-			return "", nil, nil, errors.WithStackTrace(err)
+		if level, err := log.ParseLevel(strings.ToLower(levelStr)); err == nil {
+			ptrLevel = &level
 		}
-
-		ptrLevel = &level
 	}
 
 	return msgPrefix + msg, ptrTime, ptrLevel, nil
