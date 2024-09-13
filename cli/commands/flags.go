@@ -352,7 +352,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:   TerragruntLogDisableFlagName,
 			EnvVar: TerragruntLogDisableEnvName,
 			Usage:  "Disable logging",
-			Action: func(ctx *cli.Context) error {
+			Action: func(ctx *cli.Context, _ bool) error {
 				opts.ForwardTFStdout = true
 				opts.Logger.SetOptions(log.WithFormatter(&format.SilentFormatter{}))
 				return nil
@@ -363,8 +363,8 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      TerragruntDisableLogFormattingEnvName,
 			Destination: &opts.DisableLogFormatting,
 			Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
-			Action: func(ctx *cli.Context) error {
-				opts.LogFormatter.DisableLogFormatting = true
+			Action: func(ctx *cli.Context, val bool) error {
+				opts.LogFormatter.DisableLogFormatting = val
 				return nil
 			},
 		},
@@ -373,7 +373,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      TerragruntJsonLogEnvName,
 			Destination: &opts.JsonLogFormat,
 			Usage:       "If specified, Terragrunt will output its logs in JSON format.",
-			Action: func(ctx *cli.Context) error {
+			Action: func(ctx *cli.Context, _ bool) error {
 				opts.Logger.SetOptions(log.WithFormatter(&format.JSONFormatter{}))
 				return nil
 			},
@@ -389,8 +389,8 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      TerragruntNoColorEnvName,
 			Destination: &opts.DisableLogColors,
 			Usage:       "If specified, Terragrunt output won't contain any color.",
-			Action: func(ctx *cli.Context) error {
-				opts.LogFormatter.DisableColors = true
+			Action: func(ctx *cli.Context, val bool) error {
+				opts.LogFormatter.DisableColors = val
 				return nil
 			},
 		},
@@ -511,7 +511,7 @@ func NewHelpFlag(opts *options.TerragruntOptions) cli.Flag {
 		Name:    HelpFlagName,  // --help, -help
 		Aliases: []string{"h"}, //  -h
 		Usage:   "Show help",
-		Action: func(ctx *cli.Context) (err error) {
+		Action: func(ctx *cli.Context, _ bool) (err error) {
 			defer func() {
 				// exit the app
 				err = cli.NewExitError(err, 0)
@@ -542,7 +542,7 @@ func NewVersionFlag(opts *options.TerragruntOptions) cli.Flag {
 		Name:    VersionFlagName, // --version, -version
 		Aliases: []string{"v"},   //  -v
 		Usage:   "Show terragrunt version",
-		Action: func(ctx *cli.Context) (err error) {
+		Action: func(ctx *cli.Context, _ bool) (err error) {
 			defer func() {
 				// exit the app
 				err = cli.NewExitError(err, 0)
