@@ -141,7 +141,18 @@ func CheckTerragruntVersionMeetsConstraint(currentVersion *version.Version, cons
 		return err
 	}
 
-	if !versionConstraint.Check(currentVersion) {
+	checkedVersion := currentVersion
+
+	if currentVersion.Prerelease() != "" {
+		// The logic in hashicorp/go-version is such that it will not consider a prerelease version to be
+		// compatible with a constraint that does not have a prerelease version. This is not the behavior we want
+		// for Terragrunt, so we strip the prerelease version before checking the constraint.
+		//
+		// https://github.com/hashicorp/go-version/issues/130
+		checkedVersion = currentVersion.Core()
+	}
+
+	if !versionConstraint.Check(checkedVersion) {
 		return errors.WithStackTrace(InvalidTerragruntVersion{CurrentVersion: currentVersion, VersionConstraints: versionConstraint})
 	}
 
