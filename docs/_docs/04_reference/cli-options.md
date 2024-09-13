@@ -59,6 +59,8 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-parallelism](#terragrunt-parallelism)
   - [terragrunt-debug](#terragrunt-debug)
   - [terragrunt-log-level](#terragrunt-log-level)
+  - [terragrunt-log-disable](#terragrunt-log-disable)
+  - [terragrunt-log-show-abs-paths](#terragrunt-log-show-abs-paths)
   - [terragrunt-no-color](#terragrunt-no-color)
   - [terragrunt-check](#terragrunt-check)
   - [terragrunt-diff](#terragrunt-diff)
@@ -761,6 +763,8 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
   - [terragrunt-parallelism](#terragrunt-parallelism)
   - [terragrunt-debug](#terragrunt-debug)
   - [terragrunt-log-level](#terragrunt-log-level)
+  - [terragrunt-log-disable](#terragrunt-log-disable)
+  - [terragrunt-log-show-abs-paths](#terragrunt-log-show-abs-paths)
   - [terragrunt-no-color](#terragrunt-no-color)
   - [terragrunt-check](#terragrunt-check)
   - [terragrunt-diff](#terragrunt-diff)
@@ -1082,13 +1086,30 @@ that Terragrunt invokes the module, so that you can debug issues with the terrag
 
 When passed it, sets logging level for terragrunt. All supported levels are:
 
-- `panic`
-- `fatal`
+- `stderr`
+- `stdout`
 - `error`
 - `warn`
 - `info` (this is the default)
 - `debug`
 - `trace`
+
+Where the first two control the logging of Terraform/OpenTofu output.
+
+### terragrunt-log-disable
+
+**CLI Arg**: `--terragrunt-log-disable`<br/>
+**Environment Variable**: `TERRAGRUNT_LOG_DISABLE`<br/>
+**Requires an argument**: `--terragrunt-log-disable`<br/>
+
+Disable logging. This flag also enables [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout).
+
+### terragrunt-log-show-abs-paths
+
+**CLI Arg**: `--terragrunt-log-show-abs-paths`<br/>
+**Environment Variable**: `TERRAGRUNT_LOG_SHOW_ABS_PATHS`<br/>
+
+If specified, Terragrunt paths in logs will be absolute. By default, the paths are relative to the working directory.
 
 ### terragrunt-no-color
 

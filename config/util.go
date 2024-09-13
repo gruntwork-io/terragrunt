@@ -12,18 +12,8 @@ func CopyLockFile(opts *options.TerragruntOptions, sourceFolder, destinationFold
 	sourceLockFilePath := util.JoinPath(sourceFolder, terraform.TerraformLockFile)
 	destinationLockFilePath := util.JoinPath(destinationFolder, terraform.TerraformLockFile)
 
-	relDestinationFolder, err := util.GetPathRelativeToWithSeparator(destinationFolder, opts.RootWorkingDir)
-	if err != nil {
-		return err
-	}
-
-	relSourceLockFilePath, err := util.GetPathRelativeToWithSeparator(sourceLockFilePath, opts.RootWorkingDir)
-	if err != nil {
-		return err
-	}
-
 	if util.FileExists(sourceLockFilePath) {
-		opts.Logger.Debugf("Copying lock file from %s to %s", relSourceLockFilePath, relDestinationFolder)
+		opts.Logger.Debugf("Copying lock file from %s to %s", sourceLockFilePath, destinationFolder)
 		return util.CopyFile(sourceLockFilePath, destinationLockFilePath)
 	}
 

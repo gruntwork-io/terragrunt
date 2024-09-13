@@ -5,7 +5,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // The following flags are DEPRECATED
@@ -22,8 +21,8 @@ func NewDeprecatedFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar: TerragruntIncludeModulePrefixEnvName,
 			Usage:  "When this flag is set output from Terraform sub-commands is prefixed with module path.",
 			Hidden: true,
-			Action: func(ctx *cli.Context) error {
-				util.GlobalFallbackLogEntry.Warnf("The %q flag is deprecated. Use the functionality-inverted %q flag instead. By default, Terraform/OpenTofu output is integrated into the Terragrunt log, which prepends additional data, such as timestamps and prefixes, to log entries.", TerragruntIncludeModulePrefixFlagName, commands.TerragruntForwardTFStdoutFlagName)
+			Action: func(ctx *cli.Context, _ bool) error {
+				opts.Logger.Warnf("The %q flag is deprecated. Use the functionality-inverted %q flag instead. By default, Terraform/OpenTofu output is integrated into the Terragrunt log, which prepends additional data, such as timestamps and prefixes, to log entries.", TerragruntIncludeModulePrefixFlagName, commands.TerragruntForwardTFStdoutFlagName)
 				return nil
 			},
 		},

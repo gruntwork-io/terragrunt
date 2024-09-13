@@ -7,7 +7,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
-	"github.com/gruntwork-io/terragrunt/internal/log"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -24,7 +23,7 @@ func NewScaffold(opts *options.TerragruntOptions, module *module.Module) *Scaffo
 }
 
 func (cmd *Scaffold) Run() error {
-	log.Infof("Run Scaffold for the module: %q", cmd.module.TerraformSourcePath())
+	cmd.module.Logger().Infof("Run Scaffold for the module: %q", cmd.module.TerraformSourcePath())
 
 	return scaffold.Run(context.Background(), cmd.terragruntOptions, cmd.module.TerraformSourcePath(), "")
 }

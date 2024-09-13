@@ -69,7 +69,7 @@ func RunAllOnStack(ctx context.Context, opts *options.TerragruntOptions, stack *
 	}
 
 	if prompt != "" {
-		shouldRunAll, err := shell.PromptUserForYesNo(prompt, opts)
+		shouldRunAll, err := shell.PromptUserForYesNo(ctx, prompt, opts)
 		if err != nil {
 			return err
 		}

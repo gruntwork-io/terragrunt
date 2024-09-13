@@ -105,7 +105,7 @@ func TestLogFailedLocalsEvaluation(t *testing.T) {
 	require.Error(t, err)
 
 	output := stderr.String()
-	assert.Contains(t, output, "Encountered error while evaluating locals in file terragrunt.hcl")
+	assert.Contains(t, output, "Encountered error while evaluating locals in file ./terragrunt.hcl")
 }
 
 func TestTerragruntInitRunCmd(t *testing.T) {

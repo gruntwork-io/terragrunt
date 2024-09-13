@@ -10,9 +10,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-getter"
 	urlhelper "github.com/hashicorp/go-getter/helper/url"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -39,7 +39,7 @@ type Source struct {
 	// The path to a file in DownloadDir that stores the version number of the code
 	VersionFile string
 
-	Logger logrus.FieldLogger
+	Logger log.Logger
 }
 
 func (src *Source) String() string {
@@ -90,7 +90,7 @@ func (terraformSource Source) EncodeSourceVersion() (string, error) {
 			return hash, nil
 		}
 
-		terraformSource.Logger.WithError(err).Warningf("Could not encode version for local source")
+		terraformSource.Logger.WithError(err).Warnf("Could not encode version for local source")
 
 		return "", err
 	}
@@ -145,7 +145,7 @@ func (terraformSource Source) WriteVersionFile() error {
 //  1. Always download source URLs pointing to local file paths.
 //  2. Only download source URLs pointing to remote paths if /T/W/H doesn't already exist or, if it does exist, if the
 //     version number in /T/W/H/.terragrunt-source-version doesn't match the current version.
-func NewSource(source string, downloadDir string, workingDir string, logger *logrus.Entry) (*Source, error) {
+func NewSource(source string, downloadDir string, workingDir string, logger log.Logger) (*Source, error) {
 	canonicalWorkingDir, err := util.CanonicalPath(workingDir, "")
 	if err != nil {
 		return nil, err
@@ -275,7 +275,7 @@ func IsLocalSource(sourceUrl *url.URL) bool {
 // (//), which typically represents the root of a modules repo (e.g. github.com/foo/infrastructure-modules) and the
 // path is everything after the double slash. If there is no double-slash in the URL, the root repo is the entire
 // sourceUrl and the path is an empty string.
-func SplitSourceUrl(sourceUrl *url.URL, logger *logrus.Entry) (*url.URL, string, error) {
+func SplitSourceUrl(sourceUrl *url.URL, logger log.Logger) (*url.URL, string, error) {
 	pathSplitOnDoubleSlash := strings.SplitN(sourceUrl.Path, "//", 2) //nolint:mnd
 
 	if len(pathSplitOnDoubleSlash) > 1 {
@@ -296,7 +296,7 @@ func SplitSourceUrl(sourceUrl *url.URL, logger *logrus.Entry) (*url.URL, string,
 	_, err := os.Stat(sourceUrl.Path)
 	if err != nil {
 		// log warning message to notify user that sourceUrl.Path may not work
-		logger.Warningf("No double-slash (//) found in source URL %s. Relative paths in downloaded Terraform code may not work.", sourceUrl.Path)
+		logger.Warnf("No double-slash (//) found in source URL %s. Relative paths in downloaded Terraform code may not work.", sourceUrl.Path)
 	}
 
 	return sourceUrl, "", nil

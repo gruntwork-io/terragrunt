@@ -19,14 +19,14 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	cliPkg "github.com/gruntwork-io/terragrunt/pkg/cli"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-var defaultLogLevel = util.GetDefaultLogLevel()
+var defaultLogLevel = log.DebugLevel
 
 func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 	t.Parallel()
@@ -154,7 +154,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		// Adding the --terragrunt-log-level flag should result in DebugLevel configured
 		{
 			[]string{doubleDashed(commands.TerragruntLogLevelFlagName), "debug"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, logrus.DebugLevel, false),
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, log.DebugLevel, false),
 			nil,
 		},
 		{
@@ -220,7 +220,7 @@ func assertOptionsEqual(t *testing.T, expected options.TerragruntOptions, actual
 	assert.Equal(t, expected.SourceMap, actual.SourceMap, msgAndArgs...)
 }
 
-func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, includeExternalDependencies bool, logLevel logrus.Level, debug bool) *options.TerragruntOptions {
+func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, includeExternalDependencies bool, logLevel log.Level, debug bool) *options.TerragruntOptions {
 	t.Helper()
 
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
@@ -234,7 +234,7 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 	opts.Source = terragruntSource
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
 	opts.IncludeExternalDependencies = includeExternalDependencies
-	opts.Logger.Level = logLevel
+	opts.Logger.SetOptions(log.WithLevel(logLevel))
 	opts.Debug = debug
 
 	return opts
@@ -390,7 +390,8 @@ func TestTerragruntVersion(t *testing.T) {
 
 	for _, testCase := range testCases {
 		output := &bytes.Buffer{}
-		app := cli.NewApp(output, os.Stderr)
+		opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
+		app := cli.NewApp(opts)
 		app.Version = version
 
 		err := app.Run(testCase.args)
@@ -403,7 +404,8 @@ func TestTerragruntVersion(t *testing.T) {
 func TestTerragruntHelp(t *testing.T) {
 	t.Parallel()
 
-	app := cli.NewApp(os.Stdout, os.Stderr)
+	opts := options.NewTerragruntOptions()
+	app := cli.NewApp(opts)
 
 	testCases := []struct {
 		args        []string
@@ -419,7 +421,8 @@ func TestTerragruntHelp(t *testing.T) {
 
 	for _, testCase := range testCases {
 		output := &bytes.Buffer{}
-		app := cli.NewApp(output, os.Stderr)
+		opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
+		app := cli.NewApp(opts)
 		err := app.Run(testCase.args)
 		require.NoError(t, err, testCase)
 
@@ -446,7 +449,8 @@ func TestTerraformHelp(t *testing.T) {
 
 	for _, testCase := range testCases {
 		output := &bytes.Buffer{}
-		app := cli.NewApp(output, os.Stderr)
+		opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
+		app := cli.NewApp(opts)
 		err := app.Run(testCase.args)
 		require.NoError(t, err)
 
@@ -460,10 +464,10 @@ func TestTerraformHelp(t *testing.T) {
 func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
 	t.Parallel()
 
-	app := cli.NewApp(os.Stdout, os.Stderr)
-
 	output := &bytes.Buffer{}
-	app.Writer = output
+
+	opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
+	app := cli.NewApp(opts)
 
 	err := app.Run([]string{"terragrunt", "plan", "help"})
 	require.Error(t, err)
@@ -509,9 +513,7 @@ func (err argMissingValueError) Error() string {
 	return "flag needs an argument: -" + string(err)
 }
 
-func TestAutocomplete(t *testing.T) {
-	t.Parallel()
-
+func TestAutocomplete(t *testing.T) { //nolint:paralleltest
 	defer os.Unsetenv("COMP_LINE")
 
 	testCases := []struct {
@@ -540,7 +542,9 @@ func TestAutocomplete(t *testing.T) {
 		os.Setenv("COMP_LINE", "terragrunt "+testCase.compLine)
 
 		output := &bytes.Buffer{}
-		app := cli.NewApp(output, os.Stderr)
+		opts := options.NewTerragruntOptionsWithWriters(output, os.Stderr)
+		app := cli.NewApp(opts)
+
 		app.Commands = app.Commands.Filter([]string{"aws-provider-patch", "graph-dependencies", "hclfmt", "output-module-groups", "render-json", "run-all", "terragrunt-info", "validate-inputs"})
 
 		err := app.Run([]string{"terragrunt"})

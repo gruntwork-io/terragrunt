@@ -6,7 +6,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/internal/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const (
@@ -22,6 +22,7 @@ var (
 type Modules []*Module
 
 type Module struct {
+	*Repo
 	*Doc
 
 	cloneURL  string
@@ -33,6 +34,7 @@ type Module struct {
 // NewModule returns a module instance if the given `moduleDir` path contains a Terraform module, otherwise returns nil.
 func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 	module := &Module{
+		Repo:      repo,
 		cloneURL:  repo.cloneURL,
 		repoPath:  repo.path,
 		moduleDir: moduleDir,
@@ -42,7 +44,7 @@ func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 		return nil, err
 	}
 
-	log.Debugf("Found module in directory %q", moduleDir)
+	repo.logger.Debugf("Found module in directory %q", moduleDir)
 
 	moduleURL, err := repo.ModuleURL(moduleDir)
 	if err != nil {
@@ -61,6 +63,10 @@ func NewModule(repo *Repo, moduleDir string) (*Module, error) {
 	module.Doc = doc
 
 	return module, nil
+}
+
+func (module *Module) Logger() log.Logger {
+	return module.logger
 }
 
 // FilterValue implements /github.com/charmbracelet/bubbles.list.Item.FilterValue

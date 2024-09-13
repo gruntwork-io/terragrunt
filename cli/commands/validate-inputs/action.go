@@ -212,7 +212,7 @@ func getTerraformInputNamesFromVarFiles(opts *options.TerragruntOptions, terragr
 		varFiles = append(varFiles, arg.GetVarFiles(opts.Logger)...)
 	}
 
-	return getVarNamesFromVarFiles(varFiles)
+	return getVarNamesFromVarFiles(opts, varFiles)
 }
 
 // getTerraformInputNamesFromCLIArgs will return the list of names of variables configured by -var and -var-file CLI
@@ -238,7 +238,7 @@ func getTerraformInputNamesFromCLIArgs(opts *options.TerragruntOptions, terragru
 		}
 	}
 
-	fileVars, err := getVarNamesFromVarFiles(varFiles)
+	fileVars, err := getVarNamesFromVarFiles(opts, varFiles)
 	if err != nil {
 		return inputNames, err
 	}
@@ -277,16 +277,16 @@ func getTerraformInputNamesFromAutomaticVarFiles(opts *options.TerragruntOptions
 
 	automaticVarFiles = append(automaticVarFiles, jsonVarFiles...)
 
-	return getVarNamesFromVarFiles(automaticVarFiles)
+	return getVarNamesFromVarFiles(opts, automaticVarFiles)
 }
 
 // getVarNamesFromVarFiles will parse all the given var files and returns a list of names of variables that are
 // configured in all of them combined together.
-func getVarNamesFromVarFiles(varFiles []string) ([]string, error) {
+func getVarNamesFromVarFiles(opts *options.TerragruntOptions, varFiles []string) ([]string, error) {
 	inputNames := []string{}
 
 	for _, varFile := range varFiles {
-		fileVars, err := getVarNamesFromVarFile(varFile)
+		fileVars, err := getVarNamesFromVarFile(opts, varFile)
 		if err != nil {
 			return inputNames, err
 		}
@@ -299,7 +299,7 @@ func getVarNamesFromVarFiles(varFiles []string) ([]string, error) {
 
 // getVarNamesFromVarFile will parse the given terraform var file and return a list of names of variables that are
 // configured in that var file.
-func getVarNamesFromVarFile(varFile string) ([]string, error) {
+func getVarNamesFromVarFile(opts *options.TerragruntOptions, varFile string) ([]string, error) {
 	fileContents, err := os.ReadFile(varFile)
 	if err != nil {
 		return nil, err
@@ -311,7 +311,7 @@ func getVarNamesFromVarFile(varFile string) ([]string, error) {
 			return nil, err
 		}
 	} else {
-		if err := config.ParseAndDecodeVarFile(varFile, fileContents, &variables); err != nil {
+		if err := config.ParseAndDecodeVarFile(opts, varFile, fileContents, &variables); err != nil {
 			return nil, err
 		}
 	}
