@@ -120,6 +120,8 @@ func testParseTerraformVersion(t *testing.T, versionString string, expectedVersi
 	}
 }
 
+// TODO: Refactor these into a test table.
+
 // Terragrunt Version Checking
 func TestCheckTerragruntVersionMeetsConstraintEqual(t *testing.T) {
 	t.Parallel()
@@ -144,6 +146,11 @@ func TestCheckTerragruntVersionMeetsConstraintLessPatch(t *testing.T) {
 func TestCheckTerragruntVersionMeetsConstraintLessMajor(t *testing.T) {
 	t.Parallel()
 	testCheckTerragruntVersionMeetsConstraint(t, "v0.22.15", ">= v0.23.18", false)
+}
+
+func TestCheckTerragruntVersionMeetsConstraintPrerelease(t *testing.T) {
+	t.Parallel()
+	testCheckTerragruntVersionMeetsConstraint(t, "v0.23.18-alpha202409013", ">= v0.23.18", true)
 }
 
 func testCheckTerragruntVersionMeetsConstraint(t *testing.T, currentVersion string, versionConstraint string, versionMeetsConstraint bool) {

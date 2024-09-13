@@ -2409,27 +2409,39 @@ func TestTerragruntVersionConstraints(t *testing.T) {
 			true,
 		},
 		{
-			"version meets constriant greater patch",
+			"version meets constraint greater patch",
 			"v0.23.19",
 			"terragrunt_version_constraint = \">= v0.23.18\"",
 			true,
 		},
 		{
-			"version meets constriant greater major",
+			"version meets constraint greater major",
 			"v1.0.0",
 			"terragrunt_version_constraint = \">= v0.23.18\"",
 			true,
 		},
 		{
-			"version meets constriant less patch",
+			"version fails constraint less patch",
 			"v0.23.17",
 			"terragrunt_version_constraint = \">= v0.23.18\"",
 			false,
 		},
 		{
-			"version meets constriant less major",
+			"version fails constraint less major",
 			"v0.22.18",
 			"terragrunt_version_constraint = \">= v0.23.18\"",
+			false,
+		},
+		{
+			"version meets constraint pre-release",
+			"v0.23.18-alpha2024091301",
+			"terragrunt_version_constraint = \">= v0.23.18\"",
+			true,
+		},
+		{
+			"version fails constraint pre-release",
+			"v0.23.18-alpha2024091301",
+			"terragrunt_version_constraint = \"< v0.23.18\"",
 			false,
 		},
 	}
