@@ -2393,7 +2393,10 @@ func TestTerragruntIncludeParentHclFile(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(out, "common_hcl"))
 }
 
-func TestTerragruntVersionConstraints(t *testing.T) {
+// The over all test here can run in parallel, but the subtests cannot.
+// This is due to a race condition brought about by overriding `version.Version` in
+// runTerragruntVersionCommand
+func TestTerragruntVersionConstraints(t *testing.T) { //nolint:tparallel
 	t.Parallel()
 
 	tc := []struct {
@@ -2446,12 +2449,8 @@ func TestTerragruntVersionConstraints(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tc {
-		tt := tt
-
+	for _, tt := range tc { //nolint:paralleltest
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			tmpEnvPath := copyEnvironment(t, testFixtureReadConfig)
 			rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfig, "with_constraints")
 
@@ -2460,7 +2459,18 @@ func TestTerragruntVersionConstraints(t *testing.T) {
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
 
-			err := runTerragruntVersionCommand(t, tt.terragruntVersion, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, rootPath), &stdout, &stderr)
+			err := runTerragruntVersionCommand(
+				t,
+				tt.terragruntVersion,
+				fmt.Sprintf(
+					"terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s",
+					tmpTerragruntConfigPath,
+					rootPath,
+				),
+				&stdout,
+				&stderr,
+			)
+
 			logBufferContentsLineByLine(t, stdout, "stdout")
 			logBufferContentsLineByLine(t, stderr, "stderr")
 
