@@ -38,6 +38,10 @@ type BoolFlag struct {
 
 // Apply applies Flag settings to the given flag set.
 func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
+	if flag.Destination == nil {
+		flag.Destination = new(bool)
+	}
+
 	var err error
 
 	valType := FlagType[bool](&boolFlagType{negative: flag.Negative})
