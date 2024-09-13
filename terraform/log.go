@@ -20,7 +20,7 @@ var (
 	//
 	// 2024-09-08T13:44:31.229+0300 [DEBUG] using github.com/zclconf/go-cty v1.14.3
 	// 2024-09-08T13:44:31.229+0300 [INFO]  Go runtime version: go1.22.1
-	tfLogTimeLevelMsgReg = regexp.MustCompile(`(?i)(^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}[-+]\d{4})\s*\[(trace|debug|warn|info|error)\]\s*(.+\S)$`)
+	tfLogTimeLevelMsgReg = regexp.MustCompile(`(?i)(^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}\S*)\s*\[(trace|debug|warn|info|error)\]\s*(.+\S)$`)
 )
 
 func ParseLogFunc(msgPrefix string) writer.WriterParseFunc {
