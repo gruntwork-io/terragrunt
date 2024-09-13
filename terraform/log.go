@@ -42,15 +42,19 @@ func ParseLog(msgPrefix, str string) (msg string, ptrTime *time.Time, ptrLevel *
 
 	timeStr, levelStr, msg := match[1], match[2], match[3]
 
-	if timeStr != "" {
-		if time, err := time.Parse(logTimestampFormat, timeStr); err == nil {
-			ptrTime = &time
-		}
-	}
-
 	if levelStr != "" {
 		if level, err := log.ParseLevel(strings.ToLower(levelStr)); err == nil {
 			ptrLevel = &level
+		} else {
+			msg = "[" + levelStr + "] " + msg
+		}
+	}
+
+	if timeStr != "" {
+		if time, err := time.Parse(logTimestampFormat, timeStr); err == nil {
+			ptrTime = &time
+		} else {
+			msg = timeStr + " " + msg
 		}
 	}
 
