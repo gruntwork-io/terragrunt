@@ -118,6 +118,20 @@ const (
 	fixtureDownload = "fixtures/download"
 )
 
+func TestDisableLogging(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureLogFormatter)
+	tmpEnvPath := copyEnvironment(t, testFixtureLogFormatter)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
+
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level debug --terragrunt-log-disable --terragrunt-non-interactive --terragrunt-disable-log-formatting=false -no-color --terragrunt-no-color --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "Initializing provider plugins...")
+	assert.Empty(t, stderr)
+}
+
 func TestLogWithAbsPath(t *testing.T) {
 	t.Parallel()
 
@@ -129,7 +143,7 @@ func TestLogWithAbsPath(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, prefixName := range []string{"app", "dep"} {
-		prefixName := filepath.Join(rootPath, prefixName)
+		prefixName = filepath.Join(rootPath, prefixName)
 		assert.Contains(t, stdout, "STDOUT ["+prefixName+"] "+wrappedBinary()+": Initializing provider plugins...")
 		assert.Contains(t, stderr, "DEBUG  ["+prefixName+"] Reading Terragrunt config file at "+prefixName+"/terragrunt.hcl")
 	}

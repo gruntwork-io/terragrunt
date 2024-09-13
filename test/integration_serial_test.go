@@ -695,3 +695,22 @@ func TestReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
 	})
 	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s", rootPath, mockAuthCmd))
 }
+
+func TestParseTFLog(t *testing.T) {
+	os.Setenv("TF_LOG", "info")
+
+	defer func() {
+		os.Setenv("TF_LOG", "")
+	}()
+
+	cleanupTerraformFolder(t, testFixtureLogFormatter)
+	tmpEnvPath := copyEnvironment(t, testFixtureLogFormatter)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
+
+	_, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-disable-log-formatting=false -no-color --terragrunt-no-color --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	for _, prefixName := range []string{"app", "dep"} {
+		assert.Contains(t, stderr, "INFO   ["+prefixName+"] "+wrappedBinary()+`: TF_LOG: CLI args: []string{"tofu", "init", "-input=false", "-no-color"}`)
+	}
+}

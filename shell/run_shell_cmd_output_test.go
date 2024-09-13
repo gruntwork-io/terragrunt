@@ -85,7 +85,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
-	// `Specify a single (locking) buffer for both as a way to check that the output is being written in the correct
+	// Specify a single (locking) buffer for both as a way to check that the output is being written in the correct
 	// order
 	var allOutputBuffer BufferWithLocking
 	terragruntOptions.Writer = &allOutputBuffer

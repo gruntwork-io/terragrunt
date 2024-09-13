@@ -4,6 +4,7 @@ import (
 	goErrors "errors"
 	"fmt"
 
+	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
@@ -130,6 +131,9 @@ const (
 	TerragruntLogLevelFlagName = "terragrunt-log-level"
 	TerragruntLogLevelEnvName  = "TERRAGRUNT_LOG_LEVEL"
 
+	TerragruntLogDisableFlagName = "terragrunt-log-disable"
+	TerragruntLogDisableEnvName  = "TERRAGRUNT_LOG_DISABLE"
+
 	TerragruntNoColorFlagName = "terragrunt-no-color"
 	TerragruntNoColorEnvName  = "TERRAGRUNT_NO_COLOR"
 
@@ -165,10 +169,6 @@ const (
 
 // NewGlobalFlags creates and returns global flags.
 func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
-	var (
-		logLevelStr = opts.LogLevel.String()
-	)
-
 	flags := cli.Flags{
 		&cli.GenericFlag[string]{
 			Name:        TerragruntConfigFlagName,
@@ -321,10 +321,23 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 		&cli.GenericFlag[string]{
 			Name:        TerragruntLogLevelFlagName,
 			EnvVar:      TerragruntLogLevelEnvName,
-			Destination: &logLevelStr,
+			DefaultText: opts.LogLevel.String(),
 			Usage:       fmt.Sprintf("Sets the logging level for Terragrunt. Supported levels: %s", log.AllLevels),
-			Action: func(ctx *cli.Context) error {
-				level, err := log.ParseLevel(logLevelStr)
+			Action: func(ctx *cli.Context, val string) error {
+				// Before the release of v0.67.0, these levels actually disabled logs, since we do not use these levels for logging.
+				// For backward compatibility we simulate the same behavior.
+				removedLevels := []string{
+					"panic",
+					"fatal",
+				}
+
+				if collections.ListContainsElement(removedLevels, val) {
+					opts.ForwardTFStdout = true
+					opts.Logger.SetOptions(log.WithFormatter(&format.SilentFormatter{}))
+					return nil
+				}
+
+				level, err := log.ParseLevel(val)
 				if err != nil {
 					return errors.Errorf("flag --%s, %w", TerragruntLogLevelFlagName, err)
 				}
@@ -336,12 +349,22 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			},
 		},
 		&cli.BoolFlag{
+			Name:   TerragruntLogDisableFlagName,
+			EnvVar: TerragruntLogDisableEnvName,
+			Usage:  "Disable logging",
+			Action: func(ctx *cli.Context) error {
+				opts.ForwardTFStdout = true
+				opts.Logger.SetOptions(log.WithFormatter(&format.SilentFormatter{}))
+				return nil
+			},
+		},
+		&cli.BoolFlag{
 			Name:        TerragruntDisableLogFormattingFlagName,
 			EnvVar:      TerragruntDisableLogFormattingEnvName,
 			Destination: &opts.DisableLogFormatting,
 			Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
 			Action: func(ctx *cli.Context) error {
-				opts.LogFormatter.DisableLogFormatting = opts.DisableLogFormatting
+				opts.LogFormatter.DisableLogFormatting = true
 				return nil
 			},
 		},
@@ -367,7 +390,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.DisableLogColors,
 			Usage:       "If specified, Terragrunt output won't contain any color.",
 			Action: func(ctx *cli.Context) error {
-				opts.LogFormatter.DisableColors = opts.DisableLogColors
+				opts.LogFormatter.DisableColors = true
 				return nil
 			},
 		},

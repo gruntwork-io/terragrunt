@@ -10,7 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// Default key names for the default fields
+// Default key names for the default fields.
 const (
 	reservedFourFields     = 4
 	defaultTimestampFormat = time.RFC3339
@@ -35,15 +35,15 @@ func (f FieldMap) resolve(key fieldKey) string {
 	return string(key)
 }
 
-// JSONFormatter formats logs into parsable json
+// JSONFormatter formats logs into parsable json.
 type JSONFormatter struct {
 	// TimestampFormat sets the format used for marshaling timestamps.
 	TimestampFormat string
 
-	// DisableTimestamp allows disabling automatic timestamps in output
+	// DisableTimestamp allows disabling automatic timestamps in output.
 	DisableTimestamp bool
 
-	// DisableHTMLEscape allows disabling html escaping in output
+	// DisableHTMLEscape allows disabling html escaping in output.
 	DisableHTMLEscape bool
 
 	// DataKey allows users to put all the log entry parameters into a nested dictionary at a given key.
@@ -52,11 +52,11 @@ type JSONFormatter struct {
 	// FieldMap allows users to customize the names of keys for default fields.
 	FieldMap FieldMap
 
-	// PrettyPrint will indent all json logs
+	// PrettyPrint will indent all json logs.
 	PrettyPrint bool
 }
 
-// Format renders a single log entry
+// Format implements logrus.Formatter interface.
 func (f *JSONFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	data := make(logrus.Fields, len(entry.Data)+reservedFourFields)
 

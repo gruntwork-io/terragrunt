@@ -120,7 +120,8 @@ func TestTFRGetterRootDir(t *testing.T) {
 	assert.False(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 
 	tfrGetter := new(terraform.RegistryGetter)
-	tfrGetter.TerragruntOptions, _ = options.NewTerragruntOptionsForTest("")
+	tfrGetter.TerragruntOptions, err = options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
 	require.NoError(t, tfrGetter.Get(moduleDestPath, testModuleURL))
 	assert.True(t, files.FileExists(filepath.Join(moduleDestPath, "main.tf")))
 }

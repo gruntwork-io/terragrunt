@@ -18,6 +18,9 @@ type SliceFlagType interface {
 	GenericType
 }
 
+// SliceActionFunc is the action to execute when the flag has been set either via a flag or via an environment variable.
+type SliceActionFunc[T SliceFlagType] func(ctx *Context, value []T) error
+
 // SliceFlag is a multiple flag.
 type SliceFlag[T SliceFlagType] struct {
 	flag
@@ -33,7 +36,7 @@ type SliceFlag[T SliceFlagType] struct {
 	// The name of the env variable that is parsed and assigned to `Destination` before the flag value.
 	EnvVar string
 	// The action to execute when flag is specified
-	Action ActionFunc
+	Action SliceActionFunc[T]
 	// The pointer to which the value of the flag or env var is assigned.
 	// It also uses as the default value displayed in the help.
 	Destination *[]T
@@ -47,6 +50,10 @@ type SliceFlag[T SliceFlagType] struct {
 
 // Apply applies Flag settings to the given flag set.
 func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
+	if flag.Destination == nil {
+		flag.Destination = new([]T)
+	}
+
 	if flag.Splitter == nil {
 		flag.Splitter = FlagSplitter
 	}
@@ -111,7 +118,7 @@ func (flag *SliceFlag[T]) Names() []string {
 // RunAction implements ActionableFlag.RunAction
 func (flag *SliceFlag[T]) RunAction(ctx *Context) error {
 	if flag.Action != nil {
-		return flag.Action(ctx)
+		return flag.Action(ctx, *flag.Destination)
 	}
 
 	return nil
