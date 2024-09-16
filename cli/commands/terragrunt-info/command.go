@@ -1,3 +1,4 @@
+// Package terragruntinfo provides the command to emit limited terragrunt state on stdout and exits.
 package terragruntinfo
 
 import (

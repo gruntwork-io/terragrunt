@@ -1,3 +1,4 @@
+// Package externalcmd provides a provider that runs an external command that returns a json string with credentials.
 package externalcmd
 
 import (

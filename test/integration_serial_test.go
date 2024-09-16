@@ -70,8 +70,7 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	require.NoError(t, err)
 	defer cliConfigFilename.Close()
 
-	err = os.Setenv(terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
-	require.NoError(t, err)
+	t.Setenv(terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
 	defer os.Unsetenv(terraform.EnvNameTFCLIConfigFile)
 
 	t.Logf("%s=%s", terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
@@ -152,12 +151,10 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	defer cliConfigFilename.Close()
 
 	tokenEnvName := "TF_TOKEN_" + strings.ReplaceAll(networkMirrorURL.Hostname(), ".", "_")
-	err = os.Setenv(tokenEnvName, token)
-	require.NoError(t, err)
+	t.Setenv(tokenEnvName, token)
 	defer os.Unsetenv(tokenEnvName)
 
-	err = os.Setenv(terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
-	require.NoError(t, err)
+	t.Setenv(terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
 	defer os.Unsetenv(terraform.EnvNameTFCLIConfigFile)
 
 	t.Logf("%s=%s", terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
@@ -329,8 +326,8 @@ func TestTerragruntDownloadDir(t *testing.T) {
 			require.NoError(t, err)
 
 			var dat terragruntinfo.TerragruntInfoGroup
-			err_unmarshal := json.Unmarshal(stdout.Bytes(), &dat)
-			require.NoError(t, err_unmarshal)
+			unmarshalErr := json.Unmarshal(stdout.Bytes(), &dat)
+			require.NoError(t, unmarshalErr)
 			// compare the results
 			assert.Equal(t, testCase.downloadDirReference, dat.DownloadDir)
 		})
@@ -640,7 +637,7 @@ func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "remote-state")
 	mockAuthCmd := filepath.Join(tmpEnvPath, testFixtureAuthProviderCmd, "mock-auth-cmd.sh")
 
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
 	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
 
 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
@@ -648,8 +645,10 @@ func TestReadTerragruntAuthProviderCmdRemoteState(t *testing.T) {
 
 	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
 	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-	os.Setenv("AWS_ACCESS_KEY_ID", "")
-	os.Setenv("AWS_SECRET_ACCESS_KEY", "")
+
+	// I'm not sure why, but this test doesn't work with tenv
+	os.Setenv("AWS_ACCESS_KEY_ID", "")     //nolint: tenv
+	os.Setenv("AWS_SECRET_ACCESS_KEY", "") //nolint: tenv
 
 	defer func() {
 		os.Setenv("AWS_ACCESS_KEY_ID", accessKeyID)
@@ -674,13 +673,8 @@ func TestReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
 
 	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
 	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-	os.Setenv("AWS_ACCESS_KEY_ID", "")
-	os.Setenv("AWS_SECRET_ACCESS_KEY", "")
-
-	defer func() {
-		os.Setenv("AWS_ACCESS_KEY_ID", accessKeyID)
-		os.Setenv("AWS_SECRET_ACCESS_KEY", secretAccessKey)
-	}()
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
 
 	dependencyCredsConfig := util.JoinPath(rootPath, "dependency", "creds.config")
 	copyAndFillMapPlaceholders(t, dependencyCredsConfig, dependencyCredsConfig, map[string]string{
@@ -697,11 +691,7 @@ func TestReadTerragruntAuthProviderCmdCredsForDependency(t *testing.T) {
 }
 
 func TestParseTFLog(t *testing.T) {
-	os.Setenv("TF_LOG", "info")
-
-	defer func() {
-		os.Setenv("TF_LOG", "")
-	}()
+	t.Setenv("TF_LOG", "info")
 
 	cleanupTerraformFolder(t, testFixtureLogFormatter)
 	tmpEnvPath := copyEnvironment(t, testFixtureLogFormatter)

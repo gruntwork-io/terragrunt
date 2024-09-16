@@ -28,7 +28,7 @@ const (
 	DefaultCommentPrefix = "# "
 )
 
-// An enum to represent valid values for if_exists
+// GenerateConfigExists is an enum to represent valid values for if_exists.
 type GenerateConfigExists int
 
 const (
@@ -39,7 +39,7 @@ const (
 	ExistsUnknown
 )
 
-// An enum to represent valid values for if_disabled
+// GenerateConfigDisabled is an enum to represent valid values for if_disabled.
 type GenerateConfigDisabled int
 
 const (
@@ -62,7 +62,7 @@ const (
 	assumeRoleConfigKey = "assume_role"
 )
 
-// Configuration for generating code
+// GenerateConfig is configuration for generating code
 type GenerateConfig struct {
 	Path             string `cty:"path"`
 	IfExists         GenerateConfigExists
@@ -226,7 +226,7 @@ func fileWasGeneratedByTerragrunt(path string) (bool, error) {
 	return strings.HasSuffix(strings.TrimSpace(firstLine), TerragruntGeneratedSignature), nil
 }
 
-// Convert the arbitrary map that represents a remote state config into HCL code to configure that remote state.
+// RemoteStateConfigToTerraformCode converts the arbitrary map that represents a remote state config into HCL code to configure that remote state.
 func RemoteStateConfigToTerraformCode(backend string, config map[string]interface{}) ([]byte, error) {
 	f := hclwrite.NewEmptyFile()
 	backendBlock := f.Body().AppendNewBlock("terraform", nil).Body().AppendNewBlock("backend", []string{backend})

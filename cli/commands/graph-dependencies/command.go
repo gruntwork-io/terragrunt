@@ -1,3 +1,4 @@
+// Package graphdependencies provides the command to print the terragrunt dependency graph to stdout.
 package graphdependencies
 
 import (

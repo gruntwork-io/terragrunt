@@ -1,3 +1,4 @@
+// Package router provides a simple wrapper around the echo framework to create a REST API.
 package router
 
 import (

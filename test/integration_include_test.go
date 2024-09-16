@@ -69,7 +69,7 @@ func TestTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
 	childPath := util.JoinPath(includeFixturePath, includeShallowFixturePath)
 	cleanupTerraformFolder(t, childPath)
 
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
 	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
 
 	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, includeFixturePath, includeShallowFixturePath, s3BucketName, config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath)

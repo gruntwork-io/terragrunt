@@ -22,6 +22,8 @@ import (
 )
 
 func TestTerragruntParallelism(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		parallelism            int
 		numberOfModules        int
@@ -33,8 +35,10 @@ func TestTerragruntParallelism(t *testing.T) {
 		{5, 10, 5 * time.Second, []int{5, 5, 5, 5, 5, 5, 5, 5, 5, 5}},
 	}
 	for _, tc := range testCases {
-		tc := tc // shadow and force execution with this case
+
 		t.Run(fmt.Sprintf("parallelism=%d numberOfModules=%d timeToDeployEachModule=%v expectedTimings=%v", tc.parallelism, tc.numberOfModules, tc.timeToDeployEachModule, tc.expectedTimings), func(t *testing.T) {
+			t.Parallel()
+
 			testTerragruntParallelism(t, tc.parallelism, tc.numberOfModules, tc.timeToDeployEachModule, tc.expectedTimings)
 		})
 	}
@@ -92,7 +96,7 @@ func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules in
 func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules int, timeToDeployEachModule time.Duration) (string, int, error) {
 	t.Helper()
 
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
 
 	// copy the template `numberOfModules` times into the app
 	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")

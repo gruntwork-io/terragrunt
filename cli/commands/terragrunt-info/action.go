@@ -18,7 +18,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	return terraform.RunWithTarget(ctx, opts, target)
 }
 
-// Struct is output as JSON by 'terragrunt-info':
+// TerragruntInfoGroup is the output emit as JSON by 'terragrunt-info':
 type TerragruntInfoGroup struct {
 	ConfigPath       string `json:"ConfigPath"`
 	DownloadDir      string `json:"DownloadDir"`

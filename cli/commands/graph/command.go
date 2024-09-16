@@ -1,3 +1,4 @@
+// Package graph provides the `graph` command for Terragrunt.
 package graph
 
 import (

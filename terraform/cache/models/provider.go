@@ -1,3 +1,4 @@
+// Package models provides the data structures used to represent Terraform providers and their details.
 package models
 
 import (

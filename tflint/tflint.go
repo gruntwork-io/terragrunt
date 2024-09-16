@@ -155,7 +155,7 @@ func InputsToTflintVar(inputs map[string]interface{}) ([]string, error) {
 	variables := make([]string, 0, len(inputs))
 
 	for key, value := range inputs {
-		varValue, err := util.AsTerraformEnvVarJsonValue(value)
+		varValue, err := util.AsTerraformEnvVarJSONValue(value)
 		if err != nil {
 			return nil, err
 		}
@@ -184,7 +184,7 @@ func tfArgumentsToTflintVar(terragruntOptions *options.TerragruntOptions, hook c
 				if strings.HasPrefix(name, tfVarPrefix) {
 					varName := strings.TrimPrefix(name, tfVarPrefix)
 
-					varValue, err := util.AsTerraformEnvVarJsonValue(value)
+					varValue, err := util.AsTerraformEnvVarJSONValue(value)
 					if err != nil {
 						return nil, err
 					}

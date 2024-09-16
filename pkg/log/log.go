@@ -1,3 +1,4 @@
+// Package log provides a leveled logger with structured logging support.
 package log
 
 var (
@@ -112,12 +113,12 @@ func WithError(err error) Logger {
 	return std.WithError(err)
 }
 
-// WithOptions
+// WithOptions returns a new logger with the given options.
 func WithOptions(opts ...Option) Logger {
 	return std.WithOptions(opts...)
 }
 
-// SetOptions
+// SetOptions sets the options for the standard logger.
 func SetOptions(opts ...Option) {
 	std.SetOptions(opts...)
 }

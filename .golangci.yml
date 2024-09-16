@@ -68,6 +68,7 @@ linters:
     - wsl
     - thelper
     - wastedassign
+    - stylecheck
 
   enable-all: false
   disable:
@@ -75,6 +76,9 @@ linters:
     - gosec
     - gocyclo
     - exhaustruct
+    - nolintlint
+    - wrapcheck
+    - varnamelen
 
   fast: false
   mnd:

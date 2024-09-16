@@ -6,6 +6,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+// CopyLockFile copies the lock file from the source folder to the destination folder.
+//
 // Terraform 0.14 now generates a lock file when you run `terraform init`.
 // If any such file exists, this function will copy the lock file to the destination folder
 func CopyLockFile(opts *options.TerragruntOptions, sourceFolder, destinationFolder string) error {

@@ -1,3 +1,4 @@
+// Package controllers provides the implementation of the controller for the provider endpoints.
 package controllers
 
 import (

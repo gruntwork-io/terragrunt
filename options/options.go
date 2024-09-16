@@ -1,3 +1,4 @@
+// Package options provides a set of options that configure the behavior of the Terragrunt program.
 package options
 
 import (
@@ -53,7 +54,7 @@ var (
 		"registry.opentofu.org",
 	}
 
-	TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
+	TerraformCommandsWithSubcommand = []string{
 		"debug",
 		"force-unlock",
 		"state",
@@ -129,7 +130,7 @@ type TerragruntOptions struct {
 	DisableLogColors bool
 
 	// Output Terragrunt logs in JSON format
-	JsonLogFormat bool
+	JSONLogFormat bool
 
 	// Disable replacing full paths in logs with short relative paths
 	LogShowAbsPaths bool
@@ -144,7 +145,7 @@ type TerragruntOptions struct {
 	DisableLogFormatting bool
 
 	// Wrap Terraform logs in JSON format
-	TerraformLogsToJson bool
+	TerraformLogsToJSON bool
 
 	// ValidateStrict mode for the validate-inputs command
 	ValidateStrict bool
@@ -202,7 +203,7 @@ type TerragruntOptions struct {
 	RetryMaxAttempts int
 
 	// The duration in seconds to wait before retrying
-	RetrySleepIntervalSec time.Duration
+	RetrySleepInterval time.Duration
 
 	// RetryableErrors is an array of regular expressions with RE2 syntax (https://github.com/google/re2/wiki/Syntax) that qualify for retrying
 	RetryableErrors []string
@@ -267,7 +268,7 @@ type TerragruntOptions struct {
 	UsePartialParseConfigCache bool
 
 	// Include fields metadata in render-json
-	RenderJsonWithMetadata bool
+	RenderJSONithMetadata bool
 
 	// Disable TF output formatting
 	ForwardTFStdout bool
@@ -291,7 +292,7 @@ type TerragruntOptions struct {
 	GraphRoot string
 
 	// Disable listing of dependent modules in render json output
-	JsonDisableDependentModules bool
+	JSONDisableDependentModules bool
 
 	// Enables Terragrunt's provider caching.
 	ProviderCache bool
@@ -315,7 +316,7 @@ type TerragruntOptions struct {
 	OutputFolder string
 
 	// Folder to store JSON representation of output files.
-	JsonOutputFolder string
+	JSONOutputFolder string
 
 	// The command and arguments that can be used to fetch authentication configurations.
 	// Terragrunt invokes this command before running tofu/terraform operations for each working directory.
@@ -331,7 +332,7 @@ type TerragruntOptions struct {
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
 type TerragruntOptionsFunc func(*TerragruntOptions)
 
-// WithRoleARN adds the provided role ARN to IamRoleOptions
+// WithIAMRoleARN adds the provided role ARN to IamRoleOptions
 func WithIAMRoleARN(arn string) TerragruntOptionsFunc {
 	return func(t *TerragruntOptions) {
 		t.IAMRoleOptions.RoleARN = arn
@@ -382,7 +383,8 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 	return out
 }
 
-// Create a new TerragruntOptions object with reasonable defaults for real usage
+// NewTerragruntOptions creates a new TerragruntOptions object with
+// reasonable defaults for real usage
 func NewTerragruntOptions() *TerragruntOptions {
 	return NewTerragruntOptionsWithWriters(os.Stdout, os.Stderr)
 }
@@ -414,9 +416,9 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		ErrWriter:                      stderr,
 		MaxFoldersToCheck:              DefaultMaxFoldersToCheck,
 		AutoRetry:                      true,
-		RetryMaxAttempts:               DEFAULT_RETRY_MAX_ATTEMPTS,
-		RetrySleepIntervalSec:          DEFAULT_RETRY_SLEEP_INTERVAL_SEC,
-		RetryableErrors:                util.CloneStringList(DEFAULT_RETRYABLE_ERRORS),
+		RetryMaxAttempts:               DefaultRetryMaxAttempts,
+		RetrySleepInterval:             DefaultRetrySleepInterval,
+		RetryableErrors:                util.CloneStringList(DefaultRetryableErrors),
 		ExcludeDirs:                    []string{},
 		IncludeDirs:                    []string{},
 		ModulesThatInclude:             []string{},
@@ -429,14 +431,14 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		ForwardTFStdout:                false,
 		JSONOut:                        DefaultJSONOutName,
 		TerraformImplementation:        UnknownImpl,
-		TerraformLogsToJson:            false,
-		JsonDisableDependentModules:    false,
+		TerraformLogsToJSON:            false,
+		JSONDisableDependentModules:    false,
 		RunTerragrunt: func(ctx context.Context, opts *TerragruntOptions) error {
 			return errors.WithStackTrace(ErrRunTerragruntCommandNotSet)
 		},
 		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
 		OutputFolder:               "",
-		JsonOutputFolder:           "",
+		JSONOutputFolder:           "",
 	}
 }
 
@@ -456,7 +458,8 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 	return opts, nil
 }
 
-// Get the default working and download directories for the given Terragrunt config path
+// DefaultWorkingAndDownloadDirs gets the default working and download
+// directories for the given Terragrunt config path.
 func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string, error) {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
@@ -468,12 +471,12 @@ func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string,
 	return filepath.ToSlash(workingDir), filepath.ToSlash(downloadDir), nil
 }
 
-// Get the default IAM assume role session name.
+// GetDefaultIAMAssumeRoleSessionName gets the default IAM assume role session name.
 func GetDefaultIAMAssumeRoleSessionName() string {
 	return fmt.Sprintf("terragrunt-%d", time.Now().UTC().UnixNano())
 }
 
-// Create a new TerragruntOptions object with reasonable defaults for test usage
+// NewTerragruntOptionsForTest creates a new TerragruntOptions object with reasonable defaults for test usage.
 func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...TerragruntOptionsFunc) (*TerragruntOptions, error) {
 	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
 	if err != nil {
@@ -504,7 +507,7 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 	return opts
 }
 
-// Create a copy of this TerragruntOptions, but with different values for the given variables. This is useful for
+// Clone creates a copy of this TerragruntOptions, but with different values for the given variables. This is useful for
 // creating a TerragruntOptions that behaves the same way, but is used for a Terraform module in a different folder.
 func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOptions, error) {
 	workingDir := filepath.Dir(terragruntConfigPath)
@@ -547,7 +550,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		MaxFoldersToCheck:              opts.MaxFoldersToCheck,
 		AutoRetry:                      opts.AutoRetry,
 		RetryMaxAttempts:               opts.RetryMaxAttempts,
-		RetrySleepIntervalSec:          opts.RetrySleepIntervalSec,
+		RetrySleepInterval:             opts.RetrySleepInterval,
 		RetryableErrors:                util.CloneStringList(opts.RetryableErrors),
 		ExcludesFile:                   opts.ExcludesFile,
 		ExcludeDirs:                    opts.ExcludeDirs,
@@ -560,7 +563,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		AwsProviderPatchOverrides:      opts.AwsProviderPatchOverrides,
 		HclFile:                        opts.HclFile,
 		JSONOut:                        opts.JSONOut,
-		JsonLogFormat:                  opts.JsonLogFormat,
+		JSONLogFormat:                  opts.JSONLogFormat,
 		Check:                          opts.Check,
 		CheckDependentModules:          opts.CheckDependentModules,
 		FetchDependencyOutputFromState: opts.FetchDependencyOutputFromState,
@@ -569,18 +572,18 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		FailIfBucketCreationRequired:   opts.FailIfBucketCreationRequired,
 		DisableBucketUpdate:            opts.DisableBucketUpdate,
 		TerraformImplementation:        opts.TerraformImplementation,
-		TerraformLogsToJson:            opts.TerraformLogsToJson,
+		TerraformLogsToJSON:            opts.TerraformLogsToJSON,
 		GraphRoot:                      opts.GraphRoot,
 		ScaffoldVars:                   opts.ScaffoldVars,
 		ScaffoldVarFiles:               opts.ScaffoldVarFiles,
-		JsonDisableDependentModules:    opts.JsonDisableDependentModules,
+		JSONDisableDependentModules:    opts.JSONDisableDependentModules,
 		ProviderCache:                  opts.ProviderCache,
 		ProviderCacheToken:             opts.ProviderCacheToken,
 		ProviderCacheDir:               opts.ProviderCacheDir,
 		ProviderCacheRegistryNames:     opts.ProviderCacheRegistryNames,
 		DisableLogColors:               opts.DisableLogColors,
 		OutputFolder:                   opts.OutputFolder,
-		JsonOutputFolder:               opts.JsonOutputFolder,
+		JSONOutputFolder:               opts.JSONOutputFolder,
 		AuthProviderCmd:                opts.AuthProviderCmd,
 		SkipOutput:                     opts.SkipOutput,
 		Engine:                         cloneEngineOptions(opts.Engine),
@@ -627,12 +630,12 @@ func extractPlanFile(argsToInsert []string) (*string, []string) {
 	return nil, filteredArgs
 }
 
-// Inserts the given argsToInsert after the terraform command argument, but before the remaining args
+// InsertTerraformCliArgs inserts the given argsToInsert after the terraform command argument, but before the remaining args.
 func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	planFile, restArgs := extractPlanFile(argsToInsert)
 
 	commandLength := 1
-	if util.ListContainsElement(TERRAFORM_COMMANDS_WITH_SUBCOMMAND, opts.TerraformCliArgs[0]) {
+	if util.ListContainsElement(TerraformCommandsWithSubcommand, opts.TerraformCliArgs[0]) {
 		// Since these terraform commands require subcommands which may not always be properly passed by the user,
 		// using util.Min to return the minimum to avoid potential out of bounds slice errors.
 		commandLength = util.Min(minCommandLength, len(opts.TerraformCliArgs))
@@ -653,7 +656,7 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	opts.TerraformCliArgs = args
 }
 
-// Appends the given argsToAppend after the current TerraformCliArgs
+// AppendTerraformCliArgs appends the given argsToAppend after the current TerraformCliArgs.
 func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
 	opts.TerraformCliArgs = append(opts.TerraformCliArgs, argsToAppend...)
 }

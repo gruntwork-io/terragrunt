@@ -1,3 +1,5 @@
+// Package diagnostic provides a way to represent diagnostics in a way
+// that can be easily marshalled to JSON.
 package diagnostic
 
 import (

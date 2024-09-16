@@ -18,7 +18,7 @@ const (
 	testFixtureLocalsErrorUndefinedLocalButInput = "fixtures/locals-errors/undefined-local-but-input"
 	testFixtureLocalsCanonical                   = "fixtures/locals/canonical"
 	testFixtureLocalsInInclude                   = "fixtures/locals/local-in-include"
-	TestFixtureLocalRunOnce                      = "fixtures/locals/run-once"
+	testFixtureLocalRunOnce                      = "fixtures/locals/run-once"
 	testFixtureLocalRunMultiple                  = "fixtures/locals/run-multiple"
 	testFixtureLocalsInIncludeChildRelPath       = "qa/my-app"
 	testFixtureBrokenLocals                      = "fixtures/broken-locals"
@@ -137,11 +137,11 @@ func TestTerragruntInitRunCmd(t *testing.T) {
 func TestTerragruntLocalRunOnce(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TestFixtureLocalRunOnce)
+	cleanupTerraformFolder(t, testFixtureLocalRunOnce)
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, "terragrunt init --terragrunt-working-dir "+TestFixtureLocalRunOnce, &stdout, &stderr)
+	err := runTerragruntCommand(t, "terragrunt init --terragrunt-working-dir "+testFixtureLocalRunOnce, &stdout, &stderr)
 	require.Error(t, err)
 
 	errout := stdout.String()

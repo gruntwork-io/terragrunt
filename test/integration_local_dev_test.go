@@ -12,6 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testFixtureGetTerragruntSourceHcl = "fixtures/get-terragrunt-source-hcl"
+)
+
 func TestTerragruntSourceMap(t *testing.T) {
 	t.Parallel()
 

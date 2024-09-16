@@ -1,3 +1,4 @@
+// Package outputmodulegroups provides a command to output groups of modules ordered by command (apply or destroy) as a list of list in JSON (useful for CI use cases).
 package outputmodulegroups
 
 import (

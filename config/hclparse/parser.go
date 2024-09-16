@@ -1,6 +1,7 @@
+// Package hclparse provides a wrapper around the HCL2 parser to handle diagnostics and errors in a more user-friendly way.
+//
 // The package wraps `hclparse.Parser` to be able to handle diagnostic errors from one place, see `handleDiagnostics(diags hcl.Diagnostics) error` func.
 // This allows us to halt the process only when certain errors occur, such as skipping all errors not related to the `catalog` block.
-
 package hclparse
 
 import (

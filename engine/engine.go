@@ -1,3 +1,4 @@
+// Package engine provides the pluggable IaC engine for Terragrunt.
 package engine
 
 import (
@@ -691,7 +692,7 @@ func ReadEngineOutput(runOptions *ExecutionOptions, output outputFn) error {
 	return nil //nolint:nilerr
 }
 
-// convert metadata map to protobuf map
+// ConvertMetaToProtobuf converts metadata map to protobuf map
 func ConvertMetaToProtobuf(meta map[string]interface{}) (map[string]*anypb.Any, error) {
 	protoMeta := make(map[string]*anypb.Any)
 	if meta == nil {

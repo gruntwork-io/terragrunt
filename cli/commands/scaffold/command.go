@@ -1,3 +1,4 @@
+// Package scaffold provides the command to scaffold a new Terragrunt module.
 package scaffold
 
 import (
@@ -33,17 +34,17 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		DisallowUndefinedFlags: true,
 		Flags:                  NewFlags(opts).Sort(),
 		Action: func(ctx *cli.Context) error {
-			var moduleUrl, templateUrl string
+			var moduleURL, templateURL string
 
 			if val := ctx.Args().Get(0); val != "" {
-				moduleUrl = val
+				moduleURL = val
 			}
 
 			if val := ctx.Args().Get(1); val != "" {
-				templateUrl = val
+				templateURL = val
 			}
 
-			return Run(ctx, opts.OptionsFromContext(ctx), moduleUrl, templateUrl)
+			return Run(ctx, opts.OptionsFromContext(ctx), moduleURL, templateURL)
 		},
 	}
 }

@@ -165,7 +165,7 @@ func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *Inc
 	return TerragruntConfigFromPartialConfig(ctx, file, include)
 }
 
-// Wrapper of PartialParseConfigString which checks for cached configs.
+// TerragruntConfigFromPartialConfig is a wrapper of PartialParseConfigString which checks for cached configs.
 // filename, configString, includeFromChild and decodeList are used for the cache key,
 // by getting the default value (%#v) through fmt.
 func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
@@ -351,7 +351,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				ok := goErrors.As(err, &diagErr)
 
 				// in case of render-json command and inputs reference error, we update the inputs with default value
-				if !ok || !isRenderJsonCommand(ctx) || !isAttributeAccessError(diagErr) {
+				if !ok || !isRenderJSONCommand(ctx) || !isAttributeAccessError(diagErr) {
 					return nil, err
 				}
 

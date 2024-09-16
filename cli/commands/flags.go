@@ -1,3 +1,4 @@
+// Package commands provides the implementation of the Terragrunt commands.
 package commands
 
 import (
@@ -18,8 +19,8 @@ const (
 	TerragruntDisableLogFormattingFlagName = "terragrunt-disable-log-formatting"
 	TerragruntDisableLogFormattingEnvName  = "TERRAGRUNT_DISABLE_LOG_FORMATTING"
 
-	TerragruntJsonLogFlagName = "terragrunt-json-log"
-	TerragruntJsonLogEnvName  = "TERRAGRUNT_JSON_LOG"
+	TerragruntJSONLogFlagName = "terragrunt-json-log"
+	TerragruntJSONLogEnvName  = "TERRAGRUNT_JSON_LOG"
 
 	TerragruntConfigFlagName = "terragrunt-config"
 	TerragruntConfigEnvName  = "TERRAGRUNT_CONFIG"
@@ -96,8 +97,8 @@ const (
 	TerragruntDebugFlagName = "terragrunt-debug"
 	TerragruntDebugEnvName  = "TERRAGRUNT_DEBUG"
 
-	TerragruntTfLogJsonFlagName = "terragrunt-tf-logs-to-json"
-	TerragruntTfLogJsonEnvName  = "TERRAGRUNT_TF_JSON_LOG"
+	TerragruntTfLogJSONFlagName = "terragrunt-tf-logs-to-json"
+	TerragruntTfLogJSONEnvName  = "TERRAGRUNT_TF_JSON_LOG"
 
 	TerragruntModulesThatIncludeFlagName = "terragrunt-modules-that-include"
 	TerragruntModulesThatIncludeEnvName  = "TERRAGRUNT_MODULES_THAT_INCLUDE"
@@ -123,8 +124,8 @@ const (
 	TerragruntOutDirFlagEnvName = "TERRAGRUNT_OUT_DIR"
 	TerragruntOutDirFlagName    = "terragrunt-out-dir"
 
-	TerragruntJsonOutDirFlagEnvName = "TERRAGRUNT_JSON_OUT_DIR"
-	TerragruntJsonOutDirFlagName    = "terragrunt-json-out-dir"
+	TerragruntJSONOutDirFlagEnvName = "TERRAGRUNT_JSON_OUT_DIR"
+	TerragruntJSONOutDirFlagName    = "terragrunt-json-out-dir"
 
 	// Logs related flags/envs
 
@@ -369,9 +370,9 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			},
 		},
 		&cli.BoolFlag{
-			Name:        TerragruntJsonLogFlagName,
-			EnvVar:      TerragruntJsonLogEnvName,
-			Destination: &opts.JsonLogFormat,
+			Name:        TerragruntJSONLogFlagName,
+			EnvVar:      TerragruntJSONLogEnvName,
+			Destination: &opts.JSONLogFormat,
 			Usage:       "If specified, Terragrunt will output its logs in JSON format.",
 			Action: func(ctx *cli.Context, _ bool) error {
 				opts.Logger.SetOptions(log.WithFormatter(&format.JSONFormatter{}))
@@ -395,9 +396,9 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			},
 		},
 		&cli.BoolFlag{
-			Name:        TerragruntTfLogJsonFlagName,
-			EnvVar:      TerragruntTfLogJsonEnvName,
-			Destination: &opts.TerraformLogsToJson,
+			Name:        TerragruntTfLogJSONFlagName,
+			EnvVar:      TerragruntTfLogJSONEnvName,
+			Destination: &opts.TerraformLogsToJSON,
 			Usage:       "If specified, Terragrunt will wrap Terraform stdout and stderr in JSON.",
 		},
 		&cli.BoolFlag{

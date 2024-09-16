@@ -1,3 +1,4 @@
+// Package cli configures the Terragrunt CLI app and its commands.
 package cli
 
 import (
@@ -146,7 +147,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	return nil
 }
 
-// This set of commands is also used in unit tests
+// TerragruntCommands returns the set of Terragrunt commands.
 func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	cmds := cli.Commands{
 		runall.NewCommand(opts),             // runAction-all
@@ -171,7 +172,7 @@ func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	return cmds
 }
 
-// Wrap CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
+// WrapWithTelemetry wraps CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
 func WrapWithTelemetry(opts *options.TerragruntOptions) func(ctx *cli.Context, action cli.ActionFunc) error {
 	return func(ctx *cli.Context, action cli.ActionFunc) error {
 		return telemetry.Telemetry(ctx.Context, opts, fmt.Sprintf("%s %s", ctx.Command.Name, opts.TerraformCommand), map[string]interface{}{

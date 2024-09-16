@@ -34,7 +34,7 @@ func TestAwsCreateLockTableConcurrency(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	client := createDynamoDbClientForTest(t)
+	client := createDynamoDBClientForTest(t)
 	tableName := uniqueTableNameForTest()
 
 	defer cleanupTableForTest(t, tableName, client)
@@ -65,7 +65,7 @@ func TestAwsWaitForTableToBeActiveTableDoesNotExist(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	client := createDynamoDbClientForTest(t)
+	client := createDynamoDBClientForTest(t)
 	tableName := "terragrunt-table-does-not-exist"
 	retries := 5
 

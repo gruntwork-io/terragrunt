@@ -1,3 +1,4 @@
+// Package renderjson provides the command to render the final terragrunt config, with all variables, includes, and functions resolved, as json.
 package renderjson
 
 import (
@@ -22,13 +23,13 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 		},
 		&cli.BoolFlag{
 			Name:        FlagNameWithMetadata,
-			Destination: &opts.RenderJsonWithMetadata,
+			Destination: &opts.RenderJSONithMetadata,
 			Usage:       "Add metadata to the rendered JSON file.",
 		},
 		&cli.BoolFlag{
 			Name:        FlagNameDisableDependentModules,
 			EnvVar:      "TERRAGRUNT_JSON_DISABLE_DEPENDENT_MODULES",
-			Destination: &opts.JsonDisableDependentModules,
+			Destination: &opts.JSONDisableDependentModules,
 			Usage:       "Disable identification of dependent modules rendering json config.",
 		},
 	}

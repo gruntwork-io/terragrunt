@@ -53,13 +53,13 @@ func FileOrData(maybePath string) (string, error) {
 	return expandedMaybePath, nil
 }
 
-// Return true if the given file exists
+// FileExists returns true if the given file exists.
 func FileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
 
-// Return true if the given file does not exist
+// FileNotExists returns true if the given file does not exist.
 func FileNotExists(path string) bool {
 	_, err := os.Stat(path)
 	return os.IsNotExist(err)
@@ -132,7 +132,7 @@ func GlobCanonicalPath(basePath string, globPaths ...string) ([]string, error) {
 	return paths, nil
 }
 
-// Return the canonical version of the given paths, relative to the given base path. That is, if a given path is a
+// CanonicalPaths returns the canonical version of the given paths, relative to the given base path. That is, if a given path is a
 // relative path, assume it is relative to the given base path. A canonical path is an absolute path with all relative
 // components (e.g. "../") fully resolved, which makes it safe to compare paths as strings.
 func CanonicalPaths(paths []string, basePath string) ([]string, error) {
@@ -150,7 +150,7 @@ func CanonicalPaths(paths []string, basePath string) ([]string, error) {
 	return canonicalPaths, nil
 }
 
-// Returns true if the given regex can be found in any of the files matched by the given glob
+// Grep returns true if the given regex can be found in any of the files matched by the given glob.
 func Grep(regex *regexp.Regexp, glob string) (bool, error) {
 	// Ideally, we'd use a builin Go library like filepath.Glob here, but per https://github.com/golang/go/issues/11862,
 	// the current go implementation doesn't support treating ** as zero or more directories, just zero or one.
@@ -178,19 +178,19 @@ func Grep(regex *regexp.Regexp, glob string) (bool, error) {
 	return false, nil
 }
 
-// Return true if the path points to a directory
+// IsDir returns true if the path points to a directory.
 func IsDir(path string) bool {
 	fileInfo, err := os.Stat(path)
 	return err == nil && fileInfo.IsDir()
 }
 
-// Return true if the path points to a file
+// IsFile returns true if the path points to a file.
 func IsFile(path string) bool {
 	fileInfo, err := os.Stat(path)
 	return err == nil && !fileInfo.IsDir()
 }
 
-// Return the relative path you would have to take to get from basePath to path
+// GetPathRelativeTo returns the relative path you would have to take to get from basePath to path.
 func GetPathRelativeTo(path string, basePath string) (string, error) {
 	if path == "" {
 		path = "."
@@ -218,7 +218,7 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 	return filepath.ToSlash(relPath), nil
 }
 
-// Return the contents of the file at the given path as a string
+// ReadFileAsString returns the contents of the file at the given path as a string.
 func ReadFileAsString(path string) (string, error) {
 	bytes, err := os.ReadFile(path)
 	if err != nil {
@@ -273,7 +273,7 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 	return includeExpandedGlobs, nil
 }
 
-// Copy the files and folders within the source folder into the destination folder. Note that hidden files and folders
+// CopyFolderContents copies the files and folders within the source folder into the destination folder. Note that hidden files and folders
 // (those starting with a dot) will be skipped. Will create a specified manifest file that contains paths of all copied files.
 func CopyFolderContents(logger log.Logger, source, destination, manifestFile string, includeInCopy []string) error {
 	// Expand all the includeInCopy glob paths, converting the globbed results to relative paths so that they work in
@@ -301,9 +301,7 @@ func CopyFolderContents(logger log.Logger, source, destination, manifestFile str
 	})
 }
 
-// Copy the files and folders within the source folder into the destination folder. Pass each file and folder through
-// the given filter function and only copy it if the filter returns true. Will create a specified manifest file
-// that contains paths of all copied files.
+// CopyFolderContentsWithFilter copies the files and folders within the source folder into the destination folder.
 func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
 	const ownerReadWriteExecutePerms = 0700
 	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
@@ -407,7 +405,7 @@ func TerragruntExcludes(path string) bool {
 	return false
 }
 
-// Copy a file from source to destination
+// CopyFile copies a file from source to destination.
 func CopyFile(source string, destination string) error {
 	contents, err := os.ReadFile(source)
 	if err != nil {
@@ -417,7 +415,8 @@ func CopyFile(source string, destination string) error {
 	return WriteFileWithSamePermissions(source, destination, contents)
 }
 
-// Write a file to the given destination with the given contents using the same permissions as the file at source
+// WriteFileWithSamePermissions writes a file to the given destination with the given contents
+// using the same permissions as the file at source.
 func WriteFileWithSamePermissions(source string, destination string, contents []byte) error {
 	fileInfo, err := os.Stat(source)
 	if err != nil {
@@ -427,6 +426,8 @@ func WriteFileWithSamePermissions(source string, destination string, contents []
 	return os.WriteFile(destination, contents, fileInfo.Mode())
 }
 
+// JoinPath is a wrapper around filepath.Join
+//
 // Windows systems use \ as the path separator *nix uses /
 // Use this function when joining paths to force the returned path to use / as the path separator
 // This will improve cross-platform compatibility
@@ -442,7 +443,10 @@ func SplitPath(path string) []string {
 	return strings.Split(CleanPath(path), filepath.ToSlash(string(filepath.Separator)))
 }
 
-// Use this function when cleaning paths to ensure the returned path uses / as the path separator to improve cross-platform compatibility
+// CleanPath is a wrapper around filepath.Clean.
+//
+// Use this function when cleaning paths to ensure the returned
+// path uses / as the path separator to improve cross-platform compatibility
 func CleanPath(path string) string {
 	return filepath.ToSlash(filepath.Clean(path))
 }
@@ -470,24 +474,25 @@ func HasPathPrefix(path, prefix string) bool {
 	return hasPrefix
 }
 
-// Join two paths together with a double-slash between them, as this is what Terraform uses to identify where a "repo"
-// ends and a path within the repo begins. Note: The Terraform docs only mention two forward-slashes, so it's not clear
+// JoinTerraformModulePath joins two paths together with a double-slash between them, as this is what
+// Terraform uses to identify where a "repo" ends and a path within the repo begins.
+// Note: The Terraform docs only mention two forward-slashes, so it's not clear
 // if on Windows those should be two back-slashes? https://www.terraform.io/docs/modules/sources.html
 func JoinTerraformModulePath(modulesFolder string, path string) string {
 	cleanModulesFolder := strings.TrimRight(modulesFolder, `/\`)
 	cleanPath := strings.TrimLeft(path, `/\`)
 	// if source path contains "?ref=", reconstruct module dir using "//"
 	if strings.Contains(cleanModulesFolder, "?ref=") && cleanPath != "" {
-		canonicalSourceUrl, err := urlhelper.Parse(cleanModulesFolder)
+		canonicalSourceURL, err := urlhelper.Parse(cleanModulesFolder)
 		if err == nil {
 			// append path
-			if canonicalSourceUrl.Opaque != "" {
-				canonicalSourceUrl.Opaque = fmt.Sprintf("%s//%s", strings.TrimRight(canonicalSourceUrl.Opaque, `/\`), cleanPath)
+			if canonicalSourceURL.Opaque != "" {
+				canonicalSourceURL.Opaque = fmt.Sprintf("%s//%s", strings.TrimRight(canonicalSourceURL.Opaque, `/\`), cleanPath)
 			} else {
-				canonicalSourceUrl.Path = fmt.Sprintf("%s//%s", strings.TrimRight(canonicalSourceUrl.Path, `/\`), cleanPath)
+				canonicalSourceURL.Path = fmt.Sprintf("%s//%s", strings.TrimRight(canonicalSourceURL.Path, `/\`), cleanPath)
 			}
 
-			return canonicalSourceUrl.String()
+			return canonicalSourceURL.String()
 		}
 	}
 

@@ -28,13 +28,15 @@ const (
 	IgnoreOrder
 )
 
-// Represents the status of a module that we are trying to apply as part of the apply-all or destroy-all command
+// ModuleStatus represents the status of a module that we are
+// trying to apply as part of the apply-all or destroy-all command
 type ModuleStatus int
 
-// This controls in what order dependencies should be enforced between modules
+// DependencyOrder controls in what order dependencies should be enforced between modules.
 type DependencyOrder int
 
-// Represents a module we are trying to "run" (i.e. apply or destroy) as part of the apply-all or destroy-all command
+// RunningModule represents a module we are trying to "run" (i.e. apply or destroy)
+// as part of the apply-all or destroy-all command.
 type RunningModule struct {
 	Module         *TerraformModule
 	Status         ModuleStatus
@@ -124,7 +126,7 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 		}
 
 		// convert terragrunt output to json
-		if module.Module.outputJsonFile(module.Module.TerragruntOptions) != "" {
+		if module.Module.outputJSONFile(module.Module.TerragruntOptions) != "" {
 			jsonOptions, err := module.Module.TerragruntOptions.Clone(module.Module.TerragruntOptions.TerragruntConfigPath)
 			if err != nil {
 				return err
@@ -132,7 +134,7 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 
 			stdout := bytes.Buffer{}
 			jsonOptions.ForwardTFStdout = true
-			jsonOptions.TerraformLogsToJson = false
+			jsonOptions.TerraformLogsToJSON = false
 			jsonOptions.Writer = &stdout
 			jsonOptions.TerraformCommand = terraform.CommandNameShow
 			jsonOptions.TerraformCliArgs = []string{terraform.CommandNameShow, "-json", module.Module.planFile(rootOptions)}
@@ -142,7 +144,7 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 			}
 
 			// save the json output to the file plan file
-			outputFile := module.Module.outputJsonFile(rootOptions)
+			outputFile := module.Module.outputJSONFile(rootOptions)
 			jsonDir := filepath.Dir(outputFile)
 
 			if err := os.MkdirAll(jsonDir, os.ModePerm); err != nil {
@@ -267,7 +269,8 @@ func (modules RunningModules) crossLinkDependencies(dependencyOrder DependencyOr
 	return modules, nil
 }
 
-// Return a cleaned-up map that only contains modules and dependencies that should not be excluded
+// RemoveFlagExcluded returns a cleaned-up map that only contains modules and
+// dependencies that should not be excluded
 func (modules RunningModules) RemoveFlagExcluded() map[string]*RunningModule {
 	var finalModules = make(map[string]*RunningModule)
 

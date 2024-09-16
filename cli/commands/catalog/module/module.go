@@ -1,3 +1,4 @@
+// Package module provides a struct to represent an OpenTofu/Terraform module.
 package module
 
 import (

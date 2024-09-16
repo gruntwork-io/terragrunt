@@ -103,8 +103,8 @@ func TestLocalDownloadWithRelativePath(t *testing.T) {
 func TestLocalWithMissingBackend(t *testing.T) {
 	t.Parallel()
 
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-lock-table-" + strings.ToLower(uniqueId())
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	lockTableName := "terragrunt-lock-table-" + strings.ToLower(uniqueID())
 
 	tmpEnvPath := copyEnvironment(t, "fixtures/download")
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLocalMissingBackend)

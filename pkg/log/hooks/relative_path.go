@@ -1,3 +1,4 @@
+// Package hooks provides hooks for the Terragrunt logger.
 package hooks
 
 import (

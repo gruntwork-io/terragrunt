@@ -1,3 +1,4 @@
+// Package creds provides a way to obtain credentials through different providers and set them to `opts.Env`.
 package creds
 
 import (
