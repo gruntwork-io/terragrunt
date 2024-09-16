@@ -12,7 +12,7 @@ func WithLogger(logger log.Logger) Option {
 	}
 }
 
-// WithLogger sets the default log level for Writer in case the log level cannot be extracted from the message.
+// WithDefaultLevel sets the default log level for Writer in case the log level cannot be extracted from the message.
 func WithDefaultLevel(level log.Level) Option {
 	return func(writer *Writer) {
 		writer.defaultLevel = level

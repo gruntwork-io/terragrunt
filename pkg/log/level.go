@@ -111,7 +111,7 @@ func (level Level) TinyName() string {
 	return ""
 }
 
-// TinyName returns the level name in third characters.
+// ShortName returns the level name in third characters.
 func (level Level) ShortName() string {
 	if name, ok := levelShortNames[level]; ok {
 		return name
@@ -182,7 +182,7 @@ func (levels Levels) String() string {
 	return strings.Join(levels.Names(), ", ")
 }
 
-// ToLogrusLevels converts our `Level` to `logrus.Level`.
+// ToLogrusLevel converts our `Level` to `logrus.Level`.
 func (level Level) ToLogrusLevel() logrus.Level {
 	if logrusLevel, ok := logrusLevels[level]; ok {
 		return logrusLevel

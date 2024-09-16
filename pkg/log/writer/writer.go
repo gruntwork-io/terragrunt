@@ -1,3 +1,4 @@
+// Package writer provides a writer that redirects Write requests to configured logger and level.
 package writer
 
 import (
