@@ -289,7 +289,7 @@ func TestHCLFmtStdin(t *testing.T) {
 
 	// format hcl from stdin
 	tgOptions.HclFromStdin = true
-	err = Run(tgOptions)
+	err = hclfmt.Run(tgOptions)
 	require.NoError(t, err)
 
 	formatted, err := os.ReadFile(tempStdoutFile.Name())
