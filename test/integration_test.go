@@ -28,6 +28,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -160,9 +161,11 @@ func TestLogFormatterPrettyOutput(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, prefixName := range []string{"app", "dep"} {
-		assert.Contains(t, stdout, "STDOUT ["+prefixName+"] "+wrappedBinary()+": Initializing provider plugins...")
+		assert.Contains(t, stderr, "STDOUT ["+prefixName+"] "+wrappedBinary()+": Initializing provider plugins...")
 		assert.Contains(t, stderr, "DEBUG  ["+prefixName+"] Reading Terragrunt config file at ./"+prefixName+"/terragrunt.hcl")
 	}
+
+	assert.Empty(t, stdout)
 	assert.Contains(t, stderr, "DEBUG  Terragrunt Version:")
 }
 
@@ -193,7 +196,9 @@ func TestLogRawModuleOutput(t *testing.T) {
 	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt run-all init -no-color --terragrunt-log-level debug --terragrunt-non-interactive  --terragrunt-forward-tf-stdout --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Contains(t, strings.ReplaceAll(stdout, "\n", ""), "Initializing the backend...Initializing provider plugins...")
+	stdoutInline := strings.ReplaceAll(stdout, "\n", "")
+	assert.Contains(t, stdoutInline, "Initializing the backend...Initializing provider plugins...")
+	assert.NotRegexp(t, regexp.MustCompile(`(?i)(`+strings.Join(log.AllLevels.Names(), "|")+`)+`), stdoutInline)
 }
 
 func TestTerragruntExcludesFile(t *testing.T) {

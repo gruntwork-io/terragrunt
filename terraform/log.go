@@ -5,9 +5,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 )
+
+const parseLogNumberOfValues = 4
 
 var (
 	// logTimestampFormat is TF_LOG timestamp formats.
@@ -22,41 +25,47 @@ var (
 	tfLogTimeLevelMsgReg = regexp.MustCompile(`(?i)(^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}\S*)\s*\[(trace|debug|warn|info|error)\]\s*(.+\S)$`)
 )
 
-func ParseLogFunc(msgPrefix string) writer.WriterParseFunc {
+// ParseLogFunc wrappes `PraerLog` to add msg prefix and ignore the parse erorr if `return ParseError` is true.
+func ParseLogFunc(msgPrefix string, returnParseError bool) writer.WriterParseFunc {
 	return func(str string) (msg string, ptrTime *time.Time, ptrLevel *log.Level, err error) {
-		return ParseLog(msgPrefix, str)
+		msg, ptrTime, ptrLevel, err = ParseLog(str)
+		if err != nil && returnParseError {
+			return "", nil, nil, err
+		}
+
+		return msgPrefix + msg, ptrTime, ptrLevel, nil
 	}
 }
 
-func ParseLog(msgPrefix, str string) (msg string, ptrTime *time.Time, ptrLevel *log.Level, err error) {
-	const numberOfValues = 4
-
+func ParseLog(str string) (msg string, ptrTime *time.Time, ptrLevel *log.Level, err error) {
 	if !tfLogTimeLevelMsgReg.MatchString(str) {
-		return str, nil, nil, nil
+		return str, nil, nil, errors.Errorf("could not parse string %q: does not match a known format", str)
 	}
 
 	match := tfLogTimeLevelMsgReg.FindStringSubmatch(str)
-	if len(match) != numberOfValues {
-		return str, nil, nil, nil
+	if len(match) != parseLogNumberOfValues {
+		return str, nil, nil, errors.Errorf("could not parse string %q: does not match a known format", str)
 	}
 
 	timeStr, levelStr, msg := match[1], match[2], match[3]
 
 	if levelStr != "" {
-		if level, err := log.ParseLevel(strings.ToLower(levelStr)); err == nil {
-			ptrLevel = &level
-		} else {
-			msg = "[" + levelStr + "] " + msg
+		level, err := log.ParseLevel(strings.ToLower(levelStr))
+		if err != nil {
+			return str, nil, nil, errors.Errorf("could not parse level %q: %w", levelStr, err)
 		}
+
+		ptrLevel = &level
 	}
 
 	if timeStr != "" {
-		if time, err := time.Parse(logTimestampFormat, timeStr); err == nil {
-			ptrTime = &time
-		} else {
-			msg = timeStr + " " + msg
+		time, err := time.Parse(logTimestampFormat, timeStr)
+		if err != nil {
+			return str, nil, nil, errors.Errorf("could not parse time %q: %w", timeStr, err)
 		}
+
+		ptrTime = &time
 	}
 
-	return msgPrefix + msg, ptrTime, ptrLevel, nil
+	return msg, ptrTime, ptrLevel, nil
 }
