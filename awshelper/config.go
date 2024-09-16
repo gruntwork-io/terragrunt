@@ -319,7 +319,7 @@ func AssumeIamRole(iamRoleOpts options.IAMRoleOptions) (*sts.Credentials, error)
 	return resp.Credentials, nil
 }
 
-// GetAWSCallerIdentity return the AWS caller identity associated with the current set of credentials
+// GetAWSCallerIdentity returns the AWS caller identity associated with the current set of credentials
 func GetAWSCallerIdentity(config *AwsSessionConfig, terragruntOptions *options.TerragruntOptions) (sts.GetCallerIdentityOutput, error) {
 	sess, err := CreateAwsSession(config, terragruntOptions)
 	if err != nil {
