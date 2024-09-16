@@ -33,7 +33,7 @@ var LocalEngineBinaryPath = "terragrunt-iac-engine-opentofu_rpc_" + testEngineVe
 func TestEngineLocalPlan(t *testing.T) {
 	rootPath := setupLocalEngine(t)
 
-	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", rootPath))
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s --terragrunt-log-level debug", rootPath))
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, LocalEngineBinaryPath+": plugin address")
@@ -45,7 +45,7 @@ func TestEngineLocalPlan(t *testing.T) {
 func TestEngineLocalApply(t *testing.T) {
 	rootPath := setupLocalEngine(t)
 
-	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, LocalEngineBinaryPath+": plugin address")
@@ -61,7 +61,7 @@ func TestEngineOpentofu(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, testFixtureOpenTofuEngine)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureOpenTofuEngine)
 
-	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "starting plugin:")
@@ -77,7 +77,7 @@ func TestEngineRunAllOpentofu(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, testFixtureOpenTofuRunAll)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureOpenTofuRunAll)
 
-	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "starting plugin:")
@@ -94,7 +94,7 @@ func TestEngineRunAllOpentofuCustomPath(t *testing.T) {
 
 	cacheDir, rootPath := setupEngineCache(t)
 
-	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "starting plugin:")
@@ -123,7 +123,7 @@ func TestEngineDownloadOverHttp(t *testing.T) {
 		"__hardcoded_url__": fmt.Sprintf("https://github.com/gruntwork-io/terragrunt-engine-opentofu/releases/download/v0.0.4/terragrunt-iac-engine-opentofu_rpc_v0.0.4_%s_%s.zip", platform, arch),
 	})
 
-	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "starting plugin:")

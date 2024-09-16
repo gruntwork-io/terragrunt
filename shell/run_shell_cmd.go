@@ -455,6 +455,7 @@ func shouldForceForwardTFStdout(args cli.Args) bool {
 
 	tfFlags := []string{
 		terraform.FlagNameJSON,
+		terraform.FlagNameVersion,
 		terraform.FlagNameHelpLong,
 		terraform.FlagNameHelpShort,
 	}
