@@ -9,10 +9,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/internal/log"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
 	openpgpArmor "github.com/ProtonMail/go-crypto/openpgp/armor"

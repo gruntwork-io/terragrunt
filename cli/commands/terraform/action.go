@@ -36,6 +36,8 @@ import (
 const (
 	CommandNameTerragruntReadConfig = "terragrunt-read-config"
 	NullTFVarsFile                  = ".terragrunt-null-vars.auto.tfvars.json"
+
+	useLegacyNullValuesEnvVar = "TERRAGRUNT_TEMP_QUOTE_NULL"
 )
 
 var TerraformCommandsThatUseState = []string{
@@ -297,18 +299,20 @@ func runTerragruntWithConfig(ctx context.Context, originalTerragruntOptions *opt
 		}
 	}
 
-	fileName, err := setTerragruntNullValues(terragruntOptions, terragruntConfig)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		if fileName != "" {
-			if err := os.Remove(fileName); err != nil {
-				terragruntOptions.Logger.Debugf("Failed to remove null values file %s: %v", fileName, err)
-			}
+	if !useLegacyNullValues() {
+		fileName, err := setTerragruntNullValues(terragruntOptions, terragruntConfig)
+		if err != nil {
+			return err
 		}
-	}()
+
+		defer func() {
+			if fileName != "" {
+				if err := os.Remove(fileName); err != nil {
+					terragruntOptions.Logger.Debugf("Failed to remove null values file %s: %v", fileName, err)
+				}
+			}
+		}()
+	}
 
 	// Now that we've run 'init' and have all the source code locally, we can finally run the patch command
 	if target.isPoint(TargetPointInitCommand) {
@@ -356,7 +360,7 @@ func confirmActionWithDependentModules(ctx context.Context, terragruntOptions *o
 
 		prompt := "WARNING: Are you sure you want to continue?"
 
-		shouldRun, err := shell.PromptUserForYesNo(prompt, terragruntOptions)
+		shouldRun, err := shell.PromptUserForYesNo(ctx, prompt, terragruntOptions)
 		if err != nil {
 			terragruntOptions.Logger.Error(err)
 			return false
@@ -419,7 +423,7 @@ func runActionWithHooks(ctx context.Context, description string, terragruntOptio
 // SetTerragruntInputsAsEnvVars sets the inputs from Terragrunt configurations to TF_VAR_* environment variables for
 // OpenTofu/Terraform.
 func SetTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	asEnvVars, err := ToTerraformEnvVars(terragruntConfig.Inputs)
+	asEnvVars, err := ToTerraformEnvVars(terragruntOptions, terragruntConfig.Inputs)
 	if err != nil {
 		return err
 	}
@@ -443,7 +447,16 @@ func RunTerraformWithRetry(ctx context.Context, terragruntOptions *options.Terra
 	for i := 0; i < terragruntOptions.RetryMaxAttempts; i++ {
 		if out, err := shell.RunTerraformCommandWithOutput(ctx, terragruntOptions, terragruntOptions.TerraformCliArgs...); err != nil {
 			if out == nil || !IsRetryable(terragruntOptions, out) {
-				terragruntOptions.Logger.WithError(err).Errorf("%s invocation failed in %s", terragruntOptions.TerraformImplementation, terragruntOptions.WorkingDir)
+				logger := terragruntOptions.Logger
+
+				if execErr := util.Unwrap[util.ProcessExecutionError](err); execErr != nil {
+					if execErr.Stderr != "" {
+						logger = logger.WithField("stderr", "\n"+execErr.Stderr)
+					}
+				}
+
+				logger.Errorf("%s invocation failed in %s", terragruntOptions.TerraformImplementation, terragruntOptions.WorkingDir)
+
 				return err
 			} else {
 				terragruntOptions.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.RetrySleepInterval)
@@ -781,13 +794,20 @@ func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOp
 // ToTerraformEnvVars converts the given variables to a map of environment variables that will expose those variables to Terraform. The
 // keys will be of the format TF_VAR_xxx and the values will be converted to JSON, which Terraform knows how to read
 // natively.
-func ToTerraformEnvVars(vars map[string]interface{}) (map[string]string, error) {
+func ToTerraformEnvVars(opts *options.TerragruntOptions, vars map[string]interface{}) (map[string]string, error) {
+	if useLegacyNullValues() {
+		opts.Logger.Warnf("⚠️ %s is a temporary workaround to bypass the breaking change in #2663.\nThis flag will be removed in the future.\nDo not rely on it.", useLegacyNullValuesEnvVar)
+	}
+
 	out := map[string]string{}
 
 	for varName, varValue := range vars {
-		// skip variables with null values
 		if varValue == nil {
-			continue
+			if useLegacyNullValues() {
+				opts.Logger.Warnf("⚠️ Input `%s` has value `null`. Quoting due to %s.", varName, useLegacyNullValuesEnvVar)
+			} else {
+				continue
+			}
 		}
 
 		envVarName := fmt.Sprintf(terraform.EnvNameTFVarFmt, varName)
@@ -831,4 +851,8 @@ func setTerragruntNullValues(terragruntOptions *options.TerragruntOptions, terra
 	}
 
 	return varFile, nil
+}
+
+func useLegacyNullValues() bool {
+	return os.Getenv(useLegacyNullValuesEnvVar) == "1"
 }

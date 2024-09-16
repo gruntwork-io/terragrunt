@@ -10,8 +10,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -321,8 +321,9 @@ func TestToTerraformEnvVars(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.description, func(t *testing.T) {
 			t.Parallel()
-
-			actual, err := terraform.ToTerraformEnvVars(testCase.vars)
+			opts, err := options.NewTerragruntOptionsForTest("")
+			require.NoError(t, err)
+			actual, err := terraform.ToTerraformEnvVars(opts, testCase.vars)
 			require.NoError(t, err)
 			assert.Equal(t, testCase.expected, actual)
 		})
@@ -446,7 +447,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 
 }
 
-var defaultLogLevel = util.GetDefaultLogLevel()
+var defaultLogLevel = log.DebugLevel
 
 func mockCmdOptions(t *testing.T, workingDir string, terraformCliArgs []string) *options.TerragruntOptions {
 	t.Helper()
@@ -467,7 +468,7 @@ func mockExtraArgs(arguments, commands, requiredVarFiles, optionalVarFiles []str
 	return a
 }
 
-func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, includeExternalDependencies bool, logLevel logrus.Level, debug bool) *options.TerragruntOptions {
+func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, includeExternalDependencies bool, logLevel log.Level, debug bool) *options.TerragruntOptions {
 	t.Helper()
 
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
@@ -481,7 +482,7 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 	opts.Source = terragruntSource
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
 	opts.IncludeExternalDependencies = includeExternalDependencies
-	opts.Logger.Level = logLevel
+	opts.Logger.SetOptions(log.WithLevel(logLevel))
 	opts.Debug = debug
 
 	return opts

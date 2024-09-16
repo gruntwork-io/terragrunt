@@ -16,6 +16,7 @@ import (
 	"fmt"
 
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mattn/go-zglob"
 	homedir "github.com/mitchellh/go-homedir"
 )
@@ -217,21 +218,6 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 	return filepath.ToSlash(relPath), nil
 }
 
-// GetPathRelativeToWithSeparator is a wrapper for the `GetPathRelativeTo` func, and appends a separator, if the relative path consists only of a dot.
-// The function is intended for use in logs, and so that a path with single dot would not seem like the end of a sentence, we add trail slash.
-func GetPathRelativeToWithSeparator(path string, basePath string) (string, error) {
-	relPath, err := GetPathRelativeTo(path, basePath)
-	if err != nil {
-		return relPath, err
-	}
-
-	if relPath == "." {
-		relPath += string(filepath.Separator)
-	}
-
-	return relPath, nil
-}
-
 // ReadFileAsString returns the contents of the file at the given path as a string.
 func ReadFileAsString(path string) (string, error) {
 	bytes, err := os.ReadFile(path)
@@ -289,7 +275,7 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 
 // CopyFolderContents copies the files and folders within the source folder into the destination folder. Note that hidden files and folders
 // (those starting with a dot) will be skipped. Will create a specified manifest file that contains paths of all copied files.
-func CopyFolderContents(source, destination, manifestFile string, includeInCopy []string) error {
+func CopyFolderContents(logger log.Logger, source, destination, manifestFile string, includeInCopy []string) error {
 	// Expand all the includeInCopy glob paths, converting the globbed results to relative paths so that they work in
 	// the copy filter.
 	includeExpandedGlobs := []string{}
@@ -305,7 +291,7 @@ func CopyFolderContents(source, destination, manifestFile string, includeInCopy 
 		includeExpandedGlobs = append(includeExpandedGlobs, expandGlob...)
 	}
 
-	return CopyFolderContentsWithFilter(source, destination, manifestFile, func(absolutePath string) bool {
+	return CopyFolderContentsWithFilter(logger, source, destination, manifestFile, func(absolutePath string) bool {
 		relativePath, err := GetPathRelativeTo(absolutePath, source)
 		if err == nil && listContainsElementWithPrefix(includeExpandedGlobs, relativePath) {
 			return true
@@ -316,15 +302,13 @@ func CopyFolderContents(source, destination, manifestFile string, includeInCopy 
 }
 
 // CopyFolderContentsWithFilter copies the files and folders within the source folder into the destination folder.
-// Pass each file and folder through the given filter function and only copy it if the filter returns true.
-// Will create a specified manifest file that contains paths of all copied files.
-func CopyFolderContentsWithFilter(source, destination, manifestFile string, filter func(absolutePath string) bool) error {
+func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
 	const ownerReadWriteExecutePerms = 0700
 	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
-	manifest := NewFileManifest(destination, manifestFile)
+	manifest := NewFileManifest(logger, destination, manifestFile)
 	if err := manifest.Clean(); err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -336,7 +320,7 @@ func CopyFolderContentsWithFilter(source, destination, manifestFile string, filt
 	defer func(manifest *fileManifest) {
 		err := manifest.Close()
 		if err != nil {
-			GlobalFallbackLogEntry.Warnf("Error closing manifest file: %v", err)
+			logger.Warnf("Error closing manifest file: %v", err)
 		}
 	}(manifest)
 
@@ -370,7 +354,7 @@ func CopyFolderContentsWithFilter(source, destination, manifestFile string, filt
 				return errors.WithStackTrace(err)
 			}
 
-			if err := CopyFolderContentsWithFilter(file, dest, manifestFile, filter); err != nil {
+			if err := CopyFolderContentsWithFilter(logger, file, dest, manifestFile, filter); err != nil {
 				return err
 			}
 
@@ -529,6 +513,7 @@ type fileManifest struct {
 	ManifestFile   string // this is the manifest file name
 	encoder        *gob.Encoder
 	fileHandle     *os.File
+	logger         log.Logger
 }
 
 // fileManifestEntry represents an entry in the fileManifest.
@@ -559,11 +544,11 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 	// cleaning manifest file
 	defer func(name string) {
 		if err := file.Close(); err != nil {
-			GlobalFallbackLogEntry.Warnf("Error closing file %s: %v", name, err)
+			manifest.logger.Warnf("Error closing file %s: %v", name, err)
 		}
 
 		if err := os.Remove(name); err != nil {
-			GlobalFallbackLogEntry.Warnf("Error removing manifest file %s: %v", name, err)
+			manifest.logger.Warnf("Error removing manifest file %s: %v", name, err)
 		}
 	}(manifestPath)
 
@@ -626,8 +611,8 @@ func (manifest *fileManifest) Close() error {
 	return manifest.fileHandle.Close()
 }
 
-func NewFileManifest(manifestFolder string, manifestFile string) *fileManifest {
-	return &fileManifest{ManifestFolder: manifestFolder, ManifestFile: manifestFile}
+func NewFileManifest(logger log.Logger, manifestFolder string, manifestFile string) *fileManifest {
+	return &fileManifest{logger: logger, ManifestFolder: manifestFolder, ManifestFile: manifestFile}
 }
 
 // Custom errors

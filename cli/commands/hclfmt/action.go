@@ -11,15 +11,16 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
+
 	"github.com/gruntwork-io/go-commons/errors"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/mattn/go-zglob"
 
+	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -136,12 +137,12 @@ func formatTgHCL(opts *options.TerragruntOptions, tgHclFile string) error {
 }
 
 // checkErrors takes in the contents of a hcl file and looks for syntax errors.
-func checkErrors(logger *logrus.Entry, disableColor bool, contents []byte, tgHclFile string) error {
+func checkErrors(logger log.Logger, disableColor bool, contents []byte, tgHclFile string) error {
 	parser := hclparse.NewParser()
 	_, diags := parser.ParseHCL(contents, tgHclFile)
 
-	writer := &util.LogWriter{Logger: logger, Level: logrus.ErrorLevel}
-	diagWriter := util.GetDiagnosticsWriter(writer, parser, disableColor)
+	writer := writer.New(writer.WithLogger(logger), writer.WithDefaultLevel(log.ErrorLevel))
+	diagWriter := parser.GetDiagnosticsWriter(writer, disableColor)
 
 	err := diagWriter.WriteDiagnostics(diags)
 	if err != nil {

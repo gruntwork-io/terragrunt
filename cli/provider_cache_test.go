@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/cli"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
@@ -113,7 +114,7 @@ func TestProviderCache(t *testing.T) {
 
 			errGroup, ctx := errgroup.WithContext(ctx)
 
-			providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil)
+			providerService := services.NewProviderService(providerCacheDir, pluginCacheDir, nil, log.New())
 			providerHandler := handlers.NewProviderDirectHandler(providerService, cli.CacheProviderHTTPStatusCode, new(cliconfig.ProviderInstallationDirect), nil)
 
 			testCase.opts = append(testCase.opts, cache.WithServices(providerService), cache.WithProviderHandlers(providerHandler))

@@ -12,6 +12,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
+
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -21,7 +24,6 @@ import (
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
-	"github.com/sirupsen/logrus"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/go-commons/errors"
@@ -76,11 +78,12 @@ var (
 	}
 
 	DefaultParserOptions = func(opts *options.TerragruntOptions) []hclparse.Option {
-		writer := &util.LogWriter{Logger: opts.Logger, Level: logrus.ErrorLevel}
+		writer := writer.New(writer.WithLogger(opts.Logger), writer.WithDefaultLevel(log.ErrorLevel))
 
 		return []hclparse.Option{
 			hclparse.WithDiagnosticsWriter(writer, opts.DisableLogColors),
 			hclparse.WithFileUpdate(updateBareIncludeBlock),
+			hclparse.WithLogger(opts.Logger),
 		}
 	}
 
@@ -309,16 +312,6 @@ func (cfgs IncludeConfigsMap) ContainsPath(path string) bool {
 
 type IncludeConfigs []IncludeConfig
 
-func (cfgs *IncludeConfigs) UpdateRelativePaths(basePath string) error {
-	for _, conf := range *cfgs {
-		if err := conf.UpdateRelativePath(basePath); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // IncludeConfig represents the configuration settings for a parent Terragrunt configuration file that you can
 // include into a child Terragrunt configuration file. You can have more than one include config.
 type IncludeConfig struct {
@@ -326,18 +319,6 @@ type IncludeConfig struct {
 	Path          string  `hcl:"path,attr"`
 	Expose        *bool   `hcl:"expose,attr"`
 	MergeStrategy *string `hcl:"merge_strategy,attr"`
-	RelativePath  string
-}
-
-func (include *IncludeConfig) UpdateRelativePath(basePath string) error {
-	relPath, err := util.GetPathRelativeToWithSeparator(include.Path, basePath)
-	if err != nil {
-		return err
-	}
-
-	include.RelativePath = relPath
-
-	return nil
 }
 
 func (include *IncludeConfig) String() string {
@@ -524,7 +505,7 @@ func (args *TerraformExtraArguments) String() string {
 		args.EnvVars)
 }
 
-func (args *TerraformExtraArguments) GetVarFiles(logger *logrus.Entry) []string {
+func (args *TerraformExtraArguments) GetVarFiles(logger log.Logger) []string {
 	var varFiles []string
 
 	// Include all specified RequiredVarFiles.
@@ -730,7 +711,7 @@ func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOpt
 
 // ReadTerragruntConfig reads the Terragrunt config file from its default location
 func ReadTerragruntConfig(ctx context.Context, terragruntOptions *options.TerragruntOptions, parserOptions []hclparse.Option) (*TerragruntConfig, error) {
-	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.RelativeTerragruntConfigPath)
+	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
 
 	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
 	parcingCtx := NewParsingContext(ctx, terragruntOptions).WithParseOption(parserOptions)
@@ -780,7 +761,7 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 			file = cacheConfig
 		} else {
 			// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
-			file, err = hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromFile(configPath)
+			file, err = hclparse.NewParser(ctx.ParserOptions...).ParseFromFile(configPath)
 			if err != nil {
 				return err
 			}
@@ -805,7 +786,7 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 
 func ParseConfigString(ctx *ParsingContext, configPath string, configString string, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	// Parse the HCL file into an AST body that can be decoded multiple times later without having to re-parse
-	file, err := hclparse.NewParser().WithOptions(ctx.ParserOptions...).ParseFromString(configString, configPath)
+	file, err := hclparse.NewParser(ctx.ParserOptions...).ParseFromString(configString, configPath)
 	if err != nil {
 		return nil, err
 	}

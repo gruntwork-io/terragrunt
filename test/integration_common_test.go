@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -32,6 +34,36 @@ import (
 
 	"github.com/NYTimes/gziphandler"
 )
+
+func getPathRelativeTo(t *testing.T, path string, basePath string) string {
+	t.Helper()
+
+	relPath, err := util.GetPathRelativeTo(path, basePath)
+	require.NoError(t, err)
+	return relPath
+}
+
+func getPathsRelativeTo(t *testing.T, basePath string, paths []string) []string {
+	t.Helper()
+
+	relPaths := make([]string, len(paths))
+
+	for i, path := range paths {
+		relPath, err := util.GetPathRelativeTo(path, basePath)
+		require.NoError(t, err)
+		relPaths[i] = relPath
+	}
+
+	return relPaths
+}
+
+func createLogger() log.Logger {
+	formatter := format.NewFormatter()
+	formatter.DisableColors = true
+	formatter.DisableLogFormatting = true
+
+	return log.New(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter))
+}
 
 func testRunAllPlan(t *testing.T, args string) (string, string, string, error) {
 	t.Helper()

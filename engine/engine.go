@@ -535,7 +535,7 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 	if resultCode != 0 {
 		err = util.ProcessExecutionError{
 			Err:        fmt.Errorf("command failed with exit code %d", resultCode),
-			StdOut:     stdoutBuf.String(),
+			Stdout:     stdoutBuf.String(),
 			Stderr:     stderrBuf.String(),
 			WorkingDir: terragruntOptions.WorkingDir,
 		}

@@ -12,10 +12,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+
 	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	tgTerraform "github.com/gruntwork-io/terragrunt/terraform"
-	"github.com/sirupsen/logrus"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -395,8 +396,8 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalURL string, d
 func createConfig(t *testing.T, canonicalURL string, downloadDir string, sourceUpdate bool) (*tgTerraform.Source, *options.TerragruntOptions, *config.TerragruntConfig, error) {
 	t.Helper()
 
-	logger := logrus.New()
-	logger.Out = io.Discard
+	logger := log.New()
+	logger.SetOptions(log.WithOutput(io.Discard))
 	terraformSource := &tgTerraform.Source{
 		CanonicalSourceURL: parseURL(t, canonicalURL),
 		DownloadDir:        downloadDir,
@@ -426,8 +427,8 @@ func createConfig(t *testing.T, canonicalURL string, downloadDir string, sourceU
 func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir string, expected bool) {
 	t.Helper()
 
-	logger := logrus.New()
-	logger.Out = io.Discard
+	logger := log.New()
+	logger.SetOptions(log.WithOutput(io.Discard))
 	terraformSource := &tgTerraform.Source{
 		CanonicalSourceURL: parseURL(t, canonicalURL),
 		DownloadDir:        downloadDir,
@@ -490,6 +491,9 @@ func readFile(t *testing.T, path string) string {
 func copyFolder(t *testing.T, src string, dest string) {
 	t.Helper()
 
-	err := util.CopyFolderContents(filepath.FromSlash(src), filepath.FromSlash(dest), ".terragrunt-test", nil)
+	logger := log.New()
+	logger.SetOptions(log.WithOutput(io.Discard))
+
+	err := util.CopyFolderContents(logger, filepath.FromSlash(src), filepath.FromSlash(dest), ".terragrunt-test", nil)
 	require.NoError(t, err)
 }

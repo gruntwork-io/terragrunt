@@ -9,6 +9,9 @@ import (
 // BoolFlag implements Flag
 var _ Flag = new(BoolFlag)
 
+// BoolActionFunc is the action to execute when the flag has been set either via a flag or via an environment variable.
+type BoolActionFunc[T bool] func(ctx *Context, value T) error
+
 type BoolFlag struct {
 	flag
 
@@ -23,7 +26,7 @@ type BoolFlag struct {
 	// The name of the env variable that is parsed and assigned to `Destination` before the flag value.
 	EnvVar string
 	// The action to execute when flag is specified
-	Action ActionFunc
+	Action BoolActionFunc[bool]
 	// The pointer to which the value of the flag or env var is assigned.
 	// It also uses as the default value displayed in the help.
 	Destination *bool
@@ -35,6 +38,10 @@ type BoolFlag struct {
 
 // Apply applies Flag settings to the given flag set.
 func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
+	if flag.Destination == nil {
+		flag.Destination = new(bool)
+	}
+
 	var err error
 
 	valType := FlagType[bool](&boolFlagType{negative: flag.Negative})
@@ -91,7 +98,7 @@ func (flag *BoolFlag) Names() []string {
 // RunAction implements ActionableFlag.RunAction
 func (flag *BoolFlag) RunAction(ctx *Context) error {
 	if flag.Action != nil {
-		return flag.Action(ctx)
+		return flag.Action(ctx, *flag.Destination)
 	}
 
 	return nil

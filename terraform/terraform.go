@@ -23,6 +23,7 @@ const (
 	CommandNameConsole        = "console"
 	CommandNameForceUnlock    = "force-unlock"
 	CommandNameShow           = "show"
+	CommandNameVersion        = "version"
 
 	FlagNameJSON    = "-json"
 	FlagNameNoColor = "-no-color"

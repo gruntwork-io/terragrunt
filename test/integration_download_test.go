@@ -195,7 +195,7 @@ func TestCustomLockFile(t *testing.T) {
 
 	source := "../custom-lock-file-module"
 	downloadDir := util.JoinPath(rootPath, terragruntCache)
-	result, err := tfsource.NewSource(source, downloadDir, rootPath, util.CreateLogEntry("", util.GetDefaultLogLevel(), nil, true, true))
+	result, err := tfsource.NewSource(source, downloadDir, rootPath, createLogger())
 	require.NoError(t, err)
 
 	lockFilePath := util.JoinPath(result.WorkingDir, util.TerraformLockFile)
@@ -362,10 +362,10 @@ func TestIncludeDirsDependencyConsistencyRegression(t *testing.T) {
 	assert.NotEmpty(t, includedModulesWithNone)
 
 	includedModulesWithAmzApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"amazing-app/k8s"}, false)
-	assert.Equal(t, []string{"amazing-app/k8s", "clusters/eks"}, includedModulesWithAmzApp)
+	assert.Equal(t, getPathsRelativeTo(t, testPath, []string{"amazing-app/k8s", "clusters/eks"}), includedModulesWithAmzApp)
 
 	includedModulesWithTestApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"testapp/k8s"}, false)
-	assert.Equal(t, []string{"clusters/eks", "testapp/k8s"}, includedModulesWithTestApp)
+	assert.Equal(t, getPathsRelativeTo(t, testPath, []string{"clusters/eks", "testapp/k8s"}), includedModulesWithTestApp)
 }
 
 func TestIncludeDirsStrict(t *testing.T) {
@@ -388,10 +388,10 @@ func TestIncludeDirsStrict(t *testing.T) {
 	assert.Equal(t, []string{}, includedModulesWithNone)
 
 	includedModulesWithAmzApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"amazing-app/k8s"}, true)
-	assert.Equal(t, []string{"amazing-app/k8s"}, includedModulesWithAmzApp)
+	assert.Equal(t, getPathsRelativeTo(t, testPath, []string{"amazing-app/k8s"}), includedModulesWithAmzApp)
 
 	includedModulesWithTestApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"testapp/k8s"}, true)
-	assert.Equal(t, []string{"testapp/k8s"}, includedModulesWithTestApp)
+	assert.Equal(t, getPathsRelativeTo(t, testPath, []string{"testapp/k8s"}), includedModulesWithTestApp)
 }
 
 func TestTerragruntExternalDependencies(t *testing.T) {

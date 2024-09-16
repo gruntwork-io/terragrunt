@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/options"
-
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/hashicorp/go-getter"
 	safetemp "github.com/hashicorp/go-safetemp"
@@ -138,7 +138,7 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 
 	version := versionList[0]
 
-	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, registryDomain)
+	moduleRegistryBasePath, err := GetModuleRegistryURLBasePath(ctx, tfrGetter.TerragruntOptions.Logger, registryDomain)
 	if err != nil {
 		return err
 	}
@@ -148,7 +148,7 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 		return err
 	}
 
-	terraformGet, err := GetTerraformGetHeader(ctx, *moduleURL)
+	terraformGet, err := GetTerraformGetHeader(ctx, tfrGetter.TerragruntOptions.Logger, *moduleURL)
 	if err != nil {
 		return err
 	}
@@ -191,7 +191,7 @@ func (tfrGetter *RegistryGetter) getSubdir(_ context.Context, dstPath, sourceURL
 	defer func(tempdirCloser io.Closer) {
 		err := tempdirCloser.Close()
 		if err != nil {
-			util.GlobalFallbackLogEntry.Warnf("Error closing temporary directory %s: %v", tempdirPath, err)
+			tfrGetter.TerragruntOptions.Logger.Warnf("Error closing temporary directory %s: %v", tempdirPath, err)
 		}
 	}(tempdirCloser)
 
@@ -235,25 +235,25 @@ func (tfrGetter *RegistryGetter) getSubdir(_ context.Context, dstPath, sourceURL
 	defer func(name string) {
 		err := os.Remove(name)
 		if err != nil {
-			util.GlobalFallbackLogEntry.Warnf("Error removing temporary directory %s: %v", name, err)
+			tfrGetter.TerragruntOptions.Logger.Warnf("Error removing temporary directory %s: %v", name, err)
 		}
 	}(manifestPath)
 
-	return util.CopyFolderContentsWithFilter(sourcePath, dstPath, manifestFname, func(path string) bool { return true })
+	return util.CopyFolderContentsWithFilter(tfrGetter.TerragruntOptions.Logger, sourcePath, dstPath, manifestFname, func(path string) bool { return true })
 }
 
 // GetModuleRegistryURLBasePath uses the service discovery protocol
 // (https://www.terraform.io/docs/internals/remote-service-discovery.html)
 // to figure out where the modules are stored. This will return the base
 // path where the modules can be accessed
-func GetModuleRegistryURLBasePath(ctx context.Context, domain string) (string, error) {
+func GetModuleRegistryURLBasePath(ctx context.Context, logger log.Logger, domain string) (string, error) {
 	sdURL := url.URL{
 		Scheme: "https",
 		Host:   domain,
 		Path:   serviceDiscoveryPath,
 	}
 
-	bodyData, _, err := httpGETAndGetResponse(ctx, sdURL)
+	bodyData, _, err := httpGETAndGetResponse(ctx, logger, sdURL)
 	if err != nil {
 		return "", err
 	}
@@ -269,8 +269,8 @@ func GetModuleRegistryURLBasePath(ctx context.Context, domain string) (string, e
 
 // GetTerraformGetHeader makes an http GET call to the given registry URL and return the contents of location json
 // body or the header X-Terraform-Get. This function will return an error if the response does not contain the header.
-func GetTerraformGetHeader(ctx context.Context, url url.URL) (string, error) {
-	body, header, err := httpGETAndGetResponse(ctx, url)
+func GetTerraformGetHeader(ctx context.Context, logger log.Logger, url url.URL) (string, error) {
+	body, header, err := httpGETAndGetResponse(ctx, logger, url)
 	if err != nil {
 		details := "error receiving HTTP data"
 		return "", errors.WithStackTrace(ModuleDownloadErr{sourceURL: url.String(), details: details})
@@ -323,7 +323,7 @@ func GetDownloadURLFromHeader(moduleURL url.URL, terraformGet string) (string, e
 
 // httpGETAndGetResponse is a helper function to make a GET request to the given URL using the http client. This
 // function will then read the response and return the contents + the response header.
-func httpGETAndGetResponse(ctx context.Context, getURL url.URL) ([]byte, *http.Header, error) {
+func httpGETAndGetResponse(ctx context.Context, logger log.Logger, getURL url.URL) ([]byte, *http.Header, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", getURL.String(), nil)
 	if err != nil {
 		return nil, nil, errors.WithStackTrace(err)
@@ -344,7 +344,7 @@ func httpGETAndGetResponse(ctx context.Context, getURL url.URL) ([]byte, *http.H
 	defer func() {
 		err := resp.Body.Close()
 		if err != nil {
-			util.GlobalFallbackLogEntry.Warnf("Error closing response body: %v", err)
+			logger.Warnf("Error closing response body: %v", err)
 		}
 	}()
 

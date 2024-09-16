@@ -48,7 +48,7 @@ func TestExplainError(t *testing.T) {
 
 			err := multierror.Append(&multierror.Error{}, util.ProcessExecutionError{
 				Err:    errors.New(""),
-				StdOut: "",
+				Stdout: "",
 				Stderr: tt.errorOutput,
 			})
 			explanation := shell.ExplainError(err)

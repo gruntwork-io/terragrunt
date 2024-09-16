@@ -7,11 +7,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/internal/log/formatter"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -59,18 +61,19 @@ func testCommandOutputOrder(t *testing.T, withPtty bool, fullOutput []string, st
 func TestCommandOutputPrefix(t *testing.T) {
 	t.Parallel()
 	prefix := "PREFIX"
+	terraformPath := "../testdata/test_outputs.sh"
 	prefixedOutput := []string{}
 	for _, line := range FullOutput {
-		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s msg=%s", prefix, line))
+		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s binary=%s msg=%s", prefix, filepath.Base(terraformPath), line))
 	}
 
-	formatter := formatter.NewFormatter()
-	formatter.DisableLogFormatting = true
+	logFormatter := format.NewFormatter()
+	logFormatter.DisableLogFormatting = true
 
 	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
-		terragruntOptions.TerraformPath = ""
-		terragruntOptions.OutputPrefix = prefix
-		terragruntOptions.Logger.Logger.Formatter = formatter
+		terragruntOptions.TerraformPath = terraformPath
+		terragruntOptions.Logger.SetOptions(log.WithFormatter(logFormatter))
+		terragruntOptions.Logger = terragruntOptions.Logger.WithField(format.PrefixKeyName, prefix)
 	}, assertOutputs(t,
 		prefixedOutput,
 		Stdout,
@@ -115,7 +118,7 @@ func assertOutputs(
 		allOutputs := strings.Split(strings.TrimSpace(allOutput), "\n")
 		assert.Equal(t, len(expectedAllOutputs), len(allOutputs))
 		for i := 0; i < len(allOutputs); i++ {
-			assert.Contains(t, allOutputs[i], expectedAllOutputs[i])
+			assert.Contains(t, allOutputs[i], expectedAllOutputs[i], allOutputs[i])
 		}
 
 		stdOutputs := strings.Split(strings.TrimSpace(out.Stdout), "\n")

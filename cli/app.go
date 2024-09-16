@@ -5,14 +5,15 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/engine"
-
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
+	"github.com/gruntwork-io/terragrunt/pkg/log/hooks"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"golang.org/x/sync/errgroup"
@@ -44,7 +45,6 @@ import (
 	terraformCmd "github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
-	"github.com/gruntwork-io/terragrunt/internal/log"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -60,21 +60,18 @@ func init() {
 
 type App struct {
 	*cli.App
+	opts *options.TerragruntOptions
 }
 
 // NewApp creates the Terragrunt CLI App.
-func NewApp(writer io.Writer, errWriter io.Writer) *App {
-	opts := options.NewTerragruntOptions()
-	opts.Writer = writer
-	opts.ErrWriter = errWriter
-
+func NewApp(opts *options.TerragruntOptions) *App {
 	app := cli.NewApp()
 	app.Name = "terragrunt"
 	app.Usage = "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale. For documentation, see https://terragrunt.gruntwork.io/."
 	app.Author = "Gruntwork <www.gruntwork.io>"
 	app.Version = version.GetVersion()
-	app.Writer = writer
-	app.ErrWriter = errWriter
+	app.Writer = opts.Writer
+	app.ErrWriter = opts.ErrWriter
 
 	app.Flags = append(
 		commands.NewGlobalFlags(opts),
@@ -88,7 +85,7 @@ func NewApp(writer io.Writer, errWriter io.Writer) *App {
 	app.DefaultCommand = terraformCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
 	app.OsExiter = OSExiter
 
-	return &App{app}
+	return &App{app, opts}
 }
 
 func (app *App) Run(args []string) error {
@@ -100,16 +97,16 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	defer cancel()
 
 	shell.RegisterSignalHandler(func(signal os.Signal) {
-		log.Infof("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(signal.String()), shell.SignalForwardingDelay)
+		app.opts.Logger.Infof("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(signal.String()), shell.SignalForwardingDelay)
 		cancel()
 
 		shell.RegisterSignalHandler(func(signal os.Signal) {
-			log.Infof("Second %s signal received, force shutting down...", cases.Title(language.English).String(signal.String()))
+			app.opts.Logger.Infof("Second %s signal received, force shutting down...", cases.Title(language.English).String(signal.String()))
 			os.Exit(1)
 		})
 
 		time.Sleep(forceExitInterval)
-		log.Infof("Failed to gracefully shutdown within %v, force shutting down...", forceExitInterval)
+		app.opts.Logger.Infof("Failed to gracefully shutdown within %v, force shutting down...", forceExitInterval)
 		os.Exit(1)
 	}, shell.InterruptSignals...)
 
@@ -284,19 +281,6 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	opts.Env = env.Parse(os.Environ())
 
-	// --- Logger
-	if opts.DisableLogColors {
-		util.DisableLogColors()
-	}
-
-	if opts.DisableLogFormatting {
-		util.DisableLogFormatting()
-	}
-
-	if opts.JSONLogFormat {
-		util.JSONFormat()
-	}
-
 	// --- Working Dir
 	if opts.WorkingDir == "" {
 		currentDir, err := os.Getwd()
@@ -314,7 +298,18 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 		return errors.WithStackTrace(err)
 	}
 
+	opts.Logger = opts.Logger.WithField(format.PrefixKeyName, workingDir)
+
 	opts.RootWorkingDir = filepath.ToSlash(workingDir)
+
+	if !opts.LogShowAbsPaths {
+		hook, err := hooks.NewRelativePathHook(opts.RootWorkingDir)
+		if err != nil {
+			return err
+		}
+
+		opts.Logger.SetOptions(log.WithHooks(hook))
+	}
 
 	// --- Download Dir
 	if opts.DownloadDir == "" {
@@ -328,12 +323,6 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
 
-	opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
-	opts.Logger = util.CreateLogEntry("", opts.LogLevel, nil, opts.DisableLogColors, opts.DisableLogFormatting)
-	opts.Logger.Logger.SetOutput(cliCtx.App.ErrWriter)
-
-	log.SetLogger(opts.Logger.Logger)
-
 	// --- Terragrunt ConfigPath
 	if opts.TerragruntConfigPath == "" {
 		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
@@ -344,11 +333,6 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.TerragruntConfigPath, err = filepath.Abs(opts.TerragruntConfigPath)
 	if err != nil {
 		return errors.WithStackTrace(err)
-	}
-
-	opts.RelativeTerragruntConfigPath, err = util.GetPathRelativeToWithSeparator(opts.TerragruntConfigPath, opts.RootWorkingDir)
-	if err != nil {
-		return err
 	}
 
 	opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)

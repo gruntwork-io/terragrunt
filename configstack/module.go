@@ -10,9 +10,8 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/files"
@@ -29,7 +28,6 @@ const existingModulesCacheName = "existingModules"
 // module and the list of other modules that this module depends on
 type TerraformModule struct {
 	Path                 string
-	RelativePath         string
 	Dependencies         TerraformModules
 	Config               config.TerragruntConfig
 	TerragruntOptions    *options.TerragruntOptions
@@ -41,12 +39,12 @@ type TerraformModule struct {
 func (module *TerraformModule) String() string {
 	dependencies := []string{}
 	for _, dependency := range module.Dependencies {
-		dependencies = append(dependencies, dependency.RelativePath)
+		dependencies = append(dependencies, dependency.Path)
 	}
 
 	return fmt.Sprintf(
 		"Module %s (excluded: %v, assume applied: %v, dependencies: [%s])",
-		module.RelativePath, module.FlagExcluded, module.AssumeAlreadyApplied, strings.Join(dependencies, ", "),
+		module.Path, module.FlagExcluded, module.AssumeAlreadyApplied, strings.Join(dependencies, ", "),
 	)
 }
 
@@ -143,26 +141,26 @@ func (module *TerraformModule) findModuleInPath(targetDirs []string) bool {
 // Note that we skip the prompt for `run-all destroy` calls. Given the destructive and irreversible nature of destroy, we don't
 // want to provide any risk to the user of accidentally destroying an external dependency unless explicitly included
 // with the --terragrunt-include-external-dependencies or --terragrunt-include-dir flags.
-func (module *TerraformModule) confirmShouldApplyExternalDependency(dependency *TerraformModule, terragruntOptions *options.TerragruntOptions) (bool, error) {
+func (module *TerraformModule) confirmShouldApplyExternalDependency(ctx context.Context, dependency *TerraformModule, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	if terragruntOptions.IncludeExternalDependencies {
-		terragruntOptions.Logger.Debugf("The --terragrunt-include-external-dependencies flag is set, so automatically including all external dependencies, and will run this command against module %s, which is a dependency of module %s.", dependency.RelativePath, module.RelativePath)
+		terragruntOptions.Logger.Debugf("The --terragrunt-include-external-dependencies flag is set, so automatically including all external dependencies, and will run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
 		return true, nil
 	}
 
 	if terragruntOptions.NonInteractive {
-		terragruntOptions.Logger.Debugf("The --non-interactive flag is set. To avoid accidentally affecting external dependencies with a run-all command, will not run this command against module %s, which is a dependency of module %s.", dependency.RelativePath, module.RelativePath)
+		terragruntOptions.Logger.Debugf("The --non-interactive flag is set. To avoid accidentally affecting external dependencies with a run-all command, will not run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
 		return false, nil
 	}
 
 	stackCmd := terragruntOptions.TerraformCommand
 	if stackCmd == "destroy" {
-		terragruntOptions.Logger.Debugf("run-all command called with destroy. To avoid accidentally having destructive effects on external dependencies with run-all command, will not run this command against module %s, which is a dependency of module %s.", dependency.RelativePath, module.RelativePath)
+		terragruntOptions.Logger.Debugf("run-all command called with destroy. To avoid accidentally having destructive effects on external dependencies with run-all command, will not run this command against module %s, which is a dependency of module %s.", dependency.Path, module.Path)
 		return false, nil
 	}
 
-	prompt := fmt.Sprintf("Module: \t\t %s\nExternal dependency: \t %s\nShould Terragrunt apply the external dependency?", module.Path, dependency.Path)
+	terragruntOptions.Logger.Infof("Module %s has external dependency %s", module.Path, dependency.Path)
 
-	return shell.PromptUserForYesNo(prompt, terragruntOptions)
+	return shell.PromptUserForYesNo(ctx, "Should Terragrunt apply the external dependency?", terragruntOptions)
 }
 
 // Get the list of modules this module depends on
@@ -241,10 +239,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, terragruntOptions *optio
 		cfgOptions.OriginalTerragruntConfigPath = terragruntOptions.OriginalTerragruntConfigPath
 		cfgOptions.TerraformCommand = terragruntOptions.TerraformCommand
 		cfgOptions.NonInteractive = true
-
-		var hook = NewForceLogLevelHook(logrus.DebugLevel)
-
-		cfgOptions.Logger.Logger.AddHook(hook)
+		cfgOptions.Logger.SetOptions(log.WithHooks(NewForceLogLevelHook(log.DebugLevel)))
 
 		// build stack from config directory
 		stack, err := FindStackInSubfolders(ctx, cfgOptions, WithChildTerragruntConfig(terragruntConfig))

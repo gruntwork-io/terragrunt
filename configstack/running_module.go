@@ -90,7 +90,7 @@ func (module *RunningModule) runModuleWhenReady(ctx context.Context, opts *optio
 // Wait for all of this modules dependencies to finish executing. Return an error if any of those dependencies complete
 // with an error. Return immediately if this module has no dependencies.
 func (module *RunningModule) waitForDependencies() error {
-	module.Module.TerragruntOptions.Logger.Debugf("Module %s must wait for %d dependencies to finish", module.Module.RelativePath, len(module.Dependencies))
+	module.Module.TerragruntOptions.Logger.Debugf("Module %s must wait for %d dependencies to finish", module.Module.Path, len(module.Dependencies))
 
 	for len(module.Dependencies) > 0 {
 		doneDependency := <-module.DependencyDone
@@ -98,13 +98,13 @@ func (module *RunningModule) waitForDependencies() error {
 
 		if doneDependency.Err != nil {
 			if module.Module.TerragruntOptions.IgnoreDependencyErrors {
-				module.Module.TerragruntOptions.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too. However, because of --terragrunt-ignore-dependency-errors, module %s will run anyway.", doneDependency.Module.RelativePath, module.Module.RelativePath, module.Module.RelativePath, module.Module.RelativePath)
+				module.Module.TerragruntOptions.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too. However, because of --terragrunt-ignore-dependency-errors, module %s will run anyway.", doneDependency.Module.Path, module.Module.Path, module.Module.Path, module.Module.Path)
 			} else {
-				module.Module.TerragruntOptions.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too.", doneDependency.Module.RelativePath, module.Module.RelativePath, module.Module.RelativePath)
+				module.Module.TerragruntOptions.Logger.Errorf("Dependency %s of module %s just finished with an error. Module %s will have to return an error too.", doneDependency.Module.Path, module.Module.Path, module.Module.Path)
 				return ProcessingModuleDependencyError{module.Module, doneDependency.Module, doneDependency.Err}
 			}
 		} else {
-			module.Module.TerragruntOptions.Logger.Debugf("Dependency %s of module %s just finished successfully. Module %s must wait on %d more dependencies.", doneDependency.Module.RelativePath, module.Module.RelativePath, module.Module.RelativePath, len(module.Dependencies))
+			module.Module.TerragruntOptions.Logger.Debugf("Dependency %s of module %s just finished successfully. Module %s must wait on %d more dependencies.", doneDependency.Module.Path, module.Module.Path, module.Module.Path, len(module.Dependencies))
 		}
 	}
 
@@ -116,10 +116,10 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 	module.Status = Running
 
 	if module.Module.AssumeAlreadyApplied {
-		module.Module.TerragruntOptions.Logger.Debugf("Assuming module %s has already been applied and skipping it", module.Module.RelativePath)
+		module.Module.TerragruntOptions.Logger.Debugf("Assuming module %s has already been applied and skipping it", module.Module.Path)
 		return nil
 	} else {
-		module.Module.TerragruntOptions.Logger.Debugf("Running module %s now", module.Module.RelativePath)
+		module.Module.TerragruntOptions.Logger.Debugf("Running module %s now", module.Module.Path)
 
 		if err := module.Module.TerragruntOptions.RunTerragrunt(ctx, module.Module.TerragruntOptions); err != nil {
 			return err
@@ -135,7 +135,6 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 			stdout := bytes.Buffer{}
 			jsonOptions.ForwardTFStdout = true
 			jsonOptions.TerraformLogsToJSON = false
-			jsonOptions.OutputPrefix = ""
 			jsonOptions.Writer = &stdout
 			jsonOptions.TerraformCommand = terraform.CommandNameShow
 			jsonOptions.TerraformCliArgs = []string{terraform.CommandNameShow, "-json", module.Module.planFile(rootOptions)}
@@ -164,9 +163,9 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 // Record that a module has finished executing and notify all of this module's dependencies
 func (module *RunningModule) moduleFinished(moduleErr error) {
 	if moduleErr == nil {
-		module.Module.TerragruntOptions.Logger.Debugf("Module %s has finished successfully!", module.Module.RelativePath)
+		module.Module.TerragruntOptions.Logger.Debugf("Module %s has finished successfully!", module.Module.Path)
 	} else {
-		module.Module.TerragruntOptions.Logger.Errorf("Module %s has finished with an error: %v", module.Module.RelativePath, moduleErr)
+		module.Module.TerragruntOptions.Logger.Errorf("Module %s has finished with an error: %v", module.Module.Path, moduleErr)
 	}
 
 	module.Status = Finished

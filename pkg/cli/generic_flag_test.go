@@ -212,7 +212,7 @@ func testGenericFlagApply[T cli.GenericType](t *testing.T, flag *cli.GenericFlag
 	assert.Equal(t, expectedValue, actualValue)
 	assert.Equal(t, fmt.Sprintf("%v", expectedValue), flag.GetValue(), "GetValue()")
 
-	assert.Equal(t, len(args) > 0, flag.Value().IsSet(), "IsSet()")
+	assert.Equal(t, len(args) > 0 || len(envs) > 0, flag.Value().IsSet(), "IsSet()")
 	assert.Equal(t, expectedDefaultValue, flag.Value().GetDefaultText(), "GetDefaultText()")
 
 	assert.False(t, flag.Value().IsBoolFlag(), "IsBoolFlag()")

@@ -148,7 +148,7 @@ func testBoolFlagApply(t *testing.T, flag *cli.BoolFlag, args []string, envs map
 		assert.Equal(t, strconv.FormatBool(expectedValue), flag.GetValue(), "GetValue()")
 	}
 
-	assert.Equal(t, len(args) > 0, flag.Value().IsSet(), "IsSet()")
+	assert.Equal(t, len(args) > 0 || len(envs) > 0, flag.Value().IsSet(), "IsSet()")
 	assert.Equal(t, expectedDefaultValue, flag.Value().GetDefaultText(), "GetDefaultText()")
 
 	assert.True(t, flag.Value().IsBoolFlag(), "IsBoolFlag()")
