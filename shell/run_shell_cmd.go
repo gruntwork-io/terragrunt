@@ -453,5 +453,17 @@ func shouldForceForwardTFStdout(args cli.Args) bool {
 		terraform.CommandNameConsole,
 	}
 
-	return collections.ListContainsElement(tfCommands, args.CommandName()) || args.Tail().Contains(terraform.FlagNameJSON)
+	tfFlags := []string{
+		terraform.FlagNameJSON,
+		terraform.FlagNameHelpLong,
+		terraform.FlagNameHelpShort,
+	}
+
+	for _, flag := range tfFlags {
+		if args.Tail().Contains(flag) {
+			return true
+		}
+	}
+
+	return collections.ListContainsElement(tfCommands, args.CommandName())
 }

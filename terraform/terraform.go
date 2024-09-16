@@ -25,8 +25,10 @@ const (
 	CommandNameShow           = "show"
 	CommandNameVersion        = "version"
 
-	FlagNameJSON    = "-json"
-	FlagNameNoColor = "-no-color"
+	FlagNameHelpLong  = "-help"
+	FlagNameHelpShort = "-h"
+	FlagNameJSON      = "-json"
+	FlagNameNoColor   = "-no-color"
 	// `apply -destroy` is alias for `destroy`
 	FlagNameDestroy = "-destroy"
 
