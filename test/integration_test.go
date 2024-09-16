@@ -2424,7 +2424,10 @@ func TestTerragruntIncludeParentHclFile(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(out, "common_hcl"))
 }
 
-func TestTerragruntVersionConstraints(t *testing.T) {
+// The over all test here can run in parallel, but the subtests cannot.
+// This is due to a race condition brought about by overriding `version.Version` in
+// runTerragruntVersionCommand
+func TestTerragruntVersionConstraints(t *testing.T) { //nolint:tparallel
 	t.Parallel()
 
 	tc := []struct {
@@ -2440,37 +2443,45 @@ func TestTerragruntVersionConstraints(t *testing.T) {
 			true,
 		},
 		{
-			"version meets constriant greater patch",
+			"version meets constraint greater patch",
 			"v0.23.19",
 			"terragrunt_version_constraint = \">= v0.23.18\"",
 			true,
 		},
 		{
-			"version meets constriant greater major",
+			"version meets constraint greater major",
 			"v1.0.0",
 			"terragrunt_version_constraint = \">= v0.23.18\"",
 			true,
 		},
 		{
-			"version meets constriant less patch",
+			"version fails constraint less patch",
 			"v0.23.17",
 			"terragrunt_version_constraint = \">= v0.23.18\"",
 			false,
 		},
 		{
-			"version meets constriant less major",
+			"version fails constraint less major",
 			"v0.22.18",
 			"terragrunt_version_constraint = \">= v0.23.18\"",
 			false,
 		},
+		{
+			"version meets constraint pre-release",
+			"v0.23.18-alpha2024091301",
+			"terragrunt_version_constraint = \">= v0.23.18\"",
+			true,
+		},
+		{
+			"version fails constraint pre-release",
+			"v0.23.18-alpha2024091301",
+			"terragrunt_version_constraint = \"< v0.23.18\"",
+			false,
+		},
 	}
 
-	for _, tt := range tc {
-		tt := tt
-
+	for _, tt := range tc { //nolint:paralleltest
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			tmpEnvPath := copyEnvironment(t, testFixtureReadConfig)
 			rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfig, "with_constraints")
 
@@ -2479,7 +2490,18 @@ func TestTerragruntVersionConstraints(t *testing.T) {
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
 
-			err := runTerragruntVersionCommand(t, tt.terragruntVersion, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, rootPath), &stdout, &stderr)
+			err := runTerragruntVersionCommand(
+				t,
+				tt.terragruntVersion,
+				fmt.Sprintf(
+					"terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s",
+					tmpTerragruntConfigPath,
+					rootPath,
+				),
+				&stdout,
+				&stderr,
+			)
+
 			logBufferContentsLineByLine(t, stdout, "stdout")
 			logBufferContentsLineByLine(t, stderr, "stderr")
 
