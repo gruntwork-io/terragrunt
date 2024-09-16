@@ -153,7 +153,7 @@ func RunShellCommandWithOutput(
 				logger := opts.Logger.WithField(format.TFBinaryKeyName, filepath.Base(opts.TerraformPath))
 
 				outWriter = writer.New(
-					writer.WithLogger(logger.WithOptions(log.WithOutput(outWriter))),
+					writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
 					writer.WithDefaultLevel(log.StdoutLevel),
 					writer.WithMsgSeparator(logMsgSeparator),
 				)
@@ -162,7 +162,7 @@ func RunShellCommandWithOutput(
 					writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
 					writer.WithDefaultLevel(log.StderrLevel),
 					writer.WithMsgSeparator(logMsgSeparator),
-					writer.WithParseFunc(terraform.ParseLogFunc(tfLogMsgPrefix)),
+					writer.WithParseFunc(terraform.ParseLogFunc(tfLogMsgPrefix, false)),
 				)
 			}
 		}
@@ -453,5 +453,18 @@ func shouldForceForwardTFStdout(args cli.Args) bool {
 		terraform.CommandNameConsole,
 	}
 
-	return collections.ListContainsElement(tfCommands, args.CommandName()) || args.Tail().Contains(terraform.FlagNameJSON)
+	tfFlags := []string{
+		terraform.FlagNameJSON,
+		terraform.FlagNameVersion,
+		terraform.FlagNameHelpLong,
+		terraform.FlagNameHelpShort,
+	}
+
+	for _, flag := range tfFlags {
+		if args.Normalize(cli.SingleDashFlag).Contains(flag) {
+			return true
+		}
+	}
+
+	return collections.ListContainsElement(tfCommands, args.CommandName())
 }
