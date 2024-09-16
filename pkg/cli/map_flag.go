@@ -26,6 +26,9 @@ type MapFlagValueType interface {
 	GenericType | bool
 }
 
+// MapActionFunc is the action to execute when the flag has been set either via a flag or via an environment variable.
+type MapActionFunc[K MapFlagKeyType, V MapFlagValueType] func(ctx *Context, value map[K]V) error
+
 // MapFlag is a key value flag.
 type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	flag
@@ -39,7 +42,7 @@ type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	// Aliases are usually used for the short flag name, like `-h`.
 	Aliases []string
 	// The action to execute when flag is specified
-	Action ActionFunc
+	Action MapActionFunc[K, V]
 	// The name of the env variable that is parsed and assigned to `Destination` before the flag value.
 	EnvVar string
 	// The pointer to which the value of the flag or env var is assigned.
@@ -57,6 +60,10 @@ type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 
 // Apply applies Flag settings to the given flag set.
 func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
+	if flag.Destination == nil {
+		flag.Destination = new(map[K]V)
+	}
+
 	if flag.Splitter == nil {
 		flag.Splitter = FlagSplitter
 	}
@@ -126,7 +133,7 @@ func (flag *MapFlag[K, V]) Names() []string {
 // RunAction implements ActionableFlag.RunAction
 func (flag *MapFlag[K, V]) RunAction(ctx *Context) error {
 	if flag.Action != nil {
-		return flag.Action(ctx)
+		return flag.Action(ctx, *flag.Destination)
 	}
 
 	return nil
@@ -140,6 +147,7 @@ type mapValue[K, V comparable] struct {
 	argSep, valSep string
 	splitter       SplitterFunc
 	hasBeenSet     bool
+	envHasBeenSet  bool
 }
 
 func newMapValue[K, V comparable](keyType FlagType[K], valType FlagType[V], envValue *string, argSep, valSep string, splitter SplitterFunc, dest *map[K]V) (FlagValue, error) {
@@ -151,6 +159,8 @@ func newMapValue[K, V comparable](keyType FlagType[K], valType FlagType[V], envV
 
 	defaultText := (&mapValue[K, V]{values: dest, keyType: keyType, valType: valType, argSep: argSep, valSep: valSep, splitter: splitter}).String()
 
+	var envHasBeenSet bool
+
 	if envValue != nil && splitter != nil {
 		value := mapValue[K, V]{values: dest, keyType: keyType, valType: valType, argSep: argSep, valSep: valSep, splitter: splitter}
 
@@ -159,17 +169,20 @@ func newMapValue[K, V comparable](keyType FlagType[K], valType FlagType[V], envV
 			if err := value.Set(strings.TrimSpace(arg)); err != nil {
 				return nil, err
 			}
+
+			envHasBeenSet = true
 		}
 	}
 
 	return &mapValue[K, V]{
-		values:      dest,
-		keyType:     keyType,
-		valType:     valType,
-		defaultText: defaultText,
-		argSep:      argSep,
-		valSep:      valSep,
-		splitter:    splitter,
+		values:        dest,
+		keyType:       keyType,
+		valType:       valType,
+		defaultText:   defaultText,
+		argSep:        argSep,
+		valSep:        valSep,
+		splitter:      splitter,
+		envHasBeenSet: envHasBeenSet,
 	}, nil
 }
 
@@ -214,7 +227,7 @@ func (flag *mapValue[K, V]) IsBoolFlag() bool {
 }
 
 func (flag *mapValue[K, V]) IsSet() bool {
-	return flag.hasBeenSet
+	return flag.hasBeenSet || flag.envHasBeenSet
 }
 
 func (flag *mapValue[K, V]) Get() any {

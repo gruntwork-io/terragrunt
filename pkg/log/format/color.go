@@ -1,8 +1,8 @@
-package formatter
+package format
 
 import (
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mgutz/ansi"
-	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -56,22 +56,22 @@ func (scheme ColorScheme) Compile() compiledColorScheme {
 
 type compiledColorScheme map[ColorStyleName]ColorFunc
 
-func (scheme compiledColorScheme) LevelColorFunc(level logrus.Level) ColorFunc {
+func (scheme compiledColorScheme) LevelColorFunc(level log.Level) ColorFunc {
 	switch level {
-	case logrus.InfoLevel:
-		return scheme.ColorFunc(InfoLevelStyle)
-	case logrus.WarnLevel:
-		return scheme.ColorFunc(WarnLevelStyle)
-	case logrus.ErrorLevel:
-		return scheme.ColorFunc(ErrorLevelStyle)
-	case logrus.FatalLevel:
-		return scheme.ColorFunc(FatalLevelStyle)
-	case logrus.PanicLevel:
-		return scheme.ColorFunc(PanicLevelStyle)
-	case logrus.DebugLevel:
-		return scheme.ColorFunc(DebugLevelStyle)
-	case logrus.TraceLevel:
+	case log.TraceLevel:
 		return scheme.ColorFunc(TraceLevelStyle)
+	case log.DebugLevel:
+		return scheme.ColorFunc(DebugLevelStyle)
+	case log.InfoLevel:
+		return scheme.ColorFunc(InfoLevelStyle)
+	case log.WarnLevel:
+		return scheme.ColorFunc(WarnLevelStyle)
+	case log.ErrorLevel:
+		return scheme.ColorFunc(ErrorLevelStyle)
+	case log.StdoutLevel:
+		return scheme.ColorFunc(TraceLevelStyle)
+	case log.StderrLevel:
+		return scheme.ColorFunc(ErrorLevelStyle)
 	default:
 		return scheme.ColorFunc(None)
 	}

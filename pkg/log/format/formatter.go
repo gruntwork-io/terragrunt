@@ -1,4 +1,4 @@
-package formatter
+package format
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 )
@@ -19,7 +20,6 @@ const (
 
 	PrefixKeyName   = "prefix"
 	TFBinaryKeyName = "tfBinary"
-	NoneLevel       = logrus.Level(10)
 )
 
 // Formatter implements logrus.Formatter
@@ -105,12 +105,12 @@ func (formatter *Formatter) printKeyValue(buf *bytes.Buffer, entry *logrus.Entry
 		return err
 	}
 
-	if err := formatter.appendKeyValue(buf, "level", formatter.levelText(entry.Level), true); err != nil {
+	if err := formatter.appendKeyValue(buf, "level", log.FromLogrusLevel(entry.Level), true); err != nil {
 		return err
 	}
 
 	if val, ok := entry.Data[PrefixKeyName]; ok && val != nil {
-		if val := val.(string); val != "" {
+		if val, ok := val.(string); ok && val != "" {
 			if err := formatter.appendKeyValue(buf, "prefix", val, true); err != nil {
 				return err
 			}
@@ -118,7 +118,7 @@ func (formatter *Formatter) printKeyValue(buf *bytes.Buffer, entry *logrus.Entry
 	}
 
 	if val, ok := entry.Data[TFBinaryKeyName]; ok && val != nil {
-		if val := val.(string); val != "" {
+		if val, ok := val.(string); ok && val != "" {
 			if err := formatter.appendKeyValue(buf, "binary", filepath.Base(val), true); err != nil {
 				return err
 			}
@@ -142,7 +142,7 @@ func (formatter *Formatter) printKeyValue(buf *bytes.Buffer, entry *logrus.Entry
 }
 
 func (formatter *Formatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entry) error {
-	level := fmt.Sprintf("%-6s ", formatter.levelText(entry.Level))
+	level := fmt.Sprintf("%-6s ", log.FromLogrusLevel(entry.Level))
 	if !formatter.DisableUppercase {
 		level = strings.ToUpper(level)
 	}
@@ -153,7 +153,7 @@ func (formatter *Formatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entr
 		timestamp string
 	)
 
-	if val, ok := entry.Data[PrefixKeyName]; ok && val != nil {
+	if val, ok := entry.Data[PrefixKeyName]; ok && val != nil && val != "." {
 		if val, ok := val.(string); ok && val != "" {
 			prefix = fmt.Sprintf("[%s] ", val)
 		}
@@ -173,7 +173,7 @@ func (formatter *Formatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entr
 	timestamp = entry.Time.Format(timestampFormat) + " "
 
 	if !formatter.DisableColors {
-		level = formatter.colorScheme.LevelColorFunc(entry.Level)(level)
+		level = formatter.colorScheme.LevelColorFunc(log.FromLogrusLevel(entry.Level))(level)
 		prefix = formatter.PrefixStyle.ColorFunc(prefix)(prefix)
 		tfBinary = formatter.colorScheme.ColorFunc(TFBinaryStyle)(tfBinary)
 		timestamp = formatter.colorScheme.ColorFunc(TimestampStyle)(timestamp)
@@ -237,19 +237,6 @@ func (formatter *Formatter) appendValue(buf *bytes.Buffer, value interface{}) er
 	}
 
 	return nil
-}
-
-func (formatter *Formatter) levelText(level logrus.Level) string {
-	levelText := level.String()
-	if level == logrus.WarnLevel {
-		levelText = "warn"
-	}
-
-	if levelText == "unknown" {
-		levelText = "stdout"
-	}
-
-	return levelText
 }
 
 func (formatter *Formatter) keys(data logrus.Fields, removeKeys ...string) []string {

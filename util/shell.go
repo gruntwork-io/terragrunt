@@ -68,7 +68,7 @@ func GetExitCode(err error) (int, error) {
 // ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr
 type ProcessExecutionError struct {
 	Err        error
-	StdOut     string
+	Stdout     string
 	Stderr     string
 	WorkingDir string
 }
@@ -80,4 +80,20 @@ func (err ProcessExecutionError) Error() string {
 
 func (err ProcessExecutionError) ExitStatus() (int, error) {
 	return GetExitCode(err.Err)
+}
+
+func Unwrap[V error](err error) *V {
+	var target = new(V)
+
+	for {
+		if ok := goErrors.As(err, target); ok {
+			return target
+		}
+
+		if err = goErrors.Unwrap(err); err == nil {
+			break
+		}
+	}
+
+	return target
 }

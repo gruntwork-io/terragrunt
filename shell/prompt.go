@@ -2,6 +2,7 @@ package shell
 
 import (
 	"bufio"
+	"context"
 	"os"
 	"strings"
 
@@ -10,7 +11,7 @@ import (
 )
 
 // Prompt the user for text in the CLI. Returns the text entered by the user.
-func PromptUserForInput(prompt string, terragruntOptions *options.TerragruntOptions) (string, error) {
+func PromptUserForInput(ctx context.Context, prompt string, terragruntOptions *options.TerragruntOptions) (string, error) {
 	// We are writing directly to ErrWriter so the prompt is always visible
 	// no matter what logLevel is configured. If `--non-interactive` is set, we log both prompt and
 	// a message about assuming `yes` to Debug, so
@@ -34,18 +35,31 @@ func PromptUserForInput(prompt string, terragruntOptions *options.TerragruntOpti
 
 	reader := bufio.NewReader(os.Stdin)
 
-	text, err := reader.ReadString('\n')
-	if err != nil {
-		return "", errors.WithStackTrace(err)
-	}
+	inputCh := make(chan string)
+	errCh := make(chan error)
 
-	return strings.TrimSpace(text), nil
+	go func() {
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			errCh <- errors.WithStackTrace(err)
+			return
+		}
+		inputCh <- strings.TrimSpace(input)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	case err := <-errCh:
+		return "", err
+	case input := <-inputCh:
+		return input, nil
+	}
 }
 
 // Prompt the user for a yes/no response and return true if they entered yes.
-func PromptUserForYesNo(prompt string, terragruntOptions *options.TerragruntOptions) (bool, error) {
-	resp, err := PromptUserForInput(prompt+" (y/n) ", terragruntOptions)
-
+func PromptUserForYesNo(ctx context.Context, prompt string, terragruntOptions *options.TerragruntOptions) (bool, error) {
+	resp, err := PromptUserForInput(ctx, prompt+" (y/n) ", terragruntOptions)
 	if err != nil {
 		return false, errors.WithStackTrace(err)
 	}

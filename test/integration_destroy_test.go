@@ -40,7 +40,7 @@ func TestTerragruntDestroyOrder(t *testing.T) {
 
 	runTerragrunt(t, "terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
-	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt run-all destroy --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt run-all destroy --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 	assert.Regexp(t, regexp.MustCompile(`(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`), stdout)
 }
@@ -54,7 +54,7 @@ func TestTerragruntApplyDestroyOrder(t *testing.T) {
 
 	runTerragrunt(t, "terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
-	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt run-all apply -destroy --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt run-all apply -destroy --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 	assert.Regexp(t, regexp.MustCompile(`(?smi)(?:(Module E|Module D|Module B).*){3}(?:(Module A|Module C).*){2}`), stdout)
 }
@@ -211,7 +211,7 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 			showStderr bytes.Buffer
 		)
 
-		err = runTerragruntCommand(t, "terragrunt show --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, &showStdout, &showStderr)
+		err = runTerragruntCommand(t, "terragrunt show --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+modulePath, &showStdout, &showStderr)
 		logBufferContentsLineByLine(t, showStdout, "show stdout for "+modulePath)
 		logBufferContentsLineByLine(t, showStderr, "show stderr for "+modulePath)
 
@@ -308,7 +308,7 @@ func TestStorePlanFilesRunAllDestroy(t *testing.T) {
 	_, output, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all plan -destroy --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, tmpDir))
 	require.NoError(t, err)
 
-	assert.Contains(t, output, "Using output file "+tmpDir)
+	assert.Contains(t, output, "Using output file "+getPathRelativeTo(t, tmpDir, testPath))
 	// verify that tfplan files are created in the tmpDir, 2 files
 	list, err = findFilesWithExtension(tmpDir, ".tfplan")
 	require.NoError(t, err)

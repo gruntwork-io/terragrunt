@@ -18,6 +18,9 @@ type SliceFlagType interface {
 	GenericType
 }
 
+// SliceActionFunc is the action to execute when the flag has been set either via a flag or via an environment variable.
+type SliceActionFunc[T SliceFlagType] func(ctx *Context, value []T) error
+
 // SliceFlag is a multiple flag.
 type SliceFlag[T SliceFlagType] struct {
 	flag
@@ -33,7 +36,7 @@ type SliceFlag[T SliceFlagType] struct {
 	// The name of the env variable that is parsed and assigned to `Destination` before the flag value.
 	EnvVar string
 	// The action to execute when flag is specified
-	Action ActionFunc
+	Action SliceActionFunc[T]
 	// The pointer to which the value of the flag or env var is assigned.
 	// It also uses as the default value displayed in the help.
 	Destination *[]T
@@ -47,6 +50,10 @@ type SliceFlag[T SliceFlagType] struct {
 
 // Apply applies Flag settings to the given flag set.
 func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
+	if flag.Destination == nil {
+		flag.Destination = new([]T)
+	}
+
 	if flag.Splitter == nil {
 		flag.Splitter = FlagSplitter
 	}
@@ -111,7 +118,7 @@ func (flag *SliceFlag[T]) Names() []string {
 // RunAction implements ActionableFlag.RunAction
 func (flag *SliceFlag[T]) RunAction(ctx *Context) error {
 	if flag.Action != nil {
-		return flag.Action(ctx)
+		return flag.Action(ctx, *flag.Destination)
 	}
 
 	return nil
@@ -119,11 +126,12 @@ func (flag *SliceFlag[T]) RunAction(ctx *Context) error {
 
 // -- slice Value
 type sliceValue[T comparable] struct {
-	values      *[]T
-	valueType   FlagType[T]
-	defaultText string
-	valSep      string
-	hasBeenSet  bool
+	values        *[]T
+	valueType     FlagType[T]
+	defaultText   string
+	valSep        string
+	hasBeenSet    bool
+	envHasBeenSet bool
 }
 
 func newSliceValue[T comparable](valueType FlagType[T], envValue *string, valSep string, splitter SplitterFunc, dest *[]T) (FlagValue, error) {
@@ -134,6 +142,8 @@ func newSliceValue[T comparable](valueType FlagType[T], envValue *string, valSep
 
 	defaultText := (&sliceValue[T]{values: dest, valueType: valueType, valSep: valSep}).String()
 
+	var envHasBeenSet bool
+
 	if envValue != nil && splitter != nil {
 		value := sliceValue[T]{values: dest, valueType: valueType}
 
@@ -142,14 +152,17 @@ func newSliceValue[T comparable](valueType FlagType[T], envValue *string, valSep
 			if err := value.Set(val); err != nil {
 				return nil, err
 			}
+
+			envHasBeenSet = true
 		}
 	}
 
 	return &sliceValue[T]{
-		values:      dest,
-		valueType:   valueType,
-		defaultText: defaultText,
-		valSep:      valSep,
+		values:        dest,
+		valueType:     valueType,
+		defaultText:   defaultText,
+		valSep:        valSep,
+		envHasBeenSet: envHasBeenSet,
 	}, nil
 }
 
@@ -184,7 +197,7 @@ func (flag *sliceValue[T]) IsBoolFlag() bool {
 }
 
 func (flag *sliceValue[T]) IsSet() bool {
-	return flag.hasBeenSet
+	return flag.hasBeenSet || flag.envHasBeenSet
 }
 
 func (flag *sliceValue[T]) Get() any {

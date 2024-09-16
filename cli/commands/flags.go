@@ -1,15 +1,26 @@
 package commands
 
 import (
-	"errors"
+	goErrors "errors"
+	"fmt"
 
+	"github.com/gruntwork-io/go-commons/collections"
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const (
+	TerragruntDisableLogFormattingFlagName = "terragrunt-disable-log-formatting"
+	TerragruntDisableLogFormattingEnvName  = "TERRAGRUNT_DISABLE_LOG_FORMATTING"
+
+	TerragruntJsonLogFlagName = "terragrunt-json-log"
+	TerragruntJsonLogEnvName  = "TERRAGRUNT_JSON_LOG"
+
 	TerragruntConfigFlagName = "terragrunt-config"
 	TerragruntConfigEnvName  = "TERRAGRUNT_CONFIG"
 
@@ -117,17 +128,17 @@ const (
 
 	// Logs related flags/envs
 
-	TerragruntJsonLogFlagName = "terragrunt-json-log"
-	TerragruntJsonLogEnvName  = "TERRAGRUNT_JSON_LOG"
-
 	TerragruntLogLevelFlagName = "terragrunt-log-level"
 	TerragruntLogLevelEnvName  = "TERRAGRUNT_LOG_LEVEL"
+
+	TerragruntLogDisableFlagName = "terragrunt-log-disable"
+	TerragruntLogDisableEnvName  = "TERRAGRUNT_LOG_DISABLE"
 
 	TerragruntNoColorFlagName = "terragrunt-no-color"
 	TerragruntNoColorEnvName  = "TERRAGRUNT_NO_COLOR"
 
-	TerragruntDisableLogFormattingFlagName = "terragrunt-disable-log-formatting"
-	TerragruntDisableLogFormattingEnvName  = "TERRAGRUNT_DISABLE_LOG_FORMATTING"
+	TerragruntShowLogAbsPathsFlagName = "terragrunt-log-show-abs-paths"
+	TerragruntShowLogAbsPathsEnvName  = "TERRAGRUNT_LOG_SHOW_ABS_PATHS"
 
 	TerragruntForwardTFStdoutFlagName = "terragrunt-forward-tf-stdout"
 	TerragruntForwardTFStdoutEnvName  = "TERRAGRUNT_FORWARD_TF_STDOUT"
@@ -310,38 +321,78 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 		&cli.GenericFlag[string]{
 			Name:        TerragruntLogLevelFlagName,
 			EnvVar:      TerragruntLogLevelEnvName,
-			Destination: &opts.LogLevelStr,
-			Usage:       "Sets the logging level for Terragrunt. Supported levels: panic, fatal, error, warn, info, debug, trace.",
+			DefaultText: opts.LogLevel.String(),
+			Usage:       fmt.Sprintf("Sets the logging level for Terragrunt. Supported levels: %s", log.AllLevels),
+			Action: func(ctx *cli.Context, val string) error {
+				// Before the release of v0.67.0, these levels actually disabled logs, since we do not use these levels for logging.
+				// For backward compatibility we simulate the same behavior.
+				removedLevels := []string{
+					"panic",
+					"fatal",
+				}
+
+				if collections.ListContainsElement(removedLevels, val) {
+					opts.ForwardTFStdout = true
+					opts.Logger.SetOptions(log.WithFormatter(&format.SilentFormatter{}))
+					return nil
+				}
+
+				level, err := log.ParseLevel(val)
+				if err != nil {
+					return errors.Errorf("flag --%s, %w", TerragruntLogLevelFlagName, err)
+				}
+
+				opts.Logger.SetOptions(log.WithLevel(level))
+				opts.LogLevel = level
+				return nil
+
+			},
+		},
+		&cli.BoolFlag{
+			Name:   TerragruntLogDisableFlagName,
+			EnvVar: TerragruntLogDisableEnvName,
+			Usage:  "Disable logging",
+			Action: func(ctx *cli.Context, _ bool) error {
+				opts.ForwardTFStdout = true
+				opts.Logger.SetOptions(log.WithFormatter(&format.SilentFormatter{}))
+				return nil
+			},
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntDisableLogFormattingFlagName,
 			EnvVar:      TerragruntDisableLogFormattingEnvName,
 			Destination: &opts.DisableLogFormatting,
-			Action: func(ctx *cli.Context) error {
-				if opts.DisableLogFormatting {
-					util.DisableLogFormatting()
-				}
+			Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
+			Action: func(ctx *cli.Context, val bool) error {
+				opts.LogFormatter.DisableLogFormatting = val
 				return nil
 			},
-			Usage: "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
-		},
-		&cli.BoolFlag{
-			Name:        TerragruntNoColorFlagName,
-			EnvVar:      TerragruntNoColorEnvName,
-			Destination: &opts.DisableLogColors,
-			Action: func(ctx *cli.Context) error {
-				if opts.DisableLogColors {
-					util.DisableLogColors()
-				}
-				return nil
-			},
-			Usage: "If specified, Terragrunt output won't contain any color.",
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntJsonLogFlagName,
 			EnvVar:      TerragruntJsonLogEnvName,
 			Destination: &opts.JsonLogFormat,
 			Usage:       "If specified, Terragrunt will output its logs in JSON format.",
+			Action: func(ctx *cli.Context, _ bool) error {
+				opts.Logger.SetOptions(log.WithFormatter(&format.JSONFormatter{}))
+				return nil
+			},
+		},
+		&cli.BoolFlag{
+			Name:        TerragruntShowLogAbsPathsFlagName,
+			EnvVar:      TerragruntShowLogAbsPathsEnvName,
+			Destination: &opts.LogShowAbsPaths,
+			Usage:       "Show absolute paths in logs",
+		},
+		&cli.BoolFlag{
+			Name:        TerragruntNoColorFlagName,
+			EnvVar:      TerragruntNoColorEnvName,
+			Destination: &opts.DisableLogColors,
+			Usage:       "If specified, Terragrunt output won't contain any color.",
+			Action: func(ctx *cli.Context, val bool) error {
+				opts.LogFormatter.DisableColors = val
+				return nil
+			},
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntTfLogJsonFlagName,
@@ -460,7 +511,7 @@ func NewHelpFlag(opts *options.TerragruntOptions) cli.Flag {
 		Name:    HelpFlagName,  // --help, -help
 		Aliases: []string{"h"}, //  -h
 		Usage:   "Show help",
-		Action: func(ctx *cli.Context) (err error) {
+		Action: func(ctx *cli.Context, _ bool) (err error) {
 			defer func() {
 				// exit the app
 				err = cli.NewExitError(err, 0)
@@ -472,7 +523,7 @@ func NewHelpFlag(opts *options.TerragruntOptions) cli.Flag {
 
 				// If the command name is not found, it is most likely a terraform command, show Terraform help.
 				var invalidCommandNameError cli.InvalidCommandNameError
-				if ok := errors.As(err, &invalidCommandNameError); ok {
+				if ok := goErrors.As(err, &invalidCommandNameError); ok {
 					terraformHelpCmd := append([]string{cmdName, "-help"}, ctx.Args().Tail()...)
 					return shell.RunTerraformCommand(ctx, opts, terraformHelpCmd...)
 				}
@@ -491,7 +542,7 @@ func NewVersionFlag(opts *options.TerragruntOptions) cli.Flag {
 		Name:    VersionFlagName, // --version, -version
 		Aliases: []string{"v"},   //  -v
 		Usage:   "Show terragrunt version",
-		Action: func(ctx *cli.Context) (err error) {
+		Action: func(ctx *cli.Context, _ bool) (err error) {
 			defer func() {
 				// exit the app
 				err = cli.NewExitError(err, 0)

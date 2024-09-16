@@ -5,11 +5,11 @@ import (
 	"strings"
 )
 
+const tailMinArgsLen = 2
+
 const (
 	SingleDashFlag NormalizeActsType = iota
-	DoubleDashFlag NormalizeActsType = iota
-
-	minTailLen = 2
+	DoubleDashFlag
 )
 
 var (
@@ -43,16 +43,16 @@ func (args Args) Last() string {
 
 // Tail returns the rest of the arguments (not the first one)
 // or else an empty string slice
-func (args Args) Tail() []string {
-	if args.Len() >= minTailLen {
-		tail := []string((args)[1:])
-		ret := make([]string, len(tail))
-		copy(ret, tail)
-
-		return ret
+func (args Args) Tail() Args {
+	if args.Len() < tailMinArgsLen {
+		return []string{}
 	}
 
-	return []string{}
+	tail := []string((args)[1:])
+	ret := make([]string, len(tail))
+	copy(ret, tail)
+
+	return ret
 }
 
 // Len returns the length of the wrapped slice
@@ -110,4 +110,15 @@ func (args Args) CommandName() string {
 	}
 
 	return ""
+}
+
+// Contains returns true if args contains the given `target` arg.
+func (args Args) Contains(target string) bool {
+	for _, arg := range args {
+		if arg == target {
+			return true
+		}
+	}
+
+	return false
 }

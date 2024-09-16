@@ -985,7 +985,7 @@ func readTFVarsFile(ctx *ParsingContext, args []string) (string, error) {
 	}
 
 	var variables map[string]interface{}
-	if err := ParseAndDecodeVarFile(varFile, fileContents, &variables); err != nil {
+	if err := ParseAndDecodeVarFile(ctx.TerragruntOptions, varFile, fileContents, &variables); err != nil {
 		return "", err
 	}
 
@@ -999,8 +999,8 @@ func readTFVarsFile(ctx *ParsingContext, args []string) (string, error) {
 
 // ParseAndDecodeVarFile uses the HCL2 file to parse the given varfile string into an HCL file body, and then decode it
 // into the provided output.
-func ParseAndDecodeVarFile(varFile string, fileContents []byte, out interface{}) error {
-	parser := hclparse.NewParser()
+func ParseAndDecodeVarFile(opts *options.TerragruntOptions, varFile string, fileContents []byte, out interface{}) error {
+	parser := hclparse.NewParser(hclparse.WithLogger(opts.Logger))
 
 	file, err := parser.ParseFromBytes(fileContents, varFile)
 	if err != nil {

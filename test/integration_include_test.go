@@ -105,7 +105,7 @@ func TestTerragruntRunAllModulesThatIncludeRestrictsSet(t *testing.T) {
 	err := runTerragruntCommand(
 		t,
 		fmt.Sprintf(
-			"terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-modules-that-include alpha.hcl",
+			"terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-forward-tf-stdout --terragrunt-working-dir %s --terragrunt-modules-that-include alpha.hcl",
 			modulePath,
 		),
 		&stdout,
@@ -132,7 +132,7 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(
 		t,
-		"terragrunt run-all plan --terragrunt-non-interactive --terragrunt-working-dir "+modulePath,
+		"terragrunt run-all plan --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+modulePath,
 		&stdout,
 		&stderr,
 	)
@@ -145,7 +145,7 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	assert.Contains(t, planOutput, "beta")
 	assert.Contains(t, planOutput, "charlie")
 
-	stdoutLines := strings.Split(planOutput, "\n")
+	stdoutLines := strings.Split(stderr.String(), "\n")
 	for _, line := range stdoutLines {
 		if strings.Contains(line, "alpha") {
 			assert.Contains(t, line, "prefix=a")

@@ -23,9 +23,13 @@ const (
 	CommandNameConsole        = "console"
 	CommandNameForceUnlock    = "force-unlock"
 	CommandNameShow           = "show"
+	CommandNameVersion        = "version"
 
-	FlagNameJSON    = "-json"
-	FlagNameNoColor = "-no-color"
+	FlagNameHelpLong  = "-help"
+	FlagNameHelpShort = "-h"
+	FlagNameVersion   = "-version"
+	FlagNameJSON      = "-json"
+	FlagNameNoColor   = "-no-color"
 	// `apply -destroy` is alias for `destroy`
 	FlagNameDestroy = "-destroy"
 

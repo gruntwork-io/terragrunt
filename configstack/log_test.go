@@ -6,7 +6,8 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/configstack"
-	"github.com/sirupsen/logrus"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -17,17 +18,23 @@ func ptr(str string) *string {
 
 func TestLogReductionHook(t *testing.T) {
 	t.Parallel()
-	var hook = configstack.NewForceLogLevelHook(logrus.ErrorLevel)
+	var hook = configstack.NewForceLogLevelHook(log.ErrorLevel)
 
 	stdout := bytes.Buffer{}
 
-	var testLogger = logrus.New()
-	testLogger.Out = &stdout
-	testLogger.AddHook(hook)
-	testLogger.Level = logrus.DebugLevel
+	formatter := format.NewFormatter()
+	formatter.DisableColors = true
+	formatter.DisableLogFormatting = true
 
-	logrus.NewEntry(testLogger).Info("Test tomato")
-	logrus.NewEntry(testLogger).Error("666 potato 111")
+	var testLogger = log.New(
+		log.WithOutput(&stdout),
+		log.WithHooks(hook),
+		log.WithLevel(log.DebugLevel),
+		log.WithFormatter(formatter),
+	)
+
+	testLogger.Info("Test tomato")
+	testLogger.Error("666 potato 111")
 
 	out := stdout.String()
 

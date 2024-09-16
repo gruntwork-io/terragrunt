@@ -1,9 +1,9 @@
 package middleware
 
 import (
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/pkg/errors"
 )
 
 type Authorization struct {
