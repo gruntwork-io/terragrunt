@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+const tailMinArgsLen = 2
+
 const (
 	SingleDashFlag NormalizeActsType = iota
 	DoubleDashFlag
@@ -42,9 +44,7 @@ func (args Args) Last() string {
 // Tail returns the rest of the arguments (not the first one)
 // or else an empty string slice
 func (args Args) Tail() Args {
-	const minArgsLen = 2
-
-	if args.Len() < minArgsLen {
+	if args.Len() < tailMinArgsLen {
 		return []string{}
 	}
 

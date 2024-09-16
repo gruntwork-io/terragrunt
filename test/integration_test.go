@@ -3531,7 +3531,7 @@ func TestTerragruntInvokeTerraformTests(t *testing.T) {
 	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureTfTest)
 
-	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt test --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
+	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt test --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+testPath)
 	require.NoError(t, err)
 	assert.Contains(t, stdout, "1 passed, 0 failed")
 }

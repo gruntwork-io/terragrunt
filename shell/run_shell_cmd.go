@@ -461,7 +461,7 @@ func shouldForceForwardTFStdout(args cli.Args) bool {
 	}
 
 	for _, flag := range tfFlags {
-		if args.Tail().Contains(flag) {
+		if args.Normalize(cli.SingleDashFlag).Contains(flag) {
 			return true
 		}
 	}
