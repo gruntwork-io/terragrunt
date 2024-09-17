@@ -3,6 +3,7 @@ package cli
 import (
 	libflag "flag"
 
+	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/urfave/cli/v2"
 )
 
@@ -42,11 +43,22 @@ func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
 		flag.Destination = new(bool)
 	}
 
-	var err error
+	var (
+		err      error
+		envValue *string
+	)
 
 	valType := FlagType[bool](&boolFlagType{negative: flag.Negative})
 
-	if flag.FlagValue, err = newGenericValue(valType, flag.LookupEnv(flag.EnvVar), flag.Destination); err != nil {
+	if val := flag.LookupEnv(flag.EnvVar); val != nil && *val != "" {
+		envValue = val
+	}
+
+	if flag.FlagValue, err = newGenericValue(valType, envValue, flag.Destination); err != nil {
+		if envValue != nil {
+			return errors.Errorf("invalid boolean value %q for %s: %w", *envValue, flag.EnvVar, err)
+		}
+
 		return err
 	}
 

@@ -76,12 +76,23 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 		flag.KeyValSep = MapFlagKeyValSep
 	}
 
-	var err error
+	var (
+		err      error
+		envValue *string
+	)
 
 	keyType := FlagType[K](new(genericType[K]))
 	valType := FlagType[V](new(genericType[V]))
 
-	if flag.FlagValue, err = newMapValue(keyType, valType, flag.LookupEnv(flag.EnvVar), flag.EnvVarSep, flag.KeyValSep, flag.Splitter, flag.Destination); err != nil {
+	if val := flag.LookupEnv(flag.EnvVar); val != nil {
+		envValue = val
+	}
+
+	if flag.FlagValue, err = newMapValue(keyType, valType, envValue, flag.EnvVarSep, flag.KeyValSep, flag.Splitter, flag.Destination); err != nil {
+		if envValue != nil {
+			return errors.Errorf("invalid value %q for %s: %w", *envValue, flag.EnvVar, err)
+		}
+
 		return err
 	}
 
