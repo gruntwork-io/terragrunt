@@ -8,6 +8,7 @@ import (
 	goErrors "errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/gruntwork-io/terragrunt/internal/cache"
 
 	"github.com/hashicorp/go-getter"
 	"github.com/mholt/archiver/v3"
@@ -46,8 +49,10 @@ const (
 	ChecksumFileNameFormat                           = "terragrunt-iac-%s_%s_%s_SHA256SUMS"
 	EngineCachePathEnv                               = "TG_ENGINE_CACHE_PATH"
 	EngineSkipCheckEnv                               = "TG_ENGINE_SKIP_CHECK"
+	defaultEngineRepoRoot                            = "github.com/"
 	TerraformCommandContextKey      engineClientsKey = iota
 	LocksContextKey                 engineLocksKey   = iota
+	LatestVersionsContextKey        engineLocksKey   = iota
 )
 
 type engineClientsKey byte
@@ -130,6 +135,7 @@ func WithEngineValues(ctx context.Context) context.Context {
 
 	ctx = context.WithValue(ctx, TerraformCommandContextKey, &sync.Map{})
 	ctx = context.WithValue(ctx, LocksContextKey, util.NewKeyLocks())
+	ctx = context.WithValue(ctx, LatestVersionsContextKey, cache.NewCache[string]("engineVersions"))
 
 	return ctx
 }
@@ -145,6 +151,18 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 	if util.FileExists(e.Source) {
 		// if source is a file, no need to download, exit
 		return nil
+	}
+
+	// identify engine version if not specified
+	if len(e.Version) == 0 {
+		if !strings.Contains(e.Source, "://") {
+			tag, err := lastReleaseVersion(ctx, opts)
+			if err != nil {
+				return errors.WithStackTrace(err)
+			}
+
+			e.Version = tag
+		}
 	}
 
 	path, err := engineDir(e)
@@ -224,6 +242,53 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 	opts.Logger.Infof("Engine available as %s", path)
 
 	return nil
+}
+
+func lastReleaseVersion(ctx context.Context, opts *options.TerragruntOptions) (string, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", strings.TrimPrefix(opts.Engine.Source, defaultEngineRepoRoot))
+
+	versionCache, err := engineVersionsCacheFromContext(ctx)
+
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	if val, found := versionCache.Get(ctx, url); found {
+		return val, nil
+	}
+
+	type release struct {
+		Tag string `json:"tag_name"`
+	}
+	// query tag from https://api.github.com/repos/{owner}/{repo}/releases/latest
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	defer resp.Body.Close() //nolint:errcheck
+	body, err := io.ReadAll(resp.Body)
+
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	var r release
+	if err := json.Unmarshal(body, &r); err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	versionCache.Put(ctx, url, r.Tag)
+
+	return r.Tag, nil
 }
 
 func extractArchive(opts *options.TerragruntOptions, downloadFile string, engineFile string) error {
@@ -378,6 +443,20 @@ func downloadLocksFromContext(ctx context.Context) (*util.KeyLocks, error) {
 	result, ok := val.(*util.KeyLocks)
 	if !ok {
 		return nil, errors.WithStackTrace(goErrors.New("failed to cast engine clients from context"))
+	}
+
+	return result, nil
+}
+
+func engineVersionsCacheFromContext(ctx context.Context) (*cache.Cache[string], error) {
+	val := ctx.Value(LatestVersionsContextKey)
+	if val == nil {
+		return nil, errors.WithStackTrace(goErrors.New("failed to fetch engine versions cache from context"))
+	}
+
+	result, ok := val.(*cache.Cache[string])
+	if !ok {
+		return nil, errors.WithStackTrace(goErrors.New("failed to cast engine versions cache from context"))
 	}
 
 	return result, nil

@@ -19,7 +19,7 @@ To try it out, all you need to do is include the following in your `terragrunt.h
 ```hcl
 engine {
   source  = "github.com/gruntwork-io/terragrunt-engine-opentofu"
-  version = "v0.0.5"
+  version = "v0.0.7"
 }
 ```
 
@@ -27,7 +27,13 @@ This example leverages the official OpenTofu engine, [publicly available on GitH
 
 This engine currently leverages the locally available installation of the `tofu` binary, just like Terragrunt does by default without use of engine configurations. It provides a convenient example of how to build engines for Terragrunt.
 
-In the future, this plugin will expand in capability to include additional features and configurations.
+In the future, this engine will expand in capability to include additional features and configurations.
+
+Due to the fact that this functionality is still experimental, and not recommended for general production usage, set the following environment variable to opt-in to this functionality:
+
+```sh
+export TG_EXPERIMENTAL_ENGINE=1
+```
 
 ### Use Cases
 
@@ -45,7 +51,7 @@ e.g.
 
 ### HTTPS Sources
 
-Use an HTTP(S) URL to specify the path to the plugin:
+Use an HTTP(S) URL to specify the path to the engine:
 
 ```hcl
 engine {
@@ -67,9 +73,9 @@ engine {
 ### Parameters
 
 * `source`: (Required) The source of the plugin. Multiple engine approaches are supported, including GitHub repositories, HTTP(S) paths, and local absolute paths.
-* `version`: (Required for GitHub) The version of the plugin to download from GitHub releases.
+* `version`: The version of the engine to download from GitHub releases, if not specified, the latest release is always downloaded.
 * `type`: (Optional) Currently, the only supported type is `rpc`.
-* `meta`: (Optional) A block for setting plugin-specific metadata. This can include various configuration settings required by the plugin.
+* `meta`: (Optional) A block for setting engine-specific metadata. This can include various configuration settings required by the engine.
 
 ### Caching
 
@@ -91,22 +97,16 @@ To disable this feature, set the environment variable:
 export TG_ENGINE_SKIP_CHECK=0 
 ```
 
-Due to the fact that this functionality is still experimental, and not recommended for general production usage, set the following environment variable to opt-in to this functionality:
-
-```sh
-export TG_EXPERIMENTAL_ENGINE=1
-```
-
 ### Engine Metadata
 
 The `meta` block is used to pass metadata to the engine. This metadata can be used to configure the engine or pass additional information to the engine.
 
-The metadata block is a map of key-value pairs. Plugins can read the information passed via the metadata map to configure themselves or to pass additional information to the engine.
+The metadata block is a map of key-value pairs. Engines can read the information passed via the metadata map to configure themselves.
 
 ```hcl
 engine {
-   source  = "/home/users/iac-engines/my-custom-plugin"
-   # Optionally set metadata for the plugin.
+   source  = "/home/users/iac-engines/my-custom-engine"
+   # Optionally set metadata for the engine.
    meta = { 
      key_1 = ["value1", "value2"]
      key_2 = "1.6.0"

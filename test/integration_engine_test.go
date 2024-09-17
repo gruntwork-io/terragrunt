@@ -20,10 +20,11 @@ import (
 )
 
 const (
-	testFixtureLocalEngine    = "fixtures/engine/local-engine"
-	testFixtureRemoteEngine   = "fixtures/engine/remote-engine"
-	testFixtureOpenTofuEngine = "fixtures/engine/opentofu-engine"
-	testFixtureOpenTofuRunAll = "fixtures/engine/opentofu-run-all"
+	testFixtureLocalEngine          = "fixtures/engine/local-engine"
+	testFixtureRemoteEngine         = "fixtures/engine/remote-engine"
+	testFixtureOpenTofuEngine       = "fixtures/engine/opentofu-engine"
+	testFixtureOpenTofuRunAll       = "fixtures/engine/opentofu-run-all"
+	testFixtureOpenTofuLatestRunAll = "fixtures/engine/opentofu-latest-run-all"
 
 	envVarExperimental = "TG_EXPERIMENTAL_ENGINE"
 )
@@ -198,6 +199,22 @@ func TestEngineDisableChecksumCheck(t *testing.T) {
 
 	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)
+}
+
+func TestEngineOpentofuLatestRunAll(t *testing.T) {
+	t.Setenv(envVarExperimental, "1")
+
+	cleanupTerraformFolder(t, testFixtureOpenTofuLatestRunAll)
+	tmpEnvPath := copyEnvironment(t, testFixtureOpenTofuLatestRunAll)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureOpenTofuLatestRunAll)
+
+	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s", rootPath))
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "resource \"local_file\" \"test\"")
+	assert.Contains(t, stdout, "filename             = \"./test.txt\"\n")
+	assert.Contains(t, stdout, "Tofu Shutdown completed")
+	assert.Contains(t, stdout, "Apply complete!")
 }
 
 func setupEngineCache(t *testing.T) (string, string) {
