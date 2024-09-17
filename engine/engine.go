@@ -8,6 +8,7 @@ import (
 	goErrors "errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -46,6 +47,7 @@ const (
 	ChecksumFileNameFormat                           = "terragrunt-iac-%s_%s_%s_SHA256SUMS"
 	EngineCachePathEnv                               = "TG_ENGINE_CACHE_PATH"
 	EngineSkipCheckEnv                               = "TG_ENGINE_SKIP_CHECK"
+	defaultEngineRepoRoot                            = "github.com/"
 	TerraformCommandContextKey      engineClientsKey = iota
 	LocksContextKey                 engineLocksKey   = iota
 )
@@ -147,6 +149,18 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 		return nil
 	}
 
+	// identify engine version if not specified
+	if len(e.Version) == 0 {
+		if !strings.Contains(e.Source, "://") {
+			tag, err := lastReleaseVersion(ctx, opts)
+			if err != nil {
+				return errors.WithStackTrace(err)
+			}
+
+			e.Version = tag
+		}
+	}
+
 	path, err := engineDir(e)
 	if err != nil {
 		return errors.WithStackTrace(err)
@@ -224,6 +238,40 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 	opts.Logger.Infof("Engine available as %s", path)
 
 	return nil
+}
+
+func lastReleaseVersion(ctx context.Context, opts *options.TerragruntOptions) (string, error) {
+	type release struct {
+		Tag string `json:"tag_name"`
+	}
+	// query tag from https://api.github.com/repos/{owner}/{repo}/releases/latest
+	url := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", strings.TrimPrefix(opts.Engine.Source, defaultEngineRepoRoot))
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	defer resp.Body.Close() //nolint:errcheck
+	body, err := io.ReadAll(resp.Body)
+
+	if err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	var r release
+	if err := json.Unmarshal(body, &r); err != nil {
+		return "", errors.WithStackTrace(err)
+	}
+
+	return r.Tag, nil
 }
 
 func extractArchive(opts *options.TerragruntOptions, downloadFile string, engineFile string) error {

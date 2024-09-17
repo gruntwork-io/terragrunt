@@ -44,8 +44,8 @@ func (cfg *CatalogConfig) String() string {
 	return fmt.Sprintf("Catalog{URLs = %v}", cfg.URLs)
 }
 
-func (cfg *CatalogConfig) normalize(cofnigPath string) {
-	configDir := filepath.Dir(cofnigPath)
+func (cfg *CatalogConfig) normalize(configPath string) {
+	configDir := filepath.Dir(configPath)
 
 	// transform relative paths to absolute ones
 	for i, url := range cfg.URLs {
