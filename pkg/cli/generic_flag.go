@@ -47,11 +47,22 @@ func (flag *GenericFlag[T]) Apply(set *libflag.FlagSet) error {
 		flag.Destination = new(T)
 	}
 
-	var err error
+	var (
+		err      error
+		envValue *string
+	)
 
 	valType := FlagType[T](new(genericType[T]))
 
-	if flag.FlagValue, err = newGenericValue(valType, flag.LookupEnv(flag.EnvVar), flag.Destination); err != nil {
+	if val := flag.LookupEnv(flag.EnvVar); val != nil {
+		envValue = val
+	}
+
+	if flag.FlagValue, err = newGenericValue(valType, envValue, flag.Destination); err != nil {
+		if envValue != nil {
+			return errors.Errorf("invalid value %q for %s: %w", *envValue, flag.EnvVar, err)
+		}
+
 		return err
 	}
 
@@ -199,7 +210,7 @@ func (val *genericType[T]) Set(str string) error {
 	case *bool:
 		v, err := strconv.ParseBool(str)
 		if err != nil {
-			return errors.Errorf("error parse: %w", err)
+			return errors.WithStackTrace(InvalidValueError{underlyingError: err, msg: `must be one of: "0", "1", "f", "t", "false", "true"`})
 		}
 
 		*dest = v
@@ -207,7 +218,7 @@ func (val *genericType[T]) Set(str string) error {
 	case *int:
 		v, err := strconv.ParseInt(str, 0, strconv.IntSize)
 		if err != nil {
-			return errors.Errorf("error parse: %w", err)
+			return errors.WithStackTrace(InvalidValueError{underlyingError: err, msg: "must be 32-bit integer"})
 		}
 
 		*dest = int(v)
@@ -215,7 +226,7 @@ func (val *genericType[T]) Set(str string) error {
 	case *uint:
 		v, err := strconv.ParseUint(str, 10, 64)
 		if err != nil {
-			return errors.Errorf("error parse: %w", err)
+			return errors.WithStackTrace(InvalidValueError{underlyingError: err, msg: "must be 32-bit unsigned integer"})
 		}
 
 		*dest = uint(v)
@@ -223,7 +234,7 @@ func (val *genericType[T]) Set(str string) error {
 	case *int64:
 		v, err := strconv.ParseInt(str, 0, 64)
 		if err != nil {
-			return errors.Errorf("error parse: %w", err)
+			return errors.WithStackTrace(InvalidValueError{underlyingError: err, msg: "must be 64-bit integer"})
 		}
 
 		*dest = v
