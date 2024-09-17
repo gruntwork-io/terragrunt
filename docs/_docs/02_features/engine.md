@@ -101,7 +101,7 @@ export TG_ENGINE_SKIP_CHECK=0
 
 The `meta` block is used to pass metadata to the engine. This metadata can be used to configure the engine or pass additional information to the engine.
 
-The metadata block is a map of key-value pairs. Engine implementations can read the information passed via the metadata map to configure themselves or to pass additional information to the engine.
+The metadata block is a map of key-value pairs. Engines can read the information passed via the metadata map to configure themselves.
 
 ```hcl
 engine {
