@@ -73,7 +73,7 @@ engine {
 ### Parameters
 
 * `source`: (Required) The source of the plugin. Multiple engine approaches are supported, including GitHub repositories, HTTP(S) paths, and local absolute paths.
-* `version`: The version of the engine to download from GitHub releases, if not specified, the latest release is downloaded.
+* `version`: The version of the engine to download from GitHub releases, if not specified, the latest release is always downloaded.
 * `type`: (Optional) Currently, the only supported type is `rpc`.
 * `meta`: (Optional) A block for setting engine-specific metadata. This can include various configuration settings required by the engine.
 
