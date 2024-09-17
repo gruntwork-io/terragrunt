@@ -823,7 +823,7 @@ func ParseConfigString(ctx *ParsingContext, configPath string, configString stri
 //     Allowed References:
 //     - locals
 //     - dependency
-//  5. Merge the included config with the parsed config. Note that all the config data is mergable except for `locals`
+//  5. Merge the included config with the parsed config. Note that all the config data is mergeable except for `locals`
 //     blocks, which are only scoped to be available within the defining config.
 func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TerragruntConfig, error) {
 	ctx = ctx.WithTrackInclude(nil)

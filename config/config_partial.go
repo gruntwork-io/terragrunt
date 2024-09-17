@@ -301,7 +301,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			decoded.Dependencies = decoded.Dependencies.FilteredWithoutConfigPath()
 
 			output.TerragruntDependencies = decoded.Dependencies
-			// Convert dependency blocks into module depenency lists. If we already decoded some dependencies,
+			// Convert dependency blocks into module dependency lists. If we already decoded some dependencies,
 			// merge them in. Otherwise, set as the new list.
 			dependencies := dependencyBlocksToModuleDependencies(decoded.Dependencies)
 			if output.Dependencies != nil {

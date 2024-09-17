@@ -458,7 +458,7 @@ func DoesGCSBucketExist(gcsClient *storage.Client, config *RemoteStateConfigGCS)
 	bucket := gcsClient.Bucket(config.Bucket)
 
 	// TODO - the code below attempts to determine whether the storage bucket exists by making a making a number of API
-	// calls, then attemping to list the contents of the bucket. It was adapted from Google's own integration tests and
+	// calls, then attempting to list the contents of the bucket. It was adapted from Google's own integration tests and
 	// should be improved once the appropriate API call is added. For more info see:
 	// https://github.com/GoogleCloudPlatform/google-cloud-go/blob/de879f7be552d57556875b8aaa383bce9396cc8c/storage/integration_test.go#L1231
 	if _, err := bucket.Attrs(ctx); err != nil {

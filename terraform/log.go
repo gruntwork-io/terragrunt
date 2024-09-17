@@ -25,7 +25,7 @@ var (
 	tfLogTimeLevelMsgReg = regexp.MustCompile(`(?i)(^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}\S*)\s*\[(trace|debug|warn|info|error)\]\s*(.+\S)$`)
 )
 
-// ParseLogFunc wraps `ParseLog` to add msg prefix and bypasses the the parse erorr if `returnError` is false,
+// ParseLogFunc wraps `ParseLog` to add msg prefix and bypasses the parse error if `returnError` is false,
 // since returning the error for `log/writer` will cause TG to fall with a `broken pipe` error.
 func ParseLogFunc(msgPrefix string, returnError bool) writer.WriterParseFunc {
 	return func(str string) (msg string, ptrTime *time.Time, ptrLevel *log.Level, err error) {

@@ -131,7 +131,8 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	}
 	filesystemProvider.CreateMirror(t, providersFilesystemMirrorPath)
 
-	// when we run NetworkMirrorServer, we override the default transport to configure the self-signed certificate, we need to restor, after finishing we need to restore this value
+	// When we run NetworkMirrorServer, we override the default transport to configure the self-signed certificate.
+	// After finishing, we need to restore this value.
 	defaultTransport := http.DefaultTransport
 	defer func() {
 		http.DefaultTransport = defaultTransport
@@ -392,7 +393,7 @@ func TestPriorityOrderOfArgument(t *testing.T) {
 	injectedValue := "Injected-directly-by-argument"
 	runTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt apply -auto-approve -var extra_var=%s --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s", injectedValue, testFixtureExtraArgsPath), out, os.Stderr)
 	t.Log(out.String())
-	// And the result value for test should be the injected variable since the injected arguments are injected before the suplied parameters,
+	// And the result value for test should be the injected variable since the injected arguments are injected before the supplied parameters,
 	// so our override of extra_var should be the last argument.
 	assert.Contains(t, out.String(), fmt.Sprintf(`test = "%s"`, injectedValue))
 }

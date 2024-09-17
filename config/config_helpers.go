@@ -319,7 +319,7 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 	return envVariable, nil
 }
 
-// RunCommand is a helper function that runs a command and returns the stdout as the interporation
+// RunCommand is a helper function that runs a command and returns the stdout as the interpolation
 // for each `run_cmd` in locals section, function is called twice
 // result
 func RunCommand(ctx *ParsingContext, args []string) (string, error) {
