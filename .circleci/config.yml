@@ -123,6 +123,12 @@ run_markdownlint: &run_markdownlint
     -- \
     docs
 
+codespell: &codespell
+  name: Run codespell
+  command: |
+    pip install codespell
+    codespell .
+
 version: 2.1
 jobs:
   test_windows:
@@ -520,6 +526,13 @@ jobs:
       - run:
           <<: *run_markdownlint
 
+  codespell:
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          <<: *codespell
+
   build:
     resource_class: xlarge
     <<: *defaults
@@ -751,6 +764,14 @@ workflows:
             - GITHUB__PAT__gruntwork-ci
             - APPLE__OSX__code-signing
       - run_markdownlint:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+      - codespell:
           filters:
             tags:
               only: /^v.*/

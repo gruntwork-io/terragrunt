@@ -1,0 +1,3 @@
+[codespell]
+skip = go.mod,go.sum,*.svg,Gemfile.lock
+ignore-words-list = dRan

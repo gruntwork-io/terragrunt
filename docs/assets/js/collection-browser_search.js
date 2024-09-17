@@ -4,7 +4,7 @@
  * TOC:
  *  - FILTER FUNCTIONS - functions to extract the terms from DOM element(s) and use them in search engine to show/hide elements.
  *  - MAIN - INITIALIZE - initializes Browser Search and registers actions (click etc.) on filter components.
- *  - SEARCH ENGINE - here is the logic to show & hide elements accoriding to filters terms.
+ *  - SEARCH ENGINE - here is the logic to show & hide elements according to filters terms.
  *  - OTHER
  */
 (function () {

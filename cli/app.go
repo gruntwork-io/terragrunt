@@ -247,7 +247,7 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 
 // mostly preparing terragrunt options
 func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
-	// The env vars are renamed to "..._NO_AUTO_..." in the gobal flags`. These ones are left for backwards compatibility.
+	// The env vars are renamed to "..._NO_AUTO_..." in the global flags`. These ones are left for backwards compatibility.
 	opts.AutoInit = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_INIT"), opts.AutoInit)
 	opts.AutoRetry = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_RETRY"), opts.AutoRetry)
 	opts.RunAllAutoApprove = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_APPROVE"), opts.RunAllAutoApprove)

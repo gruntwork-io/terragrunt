@@ -32,7 +32,7 @@ The `aws-auth-merger` works as follows:
 - The `aws-auth-merger` then does an initial merger of all the `ConfigMaps` in the configured namespace to create the
   initial version of the main `aws-auth` `ConfigMap`.
 - The `aws-auth-merger` then enters an infinite event loop that watches for changes to the `ConfigMaps` in the
-  configured namespace. The syncing routine will run everytime the merger detects changes in the namespace.
+  configured namespace. The syncing routine will run every time the merger detects changes in the namespace.
 
 ## How do I use the aws-auth-merger?
 

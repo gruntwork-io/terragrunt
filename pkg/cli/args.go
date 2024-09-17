@@ -77,7 +77,7 @@ func (args Args) Slice() []string {
 // if the given act is:
 //
 //	`SingleDashFlag` - converts all arguments containing double dashes to single dashes
-//	`DoubleDashFlag` - converts all arguments containing signle dashes to double dashes
+//	`DoubleDashFlag` - converts all arguments containing single dashes to double dashes
 func (args Args) Normalize(acts ...NormalizeActsType) Args {
 	strArgs := make(Args, 0, len(args.Slice()))
 

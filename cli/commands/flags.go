@@ -257,7 +257,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        TerragruntIAMAssumeRoleSessionNameFlagName,
 			EnvVar:      TerragruntIAMAssumeRoleSessionNameEnvName,
 			Destination: &opts.IAMRoleOptions.AssumeRoleSessionName,
-			Usage:       "Name for the IAM Assummed Role session. Can also be set via TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME environment variable.",
+			Usage:       "Name for the IAM Assumed Role session. Can also be set via TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME environment variable.",
 		},
 		&cli.GenericFlag[string]{
 			Name:        TerragruntIAMWebIdentityTokenFlagName,
@@ -411,7 +411,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        TerragruntFetchDependencyOutputFromStateFlagName,
 			EnvVar:      TerragruntFetchDependencyOutputFromStateEnvName,
 			Destination: &opts.FetchDependencyOutputFromState,
-			Usage:       "The option fetchs dependency output directly from the state file instead of init dependencies and running terraform on them.",
+			Usage:       "The option fetches dependency output directly from the state file instead of init dependencies and running terraform on them.",
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntForwardTFStdoutFlagName,

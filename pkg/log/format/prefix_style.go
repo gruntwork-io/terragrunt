@@ -18,7 +18,7 @@ var (
 
 type prefixStyle struct {
 	// cache stores prefixes with their color schemes.
-	// We use [xsync.MapOf](https://github.com/puzpuzpuz/xsync?tab=readme-ov-file#map) instaed of standard `sync.Map` since it's faster and has generic types.
+	// We use [xsync.MapOf](https://github.com/puzpuzpuz/xsync?tab=readme-ov-file#map) instead of standard `sync.Map` since it's faster and has generic types.
 	cache *xsync.MapOf[string, ColorFunc]
 
 	availableStyles []ColorStyle

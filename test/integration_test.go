@@ -660,13 +660,13 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 			nil,
 		},
 		{
-			[]string{"paln"},
+			[]string{"paln"}, //codespell:ignore
 			"",
-			expectedWrongCommandErr("paln"),
+			expectedWrongCommandErr("paln"), //codespell:ignore
 		},
 		{
-			[]string{"paln", "--terragrunt-disable-command-validation"},
-			wrappedBinary() + " invocation failed", // error caused by running terraform with the wrong command
+			[]string{"paln", "--terragrunt-disable-command-validation"}, //codespell:ignore
+			wrappedBinary() + " invocation failed",                      // error caused by running terraform with the wrong command
 			nil,
 		},
 	}
@@ -1082,7 +1082,7 @@ func TestDependencyMockOutput(t *testing.T) {
 }
 
 // Test default behavior when mock_outputs_merge_with_state is not set. It should behave, as before this parameter was added
-// It will fail on any command if the parent state is not applied, because the state of the parent exists and it alread has an output
+// It will fail on any command if the parent state is not applied, because the state of the parent exists and it already has an output
 // but not the newly added output.
 func TestDependencyMockOutputMergeWithStateDefault(t *testing.T) {
 	t.Parallel()
@@ -1115,7 +1115,7 @@ func TestDependencyMockOutputMergeWithStateDefault(t *testing.T) {
 }
 
 // Test when mock_outputs_merge_with_state is explicitly set to false. It should behave, as before this parameter was added
-// It will fail on any command if the parent state is not applied, because the state of the parent exists and it alread has an output
+// It will fail on any command if the parent state is not applied, because the state of the parent exists and it already has an output
 // but not the newly added output.
 func TestDependencyMockOutputMergeWithStateFalse(t *testing.T) {
 	t.Parallel()

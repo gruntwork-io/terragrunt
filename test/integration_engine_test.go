@@ -85,7 +85,7 @@ func TestEngineRunAllOpentofu(t *testing.T) {
 	assert.Contains(t, stderr, "plugin process exited:")
 	assert.Contains(t, stdout, "resource \"local_file\" \"test\"")
 	assert.Contains(t, stdout, "filename             = \"./test.txt\"\n")
-	assert.Contains(t, stdout, "OpenTofu has been successfull")
+	assert.Contains(t, stdout, "OpenTofu has been successful")
 	assert.Contains(t, stdout, "Tofu Shutdown completed")
 	assert.Contains(t, stdout, "Apply complete!")
 }
@@ -100,7 +100,7 @@ func TestEngineRunAllOpentofuCustomPath(t *testing.T) {
 
 	assert.Contains(t, stderr, "starting plugin:")
 	assert.Contains(t, stderr, "plugin process exited:")
-	assert.Contains(t, stdout, "OpenTofu has been successfull")
+	assert.Contains(t, stdout, "OpenTofu has been successful")
 	assert.Contains(t, stdout, "Tofu Shutdown completed")
 	assert.Contains(t, stdout, "Apply complete!")
 
