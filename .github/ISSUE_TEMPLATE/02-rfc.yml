@@ -3,7 +3,7 @@
 # - the OpenTofu RFC template: https://raw.githubusercontent.com/opentofu/opentofu/main/.github/ISSUE_TEMPLATE/rfc.yml
 
 name: RFC
-description: Submit a Request For Comments (RFC).
+description: Submit a Request For Comments (RFC) to significantly change Terragrunt.
 labels: ["rfc", "pending-decision"]
 body:
   - type: markdown

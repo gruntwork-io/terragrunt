@@ -1,8 +1,8 @@
 ---
-name: Bug report
-about: Create a bug report to help us improve Terragrunt.
+name: IaC Engine Bug Report
+about: Report a bug in the IaC Engine.
 title: ''
-labels: bug
+labels: bug, iac-engine
 assignees: ''
 
 ---
@@ -33,9 +33,12 @@ A clear and concise description of what you expected to happen.
 ## Versions
 
 - Terragrunt version:
+- Engine source:
+- Engine version:
 - OpenTofu/Terraform version:
 - Environment details (Ubuntu 20.04, Windows 10, etc.):
 
 ## Additional context
 
 Add any other context about the problem here.
+
