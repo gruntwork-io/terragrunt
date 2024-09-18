@@ -35,7 +35,7 @@ func Run(opts *options.TerragruntOptions) error {
 	if stdIn {
 		if targetFile != "" {
 			opts.Logger.Debugf("Both stdin and path flags are specified")
-			return fmt.Errorf("both stdin and path flags are specified")
+			return errors.Errorf("both stdin and path flags are specified")
 		}
 
 		return formatFromStdin(opts)
@@ -94,7 +94,6 @@ func Run(opts *options.TerragruntOptions) error {
 }
 
 func formatFromStdin(opts *options.TerragruntOptions) error {
-
 	contents, err := io.ReadAll(os.Stdin)
 
 	if err != nil {
@@ -112,6 +111,7 @@ func formatFromStdin(opts *options.TerragruntOptions) error {
 
 	buf := bufio.NewWriter(os.Stdout)
 	_, err = buf.Write(newContents)
+
 	if err != nil {
 		opts.Logger.Errorf("Failed to write to stdout")
 		return err
@@ -170,7 +170,7 @@ func formatTgHCL(opts *options.TerragruntOptions, tgHclFile string) error {
 	}
 
 	if opts.Check && fileUpdated {
-		return fmt.Errorf("Invalid file format %s", tgHclFile)
+		return fmt.Errorf("invalid file format %s", tgHclFile)
 	}
 
 	if fileUpdated {

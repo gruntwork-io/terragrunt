@@ -264,6 +264,7 @@ func TestHCLFmtFile(t *testing.T) {
 }
 
 func TestHCLFmtStdin(t *testing.T) {
+	t.Parallel()
 
 	realStdin := os.Stdin
 	realStdout := os.Stdout
