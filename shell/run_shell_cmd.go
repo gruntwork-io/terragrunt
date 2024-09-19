@@ -253,7 +253,7 @@ func RunShellCommandWithOutput(
 		}
 
 		if err != nil {
-			opts.Logger.Debugf("Error running command %s in %s\n%s\n%s\n%v", command+" "+strings.Join(args, " "), cmd.Dir, stdoutBuf.String(), stderrBuf.String(), err)
+			opts.Logger.Warnf("Failed to execute %s in %s\n%s\n%s\n%v", command+" "+strings.Join(args, " "), cmd.Dir, stdoutBuf.String(), stderrBuf.String(), err)
 			err = util.ProcessExecutionError{
 				Err:        err,
 				Stdout:     stdoutBuf.String(),
