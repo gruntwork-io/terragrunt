@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 
-echo "Custom script to generate error" >&2
+echo "Custom error from script" >&2
 
 exit 1

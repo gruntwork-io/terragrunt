@@ -35,7 +35,7 @@ func checkForErrorsAndExit(logger log.Logger) func(error) {
 			os.Exit(0)
 		} else {
 			logger.Debugf(printErrorWithStackTrace(err))
-			logger.Errorf(printError(err))
+			logger.Errorf(err.Error())
 
 			// exit with the underlying error code
 			exitCode, exitCodeErr := util.GetExitCode(err)
@@ -52,32 +52,6 @@ func checkForErrorsAndExit(logger log.Logger) func(error) {
 			os.Exit(exitCode)
 		}
 	}
-}
-
-func printError(err error) string {
-	if err == nil {
-		return ""
-	}
-
-	var sb strings.Builder
-
-	var processError util.ProcessExecutionError
-
-	if goErrors.As(err, &processError) {
-		if len(processError.Stderr) > 0 {
-			sb.WriteString(processError.Stderr)
-			sb.WriteString("\n")
-		}
-
-		if len(processError.Stdout) > 0 {
-			sb.WriteString(processError.Stdout)
-			sb.WriteString("\n")
-		}
-	}
-
-	sb.WriteString(err.Error())
-
-	return sb.String()
 }
 
 func printErrorWithStackTrace(err error) string {
