@@ -52,16 +52,16 @@ func replaceDeprecatedCommandFunc(terragruntCommandName, terraformCommandName st
 			if ok {
 				warning, err := control.Evaluate()
 				if err != nil {
-					return err
+					return err //nolint:wrapcheck
 				}
 
 				opts.Logger.Warn(warning)
 
-			} else { //nolint:wsl
+			} else { //nolint:wsl,whitespace
 				// This else clause should never be hit, as all the commands above are accounted for.
 				// This might be missed accidentally in the future, so we'll keep it for safety.
 				opts.Logger.Warnf(
-					"'%s' is deprecated. Running '%s' instead. Please update your workflows to use '%s', as '%s' may be removed in the future!\n",
+					"'%s' is deprecated. Running '%s' instead. Please update your workflows to use '%s', as '%s' may be removed in the future!\n", //nolint:lll
 					deprecatedCommandName,
 					newCommandFriendly,
 					newCommandFriendly,

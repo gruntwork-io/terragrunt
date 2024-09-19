@@ -44,7 +44,7 @@ func TestStrictControl(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range tests { //nolint:varnamelen
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("TG_STRICT_MODE", "false")
 			t.Setenv("TG_STRICT_PLAN_ALL", "false")

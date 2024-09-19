@@ -8,9 +8,9 @@ import (
 	"os"
 )
 
-// StrictControl represents a control that can be enabled or disabled in strict mode.
+// Control represents a control that can be enabled or disabled in strict mode.
 // When the control is enabled, Terragrunt will behave in a way that is not backwards compatible.
-type StrictControl struct {
+type Control struct {
 	// FlagName is the environment variable that will enable this control.
 	FlagName string
 	// Error is the error that will be returned when the control is enabled.
@@ -20,25 +20,34 @@ type StrictControl struct {
 }
 
 const (
+	// StrictModeEnvVar is the environment variable that will enable strict mode.
 	StrictModeEnvVar = "TG_STRICT_MODE"
 
-	SpinUp      string = "spin-up"
-	TearDown    string = "tear-down"
-	PlanAll     string = "plan-all"
-	ApplyAll    string = "apply-all"
-	DestroyAll  string = "destroy-all"
-	OutputAll   string = "output-all"
+	// SpinUp is the control that prevents the deprecated `spin-up` command from being used.
+	SpinUp string = "spin-up"
+	// TearDown is the control that prevents the deprecated `tear-down` command from being used.
+	TearDown string = "tear-down"
+	// PlanAll is the control that prevents the deprecated `plan-all` command from being used.
+	PlanAll string = "plan-all"
+	// ApplyAll is the control that prevents the deprecated `apply-all` command from being used.
+	ApplyAll string = "apply-all"
+	// DestroyAll is the control that prevents the deprecated `destroy-all` command from being used.
+	DestroyAll string = "destroy-all"
+	// OutputAll is the control that prevents the deprecated `output-all` command from being used.
+	OutputAll string = "output-all"
+	// ValidateAll is the control that prevents the deprecated `validate-all` command from being used.
 	ValidateAll string = "validate-all"
 )
 
 // GetStrictControl returns the strict control with the given name.
-func GetStrictControl(name string) (StrictControl, bool) {
+func GetStrictControl(name string) (Control, bool) {
 	control, ok := strictControls[name]
+
 	return control, ok
 }
 
 // Evaluate returns a warning if the control is not enabled, and an error if the control is enabled.
-func (control StrictControl) Evaluate() (string, error) {
+func (control Control) Evaluate() (string, error) {
 	strictMode := os.Getenv(StrictModeEnvVar)
 	if strictMode == "true" {
 		return "", control.Error
@@ -52,24 +61,27 @@ func (control StrictControl) Evaluate() (string, error) {
 	return control.Warning, nil
 }
 
+//nolint:stylecheck,lll,revive
 var (
-	ErrSpinUp            = errors.New("the `spin-up` command is no longer supported. Use `terragrunt run-all apply` instead")
-	ErrTearDown          = errors.New("the `tear-down` command is no longer supported. Use `terragrunt run-all destroy` instead")
-	ErrStrictPlanAll     = errors.New("the `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead")
-	ErrStrictApplyAll    = errors.New("the `apply-all` command is no longer supported. Use `terragrunt run-all apply` instead")
-	ErrStrictDestroyAll  = errors.New("the `destroy-all` command is no longer supported. Use `terragrunt run-all destroy` instead")
-	ErrStrictOutputAll   = errors.New("the `output-all` command is no longer supported. Use `terragrunt run-all output` instead")
-	ErrStrictValidateAll = errors.New("the `validate-all` command is no longer supported. Use `terragrunt run-all validate` instead")
+	ErrSpinUp            = errors.New("The `spin-up` command is no longer supported. Use `terragrunt run-all apply` instead.")
+	ErrTearDown          = errors.New("The `tear-down` command is no longer supported. Use `terragrunt run-all destroy` instead.")
+	ErrStrictPlanAll     = errors.New("The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.")
+	ErrStrictApplyAll    = errors.New("The `apply-all` command is no longer supported. Use `terragrunt run-all apply` instead.")
+	ErrStrictDestroyAll  = errors.New("The `destroy-all` command is no longer supported. Use `terragrunt run-all destroy` instead.")
+	ErrStrictOutputAll   = errors.New("The `output-all` command is no longer supported. Use `terragrunt run-all output` instead.")
+	ErrStrictValidateAll = errors.New("The `validate-all` command is no longer supported. Use `terragrunt run-all validate` instead.")
 )
-var strictControls = map[string]StrictControl{
+
+//nolint:lll,gochecknoglobals
+var strictControls = map[string]Control{
 	SpinUp: {
 		FlagName: "TG_STRICT_SPIN_UP",
-		Error:    errors.New("the `spin-up` command is deprecated and will be removed in a future version. Use `terragrunt run-all apply` instead"),
+		Error:    ErrSpinUp,
 		Warning:  "The `spin-up` command is deprecated and will be removed in a future version. Use `terragrunt run-all apply` instead.",
 	},
 	TearDown: {
 		FlagName: "TG_STRICT_TEAR_DOWN",
-		Error:    errors.New("the `tear-down` command is deprecated and will be removed in a future version. Use `terragrunt run-all destroy` instead"),
+		Error:    ErrTearDown,
 		Warning:  "The `tear-down` command is deprecated and will be removed in a future version. Use `terragrunt run-all destroy` instead.",
 	},
 	PlanAll: {
@@ -79,22 +91,22 @@ var strictControls = map[string]StrictControl{
 	},
 	ApplyAll: {
 		FlagName: "TG_STRICT_APPLY_ALL",
-		Error:    errors.New("the `apply-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all apply` instead"),
+		Error:    ErrStrictApplyAll,
 		Warning:  "The `apply-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all apply` instead.",
 	},
 	DestroyAll: {
 		FlagName: "TG_STRICT_DESTROY_ALL",
-		Error:    errors.New("the `destroy-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all destroy` instead"),
+		Error:    ErrStrictDestroyAll,
 		Warning:  "The `destroy-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all destroy` instead.",
 	},
 	OutputAll: {
 		FlagName: "TG_STRICT_OUTPUT_ALL",
-		Error:    errors.New("the `output-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all output` instead"),
+		Error:    ErrStrictOutputAll,
 		Warning:  "The `output-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all output` instead.",
 	},
 	ValidateAll: {
 		FlagName: "TG_STRICT_VALIDATE_ALL",
-		Error:    errors.New("the `validate-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all validate` instead"),
+		Error:    ErrStrictValidateAll,
 		Warning:  "The `validate-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all validate` instead.",
 	},
 }
