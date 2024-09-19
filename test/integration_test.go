@@ -103,6 +103,7 @@ const (
 	testFixtureStack                          = "fixtures/stack/"
 	testFixtureStdout                         = "fixtures/download/stdout-test"
 	testFixtureTfTest                         = "fixtures/tftest/"
+	testFixtureErrorPrint                     = "fixtures/error-print"
 
 	terraformFolder = ".terraform"
 
@@ -3904,4 +3905,15 @@ func TestTerragruntJsonPlanJsonOutput(t *testing.T) {
 		})
 
 	}
+}
+
+func TestErrorMessageIncludeInOutput(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, testFixtureErrorPrint)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureErrorPrint)
+
+	_, _, err := runTerragruntCommandWithOutput(t, "terragrunt apply  --terragrunt-non-interactive --terragrunt-working-dir "+testPath+" --terragrunt-tfpath "+testPath+"/custom-tf-script.sh --terragrunt-log-level debug")
+	require.Error(t, err)
 }
