@@ -60,6 +60,7 @@ func printError(err error) string {
 	}
 
 	var sb strings.Builder
+
 	var processError util.ProcessExecutionError
 
 	if goErrors.As(err, &processError) {
@@ -67,6 +68,7 @@ func printError(err error) string {
 			sb.WriteString(processError.Stderr)
 			sb.WriteString("\n")
 		}
+
 		if len(processError.Stdout) > 0 {
 			sb.WriteString(processError.Stdout)
 			sb.WriteString("\n")
@@ -74,6 +76,7 @@ func printError(err error) string {
 	}
 
 	sb.WriteString(err.Error())
+
 	return sb.String()
 }
 
