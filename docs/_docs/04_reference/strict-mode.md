@@ -13,9 +13,9 @@ nav_title_link: /docs/
 
 Terragrunt supports operating in a mode referred to as "Strict Mode".
 
-Strict Mode is a set of controls that can be enabled to ensure that your Terragrunt usage is future-proof 
-by making deprecated features throw errors instead of warnings. This can be useful when you want to ensure 
-that your Terragrunt code is up-to-date with the latest conventions to avoid breaking changes in 
+Strict Mode is a set of controls that can be enabled to ensure that your Terragrunt usage is future-proof
+by making deprecated features throw errors instead of warnings. This can be useful when you want to ensure
+that your Terragrunt code is up-to-date with the latest conventions to avoid breaking changes in
 future versions of Terragrunt.
 
 Whenever possible, Terragrunt will initially provide you with a warning when you use a deprecated feature, without throwing an error.
@@ -104,4 +104,3 @@ Throw an error when using the `output-all` command.
 Throw an error when using the `validate-all` command.
 
 **Reason**: The `validate-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all validate` instead.
-
