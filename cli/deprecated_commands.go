@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/terraform"
@@ -47,13 +48,26 @@ func replaceDeprecatedCommandFunc(terragruntCommandName, terraformCommandName st
 			deprecatedCommandName := ctx.Command.Name
 			newCommandFriendly := fmt.Sprintf("terragrunt %s %s", terragruntCommandName, strings.Join(args, " "))
 
-			opts.Logger.Warnf(
-				"'%s' is deprecated. Running '%s' instead. Please update your workflows to use '%s', as '%s' may be removed in the future!\n",
-				deprecatedCommandName,
-				newCommandFriendly,
-				newCommandFriendly,
-				deprecatedCommandName,
-			)
+			control, ok := strict.GetStrictControl(strict.PlanAll)
+			if ok {
+				warning, err := control.Evaluate()
+				if err != nil {
+					return err
+				}
+
+				opts.Logger.Warn(warning)
+
+			} else { //nolint:wsl
+				// This else clause should never be hit, as all the commands above are accounted for.
+				// This might be missed accidentally in the future, so we'll keep it for safety.
+				opts.Logger.Warnf(
+					"'%s' is deprecated. Running '%s' instead. Please update your workflows to use '%s', as '%s' may be removed in the future!\n",
+					deprecatedCommandName,
+					newCommandFriendly,
+					newCommandFriendly,
+					deprecatedCommandName,
+				)
+			}
 
 			err := command.Run(ctx, args)
 
