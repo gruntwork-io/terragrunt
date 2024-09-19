@@ -13,8 +13,6 @@ import (
 type StrictControl struct {
 	// FlagName is the environment variable that will enable this control.
 	FlagName string
-	// EnabledByDefault is true if the control is enabled by default.
-	EnabledByDefault bool
 	// Error is the error that will be returned when the control is enabled.
 	Error error
 	// Warning is a warning that will be logged when the control is not enabled.
@@ -48,10 +46,6 @@ func (control StrictControl) Evaluate() (string, error) {
 
 	enabled := os.Getenv(control.FlagName)
 	if enabled == "true" {
-		return "", control.Error
-	}
-
-	if control.EnabledByDefault {
 		return "", control.Error
 	}
 

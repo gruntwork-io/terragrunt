@@ -22,7 +22,7 @@ func TestStrictControl(t *testing.T) {
 			name:             "control enabled",
 			enableControl:    true,
 			enableStrictMode: false,
-			expectedErr:      strict.ErrStrictPlan,
+			expectedErr:      strict.ErrStrictPlanAll,
 		},
 		{
 			name:             "control disabled",
@@ -34,13 +34,13 @@ func TestStrictControl(t *testing.T) {
 			name:             "control enabled, strict mode enabled",
 			enableControl:    true,
 			enableStrictMode: true,
-			expectedErr:      strict.ErrStrictPlan,
+			expectedErr:      strict.ErrStrictPlanAll,
 		},
 		{
 			name:             "control disabled, strict mode enabled",
 			enableControl:    false,
 			enableStrictMode: true,
-			expectedErr:      strict.ErrStrictPlan,
+			expectedErr:      strict.ErrStrictPlanAll,
 		},
 	}
 
