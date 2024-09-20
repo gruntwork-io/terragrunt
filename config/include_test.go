@@ -145,9 +145,9 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 			&config.TerragruntConfig{IamWebIdentityToken: "token"},
 		},
 		{
-			&TerragruntConfig{Terraform: &TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
-			&TerragruntConfig{Terraform: &TerraformConfig{IncludeInCopy: &[]string{"abc"}}},
-			&TerragruntConfig{Terraform: &TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], IncludeInCopy: &[]string{"abc"}}},
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"abc"}}},
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], IncludeInCopy: &[]string{"abc"}}},
 		},
 	}
 
@@ -295,9 +295,9 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 		},
 		{
 			"terraform copy_terraform_lock_file",
-			&TerragruntConfig{Terraform: &TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
-			&TerragruntConfig{Terraform: &TerraformConfig{IncludeInCopy: &[]string{"abc"}}},
-			&TerragruntConfig{Terraform: &TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], IncludeInCopy: &[]string{"abc"}}},
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0]}},
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{IncludeInCopy: &[]string{"abc"}}},
+			&config.TerragruntConfig{Terraform: &config.TerraformConfig{CopyTerraformLockFile: &[]bool{false}[0], IncludeInCopy: &[]string{"abc"}}},
 		},
 	}
 
