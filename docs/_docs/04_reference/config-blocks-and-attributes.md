@@ -105,8 +105,8 @@ The `terraform` block supports the following arguments:
     can specify that in this list to ensure it gets copied over to the scratch copy
     (e.g., `include_in_copy = [".python-version"]`).
 
-- `copy_terraform_lock_file` (attribute): In certain use cases, you don't want to check the terraform provider lock 
-  file into your source repository from your working directory as described in 
+- `copy_terraform_lock_file` (attribute): In certain use cases, you don't want to check the terraform provider lock
+  file into your source repository from your working directory as described in
   [Lock File Handling]({{site.baseurl}}/docs/features/lock-file-handling/). This attribute allows you to disable the copy
   of the generated or existing `.terraform.lock.hcl` from the temp folder into the working directory. Default is `true`.
 
