@@ -500,6 +500,8 @@ func createTempFile(t *testing.T) string {
 }
 
 func TestShouldCopyLockFile(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		args            []string
 		terraformConfig *config.TerraformConfig
@@ -568,7 +570,8 @@ func TestShouldCopyLockFile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, shouldCopyLockFile(tt.args.args, tt.args.terraformConfig), "shouldCopyLockFile(%v, %v)", tt.args.args, tt.args.terraformConfig)
+			t.Parallel()
+			assert.Equalf(t, tt.want, terraform.ShouldCopyLockFile(tt.args.args, tt.args.terraformConfig), "shouldCopyLockFile(%v, %v)", tt.args.args, tt.args.terraformConfig)
 		})
 	}
 }

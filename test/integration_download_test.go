@@ -39,8 +39,8 @@ const (
 	testFixtureLocalPreventDestroyDependencies        = "fixtures/download/local-with-prevent-destroy-dependencies"
 	testFixtureLocalIncludePreventDestroyDependencies = "fixtures/download/local-include-with-prevent-destroy-dependencies"
 	testFixtureNotExistingSource                      = "fixtures/download/invalid-path"
-	testFixtureDisableCopyLockFilePath        		  = "fixture-download/local-disable-copy-terraform-lock-file"
-	testFixtureIncludeDisableCopyLockFilePath 		  = "fixture-download/local-include-disable-copy-lock-file/module-b"
+	testFixtureDisableCopyLockFilePath                = "fixtures/download/local-disable-copy-terraform-lock-file"
+	testFixtureIncludeDisableCopyLockFilePath         = "fixtures/download/local-include-disable-copy-lock-file/module-b"
 )
 
 func TestLocalDownload(t *testing.T) {
@@ -62,13 +62,13 @@ func TestLocalDownloadDisableCopyTerraformLockFile(t *testing.T) {
 
 	cleanupTerraformFolder(t, testFixtureDisableCopyLockFilePath)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureDisableCopyLockFilePath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureDisableCopyLockFilePath)
 
 	// The terraform lock file should not be copied if `copy_terraform_lock_file = false`
 	assert.NoFileExists(t, util.JoinPath(testFixtureDisableCopyLockFilePath, util.TerraformLockFile))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureDisableCopyLockFilePath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureDisableCopyLockFilePath)
 }
 
 func TestLocalIncludeDisableCopyTerraformLockFile(t *testing.T) {
@@ -76,13 +76,13 @@ func TestLocalIncludeDisableCopyTerraformLockFile(t *testing.T) {
 
 	cleanupTerraformFolder(t, testFixtureIncludeDisableCopyLockFilePath)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureIncludeDisableCopyLockFilePath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureIncludeDisableCopyLockFilePath)
 
 	// The terraform lock file should not be copied if `copy_terraform_lock_file = false`
 	assert.NoFileExists(t, util.JoinPath(testFixtureIncludeDisableCopyLockFilePath, util.TerraformLockFile))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureIncludeDisableCopyLockFilePath))
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureIncludeDisableCopyLockFilePath)
 }
 
 func TestLocalDownloadWithHiddenFolder(t *testing.T) {
