@@ -122,7 +122,9 @@ func ParseProvider(str string) *Provider {
 		}
 	}
 
-	return nil
+	return &Provider{
+		RegistryName: parts[0],
+	}
 }
 
 func (provider *Provider) String() string {
