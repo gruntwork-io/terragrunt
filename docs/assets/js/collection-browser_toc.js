@@ -26,7 +26,7 @@ $(document).ready(function () {
     }
   })
 
-  // Expand / collpase on click
+  // Expand / collapse on click
   $('#toc .nav-collapse-handler').on('click', function() {
     toggleNav($(this))
   })
@@ -34,7 +34,7 @@ $(document).ready(function () {
   $(docSidebarInitialExpand)
 })
 
-// Expand / collpase on click
+// Expand / collapse on click
 function toggleNav(el) {
   if (el.hasClass('collapsed')) {
     el.removeClass('collapsed')

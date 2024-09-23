@@ -29,11 +29,13 @@ func (file *File) Update(content []byte) error {
 	// Since `hclparse.Parser` has a cache, we need to recreate(clone) the Parser instance without current file
 	// to be able to parse the configuration with the same `configPath`.
 	parser := hclparse.NewParser()
+
 	for configPath, copyfile := range file.Files() {
 		if configPath != file.ConfigPath {
 			parser.AddFile(configPath, copyfile)
 		}
 	}
+
 	file.Parser.Parser = parser
 
 	// we need to reparse the new updated contents. This is necessarily because the blocks
@@ -45,6 +47,7 @@ func (file *File) Update(content []byte) error {
 	}
 
 	file.File = updatedFile.File
+
 	return nil
 }
 
@@ -70,7 +73,7 @@ func (file *File) Decode(out interface{}, evalContext *hcl.EvalContext) (err err
 	return nil
 }
 
-// GetBlock takes a parsed HCL file and extracts a reference to the `name` block, if there are defined.
+// Blocks takes a parsed HCL file and extracts a reference to the `name` block, if there are defined.
 func (file *File) Blocks(name string, isMultipleAllowed bool) ([]*Block, error) {
 	catalogSchema := &hcl.BodySchema{
 		Blocks: []hcl.BlockHeaderSchema{
@@ -84,6 +87,7 @@ func (file *File) Blocks(name string, isMultipleAllowed bool) ([]*Block, error) 
 	}
 
 	extractedBlocks := []*Block{}
+
 	for _, block := range parsed.Blocks {
 		if block.Type == name {
 			extractedBlocks = append(extractedBlocks, &Block{

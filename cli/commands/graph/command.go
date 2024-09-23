@@ -1,3 +1,4 @@
+// Package graph provides the `graph` command for Terragrunt.
 package graph
 
 import (
@@ -28,6 +29,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.GraphRoot,
 			Usage:       "Root directory from where to build graph dependencies.",
 		})
+
 	return globalFlags
 }
 

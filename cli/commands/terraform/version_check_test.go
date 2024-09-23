@@ -88,6 +88,8 @@ func TestParseTerraformVersionInvalidSyntax(t *testing.T) {
 }
 
 func testCheckTerraformVersionMeetsConstraint(t *testing.T, currentVersion string, versionConstraint string, versionMeetsConstraint bool) {
+	t.Helper()
+
 	current, err := version.NewVersion(currentVersion)
 	if err != nil {
 		t.Fatalf("Invalid current version specified in test: %v", err)
@@ -102,6 +104,8 @@ func testCheckTerraformVersionMeetsConstraint(t *testing.T, currentVersion strin
 }
 
 func testParseTerraformVersion(t *testing.T, versionString string, expectedVersion string, expectedErr error) {
+	t.Helper()
+
 	actualVersion, actualErr := terraform.ParseTerraformVersion(versionString)
 	if expectedErr == nil {
 		expected, err := version.NewVersion(expectedVersion)
@@ -115,6 +119,8 @@ func testParseTerraformVersion(t *testing.T, versionString string, expectedVersi
 		assert.True(t, errors.IsError(actualErr, expectedErr))
 	}
 }
+
+// TODO: Refactor these into a test table.
 
 // Terragrunt Version Checking
 func TestCheckTerragruntVersionMeetsConstraintEqual(t *testing.T) {
@@ -142,7 +148,14 @@ func TestCheckTerragruntVersionMeetsConstraintLessMajor(t *testing.T) {
 	testCheckTerragruntVersionMeetsConstraint(t, "v0.22.15", ">= v0.23.18", false)
 }
 
+func TestCheckTerragruntVersionMeetsConstraintPrerelease(t *testing.T) {
+	t.Parallel()
+	testCheckTerragruntVersionMeetsConstraint(t, "v0.23.18-alpha202409013", ">= v0.23.18", true)
+}
+
 func testCheckTerragruntVersionMeetsConstraint(t *testing.T, currentVersion string, versionConstraint string, versionMeetsConstraint bool) {
+	t.Helper()
+
 	current, err := version.NewVersion(currentVersion)
 	if err != nil {
 		t.Fatalf("Invalid current version specified in test: %v", err)

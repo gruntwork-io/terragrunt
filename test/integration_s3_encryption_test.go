@@ -1,7 +1,10 @@
-package integration_test
+//go:build aws
+
+package test_test
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -18,30 +21,30 @@ import (
 )
 
 const (
-	s3SSEAESFixturePath            = "fixture-s3-encryption/sse-aes"
-	s3SSECustomKeyFixturePath      = "fixture-s3-encryption/custom-key"
-	s3SSBasicEncryptionFixturePath = "fixture-s3-encryption/basic-encryption"
-	s3SSEKMSFixturePath            = "fixture-s3-encryption/sse-kms"
+	s3SSEAESFixturePath            = "fixtures/s3-encryption/sse-aes"
+	s3SSECustomKeyFixturePath      = "fixtures/s3-encryption/custom-key"
+	s3SSBasicEncryptionFixturePath = "fixtures/s3-encryption/basic-encryption"
+	s3SSEKMSFixturePath            = "fixtures/s3-encryption/sse-kms"
 )
 
-func TestTerragruntS3SSEAES(t *testing.T) {
+func TestAwsS3SSEAES(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := copyEnvironment(t, s3SSEAESFixturePath)
 	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, s3SSEAESFixturePath)
 
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueId())
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueID())
 
-	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, terraformRemoteStateS3Region)
 
 	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, s3SSEAESFixturePath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 
 	runTerragrunt(t, applyCommand(tmpTerragruntConfigPath, testPath))
 
-	client := terraws.NewS3Client(t, TERRAFORM_REMOTE_STATE_S3_REGION)
+	client := terraws.NewS3Client(t, terraformRemoteStateS3Region)
 	resp, err := client.GetBucketEncryption(&s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
 	require.NoError(t, err)
 	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
@@ -51,24 +54,23 @@ func TestTerragruntS3SSEAES(t *testing.T) {
 	assert.Nil(t, sseRule.KMSMasterKeyID)
 }
 
-func TestTerragruntS3SSECustomKey(t *testing.T) {
+func TestAwsS3SSECustomKey(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := copyEnvironment(t, s3SSECustomKeyFixturePath)
-	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, s3SSECustomKeyFixturePath)
+	cleanupTerraformFolder(t, testPath)
 
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueId())
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueID())
 
-	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, terraformRemoteStateS3Region)
 
 	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, s3SSECustomKeyFixturePath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
-
 	runTerragrunt(t, applyCommand(tmpTerragruntConfigPath, testPath))
 
-	client := terraws.NewS3Client(t, TERRAFORM_REMOTE_STATE_S3_REGION)
+	client := terraws.NewS3Client(t, terraformRemoteStateS3Region)
 	resp, err := client.GetBucketEncryption(&s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
 	require.NoError(t, err)
 	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
@@ -77,18 +79,49 @@ func TestTerragruntS3SSECustomKey(t *testing.T) {
 	assert.Equal(t, s3.ServerSideEncryptionAwsKms, aws.StringValue(sseRule.SSEAlgorithm))
 	assert.True(t, strings.HasSuffix(aws.StringValue(sseRule.KMSMasterKeyID), "alias/dedicated-test-key"))
 
+	// Replace the custom key with a new one, and check that the key is updated in s3
+	cleanupTerraformFolder(t, testPath)
+
+	contents, err := util.ReadFileAsString(tmpTerragruntConfigPath)
+	require.NoError(t, err)
+
+	err = os.Remove(tmpTerragruntConfigPath)
+	require.NoError(t, err)
+
+	contents = strings.ReplaceAll(contents, "dedicated-test-key", "other-dedicated-test-key")
+
+	err = os.WriteFile(tmpTerragruntConfigPath, []byte(contents), 0444)
+	require.NoError(t, err)
+
+	runTerragrunt(t, applyCommand(tmpTerragruntConfigPath, testPath))
+
+	resp, err = client.GetBucketEncryption(&s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
+	require.NoError(t, err)
+	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
+	sseRule = resp.ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault
+	require.NotNil(t, sseRule)
+	assert.Equal(t, s3.ServerSideEncryptionAwsKms, aws.StringValue(sseRule.SSEAlgorithm))
+
+	// This check is asserting that the following bug still isn't fixed:
+	// https://github.com/gruntwork-io/terragrunt/issues/3364
+	//
+	// There were unanticipated consequences to addressing it that should be resolved before the fix is implemented:
+	// https://github.com/gruntwork-io/terragrunt/issues/3384
+	//
+	// At the very least, it should be documented as a breaking change.
+	assert.False(t, strings.HasSuffix(aws.StringValue(sseRule.KMSMasterKeyID), "alias/other-dedicated-test-key"))
 }
 
-func TestTerragruntS3SSEKeyNotReverted(t *testing.T) {
+func TestAwsS3SSEKeyNotReverted(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, s3SSBasicEncryptionFixturePath)
 
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueId())
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueID())
 
-	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, terraformRemoteStateS3Region)
 
 	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, s3SSBasicEncryptionFixturePath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 	stdout, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+filepath.Dir(tmpTerragruntConfigPath))
@@ -105,7 +138,7 @@ func TestTerragruntS3SSEKeyNotReverted(t *testing.T) {
 	assert.NotContains(t, output, "Bucket Server-Side Encryption")
 
 	// verify that encryption key is not reverted
-	client := terraws.NewS3Client(t, TERRAFORM_REMOTE_STATE_S3_REGION)
+	client := terraws.NewS3Client(t, terraformRemoteStateS3Region)
 	resp, err := client.GetBucketEncryption(&s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
 	require.NoError(t, err)
 	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
@@ -115,20 +148,20 @@ func TestTerragruntS3SSEKeyNotReverted(t *testing.T) {
 	assert.True(t, strings.HasSuffix(aws.StringValue(sseRule.KMSMasterKeyID), "alias/dedicated-test-key"))
 }
 
-func TestTerragruntS3EncryptionWarning(t *testing.T) {
+func TestAwsS3EncryptionWarning(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := copyEnvironment(t, s3SSEKMSFixturePath)
 	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, s3SSEKMSFixturePath)
 
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueId())
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	lockTableName := "terragrunt-test-locks-" + strings.ToLower(uniqueID())
 
-	require.NoError(t, createS3BucketE(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName))
+	require.NoError(t, createS3BucketE(t, terraformRemoteStateS3Region, s3BucketName))
 
-	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
+	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
+	defer cleanupTableForTest(t, lockTableName, terraformRemoteStateS3Region)
 
 	tmpTerragruntConfigPath := createTmpTerragruntConfig(t, s3SSEKMSFixturePath, s3BucketName, lockTableName, config.DefaultTerragruntConfigPath)
 
@@ -139,7 +172,7 @@ func TestTerragruntS3EncryptionWarning(t *testing.T) {
 	assert.Contains(t, output, "Encryption is not enabled on the S3 remote state bucket "+s3BucketName)
 
 	// verify that encryption configuration is set
-	client := terraws.NewS3Client(t, TERRAFORM_REMOTE_STATE_S3_REGION)
+	client := terraws.NewS3Client(t, terraformRemoteStateS3Region)
 	resp, err := client.GetBucketEncryption(&s3.GetBucketEncryptionInput{Bucket: aws.String(s3BucketName)})
 	require.NoError(t, err)
 	require.Len(t, resp.ServerSideEncryptionConfiguration.Rules, 1)
@@ -154,7 +187,7 @@ func TestTerragruntS3EncryptionWarning(t *testing.T) {
 	assert.NotContains(t, output, "Encryption is not enabled on the S3 remote state bucket "+s3BucketName)
 }
 
-func TestTerragruntSkipBackend(t *testing.T) {
+func TestAwsSkipBackend(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := copyEnvironment(t, s3SSEAESFixturePath)

@@ -1,3 +1,5 @@
+//go:build gcp
+
 package remote_test
 
 import (
@@ -9,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGCSConfigValuesEqual(t *testing.T) {
+func TestGcpConfigValuesEqual(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("remote_state_test")

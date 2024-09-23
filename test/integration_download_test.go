@@ -1,4 +1,4 @@
-package integration_test
+package test_test
 
 import (
 	"bytes"
@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/hashicorp/go-multierror"
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
@@ -18,23 +20,27 @@ import (
 )
 
 const (
-	testFixtureLocalDownloadPath              = "fixture-download/local"
-	testFixtureCustomLockFile                 = "fixture-download/custom-lock-file"
-	testFixtureRemoteDownloadPath             = "fixture-download/remote"
-	testFixtureInvalidRemoteDownloadPath      = "fixture-download/remote-invalid"
-	testFixtureOverrideDonwloadPath           = "fixture-download/override"
-	testFixtureLocalRelativeDownloadPath      = "fixture-download/local-relative"
-	testFixtureRemoteRelativeDownloadPath     = "fixture-download/remote-relative"
-	testFixtureLocalWithBackend               = "fixture-download/local-with-backend"
-	testFixtureLocalWithExcludeDir            = "fixture-download/local-with-exclude-dir"
-	testFixtureLocalWithIncludeDir            = "fixture-download/local-with-include-dir"
-	testFixtureRemoteWithBackend              = "fixture-download/remote-with-backend"
-	testFixtureRemoteModuleInRoot             = "fixture-download/remote-module-in-root"
-	testFixtureLocalMissingBackend            = "fixture-download/local-with-missing-backend"
-	testFixtureLocalWithHiddenFolder          = "fixture-download/local-with-hidden-folder"
-	testFixtureLocalWithAllowedHidden         = "fixture-download/local-with-allowed-hidden"
-	testFixtureDisableCopyLockFilePath        = "fixture-download/local-disable-copy-terraform-lock-file"
-	testFixtureIncludeDisableCopyLockFilePath = "fixture-download/local-include-disable-copy-lock-file/module-b"
+	testFixtureLocalDownloadPath                      = "fixtures/download/local"
+	testFixtureCustomLockFile                         = "fixtures/download/custom-lock-file"
+	testFixtureRemoteDownloadPath                     = "fixtures/download/remote"
+	testFixtureInvalidRemoteDownloadPath              = "fixtures/download/remote-invalid"
+	testFixtureOverrideDonwloadPath                   = "fixtures/download/override"
+	testFixtureLocalRelativeDownloadPath              = "fixtures/download/local-relative"
+	testFixtureRemoteRelativeDownloadPath             = "fixtures/download/remote-relative"
+	testFixtureLocalWithBackend                       = "fixtures/download/local-with-backend"
+	testFixtureLocalWithExcludeDir                    = "fixtures/download/local-with-exclude-dir"
+	testFixtureLocalWithIncludeDir                    = "fixtures/download/local-with-include-dir"
+	testFixtureRemoteWithBackend                      = "fixtures/download/remote-with-backend"
+	testFixtureRemoteModuleInRoot                     = "fixtures/download/remote-module-in-root"
+	testFixtureLocalMissingBackend                    = "fixtures/download/local-with-missing-backend"
+	testFixtureLocalWithHiddenFolder                  = "fixtures/download/local-with-hidden-folder"
+	testFixtureLocalWithAllowedHidden                 = "fixtures/download/local-with-allowed-hidden"
+	testFixtureLocalPreventDestroy                    = "fixtures/download/local-with-prevent-destroy"
+	testFixtureLocalPreventDestroyDependencies        = "fixtures/download/local-with-prevent-destroy-dependencies"
+	testFixtureLocalIncludePreventDestroyDependencies = "fixtures/download/local-include-with-prevent-destroy-dependencies"
+	testFixtureNotExistingSource                      = "fixtures/download/invalid-path"
+	testFixtureDisableCopyLockFilePath        		  = "fixture-download/local-disable-copy-terraform-lock-file"
+	testFixtureIncludeDisableCopyLockFilePath 		  = "fixture-download/local-include-disable-copy-lock-file/module-b"
 )
 
 func TestLocalDownload(t *testing.T) {
@@ -124,34 +130,13 @@ func TestLocalDownloadWithRelativePath(t *testing.T) {
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalRelativeDownloadPath)
 }
 
-func TestLocalWithBackend(t *testing.T) {
-	t.Parallel()
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-lock-table-" + strings.ToLower(uniqueId())
-
-	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
-
-	tmpEnvPath := copyEnvironment(t, "fixture-download")
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureLocalWithBackend)
-
-	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
-
-	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
-
-	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
-}
-
 func TestLocalWithMissingBackend(t *testing.T) {
 	t.Parallel()
 
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-lock-table-" + strings.ToLower(uniqueId())
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	lockTableName := "terragrunt-lock-table-" + strings.ToLower(uniqueID())
 
-	tmpEnvPath := copyEnvironment(t, "fixture-download")
+	tmpEnvPath := copyEnvironment(t, "fixtures/download")
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLocalMissingBackend)
 
 	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
@@ -215,27 +200,6 @@ func TestRemoteDownloadOverride(t *testing.T) {
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", testFixtureOverrideDonwloadPath, "../hello-world"))
 }
 
-func TestRemoteWithBackend(t *testing.T) {
-	t.Parallel()
-
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	lockTableName := "terragrunt-lock-table-" + strings.ToLower(uniqueId())
-
-	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
-	defer cleanupTableForTest(t, lockTableName, TERRAFORM_REMOTE_STATE_S3_REGION)
-
-	tmpEnvPath := copyEnvironment(t, testFixtureRemoteWithBackend)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureRemoteWithBackend)
-
-	rootTerragruntConfigPath := util.JoinPath(rootPath, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, "not-used")
-
-	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
-
-	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
-}
-
 func TestRemoteWithModuleInRoot(t *testing.T) {
 	t.Parallel()
 
@@ -260,8 +224,8 @@ func TestCustomLockFile(t *testing.T) {
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+rootPath)
 
 	source := "../custom-lock-file-module"
-	downloadDir := util.JoinPath(rootPath, TERRAGRUNT_CACHE)
-	result, err := tfsource.NewSource(source, downloadDir, rootPath, util.CreateLogEntry("", util.GetDefaultLogLevel()))
+	downloadDir := util.JoinPath(rootPath, terragruntCache)
+	result, err := tfsource.NewSource(source, downloadDir, rootPath, createLogger())
 	require.NoError(t, err)
 
 	lockFilePath := util.JoinPath(result.WorkingDir, util.TerraformLockFile)
@@ -418,8 +382,8 @@ func TestIncludeDirsDependencyConsistencyRegression(t *testing.T) {
 		"testapp/k8s",
 	}
 
-	tmpPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_REGRESSIONS))
-	testPath := filepath.Join(tmpPath, TEST_FIXTURE_REGRESSIONS, "exclude-dependency")
+	tmpPath, _ := filepath.EvalSymlinks(copyEnvironment(t, testFixtureRegressions))
+	testPath := filepath.Join(tmpPath, testFixtureRegressions, "exclude-dependency")
 	for _, modulePath := range modulePaths {
 		cleanupTerragruntFolder(t, filepath.Join(testPath, modulePath))
 	}
@@ -428,10 +392,10 @@ func TestIncludeDirsDependencyConsistencyRegression(t *testing.T) {
 	assert.NotEmpty(t, includedModulesWithNone)
 
 	includedModulesWithAmzApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"amazing-app/k8s"}, false)
-	assert.Equal(t, []string{"amazing-app/k8s", "clusters/eks"}, includedModulesWithAmzApp)
+	assert.Equal(t, getPathsRelativeTo(t, testPath, []string{"amazing-app/k8s", "clusters/eks"}), includedModulesWithAmzApp)
 
 	includedModulesWithTestApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"testapp/k8s"}, false)
-	assert.Equal(t, []string{"clusters/eks", "testapp/k8s"}, includedModulesWithTestApp)
+	assert.Equal(t, getPathsRelativeTo(t, testPath, []string{"clusters/eks", "testapp/k8s"}), includedModulesWithTestApp)
 }
 
 func TestIncludeDirsStrict(t *testing.T) {
@@ -443,8 +407,8 @@ func TestIncludeDirsStrict(t *testing.T) {
 		"testapp/k8s",
 	}
 
-	tmpPath, _ := filepath.EvalSymlinks(copyEnvironment(t, TEST_FIXTURE_REGRESSIONS))
-	testPath := filepath.Join(tmpPath, TEST_FIXTURE_REGRESSIONS, "exclude-dependency")
+	tmpPath, _ := filepath.EvalSymlinks(copyEnvironment(t, testFixtureRegressions))
+	testPath := filepath.Join(tmpPath, testFixtureRegressions, "exclude-dependency")
 	cleanupTerragruntFolder(t, testPath)
 	for _, modulePath := range modulePaths {
 		cleanupTerragruntFolder(t, filepath.Join(testPath, modulePath))
@@ -454,10 +418,10 @@ func TestIncludeDirsStrict(t *testing.T) {
 	assert.Equal(t, []string{}, includedModulesWithNone)
 
 	includedModulesWithAmzApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"amazing-app/k8s"}, true)
-	assert.Equal(t, []string{"amazing-app/k8s"}, includedModulesWithAmzApp)
+	assert.Equal(t, getPathsRelativeTo(t, testPath, []string{"amazing-app/k8s"}), includedModulesWithAmzApp)
 
 	includedModulesWithTestApp := runValidateAllWithIncludeAndGetIncludedModules(t, testPath, []string{"testapp/k8s"}, true)
-	assert.Equal(t, []string{"testapp/k8s"}, includedModulesWithTestApp)
+	assert.Equal(t, getPathsRelativeTo(t, testPath, []string{"testapp/k8s"}), includedModulesWithTestApp)
 }
 
 func TestTerragruntExternalDependencies(t *testing.T) {
@@ -468,9 +432,9 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 		"module-b",
 	}
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_EXTERNAL_DEPENDENCE)
+	cleanupTerraformFolder(t, testFixtureExternalDependence)
 	for _, module := range modules {
-		cleanupTerraformFolder(t, util.JoinPath(TEST_FIXTURE_EXTERNAL_DEPENDENCE, module))
+		cleanupTerraformFolder(t, util.JoinPath(testFixtureExternalDependence, module))
 	}
 
 	var (
@@ -478,10 +442,10 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 		applyAllStderr bytes.Buffer
 	)
 
-	rootPath := copyEnvironment(t, TEST_FIXTURE_EXTERNAL_DEPENDENCE)
-	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_EXTERNAL_DEPENDENCE, "module-b")
+	rootPath := copyEnvironment(t, testFixtureExternalDependence)
+	modulePath := util.JoinPath(rootPath, testFixtureExternalDependence, "module-b")
 
-	err := runTerragruntCommand(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-include-external-dependencies --terragrunt-working-dir "+modulePath, &applyAllStdout, &applyAllStderr)
+	err := runTerragruntCommand(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-include-external-dependencies --terragrunt-forward-tf-stdout --terragrunt-working-dir "+modulePath, &applyAllStdout, &applyAllStderr)
 	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
 	logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
 	applyAllStdoutString := applyAllStdout.String()
@@ -492,5 +456,115 @@ func TestTerragruntExternalDependencies(t *testing.T) {
 
 	for _, module := range modules {
 		assert.Contains(t, applyAllStdoutString, "Hello World, "+module)
+	}
+}
+
+func TestPreventDestroy(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, "fixtures/download")
+	fixtureRoot := util.JoinPath(tmpEnvPath, testFixtureLocalPreventDestroy)
+
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+fixtureRoot)
+
+	err := runTerragruntCommand(t, "terragrunt destroy -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+fixtureRoot, os.Stdout, os.Stderr)
+
+	if assert.Error(t, err) {
+		underlying := errors.Unwrap(err)
+		assert.IsType(t, terraform.ModuleIsProtected{}, underlying)
+	}
+}
+
+func TestPreventDestroyApply(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, "fixtures/download")
+
+	fixtureRoot := util.JoinPath(tmpEnvPath, testFixtureLocalPreventDestroy)
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+fixtureRoot)
+
+	err := runTerragruntCommand(t, "terragrunt apply -destroy -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+fixtureRoot, os.Stdout, os.Stderr)
+
+	if assert.Error(t, err) {
+		underlying := errors.Unwrap(err)
+		assert.IsType(t, terraform.ModuleIsProtected{}, underlying)
+	}
+}
+
+func TestPreventDestroyDependencies(t *testing.T) {
+	t.Parallel()
+
+	// Populate module paths.
+	moduleNames := []string{
+		"module-a",
+		"module-b",
+		"module-c",
+		"module-d",
+		"module-e",
+	}
+	modulePaths := make(map[string]string, len(moduleNames))
+	for _, moduleName := range moduleNames {
+		modulePaths[moduleName] = util.JoinPath(testFixtureLocalPreventDestroyDependencies, moduleName)
+	}
+
+	// Cleanup all modules directories.
+	cleanupTerraformFolder(t, testFixtureLocalPreventDestroyDependencies)
+	for _, modulePath := range modulePaths {
+		cleanupTerraformFolder(t, modulePath)
+	}
+
+	var (
+		applyAllStdout bytes.Buffer
+		applyAllStderr bytes.Buffer
+	)
+
+	// Apply and destroy all modules.
+	err := runTerragruntCommand(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalPreventDestroyDependencies, &applyAllStdout, &applyAllStderr)
+	logBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
+	logBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
+
+	if err != nil {
+		t.Fatalf("apply-all in TestPreventDestroyDependencies failed with error: %v. Full std", err)
+	}
+
+	var (
+		destroyAllStdout bytes.Buffer
+		destroyAllStderr bytes.Buffer
+	)
+
+	err = runTerragruntCommand(t, "terragrunt destroy-all --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalPreventDestroyDependencies, &destroyAllStdout, &destroyAllStderr)
+	logBufferContentsLineByLine(t, destroyAllStdout, "destroy-all stdout")
+	logBufferContentsLineByLine(t, destroyAllStderr, "destroy-all stderr")
+
+	if assert.Error(t, err) {
+		underlying := errors.Unwrap(err)
+		assert.IsType(t, &multierror.Error{}, underlying)
+	}
+
+	// Check that modules C, D and E were deleted and modules A and B weren't.
+	for moduleName, modulePath := range modulePaths {
+		var (
+			showStdout bytes.Buffer
+			showStderr bytes.Buffer
+		)
+
+		err = runTerragruntCommand(t, "terragrunt show --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+modulePath, &showStdout, &showStderr)
+		logBufferContentsLineByLine(t, showStdout, "show stdout for "+modulePath)
+		logBufferContentsLineByLine(t, showStderr, "show stderr for "+modulePath)
+
+		require.NoError(t, err)
+		output := showStdout.String()
+		switch moduleName {
+		case "module-a":
+			assert.Contains(t, output, "Hello, Module A")
+		case "module-b":
+			assert.Contains(t, output, "Hello, Module B")
+		case "module-c":
+			assert.NotContains(t, output, "Hello, Module C")
+		case "module-d":
+			assert.NotContains(t, output, "Hello, Module D")
+		case "module-e":
+			assert.NotContains(t, output, "Hello, Module E")
+		}
 	}
 }

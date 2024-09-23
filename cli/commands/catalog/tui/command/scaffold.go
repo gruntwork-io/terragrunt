@@ -1,3 +1,5 @@
+// Package command provides the implementation of the terragrunt scaffold command
+// This command is used to scaffold a new Terragrunt unit in the current directory.
 package command
 
 import (
@@ -8,7 +10,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 type Scaffold struct {
@@ -24,7 +25,7 @@ func NewScaffold(opts *options.TerragruntOptions, module *module.Module) *Scaffo
 }
 
 func (cmd *Scaffold) Run() error {
-	log.Infof("Run Scaffold for the module: %q", cmd.module.TerraformSourcePath())
+	cmd.module.Logger().Infof("Run Scaffold for the module: %q", cmd.module.TerraformSourcePath())
 
 	return scaffold.Run(context.Background(), cmd.terragruntOptions, cmd.module.TerraformSourcePath(), "")
 }

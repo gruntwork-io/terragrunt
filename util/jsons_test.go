@@ -26,7 +26,7 @@ func TestAsTerraformEnvVarJsonValue(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			actual, err := util.AsTerraformEnvVarJsonValue(tt.value)
+			actual, err := util.AsTerraformEnvVarJSONValue(tt.value)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, actual)
 		})

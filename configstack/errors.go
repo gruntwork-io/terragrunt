@@ -43,7 +43,7 @@ func (err InfiniteRecursionError) Error() string {
 	return fmt.Sprintf("Hit what seems to be an infinite recursion after going %d levels deep. Please check for a circular dependency! Modules involved: %v", err.RecursionLevel, err.Modules)
 }
 
-var NoTerraformModulesFound = errors.New("Could not find any subfolders with Terragrunt configuration files")
+var ErrNoTerraformModulesFound = errors.New("could not find any subfolders with Terragrunt configuration files")
 
 type DependencyCycleError []string
 
@@ -65,6 +65,7 @@ func (err ProcessingModuleDependencyError) ExitStatus() (int, error) {
 	if exitCode, err := util.GetExitCode(err.Err); err == nil {
 		return exitCode, nil
 	}
+
 	return -1, err
 }
 

@@ -27,6 +27,7 @@ func (kl *KeyLocks) getOrCreateLock(key string) *sync.Mutex {
 		lock = &sync.Mutex{}
 		kl.locks[key] = lock
 	}
+
 	return lock
 }
 

@@ -1,3 +1,4 @@
+// Package telemetry provides a way to collect telemetry from function execution - metrics and traces.
 package telemetry
 
 import (
@@ -13,7 +14,6 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	oteltrace "go.opentelemetry.io/otel/sdk/trace"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -27,7 +27,7 @@ type TelemetryOptions struct {
 	ErrWriter  io.Writer
 }
 
-var spanExporter oteltrace.SpanExporter
+var spanExporter sdktrace.SpanExporter
 var traceProvider *sdktrace.TracerProvider
 var rootTracer trace.Tracer
 
@@ -41,7 +41,6 @@ var parentTraceFlags *trace.TraceFlags
 
 // InitTelemetry - initialize the telemetry provider.
 func InitTelemetry(ctx context.Context, opts *TelemetryOptions) error {
-
 	if err := configureTraceCollection(ctx, opts); err != nil {
 		return errors.WithStack(err)
 	}
@@ -59,14 +58,18 @@ func ShutdownTelemetry(ctx context.Context) error {
 		if err := traceProvider.Shutdown(ctx); err != nil {
 			return errors.WithStack(err)
 		}
+
 		traceProvider = nil
 	}
+
 	if metricProvider != nil {
 		if err := metricProvider.Shutdown(ctx); err != nil {
 			return errors.WithStack(err)
 		}
+
 		metricProvider = nil
 	}
+
 	return nil
 }
 
@@ -81,6 +84,7 @@ func Telemetry(ctx context.Context, opts *options.TerragruntOptions, name string
 // mapToAttributes - convert map to attributes to pass to span.SetAttributes.
 func mapToAttributes(data map[string]interface{}) []attribute.KeyValue {
 	var attrs []attribute.KeyValue
+
 	for k, v := range data {
 		switch val := v.(type) {
 		case string:
@@ -97,6 +101,7 @@ func mapToAttributes(data map[string]interface{}) []attribute.KeyValue {
 			attrs = append(attrs, attribute.String(k, fmt.Sprintf("%v", val)))
 		}
 	}
+
 	return attrs
 }
 
@@ -111,7 +116,6 @@ func (to *TelemetryOptions) GetValue(key, deprecated string) string {
 		// print deprecation warning
 		_, _ = fmt.Fprintf(to.ErrWriter, "WARNING: %s is deprecated, use %s instead\n", deprecated, key)
 		return value
-
 	}
 
 	return ""

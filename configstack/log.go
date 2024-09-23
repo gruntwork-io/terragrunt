@@ -1,44 +1,49 @@
 package configstack
 
-import "github.com/sirupsen/logrus"
+import (
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/sirupsen/logrus"
+)
 
-// ForceLogLevelHook - log hook which can change log level for messages which contains specific substrings
+// ForceLogLevelHook is a log hook which can change log level for messages which contains specific substrings
 type ForceLogLevelHook struct {
-	TriggerLevels []logrus.Level
-	ForcedLevel   logrus.Level
+	forcedLevel   logrus.Level
+	triggerLevels []logrus.Level
 }
 
-// NewForceLogLevelHook - create default log reduction hook
-func NewForceLogLevelHook(forcedLevel logrus.Level) *ForceLogLevelHook {
+// NewForceLogLevelHook creates default log reduction hook
+func NewForceLogLevelHook(forcedLevel log.Level) *ForceLogLevelHook {
 	return &ForceLogLevelHook{
-		ForcedLevel:   forcedLevel,
-		TriggerLevels: logrus.AllLevels,
+		forcedLevel:   forcedLevel.ToLogrusLevel(),
+		triggerLevels: log.AllLevels.ToLogrusLevels(),
 	}
 }
 
-// Levels - return log levels on which hook will be triggered
+// Levels implements logrus.Hook.Levels()
 func (hook *ForceLogLevelHook) Levels() []logrus.Level {
-	return hook.TriggerLevels
+	return hook.triggerLevels
 }
 
-// Fire - function invoked against log entries when entry will match loglevel from Levels()
+// Fire implements logrus.Hook.Fire()
 func (hook *ForceLogLevelHook) Fire(entry *logrus.Entry) error {
-	entry.Level = hook.ForcedLevel
+	entry.Level = hook.forcedLevel
 	// special formatter to skip printing of log entries since after hook evaluation, entries are printed directly
-	formatter := LogEntriesDropperFormatter{OriginalFormatter: entry.Logger.Formatter}
+	formatter := LogEntriesDropperFormatter{originalFormatter: entry.Logger.Formatter}
 	entry.Logger.Formatter = &formatter
+
 	return nil
 }
 
-// LogEntriesDropperFormatter - custom formatter which will ignore log entries which has lower level than preconfigured in logger
+// LogEntriesDropperFormatter is a custom formatter which will ignore log entries which has lower level than preconfigured in logger
 type LogEntriesDropperFormatter struct {
-	OriginalFormatter logrus.Formatter
+	originalFormatter logrus.Formatter
 }
 
-// Format - custom entry formatting function which will drop entries with lower level than set in logger
+// Format implements logrus.Formatter
 func (formatter *LogEntriesDropperFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	if entry.Logger.Level >= entry.Level {
-		return formatter.OriginalFormatter.Format(entry)
+		return formatter.originalFormatter.Format(entry)
 	}
+
 	return []byte(""), nil
 }

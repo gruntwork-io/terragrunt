@@ -12,6 +12,7 @@ func MatchesAny(regExps []string, s string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -20,11 +21,13 @@ func ListEquals[S ~[]E, E comparable](a, b S) bool {
 	if len(a) != len(b) {
 		return false
 	}
+
 	for i := range a {
 		if a[i] != b[i] {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -45,14 +48,17 @@ func ListContainsSublist[S ~[]E, E comparable](list, sublist S) bool {
 	if len(sublist) == 0 {
 		return false
 	}
+
 	if len(sublist) > len(list) {
 		return false
 	}
+
 	for i := 0; len(list[i:]) >= len(sublist); i++ {
 		if ListEquals(list[i:i+len(sublist)], sublist) {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -61,20 +67,24 @@ func ListHasPrefix[S ~[]E, E comparable](list, prefix S) bool {
 	if len(prefix) == 0 {
 		return false
 	}
+
 	if len(prefix) > len(list) {
 		return false
 	}
+
 	return ListEquals(list[:len(prefix)], prefix)
 }
 
-// Return a copy of the given list with all instances of the given element removed
+// RemoveElementFromList returns a copy of the given list with all instances of the given element removed.
 func RemoveElementFromList[S ~[]E, E comparable](list S, element E) S {
 	var out S
+
 	for _, item := range list {
 		if item != element {
 			out = append(out, item)
 		}
 	}
+
 	return out
 }
 
@@ -84,15 +94,16 @@ func RemoveSublistFromList[S ~[]E, E comparable](list, sublist S) S {
 	for _, item := range sublist {
 		out = RemoveElementFromList(out, item)
 	}
+
 	return out
 }
 
-// Returns a copy of the given list with all duplicates removed (keeping the first encountereds)
+// RemoveDuplicatesFromList returns a copy of the given list with all duplicates removed (keeping the first encountereds)
 func RemoveDuplicatesFromList[S ~[]E, E comparable](list S) S {
 	return removeDuplicatesFromList(list, false)
 }
 
-// Returns a copy of the given list with all duplicates removed (keeping the last encountereds)
+// RemoveDuplicatesFromListKeepLast returns a copy of the given list with all duplicates removed (keeping the last encountereds)
 func RemoveDuplicatesFromListKeepLast[S ~[]E, E comparable](list S) S {
 	return removeDuplicatesFromList(list, true)
 }
@@ -109,9 +120,11 @@ func removeDuplicatesFromList[S ~[]E, E comparable](list S, keepLast bool) S {
 				continue
 			}
 		}
+
 		out = append(out, value)
 		present[value] = true
 	}
+
 	return out
 }
 
@@ -121,54 +134,60 @@ func CommaSeparatedStrings(list []string) string {
 	for _, value := range list {
 		values = append(values, fmt.Sprintf(`"%s"`, value))
 	}
+
 	return strings.Join(values, ", ")
 }
 
-// Make a copy of the given list of strings
+// CloneStringList makes a copy of the given list of strings.
 func CloneStringList(listToClone []string) []string {
 	var out []string
 	out = append(out, listToClone...)
+
 	return out
 }
 
-// Make a copy of the given map of strings
+// CloneStringMap makes a copy of the given map of strings.
 func CloneStringMap(mapToClone map[string]string) map[string]string {
 	out := map[string]string{}
 	for key, value := range mapToClone {
 		out[key] = value
 	}
+
 	return out
 }
 
-// A convenience method that returns the first item (0th index) in the given list or an empty string if this is an
-// empty list
+// FirstArg is a convenience method that returns the first item (0th index) in the given
+// list or an empty string if this is an empty list.
 func FirstArg[S ~[]E, E comparable](args S) E {
 	if len(args) > 0 {
 		return args[0]
 	}
 
 	var empty E
+
 	return empty
 }
 
-// A convenience method that returns the second item (1st index) in the given list or an empty string if this is a
-// list that has less than 2 items in it
+// SecondArg is a convenience method that returns the second item (1st index) in the given
+// list or an empty string if this is a list that has less than 2 items in it.
 func SecondArg[S ~[]E, E comparable](args S) E {
 	if len(args) > 1 {
 		return args[1]
 	}
 
 	var empty E
+
 	return empty
 }
 
-// A convenience method that returns the last item in the given list or an empty string if this is an empty list
+// LastArg is a convenience method that returns the last item in the given list or an empty string if this is an empty list.
 func LastArg[S ~[]E, E comparable](args S) E {
 	if len(args) > 0 {
 		return args[len(args)-1]
 	}
 
 	var empty E
+
 	return empty
 }
 

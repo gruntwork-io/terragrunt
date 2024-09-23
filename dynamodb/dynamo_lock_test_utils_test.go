@@ -1,3 +1,5 @@
+//go:build aws
+
 package dynamodb_test
 
 import (
@@ -5,7 +7,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	awsDynamodb "github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/dynamodb"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -13,20 +15,22 @@ import (
 )
 
 // For simplicity, do all testing in the us-east-1 region
-const DEFAULT_TEST_REGION = "us-east-1"
+const defaultTestRegion = "us-east-1"
 
 // Create a DynamoDB client we can use at test time. If there are any errors creating the client, fail the test.
-func createDynamoDbClientForTest(t *testing.T) *awsDynamodb.DynamoDB {
+func createDynamoDBClientForTest(t *testing.T) *awsDynamodb.DynamoDB {
+	t.Helper()
+
 	mockOptions, err := options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	sessionConfig := &aws_helper.AwsSessionConfig{
-		Region: DEFAULT_TEST_REGION,
+	sessionConfig := &awshelper.AwsSessionConfig{
+		Region: defaultTestRegion,
 	}
 
-	client, err := dynamodb.CreateDynamoDbClient(sessionConfig, mockOptions)
+	client, err := dynamodb.CreateDynamoDBClient(sessionConfig, mockOptions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,16 +38,20 @@ func createDynamoDbClientForTest(t *testing.T) *awsDynamodb.DynamoDB {
 }
 
 func uniqueTableNameForTest() string {
-	return "terragrunt_test_" + util.UniqueId()
+	return "terragrunt_test_" + util.UniqueID()
 }
 
 func cleanupTableForTest(t *testing.T, tableName string, client *awsDynamodb.DynamoDB) {
+	t.Helper()
+
 	err := dynamodb.DeleteTable(tableName, client)
 	require.NoError(t, err, "Unexpected error: %v", err)
 }
 
 func assertCanWriteToTable(t *testing.T, tableName string, client *awsDynamodb.DynamoDB) {
-	item := createKeyFromItemId(util.UniqueId())
+	t.Helper()
+
+	item := createKeyFromItemID(util.UniqueID())
 
 	_, err := client.PutItem(&awsDynamodb.PutItemInput{
 		TableName: aws.String(tableName),
@@ -54,11 +62,15 @@ func assertCanWriteToTable(t *testing.T, tableName string, client *awsDynamodb.D
 }
 
 func withLockTable(t *testing.T, action func(tableName string, client *awsDynamodb.DynamoDB)) {
+	t.Helper()
+
 	withLockTableTagged(t, nil, action)
 }
 
 func withLockTableTagged(t *testing.T, tags map[string]string, action func(tableName string, client *awsDynamodb.DynamoDB)) {
-	client := createDynamoDbClientForTest(t)
+	t.Helper()
+
+	client := createDynamoDBClientForTest(t)
 	tableName := uniqueTableNameForTest()
 
 	mockOptions, err := options.NewTerragruntOptionsForTest("dynamo_lock_test_utils")
@@ -73,8 +85,8 @@ func withLockTableTagged(t *testing.T, tags map[string]string, action func(table
 	action(tableName, client)
 }
 
-func createKeyFromItemId(itemId string) map[string]*awsDynamodb.AttributeValue {
+func createKeyFromItemID(itemID string) map[string]*awsDynamodb.AttributeValue {
 	return map[string]*awsDynamodb.AttributeValue{
-		dynamodb.ATTR_LOCK_ID: {S: aws.String(itemId)},
+		dynamodb.AttrLockID: {S: aws.String(itemID)},
 	}
 }

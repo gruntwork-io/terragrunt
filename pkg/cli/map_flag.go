@@ -9,6 +9,9 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// MapFlag implements Flag
+var _ Flag = new(MapFlag[string, string])
+
 var (
 	MapFlagEnvVarSep = ","
 	MapFlagKeyValSep = "="
@@ -23,25 +26,44 @@ type MapFlagValueType interface {
 	GenericType | bool
 }
 
+// MapActionFunc is the action to execute when the flag has been set either via a flag or via an environment variable.
+type MapActionFunc[K MapFlagKeyType, V MapFlagValueType] func(ctx *Context, value map[K]V) error
+
 // MapFlag is a key value flag.
 type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	flag
 
-	Name        string
+	// The name of the flag.
+	Name string
+	// The default value of the flag to display in the help, if it is empty, the value is taken from `Destination`.
 	DefaultText string
-	Usage       string
-	Aliases     []string
-	Action      ActionFunc
-	EnvVar      string
-
+	// A short usage description to display in help.
+	Usage string
+	// Aliases are usually used for the short flag name, like `-h`.
+	Aliases []string
+	// The action to execute when flag is specified
+	Action MapActionFunc[K, V]
+	// The name of the env variable that is parsed and assigned to `Destination` before the flag value.
+	EnvVar string
+	// The pointer to which the value of the flag or env var is assigned.
+	// It also uses as the default value displayed in the help.
 	Destination *map[K]V
-	Splitter    SplitterFunc
-	EnvVarSep   string
-	KeyValSep   string
+	// The func used to split the EvnVar, by default `strings.Split`
+	Splitter SplitterFunc
+	// The EnvVarSep value is passed to the Splitter function as an argument to split the args.
+	EnvVarSep string
+	// The KeyValSep value is passed to the Splitter function as an argument to split `key` and `val` of the arg.
+	KeyValSep string
+	// Hidden hides the flag from the help, if set to true.
+	Hidden bool
 }
 
 // Apply applies Flag settings to the given flag set.
 func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
+	if flag.Destination == nil {
+		flag.Destination = new(map[K]V)
+	}
+
 	if flag.Splitter == nil {
 		flag.Splitter = FlagSplitter
 	}
@@ -54,18 +76,36 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 		flag.KeyValSep = MapFlagKeyValSep
 	}
 
-	var err error
+	var (
+		err      error
+		envValue *string
+	)
+
 	keyType := FlagType[K](new(genericType[K]))
 	valType := FlagType[V](new(genericType[V]))
 
-	if flag.FlagValue, err = newMapValue(keyType, valType, flag.LookupEnv(flag.EnvVar), flag.EnvVarSep, flag.KeyValSep, flag.Splitter, flag.Destination); err != nil {
+	if val := flag.LookupEnv(flag.EnvVar); val != nil {
+		envValue = val
+	}
+
+	if flag.FlagValue, err = newMapValue(keyType, valType, envValue, flag.EnvVarSep, flag.KeyValSep, flag.Splitter, flag.Destination); err != nil {
+		if envValue != nil {
+			return errors.Errorf("invalid value %q for %s: %w", *envValue, flag.EnvVar, err)
+		}
+
 		return err
 	}
 
 	for _, name := range flag.Names() {
 		set.Var(flag.FlagValue, name, flag.Usage)
 	}
+
 	return nil
+}
+
+// GetHidden returns true if the flag should be hidden from the help.
+func (flag *MapFlag[K, V]) GetHidden() bool {
+	return flag.Hidden
 }
 
 // GetUsage returns the usage string for the flag.
@@ -78,6 +118,7 @@ func (flag *MapFlag[K, V]) GetEnvVars() []string {
 	if flag.EnvVar == "" {
 		return nil
 	}
+
 	return []string{flag.EnvVar}
 }
 
@@ -86,6 +127,7 @@ func (flag *MapFlag[K, V]) GetDefaultText() string {
 	if flag.DefaultText == "" && flag.FlagValue != nil {
 		return flag.FlagValue.GetDefaultText()
 	}
+
 	return flag.DefaultText
 }
 
@@ -102,7 +144,7 @@ func (flag *MapFlag[K, V]) Names() []string {
 // RunAction implements ActionableFlag.RunAction
 func (flag *MapFlag[K, V]) RunAction(ctx *Context) error {
 	if flag.Action != nil {
-		return flag.Action(ctx)
+		return flag.Action(ctx, *flag.Destination)
 	}
 
 	return nil
@@ -116,6 +158,7 @@ type mapValue[K, V comparable] struct {
 	argSep, valSep string
 	splitter       SplitterFunc
 	hasBeenSet     bool
+	envHasBeenSet  bool
 }
 
 func newMapValue[K, V comparable](keyType FlagType[K], valType FlagType[V], envValue *string, argSep, valSep string, splitter SplitterFunc, dest *map[K]V) (FlagValue, error) {
@@ -127,6 +170,8 @@ func newMapValue[K, V comparable](keyType FlagType[K], valType FlagType[V], envV
 
 	defaultText := (&mapValue[K, V]{values: dest, keyType: keyType, valType: valType, argSep: argSep, valSep: valSep, splitter: splitter}).String()
 
+	var envHasBeenSet bool
+
 	if envValue != nil && splitter != nil {
 		value := mapValue[K, V]{values: dest, keyType: keyType, valType: valType, argSep: argSep, valSep: valSep, splitter: splitter}
 
@@ -135,17 +180,20 @@ func newMapValue[K, V comparable](keyType FlagType[K], valType FlagType[V], envV
 			if err := value.Set(strings.TrimSpace(arg)); err != nil {
 				return nil, err
 			}
+
+			envHasBeenSet = true
 		}
 	}
 
 	return &mapValue[K, V]{
-		values:      dest,
-		keyType:     keyType,
-		valType:     valType,
-		defaultText: defaultText,
-		argSep:      argSep,
-		valSep:      valSep,
-		splitter:    splitter,
+		values:        dest,
+		keyType:       keyType,
+		valType:       valType,
+		defaultText:   defaultText,
+		argSep:        argSep,
+		valSep:        valSep,
+		splitter:      splitter,
+		envHasBeenSet: envHasBeenSet,
 	}, nil
 }
 
@@ -173,6 +221,7 @@ func (flag *mapValue[K, V]) Set(str string) error {
 	}
 
 	(*flag.values)[key.Get().(K)] = val.Get().(V)
+
 	return nil
 }
 
@@ -180,6 +229,7 @@ func (flag *mapValue[K, V]) GetDefaultText() string {
 	if flag.IsBoolFlag() {
 		return ""
 	}
+
 	return flag.defaultText
 }
 
@@ -188,7 +238,7 @@ func (flag *mapValue[K, V]) IsBoolFlag() bool {
 }
 
 func (flag *mapValue[K, V]) IsSet() bool {
-	return flag.hasBeenSet
+	return flag.hasBeenSet || flag.envHasBeenSet
 }
 
 func (flag *mapValue[K, V]) Get() any {
@@ -206,5 +256,6 @@ func (flag *mapValue[K, V]) String() string {
 	if flag.values == nil {
 		return ""
 	}
+
 	return collections.MapJoin(*flag.values, flag.argSep, flag.valSep)
 }

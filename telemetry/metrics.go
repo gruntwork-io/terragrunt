@@ -25,8 +25,8 @@ type metricsExporterType string
 const (
 	noneMetricsExporterType     metricsExporterType = "none"
 	consoleMetricsExporterType  metricsExporterType = "console"
-	oltpHttpMetricsExporterType metricsExporterType = "otlpHttp"
-	grpcHttpMetricsExporterType metricsExporterType = "grpcHttp"
+	oltpHTTPMetricsExporterType metricsExporterType = "otlpHttp"
+	grpcHTTPMetricsExporterType metricsExporterType = "grpcHttp"
 
 	ErrorsCounter = "errors"
 
@@ -43,13 +43,17 @@ func Time(ctx context.Context, name string, attrs map[string]interface{}, fn fun
 	}
 
 	metricAttrs := mapToAttributes(attrs)
+
 	histogram, err := meter.Int64Histogram(CleanMetricName(name + "_duration"))
 	if err != nil {
 		return errors.WithStack(err)
 	}
+
 	startTime := time.Now()
 	err = fn(ctx)
+
 	histogram.Record(ctx, time.Since(startTime).Milliseconds(), otelmetric.WithAttributes(metricAttrs...))
+
 	if err != nil {
 		// count errors
 		Count(ctx, ErrorsCounter, 1)
@@ -57,6 +61,7 @@ func Time(ctx context.Context, name string, attrs map[string]interface{}, fn fun
 	} else {
 		Count(ctx, name+"_success", 1)
 	}
+
 	return err
 }
 
@@ -65,10 +70,12 @@ func Count(ctx context.Context, name string, value int64) {
 	if ctx == nil || metricExporter == nil {
 		return
 	}
+
 	counter, err := meter.Int64Counter(CleanMetricName(name + "_count"))
 	if err != nil {
 		return
 	}
+
 	counter.Add(ctx, value)
 }
 
@@ -78,18 +85,22 @@ func configureMetricsCollection(ctx context.Context, opts *TelemetryOptions) err
 	if err != nil {
 		return errors.WithStack(err)
 	}
+
 	metricExporter = exporter
 	if metricExporter == nil {
 		return nil
 	}
+
 	provider, err := newMetricsProvider(opts, metricExporter)
 	if err != nil {
 		return errors.WithStack(err)
 	}
+
 	metricProvider = provider
 	otel.SetMeterProvider(metricProvider)
 	// configure app meter
 	meter = otel.GetMeterProvider().Meter(opts.AppName)
+
 	return nil
 }
 
@@ -100,23 +111,24 @@ func NewMetricsExporter(ctx context.Context, opts *TelemetryOptions) (metric.Exp
 
 	// TODO: Remove this lint suppression
 	switch exporterType { //nolint:exhaustive
-	case oltpHttpMetricsExporterType:
+	case oltpHTTPMetricsExporterType:
 		var config []otlpmetrichttp.Option
 		if insecure {
 			config = append(config, otlpmetrichttp.WithInsecure())
 		}
+
 		return otlpmetrichttp.New(ctx, config...)
-	case grpcHttpMetricsExporterType:
+	case grpcHTTPMetricsExporterType:
 		var config []otlpmetricgrpc.Option
 		if insecure {
 			config = append(config, otlpmetricgrpc.WithInsecure())
 		}
+
 		return otlpmetricgrpc.New(ctx, config...)
 	case consoleMetricsExporterType:
 		return stdoutmetric.New(stdoutmetric.WithWriter(opts.Writer))
 	default:
 		return nil, nil
-
 	}
 }
 
@@ -139,6 +151,7 @@ func newMetricsProvider(opts *TelemetryOptions, exp metric.Exporter) (*metric.Me
 		metric.WithResource(r),
 		metric.WithReader(metric.NewPeriodicReader(exp, metric.WithInterval(readerInterval))),
 	)
+
 	return meterProvider, nil
 }
 
@@ -146,5 +159,6 @@ func newMetricsProvider(opts *TelemetryOptions, exp metric.Exporter) (*metric.Me
 func CleanMetricName(metricName string) string {
 	cleanedName := metricNameCleanPattern.ReplaceAllString(metricName, "_")
 	cleanedName = multipleUnderscoresPattern.ReplaceAllString(cleanedName, "_")
+
 	return strings.Trim(cleanedName, "_")
 }

@@ -28,7 +28,9 @@ func ParseTimestamp(ts string) (time.Time, error) {
 				// by the time package.
 				return time.Time{}, fmt.Errorf("not a valid RFC3339 timestamp%s", err.Message)
 			}
+
 			var what string
+
 			switch err.LayoutElem {
 			case "2006":
 				what = "year"
@@ -58,13 +60,16 @@ func ParseTimestamp(ts string) (time.Time, error) {
 				// be robust here.
 				what = "timestamp segment"
 			}
+
 			if err.ValueElem == "" {
 				return time.Time{}, fmt.Errorf("not a valid RFC3339 timestamp: end of string before %s", what)
 			} else {
 				return time.Time{}, fmt.Errorf("not a valid RFC3339 timestamp: cannot use %q as %s", err.ValueElem, what)
 			}
 		}
+
 		return time.Time{}, err
 	}
+
 	return t, nil
 }

@@ -984,7 +984,7 @@ look for an alternative implementation.
 This challenge has come up numerous times in the lifetime of Terragrunt. The following are relevant issues that raise
 similar concerns:
 
-- [Shared and overridable variabls](https://github.com/gruntwork-io/terragrunt/issues/814)
+- [Shared and overridable variables](https://github.com/gruntwork-io/terragrunt/issues/814)
 - [Being able to merge maps from inputs](https://github.com/gruntwork-io/terragrunt/issues/744)
 - [Request to allow more than one level of include](https://github.com/gruntwork-io/terragrunt/issues/303)
 - [Request to reference inputs from another config](https://github.com/gruntwork-io/terragrunt/issues/967)

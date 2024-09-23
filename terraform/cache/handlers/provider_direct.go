@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
@@ -47,7 +46,7 @@ type ProviderDirectHandler struct {
 func NewProviderDirectHandler(providerService *services.ProviderService, cacheProviderHTTPStatusCode int, method *cliconfig.ProviderInstallationDirect, credsSource *cliconfig.CredentialsSource) *ProviderDirectHandler {
 	return &ProviderDirectHandler{
 		CommonProviderHandler:       NewCommonProviderHandler(method.Include, method.Exclude),
-		ReverseProxy:                &ReverseProxy{CredsSource: credsSource},
+		ReverseProxy:                &ReverseProxy{CredsSource: credsSource, logger: providerService.Logger()},
 		providerService:             providerService,
 		cacheProviderHTTPStatusCode: cacheProviderHTTPStatusCode,
 	}
@@ -91,14 +90,13 @@ func (handler *ProviderDirectHandler) GetPlatform(ctx echo.Context, provider *mo
 			return proxyGetVersionsRequest(resp, downloaderController)
 		}).
 		NewRequest(ctx, handler.platformURL(provider))
-
 }
 
 // Download implements ProviderHandler.Download
 func (handler *ProviderDirectHandler) Download(ctx echo.Context, provider *models.Provider) error {
 	if cache := handler.providerService.GetProviderCache(provider); cache != nil {
 		if path := cache.ArchivePath(); path != "" {
-			log.Debugf("Download cached provider %s", cache.Provider)
+			handler.providerService.Logger().Debugf("Download cached provider %s", cache.Provider)
 			return ctx.File(path)
 		}
 	}
@@ -110,6 +108,7 @@ func (handler *ProviderDirectHandler) Download(ctx echo.Context, provider *model
 			Host:   provider.RegistryName,
 			Path:   filepath.Join(provider.RegistryPrefix, provider.RegistryName, provider.Namespace, provider.Name, provider.DownloadURL),
 		}
+
 		return handler.ReverseProxy.NewRequest(ctx, downloadURL)
 	}
 
@@ -117,6 +116,7 @@ func (handler *ProviderDirectHandler) Download(ctx echo.Context, provider *model
 	if err != nil {
 		return err
 	}
+
 	return handler.ReverseProxy.NewRequest(ctx, downloadURL)
 }
 
@@ -140,6 +140,7 @@ func proxyGetVersionsRequest(resp *http.Response, downloaderController router.Co
 			if !ok || linkBytes == nil {
 				continue
 			}
+
 			link := string(linkBytes)
 
 			link, err := strconv.Unquote(link)

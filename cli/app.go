@@ -1,18 +1,19 @@
+// Package cli configures the Terragrunt CLI app and its commands.
 package cli
 
 import (
 	"context"
 	goerrors "errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/engine"
-
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
+	"github.com/gruntwork-io/terragrunt/pkg/log/hooks"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"golang.org/x/sync/errgroup"
@@ -46,7 +47,6 @@ import (
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 // forced shutdown interval after receiving an interrupt signal
@@ -60,32 +60,32 @@ func init() {
 
 type App struct {
 	*cli.App
+	opts *options.TerragruntOptions
 }
 
 // NewApp creates the Terragrunt CLI App.
-func NewApp(writer io.Writer, errWriter io.Writer) *App {
-	opts := options.NewTerragruntOptions()
-	opts.Writer = writer
-	opts.ErrWriter = errWriter
-
+func NewApp(opts *options.TerragruntOptions) *App {
 	app := cli.NewApp()
 	app.Name = "terragrunt"
 	app.Usage = "Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale. For documentation, see https://terragrunt.gruntwork.io/."
 	app.Author = "Gruntwork <www.gruntwork.io>"
 	app.Version = version.GetVersion()
-	app.Writer = writer
-	app.ErrWriter = errWriter
+	app.Writer = opts.Writer
+	app.ErrWriter = opts.ErrWriter
+
 	app.Flags = append(
 		commands.NewGlobalFlags(opts),
-		commands.NewHelpVersionFlags(opts)...)
+		NewDeprecatedFlags(opts)...)
+
 	app.Commands = append(
 		DeprecatedCommands(opts),
 		TerragruntCommands(opts)...).WrapAction(WrapWithTelemetry(opts))
+
 	app.Before = beforeAction(opts)
 	app.DefaultCommand = terraformCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
 	app.OsExiter = OSExiter
 
-	return &App{app}
+	return &App{app, opts}
 }
 
 func (app *App) Run(args []string) error {
@@ -97,16 +97,16 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	defer cancel()
 
 	shell.RegisterSignalHandler(func(signal os.Signal) {
-		log.Infof("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(signal.String()), shell.SignalForwardingDelay)
+		app.opts.Logger.Infof("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(signal.String()), shell.SignalForwardingDelay)
 		cancel()
 
 		shell.RegisterSignalHandler(func(signal os.Signal) {
-			log.Infof("Second %s signal received, force shutting down...", cases.Title(language.English).String(signal.String()))
+			app.opts.Logger.Infof("Second %s signal received, force shutting down...", cases.Title(language.English).String(signal.String()))
 			os.Exit(1)
 		})
 
 		time.Sleep(forceExitInterval)
-		log.Infof("Failed to gracefully shutdown within %v, force shutting down...", forceExitInterval)
+		app.opts.Logger.Infof("Failed to gracefully shutdown within %v, force shutting down...", forceExitInterval)
 		os.Exit(1)
 	}, shell.InterruptSignals...)
 
@@ -133,6 +133,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	if engine.IsEngineEnabled() {
 		ctx = engine.WithEngineValues(ctx)
 	}
+
 	defer func(ctx context.Context) {
 		if err := engine.Shutdown(ctx); err != nil {
 			_, _ = app.ErrWriter.Write([]byte(err.Error()))
@@ -142,10 +143,11 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	if err := app.App.RunContext(ctx, args); err != nil && !goerrors.Is(err, context.Canceled) {
 		return err
 	}
+
 	return nil
 }
 
-// This set of commands is also used in unit tests
+// TerragruntCommands returns the set of Terragrunt commands.
 func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	cmds := cli.Commands{
 		runall.NewCommand(opts),             // runAction-all
@@ -170,7 +172,7 @@ func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	return cmds
 }
 
-// Wrap CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
+// WrapWithTelemetry wraps CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
 func WrapWithTelemetry(opts *options.TerragruntOptions) func(ctx *cli.Context, action cli.ActionFunc) error {
 	return func(ctx *cli.Context, action cli.ActionFunc) error {
 		return telemetry.Telemetry(ctx.Context, opts, fmt.Sprintf("%s %s", ctx.Command.Name, opts.TerraformCommand), map[string]interface{}{
@@ -198,6 +200,7 @@ func beforeAction(_ *options.TerragruntOptions) cli.ActionFunc {
 			// exit the app
 			return cli.NewExitError(err, 0)
 		}
+
 		return nil
 	}
 }
@@ -235,6 +238,7 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 		if action != nil {
 			return action(cliCtx)
 		}
+
 		return nil
 	})
 
@@ -243,7 +247,7 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 
 // mostly preparing terragrunt options
 func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
-	// The env vars are renamed to "..._NO_AUTO_..." in the gobal flags`. These ones are left for backwards compatibility.
+	// The env vars are renamed to "..._NO_AUTO_..." in the global flags`. These ones are left for backwards compatibility.
 	opts.AutoInit = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_INIT"), opts.AutoInit)
 	opts.AutoRetry = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_RETRY"), opts.AutoRetry)
 	opts.RunAllAutoApprove = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_APPROVE"), opts.RunAllAutoApprove)
@@ -277,30 +281,35 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	opts.Env = env.Parse(os.Environ())
 
-	// --- Logger
-	if opts.DisableLogColors {
-		util.DisableLogColors()
-	}
-
-	if opts.JsonLogFormat {
-		util.JsonFormat()
-	}
-
-	opts.LogLevel = util.ParseLogLevel(opts.LogLevelStr)
-	opts.Logger = util.CreateLogEntry("", opts.LogLevel)
-	opts.Logger.Logger.SetOutput(cliCtx.App.ErrWriter)
-
-	log.SetLogger(opts.Logger.Logger)
-
 	// --- Working Dir
 	if opts.WorkingDir == "" {
 		currentDir, err := os.Getwd()
 		if err != nil {
 			return errors.WithStackTrace(err)
 		}
+
 		opts.WorkingDir = currentDir
 	}
+
 	opts.WorkingDir = filepath.ToSlash(opts.WorkingDir)
+
+	workingDir, err := filepath.Abs(opts.WorkingDir)
+	if err != nil {
+		return errors.WithStackTrace(err)
+	}
+
+	opts.Logger = opts.Logger.WithField(format.PrefixKeyName, workingDir)
+
+	opts.RootWorkingDir = filepath.ToSlash(workingDir)
+
+	if !opts.LogShowAbsPaths {
+		hook, err := hooks.NewRelativePathHook(opts.RootWorkingDir)
+		if err != nil {
+			return err
+		}
+
+		opts.Logger.SetOptions(log.WithHooks(hook))
+	}
 
 	// --- Download Dir
 	if opts.DownloadDir == "" {
@@ -311,6 +320,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
+
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
 
 	// --- Terragrunt ConfigPath
@@ -346,6 +356,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	if err != nil {
 		return err
 	}
+
 	opts.ExcludeDirs = append(opts.ExcludeDirs, excludeDirs...)
 
 	// --- Terragrunt Version
@@ -356,23 +367,10 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 			return errors.WithStackTrace(err)
 		}
 	}
+
 	opts.TerragruntVersion = terragruntVersion
 	// Log the terragrunt version in debug mode. This helps with debugging issues and ensuring a specific version of terragrunt used.
 	opts.Logger.Debugf("Terragrunt Version: %s", opts.TerragruntVersion)
-
-	// --- IncludeModulePrefix
-	jsonOutput := false
-	for _, arg := range opts.TerraformCliArgs {
-		if strings.EqualFold(arg, "-json") {
-			jsonOutput = true
-			break
-		}
-	}
-	if opts.IncludeModulePrefix && !jsonOutput {
-		opts.OutputPrefix = fmt.Sprintf("[%s] ", opts.WorkingDir)
-	} else {
-		opts.IncludeModulePrefix = false
-	}
 
 	// --- Others
 	if !opts.RunAllAutoApprove {

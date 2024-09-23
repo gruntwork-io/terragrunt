@@ -23,8 +23,13 @@ const (
 	CommandNameConsole        = "console"
 	CommandNameForceUnlock    = "force-unlock"
 	CommandNameShow           = "show"
+	CommandNameVersion        = "version"
 
-	FlagNameNoColor = "-no-color"
+	FlagNameHelpLong  = "-help"
+	FlagNameHelpShort = "-h"
+	FlagNameVersion   = "-version"
+	FlagNameJSON      = "-json"
+	FlagNameNoColor   = "-no-color"
 	// `apply -destroy` is alias for `destroy`
 	FlagNameDestroy = "-destroy"
 
@@ -40,7 +45,7 @@ const (
 	TerraformLockFile = ".terraform.lock.hcl"
 
 	TerraformPlanFile     = "tfplan.tfplan"
-	TerraformPlanJsonFile = "tfplan.json"
+	TerraformPlanJSONFile = "tfplan.json"
 )
 
 // ModuleVariables will return all the variables defined in the downloaded terraform modules, taking into
@@ -53,6 +58,7 @@ func ModuleVariables(modulePath string) ([]string, []string, error) {
 
 	required := []string{}
 	optional := []string{}
+
 	for _, variable := range module.Variables {
 		if variable.Required {
 			required = append(required, variable.Name)
@@ -60,5 +66,6 @@ func ModuleVariables(modulePath string) ([]string, []string, error) {
 			optional = append(optional, variable.Name)
 		}
 	}
+
 	return required, optional, nil
 }

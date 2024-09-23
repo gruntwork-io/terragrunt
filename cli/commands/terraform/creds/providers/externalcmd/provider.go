@@ -1,3 +1,4 @@
+// Package externalcmd provides a provider that runs an external command that returns a json string with credentials.
 package externalcmd
 
 import (
@@ -38,6 +39,7 @@ func (provider *Provider) GetCredentials(ctx context.Context) (*providers.Creden
 	}
 
 	var args []string
+
 	if parts := strings.Fields(command); len(parts) > 1 {
 		command = parts[0]
 		args = parts[1:]
@@ -90,6 +92,7 @@ func (creds *AWSCredentials) Envs(opts *options.TerragruntOptions) map[string]st
 	if creds.AccessKeyID == "" {
 		emptyFields = append(emptyFields, "ACCESS_KEY_ID")
 	}
+
 	if creds.SecretAccessKey == "" {
 		emptyFields = append(emptyFields, "SECRET_ACCESS_KEY")
 	}
@@ -105,5 +108,6 @@ func (creds *AWSCredentials) Envs(opts *options.TerragruntOptions) map[string]st
 		"AWS_SESSION_TOKEN":     creds.SessionToken,
 		"AWS_SECURITY_TOKEN":    creds.SessionToken,
 	}
+
 	return envs
 }

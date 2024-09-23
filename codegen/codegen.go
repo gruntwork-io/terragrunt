@@ -1,2 +1,2 @@
-// Contains routines for generating terraform code
+// Package codegen contains routines for generating terraform code
 package codegen

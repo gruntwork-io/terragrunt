@@ -38,7 +38,7 @@ type FlagValue interface {
 
 type Flag interface {
 	Value() FlagValue
-
+	GetHidden() bool
 	// `urfave/cli/v2` uses to generate help
 	cli.DocGenerationFlag
 }

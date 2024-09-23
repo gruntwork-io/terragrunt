@@ -1,4 +1,4 @@
-package integration_test
+package test_test
 
 import (
 	"bytes"
@@ -16,15 +16,15 @@ import (
 )
 
 const (
-	includeDeepFixturePath      = "fixture-include-deep/"
+	includeDeepFixturePath      = "fixtures/include-deep/"
 	includeDeepFixtureChildPath = "child"
-	includeFixturePath          = "fixture-include/"
+	includeFixturePath          = "fixtures/include/"
 	includeShallowFixturePath   = "stage/my-app"
 	includeNoMergeFixturePath   = "qa/my-app"
-	includeExposeFixturePath    = "fixture-include-expose/"
+	includeExposeFixturePath    = "fixtures/include-expose/"
 	includeChildFixturePath     = "child"
-	includeMultipleFixturePath  = "fixture-include-multiple/"
-	includeRunAllFixturePath    = "fixture-include-runall/"
+	includeMultipleFixturePath  = "fixtures/include-multiple/"
+	includeRunAllFixturePath    = "fixtures/include-runall/"
 )
 
 func TestTerragruntWorksWithIncludeLocals(t *testing.T) {
@@ -69,8 +69,8 @@ func TestTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
 	childPath := util.JoinPath(includeFixturePath, includeShallowFixturePath)
 	cleanupTerraformFolder(t, childPath)
 
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueId())
-	defer deleteS3Bucket(t, TERRAFORM_REMOTE_STATE_S3_REGION, s3BucketName)
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	defer deleteS3Bucket(t, terraformRemoteStateS3Region, s3BucketName)
 
 	tmpTerragruntConfigPath := createTmpTerragruntConfigWithParentAndChild(t, includeFixturePath, includeShallowFixturePath, s3BucketName, config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath)
 
@@ -105,7 +105,7 @@ func TestTerragruntRunAllModulesThatIncludeRestrictsSet(t *testing.T) {
 	err := runTerragruntCommand(
 		t,
 		fmt.Sprintf(
-			"terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-modules-that-include alpha.hcl",
+			"terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-forward-tf-stdout --terragrunt-working-dir %s --terragrunt-modules-that-include alpha.hcl",
 			modulePath,
 		),
 		&stdout,
@@ -132,7 +132,7 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(
 		t,
-		"terragrunt run-all plan --terragrunt-non-interactive --terragrunt-include-module-prefix --terragrunt-working-dir "+modulePath,
+		"terragrunt run-all plan --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+modulePath,
 		&stdout,
 		&stderr,
 	)
@@ -145,16 +145,16 @@ func TestTerragruntRunAllModulesWithPrefix(t *testing.T) {
 	assert.Contains(t, planOutput, "beta")
 	assert.Contains(t, planOutput, "charlie")
 
-	stdoutLines := strings.Split(planOutput, "\n")
+	stdoutLines := strings.Split(stderr.String(), "\n")
 	for _, line := range stdoutLines {
 		if strings.Contains(line, "alpha") {
-			assert.Contains(t, line, includeRunAllFixturePath+"a")
+			assert.Contains(t, line, "prefix=a")
 		}
 		if strings.Contains(line, "beta") {
-			assert.Contains(t, line, includeRunAllFixturePath+"b")
+			assert.Contains(t, line, "prefix=b")
 		}
 		if strings.Contains(line, "charlie") {
-			assert.Contains(t, line, includeRunAllFixturePath+"c")
+			assert.Contains(t, line, "prefix=c")
 		}
 	}
 }
@@ -234,6 +234,8 @@ func TestTerragruntWorksWithMultipleInclude(t *testing.T) {
 }
 
 func validateMultipleIncludeTestOutput(t *testing.T, outputs map[string]TerraformOutput) {
+	t.Helper()
+
 	assert.Equal(t, "mock", outputs["attribute"].Value.(string))
 	assert.Equal(t, "new val", outputs["new_attribute"].Value.(string))
 	assert.Equal(t, "old val", outputs["old_attribute"].Value.(string))
@@ -257,6 +259,8 @@ func validateMultipleIncludeTestOutput(t *testing.T, outputs map[string]Terrafor
 }
 
 func validateIncludeRemoteStateReflection(t *testing.T, s3BucketName string, keyPath string, configPath string, workingDir string) {
+	t.Helper()
+
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-config %s --terragrunt-working-dir %s", configPath, workingDir), &stdout, &stderr)

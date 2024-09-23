@@ -63,7 +63,7 @@ func TestFalgsRunActions(t *testing.T) {
 
 	mockFlags := cli.Flags{
 		&cli.SliceFlag[string]{Name: "bar"},
-		&cli.GenericFlag[string]{Name: "foo", Action: func(ctx *cli.Context) error { actionHasBeenRun = true; return nil }},
+		&cli.GenericFlag[string]{Name: "foo", Action: func(ctx *cli.Context, val string) error { actionHasBeenRun = true; return nil }},
 	}
 
 	flagSet := libflag.NewFlagSet("test-cmd", libflag.ContinueOnError)

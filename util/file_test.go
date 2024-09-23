@@ -11,6 +11,7 @@ import (
 
 	"fmt"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -218,7 +219,7 @@ func TestFileManifest(t *testing.T) {
 	testfiles = append(testfiles, path.Join(dir, "ephemeral-file-that-doesnt-exist.txt"))
 
 	// create a manifest
-	manifest := util.NewFileManifest(dir, ".terragrunt-test-manifest")
+	manifest := util.NewFileManifest(log.New(), dir, ".terragrunt-test-manifest")
 	require.NoError(t, manifest.Create())
 	// check the file manifest has been created
 	assert.FileExists(t, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
@@ -361,7 +362,7 @@ func TestIncludeInCopy(t *testing.T) {
 		assert.NoError(t, os.WriteFile(path, fileContent, 0644))
 	}
 
-	require.NoError(t, util.CopyFolderContents(source, destination, ".terragrunt-test", includeInCopy))
+	require.NoError(t, util.CopyFolderContents(log.New(), source, destination, ".terragrunt-test", includeInCopy))
 
 	for i, tt := range tc {
 		tt := tt

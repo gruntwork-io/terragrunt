@@ -23,7 +23,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	if cfg == nil {
-		return errors.New("Terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl.")
+		return errors.New("terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl")
 	}
 	// consider root for graph identification passed destroy-graph-root argument
 	rootDir := opts.GraphRoot
@@ -35,16 +35,22 @@ func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.Ter
 		if err != nil {
 			return err
 		}
+
 		rootDir = gitRoot
 	}
 
-	rootOptions := opts.Clone(rootDir)
+	rootOptions, err := opts.Clone(rootDir)
+	if err != nil {
+		return err
+	}
+
 	rootOptions.WorkingDir = rootDir
 
 	stack, err := configstack.FindStackInSubfolders(ctx, rootOptions)
 	if err != nil {
 		return err
 	}
+
 	dependentModules := stack.ListStackDependentModules()
 
 	workDir := opts.WorkingDir

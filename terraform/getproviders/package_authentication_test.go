@@ -24,19 +24,19 @@ func TestPackageAuthenticationResult(t *testing.T) {
 			"unauthenticated",
 		},
 		{
-			getproviders.NewPackageAuthenticationResult(getproviders.VERIFIED_CHECKSUM),
+			getproviders.NewPackageAuthenticationResult(getproviders.VerifiedChecksum),
 			"verified checksum",
 		},
 		{
-			getproviders.NewPackageAuthenticationResult(getproviders.OFFICIAL_PROVIDER),
+			getproviders.NewPackageAuthenticationResult(getproviders.OfficialProvider),
 			"signed by HashiCorp",
 		},
 		{
-			getproviders.NewPackageAuthenticationResult(getproviders.PARTNER_PROVIDER),
+			getproviders.NewPackageAuthenticationResult(getproviders.PartnerProvider),
 			"signed by a HashiCorp partner",
 		},
 		{
-			getproviders.NewPackageAuthenticationResult(getproviders.COMMUNITY_PROVIDER),
+			getproviders.NewPackageAuthenticationResult(getproviders.CommunityProvider),
 			"self-signed",
 		},
 	}
@@ -69,7 +69,7 @@ func TestArchiveChecksumAuthentication(t *testing.T) {
 				0x78, 0x1c, 0xb8, 0xc3, 0xb2, 0x59, 0x01, 0xdd,
 				0x5a, 0x79, 0x2a, 0xde, 0x97, 0x11, 0xf5, 0x01,
 			},
-			getproviders.NewPackageAuthenticationResult(getproviders.VERIFIED_CHECKSUM),
+			getproviders.NewPackageAuthenticationResult(getproviders.VerifiedChecksum),
 			nil,
 		},
 		{
@@ -269,7 +269,7 @@ func TestSignatureAuthenticate(t *testing.T) {
 			[]byte(testProviderShaSums),
 			testHashicorpSignatureGoodBase64,
 			map[string]string{getproviders.HashicorpPublicKey: ""},
-			getproviders.NewPackageAuthenticationResult(getproviders.OFFICIAL_PROVIDER),
+			getproviders.NewPackageAuthenticationResult(getproviders.OfficialProvider),
 			nil,
 		},
 		{

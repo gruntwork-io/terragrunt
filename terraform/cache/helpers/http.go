@@ -1,3 +1,4 @@
+// Package helpers provides utility functions for working with HTTP requests and responses.
 package helpers
 
 import (
@@ -113,6 +114,7 @@ func DecodeJSONBody(resp *http.Response, value any) error {
 	}
 
 	resp.Body = io.NopCloser(buffer)
+
 	return nil
 }
 

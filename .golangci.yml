@@ -65,12 +65,21 @@ linters:
     - unconvert
     - unused
     - unparam
+    - wsl
+    - thelper
+    - wastedassign
+    - stylecheck
+
   enable-all: false
   disable:
     - depguard
     - gosec
     - gocyclo
     - exhaustruct
+    - nolintlint
+    - wrapcheck
+    - varnamelen
+
   fast: false
   mnd:
     ignored-functions: strconv.Format*,os.*,strconv.Parse*,strings.SplitN,bytes.SplitN
@@ -79,6 +88,9 @@ linters:
     - performance
     - unused
     - test
+    # NOTE: These two are only in the strict lint right now
+    # - style
+    # - complexity
 
 issues:
   exclude-dirs:

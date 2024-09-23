@@ -54,7 +54,7 @@ spec:
 ```
 
 In the above configuration, we create a Cluster IP based `Service` (so that it is only available internally to the
-Kubernetes cluster) that routes requests to port 80 to any `Pod` that maches the label `app=backend` on port 80. Then,
+Kubernetes cluster) that routes requests to port 80 to any `Pod` that matches the label `app=backend` on port 80. Then,
 we configure an `Ingress` rule that routes any requests prefixed with `/service` to that `Service` endpoint on port 80.
 
 The actual load balancer that is configured by the `Ingress` resource is defined by the particular [Ingress

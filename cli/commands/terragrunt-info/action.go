@@ -18,7 +18,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	return terraform.RunWithTarget(ctx, opts, target)
 }
 
-// Struct is output as JSON by 'terragrunt-info':
+// TerragruntInfoGroup is the output emit as JSON by 'terragrunt-info':
 type TerragruntInfoGroup struct {
 	ConfigPath       string `json:"ConfigPath"`
 	DownloadDir      string `json:"DownloadDir"`
@@ -43,9 +43,11 @@ func printTerragruntInfo(opts *options.TerragruntOptions) error {
 		opts.Logger.Errorf("JSON error marshalling terragrunt-info")
 		return errors.WithStackTrace(err)
 	}
+
 	if _, err := fmt.Fprintf(opts.Writer, "%s\n", b); err != nil {
 		return errors.WithStackTrace(err)
 	}
+
 	return nil
 }
 
@@ -55,8 +57,10 @@ func runTerragruntInfo(ctx context.Context, opts *options.TerragruntOptions, cfg
 
 func runErrorTerragruntInfo(opts *options.TerragruntOptions, cfg *config.TerragruntConfig, err error) error {
 	opts.Logger.Debugf("Fetching terragrunt-info: %v", err)
+
 	if err := printTerragruntInfo(opts); err != nil {
 		opts.Logger.Errorf("Error printing terragrunt-info: %v", err)
 	}
+
 	return err
 }

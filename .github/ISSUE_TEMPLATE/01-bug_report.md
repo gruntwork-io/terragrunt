@@ -15,6 +15,8 @@ A clear and concise description of what the bug is.
 
 Steps to reproduce the behavior, code snippets and examples which can be used to reproduce the issue.
 
+Be sure that the maintainers can actually reproduce the issue. Bug reports that are too vague or hard to reproduce are hard to troubleshoot and fix.
+
 ```hcl
 // paste code snippets here
 ```

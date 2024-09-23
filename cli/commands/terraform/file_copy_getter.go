@@ -5,14 +5,15 @@ import (
 	"os"
 
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-getter"
 )
 
-// manifest for files copied from the URL specified in the terraform { source = "<URL>" } config
+// SourceManifestName is the manifest for files copied from the URL specified in the terraform { source = "<URL>" } config
 const SourceManifestName = ".terragrunt-source-manifest"
 
-// A custom getter.Getter implementation that uses file copying instead of symlinks. Symlinks are
+// FileCopyGetter is a custom getter.Getter implementation that uses file copying instead of symlinks. Symlinks are
 // faster and use less disk space, but they cause issues in Windows and with infinite loops, so we copy files/folders
 // instead.
 type FileCopyGetter struct {
@@ -21,8 +22,11 @@ type FileCopyGetter struct {
 	// List of glob paths that should be included in the copy. This can be used to override the default behavior of
 	// Terragrunt, which will skip hidden folders.
 	IncludeInCopy []string
+
+	Logger log.Logger
 }
 
+// Get replaces the original FileGetter
 // The original FileGetter does NOT know how to do folder copying (it only does symlinks), so we provide a copy
 // implementation here
 func (g *FileCopyGetter) Get(dst string, u *url.URL) error {
@@ -38,7 +42,7 @@ func (g *FileCopyGetter) Get(dst string, u *url.URL) error {
 		return errors.Errorf("source path must be a directory")
 	}
 
-	return util.CopyFolderContents(path, dst, SourceManifestName, g.IncludeInCopy)
+	return util.CopyFolderContents(g.Logger, path, dst, SourceManifestName, g.IncludeInCopy)
 }
 
 // GetFile The original FileGetter already knows how to do file copying so long as we set the Copy flag to true, so just
@@ -48,5 +52,6 @@ func (g *FileCopyGetter) GetFile(dst string, u *url.URL) error {
 	if err := underlying.GetFile(dst, u); err != nil {
 		return errors.WithStackTrace(err)
 	}
+
 	return nil
 }

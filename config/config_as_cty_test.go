@@ -194,6 +194,8 @@ func TestTerraformConfigAsCtyDrift(t *testing.T) {
 }
 
 func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string, bool) {
+	t.Helper()
+
 	switch fieldName {
 	case "Catalog":
 		return "catalog", true
@@ -255,6 +257,8 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 }
 
 func remoteStateStructFieldToMapKey(t *testing.T, fieldName string) (string, bool) {
+	t.Helper()
+
 	switch fieldName {
 	case "Backend":
 		return "backend", true

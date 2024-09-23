@@ -102,6 +102,13 @@ func TestGenericFlagIntApply(t *testing.T) {
 			nil,
 		},
 		{
+			cli.GenericFlag[int]{Name: "foo", EnvVar: "FOO"},
+			[]string{},
+			map[string]string{"FOO": "monkey"},
+			0,
+			errors.New(`invalid value "monkey" for FOO: must be 32-bit integer`),
+		},
+		{
 			cli.GenericFlag[int]{Name: "foo", Destination: mockDestValue(55)},
 			nil,
 			nil,
@@ -146,6 +153,13 @@ func TestGenericFlagInt64Apply(t *testing.T) {
 			nil,
 		},
 		{
+			cli.GenericFlag[int64]{Name: "foo", EnvVar: "FOO"},
+			[]string{},
+			map[string]string{"FOO": "monkey"},
+			0,
+			errors.New(`invalid value "monkey" for FOO: must be 64-bit integer`),
+		},
+		{
 			cli.GenericFlag[int64]{Name: "foo", Destination: mockDestValue(int64(55))},
 			nil,
 			nil,
@@ -166,6 +180,8 @@ func TestGenericFlagInt64Apply(t *testing.T) {
 }
 
 func testGenericFlagApply[T cli.GenericType](t *testing.T, flag *cli.GenericFlag[T], args []string, envs map[string]string, expectedValue T, expectedErr error) {
+	t.Helper()
+
 	var (
 		actualValue          T
 		destDefined          bool
@@ -194,11 +210,12 @@ func testGenericFlagApply[T cli.GenericType](t *testing.T, flag *cli.GenericFlag
 	flagSet.SetOutput(io.Discard)
 
 	err := flag.Apply(flagSet)
-	require.NoError(t, err)
+	if err == nil {
+		err = flagSet.Parse(args)
+	}
 
-	err = flagSet.Parse(args)
 	if expectedErr != nil {
-		require.Equal(t, expectedErr, err)
+		require.ErrorContains(t, expectedErr, err.Error())
 		return
 	}
 	require.NoError(t, err)
@@ -210,7 +227,7 @@ func testGenericFlagApply[T cli.GenericType](t *testing.T, flag *cli.GenericFlag
 	assert.Equal(t, expectedValue, actualValue)
 	assert.Equal(t, fmt.Sprintf("%v", expectedValue), flag.GetValue(), "GetValue()")
 
-	assert.Equal(t, len(args) > 0, flag.Value().IsSet(), "IsSet()")
+	assert.Equal(t, len(args) > 0 || len(envs) > 0, flag.Value().IsSet(), "IsSet()")
 	assert.Equal(t, expectedDefaultValue, flag.Value().GetDefaultText(), "GetDefaultText()")
 
 	assert.False(t, flag.Value().IsBoolFlag(), "IsBoolFlag()")

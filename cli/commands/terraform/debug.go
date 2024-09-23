@@ -31,6 +31,7 @@ func WriteTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terr
 	if err != nil {
 		return err
 	}
+
 	variables := append(required, optional...)
 
 	terragruntOptions.Logger.Debugf("The following variables were detected in the terraform module:")
@@ -42,6 +43,7 @@ func WriteTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terr
 	}
 
 	configFolder := filepath.Dir(terragruntOptions.TerragruntConfigPath)
+
 	fileName := filepath.Join(configFolder, TerragruntTFVarsFile)
 	if err := os.WriteFile(fileName, fileContents, os.FileMode(defaultPermissions)); err != nil {
 		return errors.WithStackTrace(err)
@@ -55,6 +57,7 @@ func WriteTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terr
 		strings.Join(terragruntOptions.TerraformCliArgs, " "),
 		fileName,
 	)
+
 	return nil
 }
 
@@ -72,6 +75,7 @@ func terragruntDebugFileContents(
 	}
 
 	jsonValuesByKey := make(map[string]interface{})
+
 	for varName, varValue := range terragruntConfig.Inputs {
 		nameAsEnvVar := fmt.Sprintf(terraform.EnvNameTFVarFmt, varName)
 		_, varIsInEnv := envVars[nameAsEnvVar]
@@ -95,9 +99,11 @@ func terragruntDebugFileContents(
 			)
 		}
 	}
+
 	jsonContent, err := json.MarshalIndent(jsonValuesByKey, "", "  ")
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
+
 	return jsonContent, nil
 }
