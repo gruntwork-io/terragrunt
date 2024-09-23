@@ -72,7 +72,7 @@ type Config struct {
 	shutdownTimeout time.Duration
 
 	services         []services.Service
-	providerHandlers []handlers.ProviderHandler
+	providerHandlers handlers.ProviderHandlers
 
 	logger log.Logger
 }

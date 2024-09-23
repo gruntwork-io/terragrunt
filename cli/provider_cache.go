@@ -2,11 +2,9 @@ package cli
 
 import (
 	"context"
-	liberrors "errors"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -16,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/terraform/cache"
@@ -147,7 +146,7 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 	}, nil
 }
 
-func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *options.TerragruntOptions, args []string) (*util.CmdOutput, error) {
+func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *options.TerragruntOptions, args cli.Args) (*util.CmdOutput, error) {
 	// To prevent a loop
 	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
 
@@ -161,9 +160,9 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 
 	// Use Hook only for the `terraform init` command, which can be run explicitly by the user or Terragrunt's `auto-init` feature.
 	switch {
-	case util.FirstArg(args) == terraform.CommandNameInit:
+	case args.CommandName() == terraform.CommandNameInit:
 		// Provider caching for `terraform init` command.
-	case util.FirstArg(args) == terraform.CommandNameProviders && util.SecondArg(args) == terraform.CommandNameLock:
+	case args.CommandName() == terraform.CommandNameProviders && args.SubCommandName() == terraform.CommandNameLock:
 		// Provider caching for `terraform providers lock` command.
 		// Since the Terragrunt provider cache server creates the cache and generates the lock file, we don't need to run the `terraform providers lock ...` command at all.
 		skipRunTargetCommand = true
@@ -255,22 +254,15 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 	for _, registryName := range opts.ProviderCacheRegistryNames {
 		providerInstallationIncludes = append(providerInstallationIncludes, registryName+"/*/*")
 
-		urls, err := DiscoveryURL(ctx, registryName)
+		apiURLs, err := cache.Server.DiscoveryURL(ctx, registryName)
 		if err != nil {
-			if !liberrors.As(err, &NotFoundWellKnownURL{}) {
-				return err
-			}
-
-			urls = DefaultRegistryURLs
-			opts.Logger.Debugf("Unable to discover %q registry URLs, reason: %q, use default URLs: %s", registryName, err, urls)
-		} else {
-			opts.Logger.Debugf("Discovered %q registry URLs: %s", registryName, urls)
+			return err
 		}
 
 		cfg.AddHost(registryName, map[string]string{
-			"providers.v1": fmt.Sprintf("%s/%s/%s/%s/", cache.ProviderController.URL(), cacheRequestID, url.PathEscape(urls.ProvidersV1), registryName),
+			"providers.v1": fmt.Sprintf("%s/%s/%s/", cache.ProviderController.URL(), cacheRequestID, registryName),
 			// Since Terragrunt Provider Cache only caches providers, we need to route module requests to the original registry.
-			"modules.v1": fmt.Sprintf("https://%s%s", registryName, urls.ModulesV1),
+			"modules.v1": fmt.Sprintf("https://%s%s", registryName, apiURLs.ModulesV1),
 		})
 	}
 
