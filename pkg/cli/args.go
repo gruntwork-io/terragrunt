@@ -36,18 +36,18 @@ func (args Args) First() string {
 	return args.Get(0)
 }
 
-// Second returns the first argument or a blank string
+// Second returns the first argument or a blank string.
 func (args Args) Second() string {
 	return args.Get(1)
 }
 
-// Last returns the last argument or a blank string
+// Last returns the last argument or a blank string.
 func (args Args) Last() string {
 	return args.Get(len(args) - 1)
 }
 
 // Tail returns the rest of the arguments (not the first one)
-// or else an empty string slice
+// or else an empty string slice.
 func (args Args) Tail() Args {
 	if args.Len() < tailMinArgsLen {
 		return []string{}

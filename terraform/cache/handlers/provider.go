@@ -108,7 +108,7 @@ func (handler *CommonProviderHandler) CanHandleProvider(provider *models.Provide
 	}
 }
 
-// DiscoveryURL implements ProviderHandler.DiscoveryURL
+// DiscoveryURL implements ProviderHandler.DiscoveryURL.
 func (handler *CommonProviderHandler) DiscoveryURL(ctx context.Context, registryName string) (*RegistryURLs, error) {
 	if urls, ok := handler.registryURLCache.Load(registryName); ok {
 		return urls, nil
