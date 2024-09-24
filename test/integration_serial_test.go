@@ -71,7 +71,6 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	defer cliConfigFilename.Close()
 
 	t.Setenv(terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
-	defer os.Unsetenv(terraform.EnvNameTFCLIConfigFile)
 
 	t.Logf("%s=%s", terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
 

@@ -36,13 +36,18 @@ func (args Args) First() string {
 	return args.Get(0)
 }
 
-// Last returns the last argument or a blank string
+// Second returns the first argument or a blank string.
+func (args Args) Second() string {
+	return args.Get(1)
+}
+
+// Last returns the last argument or a blank string.
 func (args Args) Last() string {
 	return args.Get(len(args) - 1)
 }
 
 // Tail returns the rest of the arguments (not the first one)
-// or else an empty string slice
+// or else an empty string slice.
 func (args Args) Tail() Args {
 	if args.Len() < tailMinArgsLen {
 		return []string{}
@@ -101,9 +106,22 @@ func (args Args) Normalize(acts ...NormalizeActsType) Args {
 	return strArgs
 }
 
-// CommandName returns the first value if it starts without a dash `-`, otherwise that means the args do not consist any command and an empty string is returned.
+// CommandName returns the first value if it starts without a dash `-`,
+// otherwise that means the args do not consist any command and an empty string is returned.
 func (args Args) CommandName() string {
 	name := args.First()
+
+	if !strings.HasPrefix(name, "-") {
+		return name
+	}
+
+	return ""
+}
+
+// SubCommandName returns the second value if it starts without a dash `-`,
+// otherwise that means the args do not consist a subcommand and an empty string is returned.
+func (args Args) SubCommandName() string {
+	name := args.Second()
 
 	if !strings.HasPrefix(name, "-") {
 		return name

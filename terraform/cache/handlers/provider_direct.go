@@ -39,15 +39,13 @@ type ProviderDirectHandler struct {
 	*CommonProviderHandler
 
 	*ReverseProxy
-	providerService             *services.ProviderService
 	cacheProviderHTTPStatusCode int
 }
 
 func NewProviderDirectHandler(providerService *services.ProviderService, cacheProviderHTTPStatusCode int, method *cliconfig.ProviderInstallationDirect, credsSource *cliconfig.CredentialsSource) *ProviderDirectHandler {
 	return &ProviderDirectHandler{
-		CommonProviderHandler:       NewCommonProviderHandler(method.Include, method.Exclude),
+		CommonProviderHandler:       NewCommonProviderHandler(providerService, method.Include, method.Exclude),
 		ReverseProxy:                &ReverseProxy{CredsSource: credsSource, logger: providerService.Logger()},
-		providerService:             providerService,
 		cacheProviderHTTPStatusCode: cacheProviderHTTPStatusCode,
 	}
 }
@@ -57,12 +55,19 @@ func (handler *ProviderDirectHandler) String() string {
 }
 
 // GetVersions implements ProviderHandler.GetVersions
+// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-versions-for-a-single-provider
+//
+//nolint:lll
 func (handler *ProviderDirectHandler) GetVersions(ctx echo.Context, provider *models.Provider) error {
-	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-versions-for-a-single-provider
+	apiURLs, err := handler.DiscoveryURL(ctx.Request().Context(), provider.RegistryName)
+	if err != nil {
+		return err
+	}
+
 	reqURL := &url.URL{
 		Scheme: "https",
 		Host:   provider.RegistryName,
-		Path:   path.Join(provider.RegistryPrefix, provider.Namespace, provider.Name, "versions"),
+		Path:   path.Join(apiURLs.ProvidersV1, provider.Namespace, provider.Name, "versions"),
 	}
 
 	return handler.ReverseProxy.NewRequest(ctx, reqURL)
@@ -70,6 +75,17 @@ func (handler *ProviderDirectHandler) GetVersions(ctx echo.Context, provider *mo
 
 // GetPlatform implements ProviderHandler.GetPlatform
 func (handler *ProviderDirectHandler) GetPlatform(ctx echo.Context, provider *models.Provider, downloaderController router.Controller, cacheRequestID string) error {
+	apiURLs, err := handler.DiscoveryURL(ctx.Request().Context(), provider.RegistryName)
+	if err != nil {
+		return err
+	}
+
+	platformURL := &url.URL{
+		Scheme: "https",
+		Host:   provider.RegistryName,
+		Path:   path.Join(apiURLs.ProvidersV1, provider.Namespace, provider.Name, provider.Version, "download", provider.OS, provider.Arch),
+	}
+
 	return handler.ReverseProxy.
 		WithModifyResponse(func(resp *http.Response) error {
 			// start caching and return 423 status
@@ -89,7 +105,7 @@ func (handler *ProviderDirectHandler) GetPlatform(ctx echo.Context, provider *mo
 			// act as a proxy
 			return proxyGetVersionsRequest(resp, downloaderController)
 		}).
-		NewRequest(ctx, handler.platformURL(provider))
+		NewRequest(ctx, platformURL)
 }
 
 // Download implements ProviderHandler.Download
@@ -103,10 +119,15 @@ func (handler *ProviderDirectHandler) Download(ctx echo.Context, provider *model
 
 	// check if the URL contains http scheme, it may just be a filename and we need to build the URL
 	if !strings.Contains(provider.DownloadURL, "://") {
+		apiURLs, err := handler.DiscoveryURL(ctx.Request().Context(), provider.RegistryName)
+		if err != nil {
+			return err
+		}
+
 		downloadURL := &url.URL{
 			Scheme: "https",
 			Host:   provider.RegistryName,
-			Path:   filepath.Join(provider.RegistryPrefix, provider.RegistryName, provider.Namespace, provider.Name, provider.DownloadURL),
+			Path:   filepath.Join(apiURLs.ProvidersV1, provider.RegistryName, provider.Namespace, provider.Name, provider.DownloadURL),
 		}
 
 		return handler.ReverseProxy.NewRequest(ctx, downloadURL)
@@ -118,16 +139,6 @@ func (handler *ProviderDirectHandler) Download(ctx echo.Context, provider *model
 	}
 
 	return handler.ReverseProxy.NewRequest(ctx, downloadURL)
-}
-
-// platformURL returns the URL used to query the all platforms for a single version.
-// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-a-platform
-func (handler *ProviderDirectHandler) platformURL(provider *models.Provider) *url.URL {
-	return &url.URL{
-		Scheme: "https",
-		Host:   provider.RegistryName,
-		Path:   path.Join(provider.RegistryPrefix, provider.Namespace, provider.Name, provider.Version, "download", provider.OS, provider.Arch),
-	}
 }
 
 // proxyGetVersionsRequest proxies the request to the remote registry and modifies the response to redirect the download URLs to the local server.
