@@ -117,7 +117,7 @@ func (args Args) CommandName() string {
 	return ""
 }
 
-// SubCommandName returns the second value if it starts without a dash `-`, otherwise that means the args do not consist a sub scommand and an empty string is returned.
+// SubCommandName returns the second value if it starts without a dash `-`, otherwise that means the args do not consist a subcommand and an empty string is returned.
 func (args Args) SubCommandName() string {
 	name := args.Second()
 
