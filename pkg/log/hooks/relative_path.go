@@ -2,6 +2,7 @@
 package hooks
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -51,7 +52,9 @@ func NewRelativePathHook(baseDir string) (*RelativePathHook, error) {
 
 		reversIndex--
 		relPaths[reversIndex] = relPath
-		absPathsReg[reversIndex] = regexp.MustCompile(regexp.QuoteMeta(absPath) + `([` + regexp.QuoteMeta(pathSeparator) + `"'\s]|$)`)
+
+		regStr := fmt.Sprintf(`(^|[^%[1]s\w])%[2]s([%[1]s"'\s]|$)`, regexp.QuoteMeta(pathSeparator), regexp.QuoteMeta(absPath))
+		absPathsReg[reversIndex] = regexp.MustCompile(regStr)
 	}
 
 	return &RelativePathHook{
@@ -91,7 +94,7 @@ func (hook *RelativePathHook) Fire(entry *logrus.Entry) error {
 
 func (hook *RelativePathHook) replaceAbsPathsWithRel(text string) string {
 	for i, absPath := range hook.absPathsReg {
-		text = absPath.ReplaceAllString(text, hook.relPaths[i]+"$1")
+		text = absPath.ReplaceAllString(text, "$1"+hook.relPaths[i]+"$2")
 	}
 
 	return text

@@ -278,6 +278,10 @@ func (cfg *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terragruntOpt
 				cfg.Terraform.Source = sourceConfig.Terraform.Source
 			}
 
+			if sourceConfig.Terraform.CopyTerraformLockFile != nil {
+				cfg.Terraform.CopyTerraformLockFile = sourceConfig.Terraform.CopyTerraformLockFile
+			}
+
 			mergeExtraArgs(terragruntOptions, sourceConfig.Terraform.ExtraArgs, &cfg.Terraform.ExtraArgs)
 
 			mergeHooks(terragruntOptions, sourceConfig.Terraform.BeforeHooks, &cfg.Terraform.BeforeHooks)
@@ -444,6 +448,10 @@ func (cfg *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, terragrun
 		} else {
 			if sourceConfig.Terraform.Source != nil {
 				cfg.Terraform.Source = sourceConfig.Terraform.Source
+			}
+
+			if sourceConfig.Terraform.CopyTerraformLockFile != nil {
+				cfg.Terraform.CopyTerraformLockFile = sourceConfig.Terraform.CopyTerraformLockFile
 			}
 
 			if sourceConfig.Terraform.IncludeInCopy != nil {
