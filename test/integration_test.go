@@ -163,7 +163,7 @@ func TestLogWithRelPath(t *testing.T) {
 	}{
 		{
 			workingDir: "duplicate-dir-names/workspace/one/two/aaa", // dir `workspace` duplicated twice in path
-			assertFn: func(t *testing.T, stdout, stderr string) {
+			assertFn: func(t *testing.T, _, stderr string) {
 				t.Helper()
 
 				assert.Contains(t, stderr, "Module ./bbb/ccc/workspace")
@@ -173,7 +173,6 @@ func TestLogWithRelPath(t *testing.T) {
 				assert.Contains(t, stderr, "[bbb/ccc/module-b]")
 			},
 		},
-		// TODO: Added more test cases
 	}
 
 	for i, testCase := range testCases {
@@ -190,7 +189,6 @@ func TestLogWithRelPath(t *testing.T) {
 			testCase.assertFn(t, stdout, stderr)
 		})
 	}
-
 }
 
 func TestLogFormatterPrettyOutput(t *testing.T) {

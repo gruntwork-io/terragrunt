@@ -52,7 +52,9 @@ func NewRelativePathHook(baseDir string) (*RelativePathHook, error) {
 
 		reversIndex--
 		relPaths[reversIndex] = relPath
-		absPathsReg[reversIndex] = regexp.MustCompile(fmt.Sprintf(`(^|[^%[1]s\w])%[2]s([%[1]s"'\s]|$)`, regexp.QuoteMeta(pathSeparator), regexp.QuoteMeta(absPath)))
+
+		regStr := fmt.Sprintf(`(^|[^%[1]s\w])%[2]s([%[1]s"'\s]|$)`, regexp.QuoteMeta(pathSeparator), regexp.QuoteMeta(absPath))
+		absPathsReg[reversIndex] = regexp.MustCompile(regStr)
 	}
 
 	return &RelativePathHook{
