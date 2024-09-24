@@ -31,9 +31,11 @@ var availablePlatforms []*models.Platform = []*models.Platform{
 	{OS: "windows", Arch: "amd64"},
 }
 
+// ProviderHandlers is a slice of ProviderHandler.
 type ProviderHandlers []ProviderHandler
 
-// DiscoveryURL looks for the first handler that can handle the given `registryName`, which is determined by the include and exclude settings in the `.terraformrc` CLI config file.
+// DiscoveryURL looks for the first handler that can handle the given `registryName`,
+// which is determined by the include and exclude settings in the `.terraformrc` CLI config file.
 // If the handler is found, tries to discover its API endpoints otherwise return the default registry URLs.
 func (handlers ProviderHandlers) DiscoveryURL(ctx context.Context, registryName string) (*RegistryURLs, error) {
 	provider := models.ParseProvider(registryName)
@@ -73,10 +75,12 @@ type CommonProviderHandler struct {
 	excludeProviders models.Providers
 
 	// registryURLCache stores discovered registry URLs
-	// We use [xsync.MapOf](https://github.com/puzpuzpuz/xsync?tab=readme-ov-file#map) instead of standard `sync.Map` since it's faster and has generic types.
+	// We use [xsync.MapOf](https://github.com/puzpuzpuz/xsync?tab=readme-ov-file#map)
+	// instead of standard `sync.Map` since it's faster and has generic types.
 	registryURLCache *xsync.MapOf[string, *RegistryURLs]
 }
 
+// NewCommonProviderHandler returns a new `CommonProviderHandler` instance with the defined values.
 func NewCommonProviderHandler(providerService *services.ProviderService, includes, excludes *[]string) *CommonProviderHandler {
 	var includeProviders, excludeProviders models.Providers
 

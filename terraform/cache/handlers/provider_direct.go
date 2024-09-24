@@ -56,6 +56,8 @@ func (handler *ProviderDirectHandler) String() string {
 
 // GetVersions implements ProviderHandler.GetVersions
 // https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-versions-for-a-single-provider
+//
+//nolint:lll
 func (handler *ProviderDirectHandler) GetVersions(ctx echo.Context, provider *models.Provider) error {
 	apiURLs, err := handler.DiscoveryURL(ctx.Request().Context(), provider.RegistryName)
 	if err != nil {

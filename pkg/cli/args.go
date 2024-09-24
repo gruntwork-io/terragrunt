@@ -106,7 +106,8 @@ func (args Args) Normalize(acts ...NormalizeActsType) Args {
 	return strArgs
 }
 
-// CommandName returns the first value if it starts without a dash `-`, otherwise that means the args do not consist any command and an empty string is returned.
+// CommandName returns the first value if it starts without a dash `-`,
+// otherwise that means the args do not consist any command and an empty string is returned.
 func (args Args) CommandName() string {
 	name := args.First()
 
@@ -117,7 +118,8 @@ func (args Args) CommandName() string {
 	return ""
 }
 
-// SubCommandName returns the second value if it starts without a dash `-`, otherwise that means the args do not consist a subcommand and an empty string is returned.
+// SubCommandName returns the second value if it starts without a dash `-`,
+// otherwise that means the args do not consist a subcommand and an empty string is returned.
 func (args Args) SubCommandName() string {
 	name := args.Second()
 

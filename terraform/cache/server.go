@@ -60,7 +60,8 @@ func NewServer(opts ...Option) *Server {
 	}
 }
 
-// DiscoveryURL looks for the first handler that can handle the given `registryName`, which is determined by the include and exclude settings in the `.terraformrc` CLI config file.
+// DiscoveryURL looks for the first handler that can handle the given `registryName`,
+// which is determined by the include and exclude settings in the `.terraformrc` CLI config file.
 // If the handler is found, tries to discover its API endpoints otherwise return the default registry URLs.
 func (server *Server) DiscoveryURL(ctx context.Context, registryName string) (*handlers.RegistryURLs, error) {
 	return server.providerHandlers.DiscoveryURL(ctx, registryName)
