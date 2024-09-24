@@ -100,7 +100,7 @@ to check the updates into version control too.
 ### Disabling the copy of the generated lock file
 
 In certain use cases, like when using a remote module containing a lock file within it, you probably
-don't want Terragrunt to also copy the lock file into your working directory. In these scenarios you can opt-out of copying
+don't want Terragrunt to also copy the lock file into your working directory. In these scenarios you, can opt-out of copying
 the `.terraform.lock.hcl` file by using `copy_terraform_lock_file = false` in the `terraform` configuration block as follows:
 
 ```hcl
