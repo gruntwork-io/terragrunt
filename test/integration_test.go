@@ -176,8 +176,6 @@ func TestLogWithRelPath(t *testing.T) {
 	}
 
 	for i, testCase := range testCases {
-		testCase := testCase
-
 		workingDir := filepath.Join(rootPath, testCase.workingDir)
 
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
