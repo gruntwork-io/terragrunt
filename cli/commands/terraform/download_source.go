@@ -25,6 +25,8 @@ const ModuleInitRequiredFile = ".terragrunt-init-required"
 
 const tfLintConfig = ".tflint.hcl"
 
+const fileURIScheme = "file://"
+
 // 1. Download the given source URL, which should use Terraform's module source syntax, into a temporary folder
 // 2. Check if module directory exists in temporary folder
 // 3. Copy the contents of terragruntOptions.WorkingDir into the temporary folder.
@@ -227,7 +229,16 @@ func updateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfi
 
 // Download the code from the Canonical Source URL into the Download Folder using the go-getter library
 func downloadSource(terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	terragruntOptions.Logger.Infof("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
+	canonicalSourceURL := terraformSource.CanonicalSourceURL.String()
+
+	// Since we convert abs paths to rel in logs, `file://../../path/to/dir` doesn't look good,
+	// so it's better to get rid of it.
+	canonicalSourceURL = strings.TrimPrefix(canonicalSourceURL, fileURIScheme)
+
+	terragruntOptions.Logger.Infof(
+		"Downloading Terraform configurations from %s into %s",
+		canonicalSourceURL,
+		terraformSource.DownloadDir)
 
 	if err := getter.GetAny(terraformSource.DownloadDir, terraformSource.CanonicalSourceURL.String(), updateGetters(terragruntOptions, terragruntConfig)); err != nil {
 		return errors.WithStackTrace(err)

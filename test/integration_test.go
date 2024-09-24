@@ -75,7 +75,8 @@ const (
 	testFixtureInitOnce                       = "fixtures/init-once"
 	testFixtureInputs                         = "fixtures/inputs"
 	testFixtureInputsFromDependency           = "fixtures/inputs-from-dependency"
-	testFixtureLogFormatter                   = "fixtures/log-formatter"
+	testFixtureLogFormatter                   = "fixtures/log/formatter"
+	testFixtureLogRelPaths                    = "fixtures/log/rel-paths"
 	testFixtureMissingDependence              = "fixtures/missing-dependencies/main"
 	testFixtureModulePathError                = "fixtures/module-path-in-error"
 	testFixtureNoColor                        = "fixtures/no-color"
@@ -146,6 +147,45 @@ func TestLogWithAbsPath(t *testing.T) {
 		prefixName = filepath.Join(rootPath, prefixName)
 		assert.Contains(t, stderr, "STDOUT ["+prefixName+"] "+wrappedBinary()+": Initializing provider plugins...")
 		assert.Contains(t, stderr, "DEBUG  ["+prefixName+"] Reading Terragrunt config file at "+prefixName+"/terragrunt.hcl")
+	}
+}
+
+func TestLogWithRelPath(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureLogRelPaths)
+	tmpEnvPath := copyEnvironment(t, testFixtureLogRelPaths)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogRelPaths)
+
+	testCases := []struct {
+		workingDir string
+		assertFn   func(t *testing.T, stdout, stderr string)
+	}{
+		{
+			workingDir: "duplicate-dir-names/workspace/one/two/aaa", // dir `workspace` duplicated twice in path
+			assertFn: func(t *testing.T, _, stderr string) {
+				t.Helper()
+
+				assert.Contains(t, stderr, "Module ./bbb/ccc/workspace")
+				assert.Contains(t, stderr, "Module ./bbb/ccc/module-b")
+				assert.Contains(t, stderr, "Downloading Terraform configurations from .. into ./bbb/ccc/workspace/.terragrunt-cache")
+				assert.Contains(t, stderr, "[bbb/ccc/workspace]")
+				assert.Contains(t, stderr, "[bbb/ccc/module-b]")
+			},
+		},
+	}
+
+	for i, testCase := range testCases {
+		workingDir := filepath.Join(rootPath, testCase.workingDir)
+
+		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
+			t.Parallel()
+
+			stdout, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-disable-log-formatting=false -no-color --terragrunt-no-color --terragrunt-working-dir "+workingDir)
+			require.NoError(t, err)
+
+			testCase.assertFn(t, stdout, stderr)
+		})
 	}
 }
 
