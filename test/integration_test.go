@@ -164,6 +164,8 @@ func TestLogWithRelPath(t *testing.T) {
 		{
 			workingDir: "duplicate-dir-names/workspace/one/two/aaa", // dir `workspace` duplicated twice in path
 			assertFn: func(t *testing.T, stdout, stderr string) {
+				t.Helper()
+
 				assert.Contains(t, stderr, "Module ./bbb/ccc/workspace")
 				assert.Contains(t, stderr, "Module ./bbb/ccc/module-b")
 				assert.Contains(t, stderr, "Downloading Terraform configurations from .. into ./bbb/ccc/workspace/.terragrunt-cache")
