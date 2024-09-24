@@ -227,7 +227,15 @@ func updateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfi
 
 // Download the code from the Canonical Source URL into the Download Folder using the go-getter library
 func downloadSource(terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	terragruntOptions.Logger.Infof("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
+	canonicalSourceURL := terraformSource.CanonicalSourceURL.String()
+
+	// Since we convert abs paths to rel in logs, `file://../../path/to/dir` doesn't look good, so it's better to get rid of it.
+	fileURIScheme := "file://"
+	if strings.HasPrefix(canonicalSourceURL, fileURIScheme) {
+		canonicalSourceURL = canonicalSourceURL[len(fileURIScheme):]
+	}
+
+	terragruntOptions.Logger.Infof("Downloading Terraform configurations from %s into %s", canonicalSourceURL, terraformSource.DownloadDir)
 
 	if err := getter.GetAny(terraformSource.DownloadDir, terraformSource.CanonicalSourceURL.String(), updateGetters(terragruntOptions, terragruntConfig)); err != nil {
 		return errors.WithStackTrace(err)
