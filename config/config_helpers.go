@@ -798,6 +798,19 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 		return "", errors.WithStackTrace(err)
 	}
 
+	// Set environment variables from the TerragruntOptions.Env map if they are not already set.
+	// This is especially useful for integrations with things like the `terragrunt-auth-provider` flag,
+	// which can set environment variables that are used for decryption.
+	env := ctx.TerragruntOptions.Env
+	if len(env) > 0 {
+		for k, v := range env {
+			if os.Getenv(k) == "" {
+				os.Setenv(k, v)      //nolint:errcheck
+				defer os.Unsetenv(k) //nolint:errcheck
+			}
+		}
+	}
+
 	if val, ok := sopsCache.Get(ctx, canonicalSourceFile); ok {
 		return val, nil
 	}
