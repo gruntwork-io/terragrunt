@@ -122,6 +122,7 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 			providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, CacheProviderHTTPStatusCode, method, cliCfg.CredentialsSource()))
 			directIsdefined = true
 		}
+
 		method.AppendExclude(excludeAddrs)
 	}
 
@@ -146,15 +147,21 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 	}, nil
 }
 
-func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *options.TerragruntOptions, args cli.Args) (*util.CmdOutput, error) {
+// TerraformCommandHook warms up the providers cache, creates `.terraform.lock.hcl` and runs the `tofu/terraform init`
+// command with using this cache. Used as a hook function that is called after running the target tofu/terraform command.
+// For example, if the target command is `tofu plan`, it will be intercepted before it is run in the `/shell` package,
+// then control will be passed to this function to init the working directory using cached providers.
+func (cache *ProviderCache) TerraformCommandHook(
+	ctx context.Context,
+	opts *options.TerragruntOptions,
+	args cli.Args,
+) (*util.CmdOutput, error) {
 	// To prevent a loop
 	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
 
 	var (
 		cliConfigFilename    = filepath.Join(opts.WorkingDir, localCLIFilename)
-		cacheRequestID       = uuid.New().String()
-		envs                 = providerCacheEnvironment(opts, cliConfigFilename)
-		commandsArgs         = convertToMultipleCommandsByPlatforms(args)
+		env                  = providerCacheEnvironment(opts, cliConfigFilename)
 		skipRunTargetCommand bool
 	)
 
@@ -171,6 +178,29 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 		return shell.RunTerraformCommandWithOutput(ctx, opts, args...)
 	}
 
+	if output, err := cache.warmUpCache(ctx, opts, cliConfigFilename, args, env); err != nil {
+		return output, err
+	}
+
+	if skipRunTargetCommand {
+		return &util.CmdOutput{}, nil
+	}
+
+	return cache.runTerraformWithCache(ctx, opts, cliConfigFilename, args, env)
+}
+
+func (cache *ProviderCache) warmUpCache(
+	ctx context.Context,
+	opts *options.TerragruntOptions,
+	cliConfigFilename string,
+	args cli.Args,
+	env map[string]string,
+) (*util.CmdOutput, error) {
+	var (
+		cacheRequestID = uuid.New().String()
+		commandsArgs   = convertToMultipleCommandsByPlatforms(args)
+	)
+
 	// Create terraform cli config file that enables provider caching and does not use provider cache dir
 	if err := cache.createLocalCLIConfig(ctx, opts, cliConfigFilename, cacheRequestID); err != nil {
 		return nil, err
@@ -182,7 +212,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	// It's low cost operation, because it does not cache the same provider twice, but only new previously non-existent providers.
 
 	for _, args := range commandsArgs {
-		if output, err := runTerraformCommand(ctx, opts, args, envs); err != nil {
+		if output, err := runTerraformCommand(ctx, opts, args, env); err != nil {
 			return output, err
 		}
 	}
@@ -192,10 +222,18 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 		return nil, err
 	}
 
-	if err := getproviders.UpdateLockfile(ctx, opts.WorkingDir, caches); err != nil {
-		return nil, err
-	}
+	err = getproviders.UpdateLockfile(ctx, opts.WorkingDir, caches)
 
+	return nil, err
+}
+
+func (cache *ProviderCache) runTerraformWithCache(
+	ctx context.Context,
+	opts *options.TerragruntOptions,
+	cliConfigFilename string,
+	args cli.Args,
+	env map[string]string,
+) (*util.CmdOutput, error) {
 	// Create terraform cli config file that uses provider cache dir
 	if err := cache.createLocalCLIConfig(ctx, opts, cliConfigFilename, ""); err != nil {
 		return nil, err
@@ -207,11 +245,7 @@ func (cache *ProviderCache) TerraformCommandHook(ctx context.Context, opts *opti
 	}
 
 	cloneOpts.WorkingDir = opts.WorkingDir
-	cloneOpts.Env = envs
-
-	if skipRunTargetCommand {
-		return &util.CmdOutput{}, nil
-	}
+	cloneOpts.Env = env
 
 	return shell.RunTerraformCommandWithOutput(ctx, cloneOpts, args...)
 }

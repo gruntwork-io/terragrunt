@@ -2,7 +2,7 @@ run:
   timeout: 2m
   issues-exit-code: 1
   tests: true
-  go: "1.22"
+  go: "1.23"
 output:
   formats:
     - format: colored-line-number
