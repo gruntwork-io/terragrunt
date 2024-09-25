@@ -167,6 +167,7 @@ func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) (string, erro
 		ruleBuf.WriteString(line)
 		ruleBuf.WriteByte('\n')
 	}
+
 	ruleBuf.WriteString(leftRuleEnd)
 
 	return ruleBuf.String(), nil
