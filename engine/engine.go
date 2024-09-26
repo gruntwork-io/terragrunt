@@ -50,7 +50,6 @@ const (
 	EngineCachePathEnv                               = "TG_ENGINE_CACHE_PATH"
 	EngineSkipCheckEnv                               = "TG_ENGINE_SKIP_CHECK"
 	EngineLogLevelEnv                                = "TG_ENGINE_LOG_LEVEL"
-	DefaultEngineLogLevel                            = "INFO"
 	defaultEngineRepoRoot                            = "github.com/"
 	TerraformCommandContextKey      engineClientsKey = iota
 	LocksContextKey                 engineLocksKey   = iota
@@ -520,10 +519,9 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 
 	terragruntOptions.Logger.Debugf("Creating engine %s", localEnginePath)
 
-	// get EngineLogLevelEnv from environment use DefaultEngineLogLevel if is not set
 	engineLogLevel := os.Getenv(EngineLogLevelEnv)
 	if engineLogLevel == "" {
-		engineLogLevel = DefaultEngineLogLevel
+		engineLogLevel = terragruntOptions.LogLevel.String()
 	}
 
 	logger := hclog.NewInterceptLogger(&hclog.LoggerOptions{
