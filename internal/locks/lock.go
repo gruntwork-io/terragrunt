@@ -8,4 +8,4 @@ import "sync"
 //
 // When possible, prefer to spawn a new process with the environment variables
 // you want, or avoid setting environment variables instead of using this lock.
-var EnvLock sync.Mutex
+var EnvLock sync.Mutex //nolint:gochecknoglobals

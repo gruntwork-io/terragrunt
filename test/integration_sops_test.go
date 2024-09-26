@@ -16,7 +16,6 @@ const (
 	testFixtureSopsErrors = "fixtures/sops-errors"
 )
 
-// sops decrypting for inputs
 func TestSopsDecryptedCorrectly(t *testing.T) {
 	t.Parallel()
 
