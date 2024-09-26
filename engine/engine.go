@@ -49,6 +49,8 @@ const (
 	ChecksumFileNameFormat                           = "terragrunt-iac-%s_%s_%s_SHA256SUMS"
 	EngineCachePathEnv                               = "TG_ENGINE_CACHE_PATH"
 	EngineSkipCheckEnv                               = "TG_ENGINE_SKIP_CHECK"
+	EngineLogLevelEnv                                = "TG_ENGINE_LOG_LEVEL"
+	DefaultEngineLogLevel                            = "INFO"
 	defaultEngineRepoRoot                            = "github.com/"
 	TerraformCommandContextKey      engineClientsKey = iota
 	LocksContextKey                 engineLocksKey   = iota
@@ -518,10 +520,17 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 
 	terragruntOptions.Logger.Debugf("Creating engine %s", localEnginePath)
 
+	// get EngineLogLevelEnv from environment use DefaultEngineLogLevel if is not set
+	engineLogLevel := os.Getenv(EngineLogLevelEnv)
+	if engineLogLevel == "" {
+		engineLogLevel = DefaultEngineLogLevel
+	}
+
 	logger := hclog.NewInterceptLogger(&hclog.LoggerOptions{
-		Level:  hclog.Debug,
+		Level:  hclog.LevelFromString(engineLogLevel),
 		Output: terragruntOptions.Logger.Writer(),
 	})
+
 	cmd := exec.Command(localEnginePath)
 	client := plugin.NewClient(&plugin.ClientConfig{
 		Logger: logger,
