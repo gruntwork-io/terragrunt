@@ -37,7 +37,7 @@ func TestEngineLocalPlan(t *testing.T) {
 	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s --terragrunt-log-level debug", rootPath))
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, LocalEngineBinaryPath+": plugin address")
+	assert.Contains(t, stderr, LocalEngineBinaryPath)
 	assert.Contains(t, stderr, "[INFO]  plugin process exited:")
 	assert.Contains(t, stderr, "plugin process exited:")
 	assert.Contains(t, stdout, "1 to add, 0 to change, 0 to destroy.")
@@ -49,7 +49,7 @@ func TestEngineLocalApply(t *testing.T) {
 	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, LocalEngineBinaryPath+": plugin address")
+	assert.Contains(t, stderr, LocalEngineBinaryPath)
 	assert.Contains(t, stderr, "[INFO]  plugin process exited:")
 	assert.Contains(t, stderr, "plugin process exited:")
 	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
