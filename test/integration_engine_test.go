@@ -81,7 +81,7 @@ func TestEngineRunAllOpentofu(t *testing.T) {
 	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "starting plugin:")
+	assert.Contains(t, stderr, "[INFO]  plugin process exited")
 	assert.Contains(t, stderr, "plugin process exited:")
 	assert.Contains(t, stdout, "resource \"local_file\" \"test\"")
 	assert.Contains(t, stdout, "filename             = \"./test.txt\"\n")
@@ -142,7 +142,7 @@ func TestEngineChecksumVerification(t *testing.T) {
 	require.NoError(t, err)
 
 	// change the checksum of the package file
-	version := "v0.0.5"
+	version := "v0.0.9"
 	platform := runtime.GOOS
 	arch := runtime.GOARCH
 	executablePath := fmt.Sprintf("terragrunt/plugins/iac-engine/rpc/%s/%s/%s/terragrunt-iac-engine-opentofu_rpc_%s_%s_%s", version, platform, arch, version, platform, arch)
