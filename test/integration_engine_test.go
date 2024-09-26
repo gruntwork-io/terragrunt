@@ -217,6 +217,20 @@ func TestEngineOpentofuLatestRunAll(t *testing.T) {
 	assert.Contains(t, stdout, "Apply complete!")
 }
 
+func TestEngineLogLevel(t *testing.T) {
+	t.Setenv(envVarExperimental, "1")
+
+	cleanupTerraformFolder(t, testFixtureOpenTofuLatestRunAll)
+	tmpEnvPath := copyEnvironment(t, testFixtureOpenTofuLatestRunAll)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureOpenTofuLatestRunAll)
+
+	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s --terragrunt-log-level debug", rootPath))
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "level=debug")
+	assert.Contains(t, stderr, "[DEBUG] terragrunt-iac-engine-opentofu_rpc")
+	assert.Contains(t, stderr, "[DEBUG] plugin exited")
+}
+
 func setupEngineCache(t *testing.T) (string, string) {
 	// create temporary folder
 	cacheDir := t.TempDir()
