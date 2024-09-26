@@ -522,6 +522,7 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 		Level:  hclog.Debug,
 		Output: terragruntOptions.Logger.Writer(),
 	})
+	cmd := exec.Command(localEnginePath)
 	client := plugin.NewClient(&plugin.ClientConfig{
 		Logger: logger,
 		HandshakeConfig: plugin.HandshakeConfig{
@@ -532,7 +533,7 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 		Plugins: map[string]plugin.Plugin{
 			"plugin": &engine.TerragruntGRPCEngine{},
 		},
-		Cmd: exec.Command(localEnginePath),
+		Cmd: cmd,
 		GRPCDialOptions: []grpc.DialOption{
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		},
