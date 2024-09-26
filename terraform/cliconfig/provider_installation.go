@@ -38,6 +38,7 @@ func (methods ProviderInstallationMethods) Merge(withMethods ...ProviderInstalla
 		if _, ok := mergedMethods[j].(*ProviderInstallationDirect); ok {
 			return true
 		}
+
 		return false
 	})
 
@@ -84,9 +85,11 @@ func (method *ProviderInstallationDirect) Merge(with ProviderInstallationMethod)
 		if with.Exclude != nil {
 			method.AppendExclude(*with.Exclude)
 		}
+
 		if with.Include != nil {
 			method.AppendInclude(*with.Include)
 		}
+
 		return true
 	}
 
@@ -97,9 +100,11 @@ func (method *ProviderInstallationDirect) AppendInclude(addrs []string) {
 	if len(addrs) == 0 {
 		return
 	}
+
 	if method.Include == nil {
 		method.Include = &[]string{}
 	}
+
 	*method.Include = util.RemoveDuplicatesFromList(append(*method.Include, addrs...))
 }
 
@@ -107,9 +112,11 @@ func (method *ProviderInstallationDirect) AppendExclude(addrs []string) {
 	if len(addrs) == 0 {
 		return
 	}
+
 	if method.Exclude == nil {
 		method.Exclude = &[]string{}
 	}
+
 	*method.Exclude = util.RemoveDuplicatesFromList(append(*method.Exclude, addrs...))
 }
 
@@ -117,6 +124,7 @@ func (method *ProviderInstallationDirect) RemoveExclude(addrs []string) {
 	if len(addrs) == 0 || method.Exclude == nil {
 		return
 	}
+
 	*method.Exclude = util.RemoveSublistFromList(*method.Exclude, addrs)
 
 	if len(*method.Exclude) == 0 {
@@ -128,6 +136,7 @@ func (method *ProviderInstallationDirect) RemoveInclude(addrs []string) {
 	if len(addrs) == 0 || method.Include == nil {
 		return
 	}
+
 	*method.Include = util.RemoveSublistFromList(*method.Include, addrs)
 
 	if len(*method.Include) == 0 {
@@ -170,9 +179,11 @@ func (method *ProviderInstallationFilesystemMirror) Merge(with ProviderInstallat
 		if with.Exclude != nil {
 			method.AppendExclude(*with.Exclude)
 		}
+
 		if with.Include != nil {
 			method.AppendInclude(*with.Include)
 		}
+
 		return true
 	}
 
@@ -183,9 +194,11 @@ func (method *ProviderInstallationFilesystemMirror) AppendInclude(addrs []string
 	if len(addrs) == 0 {
 		return
 	}
+
 	if method.Include == nil {
 		method.Include = &[]string{}
 	}
+
 	*method.Include = util.RemoveDuplicatesFromList(append(*method.Include, addrs...))
 }
 
@@ -193,9 +206,11 @@ func (method *ProviderInstallationFilesystemMirror) AppendExclude(addrs []string
 	if len(addrs) == 0 {
 		return
 	}
+
 	if method.Exclude == nil {
 		method.Exclude = &[]string{}
 	}
+
 	*method.Exclude = util.RemoveDuplicatesFromList(append(*method.Exclude, addrs...))
 }
 
@@ -203,6 +218,7 @@ func (method *ProviderInstallationFilesystemMirror) RemoveExclude(addrs []string
 	if len(addrs) == 0 || method.Exclude == nil {
 		return
 	}
+
 	*method.Exclude = util.RemoveSublistFromList(*method.Exclude, addrs)
 
 	if len(*method.Exclude) == 0 {
@@ -214,6 +230,7 @@ func (method *ProviderInstallationFilesystemMirror) RemoveInclude(addrs []string
 	if len(addrs) == 0 || method.Include == nil {
 		return
 	}
+
 	*method.Include = util.RemoveSublistFromList(*method.Include, addrs)
 
 	if len(*method.Include) == 0 {
@@ -256,9 +273,11 @@ func (method *ProviderInstallationNetworkMirror) Merge(with ProviderInstallation
 		if with.Exclude != nil {
 			method.AppendExclude(*with.Exclude)
 		}
+
 		if with.Include != nil {
 			method.AppendInclude(*with.Include)
 		}
+
 		return true
 	}
 
@@ -269,9 +288,11 @@ func (method *ProviderInstallationNetworkMirror) AppendInclude(addrs []string) {
 	if len(addrs) == 0 {
 		return
 	}
+
 	if method.Include == nil {
 		method.Include = &[]string{}
 	}
+
 	*method.Include = util.RemoveDuplicatesFromList(append(*method.Include, addrs...))
 }
 
@@ -279,9 +300,11 @@ func (method *ProviderInstallationNetworkMirror) AppendExclude(addrs []string) {
 	if len(addrs) == 0 {
 		return
 	}
+
 	if method.Exclude == nil {
 		method.Exclude = &[]string{}
 	}
+
 	*method.Exclude = util.RemoveDuplicatesFromList(append(*method.Exclude, addrs...))
 }
 
@@ -289,6 +312,7 @@ func (method *ProviderInstallationNetworkMirror) RemoveExclude(addrs []string) {
 	if len(addrs) == 0 || method.Exclude == nil {
 		return
 	}
+
 	*method.Exclude = util.RemoveSublistFromList(*method.Exclude, addrs)
 
 	if len(*method.Exclude) == 0 {
@@ -300,6 +324,7 @@ func (method *ProviderInstallationNetworkMirror) RemoveInclude(addrs []string) {
 	if len(addrs) == 0 || method.Include == nil {
 		return
 	}
+
 	*method.Include = util.RemoveSublistFromList(*method.Include, addrs)
 
 	if len(*method.Include) == 0 {

@@ -27,12 +27,15 @@ func (c *EngineConfig) Merge(engine *EngineConfig) {
 	if engine.Source != "" {
 		c.Source = engine.Source
 	}
+
 	if engine.Version != nil {
 		c.Version = engine.Version
 	}
+
 	if engine.Type != nil {
 		c.Type = engine.Type
 	}
+
 	if engine.Meta != nil {
 		c.Meta = engine.Meta
 	}

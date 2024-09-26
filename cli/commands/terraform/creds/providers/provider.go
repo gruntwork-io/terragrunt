@@ -1,3 +1,4 @@
+// Package providers defines the interface for a provider.
 package providers
 
 import (

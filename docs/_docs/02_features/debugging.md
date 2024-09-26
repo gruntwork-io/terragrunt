@@ -13,7 +13,7 @@ nav_title_link: /docs/
 ## Debugging
 
 Terragrunt and OpenTofu/Terraform usually play well together in helping you
-write DRY, re-usable infrastructure. But how do we figure out what
+write DRY, reusable infrastructure. But how do we figure out what
 went wrong in the rare case that they _don't_ play well?
 
 Terragrunt provides a way to configure logging level through the `--terragrunt-log-level`

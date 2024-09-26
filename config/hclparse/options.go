@@ -4,15 +4,23 @@ import (
 	"io"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/hcl/v2"
 )
 
 type Option func(*Parser) *Parser
 
+func WithLogger(logger log.Logger) Option {
+	return func(parser *Parser) *Parser {
+		parser.logger = logger
+
+		return parser
+	}
+}
+
 func WithDiagnosticsWriter(writer io.Writer, disableColor bool) Option {
 	return func(parser *Parser) *Parser {
-		diagsWriter := util.GetDiagnosticsWriter(writer, parser.Parser, disableColor)
+		diagsWriter := parser.GetDiagnosticsWriter(writer, disableColor)
 
 		parser.diagsWriterFunc = func(diags hcl.Diagnostics) error {
 			if !diags.HasErrors() {
@@ -22,8 +30,10 @@ func WithDiagnosticsWriter(writer io.Writer, disableColor bool) Option {
 			if err := diagsWriter.WriteDiagnostics(diags); err != nil {
 				return errors.WithStackTrace(err)
 			}
+
 			return nil
 		}
+
 		return parser
 	}
 }
@@ -66,6 +76,7 @@ func WithHaltOnErrorOnlyForBlocks(blockNames []string) Option {
 
 			return nil, nil
 		})
+
 		return parser
 	}
 }
@@ -75,6 +86,7 @@ func WithDiagnosticsHandler(fn func(file *hcl.File, diags hcl.Diagnostics) (hcl.
 		parser.handleDiagnosticsFunc = appendHandleDiagnosticsFunc(parser.handleDiagnosticsFunc, func(file *File, diags hcl.Diagnostics) (hcl.Diagnostics, error) {
 			return fn(file.File, diags)
 		})
+
 		return parser
 	}
 }

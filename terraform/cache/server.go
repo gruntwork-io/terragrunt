@@ -1,3 +1,4 @@
+// Package cache provides a private OpenTofu/Terraform provider cache server.
 package cache
 
 import (
@@ -6,8 +7,8 @@ import (
 	"net/http"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/controllers"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/middleware"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
@@ -17,7 +18,7 @@ import (
 // Server is a private Terraform cache for provider caching.
 type Server struct {
 	*router.Router
-	config *Config
+	*Config
 
 	services           []services.Service
 	ProviderController *controllers.ProviderController
@@ -44,8 +45,8 @@ func NewServer(opts ...Option) *Server {
 	}
 
 	rootRouter := router.New()
-	rootRouter.Use(middleware.Logger())
-	rootRouter.Use(middleware.Recover())
+	rootRouter.Use(middleware.Logger(cfg.logger))
+	rootRouter.Use(middleware.Recover(cfg.logger))
 	rootRouter.Register(discoveryController, downloaderController)
 
 	v1Group := rootRouter.Group("v1")
@@ -53,52 +54,66 @@ func NewServer(opts ...Option) *Server {
 
 	return &Server{
 		Router:             rootRouter,
-		config:             cfg,
+		Config:             cfg,
 		services:           cfg.services,
 		ProviderController: providerController,
 	}
 }
 
+// DiscoveryURL looks for the first handler that can handle the given `registryName`,
+// which is determined by the include and exclude settings in the `.terraformrc` CLI config file.
+// If the handler is found, tries to discover its API endpoints otherwise return the default registry URLs.
+func (server *Server) DiscoveryURL(ctx context.Context, registryName string) (*handlers.RegistryURLs, error) {
+	return server.providerHandlers.DiscoveryURL(ctx, registryName)
+}
+
 // Listen starts listening to the given configuration address. It also automatically chooses a free port if not explicitly specified.
 func (server *Server) Listen() (net.Listener, error) {
-	ln, err := net.Listen("tcp", server.config.Addr())
+	ln, err := net.Listen("tcp", server.Addr())
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
+
 	server.Server.Addr = ln.Addr().String()
 
-	log.Infof("Terragrunt Cache server is listening on %s", ln.Addr())
+	server.logger.Infof("Terragrunt Cache server is listening on %s", ln.Addr())
+
 	return ln, nil
 }
 
 // Run starts the webserver and workers.
 func (server *Server) Run(ctx context.Context, ln net.Listener) error {
-	log.Infof("Start Terragrunt Cache server")
+	server.logger.Infof("Start Terragrunt Cache server")
 
 	errGroup, ctx := errgroup.WithContext(ctx)
+
 	for _, service := range server.services {
 		service := service
+
 		errGroup.Go(func() error {
 			return service.Run(ctx)
 		})
 	}
+
 	errGroup.Go(func() error {
 		<-ctx.Done()
-		log.Infof("Shutting down Terragrunt Cache server...")
+		server.logger.Infof("Shutting down Terragrunt Cache server...")
 
-		ctx, cancel := context.WithTimeout(ctx, server.config.shutdownTimeout)
+		ctx, cancel := context.WithTimeout(ctx, server.shutdownTimeout)
 		defer cancel()
 
 		if err := server.Shutdown(ctx); err != nil {
 			return errors.WithStackTrace(err)
 		}
+
 		return nil
 	})
 
 	if err := server.Server.Serve(ln); err != nil && err != http.ErrServerClosed {
 		return errors.Errorf("error starting terragrunt cache server: %w", err)
 	}
-	defer log.Infof("Terragrunt Cache server stopped")
+
+	defer server.logger.Infof("Terragrunt Cache server stopped")
 
 	return errGroup.Wait()
 }

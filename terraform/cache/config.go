@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
 )
@@ -21,6 +22,7 @@ func WithHostname(hostname string) Option {
 		if hostname != "" {
 			cfg.hostname = hostname
 		}
+
 		return cfg
 	}
 }
@@ -30,6 +32,7 @@ func WithPort(port int) Option {
 		if port != 0 {
 			cfg.port = port
 		}
+
 		return cfg
 	}
 }
@@ -55,6 +58,13 @@ func WithProviderHandlers(handlers ...handlers.ProviderHandler) Option {
 	}
 }
 
+func WithLogger(logger log.Logger) Option {
+	return func(cfg Config) Config {
+		cfg.logger = logger
+		return cfg
+	}
+}
+
 type Config struct {
 	hostname        string
 	port            int
@@ -62,24 +72,27 @@ type Config struct {
 	shutdownTimeout time.Duration
 
 	services         []services.Service
-	providerHandlers []handlers.ProviderHandler
+	providerHandlers handlers.ProviderHandlers
+
+	logger log.Logger
 }
 
 func NewConfig(opts ...Option) *Config {
 	cfg := &Config{
 		hostname:        defaultHostname,
 		shutdownTimeout: defaultShutdownTimeout,
+		logger:          log.Default(),
 	}
 
 	return cfg.WithOptions(opts...)
 }
 
-func (config *Config) WithOptions(opts ...Option) *Config {
+func (cfg *Config) WithOptions(opts ...Option) *Config {
 	for _, opt := range opts {
-		*config = opt(*config)
+		*cfg = opt(*cfg)
 	}
 
-	return config
+	return cfg
 }
 
 func (cfg *Config) Addr() string {

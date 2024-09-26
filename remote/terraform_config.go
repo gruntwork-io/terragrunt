@@ -12,7 +12,9 @@ func WrapMapToSingleLineHcl(m map[string]interface{}) string {
 	for key, value := range m {
 		attributes = append(attributes, fmt.Sprintf(`%s=%s`, key, formatHclValue(value)))
 	}
+
 	sort.Strings(attributes)
+
 	return fmt.Sprintf("{%s}", strings.Join(attributes, ","))
 }
 

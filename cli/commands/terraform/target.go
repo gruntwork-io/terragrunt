@@ -20,7 +20,9 @@ type TargetCallbackType func(ctx context.Context, opts *options.TerragruntOption
 
 type TargetErrorCallbackType func(opts *options.TerragruntOptions, config *config.TerragruntConfig, e error) error
 
-// Since most terragrunt CLI commands like `render-json`, `aws-provider-patch` ...  require preparatory steps, such as `generate configuration` which is already coded in `terraform.runTerraform` and com;licated to extracted into a separate function due to some steps that can be called recursively in case of nested configuration or dependencies.
+// Since most terragrunt CLI commands like `render-json`, `aws-provider-patch` ...  require preparatory steps, such as `generate configuration`
+// which is already coded in `terraform.runTerraform` and complicated to extract
+// into a separate function due to some steps that can be called recursively in case of nested configuration or dependencies.
 // Target struct helps to run `terraform.runTerraform` func up to the certain logic point, and the runs target's callback func and returns the flow.
 // For example, `terragrunt-info` CLI command requires source to be downloaded before running its specific action. To do this it:
 /*
@@ -87,5 +89,6 @@ func (target *Target) runErrorCallback(opts *options.TerragruntOptions, config *
 	if target.errorCallbackFunc == nil {
 		return e
 	}
+
 	return target.errorCallbackFunc(opts, config, e)
 }

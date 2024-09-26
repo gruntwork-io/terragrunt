@@ -81,7 +81,7 @@ func TestGitLevelTopDirCaching(t *testing.T) {
 	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
 	c := cache.ContextCache[string](ctx, shell.RunCmdCacheContextKey)
 	assert.NotNil(t, c)
-	assert.Empty(t, len(c.Cache))
+	assert.Empty(t, c.Cache)
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 	path := "."

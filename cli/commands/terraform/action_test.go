@@ -10,8 +10,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -117,6 +117,8 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 		// get updated due to concurrency within the scope of t.Run(..) below
 		testCase := testCase
 		testFunc := func(t *testing.T) {
+			t.Helper()
+
 			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
 			require.NoError(t, err)
 			opts.WorkingDir = testCase.workingDir
@@ -319,8 +321,9 @@ func TestToTerraformEnvVars(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.description, func(t *testing.T) {
 			t.Parallel()
-
-			actual, err := terraform.ToTerraformEnvVars(testCase.vars)
+			opts, err := options.NewTerragruntOptionsForTest("")
+			require.NoError(t, err)
+			actual, err := terraform.ToTerraformEnvVars(opts, testCase.vars)
 			require.NoError(t, err)
 			assert.Equal(t, testCase.expected, actual)
 		})
@@ -444,9 +447,11 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 
 }
 
-var defaultLogLevel = util.GetDefaultLogLevel()
+var defaultLogLevel = log.DebugLevel
 
 func mockCmdOptions(t *testing.T, workingDir string, terraformCliArgs []string) *options.TerragruntOptions {
+	t.Helper()
+
 	o := mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, terraformCliArgs, true, "", false, false, defaultLogLevel, false)
 	return o
 }
@@ -463,7 +468,9 @@ func mockExtraArgs(arguments, commands, requiredVarFiles, optionalVarFiles []str
 	return a
 }
 
-func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, includeExternalDependencies bool, logLevel logrus.Level, debug bool) *options.TerragruntOptions {
+func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, terraformCliArgs []string, nonInteractive bool, terragruntSource string, ignoreDependencyErrors bool, includeExternalDependencies bool, logLevel log.Level, debug bool) *options.TerragruntOptions {
+	t.Helper()
+
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
 	if err != nil {
 		t.Fatalf("error: %v\n", errors.WithStackTrace(err))
@@ -475,17 +482,96 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 	opts.Source = terragruntSource
 	opts.IgnoreDependencyErrors = ignoreDependencyErrors
 	opts.IncludeExternalDependencies = includeExternalDependencies
-	opts.Logger.Level = logLevel
+	opts.Logger.SetOptions(log.WithLevel(logLevel))
 	opts.Debug = debug
 
 	return opts
 }
 
 func createTempFile(t *testing.T) string {
+	t.Helper()
+
 	tmpFile, err := os.CreateTemp("", "")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %s\n", err.Error())
 	}
 
 	return filepath.ToSlash(tmpFile.Name())
+}
+
+func TestShouldCopyLockFile(t *testing.T) {
+	t.Parallel()
+
+	type args struct {
+		args            []string
+		terraformConfig *config.TerraformConfig
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			name: "init without terraform config",
+			args: args{
+				args: []string{"init"},
+			},
+			want: true,
+		},
+		{
+			name: "providers lock without terraform config",
+			args: args{
+				args: []string{"providers", "lock"},
+			},
+			want: true,
+		},
+		{
+			name: "providers schema without terraform config",
+			args: args{
+				args: []string{"providers", "schema"},
+			},
+			want: false,
+		},
+		{
+			name: "plan without terraform config",
+			args: args{
+				args: []string{"plan"},
+			},
+			want: false,
+		},
+		{
+			name: "init with empty terraform config",
+			args: args{
+				args:            []string{"init"},
+				terraformConfig: &config.TerraformConfig{},
+			},
+			want: true,
+		},
+		{
+			name: "init with CopyTerraformLockFile enabled",
+			args: args{
+				args: []string{"init"},
+				terraformConfig: &config.TerraformConfig{
+					CopyTerraformLockFile: &[]bool{true}[0],
+				},
+			},
+			want: true,
+		},
+		{
+			name: "init with CopyTerraformLockFile disabled",
+			args: args{
+				args: []string{"init"},
+				terraformConfig: &config.TerraformConfig{
+					CopyTerraformLockFile: &[]bool{false}[0],
+				},
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equalf(t, tt.want, terraform.ShouldCopyLockFile(tt.args.args, tt.args.terraformConfig), "shouldCopyLockFile(%v, %v)", tt.args.args, tt.args.terraformConfig)
+		})
+	}
 }

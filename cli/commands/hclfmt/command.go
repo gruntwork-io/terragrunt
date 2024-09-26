@@ -1,3 +1,4 @@
+// Package hclfmt provides the hclfmt command for formatting HCL files.
 package hclfmt
 
 import (

@@ -14,7 +14,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		return err
 	}
 
-	js, err := stack.JsonModuleDeployOrder(opts.TerraformCommand)
+	js, err := stack.JSONModuleDeployOrder(opts.TerraformCommand)
 	if err != nil {
 		return err
 	}

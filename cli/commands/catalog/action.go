@@ -11,7 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -40,7 +39,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, repoURL string) e
 	for _, repoURL := range repoURLs {
 		tempDir := filepath.Join(os.TempDir(), fmt.Sprintf(tempDirFormat, util.EncodeBase64Sha1(repoURL)))
 
-		repo, err := module.NewRepo(ctx, repoURL, tempDir)
+		repo, err := module.NewRepo(ctx, opts.Logger, repoURL, tempDir)
 		if err != nil {
 			return err
 		}
@@ -50,7 +49,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, repoURL string) e
 			return err
 		}
 
-		log.Infof("Found %d modules in repository %q", len(repoModules), repoURL)
+		opts.Logger.Infof("Found %d modules in repository %q", len(repoModules), repoURL)
 
 		modules = append(modules, repoModules...)
 	}

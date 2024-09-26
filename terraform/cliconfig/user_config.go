@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform/tfdiags"
 )
 
-// The user configuration is read as raw data and stored at the top of the saved configuration file.
+// LoadUserConfig loads the user configuration is read as raw data and stored at the top of the saved configuration file.
 // The location of the default config is different for each OS https://developer.hashicorp.com/terraform/cli/config/config-file#locations
 func LoadUserConfig() (*Config, error) {
 	return loadUserConfig(cliconfig.LoadConfig)
@@ -94,6 +94,7 @@ func getUserHosts(cfg *cliconfig.Config) []ConfigHost {
 
 	for name, host := range cfg.Hosts {
 		services := make(map[string]string)
+
 		if host != nil {
 			for key, val := range host.Services {
 				if val, ok := val.(string); ok {

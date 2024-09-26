@@ -11,6 +11,8 @@ import (
 )
 
 func createFakeZipArchive(t *testing.T, content []byte) string {
+	t.Helper()
+
 	file, err := os.CreateTemp("", "*")
 	require.NoError(t, err)
 	defer file.Close()

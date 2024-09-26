@@ -19,7 +19,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 	curDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	basePath := filepath.Join(curDir, "../test/fixture-catalog")
+	basePath := filepath.Join(curDir, "../test/fixtures/catalog")
 
 	testCases := []struct {
 		configPath     string

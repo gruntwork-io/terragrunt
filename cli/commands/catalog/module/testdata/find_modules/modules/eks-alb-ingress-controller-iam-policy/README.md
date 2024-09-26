@@ -16,7 +16,7 @@ Controller on to your EKS cluster.
 * See the [eks-cluster-with-supporting-services example](/examples/eks-cluster-with-supporting-services) for example
   usage.
 * See [variables.tf](./variables.tf) for all the variables you can set on this module.
-* See [outputs.tf](./outputs.tf) for all the variables that are outputed by this module.
+* See [outputs.tf](./outputs.tf) for all the variables that are outputted by this module.
 
 
 ## Attaching IAM policy to workers

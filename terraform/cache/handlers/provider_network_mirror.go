@@ -22,7 +22,6 @@ type ProviderNetworkMirrorHandler struct {
 	*CommonProviderHandler
 
 	*http.Client
-	providerService             *services.ProviderService
 	cacheProviderHTTPStatusCode int
 	networkMirrorURL            *url.URL
 	credsSource                 *cliconfig.CredentialsSource
@@ -35,9 +34,8 @@ func NewProviderNetworkMirrorHandler(providerService *services.ProviderService, 
 	}
 
 	return &ProviderNetworkMirrorHandler{
-		CommonProviderHandler:       NewCommonProviderHandler(networkMirror.Include, networkMirror.Exclude),
+		CommonProviderHandler:       NewCommonProviderHandler(providerService, networkMirror.Include, networkMirror.Exclude),
 		Client:                      &http.Client{},
-		providerService:             providerService,
 		cacheProviderHTTPStatusCode: cacheProviderHTTPStatusCode,
 		networkMirrorURL:            networkMirrorURL,
 		credsSource:                 credsSource,
@@ -108,6 +106,7 @@ func (handler *ProviderNetworkMirrorHandler) GetPlatform(ctx echo.Context, provi
 
 	// start caching and return 423 status
 	handler.providerService.CacheProvider(ctx.Request().Context(), cacheRequestID, provider)
+
 	return ctx.NoContent(handler.cacheProviderHTTPStatusCode)
 }
 

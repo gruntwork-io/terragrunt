@@ -1,3 +1,4 @@
+// Package creds provides a way to obtain credentials through different providers and set them to `opts.Env`.
 package creds
 
 import (
@@ -25,6 +26,7 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, opts *o
 		if err != nil {
 			return err
 		}
+
 		if creds == nil {
 			continue
 		}
@@ -34,6 +36,7 @@ func (getter *Getter) ObtainAndUpdateEnvIfNecessary(ctx context.Context, opts *o
 				opts.Logger.Warnf("%s credentials obtained using %s are overwritten by credentials obtained using %s.", creds.Name, providerName, provider.Name())
 			}
 		}
+
 		getter.obtainedCreds[provider.Name()] = creds
 
 		maps.Copy(opts.Env, creds.Envs)

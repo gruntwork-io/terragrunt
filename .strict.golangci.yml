@@ -1,0 +1,110 @@
+run:
+  timeout: 2m
+  issues-exit-code: 1
+  tests: true
+  go: "1.23"
+output:
+  formats:
+    - format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+
+linters-settings:
+  wrapcheck:
+    ignorePackageGlobs:
+      - github.com/gruntwork-io/terragrunt/*
+  lll:
+    line-length: 140
+  staticcheck:
+    checks:
+      - all
+      - '-SA9005'
+  errcheck:
+    check-type-assertions: false
+    check-blank: false
+    exclude-functions:
+      - (*os.File).Close
+  errorlint:
+    errorf: true
+    asserts: true
+    comparison: true
+  gofmt:
+    simplify: true
+  dupl:
+    threshold: 120
+  goconst:
+    min-len: 3
+    min-occurrences: 5
+  revive:
+    min-confidence: 0.8
+  unused:
+    check-exported: false
+  unparam:
+    check-exported: false
+  nakedret:
+    max-func-lines: 20
+  gocritic:
+    disabled-checks:
+      - regexpMust
+      - rangeValCopy
+      - appendAssign
+      - hugeParam
+    enabled-tags:
+      - performance
+    disabled-tags:
+      - experimental
+
+linters:
+  enable:
+    - dupl
+    - errcheck
+    - goconst
+    - gocritic
+    - goimports
+    - mnd
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - misspell
+    - unconvert
+    - unused
+    - unparam
+  enable-all: false
+  disable:
+    - depguard
+    - gosec
+    - gocyclo
+    - exhaustruct
+  fast: false
+  mnd:
+    ignored-functions: strconv.Format*,os.*,strconv.Parse*,strings.SplitN,bytes.SplitN
+  presets:
+    - bugs
+    - performance
+    - unused
+    - test
+    # These two are only in the strict lint right now
+    - style
+    - complexity
+
+issues:
+  exclude-dirs:
+    - docs
+    - _ci
+    - .github
+    - .circleci
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - dupl
+        - gocyclo
+        - lll
+        - errcheck
+        - wsl
+        - mnd
+        - unparam
+
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0

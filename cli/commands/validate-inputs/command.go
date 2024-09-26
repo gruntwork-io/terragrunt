@@ -1,3 +1,5 @@
+// Package validateinputs provides the command to validate the inputs of a Terragrunt configuration file
+// against the variables defined in OpenTofu/Terraform configuration files.
 package validateinputs
 
 import (

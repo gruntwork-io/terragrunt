@@ -1,3 +1,5 @@
+// Package diagnostic provides a way to represent diagnostics in a way
+// that can be easily marshalled to JSON.
 package diagnostic
 
 import (
@@ -12,6 +14,7 @@ func (diags *Diagnostics) Contains(find *Diagnostic) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -39,6 +42,7 @@ func NewDiagnostic(file *hcl.File, hclDiag *hcl.Diagnostic) *Diagnostic {
 		highlightRange.End.Byte++
 		highlightRange.End.Column++
 	}
+
 	diag.Snippet = NewSnippet(file, hclDiag, highlightRange)
 
 	diag.Range = &Range{
@@ -54,5 +58,6 @@ func NewDiagnostic(file *hcl.File, hclDiag *hcl.Diagnostic) *Diagnostic {
 			Byte:   highlightRange.End.Byte,
 		},
 	}
+
 	return diag
 }

@@ -33,11 +33,12 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 func runRenderJSON(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	if cfg == nil {
-		return goErrors.New("Terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl.")
+		return goErrors.New("terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl")
 	}
 
-	if !opts.JsonDisableDependentModules {
+	if !opts.JSONDisableDependentModules {
 		dependentModules := configstack.FindWhereWorkingDirIsIncluded(ctx, opts, cfg)
+
 		var dependentModulesPath []*string
 		for _, module := range dependentModules {
 			dependentModulesPath = append(dependentModulesPath, &module.Path)
@@ -46,19 +47,22 @@ func runRenderJSON(ctx context.Context, opts *options.TerragruntOptions, cfg *co
 		cfg.DependentModulesPath = dependentModulesPath
 		cfg.SetFieldMetadata(config.MetadataDependentModules, map[string]interface{}{config.FoundInFile: opts.TerragruntConfigPath})
 	}
+
 	var terragruntConfigCty cty.Value
 
-	if opts.RenderJsonWithMetadata {
+	if opts.RenderJSONithMetadata {
 		cty, err := config.TerragruntConfigAsCtyWithMetadata(cfg)
 		if err != nil {
 			return err
 		}
+
 		terragruntConfigCty = cty
 	} else {
 		cty, err := config.TerragruntConfigAsCty(cfg)
 		if err != nil {
 			return err
 		}
+
 		terragruntConfigCty = cty
 	}
 
@@ -72,15 +76,18 @@ func runRenderJSON(ctx context.Context, opts *options.TerragruntOptions, cfg *co
 		terragruntConfigDir := filepath.Dir(opts.TerragruntConfigPath)
 		jsonOutPath = filepath.Join(terragruntConfigDir, jsonOutPath)
 	}
+
 	if err := util.EnsureDirectory(filepath.Dir(jsonOutPath)); err != nil {
 		return err
 	}
+
 	opts.Logger.Debugf("Rendering config %s to JSON %s", opts.TerragruntConfigPath, jsonOutPath)
 
 	const ownerWriteGlobalReadPerms = 0644
 	if err := os.WriteFile(jsonOutPath, jsonBytes, ownerWriteGlobalReadPerms); err != nil {
 		return errors.WithStackTrace(err)
 	}
+
 	return nil
 }
 
@@ -94,11 +101,12 @@ func marshalCtyValueJSONWithoutType(ctyVal cty.Value) ([]byte, error) {
 		return nil, errors.WithStackTrace(err)
 	}
 
-	var ctyJsonOutput config.CtyJsonOutput
-	if err := json.Unmarshal(jsonBytesIntermediate, &ctyJsonOutput); err != nil {
+	var ctyJSONOutput config.CtyJSONOutput
+	if err := json.Unmarshal(jsonBytesIntermediate, &ctyJSONOutput); err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
 
-	jsonBytes, err := json.Marshal(ctyJsonOutput.Value)
+	jsonBytes, err := json.Marshal(ctyJSONOutput.Value)
+
 	return jsonBytes, errors.WithStackTrace(err)
 }

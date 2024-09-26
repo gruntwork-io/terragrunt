@@ -1,4 +1,4 @@
-package integration_test
+package test_test
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	registryFixturePath                          = "fixture-tfr"
+	registryFixturePath                          = "fixtures/tfr"
 	registryFixtureRootModulePath                = "root"
 	registryFixtureRootShorthandModulePath       = "root-shorthand"
 	registryFixtureSubdirModulePath              = "subdir"
@@ -39,6 +39,8 @@ func TestTerraformRegistryFetchingSubdirWithReferenceModule(t *testing.T) {
 }
 
 func testTerraformRegistryFetching(t *testing.T, modPath, expectedOutputKey string) {
+	t.Helper()
+
 	modFullPath := util.JoinPath(registryFixturePath, modPath)
 	cleanupTerraformFolder(t, modFullPath)
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+modFullPath)

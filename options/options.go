@@ -1,3 +1,4 @@
+// Package options provides a set of options that configure the behavior of the Terragrunt program.
 package options
 
 import (
@@ -11,9 +12,10 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
-	"github.com/sirupsen/logrus"
 )
 
 const ContextKey ctxKey = iota
@@ -40,6 +42,8 @@ const (
 	minCommandLength = 2
 
 	defaultExcludesFile = ".terragrunt-excludes"
+
+	defaultLogLevel = log.InfoLevel
 )
 
 var (
@@ -49,13 +53,13 @@ var (
 		"registry.terraform.io",
 		"registry.opentofu.org",
 	}
-)
 
-var TERRAFORM_COMMANDS_WITH_SUBCOMMAND = []string{
-	"debug",
-	"force-unlock",
-	"state",
-}
+	TerraformCommandsWithSubcommand = []string{
+		"debug",
+		"force-unlock",
+		"state",
+	}
+)
 
 type ctxKey byte
 
@@ -116,23 +120,32 @@ type TerragruntOptions struct {
 	// The working directory in which to run Terraform
 	WorkingDir string
 
+	// Unlike `WorkingDir`, this path is the same for all dependencies and points to the root working directory specified in the CLI.
+	RootWorkingDir string
+
 	// Basic log entry
-	Logger *logrus.Entry
+	Logger log.Logger
 
 	// Disable Terragrunt colors
 	DisableLogColors bool
 
 	// Output Terragrunt logs in JSON format
-	JsonLogFormat bool
+	JSONLogFormat bool
 
-	// Wrap Terraform logs in JSON format
-	TerraformLogsToJson bool
+	// Disable replacing full paths in logs with short relative paths
+	LogShowAbsPaths bool
 
 	// Log level
-	LogLevel logrus.Level
+	LogLevel log.Level
 
-	// Raw log level value
-	LogLevelStr string
+	// Log formatter
+	LogFormatter *format.Formatter
+
+	// If true, logs will be displayed in format key/value, by default logs are formatted in human-readable format.
+	DisableLogFormatting bool
+
+	// Wrap Terraform logs in JSON format
+	TerraformLogsToJSON bool
 
 	// ValidateStrict mode for the validate-inputs command
 	ValidateStrict bool
@@ -190,7 +203,7 @@ type TerragruntOptions struct {
 	RetryMaxAttempts int
 
 	// The duration in seconds to wait before retrying
-	RetrySleepIntervalSec time.Duration
+	RetrySleepInterval time.Duration
 
 	// RetryableErrors is an array of regular expressions with RE2 syntax (https://github.com/google/re2/wiki/Syntax) that qualify for retrying
 	RetryableErrors []string
@@ -255,13 +268,10 @@ type TerragruntOptions struct {
 	UsePartialParseConfigCache bool
 
 	// Include fields metadata in render-json
-	RenderJsonWithMetadata bool
+	RenderJSONithMetadata bool
 
-	// Prefix for shell commands' outputs
-	OutputPrefix string
-
-	// Controls if a module prefix will be prepended to TF outputs
-	IncludeModulePrefix bool
+	// Disable TF output formatting
+	ForwardTFStdout bool
 
 	// Fail execution if is required to create S3 bucket
 	FailIfBucketCreationRequired bool
@@ -282,7 +292,7 @@ type TerragruntOptions struct {
 	GraphRoot string
 
 	// Disable listing of dependent modules in render json output
-	JsonDisableDependentModules bool
+	JSONDisableDependentModules bool
 
 	// Enables Terragrunt's provider caching.
 	ProviderCache bool
@@ -306,7 +316,7 @@ type TerragruntOptions struct {
 	OutputFolder string
 
 	// Folder to store JSON representation of output files.
-	JsonOutputFolder string
+	JSONOutputFolder string
 
 	// The command and arguments that can be used to fetch authentication configurations.
 	// Terragrunt invokes this command before running tofu/terraform operations for each working directory.
@@ -322,7 +332,7 @@ type TerragruntOptions struct {
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
 type TerragruntOptionsFunc func(*TerragruntOptions)
 
-// WithRoleARN adds the provided role ARN to IamRoleOptions
+// WithIAMRoleARN adds the provided role ARN to IamRoleOptions
 func WithIAMRoleARN(arn string) TerragruntOptionsFunc {
 	return func(t *TerragruntOptions) {
 		t.IAMRoleOptions.RoleARN = arn
@@ -373,8 +383,15 @@ func MergeIAMRoleOptions(target IAMRoleOptions, source IAMRoleOptions) IAMRoleOp
 	return out
 }
 
-// Create a new TerragruntOptions object with reasonable defaults for real usage
+// NewTerragruntOptions creates a new TerragruntOptions object with
+// reasonable defaults for real usage
 func NewTerragruntOptions() *TerragruntOptions {
+	return NewTerragruntOptionsWithWriters(os.Stdout, os.Stderr)
+}
+
+func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
+	var logFormatter = format.NewFormatter()
+
 	return &TerragruntOptions{
 		TerraformPath:                  DefaultWrappedPath,
 		ExcludesFile:                   defaultExcludesFile,
@@ -384,8 +401,9 @@ func NewTerragruntOptions() *TerragruntOptions {
 		RunAllAutoApprove:              true,
 		NonInteractive:                 false,
 		TerraformCliArgs:               []string{},
-		LogLevelStr:                    util.GetDefaultLogLevel().String(),
-		Logger:                         util.GlobalFallbackLogEntry,
+		LogLevel:                       defaultLogLevel,
+		LogFormatter:                   logFormatter,
+		Logger:                         log.New(log.WithOutput(stderr), log.WithLevel(defaultLogLevel), log.WithFormatter(logFormatter)),
 		Env:                            map[string]string{},
 		Source:                         "",
 		SourceMap:                      map[string]string{},
@@ -394,13 +412,13 @@ func NewTerragruntOptions() *TerragruntOptions {
 		IgnoreDependencyOrder:          false,
 		IgnoreExternalDependencies:     false,
 		IncludeExternalDependencies:    false,
-		Writer:                         os.Stdout,
-		ErrWriter:                      os.Stderr,
+		Writer:                         stdout,
+		ErrWriter:                      stderr,
 		MaxFoldersToCheck:              DefaultMaxFoldersToCheck,
 		AutoRetry:                      true,
-		RetryMaxAttempts:               DEFAULT_RETRY_MAX_ATTEMPTS,
-		RetrySleepIntervalSec:          DEFAULT_RETRY_SLEEP_INTERVAL_SEC,
-		RetryableErrors:                util.CloneStringList(DEFAULT_RETRYABLE_ERRORS),
+		RetryMaxAttempts:               DefaultRetryMaxAttempts,
+		RetrySleepInterval:             DefaultRetrySleepInterval,
+		RetryableErrors:                util.CloneStringList(DefaultRetryableErrors),
 		ExcludeDirs:                    []string{},
 		IncludeDirs:                    []string{},
 		ModulesThatInclude:             []string{},
@@ -410,19 +428,17 @@ func NewTerragruntOptions() *TerragruntOptions {
 		Diff:                           false,
 		FetchDependencyOutputFromState: false,
 		UsePartialParseConfigCache:     false,
-		OutputPrefix:                   "",
-		IncludeModulePrefix:            false,
+		ForwardTFStdout:                false,
 		JSONOut:                        DefaultJSONOutName,
 		TerraformImplementation:        UnknownImpl,
-		JsonLogFormat:                  false,
-		TerraformLogsToJson:            false,
-		JsonDisableDependentModules:    false,
+		TerraformLogsToJSON:            false,
+		JSONDisableDependentModules:    false,
 		RunTerragrunt: func(ctx context.Context, opts *TerragruntOptions) error {
 			return errors.WithStackTrace(ErrRunTerragruntCommandNotSet)
 		},
 		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
 		OutputFolder:               "",
-		JsonOutputFolder:           "",
+		JSONOutputFolder:           "",
 	}
 }
 
@@ -436,11 +452,14 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 	}
 
 	opts.WorkingDir = workingDir
+	opts.RootWorkingDir = workingDir
 	opts.DownloadDir = downloadDir
+
 	return opts, nil
 }
 
-// Get the default working and download directories for the given Terragrunt config path
+// DefaultWorkingAndDownloadDirs gets the default working and download
+// directories for the given Terragrunt config path.
 func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string, error) {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
@@ -452,23 +471,23 @@ func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string,
 	return filepath.ToSlash(workingDir), filepath.ToSlash(downloadDir), nil
 }
 
-// Get the default IAM assume role session name.
+// GetDefaultIAMAssumeRoleSessionName gets the default IAM assume role session name.
 func GetDefaultIAMAssumeRoleSessionName() string {
 	return fmt.Sprintf("terragrunt-%d", time.Now().UTC().UnixNano())
 }
 
-// Create a new TerragruntOptions object with reasonable defaults for test usage
+// NewTerragruntOptionsForTest creates a new TerragruntOptions object with reasonable defaults for test usage.
 func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...TerragruntOptionsFunc) (*TerragruntOptions, error) {
 	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
 	if err != nil {
-		logger := util.CreateLogEntry("", util.GetDefaultLogLevel())
-		logger.Errorf("%v\n", errors.WithStackTrace(err))
+		log.WithOptions(log.WithLevel(log.DebugLevel)).Errorf("%v\n", errors.WithStackTrace(err))
+
 		return nil, err
 	}
 
 	opts.NonInteractive = true
-	opts.Logger = util.CreateLogEntry("", logrus.DebugLevel)
-	opts.LogLevel = logrus.DebugLevel
+	opts.Logger.SetOptions(log.WithLevel(log.DebugLevel))
+	opts.LogLevel = log.DebugLevel
 
 	for _, opt := range options {
 		opt(opts)
@@ -488,9 +507,9 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 	return opts
 }
 
-// Create a copy of this TerragruntOptions, but with different values for the given variables. This is useful for
+// Clone creates a copy of this TerragruntOptions, but with different values for the given variables. This is useful for
 // creating a TerragruntOptions that behaves the same way, but is used for a Terraform module in a different folder.
-func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOptions {
+func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOptions, error) {
 	workingDir := filepath.Dir(terragruntConfigPath)
 
 	// Note that we clone lists and maps below as TerragruntOptions may be used and modified concurrently in the code
@@ -509,8 +528,10 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		NonInteractive:                 opts.NonInteractive,
 		TerraformCliArgs:               util.CloneStringList(opts.TerraformCliArgs),
 		WorkingDir:                     workingDir,
-		Logger:                         util.CreateLogEntryWithWriter(opts.ErrWriter, workingDir, opts.LogLevel, opts.Logger.Logger.Hooks),
+		RootWorkingDir:                 opts.RootWorkingDir,
+		Logger:                         opts.Logger.WithField(format.PrefixKeyName, workingDir),
 		LogLevel:                       opts.LogLevel,
+		LogFormatter:                   opts.LogFormatter,
 		ValidateStrict:                 opts.ValidateStrict,
 		Env:                            util.CloneStringMap(opts.Env),
 		Source:                         opts.Source,
@@ -529,7 +550,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		MaxFoldersToCheck:              opts.MaxFoldersToCheck,
 		AutoRetry:                      opts.AutoRetry,
 		RetryMaxAttempts:               opts.RetryMaxAttempts,
-		RetrySleepIntervalSec:          opts.RetrySleepIntervalSec,
+		RetrySleepInterval:             opts.RetrySleepInterval,
 		RetryableErrors:                util.CloneStringList(opts.RetryableErrors),
 		ExcludesFile:                   opts.ExcludesFile,
 		ExcludeDirs:                    opts.ExcludeDirs,
@@ -542,32 +563,31 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) *TerragruntOpt
 		AwsProviderPatchOverrides:      opts.AwsProviderPatchOverrides,
 		HclFile:                        opts.HclFile,
 		JSONOut:                        opts.JSONOut,
+		JSONLogFormat:                  opts.JSONLogFormat,
 		Check:                          opts.Check,
 		CheckDependentModules:          opts.CheckDependentModules,
 		FetchDependencyOutputFromState: opts.FetchDependencyOutputFromState,
 		UsePartialParseConfigCache:     opts.UsePartialParseConfigCache,
-		OutputPrefix:                   opts.OutputPrefix,
-		IncludeModulePrefix:            opts.IncludeModulePrefix,
+		ForwardTFStdout:                opts.ForwardTFStdout,
 		FailIfBucketCreationRequired:   opts.FailIfBucketCreationRequired,
 		DisableBucketUpdate:            opts.DisableBucketUpdate,
 		TerraformImplementation:        opts.TerraformImplementation,
-		JsonLogFormat:                  opts.JsonLogFormat,
-		TerraformLogsToJson:            opts.TerraformLogsToJson,
+		TerraformLogsToJSON:            opts.TerraformLogsToJSON,
 		GraphRoot:                      opts.GraphRoot,
 		ScaffoldVars:                   opts.ScaffoldVars,
 		ScaffoldVarFiles:               opts.ScaffoldVarFiles,
-		JsonDisableDependentModules:    opts.JsonDisableDependentModules,
+		JSONDisableDependentModules:    opts.JSONDisableDependentModules,
 		ProviderCache:                  opts.ProviderCache,
 		ProviderCacheToken:             opts.ProviderCacheToken,
 		ProviderCacheDir:               opts.ProviderCacheDir,
 		ProviderCacheRegistryNames:     opts.ProviderCacheRegistryNames,
 		DisableLogColors:               opts.DisableLogColors,
 		OutputFolder:                   opts.OutputFolder,
-		JsonOutputFolder:               opts.JsonOutputFolder,
+		JSONOutputFolder:               opts.JSONOutputFolder,
 		AuthProviderCmd:                opts.AuthProviderCmd,
 		SkipOutput:                     opts.SkipOutput,
 		Engine:                         cloneEngineOptions(opts.Engine),
-	}
+	}, nil
 }
 
 // cloneEngineOptions creates a deep copy of the given EngineOptions
@@ -575,6 +595,7 @@ func cloneEngineOptions(opts *EngineOptions) *EngineOptions {
 	if opts == nil {
 		return nil
 	}
+
 	return &EngineOptions{
 		Source:  opts.Source,
 		Version: opts.Version,
@@ -591,6 +612,7 @@ func checkIfPlanFile(arg string) bool {
 // Extract planfile from arguments list
 func extractPlanFile(argsToInsert []string) (*string, []string) {
 	planFile := ""
+
 	var filteredArgs []string
 
 	for _, arg := range argsToInsert {
@@ -608,12 +630,12 @@ func extractPlanFile(argsToInsert []string) (*string, []string) {
 	return nil, filteredArgs
 }
 
-// Inserts the given argsToInsert after the terraform command argument, but before the remaining args
+// InsertTerraformCliArgs inserts the given argsToInsert after the terraform command argument, but before the remaining args.
 func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	planFile, restArgs := extractPlanFile(argsToInsert)
 
 	commandLength := 1
-	if util.ListContainsElement(TERRAFORM_COMMANDS_WITH_SUBCOMMAND, opts.TerraformCliArgs[0]) {
+	if util.ListContainsElement(TerraformCommandsWithSubcommand, opts.TerraformCliArgs[0]) {
 		// Since these terraform commands require subcommands which may not always be properly passed by the user,
 		// using util.Min to return the minimum to avoid potential out of bounds slice errors.
 		commandLength = util.Min(minCommandLength, len(opts.TerraformCliArgs))
@@ -634,7 +656,7 @@ func (opts *TerragruntOptions) InsertTerraformCliArgs(argsToInsert ...string) {
 	opts.TerraformCliArgs = args
 }
 
-// Appends the given argsToAppend after the current TerraformCliArgs
+// AppendTerraformCliArgs appends the given argsToAppend after the current TerraformCliArgs.
 func (opts *TerragruntOptions) AppendTerraformCliArgs(argsToAppend ...string) {
 	opts.TerraformCliArgs = append(opts.TerraformCliArgs, argsToAppend...)
 }
@@ -644,6 +666,7 @@ func (opts *TerragruntOptions) TerraformDataDir() string {
 	if tfDataDir, ok := opts.Env["TF_DATA_DIR"]; ok {
 		return tfDataDir
 	}
+
 	return DefaultTFDataDir
 }
 
@@ -654,6 +677,7 @@ func (opts *TerragruntOptions) DataDir() string {
 	if filepath.IsAbs(tfDataDir) {
 		return tfDataDir
 	}
+
 	return util.JoinPath(opts.WorkingDir, tfDataDir)
 }
 

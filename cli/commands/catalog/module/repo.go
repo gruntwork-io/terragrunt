@@ -3,6 +3,7 @@ package module
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -32,6 +33,8 @@ var (
 )
 
 type Repo struct {
+	logger log.Logger
+
 	cloneURL string
 	path     string
 
@@ -39,8 +42,9 @@ type Repo struct {
 	branchName string
 }
 
-func NewRepo(ctx context.Context, cloneURL, tempDir string) (*Repo, error) {
+func NewRepo(ctx context.Context, logger log.Logger, cloneURL, tempDir string) (*Repo, error) {
 	repo := &Repo{
+		logger:   logger,
 		cloneURL: cloneURL,
 		path:     tempDir,
 	}
@@ -83,6 +87,7 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 				if err != nil {
 					return err
 				}
+
 				if !remote.IsDir() {
 					return nil
 				}
@@ -103,7 +108,6 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 		if err != nil {
 			return nil, err
 		}
-
 	}
 
 	return modules, nil
@@ -152,8 +156,9 @@ func (repo *Repo) clone(ctx context.Context) error {
 				return errors.WithStackTrace(err)
 			}
 
-			log.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
+			repo.logger.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
 		}
+
 		repo.path = repoPath
 
 		return nil
@@ -174,22 +179,28 @@ func (repo *Repo) clone(ctx context.Context) error {
 	// For example, in MacOS the service is responsible for deleting unused files deletes only files while leaving the directory structure is untouched, which in turn misleads `go-getter`, which thinks that the repository exists but cannot update it due to the lack of files. In such cases, we simply delete the temporary directory in order to clone the one again.
 	// See https://github.com/gruntwork-io/terragrunt/pull/2888
 	if files.FileExists(repo.path) && !files.FileExists(repo.gitHeadfile()) {
-		log.Debugf("The repo dir exists but git file %q does not. Removing the repo dir for cloning from the remote source.", repo.gitHeadfile())
+		repo.logger.Debugf("The repo dir exists but git file %q does not. Removing the repo dir for cloning from the remote source.", repo.gitHeadfile())
 
 		if err := os.RemoveAll(repo.path); err != nil {
 			return errors.WithStackTrace(err)
 		}
 	}
 
-	sourceUrl, err := terraform.ToSourceUrl(repo.cloneURL, "")
+	sourceURL, err := terraform.ToSourceURL(repo.cloneURL, "")
 	if err != nil {
 		return err
 	}
-	repo.cloneURL = sourceUrl.String()
 
-	log.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
+	repo.cloneURL = sourceURL.String()
 
-	if err := getter.Get(repo.path, strings.Trim(sourceUrl.String(), "/"), getter.WithContext(ctx)); err != nil {
+	repo.logger.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
+
+	// We need to explicitly specify the reference, otherwise we will get an error:
+	// "fatal: The empty string is not a valid pathspec. Use . instead if you wanted to match all paths"
+	// when updating an existing repository.
+	sourceURL.RawQuery = (url.Values{"ref": []string{"HEAD"}}).Encode()
+
+	if err := getter.Get(repo.path, strings.Trim(sourceURL.String(), "/"), getter.WithContext(ctx), getter.WithMode(getter.ClientModeDir)); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
@@ -204,7 +215,7 @@ func (repo *Repo) parseRemoteURL() error {
 		return errors.Errorf("the specified path %q is not a git repository", repo.path)
 	}
 
-	log.Debugf("Parsing git config %q", gitConfigPath)
+	repo.logger.Debugf("Parsing git config %q", gitConfigPath)
 
 	inidata, err := ini.Load(gitConfigPath)
 	if err != nil {
@@ -212,10 +223,12 @@ func (repo *Repo) parseRemoteURL() error {
 	}
 
 	var sectionName string
+
 	for _, name := range inidata.SectionStrings() {
 		if !strings.HasPrefix(name, "remote") {
 			continue
 		}
+
 		sectionName = name
 
 		if sectionName == `remote "origin"` {
@@ -229,7 +242,7 @@ func (repo *Repo) parseRemoteURL() error {
 	}
 
 	repo.remoteURL = inidata.Section(sectionName).Key("url").String()
-	log.Debugf("Remote url: %q for repo: %q", repo.remoteURL, repo.path)
+	repo.logger.Debugf("Remote url: %q for repo: %q", repo.remoteURL, repo.path)
 
 	return nil
 }

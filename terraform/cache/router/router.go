@@ -1,3 +1,4 @@
+// Package router provides a simple wrapper around the echo framework to create a REST API.
 package router
 
 import (
@@ -52,6 +53,7 @@ func (router *Router) Use(middlewares ...echo.MiddlewareFunc) {
 				if strings.HasPrefix(strings.Trim(ctx.Path(), "/"), strings.Trim(router.urlPath, "/")) {
 					return middleware(next)(ctx)
 				}
+
 				return next(ctx)
 			}
 		}

@@ -9,10 +9,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
 	openpgpArmor "github.com/ProtonMail/go-crypto/openpgp/armor"
@@ -21,10 +21,10 @@ import (
 )
 
 const (
-	VERIFIED_CHECKSUM PackageAuthenticationResult = iota
-	OFFICIAL_PROVIDER
-	PARTNER_PROVIDER
-	COMMUNITY_PROVIDER
+	VerifiedChecksum PackageAuthenticationResult = iota
+	OfficialProvider
+	PartnerProvider
+	CommunityProvider
 )
 
 // PackageAuthenticationResult is returned from a PackageAuthentication implementation which implements Stringer.
@@ -49,17 +49,17 @@ func (result *PackageAuthenticationResult) String() string {
 
 // SignedByHashiCorp returns whether the package was authenticated as signed by HashiCorp.
 func (result PackageAuthenticationResult) SignedByHashiCorp() bool {
-	return result == OFFICIAL_PROVIDER
+	return result == OfficialProvider
 }
 
 // SignedByAnyParty returns whether the package was authenticated as signed by either HashiCorp or by a third-party.
 func (result PackageAuthenticationResult) SignedByAnyParty() bool {
-	return result == OFFICIAL_PROVIDER || result == PARTNER_PROVIDER || result == COMMUNITY_PROVIDER
+	return result == OfficialProvider || result == PartnerProvider || result == CommunityProvider
 }
 
 // ThirdPartySigned returns whether the package was authenticated as signed by a party other than HashiCorp.
 func (result PackageAuthenticationResult) ThirdPartySigned() bool {
-	return result == PARTNER_PROVIDER || result == COMMUNITY_PROVIDER
+	return result == PartnerProvider || result == CommunityProvider
 }
 
 // PackageAuthentication implementation is responsible for authenticating that a package is what its distributor intended to distribute and that it has not been tampered with.
@@ -89,11 +89,13 @@ func (checks packageAuthenticationAll) Authenticate(path string) (*PackageAuthen
 
 	for _, check := range checks {
 		var err error
+
 		authResult, err = check.Authenticate(path)
 		if err != nil {
 			return authResult, err
 		}
 	}
+
 	return authResult, nil
 }
 
@@ -103,11 +105,13 @@ func (checks packageAuthenticationAll) AcceptableHashes() []Hash {
 		if !ok {
 			continue
 		}
+
 		allHashes := check.AcceptableHashes()
 		if len(allHashes) > 0 {
 			return allHashes
 		}
 	}
+
 	return nil
 }
 
@@ -131,16 +135,17 @@ func (auth archiveHashAuthentication) Authenticate(path string) (*PackageAuthent
 	if err != nil {
 		return nil, errors.Errorf("failed to compute checksum for %s: %s", path, err)
 	}
+
 	wantHash := HashLegacyZipSHAFromSHA(auth.WantSHA256Sum)
 	if gotHash != wantHash {
 		return nil, errors.Errorf("archive has incorrect checksum %s (expected %s)", gotHash, wantHash)
 	}
 
-	return NewPackageAuthenticationResult(VERIFIED_CHECKSUM), nil
+	return NewPackageAuthenticationResult(VerifiedChecksum), nil
 }
 
-func (a archiveHashAuthentication) AcceptableHashes() []Hash {
-	return []Hash{HashLegacyZipSHAFromSHA(a.WantSHA256Sum)}
+func (auth archiveHashAuthentication) AcceptableHashes() []Hash {
+	return []Hash{HashLegacyZipSHAFromSHA(auth.WantSHA256Sum)}
 }
 
 type matchingChecksumAuthentication struct {
@@ -162,6 +167,7 @@ func NewMatchingChecksumAuthentication(document []byte, filename string, wantSHA
 func (auth matchingChecksumAuthentication) Authenticate(location string) (*PackageAuthenticationResult, error) {
 	// Find the checksum in the list with matching filename. The document is in the form "0123456789abcdef filename.zip".
 	filename := []byte(auth.Filename)
+
 	checksum := util.MatchSha256Checksum(auth.Document, filename)
 	if checksum == nil {
 		return nil, errors.Errorf("checksum list has no SHA-256 hash for %q", auth.Filename)
@@ -210,7 +216,7 @@ func (auth signatureAuthentication) Authenticate(location string) (*PackageAuthe
 	}
 
 	if err := auth.checkDetachedSignature(hashicorpKeyring, bytes.NewReader(auth.Document), bytes.NewReader(auth.Signature), nil); err == nil {
-		return NewPackageAuthenticationResult(OFFICIAL_PROVIDER), nil
+		return NewPackageAuthenticationResult(OfficialProvider), nil
 	}
 
 	// If the signing key has a trust signature, attempt to verify it with the HashiCorp partners public key.
@@ -234,11 +240,11 @@ func (auth signatureAuthentication) Authenticate(location string) (*PackageAuthe
 			return nil, errors.Errorf("error verifying trust signature: %s", err)
 		}
 
-		return NewPackageAuthenticationResult(PARTNER_PROVIDER), nil
+		return NewPackageAuthenticationResult(PartnerProvider), nil
 	}
 
 	// We have a valid signature, but it's not from the HashiCorp key, and it also isn't a trusted partner. This is a community provider.
-	return NewPackageAuthenticationResult(COMMUNITY_PROVIDER), nil
+	return NewPackageAuthenticationResult(CommunityProvider), nil
 }
 
 func (auth signatureAuthentication) checkDetachedSignature(keyring openpgp.KeyRing, signed, signature io.Reader, config *packet.Config) error {
@@ -248,8 +254,10 @@ func (auth signatureAuthentication) checkDetachedSignature(keyring openpgp.KeyRi
 		for id := range entity.Identities {
 			log.Warnf("expired openpgp key from %s\n", id)
 		}
+
 		err = nil
 	}
+
 	return err
 }
 

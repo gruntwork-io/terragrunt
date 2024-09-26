@@ -123,6 +123,7 @@ func TestMapFlagStringIntApply(t *testing.T) {
 }
 
 func testMapFlagApply[K cli.MapFlagKeyType, V cli.MapFlagValueType](t *testing.T, flag *cli.MapFlag[K, V], args []string, envs map[string]string, expectedValue map[K]V, expectedErr error) {
+	t.Helper()
 
 	var (
 		actualValue          = map[K]V{}
@@ -168,7 +169,7 @@ func testMapFlagApply[K cli.MapFlagKeyType, V cli.MapFlagValueType](t *testing.T
 
 	assert.Equal(t, collections.MapJoin(expectedValue, flag.EnvVarSep, flag.KeyValSep), flag.GetValue(), "GetValue()")
 
-	assert.Equal(t, len(args) > 0, flag.Value().IsSet(), "IsSet()")
+	assert.Equal(t, len(args) > 0 || len(envs) > 0, flag.Value().IsSet(), "IsSet()")
 	assert.Equal(t, collections.MapJoin(expectedDefaultValue, flag.EnvVarSep, flag.KeyValSep), flag.Value().GetDefaultText(), "GetDefaultText()")
 
 	assert.False(t, flag.Value().IsBoolFlag(), "IsBoolFlag()")

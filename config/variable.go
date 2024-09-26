@@ -30,10 +30,12 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
-	parser := hclparse.NewParser().WithOptions(DefaultParserOptions(opts)...)
+
+	parser := hclparse.NewParser(DefaultParserOptions(opts)...)
 
 	// iterate over files and parse variables.
 	var parsedInputs []*ParsedVariable
+
 	for _, tfFile := range tfFiles {
 		if _, err := parser.ParseFromFile(tfFile); err != nil {
 			return nil, err
@@ -49,24 +51,29 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 					if len(block.Labels[0]) > 0 {
 						// extract variable attributes
 						name := block.Labels[0]
+
+						var descriptionAttrText string
+
 						descriptionAttr, err := readBlockAttribute(ctx, block, "description")
-						descriptionAttrText := ""
 						if err != nil {
 							opts.Logger.Warnf("Failed to read descriptionAttr for %s %v", name, err)
+
 							descriptionAttr = nil
 						}
+
 						if descriptionAttr != nil {
 							descriptionAttrText = descriptionAttr.AsString()
 						} else {
 							descriptionAttrText = fmt.Sprintf("(variable %s did not define a description)", name)
 						}
 
+						var typeAttrText string
+
 						typeAttr, err := readBlockAttribute(ctx, block, "type")
-						typeAttrText := ""
 						if err != nil {
 							opts.Logger.Warnf("Failed to read type attribute for %s %v", name, err)
-							descriptionAttr = nil
 						}
+
 						if typeAttr != nil {
 							typeAttrText = typeAttr.AsString()
 						} else {
@@ -76,25 +83,28 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 						defaultValue, err := readBlockAttribute(ctx, block, "default")
 						if err != nil {
 							opts.Logger.Warnf("Failed to read default value for %s %v", name, err)
+
 							defaultValue = nil
 						}
 
 						defaultValueText := ""
+
 						if defaultValue != nil {
 							jsonBytes, err := ctyjson.Marshal(*defaultValue, cty.DynamicPseudoType)
 							if err != nil {
 								return nil, errors.WithStackTrace(err)
 							}
 
-							var ctyJsonOutput ctyJsonValue
-							if err := json.Unmarshal(jsonBytes, &ctyJsonOutput); err != nil {
+							var ctyJSONOutput ctyJSONValue
+							if err := json.Unmarshal(jsonBytes, &ctyJSONOutput); err != nil {
 								return nil, errors.WithStackTrace(err)
 							}
 
-							jsonBytes, err = json.Marshal(ctyJsonOutput.Value)
+							jsonBytes, err = json.Marshal(ctyJSONOutput.Value)
 							if err != nil {
 								return nil, errors.WithStackTrace(err)
 							}
+
 							defaultValueText = string(jsonBytes)
 						}
 
@@ -112,6 +122,7 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 			}
 		}
 	}
+
 	return parsedInputs, nil
 }
 
@@ -134,7 +145,7 @@ func generateDefaultValue(variableType string) string {
 	return "\"\""
 }
 
-type ctyJsonValue struct {
+type ctyJSONValue struct {
 	Value interface{} `json:"Value"`
 	Type  interface{} `json:"Type"`
 }
@@ -161,8 +172,10 @@ func readBlockAttribute(ctx *hcl.EvalContext, block *hclsyntax.Block, name strin
 			if err != nil {
 				return nil, err
 			}
+
 			return &value, nil
 		}
 	}
+
 	return nil, nil
 }

@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/go-version"
 )
 
-// This uses the constraint syntax from https://github.com/hashicorp/go-version
+// DefaultTerraformVersionConstraint uses the constraint syntax from https://github.com/hashicorp/go-version
 // This version of Terragrunt was tested to work with Terraform 0.12.0 and above only
 const DefaultTerraformVersionConstraint = ">= v0.12.0"
 
@@ -51,6 +51,7 @@ func checkVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 	if terragruntOptions.TerraformPath == options.DefaultWrappedPath && partialTerragruntConfig.TerraformBinary != "" {
 		terragruntOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
 	}
+
 	if err := PopulateTerraformVersion(ctx, terragruntOptions); err != nil {
 		return err
 	}
@@ -59,6 +60,7 @@ func checkVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 	if partialTerragruntConfig.TerraformVersionConstraint != "" {
 		terraformVersionConstraint = partialTerragruntConfig.TerraformVersionConstraint
 	}
+
 	if err := CheckTerraformVersion(terraformVersionConstraint, terragruntOptions); err != nil {
 		return err
 	}
@@ -68,16 +70,20 @@ func checkVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 			return err
 		}
 	}
+
 	return nil
 }
 
-// Populate the currently installed version of Terraform into the given terragruntOptions
+// PopulateTerraformVersion populates the currently installed version of Terraform into the given terragruntOptions.
 func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
 	// Discard all log output to make sure we don't pollute stdout or stderr with this extra call to '--version'
-	terragruntOptionsCopy := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	terragruntOptionsCopy, err := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	if err != nil {
+		return err
+	}
+
 	terragruntOptionsCopy.Writer = io.Discard
 	terragruntOptionsCopy.ErrWriter = io.Discard
-
 	// Remove any TF_CLI_ARGS before version checking. These are appended to
 	// the arguments supplied on the command line and cause issues when running
 	// the --version command.
@@ -112,36 +118,48 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 	} else {
 		terragruntOptions.Logger.Debugf("%s version: %s", tfImplementation, terraformVersion)
 	}
+
 	return nil
 }
 
-// Check that the currently installed Terraform version works meets the specified version constraint and return an error
+// CheckTerraformVersion checks that the currently installed Terraform version works meets the specified version constraint and return an error
 // if it doesn't
 func CheckTerraformVersion(constraint string, terragruntOptions *options.TerragruntOptions) error {
 	return CheckTerraformVersionMeetsConstraint(terragruntOptions.TerraformVersion, constraint)
 }
 
-// Check that the currently running Terragrunt version meets the specified version constraint and return an error
+// CheckTerragruntVersion checks that the currently running Terragrunt version meets the specified version constraint and return an error
 // if it doesn't
 func CheckTerragruntVersion(constraint string, terragruntOptions *options.TerragruntOptions) error {
 	return CheckTerragruntVersionMeetsConstraint(terragruntOptions.TerragruntVersion, constraint)
 }
 
-// Check that the current version of Terragrunt meets the specified constraint and return an error if it doesn't
+// CheckTerragruntVersionMeetsConstraint checks that the current version of Terragrunt meets the specified constraint and return an error if it doesn't
 func CheckTerragruntVersionMeetsConstraint(currentVersion *version.Version, constraint string) error {
 	versionConstraint, err := version.NewConstraint(constraint)
 	if err != nil {
 		return err
 	}
 
-	if !versionConstraint.Check(currentVersion) {
+	checkedVersion := currentVersion
+
+	if currentVersion.Prerelease() != "" {
+		// The logic in hashicorp/go-version is such that it will not consider a prerelease version to be
+		// compatible with a constraint that does not have a prerelease version. This is not the behavior we want
+		// for Terragrunt, so we strip the prerelease version before checking the constraint.
+		//
+		// https://github.com/hashicorp/go-version/issues/130
+		checkedVersion = currentVersion.Core()
+	}
+
+	if !versionConstraint.Check(checkedVersion) {
 		return errors.WithStackTrace(InvalidTerragruntVersion{CurrentVersion: currentVersion, VersionConstraints: versionConstraint})
 	}
 
 	return nil
 }
 
-// Check that the current version of Terraform meets the specified constraint and return an error if it doesn't
+// CheckTerraformVersionMeetsConstraint checks that the current version of Terraform meets the specified constraint and return an error if it doesn't
 func CheckTerraformVersionMeetsConstraint(currentVersion *version.Version, constraint string) error {
 	versionConstraint, err := version.NewConstraint(constraint)
 	if err != nil {
@@ -155,7 +173,7 @@ func CheckTerraformVersionMeetsConstraint(currentVersion *version.Version, const
 	return nil
 }
 
-// Parse the output of the terraform --version command
+// ParseTerraformVersion parses the output of the terraform --version command
 func ParseTerraformVersion(versionCommandOutput string) (*version.Version, error) {
 	matches := TerraformVersionRegex.FindStringSubmatch(versionCommandOutput)
 
@@ -173,6 +191,7 @@ func parseTerraformImplementationType(versionCommandOutput string) (options.Terr
 	if len(matches) != versionParts {
 		return options.UnknownImpl, errors.WithStackTrace(InvalidTerraformVersionSyntax(versionCommandOutput))
 	}
+
 	rawType := strings.ToLower(matches[1])
 	switch rawType {
 	case "terraform":

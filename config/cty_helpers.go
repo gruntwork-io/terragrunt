@@ -148,12 +148,15 @@ func wrapStaticValueToStringSliceAsFuncImpl(out []string) function.Function {
 // return an error.
 func ctySliceToStringSlice(args []cty.Value) ([]string, error) {
 	var out = make([]string, 0, len(args))
+
 	for _, arg := range args {
 		if arg.Type() != cty.String {
 			return nil, errors.WithStackTrace(InvalidParameterTypeError{Expected: "string", Actual: arg.Type().FriendlyName()})
 		}
+
 		out = append(out, arg.AsString())
 	}
+
 	return out, nil
 }
 
@@ -163,6 +166,7 @@ func shallowMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error)
 	if err != nil {
 		return nil, err
 	}
+
 	SourceMap, err := ParseCtyValueToMap(source)
 	if err != nil {
 		return nil, err
@@ -174,10 +178,11 @@ func shallowMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error)
 		}
 	}
 
-	outCty, err := convertToCtyWithJson(outMap)
+	outCty, err := convertToCtyWithJSON(outMap)
 	if err != nil {
 		return nil, err
 	}
+
 	return &outCty, nil
 }
 
@@ -190,10 +195,12 @@ func deepMergeCtyMaps(target cty.Value, source cty.Value) (*cty.Value, error) {
 // are already maps or objects in HCL land.
 func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*mergo.Config)) (*cty.Value, error) {
 	outMap := make(map[string]interface{})
+
 	targetMap, err := ParseCtyValueToMap(target)
 	if err != nil {
 		return nil, err
 	}
+
 	sourceMap, err := ParseCtyValueToMap(source)
 	if err != nil {
 		return nil, err
@@ -207,13 +214,16 @@ func deepMergeCtyMapsMapOnly(target cty.Value, source cty.Value, opts ...func(*m
 		return nil, err
 	}
 
-	outCty, err := convertToCtyWithJson(outMap)
+	outCty, err := convertToCtyWithJSON(outMap)
 	if err != nil {
 		return nil, err
 	}
+
 	return &outCty, nil
 }
 
+// ParseCtyValueToMap converts a cty.Value to a map[string]interface{}.
+//
 // This is a hacky workaround to convert a cty Value to a Go map[string]interface{}. cty does not support this directly
 // (https://github.com/hashicorp/hcl2/issues/108) and doing it with gocty.FromCtyValue is nearly impossible, as cty
 // requires you to specify all the output types and will error out when it hits interface{}. So, as an ugly workaround,
@@ -224,6 +234,7 @@ func ParseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	value = updatedValue
 
 	jsonBytes, err := ctyjson.Marshal(value, cty.DynamicPseudoType)
@@ -231,19 +242,21 @@ func ParseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
 		return nil, errors.WithStackTrace(err)
 	}
 
-	var ctyJsonOutput CtyJsonOutput
-	if err := json.Unmarshal(jsonBytes, &ctyJsonOutput); err != nil {
+	var ctyJSONOutput CtyJSONOutput
+	if err := json.Unmarshal(jsonBytes, &ctyJSONOutput); err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
 
-	return ctyJsonOutput.Value, nil
+	return ctyJSONOutput.Value, nil
 }
 
+// CtyJSONOutput is a struct that captures the output of cty's JSON marshalling.
+//
 // When you convert a cty value to JSON, if any of that types are not yet known (i.e., are labeled as
 // DynamicPseudoType), cty's Marshall method will write the type information to a type field and the actual value to
 // a value field. This struct is used to capture that information so when we parse the JSON back into a Go struct, we
 // can pull out just the Value field we need.
-type CtyJsonOutput struct {
+type CtyJSONOutput struct {
 	Value map[string]interface{} `json:"Value"`
 	Type  interface{}            `json:"Type"`
 }
@@ -251,13 +264,16 @@ type CtyJsonOutput struct {
 // convertValuesMapToCtyVal takes a map of name - cty.Value pairs and converts to a single cty.Value object.
 func convertValuesMapToCtyVal(valMap map[string]cty.Value) (cty.Value, error) {
 	valMapAsCty := cty.NilVal
+
 	if len(valMap) > 0 {
 		var err error
+
 		valMapAsCty, err = gocty.ToCtyValue(valMap, generateTypeFromValuesMap(valMap))
 		if err != nil {
 			return valMapAsCty, errors.WithStackTrace(err)
 		}
 	}
+
 	return valMapAsCty, nil
 }
 
@@ -270,6 +286,7 @@ func generateTypeFromValuesMap(valMap map[string]cty.Value) cty.Type {
 	for k, v := range valMap {
 		outType[k] = v.Type()
 	}
+
 	return cty.Object(outType)
 }
 
@@ -287,16 +304,20 @@ func includeMapAsCtyVal(ctx *ParsingContext) (cty.Value, error) {
 	}
 
 	exposedIncludeMap := map[string]cty.Value{}
+
 	for key, included := range ctx.TrackInclude.CurrentMap {
 		parsedIncludedCty, err := includeConfigAsCtyVal(ctx, included)
 		if err != nil {
 			return cty.NilVal, err
 		}
+
 		if parsedIncludedCty != cty.NilVal {
 			ctx.TerragruntOptions.Logger.Debugf("Exposing include block '%s'", key)
+
 			exposedIncludeMap[key] = parsedIncludedCty
 		}
 	}
+
 	return convertValuesMapToCtyVal(exposedIncludeMap)
 }
 
@@ -310,12 +331,15 @@ func includeConfigAsCtyVal(ctx *ParsingContext, includeConfig IncludeConfig) (ct
 		if err != nil {
 			return cty.NilVal, err
 		}
+
 		parsedIncludedCty, err := TerragruntConfigAsCty(parsedIncluded)
 		if err != nil {
 			return cty.NilVal, err
 		}
+
 		return parsedIncludedCty, nil
 	}
+
 	return cty.NilVal, nil
 }
 
@@ -335,8 +359,10 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 			if err != nil {
 				return cty.NilVal, err
 			}
+
 			mapVals[key] = val
 		}
+
 		if len(mapVals) > 0 {
 			updatedValue = mapVals
 		}
@@ -348,8 +374,10 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 			if err != nil {
 				return cty.NilVal, err
 			}
+
 			sliceVals[key] = val
 		}
+
 		if len(sliceVals) > 0 {
 			updatedValue = sliceVals
 		}
@@ -363,5 +391,6 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 	if err != nil {
 		return cty.NilVal, errors.WithStackTrace(err)
 	}
+
 	return value, nil
 }

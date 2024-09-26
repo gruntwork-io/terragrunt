@@ -1,5 +1,5 @@
-// common integration test functions
-package integration_test
+// Package test provides integration tests for Terragrunt.
+package test
 
 import (
 	"html/template"
@@ -65,7 +65,9 @@ type CLIConfigSettings struct {
 	DirectMethods           []CLIConfigProviderInstallationDirect
 }
 
-func createCLIConfig(t *testing.T, file *os.File, settings *CLIConfigSettings) {
+func CreateCLIConfig(t *testing.T, file *os.File, settings *CLIConfigSettings) {
+	t.Helper()
+
 	tmp, err := template.New("cliconfig").Parse(testCLIConfigTemplate)
 	require.NoError(t, err)
 

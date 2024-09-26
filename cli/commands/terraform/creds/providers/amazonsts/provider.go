@@ -1,3 +1,4 @@
+// Package amazonsts provides a credentials provider that obtains credentials by making API requests to Amazon STS.
 package amazonsts
 
 import (
@@ -5,7 +6,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -41,7 +42,8 @@ func (provider *Provider) GetCredentials(ctx context.Context) (*providers.Creden
 	}
 
 	provider.terragruntOptions.Logger.Debugf("Assuming IAM role %s with a session duration of %d seconds.", iamRoleOpts.RoleARN, iamRoleOpts.AssumeRoleDuration)
-	resp, err := aws_helper.AssumeIamRole(iamRoleOpts)
+	resp, err := awshelper.AssumeIamRole(iamRoleOpts)
+
 	if err != nil {
 		return nil, err
 	}
