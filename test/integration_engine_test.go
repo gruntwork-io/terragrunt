@@ -38,7 +38,7 @@ func TestEngineLocalPlan(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, LocalEngineBinaryPath+": plugin address")
-	assert.Contains(t, stderr, "starting plugin:")
+	assert.Contains(t, stderr, "[INFO]  plugin process exited:")
 	assert.Contains(t, stderr, "plugin process exited:")
 	assert.Contains(t, stdout, "1 to add, 0 to change, 0 to destroy.")
 }
@@ -50,7 +50,7 @@ func TestEngineLocalApply(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, LocalEngineBinaryPath+": plugin address")
-	assert.Contains(t, stderr, "starting plugin:")
+	assert.Contains(t, stderr, "[INFO]  plugin process exited:")
 	assert.Contains(t, stderr, "plugin process exited:")
 	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
 }
@@ -65,7 +65,7 @@ func TestEngineOpentofu(t *testing.T) {
 	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "starting plugin:")
+	assert.Contains(t, stderr, "[INFO]  plugin process exited:")
 	assert.Contains(t, stderr, "plugin process exited:")
 	assert.Contains(t, stdout, "OpenTofu has been successfully initialized")
 	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
@@ -98,7 +98,7 @@ func TestEngineRunAllOpentofuCustomPath(t *testing.T) {
 	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "starting plugin:")
+	assert.Contains(t, stderr, "[INFO]  plugin process exited:")
 	assert.Contains(t, stderr, "plugin process exited:")
 	assert.Contains(t, stdout, "OpenTofu has been successful")
 	assert.Contains(t, stdout, "Tofu Shutdown completed")
@@ -127,7 +127,7 @@ func TestEngineDownloadOverHttp(t *testing.T) {
 	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "starting plugin:")
+	assert.Contains(t, stderr, "[INFO]  plugin process exited:")
 	assert.Contains(t, stderr, "plugin process exited:")
 	assert.Contains(t, stdout, "OpenTofu has been successfully initialized")
 	assert.Contains(t, stdout, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
