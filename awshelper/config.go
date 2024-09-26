@@ -228,12 +228,13 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 	}
 
 	if _, err = sess.Config.Credentials.Get(); err != nil {
+		// construct dynamic error message based on the configuration
 		msg := "Error finding AWS credentials (did you set the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables?)"
 		if config != nil && len(config.CredsFilename) > 0 {
 			msg = fmt.Sprintf("Error finding AWS credentials in file '%s' (did you set the correct file name and/or profile?)", config.CredsFilename)
 		}
 
-		return nil, errors.WithStackTraceAndPrefix(err, msg)
+		return nil, errors.WithStackTraceAndPrefix(err, msg) //nolint:govet
 	}
 
 	return sess, nil

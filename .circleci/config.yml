@@ -12,7 +12,7 @@ env: &env
 
 defaults: &defaults
   docker:
-    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.22.6-tf1.5-tg58.8-pck1.8-ci56.0
+    - image: 087285199408.dkr.ecr.us-east-1.amazonaws.com/circle-ci-test-image-base:go1.23.1-tf1.5-tg58.8-pck1.8-ci58.2
 
 # Install Terraform which is not available in the default image
 install_terraform_latest: &install_terraform_latest

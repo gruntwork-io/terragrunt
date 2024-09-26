@@ -122,6 +122,7 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 			providerHandlers = append(providerHandlers, handlers.NewProviderDirectHandler(providerService, CacheProviderHTTPStatusCode, method, cliCfg.CredentialsSource()))
 			directIsdefined = true
 		}
+
 		method.AppendExclude(excludeAddrs)
 	}
 

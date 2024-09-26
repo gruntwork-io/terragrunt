@@ -180,7 +180,7 @@ func WrapWithTelemetry(opts *options.TerragruntOptions) func(ctx *cli.Context, a
 			"args":             opts.TerraformCliArgs,
 			"dir":              opts.WorkingDir,
 		}, func(childCtx context.Context) error {
-			ctx.Context = childCtx
+			ctx.Context = childCtx //nolint:fatcontext
 			if err := initialSetup(ctx, opts); err != nil {
 				return err
 			}
