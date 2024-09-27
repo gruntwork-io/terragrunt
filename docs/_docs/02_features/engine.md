@@ -97,7 +97,7 @@ To disable this feature, set the environment variable:
 export TG_ENGINE_SKIP_CHECK=0 
 ```
 
-To configure a custom log level for the engine, set the `TG_ENGINE_LOG_LEVEL` environment variable to one of: `debug`, `info`, `warn`, `error`, `fatal`, or `panic`.
+To configure a custom log level for the engine, set the `TG_ENGINE_LOG_LEVEL` environment variable to one of: `debug`, `info`, `warn`, `error`.
 
 ```sh
 export TG_ENGINE_LOG_LEVEL=debug
