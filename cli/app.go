@@ -128,6 +128,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	}(ctx)
 
 	ctx = config.WithConfigValues(ctx)
+	// configure engine context
 	ctx = engine.WithEngineValues(ctx)
 
 	defer func(ctx context.Context) {
