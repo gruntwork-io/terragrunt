@@ -328,6 +328,18 @@ type TerragruntOptions struct {
 	// Allows to skip the output of all dependencies. Intended for use with `hclvalidate` command.
 	SkipOutput bool
 
+	// Flag to enable engine for running IaC operations.
+	EngineEnabled bool
+
+	// Path to cache directory for engine files
+	EngineCachePath string
+
+	// Skip checksum check for engine package.
+	EngineSkipChecksumCheck bool
+
+	// Custom log level for engine
+	EngineLogLevel string
+
 	// Options to use engine for running IaC operations.
 	Engine *EngineOptions
 }
@@ -589,6 +601,11 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		JSONOutputFolder:               opts.JSONOutputFolder,
 		AuthProviderCmd:                opts.AuthProviderCmd,
 		SkipOutput:                     opts.SkipOutput,
+		DisableLog:                     opts.DisableLog,
+		EngineEnabled:                  opts.EngineEnabled,
+		EngineCachePath:                opts.EngineCachePath,
+		EngineLogLevel:                 opts.EngineLogLevel,
+		EngineSkipChecksumCheck:        opts.EngineSkipChecksumCheck,
 		Engine:                         cloneEngineOptions(opts.Engine),
 	}, nil
 }

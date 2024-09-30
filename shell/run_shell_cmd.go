@@ -187,11 +187,11 @@ func RunShellCommandWithOutput(
 			cmdStdout = io.MultiWriter(&stdoutBuf)
 		}
 
-		if command == opts.TerraformPath && opts.Engine != nil && !engine.IsEngineEnabled() {
+		if command == opts.TerraformPath && opts.Engine != nil && !opts.EngineEnabled {
 			opts.Logger.Debugf("Engine is not enabled, running command directly in %s", commandDir)
 		}
 
-		useEngine := opts.Engine != nil && engine.IsEngineEnabled()
+		useEngine := opts.Engine != nil && opts.EngineEnabled
 
 		// If the engine is enabled and the command is IaC executable, use the engine to run the command.
 		if useEngine && command == opts.TerraformPath {

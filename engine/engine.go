@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -38,22 +37,20 @@ import (
 )
 
 const (
-	engineVersion                                    = 1
-	engineCookieKey                                  = "engine"
-	engineCookieValue                                = "terragrunt"
-	EnableExperimentalEngineEnvName                  = "TG_EXPERIMENTAL_ENGINE"
-	DefaultCacheDir                                  = ".cache"
-	EngineCacheDir                                   = "terragrunt/plugins/iac-engine"
-	PrefixTrim                                       = "terragrunt-"
-	FileNameFormat                                   = "terragrunt-iac-%s_%s_%s_%s_%s"
-	ChecksumFileNameFormat                           = "terragrunt-iac-%s_%s_%s_SHA256SUMS"
-	EngineCachePathEnv                               = "TG_ENGINE_CACHE_PATH"
-	EngineSkipCheckEnv                               = "TG_ENGINE_SKIP_CHECK"
-	EngineLogLevelEnv                                = "TG_ENGINE_LOG_LEVEL"
-	defaultEngineRepoRoot                            = "github.com/"
-	TerraformCommandContextKey      engineClientsKey = iota
-	LocksContextKey                 engineLocksKey   = iota
-	LatestVersionsContextKey        engineLocksKey   = iota
+	engineVersion     = 1
+	engineCookieKey   = "engine"
+	engineCookieValue = "terragrunt"
+
+	DefaultCacheDir        = ".cache"
+	DefaultEngineCachePath = "terragrunt/plugins/iac-engine"
+	PrefixTrim             = "terragrunt-"
+	FileNameFormat         = "terragrunt-iac-%s_%s_%s_%s_%s"
+	ChecksumFileNameFormat = "terragrunt-iac-%s_%s_%s_SHA256SUMS"
+
+	defaultEngineRepoRoot                       = "github.com/"
+	TerraformCommandContextKey engineClientsKey = iota
+	LocksContextKey            engineLocksKey   = iota
+	LatestVersionsContextKey   engineLocksKey   = iota
 )
 
 type engineClientsKey byte
@@ -130,9 +127,6 @@ func Run(
 
 // WithEngineValues add to context default values for engine.
 func WithEngineValues(ctx context.Context) context.Context {
-	if !IsEngineEnabled() {
-		return ctx
-	}
 
 	ctx = context.WithValue(ctx, TerraformCommandContextKey, &sync.Map{})
 	ctx = context.WithValue(ctx, LocksContextKey, util.NewKeyLocks())
@@ -143,7 +137,7 @@ func WithEngineValues(ctx context.Context) context.Context {
 
 // DownloadEngine downloads the engine for the given options.
 func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error {
-	if !IsEngineEnabled() {
+	if !opts.EngineEnabled {
 		return nil
 	}
 
@@ -166,7 +160,7 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 		}
 	}
 
-	path, err := engineDir(e)
+	path, err := engineDir(opts)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -226,7 +220,7 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 		}
 	}
 
-	if !skipEngineCheck() && checksumFile != "" && checksumSigFile != "" {
+	if !opts.EngineSkipChecksumCheck && checksumFile != "" && checksumSigFile != "" {
 		opts.Logger.Infof("Verifying checksum for %s", downloadFile)
 
 		if err := verifyFile(downloadFile, checksumFile, checksumSigFile); err != nil {
@@ -351,13 +345,14 @@ func extractArchive(opts *options.TerragruntOptions, downloadFile string, engine
 }
 
 // engineDir returns the directory path where engine files are stored.
-func engineDir(e *options.EngineOptions) (string, error) {
+func engineDir(terragruntOptions *options.TerragruntOptions) (string, error) {
+	e := terragruntOptions.Engine
 	if util.FileExists(e.Source) {
 		return filepath.Dir(e.Source), nil
 	}
 
-	cacheDir := os.Getenv(EngineCachePathEnv)
-	if cacheDir == "" {
+	cacheDir := terragruntOptions.EngineCachePath
+	if len(cacheDir) == 0 {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			return "", errors.WithStackTrace(err)
@@ -369,7 +364,7 @@ func engineDir(e *options.EngineOptions) (string, error) {
 	platform := runtime.GOOS
 	arch := runtime.GOARCH
 
-	return filepath.Join(cacheDir, EngineCacheDir, e.Type, e.Version, platform, arch), nil
+	return filepath.Join(cacheDir, DefaultEngineCachePath, e.Type, e.Version, platform, arch), nil
 }
 
 // engineFileName returns the file name for the engine.
@@ -463,15 +458,9 @@ func engineVersionsCacheFromContext(ctx context.Context) (*cache.Cache[string], 
 	return result, nil
 }
 
-// IsEngineEnabled returns true if the experimental engine is enabled.
-func IsEngineEnabled() bool {
-	ok, _ := strconv.ParseBool(os.Getenv(EnableExperimentalEngineEnvName)) //nolint:errcheck
-	return ok
-}
-
 // Shutdown shuts down the experimental engine.
-func Shutdown(ctx context.Context) error {
-	if !IsEngineEnabled() {
+func Shutdown(ctx context.Context, opts *options.TerragruntOptions) error {
+	if !opts.EngineEnabled {
 		return nil
 	}
 
@@ -499,7 +488,7 @@ func Shutdown(ctx context.Context) error {
 
 // createEngine create engine for working directory
 func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineClient, *plugin.Client, error) {
-	path, err := engineDir(terragruntOptions.Engine)
+	path, err := engineDir(terragruntOptions)
 	if err != nil {
 		return nil, nil, errors.WithStackTrace(err)
 	}
@@ -509,7 +498,7 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 	localChecksumSigFile := filepath.Join(path, engineChecksumSigName(terragruntOptions.Engine))
 
 	// validate engine before loading if verification is not disabled
-	if !skipEngineCheck() && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) && util.FileExists(localChecksumSigFile) {
+	if !terragruntOptions.EngineSkipChecksumCheck && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) && util.FileExists(localChecksumSigFile) {
 		if err := verifyFile(localEnginePath, localChecksumFile, localChecksumSigFile); err != nil {
 			return nil, nil, errors.WithStackTrace(err)
 		}
@@ -519,8 +508,8 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 
 	terragruntOptions.Logger.Debugf("Creating engine %s", localEnginePath)
 
-	engineLogLevel := os.Getenv(EngineLogLevelEnv)
-	if engineLogLevel == "" {
+	engineLogLevel := terragruntOptions.EngineLogLevel
+	if len(engineLogLevel) == 0 {
 		engineLogLevel = terragruntOptions.LogLevel.String()
 		// turn off log formatting if disabled for Terragrunt
 		if terragruntOptions.DisableLog {
@@ -810,10 +799,4 @@ func ConvertMetaToProtobuf(meta map[string]interface{}) (map[string]*anypb.Any, 
 	}
 
 	return protoMeta, nil
-}
-
-// skipChecksumCheck returns true if the engine checksum check is skipped.
-func skipEngineCheck() bool {
-	ok, _ := strconv.ParseBool(os.Getenv(EngineSkipCheckEnv)) //nolint:errcheck
-	return ok
 }
