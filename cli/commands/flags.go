@@ -164,7 +164,7 @@ const (
 	TerragruntProviderCacheRegistryNamesFlagName = "terragrunt-provider-cache-registry-names"
 	TerragruntProviderCacheRegistryNamesEnvName  = "TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES"
 
-	// Engine related environment variables
+	// Engine related environment variables.
 
 	TerragruntEngineEnableEnvName = "TG_EXPERIMENTAL_ENGINE"
 	TerragruntEngineCachePathEnv  = "TG_ENGINE_CACHE_PATH"
