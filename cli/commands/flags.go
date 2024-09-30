@@ -350,9 +350,10 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			},
 		},
 		&cli.BoolFlag{
-			Name:   TerragruntLogDisableFlagName,
-			EnvVar: TerragruntLogDisableEnvName,
-			Usage:  "Disable logging",
+			Name:        TerragruntLogDisableFlagName,
+			EnvVar:      TerragruntLogDisableEnvName,
+			Usage:       "Disable logging",
+			Destination: &opts.DisableLog,
 			Action: func(ctx *cli.Context, _ bool) error {
 				opts.ForwardTFStdout = true
 				opts.Logger.SetOptions(log.WithFormatter(&format.SilentFormatter{}))

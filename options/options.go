@@ -141,6 +141,9 @@ type TerragruntOptions struct {
 	// Log formatter
 	LogFormatter *format.Formatter
 
+	// If true, logs will be disabled
+	DisableLog bool
+
 	// If true, logs will be displayed in format key/value, by default logs are formatted in human-readable format.
 	DisableLogFormatting bool
 
