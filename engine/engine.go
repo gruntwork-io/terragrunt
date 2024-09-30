@@ -127,7 +127,6 @@ func Run(
 
 // WithEngineValues add to context default values for engine.
 func WithEngineValues(ctx context.Context) context.Context {
-
 	ctx = context.WithValue(ctx, TerraformCommandContextKey, &sync.Map{})
 	ctx = context.WithValue(ctx, LocksContextKey, util.NewKeyLocks())
 	ctx = context.WithValue(ctx, LatestVersionsContextKey, cache.NewCache[string]("engineVersions"))
