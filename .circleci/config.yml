@@ -8,7 +8,7 @@ env: &env
   environment:
     GRUNTWORK_INSTALLER_VERSION: v0.0.39
     MODULE_CI_VERSION: v0.57.0
-    TOFU_ENGINE_VERSION: "v0.0.4"
+    TOFU_ENGINE_VERSION: "v0.0.9"
 
 defaults: &defaults
   docker:

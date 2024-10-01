@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -38,21 +37,20 @@ import (
 )
 
 const (
-	engineVersion                                    = 1
-	engineCookieKey                                  = "engine"
-	engineCookieValue                                = "terragrunt"
-	EnableExperimentalEngineEnvName                  = "TG_EXPERIMENTAL_ENGINE"
-	DefaultCacheDir                                  = ".cache"
-	EngineCacheDir                                   = "terragrunt/plugins/iac-engine"
-	PrefixTrim                                       = "terragrunt-"
-	FileNameFormat                                   = "terragrunt-iac-%s_%s_%s_%s_%s"
-	ChecksumFileNameFormat                           = "terragrunt-iac-%s_%s_%s_SHA256SUMS"
-	EngineCachePathEnv                               = "TG_ENGINE_CACHE_PATH"
-	EngineSkipCheckEnv                               = "TG_ENGINE_SKIP_CHECK"
-	defaultEngineRepoRoot                            = "github.com/"
-	TerraformCommandContextKey      engineClientsKey = iota
-	LocksContextKey                 engineLocksKey   = iota
-	LatestVersionsContextKey        engineLocksKey   = iota
+	engineVersion     = 1
+	engineCookieKey   = "engine"
+	engineCookieValue = "terragrunt"
+
+	defaultCacheDir        = ".cache"
+	defaultEngineCachePath = "terragrunt/plugins/iac-engine"
+	prefixTrim             = "terragrunt-"
+	fileNameFormat         = "terragrunt-iac-%s_%s_%s_%s_%s"
+	checksumFileNameFormat = "terragrunt-iac-%s_%s_%s_SHA256SUMS"
+
+	defaultEngineRepoRoot                       = "github.com/"
+	terraformCommandContextKey engineClientsKey = iota
+	locksContextKey            engineLocksKey   = iota
+	latestVersionsContextKey   engineLocksKey   = iota
 )
 
 type engineClientsKey byte
@@ -129,20 +127,16 @@ func Run(
 
 // WithEngineValues add to context default values for engine.
 func WithEngineValues(ctx context.Context) context.Context {
-	if !IsEngineEnabled() {
-		return ctx
-	}
-
-	ctx = context.WithValue(ctx, TerraformCommandContextKey, &sync.Map{})
-	ctx = context.WithValue(ctx, LocksContextKey, util.NewKeyLocks())
-	ctx = context.WithValue(ctx, LatestVersionsContextKey, cache.NewCache[string]("engineVersions"))
+	ctx = context.WithValue(ctx, terraformCommandContextKey, &sync.Map{})
+	ctx = context.WithValue(ctx, locksContextKey, util.NewKeyLocks())
+	ctx = context.WithValue(ctx, latestVersionsContextKey, cache.NewCache[string]("engineVersions"))
 
 	return ctx
 }
 
 // DownloadEngine downloads the engine for the given options.
 func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error {
-	if !IsEngineEnabled() {
+	if !opts.EngineEnabled {
 		return nil
 	}
 
@@ -165,7 +159,7 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 		}
 	}
 
-	path, err := engineDir(e)
+	path, err := engineDir(opts)
 	if err != nil {
 		return errors.WithStackTrace(err)
 	}
@@ -225,7 +219,7 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 		}
 	}
 
-	if !skipEngineCheck() && checksumFile != "" && checksumSigFile != "" {
+	if !opts.EngineSkipChecksumCheck && checksumFile != "" && checksumSigFile != "" {
 		opts.Logger.Infof("Verifying checksum for %s", downloadFile)
 
 		if err := verifyFile(downloadFile, checksumFile, checksumSigFile); err != nil {
@@ -350,25 +344,26 @@ func extractArchive(opts *options.TerragruntOptions, downloadFile string, engine
 }
 
 // engineDir returns the directory path where engine files are stored.
-func engineDir(e *options.EngineOptions) (string, error) {
-	if util.FileExists(e.Source) {
-		return filepath.Dir(e.Source), nil
+func engineDir(terragruntOptions *options.TerragruntOptions) (string, error) {
+	engine := terragruntOptions.Engine
+	if util.FileExists(engine.Source) {
+		return filepath.Dir(engine.Source), nil
 	}
 
-	cacheDir := os.Getenv(EngineCachePathEnv)
-	if cacheDir == "" {
+	cacheDir := terragruntOptions.EngineCachePath
+	if len(cacheDir) == 0 {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			return "", errors.WithStackTrace(err)
 		}
 
-		cacheDir = filepath.Join(homeDir, DefaultCacheDir)
+		cacheDir = filepath.Join(homeDir, defaultCacheDir)
 	}
 
 	platform := runtime.GOOS
 	arch := runtime.GOARCH
 
-	return filepath.Join(cacheDir, EngineCacheDir, e.Type, e.Version, platform, arch), nil
+	return filepath.Join(cacheDir, defaultEngineCachePath, engine.Type, engine.Version, platform, arch), nil
 }
 
 // engineFileName returns the file name for the engine.
@@ -381,18 +376,18 @@ func engineFileName(e *options.EngineOptions) string {
 
 	platform := runtime.GOOS
 	arch := runtime.GOARCH
-	engineName = strings.TrimPrefix(engineName, PrefixTrim)
+	engineName = strings.TrimPrefix(engineName, prefixTrim)
 
-	return fmt.Sprintf(FileNameFormat, engineName, e.Type, e.Version, platform, arch)
+	return fmt.Sprintf(fileNameFormat, engineName, e.Type, e.Version, platform, arch)
 }
 
 // engineChecksumName returns the file name of engine checksum file
 func engineChecksumName(e *options.EngineOptions) string {
 	engineName := filepath.Base(e.Source)
 
-	engineName = strings.TrimPrefix(engineName, PrefixTrim)
+	engineName = strings.TrimPrefix(engineName, prefixTrim)
 
-	return fmt.Sprintf(ChecksumFileNameFormat, engineName, e.Type, e.Version)
+	return fmt.Sprintf(checksumFileNameFormat, engineName, e.Type, e.Version)
 }
 
 // engineChecksumSigName returns the file name of engine checksum file signature
@@ -420,7 +415,7 @@ func isArchiveByHeader(filePath string) bool {
 
 // engineClientsFromContext returns the engine clients map from the context.
 func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
-	val := ctx.Value(TerraformCommandContextKey)
+	val := ctx.Value(terraformCommandContextKey)
 	if val == nil {
 		return nil, errors.WithStackTrace(goErrors.New("failed to fetch engine clients from context"))
 	}
@@ -435,7 +430,7 @@ func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
 
 // downloadLocksFromContext returns the locks map from the context.
 func downloadLocksFromContext(ctx context.Context) (*util.KeyLocks, error) {
-	val := ctx.Value(LocksContextKey)
+	val := ctx.Value(locksContextKey)
 	if val == nil {
 		return nil, errors.WithStackTrace(goErrors.New("failed to fetch engine clients from context"))
 	}
@@ -449,7 +444,7 @@ func downloadLocksFromContext(ctx context.Context) (*util.KeyLocks, error) {
 }
 
 func engineVersionsCacheFromContext(ctx context.Context) (*cache.Cache[string], error) {
-	val := ctx.Value(LatestVersionsContextKey)
+	val := ctx.Value(latestVersionsContextKey)
 	if val == nil {
 		return nil, errors.WithStackTrace(goErrors.New("failed to fetch engine versions cache from context"))
 	}
@@ -462,15 +457,9 @@ func engineVersionsCacheFromContext(ctx context.Context) (*cache.Cache[string], 
 	return result, nil
 }
 
-// IsEngineEnabled returns true if the experimental engine is enabled.
-func IsEngineEnabled() bool {
-	ok, _ := strconv.ParseBool(os.Getenv(EnableExperimentalEngineEnvName)) //nolint:errcheck
-	return ok
-}
-
 // Shutdown shuts down the experimental engine.
-func Shutdown(ctx context.Context) error {
-	if !IsEngineEnabled() {
+func Shutdown(ctx context.Context, opts *options.TerragruntOptions) error {
+	if !opts.EngineEnabled {
 		return nil
 	}
 
@@ -498,7 +487,7 @@ func Shutdown(ctx context.Context) error {
 
 // createEngine create engine for working directory
 func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineClient, *plugin.Client, error) {
-	path, err := engineDir(terragruntOptions.Engine)
+	path, err := engineDir(terragruntOptions)
 	if err != nil {
 		return nil, nil, errors.WithStackTrace(err)
 	}
@@ -508,7 +497,9 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 	localChecksumSigFile := filepath.Join(path, engineChecksumSigName(terragruntOptions.Engine))
 
 	// validate engine before loading if verification is not disabled
-	if !skipEngineCheck() && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) && util.FileExists(localChecksumSigFile) {
+	skipCheck := terragruntOptions.EngineSkipChecksumCheck
+	if !skipCheck && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) &&
+		util.FileExists(localChecksumSigFile) {
 		if err := verifyFile(localEnginePath, localChecksumFile, localChecksumSigFile); err != nil {
 			return nil, nil, errors.WithStackTrace(err)
 		}
@@ -518,10 +509,21 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 
 	terragruntOptions.Logger.Debugf("Creating engine %s", localEnginePath)
 
+	engineLogLevel := terragruntOptions.EngineLogLevel
+	if len(engineLogLevel) == 0 {
+		engineLogLevel = terragruntOptions.LogLevel.String()
+		// turn off log formatting if disabled for Terragrunt
+		if terragruntOptions.DisableLog {
+			engineLogLevel = hclog.Off.String()
+		}
+	}
+
 	logger := hclog.NewInterceptLogger(&hclog.LoggerOptions{
-		Level:  hclog.Debug,
+		Level:  hclog.LevelFromString(engineLogLevel),
 		Output: terragruntOptions.Logger.Writer(),
 	})
+
+	cmd := exec.Command(localEnginePath)
 	client := plugin.NewClient(&plugin.ClientConfig{
 		Logger: logger,
 		HandshakeConfig: plugin.HandshakeConfig{
@@ -532,7 +534,7 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 		Plugins: map[string]plugin.Plugin{
 			"plugin": &engine.TerragruntGRPCEngine{},
 		},
-		Cmd: exec.Command(localEnginePath),
+		Cmd: cmd,
 		GRPCDialOptions: []grpc.DialOption{
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		},
@@ -798,10 +800,4 @@ func ConvertMetaToProtobuf(meta map[string]interface{}) (map[string]*anypb.Any, 
 	}
 
 	return protoMeta, nil
-}
-
-// skipChecksumCheck returns true if the engine checksum check is skipped.
-func skipEngineCheck() bool {
-	ok, _ := strconv.ParseBool(os.Getenv(EngineSkipCheckEnv)) //nolint:errcheck
-	return ok
 }
