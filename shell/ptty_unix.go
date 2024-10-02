@@ -91,7 +91,8 @@ func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.
 	}
 
 	// Wait for stdin copy to complete before returning
-	if copyStdinErr := <-stdinDone; copyStdinErr != nil && copyStdinErr != io.EOF {
+
+	if copyStdinErr := <-stdinDone; copyStdinErr != nil && !errors.IsError(copyStdinErr, io.EOF) {
 		terragruntOptions.Logger.Errorf("Error forwarding stdin: %s", copyStdinErr)
 	}
 
