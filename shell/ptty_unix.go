@@ -54,35 +54,41 @@ func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.
 	}()
 	ch <- syscall.SIGWINCH // Make sure the pty matches current size
 
-	// Set stdin in raw mode so that we preserve readline properties
-	oldState, setRawErr := term.MakeRaw(int(os.Stdin.Fd()))
-	if setRawErr != nil {
-		return errors.WithStackTrace(setRawErr)
+	//if isatty.IsTerminal(os.Stdin.Fd())
+	{
+		// Set stdin in raw mode so that we preserve readline properties
+		oldState, setRawErr := term.MakeRaw(int(os.Stdin.Fd()))
+		if setRawErr != nil {
+			terragruntOptions.Logger.Errorf("Error restoring terminal state: %s", setRawErr)
+			//return errors.WithStackTrace(setRawErr)
+		}
+
+		defer func() {
+			if restoreErr := term.Restore(int(os.Stdin.Fd()), oldState); restoreErr != nil {
+				terragruntOptions.Logger.Errorf("Error restoring terminal state: %s", restoreErr)
+				// Only overwrite the previous error if there was no error since this error has lower priority than any
+				// errors in the main routine
+				if err == nil {
+					err = errors.WithStackTrace(restoreErr)
+				}
+			}
+		}()
 	}
 
-	defer func() {
-		if restoreErr := term.Restore(int(os.Stdin.Fd()), oldState); restoreErr != nil {
-			terragruntOptions.Logger.Errorf("Error restoring terminal state: %s", restoreErr)
-			// Only overwrite the previous error if there was no error since this error has lower priority than any
-			// errors in the main routine
-			if err == nil {
-				err = errors.WithStackTrace(restoreErr)
-			}
-		}
-	}()
-
-	// Copy stdin to the pty
+	stdinDone := make(chan error, 1)
 	go func() {
 		_, copyStdinErr := io.Copy(pseudoTerminal, os.Stdin)
-		// We don't propagate this error upstream because it does not affect normal operation of the command. A repeat
-		// of the same stdin in this case should resolve the issue.
-		terragruntOptions.Logger.Errorf("Error forwarding stdin: %s", copyStdinErr)
+		stdinDone <- copyStdinErr
 	}()
 
-	// ... and the pty to stdout.
 	_, copyStdoutErr := io.Copy(cmdStdout, pseudoTerminal)
 	if copyStdoutErr != nil {
 		return errors.WithStackTrace(copyStdoutErr)
+	}
+
+	// Wait for stdin copy to complete before returning
+	if copyStdinErr := <-stdinDone; copyStdinErr != nil && copyStdinErr != io.EOF {
+		terragruntOptions.Logger.Errorf("Error forwarding stdin: %s", copyStdinErr)
 	}
 
 	return nil
