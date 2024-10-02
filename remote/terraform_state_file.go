@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 

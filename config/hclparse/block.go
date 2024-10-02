@@ -1,7 +1,7 @@
 package hclparse
 
 import (
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/hashicorp/hcl/v2"
 )
 

@@ -4,8 +4,8 @@ package terraform
 import (
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/gruntwork-cli/collections"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/terraform"

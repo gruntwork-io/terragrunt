@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	goErrors "errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,9 +25,9 @@ import (
 
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt-engine-go/engine"
 	"github.com/gruntwork-io/terragrunt-engine-go/proto"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-plugin"
@@ -119,12 +118,12 @@ func Run(
 
 	terragruntEngine := engInst.terragruntEngine
 
-	cmdOutput, err := invoke(ctx, runOptions, terragruntEngine)
+	output, err := invoke(ctx, runOptions, terragruntEngine)
 	if err != nil {
 		return nil, errors.WithStackTrace(err)
 	}
 
-	return cmdOutput, nil
+	return output, nil
 }
 
 // WithEngineValues add to context default values for engine.
@@ -422,12 +421,12 @@ func isArchiveByHeader(filePath string) bool {
 func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
 	val := ctx.Value(TerraformCommandContextKey)
 	if val == nil {
-		return nil, errors.WithStackTrace(goErrors.New("failed to fetch engine clients from context"))
+		return nil, errors.WithStackTrace(errors.New("failed to fetch engine clients from context"))
 	}
 
 	result, ok := val.(*sync.Map)
 	if !ok {
-		return nil, errors.WithStackTrace(goErrors.New("failed to cast engine clients from context"))
+		return nil, errors.WithStackTrace(errors.New("failed to cast engine clients from context"))
 	}
 
 	return result, nil
@@ -437,12 +436,12 @@ func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
 func downloadLocksFromContext(ctx context.Context) (*util.KeyLocks, error) {
 	val := ctx.Value(LocksContextKey)
 	if val == nil {
-		return nil, errors.WithStackTrace(goErrors.New("failed to fetch engine clients from context"))
+		return nil, errors.WithStackTrace(errors.New("failed to fetch engine clients from context"))
 	}
 
 	result, ok := val.(*util.KeyLocks)
 	if !ok {
-		return nil, errors.WithStackTrace(goErrors.New("failed to cast engine clients from context"))
+		return nil, errors.WithStackTrace(errors.New("failed to cast engine clients from context"))
 	}
 
 	return result, nil
@@ -451,12 +450,12 @@ func downloadLocksFromContext(ctx context.Context) (*util.KeyLocks, error) {
 func engineVersionsCacheFromContext(ctx context.Context) (*cache.Cache[string], error) {
 	val := ctx.Value(LatestVersionsContextKey)
 	if val == nil {
-		return nil, errors.WithStackTrace(goErrors.New("failed to fetch engine versions cache from context"))
+		return nil, errors.WithStackTrace(errors.New("failed to fetch engine versions cache from context"))
 	}
 
 	result, ok := val.(*cache.Cache[string])
 	if !ok {
-		return nil, errors.WithStackTrace(goErrors.New("failed to cast engine versions cache from context"))
+		return nil, errors.WithStackTrace(errors.New("failed to cast engine versions cache from context"))
 	}
 
 	return result, nil
@@ -575,9 +574,12 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 		return nil, errors.WithStackTrace(err)
 	}
 
-	var stdoutBuf, stderrBuf bytes.Buffer
-	stdout := io.MultiWriter(runOptions.CmdStdout, &stdoutBuf)
-	stderr := io.MultiWriter(runOptions.CmdStderr, &stderrBuf)
+	var (
+		output = new(util.CmdOutput)
+
+		stdout = io.MultiWriter(runOptions.CmdStdout, &output.Stdout)
+		stderr = io.MultiWriter(runOptions.CmdStderr, &output.Stderr)
+	)
 
 	var (
 		stdoutLineBuf, stderrLineBuf bytes.Buffer
@@ -614,20 +616,14 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 	if resultCode != 0 {
 		err = util.ProcessExecutionError{
 			Err:        fmt.Errorf("command failed with exit code %d", resultCode),
-			Stdout:     stdoutBuf.String(),
-			Stderr:     stderrBuf.String(),
+			Output:     output,
 			WorkingDir: terragruntOptions.WorkingDir,
 		}
 
 		return nil, errors.WithStackTrace(err)
 	}
 
-	cmdOutput := util.CmdOutput{
-		Stdout: stdoutBuf.String(),
-		Stderr: stderrBuf.String(),
-	}
-
-	return &cmdOutput, nil
+	return output, nil
 }
 
 // processStream handles the character buffering and line printing for a given stream

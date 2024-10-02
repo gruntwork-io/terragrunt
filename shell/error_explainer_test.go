@@ -1,7 +1,9 @@
 package shell_test
 
 import (
+	"bytes"
 	"errors"
+	"os/exec"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -46,10 +48,13 @@ func TestExplainError(t *testing.T) {
 		t.Run(tt.errorOutput, func(t *testing.T) {
 			t.Parallel()
 
+			output := new(util.CmdOutput)
+			output.Stderr = *bytes.NewBufferString(tt.errorOutput)
+
 			err := multierror.Append(&multierror.Error{}, util.ProcessExecutionError{
 				Err:    errors.New(""),
-				Stdout: "",
-				Stderr: tt.errorOutput,
+				Cmd:    exec.Command(""),
+				Output: output,
 			})
 			explanation := shell.ExplainError(err)
 			assert.Contains(t, explanation, tt.explanation)

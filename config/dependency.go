@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	goErrors "errors"
 	"fmt"
 	"io"
 	"os"
@@ -24,12 +23,12 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/amazonsts"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -579,7 +578,7 @@ func getTerragruntOutput(ctx *ParsingContext, dependencyConfig Dependency) (*cty
 
 func isAwsS3NoSuchKey(err error) bool {
 	var awsErr awserr.Error
-	if goErrors.As(errors.Unwrap(err), &awsErr) {
+	if errors.As(errors.Unwrap(err), &awsErr) {
 		return awsErr.Code() == "NoSuchKey"
 	}
 
@@ -844,7 +843,7 @@ func getTerragruntOutputJSONFromInitFolder(ctx *ParsingContext, terraformWorking
 		return nil, err
 	}
 
-	jsonString := strings.TrimSpace(out.Stdout)
+	jsonString := strings.TrimSpace(out.Stdout.String())
 	jsonBytes := []byte(jsonString)
 
 	ctx.TerragruntOptions.Logger.Debugf("Retrieved output from %s as json: %s", targetConfigPath, jsonString)
@@ -951,7 +950,7 @@ func getTerragruntOutputJSONFromRemoteState(
 		return nil, err
 	}
 
-	jsonString := strings.TrimSpace(out.Stdout)
+	jsonString := strings.TrimSpace(out.Stdout.String())
 	jsonBytes := []byte(jsonString)
 	ctx.TerragruntOptions.Logger.Debugf("Retrieved output from %s as json: %s", targetConfigPath, jsonString)
 

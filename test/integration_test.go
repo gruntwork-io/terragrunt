@@ -4,7 +4,6 @@ package test_test
 import (
 	"bytes"
 	"encoding/json"
-	goErrors "errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -18,7 +17,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/cli"
@@ -27,6 +25,7 @@ import (
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -640,7 +639,7 @@ func TestInvalidSource(t *testing.T) {
 
 	var workingDirNotFoundErr terraform.WorkingDirNotFound
 	// _, ok := errors.Unwrap(err).(terraform.WorkingDirNotFound)
-	ok := goErrors.As(err, &workingDirNotFoundErr)
+	ok := errors.As(err, &workingDirNotFoundErr)
 	assert.True(t, ok)
 }
 
@@ -828,7 +827,7 @@ func TestTerragruntMissingDependenciesFail(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt init --terragrunt-working-dir "+generateTestCase, &stdout, &stderr)
 	require.Error(t, err)
 	var parsedError config.DependencyDirNotFoundError
-	ok := goErrors.As(err, &parsedError)
+	ok := errors.As(err, &parsedError)
 	assert.True(t, ok)
 	assert.Len(t, parsedError.Dir, 1)
 	assert.Contains(t, parsedError.Dir[0], "hl3-release")
@@ -2173,7 +2172,7 @@ func TestTerragruntGenerateBlockRemoveTerragruntFail(t *testing.T) {
 	require.Error(t, err)
 
 	var generateFileRemoveError codegen.GenerateFileRemoveError
-	ok := goErrors.As(err, &generateFileRemoveError)
+	ok := errors.As(err, &generateFileRemoveError)
 	assert.True(t, ok)
 
 	assert.FileExists(t, filepath.Join(generateTestCase, "backend.tf"))
@@ -2241,7 +2240,7 @@ func TestTerragruntGenerateBlockOverwriteTerragruntFail(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+generateTestCase, &stdout, &stderr)
 	require.Error(t, err)
 	var generateFileExistsError codegen.GenerateFileExistsError
-	ok := goErrors.As(err, &generateFileExistsError)
+	ok := errors.As(err, &generateFileExistsError)
 	assert.True(t, ok)
 }
 
@@ -2311,7 +2310,7 @@ func TestTerragruntGenerateBlockSameNameFail(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt init --terragrunt-working-dir "+generateTestCase, &stdout, &stderr)
 	require.Error(t, err)
 	var parsedError config.DuplicatedGenerateBlocksError
-	ok := goErrors.As(err, &parsedError)
+	ok := errors.As(err, &parsedError)
 	assert.True(t, ok)
 	assert.Len(t, parsedError.BlockName, 1)
 	assert.Contains(t, parsedError.BlockName, "backend")
@@ -2329,7 +2328,7 @@ func TestTerragruntGenerateBlockSameNameIncludeFail(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt init --terragrunt-working-dir "+generateTestCase, &stdout, &stderr)
 	require.Error(t, err)
 	var parsedError config.DuplicatedGenerateBlocksError
-	ok := goErrors.As(err, &parsedError)
+	ok := errors.As(err, &parsedError)
 	assert.True(t, ok)
 	assert.Len(t, parsedError.BlockName, 1)
 	assert.Contains(t, parsedError.BlockName, "backend")
@@ -2347,7 +2346,7 @@ func TestTerragruntGenerateBlockMultipleSameNameFail(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt init --terragrunt-working-dir "+generateTestCase, &stdout, &stderr)
 	require.Error(t, err)
 	var parsedError config.DuplicatedGenerateBlocksError
-	ok := goErrors.As(err, &parsedError)
+	ok := errors.As(err, &parsedError)
 	assert.True(t, ok)
 	assert.Len(t, parsedError.BlockName, 2)
 	assert.Contains(t, parsedError.BlockName, "backend")
@@ -2422,7 +2421,7 @@ func TestTerragruntRemoteStateCodegenErrorsIfExists(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+generateTestCase, &stdout, &stderr)
 	require.Error(t, err)
 	var generateFileExistsError codegen.GenerateFileExistsError
-	ok := goErrors.As(err, &generateFileExistsError)
+	ok := errors.As(err, &generateFileExistsError)
 	assert.True(t, ok)
 }
 
@@ -2630,7 +2629,7 @@ func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
 	require.Error(t, err)
 
 	var invalidVersionError terraform.InvalidTerragruntVersion
-	ok := goErrors.As(err, &invalidVersionError)
+	ok := errors.As(err, &invalidVersionError)
 	assert.True(t, ok)
 }
 
@@ -2743,7 +2742,7 @@ func runTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer,
 			stderr = stderrAsBuffer.String()
 		}
 
-		t.Fatalf("Failed to run Terragrunt command '%s' due to error: %s\n\nStdout: %s\n\nStderr: %s", command, errors.PrintErrorWithStackTrace(err), stdout, stderr)
+		t.Fatalf("Failed to run Terragrunt command '%s' due to error: %s\n\nStdout: %s\n\nStderr: %s", command, errors.ErrorWithStackTrace(err), stdout, stderr)
 	}
 }
 
@@ -3038,7 +3037,7 @@ func TestShowErrorWhenRunAllInvokedWithoutArguments(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt run-all --terragrunt-non-interactive --terragrunt-working-dir "+appPath, &stdout, &stderr)
 	require.Error(t, err)
 	var missingCommandError runall.MissingCommand
-	ok := goErrors.As(err, &missingCommandError)
+	ok := errors.As(err, &missingCommandError)
 	assert.True(t, ok)
 }
 

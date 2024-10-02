@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/urfave/cli/v2"
 )
 
@@ -109,7 +109,6 @@ func (app *App) RunContext(ctx context.Context, arguments []string) (err error) 
 
 	app.SkipFlagParsing = true
 	app.Authors = []*cli.Author{{Name: app.Author}}
-
 	app.App.Action = func(parentCtx *cli.Context) error {
 		cmd := app.newRootCommand()
 

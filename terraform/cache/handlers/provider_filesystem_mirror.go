@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"

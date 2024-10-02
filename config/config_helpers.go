@@ -2,7 +2,6 @@ package config
 
 import (
 	"encoding/json"
-	goErrors "errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -23,10 +22,10 @@ import (
 	"github.com/zclconf/go-cty/cty/function"
 	"github.com/zclconf/go-cty/cty/gocty"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/terraform"
@@ -371,7 +370,7 @@ func RunCommand(ctx *ParsingContext, args []string) (string, error) {
 		return "", errors.WithStackTrace(err)
 	}
 
-	value := strings.TrimSuffix(cmdOutput.Stdout, "\n")
+	value := strings.TrimSuffix(cmdOutput.Stdout.String(), "\n")
 
 	if suppressOutput {
 		ctx.TerragruntOptions.Logger.Debugf("run_cmd output: [REDACTED]")
@@ -916,7 +915,7 @@ func EndsWith(ctx *ParsingContext, args []string) (bool, error) {
 // TimeCmp implements Terraform's `timecmp` function that compares two timestamps.
 func TimeCmp(ctx *ParsingContext, args []string) (int64, error) {
 	if len(args) != matchedPats {
-		return 0, errors.WithStackTrace(goErrors.New("function can take only two parameters: timestamp_a and timestamp_b"))
+		return 0, errors.WithStackTrace(errors.New("function can take only two parameters: timestamp_a and timestamp_b"))
 	}
 
 	tsA, err := util.ParseTimestamp(args[0])

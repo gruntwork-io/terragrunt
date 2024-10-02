@@ -4,7 +4,7 @@ package test_test
 
 import (
 	"context"
-	goErrors "errors"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -278,7 +278,7 @@ func deleteGCSBucket(t *testing.T, bucketName string) {
 	for {
 		objectAttrs, err := it.Next()
 
-		if goErrors.Is(err, iterator.Done) {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 

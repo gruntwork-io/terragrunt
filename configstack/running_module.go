@@ -8,7 +8,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
@@ -165,7 +165,7 @@ func (module *RunningModule) moduleFinished(moduleErr error) {
 	if moduleErr == nil {
 		module.Module.TerragruntOptions.Logger.Debugf("Module %s has finished successfully!", module.Module.Path)
 	} else {
-		module.Module.TerragruntOptions.Logger.Errorf("Module %s has finished with an error: %v", module.Module.Path, moduleErr)
+		module.Module.TerragruntOptions.Logger.Errorf("Module %s has finished with an error", module.Module.Path)
 	}
 
 	module.Status = Finished

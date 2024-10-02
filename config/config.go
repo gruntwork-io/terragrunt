@@ -3,7 +3,6 @@ package config
 
 import (
 	"context"
-	goErrors "errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -26,10 +25,10 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -939,7 +938,7 @@ func decodeAsTerragruntConfigFile(ctx *ParsingContext, file *hclparse.File, eval
 	if err := file.Decode(&terragruntConfig, evalContext); err != nil {
 		var diagErr hcl.Diagnostics
 		// diagErr, ok := errors.Unwrap(err).(hcl.Diagnostics)
-		ok := goErrors.As(err, &diagErr)
+		ok := errors.As(err, &diagErr)
 
 		// in case of render-json command and inputs reference error, we update the inputs with default value
 		if !ok || !isRenderJSONCommand(ctx) || !isAttributeAccessError(diagErr) {

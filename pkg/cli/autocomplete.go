@@ -1,14 +1,13 @@
 package cli
 
 import (
-	goErrors "errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 	"unicode/utf8"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/posener/complete/cmd/install"
 )
 
@@ -95,7 +94,7 @@ func printCommandSuggestions(arg string, commands []*Command, writer io.Writer) 
 	}
 
 	if len(errs) > 0 {
-		return goErrors.Join(errs...)
+		return errors.Join(errs...)
 	}
 
 	return nil
@@ -129,7 +128,7 @@ func printFlagSuggestions(arg string, flags []Flag, writer io.Writer) error {
 	}
 
 	if len(errs) > 0 {
-		return goErrors.Join(errs...)
+		return errors.Join(errs...)
 	}
 
 	return nil

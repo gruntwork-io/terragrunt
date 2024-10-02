@@ -1,7 +1,6 @@
 package shell
 
 import (
-	goErrors "errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -10,7 +9,7 @@ import (
 
 	"github.com/gruntwork-io/gruntwork-cli/collections"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -38,7 +37,7 @@ func ExplainError(err error) string {
 	var multiErrors *multierror.Error
 
 	// multiErrors, ok := err.(*multierror.Error)
-	if ok := goErrors.As(err, &multiErrors); ok {
+	if ok := errors.As(err, &multiErrors); ok {
 		errorsToProcess = multiErrors.Errors
 	}
 
@@ -54,9 +53,9 @@ func ExplainError(err error) string {
 		message := originalError.Error()
 		// extract process output, if it is the case
 		var processError util.ProcessExecutionError
-		if ok := goErrors.As(originalError, &processError); ok {
-			errorOutput := processError.Stderr
-			stdOut := processError.Stdout
+		if ok := errors.As(originalError, &processError); ok {
+			errorOutput := processError.Output.Stderr.String()
+			stdOut := processError.Output.Stdout.String()
 			message = fmt.Sprintf("%s\n%s", stdOut, errorOutput)
 		}
 

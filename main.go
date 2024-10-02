@@ -1,13 +1,12 @@
 package main
 
 import (
-	goErrors "errors"
 	"os"
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/cli/commands"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -34,8 +33,8 @@ func checkForErrorsAndExit(logger log.Logger) func(error) {
 		if err == nil {
 			os.Exit(0)
 		} else {
-			logger.Debugf(printErrorWithStackTrace(err))
-			logger.Errorf(err.Error())
+			logger.Error(err.Error())
+			logger.Debug(printErrorWithStackTrace(err))
 
 			// exit with the underlying error code
 			exitCode, exitCodeErr := util.GetExitCode(err)
@@ -57,16 +56,16 @@ func checkForErrorsAndExit(logger log.Logger) func(error) {
 func printErrorWithStackTrace(err error) string {
 	var multierror *multierror.Error
 
-	if goErrors.As(err, &multierror) {
+	if errors.As(err, &multierror) {
 		var errsStr []string
 		for _, err := range multierror.Errors {
-			errsStr = append(errsStr, errors.PrintErrorWithStackTrace(err))
+			errsStr = append(errsStr, errors.StackTrace(err))
 		}
 
 		return strings.Join(errsStr, "\n")
 	}
 
-	return errors.PrintErrorWithStackTrace(err)
+	return errors.StackTrace(err)
 }
 
 func parseAndSetLogEnvs(opts *options.TerragruntOptions) {

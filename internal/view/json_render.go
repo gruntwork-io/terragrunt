@@ -3,7 +3,7 @@ package view
 import (
 	"encoding/json"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/view/diagnostic"
 )
 

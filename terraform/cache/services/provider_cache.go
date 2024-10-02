@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"

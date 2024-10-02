@@ -9,7 +9,6 @@ package renderjson
 import (
 	"context"
 	"encoding/json"
-	goErrors "errors"
 	"os"
 	"path/filepath"
 
@@ -18,9 +17,9 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -33,7 +32,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 func runRenderJSON(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	if cfg == nil {
-		return goErrors.New("terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl")
+		return errors.New("terragrunt was not able to render the config as json because it received no config. This is almost certainly a bug in Terragrunt. Please open an issue on github.com/gruntwork-io/terragrunt with this message and the contents of your terragrunt.hcl")
 	}
 
 	if !opts.JSONDisableDependentModules {

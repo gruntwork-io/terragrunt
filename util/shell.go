@@ -1,12 +1,14 @@
 package util
 
 import (
-	goErrors "errors"
+	"bytes"
 	"fmt"
-	"os/exec"
+	"strings"
 	"syscall"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"os/exec"
+
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -19,7 +21,7 @@ func IsCommandExecutable(command string, args ...string) bool {
 
 	if err := cmd.Run(); err != nil {
 		var exitErr *exec.ExitError
-		if ok := goErrors.As(err, &exitErr); ok {
+		if ok := errors.As(err, &exitErr); ok {
 			return exitErr.ExitCode() == 0
 		}
 
@@ -30,8 +32,8 @@ func IsCommandExecutable(command string, args ...string) bool {
 }
 
 type CmdOutput struct {
-	Stdout string
-	Stderr string
+	Stdout bytes.Buffer
+	Stderr bytes.Buffer
 }
 
 // GetExitCode returns the exit code of a command. If the error does not
@@ -48,13 +50,13 @@ func GetExitCode(err error) (int, error) {
 	}
 
 	var exiterr *exec.ExitError
-	if ok := goErrors.As(err, &exiterr); ok {
+	if ok := errors.As(err, &exiterr); ok {
 		status := exiterr.Sys().(syscall.WaitStatus)
 		return status.ExitStatus(), nil
 	}
 
 	var multiErr *multierror.Error
-	if ok := goErrors.As(err, &multiErr); ok {
+	if ok := errors.As(err, &multiErr); ok {
 		for _, err := range multiErr.Errors {
 			exitCode, exitCodeErr := GetExitCode(err)
 			if exitCodeErr == nil {
@@ -69,14 +71,17 @@ func GetExitCode(err error) (int, error) {
 // ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr
 type ProcessExecutionError struct {
 	Err        error
-	Stdout     string
-	Stderr     string
+	Cmd        *exec.Cmd
+	Output     *CmdOutput
 	WorkingDir string
 }
 
 func (err ProcessExecutionError) Error() string {
-	// Include in error message the working directory where the command was run, so it's easier for the user to
-	return fmt.Sprintf("[%s] %s", err.WorkingDir, err.Err.Error())
+	return fmt.Sprintf("Failed to execute %s in %s\n%s\n%v",
+		strings.Join(err.Cmd.Args, " "),
+		err.Cmd.Dir,
+		err.Output.Stderr.String(),
+		err.Err)
 }
 
 func (err ProcessExecutionError) ExitStatus() (int, error) {
@@ -87,11 +92,11 @@ func Unwrap[V error](err error) *V {
 	var target = new(V)
 
 	for {
-		if ok := goErrors.As(err, target); ok {
+		if ok := errors.As(err, target); ok {
 			return target
 		}
 
-		if err = goErrors.Unwrap(err); err == nil {
+		if err = errors.Unwrap(err); err == nil {
 			break
 		}
 	}

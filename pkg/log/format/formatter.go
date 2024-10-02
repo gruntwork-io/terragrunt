@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"

@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/gitsight/go-vcsurl"
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/files"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/hashicorp/go-getter"

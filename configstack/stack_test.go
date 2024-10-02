@@ -2,17 +2,16 @@ package configstack_test
 
 import (
 	"context"
-	goErrors "errors"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -1099,7 +1098,7 @@ func TestResolveTerraformModulesInvalidPaths(t *testing.T) {
 	require.Error(t, actualErr)
 
 	var processingModuleError configstack.ProcessingModuleError
-	ok := goErrors.As(actualErr, &processingModuleError)
+	ok := errors.As(actualErr, &processingModuleError)
 	require.True(t, ok)
 
 	unwrapped := errors.Unwrap(processingModuleError.UnderlyingError)

@@ -4,7 +4,7 @@ package cliconfig
 import (
 	"os"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	svchost "github.com/hashicorp/terraform-svchost"

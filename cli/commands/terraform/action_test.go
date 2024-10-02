@@ -1,14 +1,15 @@
 package terraform_test
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -149,10 +150,8 @@ func TestErrorRetryableOnStdoutError(t *testing.T) {
 	tgOptions.RetryableErrors = retryableErrors
 	tgOptions.AutoRetry = true
 
-	out := &util.CmdOutput{
-		Stdout: "",
-		Stderr: "error is here",
-	}
+	out := new(util.CmdOutput)
+	out.Stderr = *bytes.NewBufferString("error is here")
 
 	retryable := terraform.IsRetryable(tgOptions, out)
 	require.True(t, retryable, "The error should have retried")
@@ -168,10 +167,8 @@ func TestErrorMultipleRetryableOnStderrError(t *testing.T) {
 	tgOptions.RetryableErrors = retryableErrors
 	tgOptions.AutoRetry = true
 
-	out := &util.CmdOutput{
-		Stdout: "",
-		Stderr: "error is here",
-	}
+	out := new(util.CmdOutput)
+	out.Stderr = *bytes.NewBufferString("error is here")
 
 	retryable := terraform.IsRetryable(tgOptions, out)
 	require.True(t, retryable, "The error should have retried")
@@ -187,10 +184,8 @@ func TestEmptyRetryablesOnStderrError(t *testing.T) {
 	tgOptions.RetryableErrors = retryableErrors
 	tgOptions.AutoRetry = true
 
-	out := &util.CmdOutput{
-		Stdout: "",
-		Stderr: "error is here",
-	}
+	out := new(util.CmdOutput)
+	out.Stderr = *bytes.NewBufferString("error is here")
 
 	retryable := terraform.IsRetryable(tgOptions, out)
 	require.False(t, retryable, "The error should not have retried, the list of retryable errors was empty")
@@ -206,10 +201,8 @@ func TestErrorRetryableOnStderrError(t *testing.T) {
 	tgOptions.RetryableErrors = retryableErrors
 	tgOptions.AutoRetry = true
 
-	out := &util.CmdOutput{
-		Stdout: "",
-		Stderr: "error is here",
-	}
+	out := new(util.CmdOutput)
+	out.Stderr = *bytes.NewBufferString("error is here")
 
 	retryable := terraform.IsRetryable(tgOptions, out)
 	require.True(t, retryable, "The error should have retried")
@@ -225,10 +218,8 @@ func TestErrorNotRetryableOnStdoutError(t *testing.T) {
 	tgOptions.RetryableErrors = retryableErrors
 	tgOptions.AutoRetry = true
 
-	out := &util.CmdOutput{
-		Stdout: "error is here",
-		Stderr: "",
-	}
+	out := new(util.CmdOutput)
+	out.Stdout = *bytes.NewBufferString("error is here")
 
 	retryable := terraform.IsRetryable(tgOptions, out)
 	require.False(t, retryable, "The error should not retry")
@@ -244,10 +235,8 @@ func TestErrorNotRetryableOnStderrError(t *testing.T) {
 	tgOptions.RetryableErrors = retryableErrors
 	tgOptions.AutoRetry = true
 
-	out := &util.CmdOutput{
-		Stdout: "",
-		Stderr: "error is here",
-	}
+	out := new(util.CmdOutput)
+	out.Stderr = *bytes.NewBufferString("error is here")
 
 	retryable := terraform.IsRetryable(tgOptions, out)
 	require.False(t, retryable, "The error should not retry")

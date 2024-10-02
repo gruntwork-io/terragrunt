@@ -2,7 +2,6 @@ package remote
 
 import (
 	"context"
-	goErrors "errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -11,9 +10,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/dynamodb"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -1021,7 +1020,7 @@ func CreateS3Bucket(s3Client *s3.S3, bucket *string, terragruntOptions *options.
 // or is in progress. This usually happens when running many tests in parallel or xxx-all commands.
 func isBucketAlreadyOwnedByYouError(err error) bool {
 	var awsErr awserr.Error
-	ok := goErrors.As(err, &awsErr)
+	ok := errors.As(err, &awsErr)
 
 	return ok && (awsErr.Code() == "BucketAlreadyOwnedByYou" || awsErr.Code() == "OperationAborted")
 }
@@ -1030,7 +1029,7 @@ func isBucketAlreadyOwnedByYouError(err error) bool {
 func isBucketCreationErrorRetriable(err error) bool {
 	var awsErr awserr.Error
 
-	ok := goErrors.As(err, &awsErr)
+	ok := errors.As(err, &awsErr)
 	if !ok {
 		return true
 	}
@@ -1131,7 +1130,7 @@ func checkIfBucketRootAccess(s3Client *s3.S3, config *RemoteStateConfigS3, terra
 	if err != nil {
 		// NoSuchBucketPolicy error is considered as no policy.
 		var awsErr awserr.Error
-		if ok := goErrors.As(err, &awsErr); ok {
+		if ok := errors.As(err, &awsErr); ok {
 			if awsErr.Code() == "NoSuchBucketPolicy" {
 				return false, nil
 			}
@@ -1252,7 +1251,7 @@ func checkIfBucketEnforcedTLS(s3Client *s3.S3, config *RemoteStateConfigS3, terr
 		// S3 API error codes:
 		// http://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
 		var awsErr awserr.Error
-		if ok := goErrors.As(err, &awsErr); ok {
+		if ok := errors.As(err, &awsErr); ok {
 			// Enforced TLS policy if is not found bucket policy
 			if awsErr.Code() == "NoSuchBucketPolicy" {
 				terragruntOptions.Logger.Debugf("Could not get policy for bucket %s", config.Bucket)
@@ -1466,7 +1465,7 @@ func checkIfS3PublicAccessBlockingEnabled(s3Client *s3.S3, config *RemoteStateCo
 	})
 	if err != nil {
 		var awsErr awserr.Error
-		if ok := goErrors.As(err, &awsErr); ok {
+		if ok := errors.As(err, &awsErr); ok {
 			// Enforced block public access if is not found bucket policy
 			if awsErr.Code() == "NoSuchPublicAccessBlockConfiguration" {
 				terragruntOptions.Logger.Debugf("Could not get public access block for bucket %s", config.Bucket)
@@ -1583,7 +1582,7 @@ func checkBucketAccess(s3Client *s3.S3, bucket *string, key *string) error {
 
 	var awsErr awserr.Error
 
-	ok := goErrors.As(err, &awsErr)
+	ok := errors.As(err, &awsErr)
 	if !ok {
 		return err
 	}

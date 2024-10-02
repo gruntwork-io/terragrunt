@@ -3,7 +3,6 @@ package remote
 import (
 	"context"
 	"encoding/json"
-	goErrors "errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -13,7 +12,7 @@ import (
 	"google.golang.org/api/impersonate"
 
 	"cloud.google.com/go/storage"
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -467,7 +466,7 @@ func DoesGCSBucketExist(gcsClient *storage.Client, config *RemoteStateConfigGCS)
 	}
 
 	it := bucket.Objects(ctx, nil)
-	if _, err := it.Next(); goErrors.Is(err, storage.ErrBucketNotExist) {
+	if _, err := it.Next(); errors.Is(err, storage.ErrBucketNotExist) {
 		return false
 	}
 

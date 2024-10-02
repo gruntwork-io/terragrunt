@@ -3,7 +3,6 @@ package options
 
 import (
 	"context"
-	goErrors "errors"
 	"fmt"
 	"io"
 	"math"
@@ -11,7 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -700,4 +699,4 @@ type EngineOptions struct {
 
 // Custom error types
 
-var ErrRunTerragruntCommandNotSet = goErrors.New("the RunTerragrunt option has not been set on this TerragruntOptions object")
+var ErrRunTerragruntCommandNotSet = errors.New("the RunTerragrunt option has not been set on this TerragruntOptions object")

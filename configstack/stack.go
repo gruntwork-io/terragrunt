@@ -22,8 +22,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -201,7 +201,11 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 		errorStreams := make([]bytes.Buffer, len(stack.Modules))
 
 		for n, module := range stack.Modules {
-			module.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], module.TerragruntOptions.ErrWriter)
+			if !terragruntOptions.NonInteractive { // redirect output to ErrWriter in case of not NonInteractive mode
+				module.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], module.TerragruntOptions.ErrWriter)
+			} else {
+				module.TerragruntOptions.ErrWriter = &errorStreams[n]
+			}
 		}
 		defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
 	}

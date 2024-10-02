@@ -2,7 +2,6 @@
 package dynamodb
 
 import (
-	goErrors "errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -12,8 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/awshelper"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -75,7 +74,7 @@ func LockTableExistsAndIsActive(tableName string, client *dynamodb.DynamoDB) (bo
 	output, err := client.DescribeTable(&dynamodb.DescribeTableInput{TableName: aws.String(tableName)})
 	if err != nil {
 		var awsErr awserr.Error
-		if ok := goErrors.As(err, &awsErr); ok && awsErr.Code() == "ResourceNotFoundException" {
+		if ok := errors.As(err, &awsErr); ok && awsErr.Code() == "ResourceNotFoundException" {
 			return false, nil
 		} else {
 			return false, errors.WithStackTrace(err)
@@ -204,7 +203,7 @@ func (retryer DeleteTableRetryer) ShouldRetry(req *request.Request) bool {
 // updated by someone else
 func isTableAlreadyBeingCreatedOrUpdatedError(err error) bool {
 	var awsErr awserr.Error
-	ok := goErrors.As(err, &awsErr)
+	ok := errors.As(err, &awsErr)
 
 	return ok && awsErr.Code() == "ResourceInUseException"
 }

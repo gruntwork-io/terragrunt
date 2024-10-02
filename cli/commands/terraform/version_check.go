@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/hashicorp/go-version"
@@ -99,12 +99,12 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 		return err
 	}
 
-	terraformVersion, err := ParseTerraformVersion(output.Stdout)
+	terraformVersion, err := ParseTerraformVersion(output.Stdout.String())
 	if err != nil {
 		return err
 	}
 
-	tfImplementation, err := parseTerraformImplementationType(output.Stdout)
+	tfImplementation, err := parseTerraformImplementationType(output.Stdout.String())
 	if err != nil {
 		return err
 	}

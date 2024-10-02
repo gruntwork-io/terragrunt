@@ -2,13 +2,12 @@ package configstack_test
 
 import (
 	"context"
-	goErrors "errors"
 	"sort"
 	"testing"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-multierror"
@@ -141,9 +140,9 @@ func assertErrorsEqual(t *testing.T, expected error, actual error, messageAndArg
 	actual = errors.Unwrap(actual)
 
 	var unrecognizedDependencyError configstack.UnrecognizedDependencyError
-	if ok := goErrors.As(expected, &unrecognizedDependencyError); ok {
+	if ok := errors.As(expected, &unrecognizedDependencyError); ok {
 		var actualUnrecognized configstack.UnrecognizedDependencyError
-		ok = goErrors.As(actual, &actualUnrecognized)
+		ok = errors.As(actual, &actualUnrecognized)
 		if assert.True(t, ok, messageAndArgs...) {
 			assert.Equal(t, unrecognizedDependencyError, actualUnrecognized, messageAndArgs...)
 		}
@@ -208,13 +207,13 @@ func assertMultiErrorContains(t *testing.T, actualError error, expectedErrors ..
 
 	actualError = errors.Unwrap(actualError)
 	var multiError *multierror.Error
-	isMultiError := goErrors.As(actualError, &multiError)
+	isMultiError := errors.As(actualError, &multiError)
 	if assert.True(t, isMultiError, "Expected a MutliError, but got: %v", actualError) {
 		assert.Equal(t, len(expectedErrors), len(multiError.Errors))
 		for _, expectedErr := range expectedErrors {
 			found := false
 			for _, actualErr := range multiError.Errors {
-				if goErrors.Is(expectedErr, actualErr) {
+				if errors.Is(expectedErr, actualErr) {
 					found = true
 					break
 				}

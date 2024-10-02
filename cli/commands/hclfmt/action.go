@@ -14,7 +14,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcl/v2/hclwrite"

@@ -1,7 +1,6 @@
 package config
 
 import (
-	goErrors "errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,8 +12,8 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -348,7 +347,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 			if err := file.Decode(&decoded, evalParsingContext); err != nil {
 				var diagErr hcl.Diagnostics
-				ok := goErrors.As(err, &diagErr)
+				ok := errors.As(err, &diagErr)
 
 				// in case of render-json command and inputs reference error, we update the inputs with default value
 				if !ok || !isRenderJSONCommand(ctx) || !isAttributeAccessError(diagErr) {

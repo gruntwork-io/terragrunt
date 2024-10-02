@@ -2,11 +2,10 @@ package util
 
 import (
 	"context"
-	goErrors "errors"
 	"fmt"
 	"time"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -23,7 +22,7 @@ func DoWithRetry(ctx context.Context, actionDescription string, maxRetries int, 
 		}
 
 		var fatalErr FatalError
-		if ok := goErrors.As(err, &fatalErr); ok {
+		if ok := errors.As(err, &fatalErr); ok {
 			return err
 		}
 

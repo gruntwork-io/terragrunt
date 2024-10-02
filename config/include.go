@@ -2,7 +2,6 @@ package config
 
 import (
 	"encoding/json"
-	goErrors "errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -14,7 +13,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/imdario/mergo"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -100,7 +99,7 @@ func parseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*T
 // user.
 func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool) (*TerragruntConfig, error) {
 	if ctx.TrackInclude == nil {
-		return nil, goErrors.New("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_NIL_INCLUDE_CONFIG")
+		return nil, errors.New("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_NIL_INCLUDE_CONFIG")
 	}
 
 	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
@@ -166,7 +165,7 @@ func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool
 // child.
 func handleIncludeForDependency(ctx *ParsingContext, childDecodedDependency TerragruntDependency) (*TerragruntDependency, error) {
 	if ctx.TrackInclude == nil {
-		return nil, goErrors.New("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_DEPENDENCY_NIL_INCLUDE_CONFIG")
+		return nil, errors.New("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_DEPENDENCY_NIL_INCLUDE_CONFIG")
 	}
 	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
 	// those in earlier includes, so we need to merge bottom up instead of top down to ensure this.

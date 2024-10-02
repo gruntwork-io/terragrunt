@@ -23,10 +23,10 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-zglob"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -456,15 +456,7 @@ func RunTerraformWithRetry(ctx context.Context, terragruntOptions *options.Terra
 	for i := 0; i < terragruntOptions.RetryMaxAttempts; i++ {
 		if out, err := shell.RunTerraformCommandWithOutput(ctx, terragruntOptions, terragruntOptions.TerraformCliArgs...); err != nil {
 			if out == nil || !IsRetryable(terragruntOptions, out) {
-				logger := terragruntOptions.Logger
-
-				if execErr := util.Unwrap[util.ProcessExecutionError](err); execErr != nil {
-					if execErr.Stderr != "" {
-						logger = logger.WithField("stderr", "\n"+execErr.Stderr)
-					}
-				}
-
-				logger.Errorf("%s invocation failed in %s", terragruntOptions.TerraformImplementation, terragruntOptions.WorkingDir)
+				terragruntOptions.Logger.Errorf("%s invocation failed in %s", terragruntOptions.TerraformImplementation, terragruntOptions.WorkingDir)
 
 				return err
 			} else {
@@ -490,7 +482,7 @@ func IsRetryable(opts *options.TerragruntOptions, out *util.CmdOutput) bool {
 		return false
 	}
 	// When -json is enabled, Terraform will send all output, errors included, to stdout.
-	return util.MatchesAny(opts.RetryableErrors, out.Stderr) || util.MatchesAny(opts.RetryableErrors, out.Stdout)
+	return util.MatchesAny(opts.RetryableErrors, out.Stderr.String()) || util.MatchesAny(opts.RetryableErrors, out.Stdout.String())
 }
 
 // Prepare for running 'terraform init' by initializing remote state storage and adding backend configuration arguments

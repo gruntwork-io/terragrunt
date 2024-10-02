@@ -3,7 +3,6 @@ package terraform
 import (
 	"context"
 	"encoding/json"
-	goErrors "errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,7 +18,7 @@ import (
 	"github.com/hashicorp/go-getter"
 	safetemp "github.com/hashicorp/go-safetemp"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -178,7 +177,7 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 // GetFile is not implemented for the Terraform module registry Getter since the terraform module registry doesn't serve
 // a single file.
 func (tfrGetter *RegistryGetter) GetFile(dst string, src *url.URL) error {
-	return errors.WithStackTrace(goErrors.New("GetFile is not implemented for the Terraform Registry Getter"))
+	return errors.WithStackTrace(errors.New("GetFile is not implemented for the Terraform Registry Getter"))
 }
 
 // getSubdir downloads the source into the destination, but with the proper subdir.
