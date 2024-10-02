@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/mattn/go-isatty"
 	"io"
 	"net/url"
 	"os"
@@ -14,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/mattn/go-isatty"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 
