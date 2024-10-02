@@ -34,7 +34,6 @@ func Run(opts *options.TerragruntOptions) error {
 
 	if stdIn {
 		if targetFile != "" {
-			opts.Logger.Debugf("Both stdin and path flags are specified")
 			return errors.Errorf("both stdin and path flags are specified")
 		}
 
@@ -101,8 +100,7 @@ func formatFromStdin(opts *options.TerragruntOptions) error {
 		return err
 	}
 
-	err = checkErrors(opts.Logger, opts.DisableLogColors, contents, "stdin")
-	if err != nil {
+	if err = checkErrors(opts.Logger, opts.DisableLogColors, contents, "stdin"); err != nil {
 		opts.Logger.Errorf("Error parsing hcl from stdin")
 		return err
 	}
@@ -110,15 +108,13 @@ func formatFromStdin(opts *options.TerragruntOptions) error {
 	newContents := hclwrite.Format(contents)
 
 	buf := bufio.NewWriter(os.Stdout)
-	_, err = buf.Write(newContents)
 
-	if err != nil {
+	if _, err = buf.Write(newContents); err != nil {
 		opts.Logger.Errorf("Failed to write to stdout")
 		return err
 	}
 
-	err = buf.Flush()
-	if err != nil {
+	if err = buf.Flush(); err != nil {
 		opts.Logger.Errorf("Failed to flush to stdout")
 		return err
 	}

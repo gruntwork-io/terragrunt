@@ -278,11 +278,11 @@ func TestHCLFmtStdin(t *testing.T) {
 	os.Stdout = tempStdoutFile
 	defer func() { os.Stdout = realStdout }()
 
-	os.Stdin, err = os.Open("../../../test/fixture-hclfmt-stdin/terragrunt.hcl")
+	os.Stdin, err = os.Open("../../../test/fixtures/hclfmt-stdin/terragrunt.hcl")
 	defer func() { os.Stdin = realStdin }()
 	require.NoError(t, err)
 
-	expected, err := os.ReadFile("../../../test/fixture-hclfmt-stdin/expected.hcl")
+	expected, err := os.ReadFile("../../../test/fixtures/hclfmt-stdin/expected.hcl")
 	require.NoError(t, err)
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
