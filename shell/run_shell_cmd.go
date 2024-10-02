@@ -295,7 +295,7 @@ func isTerraformCommandThatNeedsPty(args []string) (bool, error) {
 	}
 
 	// if the stdin is not a terminal, then the terraform console is used in non-interactive mode
-	if isatty.IsTerminal(os.Stdin.Fd()) {
+	if !isatty.IsTerminal(os.Stdin.Fd()) {
 		return false, nil
 	}
 
