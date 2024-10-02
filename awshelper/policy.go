@@ -1,4 +1,4 @@
-package aws_helper
+package awshelper
 
 import "encoding/json"
 
@@ -34,10 +34,10 @@ func UnmarshalPolicy(policy string) (Policy, error) {
 }
 
 func MarshalPolicy(policy Policy) ([]byte, error) {
-	policyJson, err := json.Marshal(policy)
+	policyJSON, err := json.Marshal(policy)
 	if err != nil {
 		return nil, err
 	}
 
-	return policyJson, nil
+	return policyJSON, nil
 }

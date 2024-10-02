@@ -1,3 +1,4 @@
+// Package models provides the data structures used to represent Terraform providers and their details.
 package models
 
 import (
@@ -89,13 +90,12 @@ func (body ResponseBody) ResolveRelativeReferences(base *url.URL) *ResponseBody 
 type Provider struct {
 	*ResponseBody
 
-	RegistryPrefix string
-	RegistryName   string
-	Namespace      string
-	Name           string
-	Version        string
-	OS             string
-	Arch           string
+	RegistryName string
+	Namespace    string
+	Name         string
+	Version      string
+	OS           string
+	Arch         string
 }
 
 func ParseProvider(str string) *Provider {
@@ -122,7 +122,9 @@ func ParseProvider(str string) *Provider {
 		}
 	}
 
-	return nil
+	return &Provider{
+		RegistryName: parts[0],
+	}
 }
 
 func (provider *Provider) String() string {

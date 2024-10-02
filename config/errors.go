@@ -145,31 +145,31 @@ func (err TerragruntConfigNotFoundError) Error() string {
 	return fmt.Sprintf("Terragrunt config %s not found", err.Path)
 }
 
-type InvalidSourceUrlError struct {
+type InvalidSourceURLError struct {
 	ModulePath       string
-	ModuleSourceUrl  string
+	ModuleSourceURL  string
 	TerragruntSource string
 }
 
-func (err InvalidSourceUrlError) Error() string {
-	return fmt.Sprintf("The --terragrunt-source parameter is set to '%s', but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!", err.TerragruntSource, err.ModulePath, err.ModuleSourceUrl)
+func (err InvalidSourceURLError) Error() string {
+	return fmt.Sprintf("The --terragrunt-source parameter is set to '%s', but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!", err.TerragruntSource, err.ModulePath, err.ModuleSourceURL)
 }
 
-type InvalidSourceUrlWithMapError struct {
+type InvalidSourceURLWithMapError struct {
 	ModulePath      string
-	ModuleSourceUrl string
+	ModuleSourceURL string
 }
 
-func (err InvalidSourceUrlWithMapError) Error() string {
-	return fmt.Sprintf("The --terragrunt-source-map parameter was passed in, but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!", err.ModulePath, err.ModuleSourceUrl)
+func (err InvalidSourceURLWithMapError) Error() string {
+	return fmt.Sprintf("The --terragrunt-source-map parameter was passed in, but the source URL in the module at '%s' is invalid: '%s'. Note that the module URL must have a double-slash to separate the repo URL from the path within the repo!", err.ModulePath, err.ModuleSourceURL)
 }
 
 type ParsingModulePathError struct {
-	ModuleSourceUrl string
+	ModuleSourceURL string
 }
 
 func (err ParsingModulePathError) Error() string {
-	return fmt.Sprintf("Unable to obtain the module path from the source URL '%s'. Ensure that the URL is in a supported format.", err.ModuleSourceUrl)
+	return fmt.Sprintf("Unable to obtain the module path from the source URL '%s'. Ensure that the URL is in a supported format.", err.ModuleSourceURL)
 }
 
 type InvalidSopsFormatError struct {

@@ -618,7 +618,7 @@ Run the provided OpenTofu/Terraform command against the graph of dependencies fo
 The Command will be executed following the order of dependencies: so it'll run on the module in the current working directory first, then on modules that depend on it directly, then on the modules that depend on those modules, and so on. Note that if the command is `destroy`, it will execute in the opposite order of the dependencies.
 
 Example:
-Having bellow dependencies:
+Having below dependencies:
 [![dependency-graph](/assets/img/collections/documentation/dependency-graph.png){: width="80%" }]({{site.baseurl}}/assets/img/collections/documentation/dependency-graph.png)
 
 Running `terragrunt graph apply` in `eks` module will lead to the following execution order:
@@ -1043,7 +1043,7 @@ When passed in, and running `terragrunt validate-inputs`, enables strict mode fo
 **CLI Arg**: `--terragrunt-ignore-dependency-order`<br/>
 **Environment Variable**: `TERRAGRUNT_IGNORE_DEPENDENCY_ORDER`<br/>
 
-When passed in, ignore the depedencies between modules when running `*-all` commands.
+When passed in, ignore the dependencies between modules when running `*-all` commands.
 
 ### terragrunt-ignore-external-dependencies
 

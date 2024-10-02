@@ -24,7 +24,7 @@ import (
 const maxLevelsOfRecursion = 20
 const existingModulesCacheName = "existingModules"
 
-// Represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
+// TerraformModule represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
 // module and the list of other modules that this module depends on
 type TerraformModule struct {
 	Path                 string
@@ -35,7 +35,7 @@ type TerraformModule struct {
 	FlagExcluded         bool
 }
 
-// Render this module as a human-readable string
+// String renders this module as a human-readable string
 func (module *TerraformModule) String() string {
 	dependencies := []string{}
 	for _, dependency := range module.Dependencies {
@@ -92,7 +92,7 @@ func (module *TerraformModule) planFile(terragruntOptions *options.TerragruntOpt
 	planCommand := module.TerragruntOptions.TerraformCommand == terraform.CommandNamePlan || module.TerragruntOptions.TerraformCommand == terraform.CommandNameShow
 
 	// in case if JSON output is enabled, and not specified planFile, save plan in working dir
-	if planCommand && planFile == "" && module.TerragruntOptions.JsonOutputFolder != "" {
+	if planCommand && planFile == "" && module.TerragruntOptions.JSONOutputFolder != "" {
 		planFile = terraform.TerraformPlanFile
 	}
 
@@ -112,14 +112,14 @@ func (module *TerraformModule) outputFile(opts *options.TerragruntOptions) strin
 	return planFile
 }
 
-// outputJsonFile - return plan JSON file location, if JSON output folder is set
-func (module *TerraformModule) outputJsonFile(opts *options.TerragruntOptions) string {
+// outputJSONFile - return plan JSON file location, if JSON output folder is set
+func (module *TerraformModule) outputJSONFile(opts *options.TerragruntOptions) string {
 	jsonPlanFile := ""
 
-	if opts.JsonOutputFolder != "" {
+	if opts.JSONOutputFolder != "" {
 		path, _ := filepath.Rel(opts.WorkingDir, module.Path)
-		dir := filepath.Join(opts.JsonOutputFolder, path)
-		jsonPlanFile = filepath.Join(dir, terraform.TerraformPlanJsonFile)
+		dir := filepath.Join(opts.JSONOutputFolder, path)
+		jsonPlanFile = filepath.Join(dir, terraform.TerraformPlanJSONFile)
 	}
 
 	return jsonPlanFile
@@ -323,7 +323,7 @@ func (modules TerraformModules) WriteDot(w io.Writer, terragruntOptions *options
 	return nil
 }
 
-// Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
+// RunModules runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in an order determined by their inter-dependencies, using
 // as much concurrency as possible.
 func (modules TerraformModules) RunModules(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
@@ -335,7 +335,7 @@ func (modules TerraformModules) RunModules(ctx context.Context, opts *options.Te
 	return runningModules.runModules(ctx, opts, parallelism)
 }
 
-// Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
+// RunModulesReverseOrder runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed in the reverse order of their inter-dependencies, using
 // as much concurrency as possible.
 func (modules TerraformModules) RunModulesReverseOrder(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
@@ -347,7 +347,7 @@ func (modules TerraformModules) RunModulesReverseOrder(ctx context.Context, opts
 	return runningModules.runModules(ctx, opts, parallelism)
 }
 
-// Run the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
+// RunModulesIgnoreOrder runs the given map of module path to runningModule. To "run" a module, execute the RunTerragrunt command in its
 // TerragruntOptions object. The modules will be executed without caring for inter-dependencies.
 func (modules TerraformModules) RunModulesIgnoreOrder(ctx context.Context, opts *options.TerragruntOptions, parallelism int) error {
 	runningModules, err := modules.ToRunningModules(IgnoreOrder)
@@ -358,7 +358,7 @@ func (modules TerraformModules) RunModulesIgnoreOrder(ctx context.Context, opts 
 	return runningModules.runModules(ctx, opts, parallelism)
 }
 
-// Convert the list of modules to a map from module path to a runningModule struct. This struct contains information
+// ToRunningModules converts the list of modules to a map from module path to a runningModule struct. This struct contains information
 // about executing the module, such as whether it has finished running or not and any errors that happened. Note that
 // this does NOT actually run the module. For that, see the RunModules method.
 func (modules TerraformModules) ToRunningModules(dependencyOrder DependencyOrder) (RunningModules, error) {
@@ -375,7 +375,7 @@ func (modules TerraformModules) ToRunningModules(dependencyOrder DependencyOrder
 	return crossLinkedModules.RemoveFlagExcluded(), nil
 }
 
-// Check for dependency cycles in the given list of modules and return an error if one is found
+// CheckForCycles checks for dependency cycles in the given list of modules and return an error if one is found.
 func (modules TerraformModules) CheckForCycles() error {
 	visitedPaths := []string{}
 	currentTraversalPaths := []string{}

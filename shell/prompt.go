@@ -10,7 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-// Prompt the user for text in the CLI. Returns the text entered by the user.
+// PromptUserForInput prompts the user for text in the CLI. Returns the text entered by the user.
 func PromptUserForInput(ctx context.Context, prompt string, terragruntOptions *options.TerragruntOptions) (string, error) {
 	// We are writing directly to ErrWriter so the prompt is always visible
 	// no matter what logLevel is configured. If `--non-interactive` is set, we log both prompt and
@@ -57,7 +57,7 @@ func PromptUserForInput(ctx context.Context, prompt string, terragruntOptions *o
 	}
 }
 
-// Prompt the user for a yes/no response and return true if they entered yes.
+// PromptUserForYesNo prompts the user for a yes/no response and return true if they entered yes.
 func PromptUserForYesNo(ctx context.Context, prompt string, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	resp, err := PromptUserForInput(ctx, prompt+" (y/n) ", terragruntOptions)
 	if err != nil {

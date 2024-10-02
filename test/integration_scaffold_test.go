@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	testScaffoldModuleUrl              = "https://github.com/gruntwork-io/terragrunt.git//test/fixtures/scaffold/scaffold-module"
+	testScaffoldModuleURL              = "https://github.com/gruntwork-io/terragrunt.git//test/fixtures/scaffold/scaffold-module"
 	testScaffoldModuleGit              = "git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/scaffold-module"
 	testScaffoldModuleShort            = "github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs"
 	testScaffoldTemplateModule         = "git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/module-with-template"
@@ -28,7 +28,7 @@ func TestScaffoldModule(t *testing.T) {
 	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-scaffold-test")
 	require.NoError(t, err)
 
-	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, testScaffoldModuleUrl))
+	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, testScaffoldModuleURL))
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Scaffolding completed")
 	assert.FileExists(t, tmpEnvPath+"/terragrunt.hcl")
@@ -41,6 +41,7 @@ func TestScaffoldModuleShortUrl(t *testing.T) {
 	require.NoError(t, err)
 
 	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt --terragrunt-non-interactive --terragrunt-working-dir %s scaffold %s", tmpEnvPath, testScaffoldModuleShort))
+
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Scaffolding completed")
 	// check that find_in_parent_folders is generated in terragrunt.hcl

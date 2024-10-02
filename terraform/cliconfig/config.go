@@ -1,3 +1,4 @@
+// Package cliconfig provides methods to create an OpenTofu/Terraform CLI configuration file.
 package cliconfig
 
 import (

@@ -1,3 +1,4 @@
+// Package cli provides functionality for the Terragrunt CLI.
 package cli
 
 import (

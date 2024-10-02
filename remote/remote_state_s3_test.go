@@ -11,7 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/stretchr/testify/assert"
@@ -325,7 +325,7 @@ func TestAwsGetAwsSessionConfig(t *testing.T) {
 			s3ConfigExtended, err := remote.ParseExtendedS3Config(testCase.config)
 			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
-			expected := &aws_helper.AwsSessionConfig{
+			expected := &awshelper.AwsSessionConfig{
 				Region:                  s3ConfigExtended.RemoteStateConfigS3.Region,
 				CustomS3Endpoint:        s3ConfigExtended.RemoteStateConfigS3.Endpoint,
 				CustomDynamoDBEndpoint:  s3ConfigExtended.RemoteStateConfigS3.DynamoDBEndpoint,
@@ -367,7 +367,7 @@ func TestAwsGetAwsSessionConfigWithAssumeRole(t *testing.T) {
 			s3ConfigExtended, err := remote.ParseExtendedS3Config(config)
 			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
 
-			expected := &aws_helper.AwsSessionConfig{
+			expected := &awshelper.AwsSessionConfig{
 				RoleArn:     s3ConfigExtended.RemoteStateConfigS3.AssumeRole.RoleArn,
 				ExternalID:  s3ConfigExtended.RemoteStateConfigS3.AssumeRole.ExternalID,
 				SessionName: s3ConfigExtended.RemoteStateConfigS3.AssumeRole.SessionName,

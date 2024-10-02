@@ -1,3 +1,4 @@
+// Package runall provides the `run-all` command that runs a terraform command against a 'stack' by running the specified command in each subfolder.
 package runall
 
 import (
@@ -41,9 +42,9 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "Directory to store plan files.",
 		},
 		&cli.GenericFlag[string]{
-			Name:        commands.TerragruntJsonOutDirFlagName,
-			EnvVar:      commands.TerragruntJsonOutDirFlagEnvName,
-			Destination: &opts.JsonOutputFolder,
+			Name:        commands.TerragruntJSONOutDirFlagName,
+			EnvVar:      commands.TerragruntJSONOutDirFlagEnvName,
+			Destination: &opts.JSONOutputFolder,
 			Usage:       "Directory to store json plan files.",
 		},
 	}

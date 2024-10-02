@@ -165,7 +165,7 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 
 	if terragruntConfig.RetryMaxAttempts != nil {
 		if *terragruntConfig.RetryMaxAttempts < 1 {
-			return fmt.Errorf("Cannot have less than 1 max retry, but you specified %d", *terragruntConfig.RetryMaxAttempts)
+			return fmt.Errorf("cannot have less than 1 max retry, but you specified %d", *terragruntConfig.RetryMaxAttempts)
 		}
 
 		terragruntOptions.RetryMaxAttempts = *terragruntConfig.RetryMaxAttempts
@@ -173,24 +173,24 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 
 	if terragruntConfig.RetrySleepIntervalSec != nil {
 		if *terragruntConfig.RetrySleepIntervalSec < 0 {
-			return fmt.Errorf("Cannot sleep for less than 0 seconds, but you specified %d", *terragruntConfig.RetrySleepIntervalSec)
+			return fmt.Errorf("cannot sleep for less than 0 seconds, but you specified %d", *terragruntConfig.RetrySleepIntervalSec)
 		}
 
-		terragruntOptions.RetrySleepIntervalSec = time.Duration(*terragruntConfig.RetrySleepIntervalSec) * time.Second
+		terragruntOptions.RetrySleepInterval = time.Duration(*terragruntConfig.RetrySleepIntervalSec) * time.Second
 	}
 
 	updatedTerragruntOptions := terragruntOptions
 
-	sourceUrl, err := config.GetTerraformSourceUrl(terragruntOptions, terragruntConfig)
+	sourceURL, err := config.GetTerraformSourceURL(terragruntOptions, terragruntConfig)
 	if err != nil {
 		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
 	}
 
-	if sourceUrl != "" {
+	if sourceURL != "" {
 		err = telemetry.Telemetry(ctx, terragruntOptions, "download_terraform_source", map[string]interface{}{
-			"sourceUrl": sourceUrl,
+			"sourceUrl": sourceURL,
 		}, func(childCtx context.Context) error {
-			updatedTerragruntOptions, err = downloadTerraformSource(ctx, sourceUrl, terragruntOptions, terragruntConfig)
+			updatedTerragruntOptions, err = downloadTerraformSource(ctx, sourceURL, terragruntOptions, terragruntConfig)
 			return err
 		})
 
@@ -327,7 +327,7 @@ func runTerragruntWithConfig(ctx context.Context, originalTerragruntOptions *opt
 		runTerraformError := RunTerraformWithRetry(ctx, terragruntOptions)
 
 		var lockFileError error
-		if shouldCopyLockFile(terragruntOptions.TerraformCliArgs) {
+		if ShouldCopyLockFile(terragruntOptions.TerraformCliArgs, terragruntConfig.Terraform) {
 			// Copy the lock file from the Terragrunt working dir (e.g., .terragrunt-cache/xxx/<some-module>) to the
 			// user's working dir (e.g., /live/stage/vpc). That way, the lock file will end up right next to the user's
 			// terragrunt.hcl and can be checked into version control. Note that in the past, Terragrunt allowed the
@@ -372,6 +372,7 @@ func confirmActionWithDependentModules(ctx context.Context, terragruntOptions *o
 	return true
 }
 
+// ShouldCopyLockFile verifies if the lock file should be copied to the user's working directory
 // Terraform 0.14 now manages a lock file for providers. This can be updated
 // in three ways:
 // * `terraform init` in a module where no `.terraform.lock.hcl` exists
@@ -386,7 +387,15 @@ func confirmActionWithDependentModules(ctx context.Context, terragruntOptions *o
 // There are lots of details at [hashicorp/terraform#27264](https://github.com/hashicorp/terraform/issues/27264#issuecomment-743389837)
 // The `providers lock` sub command enables you to ensure that the lock file is
 // fully populated.
-func shouldCopyLockFile(args []string) bool {
+func ShouldCopyLockFile(args []string, terraformConfig *config.TerraformConfig) bool {
+	// If the user has explicitly set CopyTerraformLockFile to false, then we should not copy the lock file on any command
+	// This is useful for users who want to manage the lock file themselves outside the working directory
+	// if the user has not set CopyTerraformLockFile or if they have explicitly defined it to true,
+	// then we should copy the lock file on init and providers lock as defined above and not do and early return here
+	if terraformConfig != nil && terraformConfig.CopyTerraformLockFile != nil && !*terraformConfig.CopyTerraformLockFile {
+		return false
+	}
+
 	if util.FirstArg(args) == terraform.CommandNameInit {
 		return true
 	}
@@ -420,8 +429,8 @@ func runActionWithHooks(ctx context.Context, description string, terragruntOptio
 	return allErrors.ErrorOrNil()
 }
 
-// The Terragrunt configuration can contain a set of inputs to pass to Terraform as environment variables. This method
-// sets these environment variables in the given terragruntOptions.
+// SetTerragruntInputsAsEnvVars sets the inputs from Terragrunt configurations to TF_VAR_* environment variables for
+// OpenTofu/Terraform.
 func SetTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	asEnvVars, err := ToTerraformEnvVars(terragruntOptions, terragruntConfig.Inputs)
 	if err != nil {
@@ -459,9 +468,9 @@ func RunTerraformWithRetry(ctx context.Context, terragruntOptions *options.Terra
 
 				return err
 			} else {
-				terragruntOptions.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.RetrySleepIntervalSec)
+				terragruntOptions.Logger.Infof("Encountered an error eligible for retrying. Sleeping %v before retrying.\n", terragruntOptions.RetrySleepInterval)
 				select {
-				case <-time.After(terragruntOptions.RetrySleepIntervalSec):
+				case <-time.After(terragruntOptions.RetrySleepInterval):
 					// try again
 				case <-ctx.Done():
 					return errors.WithStackTrace(ctx.Err())
@@ -735,8 +744,8 @@ func FilterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 	cmd := util.FirstArg(terragruntOptions.TerraformCliArgs)
 
 	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
-		for _, arg_cmd := range arg.Commands {
-			if cmd == arg_cmd {
+		for _, argCmd := range arg.Commands {
+			if cmd == argCmd {
 				lastArg := util.LastArg(terragruntOptions.TerraformCliArgs)
 				skipVars := (cmd == terraform.CommandNameApply || cmd == terraform.CommandNameDestroy) && util.IsFile(lastArg)
 
@@ -791,7 +800,7 @@ func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOp
 	return out
 }
 
-// Convert the given variables to a map of environment variables that will expose those variables to Terraform. The
+// ToTerraformEnvVars converts the given variables to a map of environment variables that will expose those variables to Terraform. The
 // keys will be of the format TF_VAR_xxx and the values will be converted to JSON, which Terraform knows how to read
 // natively.
 func ToTerraformEnvVars(opts *options.TerragruntOptions, vars map[string]interface{}) (map[string]string, error) {
@@ -812,7 +821,7 @@ func ToTerraformEnvVars(opts *options.TerragruntOptions, vars map[string]interfa
 
 		envVarName := fmt.Sprintf(terraform.EnvNameTFVarFmt, varName)
 
-		envVarValue, err := util.AsTerraformEnvVarJsonValue(varValue)
+		envVarValue, err := util.AsTerraformEnvVarJSONValue(varValue)
 		if err != nil {
 			return nil, err
 		}

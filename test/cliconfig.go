@@ -1,4 +1,4 @@
-// common integration test functions
+// Package test provides integration tests for Terragrunt.
 package test
 
 import (

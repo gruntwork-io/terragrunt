@@ -1,3 +1,4 @@
+// Package cache provides a private OpenTofu/Terraform provider cache server.
 package cache
 
 import (
@@ -7,6 +8,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/controllers"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/middleware"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/router"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
@@ -56,6 +58,13 @@ func NewServer(opts ...Option) *Server {
 		services:           cfg.services,
 		ProviderController: providerController,
 	}
+}
+
+// DiscoveryURL looks for the first handler that can handle the given `registryName`,
+// which is determined by the include and exclude settings in the `.terraformrc` CLI config file.
+// If the handler is found, tries to discover its API endpoints otherwise return the default registry URLs.
+func (server *Server) DiscoveryURL(ctx context.Context, registryName string) (*handlers.RegistryURLs, error) {
+	return server.providerHandlers.DiscoveryURL(ctx, registryName)
 }
 
 // Listen starts listening to the given configuration address. It also automatically chooses a free port if not explicitly specified.

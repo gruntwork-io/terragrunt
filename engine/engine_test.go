@@ -9,18 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIsEngineEnabled(t *testing.T) {
-	t.Setenv("TG_EXPERIMENTAL_ENGINE", "true")
-
-	assert.True(t, engine.IsEngineEnabled())
-
-	t.Setenv("TG_EXPERIMENTAL_ENGINE", "false")
-	assert.False(t, engine.IsEngineEnabled())
-
-	t.Setenv("TG_EXPERIMENTAL_ENGINE", "")
-	assert.False(t, engine.IsEngineEnabled())
-}
-
 func TestConvertMetaToProtobuf(t *testing.T) {
 	t.Parallel()
 	meta := map[string]interface{}{

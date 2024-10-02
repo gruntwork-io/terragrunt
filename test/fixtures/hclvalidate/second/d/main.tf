@@ -1,4 +1,4 @@
-variabl "d" {
+variabl "d" { //codespell:ignore
   type    = string
   default = "d"
 }

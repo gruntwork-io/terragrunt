@@ -17,7 +17,7 @@ type Block struct {
 	*hcl.Block
 }
 
-// GetAttrs loads the block into name expression pairs to assist with evaluation of the attrs prior to
+// JustAttributes loads the block into name expression pairs to assist with evaluation of the attrs prior to
 // evaluating the whole config. Note that this is exactly the same as
 // terraform/configs/named_values.go:decodeLocalsBlock
 func (block *Block) JustAttributes() (Attributes, error) {

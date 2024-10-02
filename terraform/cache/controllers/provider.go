@@ -1,8 +1,8 @@
+// Package controllers provides the implementation of the controller for the provider endpoints.
 package controllers
 
 import (
 	"net/http"
-	"net/url"
 
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
@@ -45,31 +45,24 @@ func (controller *ProviderController) Register(router *router.Router) {
 
 	// Get All Versions for a Single Provider
 	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-all-versions-for-a-single-provider
-	controller.GET("/:cache_request_id/:registry_prefix/:registry_name/:namespace/:name/versions", controller.getVersionsAction)
+	controller.GET("/:cache_request_id/:registry_name/:namespace/:name/versions", controller.getVersionsAction)
 
 	// Get a Platform
 	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/provider-versions-platforms#get-a-platform
-	controller.GET("/:cache_request_id/:registry_prefix/:registry_name/:namespace/:name/:version/download/:os/:arch", controller.getPlatformsAction)
+	controller.GET("/:cache_request_id/:registry_name/:namespace/:name/:version/download/:os/:arch", controller.getPlatformsAction)
 }
 
 func (controller *ProviderController) getVersionsAction(ctx echo.Context) error {
 	var (
-		registryPrefix = ctx.Param("registry_prefix")
-		registryName   = ctx.Param("registry_name")
-		namespace      = ctx.Param("namespace")
-		name           = ctx.Param("name")
+		registryName = ctx.Param("registry_name")
+		namespace    = ctx.Param("namespace")
+		name         = ctx.Param("name")
 	)
 
-	registryPrefix, err := url.QueryUnescape(registryPrefix)
-	if err != nil {
-		return err
-	}
-
 	provider := &models.Provider{
-		RegistryPrefix: registryPrefix,
-		RegistryName:   registryName,
-		Namespace:      namespace,
-		Name:           name,
+		RegistryName: registryName,
+		Namespace:    namespace,
+		Name:         name,
 	}
 
 	for _, handler := range controller.ProviderHandlers {
@@ -85,7 +78,6 @@ func (controller *ProviderController) getVersionsAction(ctx echo.Context) error 
 
 func (controller *ProviderController) getPlatformsAction(ctx echo.Context) (er error) {
 	var (
-		registryPrefix = ctx.Param("registry_prefix")
 		registryName   = ctx.Param("registry_name")
 		namespace      = ctx.Param("namespace")
 		name           = ctx.Param("name")
@@ -95,19 +87,13 @@ func (controller *ProviderController) getPlatformsAction(ctx echo.Context) (er e
 		cacheRequestID = ctx.Param("cache_request_id")
 	)
 
-	registryPrefix, err := url.QueryUnescape(registryPrefix)
-	if err != nil {
-		return err
-	}
-
 	provider := &models.Provider{
-		RegistryPrefix: registryPrefix,
-		RegistryName:   registryName,
-		Namespace:      namespace,
-		Name:           name,
-		Version:        version,
-		OS:             os,
-		Arch:           arch,
+		RegistryName: registryName,
+		Namespace:    namespace,
+		Name:         name,
+		Version:      version,
+		OS:           os,
+		Arch:         arch,
 	}
 
 	for _, handler := range controller.ProviderHandlers {

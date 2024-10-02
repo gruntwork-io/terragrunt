@@ -24,9 +24,10 @@ import (
 	"github.com/zclconf/go-cty/cty/gocty"
 
 	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/aws_helper"
+	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/locks"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/terraform"
@@ -74,8 +75,8 @@ const (
 	sopsCacheName = "sopsCache"
 )
 
-// List of terraform commands that accept -lock-timeout
-var TERRAFORM_COMMANDS_NEED_LOCKING = []string{
+// TerraformCommandsNeedLocking is a list of terraform commands that accept -lock-timeout
+var TerraformCommandsNeedLocking = []string{
 	"apply",
 	"destroy",
 	"import",
@@ -85,8 +86,8 @@ var TERRAFORM_COMMANDS_NEED_LOCKING = []string{
 	"untaint",
 }
 
-// List of terraform commands that accept -var or -var-file
-var TERRAFORM_COMMANDS_NEED_VARS = []string{
+// TerraformCommandsNeedVars is a list of terraform commands that accept -var or -var-file
+var TerraformCommandsNeedVars = []string{
 	"apply",
 	"console",
 	"destroy",
@@ -96,8 +97,8 @@ var TERRAFORM_COMMANDS_NEED_VARS = []string{
 	"refresh",
 }
 
-// List of terraform commands that accept -input=
-var TERRAFORM_COMMANDS_NEED_INPUT = []string{
+// TerraformCommandsNeedInput is list of terraform commands that accept -input=
+var TerraformCommandsNeedInput = []string{
 	"apply",
 	"import",
 	"init",
@@ -105,8 +106,8 @@ var TERRAFORM_COMMANDS_NEED_INPUT = []string{
 	"refresh",
 }
 
-// List of terraform commands that accept -parallelism=
-var TERRAFORM_COMMANDS_NEED_PARALLELISM = []string{
+// TerraformCommandsNeedParallelism is a list of terraform commands that accept -parallelism=
+var TerraformCommandsNeedParallelism = []string{
 	"apply",
 	"plan",
 	"destroy",
@@ -160,10 +161,10 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 		FuncNameGetAWSAccountID:                         wrapVoidToStringAsFuncImpl(ctx, getAWSAccountID),
 		FuncNameGetAWSCallerIdentityArn:                 wrapVoidToStringAsFuncImpl(ctx, getAWSCallerIdentityARN),
 		FuncNameGetAWSCallerIdentityUserID:              wrapVoidToStringAsFuncImpl(ctx, getAWSCallerIdentityUserID),
-		FuncNameGetTerraformCommandsThatNeedVars:        wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_VARS),
-		FuncNameGetTerraformCommandsThatNeedLocking:     wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_LOCKING),
-		FuncNameGetTerraformCommandsThatNeedInput:       wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_INPUT),
-		FuncNameGetTerraformCommandsThatNeedParallelism: wrapStaticValueToStringSliceAsFuncImpl(TERRAFORM_COMMANDS_NEED_PARALLELISM),
+		FuncNameGetTerraformCommandsThatNeedVars:        wrapStaticValueToStringSliceAsFuncImpl(TerraformCommandsNeedVars),
+		FuncNameGetTerraformCommandsThatNeedLocking:     wrapStaticValueToStringSliceAsFuncImpl(TerraformCommandsNeedLocking),
+		FuncNameGetTerraformCommandsThatNeedInput:       wrapStaticValueToStringSliceAsFuncImpl(TerraformCommandsNeedInput),
+		FuncNameGetTerraformCommandsThatNeedParallelism: wrapStaticValueToStringSliceAsFuncImpl(TerraformCommandsNeedParallelism),
 		FuncNameSopsDecryptFile:                         wrapStringSliceToStringAsFuncImpl(ctx, sopsDecryptFile),
 		FuncNameGetTerragruntSourceCLIFlag:              wrapVoidToStringAsFuncImpl(ctx, getTerragruntSourceCliFlag),
 		FuncNameGetDefaultRetryableErrors:               wrapVoidToStringSliceAsFuncImpl(ctx, getDefaultRetryableErrors),
@@ -258,7 +259,7 @@ func getPathToRepoRoot(ctx *ParsingContext) (string, error) {
 	return filepath.ToSlash(strings.TrimSpace(repoRootPathAbs)), nil
 }
 
-// Return the directory where the Terragrunt configuration file lives
+// GetTerragruntDir returns the directory where the Terragrunt configuration file lives.
 func GetTerragruntDir(ctx *ParsingContext) (string, error) {
 	terragruntConfigFileAbsPath, err := filepath.Abs(ctx.TerragruntOptions.TerragruntConfigPath)
 	if err != nil {
@@ -281,7 +282,7 @@ func getOriginalTerragruntDir(ctx *ParsingContext) (string, error) {
 	return filepath.ToSlash(filepath.Dir(terragruntConfigFileAbsPath)), nil
 }
 
-// Return the parent directory where the Terragrunt configuration file lives
+// GetParentTerragruntDir returns the parent directory where the Terragrunt configuration file lives.
 func GetParentTerragruntDir(ctx *ParsingContext, params []string) (string, error) {
 	parentPath, err := PathRelativeFromInclude(ctx, params)
 	if err != nil {
@@ -319,7 +320,7 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 	return envVariable, nil
 }
 
-// RunCommand is a helper function that runs a command and returns the stdout as the interporation
+// RunCommand is a helper function that runs a command and returns the stdout as the interpolation
 // for each `run_cmd` in locals section, function is called twice
 // result
 func RunCommand(ctx *ParsingContext, args []string) (string, error) {
@@ -406,8 +407,8 @@ func getEnvironmentVariable(ctx *ParsingContext, parameters []string) (string, e
 	return envValue, nil
 }
 
-// Find a parent Terragrunt configuration file in the parent folders above the current Terragrunt configuration file
-// and return its path
+// FindInParentFolders fings a parent Terragrunt configuration file in the parent
+// folders above the current Terragrunt configuration file and return its path.
 func FindInParentFolders(
 	ctx *ParsingContext,
 	params []string,
@@ -470,9 +471,9 @@ func FindInParentFolders(
 	return "", errors.WithStackTrace(ParentFileNotFoundError{Path: ctx.TerragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", ctx.TerragruntOptions.MaxFoldersToCheck)})
 }
 
-// Return the relative path between the included Terragrunt configuration file and the current Terragrunt configuration
-// file. Name param is required and used to lookup the relevant import block when called in a child config with multiple
-// import blocks.
+// PathRelativeToInclude returns the relative path between the included Terragrunt configuration file
+// and the current Terragrunt configuration file. Name param is required and used to lookup the
+// relevant import block when called in a child config with multiple import blocks.
 func PathRelativeToInclude(ctx *ParsingContext, params []string) (string, error) {
 	if ctx.TrackInclude == nil {
 		return ".", nil
@@ -507,7 +508,7 @@ func PathRelativeToInclude(ctx *ParsingContext, params []string) (string, error)
 	return relativePath, err
 }
 
-// Return the relative path from the current Terragrunt configuration to the included Terragrunt configuration file
+// PathRelativeFromInclude returns the relative path from the current Terragrunt configuration to the included Terragrunt configuration file
 func PathRelativeFromInclude(ctx *ParsingContext, params []string) (string, error) {
 	if ctx.TrackInclude == nil {
 		return ".", nil
@@ -550,16 +551,16 @@ func getWorkingDir(ctx *ParsingContext) (string, error) {
 		return "", err
 	}
 
-	sourceUrl, err := GetTerraformSourceUrl(ctx.TerragruntOptions, terragruntConfig)
+	sourceURL, err := GetTerraformSourceURL(ctx.TerragruntOptions, terragruntConfig)
 	if err != nil {
 		return "", err
 	}
 
-	if sourceUrl == "" {
+	if sourceURL == "" {
 		return ctx.TerragruntOptions.WorkingDir, nil
 	}
 
-	source, err := terraform.NewSource(sourceUrl, ctx.TerragruntOptions.DownloadDir, ctx.TerragruntOptions.WorkingDir, ctx.TerragruntOptions.Logger)
+	source, err := terraform.NewSource(sourceURL, ctx.TerragruntOptions.DownloadDir, ctx.TerragruntOptions.WorkingDir, ctx.TerragruntOptions.Logger)
 	if err != nil {
 		return "", err
 	}
@@ -574,12 +575,12 @@ func getTerraformCliArgs(ctx *ParsingContext) ([]string, error) {
 
 // getDefaultRetryableErrors returns default retryable errors
 func getDefaultRetryableErrors(ctx *ParsingContext) ([]string, error) {
-	return options.DEFAULT_RETRYABLE_ERRORS, nil
+	return options.DefaultRetryableErrors, nil
 }
 
 // Return the AWS account id associated to the current set of credentials
 func getAWSAccountID(ctx *ParsingContext) (string, error) {
-	accountID, err := aws_helper.GetAWSAccountID(nil, ctx.TerragruntOptions)
+	accountID, err := awshelper.GetAWSAccountID(nil, ctx.TerragruntOptions)
 	if err == nil {
 		return accountID, nil
 	}
@@ -589,7 +590,7 @@ func getAWSAccountID(ctx *ParsingContext) (string, error) {
 
 // Return the ARN of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityARN(ctx *ParsingContext) (string, error) {
-	identityARN, err := aws_helper.GetAWSIdentityArn(nil, ctx.TerragruntOptions)
+	identityARN, err := awshelper.GetAWSIdentityArn(nil, ctx.TerragruntOptions)
 	if err == nil {
 		return identityARN, nil
 	}
@@ -599,7 +600,7 @@ func getAWSCallerIdentityARN(ctx *ParsingContext) (string, error) {
 
 // Return the UserID of the AWS identity associated with the current set of credentials
 func getAWSCallerIdentityUserID(ctx *ParsingContext) (string, error) {
-	userID, err := aws_helper.GetAWSUserID(nil, ctx.TerragruntOptions)
+	userID, err := awshelper.GetAWSUserID(nil, ctx.TerragruntOptions)
 	if err == nil {
 		return userID, nil
 	}
@@ -607,7 +608,8 @@ func getAWSCallerIdentityUserID(ctx *ParsingContext) (string, error) {
 	return "", err
 }
 
-// Parse the terragrunt config and return a representation that can be used as a reference. If given a default value,
+// ParseTerragruntConfig parses the terragrunt config and return a
+// representation that can be used as a reference. If given a default value,
 // this will return the default if the terragrunt config file does not exist.
 func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *cty.Value) (cty.Value, error) {
 	// target config check: make sure the target config exists. If the file does not exist, and there is no default val,
@@ -700,6 +702,9 @@ func getCleanedTargetConfigPath(configPath string, workingPath string) string {
 	return util.CleanPath(targetConfig)
 }
 
+// GetTerragruntSourceForModule returns the source path for a module based on the source path of the parent module and the
+// source path specified in the module's terragrunt.hcl file.
+//
 // If one of the xxx-all commands is called with the --terragrunt-source parameter, then for each module, we need to
 // build its own --terragrunt-source parameter by doing the following:
 //
@@ -719,21 +724,21 @@ func GetTerragruntSourceForModule(sourcePath string, modulePath string, moduleTe
 	}
 
 	// use go-getter to split the module source string into a valid URL and subdirectory (if // is present)
-	moduleUrl, moduleSubdir := getter.SourceDirSubdir(*moduleTerragruntConfig.Terraform.Source)
+	moduleURL, moduleSubdir := getter.SourceDirSubdir(*moduleTerragruntConfig.Terraform.Source)
 
 	// if both URL and subdir are missing, something went terribly wrong
-	if moduleUrl == "" && moduleSubdir == "" {
-		return "", errors.WithStackTrace(InvalidSourceUrlError{ModulePath: modulePath, ModuleSourceUrl: *moduleTerragruntConfig.Terraform.Source, TerragruntSource: sourcePath})
+	if moduleURL == "" && moduleSubdir == "" {
+		return "", errors.WithStackTrace(InvalidSourceURLError{ModulePath: modulePath, ModuleSourceURL: *moduleTerragruntConfig.Terraform.Source, TerragruntSource: sourcePath})
 	}
 
 	// if only subdir is missing, check if we can obtain a valid module name from the URL portion
-	if moduleUrl != "" && moduleSubdir == "" {
-		moduleSubdirFromUrl, err := getModulePathFromSourceUrl(moduleUrl)
+	if moduleURL != "" && moduleSubdir == "" {
+		moduleSubdirFromURL, err := getModulePathFromSourceURL(moduleURL)
 		if err != nil {
-			return moduleSubdirFromUrl, err
+			return moduleSubdirFromURL, err
 		}
 
-		return util.JoinTerraformModulePath(sourcePath, moduleSubdirFromUrl), nil
+		return util.JoinTerraformModulePath(sourcePath, moduleSubdirFromURL), nil
 	}
 
 	return util.JoinTerraformModulePath(sourcePath, moduleSubdir), nil
@@ -744,19 +749,19 @@ func GetTerragruntSourceForModule(sourcePath string, modulePath string, moduleTe
 //
 // sourceUrl = "git::ssh://git@ghe.ourcorp.com/OurOrg/module-name.git"
 // will return "module-name".
-func getModulePathFromSourceUrl(sourceUrl string) (string, error) {
+func getModulePathFromSourceURL(sourceURL string) (string, error) {
 	// Regexp for module name extraction. It assumes that the query string has already been stripped off.
 	// Then we simply capture anything after the last slash, and before `.` or end of string.
 	var moduleNameRegexp = regexp.MustCompile(`(?:.+/)(.+?)(?:\.|$)`)
 
 	// strip off the query string if present
-	sourceUrl = strings.Split(sourceUrl, "?")[0]
+	sourceURL = strings.Split(sourceURL, "?")[0]
 
-	matches := moduleNameRegexp.FindStringSubmatch(sourceUrl)
+	matches := moduleNameRegexp.FindStringSubmatch(sourceURL)
 
 	// if regexp returns less/more than the full match + 1 capture group, then something went wrong with regex (invalid source string)
 	if len(matches) != matchedPats {
-		return "", errors.WithStackTrace(ParsingModulePathError{ModuleSourceUrl: sourceUrl})
+		return "", errors.WithStackTrace(ParsingModulePathError{ModuleSourceURL: sourceURL})
 	}
 
 	return matches[1], nil
@@ -792,6 +797,27 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 	canonicalSourceFile, err := util.CanonicalPath(sourceFile, filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath))
 	if err != nil {
 		return "", errors.WithStackTrace(err)
+	}
+
+	// Set environment variables from the TerragruntOptions.Env map.
+	// This is especially useful for integrations with things like the `terragrunt-auth-provider` flag,
+	// which can set environment variables that are used for decryption.
+	//
+	// Due to the fact that sops doesn't expose a way of explicitly setting authentication configurations
+	// for decryption, we have to rely on environment variables to pass these configurations.
+	// This can cause a race condition, so we have to be careful to avoid having anything else
+	// running concurrently that might interfere with the environment variables.
+	env := ctx.TerragruntOptions.Env
+	if len(env) > 0 {
+		locks.EnvLock.Lock()
+		defer locks.EnvLock.Unlock()
+
+		for k, v := range env {
+			if os.Getenv(k) == "" {
+				os.Setenv(k, v)      //nolint:errcheck
+				defer os.Unsetenv(k) //nolint:errcheck
+			}
+		}
 	}
 
 	if val, ok := sopsCache.Get(ctx, canonicalSourceFile); ok {

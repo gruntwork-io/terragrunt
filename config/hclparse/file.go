@@ -73,7 +73,7 @@ func (file *File) Decode(out interface{}, evalContext *hcl.EvalContext) (err err
 	return nil
 }
 
-// GetBlock takes a parsed HCL file and extracts a reference to the `name` block, if there are defined.
+// Blocks takes a parsed HCL file and extracts a reference to the `name` block, if there are defined.
 func (file *File) Blocks(name string, isMultipleAllowed bool) ([]*Block, error) {
 	catalogSchema := &hcl.BodySchema{
 		Blocks: []hcl.BlockHeaderSchema{

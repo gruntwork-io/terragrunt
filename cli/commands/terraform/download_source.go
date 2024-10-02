@@ -17,13 +17,15 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
-// manifest for files copied from terragrunt module folder (i.e., the folder that contains the current terragrunt.hcl)
+// ModuleManifestName is the manifest for files copied from terragrunt module folder (i.e., the folder that contains the current terragrunt.hcl).
 const ModuleManifestName = ".terragrunt-module-manifest"
 
-// file to indicate that init should be executed
+// ModuleInitRequiredFile is a file to indicate that init should be executed.
 const ModuleInitRequiredFile = ".terragrunt-init-required"
 
 const tfLintConfig = ".tflint.hcl"
+
+const fileURIScheme = "file://"
 
 // 1. Download the given source URL, which should use Terraform's module source syntax, into a temporary folder
 // 2. Check if module directory exists in temporary folder
@@ -65,7 +67,7 @@ func downloadTerraformSource(ctx context.Context, source string, terragruntOptio
 	return updatedTerragruntOptions, nil
 }
 
-// Download the specified TerraformSource if the latest code hasn't already been downloaded.
+// DownloadTerraformSourceIfNecessary downloads the specified TerraformSource if the latest code hasn't already been downloaded.
 func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	if terragruntOptions.SourceUpdate {
 		terragruntOptions.Logger.Debugf("The --%s flag is set, so deleting the temporary folder %s before downloading source.", commands.TerragruntSourceUpdateFlagName, terraformSource.DownloadDir)
@@ -114,7 +116,7 @@ func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *te
 	})
 
 	if downloadErr != nil {
-		return DownloadingTerraformSourceErr{ErrMsg: downloadErr, Url: terraformSource.CanonicalSourceURL.String()}
+		return DownloadingTerraformSourceErr{ErrMsg: downloadErr, URL: terraformSource.CanonicalSourceURL.String()}
 	}
 
 	if err := terraformSource.WriteVersionFile(); err != nil {
@@ -142,7 +144,7 @@ func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *te
 	return nil
 }
 
-// Returns true if the specified TerraformSource, of the exact same version, has already been downloaded into the
+// AlreadyHaveLatestCode returns true if the specified TerraformSource, of the exact same version, has already been downloaded into the
 // DownloadFolder. This helps avoid downloading the same code multiple times. Note that if the TerraformSource points
 // to a local file path, a hash will be generated from the contents of the source dir. See the ProcessTerraformSource method for more info.
 func AlreadyHaveLatestCode(terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions) (bool, error) {
@@ -227,7 +229,16 @@ func updateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfi
 
 // Download the code from the Canonical Source URL into the Download Folder using the go-getter library
 func downloadSource(terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
-	terragruntOptions.Logger.Infof("Downloading Terraform configurations from %s into %s", terraformSource.CanonicalSourceURL, terraformSource.DownloadDir)
+	canonicalSourceURL := terraformSource.CanonicalSourceURL.String()
+
+	// Since we convert abs paths to rel in logs, `file://../../path/to/dir` doesn't look good,
+	// so it's better to get rid of it.
+	canonicalSourceURL = strings.TrimPrefix(canonicalSourceURL, fileURIScheme)
+
+	terragruntOptions.Logger.Infof(
+		"Downloading Terraform configurations from %s into %s",
+		canonicalSourceURL,
+		terraformSource.DownloadDir)
 
 	if err := getter.GetAny(terraformSource.DownloadDir, terraformSource.CanonicalSourceURL.String(), updateGetters(terragruntOptions, terragruntConfig)); err != nil {
 		return errors.WithStackTrace(err)
@@ -236,7 +247,7 @@ func downloadSource(terraformSource *terraform.Source, terragruntOptions *option
 	return nil
 }
 
-// Check if working terraformSource.WorkingDir exists and is directory
+// ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is directory
 func ValidateWorkingDir(terraformSource *terraform.Source) error {
 	workingLocalDir := strings.ReplaceAll(terraformSource.WorkingDir, terraformSource.DownloadDir+filepath.FromSlash("/"), "")
 	if util.IsFile(terraformSource.WorkingDir) {
@@ -270,9 +281,9 @@ func (err WorkingDirNotDir) Error() string {
 
 type DownloadingTerraformSourceErr struct {
 	ErrMsg error
-	Url    string
+	URL    string
 }
 
 func (err DownloadingTerraformSourceErr) Error() string {
-	return fmt.Sprintf("downloading source url %s\n%v", err.Url, err.ErrMsg)
+	return fmt.Sprintf("downloading source url %s\n%v", err.URL, err.ErrMsg)
 }

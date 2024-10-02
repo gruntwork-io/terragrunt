@@ -72,7 +72,7 @@ type Config struct {
 	shutdownTimeout time.Duration
 
 	services         []services.Service
-	providerHandlers []handlers.ProviderHandler
+	providerHandlers handlers.ProviderHandlers
 
 	logger log.Logger
 }
@@ -87,12 +87,12 @@ func NewConfig(opts ...Option) *Config {
 	return cfg.WithOptions(opts...)
 }
 
-func (config *Config) WithOptions(opts ...Option) *Config {
+func (cfg *Config) WithOptions(opts ...Option) *Config {
 	for _, opt := range opts {
-		*config = opt(*config)
+		*cfg = opt(*cfg)
 	}
 
-	return config
+	return cfg
 }
 
 func (cfg *Config) Addr() string {

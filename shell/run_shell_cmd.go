@@ -1,3 +1,4 @@
+// Package shell provides functions to run shell commands and Terraform commands.
 package shell
 
 import (
@@ -32,10 +33,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+// SignalForwardingDelay is the time to wait before forwarding the signal to the subcommand.
+//
 // The signal can be sent to the main process (only `terragrunt`) as well as the process group (`terragrunt` and `terraform`), for example:
 // kill -INT <pid>  # sends SIGINT only to the main process
 // kill -INT -<pid> # sends SIGINT to the process group
-// Since we cannot know how the signal is sent, we should give `terraform` time to gracefully exit if it receives the signal directly from the shell, to avoid sending the second interrupt signal to `terraform`.
+// Since we cannot know how the signal is sent, we should give `tofu`/`terraform` time to gracefully exit
+// if it receives the signal directly from the shell, to avoid sending the second interrupt signal to `tofu`/`terraform`.
 const SignalForwardingDelay = time.Second * 30
 
 const (
@@ -62,7 +66,7 @@ var terraformCommandsThatNeedPty = []string{
 	"console",
 }
 
-// Run the given Terraform command
+// RunTerraformCommand runs the given Terraform command.
 func RunTerraformCommand(ctx context.Context, terragruntOptions *options.TerragruntOptions, args ...string) error {
 	needPTY, err := isTerraformCommandThatNeedsPty(args)
 	if err != nil {
@@ -74,13 +78,13 @@ func RunTerraformCommand(ctx context.Context, terragruntOptions *options.Terragr
 	return err
 }
 
-// Run the given shell command
+// RunShellCommand runs the given shell command.
 func RunShellCommand(ctx context.Context, terragruntOptions *options.TerragruntOptions, command string, args ...string) error {
 	_, err := RunShellCommandWithOutput(ctx, terragruntOptions, "", false, false, command, args...)
 	return err
 }
 
-// Run the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
+// RunTerraformCommandWithOutput runs the given Terraform command, writing its stdout/stderr to the terminal AND returning stdout/stderr to this
 // method's caller
 func RunTerraformCommandWithOutput(ctx context.Context, terragruntOptions *options.TerragruntOptions, args ...string) (*util.CmdOutput, error) {
 	needPTY, err := isTerraformCommandThatNeedsPty(args)
@@ -91,7 +95,9 @@ func RunTerraformCommandWithOutput(ctx context.Context, terragruntOptions *optio
 	return RunShellCommandWithOutput(ctx, terragruntOptions, "", false, needPTY, terragruntOptions.TerraformPath, args...)
 }
 
-// Run the specified shell command with the specified arguments. Connect the command's stdin, stdout, and stderr to
+// RunShellCommandWithOutput runs the specified shell command with the specified arguments.
+//
+// Connect the command's stdin, stdout, and stderr to
 // the currently running app. The command can be executed in a custom working directory by using the parameter
 // `workingDir`. Terragrunt working directory will be assumed if empty string.
 func RunShellCommandWithOutput(
@@ -137,7 +143,7 @@ func RunShellCommandWithOutput(
 		)
 
 		// redirect output through logger with json wrapping
-		if opts.JsonLogFormat && opts.TerraformLogsToJson {
+		if opts.JSONLogFormat && opts.TerraformLogsToJSON {
 			logger := opts.Logger.WithField("workingDir", opts.WorkingDir).WithField("executedCommandArgs", args)
 			outWriter = logger.WithOptions(log.WithOutput(errWriter)).Writer()
 			errWriter = logger.WithOptions(log.WithOutput(errWriter)).WriterLevel(log.ErrorLevel)
@@ -181,11 +187,11 @@ func RunShellCommandWithOutput(
 			cmdStdout = io.MultiWriter(&stdoutBuf)
 		}
 
-		if command == opts.TerraformPath && opts.Engine != nil && !engine.IsEngineEnabled() {
+		if command == opts.TerraformPath && opts.Engine != nil && !opts.EngineEnabled {
 			opts.Logger.Debugf("Engine is not enabled, running command directly in %s", commandDir)
 		}
 
-		useEngine := opts.Engine != nil && engine.IsEngineEnabled()
+		useEngine := opts.Engine != nil && opts.EngineEnabled
 
 		// If the engine is enabled and the command is IaC executable, use the engine to run the command.
 		if useEngine && command == opts.TerraformPath {
@@ -247,6 +253,7 @@ func RunShellCommandWithOutput(
 		}
 
 		if err != nil {
+			opts.Logger.Warnf("Failed to execute %s in %s\n%s\n%s\n%v", command+" "+strings.Join(args, " "), cmd.Dir, stdoutBuf.String(), stderrBuf.String(), err)
 			err = util.ProcessExecutionError{
 				Err:        err,
 				Stdout:     stdoutBuf.String(),

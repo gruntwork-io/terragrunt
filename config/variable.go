@@ -95,12 +95,12 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 								return nil, errors.WithStackTrace(err)
 							}
 
-							var ctyJsonOutput ctyJsonValue
-							if err := json.Unmarshal(jsonBytes, &ctyJsonOutput); err != nil {
+							var ctyJSONOutput ctyJSONValue
+							if err := json.Unmarshal(jsonBytes, &ctyJSONOutput); err != nil {
 								return nil, errors.WithStackTrace(err)
 							}
 
-							jsonBytes, err = json.Marshal(ctyJsonOutput.Value)
+							jsonBytes, err = json.Marshal(ctyJSONOutput.Value)
 							if err != nil {
 								return nil, errors.WithStackTrace(err)
 							}
@@ -145,7 +145,7 @@ func generateDefaultValue(variableType string) string {
 	return "\"\""
 }
 
-type ctyJsonValue struct {
+type ctyJSONValue struct {
 	Value interface{} `json:"Value"`
 	Type  interface{} `json:"Type"`
 }

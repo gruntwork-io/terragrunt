@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 )
 
 func TestBoolFlagApply(t *testing.T) {
@@ -86,6 +87,20 @@ func TestBoolFlagApply(t *testing.T) {
 			false,
 			errors.New(`invalid boolean flag foo: setting the flag multiple times`),
 		},
+		{
+			cli.BoolFlag{Name: "foo", EnvVar: "FOO"},
+			nil,
+			map[string]string{"FOO": ""},
+			false,
+			nil,
+		},
+		{
+			cli.BoolFlag{Name: "foo", EnvVar: "FOO"},
+			nil,
+			map[string]string{"FOO": "monkey"},
+			false,
+			errors.New(`invalid boolean value "monkey" for FOO: must be one of: "0", "1", "f", "t", "false", "true"`),
+		},
 	}
 
 	for i, testCase := range testCases {
@@ -130,11 +145,12 @@ func testBoolFlagApply(t *testing.T, flag *cli.BoolFlag, args []string, envs map
 	flagSet.SetOutput(io.Discard)
 
 	err := flag.Apply(flagSet)
-	require.NoError(t, err)
+	if err == nil {
+		err = flagSet.Parse(args)
+	}
 
-	err = flagSet.Parse(args)
 	if expectedErr != nil {
-		require.Equal(t, expectedErr, err)
+		require.ErrorContains(t, expectedErr, err.Error())
 		return
 	}
 	require.NoError(t, err)
@@ -147,6 +163,8 @@ func testBoolFlagApply(t *testing.T, flag *cli.BoolFlag, args []string, envs map
 	if actualValue {
 		assert.Equal(t, strconv.FormatBool(expectedValue), flag.GetValue(), "GetValue()")
 	}
+
+	maps.DeleteFunc(envs, func(k, v string) bool { return v == "" })
 
 	assert.Equal(t, len(args) > 0 || len(envs) > 0, flag.Value().IsSet(), "IsSet()")
 	assert.Equal(t, expectedDefaultValue, flag.Value().GetDefaultText(), "GetDefaultText()")

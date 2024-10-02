@@ -1,3 +1,4 @@
+// Package writer provides a writer that redirects Write requests to configured logger and level.
 package writer
 
 import (
@@ -37,7 +38,7 @@ func (writer *Writer) SetOption(opts ...Option) {
 	}
 }
 
-// Write implements `io.Writer` interafce.
+// Write implements `io.Writer` interface.
 func (writer *Writer) Write(p []byte) (n int, err error) {
 	var (
 		str  = string(p)

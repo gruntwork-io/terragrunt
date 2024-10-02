@@ -83,7 +83,7 @@ func (cmd *Command) VisibleFlags() Flags {
 	return cmd.Flags
 }
 
-// VisibleSubCommands returns a slice of the Commands with Hidden=false.
+// VisibleSubcommands returns a slice of the Commands with Hidden=false.
 // Used by `urfave/cli` package to generate help.
 func (cmd Command) VisibleSubcommands() []*cli.Command {
 	if cmd.Subcommands == nil {

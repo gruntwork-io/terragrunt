@@ -3,7 +3,8 @@ package dynamodb
 type empty struct{}
 type CountingSemaphore chan empty
 
-// A bare-bones counting semaphore implementation based on: http://www.golangpatterns.info/concurrency/semaphores
+// NewCountingSemaphore is a bare-bones counting semaphore implementation
+// based on: http://www.golangpatterns.info/concurrency/semaphores
 func NewCountingSemaphore(size int) CountingSemaphore {
 	return make(CountingSemaphore, size)
 }

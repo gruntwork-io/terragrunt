@@ -1,3 +1,4 @@
+// Package cli configures the Terragrunt CLI app and its commands.
 package cli
 
 import (
@@ -127,14 +128,11 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	}(ctx)
 
 	ctx = config.WithConfigValues(ctx)
-
-	// init engine if required
-	if engine.IsEngineEnabled() {
-		ctx = engine.WithEngineValues(ctx)
-	}
+	// configure engine context
+	ctx = engine.WithEngineValues(ctx)
 
 	defer func(ctx context.Context) {
-		if err := engine.Shutdown(ctx); err != nil {
+		if err := engine.Shutdown(ctx, app.opts); err != nil {
 			_, _ = app.ErrWriter.Write([]byte(err.Error()))
 		}
 	}(ctx)
@@ -146,7 +144,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	return nil
 }
 
-// This set of commands is also used in unit tests
+// TerragruntCommands returns the set of Terragrunt commands.
 func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	cmds := cli.Commands{
 		runall.NewCommand(opts),             // runAction-all
@@ -171,7 +169,7 @@ func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	return cmds
 }
 
-// Wrap CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
+// WrapWithTelemetry wraps CLI command execution with setting of telemetry context and labels, if telemetry is disabled, just runAction the command.
 func WrapWithTelemetry(opts *options.TerragruntOptions) func(ctx *cli.Context, action cli.ActionFunc) error {
 	return func(ctx *cli.Context, action cli.ActionFunc) error {
 		return telemetry.Telemetry(ctx.Context, opts, fmt.Sprintf("%s %s", ctx.Command.Name, opts.TerraformCommand), map[string]interface{}{
@@ -179,7 +177,7 @@ func WrapWithTelemetry(opts *options.TerragruntOptions) func(ctx *cli.Context, a
 			"args":             opts.TerraformCliArgs,
 			"dir":              opts.WorkingDir,
 		}, func(childCtx context.Context) error {
-			ctx.Context = childCtx
+			ctx.Context = childCtx //nolint:fatcontext
 			if err := initialSetup(ctx, opts); err != nil {
 				return err
 			}
@@ -246,7 +244,7 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 
 // mostly preparing terragrunt options
 func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
-	// The env vars are renamed to "..._NO_AUTO_..." in the gobal flags`. These ones are left for backwards compatibility.
+	// The env vars are renamed to "..._NO_AUTO_..." in the global flags`. These ones are left for backwards compatibility.
 	opts.AutoInit = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_INIT"), opts.AutoInit)
 	opts.AutoRetry = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_RETRY"), opts.AutoRetry)
 	opts.RunAllAutoApprove = env.GetBool(os.Getenv("TERRAGRUNT_AUTO_APPROVE"), opts.RunAllAutoApprove)

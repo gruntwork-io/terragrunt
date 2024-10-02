@@ -10,6 +10,8 @@ type Authorization struct {
 	Token string
 }
 
+// Validator validates tokens.
+//
 // To enhance security, we use token-based authentication to connect to the cache server in order to prevent unauthorized connections from third-party applications.
 // Currently, the cache server only supports `x-api-key` token, the value of which can be any text.
 func (auth *Authorization) Validator(bearerToken string, ctx echo.Context) (bool, error) {

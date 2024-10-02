@@ -88,3 +88,17 @@ func handleExitCoder(err error, osExiter func(code int)) error {
 
 	return err
 }
+
+// InvalidValueError is used to wrap errors from `strconv` to make the error message more user friendly.
+type InvalidValueError struct {
+	underlyingError error
+	msg             string
+}
+
+func (err InvalidValueError) Error() string {
+	return err.msg
+}
+
+func (err InvalidValueError) Unwrap() error {
+	return err.underlyingError
+}

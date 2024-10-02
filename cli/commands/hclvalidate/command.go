@@ -1,6 +1,7 @@
+// Package hclvalidate provides the `hclvalidate` command for Terragrunt.
+//
 // `hclvalidate` command recursively looks for hcl files in the directory tree starting at workingDir, and validates them
 // based on the language style guides provided by Hashicorp. This is done using the official hcl2 library.
-
 package hclvalidate
 
 import (

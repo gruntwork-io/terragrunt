@@ -3,6 +3,7 @@ package module
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -185,16 +186,21 @@ func (repo *Repo) clone(ctx context.Context) error {
 		}
 	}
 
-	sourceUrl, err := terraform.ToSourceUrl(repo.cloneURL, "")
+	sourceURL, err := terraform.ToSourceURL(repo.cloneURL, "")
 	if err != nil {
 		return err
 	}
 
-	repo.cloneURL = sourceUrl.String()
+	repo.cloneURL = sourceURL.String()
 
 	repo.logger.Infof("Cloning repository %q to temporary directory %q", repo.cloneURL, repo.path)
 
-	if err := getter.Get(repo.path, strings.Trim(sourceUrl.String(), "/"), getter.WithContext(ctx)); err != nil {
+	// We need to explicitly specify the reference, otherwise we will get an error:
+	// "fatal: The empty string is not a valid pathspec. Use . instead if you wanted to match all paths"
+	// when updating an existing repository.
+	sourceURL.RawQuery = (url.Values{"ref": []string{"HEAD"}}).Encode()
+
+	if err := getter.Get(repo.path, strings.Trim(sourceURL.String(), "/"), getter.WithContext(ctx), getter.WithMode(getter.ClientModeDir)); err != nil {
 		return errors.WithStackTrace(err)
 	}
 

@@ -1,3 +1,5 @@
+// Package cache provides generic cache.
+// It is used to store values by key and retrieve them later.
 package cache
 
 import (
