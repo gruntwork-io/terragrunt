@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/mattn/go-isatty"
 	"io"
 	"net/url"
 	"os"
@@ -290,6 +291,11 @@ func isTerraformCommandThatNeedsPty(args []string) (bool, error) {
 
 	// if there is data in the stdin, then the terraform console is used in non-interactive mode, for example `echo "1 + 5" | terragrunt console`.
 	if fi.Size() > 0 {
+		return false, nil
+	}
+
+	// if the stdin is not a terminal, then the terraform console is used in non-interactive mode
+	if isatty.IsTerminal(os.Stdin.Fd()) {
 		return false, nil
 	}
 

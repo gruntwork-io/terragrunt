@@ -54,26 +54,23 @@ func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.
 	}()
 	ch <- syscall.SIGWINCH // Make sure the pty matches current size
 
-	//if isatty.IsTerminal(os.Stdin.Fd())
-	{
-		// Set stdin in raw mode so that we preserve readline properties
-		oldState, setRawErr := term.MakeRaw(int(os.Stdin.Fd()))
-		if setRawErr != nil {
-			terragruntOptions.Logger.Errorf("Error restoring terminal state: %s", setRawErr)
-			//return errors.WithStackTrace(setRawErr)
-		}
-
-		defer func() {
-			if restoreErr := term.Restore(int(os.Stdin.Fd()), oldState); restoreErr != nil {
-				terragruntOptions.Logger.Errorf("Error restoring terminal state: %s", restoreErr)
-				// Only overwrite the previous error if there was no error since this error has lower priority than any
-				// errors in the main routine
-				if err == nil {
-					err = errors.WithStackTrace(restoreErr)
-				}
-			}
-		}()
+	// Set stdin in raw mode so that we preserve readline properties
+	oldState, setRawErr := term.MakeRaw(int(os.Stdin.Fd()))
+	if setRawErr != nil {
+		terragruntOptions.Logger.Errorf("Error restoring terminal state: %s", setRawErr)
+		//return errors.WithStackTrace(setRawErr)
 	}
+
+	defer func() {
+		if restoreErr := term.Restore(int(os.Stdin.Fd()), oldState); restoreErr != nil {
+			terragruntOptions.Logger.Errorf("Error restoring terminal state: %s", restoreErr)
+			// Only overwrite the previous error if there was no error since this error has lower priority than any
+			// errors in the main routine
+			if err == nil {
+				err = errors.WithStackTrace(restoreErr)
+			}
+		}
+	}()
 
 	stdinDone := make(chan error, 1)
 	go func() {
