@@ -58,8 +58,6 @@ func TestExplainError(t *testing.T) {
 			})
 			explanation := shell.ExplainError(err)
 			assert.Contains(t, explanation, tt.explanation)
-
 		})
 	}
-
 }

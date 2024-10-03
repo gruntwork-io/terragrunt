@@ -94,7 +94,7 @@ func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context 
 
 	signal.NotifierWithContext(ctx, func(sig os.Signal) {
 		// Carriage return helps prevent "^C" from being printed
-		fmt.Print("\r")
+		fmt.Fprint(app.Writer, "\r")
 		app.opts.Logger.Infof("%s signal received. Gracefully shutting down...", cases.Title(language.English).String(sig.String()))
 
 		cancel(signal.NewContextCanceledCause(sig))

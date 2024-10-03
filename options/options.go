@@ -680,7 +680,7 @@ func (opts *TerragruntOptions) DataDir() string {
 	return util.JoinPath(opts.WorkingDir, tfDataDir)
 }
 
-// identifyDefaultWrappedExecutable - return default path used for wrapped executable
+// identifyDefaultWrappedExecutable returns default path used for wrapped executable.
 func identifyDefaultWrappedExecutable() string {
 	if util.IsCommandExecutable(TofuDefaultPath, "-version") {
 		return TofuDefaultPath
@@ -689,7 +689,7 @@ func identifyDefaultWrappedExecutable() string {
 	return TerraformDefaultPath
 }
 
-// EngineOptions Options for the Terragrunt engine
+// EngineOptions Options for the Terragrunt engine.
 type EngineOptions struct {
 	Source  string
 	Version string
@@ -697,6 +697,5 @@ type EngineOptions struct {
 	Meta    map[string]interface{}
 }
 
-// Custom error types
-
+// ErrRunTerragruntCommandNotSet is a custom error type indicating that the command is not set.
 var ErrRunTerragruntCommandNotSet = errors.New("the RunTerragrunt option has not been set on this TerragruntOptions object")

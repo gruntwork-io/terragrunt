@@ -94,19 +94,3 @@ func (err ProcessExecutionError) Error() string {
 func (err ProcessExecutionError) ExitStatus() (int, error) {
 	return GetExitCode(err.Err)
 }
-
-func Unwrap[V error](err error) *V {
-	var target = new(V)
-
-	for {
-		if ok := errors.As(err, target); ok {
-			return target
-		}
-
-		if err = errors.Unwrap(err); err == nil {
-			break
-		}
-	}
-
-	return target
-}

@@ -17,6 +17,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	errExplicitError = errors.New("This is an explicit error")
+)
+
 func TestExitCodeUnix(t *testing.T) {
 	t.Parallel()
 
@@ -35,10 +39,9 @@ func TestExitCodeUnix(t *testing.T) {
 	}
 
 	// assert a non exec.ExitError returns an error
-	err := errors.New("This is an explicit error")
-	retCode, retErr := util.GetExitCode(err)
+	retCode, retErr := util.GetExitCode(errExplicitError)
 	require.Error(t, retErr, "An error was expected")
-	assert.Equal(t, err, retErr)
+	assert.Equal(t, errExplicitError, retErr)
 	assert.Equal(t, 0, retCode)
 }
 
@@ -68,10 +71,9 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 	assert.Equal(t, expectedWait, retCode)
 	assert.WithinDuration(t, time.Now(), start.Add(time.Duration(expectedWait)*time.Second), time.Second,
 		"Expected to wait 5 (+/-1) seconds after SIGINT")
-
 }
 
-// There isn't a proper way to catch interrupts in Windows batch scripts, so this test exists only for Unix
+// There isn't a proper way to catch interrupts in Windows batch scripts, so this test exists only for Unix.
 func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 	t.Parallel()
 

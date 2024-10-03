@@ -16,6 +16,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/require"
+
+	goerrors "github.com/go-errors/errors"
 )
 
 func TestFindStackInSubfolders(t *testing.T) {
@@ -1101,7 +1103,13 @@ func TestResolveTerraformModulesInvalidPaths(t *testing.T) {
 	ok := errors.As(actualErr, &processingModuleError)
 	require.True(t, ok)
 
-	unwrapped := errors.Unwrap(processingModuleError.UnderlyingError)
+	goError := new(goerrors.Error)
+
+	unwrapped := processingModuleError.UnderlyingError
+	if errors.As(unwrapped, &goError) {
+		unwrapped = goError.Err
+	}
+
 	require.True(t, os.IsNotExist(unwrapped), "Expected a file not exists error but got %v", processingModuleError.UnderlyingError)
 }
 

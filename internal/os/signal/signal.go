@@ -7,6 +7,7 @@ import (
 	"os/signal"
 )
 
+// NotifyFunc is a callback function for Notifier.
 type NotifyFunc func(sig os.Signal)
 
 // Notifier registers a handler for receiving signals from the OS.

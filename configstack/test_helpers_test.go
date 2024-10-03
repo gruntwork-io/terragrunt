@@ -205,10 +205,10 @@ func optionsWithMockTerragruntCommand(t *testing.T, terragruntConfigPath string,
 func assertMultiErrorContains(t *testing.T, actualError error, expectedErrors ...error) {
 	t.Helper()
 
-	actualError = errors.Unwrap(actualError)
-	var multiError *multierror.Error
-	isMultiError := errors.As(actualError, &multiError)
-	if assert.True(t, isMultiError, "Expected a MutliError, but got: %v", actualError) {
+	multiError := new(multierror.Error)
+	errors.As(actualError, &multiError)
+
+	if assert.True(t, multiError != nil, "Expected a MutliError, but got: %v", actualError) {
 		assert.Equal(t, len(expectedErrors), len(multiError.Errors))
 		for _, expectedErr := range expectedErrors {
 			found := false

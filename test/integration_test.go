@@ -638,7 +638,7 @@ func TestInvalidSource(t *testing.T) {
 	require.Error(t, err)
 
 	var workingDirNotFoundErr terraform.WorkingDirNotFound
-	// _, ok := errors.Unwrap(err).(terraform.WorkingDirNotFound)
+
 	ok := errors.As(err, &workingDirNotFoundErr)
 	assert.True(t, ok)
 }
