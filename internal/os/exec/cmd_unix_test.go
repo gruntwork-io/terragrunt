@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	errExplicitError = errors.New("This is an explicit error")
+	errExplicitError = errors.New("this is an explicit error")
 )
 
 func TestExitCodeUnix(t *testing.T) {

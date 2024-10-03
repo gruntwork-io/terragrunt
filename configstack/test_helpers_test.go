@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type TerraformModuleByPath configstack.TerraformModules
@@ -207,18 +208,17 @@ func assertMultiErrorContains(t *testing.T, actualError error, expectedErrors ..
 
 	multiError := new(multierror.Error)
 	errors.As(actualError, &multiError)
+	require.NotNil(t, multiError, "Expected a MutliError, but got: %v", actualError)
 
-	if assert.True(t, multiError != nil, "Expected a MutliError, but got: %v", actualError) {
-		assert.Equal(t, len(expectedErrors), len(multiError.Errors))
-		for _, expectedErr := range expectedErrors {
-			found := false
-			for _, actualErr := range multiError.Errors {
-				if errors.Is(expectedErr, actualErr) {
-					found = true
-					break
-				}
+	assert.Equal(t, len(expectedErrors), len(multiError.Errors))
+	for _, expectedErr := range expectedErrors {
+		found := false
+		for _, actualErr := range multiError.Errors {
+			if errors.Is(expectedErr, actualErr) {
+				found = true
+				break
 			}
-			assert.True(t, found, "Couldn't find expected error %v", expectedErr)
 		}
+		assert.True(t, found, "Couldn't find expected error %v", expectedErr)
 	}
 }
