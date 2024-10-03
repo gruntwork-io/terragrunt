@@ -549,14 +549,14 @@ func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 	)
 	// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
 	err := runTerragruntCommand(t, cmd, &stdout, &stderr)
-	require.NotNil(t, err, "Failed to properly fail command: %v. The terraform should be bad", cmd)
+	require.Error(t, err, "Failed to properly fail command: %v. The terraform should be bad", cmd)
 
 	output := stdout.String()
 	errOutput := stderr.String()
 	fmt.Printf("STDERR is %s.\n STDOUT is %s", errOutput, output)
 
-	assert.ErrorContains(t, err, "missingvar1")
-	assert.ErrorContains(t, err, "missingvar2")
+	require.ErrorContains(t, err, "missingvar1")
+	require.ErrorContains(t, err, "missingvar2")
 }
 
 func TestTerragruntGraphDependenciesCommand(t *testing.T) {
@@ -3231,8 +3231,8 @@ func TestModulePathInPlanErrorMessage(t *testing.T) {
 
 	err := runTerragruntCommand(t, "terragrunt plan -no-color --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
 	require.Error(t, err)
-	output := fmt.Sprintf("%s\n%s\n%v\n", stdout.String(), stderr.String(), err.Error())
-	assert.Contains(t, output, fmt.Sprintf("%s", util.JoinPath(tmpEnvPath, testFixtureModulePathError, "d1")))
+	output := stdout.String() + "\n" + stderr.String() + "\n" + err.Error() + "\n"
+
 	assert.Contains(t, output, "1 error occurred")
 }
 

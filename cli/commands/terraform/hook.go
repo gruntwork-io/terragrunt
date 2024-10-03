@@ -55,7 +55,6 @@ func processErrorHooks(ctx context.Context, hooks []config.ErrorHook, terragrunt
 	errorMessage := customMultierror.Error()
 
 	for _, curHook := range hooks {
-
 		if util.MatchesAny(curHook.OnErrors, errorMessage) && util.ListContainsElement(curHook.Commands, terragruntOptions.TerraformCommand) {
 			terragruntOptions.Logger.Infof("Executing hook: %s", curHook.Name)
 

@@ -21,8 +21,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	goerrors "github.com/go-errors/errors"
 )
 
 const (
@@ -156,19 +154,6 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	output := stderr.String()
 	assert.Equal(t, 1, strings.Count(output, appV1Path))
 	assert.Equal(t, 1, strings.Count(output, appV2Path))
-}
-
-func Unwrap(err error) error {
-	if err == nil {
-		return nil
-	}
-
-	goError, isGoError := err.(*goerrors.Error)
-	if isGoError {
-		return goError.Err
-	}
-
-	return err
 }
 
 func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
