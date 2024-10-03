@@ -536,10 +536,15 @@ func TestPreventDestroyDependencies(t *testing.T) {
 	logBufferContentsLineByLine(t, destroyAllStdout, "destroy-all stdout")
 	logBufferContentsLineByLine(t, destroyAllStderr, "destroy-all stderr")
 
-	if assert.Error(t, err) {
-		underlying := errors.Unwrap(err)
-		assert.IsType(t, &multierror.Error{}, underlying)
+	require.Error(t, err)
+
+	var multiErrors *multierror.Error
+
+	if ok := errors.As(err, &multiErrors); ok {
+		err = multiErrors
 	}
+
+	assert.IsType(t, &multierror.Error{}, err)
 
 	// Check that modules C, D and E were deleted and modules A and B weren't.
 	for moduleName, modulePath := range modulePaths {

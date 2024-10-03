@@ -35,9 +35,9 @@ func WithStackTrace(err error) error {
 	return goerrors.Wrap(err, 1)
 }
 
-// WithStackTraceAndPrefix wraps the given error in an Error type that contains the stack trace and has the given message prepended as part of
-// the error message. If the given error already has a stack trace, it is used directly. If the given error is nil,
-// return nil.
+// WithStackTraceAndPrefix wraps the given error in an Error type that contains the stack trace and has the given message
+// prepended as part of the error message. If the given error already has a stack trace, it is used directly.
+// If the given error is nil, return nil.
 func WithStackTraceAndPrefix(err error, message string, args ...interface{}) error {
 	if err == nil {
 		return nil

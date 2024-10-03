@@ -8,7 +8,7 @@ import (
 )
 
 // InterruptSignal is an interrupt signal.
-const InterruptSignal os.Signal = os.Signal{}
+const InterruptSignal os.Signal = &os.Signal{}
 
 // InterruptSignals contains a list of signals that are treated as interrupts.
 var InterruptSignals []os.Signal = []os.Signal{}

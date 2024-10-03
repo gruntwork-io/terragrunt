@@ -21,6 +21,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	goerrors "github.com/go-errors/errors"
 )
 
 const (
@@ -156,6 +158,19 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(output, appV2Path))
 }
 
+func Unwrap(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	goError, isGoError := err.(*goerrors.Error)
+	if isGoError {
+		return goError.Err
+	}
+
+	return err
+}
+
 func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 	t.Parallel()
 
@@ -199,10 +214,15 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 	logBufferContentsLineByLine(t, destroyAllStdout, "destroy-all stdout")
 	logBufferContentsLineByLine(t, destroyAllStderr, "destroy-all stderr")
 
-	if assert.Error(t, err) {
-		underlying := errors.Unwrap(err)
-		assert.IsType(t, &multierror.Error{}, underlying)
+	require.Error(t, err)
+
+	var multiErrors *multierror.Error
+
+	if ok := errors.As(err, &multiErrors); ok {
+		err = multiErrors
 	}
+
+	assert.IsType(t, &multierror.Error{}, err)
 
 	// Check that modules C, D and E were deleted and modules A and B weren't.
 	for moduleName, modulePath := range modulePaths {

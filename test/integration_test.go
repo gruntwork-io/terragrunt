@@ -3300,7 +3300,7 @@ func TestModulePathInPlanErrorMessage(t *testing.T) {
 	err := runTerragruntCommand(t, "terragrunt plan -no-color --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
 	require.Error(t, err)
 	output := fmt.Sprintf("%s\n%s\n%v\n", stdout.String(), stderr.String(), err.Error())
-	assert.Contains(t, output, fmt.Sprintf("[%s]", util.JoinPath(tmpEnvPath, testFixtureModulePathError, "d1")))
+	assert.Contains(t, output, fmt.Sprintf("%s", util.JoinPath(tmpEnvPath, testFixtureModulePathError, "d1")))
 	assert.Contains(t, output, "1 error occurred")
 }
 
@@ -3954,8 +3954,8 @@ func TestErrorMessageIncludeInOutput(t *testing.T) {
 	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureErrorPrint)
 
-	_, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt apply  --terragrunt-non-interactive --terragrunt-working-dir "+testPath+" --terragrunt-tfpath "+testPath+"/custom-tf-script.sh --terragrunt-log-level debug")
+	_, _, err := runTerragruntCommandWithOutput(t, "terragrunt apply  --terragrunt-non-interactive --terragrunt-working-dir "+testPath+" --terragrunt-tfpath "+testPath+"/custom-tf-script.sh --terragrunt-log-level debug")
 	require.Error(t, err)
 
-	assert.Contains(t, stderr, "Custom error from script")
+	assert.Contains(t, err.Error(), "Custom error from script")
 }
