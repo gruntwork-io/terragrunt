@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
+// Cmd is a command type.
 type Cmd struct {
 	*exec.Cmd
 

@@ -954,8 +954,8 @@ func TestAwsMockOutputsFromRemoteState(t *testing.T) { //nolint: paralleltest
 	_, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt init --terragrunt-fetch-dependency-output-from-state --terragrunt-non-interactive --terragrunt-working-dir %s/app2", environmentPath))
 	require.NoError(t, err)
 
-	assert.True(t, strings.Contains(stderr, "Failed to read outputs"))
-	assert.True(t, strings.Contains(stderr, "fallback to mock outputs"))
+	assert.Contains(t, err, "Failed to read outputs")
+	assert.Contains(t, err, "fallback to mock outputs")
 }
 
 func TestAwsParallelStateInit(t *testing.T) {

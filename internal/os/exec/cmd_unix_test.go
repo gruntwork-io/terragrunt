@@ -24,18 +24,18 @@ var (
 func TestExitCodeUnix(t *testing.T) {
 	t.Parallel()
 
-	for i := 0; i <= 255; i++ {
-		cmd := exec.Command("testdata/test_exit_code.sh", strconv.Itoa(i))
+	for index := 0; index <= 255; index++ {
+		cmd := exec.Command("testdata/test_exit_code.sh", strconv.Itoa(index))
 		err := cmd.Run()
 
-		if i == 0 {
+		if index == 0 {
 			require.NoError(t, err)
 		} else {
 			require.Error(t, err)
 		}
 		retCode, err := util.GetExitCode(err)
 		require.NoError(t, err)
-		assert.Equal(t, i, retCode)
+		assert.Equal(t, index, retCode)
 	}
 
 	// assert a non exec.ExitError returns an error
