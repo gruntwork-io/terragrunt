@@ -19,7 +19,7 @@ const (
 	tagSplitPart = 2
 )
 
-// GitTopLevelDir fetchs git repository path from passed directory.
+// GitTopLevelDir fetches git repository path from passed directory.
 func GitTopLevelDir(ctx context.Context, terragruntOptions *options.TerragruntOptions, path string) (string, error) {
 	runCache := cache.ContextCache[string](ctx, RunCmdCacheContextKey)
 	cacheKey := "top-level-dir-" + path
@@ -52,7 +52,7 @@ func GitTopLevelDir(ctx context.Context, terragruntOptions *options.TerragruntOp
 	return cmdOutput, nil
 }
 
-// GitRepoTags fetchs git repository tags from passed url.
+// GitRepoTags fetches git repository tags from passed url.
 func GitRepoTags(ctx context.Context, opts *options.TerragruntOptions, gitRepo *url.URL) ([]string, error) {
 	repoPath := gitRepo.String()
 	// remove git:: part if present
@@ -89,7 +89,7 @@ func GitRepoTags(ctx context.Context, opts *options.TerragruntOptions, gitRepo *
 	return tags, nil
 }
 
-// GitLastReleaseTag fetchs git repository last release tag.
+// GitLastReleaseTag fetches git repository last release tag.
 func GitLastReleaseTag(ctx context.Context, opts *options.TerragruntOptions, gitRepo *url.URL) (string, error) {
 	tags, err := GitRepoTags(ctx, opts, gitRepo)
 	if err != nil {

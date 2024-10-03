@@ -10,7 +10,7 @@ type ContextCanceledCause struct {
 	Signal os.Signal
 }
 
-// NewContextCanceledCause retruns a new `ContextCanceledCause` instance.
+// NewContextCanceledCause returns a new `ContextCanceledCause` instance.
 func NewContextCanceledCause(sig os.Signal) *ContextCanceledCause {
 	return &ContextCanceledCause{Signal: sig}
 }
