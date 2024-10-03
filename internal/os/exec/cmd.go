@@ -1,3 +1,4 @@
+// Package exec runs external commands. It wraps exec.Cmd package with support for allocating a pseudo-terminal.
 package exec
 
 import (

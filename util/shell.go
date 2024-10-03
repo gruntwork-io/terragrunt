@@ -77,6 +77,13 @@ type ProcessExecutionError struct {
 }
 
 func (err ProcessExecutionError) Error() string {
+	if err.Output == nil {
+		return fmt.Sprintf("Failed to execute %s in %s\n%v",
+			strings.Join(err.Cmd.Args, " "),
+			err.Cmd.Dir,
+			err.Err)
+	}
+
 	return fmt.Sprintf("Failed to execute %s in %s\n%s\n%v",
 		strings.Join(err.Cmd.Args, " "),
 		err.Cmd.Dir,

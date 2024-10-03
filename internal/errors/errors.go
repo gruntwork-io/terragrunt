@@ -1,3 +1,4 @@
+// Package errors contains helper functions for wrapping errors with stack traces, stack output, and panic recovery.
 package errors
 
 import (
@@ -49,20 +50,6 @@ func WithStackTraceAndPrefix(err error, message string, args ...interface{}) err
 // are wrapped in objects with a stacktrace) and then does a simple equality check on them.
 func IsError(actual error, expected error) bool {
 	return goerrors.Is(actual, expected)
-}
-
-// Unwrap unwraps the given error that contains a stacktrace and returns the original, underlying error.
-// In all other cases, return the error unchanged
-func Unwrap(err error) error {
-	if err == nil {
-		return nil
-	}
-
-	if goError := new(goerrors.Error); errors.As(err, &goError) {
-		return goError.Err
-	}
-
-	return err
 }
 
 // ErrorWithStackTrace returns a string that contains both the error message and the callstack.
@@ -126,25 +113,4 @@ func WithPanicHandling(action func(c *cli.Context) error) func(c *cli.Context) e
 
 		return action(context)
 	}
-}
-
-// As finds the first error in err's tree that matches target, and if one is found, sets
-// target to that error value and returns true. Otherwise, it returns false.
-func As(err error, target any) bool {
-	return errors.As(err, target)
-}
-
-// Is reports whether any error in err's tree matches target.
-func Is(err, target error) bool {
-	return errors.Is(err, target)
-}
-
-// New returns an error that formats as the given text.
-func New(text string) error {
-	return errors.New(text)
-}
-
-// Join returns an error that wraps the given errors.
-func Join(errs ...error) error {
-	return errors.Join(errs...)
 }

@@ -1,3 +1,4 @@
+// Package signal provides convenience methods for intercepting and handling OS signals.
 package signal
 
 import (
