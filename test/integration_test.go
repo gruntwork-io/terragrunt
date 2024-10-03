@@ -550,14 +550,15 @@ func TestTerragruntReportsTerraformErrorsWithPlanAll(t *testing.T) {
 		stderr bytes.Buffer
 	)
 	// Call runTerragruntCommand directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
-	if err := runTerragruntCommand(t, cmd, &stdout, &stderr); err == nil {
-		t.Fatalf("Failed to properly fail command: %v. The terraform should be bad", cmd)
-	}
+	err := runTerragruntCommand(t, cmd, &stdout, &stderr)
+	require.NotNil(t, err, "Failed to properly fail command: %v. The terraform should be bad", cmd)
+
 	output := stdout.String()
 	errOutput := stderr.String()
 	fmt.Printf("STDERR is %s.\n STDOUT is %s", errOutput, output)
-	assert.True(t, strings.Contains(errOutput, "missingvar1") || strings.Contains(output, "missingvar1"))
-	assert.True(t, strings.Contains(errOutput, "missingvar2") || strings.Contains(output, "missingvar2"))
+
+	assert.ErrorContains(t, err, "missingvar1")
+	assert.ErrorContains(t, err, "missingvar2")
 }
 
 func TestTerragruntGraphDependenciesCommand(t *testing.T) {
