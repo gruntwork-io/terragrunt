@@ -575,7 +575,7 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 	}
 
 	var (
-		output = new(util.CmdOutput)
+		output = util.CmdOutput{}
 
 		stdout = io.MultiWriter(runOptions.CmdStdout, &output.Stdout)
 		stderr = io.MultiWriter(runOptions.CmdStderr, &output.Stderr)
@@ -623,7 +623,7 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 		return nil, errors.WithStackTrace(err)
 	}
 
-	return output, nil
+	return &output, nil
 }
 
 // processStream handles the character buffering and line printing for a given stream

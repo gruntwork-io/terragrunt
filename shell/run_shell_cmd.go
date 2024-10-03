@@ -97,7 +97,7 @@ func RunShellCommandWithOutput(
 	}
 
 	var (
-		output     = new(util.CmdOutput)
+		output     = util.CmdOutput{}
 		commandDir = workingDir
 	)
 
@@ -168,7 +168,7 @@ func RunShellCommandWithOutput(
 					return errors.WithStackTrace(err)
 				}
 
-				output = cmdOutput
+				output = *cmdOutput
 
 				return err
 			}
@@ -214,7 +214,7 @@ func RunShellCommandWithOutput(
 		return nil
 	})
 
-	return output, err
+	return &output, err
 }
 
 // isTerraformCommandThatNeedsPty returns true if the sub command of terraform we are running requires a pty.

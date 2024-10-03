@@ -72,18 +72,11 @@ func GetExitCode(err error) (int, error) {
 type ProcessExecutionError struct {
 	Err        error
 	Cmd        *exec.Cmd
-	Output     *CmdOutput
+	Output     CmdOutput
 	WorkingDir string
 }
 
 func (err ProcessExecutionError) Error() string {
-	if err.Output == nil {
-		return fmt.Sprintf("Failed to execute %s in %s\n%v",
-			strings.Join(err.Cmd.Args, " "),
-			err.Cmd.Dir,
-			err.Err)
-	}
-
 	return fmt.Sprintf("Failed to execute %s in %s\n%s\n%v",
 		strings.Join(err.Cmd.Args, " "),
 		err.Cmd.Dir,
