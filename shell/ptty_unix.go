@@ -71,18 +71,29 @@ func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.
 		}
 	}()
 
+	stdinDone := make(chan error, 1)
 	// Copy stdin to the pty
 	go func() {
 		_, copyStdinErr := io.Copy(pseudoTerminal, os.Stdin)
 		// We don't propagate this error upstream because it does not affect normal operation of the command. A repeat
 		// of the same stdin in this case should resolve the issue.
-		terragruntOptions.Logger.Errorf("Error forwarding stdin: %s", copyStdinErr)
+		if copyStdinErr != nil {
+			terragruntOptions.Logger.Errorf("Error forwarding stdin: %s", copyStdinErr)
+		}
+		// signal that stdin copy is done
+		stdinDone <- copyStdinErr
 	}()
 
 	// ... and the pty to stdout.
 	_, copyStdoutErr := io.Copy(cmdStdout, pseudoTerminal)
 	if copyStdoutErr != nil {
 		return errors.WithStackTrace(copyStdoutErr)
+	}
+
+	// Wait for stdin copy to complete before returning
+
+	if copyStdinErr := <-stdinDone; copyStdinErr != nil && !errors.IsError(copyStdinErr, io.EOF) {
+		terragruntOptions.Logger.Errorf("Error forwarding stdin: %s", copyStdinErr)
 	}
 
 	return nil
