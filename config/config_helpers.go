@@ -26,6 +26,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/locks"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/terraform"
@@ -795,6 +796,27 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 	canonicalSourceFile, err := util.CanonicalPath(sourceFile, filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath))
 	if err != nil {
 		return "", errors.WithStackTrace(err)
+	}
+
+	// Set environment variables from the TerragruntOptions.Env map.
+	// This is especially useful for integrations with things like the `terragrunt-auth-provider` flag,
+	// which can set environment variables that are used for decryption.
+	//
+	// Due to the fact that sops doesn't expose a way of explicitly setting authentication configurations
+	// for decryption, we have to rely on environment variables to pass these configurations.
+	// This can cause a race condition, so we have to be careful to avoid having anything else
+	// running concurrently that might interfere with the environment variables.
+	env := ctx.TerragruntOptions.Env
+	if len(env) > 0 {
+		locks.EnvLock.Lock()
+		defer locks.EnvLock.Unlock()
+
+		for k, v := range env {
+			if os.Getenv(k) == "" {
+				os.Setenv(k, v)      //nolint:errcheck
+				defer os.Unsetenv(k) //nolint:errcheck
+			}
+		}
 	}
 
 	if val, ok := sopsCache.Get(ctx, canonicalSourceFile); ok {

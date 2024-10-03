@@ -71,18 +71,29 @@ func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) (err error) {
 		}
 	}()
 
+	stdinDone := make(chan error, 1)
 	// Copy stdin to the pty
 	go func() {
 		_, copyStdinErr := io.Copy(pseudoTerminal, os.Stdin)
 		// We don't propagate this error upstream because it does not affect normal operation of the command. A repeat
 		// of the same stdin in this case should resolve the issue.
-		logger.Errorf("Error forwarding stdin: %s", copyStdinErr)
+		if copyStdinErr != nil {
+			logger.Errorf("Error forwarding stdin: %s", copyStdinErr)
+		}
+		// signal that stdin copy is done
+		stdinDone <- copyStdinErr
 	}()
 
 	// ... and the pty to stdout.
 	_, copyStdoutErr := io.Copy(cmd.Stdout, pseudoTerminal)
 	if copyStdoutErr != nil {
 		return errors.WithStackTrace(copyStdoutErr)
+	}
+
+	// Wait for stdin copy to complete before returning
+
+	if copyStdinErr := <-stdinDone; copyStdinErr != nil && !errors.IsError(copyStdinErr, io.EOF) {
+		logger.Errorf("Error forwarding stdin: %s", copyStdinErr)
 	}
 
 	return nil

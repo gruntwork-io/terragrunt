@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mattn/go-isatty"
+
 	"github.com/gruntwork-io/terragrunt/engine"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
@@ -151,7 +153,7 @@ func RunShellCommandWithOutput(
 
 		if command == opts.TerraformPath {
 			// If the engine is enabled and the command is IaC executable, use the engine to run the command.
-			if opts.Engine != nil && engine.IsEngineEnabled() {
+			if opts.Engine != nil && opts.EngineEnabled {
 				opts.Logger.Debugf("Using engine to run command: %s %s", command, strings.Join(args, " "))
 
 				cmdOutput, err := engine.Run(ctx, &engine.ExecutionOptions{
@@ -230,6 +232,11 @@ func isTerraformCommandThatNeedsPty(args []string) (bool, error) {
 
 	// if there is data in the stdin, then the terraform console is used in non-interactive mode, for example `echo "1 + 5" | terragrunt console`.
 	if fi.Size() > 0 {
+		return false, nil
+	}
+
+	// if the stdin is not a terminal, then the terraform console is used in non-interactive mode
+	if !isatty.IsTerminal(os.Stdin.Fd()) {
 		return false, nil
 	}
 

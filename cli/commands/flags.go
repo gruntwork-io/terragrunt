@@ -163,6 +163,13 @@ const (
 	TerragruntProviderCacheRegistryNamesFlagName = "terragrunt-provider-cache-registry-names"
 	TerragruntProviderCacheRegistryNamesEnvName  = "TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES"
 
+	// Engine related environment variables.
+
+	TerragruntEngineEnableEnvName = "TG_EXPERIMENTAL_ENGINE"
+	TerragruntEngineCachePathEnv  = "TG_ENGINE_CACHE_PATH"
+	TerragruntEngineSkipCheckEnv  = "TG_ENGINE_SKIP_CHECK"
+	TerragruntEngineLogLevelEnv   = "TG_ENGINE_LOG_LEVEL"
+
 	HelpFlagName    = "help"
 	VersionFlagName = "version"
 )
@@ -349,9 +356,10 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			},
 		},
 		&cli.BoolFlag{
-			Name:   TerragruntLogDisableFlagName,
-			EnvVar: TerragruntLogDisableEnvName,
-			Usage:  "Disable logging",
+			Name:        TerragruntLogDisableFlagName,
+			EnvVar:      TerragruntLogDisableEnvName,
+			Usage:       "Disable logging",
+			Destination: &opts.DisableLog,
 			Action: func(ctx *cli.Context, _ bool) error {
 				opts.ForwardTFStdout = true
 				opts.Logger.SetOptions(log.WithFormatter(&format.SilentFormatter{}))
@@ -490,6 +498,35 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.AuthProviderCmd,
 			EnvVar:      TerragruntAuthProviderCmdEnvName,
 			Usage:       "The command and arguments that can be used to fetch authentication configurations.",
+		},
+		// Terragrunt engine flags
+		&cli.BoolFlag{
+			Name:        TerragruntEngineEnableEnvName,
+			EnvVar:      TerragruntEngineEnableEnvName,
+			Destination: &opts.EngineEnabled,
+			Usage:       "Enable Terragrunt experimental engine.",
+			Hidden:      true,
+		},
+		&cli.GenericFlag[string]{
+			Name:        TerragruntEngineCachePathEnv,
+			EnvVar:      TerragruntEngineCachePathEnv,
+			Destination: &opts.EngineCachePath,
+			Usage:       "Cache path for Terragrunt engine files.",
+			Hidden:      true,
+		},
+		&cli.BoolFlag{
+			Name:        TerragruntEngineSkipCheckEnv,
+			EnvVar:      TerragruntEngineSkipCheckEnv,
+			Destination: &opts.EngineSkipChecksumCheck,
+			Usage:       "Skip checksum check for Terragrunt engine files.",
+			Hidden:      true,
+		},
+		&cli.GenericFlag[string]{
+			Name:        TerragruntEngineLogLevelEnv,
+			EnvVar:      TerragruntEngineLogLevelEnv,
+			Destination: &opts.EngineLogLevel,
+			Usage:       "Terragrunt engine log level.",
+			Hidden:      true,
 		},
 	}
 
