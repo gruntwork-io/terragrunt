@@ -41,6 +41,8 @@ const (
 	engineCookieKey   = "engine"
 	engineCookieValue = "terragrunt"
 
+	engineLogLevelEnv = "TG_ENGINE_LOG_LEVEL"
+
 	defaultCacheDir        = ".cache"
 	defaultEngineCachePath = "terragrunt/plugins/iac-engine"
 	prefixTrim             = "terragrunt-"
@@ -524,6 +526,7 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 	})
 
 	cmd := exec.Command(localEnginePath)
+	cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", engineLogLevelEnv, engineLogLevel))
 	client := plugin.NewClient(&plugin.ClientConfig{
 		Logger: logger,
 		HandshakeConfig: plugin.HandshakeConfig{
