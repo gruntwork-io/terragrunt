@@ -578,7 +578,7 @@ func getTerragruntOutput(ctx *ParsingContext, dependencyConfig Dependency) (*cty
 
 func isAwsS3NoSuchKey(err error) bool {
 	var awsErr awserr.Error
-	if errors.As(errors.Unwrap(err), &awsErr) {
+	if errors.As(err, &awsErr) {
 		return awsErr.Code() == "NoSuchKey"
 	}
 

@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	goerrors "github.com/go-errors/errors"
-	"github.com/urfave/cli/v2"
 )
 
 // Errorf creates a new error and wraps in an Error type that contains the stack trace.
@@ -15,13 +14,13 @@ func Errorf(message string, args ...interface{}) error {
 	return goerrors.Wrap(err, 1)
 }
 
-// ErrorWithExitCode is a custom error that is used to specify the app exit code.
-type ErrorWithExitCode struct {
+// ExitCodeError is a custom error that is used to specify the app exit code.
+type ExitCodeError struct {
 	Err      error
 	ExitCode int
 }
 
-func (err ErrorWithExitCode) Error() string {
+func (err ExitCodeError) Error() string {
 	return err.Err.Error()
 }
 
@@ -100,17 +99,5 @@ func Recover(onPanic func(cause error)) {
 		}
 
 		onPanic(WithStackTrace(err))
-	}
-}
-
-// WithPanicHandling wraps every command you add to *cli.App to handle panics by logging them with a stack trace and returning
-// an error up the chain.
-func WithPanicHandling(action func(c *cli.Context) error) func(c *cli.Context) error {
-	return func(context *cli.Context) (err error) {
-		defer Recover(func(cause error) {
-			err = cause
-		})
-
-		return action(context)
 	}
 }
