@@ -97,7 +97,7 @@ func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context 
 		fmt.Fprint(app.Writer, "\r") //nolint:errcheck
 		app.opts.Logger.Infof("%s signal received. Gracefully shutting down...", cases.Title(language.English).String(sig.String()))
 
-		cancel(signal.NewContextCanceledCause(sig))
+		cancel(signal.NewContextCanceledError(sig))
 	}, signal.InterruptSignals...)
 
 	return ctx

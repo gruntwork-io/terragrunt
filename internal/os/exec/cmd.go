@@ -75,15 +75,16 @@ func (cmd *Cmd) Start() error {
 //     Thus we will send the signal to the executed command with a delay or immediately if Terragrunt receives this same signal again.
 //  2. If the context does not contain any causes, this means that there was some failure and we need to terminate all executed commands,
 //     in this situation we are sure that commands did not receive any signal, so we send them an interrupt signal immediately.
-func (cmd *Cmd) RegisterGracefullyShutdown(ctx context.Context) (cancelFunc func()) {
+func (cmd *Cmd) RegisterGracefullyShutdown(ctx context.Context) func() {
 	ctxShutdown, cancelShutdown := context.WithCancel(context.Background())
 
 	go func() {
 		select {
 		case <-ctxShutdown.Done():
 		case <-ctx.Done():
-			if cause := new(signal.ContextCanceledCause); errors.As(context.Cause(ctx), &cause) && cause.Signal != nil {
+			if cause := new(signal.ContextCanceledError); errors.As(context.Cause(ctx), &cause) && cause.Signal != nil {
 				cmd.ForwardSignal(ctxShutdown, cause.Signal)
+
 				return
 			}
 
@@ -94,17 +95,22 @@ func (cmd *Cmd) RegisterGracefullyShutdown(ctx context.Context) (cancelFunc func
 	return cancelShutdown
 }
 
-// ForwardSignal forwards a given `sig` with a delay if cmd.forwardSignalDelay is greater than 0, and if the same signal is received again, it is forwarded immediately.
+// ForwardSignal forwards a given `sig` with a delay if cmd.forwardSignalDelay is greater than 0,
+// and if the same signal is received again, it is forwarded immediately.
 func (cmd *Cmd) ForwardSignal(ctx context.Context, sig os.Signal) {
 	ctxDelay, cancelDelay := context.WithCancel(ctx)
 	defer cancelDelay()
 
-	signal.NotifierWithContext(ctx, func(sig os.Signal) {
+	signal.NotifierWithContext(ctx, func(_ os.Signal) {
 		cancelDelay()
 	}, sig)
 
 	if cmd.forwardSignalDelay > 0 {
-		cmd.logger.Infof("%s signal will be forwarded to %s with delay %s", cases.Title(language.English).String(sig.String()), cmd.filename, cmd.forwardSignalDelay)
+		cmd.logger.Infof("%s signal will be forwarded to %s with delay %s",
+			cases.Title(language.English).String(sig.String()),
+			cmd.filename,
+			cmd.forwardSignalDelay,
+		)
 	}
 
 	select {

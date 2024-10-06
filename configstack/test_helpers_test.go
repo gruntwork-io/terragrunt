@@ -216,6 +216,7 @@ func assertMultiErrorContains(t *testing.T, actualError error, expectedErrors ..
 		for _, actualErr := range multiError.Errors {
 			if errors.Is(expectedErr, actualErr) {
 				found = true
+
 				break
 			}
 		}

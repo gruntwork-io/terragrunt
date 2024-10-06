@@ -38,7 +38,7 @@ func TestRunShellCommandWithOutputInterrupt(t *testing.T) {
 	}()
 
 	time.AfterFunc(3*time.Second, func() {
-		cancel(signal.NewContextCanceledCause(syscall.SIGINT))
+		cancel(signal.NewContextCanceledError(syscall.SIGINT))
 	})
 
 	actualErr := <-errCh

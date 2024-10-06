@@ -99,7 +99,7 @@ func parseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*T
 // user.
 func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool) (*TerragruntConfig, error) {
 	if ctx.TrackInclude == nil {
-		return nil, errors.New("you reached an impossible condition. This is most likely a bug in terragrunt.Please open an issue at github.com/gruntwork-io/terragrunt with this error message.Code: HANDLE_INCLUDE_NIL_INCLUDE_CONFIG")
+		return nil, errors.New("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message.Code: HANDLE_INCLUDE_NIL_INCLUDE_CONFIG")
 	}
 
 	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override

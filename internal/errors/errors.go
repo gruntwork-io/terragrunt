@@ -11,6 +11,7 @@ import (
 // Errorf creates a new error and wraps in an Error type that contains the stack trace.
 func Errorf(message string, args ...interface{}) error {
 	err := fmt.Errorf(message, args...)
+
 	return goerrors.Wrap(err, 1)
 }
 

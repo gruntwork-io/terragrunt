@@ -75,6 +75,7 @@ func RunTerraformCommandWithOutput(ctx context.Context, opts *options.Terragrunt
 // RunShellCommand runs the given shell command.
 func RunShellCommand(ctx context.Context, opts *options.TerragruntOptions, command string, args ...string) error {
 	_, err := RunShellCommandWithOutput(ctx, opts, "", false, false, command, args...)
+
 	return err
 }
 
