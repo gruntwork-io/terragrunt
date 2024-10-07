@@ -22,7 +22,7 @@ import (
 	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terratest/modules/files"
-	"github.com/hashicorp/go-getter"
+	"github.com/hashicorp/go-getter/v2"
 )
 
 const (
@@ -142,7 +142,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, moduleURL, templa
 
 	opts.Logger.Infof("Scaffolding a new Terragrunt module %s to %s", moduleURL, opts.WorkingDir)
 
-	if err := getter.GetAny(tempDir, moduleURL); err != nil {
+	if _, err := getter.GetAny(ctx, tempDir, moduleURL); err != nil {
 		return errors.WithStackTrace(err)
 	}
 
@@ -222,7 +222,7 @@ func prepareBoilerplateFiles(ctx context.Context, opts *options.TerragruntOption
 		// downloading template
 		opts.Logger.Infof("Using template from %s", templateURL)
 
-		if err := getter.GetAny(templateDir, templateURL); err != nil {
+		if _, err := getter.GetAny(ctx, templateDir, templateURL); err != nil {
 			return "", errors.WithStackTrace(err)
 		}
 	}
