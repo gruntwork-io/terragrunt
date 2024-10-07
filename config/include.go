@@ -263,8 +263,9 @@ func (cfg *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terragruntOpt
 		cfg.Engine = sourceConfig.Engine.Clone()
 	}
 
-	// Skip has to be set specifically in each file that should be skipped
-	cfg.Skip = sourceConfig.Skip
+	if sourceConfig.Skip != nil {
+		cfg.Skip = sourceConfig.Skip
+	}
 
 	if sourceConfig.RemoteState != nil {
 		cfg.RemoteState = sourceConfig.RemoteState
@@ -388,8 +389,9 @@ func (cfg *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, terragrun
 		cfg.Engine.Merge(sourceConfig.Engine)
 	}
 
-	// Skip has to be set specifically in each file that should be skipped
-	cfg.Skip = sourceConfig.Skip
+	if sourceConfig.Skip != nil {
+		cfg.Skip = sourceConfig.Skip
+	}
 
 	// Copy only dependencies which doesn't exist in source
 	if sourceConfig.Dependencies != nil {

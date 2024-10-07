@@ -720,7 +720,7 @@ func TestParseTerragruntConfigEmptyConfig(t *testing.T) {
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Dependencies)
 	assert.Nil(t, terragruntConfig.PreventDestroy)
-	assert.False(t, terragruntConfig.Skip)
+	assert.Nil(t, terragruntConfig.Skip)
 	assert.Empty(t, terragruntConfig.IamRole)
 	assert.Empty(t, terragruntConfig.IamWebIdentityToken)
 	assert.Nil(t, terragruntConfig.RetryMaxAttempts)
@@ -1213,7 +1213,8 @@ skip = true
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Dependencies)
-	assert.True(t, terragruntConfig.Skip)
+	assert.NotNil(t, terragruntConfig.Skip)
+	assert.True(t, *terragruntConfig.Skip)
 }
 
 func TestParseTerragruntConfigSkipFalse(t *testing.T) {
@@ -1232,7 +1233,8 @@ skip = false
 	assert.Nil(t, terragruntConfig.Terraform)
 	assert.Nil(t, terragruntConfig.RemoteState)
 	assert.Nil(t, terragruntConfig.Dependencies)
-	assert.False(t, terragruntConfig.Skip)
+	assert.NotNil(t, terragruntConfig.Skip)
+	assert.False(t, *terragruntConfig.Skip)
 }
 
 func TestIncludeFunctionsWorkInChildConfig(t *testing.T) {

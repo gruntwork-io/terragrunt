@@ -244,7 +244,7 @@ func decodeDependencies(ctx *ParsingContext, decodedDependency TerragruntDepende
 				depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
 
 				if depConfig, err := PartialParseConfigFile(depCtx, depPath, nil); err == nil {
-					if depConfig.Skip {
+					if depConfig.Skip != nil && *depConfig.Skip {
 						ctx.TerragruntOptions.Logger.Debugf("Skipping outputs reading for disabled dependency %s", dep.Name)
 						dep.Enabled = new(bool)
 					}

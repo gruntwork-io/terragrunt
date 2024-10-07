@@ -14,6 +14,9 @@ import (
 func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 	t.Parallel()
 
+	testTrue := true
+	testFalse := false
+
 	testCases := []struct {
 		config         *config.TerragruntConfig
 		includedConfig *config.TerragruntConfig
@@ -111,18 +114,18 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 		},
 		{
 			&config.TerragruntConfig{},
-			&config.TerragruntConfig{Skip: true},
-			&config.TerragruntConfig{Skip: false},
+			&config.TerragruntConfig{Skip: &testTrue},
+			&config.TerragruntConfig{Skip: &testTrue},
 		},
 		{
-			&config.TerragruntConfig{Skip: false},
-			&config.TerragruntConfig{Skip: true},
-			&config.TerragruntConfig{Skip: false},
+			&config.TerragruntConfig{Skip: &testFalse},
+			&config.TerragruntConfig{Skip: &testTrue},
+			&config.TerragruntConfig{Skip: &testFalse},
 		},
 		{
-			&config.TerragruntConfig{Skip: true},
-			&config.TerragruntConfig{Skip: true},
-			&config.TerragruntConfig{Skip: true},
+			&config.TerragruntConfig{Skip: &testTrue},
+			&config.TerragruntConfig{Skip: &testTrue},
+			&config.TerragruntConfig{Skip: &testTrue},
 		},
 		{
 			&config.TerragruntConfig{IamRole: "role2"},
@@ -165,6 +168,9 @@ func TestMergeConfigIntoIncludedConfig(t *testing.T) {
 
 func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 	t.Parallel()
+
+	testTrue := true
+	testFalse := false
 
 	// The following maps are convenience vars for setting up deep merge map tests
 	overrideMap := map[string]interface{}{
@@ -249,6 +255,25 @@ func TestDeepMergeConfigIntoIncludedConfig(t *testing.T) {
 			&config.TerragruntConfig{IamRole: "foo"},
 			&config.TerragruntConfig{IamRole: "bar"},
 			&config.TerragruntConfig{IamRole: "foo"},
+		},
+		// skip related tests
+		{
+			"skip - preserve target",
+			&config.TerragruntConfig{},
+			&config.TerragruntConfig{Skip: &testTrue},
+			&config.TerragruntConfig{Skip: &testTrue},
+		},
+		{
+			"skip - copy source",
+			&config.TerragruntConfig{Skip: &testFalse},
+			&config.TerragruntConfig{Skip: &testTrue},
+			&config.TerragruntConfig{Skip: &testFalse},
+		},
+		{
+			"skip - still copy source",
+			&config.TerragruntConfig{Skip: &testTrue},
+			&config.TerragruntConfig{Skip: &testTrue},
+			&config.TerragruntConfig{Skip: &testTrue},
 		},
 		// Deep merge dependencies
 		{

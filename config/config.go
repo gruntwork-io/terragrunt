@@ -102,7 +102,7 @@ type TerragruntConfig struct {
 	Dependencies                *ModuleDependencies
 	DownloadDir                 string
 	PreventDestroy              *bool
-	Skip                        bool
+	Skip                        *bool
 	IamRole                     string
 	IamAssumeRoleDuration       *int64
 	IamAssumeRoleSessionName    string
@@ -1114,7 +1114,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	}
 
 	if terragruntConfigFromFile.Skip != nil {
-		terragruntConfig.Skip = *terragruntConfigFromFile.Skip
+		terragruntConfig.Skip = terragruntConfigFromFile.Skip
 		terragruntConfig.SetFieldMetadata(MetadataSkip, defaultMetadata)
 	}
 

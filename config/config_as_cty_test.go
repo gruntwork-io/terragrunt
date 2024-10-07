@@ -82,7 +82,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 		},
 		DownloadDir:    ".terragrunt-cache",
 		PreventDestroy: &testTrue,
-		Skip:           true,
+		Skip:           &testTrue,
 		IamRole:        "terragruntRole",
 		Inputs: map[string]interface{}{
 			"aws_region": "us-east-1",
