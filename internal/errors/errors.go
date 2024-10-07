@@ -7,6 +7,11 @@ import (
 	goerrors "github.com/go-errors/errors"
 )
 
+const (
+	newSkip    = 2
+	errorfSkip = 2
+)
+
 // New creates a new instance of Error.
 // If the given value does not contain an stack trace, it will be created.
 func New(val any) error {
@@ -14,18 +19,14 @@ func New(val any) error {
 		return nil
 	}
 
-	skip := 2
-
-	return newWithSkip(skip, val)
+	return newWithSkip(newSkip, val)
 }
 
 // Errorf creates a new error with the given format and values.
 // It can be used as a drop-in replacement for fmt.Errorf() to provide descriptive errors in return values.
 // If none of the given values contains an stack trace, it will be created.
 func Errorf(format string, vals ...any) error {
-	skip := 2
-
-	return errorfWithSkip(skip, format, vals...)
+	return errorfWithSkip(errorfSkip, format, vals...)
 }
 
 func newWithSkip(skip int, val any) error {
