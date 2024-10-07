@@ -423,9 +423,11 @@ func CreateGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteStateConfi
 		bucketAttrs.BucketPolicyOnly = storage.BucketPolicyOnly{Enabled: true}
 	}
 
-	err := bucket.Create(ctx, projectID, bucketAttrs)
+	if err := bucket.Create(ctx, projectID, bucketAttrs); err != nil {
+		return errors.Errorf("error creating GCS bucket %s: %w", config.remoteStateConfigGCS.Bucket, err)
+	}
 
-	return errors.Errorf("error creating GCS bucket %s: %w", config.remoteStateConfigGCS.Bucket, err)
+	return nil
 }
 
 // WaitUntilGCSBucketExists waits for the GCS bucket specified in the given config to be created.
