@@ -112,7 +112,7 @@ func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) (string, erro
 	// this is where we put the text of a native Go error it may not always
 	// be pure text that lends itself well to word-wrapping.
 	if _, err := fmt.Fprintf(&buf, render.colorize.Color("[bold]%s[reset]\n\n"), diag.Summary); err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	sourceSnippets, err := render.SourceSnippets(diag)
@@ -132,12 +132,12 @@ func (render *HumanRender) Diagnostic(diag *diagnostic.Diagnostic) (string, erro
 				}
 
 				if _, err := fmt.Fprintf(&buf, "%s\n", line); err != nil {
-					return "", errors.WithStackTrace(err)
+					return "", errors.New(err)
 				}
 			}
 		} else {
 			if _, err := fmt.Fprintf(&buf, "%s\n", diag.Detail); err != nil {
-				return "", errors.WithStackTrace(err)
+				return "", errors.New(err)
 			}
 		}
 	}
@@ -194,7 +194,7 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, 
 	}
 
 	if _, err := fmt.Fprintf(buf, "  on %s line %d%s:\n", diag.Range.Filename, diag.Range.Start.Line, contextStr); err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	// Split the snippet and render the highlighted section with underlines
@@ -237,7 +237,7 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, 
 			snippet.StartLine+i,
 			line,
 		); err != nil {
-			return "", errors.WithStackTrace(err)
+			return "", errors.New(err)
 		}
 	}
 
@@ -257,7 +257,7 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, 
 
 		if callInfo := snippet.FunctionCall; callInfo != nil && callInfo.Signature != nil {
 			if _, err := fmt.Fprintf(buf, render.colorize.Color("    [dark_gray]│[reset] while calling [bold]%s[reset]("), callInfo.CalledAs); err != nil {
-				return "", errors.WithStackTrace(err)
+				return "", errors.New(err)
 			}
 
 			for i, param := range callInfo.Signature.Params {
@@ -282,7 +282,7 @@ func (render *HumanRender) SourceSnippets(diag *diagnostic.Diagnostic) (string, 
 
 		for _, value := range values {
 			if _, err := fmt.Fprintf(buf, render.colorize.Color("    [dark_gray]│[reset] [bold]%s[reset] %s\n"), value.Traversal, value.Statement); err != nil {
-				return "", errors.WithStackTrace(err)
+				return "", errors.New(err)
 			}
 		}
 	}

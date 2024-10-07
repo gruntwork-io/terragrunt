@@ -31,13 +31,13 @@ func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) (err error) {
 			// Only overwrite the previous error if there was no error since this error has lower priority than any
 			// errors in the main routine
 			if err == nil {
-				err = errors.WithStackTrace(closeErr)
+				err = errors.New(closeErr)
 			}
 		}
 	}()
 
 	if startErr != nil {
-		return errors.WithStackTrace(startErr)
+		return errors.New(startErr)
 	}
 
 	// Every time the current terminal size changes, we need to make sure the PTY also updates the size.
@@ -57,7 +57,7 @@ func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) (err error) {
 	// Set stdin in raw mode so that we preserve readline properties
 	oldState, setRawErr := term.MakeRaw(int(os.Stdin.Fd()))
 	if setRawErr != nil {
-		return errors.WithStackTrace(setRawErr)
+		return errors.New(setRawErr)
 	}
 
 	defer func() {
@@ -66,7 +66,7 @@ func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) (err error) {
 			// Only overwrite the previous error if there was no error since this error has lower priority than any
 			// errors in the main routine
 			if err == nil {
-				err = errors.WithStackTrace(restoreErr)
+				err = errors.New(restoreErr)
 			}
 		}
 	}()
@@ -87,11 +87,10 @@ func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) (err error) {
 	// ... and the pty to stdout.
 	_, copyStdoutErr := io.Copy(cmd.Stdout, pseudoTerminal)
 	if copyStdoutErr != nil {
-		return errors.WithStackTrace(copyStdoutErr)
+		return errors.New(copyStdoutErr)
 	}
 
 	// Wait for stdin copy to complete before returning
-
 	if copyStdinErr := <-stdinDone; copyStdinErr != nil && !errors.IsError(copyStdinErr, io.EOF) {
 		logger.Errorf("Error forwarding stdin: %s", copyStdinErr)
 	}

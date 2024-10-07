@@ -11,8 +11,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/hashicorp/go-multierror"
-
 	"github.com/getsops/sops/v3/cmd/sops/formats"
 	"github.com/getsops/sops/v3/decrypt"
 	"github.com/hashicorp/go-getter"
@@ -232,12 +230,12 @@ func getRepoRoot(ctx *ParsingContext) (string, error) {
 func getPathFromRepoRoot(ctx *ParsingContext) (string, error) {
 	repoAbsPath, err := shell.GitTopLevelDir(ctx, ctx.TerragruntOptions, ctx.TerragruntOptions.WorkingDir)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	repoRelPath, err := filepath.Rel(repoAbsPath, ctx.TerragruntOptions.WorkingDir)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	return filepath.ToSlash(repoRelPath), nil
@@ -247,12 +245,12 @@ func getPathFromRepoRoot(ctx *ParsingContext) (string, error) {
 func getPathToRepoRoot(ctx *ParsingContext) (string, error) {
 	repoAbsPath, err := shell.GitTopLevelDir(ctx, ctx.TerragruntOptions, ctx.TerragruntOptions.WorkingDir)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	repoRootPathAbs, err := filepath.Rel(ctx.TerragruntOptions.WorkingDir, repoAbsPath)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	return filepath.ToSlash(strings.TrimSpace(repoRootPathAbs)), nil
@@ -262,7 +260,7 @@ func getPathToRepoRoot(ctx *ParsingContext) (string, error) {
 func GetTerragruntDir(ctx *ParsingContext) (string, error) {
 	terragruntConfigFileAbsPath, err := filepath.Abs(ctx.TerragruntOptions.TerragruntConfigPath)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	return filepath.ToSlash(filepath.Dir(terragruntConfigFileAbsPath)), nil
@@ -275,7 +273,7 @@ func GetTerragruntDir(ctx *ParsingContext) (string, error) {
 func getOriginalTerragruntDir(ctx *ParsingContext) (string, error) {
 	terragruntConfigFileAbsPath, err := filepath.Abs(ctx.TerragruntOptions.OriginalTerragruntConfigPath)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	return filepath.ToSlash(filepath.Dir(terragruntConfigFileAbsPath)), nil
@@ -285,14 +283,14 @@ func getOriginalTerragruntDir(ctx *ParsingContext) (string, error) {
 func GetParentTerragruntDir(ctx *ParsingContext, params []string) (string, error) {
 	parentPath, err := PathRelativeFromInclude(ctx, params)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	currentPath := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)
 
 	parentPath, err = filepath.Abs(filepath.Join(currentPath, parentPath))
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	return filepath.ToSlash(parentPath), nil
@@ -309,11 +307,11 @@ func parseGetEnvParameters(parameters []string) (EnvVar, error) {
 		envVariable.Name = parameters[0]
 		envVariable.DefaultValue = parameters[1]
 	default:
-		return envVariable, errors.WithStackTrace(InvalidGetEnvParamsError{ActualNumParams: len(parameters), Example: `getEnv("<NAME>", "[DEFAULT]")`})
+		return envVariable, errors.New(InvalidGetEnvParamsError{ActualNumParams: len(parameters), Example: `getEnv("<NAME>", "[DEFAULT]")`})
 	}
 
 	if envVariable.Name == "" {
-		return envVariable, errors.WithStackTrace(InvalidEnvParamNameError{EnvName: parameters[0]})
+		return envVariable, errors.New(InvalidEnvParamNameError{EnvName: parameters[0]})
 	}
 
 	return envVariable, nil
@@ -328,7 +326,7 @@ func RunCommand(ctx *ParsingContext, args []string) (string, error) {
 	runCommandCache := cache.ContextCache[string](ctx, RunCmdCacheContextKey)
 
 	if len(args) == 0 {
-		return "", errors.WithStackTrace(EmptyStringNotAllowedError("parameter to the run_cmd function"))
+		return "", errors.New(EmptyStringNotAllowedError("parameter to the run_cmd function"))
 	}
 
 	suppressOutput := false
@@ -368,7 +366,7 @@ func RunCommand(ctx *ParsingContext, args []string) (string, error) {
 
 	cmdOutput, err := shell.RunShellCommandWithOutput(ctx, ctx.TerragruntOptions, currentPath, suppressOutput, false, args[0], args[1:]...)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	value := strings.TrimSuffix(cmdOutput.Stdout.String(), "\n")
@@ -390,14 +388,14 @@ func getEnvironmentVariable(ctx *ParsingContext, parameters []string) (string, e
 	parameterMap, err := parseGetEnvParameters(parameters)
 
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	envValue, exists := ctx.TerragruntOptions.Env[parameterMap.Name]
 
 	if !exists {
 		if parameterMap.IsRequired {
-			return "", errors.WithStackTrace(EnvVarNotFoundError{EnvVar: parameterMap.Name})
+			return "", errors.New(EnvVarNotFoundError{EnvVar: parameterMap.Name})
 		}
 
 		envValue = parameterMap.DefaultValue
@@ -428,12 +426,12 @@ func FindInParentFolders(
 	}
 
 	if numParams > matchedPats {
-		return "", errors.WithStackTrace(WrongNumberOfParamsError{Func: "find_in_parent_folders", Expected: "0, 1, or 2", Actual: numParams})
+		return "", errors.New(WrongNumberOfParamsError{Func: "find_in_parent_folders", Expected: "0, 1, or 2", Actual: numParams})
 	}
 
 	previousDir, err := filepath.Abs(filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath))
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	previousDir = filepath.ToSlash(previousDir)
@@ -452,7 +450,7 @@ func FindInParentFolders(
 				return fallbackParam, nil
 			}
 
-			return "", errors.WithStackTrace(ParentFileNotFoundError{Path: ctx.TerragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: "Traversed all the way to the root"})
+			return "", errors.New(ParentFileNotFoundError{Path: ctx.TerragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: "Traversed all the way to the root"})
 		}
 
 		fileToFind := GetDefaultConfigPath(currentDir)
@@ -467,7 +465,7 @@ func FindInParentFolders(
 		previousDir = currentDir
 	}
 
-	return "", errors.WithStackTrace(ParentFileNotFoundError{Path: ctx.TerragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", ctx.TerragruntOptions.MaxFoldersToCheck)})
+	return "", errors.New(ParentFileNotFoundError{Path: ctx.TerragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", ctx.TerragruntOptions.MaxFoldersToCheck)})
 }
 
 // PathRelativeToInclude returns the relative path between the included Terragrunt configuration file
@@ -618,7 +616,7 @@ func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *c
 
 	targetConfigFileExists := util.FileExists(targetConfig)
 	if !targetConfigFileExists && defaultVal == nil {
-		return cty.NilVal, errors.WithStackTrace(TerragruntConfigNotFoundError{Path: targetConfig})
+		return cty.NilVal, errors.New(TerragruntConfigNotFoundError{Path: targetConfig})
 	} else if !targetConfigFileExists {
 		return *defaultVal, nil
 	}
@@ -644,7 +642,7 @@ func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *c
 	for i := 0; i < len(config.TerragruntDependencies); i++ {
 		err := config.TerragruntDependencies[i].setRenderedOutputs(ctx)
 		if err != nil {
-			return cty.NilVal, errors.WithStackTrace(err)
+			return cty.NilVal, errors.New(err)
 		}
 	}
 
@@ -664,7 +662,7 @@ func readTerragruntConfigAsFuncImpl(ctx *ParsingContext) function.Function {
 			numParams := len(args)
 
 			if numParams == 0 || numParams > 2 {
-				return cty.NilVal, errors.WithStackTrace(WrongNumberOfParamsError{Func: "read_terragrunt_config", Expected: "1 or 2", Actual: numParams})
+				return cty.NilVal, errors.New(WrongNumberOfParamsError{Func: "read_terragrunt_config", Expected: "1 or 2", Actual: numParams})
 			}
 
 			strArgs, err := ctySliceToStringSlice(args[:1])
@@ -727,7 +725,7 @@ func GetTerragruntSourceForModule(sourcePath string, modulePath string, moduleTe
 
 	// if both URL and subdir are missing, something went terribly wrong
 	if moduleURL == "" && moduleSubdir == "" {
-		return "", errors.WithStackTrace(InvalidSourceURLError{ModulePath: modulePath, ModuleSourceURL: *moduleTerragruntConfig.Terraform.Source, TerragruntSource: sourcePath})
+		return "", errors.New(InvalidSourceURLError{ModulePath: modulePath, ModuleSourceURL: *moduleTerragruntConfig.Terraform.Source, TerragruntSource: sourcePath})
 	}
 
 	// if only subdir is missing, check if we can obtain a valid module name from the URL portion
@@ -760,7 +758,7 @@ func getModulePathFromSourceURL(sourceURL string) (string, error) {
 
 	// if regexp returns less/more than the full match + 1 capture group, then something went wrong with regex (invalid source string)
 	if len(matches) != matchedPats {
-		return "", errors.WithStackTrace(ParsingModulePathError{ModuleSourceURL: sourceURL})
+		return "", errors.New(ParsingModulePathError{ModuleSourceURL: sourceURL})
 	}
 
 	return matches[1], nil
@@ -785,17 +783,17 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 	}
 
 	if numParams != 1 {
-		return "", errors.WithStackTrace(WrongNumberOfParamsError{Func: "sops_decrypt_file", Expected: "1", Actual: numParams})
+		return "", errors.New(WrongNumberOfParamsError{Func: "sops_decrypt_file", Expected: "1", Actual: numParams})
 	}
 
 	format, err := getSopsFileFormat(sourceFile)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	canonicalSourceFile, err := util.CanonicalPath(sourceFile, filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath))
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	// Set environment variables from the TerragruntOptions.Env map.
@@ -825,7 +823,7 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 
 	rawData, err := decrypt.File(canonicalSourceFile, format)
 	if err != nil {
-		return "", errors.WithStackTrace(extractSopsErrors(err))
+		return "", errors.New(extractSopsErrors(err))
 	}
 
 	if utf8.Valid(rawData) {
@@ -835,7 +833,7 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 		return value, nil
 	}
 
-	return "", errors.WithStackTrace(InvalidSopsFormatError{SourceFilePath: sourceFile})
+	return "", errors.New(InvalidSopsFormatError{SourceFilePath: sourceFile})
 }
 
 // Mapping of SOPS format to string
@@ -889,14 +887,14 @@ func getSelectedIncludeBlock(trackInclude TrackInclude, params []string) (*Inclu
 
 	numParams := len(params)
 	if numParams != 1 {
-		return nil, errors.WithStackTrace(WrongNumberOfParamsError{Func: "path_relative_from_include", Expected: "1", Actual: numParams})
+		return nil, errors.New(WrongNumberOfParamsError{Func: "path_relative_from_include", Expected: "1", Actual: numParams})
 	}
 
 	importName := params[0]
 
 	imported, hasKey := importMap[importName]
 	if !hasKey {
-		return nil, errors.WithStackTrace(InvalidIncludeKeyError{name: importName})
+		return nil, errors.New(InvalidIncludeKeyError{name: importName})
 	}
 
 	return &imported, nil
@@ -905,7 +903,7 @@ func getSelectedIncludeBlock(trackInclude TrackInclude, params []string) (*Inclu
 // StartsWith Implementation of Terraform's StartsWith function
 func StartsWith(ctx *ParsingContext, args []string) (bool, error) {
 	if len(args) == 0 {
-		return false, errors.WithStackTrace(EmptyStringNotAllowedError("parameter to the startswith function"))
+		return false, errors.New(EmptyStringNotAllowedError("parameter to the startswith function"))
 	}
 
 	str := args[0]
@@ -921,7 +919,7 @@ func StartsWith(ctx *ParsingContext, args []string) (bool, error) {
 // EndsWith Implementation of Terraform's EndsWith function
 func EndsWith(ctx *ParsingContext, args []string) (bool, error) {
 	if len(args) == 0 {
-		return false, errors.WithStackTrace(EmptyStringNotAllowedError("parameter to the endswith function"))
+		return false, errors.New(EmptyStringNotAllowedError("parameter to the endswith function"))
 	}
 
 	str := args[0]
@@ -937,17 +935,17 @@ func EndsWith(ctx *ParsingContext, args []string) (bool, error) {
 // TimeCmp implements Terraform's `timecmp` function that compares two timestamps.
 func TimeCmp(ctx *ParsingContext, args []string) (int64, error) {
 	if len(args) != matchedPats {
-		return 0, errors.WithStackTrace(errors.New("function can take only two parameters: timestamp_a and timestamp_b"))
+		return 0, errors.New(errors.New("function can take only two parameters: timestamp_a and timestamp_b"))
 	}
 
 	tsA, err := util.ParseTimestamp(args[0])
 	if err != nil {
-		return 0, errors.WithStackTrace(fmt.Errorf("could not parse first parameter %q: %w", args[0], err))
+		return 0, errors.New(fmt.Errorf("could not parse first parameter %q: %w", args[0], err))
 	}
 
 	tsB, err := util.ParseTimestamp(args[1])
 	if err != nil {
-		return 0, errors.WithStackTrace(fmt.Errorf("could not parse second parameter %q: %w", args[1], err))
+		return 0, errors.New(fmt.Errorf("could not parse second parameter %q: %w", args[1], err))
 	}
 
 	switch {
@@ -964,7 +962,7 @@ func TimeCmp(ctx *ParsingContext, args []string) (int64, error) {
 // StrContains Implementation of Terraform's StrContains function
 func StrContains(ctx *ParsingContext, args []string) (bool, error) {
 	if len(args) == 0 {
-		return false, errors.WithStackTrace(EmptyStringNotAllowedError("parameter to the strcontains function"))
+		return false, errors.New(EmptyStringNotAllowedError("parameter to the strcontains function"))
 	}
 
 	str := args[0]
@@ -980,30 +978,30 @@ func StrContains(ctx *ParsingContext, args []string) (bool, error) {
 // readTFVarsFile reads a *.tfvars or *.tfvars.json file and returns the contents as a JSON encoded string
 func readTFVarsFile(ctx *ParsingContext, args []string) (string, error) {
 	if len(args) != 1 {
-		return "", errors.WithStackTrace(WrongNumberOfParamsError{Func: "read_tfvars_file", Expected: "1", Actual: len(args)})
+		return "", errors.New(WrongNumberOfParamsError{Func: "read_tfvars_file", Expected: "1", Actual: len(args)})
 	}
 
 	varFile := args[0]
 
 	varFile, err := util.CanonicalPath(varFile, ctx.TerragruntOptions.WorkingDir)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	if !util.FileExists(varFile) {
-		return "", errors.WithStackTrace(TFVarFileNotFoundError{File: varFile})
+		return "", errors.New(TFVarFileNotFoundError{File: varFile})
 	}
 
 	fileContents, err := os.ReadFile(varFile)
 	if err != nil {
-		return "", errors.WithStackTrace(fmt.Errorf("could not read file %q: %w", varFile, err))
+		return "", errors.New(fmt.Errorf("could not read file %q: %w", varFile, err))
 	}
 
 	if strings.HasSuffix(varFile, "json") {
 		var variables map[string]interface{}
 		// just want to be sure that the file is valid json
 		if err := json.Unmarshal(fileContents, &variables); err != nil {
-			return "", errors.WithStackTrace(fmt.Errorf("could not unmarshal json body of tfvar file: %w", err))
+			return "", errors.New(fmt.Errorf("could not unmarshal json body of tfvar file: %w", err))
 		}
 
 		return string(fileContents), nil
@@ -1016,7 +1014,7 @@ func readTFVarsFile(ctx *ParsingContext, args []string) (string, error) {
 
 	data, err := json.Marshal(variables)
 	if err != nil {
-		return "", errors.WithStackTrace(fmt.Errorf("could not marshal json body of tfvar file: %w", err))
+		return "", errors.New(fmt.Errorf("could not marshal json body of tfvar file: %w", err))
 	}
 
 	return string(data), nil
@@ -1073,9 +1071,9 @@ func ParseAndDecodeVarFile(opts *options.TerragruntOptions, varFile string, file
 	return gocty.FromCtyValue(ctyVal, out)
 }
 
-// extractSopsErrors extracts the original errors from the sops library and returns them as a multierror.Error
-func extractSopsErrors(err error) *multierror.Error {
-	var errs = &multierror.Error{}
+// extractSopsErrors extracts the original errors from the sops library and returns them as a errors.MultiError
+func extractSopsErrors(err error) *errors.MultiError {
+	var errs = &errors.MultiError{}
 
 	// workaround to extract original errors from sops library
 	// using reflection extract GroupResults from getDataKeyError
@@ -1091,7 +1089,7 @@ func extractSopsErrors(err error) *multierror.Error {
 			for i := 0; i < groupResultsField.Len(); i++ {
 				groupErr := groupResultsField.Index(i)
 				if groupErr.CanInterface() {
-					errs = multierror.Append(errs, groupErr.Interface().(error))
+					errs = errs.Append(groupErr.Interface().(error))
 				}
 			}
 		}
@@ -1099,7 +1097,7 @@ func extractSopsErrors(err error) *multierror.Error {
 
 	// append the original error if no group results were found
 	if errs.Len() == 0 {
-		errs = multierror.Append(errs, err)
+		errs = errs.Append(err)
 	}
 
 	return errs

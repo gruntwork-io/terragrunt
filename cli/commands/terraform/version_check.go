@@ -153,7 +153,7 @@ func CheckTerragruntVersionMeetsConstraint(currentVersion *version.Version, cons
 	}
 
 	if !versionConstraint.Check(checkedVersion) {
-		return errors.WithStackTrace(InvalidTerragruntVersion{CurrentVersion: currentVersion, VersionConstraints: versionConstraint})
+		return errors.New(InvalidTerragruntVersion{CurrentVersion: currentVersion, VersionConstraints: versionConstraint})
 	}
 
 	return nil
@@ -167,7 +167,7 @@ func CheckTerraformVersionMeetsConstraint(currentVersion *version.Version, const
 	}
 
 	if !versionConstraint.Check(currentVersion) {
-		return errors.WithStackTrace(InvalidTerraformVersion{CurrentVersion: currentVersion, VersionConstraints: versionConstraint})
+		return errors.New(InvalidTerraformVersion{CurrentVersion: currentVersion, VersionConstraints: versionConstraint})
 	}
 
 	return nil
@@ -178,7 +178,7 @@ func ParseTerraformVersion(versionCommandOutput string) (*version.Version, error
 	matches := TerraformVersionRegex.FindStringSubmatch(versionCommandOutput)
 
 	if len(matches) != versionParts {
-		return nil, errors.WithStackTrace(InvalidTerraformVersionSyntax(versionCommandOutput))
+		return nil, errors.New(InvalidTerraformVersionSyntax(versionCommandOutput))
 	}
 
 	return version.NewVersion(matches[2])
@@ -189,7 +189,7 @@ func parseTerraformImplementationType(versionCommandOutput string) (options.Terr
 	matches := TerraformVersionRegex.FindStringSubmatch(versionCommandOutput)
 
 	if len(matches) != versionParts {
-		return options.UnknownImpl, errors.WithStackTrace(InvalidTerraformVersionSyntax(versionCommandOutput))
+		return options.UnknownImpl, errors.New(InvalidTerraformVersionSyntax(versionCommandOutput))
 	}
 
 	rawType := strings.ToLower(matches[1])

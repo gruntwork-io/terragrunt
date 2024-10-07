@@ -22,12 +22,12 @@ func (lockfile *Lockfile) Unlock() error {
 		return nil
 	}
 	if err := lockfile.Flock.Unlock(); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	if FileExists(lockfile.Path()) {
 		if err := os.Remove(lockfile.Path()); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 	}
 
@@ -36,7 +36,7 @@ func (lockfile *Lockfile) Unlock() error {
 
 func (lockfile *Lockfile) TryLock() error {
 	if locked, err := lockfile.Flock.TryLock(); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	} else if !locked {
 		return errors.Errorf("unable to lock file %s", lockfile.Path())
 	}

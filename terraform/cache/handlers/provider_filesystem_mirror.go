@@ -111,11 +111,11 @@ func (handler *ProviderFilesystemMirrorHandler) readMirrorData(filename string, 
 
 	data, err := os.ReadFile(filename)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	if err := json.Unmarshal(data, value); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	return nil

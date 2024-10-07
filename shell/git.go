@@ -72,7 +72,7 @@ func GitRepoTags(ctx context.Context, opts *options.TerragruntOptions, gitRepo *
 
 	output, err := RunShellCommandWithOutput(ctx, opts, opts.WorkingDir, true, false, "git", "ls-remote", "--tags", repoPath)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	var tags []string

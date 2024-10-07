@@ -40,7 +40,7 @@ type autocompleteInstaller struct{}
 
 func (i *autocompleteInstaller) Install(cmd string) error {
 	if err := install.Install(cmd); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	return nil
@@ -48,7 +48,7 @@ func (i *autocompleteInstaller) Install(cmd string) error {
 
 func (i *autocompleteInstaller) Uninstall(cmd string) error {
 	if err := install.Uninstall(cmd); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	return nil

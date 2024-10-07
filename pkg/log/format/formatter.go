@@ -90,7 +90,7 @@ func (formatter *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 	}
 
 	if err := buf.WriteByte('\n'); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	return buf.Bytes(), nil
@@ -181,7 +181,7 @@ func (formatter *Formatter) printFormatted(buf *bytes.Buffer, entry *logrus.Entr
 	}
 
 	if _, err := fmt.Fprintf(buf, "%s%s%s%s%s", timestamp, level, prefix, tfBinary, entry.Message); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	keys := formatter.keys(entry.Data, PrefixKeyName, TFBinaryKeyName)
@@ -202,7 +202,7 @@ func (formatter *Formatter) appendKeyValue(buf *bytes.Buffer, key string, value 
 	}
 
 	if _, err := fmt.Fprintf(buf, keyFmt, key); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	if err := formatter.appendValue(buf, value); err != nil {
@@ -222,7 +222,7 @@ func (formatter *Formatter) appendValue(buf *bytes.Buffer, value interface{}) er
 		str = value.Error()
 	default:
 		if _, err := fmt.Fprint(buf, value); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 
 		return nil
@@ -234,7 +234,7 @@ func (formatter *Formatter) appendValue(buf *bytes.Buffer, value interface{}) er
 	}
 
 	if _, err := fmt.Fprintf(buf, valueFmt, value); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	return nil

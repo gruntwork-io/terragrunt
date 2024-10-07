@@ -448,7 +448,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		TerraformLogsToJSON:            false,
 		JSONDisableDependentModules:    false,
 		RunTerragrunt: func(ctx context.Context, opts *TerragruntOptions) error {
-			return errors.WithStackTrace(ErrRunTerragruntCommandNotSet)
+			return errors.New(ErrRunTerragruntCommandNotSet)
 		},
 		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
 		OutputFolder:               "",
@@ -462,7 +462,7 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 
 	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	opts.WorkingDir = workingDir
@@ -479,7 +479,7 @@ func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string,
 
 	downloadDir, err := filepath.Abs(filepath.Join(workingDir, util.TerragruntCacheDir))
 	if err != nil {
-		return "", "", errors.WithStackTrace(err)
+		return "", "", errors.New(err)
 	}
 
 	return filepath.ToSlash(workingDir), filepath.ToSlash(downloadDir), nil
@@ -494,7 +494,7 @@ func GetDefaultIAMAssumeRoleSessionName() string {
 func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...TerragruntOptionsFunc) (*TerragruntOptions, error) {
 	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
 	if err != nil {
-		log.WithOptions(log.WithLevel(log.DebugLevel)).Errorf("%v\n", errors.WithStackTrace(err))
+		log.WithOptions(log.WithLevel(log.DebugLevel)).Errorf("%v\n", errors.New(err))
 
 		return nil, err
 	}

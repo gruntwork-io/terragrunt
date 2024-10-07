@@ -196,6 +196,7 @@ func decodeAndRetrieveOutputs(ctx *ParsingContext, file *hclparse.File) (*cty.Va
 	if err := file.Decode(&decodedDependency, evalParsingContext); err != nil {
 		return nil, err
 	}
+
 	// In normal operation, if a dependency block does not have a `config_path` attribute, decoding returns an error since this attribute is required, but the `hclvalidate` command suppresses decoding errors and this causes a cycle between modules, so we need to filter out dependencies without a defined `config_path`.
 	decodedDependency.Dependencies = decodedDependency.Dependencies.FilteredWithoutConfigPath()
 
@@ -338,7 +339,7 @@ func checkForDependencyBlockCyclesUsingDFS(
 	}
 
 	if util.ListContainsElement(*currentTraversalPaths, dependencyPath) {
-		return errors.WithStackTrace(DependencyCycleError(append(*currentTraversalPaths, dependencyPath)))
+		return errors.New(DependencyCycleError(append(*currentTraversalPaths, dependencyPath)))
 	}
 
 	*currentTraversalPaths = append(*currentTraversalPaths, dependencyPath)
@@ -455,7 +456,7 @@ func dependencyBlocksToCtyValue(ctx *ParsingContext, dependencyConfigs []Depende
 		err = TerragruntOutputListEncodingError{Paths: paths, Err: err}
 	}
 
-	return &convertedOutput, errors.WithStackTrace(err)
+	return &convertedOutput, errors.New(err)
 }
 
 // This will attempt to get the outputs from the target terragrunt config if it is applied. If it is not applied, the
@@ -487,7 +488,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, depe
 			case DeepMergeMapOnly:
 				return deepMergeCtyMapsMapOnly(*dependencyConfig.MockOutputs, *outputVal)
 			default:
-				return nil, errors.WithStackTrace(InvalidMergeStrategyTypeError(mockMergeStrategy))
+				return nil, errors.New(InvalidMergeStrategyTypeError(mockMergeStrategy))
 			}
 		} else if !isEmpty {
 			return outputVal, err
@@ -543,7 +544,7 @@ func getTerragruntOutput(ctx *ParsingContext, dependencyConfig Dependency) (*cty
 	// target config check: make sure the target config exists
 	targetConfigPath := getCleanedTargetConfigPath(dependencyConfig.ConfigPath.AsString(), ctx.TerragruntOptions.TerragruntConfigPath)
 	if !util.FileExists(targetConfigPath) {
-		return nil, true, errors.WithStackTrace(DependencyConfigNotFound{Path: targetConfigPath})
+		return nil, true, errors.New(DependencyConfigNotFound{Path: targetConfigPath})
 	}
 
 	jsonBytes, err := getOutputJSONWithCaching(ctx, targetConfigPath)
@@ -573,7 +574,7 @@ func getTerragruntOutput(ctx *ParsingContext, dependencyConfig Dependency) (*cty
 		err = TerragruntOutputEncodingError{Path: targetConfigPath, Err: err}
 	}
 
-	return &convertedOutput, isEmpty, errors.WithStackTrace(err)
+	return &convertedOutput, isEmpty, errors.New(err)
 }
 
 func isAwsS3NoSuchKey(err error) bool {
@@ -674,14 +675,14 @@ func cloneTerragruntOptionsForDependencyOutput(ctx *ParsingContext, targetConfig
 	// DownloadDir needs to be updated to be in the ctx of the new config, if using default
 	_, originalDefaultDownloadDir, err := options.DefaultWorkingAndDownloadDirs(ctx.TerragruntOptions.TerragruntConfigPath)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	// Using default, so compute new download dir and update
 	if ctx.TerragruntOptions.DownloadDir == originalDefaultDownloadDir {
 		_, downloadDir, err := options.DefaultWorkingAndDownloadDirs(targetConfig)
 		if err != nil {
-			return nil, errors.WithStackTrace(err)
+			return nil, errors.New(err)
 		}
 
 		targetOptions.DownloadDir = downloadDir
@@ -1056,12 +1057,12 @@ func runTerragruntOutputJSON(ctx *ParsingContext, targetConfig string) ([]byte, 
 
 	err := ctx.TerragruntOptions.RunTerragrunt(ctx, ctx.TerragruntOptions)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	err = stdoutBufferWriter.Flush()
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	jsonString := strings.TrimSpace(stdoutBuffer.String())
@@ -1088,7 +1089,7 @@ func TerraformOutputJSONToCtyValueMap(targetConfigPath string, jsonBytes []byte)
 
 	err := json.Unmarshal(jsonBytes, &outputs)
 	if err != nil {
-		return nil, errors.WithStackTrace(TerragruntOutputParsingError{Path: targetConfigPath, Err: err})
+		return nil, errors.New(TerragruntOutputParsingError{Path: targetConfigPath, Err: err})
 	}
 
 	flattenedOutput := map[string]cty.Value{}
@@ -1096,12 +1097,12 @@ func TerraformOutputJSONToCtyValueMap(targetConfigPath string, jsonBytes []byte)
 	for k, v := range outputs {
 		outputType, err := ctyjson.UnmarshalType(v.Type)
 		if err != nil {
-			return nil, errors.WithStackTrace(TerragruntOutputParsingError{Path: targetConfigPath, Err: err})
+			return nil, errors.New(TerragruntOutputParsingError{Path: targetConfigPath, Err: err})
 		}
 
 		outputVal, err := ctyjson.Unmarshal(v.Value, outputType)
 		if err != nil {
-			return nil, errors.WithStackTrace(TerragruntOutputParsingError{Path: targetConfigPath, Err: err})
+			return nil, errors.New(TerragruntOutputParsingError{Path: targetConfigPath, Err: err})
 		}
 
 		flattenedOutput[k] = outputVal

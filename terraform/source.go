@@ -110,13 +110,13 @@ func (src Source) WriteVersionFile() error {
 		// This ensures we attempt to redownload the source next time.
 		version, err = util.GenerateRandomSha256()
 		if err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 	}
 
 	const ownerReadWriteGroupReadPerms = 0640
 
-	return errors.WithStackTrace(os.WriteFile(src.VersionFile, []byte(version), ownerReadWriteGroupReadPerms))
+	return errors.New(os.WriteFile(src.VersionFile, []byte(version), ownerReadWriteGroupReadPerms))
 }
 
 // NewSource takes the given source path and create a Source struct from it, including the folder where the source should
@@ -206,7 +206,7 @@ func ToSourceURL(source string, workingDir string) (*url.URL, error) {
 	// parse the URL.
 	rawSourceURLWithGetter, err := getter.Detect(source, workingDir, getter.Detectors)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	return parseSourceURL(rawSourceURLWithGetter)
@@ -230,7 +230,7 @@ func normalizeSourceURL(source string, workingDir string) (string, error) {
 	for _, detector := range detectors {
 		_, ok, err := detector.Detect(newSource, workingDir)
 		if err != nil {
-			return source, errors.WithStackTrace(err)
+			return source, errors.New(err)
 		}
 
 		if ok {
@@ -257,7 +257,7 @@ func parseSourceURL(source string) (*url.URL, error) {
 	// Parse the URL without the getter prefix
 	canonicalSourceURL, err := urlhelper.Parse(rawSourceURL)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	// Reattach the "getter" prefix as part of the scheme
@@ -283,7 +283,7 @@ func SplitSourceURL(sourceURL *url.URL, logger log.Logger) (*url.URL, string, er
 	if len(pathSplitOnDoubleSlash) > 1 {
 		sourceURLModifiedPath, err := parseSourceURL(sourceURL.String())
 		if err != nil {
-			return nil, "", errors.WithStackTrace(err)
+			return nil, "", errors.New(err)
 		}
 
 		sourceURLModifiedPath.Path = pathSplitOnDoubleSlash[0]
@@ -313,7 +313,7 @@ func SplitSourceURL(sourceURL *url.URL, logger log.Logger) (*url.URL, string, er
 func encodeSourceName(sourceURL *url.URL) (string, error) {
 	sourceURLNoQuery, err := parseSourceURL(sourceURL.String())
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	sourceURLNoQuery.RawQuery = ""

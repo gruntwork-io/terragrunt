@@ -80,7 +80,8 @@ func NewApp(opts *options.TerragruntOptions) *App {
 
 	app.Before = beforeAction(opts)
 	app.DefaultCommand = terraformCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
-	app.OsExiter = OSExiter
+	app.OsExiter = func(exitCode int) {}
+	app.ExitErrHandler = func(_ *cli.Context, err error) error { return err }
 
 	return &App{app, opts}
 }
@@ -135,7 +136,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		}
 	}(ctx)
 
-	if err := app.App.RunContext(ctx, args); err != nil && !errors.Is(err, context.Canceled) {
+	if err := app.App.RunContext(ctx, args); err != nil && !errors.IsContextCanceled(err) {
 		return err
 	}
 
@@ -280,7 +281,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	if opts.WorkingDir == "" {
 		currentDir, err := os.Getwd()
 		if err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 
 		opts.WorkingDir = currentDir
@@ -290,7 +291,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	workingDir, err := filepath.Abs(opts.WorkingDir)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	opts.Logger = opts.Logger.WithField(format.PrefixKeyName, workingDir)
@@ -313,7 +314,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	downloadDir, err := filepath.Abs(opts.DownloadDir)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
@@ -327,7 +328,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	opts.TerragruntConfigPath, err = filepath.Abs(opts.TerragruntConfigPath)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)
@@ -359,7 +360,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	if err != nil {
 		// Malformed Terragrunt version; set the version to 0.0
 		if terragruntVersion, err = hashicorpversion.NewVersion("0.0"); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 	}
 

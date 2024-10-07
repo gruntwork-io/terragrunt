@@ -29,7 +29,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 func runAwsProviderPatch(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	if len(opts.AwsProviderPatchOverrides) == 0 {
-		return errors.WithStackTrace(MissingOverrideAttrError(FlagNameTerragruntOverrideAttr))
+		return errors.New(MissingOverrideAttrError(FlagNameTerragruntOverrideAttr))
 	}
 
 	terraformFilesInModules, err := findAllTerraformFilesInModules(opts)
@@ -95,12 +95,12 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 
 	modulesJSONContents, err := os.ReadFile(modulesJSONPath)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	var terraformModulesJSON TerraformModulesJSON
 	if err := json.Unmarshal(modulesJSONContents, &terraformModulesJSON); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	var terraformFiles []string
@@ -117,7 +117,7 @@ func findAllTerraformFilesInModules(opts *options.TerragruntOptions) ([]string, 
 			// So we use a third-party library.
 			matches, err := zglob.Glob(moduleAbsPath + "/**/*.tf")
 			if err != nil {
-				return nil, errors.WithStackTrace(err)
+				return nil, errors.New(err)
 			}
 
 			terraformFiles = append(terraformFiles, matches...)
@@ -153,7 +153,7 @@ func PatchAwsProviderInTerraformCode(terraformCode string, terraformFilePath str
 
 	hclFile, err := hclwrite.ParseConfig([]byte(terraformCode), terraformFilePath, hcl.InitialPos)
 	if err != nil {
-		return "", false, errors.WithStackTrace(err)
+		return "", false, errors.New(err)
 	}
 
 	codeWasUpdated := false
@@ -237,14 +237,14 @@ func overrideAttributeInBlock(block *hclwrite.Block, key string, value string) (
 	if err != nil {
 		// Wrap error in a custom error type that has better error messaging to the user.
 		returnErr := TypeInferenceError{value: value, underlyingErr: err}
-		return false, errors.WithStackTrace(returnErr)
+		return false, errors.New(returnErr)
 	}
 
 	ctyVal, err := ctyjson.Unmarshal(valueBytes, ctyType)
 	if err != nil {
 		// Wrap error in a custom error type that has better error messaging to the user.
 		returnErr := MalformedJSONValError{value: value, underlyingErr: err}
-		return false, errors.WithStackTrace(returnErr)
+		return false, errors.New(returnErr)
 	}
 
 	body.SetAttributeValue(attr, ctyVal)

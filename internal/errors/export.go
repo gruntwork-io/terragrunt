@@ -13,10 +13,10 @@ func Is(err, target error) bool {
 	return errors.Is(err, target)
 }
 
-// New returns an error that formats as the given text.
-func New(text string) error {
-	return errors.New(text)
-}
+// // New returns an error that formats as the given text.
+// func New(text string) error {
+// 	return errors.New(text)
+// }
 
 // Join returns an error that wraps the given errors.
 func Join(errs ...error) error {

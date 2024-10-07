@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -206,14 +205,14 @@ func optionsWithMockTerragruntCommand(t *testing.T, terragruntConfigPath string,
 func assertMultiErrorContains(t *testing.T, actualError error, expectedErrors ...error) {
 	t.Helper()
 
-	multiError := new(multierror.Error)
+	multiError := new(errors.MultiError)
 	errors.As(actualError, &multiError)
 	require.NotNil(t, multiError, "Expected a MutliError, but got: %v", actualError)
 
-	assert.Equal(t, len(expectedErrors), len(multiError.Errors))
+	assert.Equal(t, len(expectedErrors), len(multiError.WrappedErrors()))
 	for _, expectedErr := range expectedErrors {
 		found := false
-		for _, actualErr := range multiError.Errors {
+		for _, actualErr := range multiError.WrappedErrors() {
 			if errors.Is(expectedErr, actualErr) {
 				found = true
 

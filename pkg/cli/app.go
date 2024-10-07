@@ -45,6 +45,11 @@ type App struct {
 	// OsExiter is the function used when the app exits. If not set defaults to os.Exit.
 	OsExiter func(code int)
 
+	// ExitErrHandler processes any error encountered while running an App before
+	// it is returned to the caller. If no function is provided, HandleExitCoder
+	// is used as the default behavior.
+	ExitErrHandler ExitErrHandlerFunc
+
 	// Autocomplete enables or disables subcommand auto-completion support.
 	// This is enabled by default when NewApp is called. Otherwise, this
 	// must enabled explicitly.
@@ -117,7 +122,7 @@ func (app *App) RunContext(ctx context.Context, arguments []string) (err error) 
 
 		if app.Autocomplete {
 			if err := app.setupAutocomplete(args); err != nil {
-				return app.handleExitCoder(err)
+				return app.handleExitCoder(ctx, err)
 			}
 
 			if compLine := os.Getenv(envCompleteLine); compLine != "" {
@@ -219,6 +224,10 @@ func (app *App) setupAutocomplete(arguments []string) error {
 	return nil
 }
 
-func (app *App) handleExitCoder(err error) error {
-	return handleExitCoder(err, app.OsExiter)
+func (app *App) handleExitCoder(ctx *Context, err error) error {
+	if app.ExitErrHandler != nil {
+		return app.ExitErrHandler(ctx, err)
+	}
+
+	return handleExitCoder(ctx, err, app.OsExiter)
 }

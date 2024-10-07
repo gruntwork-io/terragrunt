@@ -168,7 +168,7 @@ func RunShellCommandWithOutput(
 					Args:              args,
 				})
 				if err != nil {
-					return errors.WithStackTrace(err)
+					return errors.New(err)
 				}
 
 				output = *cmdOutput
@@ -193,11 +193,12 @@ func RunShellCommandWithOutput(
 		if err := cmd.Start(); err != nil {
 			err = util.ProcessExecutionError{
 				Err:        err,
-				Cmd:        cmd.Cmd,
+				Args:       args,
+				Command:    command,
 				WorkingDir: cmd.Dir,
 			}
 
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 
 		cancelShutdown := cmd.RegisterGracefullyShutdown(ctx)
@@ -206,12 +207,13 @@ func RunShellCommandWithOutput(
 		if err := cmd.Wait(); err != nil {
 			err = util.ProcessExecutionError{
 				Err:        err,
-				Cmd:        cmd.Cmd,
+				Args:       args,
+				Command:    command,
 				Output:     output,
 				WorkingDir: cmd.Dir,
 			}
 
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 
 		return nil
@@ -228,7 +230,7 @@ func isTerraformCommandThatNeedsPty(args []string) (bool, error) {
 
 	fi, err := os.Stdin.Stat()
 	if err != nil {
-		return false, errors.WithStackTrace(err)
+		return false, errors.New(err)
 	}
 
 	// if there is data in the stdin, then the terraform console is used in non-interactive mode, for example `echo "1 + 5" | terragrunt console`.

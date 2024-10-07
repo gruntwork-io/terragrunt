@@ -24,7 +24,7 @@ func (block *Block) JustAttributes() (Attributes, error) {
 	hclAttrs, diags := block.Body.JustAttributes()
 
 	if err := block.HandleDiagnostics(diags); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	attrs := NewAttributes(block.File, hclAttrs)

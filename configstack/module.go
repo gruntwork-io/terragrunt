@@ -66,7 +66,7 @@ func (module *TerraformModule) checkForCyclesUsingDepthFirstSearch(visitedPaths 
 	}
 
 	if util.ListContainsElement(*currentTraversalPaths, module.Path) {
-		return errors.WithStackTrace(DependencyCycleError(append(*currentTraversalPaths, module.Path)))
+		return errors.New(DependencyCycleError(append(*currentTraversalPaths, module.Path)))
 	}
 
 	*currentTraversalPaths = append(*currentTraversalPaths, module.Path)
@@ -190,7 +190,7 @@ func (module *TerraformModule) getDependenciesForModule(modulesMap TerraformModu
 				TerragruntConfigPaths: terragruntConfigPaths,
 			}
 
-			return dependencies, errors.WithStackTrace(err)
+			return dependencies, errors.New(err)
 		}
 
 		dependencies = append(dependencies, dependencyModule)
@@ -280,7 +280,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, terragruntOptions *optio
 // adding some styling to modules that are excluded from the execution in *-all commands
 func (modules TerraformModules) WriteDot(w io.Writer, terragruntOptions *options.TerragruntOptions) error {
 	if _, err := w.Write([]byte("digraph {\n")); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 	defer func(w io.Writer, p []byte) {
 		_, err := w.Write(p)
@@ -304,7 +304,7 @@ func (modules TerraformModules) WriteDot(w io.Writer, terragruntOptions *options
 
 		_, err := w.Write([]byte(nodeLine))
 		if err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 
 		for _, target := range source.Dependencies {
@@ -315,7 +315,7 @@ func (modules TerraformModules) WriteDot(w io.Writer, terragruntOptions *options
 
 			_, err := w.Write([]byte(line))
 			if err != nil {
-				return errors.WithStackTrace(err)
+				return errors.New(err)
 			}
 		}
 	}

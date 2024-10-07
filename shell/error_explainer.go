@@ -10,9 +10,6 @@ import (
 	"github.com/gruntwork-io/gruntwork-cli/collections"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/hashicorp/go-multierror"
-
-	goerrors "github.com/go-errors/errors"
 )
 
 // terraformErrorsMatcher List of errors that we know how to explain to the user. The key is a regex that matches the error message, and the value is the explanation.
@@ -34,24 +31,10 @@ var terraformErrorsMatcher = map[string]string{
 
 // ExplainError will try to explain the error to the user, if we know how to do so.
 func ExplainError(err error) string {
-	errorsToProcess := []error{err}
-
-	var multiErrors *multierror.Error
-
-	if ok := errors.As(err, &multiErrors); ok {
-		errorsToProcess = multiErrors.Errors
-	}
-
 	explanations := map[string]string{}
 
 	// iterate over each error, unwrap it, and check for error output
-	for _, err := range errorsToProcess {
-		goError := new(goerrors.Error)
-
-		if errors.As(err, &goError) {
-			err = goError.Err
-		}
-
+	for _, err := range errors.UnwrapErrors(err) {
 		message := err.Error()
 
 		// extract process output, if it is the case

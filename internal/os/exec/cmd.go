@@ -62,7 +62,7 @@ func (cmd *Cmd) Start() error {
 			return err
 		}
 	} else if err := cmd.Cmd.Start(); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	return nil

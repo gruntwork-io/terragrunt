@@ -2,7 +2,6 @@ package main
 
 import (
 	"os"
-	"strings"
 
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/cli/commands"
@@ -11,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/hashicorp/go-multierror"
 )
 
 // The main entrypoint for Terragrunt
@@ -34,7 +32,7 @@ func checkForErrorsAndExit(logger log.Logger) func(error) {
 			os.Exit(0)
 		} else {
 			logger.Error(err.Error())
-			logger.Debug(printErrorWithStackTrace(err))
+			logger.Debug(errors.ErrorStack(err))
 
 			// exit with the underlying error code
 			exitCode, exitCodeErr := util.GetExitCode(err)
@@ -51,21 +49,6 @@ func checkForErrorsAndExit(logger log.Logger) func(error) {
 			os.Exit(exitCode)
 		}
 	}
-}
-
-func printErrorWithStackTrace(err error) string {
-	var multierror *multierror.Error
-
-	if errors.As(err, &multierror) {
-		var errsStr []string
-		for _, err := range multierror.Errors {
-			errsStr = append(errsStr, errors.StackTrace(err))
-		}
-
-		return strings.Join(errsStr, "\n")
-	}
-
-	return errors.StackTrace(err)
 }
 
 func parseAndSetLogEnvs(opts *options.TerragruntOptions) {

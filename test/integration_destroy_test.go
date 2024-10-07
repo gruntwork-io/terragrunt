@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands"
-	"github.com/hashicorp/go-multierror"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -201,13 +200,13 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 
 	require.Error(t, err)
 
-	var multiErrors *multierror.Error
+	var multiErrors *errors.MultiError
 
 	if ok := errors.As(err, &multiErrors); ok {
 		err = multiErrors
 	}
 
-	assert.IsType(t, &multierror.Error{}, err)
+	assert.IsType(t, &errors.MultiError{}, err)
 
 	// Check that modules C, D and E were deleted and modules A and B weren't.
 	for moduleName, modulePath := range modulePaths {

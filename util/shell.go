@@ -9,7 +9,6 @@ import (
 	"os/exec"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/hashicorp/go-multierror"
 )
 
 // IsCommandExecutable - returns true if a command can be executed without errors.
@@ -38,7 +37,7 @@ type CmdOutput struct {
 
 // GetExitCode returns the exit code of a command. If the error does not
 // implement iErrorCode or is not an exec.ExitError
-// or *multierror.Error type, the error is returned.
+// or *errors.MultiError type, the error is returned.
 func GetExitCode(err error) (int, error) {
 	// Interface to determine if we can retrieve an exit status from an error
 	type iErrorCode interface {
@@ -55,9 +54,9 @@ func GetExitCode(err error) (int, error) {
 		return status.ExitStatus(), nil
 	}
 
-	var multiErr *multierror.Error
+	var multiErr *errors.MultiError
 	if ok := errors.As(err, &multiErr); ok {
-		for _, err := range multiErr.Errors {
+		for _, err := range multiErr.WrappedErrors() {
 			exitCode, exitCodeErr := GetExitCode(err)
 			if exitCodeErr == nil {
 				return exitCode, nil
@@ -71,19 +70,25 @@ func GetExitCode(err error) (int, error) {
 // ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr
 type ProcessExecutionError struct {
 	Err        error
-	Cmd        *exec.Cmd
 	Output     CmdOutput
 	WorkingDir string
+	Command    string
+	Args       []string
 }
 
 func (err ProcessExecutionError) Error() string {
-	return fmt.Sprintf("Failed to execute %s in %s\n%s\n%v",
-		strings.Join(err.Cmd.Args, " "),
-		err.Cmd.Dir,
+	return fmt.Sprintf("Failed to execute \"%s %s\" in %s\n%s\n%v",
+		err.Command,
+		strings.Join(err.Args, " "),
+		err.WorkingDir,
 		err.Output.Stderr.String(),
 		err.Err)
 }
 
 func (err ProcessExecutionError) ExitStatus() (int, error) {
 	return GetExitCode(err.Err)
+}
+
+func (err ProcessExecutionError) Unwrap() error {
+	return err.Err
 }

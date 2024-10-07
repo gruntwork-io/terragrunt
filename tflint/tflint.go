@@ -59,7 +59,7 @@ func RunTflintWithOpts(ctx context.Context, opts *options.TerragruntOptions, con
 
 	cli, err := cmd.NewCLI(opts.Writer, opts.ErrWriter)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	tflintArgs, externalTfLint := tflintArguments(hook.Execute[1:])
@@ -72,14 +72,14 @@ func RunTflintWithOpts(ctx context.Context, opts *options.TerragruntOptions, con
 		_, err := shell.RunShellCommandWithOutput(ctx, opts, opts.WorkingDir, false, false,
 			initArgs[0], initArgs[1:]...)
 		if err != nil {
-			return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
+			return errors.New(ErrorRunningTflint{args: initArgs})
 		}
 	} else {
 		opts.Logger.Debugf("Running internal tflint init with args %v", initArgs)
 
 		statusCode := cli.Run(initArgs)
 		if statusCode != 0 {
-			return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
+			return errors.New(ErrorRunningTflint{args: initArgs})
 		}
 	}
 
@@ -98,7 +98,7 @@ func RunTflintWithOpts(ctx context.Context, opts *options.TerragruntOptions, con
 		_, err := shell.RunShellCommandWithOutput(ctx, opts, opts.WorkingDir, false, false,
 			args[0], args[1:]...)
 		if err != nil {
-			return errors.WithStackTrace(ErrorRunningTflint{args: args})
+			return errors.New(ErrorRunningTflint{args: args})
 		}
 
 		opts.Logger.Info("Tflint has run successfully. No issues found.")
@@ -108,13 +108,13 @@ func RunTflintWithOpts(ctx context.Context, opts *options.TerragruntOptions, con
 
 		switch statusCode {
 		case cmd.ExitCodeError:
-			return errors.WithStackTrace(ErrorRunningTflint{args: initArgs})
+			return errors.New(ErrorRunningTflint{args: initArgs})
 		case cmd.ExitCodeIssuesFound:
-			return errors.WithStackTrace(IssuesFound{})
+			return errors.New(IssuesFound{})
 		case cmd.ExitCodeOK:
 			opts.Logger.Info("Tflint has run successfully. No issues found.")
 		default:
-			return errors.WithStackTrace(UnknownError{statusCode: statusCode})
+			return errors.New(UnknownError{statusCode: statusCode})
 		}
 	}
 
@@ -247,7 +247,7 @@ func findTflintConfigInProject(terragruntOptions *options.TerragruntOptions) (st
 		terragruntOptions.Logger.Debugf("Finding .tflint.hcl file from %s and going to %s", previousDir, currentDir)
 
 		if currentDir == previousDir {
-			return "", errors.WithStackTrace(ConfigNotFound{cause: "Traversed all the day to the root"})
+			return "", errors.New(ConfigNotFound{cause: "Traversed all the day to the root"})
 		}
 
 		fileToFind := util.JoinPath(previousDir, ".tflint.hcl")
@@ -259,7 +259,7 @@ func findTflintConfigInProject(terragruntOptions *options.TerragruntOptions) (st
 		previousDir = currentDir
 	}
 
-	return "", errors.WithStackTrace(ConfigNotFound{
+	return "", errors.New(ConfigNotFound{
 		cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", terragruntOptions.MaxFoldersToCheck),
 	})
 }

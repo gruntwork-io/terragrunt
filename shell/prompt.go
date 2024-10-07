@@ -25,12 +25,12 @@ func PromptUserForInput(ctx context.Context, prompt string, terragruntOptions *o
 	n, err := terragruntOptions.ErrWriter.Write([]byte(prompt))
 	if err != nil {
 		terragruntOptions.Logger.Error(err)
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	if n != len(prompt) {
 		terragruntOptions.Logger.Errorln("Failed to write data")
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	reader := bufio.NewReader(os.Stdin)
@@ -41,7 +41,7 @@ func PromptUserForInput(ctx context.Context, prompt string, terragruntOptions *o
 	go func() {
 		input, err := reader.ReadString('\n')
 		if err != nil {
-			errCh <- errors.WithStackTrace(err)
+			errCh <- errors.New(err)
 			return
 		}
 		inputCh <- strings.TrimSpace(input)
@@ -61,7 +61,7 @@ func PromptUserForInput(ctx context.Context, prompt string, terragruntOptions *o
 func PromptUserForYesNo(ctx context.Context, prompt string, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	resp, err := PromptUserForInput(ctx, prompt+" (y/n) ", terragruntOptions)
 	if err != nil {
-		return false, errors.WithStackTrace(err)
+		return false, errors.New(err)
 	}
 
 	switch strings.ToLower(resp) {

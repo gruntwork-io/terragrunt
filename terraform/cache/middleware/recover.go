@@ -10,7 +10,7 @@ func Recover(logger log.Logger) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(ctx echo.Context) (er error) {
 			defer errors.Recover(func(err error) {
-				logger.Debugf(errors.ErrorWithStackTrace(err))
+				logger.Debug(errors.ErrorStack(err))
 				er = err
 			})
 

@@ -2,15 +2,14 @@ package terraform
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/telemetry"
-
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/tflint"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-multierror"
@@ -22,7 +21,7 @@ const (
 	HookCtxHookNameEnvName = "TG_CTX_HOOK_NAME"
 )
 
-func processErrorHooks(ctx context.Context, hooks []config.ErrorHook, terragruntOptions *options.TerragruntOptions, previousExecErrors *multierror.Error) error {
+func processErrorHooks(ctx context.Context, hooks []config.ErrorHook, terragruntOptions *options.TerragruntOptions, previousExecErrors *errors.MultiError) error {
 	if len(hooks) == 0 || previousExecErrors.ErrorOrNil() == nil {
 		return nil
 	}
@@ -32,7 +31,7 @@ func processErrorHooks(ctx context.Context, hooks []config.ErrorHook, terragrunt
 	terragruntOptions.Logger.Debugf("Detected %d error Hooks", len(hooks))
 
 	customMultierror := multierror.Error{
-		Errors: previousExecErrors.Errors,
+		Errors: previousExecErrors.WrappedErrors(),
 		ErrorFormat: func(err []error) string {
 			result := ""
 			for _, e := range err {
@@ -90,7 +89,7 @@ func processErrorHooks(ctx context.Context, hooks []config.ErrorHook, terragrunt
 	return errorsOccured.ErrorOrNil()
 }
 
-func processHooks(ctx context.Context, hooks []config.Hook, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, previousExecErrors *multierror.Error) error {
+func processHooks(ctx context.Context, hooks []config.Hook, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, previousExecErrors *errors.MultiError) error {
 	if len(hooks) == 0 {
 		return nil
 	}
@@ -100,7 +99,7 @@ func processHooks(ctx context.Context, hooks []config.Hook, terragruntOptions *o
 	terragruntOptions.Logger.Debugf("Detected %d Hooks", len(hooks))
 
 	for _, curHook := range hooks {
-		allPreviousErrors := multierror.Append(previousExecErrors, errorsOccured)
+		allPreviousErrors := previousExecErrors.Append(errorsOccured)
 		if shouldRunHook(curHook, terragruntOptions, allPreviousErrors) {
 			err := telemetry.Telemetry(ctx, terragruntOptions, "hook_"+curHook.Name, map[string]interface{}{
 				"hook": curHook.Name,
@@ -117,7 +116,7 @@ func processHooks(ctx context.Context, hooks []config.Hook, terragruntOptions *o
 	return errorsOccured.ErrorOrNil()
 }
 
-func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOptions, previousExecErrors *multierror.Error) bool {
+func shouldRunHook(hook config.Hook, terragruntOptions *options.TerragruntOptions, previousExecErrors *errors.MultiError) bool {
 	// if there's no previous error, execute command
 	// OR if a previous error DID happen AND we want to run anyways
 	// then execute.

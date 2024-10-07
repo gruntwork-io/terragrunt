@@ -462,7 +462,7 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
 	if err != nil {
-		t.Fatalf("error: %v\n", errors.WithStackTrace(err))
+		t.Fatalf("error: %v\n", errors.New(err))
 	}
 
 	opts.WorkingDir = workingDir

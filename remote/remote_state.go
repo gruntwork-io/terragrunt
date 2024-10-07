@@ -81,7 +81,7 @@ func (state *RemoteState) FillDefaults() {
 // Validate that the remote state is configured correctly
 func (state *RemoteState) Validate() error {
 	if state.Backend == "" {
-		return errors.WithStackTrace(ErrRemoteBackendMissing)
+		return errors.New(ErrRemoteBackendMissing)
 	}
 
 	return nil
@@ -225,7 +225,7 @@ func (state RemoteState) ToTerraformInitArgs() []string {
 // GenerateTerraformCode generates the terraform code for configuring remote state backend.
 func (state *RemoteState) GenerateTerraformCode(terragruntOptions *options.TerragruntOptions) error {
 	if state.Generate == nil {
-		return errors.WithStackTrace(ErrGenerateCalledWithNoGenerateAttr)
+		return errors.New(ErrGenerateCalledWithNoGenerateAttr)
 	}
 
 	// Make sure to strip out terragrunt specific configurations from the config.

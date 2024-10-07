@@ -125,7 +125,7 @@ func NewArchiveChecksumAuthentication(wantSHA256Sum [sha256.Size]byte) PackageAu
 
 func (auth archiveHashAuthentication) Authenticate(path string) (*PackageAuthenticationResult, error) {
 	if fileInfo, err := os.Stat(path); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	} else if fileInfo.IsDir() {
 		return nil, errors.Errorf("cannot check archive hash for non-archive location %s", path)
 	}

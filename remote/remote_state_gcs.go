@@ -248,7 +248,7 @@ func (initializer GCSInitializer) GetTerraformInitArgs(config map[string]interfa
 func parseGCSConfig(config map[string]interface{}) (*RemoteStateConfigGCS, error) {
 	var gcsConfig RemoteStateConfigGCS
 	if err := mapstructure.Decode(config, &gcsConfig); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	return &gcsConfig, nil
@@ -262,11 +262,11 @@ func parseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteState
 	)
 
 	if err := mapstructure.Decode(config, &gcsConfig); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	if err := mapstructure.Decode(config, &extendedConfig); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	extendedConfig.remoteStateConfigGCS = gcsConfig
@@ -279,7 +279,7 @@ func validateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS) error {
 	var config = extendedConfig.remoteStateConfigGCS
 
 	if config.Bucket == "" {
-		return errors.WithStackTrace(MissingRequiredGCSRemoteStateConfig("bucket"))
+		return errors.New(MissingRequiredGCSRemoteStateConfig("bucket"))
 	}
 
 	return nil
@@ -294,12 +294,12 @@ func createGCSBucketIfNecessary(ctx context.Context, gcsClient *storage.Client, 
 
 		// A project must be specified in order for terragrunt to automatically create a storage bucket.
 		if config.Project == "" {
-			return errors.WithStackTrace(MissingRequiredGCSRemoteStateConfig("project"))
+			return errors.New(MissingRequiredGCSRemoteStateConfig("project"))
 		}
 
 		// A location must be specified in order for terragrunt to automatically create a storage bucket.
 		if config.Location == "" {
-			return errors.WithStackTrace(MissingRequiredGCSRemoteStateConfig("location"))
+			return errors.New(MissingRequiredGCSRemoteStateConfig("location"))
 		}
 
 		if terragruntOptions.FailIfBucketCreationRequired {
@@ -335,7 +335,7 @@ func checkIfGCSVersioningEnabled(gcsClient *storage.Client, config *RemoteStateC
 	attrs, err := bucket.Attrs(ctx)
 	if err != nil {
 		// ErrBucketNotExist
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	if !attrs.VersioningEnabled {
@@ -384,7 +384,7 @@ func AddLabelsToGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteState
 	_, err := bucket.Update(ctx, bucketAttrs)
 
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	return nil
@@ -425,7 +425,7 @@ func CreateGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteStateConfi
 
 	err := bucket.Create(ctx, projectID, bucketAttrs)
 
-	return errors.WithStackTraceAndPrefix(err, "Error creating GCS bucket %s", config.remoteStateConfigGCS.Bucket)
+	return errors.Errorf("error creating GCS bucket %s: %w", config.remoteStateConfigGCS.Bucket, err)
 }
 
 // WaitUntilGCSBucketExists waits for the GCS bucket specified in the given config to be created.
@@ -445,7 +445,7 @@ func WaitUntilGCSBucketExists(gcsClient *storage.Client, config *RemoteStateConf
 		}
 	}
 
-	return errors.WithStackTrace(MaxRetriesWaitingForS3BucketExceeded(config.Bucket))
+	return errors.New(MaxRetriesWaitingForS3BucketExceeded(config.Bucket))
 }
 
 // DoesGCSBucketExist returns true if the GCS bucket specified in the given config exists and the current user has the

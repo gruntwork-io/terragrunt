@@ -2,14 +2,11 @@ package shell_test
 
 import (
 	"bytes"
-	"errors"
-	"os/exec"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
-
-	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -51,12 +48,12 @@ func TestExplainError(t *testing.T) {
 			output := util.CmdOutput{}
 			output.Stderr = *bytes.NewBufferString(tt.errorOutput)
 
-			err := multierror.Append(&multierror.Error{}, util.ProcessExecutionError{
+			errs := new(errors.MultiError)
+			errs = errs.Append(util.ProcessExecutionError{
 				Err:    errors.New(""),
-				Cmd:    exec.Command(""),
 				Output: output,
 			})
-			explanation := shell.ExplainError(err)
+			explanation := shell.ExplainError(errs)
 			assert.Contains(t, explanation, tt.explanation)
 		})
 	}

@@ -84,7 +84,7 @@ func runRenderJSON(ctx context.Context, opts *options.TerragruntOptions, cfg *co
 
 	const ownerWriteGlobalReadPerms = 0644
 	if err := os.WriteFile(jsonOutPath, jsonBytes, ownerWriteGlobalReadPerms); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	return nil
@@ -97,15 +97,15 @@ func runRenderJSON(ctx context.Context, opts *options.TerragruntOptions, cfg *co
 func marshalCtyValueJSONWithoutType(ctyVal cty.Value) ([]byte, error) {
 	jsonBytesIntermediate, err := ctyjson.Marshal(ctyVal, cty.DynamicPseudoType)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	var ctyJSONOutput config.CtyJSONOutput
 	if err := json.Unmarshal(jsonBytesIntermediate, &ctyJSONOutput); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	jsonBytes, err := json.Marshal(ctyJSONOutput.Value)
 
-	return jsonBytes, errors.WithStackTrace(err)
+	return jsonBytes, errors.New(err)
 }

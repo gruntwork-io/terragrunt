@@ -2,103 +2,48 @@
 package errors
 
 import (
-	"errors"
 	"fmt"
 
 	goerrors "github.com/go-errors/errors"
 )
 
-// Errorf creates a new error and wraps in an Error type that contains the stack trace.
-func Errorf(message string, args ...interface{}) error {
-	err := fmt.Errorf(message, args...)
-
-	return goerrors.Wrap(err, 1)
-}
-
-// ExitCodeError is a custom error that is used to specify the app exit code.
-type ExitCodeError struct {
-	Err      error
-	ExitCode int
-}
-
-func (err ExitCodeError) Error() string {
-	return err.Err.Error()
-}
-
-// WithStackTrace wraps the given error in an Error type that contains the stack trace. If the given error already has a stack trace,
-// it is used directly. If the given error is nil, return nil.
-func WithStackTrace(err error) error {
-	if err == nil {
+// New creates a new instance of Error.
+// If the given value does not contain an stack trace, it will be created.
+func New(val any) error {
+	if val == nil {
 		return nil
 	}
 
-	return goerrors.Wrap(err, 1)
+	skip := 2
+
+	return newWithSkip(skip, val)
 }
 
-// WithStackTraceAndPrefix wraps the given error in an Error type that contains the stack trace and has the given message
-// prepended as part of the error message. If the given error already has a stack trace, it is used directly.
-// If the given error is nil, return nil.
-func WithStackTraceAndPrefix(err error, message string, args ...interface{}) error {
-	if err == nil {
-		return nil
+// Errorf creates a new error with the given format and values.
+// It can be used as a drop-in replacement for fmt.Errorf() to provide descriptive errors in return values.
+// If none of the given values contains an stack trace, it will be created.
+func Errorf(format string, vals ...any) error {
+	skip := 2
+
+	return errorfWithSkip(skip, format, vals...)
+}
+
+func newWithSkip(skip int, val any) error {
+	if err, ok := val.(error); ok && ContainsStackTrace(err) {
+		return fmt.Errorf("%w", err)
 	}
 
-	return goerrors.WrapPrefix(err, fmt.Sprintf(message, args...), 1)
+	return goerrors.Wrap(val, skip)
 }
 
-// IsError returns true if actual is the same type of error as expected. This method unwraps the given error objects (if they
-// are wrapped in objects with a stacktrace) and then does a simple equality check on them.
-func IsError(actual error, expected error) bool {
-	return goerrors.Is(actual, expected)
-}
+func errorfWithSkip(skip int, format string, vals ...any) error {
+	err := fmt.Errorf(format, vals...)
 
-// ErrorWithStackTrace returns a string that contains both the error message and the callstack.
-func ErrorWithStackTrace(err error) string {
-	if err == nil {
-		return ""
-	}
-
-	return goError(err).ErrorStack()
-}
-
-// StackTrace returns the callstack formatted the same way that go does in runtime/debug.Stack().
-func StackTrace(err error) string {
-	if err == nil {
-		return ""
-	}
-
-	return string(goError(err).Stack())
-}
-
-func goError(err error) *goerrors.Error {
-	if err == nil {
-		return nil
-	}
-
-	goerr := &goerrors.Error{Err: err}
-
-	for {
-		if goError := new(goerrors.Error); errors.As(err, &goError) {
-			goerr = goError
-		}
-
-		if err = errors.Unwrap(err); err == nil {
-			break
+	for _, val := range vals {
+		if val, ok := val.(error); ok && val != nil && ContainsStackTrace(val) {
+			return err
 		}
 	}
 
-	return goerr
-}
-
-// Recover tries to recover from panics, and if it succeeds, calls the given onPanic function with an error that
-// explains the cause of the panic. This function should only be called from a defer statement.
-func Recover(onPanic func(cause error)) {
-	if rec := recover(); rec != nil {
-		err, isError := rec.(error)
-		if !isError {
-			err = fmt.Errorf("%v", rec)
-		}
-
-		onPanic(WithStackTrace(err))
-	}
+	return goerrors.Wrap(err, skip)
 }

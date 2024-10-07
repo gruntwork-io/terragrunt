@@ -12,7 +12,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
-	"github.com/hashicorp/go-multierror"
 )
 
 const (
@@ -249,7 +248,7 @@ func (modules RunningModules) crossLinkDependencies(dependencyOrder DependencyOr
 		for _, dependency := range module.Module.Dependencies {
 			runningDependency, hasDependency := modules[dependency.Path]
 			if !hasDependency {
-				return modules, errors.WithStackTrace(DependencyNotFoundWhileCrossLinkingError{module, dependency})
+				return modules, errors.New(DependencyNotFoundWhileCrossLinkingError{module, dependency})
 			}
 
 			// TODO: Remove lint suppression
@@ -324,13 +323,13 @@ func (modules RunningModules) runModules(ctx context.Context, opts *options.Terr
 // Collect the errors from the given modules and return a single error object to represent them, or nil if no errors
 // occurred
 func (modules RunningModules) collectErrors() error {
-	var result *multierror.Error
+	var errs *errors.MultiError
 
 	for _, module := range modules {
 		if module.Err != nil {
-			result = multierror.Append(result, module.Err)
+			errs = errs.Append(module.Err)
 		}
 	}
 
-	return result.ErrorOrNil()
+	return errs.ErrorOrNil()
 }

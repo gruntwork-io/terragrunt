@@ -58,7 +58,7 @@ func (writer *Writer) ShowConfigPath(diags diagnostic.Diagnostics) error {
 
 func (writer *Writer) output(output string) error {
 	if _, err := fmt.Fprint(writer, output); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	return nil

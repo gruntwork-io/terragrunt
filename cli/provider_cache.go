@@ -74,7 +74,7 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 	}
 
 	if opts.ProviderCacheDir, err = filepath.Abs(opts.ProviderCacheDir); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	if opts.ProviderCacheToken == "" {
@@ -314,7 +314,7 @@ func (cache *ProviderCache) createLocalCLIConfig(ctx context.Context, opts *opti
 
 	if cfgDir := filepath.Dir(filename); !util.FileExists(cfgDir) {
 		if err := os.MkdirAll(cfgDir, os.ModePerm); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 	}
 

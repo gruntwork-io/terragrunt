@@ -47,7 +47,7 @@ func NewRelativePathHook(baseDir string) (*RelativePathHook, error) {
 
 		relPath, err := filepath.Rel(baseDir, absPath)
 		if err != nil {
-			return nil, errors.WithStackTrace(err)
+			return nil, errors.New(err)
 		}
 
 		reversIndex--

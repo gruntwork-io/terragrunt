@@ -207,7 +207,7 @@ func (flag *mapValue[K, V]) Set(str string) error {
 
 	parts := flag.splitter(str, flag.valSep)
 	if len(parts) != flatPatsCount {
-		return errors.WithStackTrace(NewInvalidKeyValueError(flag.valSep, str))
+		return errors.New(NewInvalidKeyValueError(flag.valSep, str))
 	}
 
 	key := flag.keyType.Clone(new(K))

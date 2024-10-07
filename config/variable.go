@@ -28,7 +28,7 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 	// list all tf files
 	tfFiles, err := util.ListTfFiles(directoryPath)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	parser := hclparse.NewParser(DefaultParserOptions(opts)...)
@@ -92,17 +92,17 @@ func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*P
 						if defaultValue != nil {
 							jsonBytes, err := ctyjson.Marshal(*defaultValue, cty.DynamicPseudoType)
 							if err != nil {
-								return nil, errors.WithStackTrace(err)
+								return nil, errors.New(err)
 							}
 
 							var ctyJSONOutput ctyJSONValue
 							if err := json.Unmarshal(jsonBytes, &ctyJSONOutput); err != nil {
-								return nil, errors.WithStackTrace(err)
+								return nil, errors.New(err)
 							}
 
 							jsonBytes, err = json.Marshal(ctyJSONOutput.Value)
 							if err != nil {
-								return nil, errors.WithStackTrace(err)
+								return nil, errors.New(err)
 							}
 
 							defaultValueText = string(jsonBytes)

@@ -94,7 +94,7 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 
 				moduleDir, err := filepath.Rel(repo.path, dir)
 				if err != nil {
-					return errors.WithStackTrace(err)
+					return errors.New(err)
 				}
 
 				if module, err := NewModule(repo, moduleDir); err != nil {
@@ -121,7 +121,7 @@ func (repo *Repo) ModuleURL(moduleDir string) (string, error) {
 
 	remote, err := vcsurl.Parse(repo.remoteURL)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	switch remote.Host {
@@ -143,7 +143,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 	if repo.cloneURL == "" {
 		currentDir, err := os.Getwd()
 		if err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 
 		repo.cloneURL = currentDir
@@ -153,7 +153,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 		if !filepath.IsAbs(repoPath) {
 			absRepoPath, err := filepath.Abs(repoPath)
 			if err != nil {
-				return errors.WithStackTrace(err)
+				return errors.New(err)
 			}
 
 			repo.logger.Debugf("Converting relative path %q to absolute %q", repoPath, absRepoPath)
@@ -165,7 +165,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 	}
 
 	if err := os.MkdirAll(repo.path, os.ModePerm); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	repoName := "temp"
@@ -182,7 +182,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 		repo.logger.Debugf("The repo dir exists but git file %q does not. Removing the repo dir for cloning from the remote source.", repo.gitHeadfile())
 
 		if err := os.RemoveAll(repo.path); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 	}
 
@@ -201,7 +201,7 @@ func (repo *Repo) clone(ctx context.Context) error {
 	sourceURL.RawQuery = (url.Values{"ref": []string{"HEAD"}}).Encode()
 
 	if err := getter.Get(repo.path, strings.Trim(sourceURL.String(), "/"), getter.WithContext(ctx), getter.WithMode(getter.ClientModeDir)); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	return nil
@@ -219,7 +219,7 @@ func (repo *Repo) parseRemoteURL() error {
 
 	inidata, err := ini.Load(gitConfigPath)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	var sectionName string

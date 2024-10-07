@@ -109,7 +109,7 @@ func (cfg *Config) Save(configPath string) error {
 
 	const ownerWriteGlobalReadPerms = 0644
 	if err := os.WriteFile(configPath, file.Bytes(), os.FileMode(ownerWriteGlobalReadPerms)); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	return nil

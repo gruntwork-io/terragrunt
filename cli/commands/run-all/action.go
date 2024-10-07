@@ -31,7 +31,7 @@ var runAllDisabledCommands = map[string]string{
 
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	if opts.TerraformCommand == "" {
-		return errors.WithStackTrace(MissingCommand{})
+		return errors.New(MissingCommand{})
 	}
 
 	reason, isDisabled := runAllDisabledCommands[opts.TerraformCommand]
