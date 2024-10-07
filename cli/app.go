@@ -80,7 +80,7 @@ func NewApp(opts *options.TerragruntOptions) *App {
 
 	app.Before = beforeAction(opts)
 	app.DefaultCommand = terraformCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
-	app.OsExiter = func(exitCode int) {}
+	app.OsExiter = OSExiter
 	app.ExitErrHandler = func(_ *cli.Context, err error) error { return err }
 
 	return &App{app, opts}

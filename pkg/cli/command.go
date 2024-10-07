@@ -117,7 +117,7 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 		}
 	}
 
-	if err := cmd.Flags.RunActions(ctx); err != nil {
+	if err := cmd.Flags.RunActions(ctx); err != nil && err.Error() != "" {
 		return ctx.App.handleExitCoder(ctx, err)
 	}
 
