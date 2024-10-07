@@ -84,8 +84,8 @@ func NewExpiringCache[V any](name string) *ExpiringCache[V] {
 
 // Get - fetch value from cache by key
 func (c *ExpiringCache[V]) Get(ctx context.Context, key string) (V, bool) {
-	c.Mutex.RLock()
-	defer c.Mutex.RUnlock()
+	c.Mutex.Lock()
+	defer c.Mutex.Unlock()
 	item, found := c.Cache[key]
 	telemetry.Count(ctx, c.Name+"_cache_get", 1)
 
