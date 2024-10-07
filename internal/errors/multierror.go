@@ -77,7 +77,7 @@ func (errs *MultiError) Less(i, j int) bool {
 
 // multiErrorTree builds an error tree
 type multiErrorTree struct {
-	childs      []*multiErrorTree
+	children    []*multiErrorTree
 	wrappedErrs []error
 	errCount    int
 }
@@ -94,7 +94,7 @@ func (tree *multiErrorTree) String() string {
 		wrappedErrs = append(wrappedErrs, addIndent(err.Error()))
 	}
 
-	for _, child := range tree.childs {
+	for _, child := range tree.children {
 		wrappedErrs = append(wrappedErrs, addIndent(child.String()))
 	}
 
