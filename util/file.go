@@ -70,6 +70,7 @@ func EnsureDirectory(path string) error {
 		return errors.New(PathIsNotDirectory{path})
 	} else if !FileExists(path) {
 		const ownerReadWriteExecutePerms = 0700
+
 		return errors.New(os.MkdirAll(path, ownerReadWriteExecutePerms))
 	}
 

@@ -37,7 +37,7 @@ func newWithSkip(skip int, val any) error {
 }
 
 func errorfWithSkip(skip int, format string, vals ...any) error {
-	err := fmt.Errorf(format, vals...)
+	err := fmt.Errorf(format, vals...) //nolint:err113
 
 	for _, val := range vals {
 		if val, ok := val.(error); ok && val != nil && ContainsStackTrace(val) {

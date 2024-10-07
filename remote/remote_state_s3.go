@@ -656,24 +656,28 @@ func configureAccessLogBucket(ctx context.Context, terragruntOptions *options.Te
 
 	if err := CreateLogsS3BucketIfNecessary(ctx, s3Client, aws.String(config.AccessLoggingBucketName), terragruntOptions); err != nil {
 		terragruntOptions.Logger.Errorf("Could not create logs bucket %s for AWS S3 bucket %s\n%s", config.AccessLoggingBucketName, config.RemoteStateConfigS3.Bucket, err.Error())
+
 		return errors.New(err)
 	}
 
 	if !config.SkipAccessLoggingBucketPublicAccessBlocking {
 		if err := EnablePublicAccessBlockingForS3Bucket(s3Client, config.AccessLoggingBucketName, terragruntOptions); err != nil {
 			terragruntOptions.Logger.Errorf("Could not enable public access blocking on %s\n%s", config.AccessLoggingBucketName, err.Error())
+
 			return errors.New(err)
 		}
 	}
 
 	if err := EnableAccessLoggingForS3BucketWide(s3Client, config, terragruntOptions); err != nil {
 		terragruntOptions.Logger.Errorf("Could not enable access logging on %s\n%s", config.RemoteStateConfigS3.Bucket, err.Error())
+
 		return errors.New(err)
 	}
 
 	if !config.SkipAccessLoggingBucketSSEncryption {
 		if err := EnableSSEForS3BucketWide(s3Client, config.AccessLoggingBucketName, s3.ServerSideEncryptionAes256, config, terragruntOptions); err != nil {
 			terragruntOptions.Logger.Errorf("Could not enable encryption on %s\n%s", config.AccessLoggingBucketName, err.Error())
+
 			return errors.New(err)
 		}
 	}
@@ -681,6 +685,7 @@ func configureAccessLogBucket(ctx context.Context, terragruntOptions *options.Te
 	if !config.SkipAccessLoggingBucketEnforcedTLS {
 		if err := EnableEnforcedTLSAccesstoS3Bucket(s3Client, config.AccessLoggingBucketName, config, terragruntOptions); err != nil {
 			terragruntOptions.Logger.Errorf("Could not enable TLS access on %s\n%s", config.AccessLoggingBucketName, err.Error())
+
 			return errors.New(err)
 		}
 	}
@@ -1362,6 +1367,7 @@ func checkIfSSEForS3MatchesConfig(
 	output, err := s3Client.GetBucketEncryption(input)
 	if err != nil {
 		terragruntOptions.Logger.Debugf("Error checking if SSE is enabled for AWS S3 bucket %s: %s", config.RemoteStateConfigS3.Bucket, err.Error())
+
 		return false, errors.Errorf("error checking if SSE is enabled for AWS S3 bucket %s: %w", config.RemoteStateConfigS3.Bucket, err)
 	}
 

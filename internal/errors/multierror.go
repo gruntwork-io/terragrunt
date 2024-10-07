@@ -12,17 +12,6 @@ type MultiError struct {
 	inner *multierror.Error
 }
 
-// Error implements the error interface
-func (errs *MultiError) Error() string {
-	tree := multiErrorTree{}
-
-	for _, err := range UnwrapMultiErrors(errs) {
-		tree.AddError(err)
-	}
-
-	return tree.String()
-}
-
 // WrappedErrors returns the error slice that this Error is wrapping.
 func (errs *MultiError) WrappedErrors() []error {
 	if errs.inner == nil {
@@ -60,53 +49,38 @@ func (errs *MultiError) Append(appendErrs ...error) *MultiError {
 	return &MultiError{inner: multierror.Append(errs.inner, appendErrs...)}
 }
 
-// Len implements sort.Interface function for length
+// Len implements sort.Interface function for length.
 func (errs *MultiError) Len() int {
 	return len(errs.inner.Errors)
 }
 
-// Swap implements sort.Interface function for swapping elements
+// Swap implements sort.Interface function for swapping elements.
 func (errs *MultiError) Swap(i, j int) {
 	errs.inner.Errors[i], errs.inner.Errors[j] = errs.inner.Errors[j], errs.inner.Errors[i]
 }
 
-// Less implements sort.Interface function for determining order
+// Less implements sort.Interface function for determining order.
 func (errs *MultiError) Less(i, j int) bool {
 	return errs.inner.Errors[i].Error() < errs.inner.Errors[j].Error()
 }
 
-// multiErrorTree builds an error tree
-type multiErrorTree struct {
-	children    []*multiErrorTree
-	wrappedErrs []error
-	errCount    int
-}
+// Error implements the error interface.
+func (errs *MultiError) Error() string {
+	unwrappedErrs := UnwrapMultiErrors(errs)
 
-func (tree *multiErrorTree) AddError(err error) {
-	tree.errCount++
-	tree.wrappedErrs = append(tree.wrappedErrs, err)
-}
+	strs := make([]string, len(unwrappedErrs))
 
-func (tree *multiErrorTree) String() string {
-	var wrappedErrs []string //nolint:prealloc
-
-	for _, err := range tree.wrappedErrs {
-		wrappedErrs = append(wrappedErrs, addIndent(err.Error()))
+	for i := range unwrappedErrs {
+		strs[i] = addIndent(unwrappedErrs[i].Error())
 	}
 
-	for _, child := range tree.children {
-		wrappedErrs = append(wrappedErrs, addIndent(child.String()))
+	errStr := strings.Join(strs, "\n\n")
+
+	if len(strs) == 1 {
+		return fmt.Sprintf("error occurred:\n\n%s\n", errStr)
 	}
 
-	var prefix string
-
-	errStr := strings.Join(wrappedErrs, "\n\n")
-
-	if tree.errCount == 1 {
-		return fmt.Sprintf("%serror occurred:\n\n%s\n", prefix, errStr)
-	}
-
-	return fmt.Sprintf("%s%d errors occurred:\n\n%s\n", prefix, tree.errCount, errStr)
+	return fmt.Sprintf("%d errors occurred:\n\n%s\n", len(strs), errStr)
 }
 
 func addIndent(str string) string {

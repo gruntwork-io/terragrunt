@@ -25,11 +25,13 @@ func PromptUserForInput(ctx context.Context, prompt string, terragruntOptions *o
 	n, err := terragruntOptions.ErrWriter.Write([]byte(prompt))
 	if err != nil {
 		terragruntOptions.Logger.Error(err)
+
 		return "", errors.New(err)
 	}
 
 	if n != len(prompt) {
 		terragruntOptions.Logger.Errorln("Failed to write data")
+
 		return "", errors.New(err)
 	}
 

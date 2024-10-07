@@ -98,6 +98,7 @@ func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) (err error) {
 	return nil
 }
 
-func PrepareConsole(logger log.Logger) {
+// PrepareConsole is run at the start of the application to set up the console.
+func PrepareConsole(_ log.Logger) {
 	// No operation function to match windows execution
 }

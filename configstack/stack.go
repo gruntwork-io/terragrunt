@@ -578,7 +578,11 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 		includeConfig,
 	)
 	if err != nil {
-		return nil, errors.New(ProcessingModuleError{UnderlyingError: err, HowThisModuleWasFound: howThisModuleWasFound, ModulePath: terragruntConfigPath})
+		return nil, errors.New(ProcessingModuleError{
+			UnderlyingError:       err,
+			HowThisModuleWasFound: howThisModuleWasFound,
+			ModulePath:            terragruntConfigPath,
+		})
 	}
 
 	terragruntSource, err := config.GetTerragruntSourceForModule(stack.terragruntOptions.Source, modulePath, terragruntConfig)

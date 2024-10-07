@@ -111,7 +111,7 @@ func Run(
 
 	engInst, ok := instance.(*engineInstance)
 	if !ok {
-		return nil, errors.New(fmt.Errorf("failed to fetch engine instance %s", workingDir))
+		return nil, errors.Errorf("failed to fetch engine instance %s", workingDir)
 	}
 
 	terragruntEngine := engInst.terragruntEngine

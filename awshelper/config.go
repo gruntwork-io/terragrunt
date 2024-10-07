@@ -234,7 +234,7 @@ func CreateAwsSession(config *AwsSessionConfig, terragruntOptions *options.Terra
 			msg = fmt.Sprintf("Error finding AWS credentials in file '%s' (did you set the correct file name and/or profile?)", config.CredsFilename)
 		}
 
-		return nil, errors.Errorf("%s: %w", msg, err) //nolint:govet
+		return nil, errors.Errorf("%s: %w", msg, err)
 	}
 
 	return sess, nil

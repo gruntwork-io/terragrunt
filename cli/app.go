@@ -385,12 +385,13 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	return nil
 }
 
+// OSExiter is an empty function that overrides the default behavior.
 func OSExiter(exitCode int) {
 	// Do nothing. We just need to override this function, as the default value calls os.Exit, which
 	// kills the app (or any automated test) dead in its tracks.
 }
 
+// ExitErrHandler is an empty function that overrides the default behavior.
 func ExitErrHandler(_ *cli.Context, err error) error {
-	// Do nothing. We just need to override this function.
 	return err
 }

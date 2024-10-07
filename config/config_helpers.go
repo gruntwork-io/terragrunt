@@ -450,7 +450,11 @@ func FindInParentFolders(
 				return fallbackParam, nil
 			}
 
-			return "", errors.New(ParentFileNotFoundError{Path: ctx.TerragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: "Traversed all the way to the root"})
+			return "", errors.New(ParentFileNotFoundError{
+				Path:  ctx.TerragruntOptions.TerragruntConfigPath,
+				File:  fileToFindStr,
+				Cause: "Traversed all the way to the root",
+			})
 		}
 
 		fileToFind := GetDefaultConfigPath(currentDir)
@@ -465,7 +469,11 @@ func FindInParentFolders(
 		previousDir = currentDir
 	}
 
-	return "", errors.New(ParentFileNotFoundError{Path: ctx.TerragruntOptions.TerragruntConfigPath, File: fileToFindStr, Cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", ctx.TerragruntOptions.MaxFoldersToCheck)})
+	return "", errors.New(ParentFileNotFoundError{
+		Path:  ctx.TerragruntOptions.TerragruntConfigPath,
+		File:  fileToFindStr,
+		Cause: fmt.Sprintf("Exceeded maximum folders to check (%d)", ctx.TerragruntOptions.MaxFoldersToCheck),
+	})
 }
 
 // PathRelativeToInclude returns the relative path between the included Terragrunt configuration file
@@ -725,7 +733,11 @@ func GetTerragruntSourceForModule(sourcePath string, modulePath string, moduleTe
 
 	// if both URL and subdir are missing, something went terribly wrong
 	if moduleURL == "" && moduleSubdir == "" {
-		return "", errors.New(InvalidSourceURLError{ModulePath: modulePath, ModuleSourceURL: *moduleTerragruntConfig.Terraform.Source, TerragruntSource: sourcePath})
+		return "", errors.New(InvalidSourceURLError{
+			ModulePath:       modulePath,
+			ModuleSourceURL:  *moduleTerragruntConfig.Terraform.Source,
+			TerragruntSource: sourcePath,
+		})
 	}
 
 	// if only subdir is missing, check if we can obtain a valid module name from the URL portion
@@ -1071,7 +1083,7 @@ func ParseAndDecodeVarFile(opts *options.TerragruntOptions, varFile string, file
 	return gocty.FromCtyValue(ctyVal, out)
 }
 
-// extractSopsErrors extracts the original errors from the sops library and returns them as a errors.MultiError
+// extractSopsErrors extracts the original errors from the sops library and returns them as a errors.MultiError.
 func extractSopsErrors(err error) *errors.MultiError {
 	var errs = &errors.MultiError{}
 
@@ -1089,7 +1101,9 @@ func extractSopsErrors(err error) *errors.MultiError {
 			for i := 0; i < groupResultsField.Len(); i++ {
 				groupErr := groupResultsField.Index(i)
 				if groupErr.CanInterface() {
-					errs = errs.Append(groupErr.Interface().(error))
+					if err, ok := groupErr.Interface().(error); ok {
+						errs = errs.Append(err)
+					}
 				}
 			}
 		}

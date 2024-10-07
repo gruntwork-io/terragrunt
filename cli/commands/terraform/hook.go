@@ -89,7 +89,13 @@ func processErrorHooks(ctx context.Context, hooks []config.ErrorHook, terragrunt
 	return errorsOccured.ErrorOrNil()
 }
 
-func processHooks(ctx context.Context, hooks []config.Hook, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, previousExecErrors *errors.MultiError) error {
+func processHooks(
+	ctx context.Context,
+	hooks []config.Hook,
+	terragruntOptions *options.TerragruntOptions,
+	terragruntConfig *config.TerragruntConfig,
+	previousExecErrors *errors.MultiError,
+) error {
 	if len(hooks) == 0 {
 		return nil
 	}

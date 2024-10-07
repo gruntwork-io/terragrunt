@@ -237,6 +237,7 @@ func overrideAttributeInBlock(block *hclwrite.Block, key string, value string) (
 	if err != nil {
 		// Wrap error in a custom error type that has better error messaging to the user.
 		returnErr := TypeInferenceError{value: value, underlyingErr: err}
+
 		return false, errors.New(returnErr)
 	}
 
@@ -244,6 +245,7 @@ func overrideAttributeInBlock(block *hclwrite.Block, key string, value string) (
 	if err != nil {
 		// Wrap error in a custom error type that has better error messaging to the user.
 		returnErr := MalformedJSONValError{value: value, underlyingErr: err}
+
 		return false, errors.New(returnErr)
 	}
 

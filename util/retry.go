@@ -28,6 +28,7 @@ func DoWithRetry(ctx context.Context, actionDescription string, maxRetries int, 
 
 		if ctx.Err() != nil {
 			logger.Debugf("%s returned an error: %s.", actionDescription, err.Error())
+
 			return errors.New(ctx.Err())
 		}
 

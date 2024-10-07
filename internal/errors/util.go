@@ -63,7 +63,7 @@ func Recover(onPanic func(cause error)) {
 	if rec := recover(); rec != nil {
 		err, isError := rec.(error)
 		if !isError {
-			err = fmt.Errorf("%v", rec)
+			err = fmt.Errorf("%v", rec) //nolint:err113
 		}
 
 		onPanic(New(err))
@@ -74,13 +74,13 @@ func Recover(onPanic func(cause error)) {
 func UnwrapMultiErrors(err error) []error {
 	errs := []error{err}
 
-	for i := 0; i < len(errs); i++ {
-		err := errs[i]
+	for index := 0; index < len(errs); index++ {
+		err := errs[index]
 
 		for {
 			if err, ok := err.(interface{ Unwrap() []error }); ok {
-				errs = append(errs[:i], errs[i+1:]...)
-				i--
+				errs = append(errs[:index], errs[index+1:]...)
+				index--
 
 				for _, err := range err.Unwrap() {
 					errs = append(errs, New(err))

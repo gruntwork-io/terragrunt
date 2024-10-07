@@ -212,6 +212,7 @@ func (tfrGetter *RegistryGetter) getSubdir(_ context.Context, dstPath, sourceURL
 	// Make sure the subdir path actually exists
 	if _, err := os.Stat(sourcePath); err != nil {
 		details := fmt.Sprintf("could not stat download path %s (error: %s)", sourcePath, err)
+
 		return errors.New(ModuleDownloadErr{sourceURL: sourceURL, details: details})
 	}
 
@@ -260,6 +261,7 @@ func GetModuleRegistryURLBasePath(ctx context.Context, logger log.Logger, domain
 	var respJSON RegistryServicePath
 	if err := json.Unmarshal(bodyData, &respJSON); err != nil {
 		reason := fmt.Sprintf("Error parsing response body %s: %s", string(bodyData), err)
+
 		return "", errors.New(ServiceDiscoveryErr{reason: reason})
 	}
 
@@ -272,6 +274,7 @@ func GetTerraformGetHeader(ctx context.Context, logger log.Logger, url url.URL) 
 	body, header, err := httpGETAndGetResponse(ctx, logger, url)
 	if err != nil {
 		details := "error receiving HTTP data"
+
 		return "", errors.New(ModuleDownloadErr{sourceURL: url.String(), details: details})
 	}
 
@@ -284,6 +287,7 @@ func GetTerraformGetHeader(ctx context.Context, logger log.Logger, url url.URL) 
 	var responseJSON map[string]string
 	if err := json.Unmarshal(body, &responseJSON); err != nil {
 		reason := fmt.Sprintf("Error parsing response body %s: %s", string(body), err)
+
 		return "", errors.New(ModuleDownloadErr{sourceURL: url.String(), details: reason})
 	}
 	// get location value from responseJSON
@@ -294,6 +298,7 @@ func GetTerraformGetHeader(ctx context.Context, logger log.Logger, url url.URL) 
 
 	if terraformGet == "" {
 		details := "no source URL was returned in header X-Terraform-Get and in location response from download URL"
+
 		return "", errors.New(ModuleDownloadErr{sourceURL: url.String(), details: details})
 	}
 
