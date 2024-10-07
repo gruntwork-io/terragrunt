@@ -225,6 +225,10 @@ func (app *App) setupAutocomplete(arguments []string) error {
 }
 
 func (app *App) handleExitCoder(ctx *Context, err error) error {
+	if err == nil || err.Error() == "" {
+		return nil
+	}
+
 	if app.ExitErrHandler != nil {
 		return app.ExitErrHandler(ctx, err)
 	}

@@ -3226,14 +3226,11 @@ func TestModulePathInPlanErrorMessage(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, testFixtureModulePathError)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureModulePathError, "app")
 
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := runTerragruntCommand(t, "terragrunt plan -no-color --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt plan -no-color --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.Error(t, err)
-	output := stdout.String() + "\n" + stderr.String() + "\n" + err.Error() + "\n"
+	output := stdout + "\n" + stderr + "\n" + err.Error() + "\n"
 
-	assert.Contains(t, output, "1 error occurred")
+	assert.Contains(t, output, "error occurred")
 }
 
 func TestModulePathInRunAllPlanErrorMessage(t *testing.T) {

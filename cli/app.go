@@ -81,7 +81,7 @@ func NewApp(opts *options.TerragruntOptions) *App {
 	app.Before = beforeAction(opts)
 	app.DefaultCommand = terraformCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
 	app.OsExiter = OSExiter
-	app.ExitErrHandler = func(_ *cli.Context, err error) error { return err }
+	app.ExitErrHandler = ExitErrHandler
 
 	return &App{app, opts}
 }
@@ -388,4 +388,9 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 func OSExiter(exitCode int) {
 	// Do nothing. We just need to override this function, as the default value calls os.Exit, which
 	// kills the app (or any automated test) dead in its tracks.
+}
+
+func ExitErrHandler(_ *cli.Context, err error) error {
+	// Do nothing. We just need to override this function.
+	return err
 }

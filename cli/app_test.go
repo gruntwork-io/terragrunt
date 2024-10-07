@@ -498,6 +498,7 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 		terragruntCommands...).WrapAction(cli.WrapWithTelemetry(opts))
 	app.DefaultCommand = defaultCommand.WrapAction(cli.WrapWithTelemetry(opts))
 	app.OsExiter = cli.OSExiter
+	app.ExitErrHandler = cli.ExitErrHandler
 
 	err := app.Run(append([]string{"--"}, args...))
 	return opts, err
