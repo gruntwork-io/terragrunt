@@ -17,7 +17,7 @@ import (
 type TerraformModuleByPath configstack.TerraformModules
 
 func (byPath TerraformModuleByPath) Len() int           { return len(byPath) }
-func (byPath TerraformModuleByPath) Swap(i, j int)      { *byPath[i], *byPath[j] = *byPath[j], *byPath[i] }
+func (byPath TerraformModuleByPath) Swap(i, j int)      { byPath[i], byPath[j] = byPath[j], byPath[i] }
 func (byPath TerraformModuleByPath) Less(i, j int) bool { return byPath[i].Path < byPath[j].Path }
 
 type RunningModuleByPath []*configstack.RunningModule
