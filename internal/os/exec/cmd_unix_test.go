@@ -58,7 +58,7 @@ func TestNewSignalsForwarderWaitUnix(t *testing.T) {
 		runChannel <- cmd.Run()
 	}()
 
-	time.Sleep(1000 * time.Millisecond)
+	time.Sleep(time.Second)
 	start := time.Now()
 	cmd.Process.Signal(os.Interrupt)
 
@@ -87,7 +87,7 @@ func TestNewSignalsForwarderMultipleUnix(t *testing.T) {
 		runChannel <- cmd.Run()
 	}()
 
-	time.Sleep(1000 * time.Millisecond)
+	time.Sleep(time.Second)
 
 	interruptAndWaitForProcess := func() (int, error) {
 		var interrupts int

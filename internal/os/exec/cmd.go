@@ -69,7 +69,7 @@ func (cmd *Cmd) Start() error {
 }
 
 // RegisterGracefullyShutdown registers a graceful shutdown for the command in two ways:
-//  1. If the context cacnel contains a cause with a signal, this means that Terragrunt received the signal from the OS,
+//  1. If the context cancel contains a cause with a signal, this means that Terragrunt received the signal from the OS,
 //     since our executed command may also receive the same signal, we need to give the command time to gracefully shutting down,
 //     to avoid the command receiving this signal twice.
 //     Thus we will send the signal to the executed command with a delay or immediately if Terragrunt receives this same signal again.
@@ -106,7 +106,7 @@ func (cmd *Cmd) ForwardSignal(ctx context.Context, sig os.Signal) {
 	}, sig)
 
 	if cmd.forwardSignalDelay > 0 {
-		cmd.logger.Infof("%s signal will be forwarded to %s with delay %s",
+		cmd.logger.Debugf("%s signal will be forwarded to %s with delay %s",
 			cases.Title(language.English).String(sig.String()),
 			cmd.filename,
 			cmd.forwardSignalDelay,
@@ -125,7 +125,7 @@ func (cmd *Cmd) ForwardSignal(ctx context.Context, sig os.Signal) {
 
 // SendSignal sends the given `sig` to the executed command.
 func (cmd *Cmd) SendSignal(sig os.Signal) {
-	cmd.logger.Infof("%s signal is forwarded to %s", cases.Title(language.English).String(sig.String()), cmd.filename)
+	cmd.logger.Debugf("%s signal is forwarded to %s", cases.Title(language.English).String(sig.String()), cmd.filename)
 
 	if err := cmd.Process.Signal(sig); err != nil {
 		cmd.logger.Errorf("Failed to forwarding signal %s to %s: %v", sig, cmd.filename, err)

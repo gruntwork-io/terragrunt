@@ -209,7 +209,7 @@ func assertMultiErrorContains(t *testing.T, actualError error, expectedErrors ..
 	errors.As(actualError, &multiError)
 	require.NotNil(t, multiError, "Expected a MutliError, but got: %v", actualError)
 
-	assert.Equal(t, len(expectedErrors), len(multiError.WrappedErrors()))
+	assert.Len(t, multiError.WrappedErrors(), len(expectedErrors))
 	for _, expectedErr := range expectedErrors {
 		found := false
 		for _, actualErr := range multiError.WrappedErrors() {

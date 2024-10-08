@@ -139,7 +139,6 @@ func shouldContinueWithFileExists(terragruntOptions *options.TerragruntOptions, 
 	// TODO: Make exhaustive
 	switch ifExists { //nolint:exhaustive
 	case ExistsError:
-
 		return false, errors.New(GenerateFileExistsError{path: path})
 	case ExistsSkip:
 		// Do nothing since file exists and skip was configured

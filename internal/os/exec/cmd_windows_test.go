@@ -78,7 +78,7 @@ func TestNewSignalsForwarderWaitWindows(t *testing.T) {
 		runChannel <- cmd.Run()
 	}()
 
-	time.Sleep(1000 * time.Millisecond)
+	time.Sleep(time.Second)
 	// start := time.Now()
 	// Note: sending interrupt on Windows is not supported by Windows and not implemented in Go
 	cmd.Process.Signal(os.Kill)
