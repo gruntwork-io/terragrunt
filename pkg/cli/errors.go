@@ -70,7 +70,7 @@ func NewExitError(message interface{}, exitCode int) cli.ExitCoder {
 // code found, or exit code 1 if no ExitCoder is found.
 //
 // This function is the default error-handling behavior for an App.
-func handleExitCoder(err error, osExiter func(code int)) error {
+func handleExitCoder(_ *Context, err error, osExiter func(code int)) error {
 	if err == nil {
 		return nil
 	}

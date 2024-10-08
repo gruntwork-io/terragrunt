@@ -1,13 +1,14 @@
 package util
 
 import (
-	goErrors "errors"
+	"bytes"
 	"fmt"
-	"os/exec"
+	"strings"
 	"syscall"
 
-	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/hashicorp/go-multierror"
+	"os/exec"
+
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 // IsCommandExecutable - returns true if a command can be executed without errors.
@@ -19,7 +20,7 @@ func IsCommandExecutable(command string, args ...string) bool {
 
 	if err := cmd.Run(); err != nil {
 		var exitErr *exec.ExitError
-		if ok := goErrors.As(err, &exitErr); ok {
+		if ok := errors.As(err, &exitErr); ok {
 			return exitErr.ExitCode() == 0
 		}
 
@@ -30,13 +31,13 @@ func IsCommandExecutable(command string, args ...string) bool {
 }
 
 type CmdOutput struct {
-	Stdout string
-	Stderr string
+	Stdout bytes.Buffer
+	Stderr bytes.Buffer
 }
 
 // GetExitCode returns the exit code of a command. If the error does not
 // implement iErrorCode or is not an exec.ExitError
-// or *multierror.Error type, the error is returned.
+// or *errors.MultiError type, the error is returned.
 func GetExitCode(err error) (int, error) {
 	// Interface to determine if we can retrieve an exit status from an error
 	type iErrorCode interface {
@@ -48,14 +49,14 @@ func GetExitCode(err error) (int, error) {
 	}
 
 	var exiterr *exec.ExitError
-	if ok := goErrors.As(err, &exiterr); ok {
+	if ok := errors.As(err, &exiterr); ok {
 		status := exiterr.Sys().(syscall.WaitStatus)
 		return status.ExitStatus(), nil
 	}
 
-	var multiErr *multierror.Error
-	if ok := goErrors.As(err, &multiErr); ok {
-		for _, err := range multiErr.Errors {
+	var multiErr *errors.MultiError
+	if ok := errors.As(err, &multiErr); ok {
+		for _, err := range multiErr.WrappedErrors() {
 			exitCode, exitCodeErr := GetExitCode(err)
 			if exitCodeErr == nil {
 				return exitCode, nil
@@ -69,32 +70,25 @@ func GetExitCode(err error) (int, error) {
 // ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr
 type ProcessExecutionError struct {
 	Err        error
-	Stdout     string
-	Stderr     string
+	Output     CmdOutput
 	WorkingDir string
+	Command    string
+	Args       []string
 }
 
 func (err ProcessExecutionError) Error() string {
-	// Include in error message the working directory where the command was run, so it's easier for the user to
-	return fmt.Sprintf("[%s] %s", err.WorkingDir, err.Err.Error())
+	return fmt.Sprintf("Failed to execute \"%s %s\" in %s\n%s\n%v",
+		err.Command,
+		strings.Join(err.Args, " "),
+		err.WorkingDir,
+		err.Output.Stderr.String(),
+		err.Err)
 }
 
 func (err ProcessExecutionError) ExitStatus() (int, error) {
 	return GetExitCode(err.Err)
 }
 
-func Unwrap[V error](err error) *V {
-	var target = new(V)
-
-	for {
-		if ok := goErrors.As(err, target); ok {
-			return target
-		}
-
-		if err = goErrors.Unwrap(err); err == nil {
-			break
-		}
-	}
-
-	return target
+func (err ProcessExecutionError) Unwrap() error {
+	return err.Err
 }

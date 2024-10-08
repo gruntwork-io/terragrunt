@@ -2,11 +2,10 @@
 package commands
 
 import (
-	goErrors "errors"
 	"fmt"
 
 	"github.com/gruntwork-io/go-commons/collections"
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -561,7 +560,7 @@ func NewHelpFlag(opts *options.TerragruntOptions) cli.Flag {
 
 				// If the command name is not found, it is most likely a terraform command, show Terraform help.
 				var invalidCommandNameError cli.InvalidCommandNameError
-				if ok := goErrors.As(err, &invalidCommandNameError); ok {
+				if ok := errors.As(err, &invalidCommandNameError); ok {
 					terraformHelpCmd := append([]string{cmdName, "-help"}, ctx.Args().Tail()...)
 					return shell.RunTerraformCommand(ctx, opts, terraformHelpCmd...)
 				}

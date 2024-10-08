@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	goErrors "errors"
 	"io"
 	"os"
 	"strings"
@@ -12,7 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
 	openpgpArmor "github.com/ProtonMail/go-crypto/openpgp/armor"
@@ -126,7 +125,7 @@ func NewArchiveChecksumAuthentication(wantSHA256Sum [sha256.Size]byte) PackageAu
 
 func (auth archiveHashAuthentication) Authenticate(path string) (*PackageAuthenticationResult, error) {
 	if fileInfo, err := os.Stat(path); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	} else if fileInfo.IsDir() {
 		return nil, errors.Errorf("cannot check archive hash for non-archive location %s", path)
 	}
@@ -250,7 +249,7 @@ func (auth signatureAuthentication) Authenticate(location string) (*PackageAuthe
 func (auth signatureAuthentication) checkDetachedSignature(keyring openpgp.KeyRing, signed, signature io.Reader, config *packet.Config) error {
 	entity, err := openpgp.CheckDetachedSignature(keyring, signed, signature, config)
 
-	if goErrors.Is(err, openpgpErrors.ErrKeyExpired) {
+	if errors.Is(err, openpgpErrors.ErrKeyExpired) {
 		for id := range entity.Identities {
 			log.Warnf("expired openpgp key from %s\n", id)
 		}
@@ -275,7 +274,7 @@ func (auth signatureAuthentication) findSigningKey() (string, string, error) {
 
 		if err := auth.checkDetachedSignature(keyring, bytes.NewReader(auth.Document), bytes.NewReader(auth.Signature), nil); err != nil {
 			// If the signature issuer does not match the the key, keep trying the rest of the provided keys.
-			if goErrors.Is(err, openpgpErrors.ErrUnknownIssuer) {
+			if errors.Is(err, openpgpErrors.ErrUnknownIssuer) {
 				continue
 			}
 

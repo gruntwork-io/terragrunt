@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/rogpeppe/go-internal/dirhash"
 )
 
@@ -40,18 +40,18 @@ func (scheme HashScheme) New(value string) Hash {
 func PackageHashLegacyZipSHA(path string) (Hash, error) {
 	archivePath, err := filepath.EvalSymlinks(path)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	file, err := os.Open(archivePath)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 	defer file.Close()
 
 	hash := sha256.New()
 	if _, err = io.Copy(hash, file); err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	gotHash := hash.Sum(nil)
@@ -73,7 +73,7 @@ func PackageHashV1(path string) (Hash, error) {
 	}
 
 	if fileInfo, err := os.Stat(packageDir); err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	} else if !fileInfo.IsDir() {
 		return "", errors.Errorf("packageDir is not a directory %q", packageDir)
 	}

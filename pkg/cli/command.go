@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/urfave/cli/v2"
 )
 
@@ -118,19 +118,19 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 	}
 
 	if err := cmd.Flags.RunActions(ctx); err != nil {
-		return ctx.App.handleExitCoder(err)
+		return ctx.App.handleExitCoder(ctx, err)
 	}
 
 	defer func() {
 		if cmd.After != nil && err == nil {
 			err = cmd.After(ctx)
-			err = ctx.App.handleExitCoder(err)
+			err = ctx.App.handleExitCoder(ctx, err)
 		}
 	}()
 
 	if cmd.Before != nil {
 		if err := cmd.Before(ctx); err != nil {
-			return ctx.App.handleExitCoder(err)
+			return ctx.App.handleExitCoder(ctx, err)
 		}
 	}
 
@@ -145,7 +145,7 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 
 	if cmd.Action != nil {
 		if err = cmd.Action(ctx); err != nil {
-			return ctx.App.handleExitCoder(err)
+			return ctx.App.handleExitCoder(ctx, err)
 		}
 	}
 
@@ -213,7 +213,7 @@ func (cmd *Command) flagSetParse(flagSet *libflag.FlagSet, args []string) ([]str
 		errStr := err.Error()
 
 		if cmd.DisallowUndefinedFlags || !strings.HasPrefix(errStr, errFlagUndefined) {
-			return nil, errors.WithStackTrace(err)
+			return nil, errors.New(err)
 		}
 
 		undefArg = strings.Trim(strings.TrimPrefix(errStr, errFlagUndefined), " -")

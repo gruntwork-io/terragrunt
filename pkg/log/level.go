@@ -3,7 +3,7 @@ package log
 import (
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/sirupsen/logrus"
 )
 

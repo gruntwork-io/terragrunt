@@ -22,8 +22,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -126,7 +126,7 @@ func (stack *Stack) LogModuleDeployOrder(logger log.Logger, terraformCommand str
 func (stack *Stack) JSONModuleDeployOrder(terraformCommand string) (string, error) {
 	runGraph, err := stack.GetModuleRunGraph(terraformCommand)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	// Convert the module paths to a string array for JSON marshalling
@@ -144,7 +144,7 @@ func (stack *Stack) JSONModuleDeployOrder(terraformCommand string) (string, erro
 
 	j, err := json.MarshalIndent(jsonGraph, "", "  ")
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	return string(j), nil
@@ -201,7 +201,11 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 		errorStreams := make([]bytes.Buffer, len(stack.Modules))
 
 		for n, module := range stack.Modules {
-			module.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], module.TerragruntOptions.ErrWriter)
+			if !terragruntOptions.NonInteractive { // redirect output to ErrWriter in case of not NonInteractive mode
+				module.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], module.TerragruntOptions.ErrWriter)
+			} else {
+				module.TerragruntOptions.ErrWriter = &errorStreams[n]
+			}
 		}
 		defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
 	}
@@ -296,12 +300,12 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
 		if len(terragruntConfigPaths) == 0 {
-			return errors.WithStackTrace(ErrNoTerraformModulesFound)
+			return errors.New(ErrNoTerraformModulesFound)
 		}
 
 		modules, err := stack.ResolveTerraformModules(ctx, terragruntConfigPaths)
 		if err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 
 		stack.Modules = modules
@@ -309,21 +313,21 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 		return nil
 	})
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "check_for_cycles", map[string]interface{}{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
 		if err := stack.Modules.CheckForCycles(); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 
 		return nil
 	})
 
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	return nil
@@ -574,7 +578,11 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 		includeConfig,
 	)
 	if err != nil {
-		return nil, errors.WithStackTrace(ProcessingModuleError{UnderlyingError: err, HowThisModuleWasFound: howThisModuleWasFound, ModulePath: terragruntConfigPath})
+		return nil, errors.New(ProcessingModuleError{
+			UnderlyingError:       err,
+			HowThisModuleWasFound: howThisModuleWasFound,
+			ModulePath:            terragruntConfigPath,
+		})
 	}
 
 	terragruntSource, err := config.GetTerragruntSourceForModule(stack.terragruntOptions.Source, modulePath, terragruntConfig)
@@ -671,7 +679,7 @@ func (stack *Stack) resolveExternalDependenciesForModules(ctx context.Context, m
 
 	// Simple protection from circular dependencies causing a Stack Overflow due to infinite recursion
 	if recursionLevel > maxLevelsOfRecursion {
-		return allExternalDependencies, errors.WithStackTrace(InfiniteRecursionError{RecursionLevel: maxLevelsOfRecursion, Modules: modulesToSkip})
+		return allExternalDependencies, errors.New(InfiniteRecursionError{RecursionLevel: maxLevelsOfRecursion, Modules: modulesToSkip})
 	}
 
 	sortedKeys := modulesMap.getSortedKeys()

@@ -3,7 +3,7 @@ package cliconfig
 import (
 	"path/filepath"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/hashicorp/terraform/command/cliconfig"
 	"github.com/hashicorp/terraform/tfdiags"
 )
@@ -43,7 +43,7 @@ func loadUserConfig(
 func UserProviderDir() (string, error) {
 	configDir, err := cliconfig.ConfigDir()
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	return filepath.Join(configDir, "plugins"), nil

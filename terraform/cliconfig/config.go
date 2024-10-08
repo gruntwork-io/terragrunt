@@ -4,7 +4,7 @@ package cliconfig
 import (
 	"os"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	svchost "github.com/hashicorp/terraform-svchost"
@@ -109,7 +109,7 @@ func (cfg *Config) Save(configPath string) error {
 
 	const ownerWriteGlobalReadPerms = 0644
 	if err := os.WriteFile(configPath, file.Bytes(), os.FileMode(ownerWriteGlobalReadPerms)); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	return nil

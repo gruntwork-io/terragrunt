@@ -45,6 +45,6 @@ terraform {
   error_hook "e" {
     commands  = ["apply", "plan"]
     execute   = ["echo", "PATTERN_MATCHING_ERROR_HOOK"]
-    on_errors = [".*executable file not found.*"]
+    on_errors = ["(?m).*executable file not found.*"]
   }
 }

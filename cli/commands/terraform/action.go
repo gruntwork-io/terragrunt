@@ -23,10 +23,10 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-zglob"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -77,7 +77,7 @@ var sourceChangeLocks = sync.Map{}
 // This will forward all the args and extra_arguments directly to Terraform.
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	if opts.TerraformCommand == "" {
-		return errors.WithStackTrace(MissingCommand{})
+		return errors.New(MissingCommand{})
 	}
 
 	return runTerraform(ctx, opts, new(Target))
@@ -410,21 +410,21 @@ func ShouldCopyLockFile(args []string, terraformConfig *config.TerraformConfig) 
 // Run the given action function surrounded by hooks. That is, run the before hooks first, then, if there were no
 // errors, run the action, and finally, run the after hooks. Return any errors hit from the hooks or action.
 func runActionWithHooks(ctx context.Context, description string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, action func(ctx context.Context) error) error {
-	var allErrors *multierror.Error
+	var allErrors *errors.MultiError
 	beforeHookErrors := processHooks(ctx, terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions, terragruntConfig, allErrors)
-	allErrors = multierror.Append(allErrors, beforeHookErrors)
+	allErrors = allErrors.Append(beforeHookErrors)
 
 	var actionErrors error
 	if beforeHookErrors == nil {
 		actionErrors = action(ctx)
-		allErrors = multierror.Append(allErrors, actionErrors)
+		allErrors = allErrors.Append(actionErrors)
 	} else {
 		terragruntOptions.Logger.Errorf("Errors encountered running before_hooks. Not running '%s'.", description)
 	}
 
 	postHookErrors := processHooks(ctx, terragruntConfig.Terraform.GetAfterHooks(), terragruntOptions, terragruntConfig, allErrors)
 	errorHookErrors := processErrorHooks(ctx, terragruntConfig.Terraform.GetErrorHooks(), terragruntOptions, allErrors)
-	allErrors = multierror.Append(allErrors, postHookErrors, errorHookErrors)
+	allErrors = allErrors.Append(postHookErrors, errorHookErrors)
 
 	return allErrors.ErrorOrNil()
 }
@@ -456,15 +456,7 @@ func RunTerraformWithRetry(ctx context.Context, terragruntOptions *options.Terra
 	for i := 0; i < terragruntOptions.RetryMaxAttempts; i++ {
 		if out, err := shell.RunTerraformCommandWithOutput(ctx, terragruntOptions, terragruntOptions.TerraformCliArgs...); err != nil {
 			if out == nil || !IsRetryable(terragruntOptions, out) {
-				logger := terragruntOptions.Logger
-
-				if execErr := util.Unwrap[util.ProcessExecutionError](err); execErr != nil {
-					if execErr.Stderr != "" {
-						logger = logger.WithField("stderr", "\n"+execErr.Stderr)
-					}
-				}
-
-				logger.Errorf("%s invocation failed in %s", terragruntOptions.TerraformImplementation, terragruntOptions.WorkingDir)
+				terragruntOptions.Logger.Errorf("%s invocation failed in %s", terragruntOptions.TerraformImplementation, terragruntOptions.WorkingDir)
 
 				return err
 			} else {
@@ -473,7 +465,7 @@ func RunTerraformWithRetry(ctx context.Context, terragruntOptions *options.Terra
 				case <-time.After(terragruntOptions.RetrySleepInterval):
 					// try again
 				case <-ctx.Done():
-					return errors.WithStackTrace(ctx.Err())
+					return errors.New(ctx.Err())
 				}
 			}
 		} else {
@@ -481,7 +473,7 @@ func RunTerraformWithRetry(ctx context.Context, terragruntOptions *options.Terra
 		}
 	}
 
-	return errors.WithStackTrace(MaxRetriesExceeded{terragruntOptions})
+	return errors.New(MaxRetriesExceeded{terragruntOptions})
 }
 
 // IsRetryable checks whether there was an error and if the output matches any of the configured RetryableErrors
@@ -490,7 +482,7 @@ func IsRetryable(opts *options.TerragruntOptions, out *util.CmdOutput) bool {
 		return false
 	}
 	// When -json is enabled, Terraform will send all output, errors included, to stdout.
-	return util.MatchesAny(opts.RetryableErrors, out.Stderr) || util.MatchesAny(opts.RetryableErrors, out.Stdout)
+	return util.MatchesAny(opts.RetryableErrors, out.Stderr.String()) || util.MatchesAny(opts.RetryableErrors, out.Stdout.String())
 }
 
 // Prepare for running 'terraform init' by initializing remote state storage and adding backend configuration arguments
@@ -521,20 +513,20 @@ func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptio
 
 	hclFiles, err := zglob.Glob(terragruntOptions.WorkingDir + "/**/*.tf")
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	files = append(files, hclFiles...)
 
 	jsonFiles, err := zglob.Glob(terragruntOptions.WorkingDir + "/**/*.tf.json")
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	files = append(files, jsonFiles...)
 
 	if len(files) == 0 {
-		return errors.WithStackTrace(NoTerraformFilesFound(terragruntOptions.WorkingDir))
+		return errors.New(NoTerraformFilesFound(terragruntOptions.WorkingDir))
 	}
 
 	return nil
@@ -544,7 +536,7 @@ func CheckFolderContainsTerraformCode(terragruntOptions *options.TerragruntOptio
 func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptions, backendType string) error {
 	terraformBackendRegexp, err := regexp.Compile(fmt.Sprintf(`backend[[:blank:]]+"%s"`, backendType))
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	definesBackend, err := util.Grep(terraformBackendRegexp, terragruntOptions.WorkingDir+"/**/*.tf")
@@ -558,7 +550,7 @@ func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptio
 
 	terraformJSONBackendRegexp, err := regexp.Compile(fmt.Sprintf(`(?m)"backend":[[:space:]]*{[[:space:]]*"%s"`, backendType))
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	definesJSONBackend, err := util.Grep(terraformJSONBackendRegexp, terragruntOptions.WorkingDir+"/**/*.tf.json")
@@ -570,7 +562,7 @@ func checkTerraformCodeDefinesBackend(terragruntOptions *options.TerragruntOptio
 		return nil
 	}
 
-	return errors.WithStackTrace(BackendNotDefined{Opts: terragruntOptions, BackendType: backendType})
+	return errors.New(BackendNotDefined{Opts: terragruntOptions, BackendType: backendType})
 }
 
 // Prepare for running any command other than 'terraform init' by running 'terraform init' if necessary
@@ -733,7 +725,7 @@ func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragru
 	}
 
 	if terragruntConfig.PreventDestroy != nil && *terragruntConfig.PreventDestroy {
-		return errors.WithStackTrace(ModuleIsProtected{Opts: terragruntOptions})
+		return errors.New(ModuleIsProtected{Opts: terragruntOptions})
 	}
 
 	return nil
@@ -849,14 +841,14 @@ func setTerragruntNullValues(terragruntOptions *options.TerragruntOptions, terra
 
 	jsonContents, err := json.MarshalIndent(jsonEmptyVars, "", "  ")
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	varFile := filepath.Join(terragruntOptions.WorkingDir, NullTFVarsFile)
 
 	const ownerReadWritePermissions = 0600
 	if err := os.WriteFile(varFile, jsonContents, os.FileMode(ownerReadWritePermissions)); err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	return varFile, nil

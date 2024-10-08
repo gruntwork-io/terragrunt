@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 const (
@@ -138,7 +138,7 @@ func FindDoc(dir string) (*Doc, error) {
 
 	files, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	for _, file := range files {
@@ -167,7 +167,7 @@ func FindDoc(dir string) (*Doc, error) {
 
 	contentByte, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	rawContent := string(contentByte)

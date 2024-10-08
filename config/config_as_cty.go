@@ -7,7 +7,7 @@ import (
 	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/remote"
 )
 
@@ -594,12 +594,12 @@ func dependencyBlocksAsCty(dependencyBlocks Dependencies) (cty.Value, error) {
 func convertToCtyWithJSON(val interface{}) (cty.Value, error) {
 	jsonBytes, err := json.Marshal(val)
 	if err != nil {
-		return cty.NilVal, errors.WithStackTrace(err)
+		return cty.NilVal, errors.New(err)
 	}
 
 	var ctyJSONVal ctyjson.SimpleJSONValue
 	if err := ctyJSONVal.UnmarshalJSON(jsonBytes); err != nil {
-		return cty.NilVal, errors.WithStackTrace(err)
+		return cty.NilVal, errors.New(err)
 	}
 
 	return ctyJSONVal.Value, nil
@@ -610,12 +610,12 @@ func convertToCtyWithJSON(val interface{}) (cty.Value, error) {
 func goTypeToCty(val interface{}) (cty.Value, error) {
 	ctyType, err := gocty.ImpliedType(val)
 	if err != nil {
-		return cty.NilVal, errors.WithStackTrace(err)
+		return cty.NilVal, errors.New(err)
 	}
 
 	ctyOut, err := gocty.ToCtyValue(val, ctyType)
 	if err != nil {
-		return cty.NilVal, errors.WithStackTrace(err)
+		return cty.NilVal, errors.New(err)
 	}
 
 	return ctyOut, nil

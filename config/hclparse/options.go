@@ -3,7 +3,7 @@ package hclparse
 import (
 	"io"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/hashicorp/hcl/v2"
 )
@@ -28,7 +28,7 @@ func WithDiagnosticsWriter(writer io.Writer, disableColor bool) Option {
 			}
 
 			if err := diagsWriter.WriteDiagnostics(diags); err != nil {
-				return errors.WithStackTrace(err)
+				return errors.New(err)
 			}
 
 			return nil

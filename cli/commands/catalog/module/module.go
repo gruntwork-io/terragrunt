@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/go-commons/collections"
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
@@ -104,7 +104,7 @@ func (module *Module) TerraformSourcePath() string {
 func (module *Module) isValid() (bool, error) {
 	files, err := os.ReadDir(filepath.Join(module.repoPath, module.moduleDir))
 	if err != nil {
-		return false, errors.WithStackTrace(err)
+		return false, errors.New(err)
 	}
 
 	for _, file := range files {

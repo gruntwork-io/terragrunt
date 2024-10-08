@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -480,7 +480,7 @@ include {
 
 	ctx := config.NewParsingContext(context.Background(), opts)
 	terragruntConfig, err := config.ParseConfigString(ctx, opts.TerragruntConfigPath, cfg, nil)
-	if assert.NoError(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
+	if assert.NoError(t, err, "Unexpected error: %v", errors.New(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
 		if assert.NotNil(t, terragruntConfig.RemoteState) {
@@ -508,7 +508,7 @@ include {
 
 	ctx := config.NewParsingContext(context.Background(), opts)
 	terragruntConfig, err := config.ParseConfigString(ctx, opts.TerragruntConfigPath, cfg, nil)
-	if assert.NoError(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
+	if assert.NoError(t, err, "Unexpected error: %v", errors.New(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
 		if assert.NotNil(t, terragruntConfig.RemoteState) {
@@ -548,7 +548,7 @@ remote_state {
 
 	ctx := config.NewParsingContext(context.Background(), opts)
 	terragruntConfig, err := config.ParseConfigString(ctx, opts.TerragruntConfigPath, cfg, nil)
-	if assert.NoError(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err)) {
+	if assert.NoError(t, err, "Unexpected error: %v", errors.New(err)) {
 		assert.Nil(t, terragruntConfig.Terraform)
 
 		if assert.NotNil(t, terragruntConfig.RemoteState) {
@@ -596,7 +596,7 @@ dependencies {
 
 	ctx := config.NewParsingContext(context.Background(), opts)
 	terragruntConfig, err := config.ParseConfigString(ctx, opts.TerragruntConfigPath, cfg, nil)
-	require.NoError(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err))
+	require.NoError(t, err, "Unexpected error: %v", errors.New(err))
 
 	assert.NotNil(t, terragruntConfig.Terraform)
 	assert.NotNil(t, terragruntConfig.Terraform.Source)
@@ -645,7 +645,7 @@ func TestParseTerragruntJsonConfigIncludeOverrideAll(t *testing.T) {
 
 	ctx := config.NewParsingContext(context.Background(), opts)
 	terragruntConfig, err := config.ParseConfigString(ctx, opts.TerragruntConfigPath, cfg, nil)
-	require.NoError(t, err, "Unexpected error: %v", errors.PrintErrorWithStackTrace(err))
+	require.NoError(t, err, "Unexpected error: %v", errors.New(err))
 
 	assert.NotNil(t, terragruntConfig.Terraform)
 	assert.NotNil(t, terragruntConfig.Terraform.Source)

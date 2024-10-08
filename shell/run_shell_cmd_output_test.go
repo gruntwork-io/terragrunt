@@ -61,7 +61,7 @@ func testCommandOutputOrder(t *testing.T, withPtty bool, fullOutput []string, st
 func TestCommandOutputPrefix(t *testing.T) {
 	t.Parallel()
 	prefix := "PREFIX"
-	terraformPath := "../testdata/test_outputs.sh"
+	terraformPath := "testdata/test_outputs.sh"
 	prefixedOutput := []string{}
 	for _, line := range FullOutput {
 		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s binary=%s msg=%s", prefix, filepath.Base(terraformPath), line))
@@ -97,7 +97,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 
 	withOptions(terragruntOptions)
 
-	out, err := shell.RunShellCommandWithOutput(context.Background(), terragruntOptions, "", !allocateStdout, false, "../testdata/test_outputs.sh", "same")
+	out, err := shell.RunShellCommandWithOutput(context.Background(), terragruntOptions, "", !allocateStdout, false, "testdata/test_outputs.sh", "same")
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")
@@ -121,10 +121,10 @@ func assertOutputs(
 			assert.Contains(t, allOutputs[i], expectedAllOutputs[i], allOutputs[i])
 		}
 
-		stdOutputs := strings.Split(strings.TrimSpace(out.Stdout), "\n")
+		stdOutputs := strings.Split(strings.TrimSpace(out.Stdout.String()), "\n")
 		assert.Equal(t, expectedStdOutputs, stdOutputs)
 
-		stdErrs := strings.Split(strings.TrimSpace(out.Stderr), "\n")
+		stdErrs := strings.Split(strings.TrimSpace(out.Stderr.String()), "\n")
 		assert.Equal(t, expectedStdErrs, stdErrs)
 	}
 }

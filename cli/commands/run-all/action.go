@@ -3,8 +3,8 @@ package runall
 import (
 	"context"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/configstack"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/telemetry"
@@ -31,7 +31,7 @@ var runAllDisabledCommands = map[string]string{
 
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	if opts.TerraformCommand == "" {
-		return errors.WithStackTrace(MissingCommand{})
+		return errors.New(MissingCommand{})
 	}
 
 	reason, isDisabled := runAllDisabledCommands[opts.TerraformCommand]

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -74,13 +74,13 @@ func ParseTerraformStateFile(path string) (*TerraformState, error) {
 	bytes, err := os.ReadFile(path)
 
 	if err != nil {
-		return nil, errors.WithStackTrace(CantParseTerraformStateFileError{Path: path, UnderlyingErr: err})
+		return nil, errors.New(CantParseTerraformStateFileError{Path: path, UnderlyingErr: err})
 	}
 
 	state, err := ParseTerraformState(bytes)
 
 	if err != nil {
-		return nil, errors.WithStackTrace(CantParseTerraformStateFileError{Path: path, UnderlyingErr: err})
+		return nil, errors.New(CantParseTerraformStateFileError{Path: path, UnderlyingErr: err})
 	}
 
 	return state, nil
@@ -95,7 +95,7 @@ func ParseTerraformState(terraformStateData []byte) (*TerraformState, error) {
 	}
 
 	if err := json.Unmarshal(terraformStateData, terraformState); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	return terraformState, nil

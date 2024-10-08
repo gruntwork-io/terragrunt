@@ -1,7 +1,7 @@
 //go:build !windows
 // +build !windows
 
-package shell
+package exec
 
 import (
 	"io"
@@ -13,31 +13,31 @@ import (
 	"golang.org/x/term"
 
 	"github.com/creack/pty"
-	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
-// runCommandWithPTTY will allocate a pseudo-tty to run the subcommand in. This is only necessary when running
+// runCommandWithPTY will allocate a pseudo-tty to run the subcommand in. This is only necessary when running
 // interactive commands, so that terminal features like readline work through the subcommand when stdin, stdout, and
 // stderr is being shared.
 // NOTE: This is based on the quickstart example from https://github.com/creack/pty
-func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.Cmd, cmdStdout io.Writer, _ io.Writer) (err error) {
+func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) (err error) {
 	// NOTE: in order to ensure we can return errors that occur in cleanup, we use a variable binding for the return
 	// value so that it can be updated.
 	pseudoTerminal, startErr := pty.Start(cmd)
 	defer func() {
 		if closeErr := pseudoTerminal.Close(); closeErr != nil {
-			terragruntOptions.Logger.Errorf("Error closing pty: %s", closeErr)
+			logger.Errorf("Error closing pty: %s", closeErr)
 			// Only overwrite the previous error if there was no error since this error has lower priority than any
 			// errors in the main routine
 			if err == nil {
-				err = errors.WithStackTrace(closeErr)
+				err = errors.New(closeErr)
 			}
 		}
 	}()
 
 	if startErr != nil {
-		return errors.WithStackTrace(startErr)
+		return errors.New(startErr)
 	}
 
 	// Every time the current terminal size changes, we need to make sure the PTY also updates the size.
@@ -48,7 +48,7 @@ func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.
 		for range ch {
 			if inheritSizeErr := pty.InheritSize(os.Stdin, pseudoTerminal); inheritSizeErr != nil {
 				// We don't propagate this error upstream because it does not affect normal operation of the command
-				terragruntOptions.Logger.Errorf("error resizing pty: %s", inheritSizeErr)
+				logger.Errorf("error resizing pty: %s", inheritSizeErr)
 			}
 		}
 	}()
@@ -57,16 +57,16 @@ func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.
 	// Set stdin in raw mode so that we preserve readline properties
 	oldState, setRawErr := term.MakeRaw(int(os.Stdin.Fd()))
 	if setRawErr != nil {
-		return errors.WithStackTrace(setRawErr)
+		return errors.New(setRawErr)
 	}
 
 	defer func() {
 		if restoreErr := term.Restore(int(os.Stdin.Fd()), oldState); restoreErr != nil {
-			terragruntOptions.Logger.Errorf("Error restoring terminal state: %s", restoreErr)
+			logger.Errorf("Error restoring terminal state: %s", restoreErr)
 			// Only overwrite the previous error if there was no error since this error has lower priority than any
 			// errors in the main routine
 			if err == nil {
-				err = errors.WithStackTrace(restoreErr)
+				err = errors.New(restoreErr)
 			}
 		}
 	}()
@@ -78,27 +78,27 @@ func runCommandWithPTTY(terragruntOptions *options.TerragruntOptions, cmd *exec.
 		// We don't propagate this error upstream because it does not affect normal operation of the command. A repeat
 		// of the same stdin in this case should resolve the issue.
 		if copyStdinErr != nil {
-			terragruntOptions.Logger.Errorf("Error forwarding stdin: %s", copyStdinErr)
+			logger.Errorf("Error forwarding stdin: %s", copyStdinErr)
 		}
 		// signal that stdin copy is done
 		stdinDone <- copyStdinErr
 	}()
 
 	// ... and the pty to stdout.
-	_, copyStdoutErr := io.Copy(cmdStdout, pseudoTerminal)
+	_, copyStdoutErr := io.Copy(cmd.Stdout, pseudoTerminal)
 	if copyStdoutErr != nil {
-		return errors.WithStackTrace(copyStdoutErr)
+		return errors.New(copyStdoutErr)
 	}
 
 	// Wait for stdin copy to complete before returning
-
 	if copyStdinErr := <-stdinDone; copyStdinErr != nil && !errors.IsError(copyStdinErr, io.EOF) {
-		terragruntOptions.Logger.Errorf("Error forwarding stdin: %s", copyStdinErr)
+		logger.Errorf("Error forwarding stdin: %s", copyStdinErr)
 	}
 
 	return nil
 }
 
-func PrepareConsole(terragruntOptions *options.TerragruntOptions) {
+// PrepareConsole is run at the start of the application to set up the console.
+func PrepareConsole(_ log.Logger) {
 	// No operation function to match windows execution
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 // Create a cty Function that takes as input parameters a slice of strings (var args, so this slice could be of any
@@ -151,7 +151,7 @@ func ctySliceToStringSlice(args []cty.Value) ([]string, error) {
 
 	for _, arg := range args {
 		if arg.Type() != cty.String {
-			return nil, errors.WithStackTrace(InvalidParameterTypeError{Expected: "string", Actual: arg.Type().FriendlyName()})
+			return nil, errors.New(InvalidParameterTypeError{Expected: "string", Actual: arg.Type().FriendlyName()})
 		}
 
 		out = append(out, arg.AsString())
@@ -239,12 +239,12 @@ func ParseCtyValueToMap(value cty.Value) (map[string]interface{}, error) {
 
 	jsonBytes, err := ctyjson.Marshal(value, cty.DynamicPseudoType)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	var ctyJSONOutput CtyJSONOutput
 	if err := json.Unmarshal(jsonBytes, &ctyJSONOutput); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	return ctyJSONOutput.Value, nil
@@ -270,7 +270,7 @@ func convertValuesMapToCtyVal(valMap map[string]cty.Value) (cty.Value, error) {
 
 		valMapAsCty, err = gocty.ToCtyValue(valMap, generateTypeFromValuesMap(valMap))
 		if err != nil {
-			return valMapAsCty, errors.WithStackTrace(err)
+			return valMapAsCty, errors.New(err)
 		}
 	}
 
@@ -389,7 +389,7 @@ func UpdateUnknownCtyValValues(value cty.Value) (cty.Value, error) {
 
 	value, err := gocty.ToCtyValue(updatedValue, value.Type())
 	if err != nil {
-		return cty.NilVal, errors.WithStackTrace(err)
+		return cty.NilVal, errors.New(err)
 	}
 
 	return value, nil

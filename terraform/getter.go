@@ -3,7 +3,6 @@ package terraform
 import (
 	"context"
 	"encoding/json"
-	goErrors "errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,7 +18,7 @@ import (
 	"github.com/hashicorp/go-getter"
 	safetemp "github.com/hashicorp/go-safetemp"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -129,11 +128,11 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 
 	versionList, hasVersion := queryValues[versionQueryKey]
 	if !hasVersion {
-		return errors.WithStackTrace(MalformedRegistryURLErr{reason: "missing version query"})
+		return errors.New(MalformedRegistryURLErr{reason: "missing version query"})
 	}
 
 	if len(versionList) != 1 {
-		return errors.WithStackTrace(MalformedRegistryURLErr{reason: "more than one version query"})
+		return errors.New(MalformedRegistryURLErr{reason: "more than one version query"})
 	}
 
 	version := versionList[0]
@@ -178,7 +177,7 @@ func (tfrGetter *RegistryGetter) Get(dstPath string, srcURL *url.URL) error {
 // GetFile is not implemented for the Terraform module registry Getter since the terraform module registry doesn't serve
 // a single file.
 func (tfrGetter *RegistryGetter) GetFile(dst string, src *url.URL) error {
-	return errors.WithStackTrace(goErrors.New("GetFile is not implemented for the Terraform Registry Getter"))
+	return errors.New(errors.New("GetFile is not implemented for the Terraform Registry Getter"))
 }
 
 // getSubdir downloads the source into the destination, but with the proper subdir.
@@ -201,30 +200,31 @@ func (tfrGetter *RegistryGetter) getSubdir(_ context.Context, dstPath, sourceURL
 	}
 	// Download that into the given directory
 	if err := getter.Get(tempdirPath, sourceURL, opts...); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	// Process any globbing
 	sourcePath, err := getter.SubdirGlob(tempdirPath, subDir)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	// Make sure the subdir path actually exists
 	if _, err := os.Stat(sourcePath); err != nil {
 		details := fmt.Sprintf("could not stat download path %s (error: %s)", sourcePath, err)
-		return errors.WithStackTrace(ModuleDownloadErr{sourceURL: sourceURL, details: details})
+
+		return errors.New(ModuleDownloadErr{sourceURL: sourceURL, details: details})
 	}
 
 	// Copy the subdirectory into our actual destination.
 	if err := os.RemoveAll(dstPath); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	// Make the final destination
 	const ownerWriteGlobalReadExecutePerms = 0755
 	if err := os.MkdirAll(dstPath, ownerWriteGlobalReadExecutePerms); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	// We use a temporary manifest file here that is deleted at the end of this routine since we don't intend to come
@@ -261,7 +261,8 @@ func GetModuleRegistryURLBasePath(ctx context.Context, logger log.Logger, domain
 	var respJSON RegistryServicePath
 	if err := json.Unmarshal(bodyData, &respJSON); err != nil {
 		reason := fmt.Sprintf("Error parsing response body %s: %s", string(bodyData), err)
-		return "", errors.WithStackTrace(ServiceDiscoveryErr{reason: reason})
+
+		return "", errors.New(ServiceDiscoveryErr{reason: reason})
 	}
 
 	return respJSON.ModulesPath, nil
@@ -273,7 +274,8 @@ func GetTerraformGetHeader(ctx context.Context, logger log.Logger, url url.URL) 
 	body, header, err := httpGETAndGetResponse(ctx, logger, url)
 	if err != nil {
 		details := "error receiving HTTP data"
-		return "", errors.WithStackTrace(ModuleDownloadErr{sourceURL: url.String(), details: details})
+
+		return "", errors.New(ModuleDownloadErr{sourceURL: url.String(), details: details})
 	}
 
 	terraformGet := header.Get("X-Terraform-Get")
@@ -285,7 +287,8 @@ func GetTerraformGetHeader(ctx context.Context, logger log.Logger, url url.URL) 
 	var responseJSON map[string]string
 	if err := json.Unmarshal(body, &responseJSON); err != nil {
 		reason := fmt.Sprintf("Error parsing response body %s: %s", string(body), err)
-		return "", errors.WithStackTrace(ModuleDownloadErr{sourceURL: url.String(), details: reason})
+
+		return "", errors.New(ModuleDownloadErr{sourceURL: url.String(), details: reason})
 	}
 	// get location value from responseJSON
 	terraformGet = responseJSON["location"]
@@ -295,7 +298,8 @@ func GetTerraformGetHeader(ctx context.Context, logger log.Logger, url url.URL) 
 
 	if terraformGet == "" {
 		details := "no source URL was returned in header X-Terraform-Get and in location response from download URL"
-		return "", errors.WithStackTrace(ModuleDownloadErr{sourceURL: url.String(), details: details})
+
+		return "", errors.New(ModuleDownloadErr{sourceURL: url.String(), details: details})
 	}
 
 	return terraformGet, nil
@@ -311,7 +315,7 @@ func GetDownloadURLFromHeader(moduleURL url.URL, terraformGet string) (string, e
 	if strings.HasPrefix(terraformGet, "/") || strings.HasPrefix(terraformGet, "./") || strings.HasPrefix(terraformGet, "../") {
 		relativePathURL, err := url.Parse(terraformGet)
 		if err != nil {
-			return "", errors.WithStackTrace(err)
+			return "", errors.New(err)
 		}
 
 		terraformGetURL := moduleURL.ResolveReference(relativePathURL)
@@ -326,7 +330,7 @@ func GetDownloadURLFromHeader(moduleURL url.URL, terraformGet string) (string, e
 func httpGETAndGetResponse(ctx context.Context, logger log.Logger, getURL url.URL) ([]byte, *http.Header, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", getURL.String(), nil)
 	if err != nil {
-		return nil, nil, errors.WithStackTrace(err)
+		return nil, nil, errors.New(err)
 	}
 
 	// Handle authentication via env var. Authentication is done by providing the registry token as a bearer token in
@@ -338,7 +342,7 @@ func httpGETAndGetResponse(ctx context.Context, logger log.Logger, getURL url.UR
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return nil, nil, errors.WithStackTrace(err)
+		return nil, nil, errors.New(err)
 	}
 
 	defer func() {
@@ -349,12 +353,12 @@ func httpGETAndGetResponse(ctx context.Context, logger log.Logger, getURL url.UR
 	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, nil, errors.WithStackTrace(RegistryAPIErr{url: getURL.String(), statusCode: resp.StatusCode})
+		return nil, nil, errors.New(RegistryAPIErr{url: getURL.String(), statusCode: resp.StatusCode})
 	}
 
 	bodyData, err := io.ReadAll(resp.Body)
 
-	return bodyData, &resp.Header, errors.WithStackTrace(err)
+	return bodyData, &resp.Header, errors.New(err)
 }
 
 // BuildRequestURL - create url to download module using moduleRegistryBasePath

@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 // MaxIter is the maximum number of depth we support in recursively evaluating locals.
@@ -52,7 +51,7 @@ func EvaluateLocalsBlock(ctx *ParsingContext, file *hclparse.File) (map[string]c
 		if iterations > MaxIter {
 			// Reached maximum supported iterations, which is most likely an infinite loop bug so cut the iteration
 			// short an return an error.
-			return nil, errors.WithStackTrace(MaxIterError{})
+			return nil, errors.New(MaxIterError{})
 		}
 
 		var err error
@@ -73,17 +72,17 @@ func EvaluateLocalsBlock(ctx *ParsingContext, file *hclparse.File) (map[string]c
 		// This is an error because we couldn't evaluate all locals
 		ctx.TerragruntOptions.Logger.Debugf("Not all locals could be evaluated:")
 
-		var errs *multierror.Error
+		var errs *errors.MultiError
 
 		for _, attr := range attrs {
 			diags := canEvaluateLocals(attr.Expr, evaluatedLocals)
 			if err := file.HandleDiagnostics(diags); err != nil {
-				errs = multierror.Append(errs, err)
+				errs = errs.Append(err)
 			}
 		}
 
 		if err := errs.ErrorOrNil(); err != nil {
-			return nil, errors.WithStackTrace(CouldNotEvaluateAllLocalsError{Err: err})
+			return nil, errors.New(CouldNotEvaluateAllLocalsError{Err: err})
 		}
 	}
 

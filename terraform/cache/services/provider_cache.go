@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/helpers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
@@ -21,7 +21,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/terraform/getproviders"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-getter/v2"
-	"github.com/hashicorp/go-multierror"
 	svchost "github.com/hashicorp/terraform-svchost"
 	"golang.org/x/sync/errgroup"
 )
@@ -201,14 +200,14 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	}
 
 	if err := os.MkdirAll(filepath.Dir(cache.packageDir), os.ModePerm); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	if util.FileExists(cache.userProviderDir) {
 		cache.logger.Debugf("Create symlink file %s to %s", cache.packageDir, cache.userProviderDir)
 
 		if err := os.Symlink(cache.userProviderDir, cache.packageDir); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 
 		cache.logger.Infof("Cached %s from user plugins directory", cache.Provider)
@@ -239,7 +238,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 	cache.logger.Debugf("Unpack provider archive %s", cache.archivePath)
 
 	if err := unzip.Decompress(cache.packageDir, cache.archivePath, true, unzipFileMode); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	auth, err := cache.AuthenticatePackage(ctx)
@@ -255,7 +254,7 @@ func (cache *ProviderCache) warmUp(ctx context.Context) error {
 func (cache *ProviderCache) newRequest(ctx context.Context, url string) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	if cache.credsSource == nil {
@@ -275,7 +274,7 @@ func (cache *ProviderCache) removeArchive() error {
 		cache.logger.Debugf("Remove provider cached archive %s", cache.archivePath)
 
 		if err := os.Remove(cache.archivePath); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 	}
 
@@ -286,7 +285,7 @@ func (cache *ProviderCache) acquireLockFile(ctx context.Context) (*util.Lockfile
 	lockfile := util.NewLockfile(cache.lockfilePath)
 
 	if err := os.MkdirAll(filepath.Dir(cache.lockfilePath), os.ModePerm); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	if err := util.DoWithRetry(ctx, "Acquiring lock file "+cache.lockfilePath, maxRetriesLockFile, retryDelayLockFile, cache.logger, log.DebugLevel, func(ctx context.Context) error {
@@ -341,12 +340,12 @@ func (service *ProviderService) WaitForCacheReady(requestID string) ([]getprovid
 
 	var (
 		providers []getproviders.Provider
-		merr      = &multierror.Error{}
+		errs      = &errors.MultiError{}
 	)
 
 	for _, provider := range service.providerCaches.FindByRequestID(requestID) {
 		if provider.err != nil {
-			merr = multierror.Append(merr, fmt.Errorf("unable to cache provider: %s, err: %w", provider, provider.err))
+			errs = errs.Append(fmt.Errorf("unable to cache provider: %s, err: %w", provider, provider.err))
 		}
 
 		if provider.ready {
@@ -354,7 +353,7 @@ func (service *ProviderService) WaitForCacheReady(requestID string) ([]getprovid
 		}
 	}
 
-	return providers, merr.ErrorOrNil()
+	return providers, errs.ErrorOrNil()
 }
 
 // CacheProvider starts caching the given provider using non-blocking approach.
@@ -414,7 +413,7 @@ func (service *ProviderService) Run(ctx context.Context) error {
 	service.logger.Debugf("Provider cache dir %q", service.cacheDir)
 
 	if err := os.MkdirAll(service.cacheDir, os.ModePerm); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	tempDir, err := util.GetTempDir()
@@ -424,7 +423,7 @@ func (service *ProviderService) Run(ctx context.Context) error {
 
 	service.tempDir = filepath.Join(tempDir, "providers")
 
-	merr := &multierror.Error{}
+	errs := &errors.MultiError{}
 	errGroup, ctx := errgroup.WithContext(ctx)
 
 	for {
@@ -432,21 +431,21 @@ func (service *ProviderService) Run(ctx context.Context) error {
 		case cache := <-service.providerCacheWarmUpCh:
 			errGroup.Go(func() error {
 				if err := service.startProviderCaching(ctx, cache); err != nil {
-					merr = multierror.Append(merr, err)
+					errs = errs.Append(err)
 				}
 
 				return nil
 			})
 		case <-ctx.Done():
 			if err := errGroup.Wait(); err != nil {
-				merr = multierror.Append(merr, err)
+				errs = errs.Append(err)
 			}
 
 			if err := service.providerCaches.removeArchive(); err != nil {
-				merr = multierror.Append(merr, errors.WithStackTrace(err))
+				errs = errs.Append(err)
 			}
 
-			return merr.ErrorOrNil()
+			return errs.ErrorOrNil()
 		}
 	}
 }

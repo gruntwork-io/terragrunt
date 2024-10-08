@@ -6,7 +6,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/controllers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/middleware"
@@ -71,7 +71,7 @@ func (server *Server) DiscoveryURL(ctx context.Context, registryName string) (*h
 func (server *Server) Listen() (net.Listener, error) {
 	ln, err := net.Listen("tcp", server.Addr())
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	server.Server.Addr = ln.Addr().String()
@@ -103,7 +103,7 @@ func (server *Server) Run(ctx context.Context, ln net.Listener) error {
 		defer cancel()
 
 		if err := server.Shutdown(ctx); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 
 		return nil

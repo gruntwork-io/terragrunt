@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -41,11 +41,12 @@ func printTerragruntInfo(opts *options.TerragruntOptions) error {
 	b, err := json.MarshalIndent(group, "", "  ")
 	if err != nil {
 		opts.Logger.Errorf("JSON error marshalling terragrunt-info")
-		return errors.WithStackTrace(err)
+
+		return errors.New(err)
 	}
 
 	if _, err := fmt.Fprintf(opts.Writer, "%s\n", b); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	return nil

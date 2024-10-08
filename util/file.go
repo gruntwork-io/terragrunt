@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/gob"
-	goErrors "errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -15,7 +14,7 @@ import (
 
 	"fmt"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mattn/go-zglob"
 	homedir "github.com/mitchellh/go-homedir"
@@ -36,18 +35,18 @@ func FileOrData(maybePath string) (string, error) {
 	// character is ~, and if it is, there is a high chance of it being a path instead of data contents.
 	expandedMaybePath, err := homedir.Expand(maybePath)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	if IsFile(expandedMaybePath) {
 		contents, err := os.ReadFile(expandedMaybePath)
 		if err != nil {
-			return "", errors.WithStackTrace(err)
+			return "", errors.New(err)
 		}
 
 		return string(contents), nil
 	} else if IsDir(expandedMaybePath) {
-		return "", errors.WithStackTrace(PathIsNotFile{path: expandedMaybePath})
+		return "", errors.New(PathIsNotFile{path: expandedMaybePath})
 	}
 
 	return expandedMaybePath, nil
@@ -68,10 +67,11 @@ func FileNotExists(path string) bool {
 // EnsureDirectory creates a directory at this path if it does not exist, or error if the path exists and is a file.
 func EnsureDirectory(path string) error {
 	if FileExists(path) && IsFile(path) {
-		return errors.WithStackTrace(PathIsNotDirectory{path})
+		return errors.New(PathIsNotDirectory{path})
 	} else if !FileExists(path) {
 		const ownerReadWriteExecutePerms = 0700
-		return errors.WithStackTrace(os.MkdirAll(path, ownerReadWriteExecutePerms))
+
+		return errors.New(os.MkdirAll(path, ownerReadWriteExecutePerms))
 	}
 
 	return nil
@@ -87,7 +87,7 @@ func CanonicalPath(path string, basePath string) (string, error) {
 
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	return CleanPath(absPath), nil
@@ -157,7 +157,7 @@ func Grep(regex *regexp.Regexp, glob string) (bool, error) {
 	// So we use a third-party library.
 	matches, err := zglob.Glob(glob)
 	if err != nil {
-		return false, errors.WithStackTrace(err)
+		return false, errors.New(err)
 	}
 
 	for _, match := range matches {
@@ -167,7 +167,7 @@ func Grep(regex *regexp.Regexp, glob string) (bool, error) {
 
 		bytes, err := os.ReadFile(match)
 		if err != nil {
-			return false, errors.WithStackTrace(err)
+			return false, errors.New(err)
 		}
 
 		if regex.Match(bytes) {
@@ -202,17 +202,17 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 
 	inputFolderAbs, err := filepath.Abs(basePath)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	fileAbs, err := filepath.Abs(path)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	relPath, err := filepath.Rel(inputFolderAbs, fileAbs)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	return filepath.ToSlash(relPath), nil
@@ -222,7 +222,7 @@ func GetPathRelativeTo(path string, basePath string) (string, error) {
 func ReadFileAsString(path string) (string, error) {
 	bytes, err := os.ReadFile(path)
 	if err != nil {
-		return "", errors.WithStackTraceAndPrefix(err, "Error reading file at path %s", path)
+		return "", errors.Errorf("error reading file at path %s: %w", path, err)
 	}
 
 	return string(bytes), nil
@@ -243,9 +243,9 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 	includeExpandedGlobs := []string{}
 
 	absoluteExpandGlob, err := zglob.Glob(absoluteGlobPath)
-	if err != nil && !goErrors.Is(err, os.ErrNotExist) {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		// we ignore not exist error as we only care about the globs that exist in the src dir
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	for _, absoluteExpandGlobPath := range absoluteExpandGlob {
@@ -263,7 +263,7 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 		if IsDir(absoluteExpandGlobPath) {
 			dirExpandGlob, err := expandGlobPath(source, absoluteExpandGlobPath+"/*")
 			if err != nil {
-				return nil, errors.WithStackTrace(err)
+				return nil, errors.New(err)
 			}
 
 			includeExpandedGlobs = append(includeExpandedGlobs, dirExpandGlob...)
@@ -285,7 +285,7 @@ func CopyFolderContents(logger log.Logger, source, destination, manifestFile str
 
 		expandGlob, err := expandGlobPath(source, globPath)
 		if err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 
 		includeExpandedGlobs = append(includeExpandedGlobs, expandGlob...)
@@ -305,16 +305,16 @@ func CopyFolderContents(logger log.Logger, source, destination, manifestFile str
 func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manifestFile string, filter func(absolutePath string) bool) error {
 	const ownerReadWriteExecutePerms = 0700
 	if err := os.MkdirAll(destination, ownerReadWriteExecutePerms); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	manifest := NewFileManifest(logger, destination, manifestFile)
 	if err := manifest.Clean(); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	if err := manifest.Create(); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	defer func(manifest *fileManifest) {
@@ -329,7 +329,7 @@ func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manife
 	// was to use filepath.Walk, but that doesn't work because it ignores symlinks. So, now we turn to filepath.Glob.
 	files, err := filepath.Glob(source + "/*")
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	for _, file := range files {
@@ -347,11 +347,11 @@ func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manife
 		if IsDir(file) {
 			info, err := os.Lstat(file)
 			if err != nil {
-				return errors.WithStackTrace(err)
+				return errors.New(err)
 			}
 
 			if err := os.MkdirAll(dest, info.Mode()); err != nil {
-				return errors.WithStackTrace(err)
+				return errors.New(err)
 			}
 
 			if err := CopyFolderContentsWithFilter(logger, file, dest, manifestFile, filter); err != nil {
@@ -366,7 +366,7 @@ func CopyFolderContentsWithFilter(logger log.Logger, source, destination, manife
 
 			const ownerReadWriteExecutePerms = 0700
 			if err := os.MkdirAll(parentDir, ownerReadWriteExecutePerms); err != nil {
-				return errors.WithStackTrace(err)
+				return errors.New(err)
 			}
 
 			if err := CopyFile(file, dest); err != nil {
@@ -409,7 +409,7 @@ func TerragruntExcludes(path string) bool {
 func CopyFile(source string, destination string) error {
 	contents, err := os.ReadFile(source)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	return WriteFileWithSamePermissions(source, destination, contents)
@@ -420,7 +420,7 @@ func CopyFile(source string, destination string) error {
 func WriteFileWithSamePermissions(source string, destination string, contents []byte) error {
 	fileInfo, err := os.Stat(source)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	return os.WriteFile(destination, contents, fileInfo.Mode())
@@ -559,7 +559,7 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 
 		err = decoder.Decode(&manifestEntry)
 		if err != nil {
-			if goErrors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) {
 				break
 			} else {
 				return err
@@ -569,11 +569,11 @@ func (manifest *fileManifest) clean(manifestPath string) error {
 		if manifestEntry.IsDir {
 			// join the directory entry path with the manifest file name and call clean()
 			if err := manifest.clean(filepath.Join(manifestEntry.Path, manifest.ManifestFile)); err != nil {
-				return errors.WithStackTrace(err)
+				return errors.New(err)
 			}
 		} else {
 			if err := os.Remove(manifestEntry.Path); err != nil && !os.IsNotExist(err) {
-				return errors.WithStackTrace(err)
+				return errors.New(err)
 			}
 		}
 	}
@@ -677,14 +677,14 @@ func IsDirectoryEmpty(dirPath string) (bool, error) {
 func GetCacheDir() (string, error) {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	cacheDir = filepath.Join(cacheDir, "terragrunt")
 
 	if !FileExists(cacheDir) {
 		if err := os.MkdirAll(cacheDir, os.ModePerm); err != nil {
-			return "", errors.WithStackTrace(err)
+			return "", errors.New(err)
 		}
 	}
 
@@ -697,7 +697,7 @@ func GetTempDir() (string, error) {
 
 	if !FileExists(tempDir) {
 		if err := os.MkdirAll(tempDir, os.ModePerm); err != nil {
-			return "", errors.WithStackTrace(err)
+			return "", errors.New(err)
 		}
 	}
 
@@ -762,7 +762,7 @@ func MatchSha256Checksum(file, filename []byte) []byte {
 func FileSHA256(filePath string) ([]byte, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 	defer file.Close() //nolint:errcheck
 
@@ -772,7 +772,7 @@ func FileSHA256(filePath string) ([]byte, error) {
 	for {
 		n, err := file.Read(buffer)
 		if err != nil && err != io.EOF {
-			return nil, errors.WithStackTrace(err)
+			return nil, errors.New(err)
 		}
 
 		if n == 0 {
@@ -780,7 +780,7 @@ func FileSHA256(filePath string) ([]byte, error) {
 		}
 
 		if _, err := hash.Write(buffer[:n]); err != nil {
-			return nil, errors.WithStackTrace(err)
+			return nil, errors.New(err)
 		}
 	}
 

@@ -3,14 +3,14 @@ package cli
 
 import (
 	"context"
-	goerrors "errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
-	"time"
 
 	"github.com/gruntwork-io/terragrunt/engine"
+	"github.com/gruntwork-io/terragrunt/internal/os/exec"
+	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/hooks"
@@ -27,9 +27,9 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/shell"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 	hashicorpversion "github.com/hashicorp/go-version"
 
@@ -48,9 +48,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
-
-// forced shutdown interval after receiving an interrupt signal
-const forceExitInterval = shell.SignalForwardingDelay * 2
 
 func init() {
 	cli.AppVersionTemplate = AppVersionTemplate
@@ -84,6 +81,7 @@ func NewApp(opts *options.TerragruntOptions) *App {
 	app.Before = beforeAction(opts)
 	app.DefaultCommand = terraformCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
 	app.OsExiter = OSExiter
+	app.ExitErrHandler = ExitErrHandler
 
 	return &App{app, opts}
 }
@@ -92,25 +90,26 @@ func (app *App) Run(args []string) error {
 	return app.RunContext(context.Background(), args)
 }
 
+func (app *App) registerGracefullyShutdown(ctx context.Context) context.Context {
+	ctx, cancel := context.WithCancelCause(ctx)
+
+	signal.NotifierWithContext(ctx, func(sig os.Signal) {
+		// Carriage return helps prevent "^C" from being printed
+		fmt.Fprint(app.Writer, "\r") //nolint:errcheck
+		app.opts.Logger.Infof("%s signal received. Gracefully shutting down...", cases.Title(language.English).String(sig.String()))
+
+		cancel(signal.NewContextCanceledError(sig))
+	}, signal.InterruptSignals...)
+
+	return ctx
+}
+
 func (app *App) RunContext(ctx context.Context, args []string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	shell.RegisterSignalHandler(func(signal os.Signal) {
-		app.opts.Logger.Infof("%s signal received. Gracefully shutting down... (it can take up to %v)", cases.Title(language.English).String(signal.String()), shell.SignalForwardingDelay)
-		cancel()
+	ctx = app.registerGracefullyShutdown(ctx)
 
-		shell.RegisterSignalHandler(func(signal os.Signal) {
-			app.opts.Logger.Infof("Second %s signal received, force shutting down...", cases.Title(language.English).String(signal.String()))
-			os.Exit(1)
-		})
-
-		time.Sleep(forceExitInterval)
-		app.opts.Logger.Infof("Failed to gracefully shutdown within %v, force shutting down...", forceExitInterval)
-		os.Exit(1)
-	}, shell.InterruptSignals...)
-
-	// configure telemetry integration
 	err := telemetry.InitTelemetry(ctx, &telemetry.TelemetryOptions{
 		Vars:       env.Parse(os.Environ()),
 		AppName:    app.Name,
@@ -137,7 +136,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		}
 	}(ctx)
 
-	if err := app.App.RunContext(ctx, args); err != nil && !goerrors.Is(err, context.Canceled) {
+	if err := app.App.RunContext(ctx, args); err != nil && !errors.IsContextCanceled(err) {
 		return err
 	}
 
@@ -282,7 +281,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	if opts.WorkingDir == "" {
 		currentDir, err := os.Getwd()
 		if err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 
 		opts.WorkingDir = currentDir
@@ -292,7 +291,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	workingDir, err := filepath.Abs(opts.WorkingDir)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	opts.Logger = opts.Logger.WithField(format.PrefixKeyName, workingDir)
@@ -315,7 +314,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	downloadDir, err := filepath.Abs(opts.DownloadDir)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	opts.DownloadDir = filepath.ToSlash(downloadDir)
@@ -329,7 +328,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	opts.TerragruntConfigPath, err = filepath.Abs(opts.TerragruntConfigPath)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	opts.TerraformPath = filepath.ToSlash(opts.TerraformPath)
@@ -361,7 +360,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	if err != nil {
 		// Malformed Terragrunt version; set the version to 0.0
 		if terragruntVersion, err = hashicorpversion.NewVersion("0.0"); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 	}
 
@@ -381,12 +380,18 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	opts.RunTerragrunt = terraformCmd.Run
 
-	shell.PrepareConsole(opts)
+	exec.PrepareConsole(opts.Logger)
 
 	return nil
 }
 
+// OSExiter is an empty function that overrides the default behavior.
 func OSExiter(exitCode int) {
 	// Do nothing. We just need to override this function, as the default value calls os.Exit, which
 	// kills the app (or any automated test) dead in its tracks.
+}
+
+// ExitErrHandler is an empty function that overrides the default behavior.
+func ExitErrHandler(_ *cli.Context, err error) error {
+	return err
 }
