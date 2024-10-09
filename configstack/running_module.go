@@ -110,6 +110,15 @@ func (module *RunningModule) waitForDependencies() error {
 	return nil
 }
 
+func (module *RunningModule) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions) error {
+	opts.Logger.Debugf("Running module %s now", module.Module.Path)
+
+	opts.Writer = NewModuleWriter(opts.Writer)
+	defer module.Module.FlushOutput() //nolint:errcheck
+
+	return opts.RunTerragrunt(ctx, opts)
+}
+
 // Run a module right now by executing the RunTerragrunt command of its TerragruntOptions field.
 func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.TerragruntOptions) error {
 	module.Status = Running
@@ -118,9 +127,7 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 		module.Module.TerragruntOptions.Logger.Debugf("Assuming module %s has already been applied and skipping it", module.Module.Path)
 		return nil
 	} else {
-		module.Module.TerragruntOptions.Logger.Debugf("Running module %s now", module.Module.Path)
-
-		if err := module.Module.TerragruntOptions.RunTerragrunt(ctx, module.Module.TerragruntOptions); err != nil {
+		if err := module.runTerragrunt(ctx, module.Module.TerragruntOptions); err != nil {
 			return err
 		}
 
@@ -311,9 +318,6 @@ func (modules RunningModules) runModules(ctx context.Context, opts *options.Terr
 
 		go func(module *RunningModule) {
 			defer waitGroup.Done()
-
-			module.Module.TerragruntOptions.Writer = NewModuleWriter(module.Module.TerragruntOptions.Writer)
-			defer module.Module.FlushOutput() //nolint:errcheck
 
 			module.runModuleWhenReady(ctx, opts, semaphore)
 		}(module)
