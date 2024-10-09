@@ -311,6 +311,10 @@ func (modules RunningModules) runModules(ctx context.Context, opts *options.Terr
 
 		go func(module *RunningModule) {
 			defer waitGroup.Done()
+
+			module.Module.TerragruntOptions.Writer = NewModuleWriter(module.Module.TerragruntOptions.Writer)
+			defer module.Module.FlushOutput() //nolint:errcheck
+
 			module.runModuleWhenReady(ctx, opts, semaphore)
 		}(module)
 	}

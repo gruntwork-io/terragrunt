@@ -210,19 +210,12 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 		defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
 	}
 
-	if terragruntOptions.IgnoreDependencyOrder {
+	switch {
+	case terragruntOptions.IgnoreDependencyOrder:
 		return stack.Modules.RunModulesIgnoreOrder(ctx, terragruntOptions, terragruntOptions.Parallelism)
-	}
-
-	switch stackCmd {
-	case terraform.CommandNameDestroy:
+	case stackCmd == terraform.CommandNameDestroy:
 		return stack.Modules.RunModulesReverseOrder(ctx, terragruntOptions, terragruntOptions.Parallelism)
 	default:
-		for _, module := range stack.Modules {
-			module.TerragruntOptions.Writer = NewModuleWriter(module.TerragruntOptions.Writer)
-		}
-		defer stack.Modules.FlushOutput() //nolint:errcheck
-
 		return stack.Modules.RunModules(ctx, terragruntOptions, terragruntOptions.Parallelism)
 	}
 }
