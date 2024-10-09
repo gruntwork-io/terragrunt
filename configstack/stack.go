@@ -210,14 +210,19 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 		defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
 	}
 
-	defer stack.Modules.FlushOutput() //nolint:errcheck
-
-	switch {
-	case terragruntOptions.IgnoreDependencyOrder:
+	if terragruntOptions.IgnoreDependencyOrder {
 		return stack.Modules.RunModulesIgnoreOrder(ctx, terragruntOptions, terragruntOptions.Parallelism)
-	case stackCmd == terraform.CommandNameDestroy:
+	}
+
+	switch stackCmd {
+	case terraform.CommandNameDestroy:
 		return stack.Modules.RunModulesReverseOrder(ctx, terragruntOptions, terragruntOptions.Parallelism)
 	default:
+		for _, module := range stack.Modules {
+			module.TerragruntOptions.Writer = NewModuleWriter(module.TerragruntOptions.Writer)
+		}
+		defer stack.Modules.FlushOutput() //nolint:errcheck
+
 		return stack.Modules.RunModules(ctx, terragruntOptions, terragruntOptions.Parallelism)
 	}
 }
@@ -621,8 +626,6 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 		stack.terragruntOptions.Logger.Debugf("Module %s does not have an associated terraform configuration and will be skipped.", filepath.Dir(terragruntConfigPath))
 		return nil, nil
 	}
-
-	opts.Writer = NewModuleWriter(opts.Writer)
 
 	return &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
 }
