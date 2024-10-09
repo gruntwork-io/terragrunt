@@ -25,8 +25,13 @@ func NewModuleWriter(out io.Writer) *ModuleWriter {
 }
 
 // Write appends the contents of p to the buffer.
-func (writer *ModuleWriter) Write(p []byte) (n int, err error) {
-	return writer.buffer.Write(p)
+func (writer *ModuleWriter) Write(p []byte) (int, error) {
+	n, err := writer.buffer.Write(p)
+	if err != nil {
+		return n, errors.New(err)
+	}
+
+	return n, nil
 }
 
 // Flush flushes buffer data to the `out` writer.
