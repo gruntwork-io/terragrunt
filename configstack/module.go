@@ -565,3 +565,16 @@ func (modulesMap TerraformModulesMap) getSortedKeys() []string {
 
 	return keys
 }
+
+// FlushOutput flushes buffer data to the output writer.
+func (modules TerraformModules) FlushOutput() error {
+	for _, module := range modules {
+		if writer, ok := module.TerragruntOptions.Writer.(*ModuleWriter); ok {
+			if err := writer.Flush(); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
