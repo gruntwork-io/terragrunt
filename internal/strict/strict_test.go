@@ -8,10 +8,14 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestStrictControl(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		enableControl    bool
@@ -44,29 +48,32 @@ func TestStrictControl(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests { //nolint:varnamelen
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("TG_STRICT_MODE", "false")
-			t.Setenv("TG_STRICT_PLAN_ALL", "false")
+			t.Parallel()
+
+			opts := options.TerragruntOptions{}
 
 			if tt.enableControl {
-				t.Setenv("TG_STRICT_PLAN_ALL", "true")
+				opts.StrictMode = true
 			}
 
 			if tt.enableStrictMode {
-				t.Setenv("TG_STRICT_MODE", "true")
+				opts.StrictControls = []string{strict.PlanAll}
 			}
 
 			planAll, ok := strict.GetStrictControl(strict.PlanAll)
 			require.True(t, ok, "control not found")
 
-			warning, err := planAll.Evaluate()
-			require.Equal(t, tt.expectedErr, err)
+			warning, err := planAll.Evaluate(&opts)
 
 			if tt.enableControl || tt.enableStrictMode {
-				require.Empty(t, warning)
+				assert.Empty(t, warning)
+				require.Error(t, err)
+				require.Equal(t, tt.expectedErr, err)
 			} else {
-				require.NotEmpty(t, warning)
+				assert.NotEmpty(t, warning)
+				require.NoError(t, err)
 			}
 		})
 	}

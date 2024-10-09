@@ -50,7 +50,7 @@ func replaceDeprecatedCommandFunc(terragruntCommandName, terraformCommandName st
 
 			control, ok := strict.GetStrictControl(strict.PlanAll)
 			if ok {
-				warning, err := control.Evaluate()
+				warning, err := control.Evaluate(opts)
 				if err != nil {
 					return err //nolint:wrapcheck
 				}

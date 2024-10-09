@@ -341,6 +341,12 @@ type TerragruntOptions struct {
 
 	// Options to use engine for running IaC operations.
 	Engine *EngineOptions
+
+	// StrictMode is a flag to enable strict mode for terragrunt.
+	StrictMode bool
+
+	// StrictControls is a slice of strict controls enabled.
+	StrictControls []string
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
