@@ -36,7 +36,7 @@ type Stack struct {
 	terragruntOptions     *options.TerragruntOptions
 	childTerragruntConfig *config.TerragruntConfig
 	Modules               TerraformModules
-	outputMu              *sync.Mutex
+	outputMu              sync.Mutex
 }
 
 // FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
@@ -73,7 +73,6 @@ func NewStack(terragruntOptions *options.TerragruntOptions, opts ...Option) *Sta
 	stack := &Stack{
 		terragruntOptions: terragruntOptions,
 		parserOptions:     config.DefaultParserOptions(terragruntOptions),
-		outputMu:          &sync.Mutex{},
 	}
 
 	return stack.WithOptions(opts...)
@@ -81,7 +80,7 @@ func NewStack(terragruntOptions *options.TerragruntOptions, opts ...Option) *Sta
 
 func (stack *Stack) WithOptions(opts ...Option) *Stack {
 	for _, opt := range opts {
-		*stack = opt(*stack)
+		opt(stack)
 	}
 
 	return stack
