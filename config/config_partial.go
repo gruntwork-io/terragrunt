@@ -335,19 +335,27 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 		case TerragruntInputs:
 			decoded := terragruntInputs{}
 
-			//if _, ok := evalParsingContext.Variables[MetadataDependency]; !ok {
-			//	// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the process.
-			//	retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, file)
-			//	if err != nil {
-			//		return nil, err
-			//	}
-			//
-			//	evalParsingContext.Variables[MetadataDependency] = *retrievedOutputs
-			//}
-
 			if err := file.Decode(&decoded, evalParsingContext); err != nil {
 				var diagErr hcl.Diagnostics
 				ok := errors.As(err, &diagErr)
+
+				// in case of dependency access error, we decode the dependency block and retrieve the outputs
+				if isDependencyAccessError(diagErr) {
+					if _, ok := evalParsingContext.Variables[MetadataDependency]; !ok {
+						// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the process.
+						retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, file)
+						if err != nil {
+							return nil, err
+						}
+
+						evalParsingContext.Variables[MetadataDependency] = *retrievedOutputs
+					}
+
+					if depErr := file.Decode(&decoded, evalParsingContext); depErr != nil {
+						err = depErr
+						ok = errors.As(err, &diagErr)
+					}
+				}
 
 				// in case of render-json command and inputs reference error, we update the inputs with default value
 				if !ok || !isRenderJSONCommand(ctx) || !isAttributeAccessError(diagErr) {
