@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/hcl/v2"
 	"io"
 	"os"
 	"path/filepath"
@@ -241,7 +242,14 @@ func decodeDependencies(ctx *ParsingContext, decodedDependency TerragruntDepende
 					return nil, err
 				}
 
-				depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
+				parseOptions := []hclparse.Option{
+					hclparse.WithDiagnosticsHandler(func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
+
+						return hclDiags, nil
+					}),
+				}
+
+				depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts).WithParseOption(parseOptions)
 
 				if depConfig, err := PartialParseConfigFile(depCtx, depPath, nil); err == nil {
 					if depConfig.Skip != nil && *depConfig.Skip {
