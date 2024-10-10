@@ -5,6 +5,8 @@ package test_test
 
 import (
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 )
 
 const (
@@ -14,10 +16,10 @@ const (
 func TestLocalWithRelativeExtraArgsUnix(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureLocalRelativeArgsUnixDownloadPath)
+	helpers.CleanupTerraformFolder(t, testFixtureLocalRelativeArgsUnixDownloadPath)
 
-	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalRelativeArgsUnixDownloadPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalRelativeArgsUnixDownloadPath)
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalRelativeArgsUnixDownloadPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testFixtureLocalRelativeArgsUnixDownloadPath)
 }

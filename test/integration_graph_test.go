@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,7 +57,7 @@ func TestTerragruntDestroyGraph(t *testing.T) {
 			fixturePath := util.JoinPath(tmpEnvPath, testFixtureGraph)
 			tmpModulePath := util.JoinPath(fixturePath, testCase.path)
 
-			stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt graph destroy --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath))
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt graph destroy --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath))
 			require.NoError(t, err)
 			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
 
@@ -116,7 +117,7 @@ func TestTerragruntApplyGraph(t *testing.T) {
 			fixturePath := util.JoinPath(tmpEnvPath, testFixtureGraph)
 			tmpModulePath := util.JoinPath(fixturePath, testCase.path)
 
-			stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt graph apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath))
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt graph apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath))
 			require.NoError(t, err)
 			output := fmt.Sprintf("%v\n%v\n", stdout, stderr)
 
@@ -150,7 +151,7 @@ func TestTerragruntGraphNonTerraformCommandExecution(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt graph render-json --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt graph render-json --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-graph-root %s", tmpModulePath, tmpEnvPath), &stdout, &stderr)
 	require.NoError(t, err)
 
 	// check that terragrunt_rendered.json is created in mod1/mod2/mod3
@@ -162,14 +163,14 @@ func TestTerragruntGraphNonTerraformCommandExecution(t *testing.T) {
 
 func prepareGraphFixture(t *testing.T) string {
 	t.Helper()
-	tmpEnvPath := copyEnvironment(t, testFixtureGraph)
-	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGraph)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureGraph)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, "terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 	return tmpEnvPath
 }

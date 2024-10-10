@@ -27,6 +27,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -68,12 +69,12 @@ func createLogger() log.Logger {
 func testRunAllPlan(t *testing.T, args string) (string, string, string, error) {
 	t.Helper()
 
-	tmpEnvPath := copyEnvironment(t, testFixtureOutDir)
-	cleanupTerraformFolder(t, tmpEnvPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
 
 	// run plan with output directory
-	stdout, stderr, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s %s", testPath, args))
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s %s", testPath, args))
 
 	return tmpEnvPath, stdout, stderr, err
 }
@@ -351,7 +352,7 @@ func certSetup(t *testing.T) (*tls.Config, *tls.Config) {
 	return serverTLSConf, clientTLSConf
 }
 
-func validateOutput(t *testing.T, outputs map[string]TerraformOutput, key string, value interface{}) {
+func validateOutput(t *testing.T, outputs map[string]helpers.TerraformOutput, key string, value interface{}) {
 	t.Helper()
 	output, hasPlatform := outputs[key]
 	assert.Truef(t, hasPlatform, "Expected output %s to be defined", key)
@@ -363,24 +364,24 @@ func wrappedBinary() string {
 	value, found := os.LookupEnv("TERRAGRUNT_TFPATH")
 	if !found {
 		// if env variable is not defined, try to check through executing command
-		if util.IsCommandExecutable(tofuBinary, "-version") {
-			return tofuBinary
+		if util.IsCommandExecutable(helpers.TofuBinary, "-version") {
+			return helpers.TofuBinary
 		}
-		return terraformBinary
+		return helpers.TerraformBinary
 	}
 	return filepath.Base(value)
 }
 
 // expectedWrongCommandErr - return expected error message for wrong command
 func expectedWrongCommandErr(command string) error {
-	if wrappedBinary() == tofuBinary {
+	if wrappedBinary() == helpers.TofuBinary {
 		return terraform.WrongTofuCommand(command)
 	}
 	return terraform.WrongTerraformCommand(command)
 }
 
 func isTerraform() bool {
-	return wrappedBinary() == terraformBinary
+	return wrappedBinary() == helpers.TerraformBinary
 }
 
 func findFilesWithExtension(dir string, ext string) ([]string, error) {
