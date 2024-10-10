@@ -244,7 +244,6 @@ func decodeDependencies(ctx *ParsingContext, decodedDependency TerragruntDepende
 
 				parseOptions := []hclparse.Option{
 					hclparse.WithDiagnosticsHandler(func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
-
 						return hclDiags, nil
 					}),
 				}

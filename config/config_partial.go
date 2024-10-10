@@ -338,7 +338,6 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			if err := file.Decode(&decoded, evalParsingContext); err != nil {
 				var diagErr hcl.Diagnostics
 				ok := errors.As(err, &diagErr)
-
 				// in case of dependency access error, we decode the dependency block and retrieve the outputs
 				if isDependencyAccessError(diagErr) {
 					if _, ok := evalParsingContext.Variables[MetadataDependency]; !ok {
@@ -351,6 +350,11 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 						evalParsingContext.Variables[MetadataDependency] = *retrievedOutputs
 					}
 
+					// Retry decoding the inputs block after retrieving the outputs from the target terragrunt config.
+					err = nil
+					ok = true
+					decoded = terragruntInputs{}
+					diagErr = hcl.Diagnostics{}
 					if depErr := file.Decode(&decoded, evalParsingContext); depErr != nil {
 						err = depErr
 						ok = errors.As(err, &diagErr)

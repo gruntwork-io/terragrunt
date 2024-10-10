@@ -986,7 +986,7 @@ func isAttributeAccessError(diagnostics hcl.Diagnostics) bool {
 // isDependencyAccessError returns true if the given diagnostics indicate an error accessing a dependency
 func isDependencyAccessError(diagnostics hcl.Diagnostics) bool {
 	for _, diagnostic := range diagnostics {
-		if diagnostic.Severity == hcl.DiagError && strings.Contains(diagnostic.Summary, "There is no variable named \"dependency\"") {
+		if diagnostic.Severity == hcl.DiagError && strings.Contains(diagnostic.Detail, "There is no variable named \"dependency\"") {
 			return true
 		}
 	}
