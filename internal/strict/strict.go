@@ -69,47 +69,36 @@ func (control Control) Evaluate(opts *options.TerragruntOptions) (string, error)
 	return control.Warning, nil
 }
 
-//nolint:stylecheck,lll,revive
-var (
-	ErrSpinUp            = errors.New("The `spin-up` command is no longer supported. Use `terragrunt run-all apply` instead.")
-	ErrTearDown          = errors.New("The `tear-down` command is no longer supported. Use `terragrunt run-all destroy` instead.")
-	ErrStrictPlanAll     = errors.New("The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.")
-	ErrStrictApplyAll    = errors.New("The `apply-all` command is no longer supported. Use `terragrunt run-all apply` instead.")
-	ErrStrictDestroyAll  = errors.New("The `destroy-all` command is no longer supported. Use `terragrunt run-all destroy` instead.")
-	ErrStrictOutputAll   = errors.New("The `output-all` command is no longer supported. Use `terragrunt run-all output` instead.")
-	ErrStrictValidateAll = errors.New("The `validate-all` command is no longer supported. Use `terragrunt run-all validate` instead.")
-)
-
 type Controls map[string]Control
 
-//nolint:lll,gochecknoglobals
+//nolint:lll,gochecknoglobals,stylecheck
 var StrictControls = Controls{
 	SpinUp: {
-		Error:   ErrSpinUp,
+		Error:   errors.New("The `spin-up` command is no longer supported. Use `terragrunt run-all apply` instead."),
 		Warning: "The `spin-up` command is deprecated and will be removed in a future version. Use `terragrunt run-all apply` instead.",
 	},
 	TearDown: {
-		Error:   ErrTearDown,
+		Error:   errors.New("The `tear-down` command is no longer supported. Use `terragrunt run-all destroy` instead."),
 		Warning: "The `tear-down` command is deprecated and will be removed in a future version. Use `terragrunt run-all destroy` instead.",
 	},
 	PlanAll: {
-		Error:   ErrStrictPlanAll,
+		Error:   errors.New("The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead."),
 		Warning: "The `plan-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all plan` instead.",
 	},
 	ApplyAll: {
-		Error:   ErrStrictApplyAll,
+		Error:   errors.New("The `apply-all` command is no longer supported. Use `terragrunt run-all apply` instead."),
 		Warning: "The `apply-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all apply` instead.",
 	},
 	DestroyAll: {
-		Error:   ErrStrictDestroyAll,
+		Error:   errors.New("The `destroy-all` command is no longer supported. Use `terragrunt run-all destroy` instead."),
 		Warning: "The `destroy-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all destroy` instead.",
 	},
 	OutputAll: {
-		Error:   ErrStrictOutputAll,
+		Error:   errors.New("The `output-all` command is no longer supported. Use `terragrunt run-all output` instead."),
 		Warning: "The `output-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all output` instead.",
 	},
 	ValidateAll: {
-		Error:   ErrStrictValidateAll,
+		Error:   errors.New("The `validate-all` command is no longer supported. Use `terragrunt run-all validate` instead."),
 		Warning: "The `validate-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all validate` instead.",
 	},
 }
