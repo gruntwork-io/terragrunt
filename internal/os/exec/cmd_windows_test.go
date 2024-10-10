@@ -6,12 +6,13 @@ package exec_test
 import (
 	"bytes"
 	"errors"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/util"
 	"os"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/options"
