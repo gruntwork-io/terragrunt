@@ -680,7 +680,7 @@ func initialize(ctx context.Context, runOptions *ExecutionOptions, client *proto
 
 	terragruntOptions.Logger.Debugf("Reading init output for engine in %s", runOptions.WorkingDir)
 
-	return ReadEngineOutput(runOptions, func() (*OutputLine, error) {
+	return ReadEngineOutput(runOptions, true, func() (*OutputLine, error) {
 		output, err := request.Recv()
 		if err != nil {
 			return nil, err
@@ -718,7 +718,7 @@ func shutdown(ctx context.Context, runOptions *ExecutionOptions, terragruntEngin
 
 	terragruntOptions.Logger.Debugf("Reading shutdown output for engine in %s", runOptions.WorkingDir)
 
-	return ReadEngineOutput(runOptions, func() (*OutputLine, error) {
+	return ReadEngineOutput(runOptions, true, func() (*OutputLine, error) {
 		output, err := request.Recv()
 		if err != nil {
 			return nil, err
@@ -745,7 +745,7 @@ type outputFn func() (*OutputLine, error)
 
 // ReadEngineOutput reads the output from the engine, since grpc plugins don't have common type,
 // use lambda function to read bytes from the stream
-func ReadEngineOutput(runOptions *ExecutionOptions, output outputFn) error {
+func ReadEngineOutput(runOptions *ExecutionOptions, forceStdErr bool, output outputFn) error {
 	cmdStdout := runOptions.CmdStdout
 	cmdStderr := runOptions.CmdStderr
 
@@ -756,8 +756,14 @@ func ReadEngineOutput(runOptions *ExecutionOptions, output outputFn) error {
 		}
 
 		if response.Stdout != "" {
-			if _, err := cmdStdout.Write([]byte(response.Stdout)); err != nil {
-				return errors.New(err)
+			if forceStdErr { // redirect stdout to stderr
+				if _, err := cmdStderr.Write([]byte(response.Stdout)); err != nil {
+					return errors.New(err)
+				}
+			} else {
+				if _, err := cmdStdout.Write([]byte(response.Stdout)); err != nil {
+					return errors.New(err)
+				}
 			}
 		}
 
