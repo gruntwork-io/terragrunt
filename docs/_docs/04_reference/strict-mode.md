@@ -55,10 +55,10 @@ You can also enable multiple strict controls at once with a comma delimited list
 
 ```bash
 $ TERRAGRUNT_STRICT_CONTROL='plan-all,apply-all' bash -c 'terragrunt plan-all; terragrunt apply-all'
-15:17:34.462 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
-15:17:34.462 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
-15:17:34.524 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
-15:17:34.525 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
+15:26:46.521 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
+15:26:46.521 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
+15:26:46.564 ERROR  The `apply-all` command is no longer supported. Use `terragrunt run-all apply` instead.
+15:26:46.564 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
 ```
 
 ## Strict Mode Controls

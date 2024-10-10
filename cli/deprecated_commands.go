@@ -48,7 +48,7 @@ func replaceDeprecatedCommandFunc(terragruntCommandName, terraformCommandName st
 			deprecatedCommandName := ctx.Command.Name
 			newCommandFriendly := fmt.Sprintf("terragrunt %s %s", terragruntCommandName, strings.Join(args, " "))
 
-			control, ok := strict.GetStrictControl(strict.PlanAll)
+			control, ok := strict.GetStrictControl(deprecatedCommandName)
 			if ok {
 				warning, err := control.Evaluate(opts)
 				if err != nil {
