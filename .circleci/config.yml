@@ -20,7 +20,7 @@ install_terraform_latest: &install_terraform_latest
   command: |
     pushd .
     cd /tmp
-    export TERRAFORM_VERSION=1.9.1
+    export TERRAFORM_VERSION=1.9.7
     curl -L "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o terraform.zip
     unzip -o terraform.zip
     sudo install -m 0755 terraform /usr/local/bin/terraform
@@ -34,7 +34,7 @@ install_tofu: &install_tofu
   command: |
     pushd .
     cd /tmp
-    curl -L "https://github.com/opentofu/opentofu/releases/download/v1.8.0/tofu_1.8.0_linux_amd64.zip" -o tofu.zip
+    curl -L "https://github.com/opentofu/opentofu/releases/download/v1.8.3/tofu_1.8.3_linux_amd64.zip" -o tofu.zip
     unzip -o tofu.zip
     sudo install -m 0755 tofu /usr/local/bin/tofu
     rm -rf tofu
@@ -158,16 +158,7 @@ jobs:
           shell: powershell.exe
           no_output_timeout: 45m
           command: |
-            # We're running this test only on Windows currently to provide a convenient
-            # means of reproducing Terragrunt issues that only occur on that platform
-            go test -v ./... -run TestWindowsTerragruntSourceMapDebug -timeout 45m
-            go test -v ./... -run TestWindowsTflintIsInvoked -timeout 45m
-            go test -v ./... -run TestCanonicalPath -timeout 45m
-            go test -v ./... -run TestJoinTerraformModulePath -timeout 45m
-            go test -v ./... -run TestIncludeInCopy -timeout 45m
-            go test -v ./... -run TestWindowsScaffold -timeout 45m
-            go test -v ./... -run TestWindowsScaffoldRef -timeout 45m
-            go test -tags windows -v -un -run TestWindows ./test -timeout 45m
+            go test -tags windows -v -un -run ^TestWindows ./test -timeout 45m
       - run:
           name: Run go tofu tests
           shell: powershell.exe
@@ -175,16 +166,7 @@ jobs:
           environment:
             TERRAGRUNT_TFPATH: tofu
           command: |
-            # We're running this test only on Windows currently to provide a convenient
-            # means of reproducing Terragrunt issues that only occur on that platform
-            go test -v ./... -run TestWindowsTerragruntSourceMapDebug -timeout 45m
-            go test -v ./... -run TestWindowsTflintIsInvoked -timeout 45m
-            go test -v ./... -run TestCanonicalPath -timeout 45m
-            go test -v ./... -run TestJoinTerraformModulePath -timeout 45m
-            go test -v ./... -run TestIncludeInCopy -timeout 45m
-            go test -v ./... -run TestWindowsScaffold -timeout 45m
-            go test -v ./... -run TestWindowsScaffoldRef -timeout 45m
-            go test -tags windows -v -un -run TestWindows ./test -timeout 45m
+            go test -tags windows -v -un -run ^TestWindows ./test -timeout 45m
   # We're running unit tests separately from integration tests - with no parallelization.
   # With heavy parallelization coupled with re-use of test fixtures we've witnessed slight
   # instability with the tests. The unit tests are fast to execute, so there is negligible
