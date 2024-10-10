@@ -27,12 +27,13 @@ const (
 func TestWindowsLocalWithRelativeExtraArgsWindows(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureLocalRelativeArgsWindowsDownloadPath)
+	rootPath := copyEnvironment(t, testFixtureLocalRelativeArgsWindowsDownloadPath)
+	modulePath := util.JoinPath(rootPath, testFixtureLocalRelativeArgsWindowsDownloadPath)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureLocalRelativeArgsWindowsDownloadPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureLocalRelativeArgsWindowsDownloadPath))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath))
 }
 
 // TestWindowsTerragruntSourceMapDebug copies the test/fixtures/source-map directory to a new Windows path
