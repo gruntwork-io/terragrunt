@@ -23,7 +23,7 @@ However, in Strict Mode, these warnings will be converted to errors, which will 
 
 ## Controlling Strict Mode
 
-The simplest way to enable strict mode is to set the `TG_STRICT` environment variable to `true`.
+The simplest way to enable strict mode is to set the `TERRAGRUNT_STRICT_MODE` environment variable to `true`.
 
 This will enable strict mode for all Terragrunt commands, for all strict mode controls.
 
@@ -33,73 +33,83 @@ $ terragrunt plan-all
 ```
 
 ```bash
-$ TG_STRICT_MODE='true' tg plan-all
+$ TERRAGRUNT_STRICT_MODE='true' tg plan-all
 15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
 ```
 
-Instead of setting this environment variable, you can also enable strict mode for specific controls by setting an
-environment variable that's specific to a particular strict control.
+Instead of setting this environment variable, you can also enable strict mode for specific controls by setting the `TERRAGRUNT_STRICT_CONTROL`
+environment variable to a value that's specific to a particular strict control.
 This can allow you to gradually increase your confidence in the future compatibility of your Terragrunt usage.
 
 ```bash
-$ TG_STRICT_APPLY_ALL='true' terragrunt plan-all
+$ TERRAGRUNT_STRICT_CONTROL='apply-all' terragrunt plan-all
 15:26:08.585 WARN   The `plan-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all plan` instead.
 ```
 
 ```bash
-$ TG_STRICT_PLAN_ALL='true' terragrunt plan-all
+$ TERRAGRUNT_STRICT_CONTROL='plan-all' terragrunt plan-all
 15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
+```
+
+You can also enable multiple strict controls at once with a comma delimited list.
+
+```bash
+$ TERRAGRUNT_STRICT_CONTROL='plan-all,apply-all' bash -c 'terragrunt plan-all; terragrunt apply-all'
+15:17:34.462 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
+15:17:34.462 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
+15:17:34.524 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
+15:17:34.525 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
 ```
 
 ## Strict Mode Controls
 
 The following strict mode controls are available:
 
-- [TG_STRICT_SPIN_UP](#tg_strict_spin_up)
-- [TG_STRICT_TEAR_DOWN](#tg_strict_tear_down)
-- [TG_STRICT_PLAN_ALL](#tg_strict_plan_all)
-- [TG_STRICT_APPLY_ALL](#tg_strict_apply_all)
-- [TG_STRICT_DESTROY_ALL](#tg_strict_destroy_all)
-- [TG_STRICT_OUTPUT_ALL](#tg_strict_output_all)
-- [TG_STRICT_VALIDATE_ALL](#tg_strict_validate_all)
+- [spin-up](#tg_strict_spin_up)
+- [tear-down](#tg_strict_tear_down)
+- [plan-all](#tg_strict_plan_all)
+- [apply-all](#tg_strict_apply_all)
+- [destroy-all](#tg_strict_destroy_all)
+- [output-all](#tg_strict_output_all)
+- [validate-all](#tg_strict_validate_all)
 
-### TG_STRICT_SPIN_UP
+### spin-up
 
 Throw an error when using the `spin-up` command.
 
 **Reason**: The `spin-up` command is deprecated and will be removed in a future version. Use `terragrunt run-all apply` instead.
 
-### TG_STRICT_TEAR_DOWN
+### tear-down
 
 Throw an error when using the `tear-down` command.
 
 **Reason**: The `tear-down` command is deprecated and will be removed in a future version. Use `terragrunt run-all destroy` instead.
 
-### TG_STRICT_PLAN_ALL
+### plan-all
 
 Throw an error when using the `plan-all` command.
 
 **Reason**: The `plan-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all plan` instead.
 
-### TG_STRICT_APPLY_ALL
+### apply-all
 
 Throw an error when using the `apply-all` command.
 
 **Reason**: The `apply-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all apply` instead.
 
-### TG_STRICT_DESTROY_ALL
+### destroy-all
 
 Throw an error when using the `destroy-all` command.
 
 **Reason**: The `destroy-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all destroy` instead.
 
-### TG_STRICT_OUTPUT_ALL
+### output-all
 
 Throw an error when using the `output-all` command.
 
 **Reason**: The `output-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all output` instead.
 
-### TG_STRICT_VALIDATE_ALL
+### validate-all
 
 Throw an error when using the `validate-all` command.
 
