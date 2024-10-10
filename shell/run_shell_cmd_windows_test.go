@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRunShellCommandWithOutputInterrupt(t *testing.T) {
+func TestWindowsRunShellCommandWithOutputInterrupt(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
@@ -27,7 +27,7 @@ func TestRunShellCommandWithOutputInterrupt(t *testing.T) {
 
 	ctx, cancel := context.WithCancelCause(context.Background())
 
-	cmdPath := "testdata/test_sigint_wait.bat"
+	cmdPath := "testdata\\test_sigint_wait.bat"
 
 	go func() {
 		_, err := RunShellCommandWithOutput(ctx, terragruntOptions, "", false, false, cmdPath, strconv.Itoa(expectedWait))
@@ -35,7 +35,7 @@ func TestRunShellCommandWithOutputInterrupt(t *testing.T) {
 	}()
 
 	time.AfterFunc(3*time.Second, func() {
-		cancel(signal.NewContextCanceledCause(os.Kill))
+		cancel(signal.NewContextCanceledError(os.Kill))
 	})
 
 	actualErr := <-errCh
