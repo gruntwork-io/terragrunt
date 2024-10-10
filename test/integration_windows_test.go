@@ -18,20 +18,21 @@ import (
 )
 
 const (
-	TEST_FIXTURE_LOCAL_RELATIVE_ARGS_WINDOWS_DOWNLOAD_PATH = "fixtures/download/local-relative-extra-args-windows"
-	TEST_FIXTURE_MANIFEST_REMOVAL                          = "fixtures/manifest-removal"
-	TEST_FIXTURE_FIND_PARENT                               = "fixtures/find-parent"
+	testFixtureLocalRelativeArgsWindowsDownloadPath = "fixtures/download/local-relative-extra-args-windows"
+	testFixtureManifestRemoval                      = "fixtures/manifest-removal"
+	testFixtureFindParent                           = "fixtures/find-parent"
+	testFixtureTflintNoIssuesFound                  = "fixtures/tflint/no-issues-found"
 )
 
 func TestWindowsLocalWithRelativeExtraArgsWindows(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_LOCAL_RELATIVE_ARGS_WINDOWS_DOWNLOAD_PATH)
+	cleanupTerraformFolder(t, testFixtureLocalRelativeArgsWindowsDownloadPath)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RELATIVE_ARGS_WINDOWS_DOWNLOAD_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureLocalRelativeArgsWindowsDownloadPath))
 
 	// Run a second time to make sure the temporary folder can be reused without errors
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_LOCAL_RELATIVE_ARGS_WINDOWS_DOWNLOAD_PATH))
+	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureLocalRelativeArgsWindowsDownloadPath))
 }
 
 // TestWindowsTerragruntSourceMapDebug copies the test/fixtures/source-map directory to a new Windows path
@@ -92,8 +93,8 @@ func TestWindowsTflintIsInvoked(t *testing.T) {
 func TestWindowsManifestFileIsRemoved(t *testing.T) {
 	out := new(bytes.Buffer)
 	errOut := new(bytes.Buffer)
-	rootPath := copyEnvironmentWithTflint(t, TEST_FIXTURE_MANIFEST_REMOVAL)
-	modulePath := util.JoinPath(rootPath, TEST_FIXTURE_MANIFEST_REMOVAL, "app")
+	rootPath := copyEnvironmentWithTflint(t, testFixtureManifestRemoval)
+	modulePath := util.JoinPath(rootPath, testFixtureManifestRemoval, "app")
 	err := runTerragruntCommand(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s", modulePath), out, errOut)
 	assert.NoError(t, err)
 
@@ -135,12 +136,12 @@ func fileInfo(path, fileName string) (*os.FileInfo, error) {
 func TestWindowsFindParent(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, TEST_FIXTURE_FIND_PARENT)
+	cleanupTerraformFolder(t, testFixtureFindParent)
 
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all plan --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_FIND_PARENT))
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all plan --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureFindParent))
 
 	// second run shouldn't fail with find_in_parent_folders() issue
-	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", TEST_FIXTURE_FIND_PARENT))
+	runTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureFindParent))
 }
 
 func TestWindowsScaffold(t *testing.T) {
