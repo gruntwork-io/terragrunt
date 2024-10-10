@@ -350,23 +350,25 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 						evalParsingContext.Variables[MetadataDependency] = *retrievedOutputs
 					}
 
-					// Retry decoding the inputs block after retrieving the outputs from the target terragrunt config.
-					err = nil
-					ok = true
-					decoded = terragruntInputs{}
-					diagErr = hcl.Diagnostics{}
 					if depErr := file.Decode(&decoded, evalParsingContext); depErr != nil {
-						err = depErr
-						ok = errors.As(err, &diagErr)
+						var diagErr hcl.Diagnostics
+						ok := errors.As(err, &diagErr)
+
+						// in case of render-json command and inputs reference error, we update the inputs with default value
+						if !ok || !isRenderJSONCommand(ctx) || !isAttributeAccessError(diagErr) {
+							return nil, err
+						}
+
+						ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
 					}
+				} else {
+					// in case of render-json command and inputs reference error, we update the inputs with default value
+					if !ok || !isRenderJSONCommand(ctx) || !isAttributeAccessError(diagErr) {
+						return nil, err
+					}
+					ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
 				}
 
-				// in case of render-json command and inputs reference error, we update the inputs with default value
-				if !ok || !isRenderJSONCommand(ctx) || !isAttributeAccessError(diagErr) {
-					return nil, err
-				}
-
-				ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
 			}
 
 			if decoded.Inputs != nil {
