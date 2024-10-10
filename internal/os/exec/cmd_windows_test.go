@@ -37,7 +37,7 @@ func TestWindowsConsolePrepare(t *testing.T) {
 	assert.Contains(t, stdout.String(), "level=debug msg=\"failed to get console mode: The handle is invalid.")
 }
 
-func TestExitCodeWindows(t *testing.T) {
+func TestWindowsExitCode(t *testing.T) {
 	t.Parallel()
 
 	for i := 0; i <= 255; i++ {
@@ -62,7 +62,7 @@ func TestExitCodeWindows(t *testing.T) {
 	assert.Equal(t, 0, retCode)
 }
 
-func TestNewSignalsForwarderWaitWindows(t *testing.T) {
+func TestWindowsNewSignalsForwarderWait(t *testing.T) {
 	t.Parallel()
 
 	expectedWait := 5

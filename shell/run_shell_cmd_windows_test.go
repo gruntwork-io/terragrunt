@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRunShellCommandWithOutputInterrupt(t *testing.T) {
+func TestWindowsRunShellCommandWithOutputInterrupt(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
