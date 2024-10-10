@@ -27,6 +27,7 @@ const existingModulesCacheName = "existingModules"
 // TerraformModule represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
 // module and the list of other modules that this module depends on
 type TerraformModule struct {
+	*Stack
 	Path                 string
 	Dependencies         TerraformModules
 	Config               config.TerragruntConfig
@@ -50,6 +51,18 @@ func (module *TerraformModule) String() string {
 
 func (module *TerraformModule) MarshalJSON() ([]byte, error) {
 	return json.Marshal(module.Path)
+}
+
+// FlushOutput flushes buffer data to the output writer.
+func (module *TerraformModule) FlushOutput() error {
+	if writer, ok := module.TerragruntOptions.Writer.(*ModuleWriter); ok {
+		module.outputMu.Lock()
+		defer module.outputMu.Unlock()
+
+		return writer.Flush()
+	}
+
+	return nil
 }
 
 // Check for cycles using a depth-first-search as described here:

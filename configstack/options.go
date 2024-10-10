@@ -5,18 +5,17 @@ import (
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 )
 
-type Option func(Stack) Stack
+// Option is type for passing options to the Stack.
+type Option func(*Stack)
 
 func WithChildTerragruntConfig(config *config.TerragruntConfig) Option {
-	return func(stack Stack) Stack {
+	return func(stack *Stack) {
 		stack.childTerragruntConfig = config
-		return stack
 	}
 }
 
 func WithParseOptions(parserOptions []hclparse.Option) Option {
-	return func(stack Stack) Stack {
+	return func(stack *Stack) {
 		stack.parserOptions = parserOptions
-		return stack
 	}
 }

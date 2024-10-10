@@ -13,7 +13,7 @@ const (
 )
 
 // New creates a new instance of Error.
-// If the given value does not contain an stack trace, it will be created.
+// If the given value does not contain a stack trace, it will be created.
 func New(val any) error {
 	if val == nil {
 		return nil
@@ -24,7 +24,7 @@ func New(val any) error {
 
 // Errorf creates a new error with the given format and values.
 // It can be used as a drop-in replacement for fmt.Errorf() to provide descriptive errors in return values.
-// If none of the given values contains an stack trace, it will be created.
+// If none of the given values contains a stack trace, it will be created.
 func Errorf(format string, vals ...any) error {
 	return errorfWithSkip(errorfSkip, format, vals...)
 }
