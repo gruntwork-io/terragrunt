@@ -22,16 +22,16 @@ func TestGcpCorrectlyMirrorsTerraformGCPAuth(t *testing.T) {
 	os.Unsetenv("GCLOUD_SERVICE_KEY")
 	t.Setenv("GOOGLE_CREDENTIALS", defaultCreds)
 
-	cleanupTerraformFolder(t, testFixtureGcsPath)
+	helpers.CleanupTerraformFolder(t, testFixtureGcsPath)
 
 	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 	defer deleteGCSBucket(t, gcsBucketName)
 
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsPath, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsPath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsPath))
 
 	var expectedGCSLabels = map[string]string{
 		"owner": "terragrunt_test",
@@ -51,11 +51,11 @@ func TestGcpWorksWithImpersonateBackend(t *testing.T) {
 	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", tmpImpersonatorCreds)
 
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 	// run with impersonation
 	tmpTerragruntImpersonateGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsImpersonatePath, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntImpersonateGCSConfigPath, testFixtureGcsImpersonatePath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntImpersonateGCSConfigPath, testFixtureGcsImpersonatePath))
 
 	var expectedGCSLabels = map[string]string{
 		"owner": "terragrunt_test",

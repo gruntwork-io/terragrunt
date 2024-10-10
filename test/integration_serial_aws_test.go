@@ -96,7 +96,7 @@ func testTerragruntParallelism(t *testing.T, parallelism int, numberOfModules in
 func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules int, timeToDeployEachModule time.Duration) (string, int, error) {
 	t.Helper()
 
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 	// copy the template `numberOfModules` times into the app
 	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-test")
@@ -117,22 +117,22 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 	}
 
 	rootTerragruntConfigPath := util.JoinPath(tmpEnvPath, config.DefaultTerragruntConfigPath)
-	copyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
+	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", "not-used")
 
 	environmentPath := tmpEnvPath
 
 	// forces plugin download & initialization (no parallelism control)
-	runTerragrunt(t, fmt.Sprintf("terragrunt plan-all --terragrunt-non-interactive --terragrunt-working-dir %s -var sleep_seconds=%d", environmentPath, timeToDeployEachModule/time.Second))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt plan-all --terragrunt-non-interactive --terragrunt-working-dir %s -var sleep_seconds=%d", environmentPath, timeToDeployEachModule/time.Second))
 	// apply all with parallelism set
 	// NOTE: we can't run just apply-all and not plan-all because the time to initialize the plugins skews the results of the test
 	testStart := int(time.Now().Unix())
 	t.Logf("apply-all start time = %d, %s", testStart, time.Now().Format(time.RFC3339))
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-parallelism %d --terragrunt-non-interactive --terragrunt-working-dir %s -var sleep_seconds=%d", parallelism, environmentPath, timeToDeployEachModule/time.Second))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply-all --terragrunt-parallelism %d --terragrunt-non-interactive --terragrunt-working-dir %s -var sleep_seconds=%d", parallelism, environmentPath, timeToDeployEachModule/time.Second))
 
 	// read the output of all modules 1 by 1 sequence, parallel reads mix outputs and make output complicated to parse
 	outputParallelism := 1
-	// Call runTerragruntCommandWithOutput directly because this command contains failures (which causes runTerragruntRedirectOutput to abort) but we don't care.
-	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output-all -no-color --terragrunt-forward-tf-stdout --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-parallelism %d", environmentPath, outputParallelism))
+	// Call helpers.RunTerragruntCommandWithOutput directly because this command contains failures (which causes helpers.RunTerragruntRedirectOutput to abort) but we don't care.
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output-all -no-color --terragrunt-forward-tf-stdout --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-parallelism %d", environmentPath, outputParallelism))
 	if err != nil {
 		return "", 0, err
 	}

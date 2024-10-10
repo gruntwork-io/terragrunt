@@ -20,16 +20,16 @@ const (
 func TestAwsSopsDecryptedKMSCorrectly(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureSopsKMS)
-	tmpEnvPath := copyEnvironment(t, testFixtureSopsKMS)
+	helpers.CleanupTerraformFolder(t, testFixtureSopsKMS)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSopsKMS)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureSopsKMS)
 
-	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	outputs := map[string]TerraformOutput{}

@@ -29,9 +29,9 @@ func TestAutoRetryBasicRerun(t *testing.T) {
 	t.Parallel()
 
 	out := new(bytes.Buffer)
-	rootPath := copyEnvironment(t, testFixtureAutoRetryRerun)
+	rootPath := helpers.CopyEnvironment(t, testFixtureAutoRetryRerun)
 	modulePath := util.JoinPath(rootPath, testFixtureAutoRetryRerun)
-	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+modulePath, out, os.Stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+modulePath, out, os.Stderr)
 
 	require.NoError(t, err)
 	assert.Contains(t, out.String(), "Apply complete!")
@@ -41,9 +41,9 @@ func TestAutoRetrySkip(t *testing.T) {
 	t.Parallel()
 
 	out := new(bytes.Buffer)
-	rootPath := copyEnvironment(t, testFixtureAutoRetryRerun)
+	rootPath := helpers.CopyEnvironment(t, testFixtureAutoRetryRerun)
 	modulePath := util.JoinPath(rootPath, testFixtureAutoRetryRerun)
-	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, out, os.Stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, out, os.Stderr)
 
 	require.Error(t, err)
 	assert.NotContains(t, out.String(), "Apply complete!")
@@ -53,9 +53,9 @@ func TestAutoRetryExhaustRetries(t *testing.T) {
 	t.Parallel()
 
 	out := new(bytes.Buffer)
-	rootPath := copyEnvironment(t, testFixtureAutoRetryExhaust)
+	rootPath := helpers.CopyEnvironment(t, testFixtureAutoRetryExhaust)
 	modulePath := util.JoinPath(rootPath, testFixtureAutoRetryExhaust)
-	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+modulePath, out, os.Stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+modulePath, out, os.Stderr)
 
 	require.Error(t, err)
 	assert.Contains(t, out.String(), "Failed to load backend")
@@ -66,9 +66,9 @@ func TestAutoRetryCustomRetryableErrors(t *testing.T) {
 	t.Parallel()
 
 	out := new(bytes.Buffer)
-	rootPath := copyEnvironment(t, testFixtureAutoRetryCustomErrors)
+	rootPath := helpers.CopyEnvironment(t, testFixtureAutoRetryCustomErrors)
 	modulePath := util.JoinPath(rootPath, testFixtureAutoRetryCustomErrors)
-	err := runTerragruntCommand(t, "terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+modulePath, out, os.Stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+modulePath, out, os.Stderr)
 
 	require.NoError(t, err)
 	assert.Contains(t, out.String(), "My own little error")
@@ -78,13 +78,13 @@ func TestAutoRetryCustomRetryableErrors(t *testing.T) {
 func TestAutoRetryGetDefaultErrors(t *testing.T) {
 	t.Parallel()
 
-	rootPath := copyEnvironment(t, testFixtureAutoRetryGetDefaultErrors)
+	rootPath := helpers.CopyEnvironment(t, testFixtureAutoRetryGetDefaultErrors)
 	modulePath := util.JoinPath(rootPath, testFixtureAutoRetryGetDefaultErrors)
 
-	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+modulePath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+modulePath)
 
 	stdout := bytes.Buffer{}
-	err := runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, &stdout, os.Stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, &stdout, os.Stderr)
 	require.NoError(t, err)
 
 	outputs := map[string]TerraformOutput{}
@@ -99,9 +99,9 @@ func TestAutoRetryCustomRetryableErrorsFailsWhenRetryableErrorsNotSet(t *testing
 	t.Parallel()
 
 	out := new(bytes.Buffer)
-	rootPath := copyEnvironment(t, testFixtureAutoRetryCustomErrorsNotSet)
+	rootPath := helpers.CopyEnvironment(t, testFixtureAutoRetryCustomErrorsNotSet)
 	modulePath := util.JoinPath(rootPath, testFixtureAutoRetryCustomErrorsNotSet)
-	err := runTerragruntCommand(t, "terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+modulePath, out, os.Stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply --auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+modulePath, out, os.Stderr)
 
 	require.Error(t, err)
 	assert.Contains(t, out.String(), "My own little error")
@@ -112,9 +112,9 @@ func TestAutoRetryFlagWithRecoverableError(t *testing.T) {
 	t.Parallel()
 
 	out := new(bytes.Buffer)
-	rootPath := copyEnvironment(t, testFixtureAutoRetryRerun)
+	rootPath := helpers.CopyEnvironment(t, testFixtureAutoRetryRerun)
 	modulePath := util.JoinPath(rootPath, testFixtureAutoRetryRerun)
-	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, out, os.Stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-no-auto-retry --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, out, os.Stderr)
 
 	require.Error(t, err)
 	assert.NotContains(t, out.String(), "Apply complete!")
@@ -123,9 +123,9 @@ func TestAutoRetryFlagWithRecoverableError(t *testing.T) {
 func TestAutoRetryEnvVarWithRecoverableError(t *testing.T) {
 	t.Setenv("TERRAGRUNT_NO_AUTO_RETRY", "true")
 	out := new(bytes.Buffer)
-	rootPath := copyEnvironment(t, testFixtureAutoRetryRerun)
+	rootPath := helpers.CopyEnvironment(t, testFixtureAutoRetryRerun)
 	modulePath := util.JoinPath(rootPath, testFixtureAutoRetryRerun)
-	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, out, os.Stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, out, os.Stderr)
 
 	require.Error(t, err)
 	assert.NotContains(t, out.String(), "Apply complete!")
@@ -135,9 +135,9 @@ func TestAutoRetryApplyAllDependentModuleRetries(t *testing.T) {
 	t.Parallel()
 
 	out := new(bytes.Buffer)
-	rootPath := copyEnvironment(t, testFixtureAutoRetryApplyAllRetries)
+	rootPath := helpers.CopyEnvironment(t, testFixtureAutoRetryApplyAllRetries)
 	modulePath := util.JoinPath(rootPath, testFixtureAutoRetryApplyAllRetries)
-	err := runTerragruntCommand(t, "terragrunt apply-all -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+modulePath, out, os.Stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply-all -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+modulePath, out, os.Stderr)
 
 	require.NoError(t, err)
 	s := out.String()
@@ -152,9 +152,9 @@ func TestAutoRetryConfigurableRetries(t *testing.T) {
 
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
-	rootPath := copyEnvironment(t, testFixtureAutoRetryConfigurableRetries)
+	rootPath := helpers.CopyEnvironment(t, testFixtureAutoRetryConfigurableRetries)
 	modulePath := util.JoinPath(rootPath, testFixtureAutoRetryConfigurableRetries)
-	err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+modulePath, stdout, stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+modulePath, stdout, stderr)
 	sleeps := regexp.MustCompile("Sleeping 0s before retrying.").FindAllStringIndex(stderr.String(), -1)
 
 	require.NoError(t, err)
@@ -179,10 +179,10 @@ func TestAutoRetryConfigurableRetriesErrors(t *testing.T) {
 
 			stdout := new(bytes.Buffer)
 			stderr := new(bytes.Buffer)
-			rootPath := copyEnvironment(t, tc.fixture)
+			rootPath := helpers.CopyEnvironment(t, tc.fixture)
 			modulePath := util.JoinPath(rootPath, tc.fixture)
 
-			err := runTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, stdout, stderr)
+			err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, stdout, stderr)
 			require.Error(t, err)
 			assert.NotContains(t, stdout.String(), "Apply complete!")
 			assert.Contains(t, err.Error(), tc.errorMessage)
