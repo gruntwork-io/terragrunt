@@ -203,11 +203,7 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 		errorStreams := make([]bytes.Buffer, len(stack.Modules))
 
 		for n, module := range stack.Modules {
-			if !terragruntOptions.NonInteractive { // redirect output to ErrWriter in case of not NonInteractive mode
-				module.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], module.TerragruntOptions.ErrWriter)
-			} else {
-				module.TerragruntOptions.ErrWriter = &errorStreams[n]
-			}
+			module.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], module.TerragruntOptions.ErrWriter)
 		}
 		defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
 	}
