@@ -205,6 +205,7 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 		for n, module := range stack.Modules {
 			module.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], module.TerragruntOptions.ErrWriter)
 		}
+
 		defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
 	}
 
