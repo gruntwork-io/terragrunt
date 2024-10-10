@@ -19,4 +19,3 @@ Please see the following for more info, including install instructions and compl
 ## License
 
 This code is released under the MIT License. See [LICENSE.txt](LICENSE.txt).
-

@@ -65,13 +65,13 @@ $ TERRAGRUNT_STRICT_CONTROL='plan-all,apply-all' bash -c 'terragrunt plan-all; t
 
 The following strict mode controls are available:
 
-- [spin-up](#tg_strict_spin_up)
-- [tear-down](#tg_strict_tear_down)
-- [plan-all](#tg_strict_plan_all)
-- [apply-all](#tg_strict_apply_all)
-- [destroy-all](#tg_strict_destroy_all)
-- [output-all](#tg_strict_output_all)
-- [validate-all](#tg_strict_validate_all)
+- [spin-up](#spin-up)
+- [tear-down](#tear-down)
+- [plan-all](#plan-all)
+- [apply-all](#apply-all)
+- [destroy-all](#destroy-all)
+- [output-all](#output-all)
+- [validate-all](#validate-all)
 
 ### spin-up
 
