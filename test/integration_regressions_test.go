@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,15 +18,15 @@ const (
 func TestNoAutoInit(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureRegressions)
-	tmpEnvPath := copyEnvironment(t, testFixtureRegressions)
+	helpers.CleanupTerraformFolder(t, testFixtureRegressions)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRegressions)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureRegressions, "skip-init")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, "terragrunt apply --terragrunt-no-auto-init --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
-	logBufferContentsLineByLine(t, stdout, "no force apply stdout")
-	logBufferContentsLineByLine(t, stderr, "no force apply stderr")
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply --terragrunt-no-auto-init --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
+	helpers.LogBufferContentsLineByLine(t, stdout, "no force apply stdout")
+	helpers.LogBufferContentsLineByLine(t, stderr, "no force apply stderr")
 	require.Error(t, err)
 	assert.Contains(t, stderr.String(), "This module is not yet installed.")
 }
@@ -34,11 +35,11 @@ func TestNoAutoInit(t *testing.T) {
 func TestYamlDecodeRegressions(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureRegressions)
-	tmpEnvPath := copyEnvironment(t, testFixtureRegressions)
+	helpers.CleanupTerraformFolder(t, testFixtureRegressions)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRegressions)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureRegressions, "yamldecode")
 
-	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// Check the output of yamldecode and make sure it doesn't parse the string incorrectly
 	stdout := bytes.Buffer{}
@@ -46,10 +47,10 @@ func TestYamlDecodeRegressions(t *testing.T) {
 
 	require.NoError(
 		t,
-		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
 	)
 
-	outputs := map[string]TerraformOutput{}
+	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	assert.Equal(t, "003", outputs["test1"].Value)
 	assert.Equal(t, "1.00", outputs["test2"].Value)
@@ -59,28 +60,28 @@ func TestYamlDecodeRegressions(t *testing.T) {
 func TestMockOutputsMergeWithState(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureRegressions)
-	tmpEnvPath := copyEnvironment(t, testFixtureRegressions)
+	helpers.CleanupTerraformFolder(t, testFixtureRegressions)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureRegressions)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureRegressions, "mocks-merge-with-state")
 
 	modulePath := util.JoinPath(rootPath, "module")
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, "terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir "+modulePath, &stdout, &stderr)
-	logBufferContentsLineByLine(t, stdout, "module-executed")
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir "+modulePath, &stdout, &stderr)
+	helpers.LogBufferContentsLineByLine(t, stdout, "module-executed")
 	require.NoError(t, err)
 
 	deepMapPath := util.JoinPath(rootPath, "deep-map")
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
-	err = runTerragruntCommand(t, "terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir "+deepMapPath, &stdout, &stderr)
-	logBufferContentsLineByLine(t, stdout, "deep-map-executed")
+	err = helpers.RunTerragruntCommand(t, "terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir "+deepMapPath, &stdout, &stderr)
+	helpers.LogBufferContentsLineByLine(t, stdout, "deep-map-executed")
 	require.NoError(t, err)
 
 	shallowPath := util.JoinPath(rootPath, "shallow")
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
-	err = runTerragruntCommand(t, "terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir "+shallowPath, &stdout, &stderr)
-	logBufferContentsLineByLine(t, stdout, "shallow-map-executed")
+	err = helpers.RunTerragruntCommand(t, "terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir "+shallowPath, &stdout, &stderr)
+	helpers.LogBufferContentsLineByLine(t, stdout, "shallow-map-executed")
 	require.NoError(t, err)
 }
