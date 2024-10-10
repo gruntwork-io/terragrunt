@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	testFixtureLocalRelativeArgsWindowsDownloadPath = "fixtures/download/local-relative-extra-args-windows"
+	testFixtureLocalRelativeArgsWindowsDownloadPath = "fixtures/download/relative"
 	testFixtureManifestRemoval                      = "fixtures/manifest-removal"
 	testFixtureFindParent                           = "fixtures/find-parent"
 	testFixtureTflintNoIssuesFound                  = "fixtures/tflint/no-issues-found"
