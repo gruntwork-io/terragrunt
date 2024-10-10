@@ -5,14 +5,13 @@ package exec_test
 
 import (
 	"bytes"
-	"context"
 	"errors"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/util"
 	"os"
 	"strconv"
 	"testing"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -22,19 +21,15 @@ import (
 func TestWindowsConsolePrepare(t *testing.T) {
 	t.Parallel()
 
-	testOptions := options.NewTerragruntOptions()
-
 	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
 
-	var testLogger = logrus.New()
-	testLogger.Out = &stdout
-	testLogger.Level = logrus.DebugLevel
+	testOptions := options.NewTerragruntOptionsWithWriters(&stdout, &stderr)
+	testOptions.Logger = log.New(log.WithOutput(&stdout), log.WithLevel(log.DebugLevel))
 
-	testOptions.Logger = testLogger.WithContext(context.Background())
+	exec.PrepareConsole(testOptions.Logger)
 
-	PrepareConsole(testOptions)
-
-	assert.Contains(t, stdout.String(), "level=debug msg=\"failed to get console mode: The handle is invalid.")
+	assert.Contains(t, stdout.String(), "msg=\"failed to get console mode: The handle is invalid.")
 }
 
 func TestWindowsExitCode(t *testing.T) {
@@ -49,14 +44,14 @@ func TestWindowsExitCode(t *testing.T) {
 		} else {
 			assert.Error(t, err)
 		}
-		retCode, err := GetExitCode(err)
+		retCode, err := util.GetExitCode(err)
 		assert.NoError(t, err)
 		assert.Equal(t, i, retCode)
 	}
 
 	// assert a non exec.ExitError returns an error
 	err := errors.New("This is an explicit error")
-	retCode, retErr := GetExitCode(err)
+	retCode, retErr := util.GetExitCode(err)
 	assert.Error(t, retErr, "An error was expected")
 	assert.Equal(t, err, retErr)
 	assert.Equal(t, 0, retCode)
@@ -66,9 +61,6 @@ func TestWindowsNewSignalsForwarderWait(t *testing.T) {
 	t.Parallel()
 
 	expectedWait := 5
-
-	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
-	assert.Nil(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
 	cmd := exec.Command(`testdata\test_sigint_wait.bat`, strconv.Itoa(expectedWait))
 
@@ -81,8 +73,11 @@ func TestWindowsNewSignalsForwarderWait(t *testing.T) {
 	time.Sleep(time.Second)
 	// start := time.Now()
 	// Note: sending interrupt on Windows is not supported by Windows and not implemented in Go
-	cmd.Process.Signal(os.Kill)
-	err = <-runChannel
+	if cmd.Process != nil { // on some Go versions(Go 1.23, Windows), cmd.Process is nil
+		cmd.Process.Signal(os.Kill)
+	}
+
+	err := <-runChannel
 
 	assert.Error(t, err)
 
