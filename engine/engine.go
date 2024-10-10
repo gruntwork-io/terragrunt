@@ -765,7 +765,6 @@ func ReadEngineOutput(runOptions *ExecutionOptions, forceStdErr bool, output out
 					return errors.New(err)
 				}
 			}
-
 		}
 
 		if response.Stderr != "" {
