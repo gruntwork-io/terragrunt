@@ -18,6 +18,7 @@ import (
 )
 
 const (
+	testFixtureDownloadPath                         = "fixtures/download"
 	testFixtureLocalRelativeArgsWindowsDownloadPath = "fixtures/download/local-windows"
 	testFixtureManifestRemoval                      = "fixtures/manifest-removal"
 	testFixtureFindParent                           = "fixtures/find-parent"
@@ -27,7 +28,7 @@ const (
 func TestWindowsLocalWithRelativeExtraArgsWindows(t *testing.T) {
 	t.Parallel()
 
-	rootPath := copyEnvironment(t, testFixtureLocalRelativeArgsWindowsDownloadPath)
+	rootPath := copyEnvironment(t, testFixtureDownloadPath)
 	modulePath := util.JoinPath(rootPath, testFixtureLocalRelativeArgsWindowsDownloadPath)
 
 	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", modulePath))
