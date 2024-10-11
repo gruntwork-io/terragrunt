@@ -111,7 +111,7 @@ func (module *RunningModule) waitForDependencies() error {
 }
 
 func (module *RunningModule) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions) error {
-	opts.Logger.Debugf("Running module %s now", module.Module.Path)
+	opts.Logger.Debugf("Running %s", module.Module.Path)
 	opts.Writer = NewModuleWriter(opts.Writer)
 
 	defer module.Module.FlushOutput() //nolint:errcheck
