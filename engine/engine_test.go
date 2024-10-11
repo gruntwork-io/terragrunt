@@ -41,6 +41,6 @@ func TestReadEngineOutput(t *testing.T) {
 		}, nil
 	}
 
-	err := engine.ReadEngineOutput(runOptions, outputFn)
+	err := engine.ReadEngineOutput(runOptions, false, outputFn)
 	assert.NoError(t, err)
 }
