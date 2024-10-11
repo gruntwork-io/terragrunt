@@ -39,6 +39,6 @@ func TestWindowsRunShellCommandWithOutputInterrupt(t *testing.T) {
 	})
 
 	actualErr := <-errCh
-	assert.EqualError(t, actualErr, fmt.Sprintf("Failed to execute %s 5 in .", cmdPath))
-	assert.EqualError(t, actualErr, fmt.Sprintf("exit status %d", expectedWait))
+	assert.Contains(t, actualErr.Error(), fmt.Sprintf("Failed to execute %s 5 in %d", cmdPath, expectedWait))
+	assert.Contains(t, actualErr.Error(), fmt.Sprintf("exit status %d", expectedWait))
 }
