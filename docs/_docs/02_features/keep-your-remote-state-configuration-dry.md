@@ -229,6 +229,8 @@ For the `s3` backend, the following config options can be used for S3-compatible
 
 **Note**: The `skip_bucket_accesslogging` is now DEPRECATED. It is replaced by `accesslogging_bucket_name`. Please read below for more details on when to use the new config option.
 
+**Note**: The `force_path_style` is now DEPRECATED. It is replaced by `use_path_style`. Please read below for more details on when to use the new config option.
+
 ``` hcl
 remote_state {
   # ...
@@ -245,7 +247,7 @@ remote_state {
 
     shared_credentials_file     = "/path/to/credentials/file"
     skip_metadata_api_check     = true
-    force_path_style            = true
+    use_path_style            = true
   }
 }
 ```
