@@ -347,6 +347,8 @@ type TerragruntOptions struct {
 
 	// StrictControls is a slice of strict controls enabled.
 	StrictControls []string
+
+	RegisteredStrictControls []string
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests

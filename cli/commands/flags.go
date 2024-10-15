@@ -3,10 +3,10 @@ package commands
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -478,7 +478,23 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.StrictControls,
 			Usage:       "Enables specific strict controls. For a list of available controls, see https://terragrunt.gruntwork.io/docs/reference/strict-mode .",
 			Action: func(ctx *cli.Context, val []string) error {
-				return strict.StrictControls.ValidateControlNames(val)
+				invalidControls := []string{}
+
+				for _, controlName := range val {
+					if !util.ListContainsElement(opts.RegisteredStrictControls, controlName) {
+						invalidControls = append(invalidControls, controlName)
+					}
+				}
+
+				if len(invalidControls) > 0 {
+					return errors.Errorf("flag --%s, invalid values: %s, allowed values: %s",
+						TerragruntStrictControlFlagName,
+						strings.Join(invalidControls, ", "),
+						strings.Join(opts.RegisteredStrictControls, ", "),
+					)
+				}
+
+				return nil
 			},
 		},
 		// Terragrunt Provider Cache flags
