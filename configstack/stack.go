@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds"
@@ -35,6 +36,7 @@ type Stack struct {
 	terragruntOptions     *options.TerragruntOptions
 	childTerragruntConfig *config.TerragruntConfig
 	Modules               TerraformModules
+	outputMu              sync.Mutex
 }
 
 // FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
@@ -78,7 +80,7 @@ func NewStack(terragruntOptions *options.TerragruntOptions, opts ...Option) *Sta
 
 func (stack *Stack) WithOptions(opts ...Option) *Stack {
 	for _, opt := range opts {
-		*stack = opt(*stack)
+		opt(stack)
 	}
 
 	return stack
@@ -617,7 +619,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 		return nil, nil
 	}
 
-	return &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
+	return &TerraformModule{Stack: stack, Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
 }
 
 // resolveDependenciesForModule looks through the dependencies of the given module and resolve the dependency paths listed in the module's config.
