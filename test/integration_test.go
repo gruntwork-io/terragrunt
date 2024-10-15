@@ -102,6 +102,7 @@ const (
 	testFixtureStdout                         = "fixtures/download/stdout-test"
 	testFixtureTfTest                         = "fixtures/tftest/"
 	testFixtureErrorPrint                     = "fixtures/error-print"
+	testFixtureBufferModuleOutput             = "fixtures/buffer-module-output"
 
 	terraformFolder = ".terraform"
 
@@ -115,6 +116,30 @@ const (
 	terraformBinary = "terraform"
 	tofuBinary      = "tofu"
 )
+
+func TestBufferModuleOutput(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureBufferModuleOutput)
+	tmpEnvPath := copyEnvironment(t, testFixtureBufferModuleOutput)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureBufferModuleOutput)
+
+	_, _, err := runTerragruntCommandWithOutput(t, "terragrunt run-all plan -out planfile --terragrunt-log-disable --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt run-all show -json planfile --terragrunt-non-interactive --terragrunt-log-disable --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	for _, stdout := range strings.Split(stdout, "\n") {
+		if stdout == "" {
+			continue
+		}
+
+		var objmap map[string]json.RawMessage
+		err = json.Unmarshal([]byte(stdout), &objmap)
+		require.NoError(t, err)
+	}
+}
 
 func TestDisableLogging(t *testing.T) {
 	t.Parallel()
