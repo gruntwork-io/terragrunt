@@ -105,6 +105,7 @@ var StrictControls = Controls{
 	},
 }
 
+// Names returns the names of all strict controls.
 func (controls Controls) Names() []string {
 	names := []string{}
 
@@ -115,6 +116,12 @@ func (controls Controls) Names() []string {
 	return names
 }
 
+var (
+	// ErrInvalidStrictControl is returned when an invalid strict control is used.
+	ErrInvalidStrictControl = errors.New("Invalid value(s) used for --strict-control.")
+)
+
+// ValidateControlNames validates that the given control names are valid.
 func (controls Controls) ValidateControlNames(strictControlNames []string) error {
 	invalidControls := []string{}
 	validControls := controls.Names()
@@ -126,7 +133,8 @@ func (controls Controls) ValidateControlNames(strictControlNames []string) error
 	}
 
 	if len(invalidControls) > 0 {
-		return fmt.Errorf("Invalid value(s) used for --strict-control.\nInvalid value(s):\n- %s\nAllowed value(s):\n- %s", //nolint:stylecheck
+		return fmt.Errorf("%w\nInvalid value(s):\n- %s\nAllowed value(s):\n- %s", //nolint:stylecheck
+			ErrInvalidStrictControl,
 			strings.Join(invalidControls, "\n- "),
 			strings.Join(validControls, "\n- "),
 		)
