@@ -9,9 +9,11 @@ package strict
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // Control represents a control that can be enabled or disabled in strict mode.
@@ -103,18 +105,31 @@ var StrictControls = Controls{
 	},
 }
 
+func (controls Controls) Names() []string {
+	names := []string{}
+
+	for name := range controls {
+		names = append(names, name)
+	}
+
+	return names
+}
+
 func (controls Controls) ValidateControlNames(strictControlNames []string) error {
 	invalidControls := []string{}
+	validControls := controls.Names()
 
 	for _, controlName := range strictControlNames {
-		_, ok := controls[controlName]
-		if !ok {
+		if !util.ListContainsElement(validControls, controlName) {
 			invalidControls = append(invalidControls, controlName)
 		}
 	}
 
 	if len(invalidControls) > 0 {
-		return errors.New("Invalid strict controls: " + strings.Join(invalidControls, ", "))
+		return fmt.Errorf("Invalid value(s) used for --strict-control.\nInvalid value(s):\n- %s\nAllowed value(s):\n- %s", //nolint:stylecheck
+			strings.Join(invalidControls, "\n- "),
+			strings.Join(validControls, "\n- "),
+		)
 	}
 
 	return nil
