@@ -3804,7 +3804,10 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 	_, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt apply --no-color --terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-forward-tf-stdout --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
 	require.Error(t, err)
 
-	assert.Contains(t, stderr, `"msg":"Initializing the backend..."`)
+	// Sometimes, this is the error returned by AWS.
+	if !strings.Contains(stderr, "Error: Failed to get existing workspaces: operation error S3: ListObjectsV2, https response error StatusCode: 301") {
+		assert.Contains(t, stderr, `"msg":"Initializing the backend..."`)
+	}
 
 	// check if output can be extracted in json
 	jsonStrings := strings.Split(stderr, "\n")
