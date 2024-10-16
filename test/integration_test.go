@@ -2500,7 +2500,7 @@ func TestTerragruntIncludeParentHclFile(t *testing.T) {
 // This is due to a race condition brought about by overriding `version.Version` in
 // runTerragruntVersionCommand
 //
-//nolint:paralleltest,tparallel
+//nolint:paralleltest,funlen
 func TestTerragruntVersionConstraints(t *testing.T) {
 	tc := []struct {
 		name                 string
