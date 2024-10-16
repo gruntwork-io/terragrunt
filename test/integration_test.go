@@ -2464,9 +2464,10 @@ func TestTerragruntRemoteStateCodegenDoesNotGenerateWithSkip(t *testing.T) {
 	assert.False(t, fileIsInFolder(t, "foo.tfstate", generateTestCase))
 }
 
+// This function cannot be parallelized as it changes the global version.Version
+//
+//nolint:paralleltest
 func TestTerragruntValidateAllWithVersionChecks(t *testing.T) {
-	t.Parallel()
-
 	tmpEnvPath := copyEnvironment(t, "fixtures/version-check")
 
 	stdout := bytes.Buffer{}
@@ -2495,12 +2496,12 @@ func TestTerragruntIncludeParentHclFile(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(out, "common_hcl"))
 }
 
-// The over all test here can run in parallel, but the subtests cannot.
+// The tests here cannot be parallelized.
 // This is due to a race condition brought about by overriding `version.Version` in
 // runTerragruntVersionCommand
-func TestTerragruntVersionConstraints(t *testing.T) { //nolint:tparallel
-	t.Parallel()
-
+//
+//nolint:paralleltest,tparallel
+func TestTerragruntVersionConstraints(t *testing.T) {
 	tc := []struct {
 		name                 string
 		terragruntVersion    string
@@ -2640,9 +2641,10 @@ func TestIamRolesLoadingFromDifferentModules(t *testing.T) {
 	assert.NotEmptyf(t, component2, "Missing role for component 2")
 }
 
+// This function cannot be parallelized as it changes the global version.Version
+//
+//nolint:paralleltest
 func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
-	t.Parallel()
-
 	fixturePath := "fixtures/partial-parse/terragrunt-version-constraint"
 	cleanupTerragruntFolder(t, fixturePath)
 
