@@ -118,7 +118,7 @@ func (controls Controls) Names() []string {
 
 var (
 	// ErrInvalidStrictControl is returned when an invalid strict control is used.
-	ErrInvalidStrictControl = errors.New("Invalid value(s) used for --strict-control.")
+	ErrInvalidStrictControl = errors.New("Invalid value(s) used for --strict-control.") //nolint:stylecheck
 )
 
 // ValidateControlNames validates that the given control names are valid.
