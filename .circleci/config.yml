@@ -20,7 +20,7 @@ install_terraform_latest: &install_terraform_latest
   command: |
     pushd .
     cd /tmp
-    export TERRAFORM_VERSION=1.9.1
+    export TERRAFORM_VERSION=1.9.7
     curl -L "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o terraform.zip
     unzip -o terraform.zip
     sudo install -m 0755 terraform /usr/local/bin/terraform
@@ -34,7 +34,7 @@ install_tofu: &install_tofu
   command: |
     pushd .
     cd /tmp
-    curl -L "https://github.com/opentofu/opentofu/releases/download/v1.8.0/tofu_1.8.0_linux_amd64.zip" -o tofu.zip
+    curl -L "https://github.com/opentofu/opentofu/releases/download/v1.8.3/tofu_1.8.3_linux_amd64.zip" -o tofu.zip
     unzip -o tofu.zip
     sudo install -m 0755 tofu /usr/local/bin/tofu
     rm -rf tofu
@@ -129,45 +129,53 @@ codespell: &codespell
     pip install codespell
     codespell .
 
+win_install_golang: &win_install_golang
+  name: Install golang
+  shell: powershell.exe
+  command: ./_ci/install-golang.ps1
+
+win_install_tflint: &win_install_tflint
+  name: Install TFLint
+  shell: powershell.exe
+  command: ./_ci/install-tflint.ps1
+
 version: 2.1
 jobs:
-  test_windows:
+  test_windows_terraform:
     executor:
       name: win/default
       size: "large"
     steps:
       - checkout
       - run:
-          name: Install golang
-          shell: powershell.exe
-          command: ./_ci/install-golang.ps1
+          <<: *win_install_golang
+      - run:
+          <<: *win_install_tflint
       - run:
           name: Install Terraform
           shell: powershell.exe
           command: ./_ci/install-terraform.ps1
       - run:
-          name: Install Opentofu
-          shell: powershell.exe
-          command: ./_ci/install-opentofu.ps1
-      - run:
-          name: Install TFLint
-          shell: powershell.exe
-          command: ./_ci/install-tflint.ps1
-      - run:
           name: Run go terraform tests
           shell: powershell.exe
           no_output_timeout: 45m
           command: |
-            # We're running this test only on Windows currently to provide a convenient
-            # means of reproducing Terragrunt issues that only occur on that platform
-            go test -v ./... -run TestWindowsTerragruntSourceMapDebug -timeout 45m
-            go test -v ./... -run TestWindowsTflintIsInvoked -timeout 45m
-            go test -v ./... -run TestCanonicalPath -timeout 45m
-            go test -v ./... -run TestJoinTerraformModulePath -timeout 45m
-            go test -v ./... -run TestIncludeInCopy -timeout 45m
-            go test -v ./... -run TestWindowsScaffold -timeout 45m
-            go test -v ./... -run TestWindowsScaffoldRef -timeout 45m
-            go test -tags windows -v -un -run TestWindows ./test -timeout 45m
+            go test -tags windows -v -run ^TestWindows ./... -timeout 45m
+
+  test_windows_tofu:
+    executor:
+      name: win/default
+      size: "large"
+    steps:
+      - checkout
+      - run:
+          <<: *win_install_golang
+      - run:
+          <<: *win_install_tflint
+      - run:
+          name: Install Opentofu
+          shell: powershell.exe
+          command: ./_ci/install-opentofu.ps1
       - run:
           name: Run go tofu tests
           shell: powershell.exe
@@ -175,16 +183,8 @@ jobs:
           environment:
             TERRAGRUNT_TFPATH: tofu
           command: |
-            # We're running this test only on Windows currently to provide a convenient
-            # means of reproducing Terragrunt issues that only occur on that platform
-            go test -v ./... -run TestWindowsTerragruntSourceMapDebug -timeout 45m
-            go test -v ./... -run TestWindowsTflintIsInvoked -timeout 45m
-            go test -v ./... -run TestCanonicalPath -timeout 45m
-            go test -v ./... -run TestJoinTerraformModulePath -timeout 45m
-            go test -v ./... -run TestIncludeInCopy -timeout 45m
-            go test -v ./... -run TestWindowsScaffold -timeout 45m
-            go test -v ./... -run TestWindowsScaffoldRef -timeout 45m
-            go test -tags windows -v -un -run TestWindows ./test -timeout 45m
+            go test -tags windows -v -run ^TestWindows ./... -timeout 45m
+
   # We're running unit tests separately from integration tests - with no parallelization.
   # With heavy parallelization coupled with re-use of test fixtures we've witnessed slight
   # instability with the tests. The unit tests are fast to execute, so there is negligible
@@ -628,7 +628,15 @@ workflows:
   version: 2
   build-and-test:
     jobs:
-      - test_windows:
+      - test_windows_terraform:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+      - test_windows_tofu:
           filters:
             tags:
               only: /^v.*/
