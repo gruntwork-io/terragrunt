@@ -36,7 +36,10 @@ process](https://help.github.com/articles/about-pull-requests/) for contribution
   - [Debug logging](#debug-logging)
   - [Error handling](#error-handling)
   - [Formatting](#formatting)
-  - [Releasing new versions](#releasing-new-versions)
+- [Terragrunt Releases](#terragrunt-releases)
+  - [When to Cut a New Release](#when-to-cut-a-new-release)
+  - [How to Create a New Release](#how-to-create-a-new-release)
+  - [Pre-releases](#pre-releases)
 
 ### File a GitHub issue or write an RFC
 
@@ -65,7 +68,7 @@ stays up to date and allows you to think through the problem at a high level bef
 coding.
 
 The documentation is built with Jekyll and hosted on the Github Pages from `docs` folder on `main` branch. Check out
-[Terragrunt website](https://github.com/gruntwork-io/terragrunt/tree/master/docs#working-with-the-documentation) to
+[Terragrunt website](https://github.com/gruntwork-io/terragrunt/tree/main/docs#working-with-the-documentation) to
 learn more about working with the documentation.
 
 ### Update the tests
@@ -183,9 +186,25 @@ Every source file in this project should be formatted with `go fmt`. There are f
 
 To ensure that your changes get properly formatted, please install the git pre-commit hook with `make install-pre-commit-hook`.
 
-### Releasing new versions
+## Terragrunt Releases
 
-To release a new version, just go to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases) and create a new release. Ensure that the new release uses the **Set as a pre-release** checkbox initially.
+Terragrunt releases follow [semantic versioning guidelines (semver)](https://semver.org/).
+
+Note that as of 2024/10/17, Terragrunt is still pre-1.0, so breaking changes may still be introduced in minor releases. We will try to minimize these changes as much as possible, but they may still happen.
+
+Once 1.0 is released, Terragrunt backwards compatibility will be guaranteed for all minor releases.
+
+This documentation should be updated at that time to reflect the new policy. If it has not, please file a bug report.
+
+### When to Cut a New Release
+
+While Terragrunt is still pre-1.0, maintainers will cut a new release whenever a new feature is added or a bug is fixed. Maintainers will exercise their best judgment to determine when a new release is necessary, and bias towards cutting a new release as frequently as possible when in doubt.
+
+Post-1.0, maintainers will slow down the release cadence using a different release cadence. This documentation will be updated at that time to reflect the new policy.
+
+### How to Create a New Release
+
+To release a new version of Terragrunt, go to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases) and cut a new release off the `main` branch. Ensure that the new release uses the **Set as a pre-release** checkbox initially.
 
 The CircleCI job for this repo has been configured to:
 
@@ -198,3 +217,23 @@ The CircleCI job for this repo has been configured to:
 See `.circleci/config.yml` for details.
 
 Follow the CircleCI job to ensure that the binaries are uploaded correctly. Once the job is successful, go back to the release, uncheck the **Set as a pre-release** checkbox and check the **Set as the latest release** checkbox.
+
+### Pre-releases
+
+Occassionally, Terragrunt maintainers will cut a pre-release to get feedback on the UI/UX for a new feature or to test it in the wild before making it generally available.
+
+These releases are generally cut off a feature branch, in order to keep the `main` branch stable and releasable at all times.
+
+Pre-releases are tagged with a pre-release suffix that looks like the following: `-alpha2024101701`, `-beta2024101701`, etc. with the following information:
+
+- Channel: e.g. `alpha`, `beta` (indicating the stability of the release)
+
+  The `alpha` and `beta` channels have the following meaning in Terragrunt:
+
+  - `alpha`: This release is not recommended for external use. It is intended for early adoption by Gruntwork developers testing new features.
+  - `beta`: This release is recommended for testing in non-production environments only. It is intended for testing out new features with stakeholders external to Gruntwork before a general release.
+
+- Date: e.g. `20241017` (indicating the date the release was cut without dashes or slashes)
+- Incremental number: e.g. `01` (indicating the number of pre-releases cut on that day)
+
+This suffix is appended to the end of the next appropriate version number, e.g. if the current release is `v0.19.1`, and the next appropriate version number is `v0.20.0` based on semver, the pre-release tag would be `v0.20.0-alpha2024101701`.
