@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	testFixtureSops       = "fixtures/sops"
-	testFixtureSopsErrors = "fixtures/sops-errors"
+	testFixtureSops        = "fixtures/sops"
+	testFixtureSopsErrors  = "fixtures/sops-errors"
+	testFixtureSopsMissing = "fixtures/sops-missing"
 )
 
 func TestSopsDecryptedCorrectly(t *testing.T) {
@@ -96,4 +97,18 @@ func TestTerragruntLogSopsErrors(t *testing.T) {
 
 	assert.Contains(t, errorOut, "error decrypting key: [error decrypting key")
 	assert.Contains(t, errorOut, "error base64-decoding encrypted data key: illegal base64 data at input byte")
+}
+
+func TestSopsDecryptOnMissing(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureSopsMissing)
+	tmpEnvPath := copyEnvironment(t, testFixtureSopsMissing)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureSopsMissing)
+
+	// apply and check for errors
+	_, errorOut, err := runTerragruntCommandWithOutput(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+rootPath)
+	require.Error(t, err)
+
+	assert.Contains(t, errorOut, "Encountered error while evaluating locals in file ./terragrunt.hcl")
 }
