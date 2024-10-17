@@ -52,7 +52,7 @@ require (
 require (
 	dario.cat/mergo v1.0.1
 	github.com/NYTimes/gziphandler v1.1.1
-	github.com/ProtonMail/go-crypto v1.1.0-alpha.5-proton
+	github.com/ProtonMail/go-crypto v1.1.0-beta.0-proton
 	github.com/charmbracelet/bubbles v0.16.1
 	github.com/charmbracelet/bubbletea v0.24.2
 	github.com/charmbracelet/glamour v0.6.0
