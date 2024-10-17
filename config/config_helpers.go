@@ -1110,7 +1110,7 @@ func extractSopsErrors(err error) *errors.MultiError {
 	}
 
 	// append the original error if no group results were found
-	if errs.Len() == 0 {
+	if errs == nil {
 		errs = errs.Append(err)
 	}
 
