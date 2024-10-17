@@ -21,7 +21,7 @@ func newItemDelegate(keys *delegateKeyMap) list.DefaultDelegate {
 		Foreground(lipgloss.AdaptiveColor{Dark: selectedTitleForegroundColorDark}).
 		BorderForeground(lipgloss.AdaptiveColor{Dark: selectedTitleBorderForegroundColorDark})
 
-	d.Styles.SelectedDesc = d.Styles.SelectedTitle.Copy().
+	d.Styles.SelectedDesc = d.Styles.SelectedTitle.
 		Foreground(lipgloss.AdaptiveColor{Dark: selectedDescForegroundColorDark}).
 		BorderForeground(lipgloss.AdaptiveColor{Dark: selectedDescBorderForegroundColorDark})
 

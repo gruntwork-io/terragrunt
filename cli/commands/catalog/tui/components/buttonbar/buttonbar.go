@@ -82,9 +82,9 @@ func (b *ButtonBar) View() string {
 	s := strings.Builder{}
 
 	for i, btn := range b.buttons {
-		style := b.BlurredStyle.Copy()
+		style := b.BlurredStyle
 		if i == b.activeButton {
-			style = b.FocusedStyle.Copy()
+			style = b.FocusedStyle
 		}
 
 		s.WriteString(fmt.Sprintf(b.nameFmt, style.Render(btn)))
