@@ -245,7 +245,7 @@ remote_state {
 
     shared_credentials_file     = "/path/to/credentials/file"
     skip_metadata_api_check     = true
-    force_path_style            = true
+    use_path_style            = true
   }
 }
 ```
