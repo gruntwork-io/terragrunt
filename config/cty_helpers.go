@@ -4,7 +4,7 @@ package config
 import (
 	"encoding/json"
 
-	"github.com/imdario/mergo"
+	"dario.cat/mergo"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 	"github.com/zclconf/go-cty/cty/gocty"
