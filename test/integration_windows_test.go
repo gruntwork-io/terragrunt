@@ -57,7 +57,7 @@ func TestWindowsTerragruntSourceMapDebug(t *testing.T) {
 			fixtureSourceMapPath := "fixtures/source-map"
 			helpers.CleanupTerraformFolder(t, fixtureSourceMapPath)
 			targetPath := "C:\\test\\infrastructure-modules/"
-			helpers.CopyEnvironmentToPath(t, fixtureSourceMapPath, targetPath)
+			CopyEnvironmentToPath(t, fixtureSourceMapPath, targetPath)
 			rootPath := filepath.Join(targetPath, fixtureSourceMapPath)
 
 			t.Setenv(
