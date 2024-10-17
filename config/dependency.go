@@ -5,12 +5,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/hcl/v2"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/hashicorp/hcl/v2"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
 
