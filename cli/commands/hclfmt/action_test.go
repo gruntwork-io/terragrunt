@@ -263,6 +263,41 @@ func TestHCLFmtFile(t *testing.T) {
 	}
 }
 
+func TestHCLFmtStdin(t *testing.T) {
+	t.Parallel()
+
+	realStdin := os.Stdin
+	realStdout := os.Stdout
+
+	tempStdoutFile, err := os.CreateTemp(t.TempDir(), "stdout.hcl")
+	defer func() {
+		_ = tempStdoutFile.Close()
+	}()
+	require.NoError(t, err)
+
+	os.Stdout = tempStdoutFile
+	defer func() { os.Stdout = realStdout }()
+
+	os.Stdin, err = os.Open("../../../test/fixtures/hclfmt-stdin/terragrunt.hcl")
+	defer func() { os.Stdin = realStdin }()
+	require.NoError(t, err)
+
+	expected, err := os.ReadFile("../../../test/fixtures/hclfmt-stdin/expected.hcl")
+	require.NoError(t, err)
+
+	tgOptions, err := options.NewTerragruntOptionsForTest("")
+	require.NoError(t, err)
+
+	// format hcl from stdin
+	tgOptions.HclFromStdin = true
+	err = hclfmt.Run(tgOptions)
+	require.NoError(t, err)
+
+	formatted, err := os.ReadFile(tempStdoutFile.Name())
+	require.NoError(t, err)
+	assert.Equal(t, expected, formatted)
+}
+
 func TestHCLFmtHeredoc(t *testing.T) {
 	t.Parallel()
 
