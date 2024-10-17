@@ -550,10 +550,9 @@ jobs:
     steps:
       - checkout
       - run:
-         name: Disable go proxy
-         command: |
-           export GOPROXY=direct
-      - run: build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X github.com/gruntwork-io/go-commons/version.Version=$CIRCLE_TAG -extldflags '-static'"
+          name: Building Terragrunt without Go proxy
+          command: |
+            GOPROXY=direct build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X github.com/gruntwork-io/go-commons/version.Version=$CIRCLE_TAG -extldflags '-static'"
 
   test_signing:
     <<: *env
