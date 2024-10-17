@@ -543,6 +543,17 @@ jobs:
           root: .
           paths: [bin]
 
+  test_build_no_proxy:
+    # build Terragrunt without Go proxy to ensure all dependencies have correct checksums
+    resource_class: xlarge
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          name: Building Terragrunt without Go proxy
+          command: |
+            GOPROXY=direct build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X github.com/gruntwork-io/go-commons/version.Version=$CIRCLE_TAG -extldflags '-static'"
+
   test_signing:
     <<: *env
     macos:
@@ -806,6 +817,14 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
             - APPLE__OSX__code-signing
+      - test_build_no_proxy:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
       - deploy:
           requires:
             - build
