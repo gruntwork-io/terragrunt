@@ -245,7 +245,7 @@ func TestAwsConfigValuesEqual(t *testing.T) {
 	}
 }
 
-func TestAwsForcePathStyleClientSession(t *testing.T) {
+func TestAwsUsePathStyleClientSession(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("s3_client_test")
@@ -258,12 +258,12 @@ func TestAwsForcePathStyleClientSession(t *testing.T) {
 	}{
 		{
 			"path-style-true",
-			map[string]interface{}{"force_path_style": true},
+			map[string]interface{}{"use_path_style": true},
 			true,
 		},
 		{
 			"path-style-false",
-			map[string]interface{}{"force_path_style": false},
+			map[string]interface{}{"use_path_style": false},
 			false,
 		},
 		{
@@ -287,7 +287,7 @@ func TestAwsForcePathStyleClientSession(t *testing.T) {
 			s3Client, err := remote.CreateS3Client(s3ConfigExtended.GetAwsSessionConfig(), terragruntOptions)
 			require.NoError(t, err, "Unexpected error creating client for test: %v", err)
 
-			actual := aws.BoolValue(s3Client.Config.S3ForcePathStyle)
+			actual := aws.BoolValue(s3Client.Config.S3UsePathStyle)
 			assert.Equal(t, testCase.expected, actual)
 		})
 	}
@@ -302,7 +302,7 @@ func TestAwsGetAwsSessionConfig(t *testing.T) {
 	}{
 		{
 			"all-values",
-			map[string]interface{}{"region": "foo", "endpoint": "bar", "profile": "baz", "role_arn": "arn::it", "shared_credentials_file": "my-file", "force_path_style": true},
+			map[string]interface{}{"region": "foo", "endpoint": "bar", "profile": "baz", "role_arn": "arn::it", "shared_credentials_file": "my-file", "use_path_style": true},
 		},
 		{
 			"no-values",
@@ -310,7 +310,7 @@ func TestAwsGetAwsSessionConfig(t *testing.T) {
 		},
 		{
 			"extra-values",
-			map[string]interface{}{"something": "unexpected", "region": "foo", "endpoint": "bar", "dynamodb_endpoint": "foobar", "profile": "baz", "role_arn": "arn::it", "shared_credentials_file": "my-file", "force_path_style": false},
+			map[string]interface{}{"something": "unexpected", "region": "foo", "endpoint": "bar", "dynamodb_endpoint": "foobar", "profile": "baz", "role_arn": "arn::it", "shared_credentials_file": "my-file", "use_path_style": false},
 		},
 	}
 
@@ -332,7 +332,7 @@ func TestAwsGetAwsSessionConfig(t *testing.T) {
 				Profile:                 s3ConfigExtended.RemoteStateConfigS3.Profile,
 				RoleArn:                 s3ConfigExtended.RemoteStateConfigS3.RoleArn,
 				CredsFilename:           s3ConfigExtended.RemoteStateConfigS3.CredsFilename,
-				S3ForcePathStyle:        s3ConfigExtended.RemoteStateConfigS3.S3ForcePathStyle,
+				S3UsePathStyle:        s3ConfigExtended.RemoteStateConfigS3.S3UsePathStyle,
 				DisableComputeChecksums: s3ConfigExtended.DisableAWSClientChecksums,
 			}
 
