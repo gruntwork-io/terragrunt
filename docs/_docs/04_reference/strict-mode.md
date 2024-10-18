@@ -33,7 +33,7 @@ $ terragrunt plan-all
 ```
 
 ```bash
-$ TERRAGRUNT_STRICT_MODE='true' tg plan-all
+$ TERRAGRUNT_STRICT_MODE='true' terragrunt plan-all
 15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
 ```
 
