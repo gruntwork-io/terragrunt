@@ -337,9 +337,9 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 		case TerragruntInputs:
 			control, ok := strict.GetStrictControl(strict.SkipDependenciesInputs)
 			if ok {
-				_, err := control.Evaluate(ctx.TerragruntOptions)
-				if err != nil {
-					ctx.TerragruntOptions.Logger.Warnf("Skipping dependencies inputs for better performance")
+				_, skipInputs := control.Evaluate(ctx.TerragruntOptions)
+				if skipInputs != nil {
+					ctx.TerragruntOptions.Logger.Warnf("Skipping inputs reading from %v inputs for better performance", file.ConfigPath)
 					break
 				}
 			}
