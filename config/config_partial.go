@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gruntwork-io/terragrunt/internal/strict"
+
 	clone "github.com/huandu/go-clone"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
@@ -333,42 +335,36 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				output.IamWebIdentityToken = *decoded.IamWebIdentityToken
 			}
 		case TerragruntInputs:
+			control, ok := strict.GetStrictControl(strict.SkipDependenciesInputs)
+			if ok {
+				_, err := control.Evaluate(ctx.TerragruntOptions)
+				if err != nil {
+					ctx.TerragruntOptions.Logger.Warnf("Skipping dependencies inputs for better performance")
+					break
+				}
+			}
 			decoded := terragruntInputs{}
+
+			if _, ok := evalParsingContext.Variables[MetadataDependency]; !ok {
+				// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the process.
+				retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, file)
+				if err != nil {
+					return nil, err
+				}
+
+				evalParsingContext.Variables[MetadataDependency] = *retrievedOutputs
+			}
 
 			if err := file.Decode(&decoded, evalParsingContext); err != nil {
 				var diagErr hcl.Diagnostics
 				ok := errors.As(err, &diagErr)
-				// in case of dependency access error, we decode the dependency block and retrieve the outputs
-				if isDependencyAccessError(diagErr) {
-					if _, ok := evalParsingContext.Variables[MetadataDependency]; !ok {
-						// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the process.
-						retrievedOutputs, err := decodeAndRetrieveOutputs(ctx, file)
-						if err != nil {
-							return nil, err
-						}
 
-						evalParsingContext.Variables[MetadataDependency] = *retrievedOutputs
-					}
-
-					if depErr := file.Decode(&decoded, evalParsingContext); depErr != nil {
-						var diagErr hcl.Diagnostics
-						ok := errors.As(err, &diagErr)
-
-						// in case of render-json command and inputs reference error, we update the inputs with default value
-						if !ok || !isRenderJSONCommand(ctx) || !isAttributeAccessError(diagErr) {
-							return nil, err
-						}
-
-						ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
-					}
-				} else {
-					// in case of render-json command and inputs reference error, we update the inputs with default value
-					if !ok || !isRenderJSONCommand(ctx) || !isAttributeAccessError(diagErr) {
-						return nil, err
-					}
-					ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
+				// in case of render-json command and inputs reference error, we update the inputs with default value
+				if !ok || !isRenderJSONCommand(ctx) || !isAttributeAccessError(diagErr) {
+					return nil, err
 				}
 
+				ctx.TerragruntOptions.Logger.Warnf("Failed to decode inputs %v", diagErr)
 			}
 
 			if decoded.Inputs != nil {

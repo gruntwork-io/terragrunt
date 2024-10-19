@@ -11,8 +11,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/hashicorp/hcl/v2"
-
 	"github.com/aws/aws-sdk-go/aws/awserr"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
@@ -243,13 +241,7 @@ func decodeDependencies(ctx *ParsingContext, decodedDependency TerragruntDepende
 					return nil, err
 				}
 
-				parseOptions := []hclparse.Option{
-					hclparse.WithDiagnosticsHandler(func(file *hcl.File, hclDiags hcl.Diagnostics) (hcl.Diagnostics, error) {
-						return hclDiags, nil
-					}),
-				}
-
-				depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts).WithParseOption(parseOptions)
+				depCtx := ctx.WithDecodeList(TerragruntFlags, TerragruntInputs).WithTerragruntOptions(depOpts)
 
 				if depConfig, err := PartialParseConfigFile(depCtx, depPath, nil); err == nil {
 					if depConfig.Skip != nil && *depConfig.Skip {
