@@ -40,6 +40,9 @@ const (
 	OutputAll = "output-all"
 	// ValidateAll is the control that prevents the deprecated `validate-all` command from being used.
 	ValidateAll = "validate-all"
+
+	// SkipDependenciesInputs is the control that prevents reading dependencies inputs and get performance boost.
+	SkipDependenciesInputs = "skip-dependencies-inputs"
 )
 
 // GetStrictControl returns the strict control with the given name.
@@ -102,6 +105,10 @@ var StrictControls = Controls{
 	ValidateAll: {
 		Error:   errors.New("The `validate-all` command is no longer supported. Use `terragrunt run-all validate` instead."),
 		Warning: "The `validate-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all validate` instead.",
+	},
+	SkipDependenciesInputs: {
+		Error:   errors.New("The `skip-dependencies-inputs` is no longer supported. Dependencies inputs handling will be changed."),
+		Warning: "The `skip-dependencies-inputs` is deprecated and will be removed in a future version. Dependencies inputs handling will be changed.",
 	},
 }
 
