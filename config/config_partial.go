@@ -343,6 +343,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 					break
 				}
 			}
+
 			decoded := terragruntInputs{}
 
 			if _, ok := evalParsingContext.Variables[MetadataDependency]; !ok {
