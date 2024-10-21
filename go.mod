@@ -3,7 +3,7 @@ module github.com/gruntwork-io/terragrunt
 go 1.23
 
 require (
-	cloud.google.com/go/storage v1.44.0
+	cloud.google.com/go/storage v1.45.0
 	github.com/aws/aws-sdk-go v1.55.5
 	github.com/creack/pty v1.1.17
 	github.com/fatih/structs v1.1.0
