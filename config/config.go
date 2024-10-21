@@ -983,17 +983,6 @@ func isAttributeAccessError(diagnostics hcl.Diagnostics) bool {
 	return false
 }
 
-// isDependencyAccessError returns true if the given diagnostics indicate an error accessing a dependency
-func isDependencyAccessError(diagnostics hcl.Diagnostics) bool {
-	for _, diagnostic := range diagnostics {
-		if diagnostic.Severity == hcl.DiagError && strings.Contains(diagnostic.Detail, "There is no variable named \"dependency\"") {
-			return true
-		}
-	}
-
-	return false
-}
-
 // Returns the index of the ErrorHook with the given name,
 // or -1 if no Hook have the given name.
 // TODO: Figure out more DRY way to do this
