@@ -340,6 +340,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				_, skipInputs := control.Evaluate(ctx.TerragruntOptions)
 				if skipInputs != nil {
 					ctx.TerragruntOptions.Logger.Warnf("Skipping inputs reading from %v inputs for better performance", file.ConfigPath)
+
 					break
 				}
 			}
