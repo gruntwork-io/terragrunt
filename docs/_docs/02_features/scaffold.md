@@ -101,7 +101,7 @@ Optional variables which can be passed to `scaffold` command:
 Scaffold new project but use specific module version:
 
 ```bash
-terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs --var=Ref=v0.53.1
+terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs --var=Ref=v0.68.4
 ```
 
 Scaffold new project but use Git/SSH URLs:
