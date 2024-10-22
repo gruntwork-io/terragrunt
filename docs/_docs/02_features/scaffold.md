@@ -126,7 +126,7 @@ terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/scaffo
 Scaffold new project using external template:
 
 ```bash
-terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs git@github.com/gruntwork-io/terragrunt.git//test/fixtures/scaffold/external-template
+terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/external-template
 
 # will be created: external-template.txt terragrunt.hcl , files from external template
 ```
