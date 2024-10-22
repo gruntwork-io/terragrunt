@@ -118,6 +118,6 @@ Throw an error when using the `validate-all` command.
 
 ### skip-dependencies-inputs
 
-Disable reading of dependency inputs to enhance dependency resolution performance.
+Disable reading of dependency inputs to enhance dependency resolution performance by preventing recursively parsing Terragrunt inputs from dependencies.
 
-**Reason**: Enabling the `skip-dependencies-inputs` option prevents Terraform from reading inputs from dependencies, which optimizes the performance of dependency resolution.
+**Reason**: Enabling the `skip-dependencies-inputs` option prevents the recursive parsing of Terragrunt inputs, leading to optimized performance during dependency resolution.
