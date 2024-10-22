@@ -612,6 +612,8 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		EngineLogLevel:                 opts.EngineLogLevel,
 		EngineSkipChecksumCheck:        opts.EngineSkipChecksumCheck,
 		Engine:                         cloneEngineOptions(opts.Engine),
+		// copy array
+		StrictControls: util.CloneStringList(opts.StrictControls),
 	}, nil
 }
 

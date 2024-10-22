@@ -72,6 +72,7 @@ The following strict mode controls are available:
 - [destroy-all](#destroy-all)
 - [output-all](#output-all)
 - [validate-all](#validate-all)
+- [skip-dependencies-inputs](#skip-dependencies-inputs)
 
 ### spin-up
 
@@ -114,3 +115,9 @@ Throw an error when using the `output-all` command.
 Throw an error when using the `validate-all` command.
 
 **Reason**: The `validate-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all validate` instead.
+
+### skip-dependencies-inputs
+
+Disable reading of dependency inputs to enhance dependency resolution performance by preventing recursively parsing Terragrunt inputs from dependencies.
+
+**Reason**: Enabling the `skip-dependencies-inputs` option prevents the recursive parsing of Terragrunt inputs, leading to optimized performance during dependency resolution.
