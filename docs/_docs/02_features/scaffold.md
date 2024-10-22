@@ -101,7 +101,7 @@ Optional variables which can be passed to `scaffold` command:
 Scaffold new project but use specific module version:
 
 ```bash
-terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs --var=Ref=v0.53.1
+terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs --var=Ref=v0.68.4
 ```
 
 Scaffold new project but use Git/SSH URLs:
@@ -112,7 +112,7 @@ terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
 ```hcl
 # terragrunt.hcl
 terraform {
-  source = "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8"
+  source = "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.68.4"
 }
 ```
 
@@ -126,7 +126,7 @@ terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/scaffo
 Scaffold new project using external template:
 
 ```bash
-terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs git@github.com/gruntwork-io/terragrunt.git//test/fixtures/scaffold/external-template
+terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/external-template
 
 # will be created: external-template.txt terragrunt.hcl , files from external template
 ```
