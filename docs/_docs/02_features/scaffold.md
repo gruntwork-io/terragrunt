@@ -112,7 +112,7 @@ terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs
 ```hcl
 # terragrunt.hcl
 terraform {
-  source = "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8"
+  source = "git::ssh://git@github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.68.4"
 }
 ```
 
