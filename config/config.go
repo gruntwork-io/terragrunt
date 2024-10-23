@@ -114,6 +114,7 @@ type TerragruntConfig struct {
 	RetryMaxAttempts            *int
 	RetrySleepIntervalSec       *int
 	Engine                      *EngineConfig
+	FeatureFlags                FeatureFlags
 
 	// Fields used for internal tracking
 	// Indicates whether this is the result of a partial evaluation
