@@ -293,6 +293,8 @@ func (cfg *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terragruntOpt
 	// Dependency blocks are shallow merged by name
 	cfg.TerragruntDependencies = mergeDependencyBlocks(cfg.TerragruntDependencies, sourceConfig.TerragruntDependencies)
 
+	//cfg.FeatureFlags = sourceConfig.FeatureFlags
+
 	// Deep merge the dependencies list. This is different from dependency blocks, and refers to the deprecated
 	// dependencies block!
 	if sourceConfig.Dependencies != nil {
@@ -437,6 +439,8 @@ func (cfg *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, terragrun
 	}
 
 	cfg.TerragruntDependencies = mergedDeps
+
+	//cfg.FeatureFlags = sourceConfig.FeatureFlags
 
 	if sourceConfig.RetryableErrors != nil {
 		cfg.RetryableErrors = append(cfg.RetryableErrors, sourceConfig.RetryableErrors...)

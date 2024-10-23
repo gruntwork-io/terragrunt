@@ -186,6 +186,7 @@ type terragruntConfigFile struct {
 	IamAssumeRoleSessionName *string             `hcl:"iam_assume_role_session_name,attr"`
 	IamWebIdentityToken      *string             `hcl:"iam_web_identity_token,attr"`
 	TerragruntDependencies   []Dependency        `hcl:"dependency,block"`
+	FeatureFlags             []FeatureFlag       `hcl:"feature,block"`
 
 	// We allow users to configure code generation via blocks:
 	//
@@ -1144,6 +1145,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 		terragruntConfig.SetFieldMetadata(MetadataEngine, defaultMetadata)
 	}
 
+	terragruntConfig.FeatureFlags = terragruntConfigFromFile.FeatureFlags
 	for _, flag := range terragruntConfig.FeatureFlags {
 		terragruntConfig.SetFieldMetadataWithType(MetadataFeatureFlag, flag.Name, defaultMetadata)
 	}
