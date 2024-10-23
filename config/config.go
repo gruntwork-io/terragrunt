@@ -67,6 +67,7 @@ const (
 	MetadataRetrySleepIntervalSec       = "retry_sleep_interval_sec"
 	MetadataDependentModules            = "dependent_modules"
 	MetadataInclude                     = "include"
+	MetadataFeatureFlag                 = "feature"
 )
 
 var (
@@ -1141,6 +1142,10 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	if terragruntConfigFromFile.Engine != nil {
 		terragruntConfig.Engine = terragruntConfigFromFile.Engine
 		terragruntConfig.SetFieldMetadata(MetadataEngine, defaultMetadata)
+	}
+
+	for _, flag := range terragruntConfig.FeatureFlags {
+		terragruntConfig.SetFieldMetadataWithType(MetadataFeatureFlag, flag.Name, defaultMetadata)
 	}
 
 	generateBlocks := []terragruntGenerateBlock{}
