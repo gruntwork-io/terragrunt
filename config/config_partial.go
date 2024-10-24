@@ -45,7 +45,7 @@ type terragruntDependencies struct {
 	Remain       hcl.Body            `hcl:",remain"`
 }
 
-// terragruntConfigFile is a struct that can be used to store decoded feature flags
+// terragruntFeatureFlags is a struct that can be used to store decoded feature flags
 type terragruntFeatureFlags struct {
 	FeatureFlags FeatureFlags `hcl:"feature,block"`
 	Remain       hcl.Body     `hcl:",remain"`
@@ -132,10 +132,14 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 		return nil, nil, nil, err
 	}
 
+	// set feature flags
 	tgFlags := terragruntFeatureFlags{}
+	// load default feature flags
 	if err := file.Decode(&tgFlags, evalParsingContext); err != nil {
 		return nil, nil, nil, err
 	}
+
+	// build feature flags map
 	evaluatedFlags := map[string]cty.Value{}
 	for _, flag := range tgFlags.FeatureFlags {
 		evaluatedFlags[flag.Name] = *flag.Default
