@@ -839,12 +839,13 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 	}
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
-	trackInclude, locals, err := DecodeBaseBlocks(ctx, file, includeFromChild)
+	trackInclude, locals, features, err := DecodeBaseBlocks(ctx, file, includeFromChild)
 	if err != nil {
 		return nil, err
 	}
 
 	ctx = ctx.WithTrackInclude(trackInclude)
+	ctx = ctx.WithFeatures(features)
 	ctx = ctx.WithLocals(locals)
 
 	if ctx.DecodedDependencies == nil {
