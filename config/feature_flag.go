@@ -5,7 +5,7 @@ import "github.com/zclconf/go-cty/cty"
 type FeatureFlags []FeatureFlag
 
 type FeatureFlag struct {
-	Name    string     `hcl:"name,attr"`
+	Name    string     `hcl:",label" cty:"name"`
 	Default *cty.Value `hcl:"default,attr" cty:"default"`
 }
 
