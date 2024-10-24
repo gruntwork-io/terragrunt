@@ -415,6 +415,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			if err != nil {
 				return nil, err
 			}
+
 			if decoded.FeatureFlags != nil {
 				output.FeatureFlags = decoded.FeatureFlags
 			}
