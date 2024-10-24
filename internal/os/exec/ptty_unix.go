@@ -22,6 +22,12 @@ import (
 // stderr is being shared.
 // NOTE: This is based on the quickstart example from https://github.com/creack/pty
 func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) (err error) {
+	cmdStdout := cmd.Stdout
+
+	cmd.Stdin = nil
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+
 	// NOTE: in order to ensure we can return errors that occur in cleanup, we use a variable binding for the return
 	// value so that it can be updated.
 	pseudoTerminal, startErr := pty.Start(cmd)
@@ -85,7 +91,7 @@ func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) (err error) {
 	}()
 
 	// ... and the pty to stdout.
-	_, copyStdoutErr := io.Copy(cmd.Stdout, pseudoTerminal)
+	_, copyStdoutErr := io.Copy(cmdStdout, pseudoTerminal)
 	if copyStdoutErr != nil {
 		return errors.New(copyStdoutErr)
 	}
