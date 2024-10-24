@@ -30,6 +30,7 @@ const (
 	TerragruntInputs
 	TerragruntVersionConstraints
 	RemoteStateBlock
+	FeatureFlagsBlock
 )
 
 // terragruntIncludeMultiple is a struct that can be used to only decode the include block with labels.
@@ -42,6 +43,12 @@ type terragruntIncludeMultiple struct {
 type terragruntDependencies struct {
 	Dependencies *ModuleDependencies `hcl:"dependencies,block"`
 	Remain       hcl.Body            `hcl:",remain"`
+}
+
+// terragruntConfigFile is a struct that can be used to store decoded feature flags
+type terragruntFeatureFlags struct {
+	FeatureFlags FeatureFlags `hcl:"feature,block"`
+	Remain       hcl.Body     `hcl:",remain"`
 }
 
 // terragruntTerraform is a struct that can be used to only decode the terraform block
@@ -401,6 +408,15 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				}
 
 				output.RemoteState = remoteState
+			}
+		case FeatureFlagsBlock:
+			decoded := terragruntFeatureFlags{}
+			err := file.Decode(&decoded, evalParsingContext)
+			if err != nil {
+				return nil, err
+			}
+			if decoded.FeatureFlags != nil {
+				output.FeatureFlags = decoded.FeatureFlags
 			}
 
 		default:

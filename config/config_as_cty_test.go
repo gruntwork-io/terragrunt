@@ -102,6 +102,12 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 				RenderedOutputs:                     &mockOutputs,
 			},
 		},
+		FeatureFlags: config.FeatureFlags{
+			config.FeatureFlag{
+				Name:    "test",
+				Default: &cty.Zero,
+			},
+		},
 		GenerateConfigs: map[string]codegen.GenerateConfig{
 			"provider": {
 				Path:          "foo",
@@ -249,6 +255,8 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "dependent_modules", true
 	case "Engine":
 		return "engine", true
+	case "FeatureFlags":
+		return "feature", true
 	default:
 		t.Fatalf("Unknown struct property: %s", fieldName)
 		// This should not execute

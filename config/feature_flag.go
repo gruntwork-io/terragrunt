@@ -11,6 +11,9 @@ type FeatureFlag struct {
 
 // DeepMerge merges the source FeatureFlag into the target FeatureFlag.
 func (feature *FeatureFlag) DeepMerge(source FeatureFlag) error {
+	if source.Name != "" {
+		feature.Name = source.Name
+	}
 	if source.Default == nil {
 		feature.Default = source.Default
 	} else {
