@@ -434,6 +434,7 @@ func (cfg *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, terragrun
 
 	// Dependency blocks are deep merged by name
 	mergedDeps, err := deepMergeDependencyBlocks(cfg.TerragruntDependencies, sourceConfig.TerragruntDependencies)
+
 	if err != nil {
 		return err
 	}
@@ -441,6 +442,7 @@ func (cfg *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, terragrun
 	cfg.TerragruntDependencies = mergedDeps
 
 	mergedFlags, err := deepMergeFeatureBlocks(cfg.FeatureFlags, sourceConfig.FeatureFlags)
+
 	if err != nil {
 		return err
 	}
@@ -524,7 +526,7 @@ func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 
 // merge feature flags by name
 func mergeFeatureFlags(targetFlags []FeatureFlag, sourceFlags []FeatureFlag) []FeatureFlag {
-	var keys []string
+	keys := make([]string, 0, len(targetFlags))
 
 	flagBlocks := make(map[string]FeatureFlag)
 	for _, flags := range targetFlags {
