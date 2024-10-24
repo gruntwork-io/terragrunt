@@ -30,6 +30,7 @@ const (
 	TerragruntInputs
 	TerragruntVersionConstraints
 	RemoteStateBlock
+	FeatureFlagsBlock
 )
 
 // terragruntIncludeMultiple is a struct that can be used to only decode the include block with labels.
@@ -42,6 +43,16 @@ type terragruntIncludeMultiple struct {
 type terragruntDependencies struct {
 	Dependencies *ModuleDependencies `hcl:"dependencies,block"`
 	Remain       hcl.Body            `hcl:",remain"`
+}
+
+// terragruntFeatureFlags is a struct that can be used to store decoded feature flags
+type terragruntFeatureFlags struct {
+	FeatureFlags FeatureFlags `hcl:"feature,block"`
+	Remain       hcl.Body     `hcl:",remain"`
+}
+
+type ctxTerragruntFeatureFlags struct {
+	Value *cty.Value `hcl:"value,attr" cty:"value"`
 }
 
 // terragruntTerraform is a struct that can be used to only decode the terraform block
@@ -103,11 +114,12 @@ type terragruntInputs struct {
 // be decoded even in partial decoding, because they provide bindings that are necessary for parsing any block in the
 // file. Currently base blocks are:
 // - locals
+// - features
 // - include
-func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TrackInclude, *cty.Value, error) {
+func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TrackInclude, *cty.Value, *cty.Value, error) {
 	evalParsingContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// Decode just the `include` and `import` blocks, and verify that it's allowed here
@@ -116,27 +128,48 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 		evalParsingContext,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	trackInclude, err := getTrackInclude(ctx, terragruntIncludeList, includeFromChild)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+
+	// set feature flags
+	tgFlags := terragruntFeatureFlags{}
+	// load default feature flags
+	if err := file.Decode(&tgFlags, evalParsingContext); err != nil {
+		return nil, nil, nil, err
+	}
+
+	// build feature flags map
+	evaluatedFlags := map[string]cty.Value{}
+	for _, flag := range tgFlags.FeatureFlags {
+		contextFlag := cty.ObjectVal(map[string]cty.Value{
+			"name":  cty.StringVal(flag.Name),
+			"value": *flag.Default,
+		})
+		evaluatedFlags[flag.Name] = contextFlag
+	}
+	flagsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedFlags)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 
 	// Evaluate all the expressions in the locals block separately and generate the variables list to use in the
 	// evaluation ctx.
-	locals, err := EvaluateLocalsBlock(ctx.WithTrackInclude(trackInclude), file)
+	locals, err := EvaluateLocalsBlock(ctx.WithTrackInclude(trackInclude).WithFeatures(&flagsAsCtyVal), file)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	localsAsCtyVal, err := convertValuesMapToCtyVal(locals)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return trackInclude, &localsAsCtyVal, nil
+	return trackInclude, &localsAsCtyVal, &flagsAsCtyVal, nil
 }
 
 func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *IncludeConfig) (*TerragruntConfig, error) {
@@ -226,12 +259,13 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
 	// Initialize evaluation ctx extensions from base blocks.
-	trackInclude, locals, err := DecodeBaseBlocks(ctx, file, includeFromChild)
+	trackInclude, locals, features, err := DecodeBaseBlocks(ctx, file, includeFromChild)
 	if err != nil {
 		return nil, err
 	}
 
 	ctx = ctx.WithTrackInclude(trackInclude)
+	ctx = ctx.WithFeatures(features)
 	ctx = ctx.WithLocals(locals)
 
 	// Set parsed Locals on the parsed config
@@ -401,6 +435,16 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				}
 
 				output.RemoteState = remoteState
+			}
+		case FeatureFlagsBlock:
+			decoded := terragruntFeatureFlags{}
+			err := file.Decode(&decoded, evalParsingContext)
+			if err != nil {
+				return nil, err
+			}
+
+			if decoded.FeatureFlags != nil {
+				output.FeatureFlags = decoded.FeatureFlags
 			}
 
 		default:

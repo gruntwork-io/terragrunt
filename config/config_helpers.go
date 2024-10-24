@@ -198,6 +198,10 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 		evalCtx.Variables[MetadataLocal] = *ctx.Locals
 	}
 
+	if ctx.Features != nil {
+		evalCtx.Variables[MetadataFeatureFlag] = *ctx.Features
+	}
+
 	if ctx.DecodedDependencies != nil {
 		evalCtx.Variables[MetadataDependency] = *ctx.DecodedDependencies
 	}

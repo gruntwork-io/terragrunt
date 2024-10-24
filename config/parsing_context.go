@@ -24,6 +24,8 @@ type ParsingContext struct {
 	// Locals are preevaluated variable bindings that can be used by reference in the code.
 	Locals *cty.Value
 
+	Features *cty.Value
+
 	// DecodedDependencies are references of other terragrunt config. This contains the following attributes that map to
 	// various fields related to that config:
 	// - outputs: The map of outputs from the terraform state obtained by running `terragrunt output` on that target config.
@@ -66,6 +68,11 @@ func (ctx ParsingContext) WithTerragruntOptions(opts *options.TerragruntOptions)
 
 func (ctx ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
 	ctx.Locals = locals
+	return &ctx
+}
+
+func (ctx ParsingContext) WithFeatures(features *cty.Value) *ParsingContext {
+	ctx.Features = features
 	return &ctx
 }
 

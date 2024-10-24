@@ -164,6 +164,15 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		}
 	}
 
+	featureFlagsCty, err := featureFlagsBlocksAsCty(config.FeatureFlags)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	if featureFlagsCty != cty.NilVal {
+		output[MetadataFeatureFlag] = featureFlagsCty
+	}
+
 	return convertValuesMapToCtyVal(output)
 }
 
@@ -583,6 +592,22 @@ func dependencyBlocksAsCty(dependencyBlocks Dependencies) (cty.Value, error) {
 		}
 
 		out[block.Name] = blockCty
+	}
+
+	return convertValuesMapToCtyVal(out)
+}
+
+// Serialize the list of feature flags to a cty Value as a map that maps the feature names to the cty representation.
+func featureFlagsBlocksAsCty(dependencyBlocks FeatureFlags) (cty.Value, error) {
+	out := map[string]cty.Value{}
+
+	for _, feature := range dependencyBlocks {
+		featureCty, err := goTypeToCty(feature)
+		if err != nil {
+			return cty.NilVal, err
+		}
+
+		out[feature.Name] = featureCty
 	}
 
 	return convertValuesMapToCtyVal(out)

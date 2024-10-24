@@ -293,6 +293,8 @@ func (cfg *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terragruntOpt
 	// Dependency blocks are shallow merged by name
 	cfg.TerragruntDependencies = mergeDependencyBlocks(cfg.TerragruntDependencies, sourceConfig.TerragruntDependencies)
 
+	cfg.FeatureFlags = mergeFeatureFlags(cfg.FeatureFlags, sourceConfig.FeatureFlags)
+
 	// Deep merge the dependencies list. This is different from dependency blocks, and refers to the deprecated
 	// dependencies block!
 	if sourceConfig.Dependencies != nil {
@@ -432,11 +434,19 @@ func (cfg *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, terragrun
 
 	// Dependency blocks are deep merged by name
 	mergedDeps, err := deepMergeDependencyBlocks(cfg.TerragruntDependencies, sourceConfig.TerragruntDependencies)
+
 	if err != nil {
 		return err
 	}
 
 	cfg.TerragruntDependencies = mergedDeps
+
+	mergedFlags, err := deepMergeFeatureBlocks(cfg.FeatureFlags, sourceConfig.FeatureFlags)
+
+	if err != nil {
+		return err
+	}
+	cfg.FeatureFlags = mergedFlags
 
 	if sourceConfig.RetryableErrors != nil {
 		cfg.RetryableErrors = append(cfg.RetryableErrors, sourceConfig.RetryableErrors...)
@@ -514,6 +524,31 @@ func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 	return m
 }
 
+// merge feature flags by name
+func mergeFeatureFlags(targetFlags []FeatureFlag, sourceFlags []FeatureFlag) []FeatureFlag {
+	keys := make([]string, 0, len(targetFlags))
+
+	flagBlocks := make(map[string]FeatureFlag)
+	for _, flags := range targetFlags {
+		flagBlocks[flags.Name] = flags
+		keys = append(keys, flags.Name)
+	}
+
+	for _, dep := range sourceFlags {
+		_, hasSameKey := flagBlocks[dep.Name]
+		if !hasSameKey {
+			keys = append(keys, dep.Name)
+		}
+		flagBlocks[dep.Name] = dep
+	}
+	var combinedFlags []FeatureFlag
+	for _, key := range keys {
+		combinedFlags = append(combinedFlags, flagBlocks[key])
+	}
+
+	return combinedFlags
+}
+
 // Merge dependency blocks shallowly. If the source list has the same name as the target, it will override the
 // dependency block in the target. Otherwise, the blocks are appended.
 func mergeDependencyBlocks(targetDependencies []Dependency, sourceDependencies []Dependency) []Dependency {
@@ -581,6 +616,38 @@ func deepMergeDependencyBlocks(targetDependencies []Dependency, sourceDependenci
 	}
 
 	return combinedDeps, nil
+}
+
+// DeepMerge feature flags.
+func deepMergeFeatureBlocks(targetFeatureFlag []FeatureFlag, sourceFeatureFlag []FeatureFlag) ([]FeatureFlag, error) {
+	var keys []string
+	featureBlocks := make(map[string]FeatureFlag)
+	for _, flag := range targetFeatureFlag {
+		featureBlocks[flag.Name] = flag
+		keys = append(keys, flag.Name)
+	}
+
+	for _, flag := range sourceFeatureFlag {
+		sameKeyDep, hasSameKey := featureBlocks[flag.Name]
+		if hasSameKey {
+			sameKeyFlagPtr := &sameKeyDep
+			if err := sameKeyFlagPtr.DeepMerge(flag); err != nil {
+				return nil, err
+			}
+
+			featureBlocks[flag.Name] = *sameKeyFlagPtr
+		} else {
+			featureBlocks[flag.Name] = flag
+			keys = append(keys, flag.Name)
+		}
+	}
+
+	var combinedFlags []FeatureFlag
+	for _, key := range keys {
+		combinedFlags = append(combinedFlags, featureBlocks[key])
+	}
+
+	return combinedFlags, nil
 }
 
 // Merge the extra arguments.

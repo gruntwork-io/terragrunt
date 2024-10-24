@@ -67,6 +67,7 @@ const (
 	MetadataRetrySleepIntervalSec       = "retry_sleep_interval_sec"
 	MetadataDependentModules            = "dependent_modules"
 	MetadataInclude                     = "include"
+	MetadataFeatureFlag                 = "feature"
 )
 
 var (
@@ -114,6 +115,7 @@ type TerragruntConfig struct {
 	RetryMaxAttempts            *int
 	RetrySleepIntervalSec       *int
 	Engine                      *EngineConfig
+	FeatureFlags                FeatureFlags
 
 	// Fields used for internal tracking
 	// Indicates whether this is the result of a partial evaluation
@@ -184,6 +186,7 @@ type terragruntConfigFile struct {
 	IamAssumeRoleSessionName *string             `hcl:"iam_assume_role_session_name,attr"`
 	IamWebIdentityToken      *string             `hcl:"iam_web_identity_token,attr"`
 	TerragruntDependencies   []Dependency        `hcl:"dependency,block"`
+	FeatureFlags             []FeatureFlag       `hcl:"feature,block"`
 
 	// We allow users to configure code generation via blocks:
 	//
@@ -836,12 +839,13 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 	}
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
-	trackInclude, locals, err := DecodeBaseBlocks(ctx, file, includeFromChild)
+	trackInclude, locals, features, err := DecodeBaseBlocks(ctx, file, includeFromChild)
 	if err != nil {
 		return nil, err
 	}
 
 	ctx = ctx.WithTrackInclude(trackInclude)
+	ctx = ctx.WithFeatures(features)
 	ctx = ctx.WithLocals(locals)
 
 	if ctx.DecodedDependencies == nil {
@@ -1140,6 +1144,11 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	if terragruntConfigFromFile.Engine != nil {
 		terragruntConfig.Engine = terragruntConfigFromFile.Engine
 		terragruntConfig.SetFieldMetadata(MetadataEngine, defaultMetadata)
+	}
+
+	terragruntConfig.FeatureFlags = terragruntConfigFromFile.FeatureFlags
+	for _, flag := range terragruntConfig.FeatureFlags {
+		terragruntConfig.SetFieldMetadataWithType(MetadataFeatureFlag, flag.Name, defaultMetadata)
 	}
 
 	generateBlocks := []terragruntGenerateBlock{}
