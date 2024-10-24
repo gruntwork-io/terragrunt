@@ -51,6 +51,10 @@ type terragruntFeatureFlags struct {
 	Remain       hcl.Body     `hcl:",remain"`
 }
 
+type ctxTerragruntFeatureFlags struct {
+	Value *cty.Value `hcl:"value,attr" cty:"value"`
+}
+
 // terragruntTerraform is a struct that can be used to only decode the terraform block
 type terragruntTerraform struct {
 	Terraform *TerraformConfig `hcl:"terraform,block"`
@@ -142,7 +146,11 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 	// build feature flags map
 	evaluatedFlags := map[string]cty.Value{}
 	for _, flag := range tgFlags.FeatureFlags {
-		evaluatedFlags[flag.Name] = *flag.Default
+		contextFlag := cty.ObjectVal(map[string]cty.Value{
+			"name":  cty.StringVal(flag.Name),
+			"value": *flag.Default,
+		})
+		evaluatedFlags[flag.Name] = contextFlag
 	}
 	flagsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedFlags)
 	if err != nil {
