@@ -146,10 +146,15 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 	// build feature flags map
 	evaluatedFlags := map[string]cty.Value{}
 	for _, flag := range tgFlags.FeatureFlags {
-		contextFlag := cty.ObjectVal(map[string]cty.Value{
-			"name":  cty.StringVal(flag.Name),
-			"value": *flag.Default,
-		})
+		// convert feature flag to cty to be accessible through feature.<name>.value
+		ctyFlag := ctyFeatureFlag{
+			Name:  flag.Name,
+			Value: *flag.Default,
+		}
+		contextFlag, err := goTypeToCty(ctyFlag)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 		evaluatedFlags[flag.Name] = contextFlag
 	}
 	flagsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedFlags)
