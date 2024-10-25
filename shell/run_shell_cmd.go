@@ -197,7 +197,6 @@ func RunShellCommandWithOutput(
 				Command:    command,
 				WorkingDir: cmd.Dir,
 			}
-
 			return errors.New(err)
 		}
 

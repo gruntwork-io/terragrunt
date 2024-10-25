@@ -2,6 +2,7 @@ package util
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/gob"
 	"io"
@@ -785,4 +786,46 @@ func FileSHA256(filePath string) ([]byte, error) {
 	}
 
 	return hash.Sum(nil), nil
+}
+
+// readerFunc is syntactic sugar for read interface.
+type readerFunc func(p []byte) (n int, err error)
+
+func (rf readerFunc) Read(p []byte) (n int, err error) { return rf(p) }
+
+// writerFunc is syntactic sugar for write interface.
+type writerFunc func(p []byte) (n int, err error)
+
+func (wf writerFunc) Write(p []byte) (n int, err error) { return wf(p) }
+
+// Copy is a io.Copy cancellable by context
+func Copy(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
+	n, err := io.Copy(
+		writerFunc(func(p []byte) (int, error) {
+			select {
+			case <-ctx.Done():
+				// context has been canceled stop process and propagate "context canceled" error
+				return 0, ctx.Err()
+			default:
+				// otherwise just run default io.Writer implementation
+				return dst.Write(p)
+			}
+		}),
+		readerFunc(func(p []byte) (int, error) {
+			select {
+			case <-ctx.Done():
+				// context has been canceled stop process and propagate "context canceled" error
+				return 0, ctx.Err()
+			default:
+				// otherwise just run default io.Reader implementation
+				return src.Read(p)
+			}
+		}),
+	)
+
+	if err != nil {
+		err = errors.New(err)
+	}
+
+	return n, err
 }
