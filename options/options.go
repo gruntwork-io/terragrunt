@@ -347,6 +347,9 @@ type TerragruntOptions struct {
 
 	// StrictControls is a slice of strict controls enabled.
 	StrictControls []string
+
+	// FeatureFlags is a map of feature flags to enable.
+	FeatureFlags map[string]string
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -459,6 +462,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
 		OutputFolder:               "",
 		JSONOutputFolder:           "",
+		FeatureFlags:               map[string]string{},
 	}
 }
 
@@ -612,6 +616,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		EngineLogLevel:                 opts.EngineLogLevel,
 		EngineSkipChecksumCheck:        opts.EngineSkipChecksumCheck,
 		Engine:                         cloneEngineOptions(opts.Engine),
+		FeatureFlags:                   opts.FeatureFlags,
 	}, nil
 }
 

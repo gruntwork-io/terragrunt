@@ -172,6 +172,9 @@ const (
 	TerragruntProviderCacheRegistryNamesFlagName = "terragrunt-provider-cache-registry-names"
 	TerragruntProviderCacheRegistryNamesEnvName  = "TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES"
 
+	TerragruntFeatureMapFlagName = "feature"
+	TerragruntFeatureMapEnvName  = "TERRAGRUNT_feature"
+
 	// Engine related environment variables.
 
 	TerragruntEngineEnableEnvName = "TG_EXPERIMENTAL_ENGINE"
@@ -523,6 +526,13 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.AuthProviderCmd,
 			EnvVar:      TerragruntAuthProviderCmdEnvName,
 			Usage:       "The command and arguments that can be used to fetch authentication configurations.",
+		},
+		&cli.MapFlag[string, string]{
+			Name:        TerragruntFeatureMapFlagName,
+			EnvVar:      TerragruntFeatureMapEnvName,
+			Destination: &opts.FeatureFlags,
+			Usage:       "Feature flags for Terragrunt IaC.",
+			Splitter:    util.SplitUrls,
 		},
 		// Terragrunt engine flags
 		&cli.BoolFlag{
