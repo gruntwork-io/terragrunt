@@ -107,8 +107,8 @@ var StrictControls = Controls{
 		Warning: "The `validate-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all validate` instead.",
 	},
 	SkipDependenciesInputs: {
-		Error:   errors.New("The `skip-dependencies-inputs` option is deprecated. Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. To continue using inputs from dependencies, forward them as outputs."),
-		Warning: "The `skip-dependencies-inputs` option is deprecated and will be removed in a future version of Terragrunt. Reading inputs from dependencies has been deprecated. To continue using inputs from dependencies, forward them as outputs.",
+		Error:   errors.New(fmt.Sprintf("The `%s` option is deprecated. Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs)),
+		Warning: fmt.Sprintf("The `%s` option is deprecated and will be removed in a future version of Terragrunt. Reading inputs from dependencies has been deprecated. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs),
 	},
 }
 
