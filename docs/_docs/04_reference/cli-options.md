@@ -1008,6 +1008,9 @@ excluded during execution of the commands. If a relative path is specified, it s
 [--terragrunt-working-dir](#terragrunt-working-dir). Flag can be specified multiple times. This will only exclude the
 module, not its dependencies.
 
+Please note that the glob curly braces expansion is not taken in account using environment variable unlike of its equivalent as a parameter on the command line.
+You should consider using `TERRAGRUNT_EXCLUDE_DIR="foo/module,bar/module"` instead of `TERRAGRUNT_EXCLUDE_DIR="{foo,bar}/module"`.
+
 ### terragrunt-include-dir
 
 **CLI Arg**: `--terragrunt-include-dir`<br/>
@@ -1019,6 +1022,9 @@ Can be supplied multiple times: `--terragrunt-include-dir /path/to/dirs/to/inclu
 Unix-style glob of directories to include when running `*-all` commands. Only modules under these directories (and all
 dependent modules) will be included during execution of the commands. If a relative path is specified, it should be
 relative from `--terragrunt-working-dir`. Flag can be specified multiple times.
+
+Please note that the glob curly braces expansion is not taken in account using environment variable unlike of its equivalent as a parameter on the command line.
+You should consider using `TERRAGRUNT_INCLUDE_DIR="foo/module,bar/module"` instead of `TERRAGRUNT_INCLUDE_DIR="{foo,bar}/module"`.
 
 ### terragrunt-strict-include
 
