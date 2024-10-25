@@ -40,7 +40,7 @@ func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) (err error) {
 
 	defer func() {
 		if closeErr := pseudoTerminal.Close(); closeErr != nil {
-			closeErr = errors.Errorf("Error closing pty: w", closeErr)
+			closeErr = errors.Errorf("Error closing pty: %w", closeErr)
 
 			// Only overwrite the previous error if there was no error since this error has lower priority than any
 			// errors in the main routine
@@ -89,6 +89,7 @@ func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) (err error) {
 	}()
 
 	ctx := context.Background()
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -117,7 +118,7 @@ func runCommandWithPTY(logger log.Logger, cmd *exec.Cmd) (err error) {
 	})
 
 	if err := errGroup.Wait(); err != nil && !errors.IsError(err, io.EOF) && !errors.IsContextCanceled(err) {
-		return err
+		return errors.New(err)
 	}
 
 	return nil

@@ -789,36 +789,36 @@ func FileSHA256(filePath string) ([]byte, error) {
 }
 
 // readerFunc is syntactic sugar for read interface.
-type readerFunc func(p []byte) (n int, err error)
+type readerFunc func(data []byte) (int, error)
 
-func (rf readerFunc) Read(p []byte) (n int, err error) { return rf(p) }
+func (rf readerFunc) Read(data []byte) (int, error) { return rf(data) }
 
 // writerFunc is syntactic sugar for write interface.
-type writerFunc func(p []byte) (n int, err error)
+type writerFunc func(data []byte) (int, error)
 
-func (wf writerFunc) Write(p []byte) (n int, err error) { return wf(p) }
+func (wf writerFunc) Write(data []byte) (int, error) { return wf(data) }
 
-// Copy is a io.Copy cancellable by context
+// Copy is a io.Copy cancellable by context.
 func Copy(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
-	n, err := io.Copy(
-		writerFunc(func(p []byte) (int, error) {
+	num, err := io.Copy(
+		writerFunc(func(data []byte) (int, error) {
 			select {
 			case <-ctx.Done():
-				// context has been canceled stop process and propagate "context canceled" error
+				// context has been canceled stop process and propagate "context canceled" error.
 				return 0, ctx.Err()
 			default:
-				// otherwise just run default io.Writer implementation
-				return dst.Write(p)
+				// otherwise just run default io.Writer implementation.
+				return dst.Write(data)
 			}
 		}),
-		readerFunc(func(p []byte) (int, error) {
+		readerFunc(func(data []byte) (int, error) {
 			select {
 			case <-ctx.Done():
-				// context has been canceled stop process and propagate "context canceled" error
+				// context has been canceled stop process and propagate "context canceled" error.
 				return 0, ctx.Err()
 			default:
-				// otherwise just run default io.Reader implementation
-				return src.Read(p)
+				// otherwise just run default io.Reader implementation.
+				return src.Read(data)
 			}
 		}),
 	)
@@ -827,5 +827,5 @@ func Copy(ctx context.Context, dst io.Writer, src io.Reader) (int64, error) {
 		err = errors.New(err)
 	}
 
-	return n, err
+	return num, err
 }
