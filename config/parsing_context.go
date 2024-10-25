@@ -21,9 +21,10 @@ type ParsingContext struct {
 	// TrackInclude represents contexts of included configurations.
 	TrackInclude *TrackInclude
 
-	// Locals are preevaluated variable bindings that can be used by reference in the code.
+	// Locals are pre-evaluated variable bindings that can be used by reference in the code.
 	Locals *cty.Value
 
+	// Features are the feature flags that are enabled for the current terragrunt config.
 	Features *cty.Value
 
 	// DecodedDependencies are references of other terragrunt config. This contains the following attributes that map to
