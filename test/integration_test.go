@@ -103,6 +103,7 @@ const (
 	testFixtureTfTest                         = "fixtures/tftest/"
 	testFixtureErrorPrint                     = "fixtures/error-print"
 	testFixtureBufferModuleOutput             = "fixtures/buffer-module-output"
+	testFixtureDependenciesOptimisation       = "fixtures/dependency-optimisation"
 
 	terraformFolder = ".terraform"
 
@@ -2680,6 +2681,24 @@ func TestLogFailingDependencies(t *testing.T) {
 
 	output := stderr.String()
 	assert.Contains(t, output, fmt.Sprintf("%s invocation failed in %s", wrappedBinary(), getPathRelativeTo(t, testdataDir, path)))
+}
+
+func TestDependenciesOptimisation(t *testing.T) {
+	tmpEnvPath := copyEnvironment(t, testFixtureDependenciesOptimisation)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureDependenciesOptimisation)
+
+	_, _, err := runTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	config.ClearOutputCache()
+
+	moduleC := util.JoinPath(tmpEnvPath, testFixtureDependenciesOptimisation, "module-c")
+	t.Setenv("TERRAGRUNT_STRICT_CONTROL", "skip-dependencies-inputs")
+	_, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+moduleC)
+	require.NoError(t, err)
+
+	// checking that dependencies optimisation is working and outputs from module-a are not retrieved
+	assert.NotContains(t, stderr, "Retrieved output from ../module-a/terragrunt.hcl")
 }
 
 func cleanupTerraformFolder(t *testing.T, templatesPath string) {
