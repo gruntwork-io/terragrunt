@@ -122,14 +122,17 @@ func (module *TerraformModule) outputFile(opts *options.TerragruntOptions) strin
 
 	path, _ := filepath.Rel(opts.WorkingDir, module.Path)
 	dir := filepath.Join(opts.OutputFolder, path)
+
 	if !filepath.IsAbs(dir) {
 		dir = filepath.Join(opts.WorkingDir, dir)
 	}
+
 	if absDir, err := filepath.Abs(dir); err == nil {
 		dir = absDir
 	} else {
 		opts.Logger.Warnf("Failed to get absolute path for %s: %v", dir, err)
 	}
+
 	planFile = filepath.Join(dir, terraform.TerraformPlanFile)
 
 	return planFile
@@ -145,14 +148,17 @@ func (module *TerraformModule) outputJSONFile(opts *options.TerragruntOptions) s
 
 	path, _ := filepath.Rel(opts.WorkingDir, module.Path)
 	dir := filepath.Join(opts.JSONOutputFolder, path)
+
 	if !filepath.IsAbs(dir) {
 		dir = filepath.Join(opts.WorkingDir, dir)
 	}
+
 	if absDir, err := filepath.Abs(dir); err == nil {
 		dir = absDir
 	} else {
 		opts.Logger.Warnf("Failed to get absolute path for %s: %v", dir, err)
 	}
+
 	jsonPlanFile = filepath.Join(dir, terraform.TerraformPlanJSONFile)
 
 	return jsonPlanFile
