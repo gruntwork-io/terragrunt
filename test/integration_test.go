@@ -3707,9 +3707,9 @@ func TestStorePlanFilesJsonRelativePath(t *testing.T) {
 
 	// verify that json files are create
 	jsonDir := util.JoinPath(testPath, "json")
-	listJson, err := findFilesWithExtension(jsonDir, ".json")
+	listJSON, err := findFilesWithExtension(jsonDir, ".json")
 	require.NoError(t, err)
-	assert.Len(t, listJson, 2)
+	assert.Len(t, listJSON, 2)
 }
 
 func TestPlanJsonFilesRunAll(t *testing.T) {
