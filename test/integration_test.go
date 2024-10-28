@@ -3663,6 +3663,55 @@ func TestStorePlanFilesRunAllPlanApply(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestStorePlanFilesRunAllPlanApplyRelativePath(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, testFixtureOutDir)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
+
+	// run plan with output directory
+	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir %s", testPath, "test"))
+	require.NoError(t, err)
+
+	outDir := util.JoinPath(testPath, "test")
+
+	// verify that tfplan files are created in the tmpDir, 2 files
+	list, err := findFilesWithExtension(outDir, ".tfplan")
+	require.NoError(t, err)
+	assert.Len(t, list, 2)
+	for _, file := range list {
+		assert.Equal(t, "tfplan.tfplan", filepath.Base(file))
+	}
+
+	_, _, err = runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir test", testPath))
+	require.NoError(t, err)
+}
+
+func TestStorePlanFilesJsonRelativePath(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := copyEnvironment(t, testFixtureOutDir)
+	cleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
+
+	// run plan with output directory
+	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s --terragrunt-out-dir test --terragrunt-json-out-dir json", testPath))
+	require.NoError(t, err)
+
+	// verify that tfplan files are created in the tmpDir, 2 files
+	outDir := util.JoinPath(testPath, "test")
+	list, err := findFilesWithExtension(outDir, ".tfplan")
+	require.NoError(t, err)
+	assert.Len(t, list, 2)
+
+	// verify that json files are create
+	jsonDir := util.JoinPath(testPath, "json")
+	listJson, err := findFilesWithExtension(jsonDir, ".json")
+	require.NoError(t, err)
+	assert.Len(t, listJson, 2)
+}
+
 func TestPlanJsonFilesRunAll(t *testing.T) {
 	t.Parallel()
 
