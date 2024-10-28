@@ -8,9 +8,10 @@
 package strict
 
 import (
-	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -40,6 +41,9 @@ const (
 	OutputAll = "output-all"
 	// ValidateAll is the control that prevents the deprecated `validate-all` command from being used.
 	ValidateAll = "validate-all"
+
+	// SkipDependenciesInputs is the control that prevents reading dependencies inputs and get performance boost.
+	SkipDependenciesInputs = "skip-dependencies-inputs"
 )
 
 // GetStrictControl returns the strict control with the given name.
@@ -76,32 +80,36 @@ type Controls map[string]Control
 //nolint:lll,gochecknoglobals,stylecheck
 var StrictControls = Controls{
 	SpinUp: {
-		Error:   errors.New("The `spin-up` command is no longer supported. Use `terragrunt run-all apply` instead."),
-		Warning: "The `spin-up` command is deprecated and will be removed in a future version. Use `terragrunt run-all apply` instead.",
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all apply` instead.", SpinUp),
+		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all apply` instead.", SpinUp),
 	},
 	TearDown: {
-		Error:   errors.New("The `tear-down` command is no longer supported. Use `terragrunt run-all destroy` instead."),
-		Warning: "The `tear-down` command is deprecated and will be removed in a future version. Use `terragrunt run-all destroy` instead.",
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all destroy` instead.", TearDown),
+		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all destroy` instead.", TearDown),
 	},
 	PlanAll: {
-		Error:   errors.New("The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead."),
-		Warning: "The `plan-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all plan` instead.",
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all plan` instead.", PlanAll),
+		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all plan` instead.", PlanAll),
 	},
 	ApplyAll: {
-		Error:   errors.New("The `apply-all` command is no longer supported. Use `terragrunt run-all apply` instead."),
-		Warning: "The `apply-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all apply` instead.",
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all apply` instead.", ApplyAll),
+		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all apply` instead.", ApplyAll),
 	},
 	DestroyAll: {
-		Error:   errors.New("The `destroy-all` command is no longer supported. Use `terragrunt run-all destroy` instead."),
-		Warning: "The `destroy-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all destroy` instead.",
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all destroy` instead.", DestroyAll),
+		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all destroy` instead.", DestroyAll),
 	},
 	OutputAll: {
-		Error:   errors.New("The `output-all` command is no longer supported. Use `terragrunt run-all output` instead."),
-		Warning: "The `output-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all output` instead.",
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all output` instead.", OutputAll),
+		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all output` instead.", OutputAll),
 	},
 	ValidateAll: {
-		Error:   errors.New("The `validate-all` command is no longer supported. Use `terragrunt run-all validate` instead."),
-		Warning: "The `validate-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all validate` instead.",
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all validate` instead.", ValidateAll),
+		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all validate` instead.", ValidateAll),
+	},
+	SkipDependenciesInputs: {
+		Error:   errors.Errorf("The `%s` option is deprecated. Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs),
+		Warning: fmt.Sprintf("The `%s` option is deprecated and will be removed in a future version of Terragrunt. Reading inputs from dependencies has been deprecated. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs),
 	},
 }
 

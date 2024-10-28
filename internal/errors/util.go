@@ -82,9 +82,7 @@ func UnwrapMultiErrors(err error) []error {
 				errs = append(errs[:index], errs[index+1:]...)
 				index--
 
-				for _, err := range err.Unwrap() {
-					errs = append(errs, New(err))
-				}
+				errs = append(errs, err.Unwrap()...)
 
 				break
 			}
