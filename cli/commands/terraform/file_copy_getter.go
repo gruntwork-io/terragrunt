@@ -4,7 +4,7 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-getter"
@@ -50,7 +50,7 @@ func (g *FileCopyGetter) Get(dst string, u *url.URL) error {
 func (g *FileCopyGetter) GetFile(dst string, u *url.URL) error {
 	underlying := &getter.FileGetter{Copy: true}
 	if err := underlying.GetFile(dst, u); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	return nil

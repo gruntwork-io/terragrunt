@@ -4,7 +4,7 @@ package test_test
 
 import (
 	"context"
-	goErrors "errors"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -166,20 +166,15 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 	remoteStateConfig := remote.RemoteStateConfigGCS{Bucket: bucketName}
 
 	gcsClient, err := remote.CreateGCSClient(remoteStateConfig)
-	if err != nil {
-		t.Fatalf("Error creating GCS client: %v", err)
-	}
+	require.NoError(t, err, "Error creating GCS client")
 
 	// verify the bucket exists
 	assert.True(t, remote.DoesGCSBucketExist(gcsClient, &remoteStateConfig), "Terragrunt failed to create remote state GCS bucket %s", bucketName)
 
 	// verify the bucket location
-	ctx := context.Background()
 	bucket := gcsClient.Bucket(bucketName)
-	attrs, err := bucket.Attrs(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	attrs, err := bucket.Attrs(context.Background())
+	require.NoError(t, err)
 
 	assert.Equal(t, strings.ToUpper(location), attrs.Location, "Did not find GCS bucket in expected location.")
 
@@ -278,7 +273,7 @@ func deleteGCSBucket(t *testing.T, bucketName string) {
 	for {
 		objectAttrs, err := it.Next()
 
-		if goErrors.Is(err, iterator.Done) {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 

@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"golang.org/x/exp/maps"
@@ -50,13 +50,13 @@ func (provider *Provider) GetCredentials(ctx context.Context) (*providers.Creden
 		return nil, err
 	}
 
-	if output.Stdout == "" {
+	if output.Stdout.String() == "" {
 		return nil, errors.Errorf("command %s completed successfully, but the response does not contain JSON string", command)
 	}
 
 	resp := &Response{Envs: make(map[string]string)}
 
-	if err := json.Unmarshal([]byte(output.Stdout), &resp); err != nil {
+	if err := json.Unmarshal(output.Stdout.Bytes(), &resp); err != nil {
 		return nil, errors.Errorf("command %s returned a response with invalid JSON format", command)
 	}
 

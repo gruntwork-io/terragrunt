@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds"
@@ -22,8 +23,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -35,6 +36,7 @@ type Stack struct {
 	terragruntOptions     *options.TerragruntOptions
 	childTerragruntConfig *config.TerragruntConfig
 	Modules               TerraformModules
+	outputMu              sync.Mutex
 }
 
 // FindStackInSubfolders finds all the Terraform modules in the subfolders of the working directory of the given TerragruntOptions and
@@ -78,7 +80,7 @@ func NewStack(terragruntOptions *options.TerragruntOptions, opts ...Option) *Sta
 
 func (stack *Stack) WithOptions(opts ...Option) *Stack {
 	for _, opt := range opts {
-		*stack = opt(*stack)
+		opt(stack)
 	}
 
 	return stack
@@ -126,7 +128,7 @@ func (stack *Stack) LogModuleDeployOrder(logger log.Logger, terraformCommand str
 func (stack *Stack) JSONModuleDeployOrder(terraformCommand string) (string, error) {
 	runGraph, err := stack.GetModuleRunGraph(terraformCommand)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	// Convert the module paths to a string array for JSON marshalling
@@ -144,7 +146,7 @@ func (stack *Stack) JSONModuleDeployOrder(terraformCommand string) (string, erro
 
 	j, err := json.MarshalIndent(jsonGraph, "", "  ")
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	return string(j), nil
@@ -203,6 +205,7 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 		for n, module := range stack.Modules {
 			module.TerragruntOptions.ErrWriter = io.MultiWriter(&errorStreams[n], module.TerragruntOptions.ErrWriter)
 		}
+
 		defer stack.summarizePlanAllErrors(terragruntOptions, errorStreams)
 	}
 
@@ -296,12 +299,12 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
 		if len(terragruntConfigPaths) == 0 {
-			return errors.WithStackTrace(ErrNoTerraformModulesFound)
+			return errors.New(ErrNoTerraformModulesFound)
 		}
 
 		modules, err := stack.ResolveTerraformModules(ctx, terragruntConfigPaths)
 		if err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 
 		stack.Modules = modules
@@ -309,21 +312,21 @@ func (stack *Stack) createStackForTerragruntConfigPaths(ctx context.Context, ter
 		return nil
 	})
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "check_for_cycles", map[string]interface{}{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
 		if err := stack.Modules.CheckForCycles(); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 
 		return nil
 	})
 
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	return nil
@@ -574,7 +577,11 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 		includeConfig,
 	)
 	if err != nil {
-		return nil, errors.WithStackTrace(ProcessingModuleError{UnderlyingError: err, HowThisModuleWasFound: howThisModuleWasFound, ModulePath: terragruntConfigPath})
+		return nil, errors.New(ProcessingModuleError{
+			UnderlyingError:       err,
+			HowThisModuleWasFound: howThisModuleWasFound,
+			ModulePath:            terragruntConfigPath,
+		})
 	}
 
 	terragruntSource, err := config.GetTerragruntSourceForModule(stack.terragruntOptions.Source, modulePath, terragruntConfig)
@@ -612,7 +619,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 		return nil, nil
 	}
 
-	return &TerraformModule{Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
+	return &TerraformModule{Stack: stack, Path: modulePath, Config: *terragruntConfig, TerragruntOptions: opts}, nil
 }
 
 // resolveDependenciesForModule looks through the dependencies of the given module and resolve the dependency paths listed in the module's config.
@@ -671,7 +678,7 @@ func (stack *Stack) resolveExternalDependenciesForModules(ctx context.Context, m
 
 	// Simple protection from circular dependencies causing a Stack Overflow due to infinite recursion
 	if recursionLevel > maxLevelsOfRecursion {
-		return allExternalDependencies, errors.WithStackTrace(InfiniteRecursionError{RecursionLevel: maxLevelsOfRecursion, Modules: modulesToSkip})
+		return allExternalDependencies, errors.New(InfiniteRecursionError{RecursionLevel: maxLevelsOfRecursion, Modules: modulesToSkip})
 	}
 
 	sortedKeys := modulesMap.getSortedKeys()

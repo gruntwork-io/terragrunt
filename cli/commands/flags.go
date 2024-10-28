@@ -2,11 +2,11 @@
 package commands
 
 import (
-	goErrors "errors"
 	"fmt"
 
 	"github.com/gruntwork-io/go-commons/collections"
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -143,6 +143,14 @@ const (
 
 	TerragruntForwardTFStdoutFlagName = "terragrunt-forward-tf-stdout"
 	TerragruntForwardTFStdoutEnvName  = "TERRAGRUNT_FORWARD_TF_STDOUT"
+
+	// Strict Mode related flags/envs
+
+	TerragruntStrictModeFlagName = "strict-mode"
+	TerragruntStrictModeEnvName  = "TERRAGRUNT_STRICT_MODE"
+
+	TerragruntStrictControlFlagName = "strict-control"
+	TerragruntStrictControlEnvName  = "TERRAGRUNT_STRICT_CONTROL"
 
 	// Terragrunt Provider Cache related flags/envs
 
@@ -457,6 +465,22 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.DisableCommandValidation,
 			Usage:       "When this flag is set, Terragrunt will not validate the terraform command.",
 		},
+		// Strict Mode flags
+		&cli.BoolFlag{
+			Name:        TerragruntStrictModeFlagName,
+			EnvVar:      TerragruntStrictModeEnvName,
+			Destination: &opts.StrictMode,
+			Usage:       "Enables strict mode for Terragrunt. For more information, see https://terragrunt.gruntwork.io/docs/reference/strict-mode .",
+		},
+		&cli.SliceFlag[string]{
+			Name:        TerragruntStrictControlFlagName,
+			EnvVar:      TerragruntStrictControlEnvName,
+			Destination: &opts.StrictControls,
+			Usage:       "Enables specific strict controls. For a list of available controls, see https://terragrunt.gruntwork.io/docs/reference/strict-mode .",
+			Action: func(ctx *cli.Context, val []string) error {
+				return strict.StrictControls.ValidateControlNames(val)
+			},
+		},
 		// Terragrunt Provider Cache flags
 		&cli.BoolFlag{
 			Name:        TerragruntProviderCacheFlagName,
@@ -561,7 +585,7 @@ func NewHelpFlag(opts *options.TerragruntOptions) cli.Flag {
 
 				// If the command name is not found, it is most likely a terraform command, show Terraform help.
 				var invalidCommandNameError cli.InvalidCommandNameError
-				if ok := goErrors.As(err, &invalidCommandNameError); ok {
+				if ok := errors.As(err, &invalidCommandNameError); ok {
 					terraformHelpCmd := append([]string{cmdName, "-help"}, ctx.Args().Tail()...)
 					return shell.RunTerraformCommand(ctx, opts, terraformHelpCmd...)
 				}

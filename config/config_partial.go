@@ -1,10 +1,11 @@
 package config
 
 import (
-	goErrors "errors"
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 
 	clone "github.com/huandu/go-clone"
 
@@ -13,8 +14,8 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -323,7 +324,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			}
 
 			if decoded.Skip != nil {
-				output.Skip = *decoded.Skip
+				output.Skip = decoded.Skip
 			}
 
 			if decoded.IamRole != nil {
@@ -334,6 +335,16 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				output.IamWebIdentityToken = *decoded.IamWebIdentityToken
 			}
 		case TerragruntInputs:
+			control, ok := strict.GetStrictControl(strict.SkipDependenciesInputs)
+			if ok {
+				_, skipInputs := control.Evaluate(ctx.TerragruntOptions)
+				if skipInputs != nil {
+					ctx.TerragruntOptions.Logger.Warnf("Skipping inputs reading from %v inputs for better performance", file.ConfigPath)
+
+					break
+				}
+			}
+
 			decoded := terragruntInputs{}
 
 			if _, ok := evalParsingContext.Variables[MetadataDependency]; !ok {
@@ -348,7 +359,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 			if err := file.Decode(&decoded, evalParsingContext); err != nil {
 				var diagErr hcl.Diagnostics
-				ok := goErrors.As(err, &diagErr)
+				ok := errors.As(err, &diagErr)
 
 				// in case of render-json command and inputs reference error, we update the inputs with default value
 				if !ok || !isRenderJSONCommand(ctx) || !isAttributeAccessError(diagErr) {
@@ -426,7 +437,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 func partialParseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
-		return nil, errors.WithStackTrace(IncludedConfigMissingPathError(ctx.TerragruntOptions.TerragruntConfigPath))
+		return nil, errors.New(IncludedConfigMissingPathError(ctx.TerragruntOptions.TerragruntConfigPath))
 	}
 
 	includePath := includedConfig.Path

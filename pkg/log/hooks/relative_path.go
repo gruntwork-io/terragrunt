@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/sirupsen/logrus"
@@ -47,7 +47,7 @@ func NewRelativePathHook(baseDir string) (*RelativePathHook, error) {
 
 		relPath, err := filepath.Rel(baseDir, absPath)
 		if err != nil {
-			return nil, errors.WithStackTrace(err)
+			return nil, errors.New(err)
 		}
 
 		reversIndex--

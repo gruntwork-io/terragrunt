@@ -2,7 +2,6 @@ package config
 
 import (
 	"encoding/json"
-	goErrors "errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -10,11 +9,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 
+	"dario.cat/mergo"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
-	"github.com/imdario/mergo"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -26,7 +25,7 @@ var fieldsCopyLocks = util.NewKeyLocks()
 // Parse the config of the given include, if one is specified
 func parseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
 	if includedConfig.Path == "" {
-		return nil, errors.WithStackTrace(IncludedConfigMissingPathError(ctx.TerragruntOptions.TerragruntConfigPath))
+		return nil, errors.New(IncludedConfigMissingPathError(ctx.TerragruntOptions.TerragruntConfigPath))
 	}
 
 	includePath := includedConfig.Path
@@ -100,7 +99,7 @@ func parseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*T
 // user.
 func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool) (*TerragruntConfig, error) {
 	if ctx.TrackInclude == nil {
-		return nil, goErrors.New("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_NIL_INCLUDE_CONFIG")
+		return nil, errors.New("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message.Code: HANDLE_INCLUDE_NIL_INCLUDE_CONFIG")
 	}
 
 	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
@@ -166,7 +165,7 @@ func handleInclude(ctx *ParsingContext, config *TerragruntConfig, isPartial bool
 // child.
 func handleIncludeForDependency(ctx *ParsingContext, childDecodedDependency TerragruntDependency) (*TerragruntDependency, error) {
 	if ctx.TrackInclude == nil {
-		return nil, goErrors.New("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_DEPENDENCY_NIL_INCLUDE_CONFIG")
+		return nil, errors.New("you reached an impossible condition. This is most likely a bug in terragrunt. Please open an issue at github.com/gruntwork-io/terragrunt with this error message. Code: HANDLE_INCLUDE_DEPENDENCY_NIL_INCLUDE_CONFIG")
 	}
 	// We merge in the include blocks in reverse order here. The expectation is that the bottom most elements override
 	// those in earlier includes, so we need to merge bottom up instead of top down to ensure this.
@@ -263,8 +262,9 @@ func (cfg *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terragruntOpt
 		cfg.Engine = sourceConfig.Engine.Clone()
 	}
 
-	// Skip has to be set specifically in each file that should be skipped
-	cfg.Skip = sourceConfig.Skip
+	if sourceConfig.Skip != nil {
+		cfg.Skip = sourceConfig.Skip
+	}
 
 	if sourceConfig.RemoteState != nil {
 		cfg.RemoteState = sourceConfig.RemoteState
@@ -388,8 +388,9 @@ func (cfg *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, terragrun
 		cfg.Engine.Merge(sourceConfig.Engine)
 	}
 
-	// Skip has to be set specifically in each file that should be skipped
-	cfg.Skip = sourceConfig.Skip
+	if sourceConfig.Skip != nil {
+		cfg.Skip = sourceConfig.Skip
+	}
 
 	// Copy only dependencies which doesn't exist in source
 	if sourceConfig.Dependencies != nil {
@@ -634,7 +635,7 @@ func deepMergeInputs(childInputs map[string]interface{}, parentInputs map[string
 
 	err := mergo.Merge(&out, childInputs, mergo.WithAppendSlice, mergo.WithOverride)
 
-	return out, errors.WithStackTrace(err)
+	return out, errors.New(err)
 }
 
 // Merge the hooks (before_hook and after_hook).
@@ -705,7 +706,7 @@ func getTrackInclude(ctx *ParsingContext, terragruntIncludeList IncludeConfigs, 
 	case hasInclude && includeFromChild != nil:
 		// tgInc appears in a parent that is already included, which means a nested include block. This is not
 		// something we currently support.
-		err := errors.WithStackTrace(TooManyLevelsOfInheritanceError{
+		err := errors.New(TooManyLevelsOfInheritanceError{
 			ConfigPath:             ctx.TerragruntOptions.TerragruntConfigPath,
 			FirstLevelIncludePath:  includeFromChild.Path,
 			SecondLevelIncludePath: strings.Join(includedPaths, ","),
@@ -752,13 +753,13 @@ func updateBareIncludeBlock(file *hclparse.File) error {
 	default:
 		hclFile, diags := hclwrite.ParseConfig(file.Bytes, file.ConfigPath, hcl.InitialPos)
 		if diags.HasErrors() {
-			return errors.WithStackTrace(diags)
+			return errors.New(diags)
 		}
 
 		for _, block := range hclFile.Body().Blocks() {
 			if block.Type() == MetadataInclude && len(block.Labels()) == 0 {
 				if codeWasUpdated {
-					return errors.WithStackTrace(MultipleBareIncludeBlocksErr{})
+					return errors.New(MultipleBareIncludeBlocksErr{})
 				}
 
 				block.SetLabels([]string{bareIncludeKey})
@@ -824,7 +825,7 @@ func updateBareIncludeBlock(file *hclparse.File) error {
 func updateBareIncludeBlockJSON(fileBytes []byte) ([]byte, bool, error) {
 	var parsed map[string]interface{}
 	if err := json.Unmarshal(fileBytes, &parsed); err != nil {
-		return nil, false, errors.WithStackTrace(err)
+		return nil, false, errors.New(err)
 	}
 
 	includeBlock, hasKey := parsed[MetadataInclude]
@@ -842,7 +843,7 @@ func updateBareIncludeBlockJSON(fileBytes []byte) ([]byte, bool, error) {
 			// Could be multiple bare includes, or Case 3. We simplify the handling of this case by erroring out,
 			// ignoring the possibility of Case 3, which, while valid HCL encoding, is too complex to detect and handle
 			// here. Instead we will recommend users use the object encoding.
-			return nil, false, errors.WithStackTrace(MultipleBareIncludeBlocksErr{})
+			return nil, false, errors.New(MultipleBareIncludeBlocksErr{})
 		}
 
 		// Make sure this is Case 2, and not Case 3 with a single labeled block. If Case 2, update to inject the labeled
@@ -868,7 +869,7 @@ func updateBareIncludeBlockJSON(fileBytes []byte) ([]byte, bool, error) {
 		return nil, false, nil
 	}
 
-	return nil, false, errors.WithStackTrace(IncludeIsNotABlockErr{parsed: includeBlock})
+	return nil, false, errors.New(IncludeIsNotABlockErr{parsed: includeBlock})
 }
 
 // updateSingleBareIncludeInParsedJSON replaces the include attribute into a block with the label "" in the json. Note that we
@@ -878,7 +879,7 @@ func updateSingleBareIncludeInParsedJSON(parsed map[string]interface{}, newVal i
 	parsed[MetadataInclude] = map[string]interface{}{bareIncludeKey: newVal}
 	updatedBytes, err := json.Marshal(parsed)
 
-	return updatedBytes, true, errors.WithStackTrace(err)
+	return updatedBytes, true, errors.New(err)
 }
 
 // jsonIsIncludeBlock checks if the arbitrary json data is the include block. The data is determined to be an include

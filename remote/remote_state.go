@@ -3,15 +3,14 @@ package remote
 
 import (
 	"context"
-	goErrors "errors"
 	"fmt"
 	"reflect"
 	"sync"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -82,7 +81,7 @@ func (state *RemoteState) FillDefaults() {
 // Validate that the remote state is configured correctly
 func (state *RemoteState) Validate() error {
 	if state.Backend == "" {
-		return errors.WithStackTrace(ErrRemoteBackendMissing)
+		return errors.New(ErrRemoteBackendMissing)
 	}
 
 	return nil
@@ -226,7 +225,7 @@ func (state RemoteState) ToTerraformInitArgs() []string {
 // GenerateTerraformCode generates the terraform code for configuring remote state backend.
 func (state *RemoteState) GenerateTerraformCode(terragruntOptions *options.TerragruntOptions) error {
 	if state.Generate == nil {
-		return errors.WithStackTrace(ErrGenerateCalledWithNoGenerateAttr)
+		return errors.New(ErrGenerateCalledWithNoGenerateAttr)
 	}
 
 	// Make sure to strip out terragrunt specific configurations from the config.
@@ -261,8 +260,8 @@ func (state *RemoteState) GenerateTerraformCode(terragruntOptions *options.Terra
 
 // Custom errors
 var (
-	ErrRemoteBackendMissing             = goErrors.New("the remote_state.backend field cannot be empty")
-	ErrGenerateCalledWithNoGenerateAttr = goErrors.New("generate code routine called when no generate attribute is configured")
+	ErrRemoteBackendMissing             = errors.New("the remote_state.backend field cannot be empty")
+	ErrGenerateCalledWithNoGenerateAttr = errors.New("generate code routine called when no generate attribute is configured")
 )
 
 type BucketCreationNotAllowed string

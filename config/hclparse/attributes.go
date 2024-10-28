@@ -1,7 +1,7 @@
 package hclparse
 
 import (
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
@@ -66,7 +66,7 @@ func (attr *Attribute) ValidateIdentifier() error {
 		}}
 
 		if err := attr.HandleDiagnostics(diags); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 	}
 
@@ -77,7 +77,7 @@ func (attr *Attribute) Value(evalCtx *hcl.EvalContext) (cty.Value, error) {
 	evaluatedVal, diags := attr.Expr.Value(evalCtx)
 
 	if err := attr.HandleDiagnostics(diags); err != nil {
-		return evaluatedVal, errors.WithStackTrace(err)
+		return evaluatedVal, errors.New(err)
 	}
 
 	return evaluatedVal, nil

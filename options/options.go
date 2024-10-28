@@ -3,7 +3,6 @@ package options
 
 import (
 	"context"
-	goErrors "errors"
 	"fmt"
 	"io"
 	"math"
@@ -11,7 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -345,6 +344,12 @@ type TerragruntOptions struct {
 
 	// Options to use engine for running IaC operations.
 	Engine *EngineOptions
+
+	// StrictMode is a flag to enable strict mode for terragrunt.
+	StrictMode bool
+
+	// StrictControls is a slice of strict controls enabled.
+	StrictControls []string
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -452,7 +457,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		TerraformLogsToJSON:            false,
 		JSONDisableDependentModules:    false,
 		RunTerragrunt: func(ctx context.Context, opts *TerragruntOptions) error {
-			return errors.WithStackTrace(ErrRunTerragruntCommandNotSet)
+			return errors.New(ErrRunTerragruntCommandNotSet)
 		},
 		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
 		OutputFolder:               "",
@@ -466,7 +471,7 @@ func NewTerragruntOptionsWithConfigPath(terragruntConfigPath string) (*Terragrun
 
 	workingDir, downloadDir, err := DefaultWorkingAndDownloadDirs(terragruntConfigPath)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	opts.WorkingDir = workingDir
@@ -483,7 +488,7 @@ func DefaultWorkingAndDownloadDirs(terragruntConfigPath string) (string, string,
 
 	downloadDir, err := filepath.Abs(filepath.Join(workingDir, util.TerragruntCacheDir))
 	if err != nil {
-		return "", "", errors.WithStackTrace(err)
+		return "", "", errors.New(err)
 	}
 
 	return filepath.ToSlash(workingDir), filepath.ToSlash(downloadDir), nil
@@ -498,7 +503,7 @@ func GetDefaultIAMAssumeRoleSessionName() string {
 func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...TerragruntOptionsFunc) (*TerragruntOptions, error) {
 	opts, err := NewTerragruntOptionsWithConfigPath(terragruntConfigPath)
 	if err != nil {
-		log.WithOptions(log.WithLevel(log.DebugLevel)).Errorf("%v\n", errors.WithStackTrace(err))
+		log.WithOptions(log.WithLevel(log.DebugLevel)).Errorf("%v\n", errors.New(err))
 
 		return nil, err
 	}
@@ -611,6 +616,8 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		EngineLogLevel:                 opts.EngineLogLevel,
 		EngineSkipChecksumCheck:        opts.EngineSkipChecksumCheck,
 		Engine:                         cloneEngineOptions(opts.Engine),
+		// copy array
+		StrictControls: util.CloneStringList(opts.StrictControls),
 	}, nil
 }
 
@@ -705,7 +712,7 @@ func (opts *TerragruntOptions) DataDir() string {
 	return util.JoinPath(opts.WorkingDir, tfDataDir)
 }
 
-// identifyDefaultWrappedExecutable - return default path used for wrapped executable
+// identifyDefaultWrappedExecutable returns default path used for wrapped executable.
 func identifyDefaultWrappedExecutable() string {
 	if util.IsCommandExecutable(TofuDefaultPath, "-version") {
 		return TofuDefaultPath
@@ -714,7 +721,7 @@ func identifyDefaultWrappedExecutable() string {
 	return TerraformDefaultPath
 }
 
-// EngineOptions Options for the Terragrunt engine
+// EngineOptions Options for the Terragrunt engine.
 type EngineOptions struct {
 	Source  string
 	Version string
@@ -722,6 +729,5 @@ type EngineOptions struct {
 	Meta    map[string]interface{}
 }
 
-// Custom error types
-
-var ErrRunTerragruntCommandNotSet = goErrors.New("the RunTerragrunt option has not been set on this TerragruntOptions object")
+// ErrRunTerragruntCommandNotSet is a custom error type indicating that the command is not set.
+var ErrRunTerragruntCommandNotSet = errors.New("the RunTerragrunt option has not been set on this TerragruntOptions object")

@@ -12,8 +12,8 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/gruntwork-io/go-commons/errors"
-	"github.com/hashicorp/go-getter/v2"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 func Fetch(ctx context.Context, req *http.Request, dst io.Writer) error {
@@ -21,7 +21,7 @@ func Fetch(ctx context.Context, req *http.Request, dst io.Writer) error {
 
 	resp, err := (&http.Client{}).Do(req)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 	defer resp.Body.Close() //nolint:errcheck
 
@@ -34,8 +34,8 @@ func Fetch(ctx context.Context, req *http.Request, dst io.Writer) error {
 		return err
 	}
 
-	if written, err := getter.Copy(ctx, dst, reader); err != nil {
-		return errors.WithStackTrace(err)
+	if written, err := util.Copy(ctx, dst, reader); err != nil {
+		return errors.New(err)
 	} else if resp.ContentLength != -1 && written != resp.ContentLength {
 		return errors.Errorf("incorrect response size: expected %d bytes, but got %d bytes", resp.ContentLength, written)
 	}
@@ -47,7 +47,7 @@ func Fetch(ctx context.Context, req *http.Request, dst io.Writer) error {
 func FetchToFile(ctx context.Context, req *http.Request, dst string) error {
 	file, err := os.Create(dst)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 	defer file.Close() //nolint:errcheck
 
@@ -56,7 +56,7 @@ func FetchToFile(ctx context.Context, req *http.Request, dst string) error {
 	}
 
 	if err := file.Sync(); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	return nil

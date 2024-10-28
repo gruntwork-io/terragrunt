@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -46,7 +46,7 @@ func WriteTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terr
 
 	fileName := filepath.Join(configFolder, TerragruntTFVarsFile)
 	if err := os.WriteFile(fileName, fileContents, os.FileMode(defaultPermissions)); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	terragruntOptions.Logger.Debugf("Variables passed to terraform are located in \"%s\"", fileName)
@@ -102,7 +102,7 @@ func terragruntDebugFileContents(
 
 	jsonContent, err := json.MarshalIndent(jsonValuesByKey, "", "  ")
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	return jsonContent, nil

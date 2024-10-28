@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	goErrors "errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,9 +24,9 @@ import (
 
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt-engine-go/engine"
 	"github.com/gruntwork-io/terragrunt-engine-go/proto"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-plugin"
@@ -80,7 +79,7 @@ func Run(
 ) (*util.CmdOutput, error) {
 	engineClients, err := engineClientsFromContext(ctx)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	workingDir := runOptions.TerragruntOptions.WorkingDir
@@ -89,12 +88,12 @@ func Run(
 	if !found {
 		// download engine if not available
 		if err = DownloadEngine(ctx, runOptions.TerragruntOptions); err != nil {
-			return nil, errors.WithStackTrace(err)
+			return nil, errors.New(err)
 		}
 
 		terragruntEngine, client, err := createEngine(runOptions.TerragruntOptions)
 		if err != nil {
-			return nil, errors.WithStackTrace(err)
+			return nil, errors.New(err)
 		}
 
 		engineClients.Store(workingDir, &engineInstance{
@@ -106,23 +105,23 @@ func Run(
 		instance, _ = engineClients.Load(workingDir)
 
 		if err := initialize(ctx, runOptions, terragruntEngine); err != nil {
-			return nil, errors.WithStackTrace(err)
+			return nil, errors.New(err)
 		}
 	}
 
 	engInst, ok := instance.(*engineInstance)
 	if !ok {
-		return nil, errors.WithStackTrace(fmt.Errorf("failed to fetch engine instance %s", workingDir))
+		return nil, errors.Errorf("failed to fetch engine instance %s", workingDir)
 	}
 
 	terragruntEngine := engInst.terragruntEngine
 
-	cmdOutput, err := invoke(ctx, runOptions, terragruntEngine)
+	output, err := invoke(ctx, runOptions, terragruntEngine)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
-	return cmdOutput, nil
+	return output, nil
 }
 
 // WithEngineValues add to context default values for engine.
@@ -152,7 +151,7 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 		if !strings.Contains(e.Source, "://") {
 			tag, err := lastReleaseVersion(ctx, opts)
 			if err != nil {
-				return errors.WithStackTrace(err)
+				return errors.New(err)
 			}
 
 			e.Version = tag
@@ -161,11 +160,11 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 
 	path, err := engineDir(opts)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	if err := util.EnsureDirectory(path); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	localEngineFile := filepath.Join(path, engineFileName(e))
@@ -173,7 +172,7 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 	// lock downloading process for only one instance
 	locks, err := downloadLocksFromContext(ctx)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 	// locking by file where engine is downloaded
 	// however, it will not help in case of multiple parallel Terragrunt runs
@@ -215,7 +214,7 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 		}
 
 		if err := client.Get(); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 	}
 
@@ -223,14 +222,14 @@ func DownloadEngine(ctx context.Context, opts *options.TerragruntOptions) error 
 		opts.Logger.Infof("Verifying checksum for %s", downloadFile)
 
 		if err := verifyFile(downloadFile, checksumFile, checksumSigFile); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 	} else {
 		opts.Logger.Warnf("Skipping verification for %s", downloadFile)
 	}
 
 	if err := extractArchive(opts, downloadFile, localEngineFile); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	opts.Logger.Infof("Engine available as %s", path)
@@ -244,7 +243,7 @@ func lastReleaseVersion(ctx context.Context, opts *options.TerragruntOptions) (s
 	versionCache, err := engineVersionsCacheFromContext(ctx)
 
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	if val, found := versionCache.Get(ctx, url); found {
@@ -258,26 +257,26 @@ func lastReleaseVersion(ctx context.Context, opts *options.TerragruntOptions) (s
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	defer resp.Body.Close() //nolint:errcheck
 	body, err := io.ReadAll(resp.Body)
 
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	var r release
 	if err := json.Unmarshal(body, &r); err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	versionCache.Put(ctx, url, r.Tag)
@@ -290,7 +289,7 @@ func extractArchive(opts *options.TerragruntOptions, downloadFile string, engine
 		opts.Logger.Info("Downloaded file is not an archive, no extraction needed")
 		// move file directly if it is not an archive
 		if err := os.Rename(downloadFile, engineFile); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 
 		return nil
@@ -300,7 +299,7 @@ func extractArchive(opts *options.TerragruntOptions, downloadFile string, engine
 
 	tempDir, err := os.MkdirTemp(path, "temp-")
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	defer func() {
@@ -310,12 +309,12 @@ func extractArchive(opts *options.TerragruntOptions, downloadFile string, engine
 	}()
 	// extract archive
 	if err := archiver.Unarchive(downloadFile, tempDir); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 	// process files
 	files, err := os.ReadDir(tempDir)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	opts.Logger.Infof("Engine extracted to %s", path)
@@ -324,7 +323,7 @@ func extractArchive(opts *options.TerragruntOptions, downloadFile string, engine
 		// handle case where archive contains a single file, most of the cases
 		singleFile := filepath.Join(tempDir, files[0].Name())
 		if err := os.Rename(singleFile, engineFile); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 
 		return nil
@@ -336,7 +335,7 @@ func extractArchive(opts *options.TerragruntOptions, downloadFile string, engine
 
 		dstPath := filepath.Join(path, file.Name())
 		if err := os.Rename(srcPath, dstPath); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 	}
 
@@ -354,7 +353,7 @@ func engineDir(terragruntOptions *options.TerragruntOptions) (string, error) {
 	if len(cacheDir) == 0 {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
-			return "", errors.WithStackTrace(err)
+			return "", errors.New(err)
 		}
 
 		cacheDir = filepath.Join(homeDir, defaultCacheDir)
@@ -417,12 +416,12 @@ func isArchiveByHeader(filePath string) bool {
 func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
 	val := ctx.Value(terraformCommandContextKey)
 	if val == nil {
-		return nil, errors.WithStackTrace(goErrors.New("failed to fetch engine clients from context"))
+		return nil, errors.New(errors.New("failed to fetch engine clients from context"))
 	}
 
 	result, ok := val.(*sync.Map)
 	if !ok {
-		return nil, errors.WithStackTrace(goErrors.New("failed to cast engine clients from context"))
+		return nil, errors.New(errors.New("failed to cast engine clients from context"))
 	}
 
 	return result, nil
@@ -432,12 +431,12 @@ func engineClientsFromContext(ctx context.Context) (*sync.Map, error) {
 func downloadLocksFromContext(ctx context.Context) (*util.KeyLocks, error) {
 	val := ctx.Value(locksContextKey)
 	if val == nil {
-		return nil, errors.WithStackTrace(goErrors.New("failed to fetch engine clients from context"))
+		return nil, errors.New(errors.New("failed to fetch engine clients from context"))
 	}
 
 	result, ok := val.(*util.KeyLocks)
 	if !ok {
-		return nil, errors.WithStackTrace(goErrors.New("failed to cast engine clients from context"))
+		return nil, errors.New(errors.New("failed to cast engine clients from context"))
 	}
 
 	return result, nil
@@ -446,12 +445,12 @@ func downloadLocksFromContext(ctx context.Context) (*util.KeyLocks, error) {
 func engineVersionsCacheFromContext(ctx context.Context) (*cache.Cache[string], error) {
 	val := ctx.Value(latestVersionsContextKey)
 	if val == nil {
-		return nil, errors.WithStackTrace(goErrors.New("failed to fetch engine versions cache from context"))
+		return nil, errors.New(errors.New("failed to fetch engine versions cache from context"))
 	}
 
 	result, ok := val.(*cache.Cache[string])
 	if !ok {
-		return nil, errors.WithStackTrace(goErrors.New("failed to cast engine versions cache from context"))
+		return nil, errors.New(errors.New("failed to cast engine versions cache from context"))
 	}
 
 	return result, nil
@@ -466,7 +465,7 @@ func Shutdown(ctx context.Context, opts *options.TerragruntOptions) error {
 	// iterate over all engine instances and shutdown
 	engineClients, err := engineClientsFromContext(ctx)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	engineClients.Range(func(key, value interface{}) bool {
@@ -489,7 +488,7 @@ func Shutdown(ctx context.Context, opts *options.TerragruntOptions) error {
 func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineClient, *plugin.Client, error) {
 	path, err := engineDir(terragruntOptions)
 	if err != nil {
-		return nil, nil, errors.WithStackTrace(err)
+		return nil, nil, errors.New(err)
 	}
 
 	localEnginePath := filepath.Join(path, engineFileName(terragruntOptions.Engine))
@@ -501,7 +500,7 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 	if !skipCheck && util.FileExists(localEnginePath) && util.FileExists(localChecksumFile) &&
 		util.FileExists(localChecksumSigFile) {
 		if err := verifyFile(localEnginePath, localChecksumFile, localChecksumSigFile); err != nil {
-			return nil, nil, errors.WithStackTrace(err)
+			return nil, nil, errors.New(err)
 		}
 	} else {
 		terragruntOptions.Logger.Warnf("Skipping verification for %s", localEnginePath)
@@ -543,12 +542,12 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 
 	rpcClient, err := client.Client()
 	if err != nil {
-		return nil, nil, errors.WithStackTrace(err)
+		return nil, nil, errors.New(err)
 	}
 
 	rawClient, err := rpcClient.Dispense("plugin")
 	if err != nil {
-		return nil, nil, errors.WithStackTrace(err)
+		return nil, nil, errors.New(err)
 	}
 
 	terragruntEngine := rawClient.(proto.EngineClient)
@@ -562,7 +561,7 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 
 	meta, err := ConvertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	response, err := (*client).Run(ctx, &proto.RunRequest{
@@ -574,12 +573,15 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 		EnvVars:           runOptions.TerragruntOptions.Env,
 	})
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
-	var stdoutBuf, stderrBuf bytes.Buffer
-	stdout := io.MultiWriter(runOptions.CmdStdout, &stdoutBuf)
-	stderr := io.MultiWriter(runOptions.CmdStderr, &stderrBuf)
+	var (
+		output = util.CmdOutput{}
+
+		stdout = io.MultiWriter(runOptions.CmdStdout, &output.Stdout)
+		stderr = io.MultiWriter(runOptions.CmdStderr, &output.Stderr)
+	)
 
 	var (
 		stdoutLineBuf, stderrLineBuf bytes.Buffer
@@ -593,43 +595,39 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 		}
 
 		if err := processStream(runResp.GetStdout(), &stdoutLineBuf, stdout); err != nil {
-			return nil, errors.WithStackTrace(err)
+			return nil, errors.New(err)
 		}
 
 		if err := processStream(runResp.GetStderr(), &stderrLineBuf, stderr); err != nil {
-			return nil, errors.WithStackTrace(err)
+			return nil, errors.New(err)
 		}
 
 		resultCode = int(runResp.GetResultCode())
 	}
 
 	if err := flushBuffer(&stdoutLineBuf, stdout); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	if err := flushBuffer(&stderrLineBuf, stderr); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	terragruntOptions.Logger.Debugf("Engine execution done in %v", terragruntOptions.WorkingDir)
 
 	if resultCode != 0 {
 		err = util.ProcessExecutionError{
-			Err:        fmt.Errorf("command failed with exit code %d", resultCode),
-			Stdout:     stdoutBuf.String(),
-			Stderr:     stderrBuf.String(),
+			Err:        errors.Errorf("command failed with exit code %d", resultCode),
+			Output:     output,
 			WorkingDir: terragruntOptions.WorkingDir,
+			Command:    runOptions.Command,
+			Args:       runOptions.Args,
 		}
 
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
-	cmdOutput := util.CmdOutput{
-		Stdout: stdoutBuf.String(),
-		Stderr: stderrBuf.String(),
-	}
-
-	return &cmdOutput, nil
+	return &output, nil
 }
 
 // processStream handles the character buffering and line printing for a given stream
@@ -639,7 +637,7 @@ func processStream(data string, lineBuf *bytes.Buffer, output io.Writer) error {
 
 		if ch == '\n' {
 			if _, err := fmt.Fprint(output, lineBuf.String()); err != nil {
-				return errors.WithStackTrace(err)
+				return errors.New(err)
 			}
 
 			lineBuf.Reset()
@@ -653,7 +651,7 @@ func processStream(data string, lineBuf *bytes.Buffer, output io.Writer) error {
 func flushBuffer(lineBuf *bytes.Buffer, output io.Writer) error {
 	if lineBuf.Len() > 0 {
 		if _, err := fmt.Fprint(output, lineBuf.String()); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 	}
 
@@ -666,7 +664,7 @@ func initialize(ctx context.Context, runOptions *ExecutionOptions, client *proto
 
 	meta, err := ConvertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	terragruntOptions.Logger.Debugf("Running init for engine in %s", runOptions.WorkingDir)
@@ -677,12 +675,12 @@ func initialize(ctx context.Context, runOptions *ExecutionOptions, client *proto
 		Meta:       meta,
 	})
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	terragruntOptions.Logger.Debugf("Reading init output for engine in %s", runOptions.WorkingDir)
 
-	return ReadEngineOutput(runOptions, func() (*OutputLine, error) {
+	return ReadEngineOutput(runOptions, true, func() (*OutputLine, error) {
 		output, err := request.Recv()
 		if err != nil {
 			return nil, err
@@ -705,7 +703,7 @@ func shutdown(ctx context.Context, runOptions *ExecutionOptions, terragruntEngin
 
 	meta, err := ConvertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	request, err := (*terragruntEngine).Shutdown(ctx, &proto.ShutdownRequest{
@@ -715,12 +713,12 @@ func shutdown(ctx context.Context, runOptions *ExecutionOptions, terragruntEngin
 	})
 
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	terragruntOptions.Logger.Debugf("Reading shutdown output for engine in %s", runOptions.WorkingDir)
 
-	return ReadEngineOutput(runOptions, func() (*OutputLine, error) {
+	return ReadEngineOutput(runOptions, true, func() (*OutputLine, error) {
 		output, err := request.Recv()
 		if err != nil {
 			return nil, err
@@ -747,7 +745,7 @@ type outputFn func() (*OutputLine, error)
 
 // ReadEngineOutput reads the output from the engine, since grpc plugins don't have common type,
 // use lambda function to read bytes from the stream
-func ReadEngineOutput(runOptions *ExecutionOptions, output outputFn) error {
+func ReadEngineOutput(runOptions *ExecutionOptions, forceStdErr bool, output outputFn) error {
 	cmdStdout := runOptions.CmdStdout
 	cmdStderr := runOptions.CmdStderr
 
@@ -758,14 +756,20 @@ func ReadEngineOutput(runOptions *ExecutionOptions, output outputFn) error {
 		}
 
 		if response.Stdout != "" {
-			if _, err := cmdStdout.Write([]byte(response.Stdout)); err != nil {
-				return errors.WithStackTrace(err)
+			if forceStdErr { // redirect stdout to stderr
+				if _, err := cmdStderr.Write([]byte(response.Stdout)); err != nil {
+					return errors.New(err)
+				}
+			} else {
+				if _, err := cmdStdout.Write([]byte(response.Stdout)); err != nil {
+					return errors.New(err)
+				}
 			}
 		}
 
 		if response.Stderr != "" {
 			if _, err := cmdStderr.Write([]byte(response.Stderr)); err != nil {
-				return errors.WithStackTrace(err)
+				return errors.New(err)
 			}
 		}
 	}

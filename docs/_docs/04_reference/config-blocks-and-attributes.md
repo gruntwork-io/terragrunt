@@ -1301,9 +1301,8 @@ root level `terragrunt.hcl` file, you can set `skip = true`:
 skip = true
 ```
 
-The `skip` flag must be set explicitly in terragrunt modules that should be skipped. If you set `skip = true` in a
-`terragrunt.hcl` file that is included by another `terragrunt.hcl` file, only the `terragrunt.hcl` file that explicitly
-set `skip = true` will be skipped.
+The `skip` flag can be inherited from an included `terragrunt.hcl` file if `skip` is defined there, unless it is
+explicitly redefined in the current's module `terragrunt.hcl` file.
 
 ### iam_role
 

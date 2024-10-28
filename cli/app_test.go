@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
@@ -17,6 +16,7 @@ import (
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	terraformcmd "github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	cliPkg "github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -225,7 +225,7 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 
 	opts, err := options.NewTerragruntOptionsForTest(terragruntConfigPath)
 	if err != nil {
-		t.Fatalf("error: %v\n", errors.WithStackTrace(err))
+		t.Fatalf("error: %v\n", errors.New(err))
 	}
 
 	opts.WorkingDir = workingDir
@@ -498,6 +498,7 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 		terragruntCommands...).WrapAction(cli.WrapWithTelemetry(opts))
 	app.DefaultCommand = defaultCommand.WrapAction(cli.WrapWithTelemetry(opts))
 	app.OsExiter = cli.OSExiter
+	app.ExitErrHandler = cli.ExitErrHandler
 
 	err := app.Run(append([]string{"--"}, args...))
 	return opts, err

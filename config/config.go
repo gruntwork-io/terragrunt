@@ -3,7 +3,6 @@ package config
 
 import (
 	"context"
-	goErrors "errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -26,10 +25,10 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -102,7 +101,7 @@ type TerragruntConfig struct {
 	Dependencies                *ModuleDependencies
 	DownloadDir                 string
 	PreventDestroy              *bool
-	Skip                        bool
+	Skip                        *bool
 	IamRole                     string
 	IamAssumeRoleDuration       *int64
 	IamAssumeRoleSessionName    string
@@ -363,7 +362,7 @@ func (include *IncludeConfig) GetMergeStrategy() (MergeStrategyType, error) {
 	case string(DeepMergeMapOnly):
 		return DeepMergeMapOnly, nil
 	default:
-		return NoMerge, errors.WithStackTrace(InvalidMergeStrategyTypeError(strategy))
+		return NoMerge, errors.New(InvalidMergeStrategyTypeError(strategy))
 	}
 }
 
@@ -574,7 +573,7 @@ func adjustSourceWithMap(sourceMap map[string]string, source string, modulePath 
 
 	// if both URL and subdir are missing, something went terribly wrong
 	if moduleURL == "" && moduleSubdir == "" {
-		return "", errors.WithStackTrace(InvalidSourceURLWithMapError{ModulePath: modulePath, ModuleSourceURL: source})
+		return "", errors.New(InvalidSourceURLWithMapError{ModulePath: modulePath, ModuleSourceURL: source})
 	}
 
 	// If module URL is missing, return the source as is as it will not match anything in the map.
@@ -869,7 +868,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 	}
 
 	if terragruntConfigFile == nil {
-		return nil, errors.WithStackTrace(CouldNotResolveTerragruntConfigInFileError(file.ConfigPath))
+		return nil, errors.New(CouldNotResolveTerragruntConfigInFileError(file.ConfigPath))
 	}
 
 	config, err := convertToTerragruntConfig(ctx, file.ConfigPath, terragruntConfigFile)
@@ -939,7 +938,7 @@ func decodeAsTerragruntConfigFile(ctx *ParsingContext, file *hclparse.File, eval
 	if err := file.Decode(&terragruntConfig, evalContext); err != nil {
 		var diagErr hcl.Diagnostics
 		// diagErr, ok := errors.Unwrap(err).(hcl.Diagnostics)
-		ok := goErrors.As(err, &diagErr)
+		ok := errors.As(err, &diagErr)
 
 		// in case of render-json command and inputs reference error, we update the inputs with default value
 		if !ok || !isRenderJSONCommand(ctx) || !isAttributeAccessError(diagErr) {
@@ -1114,7 +1113,7 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	}
 
 	if terragruntConfigFromFile.Skip != nil {
-		terragruntConfig.Skip = *terragruntConfigFromFile.Skip
+		terragruntConfig.Skip = terragruntConfigFromFile.Skip
 		terragruntConfig.SetFieldMetadata(MetadataSkip, defaultMetadata)
 	}
 
@@ -1291,7 +1290,7 @@ func validateGenerateBlocks(blocks *[]terragruntGenerateBlock) error {
 func configFileHasDependencyBlock(configPath string) (bool, error) {
 	configBytes, err := os.ReadFile(configPath)
 	if err != nil {
-		return false, errors.WithStackTrace(err)
+		return false, errors.New(err)
 	}
 
 	// We use hclwrite to parse the config instead of the normal parser because the normal parser doesn't give us an AST
@@ -1299,7 +1298,7 @@ func configFileHasDependencyBlock(configPath string) (bool, error) {
 	// avoid weird parsing errors due to missing dependency data, we do a structural scan here.
 	hclFile, diags := hclwrite.ParseConfig(configBytes, configPath, hcl.InitialPos)
 	if diags.HasErrors() {
-		return false, errors.WithStackTrace(diags)
+		return false, errors.New(diags)
 	}
 
 	for _, block := range hclFile.Body().Blocks() {

@@ -11,8 +11,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	awsDynamodb "github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/dynamodb"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

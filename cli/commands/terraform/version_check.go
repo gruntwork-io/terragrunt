@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/hashicorp/go-version"
@@ -99,12 +99,12 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 		return err
 	}
 
-	terraformVersion, err := ParseTerraformVersion(output.Stdout)
+	terraformVersion, err := ParseTerraformVersion(output.Stdout.String())
 	if err != nil {
 		return err
 	}
 
-	tfImplementation, err := parseTerraformImplementationType(output.Stdout)
+	tfImplementation, err := parseTerraformImplementationType(output.Stdout.String())
 	if err != nil {
 		return err
 	}
@@ -153,7 +153,7 @@ func CheckTerragruntVersionMeetsConstraint(currentVersion *version.Version, cons
 	}
 
 	if !versionConstraint.Check(checkedVersion) {
-		return errors.WithStackTrace(InvalidTerragruntVersion{CurrentVersion: currentVersion, VersionConstraints: versionConstraint})
+		return errors.New(InvalidTerragruntVersion{CurrentVersion: currentVersion, VersionConstraints: versionConstraint})
 	}
 
 	return nil
@@ -167,7 +167,7 @@ func CheckTerraformVersionMeetsConstraint(currentVersion *version.Version, const
 	}
 
 	if !versionConstraint.Check(currentVersion) {
-		return errors.WithStackTrace(InvalidTerraformVersion{CurrentVersion: currentVersion, VersionConstraints: versionConstraint})
+		return errors.New(InvalidTerraformVersion{CurrentVersion: currentVersion, VersionConstraints: versionConstraint})
 	}
 
 	return nil
@@ -178,7 +178,7 @@ func ParseTerraformVersion(versionCommandOutput string) (*version.Version, error
 	matches := TerraformVersionRegex.FindStringSubmatch(versionCommandOutput)
 
 	if len(matches) != versionParts {
-		return nil, errors.WithStackTrace(InvalidTerraformVersionSyntax(versionCommandOutput))
+		return nil, errors.New(InvalidTerraformVersionSyntax(versionCommandOutput))
 	}
 
 	return version.NewVersion(matches[2])
@@ -189,7 +189,7 @@ func parseTerraformImplementationType(versionCommandOutput string) (options.Terr
 	matches := TerraformVersionRegex.FindStringSubmatch(versionCommandOutput)
 
 	if len(matches) != versionParts {
-		return options.UnknownImpl, errors.WithStackTrace(InvalidTerraformVersionSyntax(versionCommandOutput))
+		return options.UnknownImpl, errors.New(InvalidTerraformVersionSyntax(versionCommandOutput))
 	}
 
 	rawType := strings.ToLower(matches[1])

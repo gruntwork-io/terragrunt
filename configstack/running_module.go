@@ -8,11 +8,10 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
-	"github.com/hashicorp/go-multierror"
 )
 
 const (
@@ -111,6 +110,15 @@ func (module *RunningModule) waitForDependencies() error {
 	return nil
 }
 
+func (module *RunningModule) runTerragrunt(ctx context.Context, opts *options.TerragruntOptions) error {
+	opts.Logger.Debugf("Running %s", module.Module.Path)
+	opts.Writer = NewModuleWriter(opts.Writer)
+
+	defer module.Module.FlushOutput() //nolint:errcheck
+
+	return opts.RunTerragrunt(ctx, opts)
+}
+
 // Run a module right now by executing the RunTerragrunt command of its TerragruntOptions field.
 func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.TerragruntOptions) error {
 	module.Status = Running
@@ -119,9 +127,7 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 		module.Module.TerragruntOptions.Logger.Debugf("Assuming module %s has already been applied and skipping it", module.Module.Path)
 		return nil
 	} else {
-		module.Module.TerragruntOptions.Logger.Debugf("Running module %s now", module.Module.Path)
-
-		if err := module.Module.TerragruntOptions.RunTerragrunt(ctx, module.Module.TerragruntOptions); err != nil {
+		if err := module.runTerragrunt(ctx, module.Module.TerragruntOptions); err != nil {
 			return err
 		}
 
@@ -165,7 +171,7 @@ func (module *RunningModule) moduleFinished(moduleErr error) {
 	if moduleErr == nil {
 		module.Module.TerragruntOptions.Logger.Debugf("Module %s has finished successfully!", module.Module.Path)
 	} else {
-		module.Module.TerragruntOptions.Logger.Errorf("Module %s has finished with an error: %v", module.Module.Path, moduleErr)
+		module.Module.TerragruntOptions.Logger.Errorf("Module %s has finished with an error", module.Module.Path)
 	}
 
 	module.Status = Finished
@@ -249,7 +255,7 @@ func (modules RunningModules) crossLinkDependencies(dependencyOrder DependencyOr
 		for _, dependency := range module.Module.Dependencies {
 			runningDependency, hasDependency := modules[dependency.Path]
 			if !hasDependency {
-				return modules, errors.WithStackTrace(DependencyNotFoundWhileCrossLinkingError{module, dependency})
+				return modules, errors.New(DependencyNotFoundWhileCrossLinkingError{module, dependency})
 			}
 
 			// TODO: Remove lint suppression
@@ -312,6 +318,7 @@ func (modules RunningModules) runModules(ctx context.Context, opts *options.Terr
 
 		go func(module *RunningModule) {
 			defer waitGroup.Done()
+
 			module.runModuleWhenReady(ctx, opts, semaphore)
 		}(module)
 	}
@@ -324,13 +331,13 @@ func (modules RunningModules) runModules(ctx context.Context, opts *options.Terr
 // Collect the errors from the given modules and return a single error object to represent them, or nil if no errors
 // occurred
 func (modules RunningModules) collectErrors() error {
-	var result *multierror.Error
+	var errs *errors.MultiError
 
 	for _, module := range modules {
 		if module.Err != nil {
-			result = multierror.Append(result, module.Err)
+			errs = errs.Append(module.Err)
 		}
 	}
 
-	return result.ErrorOrNil()
+	return errs.ErrorOrNil()
 }

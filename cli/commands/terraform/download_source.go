@@ -9,9 +9,9 @@ import (
 
 	"github.com/hashicorp/go-getter"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -73,7 +73,7 @@ func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *te
 		terragruntOptions.Logger.Debugf("The --%s flag is set, so deleting the temporary folder %s before downloading source.", commands.TerragruntSourceUpdateFlagName, terraformSource.DownloadDir)
 
 		if err := os.RemoveAll(terraformSource.DownloadDir); err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 	}
 
@@ -130,7 +130,9 @@ func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *te
 	currentVersion, err := terraformSource.EncodeSourceVersion()
 	// if source versions are different or calculating version failed, create file to run init
 	// https://github.com/gruntwork-io/terragrunt/issues/1921
-	if previousVersion != currentVersion || err != nil {
+	if (previousVersion != "" && previousVersion != currentVersion) || err != nil {
+		terragruntOptions.Logger.Debugf("Requesting re-init, source version has changed from %s to %s recently.", previousVersion, currentVersion)
+
 		initFile := util.JoinPath(terraformSource.WorkingDir, ModuleInitRequiredFile)
 
 		f, createErr := os.Create(initFile)
@@ -156,7 +158,7 @@ func AlreadyHaveLatestCode(terraformSource *terraform.Source, terragruntOptions 
 
 	tfFiles, err := filepath.Glob(terraformSource.WorkingDir + "/*.tf")
 	if err != nil {
-		return false, errors.WithStackTrace(err)
+		return false, errors.New(err)
 	}
 
 	if len(tfFiles) == 0 {
@@ -241,7 +243,7 @@ func downloadSource(terraformSource *terraform.Source, terragruntOptions *option
 		terraformSource.DownloadDir)
 
 	if err := getter.GetAny(terraformSource.DownloadDir, terraformSource.CanonicalSourceURL.String(), updateGetters(terragruntOptions, terragruntConfig)); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	return nil

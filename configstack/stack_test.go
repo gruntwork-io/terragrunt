@@ -2,21 +2,22 @@ package configstack_test
 
 import (
 	"context"
-	goErrors "errors"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/require"
+
+	goerrors "github.com/go-errors/errors"
 )
 
 func TestFindStackInSubfolders(t *testing.T) {
@@ -318,7 +319,6 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 			"retry_max_attempts":            interface{}(nil),
 			"retry_sleep_interval_sec":      interface{}(nil),
 			"retryable_errors":              interface{}(nil),
-			"skip":                          false,
 			"terraform_binary":              "",
 			"terraform_version_constraint":  "",
 			"terragrunt_version_constraint": "",
@@ -1099,10 +1099,16 @@ func TestResolveTerraformModulesInvalidPaths(t *testing.T) {
 	require.Error(t, actualErr)
 
 	var processingModuleError configstack.ProcessingModuleError
-	ok := goErrors.As(actualErr, &processingModuleError)
+	ok := errors.As(actualErr, &processingModuleError)
 	require.True(t, ok)
 
-	unwrapped := errors.Unwrap(processingModuleError.UnderlyingError)
+	goError := new(goerrors.Error)
+
+	unwrapped := processingModuleError.UnderlyingError
+	if errors.As(unwrapped, &goError) {
+		unwrapped = goError.Err
+	}
+
 	require.True(t, os.IsNotExist(unwrapped), "Expected a file not exists error but got %v", processingModuleError.UnderlyingError)
 }
 

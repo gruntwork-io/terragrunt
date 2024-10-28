@@ -1,7 +1,7 @@
 package terraform
 
 import (
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 )
 
@@ -53,7 +53,7 @@ const (
 func ModuleVariables(modulePath string) ([]string, []string, error) {
 	module, diags := tfconfig.LoadModule(modulePath)
 	if diags.HasErrors() {
-		return nil, nil, errors.WithStackTrace(diags)
+		return nil, nil, errors.New(diags)
 	}
 
 	required := []string{}

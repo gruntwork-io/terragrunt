@@ -12,7 +12,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
@@ -32,14 +32,14 @@ func UpdateLockfile(ctx context.Context, workingDir string, providers []Provider
 	if util.FileExists(filename) {
 		content, err := os.ReadFile(filename)
 		if err != nil {
-			return errors.WithStackTrace(err)
+			return errors.New(err)
 		}
 
 		var diags hcl.Diagnostics
 
 		file, diags = hclwrite.ParseConfig(content, filename, hcl.Pos{Line: 1, Column: 1})
 		if diags.HasErrors() {
-			return errors.WithStackTrace(diags)
+			return errors.New(diags)
 		}
 	}
 
@@ -49,7 +49,7 @@ func UpdateLockfile(ctx context.Context, workingDir string, providers []Provider
 
 	const ownerWriteGlobalReadPerms = 0644
 	if err := os.WriteFile(filename, file.Bytes(), ownerWriteGlobalReadPerms); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	return nil
@@ -185,7 +185,7 @@ func getAttributeValueAsSlice(attr *hclwrite.Attribute) ([]string, error) {
 	var val []string
 
 	if err := json.Unmarshal(valBytes, &val); err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	return val, nil

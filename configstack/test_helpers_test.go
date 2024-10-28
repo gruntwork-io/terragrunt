@@ -2,17 +2,16 @@ package configstack_test
 
 import (
 	"context"
-	goErrors "errors"
 	"sort"
 	"testing"
 
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
-	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type TerraformModuleByPath configstack.TerraformModules
@@ -141,9 +140,9 @@ func assertErrorsEqual(t *testing.T, expected error, actual error, messageAndArg
 	actual = errors.Unwrap(actual)
 
 	var unrecognizedDependencyError configstack.UnrecognizedDependencyError
-	if ok := goErrors.As(expected, &unrecognizedDependencyError); ok {
+	if ok := errors.As(expected, &unrecognizedDependencyError); ok {
 		var actualUnrecognized configstack.UnrecognizedDependencyError
-		ok = goErrors.As(actual, &actualUnrecognized)
+		ok = errors.As(actual, &actualUnrecognized)
 		if assert.True(t, ok, messageAndArgs...) {
 			assert.Equal(t, unrecognizedDependencyError, actualUnrecognized, messageAndArgs...)
 		}
@@ -206,20 +205,20 @@ func optionsWithMockTerragruntCommand(t *testing.T, terragruntConfigPath string,
 func assertMultiErrorContains(t *testing.T, actualError error, expectedErrors ...error) {
 	t.Helper()
 
-	actualError = errors.Unwrap(actualError)
-	var multiError *multierror.Error
-	isMultiError := goErrors.As(actualError, &multiError)
-	if assert.True(t, isMultiError, "Expected a MutliError, but got: %v", actualError) {
-		assert.Equal(t, len(expectedErrors), len(multiError.Errors))
-		for _, expectedErr := range expectedErrors {
-			found := false
-			for _, actualErr := range multiError.Errors {
-				if goErrors.Is(expectedErr, actualErr) {
-					found = true
-					break
-				}
+	multiError := new(errors.MultiError)
+	errors.As(actualError, &multiError)
+	require.NotNil(t, multiError, "Expected a MutliError, but got: %v", actualError)
+
+	assert.Len(t, multiError.WrappedErrors(), len(expectedErrors))
+	for _, expectedErr := range expectedErrors {
+		found := false
+		for _, actualErr := range multiError.WrappedErrors() {
+			if errors.Is(expectedErr, actualErr) {
+				found = true
+
+				break
 			}
-			assert.True(t, found, "Couldn't find expected error %v", expectedErr)
 		}
+		assert.True(t, found, "Couldn't find expected error %v", expectedErr)
 	}
 }

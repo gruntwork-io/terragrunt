@@ -16,9 +16,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/mattn/go-zglob"
 
@@ -80,12 +79,12 @@ func Run(opts *options.TerragruntOptions) error {
 
 	opts.Logger.Debugf("Found %d hcl files", len(filteredTgHclFiles))
 
-	var formatErrors *multierror.Error
+	var formatErrors *errors.MultiError
 
 	for _, tgHclFile := range filteredTgHclFiles {
 		err := formatTgHCL(opts, tgHclFile)
 		if err != nil {
-			formatErrors = multierror.Append(formatErrors, err)
+			formatErrors = formatErrors.Append(err)
 		}
 	}
 
@@ -187,7 +186,7 @@ func checkErrors(logger log.Logger, disableColor bool, contents []byte, tgHclFil
 
 	err := diagWriter.WriteDiagnostics(diags)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	if diags.HasErrors() {

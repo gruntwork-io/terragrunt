@@ -19,10 +19,10 @@ import (
 	boilerplate_options "github.com/gruntwork-io/boilerplate/options"
 	"github.com/gruntwork-io/boilerplate/templates"
 	"github.com/gruntwork-io/boilerplate/variables"
-	"github.com/gruntwork-io/go-commons/errors"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terratest/modules/files"
-	"github.com/hashicorp/go-getter"
+	"github.com/hashicorp/go-getter/v2"
 )
 
 const (
@@ -117,13 +117,13 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, moduleURL, templa
 	}
 
 	if moduleURL == "" {
-		return errors.WithStackTrace(NoModuleURLPassed{})
+		return errors.New(NoModuleURLPassed{})
 	}
 
 	// create temporary directory where to download module
 	tempDir, err := os.MkdirTemp("", "scaffold")
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	dirsToClean = append(dirsToClean, tempDir)
@@ -131,25 +131,25 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, moduleURL, templa
 	// prepare variables
 	vars, err := variables.ParseVars(opts.ScaffoldVars, opts.ScaffoldVarFiles)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	// parse module url
 	moduleURL, err = parseModuleURL(ctx, opts, vars, moduleURL)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	opts.Logger.Infof("Scaffolding a new Terragrunt module %s to %s", moduleURL, opts.WorkingDir)
 
-	if err := getter.GetAny(tempDir, moduleURL); err != nil {
-		return errors.WithStackTrace(err)
+	if _, err := getter.GetAny(ctx, tempDir, moduleURL); err != nil {
+		return errors.New(err)
 	}
 
 	// extract variables from downloaded module
 	requiredVariables, optionalVariables, err := parseVariables(opts, tempDir)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	opts.Logger.Debugf("Parsed %d required variables and %d optional variables", len(requiredVariables), len(optionalVariables))
@@ -157,7 +157,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, moduleURL, templa
 	// prepare boilerplate files to render Terragrunt files
 	boilerplateDir, err := prepareBoilerplateFiles(ctx, opts, templateURL, tempDir)
 	if err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	// add additional variables
@@ -180,13 +180,13 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, moduleURL, templa
 
 	emptyDep := variables.Dependency{}
 	if err := templates.ProcessTemplate(boilerplateOpts, boilerplateOpts, emptyDep); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	opts.Logger.Infof("Running fmt on generated code %s", opts.WorkingDir)
 
 	if err := hclfmt.Run(opts); err != nil {
-		return errors.WithStackTrace(err)
+		return errors.New(err)
 	}
 
 	opts.Logger.Info("Scaffolding completed")
@@ -203,12 +203,12 @@ func prepareBoilerplateFiles(ctx context.Context, opts *options.TerragruntOption
 		// process template url if was passed
 		parsedTemplateURL, err := terraform.ToSourceURL(templateURL, tempDir)
 		if err != nil {
-			return "", errors.WithStackTrace(err)
+			return "", errors.New(err)
 		}
 
 		parsedTemplateURL, err = rewriteTemplateURL(ctx, opts, parsedTemplateURL)
 		if err != nil {
-			return "", errors.WithStackTrace(err)
+			return "", errors.New(err)
 		}
 		// regenerate template url with all changes
 		templateURL = parsedTemplateURL.String()
@@ -216,14 +216,14 @@ func prepareBoilerplateFiles(ctx context.Context, opts *options.TerragruntOption
 		// prepare temporary directory for template
 		templateDir, err = os.MkdirTemp("", "template")
 		if err != nil {
-			return "", errors.WithStackTrace(err)
+			return "", errors.New(err)
 		}
 
 		// downloading template
 		opts.Logger.Infof("Using template from %s", templateURL)
 
-		if err := getter.GetAny(templateDir, templateURL); err != nil {
-			return "", errors.WithStackTrace(err)
+		if _, err := getter.GetAny(ctx, templateDir, templateURL); err != nil {
+			return "", errors.New(err)
 		}
 	}
 	// prepare boilerplate dir
@@ -238,18 +238,18 @@ func prepareBoilerplateFiles(ctx context.Context, opts *options.TerragruntOption
 		// no default boilerplate dir, create one
 		defaultTempDir, err := os.MkdirTemp("", "boilerplate")
 		if err != nil {
-			return "", errors.WithStackTrace(err)
+			return "", errors.New(err)
 		}
 
 		boilerplateDir = defaultTempDir
 
 		const ownerWriteGlobalReadPerms = 0644
 		if err := os.WriteFile(util.JoinPath(boilerplateDir, "terragrunt.hcl"), []byte(DefaultTerragruntTemplate), ownerWriteGlobalReadPerms); err != nil {
-			return "", errors.WithStackTrace(err)
+			return "", errors.New(err)
 		}
 
 		if err := os.WriteFile(util.JoinPath(boilerplateDir, "boilerplate.yml"), []byte(DefaultBoilerplateConfig), ownerWriteGlobalReadPerms); err != nil {
-			return "", errors.WithStackTrace(err)
+			return "", errors.New(err)
 		}
 	}
 
@@ -260,7 +260,7 @@ func prepareBoilerplateFiles(ctx context.Context, opts *options.TerragruntOption
 func parseVariables(opts *options.TerragruntOptions, moduleDir string) ([]*config.ParsedVariable, []*config.ParsedVariable, error) {
 	inputs, err := config.ParseVariables(opts, moduleDir)
 	if err != nil {
-		return nil, nil, errors.WithStackTrace(err)
+		return nil, nil, errors.New(err)
 	}
 
 	// separate variables that require value and with default value
@@ -284,7 +284,7 @@ func parseVariables(opts *options.TerragruntOptions, moduleDir string) ([]*confi
 func parseModuleURL(ctx context.Context, opts *options.TerragruntOptions, vars map[string]interface{}, moduleURL string) (string, error) {
 	parsedModuleURL, err := terraform.ToSourceURL(moduleURL, opts.WorkingDir)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	moduleURL = parsedModuleURL.String()
@@ -292,13 +292,13 @@ func parseModuleURL(ctx context.Context, opts *options.TerragruntOptions, vars m
 	// rewrite module url, if required
 	parsedModuleURL, err = rewriteModuleURL(opts, vars, moduleURL)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	// add ref to module url, if required
 	parsedModuleURL, err = addRefToModuleURL(ctx, opts, parsedModuleURL, vars)
 	if err != nil {
-		return "", errors.WithStackTrace(err)
+		return "", errors.New(err)
 	}
 
 	// regenerate module url with all changes
@@ -322,7 +322,7 @@ func rewriteModuleURL(opts *options.TerragruntOptions, vars map[string]interface
 
 		parsedModuleURL, err := terraform.ToSourceURL(updatedModuleURL, opts.WorkingDir)
 		if err != nil {
-			return nil, errors.WithStackTrace(err)
+			return nil, errors.New(err)
 		}
 
 		return parsedModuleURL, nil
@@ -342,7 +342,7 @@ func rewriteModuleURL(opts *options.TerragruntOptions, vars map[string]interface
 	// persist changes in url.URL
 	parsedModuleURL, err := terraform.ToSourceURL(updatedModuleURL, opts.WorkingDir)
 	if err != nil {
-		return nil, errors.WithStackTrace(err)
+		return nil, errors.New(err)
 	}
 
 	return parsedModuleURL, nil
@@ -360,7 +360,7 @@ func rewriteTemplateURL(ctx context.Context, opts *options.TerragruntOptions, pa
 	if ref == "" {
 		rootSourceURL, _, err := terraform.SplitSourceURL(updatedTemplateURL, opts.Logger)
 		if err != nil {
-			return nil, errors.WithStackTrace(err)
+			return nil, errors.New(err)
 		}
 
 		tag, err := shell.GitLastReleaseTag(ctx, opts, rootSourceURL)
@@ -393,7 +393,7 @@ func addRefToModuleURL(ctx context.Context, opts *options.TerragruntOptions, par
 		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs => git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8
 		rootSourceURL, _, err := terraform.SplitSourceURL(moduleURL, opts.Logger)
 		if err != nil {
-			return nil, errors.WithStackTrace(err)
+			return nil, errors.New(err)
 		}
 
 		tag, err := shell.GitLastReleaseTag(ctx, opts, rootSourceURL)

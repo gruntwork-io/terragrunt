@@ -8,11 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/go-multierror"
-
-	"github.com/gruntwork-io/go-commons/errors"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	tfsource "github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -536,10 +534,15 @@ func TestPreventDestroyDependencies(t *testing.T) {
 	logBufferContentsLineByLine(t, destroyAllStdout, "destroy-all stdout")
 	logBufferContentsLineByLine(t, destroyAllStderr, "destroy-all stderr")
 
-	if assert.Error(t, err) {
-		underlying := errors.Unwrap(err)
-		assert.IsType(t, &multierror.Error{}, underlying)
+	require.Error(t, err)
+
+	var multiErrors *errors.MultiError
+
+	if ok := errors.As(err, &multiErrors); ok {
+		err = multiErrors
 	}
+
+	assert.IsType(t, &errors.MultiError{}, err)
 
 	// Check that modules C, D and E were deleted and modules A and B weren't.
 	for moduleName, modulePath := range modulePaths {
