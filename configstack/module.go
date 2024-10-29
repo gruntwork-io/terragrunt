@@ -114,54 +114,32 @@ func (module *TerraformModule) planFile(terragruntOptions *options.TerragruntOpt
 
 // outputFile - return plan file location, if output folder is set
 func (module *TerraformModule) outputFile(opts *options.TerragruntOptions) string {
-	planFile := ""
-
-	if opts.OutputFolder == "" {
-		return planFile
-	}
-
-	path, _ := filepath.Rel(opts.WorkingDir, module.Path)
-	dir := filepath.Join(opts.OutputFolder, path)
-
-	if !filepath.IsAbs(dir) {
-		dir = filepath.Join(opts.WorkingDir, dir)
-	}
-
-	if absDir, err := filepath.Abs(dir); err == nil {
-		dir = absDir
-	} else {
-		opts.Logger.Warnf("Failed to get absolute path for %s: %v", dir, err)
-	}
-
-	planFile = filepath.Join(dir, terraform.TerraformPlanFile)
-
-	return planFile
+	return module.getPlanFilePath(opts, opts.OutputFolder, terraform.TerraformPlanFile)
 }
 
 // outputJSONFile - return plan JSON file location, if JSON output folder is set
 func (module *TerraformModule) outputJSONFile(opts *options.TerragruntOptions) string {
-	jsonPlanFile := ""
+	return module.getPlanFilePath(opts, opts.JSONOutputFolder, terraform.TerraformPlanJSONFile)
+}
 
-	if opts.JSONOutputFolder == "" {
-		return jsonPlanFile
+func (module *TerraformModule) getPlanFilePath(opts *options.TerragruntOptions, outputFolder, fileName string) string {
+	if outputFolder == "" {
+		return ""
 	}
 
 	path, _ := filepath.Rel(opts.WorkingDir, module.Path)
-	dir := filepath.Join(opts.JSONOutputFolder, path)
+	dir := filepath.Join(outputFolder, path)
 
 	if !filepath.IsAbs(dir) {
 		dir = filepath.Join(opts.WorkingDir, dir)
+		if absDir, err := filepath.Abs(dir); err == nil {
+			dir = absDir
+		} else {
+			opts.Logger.Warnf("Failed to get absolute path for %s: %v", dir, err)
+		}
 	}
 
-	if absDir, err := filepath.Abs(dir); err == nil {
-		dir = absDir
-	} else {
-		opts.Logger.Warnf("Failed to get absolute path for %s: %v", dir, err)
-	}
-
-	jsonPlanFile = filepath.Join(dir, terraform.TerraformPlanJSONFile)
-
-	return jsonPlanFile
+	return filepath.Join(dir, fileName)
 }
 
 // findModuleInPath returns true if a module is located under one of the target directories
