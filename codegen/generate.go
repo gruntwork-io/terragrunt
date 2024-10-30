@@ -287,6 +287,33 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]interfac
 	return f.Bytes(), nil
 }
 
+// EncryptionConfigToTerraformCode converts the arbitrary map that represents a encryption config into HCL code to configure that remote state.
+func EncryptionConfigToTerraformCode(config map[string]interface{}) ([]byte, error) {
+	f := hclwrite.NewEmptyFile()
+	encryptionBlock := f.Body().AppendNewBlock("terraform", nil).Body().AppendNewBlock("encryption", nil)
+	encryptionBlockBody := encryptionBlock.Body()
+
+	var encryptionConfigKeys = make([]string, 0, len(config))
+
+	for key := range config {
+		encryptionConfigKeys = append(encryptionConfigKeys, key)
+	}
+
+	sort.Strings(encryptionConfigKeys)
+
+	for _, key := range encryptionConfigKeys {
+
+		ctyVal, err := convertValue(config[key])
+		if err != nil {
+			return nil, errors.New(err)
+		}
+
+		encryptionBlockBody.SetAttributeValue(key, ctyVal.Value)
+	}
+
+	return f.Bytes(), nil
+}
+
 func convertValue(v interface{}) (ctyjson.SimpleJSONValue, error) {
 	jsonBytes, err := json.Marshal(v)
 	if err != nil {

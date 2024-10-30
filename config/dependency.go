@@ -767,6 +767,19 @@ func getTerragruntOutputJSON(ctx *ParsingContext, targetConfig string) ([]byte, 
 		return runTerragruntOutputJSON(ctx, targetConfig)
 	}
 
+	encryptionTGConfig, err := PartialParseConfigFile(ctx.WithParseOption(parseOptions).WithDecodeList(EncryptionBlock, TerragruntFlags), targetConfig, nil)
+	if err != nil || !canGetEncryption(encryptionTGConfig.Encryption) {
+		targetOpts, err := cloneTerragruntOptionsForDependency(ctx, targetConfig)
+		if err != nil {
+			return nil, err
+		}
+
+		ctx.TerragruntOptions.Logger.Debugf("Could not parse encryption block from target config %s", targetOpts.TerragruntConfigPath)
+		ctx.TerragruntOptions.Logger.Debugf("Falling back to terragrunt output.")
+
+		return runTerragruntOutputJSON(ctx, targetConfig)
+	}
+
 	// In optimization mode, see if there is already an init-ed folder that terragrunt can use, and if so, run
 	// `terraform output` in the working directory.
 	isInit, workingDir, err := terragruntAlreadyInit(targetTGOptions, targetConfig, ctx)
@@ -778,12 +791,17 @@ func getTerragruntOutputJSON(ctx *ParsingContext, targetConfig string) ([]byte, 
 		return getTerragruntOutputJSONFromInitFolder(ctx, workingDir, remoteStateTGConfig.GetIAMRoleOptions())
 	}
 
-	return getTerragruntOutputJSONFromRemoteState(ctx, targetConfig, remoteStateTGConfig.RemoteState, remoteStateTGConfig.GetIAMRoleOptions())
+	return getTerragruntOutputJSONFromRemoteState(ctx, targetConfig, remoteStateTGConfig.RemoteState, encryptionTGConfig.Encryption, remoteStateTGConfig.GetIAMRoleOptions())
 }
 
 // canGetRemoteState returns true if the remote state block is not nil and dependency optimization is not disabled
 func canGetRemoteState(remoteState *remote.RemoteState) bool {
 	return remoteState != nil && !remoteState.DisableDependencyOptimization
+}
+
+// canGetEncryption returns true if the encryption block is not nil
+func canGetEncryption(encryption *Encryption) bool {
+	return encryption != nil
 }
 
 // terragruntAlreadyInit returns true if it detects that the module specified by the given terragrunt configuration is
@@ -858,6 +876,7 @@ func getTerragruntOutputJSONFromInitFolder(ctx *ParsingContext, terraformWorking
 // To do this, this function will:
 // - Create a temporary folder
 // - Generate the backend.tf file with the backend configuration from the remote_state block
+// - Generate the encryption.tf file with the encryption configuration from the encryption block
 // - Copy the provider lock file, if there is one in the dependency's working directory
 // - Run terraform init and terraform output
 // - Clean up folder once json file is generated
@@ -866,6 +885,7 @@ func getTerragruntOutputJSONFromRemoteState(
 	ctx *ParsingContext,
 	targetConfigPath string,
 	remoteState *remote.RemoteState,
+	encryption *Encryption,
 	iamRoleOpts options.IAMRoleOptions,
 ) ([]byte, error) {
 	ctx.TerragruntOptions.Logger.Debugf("Detected remote state block with generate config. Resolving dependency by pulling remote state.")
@@ -931,6 +951,21 @@ func getTerragruntOutputJSONFromRemoteState(
 	}
 
 	ctx.TerragruntOptions.Logger.Debugf("Generated remote state configuration in working dir %s", tempWorkDir)
+
+	// Generate the encryption configuration in the working dir. If no generate config is set on the encryption block,
+	// set a temporary generate config so we can generate the backend code.
+	if encryption.Generate == nil {
+		encryption.Generate = &EncryptionGenerate{
+			Path:     "encryption.tf",
+			IfExists: codegen.ExistsOverwriteTerragruntStr,
+		}
+	}
+
+	if err := encryption.GenerateTerraformCode(targetTGOptions); err != nil {
+		return nil, err
+	}
+
+	ctx.TerragruntOptions.Logger.Debugf("Generated encryption configuration in working dir %s", tempWorkDir)
 
 	// Check for a provider lock file and copy it to the working dir if it exists.
 	terragruntDir := filepath.Dir(ctx.TerragruntOptions.TerragruntConfigPath)

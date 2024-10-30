@@ -32,6 +32,7 @@ const (
 	TerragruntInputs
 	TerragruntVersionConstraints
 	RemoteStateBlock
+	EncryptionBlock
 )
 
 // terragruntIncludeMultiple is a struct that can be used to only decode the include block with labels.
@@ -93,6 +94,12 @@ type TerragruntDependency struct {
 type terragruntRemoteState struct {
 	RemoteState *remoteStateConfigFile `hcl:"remote_state,block"`
 	Remain      hcl.Body               `hcl:",remain"`
+}
+
+// terragruntEncryption is a struct that can be used to only decode the encryption blocks in the terragrunt config
+type terragruntEncryption struct {
+	Encryption *encryptionConfigFile `hcl:"encryption,block"`
+	Remain     hcl.Body              `hcl:",remain"`
 }
 
 // terragruntInputs is a struct that can be used to only decode the inputs block.
@@ -208,6 +215,7 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File,
 //   - TerragruntVersionConstraints: Parses the attributes related to constraining terragrunt and terraform versions in
 //     the config.
 //   - RemoteStateBlock: Parses the `remote_state` block in the config
+//   - EncryptionBlock: Parses the `encryption` block in the config
 //
 // Note that the following blocks are always decoded:
 // - locals
@@ -413,6 +421,23 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				}
 
 				output.RemoteState = remoteState
+			}
+
+		case EncryptionBlock:
+			decoded := terragruntEncryption{}
+
+			err := file.Decode(&decoded, evalParsingContext)
+			if err != nil {
+				return nil, err
+			}
+
+			if decoded.Encryption != nil {
+				encryption, err := decoded.Encryption.toConfig()
+				if err != nil {
+					return nil, err
+				}
+
+				output.Encryption = encryption
 			}
 
 		default:

@@ -98,6 +98,7 @@ type TerragruntConfig struct {
 	TerraformVersionConstraint  string
 	TerragruntVersionConstraint string
 	RemoteState                 *remote.RemoteState
+	Encryption                  *Encryption
 	Dependencies                *ModuleDependencies
 	DownloadDir                 string
 	PreventDestroy              *bool
@@ -174,6 +175,20 @@ type terragruntConfigFile struct {
 	// }
 	RemoteState     *remoteStateConfigFile `hcl:"remote_state,block"`
 	RemoteStateAttr *cty.Value             `hcl:"remote_state,optional"`
+
+	// We allow users to configure encryption via blocks:
+	//
+	// encryption {
+	//	 config = { ... }
+	// }
+	//
+	// Or as attributes:
+	//
+	// encryption = {
+	//	 config = { ... }
+	// }
+	Encryption     *encryptionConfigFile `hcl:"encryption,block"`
+	EncryptionAttr *cty.Value            `hcl:"encryption,optional"`
 
 	Dependencies             *ModuleDependencies `hcl:"dependencies,block"`
 	DownloadDir              *string             `hcl:"download_dir,attr"`
@@ -282,6 +297,126 @@ type remoteStateConfigGenerate struct {
 	Path     string `cty:"path"`
 	IfExists string `cty:"if_exists"`
 }
+
+// Configuration for Terraform encryption as parsed from a terragrunt.hcl config file
+type encryptionConfigFile struct {
+	Generate *encryptionConfigGenerate `hcl:"generate,attr"`
+	Config   cty.Value                 `hcl:"config,attr"`
+}
+
+type encryptionConfig struct {
+	KeyProvider map[string]map[string]interface{} `hcl:"key_provider,block"`
+	Method      map[string]map[string]interface{} `hcl:"method,block"`
+	State       map[string]interface{}            `hcl:"state,block"`
+	Plan        map[string]interface{}            `hcl:"plan,block"`
+}
+
+// Convert the parsed config file encryption struct to the internal representation struct of encryption
+// configurations.
+func (encryption *encryptionConfigFile) toConfig() (*Encryption, error) {
+	encryptionConfig, err := ParseCtyValueToMap(encryption.Config)
+	if err != nil {
+		return nil, err
+	}
+
+	config := &Encryption{}
+
+	if encryption.Generate != nil {
+		config.Generate = &EncryptionGenerate{
+			Path:     encryption.Generate.Path,
+			IfExists: encryption.Generate.IfExists,
+		}
+	}
+
+	config.Config.KeyProvider = encryptionConfig["key_provider"].(map[string]map[string]interface{})
+	config.Config.Method = encryptionConfig["method"].(map[string]map[string]interface{})
+	config.Config.State = encryptionConfig["state"].(map[string]interface{})
+	config.Config.Plan = encryptionConfig["plan"].(map[string]interface{})
+
+	config.FillDefaults()
+
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+
+	return config, err
+}
+
+type encryptionConfigGenerate struct {
+	// We use cty instead of hcl, since we are using this type to convert an attr and not a block.
+	Path     string `cty:"path"`
+	IfExists string `cty:"if_exists"`
+}
+
+// EncryptionGenerate is code gen configuration for Terraform encryption
+type EncryptionGenerate struct {
+	Path     string `cty:"path" mapstructure:"path"`
+	IfExists string `cty:"if_exists" mapstructure:"if_exists"`
+}
+
+// Encryption is the configuration for Terraform encryption
+// NOTE: If any attributes are added here, be sure to add it to encryptionAsCty in config/config_as_cty.go
+type Encryption struct {
+	Generate *EncryptionGenerate `mapstructure:"generate" json:"Generate"`
+	Config   *encryptionConfig   `mapstructure:"config" json:"Config"`
+}
+
+// FillDefaults fills in any default configuration for encryption
+func (encryption *Encryption) FillDefaults() {
+	// Nothing to do
+}
+
+// Validate that the encryption is configured correctly
+func (encryption *Encryption) Validate() error {
+	if encryption.Config == nil {
+		return errors.New(ErrEncryptionConfigMissing)
+	}
+
+	return nil
+}
+
+// GenerateTerraformCode generates the terraform code for configuring encryption.
+func (encryption *Encryption) GenerateTerraformCode(terragruntOptions *options.TerragruntOptions) error {
+	if encryption.Generate == nil {
+		return errors.New(ErrGenerateCalledWithNoGenerateAttr)
+	}
+
+	// Make sure to strip out terragrunt specific configurations from the config.
+	config := encryption.Config
+
+	// Convert the IfExists setting to the internal enum representation before calling generate.
+	ifExistsEnum, err := codegen.GenerateConfigExistsFromString(encryption.Generate.IfExists)
+	if err != nil {
+		return err
+	}
+
+	configMap := map[string]interface{}{
+		"key_provider": config.KeyProvider,
+		"method":       config.Method,
+		"state":        config.State,
+		"plan":         config.Plan,
+	}
+	configBytes, err := codegen.EncryptionConfigToTerraformCode(configMap)
+	if err != nil {
+		return err
+	}
+
+	codegenConfig := codegen.GenerateConfig{
+		Path:          encryption.Generate.Path,
+		IfExists:      ifExistsEnum,
+		IfExistsStr:   encryption.Generate.IfExists,
+		Contents:      string(configBytes),
+		CommentPrefix: codegen.DefaultCommentPrefix,
+	}
+
+	return codegen.WriteToFile(terragruntOptions, terragruntOptions.WorkingDir, codegenConfig)
+}
+
+// Custom errors
+var (
+	ErrEncryptionConfigMissing          = errors.New("the encryption.config field cannot be empty")
+	ErrGenerateCalledWithNoGenerateAttr = errors.New("generate code routine called when no generate attribute is configured")
+)
 
 // Struct used to parse generate blocks. This will later be converted to GenerateConfig structs so that we can go
 // through the codegen routine.

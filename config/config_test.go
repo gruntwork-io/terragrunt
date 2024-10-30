@@ -1384,3 +1384,70 @@ func BenchmarkReadTerragruntConfig(b *testing.B) {
 		})
 	}
 }
+func TestParseTerragruntConfigEncryptionMinimalConfig(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+encryption {
+  config  = {}
+}
+`
+
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
+
+	assert.Nil(t, terragruntConfig.Terraform)
+
+	assert.Empty(t, terragruntConfig.IamRole)
+
+	if assert.NotNil(t, terragruntConfig.Encryption) {
+		assert.Empty(t, terragruntConfig.Encryption.Config)
+	}
+}
+
+func TestParseTerragruntConfigEncryptionAttrMinimalConfig(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+encryption = {
+  config  = {}
+}
+`
+
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntConfigPath, cfg, nil)
+	require.NoError(t, err)
+
+	assert.Nil(t, terragruntConfig.Terraform)
+
+	assert.Empty(t, terragruntConfig.IamRole)
+
+	if assert.NotNil(t, terragruntConfig.Encryption) {
+		assert.Empty(t, terragruntConfig.Encryption.Config)
+	}
+}
+
+func TestParseTerragruntJsonConfigEncryptionMinimalConfig(t *testing.T) {
+	t.Parallel()
+
+	cfg := `
+{
+	"encryption": {
+		"config": {}
+	}
+}
+`
+
+	ctx := config.NewParsingContext(context.Background(), mockOptionsForTest(t))
+	terragruntConfig, err := config.ParseConfigString(ctx, config.DefaultTerragruntJSONConfigPath, cfg, nil)
+	require.NoError(t, err)
+
+	assert.Nil(t, terragruntConfig.Terraform)
+	assert.Nil(t, terragruntConfig.RetryableErrors)
+	assert.Empty(t, terragruntConfig.IamRole)
+
+	if assert.NotNil(t, terragruntConfig.Encryption) {
+		assert.Empty(t, terragruntConfig.Encryption.Config)
+	}
+}
