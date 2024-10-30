@@ -180,7 +180,7 @@ func handleIncludeForDependency(ctx *ParsingContext, childDecodedDependency Terr
 			return nil, err
 		}
 
-		includedPartialParse, err := partialParseIncludedConfig(ctx.WithDecodeList(DependencyBlock), &includeConfig)
+		includedPartialParse, err := partialParseIncludedConfig(ctx.WithDecodeList(DependencyBlock, FeatureFlagsBlock), &includeConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -525,10 +525,10 @@ func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 }
 
 // merge feature flags by name
-func mergeFeatureFlags(targetFlags []FeatureFlag, sourceFlags []FeatureFlag) []FeatureFlag {
+func mergeFeatureFlags(targetFlags []*FeatureFlag, sourceFlags []*FeatureFlag) []*FeatureFlag {
 	keys := make([]string, 0, len(targetFlags))
 
-	flagBlocks := make(map[string]FeatureFlag)
+	flagBlocks := make(map[string]*FeatureFlag)
 	for _, flags := range targetFlags {
 		flagBlocks[flags.Name] = flags
 		keys = append(keys, flags.Name)
@@ -541,7 +541,7 @@ func mergeFeatureFlags(targetFlags []FeatureFlag, sourceFlags []FeatureFlag) []F
 		}
 		flagBlocks[dep.Name] = dep
 	}
-	var combinedFlags []FeatureFlag
+	var combinedFlags []*FeatureFlag
 	for _, key := range keys {
 		combinedFlags = append(combinedFlags, flagBlocks[key])
 	}
@@ -619,9 +619,9 @@ func deepMergeDependencyBlocks(targetDependencies []Dependency, sourceDependenci
 }
 
 // DeepMerge feature flags.
-func deepMergeFeatureBlocks(targetFeatureFlag []FeatureFlag, sourceFeatureFlag []FeatureFlag) ([]FeatureFlag, error) {
+func deepMergeFeatureBlocks(targetFeatureFlag []*FeatureFlag, sourceFeatureFlag []*FeatureFlag) ([]*FeatureFlag, error) {
 	var keys []string
-	featureBlocks := make(map[string]FeatureFlag)
+	featureBlocks := make(map[string]*FeatureFlag)
 	for _, flag := range targetFeatureFlag {
 		featureBlocks[flag.Name] = flag
 		keys = append(keys, flag.Name)
@@ -630,19 +630,19 @@ func deepMergeFeatureBlocks(targetFeatureFlag []FeatureFlag, sourceFeatureFlag [
 	for _, flag := range sourceFeatureFlag {
 		sameKeyDep, hasSameKey := featureBlocks[flag.Name]
 		if hasSameKey {
-			sameKeyFlagPtr := &sameKeyDep
+			sameKeyFlagPtr := sameKeyDep
 			if err := sameKeyFlagPtr.DeepMerge(flag); err != nil {
 				return nil, err
 			}
 
-			featureBlocks[flag.Name] = *sameKeyFlagPtr
+			featureBlocks[flag.Name] = sameKeyFlagPtr
 		} else {
 			featureBlocks[flag.Name] = flag
 			keys = append(keys, flag.Name)
 		}
 	}
 
-	var combinedFlags []FeatureFlag
+	var combinedFlags []*FeatureFlag
 	for _, key := range keys {
 		combinedFlags = append(combinedFlags, featureBlocks[key])
 	}

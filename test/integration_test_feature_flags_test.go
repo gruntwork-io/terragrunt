@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	testSimpleFlag = "fixtures/feature-flags/simple-flag"
+	testSimpleFlag  = "fixtures/feature-flags/simple-flag"
+	testIncludeFlag = "fixtures/feature-flags/include-flag"
 )
 
 func TestFeatureFlagDefaults(t *testing.T) {
@@ -24,6 +25,22 @@ func TestFeatureFlagDefaults(t *testing.T) {
 
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
+	validateOutputs(t, rootPath)
+}
+
+func TestFeatureIncludeFlag(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testIncludeFlag)
+	tmpEnvPath := copyEnvironment(t, testIncludeFlag)
+	rootPath := util.JoinPath(tmpEnvPath, testIncludeFlag, "app")
+
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	validateOutputs(t, rootPath)
+}
+
+func validateOutputs(t *testing.T, rootPath string) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
@@ -36,5 +53,4 @@ func TestFeatureFlagDefaults(t *testing.T) {
 	assert.Equal(t, "test", outputs["string_feature_flag"].Value)
 	assert.EqualValues(t, 666, outputs["int_feature_flag"].Value)
 	assert.Equal(t, false, outputs["bool_feature_flag"].Value)
-
 }

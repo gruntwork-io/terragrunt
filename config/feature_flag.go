@@ -3,7 +3,7 @@ package config
 import "github.com/zclconf/go-cty/cty"
 
 // FeatureFlags represents a list of feature flags
-type FeatureFlags []FeatureFlag
+type FeatureFlags []*FeatureFlag
 
 // FeatureFlag feature flags struct
 type FeatureFlag struct {
@@ -18,7 +18,7 @@ type ctyFeatureFlag struct {
 }
 
 // DeepMerge merges the source FeatureFlag into the target FeatureFlag.
-func (feature *FeatureFlag) DeepMerge(source FeatureFlag) error {
+func (feature *FeatureFlag) DeepMerge(source *FeatureFlag) error {
 	if source.Name != "" {
 		feature.Name = source.Name
 	}

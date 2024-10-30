@@ -32,9 +32,10 @@ const versionParts = 3
 // following settings on terragruntOptions:
 // - TerraformPath
 // - TerraformVersion
+// - FeatureFlags
 // TODO: Look into a way to refactor this function to avoid the side effect.
 func checkVersionConstraints(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
-	configContext := config.NewParsingContext(ctx, terragruntOptions).WithDecodeList(config.TerragruntVersionConstraints)
+	configContext := config.NewParsingContext(ctx, terragruntOptions).WithDecodeList(config.TerragruntVersionConstraints, config.FeatureFlagsBlock)
 
 	// TODO: See if we should be ignore this lint error
 	partialTerragruntConfig, err := config.PartialParseConfigFile( //nolint: contextcheck
