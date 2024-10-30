@@ -618,7 +618,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		Engine:                         cloneEngineOptions(opts.Engine),
 		// copy array
 		StrictControls: util.CloneStringList(opts.StrictControls),
-		FeatureFlags:                   opts.FeatureFlags,
+		FeatureFlags:   opts.FeatureFlags,
 	}, nil
 }
 
