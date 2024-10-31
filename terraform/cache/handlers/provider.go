@@ -130,7 +130,7 @@ func (handler *CommonProviderHandler) DiscoveryURL(ctx context.Context, registry
 
 	urls, err := DiscoveryURL(ctx, registryName)
 	if err != nil {
-		if !isOfflineError(err) {
+		if !IsOfflineError(err) {
 			return nil, err
 		}
 
@@ -145,8 +145,8 @@ func (handler *CommonProviderHandler) DiscoveryURL(ctx context.Context, registry
 	return urls, nil
 }
 
-// isOfflineError returns true if the given error is an offline error and can be use default URL.
-func isOfflineError(err error) bool {
+// IsOfflineError returns true if the given error is an offline error and can be use default URL.
+func IsOfflineError(err error) bool {
 	if liberrors.As(err, &NotFoundWellKnownURL{}) {
 		return true
 	}

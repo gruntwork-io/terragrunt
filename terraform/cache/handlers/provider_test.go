@@ -1,7 +1,8 @@
-package handlers
+package handlers_test
 
 import (
 	"errors"
+	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"syscall"
 	"testing"
 
@@ -27,7 +28,7 @@ func TestIsOfflineError(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
-			result := isOfflineError(tc.err)
+			result := handlers.IsOfflineError(tc.err)
 			assert.Equal(t, tc.expected, result, "Expected result for %v is %v", tc.desc, tc.expected)
 		})
 	}
