@@ -66,6 +66,7 @@ const (
 	testFixtureGraphDependencies              = "fixtures/graph-dependencies"
 	testFixtureHclfmtDiff                     = "fixtures/hclfmt-diff"
 	testFixtureHclvalidate                    = "fixtures/hclvalidate"
+	testFixtureHclfmtStdin                    = "fixtures/hclfmt-stdin"
 	testFixtureIamRolesMultipleModules        = "fixtures/read-config/iam_roles_multiple_modules"
 	testFixtureIncludeParent                  = "fixtures/include-parent"
 	testFixtureInfoError                      = "fixtures/terragrunt-info-error"
@@ -3320,6 +3321,31 @@ func TestHclFmtDiff(t *testing.T) {
 
 	logBufferContentsLineByLine(t, stdout, "output")
 	assert.Contains(t, output, string(expectedDiff))
+}
+
+func TestHclFmtStdin(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testFixtureHclfmtStdin)
+	tmpEnvPath := copyEnvironment(t, testFixtureHclfmtStdin)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureHclfmtStdin)
+
+	tmpStdoutFile, err := os.OpenFile(util.JoinPath(rootPath, "actual.hcl"), os.O_CREATE|os.O_RDWR, 0644)
+	require.NoError(t, err)
+
+	os.Stdin, _ = os.Open(util.JoinPath(rootPath, "terragrunt.hcl"))
+	os.Stdout = tmpStdoutFile
+
+	_, _, err = runTerragruntCommandWithOutput(t, "terragrunt hclfmt --terragrunt-hclfmt-stdin")
+	require.NoError(t, err)
+
+	output, err := os.ReadFile(util.JoinPath(rootPath, "actual.hcl"))
+	require.NoError(t, err)
+
+	expectedDiff, err := os.ReadFile(util.JoinPath(rootPath, "expected.hcl"))
+	require.NoError(t, err)
+
+	assert.Contains(t, string(output), string(expectedDiff))
 }
 
 func TestDownloadSourceWithRef(t *testing.T) {
