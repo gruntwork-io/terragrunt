@@ -4,7 +4,6 @@ package handlers
 import (
 	"context"
 	liberrors "errors"
-	"fmt"
 	"strings"
 	"syscall"
 
@@ -152,7 +151,6 @@ func isOfflineError(err error) bool {
 		return true
 	}
 	for _, connErr := range offlineErrors {
-		fmt.Printf("err: %v, connErr: %v\n", err, connErr)
 		if liberrors.Is(err, connErr) || strings.Contains(err.Error(), connErr.Error()) {
 			return true
 		}
