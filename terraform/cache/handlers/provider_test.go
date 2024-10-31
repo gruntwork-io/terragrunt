@@ -2,9 +2,10 @@ package handlers_test
 
 import (
 	"errors"
-	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 	"syscall"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
 
 	"github.com/stretchr/testify/assert"
 )
