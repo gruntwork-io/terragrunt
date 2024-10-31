@@ -26,6 +26,7 @@ func TestIsOfflineError(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
+			t.Parallel()
 			result := isOfflineError(tc.err)
 			assert.Equal(t, tc.expected, result, "Expected result for %v is %v", tc.desc, tc.expected)
 		})

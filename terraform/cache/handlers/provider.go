@@ -150,10 +150,12 @@ func isOfflineError(err error) bool {
 	if liberrors.As(err, &NotFoundWellKnownURL{}) {
 		return true
 	}
+
 	for _, connErr := range offlineErrors {
 		if liberrors.Is(err, connErr) || strings.Contains(err.Error(), connErr.Error()) {
 			return true
 		}
 	}
+
 	return false
 }
