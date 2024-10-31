@@ -106,7 +106,7 @@ func formatFromStdin(opts *options.TerragruntOptions) error {
 
 	newContents := hclwrite.Format(contents)
 
-	buf := bufio.NewWriter(os.Stdout)
+	buf := bufio.NewWriter(opts.Writer)
 
 	if _, err = buf.Write(newContents); err != nil {
 		opts.Logger.Errorf("Failed to write to stdout")

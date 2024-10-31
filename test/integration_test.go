@@ -3330,22 +3330,15 @@ func TestHclFmtStdin(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, testFixtureHclfmtStdin)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureHclfmtStdin)
 
-	tmpStdoutFile, err := os.OpenFile(util.JoinPath(rootPath, "actual.hcl"), os.O_CREATE|os.O_RDWR, 0644)
-	require.NoError(t, err)
-
 	os.Stdin, _ = os.Open(util.JoinPath(rootPath, "terragrunt.hcl"))
-	os.Stdout = tmpStdoutFile
 
-	_, _, err = runTerragruntCommandWithOutput(t, "terragrunt hclfmt --terragrunt-hclfmt-stdin")
-	require.NoError(t, err)
-
-	output, err := os.ReadFile(util.JoinPath(rootPath, "actual.hcl"))
+	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt hclfmt --terragrunt-hclfmt-stdin")
 	require.NoError(t, err)
 
 	expectedDiff, err := os.ReadFile(util.JoinPath(rootPath, "expected.hcl"))
 	require.NoError(t, err)
 
-	assert.Contains(t, string(output), string(expectedDiff))
+	assert.Contains(t, stdout, string(expectedDiff))
 }
 
 func TestDownloadSourceWithRef(t *testing.T) {
