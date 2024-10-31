@@ -31,6 +31,11 @@ var availablePlatforms []*models.Platform = []*models.Platform{
 	{OS: "windows", Arch: "amd64"},
 }
 
+var offlineErrors = []error{
+	syscall.ECONNREFUSED,
+	syscall.ECONNRESET,
+}
+
 // ProviderHandlers is a slice of ProviderHandler.
 type ProviderHandlers []ProviderHandler
 
@@ -120,7 +125,7 @@ func (handler *CommonProviderHandler) DiscoveryURL(ctx context.Context, registry
 
 	urls, err := DiscoveryURL(ctx, registryName)
 	if err != nil {
-		if !liberrors.As(err, &NotFoundWellKnownURL{}) && !liberrors.Is(err, syscall.ECONNREFUSED) {
+		if !isOfflineError(err) {
 			return nil, err
 		}
 
@@ -133,4 +138,18 @@ func (handler *CommonProviderHandler) DiscoveryURL(ctx context.Context, registry
 	handler.registryURLCache.Store(registryName, urls)
 
 	return urls, nil
+}
+
+// isOfflineError returns true if the given error is an offline error and can be use default URL.
+func isOfflineError(err error) bool {
+	if liberrors.As(err, &NotFoundWellKnownURL{}) {
+		return true
+	}
+
+	for _, connErr := range offlineErrors {
+		if liberrors.Is(err, connErr) {
+			return true
+		}
+	}
+	return false
 }
