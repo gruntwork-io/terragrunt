@@ -4,6 +4,8 @@ package handlers
 import (
 	"context"
 	liberrors "errors"
+	"fmt"
+	"strings"
 	"syscall"
 
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
@@ -34,6 +36,10 @@ var availablePlatforms []*models.Platform = []*models.Platform{
 var offlineErrors = []error{
 	syscall.ECONNREFUSED,
 	syscall.ECONNRESET,
+	syscall.ECONNABORTED,
+	syscall.EHOSTUNREACH,
+	syscall.ENETUNREACH,
+	syscall.ENETDOWN,
 }
 
 // ProviderHandlers is a slice of ProviderHandler.
@@ -145,9 +151,9 @@ func isOfflineError(err error) bool {
 	if liberrors.As(err, &NotFoundWellKnownURL{}) {
 		return true
 	}
-
 	for _, connErr := range offlineErrors {
-		if liberrors.Is(err, connErr) {
+		fmt.Printf("err: %v, connErr: %v\n", err, connErr)
+		if liberrors.Is(err, connErr) || strings.Contains(err.Error(), connErr.Error()) {
 			return true
 		}
 	}
