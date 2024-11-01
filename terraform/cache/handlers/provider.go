@@ -4,6 +4,7 @@ package handlers
 import (
 	"context"
 	liberrors "errors"
+	"strings"
 	"syscall"
 
 	"github.com/gruntwork-io/terragrunt/terraform/cache/models"
@@ -29,6 +30,15 @@ var availablePlatforms []*models.Platform = []*models.Platform{
 	{OS: "darwin", Arch: "arm64"},
 	{OS: "windows", Arch: "386"},
 	{OS: "windows", Arch: "amd64"},
+}
+
+var offlineErrors = []error{
+	syscall.ECONNREFUSED,
+	syscall.ECONNRESET,
+	syscall.ECONNABORTED,
+	syscall.EHOSTUNREACH,
+	syscall.ENETUNREACH,
+	syscall.ENETDOWN,
 }
 
 // ProviderHandlers is a slice of ProviderHandler.
@@ -120,7 +130,7 @@ func (handler *CommonProviderHandler) DiscoveryURL(ctx context.Context, registry
 
 	urls, err := DiscoveryURL(ctx, registryName)
 	if err != nil {
-		if !liberrors.As(err, &NotFoundWellKnownURL{}) && !liberrors.Is(err, syscall.ECONNREFUSED) {
+		if !IsOfflineError(err) {
 			return nil, err
 		}
 
@@ -133,4 +143,19 @@ func (handler *CommonProviderHandler) DiscoveryURL(ctx context.Context, registry
 	handler.registryURLCache.Store(registryName, urls)
 
 	return urls, nil
+}
+
+// IsOfflineError returns true if the given error is an offline error and can be use default URL.
+func IsOfflineError(err error) bool {
+	if liberrors.As(err, &NotFoundWellKnownURL{}) {
+		return true
+	}
+
+	for _, connErr := range offlineErrors {
+		if liberrors.Is(err, connErr) || strings.Contains(err.Error(), connErr.Error()) {
+			return true
+		}
+	}
+
+	return false
 }
