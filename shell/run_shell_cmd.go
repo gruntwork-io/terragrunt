@@ -16,7 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/format"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 	"github.com/gruntwork-io/terragrunt/terraform"
 
@@ -125,7 +125,7 @@ func RunShellCommandWithOutput(
 			outWriter = logger.WithOptions(log.WithOutput(errWriter)).Writer()
 			errWriter = logger.WithOptions(log.WithOutput(errWriter)).WriterLevel(log.ErrorLevel)
 		} else if command == opts.TerraformPath && !opts.TerraformLogsToJSON && !opts.ForwardTFStdout && !shouldForceForwardTFStdout(args) {
-			logger := opts.Logger.WithField(format.TFBinaryKeyName, filepath.Base(opts.TerraformPath))
+			logger := opts.Logger.WithField(placeholders.TFPathKeyName, filepath.Base(opts.TerraformPath))
 
 			outWriter = writer.New(
 				writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),

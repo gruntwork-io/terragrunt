@@ -13,6 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
 )
@@ -128,7 +129,7 @@ type TerragruntOptions struct {
 	// Disable Terragrunt colors
 	DisableLogColors bool
 
-	// Output Terragrunt logs in JSON format
+	// Output Terragrunt logs in JSON formatter
 	JSONLogFormat bool
 
 	// Disable replacing full paths in logs with short relative paths
@@ -143,10 +144,10 @@ type TerragruntOptions struct {
 	// If true, logs will be disabled
 	DisableLog bool
 
-	// If true, logs will be displayed in format key/value, by default logs are formatted in human-readable format.
+	// If true, logs will be displayed in formatter key/value, by default logs are formatted in human-readable formatter.
 	DisableLogFormatting bool
 
-	// Wrap Terraform logs in JSON format
+	// Wrap Terraform logs in JSON formatter
 	TerraformLogsToJSON bool
 
 	// ValidateStrict mode for the validate-inputs command
@@ -530,20 +531,23 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
 	// for more info.
 	return &TerragruntOptions{
-		TerragruntConfigPath:           terragruntConfigPath,
-		OriginalTerragruntConfigPath:   opts.OriginalTerragruntConfigPath,
-		TerraformPath:                  opts.TerraformPath,
-		OriginalTerraformCommand:       opts.OriginalTerraformCommand,
-		TerraformCommand:               opts.TerraformCommand,
-		TerraformVersion:               opts.TerraformVersion,
-		TerragruntVersion:              opts.TerragruntVersion,
-		AutoInit:                       opts.AutoInit,
-		RunAllAutoApprove:              opts.RunAllAutoApprove,
-		NonInteractive:                 opts.NonInteractive,
-		TerraformCliArgs:               util.CloneStringList(opts.TerraformCliArgs),
-		WorkingDir:                     workingDir,
-		RootWorkingDir:                 opts.RootWorkingDir,
-		Logger:                         opts.Logger.WithField(format.PrefixKeyName, workingDir),
+		TerragruntConfigPath:         terragruntConfigPath,
+		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
+		TerraformPath:                opts.TerraformPath,
+		OriginalTerraformCommand:     opts.OriginalTerraformCommand,
+		TerraformCommand:             opts.TerraformCommand,
+		TerraformVersion:             opts.TerraformVersion,
+		TerragruntVersion:            opts.TerragruntVersion,
+		AutoInit:                     opts.AutoInit,
+		RunAllAutoApprove:            opts.RunAllAutoApprove,
+		NonInteractive:               opts.NonInteractive,
+		TerraformCliArgs:             util.CloneStringList(opts.TerraformCliArgs),
+		WorkingDir:                   workingDir,
+		RootWorkingDir:               opts.RootWorkingDir,
+		Logger: opts.Logger.WithFields(log.Fields{
+			placeholders.WorkDirKeyName:     workingDir,
+			placeholders.DownloadDirKeyName: opts.DownloadDir,
+		}),
 		LogLevel:                       opts.LogLevel,
 		LogFormatter:                   opts.LogFormatter,
 		ValidateStrict:                 opts.ValidateStrict,
@@ -623,7 +627,7 @@ func cloneEngineOptions(opts *EngineOptions) *EngineOptions {
 	}
 }
 
-// Check if argument is planfile TODO check file format
+// Check if argument is planfile TODO check file formatter
 func checkIfPlanFile(arg string) bool {
 	return util.IsFile(arg) && filepath.Ext(arg) == ".tfplan"
 }

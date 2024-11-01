@@ -5,7 +5,7 @@ import "sort"
 // Fields is the type used to pass arguments to `WithFields`.
 type Fields map[string]interface{}
 
-func (fields Fields) Keys(removeKeys ...string) []string {
+func (fields Fields) RemoveKeys(removeKeys ...string) []string {
 	var keys []string
 
 	for key := range fields {

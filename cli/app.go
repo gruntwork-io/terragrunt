@@ -11,9 +11,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/engine"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
-	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/pkg/log/format"
-	"github.com/gruntwork-io/terragrunt/pkg/log/hooks"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"golang.org/x/sync/errgroup"
@@ -47,6 +44,7 @@ import (
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 )
 
 func init() {
@@ -294,17 +292,12 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 		return errors.New(err)
 	}
 
-	opts.Logger = opts.Logger.WithField(format.PrefixKeyName, workingDir)
+	opts.Logger = opts.Logger.WithField(placeholders.WorkDirKeyName, workingDir)
 
 	opts.RootWorkingDir = filepath.ToSlash(workingDir)
 
-	if !opts.LogShowAbsPaths {
-		hook, err := hooks.NewRelativePathHook(opts.RootWorkingDir)
-		if err != nil {
-			return err
-		}
-
-		opts.Logger.SetOptions(log.WithHooks(hook))
+	if err := opts.LogFormatter.CreateRelativePathsCache(opts.RootWorkingDir); err != nil {
+		return nil
 	}
 
 	// --- Download Dir
