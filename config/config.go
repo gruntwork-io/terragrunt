@@ -1146,9 +1146,12 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 		terragruntConfig.SetFieldMetadata(MetadataEngine, defaultMetadata)
 	}
 
-	terragruntConfig.FeatureFlags = terragruntConfigFromFile.FeatureFlags
-	for _, flag := range terragruntConfig.FeatureFlags {
-		terragruntConfig.SetFieldMetadataWithType(MetadataFeatureFlag, flag.Name, defaultMetadata)
+	if terragruntConfig.FeatureFlags != nil {
+		terragruntConfig.FeatureFlags = terragruntConfigFromFile.FeatureFlags
+		for _, flag := range terragruntConfig.FeatureFlags {
+			//TODO: rewrite value from CLI
+			terragruntConfig.SetFieldMetadataWithType(MetadataFeatureFlag, flag.Name, defaultMetadata)
+		}
 	}
 
 	generateBlocks := []terragruntGenerateBlock{}
