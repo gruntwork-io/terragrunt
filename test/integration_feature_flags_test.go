@@ -14,6 +14,7 @@ import (
 const (
 	testSimpleFlag  = "fixtures/feature-flags/simple-flag"
 	testIncludeFlag = "fixtures/feature-flags/include-flag"
+	testRunAllFlag  = "fixtures/feature-flags/run-all"
 )
 
 func TestFeatureFlagDefaults(t *testing.T) {
@@ -38,6 +39,22 @@ func TestFeatureIncludeFlag(t *testing.T) {
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	validateOutputs(t, rootPath)
+}
+
+func TestFeatureFlagRunAll(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testRunAllFlag)
+	tmpEnvPath := copyEnvironment(t, testRunAllFlag)
+	rootPath := util.JoinPath(tmpEnvPath, testRunAllFlag)
+	app1 := util.JoinPath(tmpEnvPath, testRunAllFlag, "app1")
+	app2 := util.JoinPath(tmpEnvPath, testRunAllFlag, "app2")
+
+	runTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	validateOutputs(t, app1)
+	validateOutputs(t, app2)
+
 }
 
 func validateOutputs(t *testing.T, rootPath string) {

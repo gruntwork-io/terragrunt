@@ -145,41 +145,23 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 		return nil, nil, nil, err
 	}
 
-	optFeatureFlags := ctx.TerragruntOptions.FeatureFlags
 	evaluatedFlags := map[string]cty.Value{}
 	// copy default feature flags to evaluated flags
-	for name, value := range optFeatureFlags {
-		ctyValue, err := goTypeToCty(value)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		ctyFlag := ctyFeatureFlag{
-			Name:  name,
-			Value: ctyValue,
-		}
-		contextFlag, err := goTypeToCty(ctyFlag)
+	for name, value := range ctx.TerragruntOptions.FeatureFlags {
+		contextFlag, err := flagToCtyValue(name, value)
 		if err != nil {
 			return nil, nil, nil, err
 		}
 		evaluatedFlags[name] = contextFlag
 	}
 	for _, flag := range tgFlags.FeatureFlags {
-		// convert feature flag to cty to be accessible through feature.<name>.value
-		ctyValue := *flag.Default
-		// skip values that are already exists
-		_, found := evaluatedFlags[flag.Name]
-		if found {
-			continue
+		if _, exists := evaluatedFlags[flag.Name]; !exists {
+			contextFlag, err := flagToCtyValue(flag.Name, *flag.Default)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			evaluatedFlags[flag.Name] = contextFlag
 		}
-		ctyFlag := ctyFeatureFlag{
-			Name:  flag.Name,
-			Value: ctyValue,
-		}
-		contextFlag, err := goTypeToCty(ctyFlag)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		evaluatedFlags[flag.Name] = contextFlag
 	}
 	flagsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedFlags)
 	if err != nil {
@@ -535,6 +517,20 @@ func decodeAsTerragruntInclude(file *hclparse.File, evalParsingContext *hcl.Eval
 	}
 
 	return tgInc.Include, nil
+}
+
+func flagToCtyValue(name string, value interface{}) (cty.Value, error) {
+	ctyValue, err := goTypeToCty(value)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	ctyFlag := ctyFeatureFlag{
+		Name:  name,
+		Value: ctyValue,
+	}
+
+	return goTypeToCty(ctyFlag)
 }
 
 // Custom error types
