@@ -40,6 +40,7 @@ func (feature *FeatureFlag) DeepMerge(source *FeatureFlag) error {
 	return nil
 }
 
+// DefaultAsString returns the default value of the feature flag as a string
 func (feature *FeatureFlag) DefaultAsString() (string, error) {
 	if feature.Default == nil {
 		return "", nil
@@ -47,6 +48,7 @@ func (feature *FeatureFlag) DefaultAsString() (string, error) {
 	if feature.Default.Type() == cty.String {
 		return feature.Default.AsString(), nil
 	}
+	// convert other types as json representation
 	jsonBytes, err := ctyjson.Marshal(*feature.Default, feature.Default.Type())
 	if err != nil {
 		return "", err
