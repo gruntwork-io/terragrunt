@@ -1,6 +1,9 @@
 package config
 
-import "github.com/zclconf/go-cty/cty"
+import (
+	"github.com/zclconf/go-cty/cty"
+	ctyjson "github.com/zclconf/go-cty/cty/json"
+)
 
 // FeatureFlags represents a list of feature flags
 type FeatureFlags []*FeatureFlag
@@ -35,4 +38,18 @@ func (feature *FeatureFlag) DeepMerge(source *FeatureFlag) error {
 	}
 
 	return nil
+}
+
+func (feature *FeatureFlag) DefaultAsString() (string, error) {
+	if feature.Default == nil {
+		return "", nil
+	}
+	if feature.Default.Type() == cty.String {
+		return feature.Default.AsString(), nil
+	}
+	jsonBytes, err := ctyjson.Marshal(*feature.Default, feature.Default.Type())
+	if err != nil {
+		return "", err
+	}
+	return string(jsonBytes), nil
 }

@@ -72,6 +72,21 @@ func checkVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 		}
 	}
 
+	if partialTerragruntConfig.FeatureFlags != nil {
+		// update feature flags for evaluation
+		for _, flag := range partialTerragruntConfig.FeatureFlags {
+			flagName := flag.Name
+			defaultValue, err := flag.DefaultAsString()
+			if err != nil {
+				return err
+			}
+			if _, exists := terragruntOptions.FeatureFlags[flagName]; !exists {
+				terragruntOptions.FeatureFlags[flagName] = defaultValue
+			}
+		}
+
+	}
+
 	return nil
 }
 
