@@ -405,7 +405,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 }
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
-	var logFormatter = format.NewFormatter()
+	var logFormatter = format.NewFormatter(format.PrettyFormat)
 
 	return &TerragruntOptions{
 		TerraformPath:                  DefaultWrappedPath,

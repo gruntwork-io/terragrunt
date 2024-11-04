@@ -7,26 +7,39 @@ import (
 	. "github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 )
 
-const (
-	PrettyFormat = "pretty"
-	JSONFormat   = "json"
-)
+var (
+	BareFormat = Placeholders{
+		Level(
+			Width(4),
+			Case(UpperCase),
+		),
+		Interval(
+			Prefix("["),
+			Suffix("]"),
+		),
+		PlainText(" "),
+		Message(),
+		Field(WorkDirKeyName,
+			PathFormat(ModulePath),
+			Prefix("\t prefix=["),
+			Suffix("] "),
+		),
+	}
 
-var presets = map[string]Placeholders{
-	PrettyFormat: Placeholders{
+	PrettyFormat = Placeholders{
 		Time(
 			TimeFormat(fmt.Sprintf("%s:%s:%s%s", Hour24Zero, MinZero, SecZero, MilliSec)),
-			Suffix(" "),
 			Color(BlackHColor),
 		),
+		PlainText(" "),
 		Level(
 			Width(6),
 			Case(UpperCase),
-			Suffix(" "),
 			Color(AutoColor),
 		),
+		PlainText(" "),
 		Field(WorkDirKeyName,
-			PathFormat(ShortPath),
+			PathFormat(RelativeModulePath),
 			Prefix("["),
 			Suffix("] "),
 			Color(RandomColor),
@@ -39,11 +52,12 @@ var presets = map[string]Placeholders{
 		Message(
 			PathFormat(RelativePath),
 		),
-	},
-	JSONFormat: Placeholders{
+	}
+
+	JSONFormat = Placeholders{
 		PlainText(`{"time":"`),
 		Time(
-			TimeFormat(fmt.Sprintf("%s:%s:%s%s", Hour24Zero, MinZero, SecZero, MilliSec)),
+			TimeFormat(RFC3339),
 			Escape(JSONEscape),
 		),
 		PlainText(`", "level":"`),
@@ -52,7 +66,7 @@ var presets = map[string]Placeholders{
 		),
 		PlainText(`", "work-dir":"`),
 		Field(WorkDirKeyName,
-			PathFormat(ShortPath),
+			PathFormat(ModulePath),
 			Escape(JSONEscape),
 		),
 		PlainText(`", "tfpath":"`),
@@ -67,7 +81,41 @@ var presets = map[string]Placeholders{
 			Escape(JSONEscape),
 		),
 		PlainText(`"}`),
-	},
+	}
+
+	KeyValueFormat = Placeholders{
+		Time(
+			Prefix("time="),
+			TimeFormat(RFC3339),
+		),
+		Level(
+			Prefix(" level="),
+			Escape(JSONEscape),
+		),
+		Field(WorkDirKeyName,
+			Prefix(" work-dir="),
+			PathFormat(RelativeModulePath),
+			Escape(JSONEscape),
+		),
+		Field(TFPathKeyName,
+			Prefix(" tfpath="),
+			PathFormat(FilenamePath),
+			Escape(JSONEscape),
+		),
+		Message(
+			Prefix(" message="),
+			PathFormat(RelativePath),
+			Color(DisableColor),
+			Escape(JSONEscape),
+		),
+	}
+)
+
+var presets = map[string]Placeholders{
+	"bare":      BareFormat,
+	"pretty":    PrettyFormat,
+	"json":      JSONFormat,
+	"key-value": KeyValueFormat,
 }
 
 func ParseFormat(str string) Placeholders {

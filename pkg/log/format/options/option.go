@@ -56,6 +56,7 @@ type Option interface {
 
 type Data struct {
 	*log.Entry
+	BaseDir        string
 	DisableColors  bool
 	RelativePather *RelativePather
 	AutoColorFn    func() ColorValue

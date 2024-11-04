@@ -36,7 +36,7 @@ func Field(fieldName string, opts ...options.Option) Placeholder {
 
 func init() {
 	Registered.Add(
-		Field(WorkDirKeyName, options.PathFormat(options.NonePath, options.RelativePath, options.ShortPath)),
+		Field(WorkDirKeyName, options.PathFormat(options.NonePath, options.RelativePath, options.RelativeModulePath, options.ModulePath)),
 		Field(TFPathKeyName, options.PathFormat(options.NonePath, options.FilenamePath, options.DirectoryPath)),
 	)
 }

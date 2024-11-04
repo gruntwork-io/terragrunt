@@ -26,19 +26,17 @@ type align struct {
 }
 
 func (option *align) Evaluate(data *Data, str string) string {
-	leftSpaces := len(str) - len(strings.TrimLeft(str, " "))
-	rightSpaces := len(str) - len(strings.TrimRight(str, " "))
+	withoutSpaces := strings.TrimSpace(str)
+	spaces := len(str) - len(withoutSpaces)
 
 	switch option.value {
 	case LeftAlign:
-		return strings.TrimLeft(str, " ") + strings.Repeat(" ", leftSpaces)
+		return withoutSpaces + strings.Repeat(" ", spaces)
 	case RightAlign:
-		return strings.Repeat(" ", rightSpaces) + strings.TrimRight(str, " ")
+		return strings.Repeat(" ", spaces) + withoutSpaces
 	case CenterAlign:
-		spaces := leftSpaces + rightSpaces
-
-		rightSpaces = (spaces - spaces%2) / 2
-		leftSpaces = spaces - rightSpaces
+		rightSpaces := (spaces - spaces%2) / 2
+		leftSpaces := spaces - rightSpaces
 
 		return strings.Repeat(" ", leftSpaces) + strings.TrimSpace(str) + strings.Repeat(" ", rightSpaces)
 	}

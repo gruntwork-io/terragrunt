@@ -13,15 +13,16 @@ import (
 var _ log.Formatter = new(Formatter)
 
 type Formatter struct {
+	baseDir        string
 	format         placeholders.Placeholders
 	disableColors  bool
 	relativePather *options.RelativePather
 }
 
 // NewFormatter returns a new Formatter instance with default values.
-func NewFormatter() *Formatter {
+func NewFormatter(format placeholders.Placeholders) *Formatter {
 	return &Formatter{
-		format: presets[PrettyFormat],
+		format: format,
 	}
 }
 
@@ -38,6 +39,7 @@ func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
 
 	str := formatter.format.Evaluate(&options.Data{
 		Entry:          entry,
+		BaseDir:        formatter.baseDir,
 		DisableColors:  formatter.disableColors,
 		RelativePather: formatter.relativePather,
 	})
@@ -60,13 +62,14 @@ func (formatter *Formatter) DisableColors() {
 	formatter.disableColors = true
 }
 
-func (formatter *Formatter) CreateRelativePathsCache(baseDir string) error {
+func (formatter *Formatter) SetBaseDir(baseDir string) error {
 	pather, err := options.NewRelativePather(baseDir)
 	if err != nil {
 		return err
 	}
 
 	formatter.relativePather = pather
+	formatter.baseDir = baseDir
 
 	return nil
 }

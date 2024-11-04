@@ -16,16 +16,18 @@ const PathFormatOptionName = "path"
 const (
 	NonePath PathFormatValue = iota
 	RelativePath
-	ShortPath
+	RelativeModulePath
+	ModulePath
 	FilenamePath
 	DirectoryPath
 )
 
 var pathFormatValues = CommonMapValues[PathFormatValue]{
-	RelativePath:  "relative",
-	ShortPath:     "short",
-	FilenamePath:  "filename",
-	DirectoryPath: "dir",
+	RelativePath:       "relative",
+	RelativeModulePath: "relative-module",
+	ModulePath:         "module",
+	FilenamePath:       "filename",
+	DirectoryPath:      "dir",
 }
 
 type PathFormatValue byte
@@ -42,7 +44,7 @@ func (option *pathFormat) Evaluate(data *Data, str string) string {
 		}
 
 		return data.RelativePather.ReplaceAbsPaths(str)
-	case ShortPath:
+	case RelativeModulePath:
 		if data.RelativePather == nil {
 			break
 		}
@@ -55,6 +57,12 @@ func (option *pathFormat) Evaluate(data *Data, str string) string {
 
 		if strings.HasPrefix(str, log.CurDirWithSeparator) {
 			return str[len(log.CurDirWithSeparator):]
+		}
+
+		return str
+	case ModulePath:
+		if str == data.BaseDir {
+			return ""
 		}
 
 		return str

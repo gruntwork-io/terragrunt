@@ -25,13 +25,18 @@ type width struct {
 }
 
 func (option *width) Evaluate(data *Data, str string) string {
-	rightSpaces := int(option.value)
-
-	if rightSpaces -= len(log.RemoveAllASCISeq(str)); rightSpaces < 1 {
+	width := int(option.value)
+	if width == 0 {
 		return str
 	}
 
-	return str + strings.Repeat(" ", rightSpaces)
+	strLen := len(log.RemoveAllASCISeq(str))
+
+	if width < strLen {
+		return str[:width]
+	}
+
+	return str + strings.Repeat(" ", width-strLen)
 }
 
 func Width(value WidthValue) Option {
