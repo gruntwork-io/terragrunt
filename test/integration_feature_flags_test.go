@@ -3,6 +3,7 @@ package test_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,6 +28,54 @@ func TestFeatureFlagDefaults(t *testing.T) {
 	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	validateOutputs(t, rootPath)
+}
+
+func TestFeatureFlagCli(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testSimpleFlag)
+	tmpEnvPath := copyEnvironment(t, testSimpleFlag)
+	rootPath := util.JoinPath(tmpEnvPath, testSimpleFlag)
+
+	runTerragrunt(t, "terragrunt apply -auto-approve --feature int_feature_flag=777 --feature bool_feature_flag=true --feature string_feature_flag=tomato --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	expected := expectedDefaults()
+	expected["int_feature_flag"] = 777
+	expected["bool_feature_flag"] = true
+	expected["string_feature_flag"] = "tomato"
+	validateOutputsMap(t, rootPath, expected)
+}
+
+func TestFeatureApplied(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testSimpleFlag)
+	tmpEnvPath := copyEnvironment(t, testSimpleFlag)
+	rootPath := util.JoinPath(tmpEnvPath, testSimpleFlag)
+
+	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --feature bool_feature_flag=true --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "running conditional bool_feature_flag")
+
+	stdout, _, err = runTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --feature bool_feature_flag=false --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+	assert.NotContains(t, stdout, "running conditional bool_feature_flag")
+}
+
+func TestFeatureFlagEnv(t *testing.T) {
+	t.Setenv("TG_FLAG", "int_feature_flag=111,bool_feature_flag=true,string_feature_flag=xyz")
+
+	cleanupTerraformFolder(t, testSimpleFlag)
+	tmpEnvPath := copyEnvironment(t, testSimpleFlag)
+	rootPath := util.JoinPath(tmpEnvPath, testSimpleFlag)
+
+	runTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	expected := expectedDefaults()
+	expected["int_feature_flag"] = 111
+	expected["bool_feature_flag"] = true
+	expected["string_feature_flag"] = "xyz"
+	validateOutputsMap(t, rootPath, expected)
 }
 
 func TestFeatureIncludeFlag(t *testing.T) {
@@ -54,20 +103,35 @@ func TestFeatureFlagRunAll(t *testing.T) {
 
 	validateOutputs(t, app1)
 	validateOutputs(t, app2)
+}
 
+func expectedDefaults() map[string]interface{} {
+	return map[string]interface{}{
+		"string_feature_flag": "test",
+		"int_feature_flag":    666,
+		"bool_feature_flag":   false,
+	}
 }
 
 func validateOutputs(t *testing.T, rootPath string) {
+	t.Helper()
+	validateOutputsMap(t, rootPath, expectedDefaults())
+}
+
+func validateOutputsMap(t *testing.T, rootPath string, expected map[string]interface{}) {
+	t.Helper()
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
+	cmd := fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath)
+	err := runTerragruntCommand(t, cmd, &stdout, &stderr)
 	require.NoError(t, err)
 
 	outputs := map[string]TerraformOutput{}
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
-	assert.Equal(t, "test", outputs["string_feature_flag"].Value)
-	assert.EqualValues(t, 666, outputs["int_feature_flag"].Value)
-	assert.Equal(t, false, outputs["bool_feature_flag"].Value)
+	// Validate outputs against expected values
+	for key, expected := range expected {
+		assert.EqualValues(t, expected, outputs[key].Value)
+	}
 }
