@@ -103,7 +103,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 			},
 		},
 		FeatureFlags: config.FeatureFlags{
-			config.FeatureFlag{
+			&config.FeatureFlag{
 				Name:    "test",
 				Default: &cty.Zero,
 			},
