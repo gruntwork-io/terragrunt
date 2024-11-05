@@ -74,6 +74,7 @@ func (ctx ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
 
 func (ctx ParsingContext) WithFeatures(features *cty.Value) *ParsingContext {
 	ctx.Features = features
+
 	return &ctx
 }
 

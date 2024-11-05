@@ -527,6 +527,10 @@ func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 
 // merge feature flags by name.
 func mergeFeatureFlags(targetFlags []*FeatureFlag, sourceFlags []*FeatureFlag) []*FeatureFlag {
+	if sourceFlags == nil {
+		return nil
+	}
+
 	keys := make([]string, 0, len(targetFlags))
 
 	flagBlocks := make(map[string]*FeatureFlag)
@@ -624,6 +628,10 @@ func deepMergeDependencyBlocks(targetDependencies []Dependency, sourceDependenci
 
 // DeepMerge feature flags.
 func deepMergeFeatureBlocks(targetFeatureFlag []*FeatureFlag, sourceFeatureFlag []*FeatureFlag) ([]*FeatureFlag, error) {
+	if sourceFeatureFlag == nil {
+		return nil, nil
+	}
+
 	keys := make([]string, 0, len(targetFeatureFlag))
 
 	featureBlocks := make(map[string]*FeatureFlag)
