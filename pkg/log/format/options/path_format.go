@@ -70,6 +70,7 @@ func (option *pathFormat) Evaluate(data *Data, str string) string {
 		return filepath.Base(str)
 	case DirectoryPath:
 		return filepath.Dir(str)
+	case NonePath:
 	}
 
 	return str

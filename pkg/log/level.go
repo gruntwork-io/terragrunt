@@ -98,7 +98,7 @@ func (level Level) String() string {
 	return level.FullName()
 }
 
-// Name returns the full level name.
+// FullName returns the full level name.
 func (level Level) FullName() string {
 	if name, ok := levelNames[level]; ok {
 		return name

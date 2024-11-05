@@ -123,16 +123,15 @@ func (color *ColorOption) Evaluate(data *Data, str string) string {
 	}
 
 	return str
-
 }
 
-func (ColorOption *ColorOption) SetValue(str string) error {
+func (color *ColorOption) SetValue(str string) error {
 	val, err := colorValues.Parse(str)
 	if err != nil {
 		return err
 	}
 
-	ColorOption.value = val
+	color.value = val
 
 	return nil
 }

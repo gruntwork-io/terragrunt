@@ -93,7 +93,6 @@ type TimeFormatValue string
 
 type timeFormat struct {
 	*CommonOption[string]
-	sortedValueMapKeys []string
 }
 
 func (option *timeFormat) SetValue(str string) error {

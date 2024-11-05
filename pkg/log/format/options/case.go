@@ -36,6 +36,7 @@ func (option *textCase) Evaluate(data *Data, str string) string {
 		return strings.ToLower(str)
 	case CapitalizeCase:
 		return cases.Title(language.English, cases.Compact).String(str)
+	case NoneCase:
 	}
 
 	return str

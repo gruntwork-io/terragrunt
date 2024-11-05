@@ -23,18 +23,17 @@ type textEscape struct {
 }
 
 func (option *textEscape) Evaluate(data *Data, str string) string {
-	switch option.value {
-	case JSONEscape:
-		b, err := json.Marshal(str)
-		if err != nil {
-			fmt.Printf("Failed to marhsal %q, %v\n", str, err)
-		}
-
-		// Trim the beginning and trailing " character.
-		return string(b[1 : len(b)-1])
+	if option.value != JSONEscape {
+		return str
 	}
 
-	return str
+	b, err := json.Marshal(str)
+	if err != nil {
+		fmt.Printf("Failed to marhsal %q, %v\n", str, err)
+	}
+
+	// Trim the beginning and trailing " character.
+	return string(b[1 : len(b)-1])
 }
 
 func Escape(value EscapeValue) Option {

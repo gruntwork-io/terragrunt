@@ -1,16 +1,17 @@
+// Package format implements a custom format logs
 package format
 
 import (
 	"fmt"
 
-	. "github.com/gruntwork-io/terragrunt/pkg/log/format/options"
-	. "github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
+	. "github.com/gruntwork-io/terragrunt/pkg/log/format/options"      //nolint:stylecheck
+	. "github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders" //nolint:stylecheck
 )
 
 var (
 	BareFormat = Placeholders{
 		Level(
-			Width(4),
+			Width(4), //nolint:mnd
 			Case(UpperCase),
 		),
 		Interval(
@@ -33,7 +34,7 @@ var (
 		),
 		PlainText(" "),
 		Level(
-			Width(6),
+			Width(6), //nolint:mnd
 			Case(UpperCase),
 			Color(AutoColor),
 		),

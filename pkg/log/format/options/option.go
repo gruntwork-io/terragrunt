@@ -1,3 +1,4 @@
+// Package options implements placeholders options.
 package options
 
 import (
@@ -24,6 +25,7 @@ func (options Options) Merge(withOptions ...Option) Options {
 			if reflect.TypeOf(options[i]) == reflect.TypeOf(withOptions[t]) {
 				options[i] = withOptions[t]
 				withOptions = append(withOptions[:t], withOptions[t+1:]...)
+
 				break
 			}
 		}

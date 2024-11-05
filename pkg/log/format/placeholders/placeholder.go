@@ -1,3 +1,4 @@
+// Package placeholders implements fillers from which to format logs.
 package placeholders
 
 import (
@@ -54,8 +55,9 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 			name := str[next : i+1]
 
 			if placeholder = registered.Get(name); placeholder != nil {
-				next = i + 2
+				next = i + 2 //nolint:mnd
 			}
+
 			continue
 		}
 
@@ -72,6 +74,7 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 				if option == nil {
 					return nil, 0, errors.Errorf("empty option name for placeholder %q", placeholder.Name())
 				}
+
 				if err := option.SetValue(val); err != nil {
 					return nil, 0, errors.Errorf("invalid value %q for option %q, placeholder %q: %w", val, option.Name(), placeholder.Name(), err)
 				}

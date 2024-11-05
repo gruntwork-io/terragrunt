@@ -35,10 +35,12 @@ func (option *align) Evaluate(data *Data, str string) string {
 	case RightAlign:
 		return strings.Repeat(" ", spaces) + withoutSpaces
 	case CenterAlign:
-		rightSpaces := (spaces - spaces%2) / 2
+		twoSides := 2
+		rightSpaces := (spaces - spaces%2) / twoSides
 		leftSpaces := spaces - rightSpaces
 
 		return strings.Repeat(" ", leftSpaces) + strings.TrimSpace(str) + strings.Repeat(" ", rightSpaces)
+	case NoneAlign:
 	}
 
 	return str

@@ -26,6 +26,7 @@ func (format *levelFormat) Evaluate(data *Data, str string) string {
 		return data.Level.TinyName()
 	case LevelFormatShort:
 		return data.Level.ShortName()
+	case LevelFormatFull:
 	}
 
 	return data.Level.FullName()
