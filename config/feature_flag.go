@@ -5,10 +5,10 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
-// FeatureFlags represents a list of feature flags
+// FeatureFlags represents a list of feature flags.
 type FeatureFlags []*FeatureFlag
 
-// FeatureFlag feature flags struct
+// FeatureFlag feature flags struct.
 type FeatureFlag struct {
 	Name    string     `hcl:",label" cty:"name"`
 	Default *cty.Value `hcl:"default,attr" cty:"default"`

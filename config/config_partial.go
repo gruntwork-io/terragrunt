@@ -47,17 +47,13 @@ type terragruntDependencies struct {
 	Remain       hcl.Body            `hcl:",remain"`
 }
 
-// terragruntFeatureFlags is a struct that can be used to store decoded feature flags
+// terragruntFeatureFlags is a struct that can be used to store decoded feature flags.
 type terragruntFeatureFlags struct {
 	FeatureFlags FeatureFlags `hcl:"feature,block"`
 	Remain       hcl.Body     `hcl:",remain"`
 }
 
-type ctxTerragruntFeatureFlags struct {
-	Value *cty.Value `hcl:"value,attr" cty:"value"`
-}
-
-// terragruntTerraform is a struct that can be used to only decode the terraform block
+// terragruntTerraform is a struct that can be used to only decode the terraform block.
 type terragruntTerraform struct {
 	Terraform *TerraformConfig `hcl:"terraform,block"`
 	Remain    hcl.Body         `hcl:",remain"`

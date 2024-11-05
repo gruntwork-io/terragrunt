@@ -524,7 +524,7 @@ func fetchDependencyPaths(config *TerragruntConfig) map[string]string {
 	return m
 }
 
-// merge feature flags by name
+// merge feature flags by name.
 func mergeFeatureFlags(targetFlags []*FeatureFlag, sourceFlags []*FeatureFlag) []*FeatureFlag {
 	keys := make([]string, 0, len(targetFlags))
 
