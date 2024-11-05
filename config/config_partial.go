@@ -143,23 +143,31 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 
 	evaluatedFlags := map[string]cty.Value{}
 	// copy default feature flags to evaluated flags
+
 	for name, value := range ctx.TerragruntOptions.FeatureFlags {
 		contextFlag, err := flagToCtyValue(name, value)
+
 		if err != nil {
 			return nil, nil, nil, err
 		}
+
 		evaluatedFlags[name] = contextFlag
 	}
+
 	for _, flag := range tgFlags.FeatureFlags {
 		if _, exists := evaluatedFlags[flag.Name]; !exists {
 			contextFlag, err := flagToCtyValue(flag.Name, *flag.Default)
+
 			if err != nil {
 				return nil, nil, nil, err
 			}
+
 			evaluatedFlags[flag.Name] = contextFlag
 		}
 	}
+
 	flagsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedFlags)
+
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -456,6 +464,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 		case FeatureFlagsBlock:
 			decoded := terragruntFeatureFlags{}
 			err := file.Decode(&decoded, evalParsingContext)
+
 			if err != nil {
 				return nil, err
 			}

@@ -45,13 +45,16 @@ func (feature *FeatureFlag) DefaultAsString() (string, error) {
 	if feature.Default == nil {
 		return "", nil
 	}
+
 	if feature.Default.Type() == cty.String {
 		return feature.Default.AsString(), nil
 	}
+
 	// convert other types as json representation
 	jsonBytes, err := ctyjson.Marshal(*feature.Default, feature.Default.Type())
 	if err != nil {
 		return "", err
 	}
+
 	return string(jsonBytes), nil
 }

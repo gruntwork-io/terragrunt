@@ -446,6 +446,7 @@ func (cfg *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, terragrun
 	if err != nil {
 		return err
 	}
+
 	cfg.FeatureFlags = mergedFlags
 
 	if sourceConfig.RetryableErrors != nil {
@@ -539,9 +540,12 @@ func mergeFeatureFlags(targetFlags []*FeatureFlag, sourceFlags []*FeatureFlag) [
 		if !hasSameKey {
 			keys = append(keys, dep.Name)
 		}
+
 		flagBlocks[dep.Name] = dep
 	}
-	var combinedFlags []*FeatureFlag
+
+	combinedFlags := make([]*FeatureFlag, 0, len(keys))
+
 	for _, key := range keys {
 		combinedFlags = append(combinedFlags, flagBlocks[key])
 	}
@@ -620,8 +624,10 @@ func deepMergeDependencyBlocks(targetDependencies []Dependency, sourceDependenci
 
 // DeepMerge feature flags.
 func deepMergeFeatureBlocks(targetFeatureFlag []*FeatureFlag, sourceFeatureFlag []*FeatureFlag) ([]*FeatureFlag, error) {
-	var keys []string
+	keys := make([]string, 0, len(targetFeatureFlag))
+
 	featureBlocks := make(map[string]*FeatureFlag)
+
 	for _, flag := range targetFeatureFlag {
 		featureBlocks[flag.Name] = flag
 		keys = append(keys, flag.Name)
@@ -642,7 +648,7 @@ func deepMergeFeatureBlocks(targetFeatureFlag []*FeatureFlag, sourceFeatureFlag 
 		}
 	}
 
-	var combinedFlags []*FeatureFlag
+	combinedFlags := make([]*FeatureFlag, 0, len(keys))
 	for _, key := range keys {
 		combinedFlags = append(combinedFlags, featureBlocks[key])
 	}

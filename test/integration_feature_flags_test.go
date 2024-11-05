@@ -3,7 +3,6 @@ package test_test
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -123,7 +122,7 @@ func validateOutputsMap(t *testing.T, rootPath string, expected map[string]inter
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	cmd := fmt.Sprintf("terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath)
+	cmd := "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir " + rootPath
 	err := runTerragruntCommand(t, cmd, &stdout, &stderr)
 	require.NoError(t, err)
 
