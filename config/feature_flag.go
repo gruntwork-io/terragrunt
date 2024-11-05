@@ -1,6 +1,7 @@
 package config
 
 import (
+	"github.com/pkg/errors"
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
@@ -10,11 +11,11 @@ type FeatureFlags []*FeatureFlag
 
 // FeatureFlag feature flags struct.
 type FeatureFlag struct {
-	Name    string     `hcl:",label" cty:"name"`
-	Default *cty.Value `hcl:"default,attr" cty:"default"`
+	Name    string     `cty:"name"    hcl:",label"`
+	Default *cty.Value `cty:"default" hcl:"default,attr"`
 }
 
-// ctyFeatureFlag struct used to pass FeatureFlag to cty.Value
+// ctyFeatureFlag struct used to pass FeatureFlag to cty.Value.
 type ctyFeatureFlag struct {
 	Name  string    `cty:"name"`
 	Value cty.Value `cty:"value"`
@@ -40,7 +41,7 @@ func (feature *FeatureFlag) DeepMerge(source *FeatureFlag) error {
 	return nil
 }
 
-// DefaultAsString returns the default value of the feature flag as a string
+// DefaultAsString returns the default value of the feature flag as a string.
 func (feature *FeatureFlag) DefaultAsString() (string, error) {
 	if feature.Default == nil {
 		return "", nil
@@ -53,7 +54,7 @@ func (feature *FeatureFlag) DefaultAsString() (string, error) {
 	// convert other types as json representation
 	jsonBytes, err := ctyjson.Marshal(*feature.Default, feature.Default.Type())
 	if err != nil {
-		return "", err
+		return "", errors.WithStack(err)
 	}
 
 	return string(jsonBytes), nil
