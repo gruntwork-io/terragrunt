@@ -1213,7 +1213,6 @@ export TG_FLAG=run_hook=true,string_flag=dev
 terragrunt apply
 ```
 
-
 ## Attributes
 
 - [Blocks](#blocks)
