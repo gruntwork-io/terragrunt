@@ -72,6 +72,7 @@ func (ctx ParsingContext) WithLocals(locals *cty.Value) *ParsingContext {
 	return &ctx
 }
 
+// WithFeatures sets the feature flags to be used in evaluation context.
 func (ctx ParsingContext) WithFeatures(features *cty.Value) *ParsingContext {
 	ctx.Features = features
 
