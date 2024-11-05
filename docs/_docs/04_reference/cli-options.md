@@ -1530,6 +1530,7 @@ OpenTofu will perform the following actions:
 **Environment Variable**: `TG_FLAG`<br/>
 
 Feature flags in Terragrunt allow users to dynamically control configuration behavior through CLI arguments or environment variables. 
+
 These flags enable a more flexible and controlled deployment process, particularly in monorepo contexts with interdependent infrastructure units.
 
 Setting a feature flag through CLI:
