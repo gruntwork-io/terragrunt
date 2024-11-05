@@ -4,7 +4,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/options"
 )
 
-const MessagePlaceholderName = "message"
+const MessagePlaceholderName = "msg"
 
 type message struct {
 	*CommonPlaceholder

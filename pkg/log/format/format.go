@@ -65,7 +65,7 @@ var (
 		Level(
 			Escape(JSONEscape),
 		),
-		PlainText(`", "work-dir":"`),
+		PlainText(`", "prefix":"`),
 		Field(WorkDirKeyName,
 			PathFormat(ModulePath),
 			Escape(JSONEscape),
@@ -75,7 +75,7 @@ var (
 			PathFormat(FilenamePath),
 			Escape(JSONEscape),
 		),
-		PlainText(`", "message":"`),
+		PlainText(`", "msg":"`),
 		Message(
 			PathFormat(RelativePath),
 			Color(DisableColor),
@@ -91,23 +91,19 @@ var (
 		),
 		Level(
 			Prefix(" level="),
-			Escape(JSONEscape),
 		),
 		Field(WorkDirKeyName,
-			Prefix(" work-dir="),
+			Prefix(" prefix="),
 			PathFormat(RelativeModulePath),
-			Escape(JSONEscape),
 		),
 		Field(TFPathKeyName,
 			Prefix(" tfpath="),
 			PathFormat(FilenamePath),
-			Escape(JSONEscape),
 		),
 		Message(
-			Prefix(" message="),
+			Prefix(" msg="),
 			PathFormat(RelativePath),
 			Color(DisableColor),
-			Escape(JSONEscape),
 		),
 	}
 )

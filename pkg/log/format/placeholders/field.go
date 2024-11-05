@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	WorkDirKeyName     = "workdir"
+	WorkDirKeyName     = "prefix"
 	DownloadDirKeyName = "downloaddir"
 	TFPathKeyName      = "tfpath"
 )
