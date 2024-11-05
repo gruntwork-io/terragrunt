@@ -1533,11 +1533,13 @@ Feature flags in Terragrunt allow users to dynamically control configuration beh
 These flags enable a more flexible and controlled deployment process, particularly in monorepo contexts with interdependent infrastructure units.
 
 Setting a feature flag through CLI:
+
 ```bash
 terragrunt --feature int_feature_flag=123 --feature bool_feature_flag=true apply
 ```
 
 Setting feature flags through environment variables:
+
 ```bash
 export TG_FLAG=int_feature_flag=123,bool_feature_flag=true
 terragrunt apply

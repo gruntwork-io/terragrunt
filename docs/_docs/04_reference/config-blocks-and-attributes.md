@@ -1198,11 +1198,13 @@ inputs = {
 }
 
 Setting feature flags through CLI:
+
 ```bash
 terragrunt --feature run_hook=true apply
 
 terragrunt --feature run_hook=true --feature string_flag=dev apply
 ```
+
 Setting feature flags through env variables:
 
 ```bash
