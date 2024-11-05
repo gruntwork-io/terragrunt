@@ -372,27 +372,26 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 				return nil
 			},
 		},
-		// TODO: remove
-		// &cli.BoolFlag{
-		// 	Name:        TerragruntDisableLogFormattingFlagName,
-		// 	EnvVar:      TerragruntDisableLogFormattingEnvName,
-		// 	Destination: &opts.DisableLogFormatting,
-		// 	Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
-		// 	Action: func(ctx *cli.Context, val bool) error {
-		// 		//opts.LogFormatter.DisableLogFormatting = val
-		// 		return nil
-		// 	},
-		// },
-		// &cli.BoolFlag{
-		// 	Name:        TerragruntJSONLogFlagName,
-		// 	EnvVar:      TerragruntJSONLogEnvName,
-		// 	Destination: &opts.JSONLogFormat,
-		// 	Usage:       "If specified, Terragrunt will output its logs in JSON format.",
-		// 	Action: func(ctx *cli.Context, _ bool) error {
-		// 		//opts.Logger.SetOptions(log.WithFormatter(&format.JSONFormatter{}))
-		// 		return nil
-		// 	},
-		// },
+		&cli.BoolFlag{
+			Name:        TerragruntDisableLogFormattingFlagName,
+			EnvVar:      TerragruntDisableLogFormattingEnvName,
+			Destination: &opts.DisableLogFormatting,
+			Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
+			Action: func(ctx *cli.Context, val bool) error {
+				opts.LogFormatter = format.NewFormatter(format.KeyValueFormat)
+				return nil
+			},
+		},
+		&cli.BoolFlag{
+			Name:        TerragruntJSONLogFlagName,
+			EnvVar:      TerragruntJSONLogEnvName,
+			Destination: &opts.JSONLogFormat,
+			Usage:       "If specified, Terragrunt will output its logs in JSON format.",
+			Action: func(ctx *cli.Context, _ bool) error {
+				opts.LogFormatter = format.NewFormatter(format.JSONFormat)
+				return nil
+			},
+		},
 		&cli.BoolFlag{
 			Name:        TerragruntShowLogAbsPathsFlagName,
 			EnvVar:      TerragruntShowLogAbsPathsEnvName,
