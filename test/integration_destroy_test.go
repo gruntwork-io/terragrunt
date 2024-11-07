@@ -153,6 +153,17 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	output := stderr.String()
 	assert.Equal(t, 1, strings.Count(output, appV1Path))
 	assert.Equal(t, 1, strings.Count(output, appV2Path))
+
+	// try to destroy vpc module and check if warning is not printed in output
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+
+	err = runTerragruntCommand(t, "terragrunt destroy --terragrunt-non-interactive --terragrunt-dont-check-dependent-modules --terragrunt-working-dir "+vpcPath, &stdout, &stderr)
+	require.NoError(t, err)
+
+	outputDontCheck := stderr.String()
+	assert.Equal(t, 0, strings.Count(outputDontCheck, appV1Path))
+	assert.Equal(t, 0, strings.Count(outputDontCheck, appV2Path))
 }
 
 func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
