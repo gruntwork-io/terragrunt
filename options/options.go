@@ -263,6 +263,9 @@ type TerragruntOptions struct {
 	// True if is required to show dependent modules and confirm action
 	CheckDependentModules bool
 
+	// True if is required not to show dependent modules and confirm action
+	NoDestroyDependenciesCheck bool
+
 	// This is an experimental feature, used to speed up dependency processing by getting the output from the state
 	FetchDependencyOutputFromState bool
 
@@ -590,6 +593,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		JSONLogFormat:                  opts.JSONLogFormat,
 		Check:                          opts.Check,
 		CheckDependentModules:          opts.CheckDependentModules,
+		NoDestroyDependenciesCheck:     opts.NoDestroyDependenciesCheck,
 		FetchDependencyOutputFromState: opts.FetchDependencyOutputFromState,
 		UsePartialParseConfigCache:     opts.UsePartialParseConfigCache,
 		ForwardTFStdout:                opts.ForwardTFStdout,

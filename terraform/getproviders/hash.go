@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/rogpeppe/go-internal/dirhash"
+	"golang.org/x/mod/sumdb/dirhash"
 )
 
 // Hash is a specially-formatted string representing a checksum of a package or the contents of the package.
