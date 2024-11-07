@@ -89,6 +89,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-json-out-dir](#terragrunt-json-out-dir)
   - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting)
   - [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout)
+  - [terragrunt-dont-check-dependent-modules](#terragrunt-dont-check-dependent-modules)
 
 ## CLI commands
 
@@ -793,6 +794,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
   - [terragrunt-json-out-dir](#terragrunt-json-out-dir)
   - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting)
   - [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout)
+  - [terragrunt-dont-check-dependent-modules](#terragrunt-dont-check-dependent-modules)
 
 ### terragrunt-config
 
@@ -1522,3 +1524,10 @@ plan. Resource actions are indicated with the following symbols:
 
 OpenTofu will perform the following actions:
 ```
+
+### terragrunt-dont-check-dependent-modules
+
+**CLI Arg**: `--terragrunt-dont-check-dependent-modules`<br/>
+**Environment Variable**: `TERRAGRUNT_DONT_CHECK_DEPENDENT_MODULES`<br/>
+
+If specified, Terragrunt will not check dependent modules when running `destroy` command. By default, Terragrunt checks dependent modules when running `destroy` command.
