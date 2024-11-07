@@ -24,7 +24,7 @@ type WidthOption struct {
 	*CommonOption[WidthValue]
 }
 
-func (option *WidthOption) Evaluate(data *Data, str string) (string, error) {
+func (option *WidthOption) Evaluate(_ *Data, str string) (string, error) {
 	WidthOption := int(option.value)
 	if WidthOption == 0 {
 		return str, nil

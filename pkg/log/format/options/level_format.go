@@ -8,7 +8,7 @@ const (
 	LevelFormatFull
 )
 
-var levelFormatValues = CommonMapValues[LevelFormatValue]{
+var levelFormatValues = CommonMapValues[LevelFormatValue]{ //nolint:gochecknoglobals
 	LevelFormatTiny:  "tiny",
 	LevelFormatShort: "short",
 	LevelFormatFull:  "full",
@@ -20,7 +20,7 @@ type LevelFormatOption struct {
 	*CommonOption[LevelFormatValue]
 }
 
-func (format *LevelFormatOption) Evaluate(data *Data, str string) (string, error) {
+func (format *LevelFormatOption) Evaluate(data *Data, _ string) (string, error) {
 	switch format.Value() {
 	case LevelFormatTiny:
 		return data.Level.TinyName(), nil

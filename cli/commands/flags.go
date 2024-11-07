@@ -378,7 +378,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.DisableLogFormatting,
 			Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
 			Action: func(_ *cli.Context, _ bool) error {
-				opts.LogFormatter.SetFormat(format.KeyValueFormat)
+				opts.LogFormatter.SetFormat(format.NewKeyValueFormat())
 				return nil
 			},
 		},
@@ -388,7 +388,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.JSONLogFormat,
 			Usage:       "If specified, Terragrunt will output its logs in JSON format.",
 			Action: func(_ *cli.Context, _ bool) error {
-				opts.LogFormatter.SetFormat(format.JSONFormat)
+				opts.LogFormatter.SetFormat(format.NewJSONFormat())
 				return nil
 			},
 		},

@@ -9,7 +9,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 )
 
-// Formatter implements logrus.Formatter
+// Formatter implements logrus.Formatter.
 var _ log.Formatter = new(Formatter)
 
 type Formatter struct {
@@ -26,7 +26,7 @@ func NewFormatter(phs placeholders.Placeholders) *Formatter {
 	}
 }
 
-// Format implements logrus.Format
+// Format implements logrus.Format.
 func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
 	if formatter.placeholders == nil {
 		return nil, nil
@@ -60,7 +60,7 @@ func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// DisableColors disables log color
+// DisableColors disables log color.
 func (formatter *Formatter) DisableColors() {
 	formatter.disableColors = true
 }
@@ -77,10 +77,12 @@ func (formatter *Formatter) SetBaseDir(baseDir string) error {
 	return nil
 }
 
+// DisableColors disables the conversion of absolute paths to relative ones.
 func (formatter *Formatter) DisableRelativePaths() {
 	formatter.relativePather = nil
 }
 
+// SetFormat sets log format.
 func (formatter *Formatter) SetFormat(phs placeholders.Placeholders) {
 	formatter.placeholders = phs
 }

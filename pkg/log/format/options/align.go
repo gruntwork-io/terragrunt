@@ -13,7 +13,7 @@ const (
 	RightAlign
 )
 
-var alignValues = CommonMapValues[AlignValue]{
+var alignValues = CommonMapValues[AlignValue]{ //nolint:gochecknoglobals
 	LeftAlign:   "left",
 	CenterAlign: "center",
 	RightAlign:  "right",
@@ -25,7 +25,7 @@ type AlignOption struct {
 	*CommonOption[AlignValue]
 }
 
-func (option *AlignOption) Evaluate(data *Data, str string) (string, error) {
+func (option *AlignOption) Evaluate(_ *Data, str string) (string, error) {
 	withoutSpaces := strings.TrimSpace(str)
 	spaces := len(str) - len(withoutSpaces)
 

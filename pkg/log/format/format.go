@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	. "github.com/gruntwork-io/terragrunt/pkg/log/format/options"      //nolint:stylecheck
-	. "github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders" //nolint:stylecheck
+	. "github.com/gruntwork-io/terragrunt/pkg/log/format/options"      //nolint:stylecheck,revive
+	. "github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders" //nolint:stylecheck,revive
 	"golang.org/x/exp/maps"
 )
 
@@ -18,8 +18,8 @@ const (
 	KeyValueFormatName = "key-value"
 )
 
-var (
-	BareFormat = Placeholders{
+func NewBareFormat() Placeholders {
+	return Placeholders{
 		Level(
 			Width(4), //nolint:mnd
 			Case(UpperCase),
@@ -36,8 +36,10 @@ var (
 			Suffix("] "),
 		),
 	}
+}
 
-	PrettyFormat = Placeholders{
+func NewPrettyFormat() Placeholders {
+	return Placeholders{
 		Time(
 			TimeFormat(fmt.Sprintf("%s:%s:%s%s", Hour24Zero, MinZero, SecZero, MilliSec)),
 			Color(BlackHColor),
@@ -64,8 +66,10 @@ var (
 			PathFormat(RelativePath),
 		),
 	}
+}
 
-	JSONFormat = Placeholders{
+func NewJSONFormat() Placeholders {
+	return Placeholders{
 		PlainText(`{"time":"`),
 		Time(
 			TimeFormat(RFC3339),
@@ -93,8 +97,10 @@ var (
 		),
 		PlainText(`"}`),
 	}
+}
 
-	KeyValueFormat = Placeholders{
+func NewKeyValueFormat() Placeholders {
+	return Placeholders{
 		Time(
 			Prefix("time="),
 			TimeFormat(RFC3339),
@@ -116,19 +122,19 @@ var (
 			Color(DisableColor),
 		),
 	}
-)
-
-var presets = map[string]Placeholders{
-	BareFormatName:     BareFormat,
-	PrettyFormatName:   PrettyFormat,
-	JSONFormatName:     JSONFormat,
-	KeyValueFormatName: KeyValueFormat,
 }
 
 func ParseFormat(str string) (Placeholders, error) {
-	for name, format := range presets {
+	var presets = map[string]func() Placeholders{
+		BareFormatName:     NewBareFormat,
+		PrettyFormatName:   NewPrettyFormat,
+		JSONFormatName:     NewJSONFormat,
+		KeyValueFormatName: NewKeyValueFormat,
+	}
+
+	for name, formatFn := range presets {
 		if name == str {
-			return format, nil
+			return formatFn(), nil
 		}
 	}
 

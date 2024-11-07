@@ -16,7 +16,7 @@ const (
 	CapitalizeCase
 )
 
-var textCaseValues = CommonMapValues[CaseValue]{
+var textCaseValues = CommonMapValues[CaseValue]{ //nolint:gochecknoglobals
 	UpperCase:      "upper",
 	LowerCase:      "lower",
 	CapitalizeCase: "capitalize",
@@ -28,7 +28,7 @@ type CaseOption struct {
 	*CommonOption[CaseValue]
 }
 
-func (option *CaseOption) Evaluate(data *Data, str string) (string, error) {
+func (option *CaseOption) Evaluate(_ *Data, str string) (string, error) {
 	switch option.value {
 	case UpperCase:
 		return strings.ToUpper(str), nil

@@ -35,21 +35,21 @@ const (
 	Color145
 )
 
-var colorValues = CommonMapValues[ColorValue]{
-	RedColor:      "red",
-	WhiteColor:    "white",
-	YellowColor:   "yellow",
-	GreenColor:    "green",
-	CyanColor:     "cyan",
-	BlueHColor:    "light-blue",
-	BlackHColor:   "light-black",
-	AutoColor:     "auto",
-	GradientColor: "gradient",
-	DisableColor:  "disable",
-}
-
 var (
-	colorScheme = ColorScheme{
+	colorValues = CommonMapValues[ColorValue]{ //nolint:gochecknoglobals
+		RedColor:      "red",
+		WhiteColor:    "white",
+		YellowColor:   "yellow",
+		GreenColor:    "green",
+		CyanColor:     "cyan",
+		BlueHColor:    "light-blue",
+		BlackHColor:   "light-black",
+		AutoColor:     "auto",
+		GradientColor: "gradient",
+		DisableColor:  "disable",
+	}
+
+	colorScheme = ColorScheme{ //nolint:gochecknoglobals
 		RedColor:    "red",
 		WhiteColor:  "white",
 		YellowColor: "yellow",
@@ -100,7 +100,7 @@ type compiledColorScheme map[ColorValue]ColorFunc
 type ColorOption struct {
 	*CommonOption[ColorValue]
 	compiledColors compiledColorScheme
-	randomColor    *randomColor
+	gradientColor  *gradientColor
 }
 
 func (color *ColorOption) Evaluate(data *Data, str string) (string, error) {
@@ -114,8 +114,8 @@ func (color *ColorOption) Evaluate(data *Data, str string) (string, error) {
 		value = data.AutoColorFn()
 	}
 
-	if value == GradientColor && color.randomColor != nil {
-		value = color.randomColor.Value(str)
+	if value == GradientColor && color.gradientColor != nil {
+		value = color.gradientColor.Value(str)
 	}
 
 	if colorFn, ok := color.compiledColors[value]; ok {
@@ -140,7 +140,7 @@ func Color(val ColorValue) Option {
 	return &ColorOption{
 		CommonOption:   NewCommonOption[ColorValue](ColorOptionName, val, colorValues),
 		compiledColors: colorScheme.Compile(),
-		randomColor:    newRandomColor(),
+		gradientColor:  newGradientColor(),
 	}
 }
 
@@ -148,7 +148,7 @@ var (
 	// defaultAutoColorValues contains ANSI color codes that are assigned sequentially to each unique text in a rotating order
 	// https://user-images.githubusercontent.com/995050/47952855-ecb12480-df75-11e8-89d4-ac26c50e80b9.png
 	// https://www.hackitu.de/termcolor256/
-	defaultAutoColorValues = []ColorValue{
+	defaultAutoColorValues = []ColorValue{ //nolint:gochecknoglobals
 		Color66,
 		Color67,
 		Color95,
@@ -164,7 +164,7 @@ var (
 	}
 )
 
-type randomColor struct {
+type gradientColor struct {
 	// cache stores unique text with their color code.
 	// We use [xsync.MapOf](https://github.com/puzpuzpuz/xsync?tab=readme-ov-file#map) instead of standard `sync.Map` since it's faster and has generic types.
 	cache  *xsync.MapOf[string, ColorValue]
@@ -174,14 +174,14 @@ type randomColor struct {
 	nextStyleIndex int
 }
 
-func newRandomColor() *randomColor {
-	return &randomColor{
+func newGradientColor() *gradientColor {
+	return &gradientColor{
 		cache:  xsync.NewMapOf[string, ColorValue](),
 		values: defaultAutoColorValues,
 	}
 }
 
-func (color *randomColor) Value(text string) ColorValue {
+func (color *gradientColor) Value(text string) ColorValue {
 	if colorCode, ok := color.cache.Load(text); ok {
 		return colorCode
 	}

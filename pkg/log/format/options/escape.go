@@ -13,7 +13,7 @@ const (
 	JSONEscape
 )
 
-var textEscapeValues = CommonMapValues[EscapeValue]{
+var textEscapeValues = CommonMapValues[EscapeValue]{ //nolint:gochecknoglobals
 	JSONEscape: "json",
 }
 
@@ -23,7 +23,7 @@ type EscapeOption struct {
 	*CommonOption[EscapeValue]
 }
 
-func (option *EscapeOption) Evaluate(data *Data, str string) (string, error) {
+func (option *EscapeOption) Evaluate(_ *Data, str string) (string, error) {
 	if option.value != JSONEscape {
 		return str, nil
 	}

@@ -16,7 +16,7 @@ var (
 // ActionableFlag is an interface that wraps Flag interface and RunAction operation.
 type ActionableFlag interface {
 	Flag
-	RunAction(*Context) error
+	RunAction(ctx *Context) error
 }
 
 type FlagType[T any] interface {

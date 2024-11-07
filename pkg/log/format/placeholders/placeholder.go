@@ -41,13 +41,13 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 		option      options.Option
 	)
 
-	for i := 0; i < len(str); i++ {
-		ch := str[i]
+	for index := range len(str) {
+		char := str[index]
 
-		if ch == '"' || ch == '\'' {
+		if char == '"' || char == '\'' {
 			if quoted == 0 {
-				quoted = ch
-			} else if i > 0 && str[i-1] != '\\' {
+				quoted = char
+			} else if index > 0 && str[index-1] != '\\' {
 				quoted = 0
 			}
 		}
@@ -57,25 +57,25 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 		}
 
 		if placeholder == nil {
-			if !isPlaceholderName(ch) {
-				return nil, 0, errors.Errorf("invalid placeholder name %q", str[next:i])
+			if !isPlaceholderCharacter(char) {
+				return nil, 0, errors.Errorf("invalid placeholder name %q", str[next:index])
 			}
 
-			name := str[next : i+1]
+			name := str[next : index+1]
 
 			if placeholder = registered.Get(name); placeholder != nil {
-				next = i + 2 //nolint:mnd
+				next = index + 2 //nolint:mnd
 			}
 
 			continue
 		}
 
-		if next-1 == i && ch != '(' {
-			return placeholder, i - 1, nil
+		if next-1 == index && char != '(' {
+			return placeholder, index - 1, nil
 		}
 
-		if ch == '=' || ch == ',' || ch == ')' {
-			val := str[next:i]
+		if char == '=' || char == ',' || char == ')' {
+			val := str[next:index]
 			val = strings.Trim(val, "'")
 			val = strings.Trim(val, "\"")
 
@@ -93,11 +93,11 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 				}
 			}
 
-			next = i + 1
+			next = index + 1
 		}
 
-		if ch == ')' {
-			return placeholder, i, nil
+		if char == ')' {
+			return placeholder, index, nil
 		}
 	}
 
@@ -119,32 +119,33 @@ func Parse(str string) (Placeholders, error) {
 		next         int
 	)
 
-	for i := 0; i < len(str); i++ {
-		ch := str[i]
+	for index := 0; index < len(str); index++ {
+		char := str[index]
 
-		if ch == placeholderSign {
-			if i+1 >= len(str) {
+		if char == placeholderSign {
+			if index+1 >= len(str) {
 				return nil, errors.Errorf("empty placeholder name")
 			}
 
-			if str[i+1] == placeholderSign {
-				str = str[:i] + str[i+1:]
+			if str[index+1] == placeholderSign {
+				str = str[:index] + str[index+1:]
+
 				continue
 			}
 
-			if next != i {
-				placeholder := PlainText(str[next:i])
+			if next != index {
+				placeholder := PlainText(str[next:index])
 				placeholders = append(placeholders, placeholder)
 			}
 
-			placeholder, num, err := parsePlaceholder(str[i+1:], registered)
+			placeholder, num, err := parsePlaceholder(str[index+1:], registered)
 			if err != nil {
 				return nil, err
 			}
 
 			placeholders = append(placeholders, placeholder)
-			i += num + 1
-			next = i + 1
+			index += num + 1
+			next = index + 1
 		}
 	}
 
@@ -172,7 +173,7 @@ type Placeholder interface {
 	Evaluate(data *options.Data) (string, error)
 }
 
-func isPlaceholderName(c byte) bool {
+func isPlaceholderCharacter(c byte) bool {
 	// Check if the byte value falls within the range of alphanumeric characters
 	return c == '-' || c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
 }

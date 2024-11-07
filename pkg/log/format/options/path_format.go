@@ -22,7 +22,7 @@ const (
 	DirectoryPath
 )
 
-var pathFormatValues = CommonMapValues[PathFormatValue]{
+var pathFormatValues = CommonMapValues[PathFormatValue]{ //nolint:gochecknoglobals
 	RelativePath:       "relative",
 	RelativeModulePath: "relative-module",
 	ModulePath:         "module",

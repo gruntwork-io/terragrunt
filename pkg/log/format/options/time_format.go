@@ -40,7 +40,7 @@ const (
 )
 
 var (
-	timeFormatValueMap = TimeFormatValueMap{
+	timeFormatValueMap = TimeFormatValueMap{ //nolint:gochecknoglobals
 		YearFull:       "2006",
 		Year:           "06",
 		MonthNumZero:   "01",
@@ -101,7 +101,7 @@ func (option *TimeFormatOption) ParseValue(str string) error {
 	return nil
 }
 
-func (option *TimeFormatOption) Evaluate(data *Data, str string) (string, error) {
+func (option *TimeFormatOption) Evaluate(data *Data, _ string) (string, error) {
 	return data.Time.Format(option.Value()), nil
 }
 
