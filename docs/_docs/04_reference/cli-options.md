@@ -1583,4 +1583,3 @@ Setting feature flags through environment variables:
 export TERRAGRUNT_FEATURE=int_feature_flag=123,bool_feature_flag=true,string_feature_flag=app1
 terragrunt apply
 ```
-
