@@ -103,11 +103,11 @@ type ColorOption struct {
 	randomColor    *randomColor
 }
 
-func (color *ColorOption) Evaluate(data *Data, str string) string {
+func (color *ColorOption) Evaluate(data *Data, str string) (string, error) {
 	value := color.value
 
 	if value == DisableColor || data.DisableColors {
-		return log.RemoveAllASCISeq(str)
+		return log.RemoveAllASCISeq(str), nil
 	}
 
 	if value == AutoColor && data.AutoColorFn != nil {
@@ -122,7 +122,7 @@ func (color *ColorOption) Evaluate(data *Data, str string) string {
 		str = colorFn(str)
 	}
 
-	return str
+	return str, nil
 }
 
 func (color *ColorOption) ParseValue(str string) error {
@@ -166,7 +166,7 @@ var (
 
 type randomColor struct {
 	// cache stores unique text with their color code.
-	// We use [xsync.MapOf](https://github.com/puzpuzpuz/xsync?tab=readme-ov-file#map) instaed of standard `sync.Map` since it's faster and has generic types.
+	// We use [xsync.MapOf](https://github.com/puzpuzpuz/xsync?tab=readme-ov-file#map) instead of standard `sync.Map` since it's faster and has generic types.
 	cache  *xsync.MapOf[string, ColorValue]
 	values []ColorValue
 

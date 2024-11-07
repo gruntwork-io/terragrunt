@@ -6,8 +6,8 @@ type SuffixOption struct {
 	*CommonOption[string]
 }
 
-func (option *SuffixOption) Evaluate(data *Data, str string) string {
-	return str + option.value
+func (option *SuffixOption) Evaluate(data *Data, str string) (string, error) {
+	return str + option.value, nil
 }
 
 func (option *SuffixOption) ParseValue(str string) error {

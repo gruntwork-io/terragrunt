@@ -6,7 +6,7 @@ import (
 
 // Formatter is used to implement a custom Formatter.
 type Formatter interface {
-	Format(*Entry) ([]byte, error)
+	Format(entry *Entry) ([]byte, error)
 }
 
 // Entry is the final logging entry.

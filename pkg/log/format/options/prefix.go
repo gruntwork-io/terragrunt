@@ -6,8 +6,8 @@ type PrefixOption struct {
 	*CommonOption[string]
 }
 
-func (option *PrefixOption) Evaluate(data *Data, str string) string {
-	return option.value + str
+func (option *PrefixOption) Evaluate(data *Data, str string) (string, error) {
+	return option.value + str, nil
 }
 
 func (option *PrefixOption) ParseValue(str string) error {

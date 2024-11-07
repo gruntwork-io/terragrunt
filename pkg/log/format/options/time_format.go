@@ -101,8 +101,8 @@ func (option *TimeFormatOption) ParseValue(str string) error {
 	return nil
 }
 
-func (option *TimeFormatOption) Evaluate(data *Data, str string) string {
-	return data.Time.Format(option.Value())
+func (option *TimeFormatOption) Evaluate(data *Data, str string) (string, error) {
+	return data.Time.Format(option.Value()), nil
 }
 
 func TimeFormat(str string) Option {

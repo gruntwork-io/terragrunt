@@ -10,7 +10,7 @@ type message struct {
 	*CommonPlaceholder
 }
 
-func (msg *message) Evaluate(data *options.Data) string {
+func (msg *message) Evaluate(data *options.Data) (string, error) {
 	return msg.opts.Evaluate(data, data.Message)
 }
 
@@ -22,8 +22,4 @@ func Message(opts ...options.Option) Placeholder {
 	return &message{
 		CommonPlaceholder: NewCommonPlaceholder(MessagePlaceholderName, opts...),
 	}
-}
-
-func init() {
-	Registered.Add(Message())
 }

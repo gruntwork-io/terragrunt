@@ -36,14 +36,14 @@ type PathFormatOption struct {
 	*CommonOption[PathFormatValue]
 }
 
-func (option *PathFormatOption) Evaluate(data *Data, str string) string {
+func (option *PathFormatOption) Evaluate(data *Data, str string) (string, error) {
 	switch option.value {
 	case RelativePath:
 		if data.RelativePather == nil {
 			break
 		}
 
-		return data.RelativePather.ReplaceAbsPaths(str)
+		return data.RelativePather.ReplaceAbsPaths(str), nil
 	case RelativeModulePath:
 		if data.RelativePather == nil {
 			break
@@ -52,28 +52,28 @@ func (option *PathFormatOption) Evaluate(data *Data, str string) string {
 		str = data.RelativePather.ReplaceAbsPaths(str)
 
 		if str == log.CurDir {
-			return ""
+			return "", nil
 		}
 
 		if strings.HasPrefix(str, log.CurDirWithSeparator) {
-			return str[len(log.CurDirWithSeparator):]
+			return str[len(log.CurDirWithSeparator):], nil
 		}
 
-		return str
+		return str, nil
 	case ModulePath:
 		if str == data.BaseDir {
-			return ""
+			return "", nil
 		}
 
-		return str
+		return str, nil
 	case FilenamePath:
-		return filepath.Base(str)
+		return filepath.Base(str), nil
 	case DirectoryPath:
-		return filepath.Dir(str)
+		return filepath.Dir(str), nil
 	case NonePath:
 	}
 
-	return str
+	return str, nil
 }
 
 func PathFormat(val PathFormatValue, allowed ...PathFormatValue) Option {

@@ -28,18 +28,18 @@ type CaseOption struct {
 	*CommonOption[CaseValue]
 }
 
-func (option *CaseOption) Evaluate(data *Data, str string) string {
+func (option *CaseOption) Evaluate(data *Data, str string) (string, error) {
 	switch option.value {
 	case UpperCase:
-		return strings.ToUpper(str)
+		return strings.ToUpper(str), nil
 	case LowerCase:
-		return strings.ToLower(str)
+		return strings.ToLower(str), nil
 	case CapitalizeCase:
-		return cases.Title(language.English, cases.Compact).String(str)
+		return cases.Title(language.English, cases.Compact).String(str), nil
 	case NoneCase:
 	}
 
-	return str
+	return str, nil
 }
 
 func Case(value CaseValue) Option {

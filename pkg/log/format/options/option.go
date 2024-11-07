@@ -34,16 +34,17 @@ func (options Options) Merge(withOptions ...Option) Options {
 	return append(options, withOptions...)
 }
 
-func (options Options) Evaluate(data *Data, str string) string {
-	for _, option := range options {
-		str = option.Evaluate(data, str)
+func (options Options) Evaluate(data *Data, str string) (string, error) {
+	var err error
 
-		if str == "" {
-			return ""
+	for _, option := range options {
+		str, err = option.Evaluate(data, str)
+		if str == "" || err != nil {
+			return "", err
 		}
 	}
 
-	return str
+	return str, nil
 }
 
 type OptionValues[Value any] interface {
@@ -52,7 +53,7 @@ type OptionValues[Value any] interface {
 
 type Option interface {
 	Name() string
-	Evaluate(data *Data, str string) string
+	Evaluate(data *Data, str string) (string, error)
 	ParseValue(str string) error
 }
 

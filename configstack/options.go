@@ -10,6 +10,7 @@ type Option func(Stack) Stack
 func WithChildTerragruntConfig(config *config.TerragruntConfig) Option {
 	return func(stack Stack) Stack {
 		stack.childTerragruntConfig = config
+
 		return stack
 	}
 }
@@ -17,6 +18,7 @@ func WithChildTerragruntConfig(config *config.TerragruntConfig) Option {
 func WithParseOptions(parserOptions []hclparse.Option) Option {
 	return func(stack Stack) Stack {
 		stack.parserOptions = parserOptions
+
 		return stack
 	}
 }

@@ -12,7 +12,7 @@ type timePlaceholder struct {
 	*CommonPlaceholder
 }
 
-func (t *timePlaceholder) Evaluate(data *options.Data) string {
+func (t *timePlaceholder) Evaluate(data *options.Data) (string, error) {
 	return t.opts.Evaluate(data, data.Time.String())
 }
 
@@ -24,8 +24,4 @@ func Time(opts ...options.Option) Placeholder {
 	return &timePlaceholder{
 		CommonPlaceholder: NewCommonPlaceholder(TimePlaceholderName, opts...),
 	}
-}
-
-func init() {
-	Registered.Add(Time())
 }

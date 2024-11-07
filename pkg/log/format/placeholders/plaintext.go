@@ -11,7 +11,7 @@ type plainText struct {
 	value string
 }
 
-func (plainText *plainText) Evaluate(data *options.Data) string {
+func (plainText *plainText) Evaluate(data *options.Data) (string, error) {
 	return plainText.opts.Evaluate(data, plainText.value)
 }
 

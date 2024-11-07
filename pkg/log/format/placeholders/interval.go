@@ -14,7 +14,7 @@ type intervalPlaceholder struct {
 	*CommonPlaceholder
 }
 
-func (t *intervalPlaceholder) Evaluate(data *options.Data) string {
+func (t *intervalPlaceholder) Evaluate(data *options.Data) (string, error) {
 	return t.opts.Evaluate(data, fmt.Sprintf("%04d", time.Since(t.baseTime)/time.Second))
 }
 
@@ -25,8 +25,4 @@ func Interval(opts ...options.Option) Placeholder {
 		baseTime:          time.Now(),
 		CommonPlaceholder: NewCommonPlaceholder(IntervalPlaceholderName, opts...),
 	}
-}
-
-func init() {
-	Registered.Add(Interval())
 }

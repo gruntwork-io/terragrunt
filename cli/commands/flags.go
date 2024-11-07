@@ -337,7 +337,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      TerragruntLogLevelEnvName,
 			DefaultText: opts.LogLevel.String(),
 			Usage:       fmt.Sprintf("Sets the logging level for Terragrunt. Supported levels: %s", log.AllLevels),
-			Action: func(ctx *cli.Context, val string) error {
+			Action: func(_ *cli.Context, val string) error {
 				// Before the release of v0.67.0, these levels actually disabled logs, since we do not use these levels for logging.
 				// For backward compatibility we simulate the same behavior.
 				removedLevels := []string{
@@ -366,7 +366,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      TerragruntLogDisableEnvName,
 			Usage:       "Disable logging",
 			Destination: &opts.DisableLog,
-			Action: func(ctx *cli.Context, _ bool) error {
+			Action: func(_ *cli.Context, _ bool) error {
 				opts.ForwardTFStdout = true
 				opts.LogFormatter.SetFormat(nil)
 				return nil
@@ -377,7 +377,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      TerragruntDisableLogFormattingEnvName,
 			Destination: &opts.DisableLogFormatting,
 			Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
-			Action: func(ctx *cli.Context, val bool) error {
+			Action: func(_ *cli.Context, _ bool) error {
 				opts.LogFormatter.SetFormat(format.KeyValueFormat)
 				return nil
 			},
@@ -387,7 +387,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      TerragruntJSONLogEnvName,
 			Destination: &opts.JSONLogFormat,
 			Usage:       "If specified, Terragrunt will output its logs in JSON format.",
-			Action: func(ctx *cli.Context, _ bool) error {
+			Action: func(_ *cli.Context, _ bool) error {
 				opts.LogFormatter.SetFormat(format.JSONFormat)
 				return nil
 			},
@@ -403,7 +403,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      TerragruntNoColorEnvName,
 			Destination: &opts.DisableLogColors,
 			Usage:       "If specified, Terragrunt output won't contain any color.",
-			Action: func(ctx *cli.Context, _ bool) error {
+			Action: func(_ *cli.Context, _ bool) error {
 				opts.LogFormatter.DisableColors()
 				return nil
 			},
@@ -436,7 +436,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:   TerragruntLogFormatFlagName,
 			EnvVar: TerragruntLogFormatEnvName,
 			Usage:  "", // TODO: write usage
-			Action: func(ctx *cli.Context, val string) error {
+			Action: func(_ *cli.Context, val string) error {
 				phs, err := format.ParseFormat(val)
 				if err != nil {
 					return errors.Errorf("flag --%s, invalid format %q, %v", TerragruntLogFormatFlagName, val, err)
@@ -451,6 +451,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 				}
 
 				opts.LogFormatter.SetFormat(phs)
+
 				return nil
 			},
 		},
@@ -458,13 +459,14 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:   TerragruntLogPrettyFormatFlagName,
 			EnvVar: TerragruntLogPrettyFormatEnvName,
 			Usage:  "", // TODO: write usage
-			Action: func(ctx *cli.Context, val string) error {
-				phs, err := placeholders.Parse(val, placeholders.Registered)
+			Action: func(_ *cli.Context, val string) error {
+				phs, err := placeholders.Parse(val)
 				if err != nil {
 					return errors.Errorf("flag --%s, %w", TerragruntLogPrettyFormatFlagName, err)
 				}
 
 				opts.LogFormatter.SetFormat(phs)
+
 				return nil
 			},
 		},

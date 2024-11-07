@@ -20,16 +20,16 @@ type LevelFormatOption struct {
 	*CommonOption[LevelFormatValue]
 }
 
-func (format *LevelFormatOption) Evaluate(data *Data, str string) string {
+func (format *LevelFormatOption) Evaluate(data *Data, str string) (string, error) {
 	switch format.Value() {
 	case LevelFormatTiny:
-		return data.Level.TinyName()
+		return data.Level.TinyName(), nil
 	case LevelFormatShort:
-		return data.Level.ShortName()
+		return data.Level.ShortName(), nil
 	case LevelFormatFull:
 	}
 
-	return data.Level.FullName()
+	return data.Level.FullName(), nil
 }
 
 func LevelFormat(val LevelFormatValue) Option {

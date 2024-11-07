@@ -10,8 +10,6 @@ import (
 
 const placeholderSign = '%'
 
-var Registered Placeholders
-
 type Placeholders []Placeholder
 
 func (phs Placeholders) Get(name string) Placeholder {
@@ -22,6 +20,17 @@ func (phs Placeholders) Get(name string) Placeholder {
 	}
 
 	return nil
+}
+
+func newPlaceholders() Placeholders {
+	return Placeholders{
+		Interval(),
+		Time(),
+		Level(),
+		Message(),
+		Field(WorkDirKeyName, options.PathFormat(options.NonePath, options.RelativePath, options.RelativeModulePath, options.ModulePath)),
+		Field(TFPathKeyName, options.PathFormat(options.NonePath, options.FilenamePath, options.DirectoryPath)),
+	}
 }
 
 func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, error) {
@@ -103,8 +112,9 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 	return placeholder, len(str) - 1, nil
 }
 
-func Parse(str string, registered Placeholders) (Placeholders, error) {
+func Parse(str string) (Placeholders, error) {
 	var (
+		registered   = newPlaceholders()
 		placeholders Placeholders
 		next         int
 	)
@@ -141,24 +151,25 @@ func Parse(str string, registered Placeholders) (Placeholders, error) {
 	return placeholders, nil
 }
 
-func (phs *Placeholders) Add(new ...Placeholder) {
-	*phs = append(*phs, new...)
-}
-
-func (phs Placeholders) Evaluate(data *options.Data) string {
+func (phs Placeholders) Evaluate(data *options.Data) (string, error) {
 	var str string
 
 	for _, ph := range phs {
-		str += ph.Evaluate(data)
+		s, err := ph.Evaluate(data)
+		if err != nil {
+			return "", err
+		}
+
+		str += s
 	}
 
-	return str
+	return str, nil
 }
 
 type Placeholder interface {
 	Name() string
 	GetOption(name string) options.Option
-	Evaluate(data *options.Data) string
+	Evaluate(data *options.Data) (string, error)
 }
 
 func isPlaceholderName(c byte) bool {

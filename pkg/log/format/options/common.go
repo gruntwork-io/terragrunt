@@ -34,8 +34,8 @@ func (option *CommonOption[T]) String() string {
 	return fmt.Sprintf("%v", option.value)
 }
 
-func (option *CommonOption[T]) Evaluate(data *Data, str string) string {
-	return str
+func (option *CommonOption[T]) Evaluate(data *Data, str string) (string, error) {
+	return str, nil
 }
 
 func (option *CommonOption[T]) ParseValue(str string) error {

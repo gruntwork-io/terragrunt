@@ -32,7 +32,7 @@ type level struct {
 	*CommonPlaceholder
 }
 
-func (level *level) Evaluate(data *options.Data) string {
+func (level *level) Evaluate(data *options.Data) (string, error) {
 	newData := *data
 	newData.AutoColorFn = func() options.ColorValue {
 		return levlAutoColorFunc(data.Level)
@@ -49,8 +49,4 @@ func Level(opts ...options.Option) Placeholder {
 	return &level{
 		CommonPlaceholder: NewCommonPlaceholder(LevelPlaceholderName, opts...),
 	}
-}
-
-func init() {
-	Registered.Add(Level())
 }

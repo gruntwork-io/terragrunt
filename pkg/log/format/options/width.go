@@ -24,19 +24,19 @@ type WidthOption struct {
 	*CommonOption[WidthValue]
 }
 
-func (option *WidthOption) Evaluate(data *Data, str string) string {
+func (option *WidthOption) Evaluate(data *Data, str string) (string, error) {
 	WidthOption := int(option.value)
 	if WidthOption == 0 {
-		return str
+		return str, nil
 	}
 
 	strLen := len(log.RemoveAllASCISeq(str))
 
 	if WidthOption < strLen {
-		return str[:WidthOption]
+		return str[:WidthOption], nil
 	}
 
-	return str + strings.Repeat(" ", WidthOption-strLen)
+	return str + strings.Repeat(" ", WidthOption-strLen), nil
 }
 
 func Width(value WidthValue) Option {

@@ -39,6 +39,6 @@ func (common *CommonPlaceholder) SetValue(str string) error {
 	return nil
 }
 
-func (common *CommonPlaceholder) Evaluate(data *options.Data) string {
+func (common *CommonPlaceholder) Evaluate(data *options.Data) (string, error) {
 	return common.opts.Evaluate(data, "")
 }

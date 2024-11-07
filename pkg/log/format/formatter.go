@@ -37,12 +37,15 @@ func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
 		buf = new(bytes.Buffer)
 	}
 
-	str := formatter.placeholders.Evaluate(&options.Data{
+	str, err := formatter.placeholders.Evaluate(&options.Data{
 		Entry:          entry,
 		BaseDir:        formatter.baseDir,
 		DisableColors:  formatter.disableColors,
 		RelativePather: formatter.relativePather,
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	if str != "" {
 		if _, err := buf.WriteString(str); err != nil {
