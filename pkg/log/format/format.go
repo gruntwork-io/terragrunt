@@ -3,9 +3,19 @@ package format
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	. "github.com/gruntwork-io/terragrunt/pkg/log/format/options"      //nolint:stylecheck
 	. "github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders" //nolint:stylecheck
+	"golang.org/x/exp/maps"
+)
+
+const (
+	BareFormatName     = "bare"
+	PrettyFormatName   = "pretty"
+	JSONFormatName     = "json"
+	KeyValueFormatName = "key-value"
 )
 
 var (
@@ -43,7 +53,7 @@ var (
 			PathFormat(RelativeModulePath),
 			Prefix("["),
 			Suffix("] "),
-			Color(RandomColor),
+			Color(GradientColor),
 		),
 		Field(TFPathKeyName,
 			PathFormat(FilenamePath),
@@ -109,18 +119,18 @@ var (
 )
 
 var presets = map[string]Placeholders{
-	"bare":      BareFormat,
-	"pretty":    PrettyFormat,
-	"json":      JSONFormat,
-	"key-value": KeyValueFormat,
+	BareFormatName:     BareFormat,
+	PrettyFormatName:   PrettyFormat,
+	JSONFormatName:     JSONFormat,
+	KeyValueFormatName: KeyValueFormat,
 }
 
-func ParseFormat(str string) Placeholders {
+func ParseFormat(str string) (Placeholders, error) {
 	for name, format := range presets {
 		if name == str {
-			return format
+			return format, nil
 		}
 	}
 
-	return nil
+	return nil, errors.Errorf("available values: %s", strings.Join(maps.Keys(presets), ","))
 }

@@ -21,11 +21,11 @@ var alignValues = CommonMapValues[AlignValue]{
 
 type AlignValue byte
 
-type align struct {
+type AlignOption struct {
 	*CommonOption[AlignValue]
 }
 
-func (option *align) Evaluate(data *Data, str string) string {
+func (option *AlignOption) Evaluate(data *Data, str string) string {
 	withoutSpaces := strings.TrimSpace(str)
 	spaces := len(str) - len(withoutSpaces)
 
@@ -47,7 +47,7 @@ func (option *align) Evaluate(data *Data, str string) string {
 }
 
 func Align(value AlignValue) Option {
-	return &align{
+	return &AlignOption{
 		CommonOption: NewCommonOption[AlignValue](AlignOptionName, value, alignValues),
 	}
 }

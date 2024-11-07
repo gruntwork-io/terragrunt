@@ -75,7 +75,7 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 					return nil, 0, errors.Errorf("empty option name for placeholder %q", placeholder.Name())
 				}
 
-				if err := option.SetValue(val); err != nil {
+				if err := option.ParseValue(val); err != nil {
 					return nil, 0, errors.Errorf("invalid value %q for option %q, placeholder %q: %w", val, option.Name(), placeholder.Name(), err)
 				}
 			} else if val != "" {

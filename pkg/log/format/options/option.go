@@ -53,7 +53,7 @@ type OptionValues[Value any] interface {
 type Option interface {
 	Name() string
 	Evaluate(data *Data, str string) string
-	SetValue(str string) error
+	ParseValue(str string) error
 }
 
 type Data struct {

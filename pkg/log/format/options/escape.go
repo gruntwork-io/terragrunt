@@ -18,11 +18,11 @@ var textEscapeValues = CommonMapValues[EscapeValue]{
 
 type EscapeValue byte
 
-type textEscape struct {
+type EscapeOption struct {
 	*CommonOption[EscapeValue]
 }
 
-func (option *textEscape) Evaluate(data *Data, str string) string {
+func (option *EscapeOption) Evaluate(data *Data, str string) string {
 	if option.value != JSONEscape {
 		return str
 	}
@@ -37,7 +37,7 @@ func (option *textEscape) Evaluate(data *Data, str string) string {
 }
 
 func Escape(value EscapeValue) Option {
-	return &textEscape{
+	return &EscapeOption{
 		CommonOption: NewCommonOption[EscapeValue](EscapeOptionName, value, textEscapeValues),
 	}
 }

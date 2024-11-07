@@ -14,21 +14,21 @@ var _ log.Formatter = new(Formatter)
 
 type Formatter struct {
 	baseDir        string
-	format         placeholders.Placeholders
+	placeholders   placeholders.Placeholders
 	disableColors  bool
 	relativePather *options.RelativePather
 }
 
 // NewFormatter returns a new Formatter instance with default values.
-func NewFormatter(format placeholders.Placeholders) *Formatter {
+func NewFormatter(phs placeholders.Placeholders) *Formatter {
 	return &Formatter{
-		format: format,
+		placeholders: phs,
 	}
 }
 
 // Format implements logrus.Format
 func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
-	if formatter.format == nil {
+	if formatter.placeholders == nil {
 		return nil, nil
 	}
 
@@ -37,7 +37,7 @@ func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
 		buf = new(bytes.Buffer)
 	}
 
-	str := formatter.format.Evaluate(&options.Data{
+	str := formatter.placeholders.Evaluate(&options.Data{
 		Entry:          entry,
 		BaseDir:        formatter.baseDir,
 		DisableColors:  formatter.disableColors,
@@ -74,6 +74,10 @@ func (formatter *Formatter) SetBaseDir(baseDir string) error {
 	return nil
 }
 
-func (formatter *Formatter) SetFormat(format placeholders.Placeholders) {
-	formatter.format = format
+func (formatter *Formatter) DisableRelativePaths() {
+	formatter.relativePather = nil
+}
+
+func (formatter *Formatter) SetFormat(phs placeholders.Placeholders) {
+	formatter.placeholders = phs
 }

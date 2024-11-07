@@ -16,11 +16,11 @@ var levelFormatValues = CommonMapValues[LevelFormatValue]{
 
 type LevelFormatValue byte
 
-type levelFormat struct {
+type LevelFormatOption struct {
 	*CommonOption[LevelFormatValue]
 }
 
-func (format *levelFormat) Evaluate(data *Data, str string) string {
+func (format *LevelFormatOption) Evaluate(data *Data, str string) string {
 	switch format.Value() {
 	case LevelFormatTiny:
 		return data.Level.TinyName()
@@ -33,7 +33,7 @@ func (format *levelFormat) Evaluate(data *Data, str string) string {
 }
 
 func LevelFormat(val LevelFormatValue) Option {
-	return &levelFormat{
+	return &LevelFormatOption{
 		CommonOption: NewCommonOption[LevelFormatValue](LevelFormatOptionName, val, levelFormatValues),
 	}
 }

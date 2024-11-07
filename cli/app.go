@@ -300,6 +300,10 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 		return err
 	}
 
+	if opts.LogShowAbsPaths {
+		opts.LogFormatter.DisableRelativePaths()
+	}
+
 	// --- Download Dir
 	if opts.DownloadDir == "" {
 		opts.DownloadDir = util.JoinPath(opts.WorkingDir, util.TerragruntCacheDir)

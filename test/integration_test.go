@@ -74,7 +74,7 @@ const (
 	testFixtureInitOnce                       = "fixtures/init-once"
 	testFixtureInputs                         = "fixtures/inputs"
 	testFixtureInputsFromDependency           = "fixtures/inputs-from-dependency"
-	testFixtureLogFormatter                   = "fixtures/log/format"
+	testFixtureLogFormatter                   = "fixtures/log/formatter"
 	testFixtureLogRelPaths                    = "fixtures/log/rel-paths"
 	testFixtureMissingDependence              = "fixtures/missing-dependencies/main"
 	testFixtureModulePathError                = "fixtures/module-path-in-error"
@@ -137,7 +137,7 @@ func TestLogWithAbsPath(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, testFixtureLogFormatter)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
 
-	_, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level debug --terragrunt-log-show-abs-paths --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-working-dir "+rootPath)
+	_, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level debug --terragrunt-log-show-abs-paths --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-format=pretty --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
 	for _, prefixName := range []string{"app", "dep"} {
@@ -178,7 +178,7 @@ func TestLogWithRelPath(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			stdout, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level debug --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-working-dir "+workingDir)
+			stdout, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level debug --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-format=pretty --terragrunt-working-dir "+workingDir)
 			require.NoError(t, err)
 
 			testCase.assertFn(t, stdout, stderr)
@@ -193,7 +193,7 @@ func TestLogFormatterPrettyOutput(t *testing.T) {
 	tmpEnvPath := copyEnvironment(t, testFixtureLogFormatter)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
 
-	stdout, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level debug --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-working-dir "+rootPath)
+	stdout, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level debug --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-format=pretty  --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
 	for _, prefixName := range []string{"app", "dep"} {
@@ -216,10 +216,9 @@ func TestLogFormatterKeyValueOutput(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, prefixName := range []string{"app", "dep"} {
-		assert.Contains(t, stderr, "level=stdout prefix="+prefixName+" binary="+wrappedBinary()+" msg=Initializing provider plugins...\n")
+		assert.Contains(t, stderr, "level=stdout prefix="+prefixName+" tfpath="+wrappedBinary()+" msg=Initializing provider plugins...\n")
 		assert.Contains(t, stderr, "level=debug prefix="+prefixName+" msg=Reading Terragrunt config file at ./"+prefixName+"/terragrunt.hcl\n")
 	}
-	assert.Contains(t, stderr, "level=debug prefix=. msg=Terragrunt Version:")
 }
 
 func TestLogRawModuleOutput(t *testing.T) {

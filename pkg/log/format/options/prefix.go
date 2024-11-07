@@ -2,22 +2,22 @@ package options
 
 const PrefixOptionName = "prefix"
 
-type prefix struct {
+type PrefixOption struct {
 	*CommonOption[string]
 }
 
-func (option *prefix) Evaluate(data *Data, str string) string {
+func (option *PrefixOption) Evaluate(data *Data, str string) string {
 	return option.value + str
 }
 
-func (option *prefix) SetValue(str string) error {
+func (option *PrefixOption) ParseValue(str string) error {
 	option.value = str
 
 	return nil
 }
 
 func Prefix(value string) Option {
-	return &prefix{
+	return &PrefixOption{
 		CommonOption: NewCommonOption[string](PrefixOptionName, value, nil),
 	}
 }

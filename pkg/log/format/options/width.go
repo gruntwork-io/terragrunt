@@ -20,27 +20,27 @@ func (val WidthValue) Parse(str string) (WidthValue, error) {
 	return val, errors.Errorf("incorrect option value: %s", str)
 }
 
-type width struct {
+type WidthOption struct {
 	*CommonOption[WidthValue]
 }
 
-func (option *width) Evaluate(data *Data, str string) string {
-	width := int(option.value)
-	if width == 0 {
+func (option *WidthOption) Evaluate(data *Data, str string) string {
+	WidthOption := int(option.value)
+	if WidthOption == 0 {
 		return str
 	}
 
 	strLen := len(log.RemoveAllASCISeq(str))
 
-	if width < strLen {
-		return str[:width]
+	if WidthOption < strLen {
+		return str[:WidthOption]
 	}
 
-	return str + strings.Repeat(" ", width-strLen)
+	return str + strings.Repeat(" ", WidthOption-strLen)
 }
 
 func Width(value WidthValue) Option {
-	return &width{
+	return &WidthOption{
 		CommonOption: NewCommonOption[WidthValue](WidthOptionName, value, value),
 	}
 }

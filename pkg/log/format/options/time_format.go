@@ -91,22 +91,22 @@ func (valMap TimeFormatValueMap) Value(str string) string {
 
 type TimeFormatValue string
 
-type timeFormat struct {
+type TimeFormatOption struct {
 	*CommonOption[string]
 }
 
-func (option *timeFormat) SetValue(str string) error {
+func (option *TimeFormatOption) ParseValue(str string) error {
 	option.value = timeFormatValueMap.Value(str)
 
 	return nil
 }
 
-func (option *timeFormat) Evaluate(data *Data, str string) string {
+func (option *TimeFormatOption) Evaluate(data *Data, str string) string {
 	return data.Time.Format(option.Value())
 }
 
 func TimeFormat(str string) Option {
-	return &timeFormat{
+	return &TimeFormatOption{
 		CommonOption: NewCommonOption[string](TimeFormatOptionName, timeFormatValueMap.Value(str), nil),
 	}
 }

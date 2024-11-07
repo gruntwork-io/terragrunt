@@ -38,7 +38,7 @@ func (option *CommonOption[T]) Evaluate(data *Data, str string) string {
 	return str
 }
 
-func (option *CommonOption[T]) SetValue(str string) error {
+func (option *CommonOption[T]) ParseValue(str string) error {
 	val, err := option.values.Parse(str)
 	if err != nil {
 		return err

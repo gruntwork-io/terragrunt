@@ -19,7 +19,7 @@ const (
 	BlueHColor
 	BlackHColor
 	AutoColor
-	RandomColor
+	GradientColor
 
 	Color66
 	Color67
@@ -36,16 +36,16 @@ const (
 )
 
 var colorValues = CommonMapValues[ColorValue]{
-	RedColor:     "red",
-	WhiteColor:   "white",
-	YellowColor:  "yellow",
-	GreenColor:   "green",
-	CyanColor:    "cyan",
-	BlueHColor:   "light-blue",
-	BlackHColor:  "light-black",
-	AutoColor:    "auto",
-	RandomColor:  "random",
-	DisableColor: "disable",
+	RedColor:      "red",
+	WhiteColor:    "white",
+	YellowColor:   "yellow",
+	GreenColor:    "green",
+	CyanColor:     "cyan",
+	BlueHColor:    "light-blue",
+	BlackHColor:   "light-black",
+	AutoColor:     "auto",
+	GradientColor: "gradient",
+	DisableColor:  "disable",
 }
 
 var (
@@ -114,7 +114,7 @@ func (color *ColorOption) Evaluate(data *Data, str string) string {
 		value = data.AutoColorFn()
 	}
 
-	if value == RandomColor && color.randomColor != nil {
+	if value == GradientColor && color.randomColor != nil {
 		value = color.randomColor.Value(str)
 	}
 
@@ -125,7 +125,7 @@ func (color *ColorOption) Evaluate(data *Data, str string) string {
 	return str
 }
 
-func (color *ColorOption) SetValue(str string) error {
+func (color *ColorOption) ParseValue(str string) error {
 	val, err := colorValues.Parse(str)
 	if err != nil {
 		return err

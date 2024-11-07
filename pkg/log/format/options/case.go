@@ -24,11 +24,11 @@ var textCaseValues = CommonMapValues[CaseValue]{
 
 type CaseValue byte
 
-type textCase struct {
+type CaseOption struct {
 	*CommonOption[CaseValue]
 }
 
-func (option *textCase) Evaluate(data *Data, str string) string {
+func (option *CaseOption) Evaluate(data *Data, str string) string {
 	switch option.value {
 	case UpperCase:
 		return strings.ToUpper(str)
@@ -43,7 +43,7 @@ func (option *textCase) Evaluate(data *Data, str string) string {
 }
 
 func Case(value CaseValue) Option {
-	return &textCase{
+	return &CaseOption{
 		CommonOption: NewCommonOption[CaseValue](CaseOptionName, value, textCaseValues),
 	}
 }

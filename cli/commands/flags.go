@@ -378,7 +378,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.DisableLogFormatting,
 			Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
 			Action: func(ctx *cli.Context, val bool) error {
-				opts.LogFormatter = format.NewFormatter(format.KeyValueFormat)
+				opts.LogFormatter.SetFormat(format.KeyValueFormat)
 				return nil
 			},
 		},
@@ -388,7 +388,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.JSONLogFormat,
 			Usage:       "If specified, Terragrunt will output its logs in JSON format.",
 			Action: func(ctx *cli.Context, _ bool) error {
-				opts.LogFormatter = format.NewFormatter(format.JSONFormat)
+				opts.LogFormatter.SetFormat(format.JSONFormat)
 				return nil
 			},
 		},
@@ -437,12 +437,20 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar: TerragruntLogFormatEnvName,
 			Usage:  "", // TODO: write usage
 			Action: func(ctx *cli.Context, val string) error {
-				format := format.ParseFormat(val)
-				if format == nil {
-					return errors.Errorf("flag --%s, invalid format %q", TerragruntLogFormatFlagName, val)
+				phs, err := format.ParseFormat(val)
+				if err != nil {
+					return errors.Errorf("flag --%s, invalid format %q, %v", TerragruntLogFormatFlagName, val, err)
 				}
 
-				opts.LogFormatter.SetFormat(format)
+				if opts.DisableLog || opts.DisableLogFormatting || opts.JSONLogFormat {
+					return nil
+				}
+
+				if val == format.BareFormatName {
+					opts.ForwardTFStdout = true
+				}
+
+				opts.LogFormatter.SetFormat(phs)
 				return nil
 			},
 		},

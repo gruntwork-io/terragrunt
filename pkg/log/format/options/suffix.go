@@ -2,22 +2,22 @@ package options
 
 const SuffixOptionName = "suffix"
 
-type suffix struct {
+type SuffixOption struct {
 	*CommonOption[string]
 }
 
-func (option *suffix) Evaluate(data *Data, str string) string {
+func (option *SuffixOption) Evaluate(data *Data, str string) string {
 	return str + option.value
 }
 
-func (option *suffix) SetValue(str string) error {
+func (option *SuffixOption) ParseValue(str string) error {
 	option.value = str
 
 	return nil
 }
 
 func Suffix(value string) Option {
-	return &suffix{
+	return &SuffixOption{
 		CommonOption: NewCommonOption[string](SuffixOptionName, value, nil),
 	}
 }

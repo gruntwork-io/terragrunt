@@ -32,11 +32,11 @@ var pathFormatValues = CommonMapValues[PathFormatValue]{
 
 type PathFormatValue byte
 
-type pathFormat struct {
+type PathFormatOption struct {
 	*CommonOption[PathFormatValue]
 }
 
-func (option *pathFormat) Evaluate(data *Data, str string) string {
+func (option *PathFormatOption) Evaluate(data *Data, str string) string {
 	switch option.value {
 	case RelativePath:
 		if data.RelativePather == nil {
@@ -82,7 +82,7 @@ func PathFormat(val PathFormatValue, allowed ...PathFormatValue) Option {
 		values = values.Filter(allowed...)
 	}
 
-	return &pathFormat{
+	return &PathFormatOption{
 		CommonOption: NewCommonOption[PathFormatValue](PathFormatOptionName, val, values),
 	}
 }
