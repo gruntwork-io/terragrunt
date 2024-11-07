@@ -90,6 +90,13 @@ var (
 	DefaultGenerateBlockIfDisabledValueStr = codegen.DisabledSkipStr
 )
 
+// DecodedBaseBlocks decoded base blocks struct
+type DecodedBaseBlocks struct {
+	TrackInclude *TrackInclude
+	Locals       *cty.Value
+	FeatureFlags *cty.Value
+}
+
 // TerragruntConfig represents a parsed and expanded configuration
 // NOTE: if any attributes are added, make sure to update terragruntConfigAsCty in config_as_cty.go
 type TerragruntConfig struct {
@@ -839,14 +846,14 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 	}
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
-	trackInclude, locals, features, err := DecodeBaseBlocks(ctx, file, includeFromChild)
+	baseBlocks, err := DecodeBaseBlocks(ctx, file, includeFromChild)
 	if err != nil {
 		return nil, err
 	}
 
-	ctx = ctx.WithTrackInclude(trackInclude)
-	ctx = ctx.WithFeatures(features)
-	ctx = ctx.WithLocals(locals)
+	ctx = ctx.WithTrackInclude(baseBlocks.TrackInclude)
+	ctx = ctx.WithFeatures(baseBlocks.FeatureFlags)
+	ctx = ctx.WithLocals(baseBlocks.Locals)
 
 	if ctx.DecodedDependencies == nil {
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
@@ -880,7 +887,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 		return nil, err
 	}
 
-	// If this file includes another, parse and merge it.  Otherwise just return this config.
+	// If this file includes another, parse and merge it. Otherwise just return this config.
 	if ctx.TrackInclude != nil {
 		mergedConfig, err := handleInclude(ctx, config, false)
 		if err != nil {

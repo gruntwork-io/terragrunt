@@ -114,10 +114,10 @@ type terragruntInputs struct {
 // - locals
 // - features
 // - include
-func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*TrackInclude, *cty.Value, *cty.Value, error) {
+func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild *IncludeConfig) (*DecodedBaseBlocks, error) {
 	evalParsingContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	// Decode just the `include` and `import` blocks, and verify that it's allowed here
@@ -126,19 +126,19 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 		evalParsingContext,
 	)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	trackInclude, err := getTrackInclude(ctx, terragruntIncludeList, includeFromChild)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	// set feature flags
 	tgFlags := terragruntFeatureFlags{}
 	// load default feature flags
 	if err := file.Decode(&tgFlags, evalParsingContext); err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	evaluatedFlags := map[string]cty.Value{}
@@ -148,7 +148,7 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 		contextFlag, err := flagToCtyValue(name, value)
 
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, err
 		}
 
 		evaluatedFlags[name] = contextFlag
@@ -159,7 +159,7 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 			contextFlag, err := flagToCtyValue(flag.Name, *flag.Default)
 
 			if err != nil {
-				return nil, nil, nil, err
+				return nil, err
 			}
 
 			evaluatedFlags[flag.Name] = contextFlag
@@ -169,22 +169,26 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 	flagsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedFlags)
 
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	// Evaluate all the expressions in the locals block separately and generate the variables list to use in the
 	// evaluation ctx.
 	locals, err := EvaluateLocalsBlock(ctx.WithTrackInclude(trackInclude).WithFeatures(&flagsAsCtyVal), file)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	localsAsCtyVal, err := convertValuesMapToCtyVal(locals)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
-	return trackInclude, &localsAsCtyVal, &flagsAsCtyVal, nil
+	return &DecodedBaseBlocks{
+		TrackInclude: trackInclude,
+		Locals:       &localsAsCtyVal,
+		FeatureFlags: &flagsAsCtyVal,
+	}, nil
 }
 
 func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *IncludeConfig) (*TerragruntConfig, error) {
@@ -274,14 +278,14 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
 	// Initialize evaluation ctx extensions from base blocks.
-	trackInclude, locals, features, err := DecodeBaseBlocks(ctx, file, includeFromChild)
+	baseBlocks, err := DecodeBaseBlocks(ctx, file, includeFromChild)
 	if err != nil {
 		return nil, err
 	}
 
-	ctx = ctx.WithTrackInclude(trackInclude)
-	ctx = ctx.WithFeatures(features)
-	ctx = ctx.WithLocals(locals)
+	ctx = ctx.WithTrackInclude(baseBlocks.TrackInclude)
+	ctx = ctx.WithFeatures(baseBlocks.FeatureFlags)
+	ctx = ctx.WithLocals(baseBlocks.Locals)
 
 	// Set parsed Locals on the parsed config
 	output, err := convertToTerragruntConfig(ctx, file.ConfigPath, &terragruntConfigFile{})
