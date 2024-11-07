@@ -151,8 +151,8 @@ const (
 	TerragruntLogFormatFlagName = "terragrunt-log-format"
 	TerragruntLogFormatEnvName  = "TERRAGRUNT_LOG_FORMAT"
 
-	TerragruntLogPrettyFormatFlagName = "terragrunt-log-pretty-format"
-	TerragruntLogPrettyFormatEnvName  = "TERRAGRUNT_LOG_PRETTY_FORMAT"
+	TerragruntLogCustomFormatFlagName = "terragrunt-log-custom-format"
+	TerragruntLogCustomFormatEnvName  = "TERRAGRUNT_LOG_CUSTOM_FORMAT"
 
 	// Strict Mode related flags/envs
 	TerragruntStrictModeFlagName = "strict-mode"
@@ -467,13 +467,13 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			},
 		},
 		&cli.GenericFlag[string]{
-			Name:   TerragruntLogPrettyFormatFlagName,
-			EnvVar: TerragruntLogPrettyFormatEnvName,
+			Name:   TerragruntLogCustomFormatFlagName,
+			EnvVar: TerragruntLogCustomFormatEnvName,
 			Usage:  "", // TODO: write usage
 			Action: func(_ *cli.Context, val string) error {
 				phs, err := placeholders.Parse(val)
 				if err != nil {
-					return errors.Errorf("flag --%s, %w", TerragruntLogPrettyFormatFlagName, err)
+					return errors.Errorf("flag --%s, %w", TerragruntLogCustomFormatFlagName, err)
 				}
 
 				opts.LogFormatter.SetFormat(phs)
