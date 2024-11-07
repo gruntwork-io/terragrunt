@@ -1197,6 +1197,8 @@ inputs = {
   string_feature_flag = feature.string_flag.value
 }
 
+```
+
 Setting feature flags through CLI:
 
 ```bash
