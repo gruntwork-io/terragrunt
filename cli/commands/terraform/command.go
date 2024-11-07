@@ -32,7 +32,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 func Action(opts *options.TerragruntOptions) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
 		if opts.TerraformCommand == terraform.CommandNameDestroy {
-			opts.CheckDependentModules = !opts.DontCheckDependentModules
+			opts.CheckDependentModules = !opts.NoCheckDependentModules
 		}
 
 		if !opts.DisableCommandValidation && !collections.ListContainsElement(nativeTerraformCommands, opts.TerraformCommand) {
