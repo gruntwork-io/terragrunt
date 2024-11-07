@@ -540,8 +540,8 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        TerragruntFeatureMapFlagName,
 			EnvVar:      TerragruntFeatureMapEnvName,
 			Destination: &opts.FeatureFlags,
-			Usage:       "Feature flags for Terragrunt IaC.",
-			Splitter:    util.SplitUrls,
+			Usage:       "Set feature flags for the HCL code.",
+			Splitter:    util.SplitComma,
 		},
 		// Terragrunt engine flags
 		&cli.BoolFlag{
