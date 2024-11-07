@@ -13,12 +13,6 @@ var (
 	FlagSplitter = strings.Split
 )
 
-// ActionableFlag is an interface that wraps Flag interface and RunAction operation.
-type ActionableFlag interface {
-	Flag
-	RunAction(ctx *Context) error
-}
-
 type FlagType[T any] interface {
 	libflag.Getter
 	Clone(dest *T) FlagType[T]
@@ -39,6 +33,7 @@ type FlagValue interface {
 type Flag interface {
 	Value() FlagValue
 	GetHidden() bool
+	RunAction(*Context) error
 	// `urfave/cli/v2` uses to generate help
 	cli.DocGenerationFlag
 }

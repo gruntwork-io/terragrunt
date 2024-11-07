@@ -264,6 +264,9 @@ type TerragruntOptions struct {
 	// True if is required to show dependent modules and confirm action
 	CheckDependentModules bool
 
+	// True if is required not to show dependent modules and confirm action
+	NoDestroyDependenciesCheck bool
+
 	// This is an experimental feature, used to speed up dependency processing by getting the output from the state
 	FetchDependencyOutputFromState bool
 
@@ -342,6 +345,12 @@ type TerragruntOptions struct {
 
 	// Options to use engine for running IaC operations.
 	Engine *EngineOptions
+
+	// StrictMode is a flag to enable strict mode for terragrunt.
+	StrictMode bool
+
+	// StrictControls is a slice of strict controls enabled.
+	StrictControls []string
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -584,6 +593,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		JSONLogFormat:                  opts.JSONLogFormat,
 		Check:                          opts.Check,
 		CheckDependentModules:          opts.CheckDependentModules,
+		NoDestroyDependenciesCheck:     opts.NoDestroyDependenciesCheck,
 		FetchDependencyOutputFromState: opts.FetchDependencyOutputFromState,
 		UsePartialParseConfigCache:     opts.UsePartialParseConfigCache,
 		ForwardTFStdout:                opts.ForwardTFStdout,
@@ -610,6 +620,8 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		EngineLogLevel:                 opts.EngineLogLevel,
 		EngineSkipChecksumCheck:        opts.EngineSkipChecksumCheck,
 		Engine:                         cloneEngineOptions(opts.Engine),
+		// copy array
+		StrictControls: util.CloneStringList(opts.StrictControls),
 	}, nil
 }
 

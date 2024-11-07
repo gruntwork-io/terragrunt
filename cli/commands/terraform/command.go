@@ -4,7 +4,7 @@ package terraform
 import (
 	"strings"
 
-	"github.com/gruntwork-io/gruntwork-cli/collections"
+	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
@@ -32,7 +32,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 func Action(opts *options.TerragruntOptions) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
 		if opts.TerraformCommand == terraform.CommandNameDestroy {
-			opts.CheckDependentModules = true
+			opts.CheckDependentModules = !opts.NoDestroyDependenciesCheck
 		}
 
 		if !opts.DisableCommandValidation && !collections.ListContainsElement(nativeTerraformCommands, opts.TerraformCommand) {

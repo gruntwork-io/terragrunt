@@ -77,7 +77,7 @@ func (formatter *Formatter) SetBaseDir(baseDir string) error {
 	return nil
 }
 
-// DisableColors disables the conversion of absolute paths to relative ones.
+// DisableRelativePaths disables the conversion of absolute paths to relative ones.
 func (formatter *Formatter) DisableRelativePaths() {
 	formatter.relativePather = nil
 }

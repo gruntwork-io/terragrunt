@@ -27,6 +27,7 @@ const existingModulesCacheName = "existingModules"
 // TerraformModule represents a single module (i.e. folder with Terraform templates), including the Terragrunt configuration for that
 // module and the list of other modules that this module depends on
 type TerraformModule struct {
+	*Stack
 	Path                 string
 	Dependencies         TerraformModules
 	Config               config.TerragruntConfig
@@ -50,6 +51,18 @@ func (module *TerraformModule) String() string {
 
 func (module *TerraformModule) MarshalJSON() ([]byte, error) {
 	return json.Marshal(module.Path)
+}
+
+// FlushOutput flushes buffer data to the output writer.
+func (module *TerraformModule) FlushOutput() error {
+	if writer, ok := module.TerragruntOptions.Writer.(*ModuleWriter); ok {
+		module.outputMu.Lock()
+		defer module.outputMu.Unlock()
+
+		return writer.Flush()
+	}
+
+	return nil
 }
 
 // Check for cycles using a depth-first-search as described here:
@@ -101,28 +114,32 @@ func (module *TerraformModule) planFile(terragruntOptions *options.TerragruntOpt
 
 // outputFile - return plan file location, if output folder is set
 func (module *TerraformModule) outputFile(opts *options.TerragruntOptions) string {
-	planFile := ""
-
-	if opts.OutputFolder != "" {
-		path, _ := filepath.Rel(opts.WorkingDir, module.Path)
-		dir := filepath.Join(opts.OutputFolder, path)
-		planFile = filepath.Join(dir, terraform.TerraformPlanFile)
-	}
-
-	return planFile
+	return module.getPlanFilePath(opts, opts.OutputFolder, terraform.TerraformPlanFile)
 }
 
 // outputJSONFile - return plan JSON file location, if JSON output folder is set
 func (module *TerraformModule) outputJSONFile(opts *options.TerragruntOptions) string {
-	jsonPlanFile := ""
+	return module.getPlanFilePath(opts, opts.JSONOutputFolder, terraform.TerraformPlanJSONFile)
+}
 
-	if opts.JSONOutputFolder != "" {
-		path, _ := filepath.Rel(opts.WorkingDir, module.Path)
-		dir := filepath.Join(opts.JSONOutputFolder, path)
-		jsonPlanFile = filepath.Join(dir, terraform.TerraformPlanJSONFile)
+func (module *TerraformModule) getPlanFilePath(opts *options.TerragruntOptions, outputFolder, fileName string) string {
+	if outputFolder == "" {
+		return ""
 	}
 
-	return jsonPlanFile
+	path, _ := filepath.Rel(opts.WorkingDir, module.Path)
+	dir := filepath.Join(outputFolder, path)
+
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(opts.WorkingDir, dir)
+		if absDir, err := filepath.Abs(dir); err == nil {
+			dir = absDir
+		} else {
+			opts.Logger.Warnf("Failed to get absolute path for %s: %v", dir, err)
+		}
+	}
+
+	return filepath.Join(dir, fileName)
 }
 
 // findModuleInPath returns true if a module is located under one of the target directories

@@ -13,7 +13,7 @@ import (
 	"strconv"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/hashicorp/go-getter/v2"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 func Fetch(ctx context.Context, req *http.Request, dst io.Writer) error {
@@ -34,7 +34,7 @@ func Fetch(ctx context.Context, req *http.Request, dst io.Writer) error {
 		return err
 	}
 
-	if written, err := getter.Copy(ctx, dst, reader); err != nil {
+	if written, err := util.Copy(ctx, dst, reader); err != nil {
 		return errors.New(err)
 	} else if resp.ContentLength != -1 && written != resp.ContentLength {
 		return errors.Errorf("incorrect response size: expected %d bytes, but got %d bytes", resp.ContentLength, written)

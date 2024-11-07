@@ -190,7 +190,7 @@ func RunShellCommandWithOutput(
 			exec.WithForwardSignalDelay(SignalForwardingDelay),
 		)
 
-		if err := cmd.Start(); err != nil {
+		if err := cmd.Start(); err != nil { //nolint:contextcheck
 			err = util.ProcessExecutionError{
 				Err:        err,
 				Args:       args,

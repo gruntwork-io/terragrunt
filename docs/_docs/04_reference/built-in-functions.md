@@ -43,7 +43,7 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
 
 ## OpenTofu/Terraform built-in functions
 
-All [OpenTofu/Terraform built-in functions](https://opentofu.org/docs/language/functions/) are supported in Terragrunt config files:
+All [OpenTofu/Terraform built-in functions (as of v0.15.3)](https://opentofu.org/docs/language/functions/) are supported in Terragrunt config files:
 
 ```hcl
 terraform {
@@ -78,6 +78,14 @@ Then `assets.txt` could be read with the following function call:
 ```hcl
 file("assets/mysql/assets.txt")
 ```
+
+**Note:**
+
+Terragrunt was originally able to take advantage of built-in OpenTofu/Terraform built-in functions automatically, as they were exposed via an exported package. Since `v0.15.3`, however, these functions are now `internal` to the respective codebases.
+
+As a result, Terragrunt users typically use different functions to resolve the same problems. e.g. Terragrunt users can execute arbitrary shell commands with [run\_cmd](#run_cmd) in whatever language they like instead of using a bespoke HCL function to solve a given problem. In the future, OpenTofu may expose these functions via a public package, which would allow Terragrunt to access them directly. Until such a time, Terragrunt will continue to provide its own set of functions to solve problems relevant to Terragrunt users.
+
+If there is a specific function you would like to see supported directly in Terragrunt, please [open an issue](https://github.com/gruntwork-io/terragrunt/issues) requesting it. Make sure to include the use case you have in mind so we can understand the problem you are trying to solve, and why existing Terragrunt functions are not sufficient.
 
 ## find_in_parent_folders
 

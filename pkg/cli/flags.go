@@ -76,10 +76,8 @@ func (flags Flags) Swap(i, j int) {
 func (flags Flags) RunActions(ctx *Context) error {
 	for _, flag := range flags {
 		if flag.Value().IsSet() {
-			if flag, ok := flag.(ActionableFlag); ok {
-				if err := flag.RunAction(ctx); err != nil {
-					return err
-				}
+			if err := flag.RunAction(ctx); err != nil {
+				return err
 			}
 		}
 	}

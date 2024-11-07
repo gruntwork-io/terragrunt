@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -127,6 +128,9 @@ const (
 	TerragruntJSONOutDirFlagEnvName = "TERRAGRUNT_JSON_OUT_DIR"
 	TerragruntJSONOutDirFlagName    = "terragrunt-json-out-dir"
 
+	TerragruntNoDestroyDependenciesCheckFlagEnvName = "TERRAGRUNT_NO_DESTROY_DEPENDENCIES_CHECK"
+	TerragruntNoDestroyDependenciesCheckFlagName    = "terragrunt-no-destroy-dependencies-check"
+
 	// Logs related flags/envs
 
 	TerragruntLogLevelFlagName = "terragrunt-log-level"
@@ -149,6 +153,13 @@ const (
 
 	TerragruntLogPrettyFormatFlagName = "terragrunt-log-pretty-format"
 	TerragruntLogPrettyFormatEnvName  = "TERRAGRUNT_LOG_PRETTY_FORMAT"
+
+	// Strict Mode related flags/envs
+	TerragruntStrictModeFlagName = "strict-mode"
+	TerragruntStrictModeEnvName  = "TERRAGRUNT_STRICT_MODE"
+
+	TerragruntStrictControlFlagName = "strict-control"
+	TerragruntStrictControlEnvName  = "TERRAGRUNT_STRICT_CONTROL"
 
 	// Terragrunt Provider Cache related flags/envs
 
@@ -499,6 +510,28 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      TerragruntDisableCommandValidationEnvName,
 			Destination: &opts.DisableCommandValidation,
 			Usage:       "When this flag is set, Terragrunt will not validate the terraform command.",
+		},
+		&cli.BoolFlag{
+			Name:        TerragruntNoDestroyDependenciesCheckFlagName,
+			EnvVar:      TerragruntNoDestroyDependenciesCheckFlagEnvName,
+			Destination: &opts.NoDestroyDependenciesCheck,
+			Usage:       "When this flag is set, Terragrunt will not check for dependent modules when destroying.",
+		},
+		// Strict Mode flags
+		&cli.BoolFlag{
+			Name:        TerragruntStrictModeFlagName,
+			EnvVar:      TerragruntStrictModeEnvName,
+			Destination: &opts.StrictMode,
+			Usage:       "Enables strict mode for Terragrunt. For more information, see https://terragrunt.gruntwork.io/docs/reference/strict-mode .",
+		},
+		&cli.SliceFlag[string]{
+			Name:        TerragruntStrictControlFlagName,
+			EnvVar:      TerragruntStrictControlEnvName,
+			Destination: &opts.StrictControls,
+			Usage:       "Enables specific strict controls. For a list of available controls, see https://terragrunt.gruntwork.io/docs/reference/strict-mode .",
+			Action: func(ctx *cli.Context, val []string) error {
+				return strict.StrictControls.ValidateControlNames(val)
+			},
 		},
 		// Terragrunt Provider Cache flags
 		&cli.BoolFlag{
