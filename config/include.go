@@ -627,21 +627,21 @@ func deepMergeDependencyBlocks(targetDependencies []Dependency, sourceDependenci
 }
 
 // DeepMerge feature flags.
-func deepMergeFeatureBlocks(targetFeatureFlag []*FeatureFlag, sourceFeatureFlag []*FeatureFlag) ([]*FeatureFlag, error) {
-	if sourceFeatureFlag == nil && targetFeatureFlag == nil {
+func deepMergeFeatureBlocks(targetFeatureFlags []*FeatureFlag, sourceFeatureFlags []*FeatureFlag) ([]*FeatureFlag, error) {
+	if sourceFeatureFlags == nil && targetFeatureFlags == nil {
 		return nil, nil
 	}
 
-	keys := make([]string, 0, len(targetFeatureFlag))
+	keys := make([]string, 0, len(targetFeatureFlags))
 
 	featureBlocks := make(map[string]*FeatureFlag)
 
-	for _, flag := range targetFeatureFlag {
+	for _, flag := range targetFeatureFlags {
 		featureBlocks[flag.Name] = flag
 		keys = append(keys, flag.Name)
 	}
 
-	for _, flag := range sourceFeatureFlag {
+	for _, flag := range sourceFeatureFlags {
 		sameKeyDep, hasSameKey := featureBlocks[flag.Name]
 		if hasSameKey {
 			sameKeyFlagPtr := sameKeyDep
