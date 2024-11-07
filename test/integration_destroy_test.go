@@ -180,7 +180,7 @@ func TestNoShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
 
-	err = runTerragruntCommand(t, "terragrunt destroy --terragrunt-non-interactive --terragrunt-no-check-dependent-modules --terragrunt-working-dir "+vpcPath, &stdout, &stderr)
+	err = runTerragruntCommand(t, "terragrunt destroy --terragrunt-non-interactive --terragrunt-no-destroy-dependencies-check --terragrunt-working-dir "+vpcPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	output := stderr.String()

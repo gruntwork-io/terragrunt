@@ -127,8 +127,8 @@ const (
 	TerragruntJSONOutDirFlagEnvName = "TERRAGRUNT_JSON_OUT_DIR"
 	TerragruntJSONOutDirFlagName    = "terragrunt-json-out-dir"
 
-	TerragruntNoCheckDependentModulesFlagEnvName = "TERRAGRUNT_NO_CHECK_DEPENDENT_MODULES"
-	TerragruntNoCheckDependentModulesFlagName    = "terragrunt-no-check-dependent-modules"
+	TerragruntNoDestroyDependenciesCheckFlagEnvName = "TERRAGRUNT_NO_DESTROY_DEPENDENCIES_CHECK"
+	TerragruntNoDestroyDependenciesCheckFlagName    = "terragrunt-no-destroy-dependencies-check"
 
 	// Logs related flags/envs
 
@@ -469,9 +469,9 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "When this flag is set, Terragrunt will not validate the terraform command.",
 		},
 		&cli.BoolFlag{
-			Name:        TerragruntNoCheckDependentModulesFlagName,
-			EnvVar:      TerragruntNoCheckDependentModulesFlagEnvName,
-			Destination: &opts.NoCheckDependentModules,
+			Name:        TerragruntNoDestroyDependenciesCheckFlagName,
+			EnvVar:      TerragruntNoDestroyDependenciesCheckFlagEnvName,
+			Destination: &opts.NoDestroyDependenciesCheck,
 			Usage:       "When this flag is set, Terragrunt will not check for dependent modules when destroying.",
 		},
 		// Strict Mode flags
