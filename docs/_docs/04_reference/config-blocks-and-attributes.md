@@ -1210,10 +1210,10 @@ terragrunt --feature run_hook=true --feature string_flag=dev apply
 Setting feature flags through env variables:
 
 ```bash
-export TERRAGRUNT_FLAG=run_hook=true
+export TERRAGRUNT_FEATURE=run_hook=true
 terragrunt apply
 
-export TERRAGRUNT_FLAG=run_hook=true,string_flag=dev
+export TERRAGRUNT_FEATURE=run_hook=true,string_flag=dev
 terragrunt apply
 ```
 

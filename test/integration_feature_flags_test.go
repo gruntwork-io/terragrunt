@@ -62,7 +62,7 @@ func TestFeatureApplied(t *testing.T) {
 }
 
 func TestFeatureFlagEnv(t *testing.T) {
-	t.Setenv("TERRAGRUNT_FLAG", "int_feature_flag=111,bool_feature_flag=true,string_feature_flag=xyz")
+	t.Setenv("TERRAGRUNT_FEATURE", "int_feature_flag=111,bool_feature_flag=true,string_feature_flag=xyz")
 
 	cleanupTerraformFolder(t, testSimpleFlag)
 	tmpEnvPath := copyEnvironment(t, testSimpleFlag)

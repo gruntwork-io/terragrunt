@@ -1536,7 +1536,7 @@ If specified, Terragrunt will not check dependent modules when running `destroy`
 ### feature
 
 **CLI Arg**: `--feature`<br/>
-**Environment Variable**: `TERRAGRUNT_FLAG`<br/>
+**Environment Variable**: `TERRAGRUNT_FEATURE`<br/>
 
 Feature flags in Terragrunt allow users to dynamically control configuration behavior through CLI arguments or environment variables.
 
@@ -1551,7 +1551,7 @@ terragrunt --feature int_feature_flag=123 --feature bool_feature_flag=true apply
 Setting feature flags through environment variables:
 
 ```bash
-export TERRAGRUNT_FLAG=int_feature_flag=123,bool_feature_flag=true
+export TERRAGRUNT_FEATURE=int_feature_flag=123,bool_feature_flag=true
 terragrunt apply
 ```
 
