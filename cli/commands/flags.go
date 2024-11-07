@@ -173,7 +173,7 @@ const (
 	TerragruntProviderCacheRegistryNamesEnvName  = "TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES"
 
 	TerragruntFeatureMapFlagName = "feature"
-	TerragruntFeatureMapEnvName  = "TG_FLAG"
+	TerragruntFeatureMapEnvName  = "TERRAGRUNT_FLAG"
 
 	// Engine related environment variables.
 
