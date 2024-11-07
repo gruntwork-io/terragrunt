@@ -1542,16 +1542,45 @@ Feature flags in Terragrunt allow users to dynamically control configuration beh
 
 These flags enable a more flexible and controlled deployment process, particularly in monorepo contexts with interdependent infrastructure units.
 
-Setting a feature flag through CLI:
+Example HCL flags definition:
+
+```hcl
+feature "string_feature_flag" {
+  default = "test"
+}
+
+feature "int_feature_flag" {
+  default = 777
+}
+
+feature "bool_feature_flag" {
+  default = false
+}
+
+terraform {
+  before_hook "conditional_command" {
+    commands = ["apply", "plan", "destroy"]
+    execute  = feature.bool_feature_flag.value ? ["sh", "-c", "echo running conditional bool_feature_flag"] : [ "sh", "-c", "exit", "0" ]
+  }
+}
+
+inputs = {
+  string_feature_flag = feature.string_feature_flag.value
+  int_feature_flag = feature.int_feature_flag.value
+}
+
+```
+
+Setting a feature flag through the CLI:
 
 ```bash
-terragrunt --feature int_feature_flag=123 --feature bool_feature_flag=true apply
+terragrunt --feature int_feature_flag=123 --feature bool_feature_flag=true --feature string_feature_flag=app1 apply
 ```
 
 Setting feature flags through environment variables:
 
 ```bash
-export TERRAGRUNT_FEATURE=int_feature_flag=123,bool_feature_flag=true
+export TERRAGRUNT_FEATURE=int_feature_flag=123,bool_feature_flag=true,string_feature_flag=app1
 terragrunt apply
 ```
 
