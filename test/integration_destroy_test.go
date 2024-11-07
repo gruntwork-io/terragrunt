@@ -155,6 +155,39 @@ func TestShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(output, appV2Path))
 }
 
+func TestNoShowWarningWithDependentModulesBeforeDestroy(t *testing.T) {
+	t.Parallel()
+
+	rootPath := copyEnvironment(t, testFixtureDestroyWarning)
+
+	rootPath = util.JoinPath(rootPath, testFixtureDestroyWarning)
+	vpcPath := util.JoinPath(rootPath, "vpc")
+	appV1Path := util.JoinPath(rootPath, "app-v1")
+	appV2Path := util.JoinPath(rootPath, "app-v2")
+
+	cleanupTerraformFolder(t, rootPath)
+	cleanupTerraformFolder(t, vpcPath)
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	err := runTerragruntCommand(t, "terragrunt run-all init --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
+	require.NoError(t, err)
+	err = runTerragruntCommand(t, "terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
+	require.NoError(t, err)
+
+	// try to destroy vpc module and check if warning is not printed in output
+	stdout = bytes.Buffer{}
+	stderr = bytes.Buffer{}
+
+	err = runTerragruntCommand(t, "terragrunt destroy --terragrunt-non-interactive --terragrunt-no-destroy-dependencies-check --terragrunt-working-dir "+vpcPath, &stdout, &stderr)
+	require.NoError(t, err)
+
+	output := stderr.String()
+	assert.Equal(t, 0, strings.Count(output, appV1Path))
+	assert.Equal(t, 0, strings.Count(output, appV2Path))
+}
+
 func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 	t.Parallel()
 
