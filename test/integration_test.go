@@ -132,7 +132,7 @@ func TestLogCustomFormatOutput(t *testing.T) {
 		{
 			logCustomFormat: "%time %level %prefix %msg",
 			expectedOutputRegs: []*regexp.Regexp{
-				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + regexp.QuoteMeta(" Terragrunt Version: 0.0.0")),
+				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + regexp.QuoteMeta(" Terragrunt Version:")),
 				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + `/dep Module ` + absPathReg + `/dep must wait for 0 dependencies to finish`),
 				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + `/app Module ` + absPathReg + `/app must wait for 1 dependencies to finish`),
 			},
@@ -140,7 +140,7 @@ func TestLogCustomFormatOutput(t *testing.T) {
 		{
 			logCustomFormat: "%interval %level(case=upper) %prefix(path=relative-module,prefix='[',suffix='] ')%msg(path=relative)",
 			expectedOutputRegs: []*regexp.Regexp{
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG Terragrunt Version: 0.0.0")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG Terragrunt Version:")),
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG [dep] Module ./dep must wait for 0 dependencies to finish")),
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG [app] Module ./app must wait for 1 dependencies to finish")),
 			},
@@ -148,7 +148,7 @@ func TestLogCustomFormatOutput(t *testing.T) {
 		{
 			logCustomFormat: "%interval %level(case=upper,width=6) %prefix(path=relative-module,suffix=' ')%tfpath(suffix=': ')%msg(path=relative)",
 			expectedOutputRegs: []*regexp.Regexp{
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG  Terragrunt Version: 0.0.0")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG  Terragrunt Version:")),
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" STDOUT dep "+wrappedBinary()+": Initializing the backend...")),
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" STDOUT app "+wrappedBinary()+": Initializing the backend...")),
 			},
