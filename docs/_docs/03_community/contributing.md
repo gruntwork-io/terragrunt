@@ -220,7 +220,7 @@ Follow the CircleCI job to ensure that the binaries are uploaded correctly. Once
 
 ### Pre-releases
 
-Occassionally, Terragrunt maintainers will cut a pre-release to get feedback on the UI/UX for a new feature or to test it in the wild before making it generally available.
+Occasionally, Terragrunt maintainers will cut a pre-release to get feedback on the UI/UX for a new feature or to test it in the wild before making it generally available.
 
 These releases are generally cut off a feature branch, in order to keep the `main` branch stable and releasable at all times.
 
