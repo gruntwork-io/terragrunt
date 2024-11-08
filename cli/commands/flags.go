@@ -17,12 +17,6 @@ import (
 )
 
 const (
-	TerragruntDisableLogFormattingFlagName = "terragrunt-disable-log-formatting"
-	TerragruntDisableLogFormattingEnvName  = "TERRAGRUNT_DISABLE_LOG_FORMATTING"
-
-	TerragruntJSONLogFlagName = "terragrunt-json-log"
-	TerragruntJSONLogEnvName  = "TERRAGRUNT_JSON_LOG"
-
 	TerragruntConfigFlagName = "terragrunt-config"
 	TerragruntConfigEnvName  = "TERRAGRUNT_CONFIG"
 
@@ -384,26 +378,6 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			},
 		},
 		&cli.BoolFlag{
-			Name:        TerragruntDisableLogFormattingFlagName,
-			EnvVar:      TerragruntDisableLogFormattingEnvName,
-			Destination: &opts.DisableLogFormatting,
-			Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
-			Action: func(_ *cli.Context, _ bool) error {
-				opts.LogFormatter.SetFormat(format.NewKeyValueFormat())
-				return nil
-			},
-		},
-		&cli.BoolFlag{
-			Name:        TerragruntJSONLogFlagName,
-			EnvVar:      TerragruntJSONLogEnvName,
-			Destination: &opts.JSONLogFormat,
-			Usage:       "If specified, Terragrunt will output its logs in JSON format.",
-			Action: func(_ *cli.Context, _ bool) error {
-				opts.LogFormatter.SetFormat(format.NewJSONFormat())
-				return nil
-			},
-		},
-		&cli.BoolFlag{
 			Name:        TerragruntShowLogAbsPathsFlagName,
 			EnvVar:      TerragruntShowLogAbsPathsEnvName,
 			Destination: &opts.LogShowAbsPaths,
@@ -446,7 +420,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 		&cli.GenericFlag[string]{
 			Name:   TerragruntLogFormatFlagName,
 			EnvVar: TerragruntLogFormatEnvName,
-			Usage:  "", // TODO: write usage
+			Usage:  "Set the log format",
 			Action: func(_ *cli.Context, val string) error {
 				phs, err := format.ParseFormat(val)
 				if err != nil {
@@ -469,7 +443,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 		&cli.GenericFlag[string]{
 			Name:   TerragruntLogCustomFormatFlagName,
 			EnvVar: TerragruntLogCustomFormatEnvName,
-			Usage:  "", // TODO: write usage
+			Usage:  "Set the custom log formatting",
 			Action: func(_ *cli.Context, val string) error {
 				phs, err := placeholders.Parse(val)
 				if err != nil {
