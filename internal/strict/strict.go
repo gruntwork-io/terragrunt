@@ -41,9 +41,12 @@ const (
 	OutputAll = "output-all"
 	// ValidateAll is the control that prevents the deprecated `validate-all` command from being used.
 	ValidateAll = "validate-all"
-
 	// SkipDependenciesInputs is the control that prevents reading dependencies inputs and get performance boost.
 	SkipDependenciesInputs = "skip-dependencies-inputs"
+	// DisableLogFormattingName is the control that prevents the deprecated `--terragrunt-disable-log-formatting` flag from being used.
+	DisableLogFormatting = "terragrunt-disable-log-formatting"
+	// JSONLog is the control that prevents the deprecated `--terragrunt-json-log` flag from being used.
+	JSONLog = "terragrunt-json-log"
 )
 
 // GetStrictControl returns the strict control with the given name.
@@ -110,6 +113,14 @@ var StrictControls = Controls{
 	SkipDependenciesInputs: {
 		Error:   errors.Errorf("The `%s` option is deprecated. Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs),
 		Warning: fmt.Sprintf("The `%s` option is deprecated and will be removed in a future version of Terragrunt. Reading inputs from dependencies has been deprecated. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs),
+	},
+	DisableLogFormatting: {
+		Error:   errors.Errorf("The `--%s` flag is no longer supported. Use `--terragrunt-log-format=key-value` instead.", DisableLogFormatting),
+		Warning: fmt.Sprintf("The `--%s` flag is deprecated and will be removed in a future version. Use `--terragrunt-log-format=key-value` instead.", DisableLogFormatting),
+	},
+	JSONLog: {
+		Error:   errors.Errorf("The `--%s` flag is no longer supported. Use `--terragrunt-log-format=json` instead.", JSONLog),
+		Warning: fmt.Sprintf("The `--%s` flag is deprecated and will be removed in a future version. Use `--terragrunt-log-format=json` instead.", JSONLog),
 	},
 }
 

@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,6 +35,39 @@ import (
 
 	"github.com/NYTimes/gziphandler"
 )
+
+func splitCommand(command string) []string {
+	var (
+		next   int
+		quoted byte
+		args   []string
+	)
+
+	for index := range len(command) {
+		char := command[index]
+
+		if char == '"' || char == '\'' {
+			if quoted == 0 {
+				quoted = char
+			} else if quoted == char && index > 0 && command[index-1] != '\\' {
+				quoted = 0
+			}
+		}
+
+		if quoted != 0 || char != ' ' {
+			continue
+		}
+
+		arg := strings.TrimSpace(command[next:index])
+		next = index + 1
+
+		if arg != "" {
+			args = append(args, arg)
+		}
+	}
+
+	return append(args, command[next:])
+}
 
 func getPathRelativeTo(t *testing.T, path string, basePath string) string {
 	t.Helper()

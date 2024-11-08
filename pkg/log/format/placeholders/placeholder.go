@@ -47,7 +47,7 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 		if char == '"' || char == '\'' {
 			if quoted == 0 {
 				quoted = char
-			} else if index > 0 && str[index-1] != '\\' {
+			} else if quoted == char && index > 0 && str[index-1] != '\\' {
 				quoted = 0
 			}
 		}
@@ -57,7 +57,7 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 		}
 
 		if placeholder == nil {
-			if !isPlaceholderCharacter(char) {
+			if !isPlaceholderNameCharacter(char) {
 				return nil, 0, errors.Errorf("invalid placeholder name %q", str[next:index])
 			}
 
@@ -173,7 +173,7 @@ type Placeholder interface {
 	Evaluate(data *options.Data) (string, error)
 }
 
-func isPlaceholderCharacter(c byte) bool {
+func isPlaceholderNameCharacter(c byte) bool {
 	// Check if the byte value falls within the range of alphanumeric characters
 	return c == '-' || c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
 }

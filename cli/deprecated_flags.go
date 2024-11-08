@@ -3,6 +3,7 @@ package cli
 
 import (
 	"github.com/gruntwork-io/terragrunt/cli/commands"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -40,7 +41,16 @@ func NewDeprecatedFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
 			Action: func(_ *cli.Context, _ bool) error {
 				opts.LogFormatter.SetFormat(format.NewKeyValueFormat())
-				opts.Logger.Warnf("The \"--%s\" flag is deprecated. Use \"--%s %s\" instead.", TerragruntDisableLogFormattingFlagName, commands.TerragruntLogFormatFlagName, format.KeyValueFormatName)
+
+				if control, ok := strict.GetStrictControl(strict.DisableLogFormatting); ok {
+					warn, err := control.Evaluate(opts)
+					if err != nil {
+						return err
+					}
+
+					opts.Logger.Warnf(warn)
+				}
+
 				return nil
 			},
 		},
@@ -51,7 +61,16 @@ func NewDeprecatedFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "If specified, Terragrunt will output its logs in JSON format.",
 			Action: func(_ *cli.Context, _ bool) error {
 				opts.LogFormatter.SetFormat(format.NewJSONFormat())
-				opts.Logger.Warnf("The \"--%s\" flag is deprecated. Use \"--%s %s\" instead.", TerragruntJSONLogFlagName, commands.TerragruntLogFormatFlagName, format.JSONFormatName)
+
+				if control, ok := strict.GetStrictControl(strict.JSONLog); ok {
+					warn, err := control.Evaluate(opts)
+					if err != nil {
+						return err
+					}
+
+					opts.Logger.Warnf(warn)
+				}
+
 				return nil
 			},
 		},
