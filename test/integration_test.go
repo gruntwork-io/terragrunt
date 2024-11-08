@@ -100,13 +100,8 @@ const (
 
 	terraformState = "terraform.tfstate"
 
-	terraformRemoteStateS3Region = "us-west-2"
-
 	terraformStateBackup = "terraform.tfstate.backup"
 	terragruntCache      = ".terragrunt-cache"
-
-	terraformBinary = "terraform"
-	tofuBinary      = "tofu"
 )
 
 func TestBufferModuleOutput(t *testing.T) {
@@ -2683,12 +2678,6 @@ func cleanupTerraformFolder(t *testing.T, templatesPath string) {
 	removeFile(t, util.JoinPath(templatesPath, terraformState))
 	removeFile(t, util.JoinPath(templatesPath, terraformStateBackup))
 	removeFolder(t, util.JoinPath(templatesPath, terraformFolder))
-}
-
-func cleanupTerragruntFolder(t *testing.T, templatesPath string) {
-	t.Helper()
-
-	removeFolder(t, util.JoinPath(templatesPath, terragruntCache))
 }
 
 func removeFile(t *testing.T, path string) {
