@@ -5,6 +5,7 @@
 [![GoDoc](https://godoc.org/github.com/gruntwork-io/terragrunt?status.svg)](https://godoc.org/github.com/gruntwork-io/terragrunt)
 ![OpenTofu Version](https://img.shields.io/badge/tofu-%3E%3D1.6.0-blue.svg)
 ![Terraform Version](https://img.shields.io/badge/tf-%3E%3D0.12.0-blue.svg)
+[![](https://dcbadge.limes.pink/api/server/https://discord.gg/SPu4Degs5f)](https://discord.gg/SPu4Degs5f)
 
 Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in [OpenTofu](https://opentofu.org)/[Terraform](https://www.terraform.io) to scale.
 
