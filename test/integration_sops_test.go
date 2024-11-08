@@ -104,11 +104,11 @@ func TestSopsDecryptOnMissing(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, testFixtureSopsMissing)
-	tmpEnvPath := copyEnvironment(t, testFixtureSopsMissing)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSopsMissing)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureSopsMissing)
 
 	// apply and check for errors
-	_, errorOut, err := runTerragruntCommandWithOutput(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+rootPath)
+	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+rootPath)
 	require.Error(t, err)
 
 	assert.Contains(t, errorOut, "Encountered error while evaluating locals in file ./terragrunt.hcl")
