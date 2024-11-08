@@ -399,12 +399,12 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 		return nil, err
 	}
 
-	var includedModules TerraformModules
+	var withUnitsIncluded TerraformModules
 
 	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "flag_included_dirs", map[string]interface{}{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
-		includedModules = crossLinkedModules.flagIncludedDirs(stack.terragruntOptions)
+		withUnitsIncluded = crossLinkedModules.flagIncludedDirs(stack.terragruntOptions)
 		return nil
 	})
 
@@ -412,38 +412,58 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 		return nil, err
 	}
 
-	var includedModulesWithExcluded TerraformModules
+	var withUnitsThatAreIncludedByOthers TerraformModules
 
-	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "flag_excluded_dirs", map[string]interface{}{
+	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "flag_units_that_are_included", map[string]interface{}{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
-		includedModulesWithExcluded = includedModules.flagExcludedDirs(stack.terragruntOptions)
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	var finalModules TerraformModules
-
-	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "flag_modules_that_dont_include", map[string]interface{}{
-		"working_dir": stack.terragruntOptions.WorkingDir,
-	}, func(childCtx context.Context) error {
-		result, err := includedModulesWithExcluded.flagModulesThatDontInclude(stack.terragruntOptions)
+		result, err := withUnitsIncluded.flagUnitsThatAreIncluded(stack.terragruntOptions)
 		if err != nil {
 			return err
 		}
 
-		finalModules = result
+		withUnitsThatAreIncludedByOthers = result
 
 		return nil
 	})
+
 	if err != nil {
 		return nil, err
 	}
 
-	return finalModules, nil
+	var withUnitsRead TerraformModules
+
+	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "flag_units_that_read", map[string]interface{}{
+		"working_dir": stack.terragruntOptions.WorkingDir,
+	}, func(childCtx context.Context) error {
+		result, err := withUnitsThatAreIncludedByOthers.flagUnitsThatRead(stack.terragruntOptions)
+		if err != nil {
+			return err
+		}
+
+		withUnitsRead = result
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	var withModulesExcluded TerraformModules
+
+	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "flag_excluded_dirs", map[string]interface{}{
+		"working_dir": stack.terragruntOptions.WorkingDir,
+	}, func(childCtx context.Context) error {
+		withModulesExcluded = withUnitsRead.flagExcludedDirs(stack.terragruntOptions)
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return withModulesExcluded, nil
 }
 
 // Go through each of the given Terragrunt configuration files and resolve the module that configuration file represents
