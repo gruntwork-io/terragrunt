@@ -627,11 +627,24 @@ func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *c
 	targetConfig := getCleanedTargetConfigPath(configPath, ctx.TerragruntOptions.TerragruntConfigPath)
 
 	targetConfigFileExists := util.FileExists(targetConfig)
+
 	if !targetConfigFileExists && defaultVal == nil {
 		return cty.NilVal, errors.New(TerragruntConfigNotFoundError{Path: targetConfig})
-	} else if !targetConfigFileExists {
+	}
+
+	if !targetConfigFileExists {
 		return *defaultVal, nil
 	}
+
+	path, err := util.CanonicalPath(targetConfig, ctx.TerragruntOptions.WorkingDir)
+	if err != nil {
+		return cty.NilVal, errors.New(err)
+	}
+
+	ctx.TerragruntOptions.AppendReadFile(
+		path,
+		ctx.TerragruntOptions.WorkingDir,
+	)
 
 	// We update the ctx of terragruntOptions to the config being read in.
 	opts, err := ctx.TerragruntOptions.Clone(targetConfig)

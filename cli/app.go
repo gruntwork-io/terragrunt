@@ -343,6 +343,21 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 		opts.ExcludeByDefault = true
 	}
 
+	if len(opts.ModulesThatInclude) > 0 {
+		opts.Logger.Debugf("Modules that include set. Excluding by default.")
+		opts.ExcludeByDefault = true
+	}
+
+	if len(opts.UnitsReading) > 0 {
+		opts.Logger.Debugf("Units that read set. Excluding by default.")
+		opts.ExcludeByDefault = true
+	}
+
+	if opts.StrictInclude {
+		opts.Logger.Debugf("Strict include set. Excluding by default.")
+		opts.ExcludeByDefault = true
+	}
+
 	opts.IncludeDirs, err = util.GlobCanonicalPath(opts.WorkingDir, opts.IncludeDirs...)
 	if err != nil {
 		return err

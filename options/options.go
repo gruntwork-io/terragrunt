@@ -248,6 +248,10 @@ type TerragruntOptions struct {
 	// in this list.
 	ModulesThatInclude []string
 
+	// When used with `run-all`, restrict the units in the stack to only those that read at least one of the files
+	// in this list.
+	UnitsReading []string
+
 	// A command that can be used to run Terragrunt with the given options. This is useful for running Terragrunt
 	// multiple times (e.g. when spinning up a stack of Terraform modules). The actual command is normally defined
 	// in the cli package, which depends on almost all other packages, so we declare it here so that other
@@ -356,6 +360,10 @@ type TerragruntOptions struct {
 
 	// FeatureFlags is a map of feature flags to enable.
 	FeatureFlags map[string]string
+
+	// readFiles is a map of files to the Units
+	// that read them using HCL funtions in the unit.
+	readFiles map[string][]string
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -719,6 +727,37 @@ func (opts *TerragruntOptions) DataDir() string {
 	}
 
 	return util.JoinPath(opts.WorkingDir, tfDataDir)
+}
+
+// AppendReadFile appends to the list of files read by a given unit.
+func (opts *TerragruntOptions) AppendReadFile(file string, unit string) {
+	if opts.readFiles == nil {
+		opts.readFiles = map[string][]string{}
+	}
+
+	for _, u := range opts.readFiles[file] {
+		if u == unit {
+			return
+		}
+	}
+
+	opts.Logger.Debugf("Tracking that file %s was read by %s.", file, unit)
+	opts.readFiles[file] = append(opts.readFiles[file], unit)
+}
+
+// DidReadFile checks if a given file was read by a given unit.
+func (opts *TerragruntOptions) DidReadFile(file string, unit string) bool {
+	if opts.readFiles == nil {
+		return false
+	}
+
+	for _, u := range opts.readFiles[file] {
+		if u == unit {
+			return true
+		}
+	}
+
+	return false
 }
 
 // identifyDefaultWrappedExecutable returns default path used for wrapped executable.
