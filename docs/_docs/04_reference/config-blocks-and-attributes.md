@@ -29,6 +29,8 @@ The following is a reference of all the supported blocks and attributes in the c
   - [dependency](#dependency)
   - [dependencies](#dependencies)
   - [generate](#generate)
+  - [engine](#engine)
+  - [feature](#feature)
 - [Attributes](#attributes)
   - [inputs](#inputs)
   - [download\_dir](#download_dir)
@@ -53,6 +55,7 @@ The following is a reference of all the supported blocks and attributes in the c
 - [dependencies](#dependencies)
 - [generate](#generate)
 - [engine](#engine)
+- [feature](#feature)
 
 ### terraform
 
@@ -1166,6 +1169,53 @@ generate = local.common.generate
 
 The `engine` block is used to configure experimental Terragrunt engine configuration.
 More details in [engine section](https://terragrunt.gruntwork.io/docs/features/engine/).
+
+### feature
+
+The `feature` block is used to configure feature flags in HCL for a particular Terragrunt Unit.
+Feature flags can have default values, and they can be set through a CLI flag (`--feature`) or an environment variable (`TERRAGRUNT_FEATURE`).
+
+```hcl
+
+feature "string_flag" {
+  default = "test"
+}
+
+feature "run_hook" {
+  default = false
+}
+
+terraform {
+
+  before_hook "feature_flag" {
+    commands = ["apply", "plan", "destroy"]
+    execute  = feature.run_hook.value ? ["sh", "-c", "feature_flag_script.sh"] : [ "sh", "-c", "exit", "0" ]
+  }
+}
+
+inputs = {
+  string_feature_flag = feature.string_flag.value
+}
+
+```
+
+Setting feature flags through CLI:
+
+```bash
+terragrunt --feature run_hook=true apply
+
+terragrunt --feature run_hook=true --feature string_flag=dev apply
+```
+
+Setting feature flags through env variables:
+
+```bash
+export TERRAGRUNT_FEATURE=run_hook=true
+terragrunt apply
+
+export TERRAGRUNT_FEATURE=run_hook=true,string_flag=dev
+terragrunt apply
+```
 
 ## Attributes
 

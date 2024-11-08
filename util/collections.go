@@ -223,3 +223,8 @@ func SplitUrls(s, sep string) []string {
 
 	return urls
 }
+
+// SplitComma splits the given string by comma and returns a slice of the substrings.
+func SplitComma(s, sep string) []string {
+	return strings.Split(s, sep)
+}

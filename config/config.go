@@ -67,6 +67,7 @@ const (
 	MetadataRetrySleepIntervalSec       = "retry_sleep_interval_sec"
 	MetadataDependentModules            = "dependent_modules"
 	MetadataInclude                     = "include"
+	MetadataFeatureFlag                 = "feature"
 )
 
 var (
@@ -88,6 +89,13 @@ var (
 
 	DefaultGenerateBlockIfDisabledValueStr = codegen.DisabledSkipStr
 )
+
+// DecodedBaseBlocks decoded base blocks struct
+type DecodedBaseBlocks struct {
+	TrackInclude *TrackInclude
+	Locals       *cty.Value
+	FeatureFlags *cty.Value
+}
 
 // TerragruntConfig represents a parsed and expanded configuration
 // NOTE: if any attributes are added, make sure to update terragruntConfigAsCty in config_as_cty.go
@@ -114,6 +122,7 @@ type TerragruntConfig struct {
 	RetryMaxAttempts            *int
 	RetrySleepIntervalSec       *int
 	Engine                      *EngineConfig
+	FeatureFlags                FeatureFlags
 
 	// Fields used for internal tracking
 	// Indicates whether this is the result of a partial evaluation
@@ -184,6 +193,7 @@ type terragruntConfigFile struct {
 	IamAssumeRoleSessionName *string             `hcl:"iam_assume_role_session_name,attr"`
 	IamWebIdentityToken      *string             `hcl:"iam_web_identity_token,attr"`
 	TerragruntDependencies   []Dependency        `hcl:"dependency,block"`
+	FeatureFlags             []*FeatureFlag      `hcl:"feature,block"`
 
 	// We allow users to configure code generation via blocks:
 	//
@@ -836,13 +846,14 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 	}
 
 	// Decode just the Base blocks. See the function docs for DecodeBaseBlocks for more info on what base blocks are.
-	trackInclude, locals, err := DecodeBaseBlocks(ctx, file, includeFromChild)
+	baseBlocks, err := DecodeBaseBlocks(ctx, file, includeFromChild)
 	if err != nil {
 		return nil, err
 	}
 
-	ctx = ctx.WithTrackInclude(trackInclude)
-	ctx = ctx.WithLocals(locals)
+	ctx = ctx.WithTrackInclude(baseBlocks.TrackInclude)
+	ctx = ctx.WithFeatures(baseBlocks.FeatureFlags)
+	ctx = ctx.WithLocals(baseBlocks.Locals)
 
 	if ctx.DecodedDependencies == nil {
 		// Decode just the `dependency` blocks, retrieving the outputs from the target terragrunt config in the
@@ -876,7 +887,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 		return nil, err
 	}
 
-	// If this file includes another, parse and merge it.  Otherwise just return this config.
+	// If this file includes another, parse and merge it. Otherwise just return this config.
 	if ctx.TrackInclude != nil {
 		mergedConfig, err := handleInclude(ctx, config, false)
 		if err != nil {
@@ -1140,6 +1151,13 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 	if terragruntConfigFromFile.Engine != nil {
 		terragruntConfig.Engine = terragruntConfigFromFile.Engine
 		terragruntConfig.SetFieldMetadata(MetadataEngine, defaultMetadata)
+	}
+
+	if terragruntConfig.FeatureFlags != nil {
+		terragruntConfig.FeatureFlags = terragruntConfigFromFile.FeatureFlags
+		for _, flag := range terragruntConfig.FeatureFlags {
+			terragruntConfig.SetFieldMetadataWithType(MetadataFeatureFlag, flag.Name, defaultMetadata)
+		}
 	}
 
 	generateBlocks := []terragruntGenerateBlock{}
