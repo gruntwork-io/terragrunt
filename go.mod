@@ -1,6 +1,9 @@
 module github.com/gruntwork-io/terragrunt
 
-go 1.23
+go 1.23.0
+
+toolchain go1.23.1
+
 require (
 	cloud.google.com/go/storage v1.46.0
 	github.com/aws/aws-sdk-go v1.55.5
