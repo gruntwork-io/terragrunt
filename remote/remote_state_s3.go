@@ -115,7 +115,8 @@ type RemoteStateConfigS3 struct {
 	LockTable        string                        `mapstructure:"lock_table"`   // Deprecated in Terraform version 0.13 or newer.
 	DynamoDBTable    string                        `mapstructure:"dynamodb_table"`
 	CredsFilename    string                        `mapstructure:"shared_credentials_file"`
-	S3ForcePathStyle bool                          `mapstructure:"force_path_style"`
+	S3ForcePathStyle bool                          `mapstructure:"force_path_style"` // Deprecated in Terraform version 1.6 or newer.
+	S3UsePathStyle   bool                          `mapstructure:"use_path_style"`
 	AssumeRole       RemoteStateConfigS3AssumeRole `mapstructure:"assume_role"`
 }
 
@@ -132,6 +133,7 @@ func (c *ExtendedRemoteStateConfigS3) GetAwsSessionConfig() *awshelper.AwsSessio
 		SessionName:             c.RemoteStateConfigS3.GetSessionName(),
 		CredsFilename:           c.RemoteStateConfigS3.CredsFilename,
 		S3ForcePathStyle:        c.RemoteStateConfigS3.S3ForcePathStyle,
+		S3UsePathStyle:          c.RemoteStateConfigS3.S3UsePathStyle,
 		DisableComputeChecksums: c.DisableAWSClientChecksums,
 	}
 }
