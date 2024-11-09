@@ -96,12 +96,14 @@ func formatFromStdin(opts *options.TerragruntOptions) error {
 
 	if err != nil {
 		opts.Logger.Errorf("Error reading from stdin: %s", err)
-		return err
+
+		return fmt.Errorf("error reading from stdin: %w", err)
 	}
 
 	if err = checkErrors(opts.Logger, opts.DisableLogColors, contents, "stdin"); err != nil {
 		opts.Logger.Errorf("Error parsing hcl from stdin")
-		return err
+
+		return fmt.Errorf("error parsing hcl from stdin: %w", err)
 	}
 
 	newContents := hclwrite.Format(contents)
@@ -110,12 +112,14 @@ func formatFromStdin(opts *options.TerragruntOptions) error {
 
 	if _, err = buf.Write(newContents); err != nil {
 		opts.Logger.Errorf("Failed to write to stdout")
-		return err
+
+		return fmt.Errorf("failed to write to stdout: %w", err)
 	}
 
 	if err = buf.Flush(); err != nil {
 		opts.Logger.Errorf("Failed to flush to stdout")
-		return err
+
+		return fmt.Errorf("failed to flush to stdout: %w", err)
 	}
 
 	return nil
