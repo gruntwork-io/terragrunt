@@ -45,6 +45,9 @@ func (errs *MultiError) Append(appendErrs ...error) *MultiError {
 	if errs == nil {
 		errs = &MultiError{inner: new(multierror.Error)}
 	}
+	if errs.inner == nil {
+		errs.inner = new(multierror.Error)
+	}
 
 	return &MultiError{inner: multierror.Append(errs.inner, appendErrs...)}
 }
