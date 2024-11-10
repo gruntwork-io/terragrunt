@@ -51,6 +51,12 @@ func (errs *MultiError) Append(appendErrs ...error) *MultiError {
 
 // Len implements sort.Interface function for length.
 func (errs *MultiError) Len() int {
+	if errs == nil {
+		errs = &MultiError{inner: new(multierror.Error)}
+	}
+	if errs.inner == nil {
+		errs.inner = new(multierror.Error)
+	}
 	return len(errs.inner.Errors)
 }
 
