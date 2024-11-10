@@ -2395,6 +2395,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 		map[string]interface{}{
 			"source":                   "./delorean",
 			"include_in_copy":          []interface{}{"time_machine.*"},
+			"exclude_from_copy":        []interface{}{"excluded_time_machine.*"},
 			"copy_terraform_lock_file": true,
 			"extra_arguments": map[string]interface{}{
 				"var-files": map[string]interface{}{

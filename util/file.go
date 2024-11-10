@@ -239,6 +239,15 @@ func listContainsElementWithPrefix(list []string, elementPrefix string) bool {
 	return false
 }
 
+func pathContainsPrefix(path string, prefixes []string) bool {
+	for _, element := range prefixes {
+		if strings.HasPrefix(path, element) {
+			return true
+		}
+	}
+	return false
+}
+
 // Takes apbsolute glob path and returns an array of expanded relative paths
 func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 	includeExpandedGlobs := []string{}
@@ -276,7 +285,7 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 
 // CopyFolderContents copies the files and folders within the source folder into the destination folder. Note that hidden files and folders
 // (those starting with a dot) will be skipped. Will create a specified manifest file that contains paths of all copied files.
-func CopyFolderContents(logger log.Logger, source, destination, manifestFile string, includeInCopy []string) error {
+func CopyFolderContents(logger log.Logger, source, destination, manifestFile string, includeInCopy []string, excludeFromCopy []string) error {
 	// Expand all the includeInCopy glob paths, converting the globbed results to relative paths so that they work in
 	// the copy filter.
 	includeExpandedGlobs := []string{}
@@ -292,10 +301,27 @@ func CopyFolderContents(logger log.Logger, source, destination, manifestFile str
 		includeExpandedGlobs = append(includeExpandedGlobs, expandGlob...)
 	}
 
+	excludeExpandedGlobs := []string{}
+
+	for _, excludeGlob := range excludeFromCopy {
+		globPath := filepath.Join(source, excludeGlob)
+
+		expandGlob, err := expandGlobPath(source, globPath)
+		if err != nil {
+			return errors.New(err)
+		}
+
+		excludeExpandedGlobs = append(excludeExpandedGlobs, expandGlob...)
+	}
+
 	return CopyFolderContentsWithFilter(logger, source, destination, manifestFile, func(absolutePath string) bool {
 		relativePath, err := GetPathRelativeTo(absolutePath, source)
-		if err == nil && listContainsElementWithPrefix(includeExpandedGlobs, relativePath) {
+
+		if err == nil && listContainsElementWithPrefix(includeExpandedGlobs, relativePath) && !pathContainsPrefix(relativePath, excludeExpandedGlobs) {
 			return true
+		}
+		if err == nil && pathContainsPrefix(relativePath, excludeExpandedGlobs) {
+			return false
 		}
 
 		return !TerragruntExcludes(filepath.FromSlash(relativePath))
