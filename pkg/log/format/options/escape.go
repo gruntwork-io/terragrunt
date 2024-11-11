@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
+// EscapeOptionName is the option name.
 const EscapeOptionName = "escape"
 
 const (
@@ -23,6 +24,7 @@ type EscapeOption struct {
 	*CommonOption[EscapeValue]
 }
 
+// Format implements `Option` interface.
 func (option *EscapeOption) Format(_ *Data, str string) (string, error) {
 	if option.value.Get() != JSONEscape {
 		return str, nil
@@ -37,6 +39,7 @@ func (option *EscapeOption) Format(_ *Data, str string) (string, error) {
 	return string(b[1 : len(b)-1]), nil
 }
 
+// Escape creates the option to escape text.
 func Escape(val EscapeValue) Option {
 	return &EscapeOption{
 		CommonOption: NewCommonOption(EscapeOptionName, escapeList.Set(val)),

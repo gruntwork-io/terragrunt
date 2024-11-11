@@ -4,6 +4,7 @@ import (
 	"strings"
 )
 
+// AlignOptionName is the option name.
 const AlignOptionName = "align"
 
 const (
@@ -25,6 +26,7 @@ type AlignOption struct {
 	*CommonOption[AlignValue]
 }
 
+// Format implements `Option` interface.
 func (option *AlignOption) Format(_ *Data, str string) (string, error) {
 	withoutSpaces := strings.TrimSpace(str)
 	spaces := len(str) - len(withoutSpaces)
@@ -46,6 +48,7 @@ func (option *AlignOption) Format(_ *Data, str string) (string, error) {
 	return str, nil
 }
 
+// Align creates the option to align text relative to the edges.
 func Align(value AlignValue) Option {
 	return &AlignOption{
 		CommonOption: NewCommonOption(AlignOptionName, alignList.Set(value)),

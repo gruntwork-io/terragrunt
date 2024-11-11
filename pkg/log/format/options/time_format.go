@@ -8,6 +8,7 @@ import (
 	"golang.org/x/exp/maps"
 )
 
+// TimeFormatOptionName is the option name.
 const TimeFormatOptionName = "format"
 
 const (
@@ -113,6 +114,7 @@ type TimeFormatOption struct {
 	*CommonOption[string]
 }
 
+// Format implements `Option` interface.
 func (option *TimeFormatOption) Format(data *Data, _ string) (string, error) {
 	return data.Time.Format(option.value.Get()), nil
 }

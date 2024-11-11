@@ -9,7 +9,9 @@ import (
 
 // OptionValue contains the value of the option.
 type OptionValue[T any] interface {
+	// Parse parses and sets the value of the option.
 	Parse(str string) error
+	// Get returns the value of the option.
 	Get() T
 }
 
@@ -23,6 +25,7 @@ type Option interface {
 	ParseValue(str string) error
 }
 
+// Data is a log entry data.
 type Data struct {
 	*log.Entry
 	BaseDir        string
@@ -31,8 +34,10 @@ type Data struct {
 	AutoColorFn    func() ColorValue
 }
 
+// Options is a set of Options.
 type Options []Option
 
+// Get returns the option with the given name.
 func (opts Options) Get(name string) Option {
 	for _, opt := range opts {
 		if opt.Name() == name {
@@ -43,6 +48,7 @@ func (opts Options) Get(name string) Option {
 	return nil
 }
 
+// Names returns names of the options.
 func (opts Options) Names() []string {
 	var names = make([]string, len(opts))
 
@@ -53,6 +59,7 @@ func (opts Options) Names() []string {
 	return names
 }
 
+// Merge replaces options with the same name and adds new ones to the end.
 func (opts Options) Merge(withOpts ...Option) Options {
 	for i := range opts {
 		for t := range withOpts {
@@ -68,6 +75,7 @@ func (opts Options) Merge(withOpts ...Option) Options {
 	return append(opts, withOpts...)
 }
 
+// Format returns the formatted value.
 func (opts Options) Format(data *Data, str string) (string, error) {
 	var err error
 

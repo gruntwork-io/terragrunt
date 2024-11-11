@@ -1,5 +1,6 @@
 package options
 
+// LevelFormatOptionName is the option name.
 const LevelFormatOptionName = "format"
 
 const (
@@ -20,6 +21,7 @@ type LevelFormatOption struct {
 	*CommonOption[LevelFormatValue]
 }
 
+// Format implements `Option` interface.
 func (format *LevelFormatOption) Format(data *Data, _ string) (string, error) {
 	switch format.value.Get() {
 	case LevelFormatTiny:
@@ -32,6 +34,7 @@ func (format *LevelFormatOption) Format(data *Data, _ string) (string, error) {
 	return data.Level.FullName(), nil
 }
 
+// LevelFormat creates the option to format level name.
 func LevelFormat(val LevelFormatValue) Option {
 	return &LevelFormatOption{
 		CommonOption: NewCommonOption(LevelFormatOptionName, levelFormatList.Set(val)),

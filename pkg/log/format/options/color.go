@@ -6,6 +6,7 @@ import (
 	"github.com/puzpuzpuz/xsync/v3"
 )
 
+// ColorOptionName is the option name.
 const ColorOptionName = "color"
 
 const (
@@ -103,6 +104,7 @@ type ColorOption struct {
 	gradientColor  *gradientColor
 }
 
+// Format implements `Option` interface.
 func (color *ColorOption) Format(data *Data, str string) (string, error) {
 	value := color.value.Get()
 
@@ -125,6 +127,7 @@ func (color *ColorOption) Format(data *Data, str string) (string, error) {
 	return str, nil
 }
 
+// Color creates the option to change the color of text.
 func Color(val ColorValue) Option {
 	return &ColorOption{
 		CommonOption:   NewCommonOption(ColorOptionName, colorList.Set(val)),

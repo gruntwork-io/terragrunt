@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
+// PathFormatOptionName is the option name.
 const PathFormatOptionName = "path"
 
 const (
@@ -36,6 +37,7 @@ type PathFormatOption struct {
 	*CommonOption[PathFormatValue]
 }
 
+// Format implements `Option` interface.
 func (option *PathFormatOption) Format(data *Data, str string) (string, error) {
 	switch option.value.Get() {
 	case RelativePath:
@@ -76,6 +78,7 @@ func (option *PathFormatOption) Format(data *Data, str string) (string, error) {
 	return str, nil
 }
 
+// PathFormat creates the option to format the paths.
 func PathFormat(val PathFormatValue, allowed ...PathFormatValue) Option {
 	list := pathFormatList
 	if len(allowed) > 0 {

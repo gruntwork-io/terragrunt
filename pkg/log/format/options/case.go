@@ -7,6 +7,7 @@ import (
 	"golang.org/x/text/language"
 )
 
+// CaseOptionName is the option name.
 const CaseOptionName = "case"
 
 const (
@@ -28,6 +29,7 @@ type CaseOption struct {
 	*CommonOption[CaseValue]
 }
 
+// Format implements `Option` interface.
 func (option *CaseOption) Format(_ *Data, str string) (string, error) {
 	switch option.value.Get() {
 	case UpperCase:
@@ -42,6 +44,7 @@ func (option *CaseOption) Format(_ *Data, str string) (string, error) {
 	return str, nil
 }
 
+// Case creates the option to change the case of text.
 func Case(value CaseValue) Option {
 	return &CaseOption{
 		CommonOption: NewCommonOption(CaseOptionName, caseList.Set(value)),

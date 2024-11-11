@@ -14,6 +14,7 @@ type CommonOption[T comparable] struct {
 	value OptionValue[T]
 }
 
+// NewCommonOption creates a new Common option.
 func NewCommonOption[T comparable](name string, value OptionValue[T]) *CommonOption[T] {
 	return &CommonOption[T]{
 		name:  name,
@@ -21,18 +22,22 @@ func NewCommonOption[T comparable](name string, value OptionValue[T]) *CommonOpt
 	}
 }
 
-func (option *CommonOption[T]) Name() string {
-	return option.name
-}
-
+// String implements `fmt.Stringer` interface.
 func (option *CommonOption[T]) String() string {
 	return fmt.Sprintf("%v", option.value.Get())
 }
 
+// Name implements `Option` interface.
+func (option *CommonOption[T]) Name() string {
+	return option.name
+}
+
+// Format implements `Option` interface.
 func (option *CommonOption[T]) Format(_ *Data, str string) (string, error) {
 	return str, nil
 }
 
+// ParseValue implements `Option` interface.
 func (option *CommonOption[T]) ParseValue(str string) error {
 	return option.value.Parse(str)
 }
