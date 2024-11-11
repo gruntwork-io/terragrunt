@@ -10,7 +10,7 @@ import (
 
 const placeholderSign = '%'
 
-// The placeholder is part of the log message, used to format different log values.
+// Placeholder is part of the log message, used to format different log values.
 type Placeholder interface {
 	// Name retruns a placeholder name.
 	Name() string
