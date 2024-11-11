@@ -1,6 +1,8 @@
 package test_test
 
 import (
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/util"
@@ -63,6 +65,7 @@ func TestUnitsReading(t *testing.T) {
 			},
 			expectedUnits: []string{
 				"reading-from-tf",
+				"reading-json",
 			},
 		},
 		{
@@ -119,6 +122,8 @@ func TestUnitsReading(t *testing.T) {
 		},
 	}
 
+	includedLogEntryRegex := regexp.MustCompile(`=> Module ./([^ ]+) \(excluded: false`)
+
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -143,9 +148,14 @@ func TestUnitsReading(t *testing.T) {
 			_, stderr, err := runTerragruntCommandWithOutput(t, cmd)
 			require.NoError(t, err)
 
-			for _, unit := range tt.expectedUnits {
-				assert.Contains(t, stderr, unit+" (excluded: false")
+			includedUnits := []string{}
+			for _, line := range strings.Split(stderr, "\n") {
+				if includedLogEntryRegex.MatchString(line) {
+					includedUnits = append(includedUnits, includedLogEntryRegex.FindStringSubmatch(line)[1])
+				}
 			}
+
+			assert.ElementsMatch(t, tt.expectedUnits, includedUnits)
 		})
 	}
 }
