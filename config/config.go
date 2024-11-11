@@ -123,6 +123,7 @@ type TerragruntConfig struct {
 	RetrySleepIntervalSec       *int
 	Engine                      *EngineConfig
 	FeatureFlags                FeatureFlags
+	Exclude                     *Exclude
 
 	// Fields used for internal tracking
 	// Indicates whether this is the result of a partial evaluation
@@ -194,6 +195,7 @@ type terragruntConfigFile struct {
 	IamWebIdentityToken      *string             `hcl:"iam_web_identity_token,attr"`
 	TerragruntDependencies   []Dependency        `hcl:"dependency,block"`
 	FeatureFlags             []*FeatureFlag      `hcl:"feature,block"`
+	Exclude                  *Exclude            `hcl:"exclude,block"`
 
 	// We allow users to configure code generation via blocks:
 	//
