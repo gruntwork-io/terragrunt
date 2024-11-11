@@ -1279,6 +1279,74 @@ passed in, the set will be the union of modules that includes at least one of th
 NOTE: When using relative paths, the paths are relative to the working directory. This is either the current working
 directory, or any path passed in to [terragrunt-working-dir](#terragrunt-working-dir).
 
+### terragrunt-queue-include-units-reading
+
+**CLI Arg**: `--terragrunt-queue-include-units-reading`<br/>
+**Environment Variable**: `TERRAGRUNT_QUEUE_INCLUDE_UNITS_READING`<br/>
+**Commands**:
+
+- [run-all](#run-all)
+- [plan-all (DEPRECATED: use run-all)](#plan-all-deprecated-use-run-all)
+- [apply-all (DEPRECATED: use run-all)](#apply-all-deprecated-use-run-all)
+- [output-all (DEPRECATED: use run-all)](#output-all-deprecated-use-run-all)
+- [destroy-all (DEPRECATED: use run-all)](#destroy-all-deprecated-use-run-all)
+- [validate-all (DEPRECATED: use run-all)](#validate-all-deprecated-use-run-all)
+
+
+This flag works very similarly to the `--terragrunt-modules-that-include` flag, but instead of looking for included configurations,
+it instead looks for configurations that read a given file.
+
+When passed in, the `*-all` commands will include all units (modules) that read a given file into the queue. This is useful
+when you want to trigger an update on all units that read a given file using HCL functions in their configurations.
+
+Consider the following folder structure:
+
+```tree
+.
+├── reading-shared-hcl
+│   └── terragrunt.hcl
+├── also-reading-shared-hcl
+│   └── terragrunt.hcl
+├── not-reading-shared-hcl
+│   └── terragrunt.hcl
+└── shared.hcl
+```
+
+Suppose that `reading-shared-hcl` and `also-reading-shared-hcl` both read `shared.hcl` in their configurations, like so:
+
+```hcl
+locals {
+	shared = read_terragrunt_config(find_in_parent_folders("shared.hcl"))
+}
+```
+
+If you run the command `run-all init --terragrunt-queue-include-units-reading shared.hcl` from the root folder, both
+`reading-shared-hcl` and `also-reading-shared-hcl` will be run; not `not-reading-shared-hcl`.
+
+This is because the `read_terragrunt_config` HCL function has a special hook that allows Terragrunt to track that it has
+read the file `shared.hcl`. This hook is used by all native HCL functions that Terragrunt supports which read files.
+
+Note, however, that there are certain scenarios where Terragrunt may not be able to track that a file has been read this way.
+
+For example, you may be using a bash script to read a file via `run_cmd`, or reading the file via OpenTofu code. To support these
+use-cases, the [mark_as_read](./built-in-functions.md#mark_as_read) function can be used to manually mark a file as read.
+
+That would look something like this:
+
+```hcl
+locals {
+  filename = mark_as_read("file-read-by-tofu.txt")
+}
+
+inputs = {
+  filename = local.filename
+}
+```
+
+**NOTE**: Due to the way that Terragrunt parses configurations during a `run-all`, functions will only properly mark files as read
+if they are used in the `locals` block. Reading a file directly in the `inputs` block will not mark the file as read, as the `inputs`
+block is not evaluated until *after* the queue has been populated with units to run.
+
 ### terragrunt-fetch-dependency-output-from-state
 
 **CLI Arg**: `--terragrunt-fetch-dependency-output-from-state`<br/>
