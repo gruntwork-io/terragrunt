@@ -30,7 +30,7 @@ require (
 	golang.org/x/crypto v0.28.0 // indirect
 	golang.org/x/oauth2 v0.23.0
 	golang.org/x/sync v0.8.0
-	golang.org/x/sys v0.26.0
+	golang.org/x/sys v0.27.0
 	google.golang.org/api v0.203.0
 )
 
@@ -92,7 +92,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.31.0
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	golang.org/x/mod v0.21.0
-	golang.org/x/term v0.25.0
+	golang.org/x/term v0.26.0
 	golang.org/x/text v0.19.0
 	google.golang.org/grpc v1.67.1
 	google.golang.org/protobuf v1.35.1
