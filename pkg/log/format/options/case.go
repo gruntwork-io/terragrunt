@@ -44,6 +44,6 @@ func (option *CaseOption) Evaluate(_ *Data, str string) (string, error) {
 
 func Case(value CaseValue) Option {
 	return &CaseOption{
-		CommonOption: NewCommonOption[CaseValue](CaseOptionName, value, textCaseValues),
+		CommonOption: NewCommonOption(CaseOptionName, value, textCaseValues),
 	}
 }

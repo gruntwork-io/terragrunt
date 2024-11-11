@@ -138,7 +138,7 @@ func (color *ColorOption) ParseValue(str string) error {
 
 func Color(val ColorValue) Option {
 	return &ColorOption{
-		CommonOption:   NewCommonOption[ColorValue](ColorOptionName, val, colorValues),
+		CommonOption:   NewCommonOption(ColorOptionName, val, colorValues),
 		compiledColors: colorScheme.Compile(),
 		gradientColor:  newGradientColor(),
 	}

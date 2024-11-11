@@ -41,6 +41,6 @@ func (option *WidthOption) Evaluate(_ *Data, str string) (string, error) {
 
 func Width(value WidthValue) Option {
 	return &WidthOption{
-		CommonOption: NewCommonOption[WidthValue](WidthOptionName, value, value),
+		CommonOption: NewCommonOption(WidthOptionName, value, value),
 	}
 }

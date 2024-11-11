@@ -107,6 +107,6 @@ func (option *TimeFormatOption) Evaluate(data *Data, _ string) (string, error) {
 
 func TimeFormat(str string) Option {
 	return &TimeFormatOption{
-		CommonOption: NewCommonOption[string](TimeFormatOptionName, timeFormatValueMap.Value(str), nil),
+		CommonOption: NewCommonOption(TimeFormatOptionName, timeFormatValueMap.Value(str), nil),
 	}
 }

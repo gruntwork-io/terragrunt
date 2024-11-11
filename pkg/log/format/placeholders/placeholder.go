@@ -22,6 +22,16 @@ func (phs Placeholders) Get(name string) Placeholder {
 	return nil
 }
 
+func (phs Placeholders) Names() []string {
+	var names = make([]string, len(phs))
+
+	for i, ph := range phs {
+		names[i] = ph.Name()
+	}
+
+	return names
+}
+
 func newPlaceholders() Placeholders {
 	return Placeholders{
 		Interval(),
@@ -56,9 +66,15 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 			continue
 		}
 
+		if index == 0 && char == '(' {
+			placeholder = PlainText("")
+			next = index + 1
+		}
+
 		if placeholder == nil {
 			if !isPlaceholderNameCharacter(char) {
-				return nil, 0, errors.Errorf("invalid placeholder name %q", str[next:index])
+				str = str[next:index]
+				break
 			}
 
 			name := str[next : index+1]
@@ -76,6 +92,7 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 
 		if char == '=' || char == ',' || char == ')' {
 			val := str[next:index]
+			val = strings.TrimSpace(val)
 			val = strings.Trim(val, "'")
 			val = strings.Trim(val, "\"")
 
@@ -88,9 +105,12 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 					return nil, 0, errors.Errorf("invalid value %q for option %q, placeholder %q: %w", val, option.Name(), placeholder.Name(), err)
 				}
 			} else if val != "" {
-				if option = placeholder.GetOption(val); option == nil {
-					return nil, 0, errors.Errorf("invalid option name %q for placeholder %q", val, placeholder.Name())
+				opt, err := placeholder.GetOption(val)
+				if err != nil {
+					return nil, 0, errors.Errorf("invalid option name %q for placeholder %q: %w", val, placeholder.Name(), err)
 				}
+
+				option = opt
 			}
 
 			next = index + 1
@@ -102,7 +122,7 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 	}
 
 	if placeholder == nil {
-		return nil, 0, errors.Errorf("invalid placeholder name %q", str)
+		return nil, 0, errors.Errorf("invalid placeholder name %q, available values: %s", str, strings.Join(registered.Names(), ","))
 	}
 
 	if next < len(str) {
@@ -169,7 +189,7 @@ func (phs Placeholders) Evaluate(data *options.Data) (string, error) {
 
 type Placeholder interface {
 	Name() string
-	GetOption(name string) options.Option
+	GetOption(name string) (options.Option, error)
 	Evaluate(data *options.Data) (string, error)
 }
 

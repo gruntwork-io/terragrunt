@@ -34,6 +34,6 @@ func (format *LevelFormatOption) Evaluate(data *Data, _ string) (string, error) 
 
 func LevelFormat(val LevelFormatValue) Option {
 	return &LevelFormatOption{
-		CommonOption: NewCommonOption[LevelFormatValue](LevelFormatOptionName, val, levelFormatValues),
+		CommonOption: NewCommonOption(LevelFormatOptionName, val, levelFormatValues),
 	}
 }

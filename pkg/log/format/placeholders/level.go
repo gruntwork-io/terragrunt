@@ -5,6 +5,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/options"
 )
 
+// LevelPlaceholderName is the placeholder name.
 const LevelPlaceholderName = "level"
 
 var levlAutoColorFunc = func(level log.Level) options.ColorValue {
@@ -32,6 +33,7 @@ type level struct {
 	*CommonPlaceholder
 }
 
+// Evaluate implements `Placeholder` interface.
 func (level *level) Evaluate(data *options.Data) (string, error) {
 	newData := *data
 	newData.AutoColorFn = func() options.ColorValue {
@@ -41,6 +43,7 @@ func (level *level) Evaluate(data *options.Data) (string, error) {
 	return level.opts.Evaluate(&newData, data.Level.String())
 }
 
+// Level creates a placeholder that displays log level name.
 func Level(opts ...options.Option) Placeholder {
 	opts = WithCommonOptions(
 		options.LevelFormat(options.LevelFormatFull),

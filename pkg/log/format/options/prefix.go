@@ -18,6 +18,6 @@ func (option *PrefixOption) ParseValue(str string) error {
 
 func Prefix(value string) Option {
 	return &PrefixOption{
-		CommonOption: NewCommonOption[string](PrefixOptionName, value, nil),
+		CommonOption: NewCommonOption(PrefixOptionName, value, nil),
 	}
 }

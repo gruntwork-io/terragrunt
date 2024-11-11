@@ -48,6 +48,6 @@ func (option *AlignOption) Evaluate(_ *Data, str string) (string, error) {
 
 func Align(value AlignValue) Option {
 	return &AlignOption{
-		CommonOption: NewCommonOption[AlignValue](AlignOptionName, value, alignValues),
+		CommonOption: NewCommonOption(AlignOptionName, value, alignValues),
 	}
 }

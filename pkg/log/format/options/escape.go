@@ -39,6 +39,6 @@ func (option *EscapeOption) Evaluate(_ *Data, str string) (string, error) {
 
 func Escape(value EscapeValue) Option {
 	return &EscapeOption{
-		CommonOption: NewCommonOption[EscapeValue](EscapeOptionName, value, textEscapeValues),
+		CommonOption: NewCommonOption(EscapeOptionName, value, textEscapeValues),
 	}
 }

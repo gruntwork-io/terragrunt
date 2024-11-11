@@ -18,6 +18,6 @@ func (option *SuffixOption) ParseValue(str string) error {
 
 func Suffix(value string) Option {
 	return &SuffixOption{
-		CommonOption: NewCommonOption[string](SuffixOptionName, value, nil),
+		CommonOption: NewCommonOption(SuffixOptionName, value, nil),
 	}
 }

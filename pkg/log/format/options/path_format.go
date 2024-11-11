@@ -83,7 +83,7 @@ func PathFormat(val PathFormatValue, allowed ...PathFormatValue) Option {
 	}
 
 	return &PathFormatOption{
-		CommonOption: NewCommonOption[PathFormatValue](PathFormatOptionName, val, values),
+		CommonOption: NewCommonOption(PathFormatOptionName, val, values),
 	}
 }
 

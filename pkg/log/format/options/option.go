@@ -9,36 +9,46 @@ import (
 
 type Options []Option
 
-func (options Options) Get(name string) Option {
-	for _, option := range options {
-		if option.Name() == name {
-			return option
+func (opts Options) Get(name string) Option {
+	for _, opt := range opts {
+		if opt.Name() == name {
+			return opt
 		}
 	}
 
 	return nil
 }
 
-func (options Options) Merge(withOptions ...Option) Options {
-	for i := range options {
-		for t := range withOptions {
-			if reflect.TypeOf(options[i]) == reflect.TypeOf(withOptions[t]) {
-				options[i] = withOptions[t]
-				withOptions = append(withOptions[:t], withOptions[t+1:]...)
+func (opts Options) Names() []string {
+	var names = make([]string, len(opts))
+
+	for i, opt := range opts {
+		names[i] = opt.Name()
+	}
+
+	return names
+}
+
+func (opts Options) Merge(withOpts ...Option) Options {
+	for i := range opts {
+		for t := range withOpts {
+			if reflect.TypeOf(opts[i]) == reflect.TypeOf(withOpts[t]) {
+				opts[i] = withOpts[t]
+				withOpts = append(withOpts[:t], withOpts[t+1:]...)
 
 				break
 			}
 		}
 	}
 
-	return append(options, withOptions...)
+	return append(opts, withOpts...)
 }
 
-func (options Options) Evaluate(data *Data, str string) (string, error) {
+func (opts Options) Evaluate(data *Data, str string) (string, error) {
 	var err error
 
-	for _, option := range options {
-		str, err = option.Evaluate(data, str)
+	for _, opt := range opts {
+		str, err = opt.Evaluate(data, str)
 		if str == "" || err != nil {
 			return "", err
 		}

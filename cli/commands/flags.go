@@ -447,7 +447,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Action: func(_ *cli.Context, val string) error {
 				phs, err := placeholders.Parse(val)
 				if err != nil {
-					return errors.Errorf("flag --%s, %w", TerragruntLogCustomFormatFlagName, err)
+					return cli.NewExitError(errors.Errorf("flag --%s, %w", TerragruntLogCustomFormatFlagName, err), 1)
 				}
 
 				opts.LogFormatter.SetFormat(phs)
