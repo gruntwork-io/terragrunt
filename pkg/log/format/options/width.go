@@ -1,46 +1,34 @@
 package options
 
 import (
-	"strconv"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 )
 
 const WidthOptionName = "width"
 
-type WidthValue int
-
-func (val WidthValue) Parse(str string) (WidthValue, error) {
-	if val, err := strconv.Atoi(str); err == nil {
-		return WidthValue(val), nil
-	}
-
-	return val, errors.Errorf("incorrect option value: %s", str)
-}
-
 type WidthOption struct {
-	*CommonOption[WidthValue]
+	*CommonOption[int]
 }
 
-func (option *WidthOption) Evaluate(_ *Data, str string) (string, error) {
-	WidthOption := int(option.value)
-	if WidthOption == 0 {
+func (option *WidthOption) Format(_ *Data, str string) (string, error) {
+	width := option.value.Get()
+	if width == 0 {
 		return str, nil
 	}
 
 	strLen := len(log.RemoveAllASCISeq(str))
 
-	if WidthOption < strLen {
-		return str[:WidthOption], nil
+	if width < strLen {
+		return str[:width], nil
 	}
 
-	return str + strings.Repeat(" ", WidthOption-strLen), nil
+	return str + strings.Repeat(" ", width-strLen), nil
 }
 
-func Width(value WidthValue) Option {
+func Width(val int) Option {
 	return &WidthOption{
-		CommonOption: NewCommonOption(WidthOptionName, value, value),
+		CommonOption: NewCommonOption(WidthOptionName, NewIntValue(val)),
 	}
 }

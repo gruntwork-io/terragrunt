@@ -37,7 +37,7 @@ func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
 		buf = new(bytes.Buffer)
 	}
 
-	str, err := formatter.placeholders.Evaluate(&options.Data{
+	str, err := formatter.placeholders.Format(&options.Data{
 		Entry:          entry,
 		BaseDir:        formatter.baseDir,
 		DisableColors:  formatter.disableColors,

@@ -1,4 +1,4 @@
-// Package placeholders implements fillers from which to format logs.
+// Package placeholders represents a set of placeholders for formatting various log values.
 package placeholders
 
 import (
@@ -10,8 +10,20 @@ import (
 
 const placeholderSign = '%'
 
+// The placeholder is part of the log message, used to format different log values.
+type Placeholder interface {
+	// Name retruns a placeholder name.
+	Name() string
+	// GetOption returns the option with the given option name.
+	GetOption(name string) (options.Option, error)
+	// Format returns the formatted value.
+	Format(data *options.Data) (string, error)
+}
+
+// Placeholders are a set of Placeholders.
 type Placeholders []Placeholder
 
+// Get returns the placeholder by its name.
 func (phs Placeholders) Get(name string) Placeholder {
 	for _, ph := range phs {
 		if ph.Name() == name {
@@ -22,6 +34,7 @@ func (phs Placeholders) Get(name string) Placeholder {
 	return nil
 }
 
+// Names returns the names of the placeholders.
 func (phs Placeholders) Names() []string {
 	var names = make([]string, len(phs))
 
@@ -30,6 +43,63 @@ func (phs Placeholders) Names() []string {
 	}
 
 	return names
+}
+
+// Format returns a formatted string that is the concatenation of the formatted placeholder values.
+func (phs Placeholders) Format(data *options.Data) (string, error) {
+	var str string
+
+	for _, ph := range phs {
+		s, err := ph.Format(data)
+		if err != nil {
+			return "", err
+		}
+
+		str += s
+	}
+
+	return str, nil
+}
+
+// Parse parses the given string and returns a set of placeholders that are then used to format log data.
+func Parse(str string) (Placeholders, error) {
+	var (
+		registered   = newPlaceholders()
+		placeholders Placeholders
+		next         int
+	)
+
+	for index := 0; index < len(str); index++ {
+		char := str[index]
+
+		if char == placeholderSign {
+			if index+1 >= len(str) {
+				return nil, errors.Errorf("empty placeholder name")
+			}
+
+			if str[index+1] == placeholderSign {
+				str = str[:index] + str[index+1:]
+
+				continue
+			}
+
+			if next != index {
+				placeholder := PlainText(str[next:index])
+				placeholders = append(placeholders, placeholder)
+			}
+
+			placeholder, num, err := parsePlaceholder(str[index+1:], registered)
+			if err != nil {
+				return nil, err
+			}
+
+			placeholders = append(placeholders, placeholder)
+			index += num + 1
+			next = index + 1
+		}
+	}
+
+	return placeholders, nil
 }
 
 func newPlaceholders() Placeholders {
@@ -130,67 +200,6 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 	}
 
 	return placeholder, len(str) - 1, nil
-}
-
-func Parse(str string) (Placeholders, error) {
-	var (
-		registered   = newPlaceholders()
-		placeholders Placeholders
-		next         int
-	)
-
-	for index := 0; index < len(str); index++ {
-		char := str[index]
-
-		if char == placeholderSign {
-			if index+1 >= len(str) {
-				return nil, errors.Errorf("empty placeholder name")
-			}
-
-			if str[index+1] == placeholderSign {
-				str = str[:index] + str[index+1:]
-
-				continue
-			}
-
-			if next != index {
-				placeholder := PlainText(str[next:index])
-				placeholders = append(placeholders, placeholder)
-			}
-
-			placeholder, num, err := parsePlaceholder(str[index+1:], registered)
-			if err != nil {
-				return nil, err
-			}
-
-			placeholders = append(placeholders, placeholder)
-			index += num + 1
-			next = index + 1
-		}
-	}
-
-	return placeholders, nil
-}
-
-func (phs Placeholders) Evaluate(data *options.Data) (string, error) {
-	var str string
-
-	for _, ph := range phs {
-		s, err := ph.Evaluate(data)
-		if err != nil {
-			return "", err
-		}
-
-		str += s
-	}
-
-	return str, nil
-}
-
-type Placeholder interface {
-	Name() string
-	GetOption(name string) (options.Option, error)
-	Evaluate(data *options.Data) (string, error)
 }
 
 func isPlaceholderNameCharacter(c byte) bool {

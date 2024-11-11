@@ -46,7 +46,7 @@ func (common *CommonPlaceholder) GetOption(str string) (options.Option, error) {
 	return nil, errors.Errorf("available values: %s", strings.Join(common.opts.Names(), ","))
 }
 
-// Evaluate implements `Placeholder` interface.
-func (common *CommonPlaceholder) Evaluate(data *options.Data) (string, error) {
-	return common.opts.Evaluate(data, "")
+// Format implements `Placeholder` interface.
+func (common *CommonPlaceholder) Format(data *options.Data) (string, error) {
+	return common.opts.Format(data, "")
 }

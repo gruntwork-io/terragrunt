@@ -146,11 +146,11 @@ func TestLogCustomFormatOutput(t *testing.T) {
 			},
 		},
 		{
-			logCustomFormat: "%interval %level(case=upper,width=6) %prefix(path=relative-module,suffix=' ')%tfpath(suffix=': ')%msg(path=relative)",
+			logCustomFormat: "%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=relative-module,suffix=' ')%tfpath(suffix=': ')%msg(path=relative)",
 			expectedOutputRegs: []*regexp.Regexp{
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG  Terragrunt Version:")),
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" STDOUT dep "+wrappedBinary()+": Initializing the backend...")),
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" STDOUT app "+wrappedBinary()+": Initializing the backend...")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text DEBUG  Terragrunt Version:")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT dep "+wrappedBinary()+": Initializing the backend...")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT app "+wrappedBinary()+": Initializing the backend...")),
 			},
 		},
 	}
@@ -1847,7 +1847,7 @@ func TestDependencyOutputWithHooks(t *testing.T) {
 	assert.True(t, util.FileExists(depPathFileOut))
 	assert.False(t, util.FileExists(mainPathFileOut))
 
-	// Now delete file and run just main again. It should NOT create file.out.
+	// Now delete file and run plain main again. It should NOT create file.out.
 	require.NoError(t, os.Remove(depPathFileOut))
 	runTerragrunt(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir "+mainPath)
 	assert.False(t, util.FileExists(depPathFileOut))
@@ -3860,7 +3860,7 @@ func TestTerragruntRunAllPlanAndShow(t *testing.T) {
 	stdout, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all show --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-forward-tf-stdout --terragrunt-working-dir %s --terragrunt-out-dir %s -no-color", testPath, tmpDir))
 	require.NoError(t, err)
 
-	// Verify that output contains the plan and not just the actual state output
+	// Verify that output contains the plan and not plain the actual state output
 	assert.Contains(t, stdout, "No changes. Your infrastructure matches the configuration.")
 }
 

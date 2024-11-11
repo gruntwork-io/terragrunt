@@ -13,12 +13,12 @@ type timePlaceholder struct {
 	*CommonPlaceholder
 }
 
-// Evaluate implements `Placeholder` interface.
-func (t *timePlaceholder) Evaluate(data *options.Data) (string, error) {
-	return t.opts.Evaluate(data, data.Time.String())
+// Format implements `Placeholder` interface.
+func (t *timePlaceholder) Format(data *options.Data) (string, error) {
+	return t.opts.Format(data, data.Time.String())
 }
 
-// Time creates a placeholder that displays time.
+// Time creates a placeholder that displays log time.
 func Time(opts ...options.Option) Placeholder {
 	opts = WithCommonOptions(
 		options.TimeFormat(fmt.Sprintf("%s:%s:%s%s", options.Hour24Zero, options.MinZero, options.SecZero, options.MilliSec)),

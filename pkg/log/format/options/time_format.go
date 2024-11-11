@@ -40,7 +40,7 @@ const (
 )
 
 var (
-	timeFormatValueMap = TimeFormatValueMap{ //nolint:gochecknoglobals
+	timeFormatList = NewTimeFormatValue(map[string]string{ //nolint:gochecknoglobals
 		YearFull:       "2006",
 		Year:           "06",
 		MonthNumZero:   "01",
@@ -66,47 +66,59 @@ var (
 		DateTime:       time.DateTime,
 		DateOnly:       time.DateOnly,
 		TimeOnly:       time.TimeOnly,
-	}
+	})
 )
 
-type TimeFormatValueMap map[string]string
+type TimeFormatValue struct {
+	MapValue[string]
+}
 
-func (valMap TimeFormatValueMap) SortedKeys() []string {
-	keys := maps.Keys(valMap)
+func NewTimeFormatValue(list map[string]string) *TimeFormatValue {
+	return &TimeFormatValue{
+		MapValue: NewMapValue(list),
+	}
+}
+
+func (val TimeFormatValue) SortedKeys() []string {
+	keys := maps.Keys(val.list)
 
 	sort.Slice(keys, func(i, j int) bool {
-		return timeFormatValueMap[keys[i]] < timeFormatValueMap[keys[j]]
+		return val.list[keys[i]] < val.list[keys[j]]
 	})
 
 	return keys
 }
 
-func (valMap TimeFormatValueMap) Value(str string) string {
-	for _, key := range valMap.SortedKeys() {
-		str = strings.ReplaceAll(str, key, timeFormatValueMap[key])
+func (val TimeFormatValue) Set(v string) *TimeFormatValue {
+	val.value = timeFormatList.Value(v)
+
+	return &val
+}
+
+func (val TimeFormatValue) Value(str string) string {
+	for _, key := range val.SortedKeys() {
+		str = strings.ReplaceAll(str, key, val.list[key])
 	}
 
 	return str
 }
 
-type TimeFormatValue string
+func (val TimeFormatValue) Parse(str string) error {
+	val.value = timeFormatList.Value(str)
+
+	return nil
+}
 
 type TimeFormatOption struct {
 	*CommonOption[string]
 }
 
-func (option *TimeFormatOption) ParseValue(str string) error {
-	option.value = timeFormatValueMap.Value(str)
-
-	return nil
+func (option *TimeFormatOption) Format(data *Data, _ string) (string, error) {
+	return data.Time.Format(option.value.Get()), nil
 }
 
-func (option *TimeFormatOption) Evaluate(data *Data, _ string) (string, error) {
-	return data.Time.Format(option.Value()), nil
-}
-
-func TimeFormat(str string) Option {
+func TimeFormat(val string) Option {
 	return &TimeFormatOption{
-		CommonOption: NewCommonOption(TimeFormatOptionName, timeFormatValueMap.Value(str), nil),
+		CommonOption: NewCommonOption(TimeFormatOptionName, timeFormatList.Set(val)),
 	}
 }

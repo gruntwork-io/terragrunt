@@ -22,13 +22,13 @@ const (
 	DirectoryPath
 )
 
-var pathFormatValues = CommonMapValues[PathFormatValue]{ //nolint:gochecknoglobals
+var pathFormatList = NewMapValue(map[PathFormatValue]string{ //nolint:gochecknoglobals
 	RelativePath:       "relative",
 	RelativeModulePath: "relative-module",
 	ModulePath:         "module",
 	FilenamePath:       "filename",
 	DirectoryPath:      "dir",
-}
+})
 
 type PathFormatValue byte
 
@@ -36,8 +36,8 @@ type PathFormatOption struct {
 	*CommonOption[PathFormatValue]
 }
 
-func (option *PathFormatOption) Evaluate(data *Data, str string) (string, error) {
-	switch option.value {
+func (option *PathFormatOption) Format(data *Data, str string) (string, error) {
+	switch option.value.Get() {
 	case RelativePath:
 		if data.RelativePather == nil {
 			break
@@ -77,13 +77,13 @@ func (option *PathFormatOption) Evaluate(data *Data, str string) (string, error)
 }
 
 func PathFormat(val PathFormatValue, allowed ...PathFormatValue) Option {
-	values := pathFormatValues
+	list := pathFormatList
 	if len(allowed) > 0 {
-		values = values.Filter(allowed...)
+		list = list.Filter(allowed...)
 	}
 
 	return &PathFormatOption{
-		CommonOption: NewCommonOption(PathFormatOptionName, val, values),
+		CommonOption: NewCommonOption(PathFormatOptionName, list.Set(val)),
 	}
 }
 

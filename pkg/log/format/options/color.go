@@ -36,7 +36,7 @@ const (
 )
 
 var (
-	colorValues = CommonMapValues[ColorValue]{ //nolint:gochecknoglobals
+	colorList = NewMapValue(map[ColorValue]string{ //nolint:gochecknoglobals
 		RedColor:      "red",
 		WhiteColor:    "white",
 		YellowColor:   "yellow",
@@ -47,7 +47,7 @@ var (
 		AutoColor:     "auto",
 		GradientColor: "gradient",
 		DisableColor:  "disable",
-	}
+	})
 
 	colorScheme = ColorScheme{ //nolint:gochecknoglobals
 		RedColor:    "red",
@@ -103,8 +103,8 @@ type ColorOption struct {
 	gradientColor  *gradientColor
 }
 
-func (color *ColorOption) Evaluate(data *Data, str string) (string, error) {
-	value := color.value
+func (color *ColorOption) Format(data *Data, str string) (string, error) {
+	value := color.value.Get()
 
 	if value == DisableColor || data.DisableColors {
 		return log.RemoveAllASCISeq(str), nil
@@ -125,20 +125,9 @@ func (color *ColorOption) Evaluate(data *Data, str string) (string, error) {
 	return str, nil
 }
 
-func (color *ColorOption) ParseValue(str string) error {
-	val, err := colorValues.Parse(str)
-	if err != nil {
-		return err
-	}
-
-	color.value = val
-
-	return nil
-}
-
 func Color(val ColorValue) Option {
 	return &ColorOption{
-		CommonOption:   NewCommonOption(ColorOptionName, val, colorValues),
+		CommonOption:   NewCommonOption(ColorOptionName, colorList.Set(val)),
 		compiledColors: colorScheme.Compile(),
 		gradientColor:  newGradientColor(),
 	}

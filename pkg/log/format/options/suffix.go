@@ -6,18 +6,12 @@ type SuffixOption struct {
 	*CommonOption[string]
 }
 
-func (option *SuffixOption) Evaluate(_ *Data, str string) (string, error) {
-	return str + option.value, nil
+func (option *SuffixOption) Format(_ *Data, str string) (string, error) {
+	return str + option.value.Get(), nil
 }
 
-func (option *SuffixOption) ParseValue(str string) error {
-	option.value = str
-
-	return nil
-}
-
-func Suffix(value string) Option {
+func Suffix(val string) Option {
 	return &SuffixOption{
-		CommonOption: NewCommonOption(SuffixOptionName, value, nil),
+		CommonOption: NewCommonOption(SuffixOptionName, NewStringValue(val)),
 	}
 }

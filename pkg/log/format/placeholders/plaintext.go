@@ -12,11 +12,11 @@ type plainText struct {
 }
 
 // PlainText creates a placeholder that displays plaintext.
-// Although plaintext can be used as is without placeholder, this allows you to format the contant,
-// for example set a color: `%(contant='just text',color=green)`.
+// Although plaintext can be used as is without placeholder, this allows you to format the content,
+// for example set a color: `%(content='just text',color=green)`.
 func PlainText(value string, opts ...options.Option) Placeholder {
 	opts = WithCommonOptions(
-		options.Content(options.ContentValue(value)),
+		options.Content(value),
 	).Merge(opts...)
 
 	return &plainText{

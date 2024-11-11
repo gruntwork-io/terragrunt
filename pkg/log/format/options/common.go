@@ -2,6 +2,7 @@ package options
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -9,16 +10,14 @@ import (
 )
 
 type CommonOption[T comparable] struct {
-	name   string
-	value  T
-	values OptionValues[T]
+	name  string
+	value OptionValue[T]
 }
 
-func NewCommonOption[T comparable](name string, value T, values OptionValues[T]) *CommonOption[T] {
+func NewCommonOption[T comparable](name string, value OptionValue[T]) *CommonOption[T] {
 	return &CommonOption[T]{
-		name:   name,
-		value:  value,
-		values: values,
+		name:  name,
+		value: value,
 	}
 }
 
@@ -26,51 +25,99 @@ func (option *CommonOption[T]) Name() string {
 	return option.name
 }
 
-func (option *CommonOption[T]) Value() T {
-	return option.value
-}
-
 func (option *CommonOption[T]) String() string {
-	return fmt.Sprintf("%v", option.value)
+	return fmt.Sprintf("%v", option.value.Get())
 }
 
-func (option *CommonOption[T]) Evaluate(_ *Data, str string) (string, error) {
+func (option *CommonOption[T]) Format(_ *Data, str string) (string, error) {
 	return str, nil
 }
 
 func (option *CommonOption[T]) ParseValue(str string) error {
-	val, err := option.values.Parse(str)
-	if err != nil {
-		return err
-	}
+	return option.value.Parse(str)
+}
 
-	option.value = val
+type StringValue string
+
+func NewStringValue(val string) *StringValue {
+	v := StringValue(val)
+	return &v
+}
+
+func (val *StringValue) Parse(str string) error {
+	*val = StringValue(str)
 
 	return nil
 }
 
-type CommonMapValues[T comparable] map[T]string
-
-func (valNames CommonMapValues[T]) Parse(str string) (T, error) {
-	for val, name := range valNames {
-		if name == str {
-			return val, nil
-		}
-	}
-
-	t := new(T)
-
-	return *t, errors.Errorf("available values: %s", strings.Join(maps.Values(valNames), ","))
+func (val *StringValue) Get() string {
+	return string(*val)
 }
 
-func (valNames CommonMapValues[T]) Filter(vals ...T) CommonMapValues[T] {
-	filtered := make(map[T]string, len(vals))
+type IntValue int
 
-	for _, val := range vals {
-		if name, ok := valNames[val]; ok {
-			filtered[val] = name
+func NewIntValue(val int) *IntValue {
+	v := IntValue(val)
+	return &v
+}
+
+func (val *IntValue) Parse(str string) error {
+	v, err := strconv.Atoi(str)
+	if err != nil {
+		return errors.Errorf("incorrect option value: %s", str)
+	}
+
+	*val = IntValue(v)
+
+	return nil
+}
+
+func (val *IntValue) Get() int {
+	return int(*val)
+}
+
+type MapValue[T comparable] struct {
+	list  map[T]string
+	value T
+}
+
+func NewMapValue[T comparable](list map[T]string) MapValue[T] {
+	return MapValue[T]{
+		list: list,
+	}
+}
+
+func (val *MapValue[T]) Get() T {
+	return val.value
+}
+
+func (val MapValue[T]) Set(v T) *MapValue[T] {
+	val.value = v
+
+	return &val
+}
+
+func (val *MapValue[T]) Parse(str string) error {
+	for v, name := range val.list {
+		if name == str {
+			val.value = v
+			return nil
 		}
 	}
 
-	return filtered
+	return errors.Errorf("available values: %s", strings.Join(maps.Values(val.list), ","))
+}
+
+func (val *MapValue[T]) Filter(vals ...T) MapValue[T] {
+	newVal := MapValue[T]{
+		list: make(map[T]string, len(vals)),
+	}
+
+	for _, v := range vals {
+		if name, ok := val.list[v]; ok {
+			newVal.list[v] = name
+		}
+	}
+
+	return newVal
 }

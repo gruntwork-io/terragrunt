@@ -15,9 +15,9 @@ type intervalPlaceholder struct {
 	*CommonPlaceholder
 }
 
-// Evaluate implements `Placeholder` interface.
-func (t *intervalPlaceholder) Evaluate(data *options.Data) (string, error) {
-	return t.opts.Evaluate(data, fmt.Sprintf("%04d", time.Since(t.baseTime)/time.Second))
+// Format implements `Placeholder` interface.
+func (t *intervalPlaceholder) Format(data *options.Data) (string, error) {
+	return t.opts.Format(data, fmt.Sprintf("%04d", time.Since(t.baseTime)/time.Second))
 }
 
 // Interval creates a placeholder that displays seconds that have passed since app started.

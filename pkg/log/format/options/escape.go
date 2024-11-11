@@ -13,9 +13,9 @@ const (
 	JSONEscape
 )
 
-var textEscapeValues = CommonMapValues[EscapeValue]{ //nolint:gochecknoglobals
+var escapeList = NewMapValue(map[EscapeValue]string{ //nolint:gochecknoglobals
 	JSONEscape: "json",
-}
+})
 
 type EscapeValue byte
 
@@ -23,8 +23,8 @@ type EscapeOption struct {
 	*CommonOption[EscapeValue]
 }
 
-func (option *EscapeOption) Evaluate(_ *Data, str string) (string, error) {
-	if option.value != JSONEscape {
+func (option *EscapeOption) Format(_ *Data, str string) (string, error) {
+	if option.value.Get() != JSONEscape {
 		return str, nil
 	}
 
@@ -37,8 +37,8 @@ func (option *EscapeOption) Evaluate(_ *Data, str string) (string, error) {
 	return string(b[1 : len(b)-1]), nil
 }
 
-func Escape(value EscapeValue) Option {
+func Escape(val EscapeValue) Option {
 	return &EscapeOption{
-		CommonOption: NewCommonOption(EscapeOptionName, value, textEscapeValues),
+		CommonOption: NewCommonOption(EscapeOptionName, escapeList.Set(val)),
 	}
 }

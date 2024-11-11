@@ -13,11 +13,11 @@ const (
 	RightAlign
 )
 
-var alignValues = CommonMapValues[AlignValue]{ //nolint:gochecknoglobals
+var alignList = NewMapValue(map[AlignValue]string{ //nolint:gochecknoglobals
 	LeftAlign:   "left",
 	CenterAlign: "center",
 	RightAlign:  "right",
-}
+})
 
 type AlignValue byte
 
@@ -25,11 +25,11 @@ type AlignOption struct {
 	*CommonOption[AlignValue]
 }
 
-func (option *AlignOption) Evaluate(_ *Data, str string) (string, error) {
+func (option *AlignOption) Format(_ *Data, str string) (string, error) {
 	withoutSpaces := strings.TrimSpace(str)
 	spaces := len(str) - len(withoutSpaces)
 
-	switch option.value {
+	switch option.value.Get() {
 	case LeftAlign:
 		return withoutSpaces + strings.Repeat(" ", spaces), nil
 	case RightAlign:
@@ -48,6 +48,6 @@ func (option *AlignOption) Evaluate(_ *Data, str string) (string, error) {
 
 func Align(value AlignValue) Option {
 	return &AlignOption{
-		CommonOption: NewCommonOption(AlignOptionName, value, alignValues),
+		CommonOption: NewCommonOption(AlignOptionName, alignList.Set(value)),
 	}
 }

@@ -33,14 +33,14 @@ type level struct {
 	*CommonPlaceholder
 }
 
-// Evaluate implements `Placeholder` interface.
-func (level *level) Evaluate(data *options.Data) (string, error) {
+// Format implements `Placeholder` interface.
+func (level *level) Format(data *options.Data) (string, error) {
 	newData := *data
 	newData.AutoColorFn = func() options.ColorValue {
 		return levlAutoColorFunc(data.Level)
 	}
 
-	return level.opts.Evaluate(&newData, data.Level.String())
+	return level.opts.Format(&newData, data.Level.String())
 }
 
 // Level creates a placeholder that displays log level name.
