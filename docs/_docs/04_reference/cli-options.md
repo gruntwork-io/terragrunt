@@ -60,6 +60,8 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-debug](#terragrunt-debug)
   - [terragrunt-log-level](#terragrunt-log-level)
   - [terragrunt-log-disable](#terragrunt-log-disable)
+  - [terragrunt-log-format](#terragrunt-log-format)
+  - [terragrunt-log-custom-format](#terragrunt-log-custom-format)
   - [terragrunt-log-show-abs-paths](#terragrunt-log-show-abs-paths)
   - [terragrunt-no-color](#terragrunt-no-color)
   - [terragrunt-check](#terragrunt-check)
@@ -77,7 +79,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
   - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
   - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
-  - [terragrunt-json-log](#terragrunt-json-log)
+  - [terragrunt-json-log](#terragrunt-json-log) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
   - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json)
   - [terragrunt-provider-cache](#terragrunt-provider-cache)
   - [terragrunt-provider-cache-dir](#terragrunt-provider-cache-dir)
@@ -87,7 +89,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-provider-cache-registry-names](#terragrunt-provider-cache-registry-names)
   - [terragrunt-out-dir](#terragrunt-out-dir)
   - [terragrunt-json-out-dir](#terragrunt-json-out-dir)
-  - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting)
+  - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
   - [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout)
   - [terragrunt-no-destroy-dependencies-check](#terragrunt-no-destroy-dependencies-check)
 
@@ -764,6 +766,8 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
   - [terragrunt-parallelism](#terragrunt-parallelism)
   - [terragrunt-debug](#terragrunt-debug)
   - [terragrunt-log-level](#terragrunt-log-level)
+  - [terragrunt-log-format](#terragrunt-log-format)
+  - [terragrunt-log-custom-format](#terragrunt-log-custom-format)
   - [terragrunt-log-disable](#terragrunt-log-disable)
   - [terragrunt-log-show-abs-paths](#terragrunt-log-show-abs-paths)
   - [terragrunt-no-color](#terragrunt-no-color)
@@ -782,7 +786,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
   - [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
   - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
   - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
-  - [terragrunt-json-log](#terragrunt-json-log)
+  - [terragrunt-json-log](#terragrunt-json-log) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
   - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json)
   - [terragrunt-provider-cache](#terragrunt-provider-cache)
   - [terragrunt-provider-cache-dir](#terragrunt-provider-cache-dir)
@@ -792,7 +796,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
   - [terragrunt-provider-cache-registry-names](#terragrunt-provider-cache-registry-names)
   - [terragrunt-out-dir](#terragrunt-out-dir)
   - [terragrunt-json-out-dir](#terragrunt-json-out-dir)
-  - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting)
+  - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
   - [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout)
   - [terragrunt-no-destroy-dependencies-check](#terragrunt-no-destroy-dependencies-check)
 
@@ -1098,11 +1102,33 @@ When passed it, sets logging level for terragrunt. All supported levels are:
 
 Where the first two control the logging of Terraform/OpenTofu output.
 
+### terragrunt-log-format
+
+**CLI Arg**: `--terragrunt-log-format`<br/>
+**Environment Variable**: `TERRAGRUNT_LOG_FORMAT`<br/>
+**Requires an argument**: `--terragrunt-log-format <LOG_FORMAT>`<br/>
+
+There are four log format presets:
+
+- `pretty` (this is the default)
+- `bare` (old Terragrunt log)
+- `json`
+- `key-value`
+
+### terragrunt-log-custom-format
+
+**CLI Arg**: `--terragrunt-log-custom-format`<br/>
+**Environment Variable**: `TERRAGRUNT_LOG_CUSTOM_FORMAT`<br/>
+**Requires an argument**: `--terragrunt-log-custom-format <LOG_CUSTOM_FORMAT>`<br/>
+
+This allows you to specify which information you want to output. It works a little bit like printf format.
+
+Make sure to read [Custom Log Format](https://terragrunt.gruntwork.io/docs/features/custom-log-format/) for syntax details.
+
 ### terragrunt-log-disable
 
 **CLI Arg**: `--terragrunt-log-disable`<br/>
 **Environment Variable**: `TERRAGRUNT_LOG_DISABLE`<br/>
-**Requires an argument**: `--terragrunt-log-disable`<br/>
 
 Disable logging. This flag also enables [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout).
 
@@ -1334,6 +1360,8 @@ When this flag is set, Terragrunt will not validate the terraform command, which
 
 ### terragrunt-json-log
 
+DEPRECATED: Use [terragrunt-log-format](#terragrunt-log-format).
+
 **CLI Arg**: `--terragrunt-json-log`<br/>
 **Environment Variable**: `TERRAGRUNT_JSON_LOG` (set to `true`)<br/>
 
@@ -1470,6 +1498,8 @@ If you would like to set credentials for AWS with this method, you are encourage
 Other credential configurations will be supported in the future, but until then, if your provider authenticates via environment variables, you can use the `envs` field to fetch credentials dynamically from a secret store, etc before Terragrunt executes any IAC.
 
 ### terragrunt-disable-log-formatting
+
+DEPRECATED: Use [terragrunt-log-format](#terragrunt-log-format).
 
 **CLI Arg**: `--terragrunt-disable-log-formatting`<br/>
 **Environment Variable**: `TERRAGRUNT_DISABLE_LOG_FORMATTING`<br/>

@@ -358,7 +358,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 
 				level, err := log.ParseLevel(val)
 				if err != nil {
-					return errors.Errorf("flag --%s, %w", TerragruntLogLevelFlagName, err)
+					return cli.NewExitError(errors.Errorf("flag --%s, %w", TerragruntLogLevelFlagName, err), 1)
 				}
 
 				opts.Logger.SetOptions(log.WithLevel(level))
@@ -424,7 +424,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Action: func(_ *cli.Context, val string) error {
 				phs, err := format.ParseFormat(val)
 				if err != nil {
-					return errors.Errorf("flag --%s, invalid format %q, %v", TerragruntLogFormatFlagName, val, err)
+					return cli.NewExitError(errors.Errorf("flag --%s, invalid format %q, %v", TerragruntLogFormatFlagName, val, err), 1)
 				}
 
 				if opts.DisableLog || opts.DisableLogFormatting || opts.JSONLogFormat {
@@ -504,7 +504,11 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.StrictControls,
 			Usage:       "Enables specific strict controls. For a list of available controls, see https://terragrunt.gruntwork.io/docs/reference/strict-mode .",
 			Action: func(ctx *cli.Context, val []string) error {
-				return strict.StrictControls.ValidateControlNames(val)
+				if err := strict.StrictControls.ValidateControlNames(val); err != nil {
+					cli.NewExitError(err, 1)
+				}
+
+				return nil
 			},
 		},
 		// Terragrunt Provider Cache flags
