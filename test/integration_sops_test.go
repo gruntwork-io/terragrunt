@@ -111,4 +111,6 @@ func TestSopsDecryptOnMissing(t *testing.T) {
 	require.Error(t, err)
 
 	assert.Contains(t, errorOut, "Encountered error while evaluating locals in file ./terragrunt.hcl")
+	assert.Contains(t, errorOut, "./missing.yaml: no such file")
+
 }
