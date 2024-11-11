@@ -358,9 +358,9 @@ type TerragruntOptions struct {
 	// FeatureFlags is a map of feature flags to enable.
 	FeatureFlags map[string]string
 
-	// readFiles is a map of files to the Units
+	// ReadFiles is a map of files to the Units
 	// that read them using HCL functions in the unit.
-	readFiles map[string][]string
+	ReadFiles map[string][]string
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -592,6 +592,8 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		IncludeDirs:                    opts.IncludeDirs,
 		ExcludeByDefault:               opts.ExcludeByDefault,
 		ModulesThatInclude:             opts.ModulesThatInclude,
+		UnitsReading:                   opts.UnitsReading,
+		ReadFiles:                      opts.ReadFiles,
 		Parallelism:                    opts.Parallelism,
 		StrictInclude:                  opts.StrictInclude,
 		RunTerragrunt:                  opts.RunTerragrunt,
@@ -726,34 +728,47 @@ func (opts *TerragruntOptions) DataDir() string {
 }
 
 // AppendReadFile appends to the list of files read by a given unit.
-func (opts *TerragruntOptions) AppendReadFile(file string, unit string) {
-	if opts.readFiles == nil {
-		opts.readFiles = map[string][]string{}
+func (opts *TerragruntOptions) AppendReadFile(file, unit string) {
+	if opts.ReadFiles == nil {
+		opts.ReadFiles = map[string][]string{}
 	}
 
-	for _, u := range opts.readFiles[file] {
+	for _, u := range opts.ReadFiles[file] {
 		if u == unit {
 			return
 		}
 	}
 
 	opts.Logger.Debugf("Tracking that file %s was read by %s.", file, unit)
-	opts.readFiles[file] = append(opts.readFiles[file], unit)
+	opts.ReadFiles[file] = append(opts.ReadFiles[file], unit)
 }
 
 // DidReadFile checks if a given file was read by a given unit.
-func (opts *TerragruntOptions) DidReadFile(file string, unit string) bool {
-	if opts.readFiles == nil {
+func (opts *TerragruntOptions) DidReadFile(file, unit string) bool {
+	if opts.ReadFiles == nil {
 		return false
 	}
 
-	for _, u := range opts.readFiles[file] {
+	for _, u := range opts.ReadFiles[file] {
 		if u == unit {
 			return true
 		}
 	}
 
 	return false
+}
+
+// CloneReadFiles creates a copy of the ReadFiles map.
+func (opts *TerragruntOptions) CloneReadFiles(readFiles map[string][]string) {
+	if readFiles == nil {
+		return
+	}
+
+	for file, units := range readFiles {
+		for _, unit := range units {
+			opts.AppendReadFile(file, unit)
+		}
+	}
 }
 
 // identifyDefaultWrappedExecutable returns default path used for wrapped executable.
