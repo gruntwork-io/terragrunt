@@ -136,7 +136,7 @@ func TestUnitsReading(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, unit := range tt.expectedUnits {
-				assert.Contains(t, stderr, "prefix="+unit+" ")
+				assert.Contains(t, stderr, unit+" (excluded: false")
 			}
 		})
 	}
