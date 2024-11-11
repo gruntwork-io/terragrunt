@@ -33,6 +33,7 @@ const (
 	TerragruntVersionConstraints
 	RemoteStateBlock
 	FeatureFlagsBlock
+	ExcludeBlock
 )
 
 // terragruntIncludeMultiple is a struct that can be used to only decode the include block with labels.
