@@ -359,7 +359,7 @@ type TerragruntOptions struct {
 	FeatureFlags map[string]string
 
 	// readFiles is a map of files to the Units
-	// that read them using HCL funtions in the unit.
+	// that read them using HCL functions in the unit.
 	readFiles map[string][]string
 }
 
