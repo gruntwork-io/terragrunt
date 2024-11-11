@@ -12,7 +12,7 @@ const placeholderSign = '%'
 
 // Placeholder is part of the log message, used to format different log values.
 type Placeholder interface {
-	// Name retruns a placeholder name.
+	// Name returns a placeholder name.
 	Name() string
 	// GetOption returns the option with the given option name.
 	GetOption(name string) (options.Option, error)
