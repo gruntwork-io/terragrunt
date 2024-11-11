@@ -62,13 +62,13 @@ func TestUnitsReading(t *testing.T) {
 				"shared.json",
 			},
 			expectedUnits: []string{
-				"reading-json",
+				"reading-from-tf",
 			},
 		},
 		{
 			name: "reading_sops",
 			unitsReading: []string{
-				"secret.txt",
+				"secrets.txt",
 			},
 			expectedUnits: []string{
 				"reading-sops",
@@ -130,6 +130,14 @@ func TestUnitsReading(t *testing.T) {
 
 			for _, unit := range tt.unitsReading {
 				cmd = cmd + " --terragrunt-queue-include-units-reading " + unit
+			}
+
+			for _, unit := range tt.unitsIncluding {
+				cmd = cmd + " --terragrunt-include-dir " + unit
+			}
+
+			for _, unit := range tt.unitsExcluding {
+				cmd = cmd + " --terragrunt-exclude-dir " + unit
 			}
 
 			_, stderr, err := runTerragruntCommandWithOutput(t, cmd)

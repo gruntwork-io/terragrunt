@@ -604,6 +604,9 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 		})
 	}
 
+	// Hack to persist readFiles. Need to discuss with team to see if there is a better way to handle this.
+	stack.terragruntOptions.CloneReadFiles(opts.ReadFiles)
+
 	terragruntSource, err := config.GetTerragruntSourceForModule(stack.terragruntOptions.Source, modulePath, terragruntConfig)
 	if err != nil {
 		return nil, err
