@@ -168,6 +168,7 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 		FuncNameGetDefaultRetryableErrors:               wrapVoidToStringSliceAsFuncImpl(ctx, getDefaultRetryableErrors),
 		FuncNameReadTfvarsFile:                          wrapStringSliceToStringAsFuncImpl(ctx, readTFVarsFile),
 		FuncNameGetWorkingDir:                           wrapVoidToStringAsFuncImpl(ctx, getWorkingDir),
+		FuncNameMarkAsRead:                              wrapStringSliceToStringAsFuncImpl(ctx, markAsRead),
 
 		// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
 		// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22
@@ -1060,8 +1061,8 @@ func readTFVarsFile(ctx *ParsingContext, args []string) (string, error) {
 	return string(data), nil
 }
 
-// MarkAsRead marks a file as explicitly read. This is useful for detection via TerragruntUnitsReading flag.
-func MarkAsRead(ctx *ParsingContext, args []string) (string, error) {
+// markAsRead marks a file as explicitly read. This is useful for detection via TerragruntUnitsReading flag.
+func markAsRead(ctx *ParsingContext, args []string) (string, error) {
 	if len(args) != 1 {
 		return "", errors.New(WrongNumberOfParamsError{Func: "mark_as_read", Expected: "1", Actual: len(args)})
 	}
