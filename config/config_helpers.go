@@ -68,6 +68,7 @@ const (
 	FuncNameEndsWith                                = "endswith"
 	FuncNameStrContains                             = "strcontains"
 	FuncNameTimeCmp                                 = "timecmp"
+	FuncNameMarkAsRead                              = "mark_as_read"
 
 	sopsCacheName = "sopsCache"
 )
@@ -825,6 +826,11 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 		return "", errors.New(err)
 	}
 
+	ctx.TerragruntOptions.AppendReadFile(
+		canonicalSourceFile,
+		ctx.TerragruntOptions.WorkingDir,
+	)
+
 	// Set environment variables from the TerragruntOptions.Env map.
 	// This is especially useful for integrations with things like the `terragrunt-auth-provider` flag,
 	// which can set environment variables that are used for decryption.
@@ -1021,6 +1027,11 @@ func readTFVarsFile(ctx *ParsingContext, args []string) (string, error) {
 		return "", errors.New(TFVarFileNotFoundError{File: varFile})
 	}
 
+	ctx.TerragruntOptions.AppendReadFile(
+		varFile,
+		ctx.TerragruntOptions.WorkingDir,
+	)
+
 	fileContents, err := os.ReadFile(varFile)
 	if err != nil {
 		return "", errors.New(fmt.Errorf("could not read file %q: %w", varFile, err))
@@ -1047,6 +1058,27 @@ func readTFVarsFile(ctx *ParsingContext, args []string) (string, error) {
 	}
 
 	return string(data), nil
+}
+
+// MarkAsRead marks a file as explicitly read. This is useful for detection via TerragruntUnitsReading flag.
+func MarkAsRead(ctx *ParsingContext, args []string) (string, error) {
+	if len(args) != 1 {
+		return "", errors.New(WrongNumberOfParamsError{Func: "mark_as_read", Expected: "1", Actual: len(args)})
+	}
+
+	file := args[0]
+
+	path, err := util.CanonicalPath(file, ctx.TerragruntOptions.WorkingDir)
+	if err != nil {
+		return "", errors.New(err)
+	}
+
+	ctx.TerragruntOptions.AppendReadFile(
+		path,
+		ctx.TerragruntOptions.WorkingDir,
+	)
+
+	return file, nil
 }
 
 // ParseAndDecodeVarFile uses the HCL2 file to parse the given varfile string into an HCL file body, and then decode it
