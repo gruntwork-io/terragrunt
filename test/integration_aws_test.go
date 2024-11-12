@@ -799,7 +799,7 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
@@ -826,7 +826,7 @@ func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
 	token := os.Getenv("CIRCLE_OIDC_TOKEN_V2")
 	assert.NotEmpty(t, token)
 
-	helpers.RunTerragrunt(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir "+tmpEnvPath+" --terragrunt-iam-role "+roleARN+" --terragrunt-iam-web-identity-token "+token)
+	helpers.RunTerragrunt(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+tmpEnvPath+" --terragrunt-iam-role '"+roleARN+"' --terragrunt-iam-web-identity-token '"+token+"'")
 }
 
 // Regression testing for https://github.com/gruntwork-io/terragrunt/issues/906
