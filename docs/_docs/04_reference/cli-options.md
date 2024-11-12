@@ -67,6 +67,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-check](#terragrunt-check)
   - [terragrunt-diff](#terragrunt-diff)
   - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
+  - [terragrunt-hclfmt-stdin](#terragrunt-hclfmt-stdin)
   - [terragrunt-hclvalidate-json](#terragrunt-hclvalidate-json)
   - [terragrunt-hclvalidate-show-config-path](#terragrunt-hclvalidate-show-config-path)
   - [terragrunt-override-attr](#terragrunt-override-attr)
@@ -92,6 +93,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
   - [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout)
   - [terragrunt-no-destroy-dependencies-check](#terragrunt-no-destroy-dependencies-check)
+  - [feature](#feature)
 
 ## CLI commands
 
@@ -774,6 +776,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
   - [terragrunt-check](#terragrunt-check)
   - [terragrunt-diff](#terragrunt-diff)
   - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
+  - [terragrunt-hclfmt-stdin](#terragrunt-hclfmt-stdin)
   - [terragrunt-hclvalidate-json](#terragrunt-hclvalidate-json)
   - [terragrunt-hclvalidate-show-config-path](#terragrunt-hclvalidate-show-config-path)
   - [terragrunt-override-attr](#terragrunt-override-attr)
@@ -1014,6 +1017,9 @@ excluded during execution of the commands. If a relative path is specified, it s
 [--terragrunt-working-dir](#terragrunt-working-dir). Flag can be specified multiple times. This will only exclude the
 module, not its dependencies.
 
+Please note that the glob curly braces expansion is not taken in account using environment variable unlike of its equivalent as a parameter on the command line.
+You should consider using `TERRAGRUNT_EXCLUDE_DIR="foo/module,bar/module"` instead of `TERRAGRUNT_EXCLUDE_DIR="{foo,bar}/module"`.
+
 ### terragrunt-include-dir
 
 **CLI Arg**: `--terragrunt-include-dir`<br/>
@@ -1025,6 +1031,9 @@ Can be supplied multiple times: `--terragrunt-include-dir /path/to/dirs/to/inclu
 Unix-style glob of directories to include when running `*-all` commands. Only modules under these directories (and all
 dependent modules) will be included during execution of the commands. If a relative path is specified, it should be
 relative from `--terragrunt-working-dir`. Flag can be specified multiple times.
+
+Please note that the glob curly braces expansion is not taken in account using environment variable unlike of its equivalent as a parameter on the command line.
+You should consider using `TERRAGRUNT_INCLUDE_DIR="foo/module,bar/module"` instead of `TERRAGRUNT_INCLUDE_DIR="{foo,bar}/module"`.
 
 ### terragrunt-strict-include
 
@@ -1177,7 +1186,17 @@ When passed in, running `hclfmt` will print diff between original and modified f
 
 - [hclfmt](#hclfmt)
 
-When passed in, run `hclfmt` only on specified hcl file.
+When passed in, run `hclfmt` only on the specified file.
+
+### terragrunt-hclfmt-stdin
+
+**CLI Arg**: `--terragrunt-hclfmt-stdin`<br/>
+**Environment Variable**: `TERRAGRUNT_HCLFMT_STDIN` (set to `true`)<br/>
+**Commands**:
+
+- [hclfmt](#hclfmt)
+
+When passed in, run `hclfmt` only on hcl passed to `stdin`, result is printed to `stdout`.
 
 ### terragrunt-hclvalidate-json
 
@@ -1561,3 +1580,54 @@ OpenTofu will perform the following actions:
 **Environment Variable**: `TERRAGRUNT_NO_DESTROY_DEPENDENCIES_CHECK`<br/>
 
 If specified, Terragrunt will not check dependent modules when running `destroy` command. By default, Terragrunt checks dependent modules when running `destroy` command.
+
+### feature
+
+**CLI Arg**: `--feature`<br/>
+**Environment Variable**: `TERRAGRUNT_FEATURE`<br/>
+
+Feature flags in Terragrunt allow users to dynamically control configuration behavior through CLI arguments or environment variables.
+
+These flags enable a more flexible and controlled deployment process, particularly in monorepo contexts with interdependent infrastructure units.
+
+Example HCL flags definition:
+
+```hcl
+feature "string_feature_flag" {
+  default = "test"
+}
+
+feature "int_feature_flag" {
+  default = 777
+}
+
+feature "bool_feature_flag" {
+  default = false
+}
+
+terraform {
+  before_hook "conditional_command" {
+    commands = ["apply", "plan", "destroy"]
+    execute  = feature.bool_feature_flag.value ? ["sh", "-c", "echo running conditional bool_feature_flag"] : [ "sh", "-c", "exit", "0" ]
+  }
+}
+
+inputs = {
+  string_feature_flag = feature.string_feature_flag.value
+  int_feature_flag = feature.int_feature_flag.value
+}
+
+```
+
+Setting a feature flag through the CLI:
+
+```bash
+terragrunt --feature int_feature_flag=123 --feature bool_feature_flag=true --feature string_feature_flag=app1 apply
+```
+
+Setting feature flags through environment variables:
+
+```bash
+export TERRAGRUNT_FEATURE=int_feature_flag=123,bool_feature_flag=true,string_feature_flag=app1
+terragrunt apply
+```

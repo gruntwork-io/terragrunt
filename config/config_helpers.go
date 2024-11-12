@@ -198,6 +198,10 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 		evalCtx.Variables[MetadataLocal] = *ctx.Locals
 	}
 
+	if ctx.Features != nil {
+		evalCtx.Variables[MetadataFeatureFlag] = *ctx.Features
+	}
+
 	if ctx.DecodedDependencies != nil {
 		evalCtx.Variables[MetadataDependency] = *ctx.DecodedDependencies
 	}
@@ -1110,7 +1114,7 @@ func extractSopsErrors(err error) *errors.MultiError {
 	}
 
 	// append the original error if no group results were found
-	if errs == nil {
+	if errs.Len() == 0 {
 		errs = errs.Append(err)
 	}
 

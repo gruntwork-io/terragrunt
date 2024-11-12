@@ -239,6 +239,9 @@ type TerragruntOptions struct {
 	// The file which hclfmt should be specifically run on
 	HclFile string
 
+	// If True then HCL from StdIn must should be formatted.
+	HclFromStdin bool
+
 	// The file path that terragrunt should use when rendering the terragrunt.hcl config as json.
 	JSONOut string
 
@@ -351,6 +354,9 @@ type TerragruntOptions struct {
 
 	// StrictControls is a slice of strict controls enabled.
 	StrictControls []string
+
+	// FeatureFlags is a map of feature flags to enable.
+	FeatureFlags map[string]string
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -463,6 +469,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
 		OutputFolder:               "",
 		JSONOutputFolder:           "",
+		FeatureFlags:               map[string]string{},
 	}
 }
 
@@ -589,6 +596,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		RunTerragrunt:                  opts.RunTerragrunt,
 		AwsProviderPatchOverrides:      opts.AwsProviderPatchOverrides,
 		HclFile:                        opts.HclFile,
+		HclFromStdin:                   opts.HclFromStdin,
 		JSONOut:                        opts.JSONOut,
 		JSONLogFormat:                  opts.JSONLogFormat,
 		Check:                          opts.Check,
@@ -622,6 +630,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		Engine:                         cloneEngineOptions(opts.Engine),
 		// copy array
 		StrictControls: util.CloneStringList(opts.StrictControls),
+		FeatureFlags:   opts.FeatureFlags,
 	}, nil
 }
 

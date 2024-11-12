@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,11 +36,11 @@ const (
 func TestStartsWith(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureStartswith)
-	tmpEnvPath := copyEnvironment(t, testFixtureStartswith)
+	helpers.CleanupTerraformFolder(t, testFixtureStartswith)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStartswith)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStartswith)
 
-	runTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -47,10 +48,10 @@ func TestStartsWith(t *testing.T) {
 
 	require.NoError(
 		t,
-		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
 	)
 
-	outputs := map[string]TerraformOutput{}
+	outputs := map[string]helpers.TerraformOutput{}
 
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
@@ -68,11 +69,11 @@ func TestStartsWith(t *testing.T) {
 func TestTimeCmp(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureTimecmp)
-	tmpEnvPath := copyEnvironment(t, testFixtureTimecmp)
+	helpers.CleanupTerraformFolder(t, testFixtureTimecmp)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTimecmp)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureTimecmp)
 
-	runTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -80,10 +81,10 @@ func TestTimeCmp(t *testing.T) {
 
 	require.NoError(
 		t,
-		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
 	)
 
-	outputs := map[string]TerraformOutput{}
+	outputs := map[string]helpers.TerraformOutput{}
 
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
@@ -98,15 +99,15 @@ func TestTimeCmp(t *testing.T) {
 func TestTimeCmpInvalidTimestamp(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureTimecmpInvalidTimestamp)
-	tmpEnvPath := copyEnvironment(t, testFixtureTimecmpInvalidTimestamp)
+	helpers.CleanupTerraformFolder(t, testFixtureTimecmpInvalidTimestamp)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTimecmpInvalidTimestamp)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureTimecmpInvalidTimestamp)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := runTerragruntCommand(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
 
 	expectedError := `not a valid RFC3339 timestamp: missing required time introducer 'T'`
 	require.ErrorContains(t, err, expectedError)
@@ -115,11 +116,11 @@ func TestTimeCmpInvalidTimestamp(t *testing.T) {
 func TestEndsWith(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureEndswith)
-	tmpEnvPath := copyEnvironment(t, testFixtureEndswith)
+	helpers.CleanupTerraformFolder(t, testFixtureEndswith)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEndswith)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureEndswith)
 
-	runTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -127,10 +128,10 @@ func TestEndsWith(t *testing.T) {
 
 	require.NoError(
 		t,
-		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
 	)
 
-	outputs := map[string]TerraformOutput{}
+	outputs := map[string]helpers.TerraformOutput{}
 
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
@@ -148,11 +149,11 @@ func TestEndsWith(t *testing.T) {
 func TestStrContains(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureStrcontains)
-	tmpEnvPath := copyEnvironment(t, testFixtureStrcontains)
+	helpers.CleanupTerraformFolder(t, testFixtureStrcontains)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStrcontains)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStrcontains)
 
-	runTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -160,10 +161,10 @@ func TestStrContains(t *testing.T) {
 
 	require.NoError(
 		t,
-		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
 	)
 
-	outputs := map[string]TerraformOutput{}
+	outputs := map[string]helpers.TerraformOutput{}
 
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
@@ -173,8 +174,8 @@ func TestStrContains(t *testing.T) {
 
 func TestGetRepoRootCaching(t *testing.T) {
 	t.Parallel()
-	cleanupTerraformFolder(t, testFixtureGetRepoRoot)
-	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, testFixtureGetRepoRoot))
+	helpers.CleanupTerraformFolder(t, testFixtureGetRepoRoot)
+	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetRepoRoot))
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetRepoRoot)
 
 	gitOutput, err := exec.Command("git", "init", rootPath).CombinedOutput()
@@ -182,7 +183,7 @@ func TestGetRepoRootCaching(t *testing.T) {
 		t.Fatalf("Error initializing git repo: %v\n%s", err, string(gitOutput))
 	}
 
-	stdout, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+rootPath)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
 	output := fmt.Sprintf("%s %s", stdout, stderr)
@@ -193,15 +194,15 @@ func TestGetRepoRootCaching(t *testing.T) {
 func TestGetRepoRoot(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureGetRepoRoot)
-	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, testFixtureGetRepoRoot))
+	helpers.CleanupTerraformFolder(t, testFixtureGetRepoRoot)
+	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetRepoRoot))
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetRepoRoot)
 
 	output, err := exec.Command("git", "init", rootPath).CombinedOutput()
 	if err != nil {
 		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
 	}
-	runTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -209,10 +210,10 @@ func TestGetRepoRoot(t *testing.T) {
 
 	require.NoError(
 		t,
-		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
 	)
 
-	outputs := map[string]TerraformOutput{}
+	outputs := map[string]helpers.TerraformOutput{}
 
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
@@ -225,15 +226,15 @@ func TestGetRepoRoot(t *testing.T) {
 func TestGetWorkingDirBuiltInFunc(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureGetWorkingDir)
-	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, testFixtureGetWorkingDir))
+	helpers.CleanupTerraformFolder(t, testFixtureGetWorkingDir)
+	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetWorkingDir))
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetWorkingDir)
 
 	output, err := exec.Command("git", "init", rootPath).CombinedOutput()
 	if err != nil {
 		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
 	}
-	runTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -241,10 +242,10 @@ func TestGetWorkingDirBuiltInFunc(t *testing.T) {
 
 	require.NoError(
 		t,
-		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
 	)
 
-	outputs := map[string]TerraformOutput{}
+	outputs := map[string]helpers.TerraformOutput{}
 
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
@@ -281,7 +282,7 @@ func TestPathRelativeToIncludeInvokedInCorrectPathFromChild(t *testing.T) {
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := runTerragruntCommand(t, "terragrunt version --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir "+appPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt version --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir "+appPath, &stdout, &stderr)
 	require.NoError(t, err)
 	output := stdout.String()
 	assert.Equal(t, 1, strings.Count(output, "path_relative_to_inclue: app\n"))
@@ -291,8 +292,8 @@ func TestPathRelativeToIncludeInvokedInCorrectPathFromChild(t *testing.T) {
 func TestPathRelativeFromInclude(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixturePathRelativeFromInclude)
-	tmpEnvPath, err := filepath.EvalSymlinks(copyEnvironment(t, testFixturePathRelativeFromInclude))
+	helpers.CleanupTerraformFolder(t, testFixturePathRelativeFromInclude)
+	tmpEnvPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixturePathRelativeFromInclude))
 	require.NoError(t, err)
 	rootPath := util.JoinPath(tmpEnvPath, testFixturePathRelativeFromInclude, "lives/dev")
 	basePath := util.JoinPath(rootPath, "base")
@@ -303,13 +304,13 @@ func TestPathRelativeFromInclude(t *testing.T) {
 		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
 	}
 
-	runTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
-	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+clusterPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+clusterPath)
 	require.NoError(t, err)
 
-	outputs := map[string]TerraformOutput{}
+	outputs := map[string]helpers.TerraformOutput{}
 	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
 
 	val, hasVal := outputs["some_output"]
@@ -317,7 +318,7 @@ func TestPathRelativeFromInclude(t *testing.T) {
 	assert.Equal(t, "something else", val.Value)
 
 	// try to destroy module and check if warning is printed in output, also test `get_parent_terragrunt_dir()` func in the parent terragrunt config.
-	_, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt destroy -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+basePath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt destroy -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+basePath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "Detected dependent modules:\n"+clusterPath)
@@ -326,8 +327,8 @@ func TestPathRelativeFromInclude(t *testing.T) {
 func TestGetPathFromRepoRoot(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureGetPathFromRepoRoot)
-	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, testFixtureGetPathFromRepoRoot))
+	helpers.CleanupTerraformFolder(t, testFixtureGetPathFromRepoRoot)
+	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetPathFromRepoRoot))
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetPathFromRepoRoot)
 
 	output, err := exec.Command("git", "init", tmpEnvPath).CombinedOutput()
@@ -335,7 +336,7 @@ func TestGetPathFromRepoRoot(t *testing.T) {
 		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
 	}
 
-	runTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -343,10 +344,10 @@ func TestGetPathFromRepoRoot(t *testing.T) {
 
 	require.NoError(
 		t,
-		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
 	)
 
-	outputs := map[string]TerraformOutput{}
+	outputs := map[string]helpers.TerraformOutput{}
 
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
@@ -359,15 +360,15 @@ func TestGetPathFromRepoRoot(t *testing.T) {
 func TestGetPathToRepoRoot(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath, _ := filepath.EvalSymlinks(copyEnvironment(t, testFixtureGetPathToRepoRoot))
+	tmpEnvPath, _ := filepath.EvalSymlinks(helpers.CopyEnvironment(t, testFixtureGetPathToRepoRoot))
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetPathToRepoRoot)
-	cleanupTerraformFolder(t, rootPath)
+	helpers.CleanupTerraformFolder(t, rootPath)
 
 	output, err := exec.Command("git", "init", tmpEnvPath).CombinedOutput()
 	if err != nil {
 		t.Fatalf("Error initializing git repo: %v\n%s", err, string(output))
 	}
-	runTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -375,10 +376,10 @@ func TestGetPathToRepoRoot(t *testing.T) {
 
 	require.NoError(
 		t,
-		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
 	)
 
-	outputs := map[string]TerraformOutput{}
+	outputs := map[string]helpers.TerraformOutput{}
 
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 
@@ -399,11 +400,11 @@ func TestGetPathToRepoRoot(t *testing.T) {
 func TestGetPlatform(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureGetPlatform)
-	tmpEnvPath := copyEnvironment(t, testFixtureGetPlatform)
+	helpers.CleanupTerraformFolder(t, testFixtureGetPlatform)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetPlatform)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetPlatform)
 
-	runTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected outputs are not empty
 	stdout := bytes.Buffer{}
@@ -411,10 +412,10 @@ func TestGetPlatform(t *testing.T) {
 
 	require.NoError(
 		t,
-		runTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
+		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
 	)
 
-	outputs := map[string]TerraformOutput{}
+	outputs := map[string]helpers.TerraformOutput{}
 
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	platform, hasPlatform := outputs["platform"]

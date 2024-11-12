@@ -15,6 +15,7 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/remote"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,16 +36,16 @@ const (
 func TestGcpWorksWithBackend(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureGcsPath)
+	helpers.CleanupTerraformFolder(t, testFixtureGcsPath)
 
 	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 	defer deleteGCSBucket(t, gcsBucketName)
 
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsPath, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsPath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsPath))
 
 	var expectedGCSLabels = map[string]string{
 		"owner": "terragrunt_test",
@@ -55,11 +56,11 @@ func TestGcpWorksWithBackend(t *testing.T) {
 func TestGcpWorksWithExistingBucket(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureGcsByoBucketPath)
+	helpers.CleanupTerraformFolder(t, testFixtureGcsByoBucketPath)
 
 	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 	defer deleteGCSBucket(t, gcsBucketName)
 
@@ -68,7 +69,7 @@ func TestGcpWorksWithExistingBucket(t *testing.T) {
 	createGCSBucket(t, project, location, gcsBucketName)
 
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsByoBucketPath, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
-	runTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsByoBucketPath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsByoBucketPath))
 
 	validateGCSBucketExistsAndIsLabeled(t, location, gcsBucketName, nil)
 }
@@ -76,14 +77,14 @@ func TestGcpWorksWithExistingBucket(t *testing.T) {
 func TestGcpCheckMissingBucket(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureGcsNoBucket)
+	helpers.CleanupTerraformFolder(t, testFixtureGcsNoBucket)
 
 	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsNoBucket, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
-	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsNoBucket))
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsNoBucket))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Missing required GCS remote state configuration bucket")
 }
@@ -91,16 +92,16 @@ func TestGcpCheckMissingBucket(t *testing.T) {
 func TestGcpNoPrefixBucket(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureGcsNoPrefix)
+	helpers.CleanupTerraformFolder(t, testFixtureGcsNoPrefix)
 
 	// We need a project to create the bucket in, so we pull one from the recommended environment variable.
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 	defer deleteGCSBucket(t, gcsBucketName)
 
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsNoPrefix, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
-	_, _, err := runTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsNoPrefix))
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntGCSConfigPath, testFixtureGcsNoPrefix))
 	require.NoError(t, err)
 }
 
@@ -122,12 +123,12 @@ func TestGcpParallelStateInit(t *testing.T) {
 
 	tmpTerragruntConfigFile := util.JoinPath(tmpEnvPath, "terragrunt.hcl")
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(uniqueID())
+	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsParallelStateInit, project, terraformRemoteStateGcpRegion, gcsBucketName, config.DefaultTerragruntConfigPath)
 	err = util.CopyFile(tmpTerragruntGCSConfigPath, tmpTerragruntConfigFile)
 	require.NoError(t, err)
 
-	runTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+tmpEnvPath)
+	helpers.RunTerragrunt(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+tmpEnvPath)
 }
 
 func createTmpTerragruntGCSConfig(t *testing.T, templatesPath string, project string, location string, gcsBucketName string, configFileName string) string {
@@ -150,7 +151,7 @@ func copyTerragruntGCSConfigAndFillPlaceholders(t *testing.T, configSrcPath stri
 
 	email := os.Getenv("GOOGLE_IDENTITY_EMAIL")
 
-	copyAndFillMapPlaceholders(t, configSrcPath, configDestPath, map[string]string{
+	helpers.CopyAndFillMapPlaceholders(t, configSrcPath, configDestPath, map[string]string{
 		"__FILL_IN_PROJECT__":     project,
 		"__FILL_IN_LOCATION__":    location,
 		"__FILL_IN_BUCKET_NAME__": gcsBucketName,
