@@ -21,7 +21,8 @@ type FileCopyGetter struct {
 
 	// List of glob paths that should be included in the copy. This can be used to override the default behavior of
 	// Terragrunt, which will skip hidden folders.
-	IncludeInCopy []string
+	IncludeInCopy   []string
+	ExcludeFromCopy []string
 
 	Logger log.Logger
 }
@@ -42,7 +43,7 @@ func (g *FileCopyGetter) Get(dst string, u *url.URL) error {
 		return errors.Errorf("source path must be a directory")
 	}
 
-	return util.CopyFolderContents(g.Logger, path, dst, SourceManifestName, g.IncludeInCopy)
+	return util.CopyFolderContents(g.Logger, path, dst, SourceManifestName, g.IncludeInCopy, g.ExcludeFromCopy)
 }
 
 // GetFile The original FileGetter already knows how to do file copying so long as we set the Copy flag to true, so just

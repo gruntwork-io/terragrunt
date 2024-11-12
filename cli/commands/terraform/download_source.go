@@ -46,13 +46,18 @@ func downloadTerraformSource(ctx context.Context, source string, terragruntOptio
 
 	terragruntOptions.Logger.Debugf("Copying files from %s into %s", terragruntOptions.WorkingDir, terraformSource.WorkingDir)
 
-	var includeInCopy []string
+	var includeInCopy, excludeFromCopy []string
+
 	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.IncludeInCopy != nil {
 		includeInCopy = *terragruntConfig.Terraform.IncludeInCopy
 	}
+	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExcludeFromCopy != nil {
+		excludeFromCopy = *terragruntConfig.Terraform.ExcludeFromCopy
+	}
+
 	// Always include the .tflint.hcl file, if it exists
 	includeInCopy = append(includeInCopy, tfLintConfig)
-	if err := util.CopyFolderContents(terragruntOptions.Logger, terragruntOptions.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, includeInCopy); err != nil {
+	if err := util.CopyFolderContents(terragruntOptions.Logger, terragruntOptions.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, includeInCopy, excludeFromCopy); err != nil {
 		return nil, err
 	}
 
@@ -209,12 +214,16 @@ func updateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfi
 
 		for getterName, getterValue := range getter.Getters {
 			if getterName == "file" {
-				var includeInCopy []string
+				var includeInCopy, excludeFromCopy []string
+
 				if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.IncludeInCopy != nil {
 					includeInCopy = *terragruntConfig.Terraform.IncludeInCopy
 				}
+				if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExcludeFromCopy != nil {
+					includeInCopy = *terragruntConfig.Terraform.ExcludeFromCopy
+				}
 
-				client.Getters[getterName] = &FileCopyGetter{IncludeInCopy: includeInCopy, Logger: terragruntOptions.Logger}
+				client.Getters[getterName] = &FileCopyGetter{IncludeInCopy: includeInCopy, Logger: terragruntOptions.Logger, ExcludeFromCopy: excludeFromCopy}
 			} else {
 				client.Getters[getterName] = getterValue
 			}

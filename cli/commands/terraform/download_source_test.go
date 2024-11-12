@@ -494,6 +494,6 @@ func copyFolder(t *testing.T, src string, dest string) {
 	logger := log.New()
 	logger.SetOptions(log.WithOutput(io.Discard))
 
-	err := util.CopyFolderContents(logger, filepath.FromSlash(src), filepath.FromSlash(dest), ".terragrunt-test", nil)
+	err := util.CopyFolderContents(logger, filepath.FromSlash(src), filepath.FromSlash(dest), ".terragrunt-test", nil, nil)
 	require.NoError(t, err)
 }

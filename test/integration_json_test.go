@@ -434,6 +434,7 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 			"error_hook":               map[string]interface{}{},
 			"extra_arguments":          map[string]interface{}{},
 			"include_in_copy":          nil,
+			"exclude_from_copy":        nil,
 			"source":                   "../terraform",
 			"copy_terraform_lock_file": nil,
 		},

@@ -108,6 +108,10 @@ The `terraform` block supports the following arguments:
     can specify that in this list to ensure it gets copied over to the scratch copy
     (e.g., `include_in_copy = [".python-version"]`).
 
+- `exclude_from_copy` (attribute): A list of glob patterns (e.g., `["*.txt"]`) that should always be skipped when copying into the
+  OpenTofu/Terraform working directory. All examples valid for `include_in_copy` can be used here. 
+  When `include_in_copy` is provided, you can still provide `exclude_from_copy` to skip provided glob, or nested glob from `include_in_copy` 
+
 - `copy_terraform_lock_file` (attribute): In certain use cases, you don't want to check the terraform provider lock
   file into your source repository from your working directory as described in
   [Lock File Handling]({{site.baseurl}}/docs/features/lock-file-handling/). This attribute allows you to disable the copy

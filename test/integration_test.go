@@ -2113,6 +2113,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 		map[string]interface{}{
 			"source":                   "./delorean",
 			"include_in_copy":          []interface{}{"time_machine.*"},
+			"exclude_from_copy":        []interface{}{"excluded_time_machine.*"},
 			"copy_terraform_lock_file": true,
 			"extra_arguments": map[string]interface{}{
 				"var-files": map[string]interface{}{
@@ -2805,7 +2806,7 @@ func copyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
-	require.NoError(t, util.CopyFolderContents(createLogger(), environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", includeInCopy))
+	require.NoError(t, util.CopyFolderContents(createLogger(), environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", includeInCopy, nil))
 
 	return tmpDir
 }
