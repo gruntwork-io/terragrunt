@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,7 +13,7 @@ import (
 func TestStrictMode(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureEmptyState)
+	helpers.CleanupTerraformFolder(t, testFixtureEmptyState)
 
 	tc := []struct {
 		name           string
@@ -55,7 +56,7 @@ func TestStrictMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpEnvPath := copyEnvironment(t, testFixtureEmptyState)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEmptyState)
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureEmptyState)
 
 			args := "--terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir " + rootPath
@@ -67,7 +68,7 @@ func TestStrictMode(t *testing.T) {
 				args = " --strict-control " + control + " " + args
 			}
 
-			_, stderr, err := runTerragruntCommandWithOutput(t, "terragrunt plan-all "+args)
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan-all "+args)
 
 			if tt.expectedError != nil {
 				require.Error(t, err)
