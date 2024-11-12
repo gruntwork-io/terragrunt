@@ -1160,6 +1160,8 @@ When passed in, running `hclfmt` will print diff between original and modified f
 
 - [hclfmt](#hclfmt)
 
+When passed in, run `hclfmt` only on the specified file.
+
 ### terragrunt-hclfmt-stdin
 
 **CLI Arg**: `--terragrunt-hclfmt-stdin`<br/>
