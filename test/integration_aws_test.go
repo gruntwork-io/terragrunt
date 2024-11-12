@@ -826,7 +826,7 @@ func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
 	token := os.Getenv("CIRCLE_OIDC_TOKEN_V2")
 	assert.NotEmpty(t, token)
 
-	helpers.RunTerragrunt(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir "+tmpEnvPath+" --terragrunt-iam-role "+roleARN+" --terragrunt-assume-role-web-identity-token "+token)
+	helpers.RunTerragrunt(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-working-dir "+tmpEnvPath+" --terragrunt-iam-role "+roleARN+" --terragrunt-iam-web-identity-token "+token)
 }
 
 // Regression testing for https://github.com/gruntwork-io/terragrunt/issues/906
