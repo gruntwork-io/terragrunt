@@ -48,6 +48,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-iam-role](#terragrunt-iam-role)
   - [terragrunt-iam-assume-role-duration](#terragrunt-iam-assume-role-duration)
   - [terragrunt-iam-assume-role-session-name](#terragrunt-iam-assume-role-session-name)
+  - [terragrunt-iam-web-identity-token](#terragrunt-iam-web-identity-token)
   - [terragrunt-excludes-file](#terragrunt-excludes-file)
   - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
   - [terragrunt-include-dir](#terragrunt-include-dir)
@@ -983,6 +984,14 @@ Uses the specified duration as the session duration (in seconds) for the STS ses
 **Requires an argument**: `--terragrunt-iam-assume-role-session-name "terragrunt-iam-role-session-name"`<br/>
 
 Used as the session name for the STS session which assumes the role defined in `--terragrunt-iam-role`.
+
+### terragrunt-iam-web-identity-token
+
+**CLI Arg**: `--terragrunt-iam-web-identity-token`<br/>
+**Environment Variable**: `TERRAGRUNT_IAM_WEB_IDENTITY_TOKEN`<br/>
+**Requires an argument**: `--terragrunt-iam-web-identity-token [/path/to/web-identity-token | web-identity-token-value]`<br/>
+
+Used as the web identity token for assuming a role temporarily using the AWS Security Token Service (STS) with the [AssumeRoleWithWebIdentity](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html) API.
 
 ### terragrunt-excludes-file
 
