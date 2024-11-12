@@ -773,7 +773,10 @@ func TestAwsAssumeRoleWebIdentityEnv(t *testing.T) {
 
 	assumeRole := os.Getenv("AWS_TEST_OIDC_ROLE_ARN")
 	assert.NotEmpty(t, assumeRole)
-	token := os.Getenv("CIRCLE_OIDC_TOKEN_V2")
+
+	tokenName := "CIRCLE_OIDC_TOKEN_V2"
+
+	token := os.Getenv(tokenName)
 	assert.NotEmpty(t, token)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAssumeRoleWebIdentityEnv)
@@ -790,13 +793,13 @@ func TestAwsAssumeRoleWebIdentityEnv(t *testing.T) {
 		"__FILL_IN_BUCKET_NAME__":            s3BucketName,
 		"__FILL_IN_REGION__":                 helpers.TerraformRemoteStateS3Region,
 		"__FILL_IN_ASSUME_ROLE__":            assumeRole,
-		"__FILL_IN_IDENTITY_TOKEN_ENV_VAR__": token,
+		"__FILL_IN_IDENTITY_TOKEN_ENV_VAR__": tokenName,
 	})
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply  -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply  -auto-approve --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
