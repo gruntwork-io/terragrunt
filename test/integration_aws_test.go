@@ -1111,7 +1111,7 @@ func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
 	cleanupTerraformFolder(t, testFixtureAuthProviderCmd)
 	tmpEnvPath := copyEnvironment(t, testFixtureAuthProviderCmd)
 	oidcPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "oidc")
-	mockAuthCmd := filepath.Join(tmpEnvPath, oidcPath, "mock-auth-cmd.sh")
+	mockAuthCmd := filepath.Join(oidcPath, "mock-auth-cmd.sh")
 
 	runTerragrunt(t, fmt.Sprintf(`terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s`, oidcPath, mockAuthCmd))
 }
