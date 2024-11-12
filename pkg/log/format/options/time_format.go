@@ -104,7 +104,7 @@ func (val TimeFormatValue) Value(str string) string {
 	return str
 }
 
-func (val TimeFormatValue) Parse(str string) error {
+func (val *TimeFormatValue) Parse(str string) error {
 	val.value = timeFormatList.Value(str)
 
 	return nil

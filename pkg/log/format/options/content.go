@@ -9,7 +9,11 @@ type ContentOption struct {
 
 // Format implements `Option` interface.
 func (option *ContentOption) Format(_ *Data, str string) (string, error) {
-	return option.value.Get(), nil
+	if val := option.value.Get(); val != "" {
+		return val, nil
+	}
+
+	return str, nil
 }
 
 // Content creates the option that sets the content.

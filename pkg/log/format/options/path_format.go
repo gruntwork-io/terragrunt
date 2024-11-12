@@ -17,18 +17,18 @@ const PathFormatOptionName = "path"
 const (
 	NonePath PathFormatValue = iota
 	RelativePath
-	RelativeModulePath
-	ModulePath
+	ShortRelativePath
+	ShortPath
 	FilenamePath
 	DirectoryPath
 )
 
 var pathFormatList = NewMapValue(map[PathFormatValue]string{ //nolint:gochecknoglobals
-	RelativePath:       "relative",
-	RelativeModulePath: "relative-module",
-	ModulePath:         "module",
-	FilenamePath:       "filename",
-	DirectoryPath:      "dir",
+	RelativePath:      "relative",
+	ShortRelativePath: "short-relative",
+	ShortPath:         "short",
+	FilenamePath:      "filename",
+	DirectoryPath:     "dir",
 })
 
 type PathFormatValue byte
@@ -46,23 +46,23 @@ func (option *PathFormatOption) Format(data *Data, str string) (string, error) {
 		}
 
 		return data.RelativePather.ReplaceAbsPaths(str), nil
-	case RelativeModulePath:
+	case ShortRelativePath:
+		if str == data.BaseDir {
+			return "", nil
+		}
+
 		if data.RelativePather == nil {
 			break
 		}
 
 		str = data.RelativePather.ReplaceAbsPaths(str)
 
-		if str == log.CurDir {
-			return "", nil
-		}
-
 		if strings.HasPrefix(str, log.CurDirWithSeparator) {
 			return str[len(log.CurDirWithSeparator):], nil
 		}
 
 		return str, nil
-	case ModulePath:
+	case ShortPath:
 		if str == data.BaseDir {
 			return "", nil
 		}

@@ -10,11 +10,13 @@ import (
 // WithCommonOptions is a set of common options that are used in all placeholders.
 func WithCommonOptions(opts ...options.Option) options.Options {
 	return options.Options(append(opts,
+		options.Content(""),
 		options.Case(options.NoneCase),
 		options.Width(0),
 		options.Align(options.NoneAlign),
 		options.Prefix(""),
 		options.Suffix(""),
+		options.Escape(options.NoneEscape),
 		options.Color(options.NoneColor),
 	))
 }

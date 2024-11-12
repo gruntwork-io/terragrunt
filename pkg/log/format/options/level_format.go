@@ -4,15 +4,14 @@ package options
 const LevelFormatOptionName = "format"
 
 const (
-	LevelFormatTiny LevelFormatValue = iota
+	LevelFormatFull LevelFormatValue = iota
 	LevelFormatShort
-	LevelFormatFull
+	LevelFormatTiny
 )
 
 var levelFormatList = NewMapValue(map[LevelFormatValue]string{ //nolint:gochecknoglobals
 	LevelFormatTiny:  "tiny",
 	LevelFormatShort: "short",
-	LevelFormatFull:  "full",
 })
 
 type LevelFormatValue byte

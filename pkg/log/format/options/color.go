@@ -1,48 +1,44 @@
 package options
 
 import (
+	"strconv"
+	"strings"
+
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/mgutz/ansi"
 	"github.com/puzpuzpuz/xsync/v3"
+	"golang.org/x/exp/maps"
 )
 
 // ColorOptionName is the option name.
 const ColorOptionName = "color"
 
 const (
-	NoneColor ColorValue = iota
+	NoneColor ColorValue = iota + 255
 	DisableColor
 	RedColor
 	WhiteColor
 	YellowColor
 	GreenColor
+	BlueColor
 	CyanColor
 	BlueHColor
 	BlackHColor
+	MagentaColor
 	AutoColor
 	GradientColor
-
-	Color66
-	Color67
-	Color95
-	Color96
-	Color102
-	Color103
-	Color108
-	Color109
-	Color138
-	Color139
-	Color144
-	Color145
 )
 
 var (
-	colorList = NewMapValue(map[ColorValue]string{ //nolint:gochecknoglobals
+	colorList = NewColorList(map[ColorValue]string{ //nolint:gochecknoglobals
 		RedColor:      "red",
 		WhiteColor:    "white",
 		YellowColor:   "yellow",
 		GreenColor:    "green",
 		CyanColor:     "cyan",
+		MagentaColor:  "magenta",
+		BlueColor:     "blue",
 		BlueHColor:    "light-blue",
 		BlackHColor:   "light-black",
 		AutoColor:     "auto",
@@ -51,28 +47,45 @@ var (
 	})
 
 	colorScheme = ColorScheme{ //nolint:gochecknoglobals
-		RedColor:    "red",
-		WhiteColor:  "white",
-		YellowColor: "yellow",
-		GreenColor:  "green",
-		CyanColor:   "cyan",
-		BlueHColor:  "blue+h",
-		BlackHColor: "black+h",
-
-		Color66:  "66",
-		Color67:  "67",
-		Color95:  "95",
-		Color96:  "96",
-		Color102: "102",
-		Color103: "103",
-		Color108: "108",
-		Color109: "109",
-		Color138: "138",
-		Color139: "139",
-		Color144: "144",
-		Color145: "145",
+		RedColor:     "red",
+		WhiteColor:   "white",
+		YellowColor:  "yellow",
+		GreenColor:   "green",
+		CyanColor:    "cyan",
+		BlueColor:    "blue",
+		BlueHColor:   "blue+h",
+		BlackHColor:  "black+h",
+		MagentaColor: "magenta",
 	}
 )
+
+type ColorList struct {
+	MapValue[ColorValue]
+}
+
+func NewColorList(list map[ColorValue]string) ColorList {
+	return ColorList{
+		MapValue: NewMapValue(list),
+	}
+}
+
+func (val *ColorList) Set(v ColorValue) *ColorList {
+	return &ColorList{MapValue: *val.MapValue.Set(v)}
+}
+
+func (val *ColorList) Parse(str string) error {
+	if num, err := strconv.Atoi(str); err == nil && num >= 0 && num <= 255 {
+		val.value = ColorValue(byte(num))
+
+		return nil
+	}
+
+	if err := val.MapValue.Parse(str); err != nil {
+		return errors.Errorf("available values: 0..255,%s", strings.Join(maps.Values(val.list), ","))
+	}
+
+	return nil
+}
 
 type ColorScheme map[ColorValue]ColorStyle
 
@@ -81,6 +94,12 @@ func (scheme ColorScheme) Compile() compiledColorScheme {
 
 	for name, val := range scheme {
 		compiled[name] = val.ColorFunc()
+	}
+
+	for i := range 255 {
+		s := strconv.Itoa(i)
+
+		compiled[ColorValue(i)] = ColorStyle(s).ColorFunc()
 	}
 
 	return compiled
@@ -94,7 +113,7 @@ func (val ColorStyle) ColorFunc() ColorFunc {
 
 type ColorFunc func(string) string
 
-type ColorValue byte
+type ColorValue int
 
 type compiledColorScheme map[ColorValue]ColorFunc
 
@@ -107,6 +126,10 @@ type ColorOption struct {
 // Format implements `Option` interface.
 func (color *ColorOption) Format(data *Data, str string) (string, error) {
 	value := color.value.Get()
+
+	if value == NoneColor {
+		return str, nil
+	}
 
 	if value == DisableColor || data.DisableColors {
 		return log.RemoveAllASCISeq(str), nil
@@ -141,18 +164,18 @@ var (
 	// https://user-images.githubusercontent.com/995050/47952855-ecb12480-df75-11e8-89d4-ac26c50e80b9.png
 	// https://www.hackitu.de/termcolor256/
 	defaultAutoColorValues = []ColorValue{ //nolint:gochecknoglobals
-		Color66,
-		Color67,
-		Color95,
-		Color96,
-		Color102,
-		Color103,
-		Color108,
-		Color109,
-		Color138,
-		Color139,
-		Color144,
-		Color145,
+		66,
+		67,
+		95,
+		96,
+		102,
+		103,
+		108,
+		109,
+		138,
+		139,
+		144,
+		145,
 	}
 )
 

@@ -99,6 +99,11 @@ func Parse(str string) (Placeholders, error) {
 		}
 	}
 
+	if next != len(str) {
+		placeholder := PlainText(str[next:])
+		placeholders = append(placeholders, placeholder)
+	}
+
 	return placeholders, nil
 }
 
@@ -108,7 +113,7 @@ func newPlaceholders() Placeholders {
 		Time(),
 		Level(),
 		Message(),
-		Field(WorkDirKeyName, options.PathFormat(options.NonePath, options.RelativePath, options.RelativeModulePath, options.ModulePath)),
+		Field(WorkDirKeyName, options.PathFormat(options.NonePath, options.RelativePath, options.ShortRelativePath, options.ShortPath)),
 		Field(TFPathKeyName, options.PathFormat(options.NonePath, options.FilenamePath, options.DirectoryPath)),
 	}
 }
