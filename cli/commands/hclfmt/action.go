@@ -4,8 +4,10 @@
 package hclfmt
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,6 +29,15 @@ import (
 func Run(opts *options.TerragruntOptions) error {
 	workingDir := opts.WorkingDir
 	targetFile := opts.HclFile
+	stdIn := opts.HclFromStdin
+
+	if stdIn {
+		if targetFile != "" {
+			return errors.Errorf("both stdin and path flags are specified")
+		}
+
+		return formatFromStdin(opts)
+	}
 
 	// handle when option specifies a particular file
 	if targetFile != "" {
@@ -78,6 +89,40 @@ func Run(opts *options.TerragruntOptions) error {
 	}
 
 	return formatErrors.ErrorOrNil()
+}
+
+func formatFromStdin(opts *options.TerragruntOptions) error {
+	contents, err := io.ReadAll(os.Stdin)
+
+	if err != nil {
+		opts.Logger.Errorf("Error reading from stdin: %s", err)
+
+		return fmt.Errorf("error reading from stdin: %w", err)
+	}
+
+	if err = checkErrors(opts.Logger, opts.DisableLogColors, contents, "stdin"); err != nil {
+		opts.Logger.Errorf("Error parsing hcl from stdin")
+
+		return fmt.Errorf("error parsing hcl from stdin: %w", err)
+	}
+
+	newContents := hclwrite.Format(contents)
+
+	buf := bufio.NewWriter(opts.Writer)
+
+	if _, err = buf.Write(newContents); err != nil {
+		opts.Logger.Errorf("Failed to write to stdout")
+
+		return fmt.Errorf("failed to write to stdout: %w", err)
+	}
+
+	if err = buf.Flush(); err != nil {
+		opts.Logger.Errorf("Failed to flush to stdout")
+
+		return fmt.Errorf("failed to flush to stdout: %w", err)
+	}
+
+	return nil
 }
 
 // formatTgHCL uses the hcl2 library to format the hcl file. This will attempt to parse the HCL file first to
