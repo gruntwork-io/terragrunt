@@ -780,9 +780,9 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 	role := os.Getenv("AWS_TEST_OIDC_ROLE_ARN")
-	assert.NotEmpty(t, role)
+	require.NotEmpty(t, role)
 	token := os.Getenv("CIRCLE_OIDC_TOKEN_V2")
-	assert.NotEmpty(t, token)
+	require.NotEmpty(t, token)
 
 	tokenFile := t.TempDir() + "/oidc-token"
 	require.NoError(t, os.WriteFile(tokenFile, []byte(token), 0400))
@@ -818,15 +818,20 @@ func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
 	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEmptyState)
-	cleanupTerraformFolder(t, tmpEnvPath)
+	tmp := t.TempDir()
+
+	emptyTerragruntConfigPath := filepath.Join(tmp, "terragrunt.hcl")
+	require.NoError(t, os.WriteFile(emptyTerragruntConfigPath, []byte(""), 0400))
+
+	emptyMainTFPath := filepath.Join(tmp, "main.tf")
+	require.NoError(t, os.WriteFile(emptyMainTFPath, []byte(""), 0400))
 
 	roleARN := os.Getenv("AWS_TEST_OIDC_ROLE_ARN")
-	assert.NotEmpty(t, roleARN)
+	require.NotEmpty(t, roleARN)
 	token := os.Getenv("CIRCLE_OIDC_TOKEN_V2")
-	assert.NotEmpty(t, token)
+	require.NotEmpty(t, token)
 
-	helpers.RunTerragrunt(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+tmpEnvPath+" --terragrunt-iam-role '"+roleARN+"' --terragrunt-iam-web-identity-token '"+token+"'")
+	helpers.RunTerragrunt(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+tmp+" --terragrunt-iam-role "+roleARN+" --terragrunt-iam-web-identity-token "+token)
 }
 
 // Regression testing for https://github.com/gruntwork-io/terragrunt/issues/906
