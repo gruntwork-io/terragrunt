@@ -14,12 +14,9 @@ nav_title_link: /docs/
 
 Using this `--terragrunt-log-custom-format <format>` flag you can specify which information you want to output.
 
-
 ### Placeholders
 
-
 The format string consists of placeholders and text. Placeholders start with the `%` sign. The simplest example:
-
 
 ```shell
 --terragrunt-log-custom-format "%time %level %msg"
@@ -59,7 +56,6 @@ Placeholders have preset names:
 
 Any other text is considered as plain text, for example:
 
-
 ```shell
 --terragrunt-log-custom-format "time=%time level=%level message=%msg"
 ```
@@ -86,7 +82,6 @@ Output:
 
 Even if you don't pass options, the empty brackets are added implicitly. Thus `%time` equals `%time()`. If you need to add brackets as plain text after a placeholder with no options and without space, you need to explicitly specify empty brackets first, otherwise, they will be treated as invalid options.
 
-
 ```shell
 --terragrunt-log-custom-format "%level()(%time()(%msg))"
 ```
@@ -99,7 +94,6 @@ debug(12:15:48.355(Running command: tofu --version))
 
 You can format plain text as well by using an unnamed placeholder.
 
-
 ```shell
 --terragrunt-log-custom-format "%(content='time=',color=magenta)%time %(content='level=',color=light-blue)%level %(content='msg=',color=green)%msg"
 ```
@@ -111,7 +105,6 @@ time=12:33:08.513 level=debug msg=Running command: tofu --version
 ```
 
 *Unfortunately, it is not possible to display color in a Markdown document, but in the above output, `time=` is colored magenta, `level=` is colored light blue and `msg=` is colored green.*
-
 
 ### Options
 
