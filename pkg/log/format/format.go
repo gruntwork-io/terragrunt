@@ -42,13 +42,13 @@ func NewPrettyFormat() Placeholders {
 	return Placeholders{
 		Time(
 			TimeFormat(fmt.Sprintf("%s:%s:%s%s", Hour24Zero, MinZero, SecZero, MilliSec)),
-			Color(BlackHColor),
+			Color(LightBlackColor),
 		),
 		PlainText(" "),
 		Level(
 			Width(6), //nolint:mnd
 			Case(UpperCase),
-			Color(AutoColor),
+			Color(PresetColor),
 		),
 		PlainText(" "),
 		Field(WorkDirKeyName,

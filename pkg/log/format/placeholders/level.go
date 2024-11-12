@@ -13,7 +13,7 @@ var levlAutoColorFunc = func(level log.Level) options.ColorValue {
 	case log.TraceLevel:
 		return options.WhiteColor
 	case log.DebugLevel:
-		return options.BlueHColor
+		return options.LightBlueColor
 	case log.InfoLevel:
 		return options.GreenColor
 	case log.WarnLevel:
@@ -36,7 +36,7 @@ type level struct {
 // Format implements `Placeholder` interface.
 func (level *level) Format(data *options.Data) (string, error) {
 	newData := *data
-	newData.AutoColorFn = func() options.ColorValue {
+	newData.PresetColorFn = func() options.ColorValue {
 		return levlAutoColorFunc(data.Level)
 	}
 

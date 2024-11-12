@@ -120,13 +120,23 @@ Common options:
 
 * `align=[left|center|right]` - Aligns content relative to the edges of the column, used in conjunction with `width`.
 
-* `prefix=<text>` - Appends a content prefix.
+* `prefix=<text>` - Prepends the prefix to the content. If the content of the placeholder is empty, the prefix will not be prepended.
 
-* `suffix=<text>`- Prepends a content suffix.
+* `suffix=<text>`-  Appends the suffix to the content. If the content of the placeholder is empty, the suffix will not be appended.
 
 * `escape=[json]` - Escapes content for use as a value in a JSON string.
 
 * `color=[red|white|yellow|green|cayn|magenta|blue|...]` - Sets the color for the content.
+
+  * `1..255` - Specifies a color using a [number](https://www.hackitu.de/termcolor256/), 1 to 255
+
+  * `red|white|yellow|green|cyan|magenta|blue|light-blue|light-black|light-red|light-green|light-yellow|light-magenta|light-cyan|light-white` - Specifies a color using a word
+
+  * `gradient` - Specifies to use a new color each time the placeholder contents change.
+
+  * `preset` - Specifies to use preset colors. For example, each log level name has its own preset color.
+
+  * `disable` - Disables color, also removes colors set in terraform/tofu output.
 
 Specific options for placeholders:
 
@@ -219,3 +229,31 @@ Specific options for placeholders:
   * `path=[relative]`
 
     * `relative` - Converts all absolute paths to relative ones to the working directory.
+
+### Examples
+
+The examples below replicate the formats specified with `--terragrunt-log-format`. They can be useful if you need to change existing formats to suit your needs.
+
+`--terragrunt-log-format pretty`
+
+```shell
+--terragrunt-log-custom-format "%time(color=light-black) %level(case=upper,width=6,color=preset) %prefix(path=short-relative,color=gradient,suffix=' ')%tfpath(color=cyan,suffix=': ')%msg(path=relative)"
+```
+
+`--terragrunt-log-format bare`
+
+```shell
+--terragrunt-log-custom-format "%level(case=upper,width=4)[%interval] %msg %prefix(path=short,prefix='prefix=')"
+```
+
+`--terragrunt-log-format key-value`
+
+```shell
+--terragrunt-log-custom-format "time=%time(format=rfc3339) level=%level prefix=%prefix(path=short-relative) tfpath=%tfpath(path=filename) msg=%msg(path=relative,color=disable)"
+```
+
+`--terragrunt-log-format json`
+
+```shell
+--terragrunt-log-custom-format '{"time":"%time(format=rfc3339,escape=json)", "level":"%level(escape=json)", "prefix":"%prefix(path=short-relative,escape=json)", "tfpath":"%tfpath(path=filename,escape=json)", "msg":"%msg(path=relative,escape=json,color=disable)"}'
+```

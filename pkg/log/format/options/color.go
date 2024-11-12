@@ -17,45 +17,70 @@ const ColorOptionName = "color"
 const (
 	NoneColor ColorValue = iota + 255
 	DisableColor
+	GradientColor
+	PresetColor
+
+	BlackColor
 	RedColor
 	WhiteColor
 	YellowColor
 	GreenColor
 	BlueColor
 	CyanColor
-	BlueHColor
-	BlackHColor
 	MagentaColor
-	AutoColor
-	GradientColor
+
+	LightBlueColor
+	LightBlackColor
+	LightRedColor
+	LightGreenColor
+	LightYellowColor
+	LightMagentaColor
+	LightCyanColor
+	LightWhiteColor
 )
 
 var (
 	colorList = NewColorList(map[ColorValue]string{ //nolint:gochecknoglobals
-		RedColor:      "red",
-		WhiteColor:    "white",
-		YellowColor:   "yellow",
-		GreenColor:    "green",
-		CyanColor:     "cyan",
-		MagentaColor:  "magenta",
-		BlueColor:     "blue",
-		BlueHColor:    "light-blue",
-		BlackHColor:   "light-black",
-		AutoColor:     "auto",
+		PresetColor:   "preset",
 		GradientColor: "gradient",
 		DisableColor:  "disable",
-	})
 
-	colorScheme = ColorScheme{ //nolint:gochecknoglobals
+		BlackColor:   "black",
 		RedColor:     "red",
 		WhiteColor:   "white",
 		YellowColor:  "yellow",
 		GreenColor:   "green",
 		CyanColor:    "cyan",
-		BlueColor:    "blue",
-		BlueHColor:   "blue+h",
-		BlackHColor:  "black+h",
 		MagentaColor: "magenta",
+		BlueColor:    "blue",
+
+		LightBlueColor:    "light-blue",
+		LightBlackColor:   "light-black",
+		LightRedColor:     "light-red",
+		LightGreenColor:   "light-green",
+		LightYellowColor:  "light-yellow",
+		LightMagentaColor: "light-magenta",
+		LightCyanColor:    "light-cyan",
+		LightWhiteColor:   "light-white",
+	})
+
+	colorScheme = ColorScheme{ //nolint:gochecknoglobals
+		BlackColor:        "black",
+		RedColor:          "red",
+		WhiteColor:        "white",
+		YellowColor:       "yellow",
+		GreenColor:        "green",
+		CyanColor:         "cyan",
+		BlueColor:         "blue",
+		MagentaColor:      "magenta",
+		LightBlueColor:    "blue+h",
+		LightBlackColor:   "black+h",
+		LightRedColor:     "red+h",
+		LightGreenColor:   "green+h",
+		LightYellowColor:  "yellow+h",
+		LightMagentaColor: "magenta+h",
+		LightCyanColor:    "cyan+h",
+		LightWhiteColor:   "white+h",
 	}
 )
 
@@ -135,8 +160,8 @@ func (color *ColorOption) Format(data *Data, str string) (string, error) {
 		return log.RemoveAllASCISeq(str), nil
 	}
 
-	if value == AutoColor && data.AutoColorFn != nil {
-		value = data.AutoColorFn()
+	if value == PresetColor && data.PresetColorFn != nil {
+		value = data.PresetColorFn()
 	}
 
 	if value == GradientColor && color.gradientColor != nil {

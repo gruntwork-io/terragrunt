@@ -31,7 +31,7 @@ type Data struct {
 	BaseDir        string
 	DisableColors  bool
 	RelativePather *RelativePather
-	AutoColorFn    func() ColorValue
+	PresetColorFn  func() ColorValue
 }
 
 // Options is a set of Options.
