@@ -1101,6 +1101,21 @@ func TestAwsReadTerragruntAuthProviderCmdWithSops(t *testing.T) {
 	assert.Equal(t, "Welcome to SOPS! Edit this file as you please!", outputs["hello"].Value)
 }
 
+func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
+	t.Parallel()
+
+	if os.Getenv("CIRCLECI") != "true" {
+		t.Skip("Skipping test because it requires valid CircleCI OIDC credentials to work")
+	}
+
+	cleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	tmpEnvPath := copyEnvironment(t, testFixtureAuthProviderCmd)
+	oidcPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "oidc")
+	mockAuthCmd := filepath.Join(tmpEnvPath, oidcPath, "mock-auth-cmd.sh")
+
+	runTerragrunt(t, fmt.Sprintf(`terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s`, oidcPath, mockAuthCmd))
+}
+
 func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
 	t.Parallel()
 

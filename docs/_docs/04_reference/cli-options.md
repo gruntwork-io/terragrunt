@@ -1471,6 +1471,12 @@ The output must be valid JSON of the following schema:
     "SECRET_ACCESS_KEY": "",
     "SESSION_TOKEN": ""
   },
+  "awsRole": {
+    "roleARN": "",
+    "sessionName": "",
+    "duration": 0,
+    "webIdentityToken": ""
+  },
   "envs": {
     "ANY_KEY": ""
   }
@@ -1495,7 +1501,11 @@ Note that more specific configurations (e.g. `awsCredentials`) take precedence o
 
 If you would like to set credentials for AWS with this method, you are encouraged to use `awsCredentials` instead of `envs`, as these keys will be validated to conform to the officially supported environment variables expected by the AWS SDK.
 
+Similarly, if you would like Terragrunt to assume an AWS role on your behalf, you are encouraged to use the `awsRole` configuration instead of `envs`.
+
 Other credential configurations will be supported in the future, but until then, if your provider authenticates via environment variables, you can use the `envs` field to fetch credentials dynamically from a secret store, etc before Terragrunt executes any IAC.
+
+**Note**: The `awsRole` configuration is only used when the `awsCredentials` configuration is not present. If both are present, the `awsCredentials` configuration will take precedence.
 
 ### terragrunt-disable-log-formatting
 
