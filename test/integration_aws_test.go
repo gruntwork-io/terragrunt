@@ -760,11 +760,16 @@ func TestAwsAssumeRoleDuration(t *testing.T) {
 }
 
 func TestAwsAssumeRoleWebIdentityEnv(t *testing.T) {
-	t.Parallel()
-
 	if os.Getenv("CIRCLECI") != "true" {
 		t.Skip("Skipping test because it requires valid CircleCI OIDC credentials to work")
 	}
+
+	// These tests need to be run without the static key + secret
+	// used by most AWS tests here.
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	os.Unsetenv("AWS_ACCESS_KEY_ID")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
 
 	assumeRole := os.Getenv("AWS_TEST_OIDC_ROLE_ARN")
 	assert.NotEmpty(t, assumeRole)
@@ -799,11 +804,16 @@ func TestAwsAssumeRoleWebIdentityEnv(t *testing.T) {
 }
 
 func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
-	t.Parallel()
-
 	if os.Getenv("CIRCLECI") != "true" {
 		t.Skip("Skipping test because it requires valid CircleCI OIDC credentials to work")
 	}
+
+	// These tests need to be run without the static key + secret
+	// used by most AWS tests here.
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	os.Unsetenv("AWS_ACCESS_KEY_ID")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAssumeRoleWebIdentityFile)
 	cleanupTerraformFolder(t, tmpEnvPath)
@@ -841,11 +851,16 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 }
 
 func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
-	t.Parallel()
-
 	if os.Getenv("CIRCLECI") != "true" {
 		t.Skip("Skipping test because it requires valid CircleCI OIDC credentials to work")
 	}
+
+	// These tests need to be run without the static key + secret
+	// used by most AWS tests here.
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	os.Unsetenv("AWS_ACCESS_KEY_ID")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEmptyState)
 	cleanupTerraformFolder(t, tmpEnvPath)
