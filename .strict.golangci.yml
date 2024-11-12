@@ -53,6 +53,11 @@ linters-settings:
       - performance
     disabled-tags:
       - experimental
+  varnamelen:
+    ignore-names:
+      # Standard testing variable names.
+      - tt
+      - tc
 
 linters:
   enable:
