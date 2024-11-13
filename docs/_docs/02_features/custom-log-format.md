@@ -126,20 +126,6 @@ Output:
 12:33:08.513(plain-text)
 ```
 
-If you need to add parenthesis as plain text immediately after a placeholder without space, you need to explicitly specify empty parenthesis, otherwise, they will be treated as invalid options.
-
-e.g.
-
-```shell
---terragrunt-log-custom-format "%level()(%time()(%msg))"
-```
-
-Output:
-
-```shell
-debug(12:15:48.355(Running command: tofu --version))
-```
-
 You can format plain text as well by using an unnamed placeholder.
 
 e.g.
