@@ -3020,12 +3020,12 @@ func TestHclFmtStdin(t *testing.T) {
 	t.Parallel()
 
 	cleanupTerraformFolder(t, testFixtureHclfmtStdin)
-	tmpEnvPath := copyEnvironment(t, testFixtureHclfmtStdin)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclfmtStdin)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureHclfmtStdin)
 
 	os.Stdin, _ = os.Open(util.JoinPath(rootPath, "terragrunt.hcl"))
 
-	stdout, _, err := runTerragruntCommandWithOutput(t, "terragrunt hclfmt --terragrunt-hclfmt-stdin")
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt hclfmt --terragrunt-hclfmt-stdin")
 	require.NoError(t, err)
 
 	expectedDiff, err := os.ReadFile(util.JoinPath(rootPath, "expected.hcl"))

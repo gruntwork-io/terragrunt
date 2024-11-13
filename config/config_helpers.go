@@ -1082,6 +1082,12 @@ func markAsRead(ctx *ParsingContext, args []string) (string, error) {
 	return file, nil
 }
 
+// warnWhenFileNotMarkedAsRead warns when a file is not being marked as read, even though a user might expect it to be.
+// Situations where this is the case include:
+// - A user specifies a file in the UnitsReading flag and that file is being read while parsing the inputs attribute.
+//
+// When the file is not marked as read, the function will return true, otherwise false.
+
 // ParseAndDecodeVarFile uses the HCL2 file to parse the given varfile string into an HCL file body, and then decode it
 // into the provided output.
 func ParseAndDecodeVarFile(opts *options.TerragruntOptions, varFile string, fileContents []byte, out interface{}) error {

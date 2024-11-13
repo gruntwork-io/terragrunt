@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -128,7 +129,7 @@ func TestUnitsReading(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpEnvPath := copyEnvironment(t, testFixtureUnitsReading)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureUnitsReading)
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureUnitsReading)
 
 			cmd := "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir " + rootPath
@@ -145,7 +146,7 @@ func TestUnitsReading(t *testing.T) {
 				cmd = cmd + " --terragrunt-exclude-dir " + unit
 			}
 
-			_, stderr, err := runTerragruntCommandWithOutput(t, cmd)
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
 			require.NoError(t, err)
 
 			includedUnits := []string{}
