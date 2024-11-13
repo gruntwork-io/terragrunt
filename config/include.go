@@ -266,6 +266,10 @@ func (cfg *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terragruntOpt
 		cfg.Skip = sourceConfig.Skip
 	}
 
+	if sourceConfig.Exclude != nil {
+		cfg.Exclude = sourceConfig.Exclude.Clone()
+	}
+
 	if sourceConfig.RemoteState != nil {
 		cfg.RemoteState = sourceConfig.RemoteState
 	}
@@ -388,6 +392,14 @@ func (cfg *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, terragrun
 		}
 
 		cfg.Engine.Merge(sourceConfig.Engine)
+	}
+
+	if sourceConfig.Exclude != nil {
+		if cfg.Exclude == nil {
+			cfg.Exclude = &ExcludeConfig{}
+		}
+
+		cfg.Exclude.Merge(sourceConfig.Exclude)
 	}
 
 	if sourceConfig.Skip != nil {

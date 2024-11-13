@@ -15,3 +15,12 @@ func (e *ExcludeConfig) Clone() *ExcludeConfig {
 		ExcludeDependencies: e.ExcludeDependencies,
 	}
 }
+
+func (e *ExcludeConfig) Merge(exclude *ExcludeConfig) {
+	// copy not empty fields
+	e.If = exclude.If
+	if len(exclude.Actions) > 0 {
+		e.Actions = exclude.Actions
+	}
+	e.ExcludeDependencies = exclude.ExcludeDependencies
+}
