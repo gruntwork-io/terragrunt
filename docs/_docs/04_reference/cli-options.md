@@ -1120,7 +1120,7 @@ Where the first two control the logging of Terraform/OpenTofu output.
 There are four log format presets:
 
 - `pretty` (this is the default)
-- `bare` (old Terragrunt log)
+- `bare` (old Terragrunt logging, pre-[v0.67.0](https://github.com/gruntwork-io/terragrunt/tree/v0.67.0))
 - `json`
 - `key-value`
 

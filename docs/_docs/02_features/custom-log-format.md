@@ -16,7 +16,9 @@ Using this `--terragrunt-log-custom-format <format>` flag you can specify which 
 
 ### Placeholders
 
-The format string consists of placeholders and text. Placeholders start with the `%` sign. The simplest example:
+The format string consists of placeholders and text. Placeholders start with the `%` sign.
+
+e.g.
 
 ```shell
 --terragrunt-log-custom-format "%time %level %msg"
@@ -28,7 +30,9 @@ Output:
 10:09:19.809 debug Running command: tofu --version
 ```
 
-The double sign `%%` displays the percent sign as plain text.
+To escape the `%` character, use `%%`.
+
+e.g.
 
 ```shell
 --terragrunt-log-custom-format "%time %level %%msg"
@@ -44,17 +48,19 @@ Placeholders have preset names:
 
 * `%time` - Current time.
 
-* `%interval` - Seconds has passed since Terragrunt started.
+* `%interval` - Seconds elapsed since Terragrunt started.
 
 * `%level` - Log level.
 
-* `%prefix` - Path to working directory.
+* `%prefix` - Path to the working directory were Terragrunt is running.
 
-* `%tfpath` - Path to TF executable file.
+* `%tfpath` - Path to the OpenTofu/Terraform executable (as defined by [terragrunt-tfpath](https://terragrunt.gruntwork.io/docs/reference/cli-options/#terragrunt-tfpath)).
 
 * `%msg` - Log message.
 
-Any other text is considered as plain text, for example:
+Any other text is considered plain text.
+
+e.g.
 
 ```shell
 --terragrunt-log-custom-format "time=%time level=%level message=%msg"
@@ -66,9 +72,13 @@ Output:
 time=00:10:44.716 level=debug message=Running command: tofu --version
 ```
 
-A placeholder is just a value, to format this value you need to pass options to the placeholder. It has the following syntax:
+Using the placeholder as shown above will display the value simply. If you would like to format the value, you can pass options to the placeholder.
+
+Placeholder formatting uses the following syntax:
 
 `%placeholder-name(option-name=option-value, option-name=option-value,...)`
+
+e.g.
 
 ```shell
 --terragrunt-log-custom-format "%time(format='Y-m-d H:i:sv') %level(format=short,case=upper) %msg"
@@ -80,7 +90,9 @@ Output:
 2024-11-12 11:52:20.214 DEB Running command: tofu --version
 ```
 
-Even if you don't pass options, the empty brackets are added implicitly. Thus `%time` equals `%time()`. If you need to add brackets as plain text after a placeholder with no options and without space, you need to explicitly specify empty brackets first, otherwise, they will be treated as invalid options.
+In this example, the timestamp (as referenced by the `%time` placeholder) has been formatted with the `format` string `Y-m-d H:i:sv`. Similarly, the log level (as referenced by the `%level` placeholder), has been formatted to use the `short` `format`, and `upper` `case`.
+
+Even if you don't pass options, the empty parenthesis are added implicitly. Thus `%time` is equivalent to `%time()`.  If you need to add parenthesis as plain text immediately after a placeholder without space, you need to explicitly specify empty parenthesis, otherwise, they will be treated as invalid options.
 
 ```shell
 --terragrunt-log-custom-format "%level()(%time()(%msg))"
@@ -142,7 +154,7 @@ Specific options for placeholders:
 
 * `%level`
 
-  * `format=[tiny|short]` - Shortens the log level names `stdout`, `stderr`, `error`, `warn`, `info`, `debug`, `trcace`  to 1 and 3 characters.
+  * `format=[tiny|short]` - Specifies the format for log level names `stdout`, `stderr`, `error`, `warn`, `info`, `debug`, `trace`.
 
     * `tiny` - `std`, `err`, `wrn`, `inf`, `deb`, `trc`
 
@@ -152,9 +164,9 @@ Specific options for placeholders:
 
   * `format=<time-format>` - Sets the time format.
 
-    Persets formats:
+    Preset formats:
 
-    * `date-time` - Example: 2006-01-02 15:04:05
+    * `date-time` - e.g. `2006-01-02 15:04:05`
 
     * `date-only` - Example: 2006-01-02
 
@@ -164,7 +176,7 @@ Specific options for placeholders:
 
     * `rfc3339-nano` - Example: 2006-01-02T15:04:05.999999999Z07:00
 
-    Characters formats:
+    Custom format string characters:
 
     * `H` - 24-hour format of an hour with leading zeros, 00 to 23
 
@@ -172,11 +184,11 @@ Specific options for placeholders:
 
     * `g` - 12-hour format of an hour without leading zeros, 1 to 12
 
-    * `i` - Minutes with leading zeros, 00 to 59
+    * `i` - Minutes with leading zeros, `00` to `59`
 
-    * `s` - Seconds with leading zeros, 00 to 59
+    * `s` - Seconds with leading zeros, `00` to `59`
 
-    * `v` - Milliseconds, example: .654
+    * `v` - Milliseconds. e.g. `.654`
 
     * `u` - Microseconds, example: .654321
 
@@ -214,25 +226,25 @@ Specific options for placeholders:
 
     * `short-relative` - Outputs a relative path to the working directory, trims the leading slash `./` and hides the working directory path `.`
 
-    * `short` - Outputs a abosolute path, but hides the working directory path.
+    * `short` - Outputs an absolute path, but hides the working directory path.
 
 * `%tfpath`
 
   * `path=[filename|dir]`
 
-    * `filename` - Outputs the name of the executable file.
+    * `filename` - Outputs the name of the executable.
 
-    * `dir` - Outputs the directory name of the executable file.
+    * `dir` - Outputs the directory name of the executable.
 
 * `%msg`
 
   * `path=[relative]`
 
-    * `relative` - Converts all absolute paths to relative ones to the working directory.
+    * `relative` - Converts all absolute paths to paths relative to the working directory.
 
 ### Examples
 
-The examples below replicate the formats specified with `--terragrunt-log-format`. They can be useful if you need to change existing formats to suit your needs.
+The examples below replicate the preset formats specified with `--terragrunt-log-format`. They can be useful if you need to change existing formats to suit your needs.
 
 `--terragrunt-log-format pretty`
 
