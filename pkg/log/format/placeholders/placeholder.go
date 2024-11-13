@@ -2,6 +2,7 @@
 package placeholders
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -149,6 +150,14 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 		if placeholder == nil {
 			if !isPlaceholderNameCharacter(char) {
 				str = str[next:index]
+
+				switch str[0] {
+				case 't':
+					return PlainText(fmt.Sprintf("\t")), next, nil
+				case 'n':
+					return PlainText(fmt.Sprintf("\n")), next, nil
+				}
+
 				break
 			}
 

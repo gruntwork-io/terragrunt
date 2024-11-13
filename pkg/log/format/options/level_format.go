@@ -12,6 +12,7 @@ const (
 var levelFormatList = NewMapValue(map[LevelFormatValue]string{ //nolint:gochecknoglobals
 	LevelFormatTiny:  "tiny",
 	LevelFormatShort: "short",
+	LevelFormatFull:  "full",
 })
 
 type LevelFormatValue byte

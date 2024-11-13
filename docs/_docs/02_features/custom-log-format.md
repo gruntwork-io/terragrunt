@@ -58,6 +58,10 @@ Placeholders have preset names:
 
 * `%msg` - Log message.
 
+* `%t` - Tab.
+
+* `%n` - Newline.
+
 Any other text is considered plain text.
 
 e.g.
@@ -94,6 +98,8 @@ In this example, the timestamp (as referenced by the `%time` placeholder) has be
 
 Even if you don't pass options, the empty parenthesis are added implicitly. Thus `%time` is equivalent to `%time()`.  If you need to add parenthesis as plain text immediately after a placeholder without space, you need to explicitly specify empty parenthesis, otherwise, they will be treated as invalid options.
 
+e.g.
+
 ```shell
 --terragrunt-log-custom-format "%level()(%time()(%msg))"
 ```
@@ -106,6 +112,8 @@ debug(12:15:48.355(Running command: tofu --version))
 
 You can format plain text as well by using an unnamed placeholder.
 
+e.g.
+
 ```shell
 --terragrunt-log-custom-format "%(content='time=',color=magenta)%time %(content='level=',color=light-blue)%level %(content='msg=',color=green)%msg"
 ```
@@ -117,6 +125,8 @@ time=12:33:08.513 level=debug msg=Running command: tofu --version
 ```
 
 *Unfortunately, it is not possible to display color in a Markdown document, but in the above output, `time=` is colored magenta, `level=` is colored light blue and `msg=` is colored green.*
+
+[![screenshot](/assets/img/screenshots/custom-log-format-1.jpg){: width="50%" }](https://terragrunt.gruntwork.io/assets/img/screenshots/custom-log-format-1.jpg)
 
 ### Options
 
@@ -144,7 +154,7 @@ Common options:
 
   * `red|white|yellow|green|cyan|magenta|blue|light-blue|light-black|light-red|light-green|light-yellow|light-magenta|light-cyan|light-white` - Specifies a color using a word
 
-  * `gradient` - Specifies to use a new color each time the placeholder contents change.
+  * `gradient` - Specifies to use a different color each time the placeholder content changes.
 
   * `preset` - Specifies to use preset colors. For example, each log level name has its own preset color.
 
@@ -154,11 +164,13 @@ Specific options for placeholders:
 
 * `%level`
 
-  * `format=[tiny|short]` - Specifies the format for log level names `stdout`, `stderr`, `error`, `warn`, `info`, `debug`, `trace`.
+  * `format=[full|short|tiny]` - Specifies the format for log level names.
 
-    * `tiny` - `std`, `err`, `wrn`, `inf`, `deb`, `trc`
+    * `full` - `stdout`, `stderr`, `error`, `warn`, `info`, `debug`, `trace`
 
-    * `short` - `s`, `e`, `w`, `i`, `d`, `t`
+    * `short` - `std`, `err`, `wrn`, `inf`, `deb`, `trc`
+
+    * `tiny` - `s`, `e`, `w`, `i`, `d`, `t`
 
 * `%time`
 
@@ -168,21 +180,21 @@ Specific options for placeholders:
 
     * `date-time` - e.g. `2006-01-02 15:04:05`
 
-    * `date-only` - Example: 2006-01-02
+    * `date-only` - e.g. `2006-01-02`
 
-    * `time-only` - Example: 15:04:05
+    * `time-only` - e.g. `15:04:05`
 
-    * `rfc3339` - Example: 2006-01-02T15:04:05Z07:00
+    * `rfc3339` - e.g. `2006-01-02T15:04:05Z07:00`
 
-    * `rfc3339-nano` - Example: 2006-01-02T15:04:05.999999999Z07:00
+    * `rfc3339-nano` - e.g. `2006-01-02T15:04:05.999999999Z07:00`
 
     Custom format string characters:
 
-    * `H` - 24-hour format of an hour with leading zeros, 00 to 23
+    * `H` - 24-hour format of an hour with leading zeros, `00` to `23`
 
-    * `h` - 12-hour format of an hour with leading zeros, 01 to 12
+    * `h` - 12-hour format of an hour with leading zeros, `01` to `12`
 
-    * `g` - 12-hour format of an hour without leading zeros, 1 to 12
+    * `g` - 12-hour format of an hour without leading zeros, `1` to `12`
 
     * `i` - Minutes with leading zeros, `00` to `59`
 
@@ -190,33 +202,33 @@ Specific options for placeholders:
 
     * `v` - Milliseconds. e.g. `.654`
 
-    * `u` - Microseconds, example: .654321
+    * `u` - Microseconds, e.g. `.654321`
 
-    * `Y` - A full numeric representation of a year, examples: 1999, 2003
+    * `Y` - A full numeric representation of a year, e.g. `1999`, `2003`
 
-    * `y` - A two digit representation of a year, examples: 99 or 03
+    * `y` - A two digit representation of a year, e.g. `99`, `03`
 
-    * `m` - Numeric representation of a month, with leading zeros, 01 to 12
+    * `m` - Numeric representation of a month, with leading zeros, `01` to `12`
 
-    * `n` - Numeric representation of a month, without leading zeros, 1 to 12
+    * `n` - Numeric representation of a month, without leading zeros, `1` to `12`
 
-    * `M` - A short textual representation of a month, three letters, Jan to Dec
+    * `M` - A short textual representation of a month, three letters, `Jan` to `Dec`
 
-    * `d` - Day of the month, 2 digits with leading zeros, 01 to 31
+    * `d` - Day of the month, 2 digits with leading zeros, `01` to `31`
 
-    * `j` - Day of the month without leading zeros, 1 to 31
+    * `j` - Day of the month without leading zeros, `1` to `31`
 
-    * `D` - A textual representation of a day, three letters, Mon to Sun
+    * `D` - A textual representation of a day, three letters, `Mon` to `Sun`
 
-    * `A` - Uppercase Ante meridiem and Post meridiem, AM or PM
+    * `A` - Uppercase Ante meridiem and Post meridiem, `AM` or `PM`
 
-    * `a` - Lowercase Ante meridiem and Post meridiem, am or pm
+    * `a` - Lowercase Ante meridiem and Post meridiem, `am` or `pm`
 
-    * `T` - Timezone abbreviation, examples: EST, MDT
+    * `T` - Timezone abbreviation, e.g. `EST`, `MDT`
 
-    * `P` - Difference to Greenwich time (GMT) with colon between hours and minutes, example: +02:00
+    * `P` - Difference to Greenwich time (GMT) with colon between hours and minutes, e.g. `+02:00`
 
-    * `O` - Difference to Greenwich time (GMT) without colon between hours and minutes, example: +0200
+    * `O` - Difference to Greenwich time (GMT) without colon between hours and minutes, e.g. `+0200`
 
 * `%prefix`
 
@@ -242,7 +254,7 @@ Specific options for placeholders:
 
     * `relative` - Converts all absolute paths to paths relative to the working directory.
 
-### Examples
+### Presets
 
 The examples below replicate the preset formats specified with `--terragrunt-log-format`. They can be useful if you need to change existing formats to suit your needs.
 
@@ -255,7 +267,7 @@ The examples below replicate the preset formats specified with `--terragrunt-log
 `--terragrunt-log-format bare`
 
 ```shell
---terragrunt-log-custom-format "%level(case=upper,width=4)[%interval] %msg %prefix(path=short,prefix='prefix=')"
+--terragrunt-forward-tf-stdout --terragrunt-log-custom-format "%level(case=upper,width=4)[%interval] %msg %prefix(path=short,prefix='prefix=[',suffix=']')"
 ```
 
 `--terragrunt-log-format key-value`
