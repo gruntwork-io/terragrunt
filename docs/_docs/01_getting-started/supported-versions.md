@@ -4,7 +4,7 @@ title: Terraform and OpenTofu Version Compatibility Table
 category: getting-started
 excerpt: Learn which Terraform and OpenTofu versions are compatible with which versions of Terragrunt.
 tags: [ "install" ]
-order: 102
+order: 103
 nav_title: Documentation
 nav_title_link: /docs/
 ---
