@@ -50,6 +50,15 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output[MetadataEngine] = engineConfigCty
 	}
 
+	excludeConfigCty, err := excludeConfigAsCty(config.Exclude)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	if excludeConfigCty != cty.NilVal {
+		output[MetadataExclude] = excludeConfigCty
+	}
+
 	terraformConfigCty, err := terraformConfigAsCty(config.Terraform)
 	if err != nil {
 		return cty.NilVal, err
@@ -461,6 +470,13 @@ type ctyEngineConfig struct {
 	Meta    cty.Value `cty:"meta"`
 }
 
+// ctyExclude exclude representation for cty
+type ctyExclude struct {
+	If                  bool     `cty:"if"`
+	Actions             []string `cty:"actions"`
+	ExcludeDependencies bool     `cty:"exclude_dependencies"`
+}
+
 // Serialize CatalogConfig to a cty Value, but with maps instead of lists for the blocks.
 func catalogConfigAsCty(config *CatalogConfig) (cty.Value, error) {
 	if config == nil {
@@ -499,6 +515,21 @@ func engineConfigAsCty(config *EngineConfig) (cty.Value, error) {
 		Version: v,
 		Type:    t,
 		Meta:    ctyMetaVal,
+	}
+
+	return goTypeToCty(configCty)
+}
+
+// excludeConfigAsCty serialize exclude configuration to a cty Value.
+func excludeConfigAsCty(config *ExcludeConfig) (cty.Value, error) {
+	if config == nil {
+		return cty.NilVal, nil
+	}
+
+	configCty := ctyExclude{
+		If:                  config.If,
+		Actions:             config.Actions,
+		ExcludeDependencies: config.ExcludeDependencies,
 	}
 
 	return goTypeToCty(configCty)
@@ -598,10 +629,10 @@ func dependencyBlocksAsCty(dependencyBlocks Dependencies) (cty.Value, error) {
 }
 
 // Serialize the list of feature flags to a cty Value as a map that maps the feature names to the cty representation.
-func featureFlagsBlocksAsCty(dependencyBlocks FeatureFlags) (cty.Value, error) {
+func featureFlagsBlocksAsCty(featureFlagBlocks FeatureFlags) (cty.Value, error) {
 	out := map[string]cty.Value{}
 
-	for _, feature := range dependencyBlocks {
+	for _, feature := range featureFlagBlocks {
 		featureCty, err := goTypeToCty(feature)
 		if err != nil {
 			return cty.NilVal, err

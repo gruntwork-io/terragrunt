@@ -119,6 +119,7 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 }`,
 			},
 		},
+		Exclude: &config.ExcludeConfig{},
 	}
 	ctyVal, err := config.TerragruntConfigAsCty(&testConfig)
 	require.NoError(t, err)
@@ -257,6 +258,8 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "engine", true
 	case "FeatureFlags":
 		return "feature", true
+	case "Exclude":
+		return "exclude", true
 	default:
 		t.Fatalf("Unknown struct property: %s", fieldName)
 		// This should not execute

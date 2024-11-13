@@ -68,6 +68,7 @@ const (
 	MetadataDependentModules            = "dependent_modules"
 	MetadataInclude                     = "include"
 	MetadataFeatureFlag                 = "feature"
+	MetadataExclude                     = "exclude"
 )
 
 var (
@@ -123,7 +124,7 @@ type TerragruntConfig struct {
 	RetrySleepIntervalSec       *int
 	Engine                      *EngineConfig
 	FeatureFlags                FeatureFlags
-	Exclude                     *Exclude
+	Exclude                     *ExcludeConfig
 
 	// Fields used for internal tracking
 	// Indicates whether this is the result of a partial evaluation
@@ -195,7 +196,7 @@ type terragruntConfigFile struct {
 	IamWebIdentityToken      *string             `hcl:"iam_web_identity_token,attr"`
 	TerragruntDependencies   []Dependency        `hcl:"dependency,block"`
 	FeatureFlags             []*FeatureFlag      `hcl:"feature,block"`
-	Exclude                  *Exclude            `hcl:"exclude,block"`
+	Exclude                  *ExcludeConfig      `hcl:"exclude,block"`
 
 	// We allow users to configure code generation via blocks:
 	//
@@ -1160,6 +1161,11 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 		for _, flag := range terragruntConfig.FeatureFlags {
 			terragruntConfig.SetFieldMetadataWithType(MetadataFeatureFlag, flag.Name, defaultMetadata)
 		}
+	}
+
+	if terragruntConfig.Exclude != nil {
+		terragruntConfig.Exclude = terragruntConfigFromFile.Exclude
+		terragruntConfig.SetFieldMetadata(MetadataExclude, defaultMetadata)
 	}
 
 	generateBlocks := []terragruntGenerateBlock{}
