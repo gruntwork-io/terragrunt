@@ -12,7 +12,9 @@ nav_title_link: /docs/
 
 ## Custom Log Format
 
-Using this `--terragrunt-log-custom-format <format>` flag you can specify which information you want to output.
+Using the `--terragrunt-log-custom-format <format>` flag you can customize the way Terragrunt logs with total control over the logging format.
+
+The argument passed to this flag is a Terragrunt native format string that has special syntax, as described below.
 
 ### Placeholders
 
