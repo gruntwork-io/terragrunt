@@ -2,7 +2,6 @@
 package placeholders
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -153,9 +152,9 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 
 				switch str[0] {
 				case 't':
-					return PlainText(fmt.Sprintf("\t")), next, nil
+					return PlainText("\t"), next, nil
 				case 'n':
-					return PlainText(fmt.Sprintf("\n")), next, nil
+					return PlainText("\n"), next, nil
 				}
 
 				break

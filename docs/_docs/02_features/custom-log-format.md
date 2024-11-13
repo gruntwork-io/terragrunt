@@ -96,7 +96,35 @@ Output:
 
 In this example, the timestamp (as referenced by the `%time` placeholder) has been formatted with the `format` string `Y-m-d H:i:sv`. Similarly, the log level (as referenced by the `%level` placeholder), has been formatted to use the `short` `format`, and `upper` `case`.
 
-Even if you don't pass options, the empty parenthesis are added implicitly. Thus `%time` is equivalent to `%time()`.  If you need to add parenthesis as plain text immediately after a placeholder without space, you need to explicitly specify empty parenthesis, otherwise, they will be treated as invalid options.
+Even if you don't pass options, the empty parenthesis are added implicitly. Thus `%time` is equivalent to `%time()`. Parenthesis are considered part of the syntax for specifying  parameters to placeholders by default. Any parenthesis following a placeholder will be interpreted as specifying the parameters for the placeholder function.
+
+e.g.
+
+```shell
+--terragrunt-log-custom-format "%time(plain-text)"
+```
+
+Output:
+
+```shell
+invalid option name "plain-text" for placeholder "time"
+```
+
+If you would like to escape parentheses so that they appear as plain text in logs, make sure to use empty parentheses after a placeholder so that the following parentheses are not evaluated as specifying parameters for the placeholder function.
+
+e.g.
+
+```shell
+--terragrunt-log-custom-format "%time()(plain-text)"
+```
+
+Output:
+
+```shell
+12:33:08.513(plain-text)
+```
+
+If you need to add parenthesis as plain text immediately after a placeholder without space, you need to explicitly specify empty parenthesis, otherwise, they will be treated as invalid options.
 
 e.g.
 
