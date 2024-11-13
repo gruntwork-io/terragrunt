@@ -68,6 +68,7 @@ const (
 	FuncNameEndsWith                                = "endswith"
 	FuncNameStrContains                             = "strcontains"
 	FuncNameTimeCmp                                 = "timecmp"
+	FuncNameMarkAsRead                              = "mark_as_read"
 
 	sopsCacheName = "sopsCache"
 )
@@ -167,6 +168,7 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 		FuncNameGetDefaultRetryableErrors:               wrapVoidToStringSliceAsFuncImpl(ctx, getDefaultRetryableErrors),
 		FuncNameReadTfvarsFile:                          wrapStringSliceToStringAsFuncImpl(ctx, readTFVarsFile),
 		FuncNameGetWorkingDir:                           wrapVoidToStringAsFuncImpl(ctx, getWorkingDir),
+		FuncNameMarkAsRead:                              wrapStringSliceToStringAsFuncImpl(ctx, markAsRead),
 
 		// Map with HCL functions introduced in Terraform after v0.15.3, since upgrade to a later version is not supported
 		// https://github.com/gruntwork-io/terragrunt/blob/master/go.mod#L22
@@ -627,11 +629,24 @@ func ParseTerragruntConfig(ctx *ParsingContext, configPath string, defaultVal *c
 	targetConfig := getCleanedTargetConfigPath(configPath, ctx.TerragruntOptions.TerragruntConfigPath)
 
 	targetConfigFileExists := util.FileExists(targetConfig)
+
 	if !targetConfigFileExists && defaultVal == nil {
 		return cty.NilVal, errors.New(TerragruntConfigNotFoundError{Path: targetConfig})
-	} else if !targetConfigFileExists {
+	}
+
+	if !targetConfigFileExists {
 		return *defaultVal, nil
 	}
+
+	path, err := util.CanonicalPath(targetConfig, ctx.TerragruntOptions.WorkingDir)
+	if err != nil {
+		return cty.NilVal, errors.New(err)
+	}
+
+	ctx.TerragruntOptions.AppendReadFile(
+		path,
+		ctx.TerragruntOptions.WorkingDir,
+	)
 
 	// We update the ctx of terragruntOptions to the config being read in.
 	opts, err := ctx.TerragruntOptions.Clone(targetConfig)
@@ -811,6 +826,11 @@ func sopsDecryptFile(ctx *ParsingContext, params []string) (string, error) {
 	if err != nil {
 		return "", errors.New(err)
 	}
+
+	ctx.TerragruntOptions.AppendReadFile(
+		canonicalSourceFile,
+		ctx.TerragruntOptions.WorkingDir,
+	)
 
 	// Set environment variables from the TerragruntOptions.Env map.
 	// This is especially useful for integrations with things like the `terragrunt-auth-provider` flag,
@@ -1008,6 +1028,11 @@ func readTFVarsFile(ctx *ParsingContext, args []string) (string, error) {
 		return "", errors.New(TFVarFileNotFoundError{File: varFile})
 	}
 
+	ctx.TerragruntOptions.AppendReadFile(
+		varFile,
+		ctx.TerragruntOptions.WorkingDir,
+	)
+
 	fileContents, err := os.ReadFile(varFile)
 	if err != nil {
 		return "", errors.New(fmt.Errorf("could not read file %q: %w", varFile, err))
@@ -1035,6 +1060,33 @@ func readTFVarsFile(ctx *ParsingContext, args []string) (string, error) {
 
 	return string(data), nil
 }
+
+// markAsRead marks a file as explicitly read. This is useful for detection via TerragruntUnitsReading flag.
+func markAsRead(ctx *ParsingContext, args []string) (string, error) {
+	if len(args) != 1 {
+		return "", errors.New(WrongNumberOfParamsError{Func: "mark_as_read", Expected: "1", Actual: len(args)})
+	}
+
+	file := args[0]
+
+	path, err := util.CanonicalPath(file, ctx.TerragruntOptions.WorkingDir)
+	if err != nil {
+		return "", errors.New(err)
+	}
+
+	ctx.TerragruntOptions.AppendReadFile(
+		path,
+		ctx.TerragruntOptions.WorkingDir,
+	)
+
+	return file, nil
+}
+
+// warnWhenFileNotMarkedAsRead warns when a file is not being marked as read, even though a user might expect it to be.
+// Situations where this is the case include:
+// - A user specifies a file in the UnitsReading flag and that file is being read while parsing the inputs attribute.
+//
+// When the file is not marked as read, the function will return true, otherwise false.
 
 // ParseAndDecodeVarFile uses the HCL2 file to parse the given varfile string into an HCL file body, and then decode it
 // into the provided output.

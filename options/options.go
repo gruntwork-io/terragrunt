@@ -248,6 +248,10 @@ type TerragruntOptions struct {
 	// in this list.
 	ModulesThatInclude []string
 
+	// When used with `run-all`, restrict the units in the stack to only those that read at least one of the files
+	// in this list.
+	UnitsReading []string
+
 	// A command that can be used to run Terragrunt with the given options. This is useful for running Terragrunt
 	// multiple times (e.g. when spinning up a stack of Terraform modules). The actual command is normally defined
 	// in the cli package, which depends on almost all other packages, so we declare it here so that other
@@ -356,6 +360,10 @@ type TerragruntOptions struct {
 
 	// FeatureFlags is a map of feature flags to enable.
 	FeatureFlags map[string]string
+
+	// ReadFiles is a map of files to the Units
+	// that read them using HCL functions in the unit.
+	ReadFiles map[string][]string
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -587,6 +595,8 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		IncludeDirs:                    opts.IncludeDirs,
 		ExcludeByDefault:               opts.ExcludeByDefault,
 		ModulesThatInclude:             opts.ModulesThatInclude,
+		UnitsReading:                   opts.UnitsReading,
+		ReadFiles:                      opts.ReadFiles,
 		Parallelism:                    opts.Parallelism,
 		StrictInclude:                  opts.StrictInclude,
 		RunTerragrunt:                  opts.RunTerragrunt,
@@ -719,6 +729,50 @@ func (opts *TerragruntOptions) DataDir() string {
 	}
 
 	return util.JoinPath(opts.WorkingDir, tfDataDir)
+}
+
+// AppendReadFile appends to the list of files read by a given unit.
+func (opts *TerragruntOptions) AppendReadFile(file, unit string) {
+	if opts.ReadFiles == nil {
+		opts.ReadFiles = map[string][]string{}
+	}
+
+	for _, u := range opts.ReadFiles[file] {
+		if u == unit {
+			return
+		}
+	}
+
+	opts.Logger.Debugf("Tracking that file %s was read by %s.", file, unit)
+	opts.ReadFiles[file] = append(opts.ReadFiles[file], unit)
+}
+
+// DidReadFile checks if a given file was read by a given unit.
+func (opts *TerragruntOptions) DidReadFile(file, unit string) bool {
+	if opts.ReadFiles == nil {
+		return false
+	}
+
+	for _, u := range opts.ReadFiles[file] {
+		if u == unit {
+			return true
+		}
+	}
+
+	return false
+}
+
+// CloneReadFiles creates a copy of the ReadFiles map.
+func (opts *TerragruntOptions) CloneReadFiles(readFiles map[string][]string) {
+	if readFiles == nil {
+		return
+	}
+
+	for file, units := range readFiles {
+		for _, unit := range units {
+			opts.AppendReadFile(file, unit)
+		}
+	}
 }
 
 // identifyDefaultWrappedExecutable returns default path used for wrapped executable.
