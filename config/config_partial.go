@@ -54,6 +54,12 @@ type terragruntFeatureFlags struct {
 	Remain       hcl.Body     `hcl:",remain"`
 }
 
+// terragruntExclude is a struct that can be used to only decode the exclude block.
+type terragruntExclude struct {
+	Exclude *ExcludeConfig `hcl:"exclude,block"`
+	Remain  hcl.Body       `hcl:",remain"`
+}
+
 // terragruntTerraform is a struct that can be used to only decode the terraform block.
 type terragruntTerraform struct {
 	Terraform *TerraformConfig `hcl:"terraform,block"`
@@ -173,6 +179,8 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 		return nil, err
 	}
 
+	EvaluateExcludeBlocks(ctx.WithTrackInclude(trackInclude).WithFeatures(&flagsAsCtyVal), file)
+
 	// Evaluate all the expressions in the locals block separately and generate the variables list to use in the
 	// evaluation ctx.
 	locals, err := EvaluateLocalsBlock(ctx.WithTrackInclude(trackInclude).WithFeatures(&flagsAsCtyVal), file)
@@ -259,6 +267,8 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File,
 //   - TerragruntVersionConstraints: Parses the attributes related to constraining terragrunt and terraform versions in
 //     the config.
 //   - RemoteStateBlock: Parses the `remote_state` block in the config
+//   - FeatureFlagsBlock: Parses the `feature` block in the config
+//   - ExcludeBlock : Parses the `exclude` block in the config
 //
 // Note that the following blocks are always decoded:
 // - locals
@@ -476,6 +486,18 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 			if decoded.FeatureFlags != nil {
 				output.FeatureFlags = decoded.FeatureFlags
+			}
+
+		case ExcludeBlock:
+			decoded := terragruntExclude{}
+			err := file.Decode(&decoded, evalParsingContext)
+
+			if err != nil {
+				return nil, err
+			}
+
+			if decoded.Exclude != nil {
+				output.Exclude = decoded.Exclude
 			}
 
 		default:
