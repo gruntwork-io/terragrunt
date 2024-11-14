@@ -1176,7 +1176,6 @@ The `feature` block is used to configure feature flags in HCL for a particular T
 Feature flags can have default values, and they can be set through a CLI flag (`--feature`) or an environment variable (`TERRAGRUNT_FEATURE`).
 
 ```hcl
-
 feature "string_flag" {
   default = "test"
 }
@@ -1186,7 +1185,6 @@ feature "run_hook" {
 }
 
 terraform {
-
   before_hook "feature_flag" {
     commands = ["apply", "plan", "destroy"]
     execute  = feature.run_hook.value ? ["sh", "-c", "feature_flag_script.sh"] : [ "sh", "-c", "exit", "0" ]
@@ -1196,7 +1194,6 @@ terraform {
 inputs = {
   string_feature_flag = feature.string_flag.value
 }
-
 ```
 
 Setting feature flags through CLI:
