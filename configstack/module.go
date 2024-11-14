@@ -504,8 +504,8 @@ func (modules TerraformModules) flagExcludedUnits(opts *options.TerragruntOption
 		if !excludeConfig.IsActionListed(opts.TerraformCommand) {
 			continue
 		}
-		opts.Logger.Debugf("Module %s is excluded by exclude block", module.Path)
 		if excludeConfig.If {
+			opts.Logger.Debugf("Module %s is excluded by exclude block", module.Path)
 			module.FlagExcluded = true
 		}
 		if excludeConfig.ExcludeDependencies {

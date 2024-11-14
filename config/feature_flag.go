@@ -6,7 +6,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
@@ -91,7 +90,7 @@ func flagToTypedCtyValue(name string, ctyType cty.Type, value interface{}) (cty.
 		flagValue = parsedValue
 	}
 
-	ctyOut, err := gocty.ToCtyValue(flagValue, ctyType)
+	ctyOut, err := goTypeToCty(flagValue)
 	if err != nil {
 		return cty.NilVal, errors.WithStack(err)
 	}
