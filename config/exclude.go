@@ -13,6 +13,19 @@ type ExcludeConfig struct {
 	ExcludeDependencies bool     `cty:"exclude_dependencies" hcl:"exclude_dependencies,attr" json:"exclude_dependencies"`
 }
 
+func (e *ExcludeConfig) IsActionListed(action string) bool {
+	if len(e.Actions) == 0 {
+		return false
+	}
+
+	for _, a := range e.Actions {
+		if a == action {
+			return true
+		}
+	}
+	return false
+}
+
 // Clone returns a new instance of ExcludeConfig with the same values as the original.
 func (e *ExcludeConfig) Clone() *ExcludeConfig {
 	return &ExcludeConfig{

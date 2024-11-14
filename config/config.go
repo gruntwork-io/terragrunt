@@ -891,7 +891,9 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 		return nil, err
 	}
 
-	// If this file includes another, parse and merge it. Otherwise just return this config.
+	config.Exclude = baseBlocks.Exclude
+
+	// If this file includes another, parse and merge it. Otherwise, just return this config.
 	if ctx.TrackInclude != nil {
 		mergedConfig, err := handleInclude(ctx, config, false)
 		if err != nil {

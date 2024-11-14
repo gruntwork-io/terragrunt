@@ -327,6 +327,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 		return nil, err
 	}
 
+	output.Exclude = baseBlocks.Exclude
 	output.IsPartial = true
 
 	evalParsingContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)

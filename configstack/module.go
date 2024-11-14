@@ -494,6 +494,31 @@ func (modules TerraformModules) flagUnitsThatAreIncluded(opts *options.Terragrun
 	return modules, nil
 }
 
+// flagExcludedUnits iterates over a module slice and flags all modules that are excluded based on the exclude block
+func (modules TerraformModules) flagExcludedUnits(opts *options.TerragruntOptions) (TerraformModules, error) {
+	for _, module := range modules {
+		excludeConfig := module.Config.Exclude
+		if excludeConfig == nil {
+			continue
+		}
+		if !excludeConfig.IsActionListed(opts.TerraformCommand) {
+			continue
+		}
+		opts.Logger.Debugf("Module %s is excluded by exclude block", module.Path)
+		if excludeConfig.If {
+			module.FlagExcluded = true
+		}
+		if excludeConfig.ExcludeDependencies {
+			opts.Logger.Debugf("Excluding dependencies for module %s by exclude block", module.Path)
+			for _, dependency := range module.Dependencies {
+				dependency.FlagExcluded = true
+			}
+		}
+	}
+
+	return modules, nil
+}
+
 // flagUnitsThatRead iterates over a module slice and flags all modules that read at least one file in the specified
 // file list in the TerragruntOptions UnitsReading attribute.
 func (modules TerraformModules) flagUnitsThatRead(opts *options.TerragruntOptions) (TerraformModules, error) {

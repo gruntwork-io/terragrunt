@@ -431,12 +431,31 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 		return nil, err
 	}
 
+	var withExcludedUnits TerraformModules
+
+	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "flag_excluded_units", map[string]interface{}{
+		"working_dir": stack.terragruntOptions.WorkingDir,
+	}, func(childCtx context.Context) error {
+		result, err := withUnitsThatAreIncludedByOthers.flagExcludedUnits(stack.terragruntOptions)
+		if err != nil {
+			return err
+		}
+
+		withExcludedUnits = result
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
 	var withUnitsRead TerraformModules
 
 	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "flag_units_that_read", map[string]interface{}{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
-		result, err := withUnitsThatAreIncludedByOthers.flagUnitsThatRead(stack.terragruntOptions)
+		result, err := withExcludedUnits.flagUnitsThatRead(stack.terragruntOptions)
 		if err != nil {
 			return err
 		}
