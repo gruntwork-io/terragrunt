@@ -217,4 +217,3 @@ Note that some of the language used in this page may be adjusted in the near fut
 To make terminology and overall UI/UX of using Terragrunt more consistent and easier to understand, the RFC proposes a number of changes to the CLI. This includes renaming some flags, reorganizing some commands, and adjusting some terminology.
 
 As of this writing, the RFC is still in the proposal stage, so share your thoughts on the RFC if you have any opinions on the proposed changes.
-
