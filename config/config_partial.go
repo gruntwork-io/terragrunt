@@ -148,57 +148,7 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 		return nil, err
 	}
 
-	evaluatedFlags := map[string]cty.Value{}
-	// copy default feature flags to evaluated flags
-
-	// extract all flags in map by name
-	flagByName := map[string]*FeatureFlag{}
-	for _, flag := range tgFlags.FeatureFlags {
-		flagByName[flag.Name] = flag
-	}
-
-	for name, value := range ctx.TerragruntOptions.FeatureFlags {
-		// convert flag value to respective type
-		var evaluatedFlag cty.Value
-		existingFlag, exists := flagByName[name]
-		if exists {
-			evaluatedFlag, err = flagToTypedCtyValue(name, existingFlag.Default.Type(), value)
-
-			if err != nil {
-				return nil, err
-			}
-
-		} else {
-			evaluatedFlag, err = flagToCtyValue(name, value)
-
-			if err != nil {
-				return nil, err
-			}
-
-		}
-		evaluatedFlags[name] = evaluatedFlag
-
-	}
-
-	for _, flag := range tgFlags.FeatureFlags {
-		if _, exists := evaluatedFlags[flag.Name]; !exists {
-			contextFlag, err := flagToCtyValue(flag.Name, *flag.Default)
-
-			if err != nil {
-				return nil, err
-			}
-
-			evaluatedFlags[flag.Name] = contextFlag
-		}
-	}
-
-	flagsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedFlags)
-
-	if err != nil {
-		return nil, err
-	}
-
-	excludeConfig, err := EvaluateExcludeBlocks(ctx.WithTrackInclude(trackInclude).WithFeatures(&flagsAsCtyVal), file)
+	flagsAsCtyVal, err := flagsAsCty(ctx, tgFlags.FeatureFlags)
 	if err != nil {
 		return nil, err
 	}
@@ -219,8 +169,58 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 		TrackInclude: trackInclude,
 		Locals:       &localsAsCtyVal,
 		FeatureFlags: &flagsAsCtyVal,
-		Exclude:      excludeConfig,
 	}, nil
+}
+
+func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
+	evaluatedFlags := map[string]cty.Value{}
+	// extract all flags in map by name
+	flagByName := map[string]*FeatureFlag{}
+	for _, flag := range tgFlags {
+		flagByName[flag.Name] = flag
+	}
+
+	for name, value := range ctx.TerragruntOptions.FeatureFlags {
+		// convert flag value to respective type
+		var evaluatedFlag cty.Value
+		existingFlag, exists := flagByName[name]
+		if exists {
+			flag, err := flagToTypedCtyValue(name, existingFlag.Default.Type(), value)
+
+			if err != nil {
+				return cty.NilVal, err
+			}
+			evaluatedFlag = flag
+
+		} else {
+			flag, err := flagToCtyValue(name, value)
+			if err != nil {
+				return cty.NilVal, err
+			}
+			evaluatedFlag = flag
+		}
+		evaluatedFlags[name] = evaluatedFlag
+
+	}
+
+	for _, flag := range tgFlags {
+		if _, exists := evaluatedFlags[flag.Name]; !exists {
+			contextFlag, err := flagToCtyValue(flag.Name, *flag.Default)
+
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			evaluatedFlags[flag.Name] = contextFlag
+		}
+	}
+
+	flagsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedFlags)
+
+	if err != nil {
+		return cty.NilVal, err
+	}
+	return flagsAsCtyVal, nil
 }
 
 func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *IncludeConfig) (*TerragruntConfig, error) {
@@ -327,7 +327,6 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 		return nil, err
 	}
 
-	output.Exclude = baseBlocks.Exclude
 	output.IsPartial = true
 
 	evalParsingContext, err := createTerragruntEvalContext(ctx, file.ConfigPath)
@@ -508,7 +507,13 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				return nil, err
 			}
 
-			if decoded.FeatureFlags != nil {
+			if output.FeatureFlags != nil {
+				flags, err := deepMergeFeatureBlocks(output.FeatureFlags, decoded.FeatureFlags)
+				if err != nil {
+					return nil, err
+				}
+				output.FeatureFlags = flags
+			} else {
 				output.FeatureFlags = decoded.FeatureFlags
 			}
 
@@ -520,7 +525,9 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				return nil, err
 			}
 
-			if decoded.Exclude != nil {
+			if output.Exclude != nil {
+				output.Exclude.Merge(decoded.Exclude)
+			} else {
 				output.Exclude = decoded.Exclude
 			}
 
@@ -538,10 +545,35 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 		// Saving processed includes into configuration, direct assignment since nested includes aren't supported
 		config.ProcessedIncludes = ctx.TrackInclude.CurrentMap
 
+		output = config
+	}
+
+	return processExcludes(ctx, output, file)
+}
+
+// processExcludes evaluate exclude blocks and merge them into the config.
+func processExcludes(ctx *ParsingContext, config *TerragruntConfig, file *hclparse.File) (*TerragruntConfig, error) {
+
+	flagsAsCtyVal, err := flagsAsCty(ctx, config.FeatureFlags)
+	if err != nil {
+		return nil, err
+	}
+
+	excludeConfig, err := evaluateExcludeBlocks(ctx.WithFeatures(&flagsAsCtyVal), file)
+	if err != nil {
+		return nil, err
+	}
+
+	if excludeConfig == nil {
 		return config, nil
 	}
 
-	return output, nil
+	if config.Exclude != nil {
+		config.Exclude.Merge(excludeConfig)
+	} else {
+		config.Exclude = excludeConfig
+	}
+	return config, nil
 }
 
 func partialParseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*TerragruntConfig, error) {

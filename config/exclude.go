@@ -1,10 +1,15 @@
 package config
 
 import (
+	"strconv"
+
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/zclconf/go-cty/cty"
 )
+
+// bool values to be used as booleans.
+var boolFlagValues = []string{"if", "exclude_dependencies"}
 
 // ExcludeConfig configurations for hcl files.
 type ExcludeConfig struct {
@@ -44,8 +49,8 @@ func (e *ExcludeConfig) Merge(exclude *ExcludeConfig) {
 	e.ExcludeDependencies = exclude.ExcludeDependencies
 }
 
-// EvaluateExcludeBlocks evaluates the exclude block in the parsed file.
-func EvaluateExcludeBlocks(ctx *ParsingContext, file *hclparse.File) (*ExcludeConfig, error) {
+// evaluateExcludeBlocks evaluates the exclude block in the parsed file.
+func evaluateExcludeBlocks(ctx *ParsingContext, file *hclparse.File) (*ExcludeConfig, error) {
 
 	excludeBlock, err := file.Blocks(MetadataExclude, false)
 	if err != nil {
@@ -84,6 +89,19 @@ func EvaluateExcludeBlocks(ctx *ParsingContext, file *hclparse.File) (*ExcludeCo
 		evaluatedAttrs[attr.Name] = value
 	}
 
+	for _, boolFlag := range boolFlagValues {
+		if value, ok := evaluatedAttrs[boolFlag]; ok {
+			if value.Type() == cty.String { // handle bool flag value
+				val, err := strconv.ParseBool(value.AsString())
+				if err != nil {
+					return nil, err
+				}
+				evaluatedAttrs[boolFlag] = cty.BoolVal(val)
+			}
+
+		}
+	}
+
 	excludeAsCtyVal, err := convertValuesMapToCtyVal(evaluatedAttrs)
 	if err != nil {
 		return nil, err
@@ -92,7 +110,7 @@ func EvaluateExcludeBlocks(ctx *ParsingContext, file *hclparse.File) (*ExcludeCo
 	// convert cty map to ExcludeConfig
 	excludeConfig := &ExcludeConfig{}
 	if err := CtyToStruct(excludeAsCtyVal, excludeConfig); err != nil {
-		return nil, err
+		return nil, errors.Unwrap(err)
 	}
 
 	return excludeConfig, nil

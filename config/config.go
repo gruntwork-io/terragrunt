@@ -96,7 +96,6 @@ type DecodedBaseBlocks struct {
 	TrackInclude *TrackInclude
 	Locals       *cty.Value
 	FeatureFlags *cty.Value
-	Exclude      *ExcludeConfig
 }
 
 // TerragruntConfig represents a parsed and expanded configuration
@@ -891,8 +890,6 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 		return nil, err
 	}
 
-	config.Exclude = baseBlocks.Exclude
-
 	// If this file includes another, parse and merge it. Otherwise, just return this config.
 	if ctx.TrackInclude != nil {
 		mergedConfig, err := handleInclude(ctx, config, false)
@@ -907,6 +904,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 		//   original locals for the current config being handled, as that is the locals list that is in scope for this
 		//   config.
 		mergedConfig.Locals = config.Locals
+		mergedConfig.Exclude = config.Exclude
 
 		return mergedConfig, nil
 	}
@@ -1159,14 +1157,14 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 		terragruntConfig.SetFieldMetadata(MetadataEngine, defaultMetadata)
 	}
 
-	if terragruntConfig.FeatureFlags != nil {
+	if terragruntConfigFromFile.FeatureFlags != nil {
 		terragruntConfig.FeatureFlags = terragruntConfigFromFile.FeatureFlags
 		for _, flag := range terragruntConfig.FeatureFlags {
 			terragruntConfig.SetFieldMetadataWithType(MetadataFeatureFlag, flag.Name, defaultMetadata)
 		}
 	}
 
-	if terragruntConfig.Exclude != nil {
+	if terragruntConfigFromFile.Exclude != nil {
 		terragruntConfig.Exclude = terragruntConfigFromFile.Exclude
 		terragruntConfig.SetFieldMetadata(MetadataExclude, defaultMetadata)
 	}
