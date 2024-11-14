@@ -41,49 +41,61 @@ Note that some documentation refers to Terraform alone in some instances as a co
 
 A unit is a single instance of infrastructure managed by Terragrunt. It has its own state, and can be detected by the presence of a `terragrunt.hcl` file in a directory.
 
-A common pattern used in the repository structure for Terragrunt projects is to have a single `terragrunt.hcl` file located at the root of the repository, and multiple subdirectories each containing their own `terragrunt.hcl` file. This is typically done to promote code-reuse, as it allows for any configuration common to all units to be defined in the root `terragrunt.hcl` file, and for unit-specific configuration to be defined in child directories. In this pattern, the root `terragrunt.hcl` file is not considered a unit, while all the child directories containing `terragrunt.hcl` files are.
-
-Note that units don't technically need to call their configuration files `terragrunt.hcl` (that's configurable via the [--terragrunt-config](/docs/reference/cli-options/#terragrunt-config), soon to be rebranded [--config](https://github.com/gruntwork-io/terragrunt/issues/3445)), and users don't technically need to use a root `terragrunt.hcl` file or to name it that. This is the most common pattern followed by the community, however, and deviation from this pattern should be justified in the context of the project. It can help others with Terragrunt experience understand the project more easily if industry standard patterns are followed.
-
-While not a requirement, a general tendency experienced when working with Terragrunt is that units tend to decrease in size. This is because Terragrunt makes it easy to segment pieces of infrastructure into their own state, and to have them interact with each other through the use of [dependency blocks](/docs/reference/config-blocks-and-attributes#dependency). Smaller units are quicker to update, easier to reason about and safer to work with.
-
 Units typically represent a minimal useful piece of infrastructure that should be independently managed.
 
 e.g. A unit might represent a single VPC, a single database, or a single server.
+
+While not a requirement, a general tendency experienced when working with Terragrunt is that units tend to decrease in size. This is because Terragrunt makes it easy to segment pieces of infrastructure into their own state, and to have them interact with each other through the use of [dependency blocks](/docs/reference/config-blocks-and-attributes#dependency). Smaller units are quicker to update, easier to reason about and safer to work with.
+
+A common pattern used in the repository structure for Terragrunt projects is to have a single `terragrunt.hcl` file located at the root of the repository, and multiple subdirectories each containing their own `terragrunt.hcl` file. This is typically done to promote code-reuse, as it allows for any configuration common to all units to be defined in the root `terragrunt.hcl` file, and for unit-specific configuration to be defined in child directories. In this pattern, the root `terragrunt.hcl` file is not considered a unit, while all the child directories containing `terragrunt.hcl` files are.
+
+Note that units don't technically need to call their configuration files `terragrunt.hcl` (that's configurable via the [--terragrunt-config](/docs/reference/cli-options/#terragrunt-config)), and users don't technically need to use a root `terragrunt.hcl` file or to name it that. This is the most common pattern followed by the community, however, and deviation from this pattern should be justified in the context of the project. It can help others with Terragrunt experience understand the project more easily if industry standard patterns are followed.
 
 ### Stack
 
 A stack is a collection of units managed by Terragrunt. There is ([as of writing](https://github.com/gruntwork-io/terragrunt/issues/3313) work underway to provide a top level artifact for interacting with stacks via a `terragrunt.stack.hcl` file, but as of now, stacks are generally defined by a directory with a tree of units. Units within a stack can be dependent on each other, and can be updated in a specific order to ensure that dependencies are resolved in the correct order.
 
-The design of `terragrunt.stack.hcl` files is to ensure that they function entirely as a convenient shorthand for an equivalent directory structure of units. This is to ensure that users are able to easily transition between the two paradigms, and are able to decide for themselves which approach to structuring infrastructure is most appropriate for their use case.
-
 Stacks typically represent a collection of units that need to be managed in concert.
 
 e.g. A stack might represent a collection of units that together form a single application environment, a business unit, or a region.
 
+The design of `terragrunt.stack.hcl` files is to ensure that they function entirely as a convenient shorthand for an equivalent directory structure of units. This is to ensure that users are able to easily transition between the two paradigms, and are able to decide for themselves which approach to structuring infrastructure is most appropriate for their use case.
+
 ### Module
 
-A module is a collection of OpenTofu/Terraform configurations defined with files ending in `.tf` (or `.tofu` in the case of OpenTofu) that represent a general pattern of infrastructure that can be instantiated multiple times.
-
-Modules can be located either in the local filesystem, in a remote repository, or in any of [these supported locations](https://opentofu.org/docs/language/modules/sources/).
-
-Terragrunt users typically spend a good deal of time authoring modules, as they are the primary way of defining the infrastructure patterns that Terragrunt is going to be orchestrating. Using tooling like [Terratest](https://github.com/gruntwork-io/terratest) can help to ensure that modules are well-tested and reliable.
-
-A common pattern in Terragrunt usage is to only ever provision versioned, immutable modules. This is because Terragrunt is designed to be able to manage infrastructure over long periods of time, and it is important to be able to reproduce the state of infrastructure at any point in time.
+A module is an [OpenTofu/Terraform construct](https://opentofu.org/docs/language/modules/) defined using a collection of OpenTofu/Terraform configurations ending in `.tf` (or `.tofu` in the case of OpenTofu) that represent a general pattern of infrastructure that can be instantiated multiple times.
 
 Modules typically represent a generic pattern of infrastructure that can be instantiated multiple times, with different configurations exposed as variables.
 
 e.g. A module might represent a generic pattern for a VPC, a database, or a server. Note that this differs from a unit, which represents a single instance of a provisioned VPC, database, or server.
 
+Modules can be located either in the local filesystem, in a remote repository, or in any of [these supported locations](https://opentofu.org/docs/language/modules/sources/).
+
+To integrate a module into a Terragrunt unit, reference the module using the `source` attribute of the [terraform block](/docs/reference/config-blocks-and-attributes/#terraform).
+
+Terragrunt users typically spend a good deal of time authoring modules, as they are the primary way of defining the infrastructure patterns that Terragrunt is going to be orchestrating. Using tooling like [Terratest](https://github.com/gruntwork-io/terratest) can help to ensure that modules are well-tested and reliable.
+
+A common pattern in Terragrunt usage is to only ever provision versioned, immutable modules. This is because Terragrunt is designed to be able to manage infrastructure over long periods of time, and it is important to be able to reproduce the state of infrastructure at any point in time.
+
 ### Resource
 
 A resource is a low level building block of infrastructure that is defined in OpenTofu/Terraform configurations.
 
-Resources generally correspond to the smallest piece of infrastructure that can be managed by OpenTofu/Terraform, and each resource has a specific address in state.
-
 Resources are typically defined in modules, but don't have to be. Terragrunt can provision resources defined with `.tf` files that are not part of a module, located adjacent to the `terragrunt.hcl` file of a unit.
 
 e.g. A resource might represent a single S3 bucket, or a single load balancer.
+
+Resources generally correspond to the smallest piece of infrastructure that can be managed by OpenTofu/Terraform, and each resource has a specific address in state.
+
+### State
+
+Terragrunt stores the current state of infrastructure in one or more OpenTofu/Terraform [state files](https://opentofu.org/docs/language/state/).
+
+State is an extremely important concept in the context of OpenTofu/Terraform, and it's helpful to read the relevant documentation there to understand what Terragrunt does to it.
+
+Terragrunt has myriad capabilities that are designed to make working with state easier, including automatically provisioning state backend resources, managing unit interaction with external state, and segmenting state.
+
+The most common way in which state is segmented in Terragrunt projects is to take advantage of filesystem directory structures. Most Terragrunt projects are configured to store state in remote backends like S3 with keys that correspond to the relative path to the unit directory within a project, relative to the root `terragrunt.hcl` file.
 
 ### Directed Acyclic Graph (DAG)
 
@@ -121,9 +133,9 @@ These utilities are part of what makes Terragrunt so powerful, as they allow use
 
 The Runner Queue is the queue of all units that Terragrunt will do work on over one or more runs.
 
-Certain commands like [run-all](/docs/reference/cli-options/#run-all) ([soon to be rebranded `run --all`](https://github.com/gruntwork-io/terragrunt/issues/3445)) populate the Runner Queue with all units in a stack, while other commands like `plan` or `apply` will only populate the Runner Queue with the unit that the command was run in.
+Certain commands like [run-all](/docs/reference/cli-options/#run-all) populate the Runner Queue with all units in a stack, while other commands like `plan` or `apply` will only populate the Runner Queue with the unit that the command was run in.
 
-Certain flags like [--terragrunt-include-dir](/docs/reference/cli-options/#terragrunt-include-dir) ([soon to be rebranded `--queue-include-dir`](https://github.com/gruntwork-io/terragrunt/issues/3445)) can be used to adjust the Runner Queue to include additional units. Conversely, there are flags like [--terragrunt-exclude-dir](/docs/reference/cli-options/#terragrunt-exclude-dir) ([soon to be rebranded `--queue-exclude-dir`](https://github.com/gruntwork-io/terragrunt/issues/3445)) that can be used to adjust the Runner Queue to exclude units.
+Certain flags like [--terragrunt-include-dir](/docs/reference/cli-options/#terragrunt-include-dir) can be used to adjust the Runner Queue to include additional units. Conversely, there are flags like [--terragrunt-exclude-dir](/docs/reference/cli-options/#terragrunt-exclude-dir) that can be used to adjust the Runner Queue to exclude units.
 
 Terragrunt will always attempt to run until the Runner Queue is empty.
 
@@ -131,7 +143,7 @@ Terragrunt will always attempt to run until the Runner Queue is empty.
 
 The Runner Pool is the pool of available resources that Terragrunt can use to execute runs.
 
-Units are dequeued from the Runner Pool into the Runner Pool depending on factors like [terragrunt-parallelism](/docs/reference/cli-options/#terragrunt-parallelism) ([soon to be rebranded `--parallelism`](https://github.com/gruntwork-io/terragrunt/issues/3445)) and the DAG.
+Units are dequeued from the Runner Pool into the Runner Pool depending on factors like [terragrunt-parallelism](/docs/reference/cli-options/#terragrunt-parallelism) and the DAG.
 
 Units are only considered "running" when they are in the Runner Pool.
 
@@ -174,7 +186,7 @@ By default, Terragrunt will interact with OpenTofu/Terraform in order to retriev
 
 Terragrunt does have the ability to mock outputs, which is useful when dependencies do not yet have outputs to be consumed (e.g. during the run of a unit with a dependency that has not been applied).
 
-Terragrunt also has the ability to fetch outputs without interacting with OpenTofu/Terraform via [--terragrunt-fetch-dependency-output-from-state](/docs/reference/cli-options/#terragrunt-fetch-dependency-output-from-state) ([soon to be rebranded `--fetch-dependency-output-from-state`](https://github.com/gruntwork-io/terragrunt/issues/3445)) for dependencies where state is stored in AWS. This is an experimental feature, and more tooling is planned to make this easier to use.
+Terragrunt also has the ability to fetch outputs without interacting with OpenTofu/Terraform via [--terragrunt-fetch-dependency-output-from-state](/docs/reference/cli-options/#terragrunt-fetch-dependency-output-from-state) for dependencies where state is stored in AWS. This is an experimental feature, and more tooling is planned to make this easier to use.
 
 ### Feature
 
@@ -192,18 +204,17 @@ Like all good feature flags, you are encouraged to use them with good judgement 
 
 Engines allow Terragrunt users to define custom logic for how runs are to be executed, including defining exactly how OpenTofu/Terraform is to be invoked, where OpenTofu/Terraform is to be invoked, etc.
 
-### State
-
-Terragrunt stores the current state of infrastructure in one or more OpenTofu/Terraform [state files](https://opentofu.org/docs/language/state/).
-
-State is an extremely important concept in the context of OpenTofu/Terraform, and it's helpful to read the relevant documentation there to understand what Terragrunt does to it.
-
-Terragrunt has myriad capabilities that are designed to make working with state easier, including automatically provisioning state backend resources, managing unit interaction with external state, and segmenting state.
-
-The most common way in which state is segmented in Terragrunt projects is to take advantage of filesystem directory structures. Most Terragrunt projects are configured to store state in remote backends like S3 with keys that correspond to the relative path to the unit directory within a project, relative to the root `terragrunt.hcl` file.
-
 ### Infrastructure Estate
 
 An infrastructure estate is all the infrastructure that a person or organization manages. This can be as small as a single resource, or as large as a collection of repositories containing one or more stacks.
 
 Generally speaking, the larger the infrastructure estate, the more important it is to have good tooling for managing it. Terragrunt is designed to be able to manage infrastructure estates of any size, and is used by organizations of all sizes to manage their infrastructure efficiently.
+
+## CLI Redesign
+
+Note that some of the language used in this page may be adjusted in the near future due to RFC [#3445](https://github.com/gruntwork-io/terragrunt/issues/3445).
+
+To make terminology and overall UI/UX of using Terragrunt more consistent and easier to understand, the RFC proposes a number of changes to the CLI. This includes renaming some flags, reorganizing some commands, and adjusting some terminology.
+
+As of this writing, the RFC is still in the proposal stage, so share your thoughts on the RFC if you have any opinions on the proposed changes.
+
