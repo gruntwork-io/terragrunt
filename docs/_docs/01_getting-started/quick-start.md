@@ -141,7 +141,7 @@ terraform {
 }
 ```
 
-The code above tells OpenTofu/Terraform to store the state for a `frontend-app` module in an S3 bucket called `my-terraform-state` under the path `stage/frontend-app/terraform.tfstate`, and to use a DynamoDB table called `my-lock-table` for locking. This is a great feature that almost every single OpenTofu/Terraform team uses to collaborate, but it comes with one major gotcha: the `backend` configuration does not support variables or expressions of any sort (this may change in the near future with [OpenTofu v1.8.0!](https://github.com/opentofu/opentofu/releases/tag/v1.8.0-alpha1). That is, the following will NOT work:
+The code above tells OpenTofu/Terraform to store the state for a `frontend-app` module in an S3 bucket called `my-terraform-state` under the path `stage/frontend-app/terraform.tfstate`, and to use a DynamoDB table called `my-lock-table` for locking. This is a great feature that almost every single OpenTofu/Terraform team uses to collaborate, but it comes with one major gotcha: the `backend` configuration does not support variables or expressions of any sort (this may change in the near future with [OpenTofu v1.8.0!](https://github.com/opentofu/opentofu/releases/tag/v1.8.0-alpha1)). That is, the following will NOT work:
 
 ``` hcl
 # stage/frontend-app/main.tf
@@ -233,7 +233,7 @@ include "root" {
 
 The `find_in_parent_folders()` helper will automatically search up the directory tree to find the root `terragrunt.hcl` and inherit the `remote_state` configuration from it.
 
-Now, [install Terragrunt]({{site.baseurl}}/docs/getting-started/install), and run all the OpenTofu/Terraform commands you’re used to, but with `terragrunt` as the command name rather than `tofu`/`terraform` (e.g., `terragrunt apply` instead of `terraform apply`). To deploy the database module, you would run:
+Now, [install Terragrunt]({{site.baseurl}}/docs/getting-started/install), and run all the OpenTofu/Terraform commands you’re used to, but with `terragrunt` as the command name rather than `tofu`/`terraform` (e.g., `terragrunt apply` instead of `tofu apply`). To deploy the database module, you would run:
 
 ``` bash
 cd stage/mysql
@@ -341,7 +341,7 @@ foo        = "bar"
 You can tell OpenTofu/Terraform to use these variables using the `-var-file` argument:
 
 ``` bash
-$ terraform apply \
+$ tofu apply \
     -var-file=../../common.tfvars \
     -var-file=../region.tfvars
 ```
@@ -366,9 +366,7 @@ Now, when you run the `plan` or `apply` commands, Terragrunt will automatically 
 
 ``` bash
 $ terragrunt apply
-
-Running command: terraform with arguments
-[apply -var-file=../../common.tfvars -var-file=../region.tfvars]
+# Runs tofu apply -var-file=../../common.tfvars -var-file=../region.tfvars
 ```
 
 You can even use the `get_terraform_commands_that_need_vars()` built-in function to automatically get the list of all commands that accept `-var-file` and `-var` arguments:
@@ -426,7 +424,7 @@ Therefore, you typically want to break up your infrastructure across multiple mo
         └── outputs.tf
 ```
 
-The folder structure above shows how to separate the code for each environment (`prod`, `qa`, `stage`) and for each type of infrastructure (apps, databases, VPCs). However, the downside is that it isn’t DRY. The `.tf` files will contain a LOT of duplication. You can reduce it somewhat by defining all the infrastructure in [reusable OpenTofu/Terraform modules](https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d), but even the code to instantiate a module—including configuring the `provider`, `backend`, the module’s input variables, and `output` variables—means you still end up with dozens or hundreds of lines of copy/paste for every module in every environment:
+The folder structure above shows how to separate the code for each environment (`prod`, `qa`, `stage`) and for each type of infrastructure (apps, databases, VPCs). However, the downside is that it isn’t DRY. The `.tf` files will contain a LOT of duplication. You can reduce it somewhat by defining all the infrastructure in [reusable OpenTofu/Terraform modules](https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d), but even the code to instantiate a module—including configuring the `provider`, `backend`, the module’s input variables, and `output` variables means you still end up with dozens or hundreds of lines of copy/paste for every module in every environment:
 
 ``` hcl
 # prod/app/main.tf
@@ -434,15 +432,18 @@ provider "aws" {
   region = "us-east-1"
   # ... other provider settings ...
 }
+
 terraform {
   backend "s3" {}
 }
+
 module "app" {
   source = "../../../app"
   instance_type  = "m4.large"
   instance_count = 10
   # ... other app settings ...
 }
+
 # prod/app/outputs.tf
 output "url" {
   value = module.app.url
@@ -460,21 +461,24 @@ provider "aws" {
   region = "us-east-1"
   # ... other provider settings ...
 }
+
 terraform {
   backend "s3" {}
 }
+
 module "app" {
   source = "../../../app"
   instance_type  = var.instance_type
   instance_count = var.instance_count
   # ... other app settings ...
 }
+
 # infrastructure-modules/app/outputs.tf
 output "url" {
   value = module.app.url
 }
-# infrastructure-modules/app/variables.tf
 
+# infrastructure-modules/app/variables.tf
 variable "instance_type" {}
 variable "instance_count" {}
 ```
