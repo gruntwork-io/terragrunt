@@ -1,8 +1,12 @@
 package config
 
 import (
+	"fmt"
+	"strconv"
+
 	"github.com/pkg/errors"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/gocty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
@@ -60,6 +64,7 @@ func (feature *FeatureFlag) DefaultAsString() (string, error) {
 	return string(jsonBytes), nil
 }
 
+// Convert generic flag value to cty.Value.
 func flagToCtyValue(name string, value interface{}) (cty.Value, error) {
 	ctyValue, err := goTypeToCty(value)
 	if err != nil {
@@ -69,6 +74,31 @@ func flagToCtyValue(name string, value interface{}) (cty.Value, error) {
 	ctyFlag := ctyFeatureFlag{
 		Name:  name,
 		Value: ctyValue,
+	}
+
+	return goTypeToCty(ctyFlag)
+}
+
+// Convert a flag to a cty.Value using the provided cty.Type.
+func flagToTypedCtyValue(name string, ctyType cty.Type, value interface{}) (cty.Value, error) {
+	var flagValue = value
+	if ctyType == cty.Bool {
+		// convert value to boolean even if it is string
+		parsedValue, err := strconv.ParseBool(fmt.Sprintf("%v", flagValue))
+		if err != nil {
+			return cty.NilVal, errors.WithStack(err)
+		}
+		flagValue = parsedValue
+	}
+
+	ctyOut, err := gocty.ToCtyValue(flagValue, ctyType)
+	if err != nil {
+		return cty.NilVal, errors.WithStack(err)
+	}
+
+	ctyFlag := ctyFeatureFlag{
+		Name:  name,
+		Value: ctyOut,
 	}
 
 	return goTypeToCty(ctyFlag)

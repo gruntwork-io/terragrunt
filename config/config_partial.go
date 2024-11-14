@@ -151,14 +151,33 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 	evaluatedFlags := map[string]cty.Value{}
 	// copy default feature flags to evaluated flags
 
+	// extract all flags in map by name
+	flagByName := map[string]*FeatureFlag{}
+	for _, flag := range tgFlags.FeatureFlags {
+		flagByName[flag.Name] = flag
+	}
+
 	for name, value := range ctx.TerragruntOptions.FeatureFlags {
-		evaluatedFlag, err := flagToCtyValue(name, value)
+		// convert flag value to respective type
+		var evaluatedFlag cty.Value
+		existingFlag, exists := flagByName[name]
+		if exists {
+			evaluatedFlag, err = flagToTypedCtyValue(name, existingFlag.Default.Type(), value)
 
-		if err != nil {
-			return nil, err
+			if err != nil {
+				return nil, err
+			}
+
+		} else {
+			evaluatedFlag, err = flagToCtyValue(name, value)
+
+			if err != nil {
+				return nil, err
+			}
+
 		}
-
 		evaluatedFlags[name] = evaluatedFlag
+
 	}
 
 	for _, flag := range tgFlags.FeatureFlags {
