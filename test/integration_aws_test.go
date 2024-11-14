@@ -759,74 +759,79 @@ func TestAwsAssumeRoleDuration(t *testing.T) {
 	assert.Contains(t, output, "no changes are needed.")
 }
 
-func TestAwsAssumeRoleWebIdentityEnv(t *testing.T) {
-	t.Parallel()
-
-	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
-	tokenEnvVar := os.Getenv("AWS_TEST_S3_IDENTITY_TOKEN_VAR")
-	if tokenEnvVar == "" {
-		t.Skip("Missing required env var AWS_TEST_S3_IDENTITY_TOKEN_VAR")
-		return
+func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
+	if os.Getenv("CIRCLECI") != "true" {
+		t.Skip("Skipping test because it requires valid CircleCI OIDC credentials to work")
 	}
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAssumeRoleWebIdentityEnv)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureAssumeRoleWebIdentityEnv)
-
-	originalTerragruntConfigPath := util.JoinPath(testFixtureAssumeRoleWebIdentityEnv, "terragrunt.hcl")
-	tmpTerragruntConfigFile := util.JoinPath(testPath, "terragrunt.hcl")
-	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
-
-	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName, options.WithIAMRoleARN(assumeRole), options.WithIAMWebIdentityToken(os.Getenv(tokenEnvVar)))
-
-	helpers.CopyAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
-		"__FILL_IN_BUCKET_NAME__":            s3BucketName,
-		"__FILL_IN_REGION__":                 helpers.TerraformRemoteStateS3Region,
-		"__FILL_IN_ASSUME_ROLE__":            assumeRole,
-		"__FILL_IN_IDENTITY_TOKEN_ENV_VAR__": tokenEnvVar,
-	})
-
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply  -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
-	require.NoError(t, err)
-
-	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
-	assert.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
-}
-
-func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
-	t.Parallel()
+	// These tests need to be run without the static key + secret
+	// used by most AWS tests here.
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	os.Unsetenv("AWS_ACCESS_KEY_ID")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAssumeRoleWebIdentityFile)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	cleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureAssumeRoleWebIdentityFile)
 
 	originalTerragruntConfigPath := util.JoinPath(testFixtureAssumeRoleWebIdentityFile, "terragrunt.hcl")
 	tmpTerragruntConfigFile := util.JoinPath(testPath, "terragrunt.hcl")
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
-	assumeRole := os.Getenv("AWS_TEST_S3_ASSUME_ROLE")
-	tokenFilePath := os.Getenv("AWS_TEST_S3_IDENTITY_TOKEN_FILE_PATH")
+	role := os.Getenv("AWS_TEST_OIDC_ROLE_ARN")
+	require.NotEmpty(t, role)
+	token := os.Getenv("CIRCLE_OIDC_TOKEN_V2")
+	require.NotEmpty(t, token)
 
-	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName, options.WithIAMRoleARN(assumeRole), options.WithIAMWebIdentityToken(tokenFilePath))
+	tokenFile := t.TempDir() + "/oidc-token"
+	require.NoError(t, os.WriteFile(tokenFile, []byte(token), 0400))
+
+	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName, options.WithIAMRoleARN(role), options.WithIAMWebIdentityToken(token))
 
 	helpers.CopyAndFillMapPlaceholders(t, originalTerragruntConfigPath, tmpTerragruntConfigFile, map[string]string{
 		"__FILL_IN_BUCKET_NAME__":              s3BucketName,
 		"__FILL_IN_REGION__":                   helpers.TerraformRemoteStateS3Region,
-		"__FILL_IN_ASSUME_ROLE__":              assumeRole,
-		"__FILL_IN_IDENTITY_TOKEN_FILE_PATH__": tokenFilePath,
+		"__FILL_IN_ASSUME_ROLE__":              role,
+		"__FILL_IN_IDENTITY_TOKEN_FILE_PATH__": tokenFile,
 	})
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply  -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+testPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
 	assert.Contains(t, output, "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.")
+}
+
+func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
+	if os.Getenv("CIRCLECI") != "true" {
+		t.Skip("Skipping test because it requires valid CircleCI OIDC credentials to work")
+	}
+
+	// These tests need to be run without the static key + secret
+	// used by most AWS tests here.
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	os.Unsetenv("AWS_ACCESS_KEY_ID")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	os.Unsetenv("AWS_SECRET_ACCESS_KEY")
+
+	tmp := t.TempDir()
+
+	emptyTerragruntConfigPath := filepath.Join(tmp, "terragrunt.hcl")
+	require.NoError(t, os.WriteFile(emptyTerragruntConfigPath, []byte(""), 0400))
+
+	emptyMainTFPath := filepath.Join(tmp, "main.tf")
+	require.NoError(t, os.WriteFile(emptyMainTFPath, []byte(""), 0400))
+
+	roleARN := os.Getenv("AWS_TEST_OIDC_ROLE_ARN")
+	require.NotEmpty(t, roleARN)
+	token := os.Getenv("CIRCLE_OIDC_TOKEN_V2")
+	require.NotEmpty(t, token)
+
+	helpers.RunTerragrunt(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+tmp+" --terragrunt-iam-role "+roleARN+" --terragrunt-iam-web-identity-token "+token)
 }
 
 // Regression testing for https://github.com/gruntwork-io/terragrunt/issues/906
@@ -1094,6 +1099,21 @@ func TestAwsReadTerragruntAuthProviderCmdWithSops(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(stdout), &outputs))
 
 	assert.Equal(t, "Welcome to SOPS! Edit this file as you please!", outputs["hello"].Value)
+}
+
+func TestAwsReadTerragruntAuthProviderCmdWithOIDC(t *testing.T) {
+	t.Parallel()
+
+	if os.Getenv("CIRCLECI") != "true" {
+		t.Skip("Skipping test because it requires valid CircleCI OIDC credentials to work")
+	}
+
+	cleanupTerraformFolder(t, testFixtureAuthProviderCmd)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAuthProviderCmd)
+	oidcPath := util.JoinPath(tmpEnvPath, testFixtureAuthProviderCmd, "oidc")
+	mockAuthCmd := filepath.Join(oidcPath, "mock-auth-cmd.sh")
+
+	helpers.RunTerragrunt(t, fmt.Sprintf(`terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-auth-provider-cmd %s`, oidcPath, mockAuthCmd))
 }
 
 func TestAwsReadTerragruntConfigIamRole(t *testing.T) {
