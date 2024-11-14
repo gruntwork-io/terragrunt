@@ -179,7 +179,10 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 		return nil, err
 	}
 
-	EvaluateExcludeBlocks(ctx.WithTrackInclude(trackInclude).WithFeatures(&flagsAsCtyVal), file)
+	excludeConfig, err := EvaluateExcludeBlocks(ctx.WithTrackInclude(trackInclude).WithFeatures(&flagsAsCtyVal), file)
+	if err != nil {
+		return nil, err
+	}
 
 	// Evaluate all the expressions in the locals block separately and generate the variables list to use in the
 	// evaluation ctx.
@@ -197,6 +200,7 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 		TrackInclude: trackInclude,
 		Locals:       &localsAsCtyVal,
 		FeatureFlags: &flagsAsCtyVal,
+		Exclude:      excludeConfig,
 	}, nil
 }
 
@@ -549,20 +553,6 @@ func decodeAsTerragruntInclude(file *hclparse.File, evalParsingContext *hcl.Eval
 	}
 
 	return tgInc.Include, nil
-}
-
-func flagToCtyValue(name string, value interface{}) (cty.Value, error) {
-	ctyValue, err := goTypeToCty(value)
-	if err != nil {
-		return cty.NilVal, err
-	}
-
-	ctyFlag := ctyFeatureFlag{
-		Name:  name,
-		Value: ctyValue,
-	}
-
-	return goTypeToCty(ctyFlag)
 }
 
 // Custom error types

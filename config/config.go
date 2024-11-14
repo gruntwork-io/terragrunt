@@ -96,6 +96,7 @@ type DecodedBaseBlocks struct {
 	TrackInclude *TrackInclude
 	Locals       *cty.Value
 	FeatureFlags *cty.Value
+	Exclude      *ExcludeConfig
 }
 
 // TerragruntConfig represents a parsed and expanded configuration

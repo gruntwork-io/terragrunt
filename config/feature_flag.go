@@ -59,3 +59,17 @@ func (feature *FeatureFlag) DefaultAsString() (string, error) {
 
 	return string(jsonBytes), nil
 }
+
+func flagToCtyValue(name string, value interface{}) (cty.Value, error) {
+	ctyValue, err := goTypeToCty(value)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	ctyFlag := ctyFeatureFlag{
+		Name:  name,
+		Value: ctyValue,
+	}
+
+	return goTypeToCty(ctyFlag)
+}
