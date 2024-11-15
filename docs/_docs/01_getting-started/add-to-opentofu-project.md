@@ -1,6 +1,6 @@
 ---
 layout: collection-browser-doc
-title: Add to Existing Project
+title: Add to OpenTofu Project
 category: getting-started
 excerpt: Add Terragrunt to an existing OpenTofu/Terraform project.
 tags: ["tofu", "opentofu", "terraform", "tf"]
@@ -21,7 +21,7 @@ This creates an empty Terragrunt configuration file in the directory where you a
 
 Depending on why you're looking to adopt Terragrunt, this may be all you need to do!
 
-With just this empty file, you've made it so that you no longer need to run `tofu init` or `terraform init` before running `tofu apply` or `terraform apply`. Terragrunt will automatically run `init` for you if necessary. This is a feature called [Auto-init](/docs/features/auto-init/).
+With just this empty file, you've already made it so that you no longer need to run `tofu init` or `terraform init` before running `tofu apply` or `terraform apply`. Terragrunt will automatically run `init` for you if necessary. This is a feature called [Auto-init](/docs/features/auto-init/).
 
 This might not be very impressive so far, so you may be wondering _why_ one might want to start using Terragrunt to manage their OpenTofu/Terraform projects. A quick overview of the main benefits of using Terragrunt are covered in the [Quick start](/docs/getting-started/quick-start/), and there is a comprehensive list of features in the [Features](/docs/features/) section.
 

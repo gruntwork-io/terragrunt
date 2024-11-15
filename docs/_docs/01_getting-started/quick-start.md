@@ -573,6 +573,8 @@ Now that you’ve seen the basics of Terragrunt, here is some further reading to
 
 2. [Documentation]({{site.baseurl}}/docs/): Check out the detailed Terragrunt documentation.
 
-3. [Fundamentals of DevOps and Software Delivery](https://www.gruntwork.io/fundamentals-of-devops): Learn the fundamentals of DevOps and Software Delivery from one of the founders of Gruntwork!
+3. [Add Terragrunt to your OpenTofu project]({{site.baseurl}}/docs/getting-started/add-to-opentofu-project): Follow the step-by-step guide to add Terragrunt to an existing OpenTofu/Terraform project.
 
-4. [_Terraform: Up & Running_](https://www.terraformupandrunning.com/): This book is the fastest way to get up and running with Terraform\! Terragrunt is a direct implementation of many of the ideas from this book.
+4. [Fundamentals of DevOps and Software Delivery](https://www.gruntwork.io/fundamentals-of-devops): Learn the fundamentals of DevOps and Software Delivery from one of the founders of Gruntwork!
+
+5. [_Terraform: Up & Running_](https://www.terraformupandrunning.com/): This book is the fastest way to get up and running with Terraform\! Terragrunt is a direct implementation of many of the ideas from this book.
