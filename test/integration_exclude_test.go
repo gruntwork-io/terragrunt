@@ -11,6 +11,7 @@ import (
 
 const (
 	testExcludeByDefault = "fixtures/exclude/exclude-default"
+	testExcludeDisabled  = "fixtures/exclude/exclude-disabled"
 )
 
 func TestExcludeByDefault(t *testing.T) {
@@ -26,4 +27,19 @@ func TestExcludeByDefault(t *testing.T) {
 
 	assert.Contains(t, stderr, "app1")
 	assert.NotContains(t, stderr, "app2")
+}
+
+func TestExcludeDisabled(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testExcludeDisabled)
+	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeDisabled)
+	rootPath := util.JoinPath(tmpEnvPath, testExcludeDisabled)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "app1")
+	assert.Contains(t, stderr, "app2")
 }
