@@ -289,7 +289,7 @@ This is where that additional verbosity in Terragrunt logging is really handy. Y
 Similar to the `tofu` CLI, there is a prompt to confirm that you are sure you want to run the command in each unit when performing a command that's potentially destructive. You can skip this prompt by using the `--terragrunt-non-interactive` flag, just as you would with `-auto-approve` in OpenTofu.
 
 ```bash
-$ terragrunt run-all --terragrunt-non-interactive apply -auto-approve
+terragrunt run-all --terragrunt-non-interactive apply -auto-approve
 ```
 
 ### Step 6: Use Terragrunt to manage your DAG
@@ -310,15 +310,15 @@ Then, you can update the `bar` unit to depend on the `foo` unit by using the `de
 ```hcl
 # bar/terragrunt.hcl
 terraform {
-	source = "../shared"
+ source = "../shared"
 }
 
 dependency "foo" {
-	config_path = "../foo"
+ config_path = "../foo"
 }
 
 inputs = {
-	content = "Foo content: ${dependency.foo.outputs.content}"
+ content = "Foo content: ${dependency.foo.outputs.content}"
 }
 ```
 
@@ -449,11 +449,10 @@ inputs = {
 }
 ```
 
-### Step 8: Continue learning and exploring!
+### Step 8: Continue learning and exploring
 
 Hopefully, following this tutorial has given you confidence in integrating Terragrunt into your existing OpenTofu/Terraform projects. Starting small, and gradually introducing more complex features, is a great way to learn how Terragrunt can help you manage your infrastructure more effectively.
 
 There are many more features and capabilities in Terragrunt. You can find more information on them in the [Features](/docs/features/) section of the documentation.
 
 If you need help with a particular problem, take a look at the resources available to you in the [Support](/docs/community/support/) section.
-
