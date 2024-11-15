@@ -48,6 +48,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-iam-role](#terragrunt-iam-role)
   - [terragrunt-iam-assume-role-duration](#terragrunt-iam-assume-role-duration)
   - [terragrunt-iam-assume-role-session-name](#terragrunt-iam-assume-role-session-name)
+  - [terragrunt-iam-web-identity-token](#terragrunt-iam-web-identity-token)
   - [terragrunt-excludes-file](#terragrunt-excludes-file)
   - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
   - [terragrunt-include-dir](#terragrunt-include-dir)
@@ -984,6 +985,14 @@ Uses the specified duration as the session duration (in seconds) for the STS ses
 
 Used as the session name for the STS session which assumes the role defined in `--terragrunt-iam-role`.
 
+### terragrunt-iam-web-identity-token
+
+**CLI Arg**: `--terragrunt-iam-web-identity-token`<br/>
+**Environment Variable**: `TERRAGRUNT_IAM_WEB_IDENTITY_TOKEN`<br/>
+**Requires an argument**: `--terragrunt-iam-web-identity-token [/path/to/web-identity-token | web-identity-token-value]`<br/>
+
+Used as the web identity token for assuming a role temporarily using the AWS Security Token Service (STS) with the [AssumeRoleWithWebIdentity](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html) API.
+
 ### terragrunt-excludes-file
 
 **CLI Arg**: `--terragrunt-excludes-file`<br/>
@@ -1288,8 +1297,11 @@ and then will apply this filter on the set of modules that it found.
 You can pass this argument in multiple times to provide a list of include files to consider. When multiple files are
 passed in, the set will be the union of modules that includes at least one of the files in the list.
 
-NOTE: When using relative paths, the paths are relative to the working directory. This is either the current working
+**NOTE**: When using relative paths, the paths are relative to the working directory. This is either the current working
 directory, or any path passed in to [terragrunt-working-dir](#terragrunt-working-dir).
+
+**TIP**: This flag is functionally covered by the `--terragrunt-queue-include-units-reading` flag, but is more explicitly
+only for the `include` configuration block.
 
 ### terragrunt-queue-include-units-reading
 
@@ -1304,11 +1316,11 @@ directory, or any path passed in to [terragrunt-working-dir](#terragrunt-working
 - [destroy-all (DEPRECATED: use run-all)](#destroy-all-deprecated-use-run-all)
 - [validate-all (DEPRECATED: use run-all)](#validate-all-deprecated-use-run-all)
 
-This flag works very similarly to the `--terragrunt-modules-that-include` flag, but instead of looking for included configurations,
-it instead looks for configurations that read a given file.
+This flag works very similarly to the `--terragrunt-modules-that-include` flag, but instead of looking only for included configurations,
+it also looks for configurations that read a given file.
 
 When passed in, the `*-all` commands will include all units (modules) that read a given file into the queue. This is useful
-when you want to trigger an update on all units that read a given file using HCL functions in their configurations.
+when you want to trigger an update on all units that read or include a given file using HCL functions in their configurations.
 
 Consider the following folder structure:
 
@@ -1529,6 +1541,12 @@ The output must be valid JSON of the following schema:
     "SECRET_ACCESS_KEY": "",
     "SESSION_TOKEN": ""
   },
+  "awsRole": {
+    "roleARN": "",
+    "sessionName": "",
+    "duration": 0,
+    "webIdentityToken": ""
+  },
   "envs": {
     "ANY_KEY": ""
   }
@@ -1553,7 +1571,11 @@ Note that more specific configurations (e.g. `awsCredentials`) take precedence o
 
 If you would like to set credentials for AWS with this method, you are encouraged to use `awsCredentials` instead of `envs`, as these keys will be validated to conform to the officially supported environment variables expected by the AWS SDK.
 
+Similarly, if you would like Terragrunt to assume an AWS role on your behalf, you are encouraged to use the `awsRole` configuration instead of `envs`.
+
 Other credential configurations will be supported in the future, but until then, if your provider authenticates via environment variables, you can use the `envs` field to fetch credentials dynamically from a secret store, etc before Terragrunt executes any IAC.
+
+**Note**: The `awsRole` configuration is only used when the `awsCredentials` configuration is not present. If both are present, the `awsCredentials` configuration will take precedence.
 
 ### terragrunt-disable-log-formatting
 

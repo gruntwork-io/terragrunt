@@ -441,14 +441,18 @@ func (modules TerraformModules) flagIncludedDirs(opts *options.TerragruntOptions
 // flagUnitsThatAreIncluded iterates over a module slice and flags all modules that include at least one file in
 // the specified include list on the TerragruntOptions ModulesThatInclude attribute.
 func (modules TerraformModules) flagUnitsThatAreIncluded(opts *options.TerragruntOptions) (TerraformModules, error) {
-	// If no ModulesThatInclude is specified return the modules list instantly
-	if len(opts.ModulesThatInclude) == 0 {
+	// The two flags ModulesThatInclude and UnitsReading should both be considered when determining which
+	// units to include in the run queue.
+	unitsThatInclude := append(opts.ModulesThatInclude, opts.UnitsReading...)
+
+	// If no unitsThatInclude is specified return the modules list instantly
+	if len(unitsThatInclude) == 0 {
 		return modules, nil
 	}
 
 	modulesThatIncludeCanonicalPaths := []string{}
 
-	for _, includePath := range opts.ModulesThatInclude {
+	for _, includePath := range unitsThatInclude {
 		canonicalPath, err := util.CanonicalPath(includePath, opts.WorkingDir)
 		if err != nil {
 			return nil, err
