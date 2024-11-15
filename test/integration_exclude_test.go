@@ -10,10 +10,11 @@ import (
 )
 
 const (
-	testExcludeByDefault = "fixtures/exclude/exclude-default"
-	testExcludeDisabled  = "fixtures/exclude/exclude-disabled"
-	testExcludeByAction  = "fixtures/exclude/exclude-by-action"
-	testExcludeByFlags   = "fixtures/exclude/exclude-by-feature-flags"
+	testExcludeByDefault    = "fixtures/exclude/default"
+	testExcludeDisabled     = "fixtures/exclude/disabled"
+	testExcludeByAction     = "fixtures/exclude/action"
+	testExcludeByFlags      = "fixtures/exclude/feature-flags"
+	testExcludeDependencies = "fixtures/exclude/dependencies"
 )
 
 func TestExcludeByDefault(t *testing.T) {
@@ -112,4 +113,25 @@ func TestExcludeAllByFeatureFlag(t *testing.T) {
 
 	assert.NotContains(t, stderr, "app1")
 	assert.NotContains(t, stderr, "app2")
+}
+
+func TestExcludeDependencies(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testExcludeDependencies)
+	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeDependencies)
+	rootPath := util.JoinPath(tmpEnvPath, testExcludeDependencies)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --feature exclude=false --feature exclude_dependencies=false --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "dep")
+	assert.Contains(t, stderr, "app1")
+
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --feature exclude=true --feature exclude_dependencies=false --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "dep")
+	assert.NotContains(t, stderr, "app1")
 }
