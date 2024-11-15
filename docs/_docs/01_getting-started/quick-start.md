@@ -32,7 +32,7 @@ terragrunt output
 terragrunt destroy
 ```
 
-Terragrunt will forward almost all commands, arguments, and options directly to OpenTofu/Terraform, but based on the settings in your `terragrunt.hcl` file.
+Terragrunt will forward almost all commands, arguments, and options directly to OpenTofu/Terraform, with adjustments made based on the settings in your `terragrunt.hcl` file.
 
 ## Example
 
@@ -111,18 +111,6 @@ NOTE: Heads up, not all Registry modules can be deployed with Terragrunt, see [A
 registry]({{ site.baseurl }}/docs/reference/config-blocks-and-attributes#a-note-about-using-modules-from-the-registry) for details.
 
 ## Key features
-
-Terragrunt can help you accomplish the following:
-
-- [Introduction](#introduction)
-- [Example](#example)
-  - [terragrunt.hcl](#terragrunthcl)
-- [Key features](#key-features)
-  - [Keep your backend configuration DRY](#keep-your-backend-configuration-dry)
-  - [Keep your provider configuration DRY](#keep-your-provider-configuration-dry)
-  - [Keep your OpenTofu/Terraform CLI arguments DRY](#keep-your-opentofuterraform-cli-arguments-dry)
-  - [Promote immutable, versioned OpenTofu/Terraform modules across environments](#promote-immutable-versioned-opentofuterraform-modules-across-environments)
-- [Next steps](#next-steps)
 
 ### Keep your backend configuration DRY
 
@@ -585,4 +573,6 @@ Now that you’ve seen the basics of Terragrunt, here is some further reading to
 
 2. [Documentation]({{site.baseurl}}/docs/): Check out the detailed Terragrunt documentation.
 
-3. [_Terraform: Up & Running_](https://www.terraformupandrunning.com/): This book is the fastest way to get up and running with Terraform\! Terragrunt is a direct implementation of many of the ideas from this book.
+3. [Fundamentals of DevOps and Software Delivery](https://www.gruntwork.io/fundamentals-of-devops): Learn the fundamentals of DevOps and Software Delivery from one of the founders of Gruntwork!
+
+4. [_Terraform: Up & Running_](https://www.terraformupandrunning.com/): This book is the fastest way to get up and running with Terraform\! Terragrunt is a direct implementation of many of the ideas from this book.
