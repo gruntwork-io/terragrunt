@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	allActions              = "all"                // handle all actions
-	allExcludeOutputActions = "all_exclude_output" // handle all exclude output actions
+	allActions              = "all"               // handle all actions
+	allExcludeOutputActions = "all_except_output" // handle all exclude output actions
 	tgOutput                = "output"
 )
 
