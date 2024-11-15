@@ -82,8 +82,8 @@ func TestExcludeByFeatureFlagDefault(t *testing.T) {
 
 	require.NoError(t, err)
 
-	assert.Contains(t, stderr, "app2")
-	assert.NotContains(t, stderr, "app1")
+	assert.Contains(t, stderr, "app1")
+	assert.NotContains(t, stderr, "app2")
 }
 
 func TestExcludeByFeatureFlag(t *testing.T) {
