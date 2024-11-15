@@ -1,5 +1,5 @@
 FROM ruby:3.3-bookworm
-MAINTAINER Gruntwork <info@gruntwork.io>
+LABEL org.opencontainers.image.authors="Gruntwork <info@gruntwork.io>"
 
 # Copy the Gemfile and Gemfile.lock into the image and run bundle install in a way that will be cached
 WORKDIR /tmp
