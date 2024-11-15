@@ -498,7 +498,7 @@ func (modules TerraformModules) flagUnitsThatAreIncluded(opts *options.Terragrun
 	return modules, nil
 }
 
-// flagExcludedUnits iterates over a module slice and flags all modules that are excluded based on the exclude block
+// flagExcludedUnits iterates over a module slice and flags all modules that are excluded based on the exclude block.
 func (modules TerraformModules) flagExcludedUnits(opts *options.TerragruntOptions) TerraformModules {
 	for _, module := range modules {
 		excludeConfig := module.Config.Exclude

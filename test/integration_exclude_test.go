@@ -155,5 +155,4 @@ func TestExcludeAllExceptOutput(t *testing.T) {
 
 	assert.Contains(t, stderr, "app1")
 	assert.Contains(t, stderr, "app2")
-
 }

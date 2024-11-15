@@ -470,7 +470,7 @@ type ctyEngineConfig struct {
 	Meta    cty.Value `cty:"meta"`
 }
 
-// ctyExclude exclude representation for cty
+// ctyExclude exclude representation for cty.
 type ctyExclude struct {
 	If                  bool     `cty:"if"`
 	Actions             []string `cty:"actions"`

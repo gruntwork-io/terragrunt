@@ -25,21 +25,22 @@ type ExcludeConfig struct {
 	ExcludeDependencies bool     `cty:"exclude_dependencies" hcl:"exclude_dependencies,attr" json:"exclude_dependencies"`
 }
 
+// IsActionListed checks if the action is listed in the exclude block.
 func (e *ExcludeConfig) IsActionListed(action string) bool {
 	if len(e.Actions) == 0 {
 		return false
 	}
 
-	for _, a := range e.Actions {
-		if a == allActions { // if actions contains all, return true in all cases
+	for _, checkAction := range e.Actions {
+		if checkAction == allActions { // if actions contains all, return true in all cases
 			return true
 		}
 
-		if a == allExcludeOutputActions && action != tgOutput {
+		if checkAction == allExcludeOutputActions && action != tgOutput {
 			return true
 		}
 
-		if a == strings.ToLower(action) {
+		if checkAction == strings.ToLower(action) {
 			return true
 		}
 	}
@@ -56,6 +57,7 @@ func (e *ExcludeConfig) Clone() *ExcludeConfig {
 	}
 }
 
+// Merge merges the values of the provided ExcludeConfig into the original.
 func (e *ExcludeConfig) Merge(exclude *ExcludeConfig) {
 	// copy not empty fields
 	e.If = exclude.If
@@ -100,6 +102,7 @@ func evaluateExcludeBlocks(ctx *ParsingContext, file *hclparse.File) (*ExcludeCo
 		value, err := attr.Value(evalCtx)
 		if err != nil {
 			ctx.TerragruntOptions.Logger.Debugf("Encountered error while evaluating exclude block in file %s", file.ConfigPath)
+
 			return nil, err
 		}
 
@@ -111,7 +114,7 @@ func evaluateExcludeBlocks(ctx *ParsingContext, file *hclparse.File) (*ExcludeCo
 			if value.Type() == cty.String { // handle bool flag value
 				val, err := strconv.ParseBool(value.AsString())
 				if err != nil {
-					return nil, err
+					return nil, errors.New(err)
 				}
 
 				evaluatedAttrs[boolFlag] = cty.BoolVal(val)
