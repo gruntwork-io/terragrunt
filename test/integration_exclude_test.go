@@ -13,6 +13,7 @@ const (
 	testExcludeByDefault = "fixtures/exclude/exclude-default"
 	testExcludeDisabled  = "fixtures/exclude/exclude-disabled"
 	testExcludeByAction  = "fixtures/exclude/exclude-by-action"
+	testExcludeByFlags   = "fixtures/exclude/exclude-by-feature-flags"
 )
 
 func TestExcludeByDefault(t *testing.T) {
@@ -66,4 +67,49 @@ func TestExcludeApply(t *testing.T) {
 	// should be applied only exclude-plan
 	assert.Contains(t, stderr, "exclude-plan")
 	assert.NotContains(t, stderr, "exclude-apply")
+}
+
+func TestExcludeByFeatureFlagDefault(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testExcludeByFlags)
+	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeByFlags)
+	rootPath := util.JoinPath(tmpEnvPath, testExcludeByFlags)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "app2")
+	assert.NotContains(t, stderr, "app1")
+}
+
+func TestExcludeByFeatureFlag(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testExcludeByFlags)
+	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeByFlags)
+	rootPath := util.JoinPath(tmpEnvPath, testExcludeByFlags)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply --feature exclude2=false --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	require.NoError(t, err)
+
+	assert.Contains(t, stderr, "app1")
+	assert.Contains(t, stderr, "app2")
+}
+
+func TestExcludeAllByFeatureFlag(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testExcludeByFlags)
+	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeByFlags)
+	rootPath := util.JoinPath(tmpEnvPath, testExcludeByFlags)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply --feature exclude1=true --feature exclude2=true --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	require.NoError(t, err)
+
+	assert.NotContains(t, stderr, "app1")
+	assert.NotContains(t, stderr, "app2")
 }
