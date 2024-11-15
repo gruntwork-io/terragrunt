@@ -12,6 +12,7 @@ import (
 const (
 	allActions              = "all"                // handle all actions
 	allExcludeOutputActions = "all_exclude_output" // handle all exclude output actions
+	tgOutput                = "output"
 )
 
 // bool values to be used as booleans.
@@ -33,7 +34,8 @@ func (e *ExcludeConfig) IsActionListed(action string) bool {
 		if a == allActions { // if actions contains all, return true in all cases
 			return true
 		}
-		if a == allExcludeOutputActions && action != "output" {
+
+		if a == allExcludeOutputActions && action != tgOutput {
 			return true
 		}
 
