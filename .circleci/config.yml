@@ -761,6 +761,7 @@ workflows:
               only: /^v.*/
           context:
             - AWS__PHXDEVOPS__circle-ci-test
+            - AWS__PHXDEVOPS__terragrunt-oidc-test
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
             - APPLE__OSX__code-signing
@@ -770,6 +771,7 @@ workflows:
               only: /^v.*/
           context:
             - AWS__PHXDEVOPS__circle-ci-test
+            - AWS__PHXDEVOPS__terragrunt-oidc-test
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
             - APPLE__OSX__code-signing
@@ -779,6 +781,7 @@ workflows:
               only: /^v.*/
           context:
             - AWS__PHXDEVOPS__circle-ci-test
+            - AWS__PHXDEVOPS__terragrunt-oidc-test
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
             - APPLE__OSX__code-signing

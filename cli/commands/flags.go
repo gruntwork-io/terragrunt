@@ -62,30 +62,6 @@ const (
 	TerragruntIAMWebIdentityTokenFlagName = "terragrunt-iam-web-identity-token"
 	TerragruntIAMWebIdentityTokenEnvName  = "TERRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN"
 
-	TerragruntIgnoreDependencyErrorsFlagName = "terragrunt-ignore-dependency-errors"
-	TerragruntIgnoreDependencyErrorsEnvName  = "TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS"
-
-	TerragruntIgnoreDependencyOrderFlagName = "terragrunt-ignore-dependency-order"
-	TerragruntIgnoreDependencyOrderEnvName  = "TERRAGRUNT_IGNORE_DEPENDENCY_ORDER"
-
-	TerragruntIgnoreExternalDependenciesFlagName = "terragrunt-ignore-external-dependencies"
-	TerragruntIgnoreExternalDependenciesEnvName  = "TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES"
-
-	TerragruntIncludeExternalDependenciesFlagName = "terragrunt-include-external-dependencies"
-	TerragruntIncludeExternalDependenciesEnvName  = "TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES"
-
-	TerragruntExcludesFileFlagName = "terragrunt-excludes-file"
-	TerragruntExcludesFileEnvName  = "TERRAGRUNT_EXCLUDES_FILE"
-
-	TerragruntExcludeDirFlagName = "terragrunt-exclude-dir"
-	TerragruntExcludeDirEnvName  = "TERRAGRUNT_EXCLUDE_DIR"
-
-	TerragruntIncludeDirFlagName = "terragrunt-include-dir"
-	TerragruntIncludeDirEnvName  = "TERRAGRUNT_INCLUDE_DIR"
-
-	TerragruntStrictIncludeFlagName = "terragrunt-strict-include"
-	TerragruntStrictIncludeEnvName  = "TERRAGRUNT_STRICT_INCLUDE"
-
 	TerragruntParallelismFlagName = "terragrunt-parallelism"
 	TerragruntParallelismEnvName  = "TERRAGRUNT_PARALLELISM"
 
@@ -124,6 +100,35 @@ const (
 
 	TerragruntNoDestroyDependenciesCheckFlagEnvName = "TERRAGRUNT_NO_DESTROY_DEPENDENCIES_CHECK"
 	TerragruntNoDestroyDependenciesCheckFlagName    = "terragrunt-no-destroy-dependencies-check"
+
+	// Queue related flags
+
+	TerragruntIgnoreDependencyErrorsFlagName = "terragrunt-ignore-dependency-errors"
+	TerragruntIgnoreDependencyErrorsEnvName  = "TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS"
+
+	TerragruntIgnoreDependencyOrderFlagName = "terragrunt-ignore-dependency-order"
+	TerragruntIgnoreDependencyOrderEnvName  = "TERRAGRUNT_IGNORE_DEPENDENCY_ORDER"
+
+	TerragruntIgnoreExternalDependenciesFlagName = "terragrunt-ignore-external-dependencies"
+	TerragruntIgnoreExternalDependenciesEnvName  = "TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES"
+
+	TerragruntIncludeExternalDependenciesFlagName = "terragrunt-include-external-dependencies"
+	TerragruntIncludeExternalDependenciesEnvName  = "TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES"
+
+	TerragruntExcludesFileFlagName = "terragrunt-excludes-file"
+	TerragruntExcludesFileEnvName  = "TERRAGRUNT_EXCLUDES_FILE"
+
+	TerragruntExcludeDirFlagName = "terragrunt-exclude-dir"
+	TerragruntExcludeDirEnvName  = "TERRAGRUNT_EXCLUDE_DIR"
+
+	TerragruntIncludeDirFlagName = "terragrunt-include-dir"
+	TerragruntIncludeDirEnvName  = "TERRAGRUNT_INCLUDE_DIR"
+
+	TerragruntStrictIncludeFlagName = "terragrunt-strict-include"
+	TerragruntStrictIncludeEnvName  = "TERRAGRUNT_STRICT_INCLUDE"
+
+	TerragruntUnitsReadingFlagName = "terragrunt-queue-include-units-reading"
+	TerragruntUnitsReadingEnvName  = "TERRAGRUNT_QUEUE_INCLUDE_UNITS_READING"
 
 	// Logs related flags/envs
 
@@ -469,6 +474,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      TerragruntModulesThatIncludeEnvName,
 			Destination: &opts.ModulesThatInclude,
 			Usage:       "If flag is set, 'run-all' will only run the command against Terragrunt modules that include the specified file.",
+		},
+		&cli.SliceFlag[string]{
+			Name:        TerragruntUnitsReadingFlagName,
+			EnvVar:      TerragruntUnitsReadingEnvName,
+			Destination: &opts.UnitsReading,
+			Usage:       "If flag is set, 'run-all' will only run the command against Terragrunt units that read the specified file via an HCL function.",
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntFailOnStateBucketCreationFlagName,

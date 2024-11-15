@@ -1,0 +1,1 @@
+shared_tfvars = "value"
