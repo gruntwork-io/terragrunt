@@ -1218,7 +1218,7 @@ terragrunt apply
 ### exclude
 
 The `exclude` block in Terragrunt provides advanced configuration options to dynamically determine when and how specific
-units in the Terragrunt dependency graph are excluded. This feature allows for fine-grained control over which actions 
+units in the Terragrunt dependency graph are excluded. This feature allows for fine-grained control over which actions
 are executed and can conditionally exclude dependencies.
 
 Syntax:
@@ -1248,7 +1248,8 @@ exclude {
     exclude_dependencies = false         # Do not exclude dependencies.
 }
 ```
-In this example, the unit is excluded for the `plan` and `apply` actions only when `feature.feature_name.value` 
+
+In this example, the unit is excluded for the `plan` and `apply` actions only when `feature.feature_name.value`
 evaluates to `true`. Dependencies are not excluded.
 
 ```hcl
@@ -1271,7 +1272,6 @@ exclude {
 ```
 
 This setup is useful for scenarios where output evaluation is still needed, even if other actions like `plan` or `apply` are excluded.
-
 
 ## Attributes
 
