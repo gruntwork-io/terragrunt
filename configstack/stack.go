@@ -436,11 +436,7 @@ func (stack *Stack) ResolveTerraformModules(ctx context.Context, terragruntConfi
 	err = telemetry.Telemetry(ctx, stack.terragruntOptions, "flag_excluded_units", map[string]interface{}{
 		"working_dir": stack.terragruntOptions.WorkingDir,
 	}, func(childCtx context.Context) error {
-		result, err := withUnitsThatAreIncludedByOthers.flagExcludedUnits(stack.terragruntOptions)
-		if err != nil {
-			return err
-		}
-
+		result := withUnitsThatAreIncludedByOthers.flagExcludedUnits(stack.terragruntOptions)
 		withExcludedUnits = result
 
 		return nil

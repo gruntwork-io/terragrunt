@@ -32,10 +32,12 @@ func (e *ExcludeConfig) IsActionListed(action string) bool {
 		if a == allActions { // if actions contains all, return true in all cases
 			return true
 		}
+
 		if a == strings.ToLower(action) {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -54,12 +56,12 @@ func (e *ExcludeConfig) Merge(exclude *ExcludeConfig) {
 	if len(exclude.Actions) > 0 {
 		e.Actions = exclude.Actions
 	}
+
 	e.ExcludeDependencies = exclude.ExcludeDependencies
 }
 
 // evaluateExcludeBlocks evaluates the exclude block in the parsed file.
 func evaluateExcludeBlocks(ctx *ParsingContext, file *hclparse.File) (*ExcludeConfig, error) {
-
 	excludeBlock, err := file.Blocks(MetadataExclude, false)
 	if err != nil {
 		return nil, err
@@ -94,6 +96,7 @@ func evaluateExcludeBlocks(ctx *ParsingContext, file *hclparse.File) (*ExcludeCo
 			ctx.TerragruntOptions.Logger.Debugf("Encountered error while evaluating exclude block in file %s", file.ConfigPath)
 			return nil, err
 		}
+
 		evaluatedAttrs[attr.Name] = value
 	}
 
@@ -104,9 +107,9 @@ func evaluateExcludeBlocks(ctx *ParsingContext, file *hclparse.File) (*ExcludeCo
 				if err != nil {
 					return nil, err
 				}
+
 				evaluatedAttrs[boolFlag] = cty.BoolVal(val)
 			}
-
 		}
 	}
 

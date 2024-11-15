@@ -125,6 +125,7 @@ func flagToTypedCtyValue(name string, ctyType cty.Type, value interface{}) (cty.
 		if err != nil {
 			return cty.NilVal, errors.WithStack(err)
 		}
+
 		flagValue = parsedValue
 	}
 

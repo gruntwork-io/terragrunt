@@ -183,24 +183,26 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 	for name, value := range ctx.TerragruntOptions.FeatureFlags {
 		// convert flag value to respective type
 		var evaluatedFlag cty.Value
+
 		existingFlag, exists := flagByName[name]
+
 		if exists {
 			flag, err := flagToTypedCtyValue(name, existingFlag.Default.Type(), value)
-
 			if err != nil {
 				return cty.NilVal, err
 			}
-			evaluatedFlag = flag
 
+			evaluatedFlag = flag
 		} else {
 			flag, err := flagToCtyValue(name, value)
 			if err != nil {
 				return cty.NilVal, err
 			}
+
 			evaluatedFlag = flag
 		}
-		evaluatedFlags[name] = evaluatedFlag
 
+		evaluatedFlags[name] = evaluatedFlag
 	}
 
 	for _, flag := range tgFlags {
@@ -220,6 +222,7 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 	if err != nil {
 		return cty.NilVal, err
 	}
+
 	return flagsAsCtyVal, nil
 }
 
@@ -512,6 +515,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				if err != nil {
 					return nil, err
 				}
+
 				output.FeatureFlags = flags
 			} else {
 				output.FeatureFlags = decoded.FeatureFlags
@@ -553,7 +557,6 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 
 // processExcludes evaluate exclude blocks and merge them into the config.
 func processExcludes(ctx *ParsingContext, config *TerragruntConfig, file *hclparse.File) (*TerragruntConfig, error) {
-
 	flagsAsCtyVal, err := flagsAsCty(ctx, config.FeatureFlags)
 	if err != nil {
 		return nil, err
@@ -573,6 +576,7 @@ func processExcludes(ctx *ParsingContext, config *TerragruntConfig, file *hclpar
 	} else {
 		config.Exclude = excludeConfig
 	}
+
 	return config, nil
 }
 
