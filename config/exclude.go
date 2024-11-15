@@ -2,10 +2,15 @@ package config
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/zclconf/go-cty/cty"
+)
+
+const (
+	allActions = "all"
 )
 
 // bool values to be used as booleans.
@@ -24,7 +29,10 @@ func (e *ExcludeConfig) IsActionListed(action string) bool {
 	}
 
 	for _, a := range e.Actions {
-		if a == action {
+		if a == allActions { // if actions contains all, return true in all cases
+			return true
+		}
+		if a == strings.ToLower(action) {
 			return true
 		}
 	}
