@@ -129,7 +129,7 @@ type TerragruntOptions struct {
 	// Disable Terragrunt colors
 	DisableLogColors bool
 
-	// Output Terragrunt logs in JSON formatter
+	// Output Terragrunt logs in JSON format
 	JSONLogFormat bool
 
 	// Disable replacing full paths in logs with short relative paths
@@ -147,7 +147,7 @@ type TerragruntOptions struct {
 	// If true, logs will be displayed in formatter key/value, by default logs are formatted in human-readable formatter.
 	DisableLogFormatting bool
 
-	// Wrap Terraform logs in JSON formatter
+	// Wrap Terraform logs in JSON format
 	TerraformLogsToJSON bool
 
 	// ValidateStrict mode for the validate-inputs command

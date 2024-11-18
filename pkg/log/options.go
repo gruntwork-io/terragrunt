@@ -26,7 +26,7 @@ func WithOutput(output io.Writer) Option {
 // WithFormatter sets the logger formatter.
 func WithFormatter(formatter Formatter) Option {
 	return func(logger *logger) {
-		logger.Logger.SetFormatter(&logruFormatter{Formatter: formatter})
+		logger.Logger.SetFormatter(&fromLogrusFormatter{Formatter: formatter})
 	}
 }
 

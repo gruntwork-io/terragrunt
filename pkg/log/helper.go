@@ -16,11 +16,12 @@ type Entry struct {
 	Fields Fields
 }
 
-type logruFormatter struct {
+// fromLogrusFormatter converts call from logrus.Formatter interface to our long.Formatter interface.
+type fromLogrusFormatter struct {
 	Formatter
 }
 
-func (f *logruFormatter) Format(parent *logrus.Entry) ([]byte, error) {
+func (f *fromLogrusFormatter) Format(parent *logrus.Entry) ([]byte, error) {
 	entry := &Entry{
 		Entry:  parent,
 		Level:  FromLogrusLevel(parent.Level),

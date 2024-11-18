@@ -1139,7 +1139,7 @@ There are four log format presets:
 **Environment Variable**: `TERRAGRUNT_LOG_CUSTOM_FORMAT`<br/>
 **Requires an argument**: `--terragrunt-log-custom-format <LOG_CUSTOM_FORMAT>`<br/>
 
-This allows you to specify which information you want to output. It works a little bit like printf format.
+This allows you to customize logging however you like.
 
 Make sure to read [Custom Log Format](https://terragrunt.gruntwork.io/docs/features/custom-log-format/) for syntax details.
 
