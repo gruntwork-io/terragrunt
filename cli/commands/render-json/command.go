@@ -23,7 +23,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 		},
 		&cli.BoolFlag{
 			Name:        FlagNameWithMetadata,
-			Destination: &opts.RenderJSONithMetadata,
+			Destination: &opts.RenderJSONWithMetadata,
 			Usage:       "Add metadata to the rendered JSON file.",
 		},
 		&cli.BoolFlag{
