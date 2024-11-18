@@ -526,10 +526,15 @@ func excludeConfigAsCty(config *ExcludeConfig) (cty.Value, error) {
 		return cty.NilVal, nil
 	}
 
+	excludeDependencies := false
+	if config.ExcludeDependencies != nil {
+		excludeDependencies = *config.ExcludeDependencies
+	}
+
 	configCty := ctyExclude{
 		If:                  config.If,
 		Actions:             config.Actions,
-		ExcludeDependencies: *config.ExcludeDependencies,
+		ExcludeDependencies: excludeDependencies,
 	}
 
 	return goTypeToCty(configCty)
