@@ -331,9 +331,8 @@ func GetPathsRelativeTo(t *testing.T, basePath string, paths []string) []string 
 }
 
 func createLogger() log.Logger {
-	formatter := format.NewFormatter()
-	formatter.DisableColors = true
-	formatter.DisableLogFormatting = true
+	formatter := format.NewFormatter(format.NewKeyValueFormat())
+	formatter.DisableColors()
 
 	return log.New(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter))
 }
@@ -724,10 +723,10 @@ func RemoveFolder(t *testing.T, path string) {
 func RunTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {
 	t.Helper()
 
-	args := strings.Split(command, " ")
+	args := splitCommand(command)
 
-	if !strings.Contains(command, "-terragrunt-disable-log-formatting") {
-		args = append(args, "--terragrunt-disable-log-formatting")
+	if !strings.Contains(command, "-terragrunt-log-format") && !strings.Contains(command, "-terragrunt-log-custom-format") {
+		args = append(args, "--terragrunt-log-format=key-value")
 	}
 
 	t.Log(args)
@@ -844,4 +843,37 @@ func CreateTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string
 	CopyTerragruntConfigAndFillPlaceholders(t, childTerragruntSrcPath, childTerragruntDestPath, s3BucketName, "not-used", "not-used")
 
 	return childTerragruntDestPath
+}
+
+func splitCommand(command string) []string {
+	var (
+		next   int
+		quoted byte
+		args   []string
+	)
+
+	for index := range len(command) {
+		char := command[index]
+
+		if char == '"' || char == '\'' {
+			if quoted == 0 {
+				quoted = char
+			} else if quoted == char && index > 0 && command[index-1] != '\\' {
+				quoted = 0
+			}
+		}
+
+		if quoted != 0 || char != ' ' {
+			continue
+		}
+
+		arg := strings.TrimSpace(command[next:index])
+		next = index + 1
+
+		if arg != "" {
+			args = append(args, arg)
+		}
+	}
+
+	return append(args, command[next:])
 }

@@ -14,6 +14,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -64,16 +65,15 @@ func TestCommandOutputPrefix(t *testing.T) {
 	terraformPath := "testdata/test_outputs.sh"
 	prefixedOutput := []string{}
 	for _, line := range FullOutput {
-		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s binary=%s msg=%s", prefix, filepath.Base(terraformPath), line))
+		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s tfpath=%s msg=%s", prefix, filepath.Base(terraformPath), line))
 	}
 
-	logFormatter := format.NewFormatter()
-	logFormatter.DisableLogFormatting = true
+	logFormatter := format.NewFormatter(format.NewKeyValueFormat())
 
 	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
 		terragruntOptions.TerraformPath = terraformPath
 		terragruntOptions.Logger.SetOptions(log.WithFormatter(logFormatter))
-		terragruntOptions.Logger = terragruntOptions.Logger.WithField(format.PrefixKeyName, prefix)
+		terragruntOptions.Logger = terragruntOptions.Logger.WithField(placeholders.WorkDirKeyName, prefix)
 	}, assertOutputs(t,
 		prefixedOutput,
 		Stdout,

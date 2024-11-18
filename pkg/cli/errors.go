@@ -31,6 +31,10 @@ type exitError struct {
 	err      error
 }
 
+func (ee *exitError) Unwrap() error {
+	return ee.err
+}
+
 func (ee *exitError) Error() string {
 	if ee.err == nil {
 		return ""
@@ -43,8 +47,15 @@ func (ee *exitError) ExitCode() int {
 	return ee.exitCode
 }
 
+// ExitCoder is the interface checked by `App` and `Command` for a custom exit code
+type ExitCoder interface {
+	error
+	ExitCode() int
+	Unwrap() error
+}
+
 // NewExitError calls Exit to create a new ExitCoder.
-func NewExitError(message interface{}, exitCode int) cli.ExitCoder {
+func NewExitError(message interface{}, exitCode int) ExitCoder {
 	var err error
 
 	if message != nil {

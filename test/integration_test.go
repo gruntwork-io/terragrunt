@@ -105,6 +105,63 @@ const (
 	terragruntCache      = ".terragrunt-cache"
 )
 
+func TestLogCustomFormatOutput(t *testing.T) {
+	t.Parallel()
+
+	var (
+		absPathReg = `(?:/[^/]+)*/` + regexp.QuoteMeta(testFixtureLogFormatter)
+	)
+
+	testCases := []struct {
+		logCustomFormat    string
+		expectedOutputRegs []*regexp.Regexp
+	}{
+		{
+			logCustomFormat: "%time %level %prefix %msg",
+			expectedOutputRegs: []*regexp.Regexp{
+				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + regexp.QuoteMeta(" Terragrunt Version:")),
+				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + `/dep Module ` + absPathReg + `/dep must wait for 0 dependencies to finish`),
+				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + `/app Module ` + absPathReg + `/app must wait for 1 dependencies to finish`),
+			},
+		},
+		{
+			logCustomFormat: "%interval %level(case=upper) %prefix(path=short-relative,prefix='[',suffix='] ')%msg(path=relative)",
+			expectedOutputRegs: []*regexp.Regexp{
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG Terragrunt Version:")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG [dep] Module ./dep must wait for 0 dependencies to finish")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG [app] Module ./app must wait for 1 dependencies to finish")),
+			},
+		},
+		{
+			logCustomFormat: "%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tfpath(suffix=': ')%msg(path=relative)",
+			expectedOutputRegs: []*regexp.Regexp{
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text DEBUG  Terragrunt Version:")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT dep "+wrappedBinary()+": Initializing the backend...")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT app "+wrappedBinary()+": Initializing the backend...")),
+			},
+		},
+	}
+
+	for i, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
+			t.Parallel()
+
+			helpers.CleanupTerraformFolder(t, testFixtureLogFormatter)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
+			rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
+
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all init --terragrunt-log-level debug --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-custom-format=%q --terragrunt-working-dir %s", testCase.logCustomFormat, rootPath))
+			require.NoError(t, err)
+
+			for _, reg := range testCase.expectedOutputRegs {
+				assert.Regexp(t, reg, stderr)
+			}
+		})
+	}
+}
+
 func TestBufferModuleOutput(t *testing.T) {
 	t.Parallel()
 
@@ -136,7 +193,7 @@ func TestDisableLogging(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level debug --terragrunt-log-disable --terragrunt-non-interactive --terragrunt-disable-log-formatting=false -no-color --terragrunt-no-color --terragrunt-working-dir "+rootPath)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level debug --terragrunt-log-disable --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, "Initializing provider plugins...")
@@ -150,7 +207,7 @@ func TestLogWithAbsPath(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level debug --terragrunt-log-show-abs-paths --terragrunt-non-interactive --terragrunt-disable-log-formatting=false -no-color --terragrunt-no-color --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level debug --terragrunt-log-show-abs-paths --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-format=pretty --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
 	for _, prefixName := range []string{"app", "dep"} {
@@ -191,7 +248,7 @@ func TestLogWithRelPath(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-disable-log-formatting=false -no-color --terragrunt-no-color --terragrunt-working-dir "+workingDir)
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level debug --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-format=pretty --terragrunt-working-dir "+workingDir)
 			require.NoError(t, err)
 
 			testCase.assertFn(t, stdout, stderr)
@@ -199,14 +256,14 @@ func TestLogWithRelPath(t *testing.T) {
 	}
 }
 
-func TestLogFormatterPrettyOutput(t *testing.T) {
+func TestLogFormatPrettyOutput(t *testing.T) {
 	t.Parallel()
 
 	helpers.CleanupTerraformFolder(t, testFixtureLogFormatter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-disable-log-formatting=false -no-color --terragrunt-no-color --terragrunt-working-dir "+rootPath)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level debug --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-format=pretty  --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
 	for _, prefixName := range []string{"app", "dep"} {
@@ -218,21 +275,26 @@ func TestLogFormatterPrettyOutput(t *testing.T) {
 	assert.Contains(t, stderr, "DEBUG  Terragrunt Version:")
 }
 
-func TestLogFormatterKeyValueOutput(t *testing.T) {
+func TestLogFormatKeyValueOutput(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureLogFormatter)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
+	for _, flag := range []string{"--terragrunt-log-format=key-value", "--terragrunt-disable-log-formatting"} {
+		t.Run("testCase-flag-"+flag, func(t *testing.T) {
+			t.Parallel()
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init -no-color --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-disable-log-formatting --terragrunt-working-dir "+rootPath)
-	require.NoError(t, err)
+			helpers.CleanupTerraformFolder(t, testFixtureLogFormatter)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
+			rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
 
-	for _, prefixName := range []string{"app", "dep"} {
-		assert.Contains(t, stderr, "level=stdout prefix="+prefixName+" binary="+wrappedBinary()+" msg=Initializing provider plugins...\n")
-		assert.Contains(t, stderr, "level=debug prefix="+prefixName+" msg=Reading Terragrunt config file at ./"+prefixName+"/terragrunt.hcl\n")
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init -no-color --terragrunt-log-level debug --terragrunt-non-interactive "+flag+" --terragrunt-working-dir "+rootPath)
+			require.NoError(t, err)
+
+			for _, prefixName := range []string{"app", "dep"} {
+				assert.Contains(t, stderr, "level=stdout prefix="+prefixName+" tfpath="+wrappedBinary()+" msg=Initializing provider plugins...\n")
+				assert.Contains(t, stderr, "level=debug prefix="+prefixName+" msg=Reading Terragrunt config file at ./"+prefixName+"/terragrunt.hcl\n")
+			}
+		})
 	}
-	assert.Contains(t, stderr, "level=debug prefix=. msg=Terragrunt Version:")
 }
 
 func TestLogRawModuleOutput(t *testing.T) {
@@ -1766,7 +1828,7 @@ func TestDependencyOutputWithHooks(t *testing.T) {
 	assert.True(t, util.FileExists(depPathFileOut))
 	assert.False(t, util.FileExists(mainPathFileOut))
 
-	// Now delete file and run just main again. It should NOT create file.out.
+	// Now delete file and run plain main again. It should NOT create file.out.
 	require.NoError(t, os.Remove(depPathFileOut))
 	helpers.RunTerragrunt(t, "terragrunt plan --terragrunt-non-interactive --terragrunt-working-dir "+mainPath)
 	assert.False(t, util.FileExists(depPathFileOut))
@@ -3019,7 +3081,7 @@ func TestHclFmtDiff(t *testing.T) {
 func TestHclFmtStdin(t *testing.T) {
 	t.Parallel()
 
-	cleanupTerraformFolder(t, testFixtureHclfmtStdin)
+	helpers.CleanupTerraformFolder(t, testFixtureHclfmtStdin)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHclfmtStdin)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureHclfmtStdin)
 
@@ -3376,7 +3438,7 @@ func TestStorePlanFilesRunAllPlanApplyRelativePath(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
-	cleanupTerraformFolder(t, tmpEnvPath)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
 
 	// run plan with output directory
@@ -3401,7 +3463,7 @@ func TestStorePlanFilesJsonRelativePath(t *testing.T) {
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOutDir)
-	cleanupTerraformFolder(t, tmpEnvPath)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureOutDir)
 
 	// run plan with output directory
@@ -3507,43 +3569,49 @@ func TestTerragruntRunAllPlanAndShow(t *testing.T) {
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all show --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-forward-tf-stdout --terragrunt-working-dir %s --terragrunt-out-dir %s -no-color", testPath, tmpDir))
 	require.NoError(t, err)
 
-	// Verify that output contains the plan and not just the actual state output
+	// Verify that output contains the plan and not plain the actual state output
 	assert.Contains(t, stdout, "No changes. Your infrastructure matches the configuration.")
 }
 
-func TestTerragruntOutputJson(t *testing.T) {
+func TestLogFormatJSONOutput(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNotExistingSource)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureNotExistingSource)
+	for _, flag := range []string{"--terragrunt-log-format=json", "--terragrunt-json-log"} {
+		t.Run("testCase-flag-"+flag, func(t *testing.T) {
+			t.Parallel()
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --terragrunt-json-log --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
-	require.Error(t, err)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNotExistingSource)
+			helpers.CleanupTerraformFolder(t, tmpEnvPath)
+			testPath := util.JoinPath(tmpEnvPath, testFixtureNotExistingSource)
 
-	// for windows OS
-	output := bytes.ReplaceAll([]byte(stderr), []byte("\r\n"), []byte("\n"))
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply "+flag+" --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
+			require.Error(t, err)
 
-	multipeJSONs := bytes.Split(output, []byte("\n"))
+			// for windows OS
+			output := bytes.ReplaceAll([]byte(stderr), []byte("\r\n"), []byte("\n"))
 
-	var msgs = make([]string, 0, len(multipeJSONs))
+			multipeJSONs := bytes.Split(output, []byte("\n"))
 
-	for _, jsonBytes := range multipeJSONs {
-		if len(jsonBytes) == 0 {
-			continue
-		}
+			var msgs = make([]string, 0, len(multipeJSONs))
 
-		var output map[string]interface{}
+			for _, jsonBytes := range multipeJSONs {
+				if len(jsonBytes) == 0 {
+					continue
+				}
 
-		err = json.Unmarshal(jsonBytes, &output)
-		require.NoError(t, err)
+				var output map[string]interface{}
 
-		msg, ok := output["msg"].(string)
-		assert.True(t, ok)
-		msgs = append(msgs, msg)
+				err = json.Unmarshal(jsonBytes, &output)
+				require.NoError(t, err)
+
+				msg, ok := output["msg"].(string)
+				assert.True(t, ok)
+				msgs = append(msgs, msg)
+			}
+
+			assert.Contains(t, strings.Join(msgs, ""), "Downloading Terraform configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=v0.9.9")
+		})
 	}
-
-	assert.Contains(t, strings.Join(msgs, ""), "Downloading Terraform configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=v0.9.9")
 }
 
 func TestTerragruntTerraformOutputJson(t *testing.T) {
