@@ -516,7 +516,7 @@ func (modules TerraformModules) flagExcludedUnits(opts *options.TerragruntOption
 			module.FlagExcluded = true
 		}
 
-		if excludeConfig.ExcludeDependencies {
+		if excludeConfig.ExcludeDependencies != nil && *excludeConfig.ExcludeDependencies {
 			opts.Logger.Debugf("Excluding dependencies for module %s by exclude block", module.Path)
 
 			for _, dependency := range module.Dependencies {

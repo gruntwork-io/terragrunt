@@ -1237,7 +1237,7 @@ Attributes:
 |------------------------|--------------------|-------------------------------------------------------------------------------------------------------------------------|
 | `if`                   | Boolean Expression | A condition to dynamically determine whether the unit should be excluded.                                               |
 | `actions`              | List of Strings    | Specifies which actions to exclude when the condition is met. Options: `plan`, `apply`, `all`, `all_except_output` etc. |
-| `exclude_dependencies` | Boolean            | Indicates whether the dependencies of the excluded unit should also be excluded.                                        |
+| `exclude_dependencies` | Boolean            | Indicates whether the dependencies of the excluded unit should also be excluded. By default set as `false`              |
 
 Examples:
 
