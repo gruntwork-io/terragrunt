@@ -449,9 +449,13 @@ inputs = {
 }
 ```
 
+Something a little subtle just happened there. Note that the `inputs` attribute is dynamic. This addresses some of the limitations mentioned earlier about using `terraform.tfvars` files to manage inputs for units. Given that the `bar` unit is dependent on output values from the `foo` unit, you wouldn't be able to use a `terraform.tfvars` file to populate this variable without some additional tooling to populate it dynamically.
+
+Terragrunt was spawned organically out of supporting Gruntwork customers using Terraform at scale, and features in the product are designed to address common problems like these that arise when managing OpenTofu/Terraform projects at scale in production.
+
 ### Step 8: Continue learning and exploring
 
-Hopefully, following this tutorial has given you confidence in integrating Terragrunt into your existing OpenTofu/Terraform projects. Starting small, and gradually introducing more complex features, is a great way to learn how Terragrunt can help you manage your infrastructure more effectively.
+Hopefully, following this simple tutorial has given you confidence in integrating Terragrunt into your existing OpenTofu/Terraform projects. Starting small, and gradually introducing more complex Terragrunt features is a great way to learn how Terragrunt can help you manage your infrastructure more effectively.
 
 There are many more features and capabilities in Terragrunt. You can find more information on them in the [Features](/docs/features/) section of the documentation.
 
