@@ -68,7 +68,7 @@ require (
 	github.com/hashicorp/go-getter/v2 v2.2.3
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-plugin v1.6.2
-	github.com/hashicorp/terraform-svchost v0.0.1
+	github.com/hashicorp/terraform-svchost v0.1.1
 	github.com/huandu/go-clone v1.6.0
 	github.com/labstack/echo/v4 v4.11.4
 	github.com/mattn/go-isatty v0.0.20
