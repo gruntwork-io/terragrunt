@@ -1174,8 +1174,10 @@ More details in [engine section](https://terragrunt.gruntwork.io/docs/features/e
 ### feature
 
 The `feature` block is used to configure feature flags in HCL for a specific Terragrunt Unit.
-Each feature flag must include a default value; failing to specify a default value will result in an error.
-Feature flags can be overridden via a CLI flag (`--feature`) or an environment variable (`TERRAGRUNT_FEATURE`).
+
+Each feature flag must include a default value.
+
+Feature flags can be overridden via the [`--feature`](/docs/reference/cli-options/#feature) CLI option.
 
 ```hcl
 feature "string_flag" {
@@ -1216,6 +1218,19 @@ export TERRAGRUNT_FEATURE=run_hook=true,string_flag=dev
 terragrunt apply
 ```
 
+Note that the `default` value of the `feature` block is evaluated as an expression dynamically.
+
+What this means is that the value of the flag can be set via a Terragrunt expression at runtime. This is useful for scenarios where you want to integrate
+with external feature flag services like [LaunchDarkly](https://launchdarkly.com/), [AppConfig](https://docs.aws.amazon.com/appconfig/latest/userguide/what-is-appconfig.html), etc.
+
+```hcl
+feature "feature_name" {
+  default = run_cmd("--terragrunt-quiet", "<command-to-fetch-feature-flag-value>")
+}
+```
+
+Feature flags are used to conditionally control Terragrunt behavior at runtime, including the inclusion or exclusion of units. More on that in the [exclude](#exclude) block.
+
 ### exclude
 
 The `exclude` block in Terragrunt provides advanced configuration options to dynamically determine when and how specific
@@ -1234,19 +1249,19 @@ exclude {
 
 Attributes:
 
-| Attribute              | Type               | Description                                                                                                             |
-|------------------------|--------------------|-------------------------------------------------------------------------------------------------------------------------|
-| `if`                   | Boolean Expression | A condition to dynamically determine whether the unit should be excluded.                                               |
-| `actions`              | List of Strings    | Specifies which actions to exclude when the condition is met. Options: `plan`, `apply`, `all`, `all_except_output` etc. |
-| `exclude_dependencies` | Boolean            | Indicates whether the dependencies of the excluded unit should also be excluded. By default set as `false`              |
+| Attribute              | Type         | Description                                                                                                             |
+|------------------------|--------------|-------------------------------------------------------------------------------------------------------------------------|
+| `if`                   | boolean      | Condition to dynamically determine whether the unit should be excluded.                                                 |
+| `actions`              | list(string) | Specifies which actions to exclude when the condition is met. Options: `plan`, `apply`, `all`, `all_except_output` etc. |
+| `exclude_dependencies` | boolean      | Indicates whether the dependencies of the excluded unit should also be excluded (default: `false`).                     |
 
 Examples:
 
 ```hcl
 exclude {
-    if = feature.feature_name.value      # Dynamically exclude based on a feature flag.
-    actions = ["plan", "apply"]          # Exclude `plan` and `apply` actions.
-    exclude_dependencies = false         # Do not exclude dependencies.
+    if = feature.feature_name.value # Dynamically exclude based on a feature flag.
+    actions = ["plan", "apply"]     # Exclude `plan` and `apply` actions.
+    exclude_dependencies = false    # Do not exclude dependencies.
 }
 ```
 
@@ -1255,9 +1270,9 @@ evaluates to `true`. Dependencies are not excluded.
 
 ```hcl
 exclude {
-    if = feature.is_dev_environment.value        # Exclude only for development environments.
-    actions = ["all"]                            # Exclude all actions.
-    exclude_dependencies = true                  # Exclude dependencies along with the unit.
+    if = feature.is_dev_environment.value # Exclude only for development environments.
+    actions = ["all"]                     # Exclude all actions.
+    exclude_dependencies = true           # Exclude dependencies along with the unit.
 }
 ```
 
@@ -1266,13 +1281,15 @@ feature `is_dev_environment` evaluates to `true`.
 
 ```hcl
 exclude {
-    if = true                            # Dynamically exclude based on a variable.
-    actions = ["all_except_output"]      # Allow `output` actions while excluding others.
-    exclude_dependencies = false         # Dependencies remain active.
+    if = true                       # Explicitly exclude.
+    actions = ["all_except_output"] # Allow `output` actions nonetheless.
+    exclude_dependencies = false    # Dependencies remain active.
 }
 ```
 
 This setup is useful for scenarios where output evaluation is still needed, even if other actions like `plan` or `apply` are excluded.
+
+Consider using this for units that are expensive to continuously update, and can be opted in when necessary.
 
 ## Attributes
 
