@@ -1234,19 +1234,19 @@ exclude {
 
 Attributes:
 
-| Attribute              | Type               | Description                                                                                                             |
-|------------------------|--------------------|-------------------------------------------------------------------------------------------------------------------------|
-| `if`                   | Boolean Expression | A condition to dynamically determine whether the unit should be excluded.                                               |
-| `actions`              | List of Strings    | Specifies which actions to exclude when the condition is met. Options: `plan`, `apply`, `all`, `all_except_output` etc. |
-| `exclude_dependencies` | Boolean            | Indicates whether the dependencies of the excluded unit should also be excluded. By default set as `false`              |
+| Attribute              | Type         | Description                                                                                                             |
+|------------------------|--------------|-------------------------------------------------------------------------------------------------------------------------|
+| `if`                   | boolean      | Condition to dynamically determine whether the unit should be excluded.                                                 |
+| `actions`              | list(string) | Specifies which actions to exclude when the condition is met. Options: `plan`, `apply`, `all`, `all_except_output` etc. |
+| `exclude_dependencies` | boolean      | Indicates whether the dependencies of the excluded unit should also be excluded (default: `false`).                     |
 
 Examples:
 
 ```hcl
 exclude {
-    if = feature.feature_name.value      # Dynamically exclude based on a feature flag.
-    actions = ["plan", "apply"]          # Exclude `plan` and `apply` actions.
-    exclude_dependencies = false         # Do not exclude dependencies.
+    if = feature.feature_name.value # Dynamically exclude based on a feature flag.
+    actions = ["plan", "apply"]     # Exclude `plan` and `apply` actions.
+    exclude_dependencies = false    # Do not exclude dependencies.
 }
 ```
 
@@ -1255,9 +1255,9 @@ evaluates to `true`. Dependencies are not excluded.
 
 ```hcl
 exclude {
-    if = feature.is_dev_environment.value        # Exclude only for development environments.
-    actions = ["all"]                            # Exclude all actions.
-    exclude_dependencies = true                  # Exclude dependencies along with the unit.
+    if = feature.is_dev_environment.value # Exclude only for development environments.
+    actions = ["all"]                     # Exclude all actions.
+    exclude_dependencies = true           # Exclude dependencies along with the unit.
 }
 ```
 
@@ -1266,9 +1266,9 @@ feature `is_dev_environment` evaluates to `true`.
 
 ```hcl
 exclude {
-    if = true                            # Dynamically exclude based on a variable.
-    actions = ["all_except_output"]      # Allow `output` actions while excluding others.
-    exclude_dependencies = false         # Dependencies remain active.
+    if = true                       # Dynamically exclude based on a variable.
+    actions = ["all_except_output"] # Allow `output` actions while excluding others.
+    exclude_dependencies = false    # Dependencies remain active.
 }
 ```
 
