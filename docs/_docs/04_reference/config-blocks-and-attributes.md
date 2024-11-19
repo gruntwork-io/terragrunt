@@ -1174,8 +1174,10 @@ More details in [engine section](https://terragrunt.gruntwork.io/docs/features/e
 ### feature
 
 The `feature` block is used to configure feature flags in HCL for a specific Terragrunt Unit.
-Each feature flag must include a default value; failing to specify a default value will result in an error.
-Feature flags can be overridden via a CLI flag (`--feature`) or an environment variable (`TERRAGRUNT_FEATURE`).
+
+Each feature flag must include a default value.
+
+Feature flags can be overridden via the [`--feature`](/docs/reference/cli-options/#feature) CLI option.
 
 ```hcl
 feature "string_flag" {
@@ -1215,6 +1217,19 @@ terragrunt apply
 export TERRAGRUNT_FEATURE=run_hook=true,string_flag=dev
 terragrunt apply
 ```
+
+Note that the `default` value of the `feature` block is evaluated as an expression dynamically.
+
+What this means is that the value of the flag can be set via a Terragrunt expression at runtime. This is useful for scenarios where you want to integrate
+with external feature flag services like [LaunchDarkly](https://launchdarkly.com/), [AppConfig](https://docs.aws.amazon.com/appconfig/latest/userguide/what-is-appconfig.html), etc.
+
+```hcl
+feature "feature_name" {
+  default = run_cmd("--terragrunt-quiet", "<command-to-fetch-feature-flag-value>")
+}
+```
+
+Feature flags are used to conditionally control Terragrunt behavior at runtime, including the inclusion or exclusion of units. More on that in the [exclude](#exclude) block.
 
 ### exclude
 
@@ -1266,13 +1281,15 @@ feature `is_dev_environment` evaluates to `true`.
 
 ```hcl
 exclude {
-    if = true                       # Dynamically exclude based on a variable.
-    actions = ["all_except_output"] # Allow `output` actions while excluding others.
+    if = true                       # Explicitly exclude.
+    actions = ["all_except_output"] # Allow `output` actions nonetheless.
     exclude_dependencies = false    # Dependencies remain active.
 }
 ```
 
 This setup is useful for scenarios where output evaluation is still needed, even if other actions like `plan` or `apply` are excluded.
+
+Consider using this for units that are expensive to continuously update, and can be opted in when necessary.
 
 ## Attributes
 
