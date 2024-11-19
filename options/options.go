@@ -281,7 +281,7 @@ type TerragruntOptions struct {
 	UsePartialParseConfigCache bool
 
 	// Include fields metadata in render-json
-	RenderJSONithMetadata bool
+	RenderJSONWithMetadata bool
 
 	// Disable TF output formatting
 	ForwardTFStdout bool
