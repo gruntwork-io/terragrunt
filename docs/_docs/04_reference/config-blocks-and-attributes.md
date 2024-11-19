@@ -1173,8 +1173,9 @@ More details in [engine section](https://terragrunt.gruntwork.io/docs/features/e
 
 ### feature
 
-The `feature` block is used to configure feature flags in HCL for a particular Terragrunt Unit.
-Feature flags can have default values, and they can be set through a CLI flag (`--feature`) or an environment variable (`TERRAGRUNT_FEATURE`).
+The `feature` block is used to configure feature flags in HCL for a specific Terragrunt Unit.
+Each feature flag must include a default value; failing to specify a default value will result in an error.
+Feature flags can be overridden via a CLI flag (`--feature`) or an environment variable (`TERRAGRUNT_FEATURE`).
 
 ```hcl
 feature "string_flag" {
