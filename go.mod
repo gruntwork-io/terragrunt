@@ -26,7 +26,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
-	github.com/zclconf/go-cty v1.14.1
+	github.com/zclconf/go-cty v1.14.2
 	golang.org/x/crypto v0.28.0 // indirect
 	golang.org/x/oauth2 v0.23.0
 	golang.org/x/sync v0.9.0
@@ -43,7 +43,7 @@ require (
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/pquerna/otp v1.2.1-0.20191009055518-468c2dd2b58d // indirect
-	github.com/terraform-linters/tflint v0.47.0
+	github.com/terraform-linters/tflint v0.50.3
 	github.com/ulikunitz/xz v0.5.12 // indirect
 	golang.org/x/time v0.7.0 // indirect
 	google.golang.org/genproto v0.0.0-20241015192408-796eee8c2d53 // indirect
@@ -188,7 +188,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
-	github.com/google/go-github/v35 v35.3.0 // indirect
+	github.com/google/go-github/v53 v53.2.0 // indirect
 	github.com/google/go-jsonnet v0.20.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/s2a-go v0.1.8 // indirect
@@ -205,7 +205,7 @@ require (
 	github.com/hashicorp/go-sockaddr v1.0.6 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/hashicorp/logutils v1.0.0 // indirect
-	github.com/hashicorp/terraform-registry-address v0.2.0 // indirect
+	github.com/hashicorp/terraform-registry-address v0.2.2 // indirect
 	github.com/hashicorp/yamux v0.1.2 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/inancgumus/screen v0.0.0-20190314163918-06e984b86ed3 // indirect
@@ -245,11 +245,11 @@ require (
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sourcegraph/go-lsp v0.0.0-20200429204803-219e11d77f5d // indirect
 	github.com/sourcegraph/jsonrpc2 v0.2.0 // indirect
-	github.com/spf13/afero v1.10.0 // indirect
+	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.7.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	github.com/terraform-linters/tflint-plugin-sdk v0.17.0 // indirect
-	github.com/terraform-linters/tflint-ruleset-terraform v0.4.0 // indirect
+	github.com/terraform-linters/tflint-plugin-sdk v0.18.0 // indirect
+	github.com/terraform-linters/tflint-ruleset-terraform v0.5.0 // indirect
 	github.com/urfave/cli v1.22.15 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
@@ -277,6 +277,15 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-// This is necessary to workaround go modules error with terraform importing vault incorrectly.
-// See https://github.com/hashicorp/vault/issues/7848 for more info
-replace github.com/hashicorp/vault => github.com/hashicorp/vault v1.4.2
+replace (
+	// Many functions of terraform was converted to internal to avoid use as a library after v0.15.3. This means that we
+	// can't use terraform as a library after v0.15.3, so we pull that in here.
+	github.com/hashicorp/terraform => github.com/hashicorp/terraform v0.15.3
+
+	// This is necessary to workaround go modules error with terraform importing vault incorrectly.
+	// See https://github.com/hashicorp/vault/issues/7848 for more info
+	github.com/hashicorp/vault => github.com/hashicorp/vault v1.4.2
+
+	// TFlint introduced a BUSL license in v0.51.0, so we have to be careful not to update past this version.
+	github.com/terraform-linters/tflint => github.com/terraform-linters/tflint v0.50.3
+)
