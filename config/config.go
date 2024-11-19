@@ -653,7 +653,7 @@ func GetDefaultConfigPath(workingDir string) string {
 func FindConfigFilesInPath(rootPath string, terragruntOptions *options.TerragruntOptions) ([]string, error) {
 	configFiles := []string{}
 
-	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
+	err := util.WalkWithSymlinks(rootPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
