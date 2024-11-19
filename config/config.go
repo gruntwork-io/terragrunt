@@ -68,6 +68,7 @@ const (
 	MetadataDependentModules            = "dependent_modules"
 	MetadataInclude                     = "include"
 	MetadataFeatureFlag                 = "feature"
+	MetadataExclude                     = "exclude"
 )
 
 var (
@@ -123,6 +124,7 @@ type TerragruntConfig struct {
 	RetrySleepIntervalSec       *int
 	Engine                      *EngineConfig
 	FeatureFlags                FeatureFlags
+	Exclude                     *ExcludeConfig
 
 	// Fields used for internal tracking
 	// Indicates whether this is the result of a partial evaluation
@@ -194,6 +196,7 @@ type terragruntConfigFile struct {
 	IamWebIdentityToken      *string             `hcl:"iam_web_identity_token,attr"`
 	TerragruntDependencies   []Dependency        `hcl:"dependency,block"`
 	FeatureFlags             []*FeatureFlag      `hcl:"feature,block"`
+	Exclude                  *ExcludeConfig      `hcl:"exclude,block"`
 
 	// We allow users to configure code generation via blocks:
 	//
@@ -887,7 +890,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 		return nil, err
 	}
 
-	// If this file includes another, parse and merge it. Otherwise just return this config.
+	// If this file includes another, parse and merge it. Otherwise, just return this config.
 	if ctx.TrackInclude != nil {
 		mergedConfig, err := handleInclude(ctx, config, false)
 		if err != nil {
@@ -901,6 +904,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 		//   original locals for the current config being handled, as that is the locals list that is in scope for this
 		//   config.
 		mergedConfig.Locals = config.Locals
+		mergedConfig.Exclude = config.Exclude
 
 		return mergedConfig, nil
 	}
@@ -1153,11 +1157,16 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 		terragruntConfig.SetFieldMetadata(MetadataEngine, defaultMetadata)
 	}
 
-	if terragruntConfig.FeatureFlags != nil {
+	if terragruntConfigFromFile.FeatureFlags != nil {
 		terragruntConfig.FeatureFlags = terragruntConfigFromFile.FeatureFlags
 		for _, flag := range terragruntConfig.FeatureFlags {
 			terragruntConfig.SetFieldMetadataWithType(MetadataFeatureFlag, flag.Name, defaultMetadata)
 		}
+	}
+
+	if terragruntConfigFromFile.Exclude != nil {
+		terragruntConfig.Exclude = terragruntConfigFromFile.Exclude
+		terragruntConfig.SetFieldMetadata(MetadataExclude, defaultMetadata)
 	}
 
 	generateBlocks := []terragruntGenerateBlock{}

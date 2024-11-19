@@ -31,6 +31,7 @@ The following is a reference of all the supported blocks and attributes in the c
   - [generate](#generate)
   - [engine](#engine)
   - [feature](#feature)
+  - [exclude](#exclude)
 - [Attributes](#attributes)
   - [inputs](#inputs)
   - [download\_dir](#download_dir)
@@ -1213,6 +1214,64 @@ terragrunt apply
 export TERRAGRUNT_FEATURE=run_hook=true,string_flag=dev
 terragrunt apply
 ```
+
+### exclude
+
+The `exclude` block in Terragrunt provides advanced configuration options to dynamically determine when and how specific
+units in the Terragrunt dependency graph are excluded. This feature allows for fine-grained control over which actions
+are executed and can conditionally exclude dependencies.
+
+Syntax:
+
+```hcl
+exclude {
+    if = <boolean expression>           # Boolean expression to determine exclusion.
+    actions = ["<action>", ...]         # List of actions to exclude (e.g., "plan", "apply", "all", "all_except_output").
+    exclude_dependencies = <boolean>    # Boolean to determine if dependencies should also be excluded.
+}
+```
+
+Attributes:
+
+| Attribute              | Type               | Description                                                                                                             |
+|------------------------|--------------------|-------------------------------------------------------------------------------------------------------------------------|
+| `if`                   | Boolean Expression | A condition to dynamically determine whether the unit should be excluded.                                               |
+| `actions`              | List of Strings    | Specifies which actions to exclude when the condition is met. Options: `plan`, `apply`, `all`, `all_except_output` etc. |
+| `exclude_dependencies` | Boolean            | Indicates whether the dependencies of the excluded unit should also be excluded. By default set as `false`              |
+
+Examples:
+
+```hcl
+exclude {
+    if = feature.feature_name.value      # Dynamically exclude based on a feature flag.
+    actions = ["plan", "apply"]          # Exclude `plan` and `apply` actions.
+    exclude_dependencies = false         # Do not exclude dependencies.
+}
+```
+
+In this example, the unit is excluded for the `plan` and `apply` actions only when `feature.feature_name.value`
+evaluates to `true`. Dependencies are not excluded.
+
+```hcl
+exclude {
+    if = feature.is_dev_environment.value        # Exclude only for development environments.
+    actions = ["all"]                            # Exclude all actions.
+    exclude_dependencies = true                  # Exclude dependencies along with the unit.
+}
+```
+
+This configuration ensures the unit and its dependencies are excluded from all actions in the Terragrunt graph when the
+feature `is_dev_environment` evaluates to `true`.
+
+```hcl
+exclude {
+    if = true                            # Dynamically exclude based on a variable.
+    actions = ["all_except_output"]      # Allow `output` actions while excluding others.
+    exclude_dependencies = false         # Dependencies remain active.
+}
+```
+
+This setup is useful for scenarios where output evaluation is still needed, even if other actions like `plan` or `apply` are excluded.
 
 ## Attributes
 
