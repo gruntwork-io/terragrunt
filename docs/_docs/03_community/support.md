@@ -12,19 +12,23 @@ nav_title_link: /docs/
 
 ## Github Discussions
 
-Search our [Knowledge Base](https://github.com/gruntwork-io/knowledge-base/discussions) to find existing questions or ask your own. Github Discussions is a good place for general discussions and questions.
+Search [Terragrunt GitHub Discussions](https://gruntwork-io/terragrunt/discussions) for existing questions or ask your own. [Gruntwork GitHub Discussions](https://github.com/gruntwork-io/knowledge-base/discussions) is a good place for general discussions and questions about Gruntwork tools.
+
+## Join the Discord Community
+
+Join the [Gruntwork Discord Community](https://discord.gg/SPu4Degs5f) to chat with maintainers and members of the community.
 
 ## Github Issues
 
 Read through [existing issues](https://github.com/gruntwork-io/terragrunt/issues) or post a new one. Github issues is a good place to:
 
-- report a bug,
+- Report a bug
 
-- ask for a help,
+- Ask for improvements
 
-- ask for improvements,
+- Propose a change to how Terragrunt works
 
-- to start contributing by solving simple issues.
+- Start contributing by solving issues
 
 ## Commercial support
 
