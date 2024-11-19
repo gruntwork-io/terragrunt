@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	testSimpleFlag  = "fixtures/feature-flags/simple-flag"
-	testIncludeFlag = "fixtures/feature-flags/include-flag"
-	testRunAllFlag  = "fixtures/feature-flags/run-all"
+	testSimpleFlag     = "fixtures/feature-flags/simple-flag"
+	testIncludeFlag    = "fixtures/feature-flags/include-flag"
+	testRunAllFlag     = "fixtures/feature-flags/run-all"
+	testErrorEmptyFlag = "fixtures/feature-flags/error-empty-flag"
 )
 
 func TestFeatureFlagDefaults(t *testing.T) {
@@ -103,6 +104,22 @@ func TestFeatureFlagRunAll(t *testing.T) {
 
 	validateOutputs(t, app1)
 	validateOutputs(t, app2)
+}
+
+func TestFailOnEmptyFeatureFlag(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testErrorEmptyFlag)
+	tmpEnvPath := helpers.CopyEnvironment(t, testErrorEmptyFlag)
+	rootPath := util.JoinPath(tmpEnvPath, testErrorEmptyFlag)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.Error(t, err)
+
+	message := err.Error()
+	assert.Contains(t, message, "feature flag test1 does not have a default value")
+	assert.Contains(t, message, "feature flag test2 does not have a default value")
+	assert.Contains(t, message, "feature flag test3 does not have a default value")
 }
 
 func expectedDefaults() map[string]interface{} {

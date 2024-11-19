@@ -141,6 +141,19 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 		return nil, err
 	}
 
+	// validate tags to have default value, collect errors
+
+	flagErrs := &errors.MultiError{}
+	for _, flag := range tgFlags.FeatureFlags {
+		if flag.Default == nil {
+			flagErr := fmt.Errorf("feature flag %s does not have a default value in %s", flag.Name, file.ConfigPath)
+			flagErrs = flagErrs.Append(flagErr)
+		}
+	}
+	if flagErrs.ErrorOrNil() != nil {
+		return nil, flagErrs
+	}
+
 	evaluatedFlags := map[string]cty.Value{}
 	// copy default feature flags to evaluated flags
 
