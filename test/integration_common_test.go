@@ -59,9 +59,8 @@ func getPathsRelativeTo(t *testing.T, basePath string, paths []string) []string 
 }
 
 func createLogger() log.Logger {
-	formatter := format.NewFormatter()
-	formatter.DisableColors = true
-	formatter.DisableLogFormatting = true
+	formatter := format.NewFormatter(format.NewKeyValueFormat())
+	formatter.DisableColors()
 
 	return log.New(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter))
 }

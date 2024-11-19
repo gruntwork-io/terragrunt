@@ -180,7 +180,8 @@ func handleIncludeForDependency(ctx *ParsingContext, childDecodedDependency Terr
 			return nil, err
 		}
 
-		includedPartialParse, err := partialParseIncludedConfig(ctx.WithDecodeList(DependencyBlock, FeatureFlagsBlock), &includeConfig)
+		includedPartialParse, err := partialParseIncludedConfig(
+			ctx.WithDecodeList(DependencyBlock, FeatureFlagsBlock, ExcludeBlock), &includeConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -264,6 +265,10 @@ func (cfg *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terragruntOpt
 
 	if sourceConfig.Skip != nil {
 		cfg.Skip = sourceConfig.Skip
+	}
+
+	if sourceConfig.Exclude != nil {
+		cfg.Exclude = sourceConfig.Exclude.Clone()
 	}
 
 	if sourceConfig.RemoteState != nil {
@@ -388,6 +393,14 @@ func (cfg *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, terragrun
 		}
 
 		cfg.Engine.Merge(sourceConfig.Engine)
+	}
+
+	if sourceConfig.Exclude != nil {
+		if cfg.Exclude == nil {
+			cfg.Exclude = &ExcludeConfig{}
+		}
+
+		cfg.Exclude.Merge(sourceConfig.Exclude)
 	}
 
 	if sourceConfig.Skip != nil {
@@ -624,44 +637,6 @@ func deepMergeDependencyBlocks(targetDependencies []Dependency, sourceDependenci
 	}
 
 	return combinedDeps, nil
-}
-
-// DeepMerge feature flags.
-func deepMergeFeatureBlocks(targetFeatureFlags []*FeatureFlag, sourceFeatureFlags []*FeatureFlag) ([]*FeatureFlag, error) {
-	if sourceFeatureFlags == nil && targetFeatureFlags == nil {
-		return nil, nil
-	}
-
-	keys := make([]string, 0, len(targetFeatureFlags))
-
-	featureBlocks := make(map[string]*FeatureFlag)
-
-	for _, flag := range targetFeatureFlags {
-		featureBlocks[flag.Name] = flag
-		keys = append(keys, flag.Name)
-	}
-
-	for _, flag := range sourceFeatureFlags {
-		sameKeyDep, hasSameKey := featureBlocks[flag.Name]
-		if hasSameKey {
-			sameKeyFlagPtr := sameKeyDep
-			if err := sameKeyFlagPtr.DeepMerge(flag); err != nil {
-				return nil, err
-			}
-
-			featureBlocks[flag.Name] = sameKeyFlagPtr
-		} else {
-			featureBlocks[flag.Name] = flag
-			keys = append(keys, flag.Name)
-		}
-	}
-
-	combinedFlags := make([]*FeatureFlag, 0, len(keys))
-	for _, key := range keys {
-		combinedFlags = append(combinedFlags, featureBlocks[key])
-	}
-
-	return combinedFlags, nil
 }
 
 // Merge the extra arguments.

@@ -33,6 +33,7 @@ const (
 	TerragruntVersionConstraints
 	RemoteStateBlock
 	FeatureFlagsBlock
+	ExcludeBlock
 )
 
 // terragruntIncludeMultiple is a struct that can be used to only decode the include block with labels.
@@ -51,6 +52,12 @@ type terragruntDependencies struct {
 type terragruntFeatureFlags struct {
 	FeatureFlags FeatureFlags `hcl:"feature,block"`
 	Remain       hcl.Body     `hcl:",remain"`
+}
+
+// terragruntExclude is a struct that can be used to only decode the exclude block.
+type terragruntExclude struct {
+	Exclude *ExcludeConfig `hcl:"exclude,block"`
+	Remain  hcl.Body       `hcl:",remain"`
 }
 
 // terragruntTerraform is a struct that can be used to only decode the terraform block.
@@ -141,7 +148,7 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 		return nil, err
 	}
 
-	// validate tags to have default value, collect errors
+	// validate flags to have default value, collect errors
 
 	flagErrs := &errors.MultiError{}
 	for _, flag := range tgFlags.FeatureFlags {
@@ -154,33 +161,7 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 		return nil, flagErrs
 	}
 
-	evaluatedFlags := map[string]cty.Value{}
-	// copy default feature flags to evaluated flags
-
-	for name, value := range ctx.TerragruntOptions.FeatureFlags {
-		evaluatedFlag, err := flagToCtyValue(name, value)
-
-		if err != nil {
-			return nil, err
-		}
-
-		evaluatedFlags[name] = evaluatedFlag
-	}
-
-	for _, flag := range tgFlags.FeatureFlags {
-		if _, exists := evaluatedFlags[flag.Name]; !exists {
-			contextFlag, err := flagToCtyValue(flag.Name, *flag.Default)
-
-			if err != nil {
-				return nil, err
-			}
-
-			evaluatedFlags[flag.Name] = contextFlag
-		}
-	}
-
-	flagsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedFlags)
-
+	flagsAsCtyVal, err := flagsAsCty(ctx, tgFlags.FeatureFlags)
 	if err != nil {
 		return nil, err
 	}
@@ -202,6 +183,60 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 		Locals:       &localsAsCtyVal,
 		FeatureFlags: &flagsAsCtyVal,
 	}, nil
+}
+
+func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
+	evaluatedFlags := map[string]cty.Value{}
+	// extract all flags in map by name
+	flagByName := map[string]*FeatureFlag{}
+	for _, flag := range tgFlags {
+		flagByName[flag.Name] = flag
+	}
+
+	for name, value := range ctx.TerragruntOptions.FeatureFlags {
+		// convert flag value to respective type
+		var evaluatedFlag cty.Value
+
+		existingFlag, exists := flagByName[name]
+
+		if exists {
+			flag, err := flagToTypedCtyValue(name, existingFlag.Default.Type(), value)
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			evaluatedFlag = flag
+		} else {
+			flag, err := flagToCtyValue(name, value)
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			evaluatedFlag = flag
+		}
+
+		evaluatedFlags[name] = evaluatedFlag
+	}
+
+	for _, flag := range tgFlags {
+		if _, exists := evaluatedFlags[flag.Name]; !exists {
+			contextFlag, err := flagToCtyValue(flag.Name, *flag.Default)
+
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			evaluatedFlags[flag.Name] = contextFlag
+		}
+	}
+
+	flagsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedFlags)
+
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	return flagsAsCtyVal, nil
 }
 
 func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *IncludeConfig) (*TerragruntConfig, error) {
@@ -271,6 +306,8 @@ func TerragruntConfigFromPartialConfig(ctx *ParsingContext, file *hclparse.File,
 //   - TerragruntVersionConstraints: Parses the attributes related to constraining terragrunt and terraform versions in
 //     the config.
 //   - RemoteStateBlock: Parses the `remote_state` block in the config
+//   - FeatureFlagsBlock: Parses the `feature` block in the config
+//   - ExcludeBlock : Parses the `exclude` block in the config
 //
 // Note that the following blocks are always decoded:
 // - locals
@@ -486,8 +523,29 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				return nil, err
 			}
 
-			if decoded.FeatureFlags != nil {
+			if output.FeatureFlags != nil {
+				flags, err := deepMergeFeatureBlocks(output.FeatureFlags, decoded.FeatureFlags)
+				if err != nil {
+					return nil, err
+				}
+
+				output.FeatureFlags = flags
+			} else {
 				output.FeatureFlags = decoded.FeatureFlags
+			}
+
+		case ExcludeBlock:
+			decoded := terragruntExclude{}
+			err := file.Decode(&decoded, evalParsingContext)
+
+			if err != nil {
+				return nil, err
+			}
+
+			if output.Exclude != nil {
+				output.Exclude.Merge(decoded.Exclude)
+			} else {
+				output.Exclude = decoded.Exclude
 			}
 
 		default:
@@ -504,10 +562,35 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 		// Saving processed includes into configuration, direct assignment since nested includes aren't supported
 		config.ProcessedIncludes = ctx.TrackInclude.CurrentMap
 
+		output = config
+	}
+
+	return processExcludes(ctx, output, file)
+}
+
+// processExcludes evaluate exclude blocks and merge them into the config.
+func processExcludes(ctx *ParsingContext, config *TerragruntConfig, file *hclparse.File) (*TerragruntConfig, error) {
+	flagsAsCtyVal, err := flagsAsCty(ctx, config.FeatureFlags)
+	if err != nil {
+		return nil, err
+	}
+
+	excludeConfig, err := evaluateExcludeBlocks(ctx.WithFeatures(&flagsAsCtyVal), file)
+	if err != nil {
+		return nil, err
+	}
+
+	if excludeConfig == nil {
 		return config, nil
 	}
 
-	return output, nil
+	if config.Exclude != nil {
+		config.Exclude.Merge(excludeConfig)
+	} else {
+		config.Exclude = excludeConfig
+	}
+
+	return config, nil
 }
 
 func partialParseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*TerragruntConfig, error) {
@@ -539,20 +622,6 @@ func decodeAsTerragruntInclude(file *hclparse.File, evalParsingContext *hcl.Eval
 	}
 
 	return tgInc.Include, nil
-}
-
-func flagToCtyValue(name string, value interface{}) (cty.Value, error) {
-	ctyValue, err := goTypeToCty(value)
-	if err != nil {
-		return cty.NilVal, err
-	}
-
-	ctyFlag := ctyFeatureFlag{
-		Name:  name,
-		Value: ctyValue,
-	}
-
-	return goTypeToCty(ctyFlag)
 }
 
 // Custom error types

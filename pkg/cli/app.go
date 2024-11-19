@@ -75,8 +75,11 @@ type App struct {
 
 // NewApp returns app new App instance.
 func NewApp() *App {
+	cliApp := cli.NewApp()
+	cliApp.ExitErrHandler = func(_ *cli.Context, _ error) {}
+
 	return &App{
-		App:          cli.NewApp(),
+		App:          cliApp,
 		OsExiter:     os.Exit,
 		Autocomplete: true,
 	}

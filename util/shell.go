@@ -9,6 +9,7 @@ import (
 	"os/exec"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
 
 // IsCommandExecutable - returns true if a command can be executed without errors.
@@ -36,16 +37,21 @@ type CmdOutput struct {
 }
 
 // GetExitCode returns the exit code of a command. If the error does not
-// implement iErrorCode or is not an exec.ExitError
+// implement errorCode or is not an exec.ExitError
 // or *errors.MultiError type, the error is returned.
 func GetExitCode(err error) (int, error) {
-	// Interface to determine if we can retrieve an exit status from an error
-	type iErrorCode interface {
+	var exitStatus interface {
 		ExitStatus() (int, error)
 	}
 
-	if exiterr, ok := errors.Unwrap(err).(iErrorCode); ok {
-		return exiterr.ExitStatus()
+	if errors.As(err, &exitStatus) {
+		return exitStatus.ExitStatus()
+	}
+
+	var exitCoder cli.ExitCoder
+
+	if errors.As(err, &exitCoder) {
+		return exitCoder.ExitCode(), nil
 	}
 
 	var exiterr *exec.ExitError

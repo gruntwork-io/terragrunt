@@ -49,7 +49,7 @@ func runRenderJSON(ctx context.Context, opts *options.TerragruntOptions, cfg *co
 
 	var terragruntConfigCty cty.Value
 
-	if opts.RenderJSONithMetadata {
+	if opts.RenderJSONWithMetadata {
 		cty, err := config.TerragruntConfigAsCtyWithMetadata(cfg)
 		if err != nil {
 			return err

@@ -11,17 +11,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const (
-	TerragruntDisableLogFormattingFlagName = "terragrunt-disable-log-formatting"
-	TerragruntDisableLogFormattingEnvName  = "TERRAGRUNT_DISABLE_LOG_FORMATTING"
-
-	TerragruntJSONLogFlagName = "terragrunt-json-log"
-	TerragruntJSONLogEnvName  = "TERRAGRUNT_JSON_LOG"
-
 	TerragruntConfigFlagName = "terragrunt-config"
 	TerragruntConfigEnvName  = "TERRAGRUNT_CONFIG"
 
@@ -152,8 +147,13 @@ const (
 	TerragruntForwardTFStdoutFlagName = "terragrunt-forward-tf-stdout"
 	TerragruntForwardTFStdoutEnvName  = "TERRAGRUNT_FORWARD_TF_STDOUT"
 
-	// Strict Mode related flags/envs
+	TerragruntLogFormatFlagName = "terragrunt-log-format"
+	TerragruntLogFormatEnvName  = "TERRAGRUNT_LOG_FORMAT"
 
+	TerragruntLogCustomFormatFlagName = "terragrunt-log-custom-format"
+	TerragruntLogCustomFormatEnvName  = "TERRAGRUNT_LOG_CUSTOM_FORMAT"
+
+	// Strict Mode related flags/envs
 	TerragruntStrictModeFlagName = "strict-mode"
 	TerragruntStrictModeEnvName  = "TERRAGRUNT_STRICT_MODE"
 
@@ -350,7 +350,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      TerragruntLogLevelEnvName,
 			DefaultText: opts.LogLevel.String(),
 			Usage:       fmt.Sprintf("Sets the logging level for Terragrunt. Supported levels: %s", log.AllLevels),
-			Action: func(ctx *cli.Context, val string) error {
+			Action: func(_ *cli.Context, val string) error {
 				// Before the release of v0.67.0, these levels actually disabled logs, since we do not use these levels for logging.
 				// For backward compatibility we simulate the same behavior.
 				removedLevels := []string{
@@ -360,19 +360,18 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 
 				if collections.ListContainsElement(removedLevels, val) {
 					opts.ForwardTFStdout = true
-					opts.Logger.SetOptions(log.WithFormatter(&format.SilentFormatter{}))
+					opts.LogFormatter.SetFormat(nil)
 					return nil
 				}
 
 				level, err := log.ParseLevel(val)
 				if err != nil {
-					return errors.Errorf("flag --%s, %w", TerragruntLogLevelFlagName, err)
+					return cli.NewExitError(errors.Errorf("flag --%s, %w", TerragruntLogLevelFlagName, err), 1)
 				}
 
 				opts.Logger.SetOptions(log.WithLevel(level))
 				opts.LogLevel = level
 				return nil
-
 			},
 		},
 		&cli.BoolFlag{
@@ -380,29 +379,9 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      TerragruntLogDisableEnvName,
 			Usage:       "Disable logging",
 			Destination: &opts.DisableLog,
-			Action: func(ctx *cli.Context, _ bool) error {
+			Action: func(_ *cli.Context, _ bool) error {
 				opts.ForwardTFStdout = true
-				opts.Logger.SetOptions(log.WithFormatter(&format.SilentFormatter{}))
-				return nil
-			},
-		},
-		&cli.BoolFlag{
-			Name:        TerragruntDisableLogFormattingFlagName,
-			EnvVar:      TerragruntDisableLogFormattingEnvName,
-			Destination: &opts.DisableLogFormatting,
-			Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
-			Action: func(ctx *cli.Context, val bool) error {
-				opts.LogFormatter.DisableLogFormatting = val
-				return nil
-			},
-		},
-		&cli.BoolFlag{
-			Name:        TerragruntJSONLogFlagName,
-			EnvVar:      TerragruntJSONLogEnvName,
-			Destination: &opts.JSONLogFormat,
-			Usage:       "If specified, Terragrunt will output its logs in JSON format.",
-			Action: func(ctx *cli.Context, _ bool) error {
-				opts.Logger.SetOptions(log.WithFormatter(&format.JSONFormatter{}))
+				opts.LogFormatter.SetFormat(nil)
 				return nil
 			},
 		},
@@ -417,8 +396,8 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      TerragruntNoColorEnvName,
 			Destination: &opts.DisableLogColors,
 			Usage:       "If specified, Terragrunt output won't contain any color.",
-			Action: func(ctx *cli.Context, val bool) error {
-				opts.LogFormatter.DisableColors = val
+			Action: func(_ *cli.Context, _ bool) error {
+				opts.LogFormatter.DisableColors()
 				return nil
 			},
 		},
@@ -445,6 +424,44 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      TerragruntForwardTFStdoutEnvName,
 			Destination: &opts.ForwardTFStdout,
 			Usage:       "If specified, the output of OpenTofu/Terraform commands will be printed as is, without being integrated into the Terragrunt log.",
+		},
+		&cli.GenericFlag[string]{
+			Name:   TerragruntLogFormatFlagName,
+			EnvVar: TerragruntLogFormatEnvName,
+			Usage:  "Set the log format",
+			Action: func(_ *cli.Context, val string) error {
+				phs, err := format.ParseFormat(val)
+				if err != nil {
+					return cli.NewExitError(errors.Errorf("flag --%s, invalid format %q, %v", TerragruntLogFormatFlagName, val, err), 1)
+				}
+
+				if opts.DisableLog || opts.DisableLogFormatting || opts.JSONLogFormat {
+					return nil
+				}
+
+				if val == format.BareFormatName {
+					opts.ForwardTFStdout = true
+				}
+
+				opts.LogFormatter.SetFormat(phs)
+
+				return nil
+			},
+		},
+		&cli.GenericFlag[string]{
+			Name:   TerragruntLogCustomFormatFlagName,
+			EnvVar: TerragruntLogCustomFormatEnvName,
+			Usage:  "Set the custom log formatting",
+			Action: func(_ *cli.Context, val string) error {
+				phs, err := placeholders.Parse(val)
+				if err != nil {
+					return cli.NewExitError(errors.Errorf("flag --%s, %w", TerragruntLogCustomFormatFlagName, err), 1)
+				}
+
+				opts.LogFormatter.SetFormat(phs)
+
+				return nil
+			},
 		},
 		&cli.BoolFlag{
 			Name:        TerragruntStrictIncludeFlagName,
@@ -501,7 +518,11 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.StrictControls,
 			Usage:       "Enables specific strict controls. For a list of available controls, see https://terragrunt.gruntwork.io/docs/reference/strict-mode .",
 			Action: func(ctx *cli.Context, val []string) error {
-				return strict.StrictControls.ValidateControlNames(val)
+				if err := strict.StrictControls.ValidateControlNames(val); err != nil {
+					return cli.NewExitError(err, 1)
+				}
+
+				return nil
 			},
 		},
 		// Terragrunt Provider Cache flags

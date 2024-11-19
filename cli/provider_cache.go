@@ -159,8 +159,18 @@ func (cache *ProviderCache) TerraformCommandHook(
 	// To prevent a loop
 	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
 
+	cliConfigFilename := filepath.Join(opts.WorkingDir, localCLIFilename)
+
+	if !filepath.IsAbs(cliConfigFilename) {
+		absPath, err := filepath.Abs(cliConfigFilename)
+		if err != nil {
+			return nil, errors.New(err)
+		}
+
+		cliConfigFilename = absPath
+	}
+
 	var (
-		cliConfigFilename    = filepath.Join(opts.WorkingDir, localCLIFilename)
 		env                  = providerCacheEnvironment(opts, cliConfigFilename)
 		skipRunTargetCommand bool
 	)
