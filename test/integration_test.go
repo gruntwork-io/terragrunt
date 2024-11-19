@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
@@ -43,6 +44,7 @@ const (
 	testFixtureDisabledModule                 = "fixtures/disabled/"
 	testFixtureDisabledPath                   = "fixtures/disabled-path/"
 	testFixtureDisjoint                       = "fixtures/stack/disjoint"
+	textFixtureDisjointSymlinks               = "fixtures/stack/disjoint-symlinks"
 	testFixtureDownload                       = "fixtures/download"
 	testFixtureEmptyState                     = "fixtures/empty-state/"
 	testFixtureEnvVarsBlockPath               = "fixtures/env-vars-block/"
@@ -635,6 +637,82 @@ func TestTerragruntStackCommandsWithPlanFile(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, disjointEnvironmentPath)
 	helpers.RunTerragrunt(t, "terragrunt plan-all -out=plan.tfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir "+disjointEnvironmentPath)
 	helpers.RunTerragrunt(t, "terragrunt apply-all plan.tfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir "+disjointEnvironmentPath)
+}
+
+func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
+	t.Parallel()
+
+	// please be aware that helpers.CopyEnvironment resolves symlinks statically,
+	// so the symlinked directories are copied physically, which defeats the purpose of this test,
+	// therefore we are going to create the symlinks manually in the destination directory
+	tmpEnvPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, textFixtureDisjointSymlinks))
+	require.NoError(t, err)
+	disjointSymlinksEnvironmentPath := util.JoinPath(tmpEnvPath, textFixtureDisjointSymlinks)
+	require.NoError(t, os.Symlink(util.JoinPath(disjointSymlinksEnvironmentPath, "a"), util.JoinPath(disjointSymlinksEnvironmentPath, "b")))
+	require.NoError(t, os.Symlink(util.JoinPath(disjointSymlinksEnvironmentPath, "a"), util.JoinPath(disjointSymlinksEnvironmentPath, "c")))
+
+	helpers.CleanupTerraformFolder(t, disjointSymlinksEnvironmentPath)
+
+	// perform the first initialization
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir "+disjointSymlinksEnvironmentPath)
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./a/.terragrunt-cache")
+	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./b/.terragrunt-cache")
+	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./c/.terragrunt-cache")
+
+	// perform the second initialization and make sure that the cache is not downloaded again
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir "+disjointSymlinksEnvironmentPath)
+	require.NoError(t, err)
+	assert.NotContains(t, stderr, "Downloading Terraform configurations from ./module into ./a/.terragrunt-cache")
+	assert.NotContains(t, stderr, "Downloading Terraform configurations from ./module into ./b/.terragrunt-cache")
+	assert.NotContains(t, stderr, "Downloading Terraform configurations from ./module into ./c/.terragrunt-cache")
+
+	// validate the modules
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all validate --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir "+disjointSymlinksEnvironmentPath)
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Module ./a")
+	assert.Contains(t, stderr, "Module ./b")
+	assert.Contains(t, stderr, "Module ./c")
+
+	// touch the "module/main.tf" file to change the timestamp and make sure that the cache is downloaded again
+	require.NoError(t, os.Chtimes(util.JoinPath(disjointSymlinksEnvironmentPath, "module/main.tf"), time.Now(), time.Now()))
+
+	// perform the initialization and make sure that the cache is downloaded again
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir "+disjointSymlinksEnvironmentPath)
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./a/.terragrunt-cache")
+	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./b/.terragrunt-cache")
+	assert.Contains(t, stderr, "Downloading Terraform configurations from ./module into ./c/.terragrunt-cache")
+}
+
+func TestTerragruntOutputModuleGroupsWithSymlinks(t *testing.T) {
+	t.Parallel()
+
+	// please be aware that helpers.CopyEnvironment resolves symlinks statically,
+	// so the symlinked directories are copied physically, which defeats the purpose of this test,
+	// therefore we are going to create the symlinks manually in the destination directory
+	tmpEnvPath, err := filepath.EvalSymlinks(helpers.CopyEnvironment(t, textFixtureDisjointSymlinks))
+	require.NoError(t, err)
+	disjointSymlinksEnvironmentPath := util.JoinPath(tmpEnvPath, textFixtureDisjointSymlinks)
+	require.NoError(t, os.Symlink(util.JoinPath(disjointSymlinksEnvironmentPath, "a"), util.JoinPath(disjointSymlinksEnvironmentPath, "b")))
+	require.NoError(t, os.Symlink(util.JoinPath(disjointSymlinksEnvironmentPath, "a"), util.JoinPath(disjointSymlinksEnvironmentPath, "c")))
+
+	expectedApplyOutput := fmt.Sprintf(`
+	{
+	  "Group 1": [
+		"%[1]s/a",
+		"%[1]s/b",
+		"%[1]s/c"
+	  ]
+	}`, disjointSymlinksEnvironmentPath)
+
+	helpers.CleanupTerraformFolder(t, disjointSymlinksEnvironmentPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt output-module-groups --terragrunt-working-dir %s apply", disjointSymlinksEnvironmentPath))
+	require.NoError(t, err)
+
+	output := strings.ReplaceAll(stdout, " ", "")
+	expectedOutput := strings.ReplaceAll(strings.ReplaceAll(expectedApplyOutput, "\t", ""), " ", "")
+	assert.True(t, strings.Contains(strings.TrimSpace(output), strings.TrimSpace(expectedOutput)))
 }
 
 func TestInvalidSource(t *testing.T) {

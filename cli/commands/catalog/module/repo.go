@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/util"
+
 	"github.com/gitsight/go-vcsurl"
 	"github.com/gruntwork-io/go-commons/files"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -82,7 +84,7 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 			continue
 		}
 
-		err := filepath.Walk(modulesPath,
+		err := util.WalkWithSymlinks(modulesPath,
 			func(dir string, remote os.FileInfo, err error) error {
 				if err != nil {
 					return err
