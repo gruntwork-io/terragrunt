@@ -24,6 +24,7 @@ type RemoteState struct {
 	DisableDependencyOptimization bool                   `mapstructure:"disable_dependency_optimization" json:"DisableDependencyOptimization"`
 	Generate                      *RemoteStateGenerate   `mapstructure:"generate" json:"Generate"`
 	Config                        map[string]interface{} `mapstructure:"config" json:"Config"`
+	Encryption                    map[string]interface{} `mapstructure:"encryption" json:"Encryption"`
 }
 
 // map to store mutexes for each state bucket action
@@ -40,12 +41,13 @@ var initializedRemoteStateCache = cache.NewCache[bool](initializedRemoteStateCac
 
 func (state *RemoteState) String() string {
 	return fmt.Sprintf(
-		"RemoteState{Backend = %v, DisableInit = %v, DisableDependencyOptimization = %v, Generate = %v, Config = %v}",
+		"RemoteState{Backend = %v, DisableInit = %v, DisableDependencyOptimization = %v, Generate = %v, Config = %v, Encryption = %v}",
 		state.Backend,
 		state.DisableInit,
 		state.DisableDependencyOptimization,
 		state.Generate,
 		state.Config,
+		state.Encryption,
 	)
 }
 
@@ -231,6 +233,8 @@ func (state *RemoteState) GenerateTerraformCode(terragruntOptions *options.Terra
 	// Make sure to strip out terragrunt specific configurations from the config.
 	config := state.Config
 
+	encryption := state.Encryption
+
 	initializer, hasInitializer := remoteStateInitializers[state.Backend]
 	if hasInitializer {
 		config = initializer.GetTerraformInitArgs(config)
@@ -242,7 +246,7 @@ func (state *RemoteState) GenerateTerraformCode(terragruntOptions *options.Terra
 		return err
 	}
 
-	configBytes, err := codegen.RemoteStateConfigToTerraformCode(state.Backend, config)
+	configBytes, err := codegen.RemoteStateConfigToTerraformCode(state.Backend, config, encryption)
 	if err != nil {
 		return err
 	}
