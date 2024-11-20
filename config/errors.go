@@ -5,6 +5,15 @@ import (
 	"strings"
 )
 
+type ErrorConfig struct {
+}
+
+type IgnoreConfig struct {
+}
+
+type RetryConfig struct {
+}
+
 // Custom error types
 
 type InvalidArgError string
