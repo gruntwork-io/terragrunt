@@ -5,9 +5,7 @@ import (
 )
 
 const (
-	DetailedExitCodeNoChanges int = iota
-	DetailedExitCodeError
-	DetailedExitCodeChangesPresent
+	DetailedExitCodeError = 1
 )
 
 // DetailedExitCode is the TF detailed exit code. https://opentofu.org/docs/cli/commands/plan/

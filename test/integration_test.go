@@ -123,8 +123,8 @@ func TestDetailedExitCodeError(t *testing.T) {
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run-all plan --terragrunt-log-level debug --terragrunt-non-interactive -detailed-exitcode --terragrunt-working-dir "+rootPath)
 	require.Error(t, err)
-	require.Contains(t, stderr, "not-existing-file.txt: no such file or directory")
-	require.Equal(t, 1, exitCode.Get())
+	assert.Contains(t, stderr, "not-existing-file.txt: no such file or directory")
+	assert.Equal(t, 1, exitCode.Get())
 }
 
 func TestDetailedExitCodeChangesPresentAll(t *testing.T) {
@@ -142,7 +142,7 @@ func TestDetailedExitCodeChangesPresentAll(t *testing.T) {
 
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run-all plan --terragrunt-log-level debug --terragrunt-non-interactive -detailed-exitcode --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
-	require.Equal(t, 2, exitCode.Get())
+	assert.Equal(t, 2, exitCode.Get())
 }
 
 func TestDetailedExitCodeChangesPresentOne(t *testing.T) {
@@ -163,7 +163,7 @@ func TestDetailedExitCodeChangesPresentOne(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run-all plan --terragrunt-log-level debug --terragrunt-non-interactive -detailed-exitcode --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
-	require.Equal(t, 2, exitCode.Get())
+	assert.Equal(t, 2, exitCode.Get())
 }
 
 func TestDetailedExitCodeNoChanges(t *testing.T) {
@@ -184,7 +184,7 @@ func TestDetailedExitCodeNoChanges(t *testing.T) {
 
 	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run-all plan --terragrunt-log-level debug --terragrunt-non-interactive -detailed-exitcode --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
-	require.Equal(t, 0, exitCode.Get())
+	assert.Equal(t, 0, exitCode.Get())
 }
 
 func TestLogCustomFormatOutput(t *testing.T) {
