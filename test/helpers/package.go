@@ -720,7 +720,7 @@ func RemoveFolder(t *testing.T, path string) {
 	}
 }
 
-func RunTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {
+func RunTerragruntCommandWithContext(t *testing.T, ctx context.Context, command string, writer io.Writer, errwriter io.Writer) error {
 	t.Helper()
 
 	args := splitCommand(command)
@@ -732,9 +732,15 @@ func RunTerragruntCommand(t *testing.T, command string, writer io.Writer, errwri
 	t.Log(args)
 
 	opts := options.NewTerragruntOptionsWithWriters(writer, errwriter)
-	app := cli.NewApp(opts)
+	app := cli.NewApp(opts) //nolint:contextcheck
 
-	return app.Run(args)
+	return app.RunContext(ctx, args)
+}
+
+func RunTerragruntCommand(t *testing.T, command string, writer io.Writer, errwriter io.Writer) error {
+	t.Helper()
+
+	return RunTerragruntCommandWithContext(t, context.Background(), command, writer, errwriter)
 }
 
 func RunTerragruntVersionCommand(t *testing.T, ver string, command string, writer io.Writer, errwriter io.Writer) error {
@@ -761,16 +767,22 @@ func LogBufferContentsLineByLine(t *testing.T, out bytes.Buffer, label string) {
 	}
 }
 
-func RunTerragruntCommandWithOutput(t *testing.T, command string) (string, string, error) {
+func RunTerragruntCommandWithOutputWithContext(t *testing.T, ctx context.Context, command string) (string, string, error) {
 	t.Helper()
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := RunTerragruntCommand(t, command, &stdout, &stderr)
+	err := RunTerragruntCommandWithContext(t, ctx, command, &stdout, &stderr)
 	LogBufferContentsLineByLine(t, stdout, "stdout")
 	LogBufferContentsLineByLine(t, stderr, "stderr")
 
 	return stdout.String(), stderr.String(), err
+}
+
+func RunTerragruntCommandWithOutput(t *testing.T, command string) (string, string, error) {
+	t.Helper()
+
+	return RunTerragruntCommandWithOutputWithContext(t, context.Background(), command)
 }
 
 func RunTerragruntRedirectOutput(t *testing.T, command string, writer io.Writer, errwriter io.Writer) {
