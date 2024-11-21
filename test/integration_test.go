@@ -33,33 +33,37 @@ import (
 
 // hard-code this to match the test fixture for now
 const (
-	testCommandsThatNeedInput                 = "fixtures/commands-that-need-input"
 	testFixtureAuthProviderCmd                = "fixtures/auth-provider-cmd"
 	testFixtureAutoInit                       = "fixtures/download/init-on-source-change"
 	testFixtureBrokenDependency               = "fixtures/broken-dependency"
+	testFixtureBufferModuleOutput             = "fixtures/buffer-module-output"
 	testFixtureCodegenPath                    = "fixtures/codegen"
+	testFixtureCommandsThatNeedInput          = "fixtures/commands-that-need-input"
 	testFixtureConfigSingleJSONPath           = "fixtures/config-files/single-json-config"
 	testFixtureConfigWithNonDefaultNames      = "fixtures/config-files/with-non-default-names"
+	testFixtureDependenciesOptimisation       = "fixtures/dependency-optimisation"
 	testFixtureDependencyOutput               = "fixtures/dependency-output"
+	testFixtureDetailedExitCode               = "fixtures/detailed-exitcode"
 	testFixtureDirsPath                       = "fixtures/dirs"
 	testFixtureDisabledModule                 = "fixtures/disabled/"
 	testFixtureDisabledPath                   = "fixtures/disabled-path/"
 	testFixtureDisjoint                       = "fixtures/stack/disjoint"
-	textFixtureDisjointSymlinks               = "fixtures/stack/disjoint-symlinks"
 	testFixtureDownload                       = "fixtures/download"
 	testFixtureEmptyState                     = "fixtures/empty-state/"
 	testFixtureEnvVarsBlockPath               = "fixtures/env-vars-block/"
+	testFixtureErrorPrint                     = "fixtures/error-print"
 	testFixtureExcludesFile                   = "fixtures/excludes-file"
 	testFixtureExternalDependence             = "fixtures/external-dependencies"
 	testFixtureExternalDependency             = "fixtures/external-dependency/"
 	testFixtureExtraArgsPath                  = "fixtures/extra-args/"
 	testFixtureFailedTerraform                = "fixtures/failure"
+	testFixtureFindParent                     = "fixtures/find-parent"
 	testFixtureGetOutput                      = "fixtures/get-output"
 	testFixtureGetTerragruntSourceCli         = "fixtures/get-terragrunt-source-cli"
 	testFixtureGraphDependencies              = "fixtures/graph-dependencies"
 	testFixtureHclfmtDiff                     = "fixtures/hclfmt-diff"
-	testFixtureHclvalidate                    = "fixtures/hclvalidate"
 	testFixtureHclfmtStdin                    = "fixtures/hclfmt-stdin"
+	testFixtureHclvalidate                    = "fixtures/hclvalidate"
 	testFixtureIamRolesMultipleModules        = "fixtures/read-config/iam_roles_multiple_modules"
 	testFixtureIncludeParent                  = "fixtures/include-parent"
 	testFixtureInfoError                      = "fixtures/terragrunt-info-error"
@@ -95,10 +99,7 @@ const (
 	testFixtureStack                          = "fixtures/stack/"
 	testFixtureStdout                         = "fixtures/download/stdout-test"
 	testFixtureTfTest                         = "fixtures/tftest/"
-	testFixtureErrorPrint                     = "fixtures/error-print"
-	testFixtureBufferModuleOutput             = "fixtures/buffer-module-output"
-	testFixtureDependenciesOptimisation       = "fixtures/dependency-optimisation"
-	testFixtureDetailedExitCode               = "fixtures/detailed-exitcode"
+	textFixtureDisjointSymlinks               = "fixtures/stack/disjoint-symlinks"
 
 	terraformFolder = ".terraform"
 
@@ -3498,9 +3499,9 @@ func TestTerragruntInvokeTerraformTests(t *testing.T) {
 func TestTerragruntCommandsThatNeedInput(t *testing.T) {
 	t.Parallel()
 
-	tmpEnvPath := helpers.CopyEnvironment(t, testCommandsThatNeedInput)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureCommandsThatNeedInput)
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testCommandsThatNeedInput)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureCommandsThatNeedInput)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+testPath)
 	require.NoError(t, err)

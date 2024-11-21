@@ -22,7 +22,6 @@ const (
 	testFixtureDownloadPath                         = "fixtures/download"
 	testFixtureLocalRelativeArgsWindowsDownloadPath = "fixtures/download/local-windows"
 	testFixtureManifestRemoval                      = "fixtures/manifest-removal"
-	testFixtureFindParent                           = "fixtures/find-parent"
 	testFixtureTflintNoIssuesFound                  = "fixtures/tflint/no-issues-found"
 )
 

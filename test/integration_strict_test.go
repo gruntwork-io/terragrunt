@@ -81,3 +81,63 @@ func TestStrictMode(t *testing.T) {
 		})
 	}
 }
+
+func TestRootTerragruntHCLStrictMode(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureFindParent)
+
+	tc := []struct {
+		name           string
+		controls       []string
+		strictMode     bool
+		expectedStderr string
+		expectedError  error
+	}{
+		{
+			name:           "root terragrunt.hcl",
+			strictMode:     false,
+			expectedStderr: strict.StrictControls[strict.RootTerragruntHCL].Warning,
+		},
+		{
+			name:          "root terragrunt.hcl with root-terragrunt-hcl strict control",
+			controls:      []string{"root-terragrunt-hcl"},
+			strictMode:    false,
+			expectedError: strict.StrictControls[strict.RootTerragruntHCL].Error,
+		},
+		{
+			name:          "root terragrunt.hcl with strict mode",
+			strictMode:    true,
+			expectedError: strict.StrictControls[strict.RootTerragruntHCL].Error,
+		},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFindParent)
+			rootPath := util.JoinPath(tmpEnvPath, testFixtureFindParent, "app")
+
+			args := "--terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir " + rootPath
+			if tt.strictMode {
+				args = "--strict-mode " + args
+			}
+
+			for _, control := range tt.controls {
+				args = " --strict-control " + control + " " + args
+			}
+
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan "+args)
+
+			if tt.expectedError != nil {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError.Error())
+			} else {
+				require.NoError(t, err)
+			}
+
+			assert.Contains(t, stderr, tt.expectedStderr)
+		})
+	}
+}
