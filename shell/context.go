@@ -12,7 +12,8 @@ import (
 
 const (
 	TerraformCommandContextKey ctxKey = iota
-	RunCmdCacheContextKey      ctxKey = iota
+	RunCmdCacheContextKey
+	DetailedExitCodeContextKey
 
 	runCmdCacheName = "runCmdCache"
 )
@@ -31,6 +32,22 @@ func ContextWithTerraformCommandHook(ctx context.Context, fn RunShellCommandFunc
 func TerraformCommandHookFromContext(ctx context.Context) RunShellCommandFunc {
 	if val := ctx.Value(TerraformCommandContextKey); val != nil {
 		if val, ok := val.(RunShellCommandFunc); ok {
+			return val
+		}
+	}
+
+	return nil
+}
+
+// ContextWithDetailedExitCode returns a new context containing the given DetailedExitCode.
+func ContextWithDetailedExitCode(ctx context.Context, detailedExitCode *DetailedExitCode) context.Context {
+	return context.WithValue(ctx, DetailedExitCodeContextKey, detailedExitCode)
+}
+
+// DetailedExitCodeFromContext returns DetailedExitCode if the give context contains it.
+func DetailedExitCodeFromContext(ctx context.Context) *DetailedExitCode {
+	if val := ctx.Value(DetailedExitCodeContextKey); val != nil {
+		if val, ok := val.(*DetailedExitCode); ok {
 			return val
 		}
 	}
