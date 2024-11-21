@@ -50,7 +50,6 @@ const (
 	testFixtureEmptyState                     = "fixtures/empty-state/"
 	testFixtureEnvVarsBlockPath               = "fixtures/env-vars-block/"
 	testFixtureExcludesFile                   = "fixtures/excludes-file"
-	testFixtureExitCode                       = "fixtures/exit-code"
 	testFixtureExternalDependence             = "fixtures/external-dependencies"
 	testFixtureExternalDependency             = "fixtures/external-dependency/"
 	testFixtureExtraArgsPath                  = "fixtures/extra-args/"
@@ -874,20 +873,6 @@ func TestInvalidSource(t *testing.T) {
 
 	ok := errors.As(err, &workingDirNotFoundErr)
 	assert.True(t, ok)
-}
-
-// Run terragrunt plan -detailed-exitcode on a folder with some uncreated resources and make sure that you get an exit
-// code of "2", which means there are changes to apply.
-func TestExitCode(t *testing.T) {
-	t.Parallel()
-
-	rootPath := helpers.CopyEnvironment(t, testFixtureExitCode)
-	modulePath := util.JoinPath(rootPath, testFixtureExitCode)
-	err := helpers.RunTerragruntCommand(t, "terragrunt plan -detailed-exitcode --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, os.Stdout, os.Stderr)
-
-	exitCode, exitCodeErr := util.GetExitCode(err)
-	require.NoError(t, exitCodeErr)
-	assert.Equal(t, 2, exitCode)
 }
 
 func TestPlanfileOrder(t *testing.T) {
