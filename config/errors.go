@@ -5,13 +5,33 @@ import (
 	"strings"
 )
 
-type ErrorConfig struct {
+// ErrorsConfig represents the top-level errors configuration block
+type ErrorsConfig struct {
+	// Map of retry configurations keyed by their identifier
+	Retry map[string]*RetryConfig `hcl:"retry,block"`
+	// Map of ignore configurations keyed by their identifier
+	Ignore map[string]*IgnoreConfig `hcl:"ignore,block"`
 }
 
-type IgnoreConfig struct {
-}
-
+// RetryConfig represents the configuration for retrying specific errors
 type RetryConfig struct {
+	// List of regex patterns for errors that should be retried
+	RetryableErrors []string `hcl:"retryable_errors"`
+	// Maximum number of retry attempts
+	MaxAttempts int `hcl:"max_attempts"`
+	// Sleep interval between retries in seconds
+	SleepIntervalSec int `hcl:"sleep_interval_sec"`
+}
+
+// IgnoreConfig represents the configuration for ignoring specific errors
+type IgnoreConfig struct {
+	// List of regex patterns for errors that should be ignored
+	// Can include negation patterns starting with "!"
+	IgnorableErrors []string `hcl:"ignorable_errors"`
+	// Optional message to display when an error is ignored
+	Message string `hcl:"message,optional"`
+	// Map of key-value pairs for signaling external systems
+	Signals map[string]interface{} `hcl:"signals,optional"`
 }
 
 // Custom error types
