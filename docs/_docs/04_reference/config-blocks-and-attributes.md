@@ -977,7 +977,7 @@ inputs = {
 The `dependency` block is used to configure module dependencies. Each dependency block exports the outputs of the target
 module as block attributes you can reference throughout the configuration. You can learn more about `dependency` blocks
 in the [Dependencies between modules
-section](/docs/features/execute-terraform-commands-on-multiple-modules-at-once/#dependencies-between-modules) of the
+section](/docs/features/execute-terraform-commands-on-multiple-units-at-once/#dependencies-between-modules) of the
 "Execute Opentofu/Terraform commands on multiple modules at once" use case overview.
 
 You can define more than one `dependency` block. Each label you provide to the block identifies another `dependency`

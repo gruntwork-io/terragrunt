@@ -343,7 +343,7 @@ Group 2
 08:57:09.936 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
 ```
 
-Oh no! We got an error. This is because the way in which dependencies are resolved by default in Terragrunt is to run `terragrunt output` within the dependent unit in order to fetch them for the dependent unit. In this case, the `foo` unit has not been applied yet, so there are no outputs to fetch.
+Oh no! We got an error. This is because the way in which dependencies are resolved by default in Terragrunt is to run `terragrunt output` within the dependency for use in the dependent unit. In this case, the `foo` unit has not been applied yet, so there are no outputs to fetch.
 
 You should notice, however, that Terragrunt has already figured out the order in which to run the `plan` command across the units in your stack. This is what we mean when we say that Terragrunt uses a DAG to determine the order in which to run commands across your stack. Terragrunt analyzes the dependencies across your units, and determines the order in which to run updates so that outputs are ready to be used as inputs in dependent units.
 
