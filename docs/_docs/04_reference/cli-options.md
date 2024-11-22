@@ -165,7 +165,7 @@ If you have a stack of Terragrunt units with dependencies between them—either 
 or `terraform_remote_state` data sources—and
 you've never deployed them, then commands like `run-all plan` will fail,
 as it will not be possible to resolve the `dependency` blocks
-or `terraform_remote_state` data sources! 
+or `terraform_remote_state` data sources!
 
 The solution for this is to take advantage of [mock outputs in dependency blocks](/docs/reference/config-blocks-and-attributes/#dependency).
 
@@ -179,7 +179,7 @@ Note that we are [working with the OpenTofu team to improve this behavior](https
 **[NOTE]** Using `run-all` with `apply` or `destroy` silently adds the `-auto-approve` flag to the command line
 arguments passed to OpenTofu/Terraform due to issues with shared `stdin` making individual approvals impossible.
 
-**[NOTE]** Using the OpenTofu/Terraform [-detailed-exitcode](https://opentofu.org/docs/cli/commands/plan/#other-options) 
+**[NOTE]** Using the OpenTofu/Terraform [-detailed-exitcode](https://opentofu.org/docs/cli/commands/plan/#other-options)
 flag with the `run-all` command results in an aggregate exit code being returned, rather than the exit code of any particular unit.
 
 The algorithm for determining the aggregate exit code is as follows:
