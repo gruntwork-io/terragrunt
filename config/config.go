@@ -125,6 +125,7 @@ type TerragruntConfig struct {
 	Engine                      *EngineConfig
 	FeatureFlags                FeatureFlags
 	Exclude                     *ExcludeConfig
+	Errors                      *ErrorsConfig
 
 	// Fields used for internal tracking
 	// Indicates whether this is the result of a partial evaluation
@@ -197,6 +198,7 @@ type terragruntConfigFile struct {
 	TerragruntDependencies   []Dependency        `hcl:"dependency,block"`
 	FeatureFlags             []*FeatureFlag      `hcl:"feature,block"`
 	Exclude                  *ExcludeConfig      `hcl:"exclude,block"`
+	Errors                   *ErrorsConfig       `hcl:"errors,block"`
 
 	// We allow users to configure code generation via blocks:
 	//
