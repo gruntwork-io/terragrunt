@@ -36,6 +36,64 @@ type IgnoreConfig struct {
 	Signals map[string]interface{} `hcl:"signals,optional"`
 }
 
+func (c *ErrorsConfig) Clone() *ErrorsConfig {
+	if c == nil {
+		return nil
+	}
+
+	clone := &ErrorsConfig{
+		Retry:  make(map[string]*RetryConfig),
+		Ignore: make(map[string]*IgnoreConfig),
+	}
+
+	for k, v := range c.Retry {
+		clone.Retry[k] = v.Clone()
+	}
+
+	for k, v := range c.Ignore {
+		clone.Ignore[k] = v.Clone()
+	}
+
+	return clone
+}
+
+func (c *RetryConfig) Clone() *RetryConfig {
+	if c == nil {
+		return nil
+	}
+
+	retryableErrors := make([]string, len(c.RetryableErrors))
+	copy(retryableErrors, c.RetryableErrors)
+
+	return &RetryConfig{
+		Name:             c.Name,
+		RetryableErrors:  retryableErrors,
+		MaxAttempts:      c.MaxAttempts,
+		SleepIntervalSec: c.SleepIntervalSec,
+	}
+}
+
+func (c *IgnoreConfig) Clone() *IgnoreConfig {
+	if c == nil {
+		return nil
+	}
+
+	ignorableErrors := make([]string, len(c.IgnorableErrors))
+	copy(ignorableErrors, c.IgnorableErrors)
+
+	signals := make(map[string]interface{})
+	for k, v := range c.Signals {
+		signals[k] = v
+	}
+
+	return &IgnoreConfig{
+		Name:            c.Name,
+		IgnorableErrors: ignorableErrors,
+		Message:         c.Message,
+		Signals:         signals,
+	}
+}
+
 // Custom error types
 
 type InvalidArgError string

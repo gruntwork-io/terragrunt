@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/config"
+
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -365,6 +367,9 @@ type TerragruntOptions struct {
 	// ReadFiles is a map of files to the Units
 	// that read them using HCL functions in the unit.
 	ReadFiles map[string][]string
+
+	// ErrorsConfig is a configuration for error handling.
+	ErrorsConfig *config.ErrorsConfig
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -641,6 +646,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		// copy array
 		StrictControls: util.CloneStringList(opts.StrictControls),
 		FeatureFlags:   opts.FeatureFlags,
+		ErrorsConfig:   opts.ErrorsConfig,
 	}, nil
 }
 
