@@ -27,7 +27,6 @@ type RetryConfig struct {
 // IgnoreConfig represents the configuration for ignoring specific errors
 type IgnoreConfig struct {
 	Name string `cty:"name"    hcl:",label"`
-
 	// List of regex patterns for errors that should be ignored
 	// Can include negation patterns starting with "!"
 	IgnorableErrors []string `hcl:"ignorable_errors"`
