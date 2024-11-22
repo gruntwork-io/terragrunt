@@ -233,7 +233,26 @@ func (state *RemoteState) GenerateTerraformCode(terragruntOptions *options.Terra
 	// Make sure to strip out terragrunt specific configurations from the config.
 	config := state.Config
 
-	encryption := state.Encryption
+	// Initialize the encryption config based on the key provider
+	keyProvider, ok := state.Encryption["key_provider"].(string)
+	if !ok {
+		return errors.New("key_provider not found in encryption config")
+	}
+
+	encryptionProvider, err := NewRemoteEncryptionKeyProvider(keyProvider)
+	if err != nil {
+		return fmt.Errorf("error creating provider: %v", err)
+	}
+
+	err = encryptionProvider.UnmarshalConfig(state.Encryption)
+	if err != nil {
+		return err
+	}
+
+	encryption, err := encryptionProvider.ToMap()
+	if err != nil {
+		return fmt.Errorf("error decoding struct to map: %v", err)
+	}
 
 	initializer, hasInitializer := remoteStateInitializers[state.Backend]
 	if hasInitializer {

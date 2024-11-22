@@ -297,7 +297,6 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]interfac
 		if !found {
 			return nil, fmt.Errorf(encryptionKeyProviderKey + " is mandatory but not found in the encryption map")
 		}
-
 		keyProviderTraversal := hcl.Traversal{
 			hcl.TraverseRoot{Name: encryptionKeyProviderKey},
 			hcl.TraverseAttr{Name: keyProvider},
