@@ -3,6 +3,7 @@ package test_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -49,7 +50,6 @@ const (
 	testFixtureEmptyState                     = "fixtures/empty-state/"
 	testFixtureEnvVarsBlockPath               = "fixtures/env-vars-block/"
 	testFixtureExcludesFile                   = "fixtures/excludes-file"
-	testFixtureExitCode                       = "fixtures/exit-code"
 	testFixtureExternalDependence             = "fixtures/external-dependencies"
 	testFixtureExternalDependency             = "fixtures/external-dependency/"
 	testFixtureExtraArgsPath                  = "fixtures/extra-args/"
@@ -98,6 +98,7 @@ const (
 	testFixtureErrorPrint                     = "fixtures/error-print"
 	testFixtureBufferModuleOutput             = "fixtures/buffer-module-output"
 	testFixtureDependenciesOptimisation       = "fixtures/dependency-optimisation"
+	testFixtureDetailedExitCode               = "fixtures/detailed-exitcode"
 
 	terraformFolder = ".terraform"
 
@@ -106,6 +107,85 @@ const (
 	terraformStateBackup = "terraform.tfstate.backup"
 	terragruntCache      = ".terragrunt-cache"
 )
+
+func TestDetailedExitCodeError(t *testing.T) {
+	t.Parallel()
+
+	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "error")
+
+	helpers.CleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
+
+	var exitCode shell.DetailedExitCode
+	ctx := context.Background()
+	ctx = shell.ContextWithDetailedExitCode(ctx, &exitCode)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run-all plan --terragrunt-log-level debug --terragrunt-non-interactive -detailed-exitcode --terragrunt-working-dir "+rootPath)
+	require.Error(t, err)
+	assert.Contains(t, stderr, "not-existing-file.txt: no such file or directory")
+	assert.Equal(t, 1, exitCode.Get())
+}
+
+func TestDetailedExitCodeChangesPresentAll(t *testing.T) {
+	t.Parallel()
+
+	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "changes")
+
+	helpers.CleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
+
+	var exitCode shell.DetailedExitCode
+	ctx := context.Background()
+	ctx = shell.ContextWithDetailedExitCode(ctx, &exitCode)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run-all plan --terragrunt-log-level debug --terragrunt-non-interactive -detailed-exitcode --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+	assert.Equal(t, 2, exitCode.Get())
+}
+
+func TestDetailedExitCodeChangesPresentOne(t *testing.T) {
+	t.Parallel()
+
+	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "changes")
+
+	helpers.CleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
+
+	var exitCode shell.DetailedExitCode
+	ctx := context.Background()
+	ctx = shell.ContextWithDetailedExitCode(ctx, &exitCode)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir "+filepath.Join(rootPath, "app1"))
+	require.NoError(t, err)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run-all plan --terragrunt-log-level debug --terragrunt-non-interactive -detailed-exitcode --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+	assert.Equal(t, 2, exitCode.Get())
+}
+
+func TestDetailedExitCodeNoChanges(t *testing.T) {
+	t.Parallel()
+
+	testFixturePath := filepath.Join(testFixtureDetailedExitCode, "changes")
+
+	helpers.CleanupTerraformFolder(t, testFixturePath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
+
+	var exitCode shell.DetailedExitCode
+	ctx := context.Background()
+	ctx = shell.ContextWithDetailedExitCode(ctx, &exitCode)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	_, _, err = helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run-all plan --terragrunt-log-level debug --terragrunt-non-interactive -detailed-exitcode --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+	assert.Equal(t, 0, exitCode.Get())
+}
 
 func TestLogCustomFormatOutput(t *testing.T) {
 	t.Parallel()
@@ -793,20 +873,6 @@ func TestInvalidSource(t *testing.T) {
 
 	ok := errors.As(err, &workingDirNotFoundErr)
 	assert.True(t, ok)
-}
-
-// Run terragrunt plan -detailed-exitcode on a folder with some uncreated resources and make sure that you get an exit
-// code of "2", which means there are changes to apply.
-func TestExitCode(t *testing.T) {
-	t.Parallel()
-
-	rootPath := helpers.CopyEnvironment(t, testFixtureExitCode)
-	modulePath := util.JoinPath(rootPath, testFixtureExitCode)
-	err := helpers.RunTerragruntCommand(t, "terragrunt plan -detailed-exitcode --terragrunt-non-interactive --terragrunt-working-dir "+modulePath, os.Stdout, os.Stderr)
-
-	exitCode, exitCodeErr := util.GetExitCode(err)
-	require.NoError(t, exitCodeErr)
-	assert.Equal(t, 2, exitCode)
 }
 
 func TestPlanfileOrder(t *testing.T) {

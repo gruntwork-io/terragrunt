@@ -69,7 +69,20 @@ func RunTerraformCommandWithOutput(ctx context.Context, opts *options.Terragrunt
 		return nil, err
 	}
 
-	return RunShellCommandWithOutput(ctx, opts, "", false, needsPTY, opts.TerraformPath, args...)
+	output, err := RunShellCommandWithOutput(ctx, opts, "", false, needsPTY, opts.TerraformPath, args...)
+
+	if err != nil && util.ListContainsElement(args, terraform.FlagNameDetailedExitCode) {
+		code, _ := util.GetExitCode(err)
+		if exitCode := DetailedExitCodeFromContext(ctx); exitCode != nil {
+			exitCode.Set(code)
+		}
+
+		if code != 1 {
+			return output, nil
+		}
+	}
+
+	return output, err
 }
 
 // RunShellCommand runs the given shell command.
