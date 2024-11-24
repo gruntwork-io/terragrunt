@@ -8,32 +8,30 @@ import (
 // ErrorsConfig represents the top-level errors configuration block
 type ErrorsConfig struct {
 	// Map of retry configurations keyed by their identifier
-	Retry map[string]*RetryConfig `hcl:"retry,block"`
+	Retry map[string]*RetryConfig `hcl:"retry,block" cty:"retry"`
 	// Map of ignore configurations keyed by their identifier
-	Ignore map[string]*IgnoreConfig `hcl:"ignore,block"`
+	Ignore map[string]*IgnoreConfig `hcl:"ignore,block" cty:"ignore"`
 }
 
 // RetryConfig represents the configuration for retrying specific errors
 type RetryConfig struct {
-	Name string `cty:"name"    hcl:",label"`
+	Name string `cty:"name"    hcl:",label" cty:"name"`
 	// List of regex patterns for errors that should be retried
-	RetryableErrors []string `hcl:"retryable_errors"`
+	RetryableErrors []string `hcl:"retryable_errors" cty:"retryable_errors"`
 	// Maximum number of retry attempts
-	MaxAttempts int `hcl:"max_attempts"`
+	MaxAttempts int `hcl:"max_attempts" cty:"max_attempts"`
 	// Sleep interval between retries in seconds
-	SleepIntervalSec int `hcl:"sleep_interval_sec"`
+	SleepIntervalSec int `hcl:"sleep_interval_sec" cty:"sleep_interval_sec"`
 }
 
 // IgnoreConfig represents the configuration for ignoring specific errors
 type IgnoreConfig struct {
-	Name string `cty:"name"    hcl:",label"`
-	// List of regex patterns for errors that should be ignored
-	// Can include negation patterns starting with "!"
-	IgnorableErrors []string `hcl:"ignorable_errors"`
+	Name            string   `cty:"name"    hcl:",label" cty:"label"`
+	IgnorableErrors []string `hcl:"ignorable_errors" cty:"ignorable_errors"`
 	// Optional message to display when an error is ignored
-	Message string `hcl:"message,optional"`
+	Message string `hcl:"message,optional" cty:"message"`
 	// Map of key-value pairs for signaling external systems
-	Signals map[string]interface{} `hcl:"signals,optional"`
+	Signals map[string]interface{} `hcl:"signals,optional" cty:"message"`
 }
 
 func (c *ErrorsConfig) Clone() *ErrorsConfig {
