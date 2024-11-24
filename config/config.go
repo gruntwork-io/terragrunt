@@ -69,6 +69,9 @@ const (
 	MetadataInclude                     = "include"
 	MetadataFeatureFlag                 = "feature"
 	MetadataExclude                     = "exclude"
+	MetadataErrors                      = "errors"
+	MetadataRetry                       = "retry"
+	MetadataIgnore                      = "ignore"
 )
 
 var (

@@ -59,6 +59,15 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output[MetadataExclude] = excludeConfigCty
 	}
 
+	errorsConfigCty, err := errorsConfigAsCty(config.Errors)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	if excludeConfigCty != cty.NilVal {
+		output[MetadataErrors] = errorsConfigCty
+	}
+
 	terraformConfigCty, err := terraformConfigAsCty(config.Terraform)
 	if err != nil {
 		return cty.NilVal, err
@@ -647,6 +656,73 @@ func featureFlagsBlocksAsCty(featureFlagBlocks FeatureFlags) (cty.Value, error) 
 	}
 
 	return convertValuesMapToCtyVal(out)
+}
+
+// Serialize errors configuration as cty.Value.
+func errorsConfigAsCty(config *ErrorsConfig) (cty.Value, error) {
+	if config == nil {
+		return cty.NilVal, nil
+	}
+
+	output := map[string]cty.Value{}
+
+	retryCty, err := retryConfigAsCty(config.Retry)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	if retryCty != cty.NilVal {
+		output[MetadataRetry] = retryCty
+	}
+
+	ignoreCty, err := ignoreConfigAsCty(config.Ignore)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	if ignoreCty != cty.NilVal {
+		output[MetadataIgnore] = ignoreCty
+	}
+
+	return convertValuesMapToCtyVal(output)
+}
+
+func retryConfigAsCty(retry map[string]*RetryConfig) (cty.Value, error) {
+	if retry == nil {
+		return cty.NilVal, nil
+	}
+
+	output := map[string]cty.Value{}
+
+	for key, value := range retry {
+		valueCty, err := goTypeToCty(value)
+		if err != nil {
+			return cty.NilVal, err
+		}
+
+		output[key] = valueCty
+	}
+
+	return convertValuesMapToCtyVal(output)
+}
+
+func ignoreConfigAsCty(ignore map[string]*IgnoreConfig) (cty.Value, error) {
+	if ignore == nil {
+		return cty.NilVal, nil
+	}
+
+	output := map[string]cty.Value{}
+
+	for key, value := range ignore {
+		valueCty, err := goTypeToCty(value)
+		if err != nil {
+			return cty.NilVal, err
+		}
+
+		output[key] = valueCty
+	}
+
+	return convertValuesMapToCtyVal(output)
 }
 
 // Converts arbitrary go types that are json serializable to a cty Value by using json as an intermediary

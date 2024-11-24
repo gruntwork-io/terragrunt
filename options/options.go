@@ -10,8 +10,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/config"
-
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -369,7 +367,7 @@ type TerragruntOptions struct {
 	ReadFiles map[string][]string
 
 	// ErrorsConfig is a configuration for error handling.
-	ErrorsConfig *config.ErrorsConfig
+	ErrorsConfig *ErrorsConfig
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -646,7 +644,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		// copy array
 		StrictControls: util.CloneStringList(opts.StrictControls),
 		FeatureFlags:   opts.FeatureFlags,
-		ErrorsConfig:   opts.ErrorsConfig,
+		ErrorsConfig:   cloneErrorsConfig(opts.ErrorsConfig),
 	}, nil
 }
 
@@ -800,6 +798,75 @@ type EngineOptions struct {
 	Version string
 	Type    string
 	Meta    map[string]interface{}
+}
+
+func cloneErrorsConfig(config *ErrorsConfig) *ErrorsConfig {
+	if config == nil {
+		return nil
+	}
+
+	// Create a new ErrorsConfig
+	cloned := &ErrorsConfig{
+		Retry:  make(map[string]*RetryConfig),
+		Ignore: make(map[string]*IgnoreConfig),
+	}
+
+	// Clone Retry configurations
+	for key, retryConfig := range config.Retry {
+		if retryConfig != nil {
+			cloned.Retry[key] = &RetryConfig{
+				Name:             retryConfig.Name,
+				MaxAttempts:      retryConfig.MaxAttempts,
+				SleepIntervalSec: retryConfig.SleepIntervalSec,
+				RetryableErrors:  make([]string, len(retryConfig.RetryableErrors)),
+			}
+			// Deep copy the RetryableErrors slice
+			copy(cloned.Retry[key].RetryableErrors, retryConfig.RetryableErrors)
+		}
+	}
+
+	// Clone Ignore configurations
+	for key, ignoreConfig := range config.Ignore {
+		if ignoreConfig != nil {
+			cloned.Ignore[key] = &IgnoreConfig{
+				Name:            ignoreConfig.Name,
+				Message:         ignoreConfig.Message,
+				IgnorableErrors: make([]string, len(ignoreConfig.IgnorableErrors)),
+				Signals:         make(map[string]interface{}),
+			}
+			// Deep copy the IgnorableErrors slice
+			copy(cloned.Ignore[key].IgnorableErrors, ignoreConfig.IgnorableErrors)
+
+			// Deep copy the Signals map
+			for sigKey, sigVal := range ignoreConfig.Signals {
+				cloned.Ignore[key].Signals[sigKey] = sigVal
+			}
+		}
+	}
+
+	return cloned
+}
+
+// ErrorsConfig extracted errors handling configuration.
+type ErrorsConfig struct {
+	Retry  map[string]*RetryConfig
+	Ignore map[string]*IgnoreConfig
+}
+
+// RetryConfig represents the configuration for retrying specific errors
+type RetryConfig struct {
+	Name             string
+	RetryableErrors  []string
+	MaxAttempts      int
+	SleepIntervalSec int
+}
+
+// IgnoreConfig represents the configuration for ignoring specific errors
+type IgnoreConfig struct {
+	Name            string
+	IgnorableErrors []string
+	Message         string
+	Signals         map[string]interface{}
 }
 
 // ErrRunTerragruntCommandNotSet is a custom error type indicating that the command is not set.
