@@ -47,6 +47,8 @@ const (
 	DisableLogFormatting = "terragrunt-disable-log-formatting"
 	// JSONLog is the control that prevents the deprecated `--terragrunt-json-log` flag from being used.
 	JSONLog = "terragrunt-json-log"
+	// TfLogJSON is the control that prevents the deprecated `--terragrunt-tf-logs-to-json` flag from being used.
+	TfLogJSON = "terragrunt-tf-logs-to-json"
 )
 
 // GetStrictControl returns the strict control with the given name.
@@ -121,6 +123,10 @@ var StrictControls = Controls{
 	JSONLog: {
 		Error:   errors.Errorf("The `--%s` flag is no longer supported. Use `--terragrunt-log-format=json` instead.", JSONLog),
 		Warning: fmt.Sprintf("The `--%s` flag is deprecated and will be removed in a future version. Use `--terragrunt-log-format=json` instead.", JSONLog),
+	},
+	TfLogJSON: {
+		Error:   errors.Errorf("The `--%s` flag is no longer supported. Use `--terragrunt-log-format=json` instead.", TfLogJSON),
+		Warning: fmt.Sprintf("The `--%s` flag is deprecated and will be removed in a future version. Use `--terragrunt-log-format=json` instead.", TfLogJSON),
 	},
 }
 
