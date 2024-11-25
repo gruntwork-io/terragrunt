@@ -3,93 +3,95 @@ package config
 import (
 	"fmt"
 	"strings"
+
+	"github.com/zclconf/go-cty/cty"
 )
 
-// ErrorsConfig represents the top-level errors configuration block
+// ErrorsConfig represents the top-level errors configuration
 type ErrorsConfig struct {
-	// Map of retry configurations keyed by their identifier
-	Retry []*RetryConfig `hcl:"retry,block" cty:"retry"`
-	// Map of ignore configurations keyed by their identifier
-	Ignore []*IgnoreConfig `hcl:"ignore,block" cty:"ignore"`
+	Retry  []RetryBlock  `hcl:"retry,block"`
+	Ignore []IgnoreBlock `hcl:"ignore,block"`
 }
 
-// RetryConfig represents the configuration for retrying specific errors
-type RetryConfig struct {
-	Name string `cty:"name"    hcl:",label" cty:"name"`
-	// List of regex patterns for errors that should be retried
-	RetryableErrors []string `hcl:"retryable_errors" cty:"retryable_errors"`
-	// Maximum number of retry attempts
-	MaxAttempts int `hcl:"max_attempts" cty:"max_attempts"`
-	// Sleep interval between retries in seconds
-	SleepIntervalSec int `hcl:"sleep_interval_sec" cty:"sleep_interval_sec"`
+// RetryBlock represents a labeled retry block
+type RetryBlock struct {
+	Label            string   `hcl:"name,label"`
+	RetryableErrors  []string `hcl:"retryable_errors"`
+	MaxAttempts      int      `hcl:"max_attempts"`
+	SleepIntervalSec int      `hcl:"sleep_interval_sec"`
 }
 
-// IgnoreConfig represents the configuration for ignoring specific errors
-type IgnoreConfig struct {
-	Name            string   `cty:"name"    hcl:",label" cty:"label"`
-	IgnorableErrors []string `hcl:"ignorable_errors" cty:"ignorable_errors"`
-	// Optional message to display when an error is ignored
-	Message string `hcl:"message,optional" cty:"message"`
-	// Map of key-value pairs for signaling external systems
-	Signals map[string]interface{} `hcl:"signals,optional" cty:"message"`
+// IgnoreBlock represents a labeled ignore block
+type IgnoreBlock struct {
+	Label           string               `hcl:"name,label"`
+	IgnorableErrors []string             `hcl:"ignorable_errors"`
+	Message         string               `hcl:"message,optional"`
+	Signals         map[string]cty.Value `hcl:"signals,optional"`
 }
 
+// Clone creates a deep copy of ErrorsConfig
 func (c *ErrorsConfig) Clone() *ErrorsConfig {
 	if c == nil {
 		return nil
 	}
 
 	clone := &ErrorsConfig{
-		Retry:  make([]*RetryConfig, len(c.Retry)),
-		Ignore: make([]*IgnoreConfig, len(c.Ignore)),
+		Retry:  make([]RetryBlock, len(c.Retry)),
+		Ignore: make([]IgnoreBlock, len(c.Ignore)),
 	}
 
-	for k, v := range c.Retry {
-		clone.Retry[k] = v.Clone()
+	// Clone Retry blocks
+	for i, retry := range c.Retry {
+		clone.Retry[i] = retry.Clone()
 	}
 
-	for k, v := range c.Ignore {
-		clone.Ignore[k] = v.Clone()
+	// Clone Ignore blocks
+	for i, ignore := range c.Ignore {
+		clone.Ignore[i] = ignore.Clone()
 	}
 
 	return clone
 }
 
-func (c *RetryConfig) Clone() *RetryConfig {
-	if c == nil {
-		return nil
+// Clone creates a deep copy of RetryBlock
+func (r RetryBlock) Clone() RetryBlock {
+	clone := RetryBlock{
+		Label:            r.Label,
+		MaxAttempts:      r.MaxAttempts,
+		SleepIntervalSec: r.SleepIntervalSec,
 	}
 
-	retryableErrors := make([]string, len(c.RetryableErrors))
-	copy(retryableErrors, c.RetryableErrors)
-
-	return &RetryConfig{
-		Name:             c.Name,
-		RetryableErrors:  retryableErrors,
-		MaxAttempts:      c.MaxAttempts,
-		SleepIntervalSec: c.SleepIntervalSec,
+	// Deep copy RetryableErrors slice
+	if r.RetryableErrors != nil {
+		clone.RetryableErrors = make([]string, len(r.RetryableErrors))
+		copy(clone.RetryableErrors, r.RetryableErrors)
 	}
+
+	return clone
 }
 
-func (c *IgnoreConfig) Clone() *IgnoreConfig {
-	if c == nil {
-		return nil
+// Clone creates a deep copy of IgnoreBlock
+func (i IgnoreBlock) Clone() IgnoreBlock {
+	clone := IgnoreBlock{
+		Label:   i.Label,
+		Message: i.Message,
 	}
 
-	ignorableErrors := make([]string, len(c.IgnorableErrors))
-	copy(ignorableErrors, c.IgnorableErrors)
-
-	signals := make(map[string]interface{})
-	for k, v := range c.Signals {
-		signals[k] = v
+	// Deep copy IgnorableErrors slice
+	if i.IgnorableErrors != nil {
+		clone.IgnorableErrors = make([]string, len(i.IgnorableErrors))
+		copy(clone.IgnorableErrors, i.IgnorableErrors)
 	}
 
-	return &IgnoreConfig{
-		Name:            c.Name,
-		IgnorableErrors: ignorableErrors,
-		Message:         c.Message,
-		Signals:         signals,
+	// Deep copy Signals map
+	if i.Signals != nil {
+		clone.Signals = make(map[string]cty.Value, len(i.Signals))
+		for k, v := range i.Signals {
+			clone.Signals[k] = v
+		}
 	}
+
+	return clone
 }
 
 // Custom error types
