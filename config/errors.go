@@ -8,9 +8,9 @@ import (
 // ErrorsConfig represents the top-level errors configuration block
 type ErrorsConfig struct {
 	// Map of retry configurations keyed by their identifier
-	Retry map[string]*RetryConfig `hcl:"retry,block" cty:"retry"`
+	Retry []*RetryConfig `hcl:"retry,block" cty:"retry"`
 	// Map of ignore configurations keyed by their identifier
-	Ignore map[string]*IgnoreConfig `hcl:"ignore,block" cty:"ignore"`
+	Ignore []*IgnoreConfig `hcl:"ignore,block" cty:"ignore"`
 }
 
 // RetryConfig represents the configuration for retrying specific errors
@@ -40,8 +40,8 @@ func (c *ErrorsConfig) Clone() *ErrorsConfig {
 	}
 
 	clone := &ErrorsConfig{
-		Retry:  make(map[string]*RetryConfig),
-		Ignore: make(map[string]*IgnoreConfig),
+		Retry:  make([]*RetryConfig, len(c.Retry)),
+		Ignore: make([]*IgnoreConfig, len(c.Ignore)),
 	}
 
 	for k, v := range c.Retry {

@@ -666,7 +666,7 @@ func errorsConfigAsCty(config *ErrorsConfig) (cty.Value, error) {
 
 	output := map[string]cty.Value{}
 
-	retryCty, err := retryConfigAsCty(config.Retry)
+	retryCty, err := goTypeToCty(config.Retry)
 	if err != nil {
 		return cty.NilVal, err
 	}
@@ -675,51 +675,13 @@ func errorsConfigAsCty(config *ErrorsConfig) (cty.Value, error) {
 		output[MetadataRetry] = retryCty
 	}
 
-	ignoreCty, err := ignoreConfigAsCty(config.Ignore)
+	ignoreCty, err := goTypeToCty(config.Ignore)
 	if err != nil {
 		return cty.NilVal, err
 	}
 
 	if ignoreCty != cty.NilVal {
 		output[MetadataIgnore] = ignoreCty
-	}
-
-	return convertValuesMapToCtyVal(output)
-}
-
-func retryConfigAsCty(retry map[string]*RetryConfig) (cty.Value, error) {
-	if retry == nil {
-		return cty.NilVal, nil
-	}
-
-	output := map[string]cty.Value{}
-
-	for key, value := range retry {
-		valueCty, err := goTypeToCty(value)
-		if err != nil {
-			return cty.NilVal, err
-		}
-
-		output[key] = valueCty
-	}
-
-	return convertValuesMapToCtyVal(output)
-}
-
-func ignoreConfigAsCty(ignore map[string]*IgnoreConfig) (cty.Value, error) {
-	if ignore == nil {
-		return cty.NilVal, nil
-	}
-
-	output := map[string]cty.Value{}
-
-	for key, value := range ignore {
-		valueCty, err := goTypeToCty(value)
-		if err != nil {
-			return cty.NilVal, err
-		}
-
-		output[key] = valueCty
 	}
 
 	return convertValuesMapToCtyVal(output)
