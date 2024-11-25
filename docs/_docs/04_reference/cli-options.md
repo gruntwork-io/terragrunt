@@ -1010,7 +1010,7 @@ Used as the session name for the STS session which assumes the role defined in `
 ### terragrunt-iam-web-identity-token
 
 **CLI Arg**: `--terragrunt-iam-web-identity-token`<br/>
-**Environment Variable**: `TERRAGRUNT_IAM_WEB_IDENTITY_TOKEN`<br/>
+**Environment Variable**: `TERRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN`<br/>
 **Requires an argument**: `--terragrunt-iam-web-identity-token [/path/to/web-identity-token | web-identity-token-value]`<br/>
 
 Used as the web identity token for assuming a role temporarily using the AWS Security Token Service (STS) with the [AssumeRoleWithWebIdentity](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html) API.
