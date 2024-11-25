@@ -9,8 +9,8 @@ import (
 
 // ErrorsConfig represents the top-level errors configuration
 type ErrorsConfig struct {
-	Retry  []RetryBlock  `hcl:"retry,block"`
-	Ignore []IgnoreBlock `hcl:"ignore,block"`
+	Retry  []*RetryBlock  `hcl:"retry,block"`
+	Ignore []*IgnoreBlock `hcl:"ignore,block"`
 }
 
 // RetryBlock represents a labeled retry block
@@ -36,8 +36,8 @@ func (c *ErrorsConfig) Clone() *ErrorsConfig {
 	}
 
 	clone := &ErrorsConfig{
-		Retry:  make([]RetryBlock, len(c.Retry)),
-		Ignore: make([]IgnoreBlock, len(c.Ignore)),
+		Retry:  make([]*RetryBlock, len(c.Retry)),
+		Ignore: make([]*IgnoreBlock, len(c.Ignore)),
 	}
 
 	// Clone Retry blocks
@@ -54,8 +54,12 @@ func (c *ErrorsConfig) Clone() *ErrorsConfig {
 }
 
 // Clone creates a deep copy of RetryBlock
-func (r RetryBlock) Clone() RetryBlock {
-	clone := RetryBlock{
+func (r *RetryBlock) Clone() *RetryBlock {
+	if r == nil {
+		return nil
+	}
+
+	clone := &RetryBlock{
 		Label:            r.Label,
 		MaxAttempts:      r.MaxAttempts,
 		SleepIntervalSec: r.SleepIntervalSec,
@@ -71,8 +75,12 @@ func (r RetryBlock) Clone() RetryBlock {
 }
 
 // Clone creates a deep copy of IgnoreBlock
-func (i IgnoreBlock) Clone() IgnoreBlock {
-	clone := IgnoreBlock{
+func (i *IgnoreBlock) Clone() *IgnoreBlock {
+	if i == nil {
+		return nil
+	}
+
+	clone := &IgnoreBlock{
 		Label:   i.Label,
 		Message: i.Message,
 	}
