@@ -2,6 +2,7 @@ package test_test
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -94,7 +95,7 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 
 	// Sometimes, this is the error returned by AWS.
 	if !strings.Contains(stderr, "Error: Failed to get existing workspaces: operation error S3: ListObjectsV2, https response error StatusCode: 301") {
-		assert.Contains(t, stderr, `"msg":"Initializing the backend..."`)
+		assert.Regexp(t, stderr, `"msg":".*`+regexp.QuoteMeta("Initializing the backend..."))
 	}
 
 	// check if output can be extracted in json
