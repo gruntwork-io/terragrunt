@@ -350,7 +350,6 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 	cloneOpts.WorkingDir = opts.WorkingDir
 	cloneOpts.TerraformCliArgs = args
 	cloneOpts.Env = envs
-	cloneOpts.ForwardTFStdout = true
 
 	// If the Terraform error matches `httpStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process the error as is.
 	if output, err := shell.RunTerraformCommandWithOutput(ctx, cloneOpts, cloneOpts.TerraformCliArgs...); err != nil && len(errWriter.Msgs()) == 0 {
