@@ -1,8 +1,6 @@
 package placeholders
 
 import (
-	"strings"
-
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/options"
 )
 
@@ -20,12 +18,7 @@ type fieldPlaceholder struct {
 // Format implements `Placeholder` interface.
 func (field *fieldPlaceholder) Format(data *options.Data) (string, error) {
 	if val, ok := data.Fields[field.Name()]; ok {
-		switch val := val.(type) {
-		case string:
-			return field.opts.Format(data, val)
-		case []string:
-			return field.opts.Format(data, strings.Join(val, " "))
-		}
+		return field.opts.Format(data, val)
 	}
 
 	return "", nil

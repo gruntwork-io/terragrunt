@@ -133,28 +133,33 @@ func RunShellCommandWithOutput(
 			errWriter = opts.ErrWriter
 		)
 
-		if command == opts.TerraformPath {
+		if command == opts.TerraformPath && !opts.ForwardTFStdout {
 			logger := opts.Logger.
 				WithField(placeholders.TFPathKeyName, filepath.Base(opts.TerraformPath)).
 				WithField(placeholders.TFCmdArgsKeyName, args)
 
-			if !opts.ForwardTFStdout && !shouldForceForwardTFStdout(args) {
-				var msgSeparator string
-
-				if !opts.JSONLogFormat {
-					msgSeparator = logMsgSeparator
-				}
-
+			if opts.JSONLogFormat {
 				outWriter = writer.New(
 					writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
 					writer.WithDefaultLevel(log.StdoutLevel),
-					writer.WithMsgSeparator(msgSeparator),
 				)
 
 				errWriter = writer.New(
 					writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
 					writer.WithDefaultLevel(log.StderrLevel),
-					writer.WithMsgSeparator(msgSeparator),
+				)
+
+			} else if !shouldForceForwardTFStdout(args) {
+				outWriter = writer.New(
+					writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
+					writer.WithDefaultLevel(log.StdoutLevel),
+					writer.WithMsgSeparator(logMsgSeparator),
+				)
+
+				errWriter = writer.New(
+					writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
+					writer.WithDefaultLevel(log.StderrLevel),
+					writer.WithMsgSeparator(logMsgSeparator),
 					writer.WithParseFunc(terraform.ParseLogFunc(tfLogMsgPrefix, false)),
 				)
 			}

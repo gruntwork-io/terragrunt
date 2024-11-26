@@ -3765,7 +3765,7 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureInitError)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --no-color --terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-forward-tf-stdout --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --no-color --terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
 	require.Error(t, err)
 
 	// Sometimes, this is the error returned by AWS.

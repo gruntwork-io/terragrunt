@@ -11,12 +11,12 @@ import (
 func WithCommonOptions(opts ...options.Option) options.Options {
 	return options.Options(append(opts,
 		options.Content(""),
+		options.Escape(options.NoneEscape),
 		options.Case(options.NoneCase),
 		options.Width(0),
 		options.Align(options.NoneAlign),
 		options.Prefix(""),
 		options.Suffix(""),
-		options.Escape(options.NoneEscape),
 		options.Color(options.NoneColor),
 	))
 }

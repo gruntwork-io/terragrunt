@@ -149,8 +149,11 @@ type ColorOption struct {
 }
 
 // Format implements `Option` interface.
-func (color *ColorOption) Format(data *Data, str string) (string, error) {
-	value := color.value.Get()
+func (color *ColorOption) Format(data *Data, val any) (any, error) {
+	var (
+		str   = toString(val)
+		value = color.value.Get()
+	)
 
 	if value == NoneColor {
 		return str, nil

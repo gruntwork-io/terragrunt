@@ -38,7 +38,9 @@ type PathFormatOption struct {
 }
 
 // Format implements `Option` interface.
-func (option *PathFormatOption) Format(data *Data, str string) (string, error) {
+func (option *PathFormatOption) Format(data *Data, val any) (any, error) {
+	str := toString(val)
+
 	switch option.value.Get() {
 	case RelativePath:
 		if data.RelativePather == nil {
@@ -75,7 +77,7 @@ func (option *PathFormatOption) Format(data *Data, str string) (string, error) {
 	case NonePath:
 	}
 
-	return str, nil
+	return val, nil
 }
 
 // PathFormat creates the option to format the paths.

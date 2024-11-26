@@ -25,12 +25,12 @@ type EscapeOption struct {
 }
 
 // Format implements `Option` interface.
-func (option *EscapeOption) Format(_ *Data, str string) (string, error) {
+func (option *EscapeOption) Format(_ *Data, val any) (any, error) {
 	if option.value.Get() != JSONEscape {
-		return str, nil
+		return val, nil
 	}
 
-	b, err := json.Marshal(str)
+	b, err := json.Marshal(val)
 	if err != nil {
 		return "", errors.New(err)
 	}

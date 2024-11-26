@@ -22,7 +22,7 @@ type LevelFormatOption struct {
 }
 
 // Format implements `Option` interface.
-func (format *LevelFormatOption) Format(data *Data, _ string) (string, error) {
+func (format *LevelFormatOption) Format(data *Data, _ any) (any, error) {
 	switch format.value.Get() {
 	case LevelFormatTiny:
 		return data.Level.TinyName(), nil
