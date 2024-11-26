@@ -353,13 +353,11 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 
 	// If the Terraform error matches `httpStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process the error as is.
 	if output, err := shell.RunTerraformCommandWithOutput(ctx, cloneOpts, cloneOpts.TerraformCliArgs...); err != nil && !httpStatusCacheProviderReg.Match(output.Stderr.Bytes()) {
-		errs := new(errors.MultiError).Append(err)
+		return output, err
+	}
 
-		if err := errWriter.Flush(); err != nil {
-			errs = errs.Append(err)
-		}
-
-		return output, errs
+	if err := errWriter.Flush(); err != nil {
+		return nil, err
 	}
 
 	return nil, nil
