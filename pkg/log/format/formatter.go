@@ -2,6 +2,7 @@ package format
 
 import (
 	"bytes"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -17,6 +18,7 @@ type Formatter struct {
 	placeholders   placeholders.Placeholders
 	disableColors  bool
 	relativePather *options.RelativePather
+	mu             sync.Mutex
 }
 
 // NewFormatter returns a new Formatter instance with default values.
@@ -28,6 +30,9 @@ func NewFormatter(phs placeholders.Placeholders) *Formatter {
 
 // Format implements logrus.Format.
 func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
+	formatter.mu.Lock()
+	defer formatter.mu.Unlock()
+
 	if formatter.placeholders == nil {
 		return nil, nil
 	}

@@ -3,7 +3,6 @@ package writer
 
 import (
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -18,7 +17,6 @@ type Writer struct {
 	defaultLevel log.Level
 	msgSeparator string
 	parseFunc    WriterParseFunc
-	mu           sync.Mutex
 }
 
 // New returns a new Writer instance with fields assigned to default values.
@@ -42,9 +40,6 @@ func (writer *Writer) SetOption(opts ...Option) {
 
 // Write implements `io.Writer` interface.
 func (writer *Writer) Write(p []byte) (n int, err error) {
-	writer.mu.Lock()
-	defer writer.mu.Unlock()
-
 	var (
 		str  = string(p)
 		strs = []string{str}
