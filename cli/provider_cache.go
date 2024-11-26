@@ -351,16 +351,17 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 	cloneOpts.TerraformCliArgs = args
 	cloneOpts.Env = envs
 
+	output, err := shell.RunTerraformCommandWithOutput(ctx, cloneOpts, cloneOpts.TerraformCliArgs...)
 	// If the Terraform error matches `httpStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process the error as is.
-	if output, err := shell.RunTerraformCommandWithOutput(ctx, cloneOpts, cloneOpts.TerraformCliArgs...); err != nil && !httpStatusCacheProviderReg.Match(output.Stderr.Bytes()) {
-		return output, err
+	if httpStatusCacheProviderReg.Match(output.Stderr.Bytes()) {
+		return nil, nil
 	}
 
 	if err := errWriter.Flush(); err != nil {
 		return nil, err
 	}
 
-	return nil, nil
+	return output, err
 }
 
 // providerCacheEnvironment returns TF_* name/value ENVs, which we use to force terraform processes to make requests through our cache server (proxy) instead of making direct requests to the origin servers.
