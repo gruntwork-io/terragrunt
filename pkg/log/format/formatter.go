@@ -30,9 +30,6 @@ func NewFormatter(phs placeholders.Placeholders) *Formatter {
 
 // Format implements logrus.Format.
 func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
-	formatter.mu.Lock()
-	defer formatter.mu.Unlock()
-
 	if formatter.placeholders == nil {
 		return nil, nil
 	}
@@ -51,6 +48,9 @@ func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	formatter.mu.Lock()
+	defer formatter.mu.Unlock()
 
 	if str != "" {
 		if _, err := buf.WriteString(str); err != nil {
