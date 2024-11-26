@@ -215,7 +215,7 @@ func TestLogCustomFormatOutput(t *testing.T) {
 			},
 		},
 		{
-			logCustomFormat: "%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tfpath(suffix=': ')%msg(path=relative)",
+			logCustomFormat: "%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tf-path(suffix=': ')%msg(path=relative)",
 			expectedOutputRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text DEBUG  Terragrunt Version:")),
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT dep "+wrappedBinary()+": Initializing the backend...")),
@@ -233,6 +233,9 @@ func TestLogCustomFormatOutput(t *testing.T) {
 			helpers.CleanupTerraformFolder(t, testFixtureLogFormatter)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
+
+			rootPath, err := filepath.EvalSymlinks(rootPath)
+			require.NoError(t, err)
 
 			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all init --terragrunt-log-level debug --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-custom-format=%q --terragrunt-working-dir %s", testCase.logCustomFormat, rootPath))
 			require.NoError(t, err)

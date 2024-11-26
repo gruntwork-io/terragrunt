@@ -82,7 +82,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
   - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
   - [terragrunt-json-log](#terragrunt-json-log) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-  - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json)
+  - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
   - [terragrunt-provider-cache](#terragrunt-provider-cache)
   - [terragrunt-provider-cache-dir](#terragrunt-provider-cache-dir)
   - [terragrunt-provider-cache-hostname](#terragrunt-provider-cache-hostname)
@@ -809,7 +809,7 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
   - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
   - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
   - [terragrunt-json-log](#terragrunt-json-log) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-  - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json)
+  - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
   - [terragrunt-provider-cache](#terragrunt-provider-cache)
   - [terragrunt-provider-cache-dir](#terragrunt-provider-cache-dir)
   - [terragrunt-provider-cache-hostname](#terragrunt-provider-cache-hostname)
@@ -1484,6 +1484,8 @@ DEPRECATED: Use [terragrunt-log-format](#terragrunt-log-format).
 When this flag is set, Terragrunt will output its logs in JSON format.
 
 ### terragrunt-tf-logs-to-json
+
+DEPRECATED: Use [terragrunt-log-format](#terragrunt-log-format). OpenTofu/Terraform `stdout` and `stderr` is wrapped in JSON by default with `--terragurnt-log-format json` flag if `--terragrunt-forward-tf-stdout` flag is not specified.
 
 **CLI Arg**: `--terragrunt-tf-logs-to-json`<br/>
 **Environment Variable**: `TERRAGRUNT_TF_JSON_LOG` (set to `true`)<br/>

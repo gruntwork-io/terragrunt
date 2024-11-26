@@ -148,7 +148,6 @@ func RunShellCommandWithOutput(
 					writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
 					writer.WithDefaultLevel(log.StderrLevel),
 				)
-
 			} else if !shouldForceForwardTFStdout(args) {
 				outWriter = writer.New(
 					writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
