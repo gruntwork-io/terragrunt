@@ -147,9 +147,6 @@ type TerragruntOptions struct {
 	// If true, logs will be displayed in formatter key/value, by default logs are formatted in human-readable formatter.
 	DisableLogFormatting bool
 
-	// Wrap Terraform logs in JSON format
-	TerraformLogsToJSON bool
-
 	// ValidateStrict mode for the validate-inputs command
 	ValidateStrict bool
 
@@ -469,7 +466,6 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		ForwardTFStdout:                false,
 		JSONOut:                        DefaultJSONOutName,
 		TerraformImplementation:        UnknownImpl,
-		TerraformLogsToJSON:            false,
 		JSONDisableDependentModules:    false,
 		RunTerragrunt: func(ctx context.Context, opts *TerragruntOptions) error {
 			return errors.New(ErrRunTerragruntCommandNotSet)
@@ -618,7 +614,6 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		FailIfBucketCreationRequired:   opts.FailIfBucketCreationRequired,
 		DisableBucketUpdate:            opts.DisableBucketUpdate,
 		TerraformImplementation:        opts.TerraformImplementation,
-		TerraformLogsToJSON:            opts.TerraformLogsToJSON,
 		GraphRoot:                      opts.GraphRoot,
 		ScaffoldVars:                   opts.ScaffoldVars,
 		ScaffoldVarFiles:               opts.ScaffoldVarFiles,

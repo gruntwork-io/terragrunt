@@ -1051,7 +1051,7 @@ func runTerragruntOutputJSON(ctx *ParsingContext, targetConfig string) ([]byte, 
 	newOpts := *ctx.TerragruntOptions
 	// explicit disable json formatting and prefixing to read json output
 	newOpts.ForwardTFStdout = false
-	newOpts.TerraformLogsToJSON = false
+	newOpts.JSONLogFormat = false
 	newOpts.Writer = stdoutBufferWriter
 	ctx = ctx.WithTerragruntOptions(&newOpts)
 

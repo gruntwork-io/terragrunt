@@ -2,6 +2,7 @@ package format
 
 import (
 	"bytes"
+	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -17,6 +18,7 @@ type Formatter struct {
 	placeholders   placeholders.Placeholders
 	disableColors  bool
 	relativePather *options.RelativePather
+	mu             sync.Mutex
 }
 
 // NewFormatter returns a new Formatter instance with default values.
@@ -46,6 +48,9 @@ func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	formatter.mu.Lock()
+	defer formatter.mu.Unlock()
 
 	if str != "" {
 		if _, err := buf.WriteString(str); err != nil {

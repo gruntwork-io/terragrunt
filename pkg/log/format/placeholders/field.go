@@ -6,8 +6,9 @@ import (
 
 const (
 	WorkDirKeyName     = "prefix"
-	DownloadDirKeyName = "downloaddir"
-	TFPathKeyName      = "tfpath"
+	DownloadDirKeyName = "download-dir"
+	TFPathKeyName      = "tf-path"
+	TFCmdArgsKeyName   = "tf-command-args"
 )
 
 type fieldPlaceholder struct {
@@ -17,9 +18,7 @@ type fieldPlaceholder struct {
 // Format implements `Placeholder` interface.
 func (field *fieldPlaceholder) Format(data *options.Data) (string, error) {
 	if val, ok := data.Fields[field.Name()]; ok {
-		if val, ok := val.(string); ok {
-			return field.opts.Format(data, val)
-		}
+		return field.opts.Format(data, val)
 	}
 
 	return "", nil

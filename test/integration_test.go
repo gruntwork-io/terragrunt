@@ -215,7 +215,7 @@ func TestLogCustomFormatOutput(t *testing.T) {
 			},
 		},
 		{
-			logCustomFormat: "%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tfpath(suffix=': ')%msg(path=relative)",
+			logCustomFormat: "%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tf-path(suffix=': ')%msg(path=relative)",
 			expectedOutputRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text DEBUG  Terragrunt Version:")),
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT dep "+wrappedBinary()+": Initializing the backend...")),
@@ -233,6 +233,9 @@ func TestLogCustomFormatOutput(t *testing.T) {
 			helpers.CleanupTerraformFolder(t, testFixtureLogFormatter)
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
+
+			rootPath, err := filepath.EvalSymlinks(rootPath)
+			require.NoError(t, err)
 
 			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all init --terragrunt-log-level debug --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-custom-format=%q --terragrunt-working-dir %s", testCase.logCustomFormat, rootPath))
 			require.NoError(t, err)
@@ -372,7 +375,7 @@ func TestLogFormatKeyValueOutput(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, prefixName := range []string{"app", "dep"} {
-				assert.Contains(t, stderr, "level=stdout prefix="+prefixName+" tfpath="+wrappedBinary()+" msg=Initializing provider plugins...\n")
+				assert.Contains(t, stderr, "level=stdout prefix="+prefixName+" tf-path="+wrappedBinary()+" msg=Initializing provider plugins...\n")
 				assert.Contains(t, stderr, "level=debug prefix="+prefixName+" msg=Reading Terragrunt config file at ./"+prefixName+"/terragrunt.hcl\n")
 			}
 		})
@@ -3755,35 +3758,6 @@ func TestLogFormatJSONOutput(t *testing.T) {
 
 			assert.Contains(t, strings.Join(msgs, ""), "Downloading Terraform configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=v0.9.9")
 		})
-	}
-}
-
-func TestTerragruntTerraformOutputJson(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInitError)
-	helpers.CleanupTerraformFolder(t, tmpEnvPath)
-	testPath := util.JoinPath(tmpEnvPath, testFixtureInitError)
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --no-color --terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-forward-tf-stdout --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
-	require.Error(t, err)
-
-	// Sometimes, this is the error returned by AWS.
-	if !strings.Contains(stderr, "Error: Failed to get existing workspaces: operation error S3: ListObjectsV2, https response error StatusCode: 301") {
-		assert.Contains(t, stderr, `"msg":"Initializing the backend..."`)
-	}
-
-	// check if output can be extracted in json
-	jsonStrings := strings.Split(stderr, "\n")
-	for _, jsonString := range jsonStrings {
-		if len(jsonString) == 0 {
-			continue
-		}
-		var output map[string]interface{}
-		err = json.Unmarshal([]byte(jsonString), &output)
-		require.NoErrorf(t, err, "Failed to parse json %s", jsonString)
-		assert.NotNil(t, output["level"])
-		assert.NotNil(t, output["time"])
 	}
 }
 

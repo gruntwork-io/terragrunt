@@ -256,7 +256,7 @@ func FindWhereWorkingDirIsIncluded(ctx context.Context, opts *options.Terragrunt
 		cfgOptions.OriginalTerragruntConfigPath = opts.OriginalTerragruntConfigPath
 		cfgOptions.TerraformCommand = opts.TerraformCommand
 		cfgOptions.NonInteractive = true
-		cfgOptions.Logger.SetOptions(log.WithHooks(NewForceLogLevelHook(log.DebugLevel)))
+		cfgOptions.Logger = opts.Logger.WithOptions(log.WithHooks(NewForceLogLevelHook(log.DebugLevel)))
 
 		// build stack from config directory
 		stack, err := FindStackInSubfolders(ctx, cfgOptions, WithChildTerragruntConfig(terragruntConfig))

@@ -30,7 +30,9 @@ type CaseOption struct {
 }
 
 // Format implements `Option` interface.
-func (option *CaseOption) Format(_ *Data, str string) (string, error) {
+func (option *CaseOption) Format(_ *Data, val any) (any, error) {
+	str := toString(val)
+
 	switch option.value.Get() {
 	case UpperCase:
 		return strings.ToUpper(str), nil
