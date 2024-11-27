@@ -336,7 +336,8 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 	errWriter := util.NewTrapWriter(opts.ErrWriter)
 
 	// add -no-color flag to args if it was set in Terragrunt arguments
-	if util.ListContainsElement(opts.TerraformCliArgs, terraform.FlagNameNoColor) {
+	if util.ListContainsElement(opts.TerraformCliArgs, terraform.FlagNameNoColor) &&
+		!util.ListContainsElement(args, terraform.FlagNameNoColor) {
 		args = append(args, terraform.FlagNameNoColor)
 	}
 
@@ -353,14 +354,12 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 
 	output, err := shell.RunTerraformCommandWithOutput(ctx, cloneOpts, cloneOpts.TerraformCliArgs...)
 	// If the Terraform error matches `httpStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process the error as is.
-	if err != nil {
-		if httpStatusCacheProviderReg.Match(output.Stderr.Bytes()) {
-			return nil, nil
-		}
+	if err != nil && httpStatusCacheProviderReg.Match(output.Stderr.Bytes()) {
+		return nil, nil
+	}
 
-		if err := errWriter.Flush(); err != nil {
-			return nil, err
-		}
+	if err := errWriter.Flush(); err != nil {
+		return nil, err
 	}
 
 	return output, err

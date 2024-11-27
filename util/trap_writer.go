@@ -32,7 +32,10 @@ func (trap *TrapWriter) Flush() error {
 }
 
 // Write implements `io.Writer` interface.
-func (trap *TrapWriter) Write(msg []byte) (int, error) {
+func (trap *TrapWriter) Write(d []byte) (int, error) {
+	msg := make([]byte, len(d))
+	copy(msg, d)
+
 	trap.msgs = append(trap.msgs, msg)
 
 	return len(msg), nil
