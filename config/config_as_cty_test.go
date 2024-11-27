@@ -260,6 +260,8 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "feature", true
 	case "Exclude":
 		return "exclude", true
+	case "Errors":
+		return "errors", true
 	default:
 		t.Fatalf("Unknown struct property: %s", fieldName)
 		// This should not execute
