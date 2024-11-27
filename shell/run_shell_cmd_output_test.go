@@ -65,7 +65,7 @@ func TestCommandOutputPrefix(t *testing.T) {
 	terraformPath := "testdata/test_outputs.sh"
 	prefixedOutput := []string{}
 	for _, line := range FullOutput {
-		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s tfpath=%s msg=%s", prefix, filepath.Base(terraformPath), line))
+		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s tf-path=%s msg=%s", prefix, filepath.Base(terraformPath), line))
 	}
 
 	logFormatter := format.NewFormatter(format.NewKeyValueFormat())
