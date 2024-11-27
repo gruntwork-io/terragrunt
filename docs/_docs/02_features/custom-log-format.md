@@ -56,9 +56,11 @@ Placeholders have preset names:
 
 * `%prefix` - Path to the working directory were Terragrunt is running.
 
+* `%msg` - Log message.
+
 * `%tf-path` - Path to the OpenTofu/Terraform executable (as defined by [terragrunt-tfpath](https://terragrunt.gruntwork.io/docs/reference/cli-options/#terragrunt-tfpath)).
 
-* `%msg` - Log message.
+* `%tf-command-args` - Arguments of the executed OpenTofu/Terraform command.
 
 * `%t` - Tab.
 
@@ -289,11 +291,11 @@ The examples below replicate the preset formats specified with `--terragrunt-log
 `--terragrunt-log-format key-value`
 
 ```shell
---terragrunt-log-custom-format "time=%time(format=rfc3339) level=%level prefix=%prefix(path=short-relative) tfpath=%tf-path(path=filename) msg=%msg(path=relative,color=disable)"
+--terragrunt-log-custom-format "time=%time(format=rfc3339) level=%level prefix=%prefix(path=short-relative) tf-path=%tf-path(path=filename) msg=%msg(path=relative,color=disable)"
 ```
 
 `--terragrunt-log-format json`
 
 ```shell
---terragrunt-log-custom-format '{"time":"%time(format=rfc3339,escape=json)", "level":"%level(escape=json)", "prefix":"%prefix(path=short-relative,escape=json)", "tfpath":"%tf-path(path=filename,escape=json)", "msg":"%msg(path=relative,escape=json,color=disable)"}'
+--terragrunt-log-custom-format '{"time":"%time(format=rfc3339,escape=json)", "level":"%level(escape=json)", "prefix":"%prefix(path=short-relative,escape=json)", "tf-path":"%tf-path(path=filename,escape=json)", "msg":"%msg(path=relative,escape=json,color=disable)"}'
 ```

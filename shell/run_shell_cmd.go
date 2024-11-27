@@ -138,7 +138,7 @@ func RunShellCommandWithOutput(
 				WithField(placeholders.TFPathKeyName, filepath.Base(opts.TerraformPath)).
 				WithField(placeholders.TFCmdArgsKeyName, args)
 
-			if opts.JSONLogFormat {
+			if opts.JSONLogFormat && !cli.Args(args).Normalize(cli.SingleDashFlag).Contains(terraform.FlagNameJSON) {
 				outWriter = writer.New(
 					writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
 					writer.WithDefaultLevel(log.StdoutLevel),
