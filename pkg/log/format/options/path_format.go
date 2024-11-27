@@ -49,21 +49,11 @@ func (option *PathFormatOption) Format(data *Data, val any) (any, error) {
 
 		return data.RelativePather.ReplaceAbsPaths(str), nil
 	case ShortRelativePath:
-		if str == data.BaseDir {
-			return "", nil
-		}
-
 		if data.RelativePather == nil {
 			break
 		}
 
-		str = data.RelativePather.ReplaceAbsPaths(str)
-
-		if strings.HasPrefix(str, log.CurDirWithSeparator) {
-			return str[len(log.CurDirWithSeparator):], nil
-		}
-
-		return str, nil
+		return option.shortRelativePath(data, str), nil
 	case ShortPath:
 		if str == data.BaseDir {
 			return "", nil
@@ -78,6 +68,20 @@ func (option *PathFormatOption) Format(data *Data, val any) (any, error) {
 	}
 
 	return val, nil
+}
+
+func (option *PathFormatOption) shortRelativePath(data *Data, str string) string {
+	if str == data.BaseDir {
+		return ""
+	}
+
+	str = data.RelativePather.ReplaceAbsPaths(str)
+
+	if strings.HasPrefix(str, log.CurDirWithSeparator) {
+		return str[len(log.CurDirWithSeparator):]
+	}
+
+	return str
 }
 
 // PathFormat creates the option to format the paths.
