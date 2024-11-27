@@ -1483,9 +1483,10 @@ DEPRECATED: Use [terragrunt-log-format](#terragrunt-log-format).
 
 When this flag is set, Terragrunt will output its logs in JSON format.
 
-### terragrunt-tf-logs-to-json
+# terragrunt-tf-logs-to-json
 
 DEPRECATED: Use [terragrunt-log-format](#terragrunt-log-format). OpenTofu/Terraform `stdout` and `stderr` is wrapped in JSON by default with `--terragurnt-log-format json` flag if `--terragrunt-forward-tf-stdout` flag is not specified.
+In other words, the previous behavior with the `--terragrunt-json-log --terragrunt-tf-logs-to-json` flags is now equivalent to `--terragrunt-log-format json` and the previous behavior with the `--terragrunt-json-log` is now equivalent to `--terragrunt-log-format json --terragrunt-forward-tf-stdout`.
 
 **CLI Arg**: `--terragrunt-tf-logs-to-json`<br/>
 **Environment Variable**: `TERRAGRUNT_TF_JSON_LOG` (set to `true`)<br/>
