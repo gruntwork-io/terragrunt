@@ -248,7 +248,7 @@ func TestTerragruntCatchErrorsFromStdout(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureErrorHooksPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureErrorHooksPath)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureErrorHooksPath)
-	tfPath := filepath.Join(rootPath, "terraform.sh")
+	tfPath := filepath.Join(rootPath, "tf.sh")
 
 	var (
 		stdout bytes.Buffer
