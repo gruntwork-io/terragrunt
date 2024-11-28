@@ -102,7 +102,7 @@ func TestLogFailedLocalsEvaluation(t *testing.T) {
 		stderr bytes.Buffer
 	)
 
-	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", testFixtureBrokenLocals), &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level trace", testFixtureBrokenLocals), &stdout, &stderr)
 	require.Error(t, err)
 
 	output := stderr.String()
