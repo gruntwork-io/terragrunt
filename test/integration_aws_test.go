@@ -343,7 +343,7 @@ func TestAwsOutputFromDependency(t *testing.T) {
 
 	t.Setenv("AWS_CSM_ENABLED", "true")
 
-	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level debug", rootTerragruntPath), &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-log-level trace", rootTerragruntPath), &stdout, &stderr)
 	require.NoError(t, err)
 
 	output := stderr.String()
@@ -596,7 +596,7 @@ func TestAwsProviderPatch(t *testing.T) {
 	mainContents = strings.ReplaceAll(mainContents, "__BRANCH_NAME__", branchName)
 	require.NoError(t, os.WriteFile(mainTFFile, []byte(mainContents), 0444))
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt aws-provider-patch --terragrunt-override-attr region=\"eu-west-1\" --terragrunt-override-attr allowed_account_ids=[\"00000000000\"] --terragrunt-working-dir %s --terragrunt-log-level debug", modulePath))
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt aws-provider-patch --terragrunt-override-attr region=\"eu-west-1\" --terragrunt-override-attr allowed_account_ids=[\"00000000000\"] --terragrunt-working-dir %s --terragrunt-log-level trace", modulePath))
 	require.NoError(t, err)
 
 	assert.Regexp(t, "Patching AWS provider in .+test/fixtures/aws-provider-patch/example-module/main.tf", stderr)
@@ -799,7 +799,7 @@ func TestAwsAssumeRoleWebIdentityFile(t *testing.T) {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+testPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+testPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	output := fmt.Sprintf("%s %s", stderr.String(), stdout.String())
@@ -831,7 +831,7 @@ func TestAwsAssumeRoleWebIdentityFlag(t *testing.T) {
 	token := os.Getenv("CIRCLE_OIDC_TOKEN_V2")
 	require.NotEmpty(t, token)
 
-	helpers.RunTerragrunt(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+tmp+" --terragrunt-iam-role "+roleARN+" --terragrunt-iam-web-identity-token "+token)
+	helpers.RunTerragrunt(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+tmp+" --terragrunt-iam-role "+roleARN+" --terragrunt-iam-web-identity-token "+token)
 }
 
 // Regression testing for https://github.com/gruntwork-io/terragrunt/issues/906
@@ -923,7 +923,7 @@ func TestAwsOutputFromRemoteState(t *testing.T) { //nolint: paralleltest
 		stderr bytes.Buffer
 	)
 
-	helpers.RunTerragruntRedirectOutput(t, "terragrunt run-all output --terragrunt-fetch-dependency-output-from-state --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
+	helpers.RunTerragruntRedirectOutput(t, "terragrunt run-all output --terragrunt-fetch-dependency-output-from-state --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
 	output := stdout.String()
 
 	assert.True(t, strings.Contains(output, "app1 output"))
@@ -1160,14 +1160,14 @@ func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit
 	defer cleanupTableForTest(t, lockTableName, helpers.TerraformRemoteStateS3Region)
 	helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, lockTableName, helpers.TerraformRemoteStateS3Region)
 
-	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
 	// This is only a problem during testing, where the process is shared across terragrunt runs.
 	config.ClearOutputCache()
 
 	// verify expected output
-	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir "+livePath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir "+livePath)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
@@ -1183,9 +1183,9 @@ func dependencyOutputOptimizationTest(t *testing.T, moduleName string, forceInit
 	config.ClearOutputCache()
 	require.NoError(t, os.Remove(filepath.Join(deepDepPath, "terraform.tfstate")))
 
-	fmt.Println("terragrunt output -no-color -json --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir " + livePath)
+	fmt.Println("terragrunt output -no-color -json --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir " + livePath)
 
-	reout, reerr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir "+livePath)
+	reout, reerr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt output -no-color -json --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir "+livePath)
 	require.NoError(t, err)
 
 	require.NoError(t, json.Unmarshal([]byte(reout), &outputs))
