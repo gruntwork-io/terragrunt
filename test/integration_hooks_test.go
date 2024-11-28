@@ -245,6 +245,10 @@ func TestTerragruntCatchErrorsInTerraformExecution(t *testing.T) {
 func TestTerragruntCatchErrorsFromStdout(t *testing.T) {
 	t.Parallel()
 
+	if os.Getenv("TERRAGRUNT_PROVIDER_CACHE") == "1" {
+		t.Skip()
+	}
+
 	helpers.CleanupTerraformFolder(t, testFixtureErrorHooksPath)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureErrorHooksPath)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureErrorHooksPath)
