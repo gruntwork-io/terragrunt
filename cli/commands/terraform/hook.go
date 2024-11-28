@@ -43,7 +43,7 @@ func processErrorHooks(ctx context.Context, hooks []config.ErrorHook, terragrunt
 				if originalError != nil {
 					var processError util.ProcessExecutionError
 					if ok := errors.As(originalError, &processError); ok {
-						errorMessage = fmt.Sprintf("%s\n%s", processError.Error(), processError.Output.Stderr.String())
+						errorMessage = fmt.Sprintf("%s\n%s", processError.Error(), processError.Output.Stdout.String())
 					}
 				}
 				result = fmt.Sprintf("%s\n%s", result, errorMessage)

@@ -264,7 +264,6 @@ func TestTerragruntCatchErrorsFromStdout(t *testing.T) {
 	assert.Contains(t, output, "pattern_matching_hook")
 	assert.Contains(t, output, "catch_all_matching_hook")
 	assert.NotContains(t, output, "not_matching_hook")
-
 }
 
 func TestTerragruntBeforeOneArgAction(t *testing.T) {
