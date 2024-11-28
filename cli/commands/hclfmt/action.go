@@ -62,12 +62,20 @@ func Run(opts *options.TerragruntOptions) error {
 	for _, fname := range tgHclFiles {
 		skipFile := false
 		// Ignore any files that are in the cache or scaffold dir
-		if util.ListContainsElement(strings.Split(fname, "/"), util.TerragruntCacheDir) {
+		pathList := strings.Split(fname, "/")
+		if util.ListContainsElement(pathList, util.TerragruntCacheDir) {
 			skipFile = true
 		}
 
-		if util.ListContainsElement(strings.Split(fname, "/"), util.DefaultBoilerplateDir) {
+		if util.ListContainsElement(pathList, util.DefaultBoilerplateDir) {
 			skipFile = true
+		}
+
+		for _, excludeDir := range opts.HclExclude {
+			if util.ListContainsElement(pathList, excludeDir) {
+				skipFile = true
+				break
+			}
 		}
 
 		if skipFile {

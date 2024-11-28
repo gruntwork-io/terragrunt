@@ -1215,6 +1215,17 @@ When passed in, running `hclfmt` will print diff between original and modified f
 
 When passed in, run `hclfmt` only on the specified file.
 
+### terragrunt-hclfmt-exclude-dir
+
+**CLI Arg**: `--terragrunt-hclfmt-exclude-dir .dir-name`<br/>
+**Environment Variable**: `TERRAGRUNT_HCLFMT_EXCLUDE_DIR`<br/>
+**Commands**:
+
+- [hclfmt](#hclfmt)
+
+Can be supplied multiple times: `--terragrunt-hclfmt-exclude-dir .back --terragrunt-hclfmt-exclude-dir .archive`<br/>
+When passed in, `hclfmt` will ignore files in the specified directories.
+
 ### terragrunt-hclfmt-stdin
 
 **CLI Arg**: `--terragrunt-hclfmt-stdin`<br/>

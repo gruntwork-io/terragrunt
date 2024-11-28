@@ -236,6 +236,9 @@ type TerragruntOptions struct {
 	// The file which hclfmt should be specifically run on
 	HclFile string
 
+	// If set hclfmt will skip files in given directories.
+	HclExclude []string
+
 	// If True then HCL from StdIn must should be formatted.
 	HclFromStdin bool
 
@@ -602,6 +605,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		RunTerragrunt:                  opts.RunTerragrunt,
 		AwsProviderPatchOverrides:      opts.AwsProviderPatchOverrides,
 		HclFile:                        opts.HclFile,
+		HclExclude:                     opts.HclExclude,
 		HclFromStdin:                   opts.HclFromStdin,
 		JSONOut:                        opts.JSONOut,
 		JSONLogFormat:                  opts.JSONLogFormat,
