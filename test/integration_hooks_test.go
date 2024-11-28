@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -230,6 +231,31 @@ func TestTerragruntCatchErrorsInTerraformExecution(t *testing.T) {
 	)
 
 	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
+
+	require.Error(t, err)
+
+	output := stderr.String()
+
+	assert.Contains(t, output, "pattern_matching_hook")
+	assert.Contains(t, output, "catch_all_matching_hook")
+	assert.NotContains(t, output, "not_matching_hook")
+
+}
+
+func TestTerragruntCatchErrorsFromStdout(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureErrorHooksPath)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureErrorHooksPath)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureErrorHooksPath)
+	tfPath := filepath.Join(rootPath, "terraform.sh")
+
+	var (
+		stdout bytes.Buffer
+		stderr bytes.Buffer
+	)
+
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath+" --terragrunt-tfpath "+tfPath, &stdout, &stderr)
 
 	require.Error(t, err)
 
