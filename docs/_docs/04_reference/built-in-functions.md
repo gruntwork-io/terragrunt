@@ -29,6 +29,7 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
 - [get\_terraform\_commands\_that\_need\_input](#get_terraform_commands_that_need_input)
 - [get\_terraform\_commands\_that\_need\_locking](#get_terraform_commands_that_need_locking)
 - [get\_terraform\_commands\_that\_need\_parallelism](#get_terraform_commands_that_need_parallelism)
+- [get\_aws\_account\_alias](#get_aws_account_alias)
 - [get\_aws\_account\_id](#get_aws_account_id)
 - [get\_aws\_caller\_identity\_arn](#get_aws_caller_identity_arn)
 - [get\_terraform\_command](#get_terraform_command)
@@ -552,6 +553,18 @@ terraform {
   }
 }
 ```
+
+## get_aws_account_alias
+
+`get_aws_account_alias()` returns the AWS account alias associated with the current set of credentials. If the alias cannot be found, it will return an empty string. Example:
+
+```hcl
+inputs = {
+  account_alias = get_aws_account_alias()
+}
+```
+
+**Note:** value returned by `get_aws_account_alias()` can change during parsing of HCL code, for example after evaluation of `iam_role` attribute.
 
 ## get_aws_account_id
 
