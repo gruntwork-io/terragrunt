@@ -27,7 +27,9 @@ type AlignOption struct {
 }
 
 // Format implements `Option` interface.
-func (option *AlignOption) Format(_ *Data, str string) (string, error) {
+func (option *AlignOption) Format(_ *Data, val any) (any, error) {
+	str := toString(val)
+
 	withoutSpaces := strings.TrimSpace(str)
 	spaces := len(str) - len(withoutSpaces)
 

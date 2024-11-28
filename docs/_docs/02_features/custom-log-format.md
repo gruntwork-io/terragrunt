@@ -56,9 +56,11 @@ Placeholders have preset names:
 
 * `%prefix` - Path to the working directory were Terragrunt is running.
 
-* `%tfpath` - Path to the OpenTofu/Terraform executable (as defined by [terragrunt-tfpath](https://terragrunt.gruntwork.io/docs/reference/cli-options/#terragrunt-tfpath)).
-
 * `%msg` - Log message.
+
+* `%tf-path` - Path to the OpenTofu/Terraform executable (as defined by [terragrunt-tfpath](https://terragrunt.gruntwork.io/docs/reference/cli-options/#terragrunt-tfpath)).
+
+* `%tf-command-args` - Arguments of the executed OpenTofu/Terraform command.
 
 * `%t` - Tab.
 
@@ -256,7 +258,7 @@ Specific options for placeholders:
 
     * `short` - Outputs an absolute path, but hides the working directory path.
 
-* `%tfpath`
+* `%tf-path`
 
   * `path=[filename|dir]`
 
@@ -277,7 +279,7 @@ The examples below replicate the preset formats specified with `--terragrunt-log
 `--terragrunt-log-format pretty`
 
 ```shell
---terragrunt-log-custom-format "%time(color=light-black) %level(case=upper,width=6,color=preset) %prefix(path=short-relative,color=gradient,suffix=' ')%tfpath(color=cyan,suffix=': ')%msg(path=relative)"
+--terragrunt-log-custom-format "%time(color=light-black) %level(case=upper,width=6,color=preset) %prefix(path=short-relative,color=gradient,suffix=' ')%tf-path(color=cyan,suffix=': ')%msg(path=relative)"
 ```
 
 `--terragrunt-log-format bare`
@@ -289,11 +291,11 @@ The examples below replicate the preset formats specified with `--terragrunt-log
 `--terragrunt-log-format key-value`
 
 ```shell
---terragrunt-log-custom-format "time=%time(format=rfc3339) level=%level prefix=%prefix(path=short-relative) tfpath=%tfpath(path=filename) msg=%msg(path=relative,color=disable)"
+--terragrunt-log-custom-format "time=%time(format=rfc3339) level=%level prefix=%prefix(path=short-relative) tf-path=%tf-path(path=filename) msg=%msg(path=relative,color=disable)"
 ```
 
 `--terragrunt-log-format json`
 
 ```shell
---terragrunt-log-custom-format '{"time":"%time(format=rfc3339,escape=json)", "level":"%level(escape=json)", "prefix":"%prefix(path=short-relative,escape=json)", "tfpath":"%tfpath(path=filename,escape=json)", "msg":"%msg(path=relative,escape=json,color=disable)"}'
+--terragrunt-log-custom-format '{"time":"%time(format=rfc3339,escape=json)", "level":"%level(escape=json)", "prefix":"%prefix(path=short-relative,escape=json)", "tf-path":"%tf-path(path=filename,escape=json)", "msg":"%msg(path=relative,escape=json,color=disable)"}'
 ```

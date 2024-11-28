@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -703,5 +704,32 @@ func TestParseTFLog(t *testing.T) {
 
 	for _, prefixName := range []string{"app", "dep"} {
 		assert.Contains(t, stderr, "INFO   ["+prefixName+"] "+wrappedBinary()+`: TF_LOG: Go runtime version`)
+	}
+}
+
+func TestTerragruntTerraformOutputJson(t *testing.T) {
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInitError)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureInitError)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --no-color --terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
+	require.Error(t, err)
+
+	// Sometimes, this is the error returned by AWS.
+	if !strings.Contains(stderr, "Error: Failed to get existing workspaces: operation error S3: ListObjectsV2, https response error StatusCode: 301") {
+		assert.Regexp(t, `"msg":".*`+regexp.QuoteMeta("Initializing the backend..."), stderr)
+	}
+
+	// check if output can be extracted in json
+	jsonStrings := strings.Split(stderr, "\n")
+	for _, jsonString := range jsonStrings {
+		if len(jsonString) == 0 {
+			continue
+		}
+		var output map[string]interface{}
+		err = json.Unmarshal([]byte(jsonString), &output)
+		require.NoErrorf(t, err, "Failed to parse json %s", jsonString)
+		assert.NotNil(t, output["level"])
+		assert.NotNil(t, output["time"])
 	}
 }

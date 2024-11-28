@@ -68,9 +68,6 @@ const (
 	TerragruntDebugFlagName = "terragrunt-debug"
 	TerragruntDebugEnvName  = "TERRAGRUNT_DEBUG"
 
-	TerragruntTfLogJSONFlagName = "terragrunt-tf-logs-to-json"
-	TerragruntTfLogJSONEnvName  = "TERRAGRUNT_TF_JSON_LOG"
-
 	TerragruntModulesThatIncludeFlagName = "terragrunt-modules-that-include"
 	TerragruntModulesThatIncludeEnvName  = "TERRAGRUNT_MODULES_THAT_INCLUDE"
 
@@ -402,12 +399,6 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			},
 		},
 		&cli.BoolFlag{
-			Name:        TerragruntTfLogJSONFlagName,
-			EnvVar:      TerragruntTfLogJSONEnvName,
-			Destination: &opts.TerraformLogsToJSON,
-			Usage:       "If specified, Terragrunt will wrap Terraform stdout and stderr in JSON.",
-		},
-		&cli.BoolFlag{
 			Name:        TerragruntUsePartialParseConfigCacheFlagName,
 			EnvVar:      TerragruntUsePartialParseConfigCacheEnvName,
 			Destination: &opts.UsePartialParseConfigCache,
@@ -439,8 +430,11 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 					return nil
 				}
 
-				if val == format.BareFormatName {
+				switch val {
+				case format.BareFormatName:
 					opts.ForwardTFStdout = true
+				case format.JSONFormatName:
+					opts.JSONLogFormat = true
 				}
 
 				opts.LogFormatter.SetFormat(phs)

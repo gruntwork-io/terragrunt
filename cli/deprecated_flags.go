@@ -19,6 +19,9 @@ const (
 
 	TerragruntJSONLogFlagName = "terragrunt-json-log"
 	TerragruntJSONLogEnvName  = "TERRAGRUNT_JSON_LOG"
+
+	TerragruntTfLogJSONFlagName = "terragrunt-tf-logs-to-json"
+	TerragruntTfLogJSONEnvName  = "TERRAGRUNT_TF_JSON_LOG"
 )
 
 // NewDeprecatedFlags creates and returns deprecated flags.
@@ -39,6 +42,7 @@ func NewDeprecatedFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      TerragruntDisableLogFormattingEnvName,
 			Destination: &opts.DisableLogFormatting,
 			Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
+			Hidden:      true,
 			Action: func(_ *cli.Context, _ bool) error {
 				opts.LogFormatter.SetFormat(format.NewKeyValueFormat())
 
@@ -59,9 +63,28 @@ func NewDeprecatedFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      TerragruntJSONLogEnvName,
 			Destination: &opts.JSONLogFormat,
 			Usage:       "If specified, Terragrunt will output its logs in JSON format.",
+			Hidden:      true,
 			Action: func(_ *cli.Context, _ bool) error {
 				opts.LogFormatter.SetFormat(format.NewJSONFormat())
 
+				if control, ok := strict.GetStrictControl(strict.JSONLog); ok {
+					warn, err := control.Evaluate(opts)
+					if err != nil {
+						return err
+					}
+
+					opts.Logger.Warnf(warn)
+				}
+
+				return nil
+			},
+		},
+		&cli.BoolFlag{
+			Name:   TerragruntTfLogJSONFlagName,
+			EnvVar: TerragruntTfLogJSONEnvName,
+			Usage:  "If specified, Terragrunt will wrap Terraform stdout and stderr in JSON.",
+			Hidden: true,
+			Action: func(_ *cli.Context, _ bool) error {
 				if control, ok := strict.GetStrictControl(strict.JSONLog); ok {
 					warn, err := control.Evaluate(opts)
 					if err != nil {
