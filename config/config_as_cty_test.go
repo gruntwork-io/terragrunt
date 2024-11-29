@@ -108,6 +108,10 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 				Default: &cty.Zero,
 			},
 		},
+		Errors: &config.ErrorsConfig{
+			Retry:  []*config.RetryBlock{},
+			Ignore: []*config.IgnoreBlock{},
+		},
 		GenerateConfigs: map[string]codegen.GenerateConfig{
 			"provider": {
 				Path:          "foo",

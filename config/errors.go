@@ -9,24 +9,24 @@ import (
 
 // ErrorsConfig represents the top-level errors configuration
 type ErrorsConfig struct {
-	Retry  []*RetryBlock  `hcl:"retry,block"`
-	Ignore []*IgnoreBlock `hcl:"ignore,block"`
+	Retry  []*RetryBlock  `cty:"retry"  hcl:"retry,block"`
+	Ignore []*IgnoreBlock `cty:"ignore"  hcl:"ignore,block"`
 }
 
 // RetryBlock represents a labeled retry block
 type RetryBlock struct {
-	Label            string   `hcl:"name,label"`
-	RetryableErrors  []string `hcl:"retryable_errors"`
-	MaxAttempts      int      `hcl:"max_attempts"`
-	SleepIntervalSec int      `hcl:"sleep_interval_sec"`
+	Label            string   `cty:"name" hcl:"name,label"`
+	RetryableErrors  []string `cty:"retryable_errors" hcl:"retryable_errors"`
+	MaxAttempts      int      `cty:"max_attempts" hcl:"max_attempts"`
+	SleepIntervalSec int      `cty:"sleep_interval_sec" hcl:"sleep_interval_sec"`
 }
 
 // IgnoreBlock represents a labeled ignore block
 type IgnoreBlock struct {
-	Label           string               `hcl:"name,label"`
-	IgnorableErrors []string             `hcl:"ignorable_errors"`
-	Message         string               `hcl:"message,optional"`
-	Signals         map[string]cty.Value `hcl:"signals,optional"`
+	Label           string               `cty:"name" hcl:"name,label"`
+	IgnorableErrors []string             `cty:"ignorable_errors" hcl:"ignorable_errors"`
+	Message         string               `cty:"message" hcl:"message,optional"`
+	Signals         map[string]cty.Value `cty:"signals" hcl:"signals,optional"`
 }
 
 // Clone creates a deep copy of ErrorsConfig
