@@ -44,11 +44,11 @@ func testTerraformRegistryFetching(t *testing.T, modPath, expectedOutputKey stri
 
 	modFullPath := util.JoinPath(registryFixturePath, modPath)
 	helpers.CleanupTerraformFolder(t, modFullPath)
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+modFullPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+modFullPath)
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+modFullPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+modFullPath, &stdout, &stderr)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
