@@ -64,7 +64,7 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		return cty.NilVal, err
 	}
 
-	if excludeConfigCty != cty.NilVal {
+	if errorsConfigCty != cty.NilVal {
 		output[MetadataErrors] = errorsConfigCty
 	}
 
