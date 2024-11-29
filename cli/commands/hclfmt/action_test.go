@@ -17,7 +17,7 @@ import (
 func TestHCLFmt(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../../../test/fixtures/hclfmt", t.Name(), func(path string) bool { return true })
+	tmpPath, err := files.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -25,13 +25,14 @@ func TestHCLFmt(t *testing.T) {
 
 	require.NoError(t, err)
 
-	expected, err := util.ReadFileAsString("../../../test/fixtures/hclfmt/expected.hcl")
+	expected, err := util.ReadFileAsString("./testdata/fixtures/expected.hcl")
 	require.NoError(t, err)
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err)
 
 	tgOptions.WorkingDir = tmpPath
+	tgOptions.HclExclude = []string{".history"}
 
 	err = hclfmt.Run(tgOptions)
 	require.NoError(t, err)
@@ -60,15 +61,30 @@ func TestHCLFmt(t *testing.T) {
 			})
 		}
 
-		// Finally, check to make sure the file in the `.terragrunt-cache` folder was ignored and untouched
+		// check to make sure the file in the `.terragrunt-cache` folder was ignored and untouched
 		t.Run("terragrunt-cache", func(t *testing.T) {
 			t.Parallel()
 
-			originalTgHclPath := "../../../test/fixtures/hclfmt/ignored/.terragrunt-cache/terragrunt.hcl"
+			originalTgHclPath := "./testdata/fixtures/ignored/.terragrunt-cache/terragrunt.hcl"
 			original, err := util.ReadFileAsString(originalTgHclPath)
 			require.NoError(t, err)
 
 			tgHclPath := filepath.Join(tmpPath, "ignored/.terragrunt-cache/terragrunt.hcl")
+			actual, err := util.ReadFileAsString(tgHclPath)
+			require.NoError(t, err)
+
+			assert.Equal(t, original, actual)
+		})
+
+		// Finally, check to make sure the file in the `.history` folder was ignored and untouched
+		t.Run("history", func(t *testing.T) {
+			t.Parallel()
+
+			originalTgHclPath := "./testdata/fixtures/ignored/.history/terragrunt.hcl"
+			original, err := util.ReadFileAsString(originalTgHclPath)
+			require.NoError(t, err)
+
+			tgHclPath := filepath.Join(tmpPath, "ignored/.history/terragrunt.hcl")
 			actual, err := util.ReadFileAsString(tgHclPath)
 			require.NoError(t, err)
 
@@ -209,7 +225,7 @@ func TestHCLFmtCheckErrors(t *testing.T) {
 func TestHCLFmtFile(t *testing.T) {
 	t.Parallel()
 
-	tmpPath, err := files.CopyFolderToTemp("../../../test/fixtures/hclfmt", t.Name(), func(path string) bool { return true })
+	tmpPath, err := files.CopyFolderToTemp("./testdata/fixtures", t.Name(), func(path string) bool { return true })
 
 	t.Cleanup(func() {
 		os.RemoveAll(tmpPath)
@@ -217,7 +233,7 @@ func TestHCLFmtFile(t *testing.T) {
 
 	require.NoError(t, err)
 
-	expected, err := os.ReadFile("../../../test/fixtures/hclfmt/expected.hcl")
+	expected, err := os.ReadFile("./testdata/fixtures/expected.hcl")
 	require.NoError(t, err)
 
 	tgOptions, err := options.NewTerragruntOptionsForTest("")
@@ -245,7 +261,7 @@ func TestHCLFmtFile(t *testing.T) {
 		"a/b/c/terragrunt.hcl",
 	}
 
-	original, err := os.ReadFile("../../../test/fixtures/hclfmt/terragrunt.hcl")
+	original, err := os.ReadFile("./testdata/fixtures/terragrunt.hcl")
 	require.NoError(t, err)
 
 	// test that none of the other files were formatted
