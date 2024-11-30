@@ -575,7 +575,6 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 		output = config
 	}
 
-	// evaluate excludes to include parent excludes
 	return processExcludes(ctx, output, file)
 }
 
