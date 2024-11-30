@@ -181,7 +181,7 @@ func handleIncludeForDependency(ctx *ParsingContext, childDecodedDependency Terr
 		}
 
 		includedPartialParse, err := partialParseIncludedConfig(
-			ctx.WithDecodeList(DependencyBlock, FeatureFlagsBlock, ExcludeBlock), &includeConfig)
+			ctx.WithDecodeList(DependencyBlock, FeatureFlagsBlock, ExcludeBlock, ErrorsBlock), &includeConfig)
 		if err != nil {
 			return nil, err
 		}
