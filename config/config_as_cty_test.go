@@ -109,8 +109,22 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 			},
 		},
 		Errors: &config.ErrorsConfig{
-			Retry:  []*config.RetryBlock{},
-			Ignore: []*config.IgnoreBlock{},
+			Retry: []*config.RetryBlock{
+				{
+					Label:            "test",
+					RetryableErrors:  []string{"test"},
+					MaxAttempts:      0,
+					SleepIntervalSec: 0,
+				},
+			},
+			Ignore: []*config.IgnoreBlock{
+				{
+					Label:           "test",
+					IgnorableErrors: nil,
+					Message:         "",
+					Signals:         nil,
+				},
+			},
 		},
 		GenerateConfigs: map[string]codegen.GenerateConfig{
 			"provider": {
