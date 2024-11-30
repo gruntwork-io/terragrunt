@@ -34,6 +34,7 @@ const (
 	RemoteStateBlock
 	FeatureFlagsBlock
 	ExcludeBlock
+	ErrorsBlock
 )
 
 // terragruntIncludeMultiple is a struct that can be used to only decode the include block with labels.
@@ -54,10 +55,10 @@ type terragruntFeatureFlags struct {
 	Remain       hcl.Body     `hcl:",remain"`
 }
 
-// terragruntExclude is a struct that can be used to only decode the exclude block.
-type terragruntExclude struct {
-	Exclude *ExcludeConfig `hcl:"exclude,block"`
-	Remain  hcl.Body       `hcl:",remain"`
+// terragruntErrors struct to decode errors block
+type terragruntErrors struct {
+	Errors *ErrorsConfig `hcl:"errors,block"`
+	Remain hcl.Body      `hcl:",remain"`
 }
 
 // terragruntTerraform is a struct that can be used to only decode the terraform block.
@@ -535,17 +536,26 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			}
 
 		case ExcludeBlock:
-			decoded := terragruntExclude{}
-			err := file.Decode(&decoded, evalParsingContext)
-
+			decoded, err := processExcludes(ctx, output, file)
 			if err != nil {
 				return nil, err
 			}
-
 			if output.Exclude != nil {
 				output.Exclude.Merge(decoded.Exclude)
 			} else {
 				output.Exclude = decoded.Exclude
+			}
+
+		case ErrorsBlock:
+			decoded := terragruntErrors{}
+			err := file.Decode(&decoded, evalParsingContext)
+			if err != nil {
+				return nil, err
+			}
+			if output.Errors != nil {
+				output.Errors.Merge(decoded.Errors)
+			} else {
+				output.Errors = decoded.Errors
 			}
 
 		default:
@@ -553,7 +563,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 		}
 	}
 
-	// If this file includes another, parse and merge the partial blocks.  Otherwise just return this config.
+	// If this file includes another, parse and merge the partial blocks. Otherwise, just return this config.
 	if len(ctx.TrackInclude.CurrentList) > 0 {
 		config, err := handleInclude(ctx, output, true)
 		if err != nil {
@@ -565,6 +575,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 		output = config
 	}
 
+	// evaluate excludes to include parent excludes
 	return processExcludes(ctx, output, file)
 }
 
