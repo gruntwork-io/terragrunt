@@ -910,6 +910,7 @@ func ParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChild *Inc
 		//   config.
 		mergedConfig.Locals = config.Locals
 		mergedConfig.Exclude = config.Exclude
+		mergedConfig.Errors = config.Errors
 
 		return mergedConfig, nil
 	}

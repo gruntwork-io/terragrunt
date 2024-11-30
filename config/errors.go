@@ -53,6 +53,90 @@ func (c *ErrorsConfig) Clone() *ErrorsConfig {
 	return clone
 }
 
+// Merge combines the current ErrorsConfig with another one, with the other config taking precedence
+func (c *ErrorsConfig) Merge(other *ErrorsConfig) {
+	if other == nil {
+		return
+	}
+	if c == nil {
+		*c = *other
+		return
+	}
+
+	retryMap := make(map[string]*RetryBlock)
+	for _, block := range c.Retry {
+		retryMap[block.Label] = block
+	}
+
+	ignoreMap := make(map[string]*IgnoreBlock)
+	for _, block := range c.Ignore {
+		ignoreMap[block.Label] = block
+	}
+
+	// Merge retry blocks
+	for _, otherBlock := range other.Retry {
+		if existing, exists := retryMap[otherBlock.Label]; exists {
+			existing.RetryableErrors = mergeStringSlices(existing.RetryableErrors, otherBlock.RetryableErrors)
+			if otherBlock.MaxAttempts > 0 {
+				existing.MaxAttempts = otherBlock.MaxAttempts
+			}
+			if otherBlock.SleepIntervalSec > 0 {
+				existing.SleepIntervalSec = otherBlock.SleepIntervalSec
+			}
+		} else {
+			// Add new block
+			retryMap[otherBlock.Label] = otherBlock
+		}
+	}
+
+	// Merge ignore blocks
+	for _, otherBlock := range other.Ignore {
+		if existing, exists := ignoreMap[otherBlock.Label]; exists {
+			existing.IgnorableErrors = mergeStringSlices(existing.IgnorableErrors, otherBlock.IgnorableErrors)
+			if otherBlock.Message != "" {
+				existing.Message = otherBlock.Message
+			}
+			if otherBlock.Signals != nil {
+				if existing.Signals == nil {
+					existing.Signals = make(map[string]cty.Value)
+				}
+				for k, v := range otherBlock.Signals {
+					existing.Signals[k] = v
+				}
+			}
+		} else {
+			// Add new block
+			ignoreMap[otherBlock.Label] = otherBlock
+		}
+	}
+
+	// Convert maps back to slices
+	c.Retry = make([]*RetryBlock, 0, len(retryMap))
+	for _, block := range retryMap {
+		c.Retry = append(c.Retry, block)
+	}
+
+	c.Ignore = make([]*IgnoreBlock, 0, len(ignoreMap))
+	for _, block := range ignoreMap {
+		c.Ignore = append(c.Ignore, block)
+	}
+}
+
+// mergeStringSlices combines two string slices removing duplicates
+func mergeStringSlices(a, b []string) []string {
+	seen := make(map[string]struct{})
+	result := make([]string, 0, len(a)+len(b))
+
+	// Add all strings from both slices, skipping duplicates
+	for _, s := range append(a, b...) {
+		if _, exists := seen[s]; !exists {
+			seen[s] = struct{}{}
+			result = append(result, s)
+		}
+	}
+	return result
+}
+
 // Clone creates a deep copy of RetryBlock
 func (r *RetryBlock) Clone() *RetryBlock {
 	if r == nil {
