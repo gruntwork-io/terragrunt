@@ -1175,6 +1175,11 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 		terragruntConfig.SetFieldMetadata(MetadataExclude, defaultMetadata)
 	}
 
+	if terragruntConfigFromFile.Errors != nil {
+		terragruntConfig.Errors = terragruntConfigFromFile.Errors
+		terragruntConfig.SetFieldMetadata(MetadataErrors, defaultMetadata)
+	}
+
 	generateBlocks := []terragruntGenerateBlock{}
 	generateBlocks = append(generateBlocks, terragruntConfigFromFile.GenerateBlocks...)
 
