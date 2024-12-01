@@ -14,6 +14,7 @@ const (
 	testSimpleErrors       = "fixtures/errors/default"
 	testIgnoreErrors       = "fixtures/errors/ignore"
 	testRunAllIgnoreErrors = "fixtures/errors/run-all-ignore"
+	testRetryErrors        = "fixtures/errors/retry"
 )
 
 func TestErrorsHandling(t *testing.T) {
@@ -55,4 +56,17 @@ func TestRunAllIgnoreError(t *testing.T) {
 	assert.Contains(t, stderr, "Ignoring error example1")
 	assert.NotContains(t, stderr, "Ignoring error example2")
 	assert.Contains(t, stderr, "value-from-app-2")
+}
+
+func TestRetryError(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testRetryErrors)
+	tmpEnvPath := helpers.CopyEnvironment(t, testRetryErrors)
+	rootPath := util.JoinPath(tmpEnvPath, testRetryErrors)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	require.NoError(t, err)
+
 }
