@@ -1301,7 +1301,8 @@ is nested within the `errors` block to define specific error-handling strategies
 The `retry` block within the `errors` block defines rules for retrying operations when specific errors occur.
 This is useful for handling intermittent errors that may resolve after a short delay or multiple attempts.
 
-**Example: Retry Configuration**
+Example: Retry Configuration
+
 ```hcl
 errors {
     retry "retry_example" {
@@ -1312,7 +1313,7 @@ errors {
 }
 ```
 
-**Parameters**:
+Parameters:
 - `retryable_errors`: A list of regex patterns to match errors eligible for retry.
   - Example: `".*Error: transient.*"` matches errors containing `Error: transient`.
 - `max_attempts`: The maximum number of retry attempts.
@@ -1324,7 +1325,8 @@ errors {
 The `ignore` block within the `errors` block defines rules for ignoring specific errors. This is useful when certain
 errors are known to be safe and should not halt operations.
 
-**Example: Ignore Configuration**
+Example: Ignore Configuration
+
 ```hcl
 errors {
     ignore "ignore_example" {
@@ -1340,7 +1342,7 @@ errors {
 }
 ```
 
-**Parameters**:
+Parameters:
 - `ignorable_errors`: A list of regex patterns to define errors to ignore.
   - `"Error: safe-to-ignore.*"`: Ignores errors containing `Error: safe-to-ignore`.
   - `"!Error: critical.*"`: Ensures errors containing `Error: critical` are not ignored.
@@ -1374,15 +1376,11 @@ errors {
     }
 }
 ```
+
 **Notes**
 - All retry and ignore configurations must be defined within the `errors` block.
 - The `retry` block is prioritized over legacy retry fields (`retryable_errors`, `retry_max_attempts`, `retry_sleep_interval_sec`).
 - Conditional logic can be used within `ignorable_errors` to enable or disable rules dynamically.
-
----
-
-This comprehensive setup allows fine-tuned control over error-handling behavior, ensuring robust and efficient operations.
-
 
 ## Attributes
 
