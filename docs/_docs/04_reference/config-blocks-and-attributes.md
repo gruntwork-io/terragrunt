@@ -1314,6 +1314,7 @@ errors {
 ```
 
 Parameters:
+
 - `retryable_errors`: A list of regex patterns to match errors eligible for retry.
   - Example: `".*Error: transient.*"` matches errors containing `Error: transient`.
 - `max_attempts`: The maximum number of retry attempts.
@@ -1343,6 +1344,7 @@ errors {
 ```
 
 Parameters:
+
 - `ignorable_errors`: A list of regex patterns to define errors to ignore.
   - `"Error: safe-to-ignore.*"`: Ignores errors containing `Error: safe-to-ignore`.
   - `"!Error: critical.*"`: Ensures errors containing `Error: critical` are not ignored.
@@ -1377,7 +1379,8 @@ errors {
 }
 ```
 
-**Notes**
+Notes:
+
 - All retry and ignore configurations must be defined within the `errors` block.
 - The `retry` block is prioritized over legacy retry fields (`retryable_errors`, `retry_max_attempts`, `retry_sleep_interval_sec`).
 - Conditional logic can be used within `ignorable_errors` to enable or disable rules dynamically.
