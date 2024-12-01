@@ -133,3 +133,15 @@ func TestRunAllError(t *testing.T) {
 	assert.NotContains(t, stderr, "Ignoring error example2")
 	assert.Contains(t, stderr, "Encountered retryable error: script_errors")
 }
+
+func TestRunAllFail(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testRunAllErrors)
+	tmpEnvPath := helpers.CopyEnvironment(t, testRunAllErrors)
+	rootPath := util.JoinPath(tmpEnvPath, testRunAllErrors)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --feature unstable=false --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	require.Error(t, err)
+}
