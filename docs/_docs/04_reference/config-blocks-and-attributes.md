@@ -1292,6 +1292,98 @@ This setup is useful for scenarios where output evaluation is still needed, even
 
 Consider using this for units that are expensive to continuously update, and can be opted in when necessary.
 
+### errors
+
+The `errors` block contains all the configurations for handling errors. Each configuration block, such as `retry` and `ignore`,
+is nested within the `errors` block to define specific error-handling strategies.
+
+**Retry Configuration**
+The `retry` block within the `errors` block defines rules for retrying operations when specific errors occur.
+This is useful for handling intermittent errors that may resolve after a short delay or multiple attempts.
+
+**Example: Retry Configuration**
+```hcl
+errors {
+    retry "retry_example" {
+        retryable_errors = [".*Error: transient.*"] # Matches errors containing 'Error: transient'
+        max_attempts = 5                           # Retry up to 5 times
+        sleep_interval_sec = 10                    # Wait 10 seconds between retries
+    }
+}
+```
+
+**Parameters**:
+- `retryable_errors`: A list of regex patterns to match errors eligible for retry.
+  - Example: `".*Error: transient.*"` matches errors containing `Error: transient`.
+- `max_attempts`: The maximum number of retry attempts.
+  - Example: `5` retries.
+- `sleep_interval_sec`: Time (in seconds) to wait between retries.
+  - Example: `10` seconds.
+
+**Ignore Configuration**
+The `ignore` block within the `errors` block defines rules for ignoring specific errors. This is useful when certain
+errors are known to be safe and should not halt operations.
+
+**Example: Ignore Configuration**
+```hcl
+errors {
+    ignore "ignore_example" {
+        ignorable_errors = [
+            ".*Error: safe-to-ignore.*", # Ignore errors containing 'Error: safe-to-ignore'
+            "!.*Error: critical.*"      # Do not ignore errors containing 'Error: critical'
+        ]
+        message = "Ignoring safe-to-ignore errors" # Optional message displayed when ignoring errors
+        signals = {
+            safe_to_revert = true # Indicates the operation is safe to revert on failure
+        }
+    }
+}
+```
+
+**Parameters**:
+- `ignorable_errors`: A list of regex patterns to define errors to ignore.
+  - `"Error: safe-to-ignore.*"`: Ignores errors containing `Error: safe-to-ignore`.
+  - `"!Error: critical.*"`: Ensures errors containing `Error: critical` are not ignored.
+- `message` (Optional): A warning message displayed when an error is ignored.
+  - Example: `"Ignoring safe-to-ignore errors"`.
+- `signals` (Optional): Key-value pairs used to emit signals to external systems.
+  - Example: `safe_to_revert = true` indicates it is safe to revert the operation if it fails.
+
+**Combined Example**
+Below is a combined example showcasing both retry and ignore configurations within the `errors` block.
+
+```hcl
+errors {
+    # Retry block for transient errors
+    retry "transient_errors" {
+        retryable_errors = [".*Error: transient network issue.*"]
+        max_attempts = 3
+        sleep_interval_sec = 5
+    }
+
+    # Ignore block for known safe-to-ignore errors
+    ignore "known_safe_errors" {
+        ignorable_errors = [
+            ".*Error: safe warning.*",
+            "!.*Error: do not ignore.*"
+        ]
+        message = "Ignoring safe warning errors"
+        signals = {
+            alert_team = false
+        }
+    }
+}
+```
+**Notes**
+- All retry and ignore configurations must be defined within the `errors` block.
+- The `retry` block is prioritized over legacy retry fields (`retryable_errors`, `retry_max_attempts`, `retry_sleep_interval_sec`).
+- Conditional logic can be used within `ignorable_errors` to enable or disable rules dynamically.
+
+---
+
+This comprehensive setup allows fine-tuned control over error-handling behavior, ensuring robust and efficient operations.
+
+
 ## Attributes
 
 - [Blocks](#blocks)
