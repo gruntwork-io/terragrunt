@@ -873,7 +873,9 @@ func (opts *TerragruntOptions) RunWithErrorHandling(operation func() error) erro
 	if opts.Errors == nil {
 		return operation()
 	}
+
 	currentAttempt := 1
+
 	for {
 		err := operation()
 		if err == nil {
@@ -916,8 +918,10 @@ func (opts *TerragruntOptions) RunWithErrorHandling(operation func() error) erro
 			time.Sleep(time.Duration(action.RetrySleepSecs) * time.Second)
 
 			currentAttempt++
+
 			continue
 		}
+
 		return err
 	}
 }
@@ -931,11 +935,13 @@ func (opts *TerragruntOptions) handleIgnoreSignals(signals map[string]interface{
 		return err
 	}
 
-	if err := os.WriteFile(signalsFile, signalsJSON, 0644); err != nil {
+	const ownerPerms = 0644
+	if err := os.WriteFile(signalsFile, signalsJSON, ownerPerms); err != nil {
 		return fmt.Errorf("failed to write signals file %s: %w", signalsFile, err)
 	}
 
 	opts.Logger.Warnf("Written error signals to %s", signalsFile)
+
 	return nil
 }
 
@@ -963,7 +969,7 @@ func (c *ErrorsConfig) ProcessError(err error, currentAttempt int) (*ErrorAction
 	for _, ignoreBlock := range c.Ignore {
 		isIgnorable, err := matchesAnyPattern(errStr, ignoreBlock.IgnorableErrors)
 		if err != nil {
-			return nil, fmt.Errorf("error processing ignore patterns: %w", err)
+			return nil, errors.New(fmt.Sprintf("error processing ignore patterns: %v", err))
 		}
 
 		if isIgnorable {
@@ -975,6 +981,7 @@ func (c *ErrorsConfig) ProcessError(err error, currentAttempt int) (*ErrorAction
 			for k, v := range ignoreBlock.Signals {
 				action.IgnoreSignals[k] = v
 			}
+
 			return action, nil
 		}
 	}
@@ -983,19 +990,20 @@ func (c *ErrorsConfig) ProcessError(err error, currentAttempt int) (*ErrorAction
 	for _, retryBlock := range c.Retry {
 		isRetryable, err := matchesAnyPattern(errStr, retryBlock.RetryableErrors)
 		if err != nil {
-			return nil, fmt.Errorf("error processing retry patterns: %w", err)
+			return nil, errors.New(fmt.Sprintf("error processing retry patterns: %v", err))
 		}
 
 		if isRetryable {
 			if currentAttempt >= retryBlock.MaxAttempts {
-				return nil, fmt.Errorf("max retry attempts (%d) reached for error: %v",
-					retryBlock.MaxAttempts, err)
+				return nil, errors.New(fmt.Sprintf("max retry attempts (%d) reached for error: %v",
+					retryBlock.MaxAttempts, err))
 			}
 
 			action.RetryMessage = retryBlock.Name
 			action.ShouldRetry = true
 			action.RetryAttempts = retryBlock.MaxAttempts
 			action.RetrySleepSecs = retryBlock.SleepIntervalSec
+
 			return action, nil
 		}
 	}
@@ -1022,6 +1030,7 @@ func matchesAnyPattern(input string, patterns []string) (bool, error) {
 			return !isNegative, nil
 		}
 	}
+
 	return false, nil
 }
 

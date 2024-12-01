@@ -540,6 +540,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 			if err != nil {
 				return nil, err
 			}
+
 			if output.Exclude != nil {
 				output.Exclude.Merge(decoded.Exclude)
 			} else {
@@ -549,9 +550,11 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 		case ErrorsBlock:
 			decoded := terragruntErrors{}
 			err := file.Decode(&decoded, evalParsingContext)
+
 			if err != nil {
 				return nil, err
 			}
+
 			if output.Errors != nil {
 				output.Errors.Merge(decoded.Errors)
 			} else {

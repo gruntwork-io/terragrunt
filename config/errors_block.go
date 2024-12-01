@@ -1,6 +1,7 @@
 package config
 
 import (
+	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -55,6 +56,7 @@ func (c *ErrorsConfig) Merge(other *ErrorsConfig) {
 	if other == nil {
 		return
 	}
+
 	if c == nil {
 		*c = *other
 		return
@@ -73,10 +75,12 @@ func (c *ErrorsConfig) Merge(other *ErrorsConfig) {
 	// Merge retry blocks
 	for _, otherBlock := range other.Retry {
 		if existing, exists := retryMap[otherBlock.Label]; exists {
-			existing.RetryableErrors = mergeStringSlices(existing.RetryableErrors, otherBlock.RetryableErrors)
+			existing.RetryableErrors = util.MergeStringSlices(existing.RetryableErrors, otherBlock.RetryableErrors)
+
 			if otherBlock.MaxAttempts > 0 {
 				existing.MaxAttempts = otherBlock.MaxAttempts
 			}
+
 			if otherBlock.SleepIntervalSec > 0 {
 				existing.SleepIntervalSec = otherBlock.SleepIntervalSec
 			}
@@ -89,14 +93,17 @@ func (c *ErrorsConfig) Merge(other *ErrorsConfig) {
 	// Merge ignore blocks
 	for _, otherBlock := range other.Ignore {
 		if existing, exists := ignoreMap[otherBlock.Label]; exists {
-			existing.IgnorableErrors = mergeStringSlices(existing.IgnorableErrors, otherBlock.IgnorableErrors)
+			existing.IgnorableErrors = util.MergeStringSlices(existing.IgnorableErrors, otherBlock.IgnorableErrors)
+
 			if otherBlock.Message != "" {
 				existing.Message = otherBlock.Message
 			}
+
 			if otherBlock.Signals != nil {
 				if existing.Signals == nil {
 					existing.Signals = make(map[string]cty.Value)
 				}
+
 				for k, v := range otherBlock.Signals {
 					existing.Signals[k] = v
 				}
@@ -117,21 +124,6 @@ func (c *ErrorsConfig) Merge(other *ErrorsConfig) {
 	for _, block := range ignoreMap {
 		c.Ignore = append(c.Ignore, block)
 	}
-}
-
-// mergeStringSlices combines two string slices removing duplicates
-func mergeStringSlices(a, b []string) []string {
-	seen := make(map[string]struct{})
-	result := make([]string, 0, len(a)+len(b))
-
-	// Add all strings from both slices, skipping duplicates
-	for _, s := range append(a, b...) {
-		if _, exists := seen[s]; !exists {
-			seen[s] = struct{}{}
-			result = append(result, s)
-		}
-	}
-	return result
 }
 
 // Clone creates a deep copy of RetryBlock
