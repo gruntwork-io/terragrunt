@@ -928,7 +928,7 @@ func (opts *TerragruntOptions) handleIgnoreSignals(signals map[string]interface{
 	signalsJSON, err := json.MarshalIndent(signals, "", "  ")
 
 	if err != nil {
-		return fmt.Errorf("failed to marshal signals to JSON: %w", err)
+		return err
 	}
 
 	if err := os.WriteFile(signalsFile, signalsJSON, 0644); err != nil {
@@ -1000,7 +1000,6 @@ func (c *ErrorsConfig) ProcessError(err error, currentAttempt int) (*ErrorAction
 		}
 	}
 
-	// If no rules match, return the original error
 	return nil, err
 }
 
