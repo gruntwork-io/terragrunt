@@ -3,6 +3,7 @@ package options
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -35,6 +36,8 @@ const (
 
 	// Default to naming it `terragrunt_rendered.json` in the terragrunt config directory.
 	DefaultJSONOutName = "terragrunt_rendered.json"
+
+	DefaultSignalsFile = "error-signals.json"
 
 	DefaultTFDataDir = ".terraform"
 
@@ -863,6 +866,77 @@ func cloneErrorsConfig(config *ErrorsConfig) *ErrorsConfig {
 	}
 
 	return cloned
+}
+
+// RunWithErrorHandling runs the given operation and handles any errors according to the configuration.
+func (opts *TerragruntOptions) RunWithErrorHandling(operation func() error) error {
+	if opts.Errors == nil {
+		return operation()
+	}
+	currentAttempt := 1
+	for {
+		err := operation()
+		if err == nil {
+			return nil
+		}
+
+		// Process the error through our error handling configuration
+		action, processErr := opts.Errors.ProcessError(err, currentAttempt)
+		if processErr != nil {
+			return fmt.Errorf("error processing error handling rules: %w", processErr)
+		}
+
+		if action == nil {
+			return err
+		}
+
+		if action.ShouldIgnore {
+			opts.Logger.Printf("Ignoring error: %v\nReason: %s", err, action.IgnoreMessage)
+
+			// Handle ignore signals if any are configured
+			if len(action.IgnoreSignals) > 0 {
+				if err := opts.handleIgnoreSignals(action.IgnoreSignals); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		}
+
+		if action.ShouldRetry {
+			opts.Logger.Printf(
+				"Encountered retryable error: %v\nAttempt %d of %d. Waiting %d seconds before retrying...",
+				err,
+				currentAttempt,
+				action.RetryAttempts,
+				action.RetrySleepSecs,
+			)
+
+			// Sleep before retry
+			time.Sleep(time.Duration(action.RetrySleepSecs) * time.Second)
+
+			currentAttempt++
+			continue
+		}
+		return err
+	}
+}
+
+func (opts *TerragruntOptions) handleIgnoreSignals(signals map[string]interface{}) error {
+	workingDir := opts.WorkingDir
+	signalsFile := filepath.Join(workingDir, DefaultSignalsFile)
+	signalsJSON, err := json.MarshalIndent(signals, "", "  ")
+
+	if err != nil {
+		return fmt.Errorf("failed to marshal signals to JSON: %w", err)
+	}
+
+	if err := os.WriteFile(signalsFile, signalsJSON, 0644); err != nil {
+		return fmt.Errorf("failed to write signals file %s: %w", signalsFile, err)
+	}
+
+	opts.Logger.Warnf("Written error signals to %s", signalsFile)
+	return nil
 }
 
 // ErrorAction represents the action to take when an error occurs

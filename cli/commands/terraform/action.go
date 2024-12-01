@@ -128,7 +128,9 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 
 	terragruntOptionsClone.TerraformCommand = CommandNameTerragruntReadConfig
 
-	if err := processHooks(ctx, terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone, terragruntConfig, nil); err != nil {
+	if err = terragruntOptionsClone.RunWithErrorHandling(func() error {
+		return processHooks(ctx, terragruntConfig.Terraform.GetAfterHooks(), terragruntOptionsClone, terragruntConfig, nil)
+	}); err != nil {
 		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
 	}
 
@@ -148,7 +150,9 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 		terragruntOptions.OriginalIAMRoleOptions,
 	)
 
-	if err := credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, terragruntOptions, amazonsts.NewProvider(terragruntOptions)); err != nil {
+	if err := terragruntOptions.RunWithErrorHandling(func() error {
+		return credsGetter.ObtainAndUpdateEnvIfNecessary(ctx, terragruntOptions, amazonsts.NewProvider(terragruntOptions))
+	}); err != nil {
 		return err
 	}
 
@@ -240,7 +244,9 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 		}
 	}
 
-	if err := runTerragruntWithConfig(ctx, terragruntOptions, updatedTerragruntOptions, terragruntConfig, target); err != nil {
+	if err := terragruntOptions.RunWithErrorHandling(func() error {
+		return runTerragruntWithConfig(ctx, terragruntOptions, updatedTerragruntOptions, terragruntConfig, target)
+	}); err != nil {
 		return target.runErrorCallback(terragruntOptions, terragruntConfig, err)
 	}
 
