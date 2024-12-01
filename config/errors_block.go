@@ -1,6 +1,11 @@
 package config
 
-import "github.com/zclconf/go-cty/cty"
+import (
+	"fmt"
+	"regexp"
+
+	"github.com/zclconf/go-cty/cty"
+)
 
 // ErrorsConfig represents the top-level errors configuration
 type ErrorsConfig struct {
@@ -179,4 +184,89 @@ func (i *IgnoreBlock) Clone() *IgnoreBlock {
 	}
 
 	return clone
+}
+
+// ErrorAction represents the action to take when an error occurs
+type ErrorAction struct {
+	ShouldIgnore   bool
+	ShouldRetry    bool
+	IgnoreMessage  string
+	IgnoreSignals  map[string]interface{}
+	RetryAttempts  int
+	RetrySleepSecs int
+}
+
+// ProcessError evaluates an error against the configuration and returns the appropriate action
+func (c *ErrorsConfig) ProcessError(err error, currentAttempt int) (*ErrorAction, error) {
+	if err == nil {
+		return nil, nil
+	}
+
+	errStr := err.Error()
+	action := &ErrorAction{}
+
+	// First check ignore rules
+	for _, ignoreBlock := range c.Ignore {
+		isIgnorable, err := matchesAnyPattern(errStr, ignoreBlock.IgnorableErrors)
+		if err != nil {
+			return nil, fmt.Errorf("error processing ignore patterns: %w", err)
+		}
+
+		if isIgnorable {
+			action.ShouldIgnore = true
+			action.IgnoreMessage = ignoreBlock.Message
+			action.IgnoreSignals = make(map[string]interface{})
+
+			// Convert cty.Value map to regular map
+			for k, v := range ignoreBlock.Signals {
+				action.IgnoreSignals[k] = v
+			}
+			return action, nil
+		}
+	}
+
+	// Then check retry rules
+	for _, retryBlock := range c.Retry {
+		isRetryable, err := matchesAnyPattern(errStr, retryBlock.RetryableErrors)
+		if err != nil {
+			return nil, fmt.Errorf("error processing retry patterns: %w", err)
+		}
+
+		if isRetryable {
+			if currentAttempt >= retryBlock.MaxAttempts {
+				return nil, fmt.Errorf("max retry attempts (%d) reached for error: %v",
+					retryBlock.MaxAttempts, err)
+			}
+
+			action.ShouldRetry = true
+			action.RetryAttempts = retryBlock.MaxAttempts
+			action.RetrySleepSecs = retryBlock.SleepIntervalSec
+			return action, nil
+		}
+	}
+
+	// If no rules match, return the original error
+	return nil, err
+}
+
+// matchesAnyPattern checks if the input string matches any of the provided patterns
+func matchesAnyPattern(input string, patterns []string) (bool, error) {
+	for _, pattern := range patterns {
+		// Handle negative patterns (patterns starting with !)
+		isNegative := false
+		if len(pattern) > 0 && pattern[0] == '!' {
+			isNegative = true
+			pattern = pattern[1:]
+		}
+
+		matched, err := regexp.MatchString(pattern, input)
+		if err != nil {
+			return false, fmt.Errorf("invalid pattern %q: %w", pattern, err)
+		}
+
+		if matched {
+			return !isNegative, nil
+		}
+	}
+	return false, nil
 }
