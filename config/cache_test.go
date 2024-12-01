@@ -2,6 +2,9 @@ package config_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -45,4 +48,54 @@ func TestTerragruntConfigCacheOperation(t *testing.T) {
 	assert.True(t, found)
 	assert.NotEmpty(t, actualResult)
 	assert.Equal(t, stubTerragruntConfig, actualResult)
+}
+
+func TestGlobalCacheDirectory(t *testing.T) {
+	t.Parallel()
+
+	// Set up global cache directory
+	globalCacheDir := filepath.Join(os.TempDir(), "terragrunt-global-cache")
+	err := os.MkdirAll(globalCacheDir, os.ModePerm)
+	assert.NoError(t, err)
+	defer os.RemoveAll(globalCacheDir)
+
+	// Set environment variable for global cache
+	os.Setenv("TERRAGRUNT_GLOBAL_CACHE", globalCacheDir)
+	defer os.Unsetenv("TERRAGRUNT_GLOBAL_CACHE")
+
+	// Create a new cache instance
+	cache := cache.NewCache[config.TerragruntConfig](testCacheName)
+
+	// Verify that the cache directory is set correctly
+	assert.Equal(t, globalCacheDir, os.Getenv("TERRAGRUNT_GLOBAL_CACHE"))
+}
+
+func TestGlobalCacheDirectoryMultipleOS(t *testing.T) {
+	t.Parallel()
+
+	// Set up global cache directory
+	globalCacheDir := filepath.Join(os.TempDir(), "terragrunt-global-cache")
+	err := os.MkdirAll(globalCacheDir, os.ModePerm)
+	assert.NoError(t, err)
+	defer os.RemoveAll(globalCacheDir)
+
+	// Set environment variable for global cache
+	os.Setenv("TERRAGRUNT_GLOBAL_CACHE", globalCacheDir)
+	defer os.Unsetenv("TERRAGRUNT_GLOBAL_CACHE")
+
+	// Create a new cache instance
+	cache := cache.NewCache[config.TerragruntConfig](testCacheName)
+
+	// Verify that the cache directory is set correctly
+	assert.Equal(t, globalCacheDir, os.Getenv("TERRAGRUNT_GLOBAL_CACHE"))
+
+	// Check for different operating systems
+	switch runtime.GOOS {
+	case "windows":
+		assert.Contains(t, globalCacheDir, `\`)
+	case "linux", "darwin":
+		assert.Contains(t, globalCacheDir, `/`)
+	default:
+		t.Fatalf("Unsupported OS: %s", runtime.GOOS)
+	}
 }
