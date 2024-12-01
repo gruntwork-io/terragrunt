@@ -131,4 +131,5 @@ func TestRunAllError(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Ignoring error example1")
 	assert.NotContains(t, stderr, "Ignoring error example2")
+	assert.Contains(t, stderr, "Encountered retryable error: script_errors")
 }
