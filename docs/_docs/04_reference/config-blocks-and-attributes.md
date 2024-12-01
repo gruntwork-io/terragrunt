@@ -57,6 +57,7 @@ The following is a reference of all the supported blocks and attributes in the c
 - [generate](#generate)
 - [engine](#engine)
 - [feature](#feature)
+- [errors](#errors)
 
 ### terraform
 

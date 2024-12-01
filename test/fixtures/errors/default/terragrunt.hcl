@@ -1,10 +1,16 @@
 
+feature "feature_name" {
+  default = false
+}
+
 errors {
   # Retry configuration block that allows for retrying errors that are known to be intermittent
   # Note that this replaces `retryable_errors`, `retry_max_attempts` and `retry_sleep_interval_sec` fields.
   # Those fields will still be supported for backwards compatibility, but this block will take precedence.
   retry "foo" {
-    retryable_errors = [".*Error: foo.*"]
+    retryable_errors = ! feature.feature_name.value ? [] : [
+      ".*Error: foo.*"
+    ]
     max_attempts = 3
     sleep_interval_sec = 5
   }

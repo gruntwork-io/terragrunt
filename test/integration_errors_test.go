@@ -30,7 +30,7 @@ func TestErrorsHandling(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testSimpleErrors)
 	rootPath := util.JoinPath(tmpEnvPath, testSimpleErrors)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	require.NoError(t, err)
 }
