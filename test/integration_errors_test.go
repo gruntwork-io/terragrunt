@@ -65,8 +65,9 @@ func TestRetryError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testRetryErrors)
 	rootPath := util.JoinPath(tmpEnvPath, testRetryErrors)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	require.NoError(t, err)
-
+	assert.Contains(t, stderr, "Encountered retryable error: script_errors")
+	assert.NotContains(t, stderr, "aws_errors")
 }

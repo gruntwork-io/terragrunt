@@ -905,8 +905,8 @@ func (opts *TerragruntOptions) RunWithErrorHandling(operation func() error) erro
 
 		if action.ShouldRetry {
 			opts.Logger.Warnf(
-				"Encountered retryable error: %v\nAttempt %d of %d. Waiting %d seconds before retrying...",
-				err,
+				"Encountered retryable error: %s\nAttempt %d of %d. Waiting %d seconds before retrying...",
+				action.RetryMessage,
 				currentAttempt,
 				action.RetryAttempts,
 				action.RetrySleepSecs,
@@ -945,6 +945,7 @@ type ErrorAction struct {
 	ShouldRetry    bool
 	IgnoreMessage  string
 	IgnoreSignals  map[string]interface{}
+	RetryMessage   string
 	RetryAttempts  int
 	RetrySleepSecs int
 }
@@ -991,6 +992,7 @@ func (c *ErrorsConfig) ProcessError(err error, currentAttempt int) (*ErrorAction
 					retryBlock.MaxAttempts, err)
 			}
 
+			action.RetryMessage = retryBlock.Name
 			action.ShouldRetry = true
 			action.RetryAttempts = retryBlock.MaxAttempts
 			action.RetrySleepSecs = retryBlock.SleepIntervalSec
