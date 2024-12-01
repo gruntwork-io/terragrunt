@@ -20,6 +20,7 @@ const (
 	testRunAllIgnoreErrors = "fixtures/errors/run-all-ignore"
 	testRetryErrors        = "fixtures/errors/retry"
 	testRetryFailErrors    = "fixtures/errors/retry-fail"
+	testRunAllErrors       = "fixtures/errors/run-all"
 )
 
 func TestErrorsHandling(t *testing.T) {
@@ -116,4 +117,18 @@ func TestIgnoreSignal(t *testing.T) {
 	err = json.Unmarshal(content, &signals)
 	require.NoError(t, err, "Failed to parse error-signals.json")
 	assert.Equal(t, "Failed example1", signals.Message, "Unexpected error message")
+}
+
+func TestRunAllError(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testRunAllErrors)
+	tmpEnvPath := helpers.CopyEnvironment(t, testRunAllErrors)
+	rootPath := util.JoinPath(tmpEnvPath, testRunAllErrors)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Ignoring error example1")
+	assert.NotContains(t, stderr, "Ignoring error example2")
 }
