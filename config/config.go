@@ -1445,3 +1445,53 @@ func (cfg *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 		Meta:    meta,
 	}, nil
 }
+
+// ErrorsConfig fetch errors configuration for options package
+func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
+	if cfg.Errors == nil {
+		return nil, nil
+	}
+
+	result := &options.ErrorsConfig{
+		Retry:  make(map[string]*options.RetryConfig),
+		Ignore: make(map[string]*options.IgnoreConfig),
+	}
+
+	for _, retryBlock := range cfg.Errors.Retry {
+		if retryBlock == nil {
+			continue
+		}
+
+		result.Retry[retryBlock.Label] = &options.RetryConfig{
+			Name:             retryBlock.Label,
+			RetryableErrors:  retryBlock.RetryableErrors,
+			MaxAttempts:      retryBlock.MaxAttempts,
+			SleepIntervalSec: retryBlock.SleepIntervalSec,
+		}
+	}
+
+	for _, ignoreBlock := range cfg.Errors.Ignore {
+		if ignoreBlock == nil {
+			continue
+		}
+
+		value, err := convertValuesMapToCtyVal(ignoreBlock.Signals)
+		if err != nil {
+			return nil, err
+		}
+
+		signals, err := ParseCtyValueToMap(value)
+		if err != nil {
+			return nil, err
+		}
+
+		result.Ignore[ignoreBlock.Label] = &options.IgnoreConfig{
+			Name:            ignoreBlock.Label,
+			IgnorableErrors: ignoreBlock.IgnorableErrors,
+			Message:         ignoreBlock.Message,
+			Signals:         signals,
+		}
+	}
+
+	return result, nil
+}

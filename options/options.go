@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -363,8 +364,8 @@ type TerragruntOptions struct {
 	// that read them using HCL functions in the unit.
 	ReadFiles map[string][]string
 
-	// ErrorsConfig is a configuration for error handling.
-	ErrorsConfig *ErrorsConfig
+	// Errors is a configuration for error handling.
+	Errors *ErrorsConfig
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -639,7 +640,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		// copy array
 		StrictControls: util.CloneStringList(opts.StrictControls),
 		FeatureFlags:   opts.FeatureFlags,
-		ErrorsConfig:   cloneErrorsConfig(opts.ErrorsConfig),
+		Errors:         cloneErrorsConfig(opts.Errors),
 	}, nil
 }
 
@@ -795,12 +796,34 @@ type EngineOptions struct {
 	Meta    map[string]interface{}
 }
 
+// ErrorsConfig extracted errors handling configuration.
+type ErrorsConfig struct {
+	Retry  map[string]*RetryConfig
+	Ignore map[string]*IgnoreConfig
+}
+
+// RetryConfig represents the configuration for retrying specific errors
+type RetryConfig struct {
+	Name             string
+	RetryableErrors  []string
+	MaxAttempts      int
+	SleepIntervalSec int
+}
+
+// IgnoreConfig represents the configuration for ignoring specific errors
+type IgnoreConfig struct {
+	Name            string
+	IgnorableErrors []string
+	Message         string
+	Signals         map[string]interface{}
+}
+
 func cloneErrorsConfig(config *ErrorsConfig) *ErrorsConfig {
 	if config == nil {
 		return nil
 	}
 
-	// Create a new ErrorsConfig
+	// Create a new Errors
 	cloned := &ErrorsConfig{
 		Retry:  make(map[string]*RetryConfig),
 		Ignore: make(map[string]*IgnoreConfig),
@@ -842,26 +865,89 @@ func cloneErrorsConfig(config *ErrorsConfig) *ErrorsConfig {
 	return cloned
 }
 
-// ErrorsConfig extracted errors handling configuration.
-type ErrorsConfig struct {
-	Retry  map[string]*RetryConfig
-	Ignore map[string]*IgnoreConfig
+// ErrorAction represents the action to take when an error occurs
+type ErrorAction struct {
+	ShouldIgnore   bool
+	ShouldRetry    bool
+	IgnoreMessage  string
+	IgnoreSignals  map[string]interface{}
+	RetryAttempts  int
+	RetrySleepSecs int
 }
 
-// RetryConfig represents the configuration for retrying specific errors
-type RetryConfig struct {
-	Name             string
-	RetryableErrors  []string
-	MaxAttempts      int
-	SleepIntervalSec int
+// ProcessError evaluates an error against the configuration and returns the appropriate action
+func (c *ErrorsConfig) ProcessError(err error, currentAttempt int) (*ErrorAction, error) {
+	if err == nil {
+		return nil, nil
+	}
+
+	errStr := err.Error()
+	action := &ErrorAction{}
+
+	// First check ignore rules
+	for _, ignoreBlock := range c.Ignore {
+		isIgnorable, err := matchesAnyPattern(errStr, ignoreBlock.IgnorableErrors)
+		if err != nil {
+			return nil, fmt.Errorf("error processing ignore patterns: %w", err)
+		}
+
+		if isIgnorable {
+			action.ShouldIgnore = true
+			action.IgnoreMessage = ignoreBlock.Message
+			action.IgnoreSignals = make(map[string]interface{})
+
+			// Convert cty.Value map to regular map
+			for k, v := range ignoreBlock.Signals {
+				action.IgnoreSignals[k] = v
+			}
+			return action, nil
+		}
+	}
+
+	// Then check retry rules
+	for _, retryBlock := range c.Retry {
+		isRetryable, err := matchesAnyPattern(errStr, retryBlock.RetryableErrors)
+		if err != nil {
+			return nil, fmt.Errorf("error processing retry patterns: %w", err)
+		}
+
+		if isRetryable {
+			if currentAttempt >= retryBlock.MaxAttempts {
+				return nil, fmt.Errorf("max retry attempts (%d) reached for error: %v",
+					retryBlock.MaxAttempts, err)
+			}
+
+			action.ShouldRetry = true
+			action.RetryAttempts = retryBlock.MaxAttempts
+			action.RetrySleepSecs = retryBlock.SleepIntervalSec
+			return action, nil
+		}
+	}
+
+	// If no rules match, return the original error
+	return nil, err
 }
 
-// IgnoreConfig represents the configuration for ignoring specific errors
-type IgnoreConfig struct {
-	Name            string
-	IgnorableErrors []string
-	Message         string
-	Signals         map[string]interface{}
+// matchesAnyPattern checks if the input string matches any of the provided patterns
+func matchesAnyPattern(input string, patterns []string) (bool, error) {
+	for _, pattern := range patterns {
+		// Handle negative patterns (patterns starting with !)
+		isNegative := false
+		if len(pattern) > 0 && pattern[0] == '!' {
+			isNegative = true
+			pattern = pattern[1:]
+		}
+
+		matched, err := regexp.MatchString(pattern, input)
+		if err != nil {
+			return false, fmt.Errorf("invalid pattern %q: %w", pattern, err)
+		}
+
+		if matched {
+			return !isNegative, nil
+		}
+	}
+	return false, nil
 }
 
 // ErrRunTerragruntCommandNotSet is a custom error type indicating that the command is not set.
