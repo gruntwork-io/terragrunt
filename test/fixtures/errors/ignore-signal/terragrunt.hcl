@@ -6,9 +6,9 @@ errors {
     message = "Ignoring error example1"
 
     signals = {
-      failed = false
+      failed          = false
       failed_example1 = true
-      message = "Failed example1"
+      message         = "Failed example1"
     }
   }
 
@@ -19,9 +19,9 @@ errors {
     message = "Ignoring error example2"
 
     signals = {
-      failed = false
+      failed          = false
       failed_example2 = true
-      message = "Failed example2"
+      message         = "Failed example2"
     }
   }
 }
