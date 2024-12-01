@@ -891,7 +891,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(operation func() error) erro
 		}
 
 		if action.ShouldIgnore {
-			opts.Logger.Printf("Ignoring error: %v\nReason: %s", err, action.IgnoreMessage)
+			opts.Logger.Warnf("Ignoring error, reason: %s", action.IgnoreMessage)
 
 			// Handle ignore signals if any are configured
 			if len(action.IgnoreSignals) > 0 {
@@ -904,7 +904,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(operation func() error) erro
 		}
 
 		if action.ShouldRetry {
-			opts.Logger.Printf(
+			opts.Logger.Warnf(
 				"Encountered retryable error: %v\nAttempt %d of %d. Waiting %d seconds before retrying...",
 				err,
 				currentAttempt,

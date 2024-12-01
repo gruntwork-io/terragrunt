@@ -1475,14 +1475,18 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			continue
 		}
 
-		value, err := convertValuesMapToCtyVal(ignoreBlock.Signals)
-		if err != nil {
-			return nil, err
-		}
+		var signals map[string]interface{}
 
-		signals, err := ParseCtyValueToMap(value)
-		if err != nil {
-			return nil, err
+		if ignoreBlock.Signals != nil {
+			value, err := convertValuesMapToCtyVal(ignoreBlock.Signals)
+			if err != nil {
+				return nil, err
+			}
+
+			signals, err = ParseCtyValueToMap(value)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		result.Ignore[ignoreBlock.Label] = &options.IgnoreConfig{
