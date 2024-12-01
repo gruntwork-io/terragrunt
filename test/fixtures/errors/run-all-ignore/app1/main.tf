@@ -3,7 +3,7 @@ resource "null_resource" "error_generator" {
     command = "echo 'Generating example1 error' && exit 1"
 
     interpreter = ["/bin/sh", "-c"]
-    on_failure  = "fail"
+    on_failure  = fail
   }
 
   triggers = {

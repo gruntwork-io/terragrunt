@@ -15,6 +15,7 @@ const (
 	testIgnoreErrors       = "fixtures/errors/ignore"
 	testRunAllIgnoreErrors = "fixtures/errors/run-all-ignore"
 	testRetryErrors        = "fixtures/errors/retry"
+	testRetryFailErrors    = "fixtures/errors/retry-fail"
 )
 
 func TestErrorsHandling(t *testing.T) {
@@ -70,4 +71,17 @@ func TestRetryError(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Encountered retryable error: script_errors")
 	assert.NotContains(t, stderr, "aws_errors")
+}
+
+func TestRetryFailError(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testRetryFailErrors)
+	tmpEnvPath := helpers.CopyEnvironment(t, testRetryFailErrors)
+	rootPath := util.JoinPath(tmpEnvPath, testRetryFailErrors)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	require.Error(t, err)
+	assert.Contains(t, stderr, "Encountered retryable error: script_errors")
 }

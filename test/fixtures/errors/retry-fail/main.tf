@@ -1,6 +1,6 @@
-resource "null_resource" "error_generator" {
+resource "null_resource" "script_runner" {
   provisioner "local-exec" {
-    command = "echo 'Generating example1 error' && exit 1"
+    command = "./script.sh 10"
 
     interpreter = ["/bin/sh", "-c"]
     on_failure  = fail
