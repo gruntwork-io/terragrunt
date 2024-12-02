@@ -755,8 +755,20 @@ func (opts *TerragruntOptions) AppendReadFile(file, unit string) {
 
 	opts.Logger.Debugf("Tracking that file %s was read by %s.", file, unit)
 
-	units = append(units, unit)
-	opts.ReadFiles.Store(file, units)
+	// Atomic insert
+	// https://github.com/puzpuzpuz/xsync/issues/123#issuecomment-1963458519
+	_, _ = opts.ReadFiles.Compute(file, func(oldUnits []string, loaded bool) ([]string, bool) {
+		var newUnits []string
+
+		if loaded {
+			newUnits = append(make([]string, 0, len(oldUnits)+1), oldUnits...)
+			newUnits = append(newUnits, unit)
+		} else {
+			newUnits = []string{unit}
+		}
+
+		return newUnits, false
+	})
 }
 
 // DidReadFile checks if a given file was read by a given unit.
