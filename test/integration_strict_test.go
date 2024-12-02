@@ -116,7 +116,7 @@ func TestRootTerragruntHCLStrictMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFindParent)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFindParentWithDeprecatedRoot)
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureFindParent, "app")
 
 			args := "--terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir " + rootPath

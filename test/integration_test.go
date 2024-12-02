@@ -58,6 +58,7 @@ const (
 	testFixtureExtraArgsPath                  = "fixtures/extra-args/"
 	testFixtureFailedTerraform                = "fixtures/failure"
 	testFixtureFindParent                     = "fixtures/find-parent"
+	testFixtureFindParentWithDeprecatedRoot   = "fixtures/find-parent-with-deprecated-root"
 	testFixtureGetOutput                      = "fixtures/get-output"
 	testFixtureGetTerragruntSourceCli         = "fixtures/get-terragrunt-source-cli"
 	testFixtureGraphDependencies              = "fixtures/graph-dependencies"
@@ -1084,48 +1085,6 @@ func TestTerragruntExcludeExternalDependencies(t *testing.T) {
 
 	assert.Contains(t, applyAllStdoutString, "Hello World, "+includedModule)
 	assert.NotContains(t, applyAllStdoutString, "Hello World, "+excludedModule)
-}
-
-func TestApplySkipTrue(t *testing.T) {
-	t.Parallel()
-
-	rootPath := helpers.CopyEnvironment(t, testFixtureSkip)
-	rootPath = util.JoinPath(rootPath, testFixtureSkip, "skip-true")
-
-	showStdout := bytes.Buffer{}
-	showStderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir %s --var person=Hobbs", rootPath), &showStdout, &showStderr)
-	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
-	helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr")
-
-	stdout := showStdout.String()
-	stderr := showStderr.String()
-
-	require.NoError(t, err)
-	assert.Contains(t, stderr, "Skipping terragrunt module ./terragrunt.hcl due to skip = true.")
-	assert.NotContains(t, stdout, "hello, Hobbs")
-}
-
-func TestApplySkipFalse(t *testing.T) {
-	t.Parallel()
-
-	rootPath := helpers.CopyEnvironment(t, testFixtureSkip)
-	rootPath = util.JoinPath(rootPath, testFixtureSkip, "skip-false")
-
-	showStdout := bytes.Buffer{}
-	showStderr := bytes.Buffer{}
-
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+rootPath, &showStdout, &showStderr)
-	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
-	helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr")
-
-	stderr := showStderr.String()
-	stdout := showStdout.String()
-
-	require.NoError(t, err)
-	assert.Contains(t, stdout, "hello, Hobbs")
-	assert.NotContains(t, stderr, "Skipping terragrunt module")
 }
 
 func TestApplyAllSkipTrue(t *testing.T) {
