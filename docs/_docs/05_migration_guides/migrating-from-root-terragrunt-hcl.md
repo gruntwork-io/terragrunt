@@ -54,4 +54,3 @@ include {
 ## Future Behavior
 
 For now, warnings will be emitted when this pattern is detected in order to encourage users to change to the new pattern, but this behavior will be an explicit error in a future version of Terragrunt. Given how long this has been the standard pattern, we want to assure users that they will have a _very_ long time to migrate to this new pattern. For the most part, using the old pattern results in very little practical difference in Terragrunt behavior, assuming Terragrunt usage is already working fine.
-
