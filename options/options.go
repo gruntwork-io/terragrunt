@@ -739,19 +739,15 @@ func (opts *TerragruntOptions) DataDir() string {
 func (opts *TerragruntOptions) AppendReadFile(file, unit string) {
 	if opts.ReadFiles == nil {
 		opts.ReadFiles = xsync.NewMapOf[string, []string]()
-		opts.ReadFiles.Store(file, []string{unit})
-
-		return
 	}
 
-	v, ok := opts.ReadFiles.Load(file)
+	units, ok := opts.ReadFiles.Load(file)
 	if !ok {
-		// This should never happen as long as folks are using AppendReadFile
-		// and not directly modifying the map.
+		opts.ReadFiles.Store(file, []string{unit})
 		return
 	}
 
-	for _, u := range v {
+	for _, u := range units {
 		if u == unit {
 			return
 		}
@@ -759,14 +755,8 @@ func (opts *TerragruntOptions) AppendReadFile(file, unit string) {
 
 	opts.Logger.Debugf("Tracking that file %s was read by %s.", file, unit)
 
-	v, ok = opts.ReadFiles.Load(file)
-	if !ok {
-		opts.ReadFiles.Store(file, []string{unit})
-		return
-	}
-
-	v = append(v, unit)
-	opts.ReadFiles.Store(file, v)
+	units = append(units, unit)
+	opts.ReadFiles.Store(file, units)
 }
 
 // DidReadFile checks if a given file was read by a given unit.
@@ -775,12 +765,22 @@ func (opts *TerragruntOptions) DidReadFile(file, unit string) bool {
 		return false
 	}
 
-	v, ok := opts.ReadFiles.Load(file)
+	// TODO: Get rid of this.
+	opts.ReadFiles.Range(func(key string, value []string) bool {
+		fmt.Println("key: " + key)
+		for _, v := range value {
+			fmt.Println("value: " + v)
+		}
+
+		return true
+	})
+
+	units, ok := opts.ReadFiles.Load(file)
 	if !ok {
 		return false
 	}
 
-	for _, u := range v {
+	for _, u := range units {
 		if u == unit {
 			return true
 		}
@@ -795,8 +795,8 @@ func (opts *TerragruntOptions) CloneReadFiles(readFiles *xsync.MapOf[string, []s
 		return
 	}
 
-	readFiles.Range(func(key string, value []string) bool {
-		for _, unit := range value {
+	readFiles.Range(func(key string, units []string) bool {
+		for _, unit := range units {
 			opts.AppendReadFile(key, unit)
 		}
 
