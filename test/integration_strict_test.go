@@ -85,7 +85,7 @@ func TestStrictMode(t *testing.T) {
 func TestRootTerragruntHCLStrictMode(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureFindParent)
+	helpers.CleanupTerraformFolder(t, testFixtureFindParentWithDeprecatedRoot)
 
 	tc := []struct {
 		name           string
@@ -117,7 +117,7 @@ func TestRootTerragruntHCLStrictMode(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFindParentWithDeprecatedRoot)
-			rootPath := util.JoinPath(tmpEnvPath, testFixtureFindParent, "app")
+			rootPath := util.JoinPath(tmpEnvPath, testFixtureFindParentWithDeprecatedRoot, "app")
 
 			args := "--terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir " + rootPath
 			if tt.strictMode {
