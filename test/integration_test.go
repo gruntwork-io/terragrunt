@@ -783,7 +783,7 @@ func TestTerragruntStackCommandsWithPlanFile(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, disjointEnvironmentPath)
 	helpers.RunTerragrunt(t, "terragrunt plan-all -out=plan.tfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir "+disjointEnvironmentPath)
-	helpers.RunTerragrunt(t, "terragrunt apply-all plan.tfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir "+disjointEnvironmentPath)
+	helpers.RunTerragrunt(t, "terragrunt run-all apply plan.tfplan --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir "+disjointEnvironmentPath)
 }
 
 func TestTerragruntStackCommandsWithSymlinks(t *testing.T) {
@@ -1074,9 +1074,9 @@ func TestTerragruntExcludeExternalDependencies(t *testing.T) {
 	rootPath := helpers.CopyEnvironment(t, testFixtureExternalDependence)
 	modulePath := util.JoinPath(rootPath, testFixtureExternalDependence, includedModule)
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-ignore-external-dependencies --terragrunt-forward-tf-stdout --terragrunt-working-dir "+modulePath, &applyAllStdout, &applyAllStderr)
-	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
-	helpers.LogBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
+	err := helpers.RunTerragruntCommand(t, "terragrunt run-all apply --terragrunt-non-interactive --terragrunt-ignore-external-dependencies --terragrunt-forward-tf-stdout --terragrunt-working-dir "+modulePath, &applyAllStdout, &applyAllStderr)
+	helpers.LogBufferContentsLineByLine(t, applyAllStdout, "run-all apply stdout")
+	helpers.LogBufferContentsLineByLine(t, applyAllStderr, "run-all apply stderr")
 	applyAllStdoutString := applyAllStdout.String()
 
 	if err != nil {
@@ -1096,7 +1096,7 @@ func TestApplyAllSkipTrue(t *testing.T) {
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s --terragrunt-log-level info", rootPath), &showStdout, &showStderr)
+	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s --terragrunt-log-level info", rootPath), &showStdout, &showStderr)
 	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
 	helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr")
 
@@ -1121,7 +1121,7 @@ func TestApplyAllSkipFalse(t *testing.T) {
 	showStdout := bytes.Buffer{}
 	showStderr := bytes.Buffer{}
 
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+rootPath, &showStdout, &showStderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run-all apply --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+rootPath, &showStdout, &showStderr)
 	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
 	helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr")
 
@@ -1142,7 +1142,7 @@ func TestDependencyOutput(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "integration")
 
-	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected output 42
 	stdout := bytes.Buffer{}
@@ -1227,8 +1227,8 @@ func TestDependencyOutputSkipOutputsWithMockOutput(t *testing.T) {
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
 	assert.Equal(t, "The answer is 0", outputs["truth"].Value)
 
-	// Now apply-all so that the dependency is applied, and verify it still uses the mock output
-	err = helpers.RunTerragruntCommand(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &showStdout, &showStderr)
+	// Now run-all apply so that the dependency is applied, and verify it still uses the mock output
+	err = helpers.RunTerragruntCommand(t, "terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &showStdout, &showStderr)
 	require.NoError(t, err)
 
 	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
@@ -1280,8 +1280,8 @@ func TestDependencyMockOutput(t *testing.T) {
 	// This is only a problem during testing, where the process is shared across terragrunt runs.
 	config.ClearOutputCache()
 
-	// Now apply-all so that the dependency is applied, and verify it uses the dependency output
-	err = helpers.RunTerragruntCommand(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &showStdout, &showStderr)
+	// Now run-all apply so that the dependency is applied, and verify it uses the dependency output
+	err = helpers.RunTerragruntCommand(t, "terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &showStdout, &showStderr)
 	require.NoError(t, err)
 
 	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
@@ -1864,7 +1864,7 @@ func TestDependencyOutputRegression854(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := helpers.RunTerragruntCommand(
 		t,
-		"terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath,
+		"terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath,
 		&stdout,
 		&stderr,
 	)
@@ -1886,7 +1886,7 @@ func TestDependencyOutputCachePathBug(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := helpers.RunTerragruntCommand(
 		t,
-		"terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath,
+		"terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath,
 		&stdout,
 		&stderr,
 	)
@@ -1907,7 +1907,7 @@ func TestDependencyOutputWithTerragruntSource(t *testing.T) {
 	stderr := bytes.Buffer{}
 	err := helpers.RunTerragruntCommand(
 		t,
-		fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", rootPath, modulePath),
+		fmt.Sprintf("terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir %s --terragrunt-source %s", rootPath, modulePath),
 		&stdout,
 		&stderr,
 	)
@@ -1926,7 +1926,7 @@ func TestDependencyOutputWithHooks(t *testing.T) {
 	mainPath := util.JoinPath(rootPath, "main")
 	mainPathFileOut := util.JoinPath(mainPath, "file.out")
 
-	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	// We need to bust the output cache that stores the dependency outputs so that the second run pulls the outputs.
 	// This is only a problem during testing, where the process is shared across terragrunt runs.
 	config.ClearOutputCache()
@@ -2043,7 +2043,7 @@ func TestReadTerragruntConfigFromDependency(t *testing.T) {
 	showStderr := bytes.Buffer{}
 	require.NoError(
 		t,
-		helpers.RunTerragruntCommand(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &showStdout, &showStderr),
+		helpers.RunTerragruntCommand(t, "terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &showStdout, &showStderr),
 	)
 
 	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
@@ -3076,7 +3076,7 @@ func TestDependencyOutputModulePrefix(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "integration")
 
-	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt run-all apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	// verify expected output 42
 	stdout := bytes.Buffer{}
