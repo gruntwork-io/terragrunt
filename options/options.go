@@ -911,7 +911,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(operation func() error) erro
 
 		if action.ShouldRetry {
 			opts.Logger.Warnf(
-				"Encountered retryable error: %s\nAttempt %d of %d. Waiting %d seconds before retrying...",
+				"Encountered retryable error: %s\nAttempt %d of %d. Waiting %d second(s) before retrying...",
 				action.RetryMessage,
 				currentAttempt,
 				action.RetryAttempts,
