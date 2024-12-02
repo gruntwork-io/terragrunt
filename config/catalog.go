@@ -100,6 +100,7 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 		opts = &options.TerragruntOptions{
 			TerragruntConfigPath: filepath.Join(filepath.Dir(configPath), util.UniqueID(), configName),
 			MaxFoldersToCheck:    opts.MaxFoldersToCheck,
+			Logger:               opts.Logger,
 		}
 
 		// This allows to stop the process by pressing Ctrl-C, in case the loop is endless,
