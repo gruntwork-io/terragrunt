@@ -131,8 +131,8 @@ var StrictControls = Controls{
 		Warning: fmt.Sprintf("The `--%s` flag is deprecated and will be removed in a future version. Use `--terragrunt-log-format=json` instead.", TfLogJSON),
 	},
 	RootTerragruntHCL: {
-		Error:   errors.Errorf("Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer supported. Use a differently named file like `root.hcl` instead. For more information, see https://terragrunt.gruntwork.io/docs/reference/built-in-functions/#find_in_parent_folders"),
-		Warning: "Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer recommended. In a future version of Terragrunt, this will result in an error. You are advised to use a differently named file like `root.hcl` instead. For more information, see https://terragrunt.gruntwork.io/docs/reference/built-in-functions/#find_in_parent_folders",
+		Error:   errors.Errorf("Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer supported. Use a differently named file like `root.hcl` instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/migrating-from-root-terragrunt-hcl"),
+		Warning: "Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer recommended. In a future version of Terragrunt, this will result in an error. You are advised to use a differently named file like `root.hcl` instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/migrating-from-root-terragrunt-hcl",
 	},
 }
 

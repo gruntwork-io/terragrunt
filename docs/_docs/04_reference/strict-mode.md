@@ -121,3 +121,9 @@ Throw an error when using the `validate-all` command.
 Disable reading of dependency inputs to enhance dependency resolution performance by preventing recursively parsing Terragrunt inputs from dependencies.
 
 **Reason**: Enabling the `skip-dependencies-inputs` option prevents the recursive parsing of Terragrunt inputs, leading to optimized performance during dependency resolution.
+
+### root-terragrunt-hcl
+
+Throw an error when users try to reference a root `terragrunt.hcl` file using `find_in_parent_folders`.
+
+**Reason**: Using a root `terragrunt.hcl` file used to be the recommended pattern to use with Terragrunt, but that is no longer the case. For more information see [Migrating from root `terragrunt.hcl`](/docs/migrate/migrating-from-root-terragrunt-hcl/).

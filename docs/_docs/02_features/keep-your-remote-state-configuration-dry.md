@@ -54,10 +54,10 @@ To keep your remote state configuration DRY, you can use Terragrunt.
 
 ### Filling in remote state settings with Terragrunt
 
-To fill in the settings via Terragrunt, create a `terragrunt.hcl` file in the root folder, plus one `terragrunt.hcl` file in each of the OpenTofu/Terraform modules:
+To fill in the settings via Terragrunt, create a `root.hcl` file in the root folder, plus one `terragrunt.hcl` file in each of the OpenTofu/Terraform modules:
 
 ```tree
-├── terragrunt.hcl
+├── root.hcl
 ├── backend-app
 │   ├── main.tf
 │   └── terragrunt.hcl
@@ -102,7 +102,7 @@ tell Terragrunt to automatically include all the settings from the root `terragr
 
 ``` hcl
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
 }
 ```
 
@@ -112,7 +112,7 @@ The next time you run `terragrunt`, it will automatically configure all the sett
 
 The `terragrunt.hcl` files above use two Terragrunt built-in functions:
 
-- `find_in_parent_folders()`: This function returns the absolute path to the first `terragrunt.hcl` file it finds in the parent folders above the current `terragrunt.hcl` file. In the example above, the call to `find_in_parent_folders()` in `mysql/terragrunt.hcl` will return `/your-root-folder/terragrunt.hcl`. This way, you don’t have to hard code the `path` parameter in every module.
+- `find_in_parent_folders(<file-name>)`: This function returns the absolute path to the first file it finds named something in the parent folders above the current `terragrunt.hcl` file (`root.hcl` here). In the example above, the call to `find_in_parent_folders("root.hcl")` in `mysql/terragrunt.hcl` will return `/your-root-folder/root.hcl`. This way, you don’t have to hard code the `path` parameter in every module.
 
 - `path_relative_to_include()`: This function returns the relative path between the current `terragrunt.hcl` file and the path specified in its `include` block. We typically use this in a root `terragrunt.hcl` file so that each OpenTofu/Terraform child module stores its OpenTofu/Terraform state at a different `key`. For example, the `mysql` module will have its `key` parameter resolve to `mysql/terraform.tfstate` and the `frontend-app` module will have its `key` parameter resolve to `frontend-app/terraform.tfstate`.
 

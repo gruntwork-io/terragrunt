@@ -39,6 +39,7 @@ const (
 	moduleURLPattern = `(?:git|hg|s3|gcs)::([^:]+)://([^/]+)(/.*)`
 	moduleURLParts   = 4
 
+	// TODO: Make the root configuration file name configurable
 	DefaultBoilerplateConfig = `
 variables:
   - name: EnableRootInclude

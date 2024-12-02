@@ -499,7 +499,7 @@ func TestParseTerragruntConfigIncludeWithFindInParentFolders(t *testing.T) {
 
 	cfg := `
 include {
-	path = find_in_parent_folders()
+	path = find_in_parent_folders("root.hcl")
 }
 `
 
@@ -1241,7 +1241,7 @@ func TestIncludeFunctionsWorkInChildConfig(t *testing.T) {
 
 	cfg := `
 include {
-	path = find_in_parent_folders()
+	path = find_in_parent_folders("root.hcl")
 }
 terraform {
 	source = path_relative_to_include()
