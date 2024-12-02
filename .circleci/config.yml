@@ -119,7 +119,7 @@ run_terratest_log_parser: &run_terratest_log_parser
   command: |
     gruntwork-install --binary-name 'terratest_log_parser' --repo 'https://github.com/gruntwork-io/terratest' --tag 'v0.30.0'
     terratest_log_parser --testlog logs/test-results.log --outputdir logs
-  when: always
+  when: true
 
 run_markdownlint: &run_markdownlint
   name: Run markdownlint
