@@ -121,7 +121,7 @@ func TestGcpParallelStateInit(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	tmpTerragruntConfigFile := util.JoinPath(tmpEnvPath, "terragrunt.hcl")
+	tmpTerragruntConfigFile := util.JoinPath(tmpEnvPath, "root.hcl")
 	project := os.Getenv("GOOGLE_CLOUD_PROJECT")
 	gcsBucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	tmpTerragruntGCSConfigPath := createTmpTerragruntGCSConfig(t, testFixtureGcsParallelStateInit, project, terraformRemoteStateGcpRegion, gcsBucketName, "root.hcl")
