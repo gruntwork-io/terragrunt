@@ -765,16 +765,6 @@ func (opts *TerragruntOptions) DidReadFile(file, unit string) bool {
 		return false
 	}
 
-	// TODO: Get rid of this.
-	opts.ReadFiles.Range(func(key string, value []string) bool {
-		fmt.Println("key: " + key)
-		for _, v := range value {
-			fmt.Println("value: " + v)
-		}
-
-		return true
-	})
-
 	units, ok := opts.ReadFiles.Load(file)
 	if !ok {
 		return false
