@@ -925,6 +925,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, operati
 			case <-ctx.Done():
 				return errors.New(ctx.Err())
 			}
+
 			currentAttempt++
 
 			continue
