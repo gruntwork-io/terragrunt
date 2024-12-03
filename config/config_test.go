@@ -469,7 +469,7 @@ func TestParseTerragruntConfigInclude(t *testing.T) {
 include {
 	path = "../../../%s"
 }
-`, config.DefaultTerragruntConfigPath)
+`, "root.hcl")
 
 	opts := &options.TerragruntOptions{
 		TerragruntConfigPath: "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath,
@@ -541,7 +541,7 @@ remote_state {
 		region = "override"
 	}
 }
-`, config.DefaultTerragruntConfigPath)
+`, "root.hcl")
 
 	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath)
 
@@ -589,7 +589,7 @@ remote_state {
 dependencies {
 	paths = ["override"]
 }
-`, config.DefaultTerragruntConfigPath)
+`, "root.hcl")
 
 	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath)
 
@@ -675,12 +675,15 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 	opts := mockOptionsForTestWithConfigPath(t, configPath)
 
 	ctx := config.NewParsingContext(context.Background(), opts)
+
 	_, actualErr := config.ParseConfigString(ctx, configPath, cfg, nil)
+
 	expectedErr := config.TooManyLevelsOfInheritanceError{
 		ConfigPath:             configPath,
 		FirstLevelIncludePath:  filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.DefaultTerragruntConfigPath)),
 		SecondLevelIncludePath: filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.DefaultTerragruntConfigPath)),
 	}
+
 	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)
 }
 
@@ -697,12 +700,15 @@ func TestParseTerragruntConfigThreeLevels(t *testing.T) {
 	opts := mockOptionsForTestWithConfigPath(t, configPath)
 
 	ctx := config.NewParsingContext(context.Background(), opts)
+
 	_, actualErr := config.ParseConfigString(ctx, configPath, cfg, nil)
+
 	expectedErr := config.TooManyLevelsOfInheritanceError{
 		ConfigPath:             configPath,
 		FirstLevelIncludePath:  absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.DefaultTerragruntConfigPath),
 		SecondLevelIncludePath: absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.DefaultTerragruntConfigPath),
 	}
+
 	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)
 }
 

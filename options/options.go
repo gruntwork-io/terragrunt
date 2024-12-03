@@ -306,6 +306,12 @@ type TerragruntOptions struct {
 	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
 
+	// Do not include root unit in scaffolding.
+	ScaffoldNoIncludeRoot bool
+
+	// Name of the root Terragrunt configuration file, if used.
+	ScaffoldRootFileName string
+
 	// Root directory for graph command.
 	GraphRoot string
 

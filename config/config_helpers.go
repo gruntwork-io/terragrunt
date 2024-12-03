@@ -447,12 +447,14 @@ func FindInParentFolders(
 
 	if fileToFindParam == "" || fileToFindParam == DefaultTerragruntConfigPath {
 		if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
-			warn, err := control.Evaluate(ctx.TerragruntOptions)
+			warn, triggered, err := control.Evaluate(ctx.TerragruntOptions)
 			if err != nil {
 				return "", err
 			}
 
-			ctx.TerragruntOptions.Logger.Warnf(warn)
+			if !triggered {
+				ctx.TerragruntOptions.Logger.Warnf(warn)
+			}
 		}
 	}
 
