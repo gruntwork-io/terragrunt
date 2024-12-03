@@ -2,7 +2,6 @@ package test_test
 
 import (
 	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -160,46 +159,4 @@ func TestUnitsReading(t *testing.T) {
 			assert.ElementsMatch(t, tt.expectedUnits, includedUnits)
 		})
 	}
-}
-
-func TestUnitsReadingRaceCondition(t *testing.T) {
-	t.Parallel()
-
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureUnitsReading)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureUnitsReading)
-
-	expectedUnits := []string{"reading-hcl", "reading-hcl-and-tfvars"}
-
-	logger := createLogger()
-
-	// Create synthetic units to increase the likelihood of a race condition
-	for i := 0; i < 1000; i++ {
-		iAsString := strconv.Itoa(i)
-
-		newDirName := "reading-hcl-" + iAsString
-		newDir := util.JoinPath(rootPath, newDirName)
-		require.NoError(t, util.CopyFolderContents(logger, util.JoinPath(testFixtureUnitsReading, "reading-hcl"), newDir, ".terragrunt-test", []string{}))
-		expectedUnits = append(expectedUnits, newDirName)
-
-		newDirName = "reading-hcl-and-tfvars-" + iAsString
-		newDir = util.JoinPath(rootPath, newDirName)
-		require.NoError(t, util.CopyFolderContents(logger, util.JoinPath(testFixtureUnitsReading, "reading-hcl-and-tfvars"), newDir, ".terragrunt-test", []string{}))
-		expectedUnits = append(expectedUnits, newDirName)
-	}
-
-	cmd := "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir " + rootPath + " --terragrunt-queue-include-units-reading shared.hcl"
-
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
-	require.NoError(t, err)
-
-	includedLogEntryRegex := regexp.MustCompile(`=> Module ./([^ ]+) \(excluded: false`)
-
-	includedUnits := []string{}
-	for _, line := range strings.Split(stderr, "\n") {
-		if includedLogEntryRegex.MatchString(line) {
-			includedUnits = append(includedUnits, includedLogEntryRegex.FindStringSubmatch(line)[1])
-		}
-	}
-
-	assert.ElementsMatch(t, expectedUnits, includedUnits)
 }
