@@ -67,7 +67,7 @@ func (cfg *CatalogConfig) normalize(configPath string) {
 // config contains `include{...find_in_parent_folders()...}` block to determine if it is the root configuration.
 // If it finds `terragrunt.hcl` that already has `include`, then read that configuration as is,
 // otherwise generate a stub child `terragrunt.hcl` in memory with an `include` to pull in the one we found.
-// Unlike "RoadTerragruntConfig" func, it ignores any configuration errors not related to the "catalog" block.
+// Unlike the "ReadTerragruntConfig" func, it ignores any configuration errors not related to the "catalog" block.
 func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOptions) (*CatalogConfig, error) {
 	configPath, configString, err := findCatalogConfig(parentCtx, opts)
 	if err != nil || configPath == "" {
