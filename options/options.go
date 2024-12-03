@@ -3,11 +3,13 @@ package options
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -35,6 +37,8 @@ const (
 
 	// Default to naming it `terragrunt_rendered.json` in the terragrunt config directory.
 	DefaultJSONOutName = "terragrunt_rendered.json"
+
+	DefaultSignalsFile = "error-signals.json"
 
 	DefaultTFDataDir = ".terraform"
 
@@ -366,6 +370,9 @@ type TerragruntOptions struct {
 	// ReadFiles is a map of files to the Units
 	// that read them using HCL functions in the unit.
 	ReadFiles *xsync.MapOf[string, []string]
+
+	// Errors is a configuration for error handling.
+	Errors *ErrorsConfig
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -642,6 +649,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		// copy array
 		StrictControls: util.CloneStringList(opts.StrictControls),
 		FeatureFlags:   opts.FeatureFlags,
+		Errors:         cloneErrorsConfig(opts.Errors),
 	}, nil
 }
 
@@ -822,6 +830,227 @@ type EngineOptions struct {
 	Version string
 	Type    string
 	Meta    map[string]interface{}
+}
+
+// ErrorsConfig extracted errors handling configuration.
+type ErrorsConfig struct {
+	Retry  map[string]*RetryConfig
+	Ignore map[string]*IgnoreConfig
+}
+
+// RetryConfig represents the configuration for retrying specific errors.
+type RetryConfig struct {
+	Name             string
+	RetryableErrors  []*regexp.Regexp
+	MaxAttempts      int
+	SleepIntervalSec int
+}
+
+// IgnoreConfig represents the configuration for ignoring specific errors.
+type IgnoreConfig struct {
+	Name            string
+	IgnorableErrors []*regexp.Regexp
+	Message         string
+	Signals         map[string]interface{}
+}
+
+func cloneErrorsConfig(config *ErrorsConfig) *ErrorsConfig {
+	if config == nil {
+		return nil
+	}
+
+	// Create a new Errors
+	cloned := &ErrorsConfig{
+		Retry:  make(map[string]*RetryConfig),
+		Ignore: make(map[string]*IgnoreConfig),
+	}
+
+	// Clone Retry configurations
+	for key, retryConfig := range config.Retry {
+		if retryConfig != nil {
+			cloned.Retry[key] = &RetryConfig{
+				Name:             retryConfig.Name,
+				MaxAttempts:      retryConfig.MaxAttempts,
+				SleepIntervalSec: retryConfig.SleepIntervalSec,
+				RetryableErrors:  make([]*regexp.Regexp, len(retryConfig.RetryableErrors)),
+			}
+			// Deep copy the RetryableErrors slice
+			copy(cloned.Retry[key].RetryableErrors, retryConfig.RetryableErrors)
+		}
+	}
+
+	// Clone Ignore configurations
+	for key, ignoreConfig := range config.Ignore {
+		if ignoreConfig != nil {
+			cloned.Ignore[key] = &IgnoreConfig{
+				Name:            ignoreConfig.Name,
+				Message:         ignoreConfig.Message,
+				IgnorableErrors: make([]*regexp.Regexp, len(ignoreConfig.IgnorableErrors)),
+				Signals:         make(map[string]interface{}),
+			}
+			// Deep copy the IgnorableErrors slice
+			copy(cloned.Ignore[key].IgnorableErrors, ignoreConfig.IgnorableErrors)
+
+			// Deep copy the Signals map
+			for sigKey, sigVal := range ignoreConfig.Signals {
+				cloned.Ignore[key].Signals[sigKey] = sigVal
+			}
+		}
+	}
+
+	return cloned
+}
+
+// RunWithErrorHandling runs the given operation and handles any errors according to the configuration.
+func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, operation func() error) error {
+	if opts.Errors == nil {
+		return operation()
+	}
+
+	currentAttempt := 1
+
+	for {
+		err := operation()
+		if err == nil {
+			return nil
+		}
+
+		// Process the error through our error handling configuration
+		action, processErr := opts.Errors.ProcessError(err, currentAttempt)
+		if processErr != nil {
+			return fmt.Errorf("error processing error handling rules: %w", processErr)
+		}
+
+		if action == nil {
+			return err
+		}
+
+		if action.ShouldIgnore {
+			opts.Logger.Warnf("Ignoring error, reason: %s", action.IgnoreMessage)
+
+			// Handle ignore signals if any are configured
+			if len(action.IgnoreSignals) > 0 {
+				if err := opts.handleIgnoreSignals(action.IgnoreSignals); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		}
+
+		if action.ShouldRetry {
+			opts.Logger.Warnf(
+				"Encountered retryable error: %s\nAttempt %d of %d. Waiting %d second(s) before retrying...",
+				action.RetryMessage,
+				currentAttempt,
+				action.RetryAttempts,
+				action.RetrySleepSecs,
+			)
+
+			// Sleep before retry
+			select {
+			case <-time.After(time.Duration(action.RetrySleepSecs) * time.Second):
+				// try again
+			case <-ctx.Done():
+				return errors.New(ctx.Err())
+			}
+
+			currentAttempt++
+
+			continue
+		}
+
+		return err
+	}
+}
+
+func (opts *TerragruntOptions) handleIgnoreSignals(signals map[string]interface{}) error {
+	workingDir := opts.WorkingDir
+	signalsFile := filepath.Join(workingDir, DefaultSignalsFile)
+	signalsJSON, err := json.MarshalIndent(signals, "", "  ")
+
+	if err != nil {
+		return err
+	}
+
+	const ownerPerms = 0644
+	if err := os.WriteFile(signalsFile, signalsJSON, ownerPerms); err != nil {
+		return fmt.Errorf("failed to write signals file %s: %w", signalsFile, err)
+	}
+
+	opts.Logger.Warnf("Written error signals to %s", signalsFile)
+
+	return nil
+}
+
+// ErrorAction represents the action to take when an error occurs
+type ErrorAction struct {
+	ShouldIgnore   bool
+	ShouldRetry    bool
+	IgnoreMessage  string
+	IgnoreSignals  map[string]interface{}
+	RetryMessage   string
+	RetryAttempts  int
+	RetrySleepSecs int
+}
+
+// ProcessError evaluates an error against the configuration and returns the appropriate action
+func (c *ErrorsConfig) ProcessError(err error, currentAttempt int) (*ErrorAction, error) {
+	if err == nil {
+		return nil, nil
+	}
+
+	errStr := err.Error()
+	action := &ErrorAction{}
+
+	// First check ignore rules
+	for _, ignoreBlock := range c.Ignore {
+		isIgnorable := matchesAnyRegexpPattern(errStr, ignoreBlock.IgnorableErrors)
+		if isIgnorable {
+			action.ShouldIgnore = true
+			action.IgnoreMessage = ignoreBlock.Message
+			action.IgnoreSignals = make(map[string]interface{})
+
+			// Convert cty.Value map to regular map
+			for k, v := range ignoreBlock.Signals {
+				action.IgnoreSignals[k] = v
+			}
+
+			return action, nil
+		}
+	}
+
+	// Then check retry rules
+	for _, retryBlock := range c.Retry {
+		isRetryable := matchesAnyRegexpPattern(errStr, retryBlock.RetryableErrors)
+		if isRetryable {
+			if currentAttempt >= retryBlock.MaxAttempts {
+				return nil, errors.New(fmt.Sprintf("max retry attempts (%d) reached for error: %v",
+					retryBlock.MaxAttempts, err))
+			}
+
+			action.RetryMessage = retryBlock.Name
+			action.ShouldRetry = true
+			action.RetryAttempts = retryBlock.MaxAttempts
+			action.RetrySleepSecs = retryBlock.SleepIntervalSec
+
+			return action, nil
+		}
+	}
+
+	return nil, err
+}
+
+// matchesAnyRegexpPattern checks if the input string matches any of the provided compiled patterns
+func matchesAnyRegexpPattern(input string, patterns []*regexp.Regexp) bool {
+	for _, pattern := range patterns {
+		matched := pattern.MatchString(input)
+		if matched {
+			return matched
+		}
+	}
+
+	return false
 }
 
 // ErrRunTerragruntCommandNotSet is a custom error type indicating that the command is not set.

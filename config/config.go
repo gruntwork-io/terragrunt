@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -69,6 +70,9 @@ const (
 	MetadataInclude                     = "include"
 	MetadataFeatureFlag                 = "feature"
 	MetadataExclude                     = "exclude"
+	MetadataErrors                      = "errors"
+	MetadataRetry                       = "retry"
+	MetadataIgnore                      = "ignore"
 )
 
 var (
@@ -125,6 +129,7 @@ type TerragruntConfig struct {
 	Engine                      *EngineConfig
 	FeatureFlags                FeatureFlags
 	Exclude                     *ExcludeConfig
+	Errors                      *ErrorsConfig
 
 	// Fields used for internal tracking
 	// Indicates whether this is the result of a partial evaluation
@@ -197,6 +202,7 @@ type terragruntConfigFile struct {
 	TerragruntDependencies   []Dependency        `hcl:"dependency,block"`
 	FeatureFlags             []*FeatureFlag      `hcl:"feature,block"`
 	Exclude                  *ExcludeConfig      `hcl:"exclude,block"`
+	Errors                   *ErrorsConfig       `hcl:"errors,block"`
 
 	// We allow users to configure code generation via blocks:
 	//
@@ -1169,6 +1175,11 @@ func convertToTerragruntConfig(ctx *ParsingContext, configPath string, terragrun
 		terragruntConfig.SetFieldMetadata(MetadataExclude, defaultMetadata)
 	}
 
+	if terragruntConfigFromFile.Errors != nil {
+		terragruntConfig.Errors = terragruntConfigFromFile.Errors
+		terragruntConfig.SetFieldMetadata(MetadataErrors, defaultMetadata)
+	}
+
 	generateBlocks := []terragruntGenerateBlock{}
 	generateBlocks = append(generateBlocks, terragruntConfigFromFile.GenerateBlocks...)
 
@@ -1433,4 +1444,82 @@ func (cfg *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 		Type:    engineType,
 		Meta:    meta,
 	}, nil
+}
+
+// ErrorsConfig fetch errors configuration for options package
+func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
+	if cfg.Errors == nil {
+		return nil, nil
+	}
+
+	result := &options.ErrorsConfig{
+		Retry:  make(map[string]*options.RetryConfig),
+		Ignore: make(map[string]*options.IgnoreConfig),
+	}
+
+	for _, retryBlock := range cfg.Errors.Retry {
+		if retryBlock == nil {
+			continue
+		}
+
+		compiledPatterns := make([]*regexp.Regexp, 0, len(retryBlock.RetryableErrors))
+
+		for _, pattern := range retryBlock.RetryableErrors {
+			compiled, err := regexp.Compile(pattern)
+			if err != nil {
+				return nil, fmt.Errorf("invalid retry pattern %q in block %q: %w",
+					pattern, retryBlock.Label, err)
+			}
+
+			compiledPatterns = append(compiledPatterns, compiled)
+		}
+
+		result.Retry[retryBlock.Label] = &options.RetryConfig{
+			Name:             retryBlock.Label,
+			RetryableErrors:  compiledPatterns,
+			MaxAttempts:      retryBlock.MaxAttempts,
+			SleepIntervalSec: retryBlock.SleepIntervalSec,
+		}
+	}
+
+	for _, ignoreBlock := range cfg.Errors.Ignore {
+		if ignoreBlock == nil {
+			continue
+		}
+
+		var signals map[string]interface{}
+
+		if ignoreBlock.Signals != nil {
+			value, err := convertValuesMapToCtyVal(ignoreBlock.Signals)
+			if err != nil {
+				return nil, err
+			}
+
+			signals, err = ParseCtyValueToMap(value)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		compiledPatterns := make([]*regexp.Regexp, 0, len(ignoreBlock.IgnorableErrors))
+
+		for _, pattern := range ignoreBlock.IgnorableErrors {
+			compiled, err := regexp.Compile(pattern)
+			if err != nil {
+				return nil, fmt.Errorf("invalid retry pattern %q in block %q: %w",
+					pattern, ignoreBlock.Label, err)
+			}
+
+			compiledPatterns = append(compiledPatterns, compiled)
+		}
+
+		result.Ignore[ignoreBlock.Label] = &options.IgnoreConfig{
+			Name:            ignoreBlock.Label,
+			IgnorableErrors: compiledPatterns,
+			Message:         ignoreBlock.Message,
+			Signals:         signals,
+		}
+	}
+
+	return result, nil
 }

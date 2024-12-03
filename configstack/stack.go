@@ -593,6 +593,7 @@ func (stack *Stack) resolveTerraformModule(ctx context.Context, terragruntConfig
 			config.DependenciesBlock,
 			config.DependencyBlock,
 			config.FeatureFlagsBlock,
+			config.ErrorsBlock,
 		)
 
 	// Credentials have to be acquired before the config is parsed, as the config may contain interpolation functions

@@ -108,6 +108,24 @@ func TestTerragruntConfigAsCtyDrift(t *testing.T) {
 				Default: &cty.Zero,
 			},
 		},
+		Errors: &config.ErrorsConfig{
+			Retry: []*config.RetryBlock{
+				{
+					Label:            "test",
+					RetryableErrors:  []string{"test"},
+					MaxAttempts:      0,
+					SleepIntervalSec: 0,
+				},
+			},
+			Ignore: []*config.IgnoreBlock{
+				{
+					Label:           "test",
+					IgnorableErrors: nil,
+					Message:         "",
+					Signals:         nil,
+				},
+			},
+		},
 		GenerateConfigs: map[string]codegen.GenerateConfig{
 			"provider": {
 				Path:          "foo",
@@ -260,6 +278,8 @@ func terragruntConfigStructFieldToMapKey(t *testing.T, fieldName string) (string
 		return "feature", true
 	case "Exclude":
 		return "exclude", true
+	case "Errors":
+		return "errors", true
 	default:
 		t.Fatalf("Unknown struct property: %s", fieldName)
 		// This should not execute
