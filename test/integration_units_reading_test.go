@@ -173,7 +173,7 @@ func TestUnitsReadingRaceCondition(t *testing.T) {
 	logger := createLogger()
 
 	// Create synthetic units to increase the likelihood of a race condition
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 1000; i++ {
 		iAsString := strconv.Itoa(i)
 
 		newDirName := "reading-hcl-" + iAsString
