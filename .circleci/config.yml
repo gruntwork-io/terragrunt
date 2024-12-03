@@ -108,6 +108,12 @@ run_tflint_test: &run_tflint_test
     run-go-tests --packages "-tags tflint -run TestTflint ./test" | tee logs/test-results.log
   no_output_timeout: 30m
 
+run_race_test: &run_race_test
+  name: Run Race tests
+  command: |
+    run-go-tests --packages "-run '.*WithRacing' -race ./test" | tee logs/test-results.log
+  no_output_timeout: 30m
+
 run_terratest_log_parser: &run_terratest_log_parser
   name: Terratest log parser
   command: |
@@ -512,6 +518,8 @@ jobs:
           <<: *setup_test_environment
       - run:
           <<: *run_tflint_test
+      - run:
+          <<: *run_race_test
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
