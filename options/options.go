@@ -809,7 +809,7 @@ type ErrorsConfig struct {
 	Ignore map[string]*IgnoreConfig
 }
 
-// RetryConfig represents the configuration for retrying specific errors
+// RetryConfig represents the configuration for retrying specific errors.
 type RetryConfig struct {
 	Name             string
 	RetryableErrors  []string
@@ -817,7 +817,7 @@ type RetryConfig struct {
 	SleepIntervalSec int
 }
 
-// IgnoreConfig represents the configuration for ignoring specific errors
+// IgnoreConfig represents the configuration for ignoring specific errors.
 type IgnoreConfig struct {
 	Name            string
 	IgnorableErrors []string
