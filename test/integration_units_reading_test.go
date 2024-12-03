@@ -176,13 +176,15 @@ func TestUnitsReadingRaceCondition(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		iAsString := strconv.Itoa(i)
 
-		newDir := util.JoinPath(rootPath, "reading-hcl-"+iAsString)
+		newDirName := "reading-hcl-" + iAsString
+		newDir := util.JoinPath(rootPath, newDirName)
 		require.NoError(t, util.CopyFolderContents(logger, util.JoinPath(testFixtureUnitsReading, "reading-hcl"), newDir, ".terragrunt-test", []string{}))
-		expectedUnits = append(expectedUnits, newDir)
+		expectedUnits = append(expectedUnits, newDirName)
 
-		newDir = util.JoinPath(rootPath, "reading-hcl-and-tfvars-"+iAsString)
+		newDirName = "reading-hcl-and-tfvars-" + iAsString
+		newDir = util.JoinPath(rootPath, newDirName)
 		require.NoError(t, util.CopyFolderContents(logger, util.JoinPath(testFixtureUnitsReading, "reading-hcl-and-tfvars"), newDir, ".terragrunt-test", []string{}))
-		expectedUnits = append(expectedUnits, newDir)
+		expectedUnits = append(expectedUnits, newDirName)
 	}
 
 	cmd := "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir " + rootPath + " --terragrunt-queue-include-units-reading shared.hcl"
