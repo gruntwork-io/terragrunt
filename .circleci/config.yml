@@ -743,6 +743,10 @@ workflows:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
+      - race_test:
+          filters:
+            tags:
+              only: /^v.*/
       - integration_test_tofu_engine:
           filters:
             tags:
