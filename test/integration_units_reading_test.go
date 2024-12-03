@@ -170,7 +170,7 @@ func TestUnitsReadingRaceCondition(t *testing.T) {
 
 	expectedUnits := []string{"reading-hcl", "reading-hcl-and-tfvars"}
 
-	// Create synthetic modules to increase the likelihood of a race condition
+	// Create synthetic units to increase the likelihood of a race condition
 	for i := 0; i < 100; i++ {
 		iAsString := strconv.Itoa(i)
 
