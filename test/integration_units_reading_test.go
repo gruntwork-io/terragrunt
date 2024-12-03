@@ -2,6 +2,7 @@ package test_test
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -167,6 +168,21 @@ func TestUnitsReadingRaceCondition(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureUnitsReading)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureUnitsReading)
 
+	expectedUnits := []string{"reading-hcl", "reading-hcl-and-tfvars"}
+
+	// Create synthetic modules to increase the likelihood of a race condition
+	for i := 0; i < 100; i++ {
+		iAsString := strconv.Itoa(i)
+
+		newDir := util.JoinPath(rootPath, "reading-hcl-"+iAsString)
+		require.NoError(t, helpers.CopyDirectory(util.JoinPath(rootPath, "reading-hcl"), util.JoinPath(rootPath, newDir)))
+		expectedUnits = append(expectedUnits, newDir)
+
+		newDir = util.JoinPath(rootPath, "reading-hcl-and-tfvars-"+iAsString)
+		require.NoError(t, helpers.CopyDirectory(util.JoinPath(rootPath, "reading-hcl-and-tfvars"), util.JoinPath(rootPath, newDir)))
+		expectedUnits = append(expectedUnits, newDir)
+	}
+
 	cmd := "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir " + rootPath + " --terragrunt-queue-include-units-reading shared.hcl"
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
@@ -181,5 +197,5 @@ func TestUnitsReadingRaceCondition(t *testing.T) {
 		}
 	}
 
-	assert.ElementsMatch(t, []string{"reading-hcl", "reading-hcl-and-tfvars"}, includedUnits)
+	assert.ElementsMatch(t, expectedUnits, includedUnits)
 }
