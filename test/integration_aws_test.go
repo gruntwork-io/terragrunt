@@ -17,6 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gruntwork-io/go-commons/files"
@@ -35,6 +36,7 @@ import (
 
 const (
 	testFixtureAwsProviderPatch          = "fixtures/aws-provider-patch"
+	testFixtureAwsAccountAlias           = "fixtures/get-aws-account-alias"
 	testFixtureAwsGetCallerIdentity      = "fixtures/get-aws-caller-identity"
 	testFixtureS3Errors                  = "fixtures/s3-errors/"
 	testFixtureAssumeRole                = "fixtures/assume-role/external-id"
@@ -467,6 +469,45 @@ func TestAwsLocalWithBackend(t *testing.T) {
 
 	// Run a second time to make sure the temporary folder can be reused without errors
 	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+}
+
+func TestAwsGetAccountAliasFunctions(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureAwsAccountAlias)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureAwsAccountAlias)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureAwsAccountAlias)
+
+	helpers.RunTerragrunt(t, "terragrunt apply-all --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	// verify expected outputs are not empty
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	require.NoError(
+		t,
+		helpers.RunTerragruntCommand(t, "terragrunt output -no-color -json --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr),
+	)
+
+	// Get values from STS
+	sess, err := session.NewSession()
+	if err != nil {
+		t.Fatalf("Error while creating AWS session: %v", err)
+	}
+
+	aliases, err := iam.New(sess).ListAccountAliases(nil)
+	if err != nil {
+		t.Fatalf("Error while getting AWS account aliases: %v", err)
+	}
+
+	alias := ""
+	if len(aliases.AccountAliases) == 1 {
+		alias = *aliases.AccountAliases[0]
+	}
+
+	outputs := map[string]helpers.TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	assert.Equal(t, outputs["account_alias"].Value, alias)
 }
 
 func TestAwsGetCallerIdentityFunctions(t *testing.T) {

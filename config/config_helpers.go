@@ -52,6 +52,7 @@ const (
 	FuncNameGetTerraformCommand                     = "get_terraform_command"
 	FuncNameGetTerraformCLIArgs                     = "get_terraform_cli_args"
 	FuncNameGetParentTerragruntDir                  = "get_parent_terragrunt_dir"
+	FuncNameGetAWSAccountAlias                      = "get_aws_account_alias"
 	FuncNameGetAWSAccountID                         = "get_aws_account_id"
 	FuncNameGetAWSCallerIdentityArn                 = "get_aws_caller_identity_arn"
 	FuncNameGetAWSCallerIdentityUserID              = "get_aws_caller_identity_user_id"
@@ -156,6 +157,7 @@ func createTerragruntEvalContext(ctx *ParsingContext, configPath string) (*hcl.E
 		FuncNameGetTerraformCommand:                     wrapVoidToStringAsFuncImpl(ctx, getTerraformCommand),
 		FuncNameGetTerraformCLIArgs:                     wrapVoidToStringSliceAsFuncImpl(ctx, getTerraformCliArgs),
 		FuncNameGetParentTerragruntDir:                  wrapStringSliceToStringAsFuncImpl(ctx, GetParentTerragruntDir),
+		FuncNameGetAWSAccountAlias:                      wrapVoidToStringAsFuncImpl(ctx, getAWSAccountAlias),
 		FuncNameGetAWSAccountID:                         wrapVoidToStringAsFuncImpl(ctx, getAWSAccountID),
 		FuncNameGetAWSCallerIdentityArn:                 wrapVoidToStringAsFuncImpl(ctx, getAWSCallerIdentityARN),
 		FuncNameGetAWSCallerIdentityUserID:              wrapVoidToStringAsFuncImpl(ctx, getAWSCallerIdentityUserID),
@@ -587,6 +589,16 @@ func getTerraformCliArgs(ctx *ParsingContext) ([]string, error) {
 // getDefaultRetryableErrors returns default retryable errors
 func getDefaultRetryableErrors(ctx *ParsingContext) ([]string, error) {
 	return options.DefaultRetryableErrors, nil
+}
+
+// Return the AWS account alias
+func getAWSAccountAlias(ctx *ParsingContext) (string, error) {
+	accountAlias, err := awshelper.GetAWSAccountAlias(nil, ctx.TerragruntOptions)
+	if err == nil {
+		return accountAlias, nil
+	}
+
+	return "", err
 }
 
 // Return the AWS account id associated to the current set of credentials
