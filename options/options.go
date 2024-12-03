@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
+	"github.com/puzpuzpuz/xsync/v3"
 )
 
 const ContextKey ctxKey = iota
@@ -364,7 +365,7 @@ type TerragruntOptions struct {
 
 	// ReadFiles is a map of files to the Units
 	// that read them using HCL functions in the unit.
-	ReadFiles map[string][]string
+	ReadFiles *xsync.MapOf[string, []string]
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -477,6 +478,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		OutputFolder:               "",
 		JSONOutputFolder:           "",
 		FeatureFlags:               map[string]string{},
+		ReadFiles:                  xsync.NewMapOf[string, []string](),
 	}
 }
 
@@ -737,17 +739,37 @@ func (opts *TerragruntOptions) DataDir() string {
 // AppendReadFile appends to the list of files read by a given unit.
 func (opts *TerragruntOptions) AppendReadFile(file, unit string) {
 	if opts.ReadFiles == nil {
-		opts.ReadFiles = map[string][]string{}
+		opts.ReadFiles = xsync.NewMapOf[string, []string]()
 	}
 
-	for _, u := range opts.ReadFiles[file] {
+	units, ok := opts.ReadFiles.Load(file)
+	if !ok {
+		opts.ReadFiles.Store(file, []string{unit})
+		return
+	}
+
+	for _, u := range units {
 		if u == unit {
 			return
 		}
 	}
 
 	opts.Logger.Debugf("Tracking that file %s was read by %s.", file, unit)
-	opts.ReadFiles[file] = append(opts.ReadFiles[file], unit)
+
+	// Atomic insert
+	// https://github.com/puzpuzpuz/xsync/issues/123#issuecomment-1963458519
+	_, _ = opts.ReadFiles.Compute(file, func(oldUnits []string, loaded bool) ([]string, bool) {
+		var newUnits []string
+
+		if loaded {
+			newUnits = append(make([]string, 0, len(oldUnits)+1), oldUnits...)
+			newUnits = append(newUnits, unit)
+		} else {
+			newUnits = []string{unit}
+		}
+
+		return newUnits, false
+	})
 }
 
 // DidReadFile checks if a given file was read by a given unit.
@@ -756,7 +778,12 @@ func (opts *TerragruntOptions) DidReadFile(file, unit string) bool {
 		return false
 	}
 
-	for _, u := range opts.ReadFiles[file] {
+	units, ok := opts.ReadFiles.Load(file)
+	if !ok {
+		return false
+	}
+
+	for _, u := range units {
 		if u == unit {
 			return true
 		}
@@ -766,16 +793,18 @@ func (opts *TerragruntOptions) DidReadFile(file, unit string) bool {
 }
 
 // CloneReadFiles creates a copy of the ReadFiles map.
-func (opts *TerragruntOptions) CloneReadFiles(readFiles map[string][]string) {
+func (opts *TerragruntOptions) CloneReadFiles(readFiles *xsync.MapOf[string, []string]) {
 	if readFiles == nil {
 		return
 	}
 
-	for file, units := range readFiles {
+	readFiles.Range(func(key string, units []string) bool {
 		for _, unit := range units {
-			opts.AppendReadFile(file, unit)
+			opts.AppendReadFile(key, unit)
 		}
-	}
+
+		return true
+	})
 }
 
 // identifyDefaultWrappedExecutable returns default path used for wrapped executable.
