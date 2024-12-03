@@ -177,11 +177,11 @@ func TestUnitsReadingRaceCondition(t *testing.T) {
 		iAsString := strconv.Itoa(i)
 
 		newDir := util.JoinPath(rootPath, "reading-hcl-"+iAsString)
-		require.NoError(t, util.CopyFolderContents(logger, util.JoinPath(rootPath, "reading-hcl"), util.JoinPath(rootPath, newDir), ".terragrunt-test", []string{}))
+		require.NoError(t, util.CopyFolderContents(logger, util.JoinPath(testFixtureUnitsReading, "reading-hcl"), newDir, ".terragrunt-test", []string{}))
 		expectedUnits = append(expectedUnits, newDir)
 
 		newDir = util.JoinPath(rootPath, "reading-hcl-and-tfvars-"+iAsString)
-		require.NoError(t, util.CopyFolderContents(logger, util.JoinPath(rootPath, "reading-hcl-and-tfvars"), util.JoinPath(rootPath, newDir), ".terragrunt-test", []string{}))
+		require.NoError(t, util.CopyFolderContents(logger, util.JoinPath(testFixtureUnitsReading, "reading-hcl-and-tfvars"), newDir, ".terragrunt-test", []string{}))
 		expectedUnits = append(expectedUnits, newDir)
 	}
 
