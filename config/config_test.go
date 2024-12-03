@@ -638,7 +638,7 @@ func TestParseTerragruntJsonConfigIncludeOverrideAll(t *testing.T) {
 		"paths": ["override"]
 	}
 }
-`, config.DefaultTerragruntConfigPath)
+`, "root.hcl")
 
 	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+config.DefaultTerragruntJSONConfigPath)
 
@@ -1051,7 +1051,6 @@ func TestFindConfigFilesIgnoresTerraformDataDir(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{
-		"../test/fixtures/config-files/ignore-terraform-data-dir/terragrunt.hcl",
 		"../test/fixtures/config-files/ignore-terraform-data-dir/.tf_data/modules/mod/terragrunt.hcl",
 		"../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
 		"../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.tf_data/modules/mod/terragrunt.hcl",
@@ -1069,7 +1068,6 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnv(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{
-		"../test/fixtures/config-files/ignore-terraform-data-dir/terragrunt.hcl",
 		"../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
 		"../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl",
 	}
@@ -1087,7 +1085,6 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvPath(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{
-		"../test/fixtures/config-files/ignore-terraform-data-dir/terragrunt.hcl",
 		"../test/fixtures/config-files/ignore-terraform-data-dir/.tf_data/modules/mod/terragrunt.hcl",
 		"../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
 		"../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl",
@@ -1109,7 +1106,6 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvRoot(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := []string{
-		filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/terragrunt.hcl"),
 		filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl"),
 		filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl"),
 		filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.tf_data/modules/mod/terragrunt.hcl"),
