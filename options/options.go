@@ -841,7 +841,7 @@ type ErrorsConfig struct {
 // RetryConfig represents the configuration for retrying specific errors.
 type RetryConfig struct {
 	Name             string
-	RetryableErrors  []string
+	RetryableErrors  []*regexp.Regexp
 	MaxAttempts      int
 	SleepIntervalSec int
 }
@@ -849,7 +849,7 @@ type RetryConfig struct {
 // IgnoreConfig represents the configuration for ignoring specific errors.
 type IgnoreConfig struct {
 	Name            string
-	IgnorableErrors []string
+	IgnorableErrors []*regexp.Regexp
 	Message         string
 	Signals         map[string]interface{}
 }
@@ -872,7 +872,7 @@ func cloneErrorsConfig(config *ErrorsConfig) *ErrorsConfig {
 				Name:             retryConfig.Name,
 				MaxAttempts:      retryConfig.MaxAttempts,
 				SleepIntervalSec: retryConfig.SleepIntervalSec,
-				RetryableErrors:  make([]string, len(retryConfig.RetryableErrors)),
+				RetryableErrors:  make([]*regexp.Regexp, len(retryConfig.RetryableErrors)),
 			}
 			// Deep copy the RetryableErrors slice
 			copy(cloned.Retry[key].RetryableErrors, retryConfig.RetryableErrors)
@@ -885,7 +885,7 @@ func cloneErrorsConfig(config *ErrorsConfig) *ErrorsConfig {
 			cloned.Ignore[key] = &IgnoreConfig{
 				Name:            ignoreConfig.Name,
 				Message:         ignoreConfig.Message,
-				IgnorableErrors: make([]string, len(ignoreConfig.IgnorableErrors)),
+				IgnorableErrors: make([]*regexp.Regexp, len(ignoreConfig.IgnorableErrors)),
 				Signals:         make(map[string]interface{}),
 			}
 			// Deep copy the IgnorableErrors slice
@@ -1005,11 +1005,7 @@ func (c *ErrorsConfig) ProcessError(err error, currentAttempt int) (*ErrorAction
 
 	// First check ignore rules
 	for _, ignoreBlock := range c.Ignore {
-		isIgnorable, err := matchesAnyPattern(errStr, ignoreBlock.IgnorableErrors)
-		if err != nil {
-			return nil, errors.New(fmt.Sprintf("error processing ignore patterns: %v", err))
-		}
-
+		isIgnorable := matchesAnyRegexpPattern(errStr, ignoreBlock.IgnorableErrors)
 		if isIgnorable {
 			action.ShouldIgnore = true
 			action.IgnoreMessage = ignoreBlock.Message
@@ -1026,11 +1022,7 @@ func (c *ErrorsConfig) ProcessError(err error, currentAttempt int) (*ErrorAction
 
 	// Then check retry rules
 	for _, retryBlock := range c.Retry {
-		isRetryable, err := matchesAnyPattern(errStr, retryBlock.RetryableErrors)
-		if err != nil {
-			return nil, errors.New(fmt.Sprintf("error processing retry patterns: %v", err))
-		}
-
+		isRetryable := matchesAnyRegexpPattern(errStr, retryBlock.RetryableErrors)
 		if isRetryable {
 			if currentAttempt >= retryBlock.MaxAttempts {
 				return nil, errors.New(fmt.Sprintf("max retry attempts (%d) reached for error: %v",
@@ -1049,27 +1041,16 @@ func (c *ErrorsConfig) ProcessError(err error, currentAttempt int) (*ErrorAction
 	return nil, err
 }
 
-// matchesAnyPattern checks if the input string matches any of the provided patterns
-func matchesAnyPattern(input string, patterns []string) (bool, error) {
+// matchesAnyRegexpPattern checks if the input string matches any of the provided compiled patterns
+func matchesAnyRegexpPattern(input string, patterns []*regexp.Regexp) bool {
 	for _, pattern := range patterns {
-		// Handle negative patterns (patterns starting with !)
-		isNegative := false
-		if len(pattern) > 0 && pattern[0] == '!' {
-			isNegative = true
-			pattern = pattern[1:]
-		}
-
-		matched, err := regexp.MatchString(pattern, input)
-		if err != nil {
-			return false, fmt.Errorf("invalid pattern %q: %w", pattern, err)
-		}
-
+		matched := pattern.MatchString(input)
 		if matched {
-			return !isNegative, nil
+			return matched
 		}
 	}
 
-	return false, nil
+	return false
 }
 
 // ErrRunTerragruntCommandNotSet is a custom error type indicating that the command is not set.

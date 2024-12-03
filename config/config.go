@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -1461,9 +1462,21 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			continue
 		}
 
+		compiledPatterns := make([]*regexp.Regexp, 0, len(retryBlock.RetryableErrors))
+
+		for _, pattern := range retryBlock.RetryableErrors {
+			compiled, err := regexp.Compile(pattern)
+			if err != nil {
+				return nil, fmt.Errorf("invalid retry pattern %q in block %q: %w",
+					pattern, retryBlock.Label, err)
+			}
+
+			compiledPatterns = append(compiledPatterns, compiled)
+		}
+
 		result.Retry[retryBlock.Label] = &options.RetryConfig{
 			Name:             retryBlock.Label,
-			RetryableErrors:  retryBlock.RetryableErrors,
+			RetryableErrors:  compiledPatterns,
 			MaxAttempts:      retryBlock.MaxAttempts,
 			SleepIntervalSec: retryBlock.SleepIntervalSec,
 		}
@@ -1488,9 +1501,21 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			}
 		}
 
+		compiledPatterns := make([]*regexp.Regexp, 0, len(ignoreBlock.IgnorableErrors))
+
+		for _, pattern := range ignoreBlock.IgnorableErrors {
+			compiled, err := regexp.Compile(pattern)
+			if err != nil {
+				return nil, fmt.Errorf("invalid retry pattern %q in block %q: %w",
+					pattern, ignoreBlock.Label, err)
+			}
+
+			compiledPatterns = append(compiledPatterns, compiled)
+		}
+
 		result.Ignore[ignoreBlock.Label] = &options.IgnoreConfig{
 			Name:            ignoreBlock.Label,
-			IgnorableErrors: ignoreBlock.IgnorableErrors,
+			IgnorableErrors: compiledPatterns,
 			Message:         ignoreBlock.Message,
 			Signals:         signals,
 		}
