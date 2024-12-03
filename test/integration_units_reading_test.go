@@ -160,3 +160,26 @@ func TestUnitsReading(t *testing.T) {
 		})
 	}
 }
+
+func TestUnitsReadingRaceCondition(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureUnitsReading)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureUnitsReading)
+
+	cmd := "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir " + rootPath + " --terragrunt-queue-include-units-reading shared.hcl"
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, cmd)
+	require.NoError(t, err)
+
+	includedLogEntryRegex := regexp.MustCompile(`=> Module ./([^ ]+) \(excluded: false`)
+
+	includedUnits := []string{}
+	for _, line := range strings.Split(stderr, "\n") {
+		if includedLogEntryRegex.MatchString(line) {
+			includedUnits = append(includedUnits, includedLogEntryRegex.FindStringSubmatch(line)[1])
+		}
+	}
+
+	assert.ElementsMatch(t, []string{"reading-hcl", "reading-hcl-and-tfvars"}, includedUnits)
+}
