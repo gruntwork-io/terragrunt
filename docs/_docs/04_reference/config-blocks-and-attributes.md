@@ -1359,11 +1359,12 @@ This file can be inspected in CI/CD systems to determine the recommended course 
 Example:
 
 If an error occurs and the author of the unit has signaled `safe_to_revert = true`, the CI/CD system could follow a standard process:
+
 - Identify all units with files named `error-signals.json`.
 - Checkout the previous commit for those units.
-- Apply the units in their previous state, effectively reverting their updates.  
+- Apply the units in their previous state, effectively reverting their updates.
 
-- This approach ensures consistent and automated error handling in complex pipelines.
+This approach ensures consistent and automated error handling in complex pipelines.
 
 **Combined Example**
 Below is a combined example showcasing both retry and ignore configurations within the `errors` block.
