@@ -873,7 +873,7 @@ func cloneErrorsConfig(config *ErrorsConfig) *ErrorsConfig {
 }
 
 // RunWithErrorHandling runs the given operation and handles any errors according to the configuration.
-func (opts *TerragruntOptions) RunWithErrorHandling(operation func() error) error {
+func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, operation func() error) error {
 	if opts.Errors == nil {
 		return operation()
 	}
@@ -919,8 +919,12 @@ func (opts *TerragruntOptions) RunWithErrorHandling(operation func() error) erro
 			)
 
 			// Sleep before retry
-			time.Sleep(time.Duration(action.RetrySleepSecs) * time.Second)
-
+			select {
+			case <-time.After(time.Duration(action.RetrySleepSecs) * time.Second):
+				// try again
+			case <-ctx.Done():
+				return errors.New(ctx.Err())
+			}
 			currentAttempt++
 
 			continue
