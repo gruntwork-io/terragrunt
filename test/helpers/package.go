@@ -23,7 +23,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
