@@ -170,16 +170,18 @@ func TestUnitsReadingRaceCondition(t *testing.T) {
 
 	expectedUnits := []string{"reading-hcl", "reading-hcl-and-tfvars"}
 
+	logger := createLogger()
+
 	// Create synthetic units to increase the likelihood of a race condition
 	for i := 0; i < 100; i++ {
 		iAsString := strconv.Itoa(i)
 
 		newDir := util.JoinPath(rootPath, "reading-hcl-"+iAsString)
-		require.NoError(t, helpers.CopyDirectory(util.JoinPath(rootPath, "reading-hcl"), util.JoinPath(rootPath, newDir)))
+		require.NoError(t, util.CopyFolderContents(logger, util.JoinPath(rootPath, "reading-hcl"), util.JoinPath(rootPath, newDir), ".terragrunt-test", []string{}))
 		expectedUnits = append(expectedUnits, newDir)
 
 		newDir = util.JoinPath(rootPath, "reading-hcl-and-tfvars-"+iAsString)
-		require.NoError(t, helpers.CopyDirectory(util.JoinPath(rootPath, "reading-hcl-and-tfvars"), util.JoinPath(rootPath, newDir)))
+		require.NoError(t, util.CopyFolderContents(logger, util.JoinPath(rootPath, "reading-hcl-and-tfvars"), util.JoinPath(rootPath, newDir), ".terragrunt-test", []string{}))
 		expectedUnits = append(expectedUnits, newDir)
 	}
 
