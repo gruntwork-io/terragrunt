@@ -519,6 +519,22 @@ jobs:
       - run:
           <<: *run_tflint_test
       - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
+  race_test:
+    resource_class: medium
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          <<: *install_tofu
+      - run:
+          <<: *setup_test_environment
+      - run:
           <<: *run_race_test
       - run:
           <<: *run_terratest_log_parser
