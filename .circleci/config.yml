@@ -20,7 +20,7 @@ install_terraform_latest: &install_terraform_latest
   command: |
     pushd .
     cd /tmp
-    export TERRAFORM_VERSION=1.10.0
+    export TERRAFORM_VERSION=1.10.1
     curl -L "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o terraform.zip
     unzip -o terraform.zip
     sudo install -m 0755 terraform /usr/local/bin/terraform
