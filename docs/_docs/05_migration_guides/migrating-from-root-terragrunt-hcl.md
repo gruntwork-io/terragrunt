@@ -51,6 +51,48 @@ include {
 }
 ```
 
+## Additional Considerations
+
+If you use [Scaffold](/docs/features/scaffold) and [Catalog](/docs/features/catalog), you may need to use additional flags to control how new units are generated. It was previously a safe assumption that most users would leverage a root `terragrunt.hcl` file, and thus, the default behavior was to generate a new unit that would look for a `terragrunt.hcl` file in the root.
+
+You can use the `--no-include-root` and `--root-file-name` flags of both commands to explicitly control how new units are generated, and what they will look for as the root configuration file (or if they should look for one at all).
+
+e.g.
+
+```bash
+terragrunt catalog
+```
+
+To:
+
+```bash
+terragrunt catalog --root-file-name root.hcl
+```
+
+## Strict Control
+
+To enforce this newly recommended pattern, you can also enable the [root-terragrunt-hcl](/docs/reference/strict-mode/#root-terragrunt-hcl) strict control to throw an error when Terragrunt detects that a root `terragrunt.hcl` file is being used.
+
+e.g.
+
+```bash
+terragrunt plan
+```
+
+To:
+
+```bash
+terragrunt plan --strict-control=root-terragrunt-hcl
+```
+
+Or:
+
+```bash
+TERRAGRUNT_STRICT_CONTROL=root-terragrunt-hcl terragrunt plan
+```
+
+By enabling the strict control, you will also have the default behavior of `scaffold` and `catalog` commands changed to use `root.hcl` as the default root configuration file name if none are provided.
+
 ## Future Behavior
 
 For now, warnings will be emitted when this pattern is detected in order to encourage users to change to the new pattern, but this behavior will be an explicit error in a future version of Terragrunt. Given how long this has been the standard pattern, we want to assure users that they will have a _very_ long time to migrate to this new pattern. For the most part, using the old pattern results in very little practical difference in Terragrunt behavior, assuming Terragrunt usage is already working fine.
