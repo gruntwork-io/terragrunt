@@ -1407,7 +1407,6 @@ When processing errors, the **ignore** blocks are evaluated first. If an error m
 and will not trigger a retry. After all ignore rules are evaluated, the **retry** blocks are applied to handle errors
 that were not ignored. This ensures precise control over error-handling behavior.
 
-
 ## Attributes
 
 - [Blocks](#blocks)
