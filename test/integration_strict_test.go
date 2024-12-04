@@ -10,9 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestStrictMode uses globally mutated state to determine if strict mode has already
+// been triggered, so we don't run it in parallel.
+//
+//nolint:paralleltest,tparallel
 func TestStrictMode(t *testing.T) {
-	t.Parallel()
-
 	helpers.CleanupTerraformFolder(t, testFixtureEmptyState)
 
 	tc := []struct {
@@ -54,8 +56,6 @@ func TestStrictMode(t *testing.T) {
 
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEmptyState)
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureEmptyState)
 
@@ -82,9 +82,11 @@ func TestStrictMode(t *testing.T) {
 	}
 }
 
+// TestRootTerragruntHCLStrictMode uses globally mutated state to determine if strict mode has already
+// been triggered, so we don't run it in parallel.
+//
+//nolint:paralleltest,tparallel
 func TestRootTerragruntHCLStrictMode(t *testing.T) {
-	t.Parallel()
-
 	helpers.CleanupTerraformFolder(t, testFixtureFindParentWithDeprecatedRoot)
 
 	tc := []struct {
@@ -114,8 +116,6 @@ func TestRootTerragruntHCLStrictMode(t *testing.T) {
 
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFindParentWithDeprecatedRoot)
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureFindParentWithDeprecatedRoot, "app")
 
