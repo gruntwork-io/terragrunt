@@ -1407,7 +1407,7 @@ read the file `shared.hcl`. This hook is used by all native HCL functions that T
 Note, however, that there are certain scenarios where Terragrunt may not be able to track that a file has been read this way.
 
 For example, you may be using a bash script to read a file via `run_cmd`, or reading the file via OpenTofu code. To support these
-use-cases, the [mark_as_read](./built-in-functions.md#mark_as_read) function can be used to manually mark a file as read.
+use-cases, the [mark_as_read](/docs/reference/built-in-functions/#mark_as_read) function can be used to manually mark a file as read.
 
 That would look something like this:
 

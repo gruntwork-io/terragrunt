@@ -159,8 +159,8 @@ supported:
   command will be the terragrunt config directory.
 
 - `init-from-module` and `init`: Terragrunt has two stages of initialization: one is to download [remote
-  configurations](https://terragrunt.gruntwork.io/use-cases/keep-your-terraform-code-dry/) using `go-getter`; the other
-  is [Auto-Init](https://terragrunt.gruntwork.io/docs/features/auto-init/), which configures the backend and downloads
+  configurations](/docs/features/keep-your-terraform-code-dry) using `go-getter`; the other
+  is [Auto-Init](/docs/features/auto-init), which configures the backend and downloads
   provider plugins and modules. If you wish to run a hook when Terragrunt is using `go-getter` to download remote
   configurations, use `init-from-module` for the command. If you wish to execute a hook when Terragrunt is using
   `tofu init`/`terraform init` for Auto-Init, use `init` for the command. For example, an `after_hook` for the command

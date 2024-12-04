@@ -884,7 +884,7 @@ remote_state {
 
 ## mark_as_read
 
-`mark_as_read(file_path)` marks a file as read, so that it can be picked up for inclusion by the [queue-include-units-reading](./cli-options.md#queue-include-units-reading) flag.
+`mark_as_read(file_path)` marks a file as read, so that it can be picked up for inclusion by the [queue-include-units-reading](/docs/reference/cli-options/#terragrunt-queue-include-units-reading) flag.
 
 This is useful for situations when you want to mark a file as read, but are not reading it using a native Terragrunt HCL function.
 
