@@ -345,7 +345,7 @@ func TestRunAllPlan(t *testing.T, args string) (string, string, string, error) {
 	testPath := util.JoinPath(tmpEnvPath, TestFixtureOutDir)
 
 	// run plan with output directory
-	stdout, stderr, err := RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s %s", testPath, args))
+	stdout, stderr, err := RunTerragruntCommandWithOutput(t, fmt.Sprintf("terraform run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s %s", testPath, args))
 
 	return tmpEnvPath, stdout, stderr, err
 }
@@ -821,7 +821,7 @@ func RunTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []str
 		moduleDir = maybeNested
 	}
 
-	cmd := fmt.Sprintf("terragrunt validate-inputs %s --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir %s", strings.Join(extraArgs, " "), moduleDir)
+	cmd := fmt.Sprintf("terragrunt validate-inputs %s --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir %s", strings.Join(extraArgs, " "), moduleDir)
 	t.Logf("Command: %s", cmd)
 	_, _, err := RunTerragruntCommandWithOutput(t, cmd)
 

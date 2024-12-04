@@ -59,7 +59,7 @@ func TestStrictMode(t *testing.T) {
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEmptyState)
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureEmptyState)
 
-			args := "--terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir " + rootPath
+			args := "--terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir " + rootPath
 			if tt.strictMode {
 				args = "--strict-mode " + args
 			}

@@ -14,7 +14,9 @@ type WidthOption struct {
 }
 
 // Format implements `Option` interface.
-func (option *WidthOption) Format(_ *Data, str string) (string, error) {
+func (option *WidthOption) Format(_ *Data, val any) (any, error) {
+	str := toString(val)
+
 	width := option.value.Get()
 	if width == 0 {
 		return str, nil

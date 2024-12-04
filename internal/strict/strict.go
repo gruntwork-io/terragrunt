@@ -47,6 +47,8 @@ const (
 	DisableLogFormatting = "terragrunt-disable-log-formatting"
 	// JSONLog is the control that prevents the deprecated `--terragrunt-json-log` flag from being used.
 	JSONLog = "terragrunt-json-log"
+	// TfLogJSON is the control that prevents the deprecated `--terragrunt-tf-logs-to-json` flag from being used.
+	TfLogJSON = "terragrunt-tf-logs-to-json"
 )
 
 // GetStrictControl returns the strict control with the given name.
@@ -83,44 +85,48 @@ type Controls map[string]Control
 //nolint:lll,gochecknoglobals,stylecheck
 var StrictControls = Controls{
 	SpinUp: {
-		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all apply` instead.", SpinUp),
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all apply` instead.", SpinUp), //nolint:revive
 		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all apply` instead.", SpinUp),
 	},
 	TearDown: {
-		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all destroy` instead.", TearDown),
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all destroy` instead.", TearDown), //nolint:revive
 		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all destroy` instead.", TearDown),
 	},
 	PlanAll: {
-		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all plan` instead.", PlanAll),
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all plan` instead.", PlanAll), //nolint:revive
 		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all plan` instead.", PlanAll),
 	},
 	ApplyAll: {
-		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all apply` instead.", ApplyAll),
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all apply` instead.", ApplyAll), //nolint:revive
 		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all apply` instead.", ApplyAll),
 	},
 	DestroyAll: {
-		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all destroy` instead.", DestroyAll),
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all destroy` instead.", DestroyAll), //nolint:revive
 		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all destroy` instead.", DestroyAll),
 	},
 	OutputAll: {
-		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all output` instead.", OutputAll),
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all output` instead.", OutputAll), //nolint:revive
 		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all output` instead.", OutputAll),
 	},
 	ValidateAll: {
-		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all validate` instead.", ValidateAll),
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all validate` instead.", ValidateAll), //nolint:revive
 		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all validate` instead.", ValidateAll),
 	},
 	SkipDependenciesInputs: {
-		Error:   errors.Errorf("The `%s` option is deprecated. Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs),
+		Error:   errors.Errorf("The `%s` option is deprecated. Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs), //nolint:revive
 		Warning: fmt.Sprintf("The `%s` option is deprecated and will be removed in a future version of Terragrunt. Reading inputs from dependencies has been deprecated. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs),
 	},
 	DisableLogFormatting: {
-		Error:   errors.Errorf("The `--%s` flag is no longer supported. Use `--terragrunt-log-format=key-value` instead.", DisableLogFormatting),
+		Error:   errors.Errorf("The `--%s` flag is no longer supported. Use `--terragrunt-log-format=key-value` instead.", DisableLogFormatting), //nolint:revive
 		Warning: fmt.Sprintf("The `--%s` flag is deprecated and will be removed in a future version. Use `--terragrunt-log-format=key-value` instead.", DisableLogFormatting),
 	},
 	JSONLog: {
-		Error:   errors.Errorf("The `--%s` flag is no longer supported. Use `--terragrunt-log-format=json` instead.", JSONLog),
+		Error:   errors.Errorf("The `--%s` flag is no longer supported. Use `--terragrunt-log-format=json` instead.", JSONLog), //nolint:revive
 		Warning: fmt.Sprintf("The `--%s` flag is deprecated and will be removed in a future version. Use `--terragrunt-log-format=json` instead.", JSONLog),
+	},
+	TfLogJSON: {
+		Error:   errors.Errorf("The `--%s` flag is no longer supported. Use `--terragrunt-log-format=json` instead.", TfLogJSON), //nolint:revive
+		Warning: fmt.Sprintf("The `--%s` flag is deprecated and will be removed in a future version. Use `--terragrunt-log-format=json` instead.", TfLogJSON),
 	},
 }
 

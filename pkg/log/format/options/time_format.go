@@ -115,7 +115,7 @@ type TimeFormatOption struct {
 }
 
 // Format implements `Option` interface.
-func (option *TimeFormatOption) Format(data *Data, _ string) (string, error) {
+func (option *TimeFormatOption) Format(data *Data, _ any) (any, error) {
 	return data.Time.Format(option.value.Get()), nil
 }
 

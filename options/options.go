@@ -3,11 +3,13 @@ package options
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -16,6 +18,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/go-version"
+	"github.com/puzpuzpuz/xsync/v3"
 )
 
 const ContextKey ctxKey = iota
@@ -34,6 +37,8 @@ const (
 
 	// Default to naming it `terragrunt_rendered.json` in the terragrunt config directory.
 	DefaultJSONOutName = "terragrunt_rendered.json"
+
+	DefaultSignalsFile = "error-signals.json"
 
 	DefaultTFDataDir = ".terraform"
 
@@ -147,9 +152,6 @@ type TerragruntOptions struct {
 	// If true, logs will be displayed in formatter key/value, by default logs are formatted in human-readable formatter.
 	DisableLogFormatting bool
 
-	// Wrap Terraform logs in JSON format
-	TerraformLogsToJSON bool
-
 	// ValidateStrict mode for the validate-inputs command
 	ValidateStrict bool
 
@@ -238,6 +240,9 @@ type TerragruntOptions struct {
 
 	// The file which hclfmt should be specifically run on
 	HclFile string
+
+	// If set hclfmt will skip files in given directories.
+	HclExclude []string
 
 	// If True then HCL from StdIn must should be formatted.
 	HclFromStdin bool
@@ -364,7 +369,10 @@ type TerragruntOptions struct {
 
 	// ReadFiles is a map of files to the Units
 	// that read them using HCL functions in the unit.
-	ReadFiles map[string][]string
+	ReadFiles *xsync.MapOf[string, []string]
+
+	// Errors is a configuration for error handling.
+	Errors *ErrorsConfig
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -469,7 +477,6 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		ForwardTFStdout:                false,
 		JSONOut:                        DefaultJSONOutName,
 		TerraformImplementation:        UnknownImpl,
-		TerraformLogsToJSON:            false,
 		JSONDisableDependentModules:    false,
 		RunTerragrunt: func(ctx context.Context, opts *TerragruntOptions) error {
 			return errors.New(ErrRunTerragruntCommandNotSet)
@@ -478,6 +485,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		OutputFolder:               "",
 		JSONOutputFolder:           "",
 		FeatureFlags:               map[string]string{},
+		ReadFiles:                  xsync.NewMapOf[string, []string](),
 	}
 }
 
@@ -606,6 +614,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		RunTerragrunt:                  opts.RunTerragrunt,
 		AwsProviderPatchOverrides:      opts.AwsProviderPatchOverrides,
 		HclFile:                        opts.HclFile,
+		HclExclude:                     opts.HclExclude,
 		HclFromStdin:                   opts.HclFromStdin,
 		JSONOut:                        opts.JSONOut,
 		JSONLogFormat:                  opts.JSONLogFormat,
@@ -618,7 +627,6 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		FailIfBucketCreationRequired:   opts.FailIfBucketCreationRequired,
 		DisableBucketUpdate:            opts.DisableBucketUpdate,
 		TerraformImplementation:        opts.TerraformImplementation,
-		TerraformLogsToJSON:            opts.TerraformLogsToJSON,
 		GraphRoot:                      opts.GraphRoot,
 		ScaffoldVars:                   opts.ScaffoldVars,
 		ScaffoldVarFiles:               opts.ScaffoldVarFiles,
@@ -641,6 +649,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		// copy array
 		StrictControls: util.CloneStringList(opts.StrictControls),
 		FeatureFlags:   opts.FeatureFlags,
+		Errors:         cloneErrorsConfig(opts.Errors),
 	}, nil
 }
 
@@ -738,17 +747,37 @@ func (opts *TerragruntOptions) DataDir() string {
 // AppendReadFile appends to the list of files read by a given unit.
 func (opts *TerragruntOptions) AppendReadFile(file, unit string) {
 	if opts.ReadFiles == nil {
-		opts.ReadFiles = map[string][]string{}
+		opts.ReadFiles = xsync.NewMapOf[string, []string]()
 	}
 
-	for _, u := range opts.ReadFiles[file] {
+	units, ok := opts.ReadFiles.Load(file)
+	if !ok {
+		opts.ReadFiles.Store(file, []string{unit})
+		return
+	}
+
+	for _, u := range units {
 		if u == unit {
 			return
 		}
 	}
 
 	opts.Logger.Debugf("Tracking that file %s was read by %s.", file, unit)
-	opts.ReadFiles[file] = append(opts.ReadFiles[file], unit)
+
+	// Atomic insert
+	// https://github.com/puzpuzpuz/xsync/issues/123#issuecomment-1963458519
+	_, _ = opts.ReadFiles.Compute(file, func(oldUnits []string, loaded bool) ([]string, bool) {
+		var newUnits []string
+
+		if loaded {
+			newUnits = append(make([]string, 0, len(oldUnits)+1), oldUnits...)
+			newUnits = append(newUnits, unit)
+		} else {
+			newUnits = []string{unit}
+		}
+
+		return newUnits, false
+	})
 }
 
 // DidReadFile checks if a given file was read by a given unit.
@@ -757,7 +786,12 @@ func (opts *TerragruntOptions) DidReadFile(file, unit string) bool {
 		return false
 	}
 
-	for _, u := range opts.ReadFiles[file] {
+	units, ok := opts.ReadFiles.Load(file)
+	if !ok {
+		return false
+	}
+
+	for _, u := range units {
 		if u == unit {
 			return true
 		}
@@ -767,16 +801,18 @@ func (opts *TerragruntOptions) DidReadFile(file, unit string) bool {
 }
 
 // CloneReadFiles creates a copy of the ReadFiles map.
-func (opts *TerragruntOptions) CloneReadFiles(readFiles map[string][]string) {
+func (opts *TerragruntOptions) CloneReadFiles(readFiles *xsync.MapOf[string, []string]) {
 	if readFiles == nil {
 		return
 	}
 
-	for file, units := range readFiles {
+	readFiles.Range(func(key string, units []string) bool {
 		for _, unit := range units {
-			opts.AppendReadFile(file, unit)
+			opts.AppendReadFile(key, unit)
 		}
-	}
+
+		return true
+	})
 }
 
 // identifyDefaultWrappedExecutable returns default path used for wrapped executable.
@@ -794,6 +830,227 @@ type EngineOptions struct {
 	Version string
 	Type    string
 	Meta    map[string]interface{}
+}
+
+// ErrorsConfig extracted errors handling configuration.
+type ErrorsConfig struct {
+	Retry  map[string]*RetryConfig
+	Ignore map[string]*IgnoreConfig
+}
+
+// RetryConfig represents the configuration for retrying specific errors.
+type RetryConfig struct {
+	Name             string
+	RetryableErrors  []*regexp.Regexp
+	MaxAttempts      int
+	SleepIntervalSec int
+}
+
+// IgnoreConfig represents the configuration for ignoring specific errors.
+type IgnoreConfig struct {
+	Name            string
+	IgnorableErrors []*regexp.Regexp
+	Message         string
+	Signals         map[string]interface{}
+}
+
+func cloneErrorsConfig(config *ErrorsConfig) *ErrorsConfig {
+	if config == nil {
+		return nil
+	}
+
+	// Create a new Errors
+	cloned := &ErrorsConfig{
+		Retry:  make(map[string]*RetryConfig),
+		Ignore: make(map[string]*IgnoreConfig),
+	}
+
+	// Clone Retry configurations
+	for key, retryConfig := range config.Retry {
+		if retryConfig != nil {
+			cloned.Retry[key] = &RetryConfig{
+				Name:             retryConfig.Name,
+				MaxAttempts:      retryConfig.MaxAttempts,
+				SleepIntervalSec: retryConfig.SleepIntervalSec,
+				RetryableErrors:  make([]*regexp.Regexp, len(retryConfig.RetryableErrors)),
+			}
+			// Deep copy the RetryableErrors slice
+			copy(cloned.Retry[key].RetryableErrors, retryConfig.RetryableErrors)
+		}
+	}
+
+	// Clone Ignore configurations
+	for key, ignoreConfig := range config.Ignore {
+		if ignoreConfig != nil {
+			cloned.Ignore[key] = &IgnoreConfig{
+				Name:            ignoreConfig.Name,
+				Message:         ignoreConfig.Message,
+				IgnorableErrors: make([]*regexp.Regexp, len(ignoreConfig.IgnorableErrors)),
+				Signals:         make(map[string]interface{}),
+			}
+			// Deep copy the IgnorableErrors slice
+			copy(cloned.Ignore[key].IgnorableErrors, ignoreConfig.IgnorableErrors)
+
+			// Deep copy the Signals map
+			for sigKey, sigVal := range ignoreConfig.Signals {
+				cloned.Ignore[key].Signals[sigKey] = sigVal
+			}
+		}
+	}
+
+	return cloned
+}
+
+// RunWithErrorHandling runs the given operation and handles any errors according to the configuration.
+func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, operation func() error) error {
+	if opts.Errors == nil {
+		return operation()
+	}
+
+	currentAttempt := 1
+
+	for {
+		err := operation()
+		if err == nil {
+			return nil
+		}
+
+		// Process the error through our error handling configuration
+		action, processErr := opts.Errors.ProcessError(err, currentAttempt)
+		if processErr != nil {
+			return fmt.Errorf("error processing error handling rules: %w", processErr)
+		}
+
+		if action == nil {
+			return err
+		}
+
+		if action.ShouldIgnore {
+			opts.Logger.Warnf("Ignoring error, reason: %s", action.IgnoreMessage)
+
+			// Handle ignore signals if any are configured
+			if len(action.IgnoreSignals) > 0 {
+				if err := opts.handleIgnoreSignals(action.IgnoreSignals); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		}
+
+		if action.ShouldRetry {
+			opts.Logger.Warnf(
+				"Encountered retryable error: %s\nAttempt %d of %d. Waiting %d second(s) before retrying...",
+				action.RetryMessage,
+				currentAttempt,
+				action.RetryAttempts,
+				action.RetrySleepSecs,
+			)
+
+			// Sleep before retry
+			select {
+			case <-time.After(time.Duration(action.RetrySleepSecs) * time.Second):
+				// try again
+			case <-ctx.Done():
+				return errors.New(ctx.Err())
+			}
+
+			currentAttempt++
+
+			continue
+		}
+
+		return err
+	}
+}
+
+func (opts *TerragruntOptions) handleIgnoreSignals(signals map[string]interface{}) error {
+	workingDir := opts.WorkingDir
+	signalsFile := filepath.Join(workingDir, DefaultSignalsFile)
+	signalsJSON, err := json.MarshalIndent(signals, "", "  ")
+
+	if err != nil {
+		return err
+	}
+
+	const ownerPerms = 0644
+	if err := os.WriteFile(signalsFile, signalsJSON, ownerPerms); err != nil {
+		return fmt.Errorf("failed to write signals file %s: %w", signalsFile, err)
+	}
+
+	opts.Logger.Warnf("Written error signals to %s", signalsFile)
+
+	return nil
+}
+
+// ErrorAction represents the action to take when an error occurs
+type ErrorAction struct {
+	ShouldIgnore   bool
+	ShouldRetry    bool
+	IgnoreMessage  string
+	IgnoreSignals  map[string]interface{}
+	RetryMessage   string
+	RetryAttempts  int
+	RetrySleepSecs int
+}
+
+// ProcessError evaluates an error against the configuration and returns the appropriate action
+func (c *ErrorsConfig) ProcessError(err error, currentAttempt int) (*ErrorAction, error) {
+	if err == nil {
+		return nil, nil
+	}
+
+	errStr := err.Error()
+	action := &ErrorAction{}
+
+	// First check ignore rules
+	for _, ignoreBlock := range c.Ignore {
+		isIgnorable := matchesAnyRegexpPattern(errStr, ignoreBlock.IgnorableErrors)
+		if isIgnorable {
+			action.ShouldIgnore = true
+			action.IgnoreMessage = ignoreBlock.Message
+			action.IgnoreSignals = make(map[string]interface{})
+
+			// Convert cty.Value map to regular map
+			for k, v := range ignoreBlock.Signals {
+				action.IgnoreSignals[k] = v
+			}
+
+			return action, nil
+		}
+	}
+
+	// Then check retry rules
+	for _, retryBlock := range c.Retry {
+		isRetryable := matchesAnyRegexpPattern(errStr, retryBlock.RetryableErrors)
+		if isRetryable {
+			if currentAttempt >= retryBlock.MaxAttempts {
+				return nil, errors.New(fmt.Sprintf("max retry attempts (%d) reached for error: %v",
+					retryBlock.MaxAttempts, err))
+			}
+
+			action.RetryMessage = retryBlock.Name
+			action.ShouldRetry = true
+			action.RetryAttempts = retryBlock.MaxAttempts
+			action.RetrySleepSecs = retryBlock.SleepIntervalSec
+
+			return action, nil
+		}
+	}
+
+	return nil, err
+}
+
+// matchesAnyRegexpPattern checks if the input string matches any of the provided compiled patterns
+func matchesAnyRegexpPattern(input string, patterns []*regexp.Regexp) bool {
+	for _, pattern := range patterns {
+		matched := pattern.MatchString(input)
+		if matched {
+			return matched
+		}
+	}
+
+	return false
 }
 
 // ErrRunTerragruntCommandNotSet is a custom error type indicating that the command is not set.

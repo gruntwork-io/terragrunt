@@ -59,6 +59,15 @@ func TerragruntConfigAsCty(config *TerragruntConfig) (cty.Value, error) {
 		output[MetadataExclude] = excludeConfigCty
 	}
 
+	errorsConfigCty, err := errorsConfigAsCty(config.Errors)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	if errorsConfigCty != cty.NilVal {
+		output[MetadataErrors] = errorsConfigCty
+	}
+
 	terraformConfigCty, err := terraformConfigAsCty(config.Terraform)
 	if err != nil {
 		return cty.NilVal, err
@@ -647,6 +656,35 @@ func featureFlagsBlocksAsCty(featureFlagBlocks FeatureFlags) (cty.Value, error) 
 	}
 
 	return convertValuesMapToCtyVal(out)
+}
+
+// Serialize errors configuration as cty.Value.
+func errorsConfigAsCty(config *ErrorsConfig) (cty.Value, error) {
+	if config == nil {
+		return cty.NilVal, nil
+	}
+
+	output := map[string]cty.Value{}
+
+	retryCty, err := goTypeToCty(config.Retry)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	if retryCty != cty.NilVal {
+		output[MetadataRetry] = retryCty
+	}
+
+	ignoreCty, err := goTypeToCty(config.Ignore)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	if ignoreCty != cty.NilVal {
+		output[MetadataIgnore] = ignoreCty
+	}
+
+	return convertValuesMapToCtyVal(output)
 }
 
 // Converts arbitrary go types that are json serializable to a cty Value by using json as an intermediary

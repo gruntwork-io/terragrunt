@@ -70,32 +70,42 @@ func NewPrettyFormat() Placeholders {
 
 func NewJSONFormat() Placeholders {
 	return Placeholders{
-		PlainText(`{"time":"`),
+		PlainText(`{`),
 		Time(
+			Prefix(`"time":"`),
+			Suffix(`"`),
 			TimeFormat(RFC3339),
 			Escape(JSONEscape),
 		),
-		PlainText(`", "level":"`),
 		Level(
+			Prefix(`, "level":"`),
+			Suffix(`"`),
 			Escape(JSONEscape),
 		),
-		PlainText(`", "prefix":"`),
 		Field(WorkDirKeyName,
-			PathFormat(ShortPath),
+			Prefix(`, "working-dir":"`),
+			Suffix(`"`),
 			Escape(JSONEscape),
 		),
-		PlainText(`", "tfpath":"`),
 		Field(TFPathKeyName,
+			Prefix(`, "tf-path":"`),
+			Suffix(`"`),
 			PathFormat(FilenamePath),
 			Escape(JSONEscape),
 		),
-		PlainText(`", "msg":"`),
+		Field(TFCmdArgsKeyName,
+			Prefix(`, "tf-command-args":[`),
+			Suffix(`]`),
+			Escape(JSONEscape),
+		),
 		Message(
+			Prefix(`, "msg":"`),
+			Suffix(`"`),
 			PathFormat(RelativePath),
 			Color(DisableColor),
 			Escape(JSONEscape),
 		),
-		PlainText(`"}`),
+		PlainText(`}`),
 	}
 }
 
@@ -113,7 +123,7 @@ func NewKeyValueFormat() Placeholders {
 			PathFormat(ShortRelativePath),
 		),
 		Field(TFPathKeyName,
-			Prefix(" tfpath="),
+			Prefix(" tf-path="),
 			PathFormat(FilenamePath),
 		),
 		Message(

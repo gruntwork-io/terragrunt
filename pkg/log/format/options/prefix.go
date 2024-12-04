@@ -8,8 +8,8 @@ type PrefixOption struct {
 }
 
 // Format implements `Option` interface.
-func (option *PrefixOption) Format(_ *Data, str string) (string, error) {
-	return option.value.Get() + str, nil
+func (option *PrefixOption) Format(_ *Data, val any) (any, error) {
+	return option.value.Get() + toString(val), nil
 }
 
 // Prefix creates the option to add a prefix to the text.

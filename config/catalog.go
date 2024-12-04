@@ -172,6 +172,11 @@ func convertToTerragruntCatalogConfig(ctx *ParsingContext, configPath string, te
 		terragruntConfig.SetFieldMetadata(MetadataExclude, defaultMetadata)
 	}
 
+	if terragruntConfigFromFile.Errors != nil {
+		terragruntConfig.Errors = terragruntConfigFromFile.Errors
+		terragruntConfig.SetFieldMetadata(MetadataErrors, defaultMetadata)
+	}
+
 	if ctx.Locals != nil && *ctx.Locals != cty.NilVal {
 		// we should ignore any errors from `parseCtyValueToMap` as some `locals` values might have been incorrectly evaluated, that results to `json.Unmarshal` error.
 		// for example if the locals block looks like `{"var1":, "var2":"value2"}`, `parseCtyValueToMap` returns the map with "var2" value and an syntax error,

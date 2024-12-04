@@ -232,7 +232,7 @@ func TestCustomLockFile(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, filepath.Dir(testFixtureCustomLockFile))
 	rootPath := util.JoinPath(tmpEnvPath, path)
 
-	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
 
 	source := "../custom-lock-file-module"
 	downloadDir := util.JoinPath(rootPath, helpers.TerragruntCache)
@@ -289,7 +289,7 @@ func TestExcludeDirs(t *testing.T) {
 		}
 
 		// Apply modules according to test cases
-		err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir %s %s", testCase.workingDir, testCase.excludeArgs), &applyAllStdout, &applyAllStderr)
+		err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s %s", testCase.workingDir, testCase.excludeArgs), &applyAllStdout, &applyAllStderr)
 
 		helpers.LogBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
 		helpers.LogBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
@@ -303,7 +303,7 @@ func TestExcludeDirs(t *testing.T) {
 			showStdout := bytes.Buffer{}
 			showStderr := bytes.Buffer{}
 
-			err = helpers.RunTerragruntCommand(t, "terragrunt show --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+modulePath, &showStdout, &showStderr)
+			err = helpers.RunTerragruntCommand(t, "terragrunt show --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+modulePath, &showStdout, &showStderr)
 			helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout for "+modulePath)
 			helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr for "+modulePath)
 
@@ -356,7 +356,7 @@ func TestIncludeDirs(t *testing.T) {
 		}
 
 		// Apply modules according to test cases
-		err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive  --terragrunt-log-level debug --terragrunt-working-dir %s %s", testCase.workingDir, testCase.includeArgs), &applyAllStdout, &applyAllStderr)
+		err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply-all --terragrunt-non-interactive  --terragrunt-log-level trace --terragrunt-working-dir %s %s", testCase.workingDir, testCase.includeArgs), &applyAllStdout, &applyAllStderr)
 
 		helpers.LogBufferContentsLineByLine(t, applyAllStdout, "apply-all stdout")
 		helpers.LogBufferContentsLineByLine(t, applyAllStderr, "apply-all stderr")
@@ -370,7 +370,7 @@ func TestIncludeDirs(t *testing.T) {
 			showStdout := bytes.Buffer{}
 			showStderr := bytes.Buffer{}
 
-			err = helpers.RunTerragruntCommand(t, "terragrunt show --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+modulePath, &showStdout, &showStderr)
+			err = helpers.RunTerragruntCommand(t, "terragrunt show --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+modulePath, &showStdout, &showStderr)
 			helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout for "+modulePath)
 			helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr for "+modulePath)
 

@@ -108,6 +108,12 @@ run_tflint_test: &run_tflint_test
     run-go-tests --packages "-tags tflint -run TestTflint ./test" | tee logs/test-results.log
   no_output_timeout: 30m
 
+run_race_test: &run_race_test
+  name: Run Race tests
+  command: |
+    run-go-tests --packages "-run '.*WithRacing' -race ./test" | tee logs/test-results.log
+  no_output_timeout: 30m
+
 run_terratest_log_parser: &run_terratest_log_parser
   name: Terratest log parser
   command: |
@@ -519,6 +525,24 @@ jobs:
       - store_test_results:
           path: logs
 
+  race_test:
+    resource_class: medium
+    <<: *defaults
+    steps:
+      - checkout
+      - run:
+          <<: *install_tofu
+      - run:
+          <<: *setup_test_environment
+      - run:
+          <<: *run_race_test
+      - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
   run_markdownlint:
     <<: *defaults
     steps:
@@ -712,6 +736,14 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
       - test_mocks:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+      - race_test:
           filters:
             tags:
               only: /^v.*/

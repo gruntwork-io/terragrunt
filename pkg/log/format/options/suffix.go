@@ -8,8 +8,8 @@ type SuffixOption struct {
 }
 
 // Format implements `Option` interface.
-func (option *SuffixOption) Format(_ *Data, str string) (string, error) {
-	return str + option.value.Get(), nil
+func (option *SuffixOption) Format(_ *Data, val any) (any, error) {
+	return toString(val) + option.value.Get(), nil
 }
 
 // Suffix creates the option to add a suffix to the text.

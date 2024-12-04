@@ -181,7 +181,7 @@ func handleIncludeForDependency(ctx *ParsingContext, childDecodedDependency Terr
 		}
 
 		includedPartialParse, err := partialParseIncludedConfig(
-			ctx.WithDecodeList(DependencyBlock, FeatureFlagsBlock, ExcludeBlock), &includeConfig)
+			ctx.WithDecodeList(DependencyBlock, FeatureFlagsBlock, ExcludeBlock, ErrorsBlock), &includeConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -269,6 +269,10 @@ func (cfg *TerragruntConfig) Merge(sourceConfig *TerragruntConfig, terragruntOpt
 
 	if sourceConfig.Exclude != nil {
 		cfg.Exclude = sourceConfig.Exclude.Clone()
+	}
+
+	if sourceConfig.Errors != nil {
+		cfg.Errors = sourceConfig.Errors.Clone()
 	}
 
 	if sourceConfig.RemoteState != nil {
@@ -401,6 +405,14 @@ func (cfg *TerragruntConfig) DeepMerge(sourceConfig *TerragruntConfig, terragrun
 		}
 
 		cfg.Exclude.Merge(sourceConfig.Exclude)
+	}
+
+	if sourceConfig.Errors != nil {
+		if cfg.Errors == nil {
+			cfg.Errors = &ErrorsConfig{}
+		}
+
+		cfg.Errors.Merge(sourceConfig.Errors)
 	}
 
 	if sourceConfig.Skip != nil {

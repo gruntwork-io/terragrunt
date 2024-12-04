@@ -93,7 +93,7 @@ func TestTerragruntLogSopsErrors(t *testing.T) {
 	testPath := util.JoinPath(tmpEnvPath, testFixtureSopsErrors)
 
 	// apply and check for errors
-	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+testPath)
+	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+testPath)
 	require.Error(t, err)
 
 	assert.Contains(t, errorOut, "error decrypting key: [error decrypting key")
@@ -108,7 +108,7 @@ func TestSopsDecryptOnMissing(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureSopsMissing)
 
 	// apply and check for errors
-	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir "+rootPath)
+	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
 	require.Error(t, err)
 
 	assert.Contains(t, errorOut, "Encountered error while evaluating locals in file ./terragrunt.hcl")

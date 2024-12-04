@@ -228,3 +228,19 @@ func SplitUrls(s, sep string) []string {
 func SplitComma(s, sep string) []string {
 	return strings.Split(s, sep)
 }
+
+// MergeStringSlices combines two string slices removing duplicates
+func MergeStringSlices(a, b []string) []string {
+	seen := make(map[string]struct{})
+	result := make([]string, 0, len(a)+len(b))
+
+	for _, s := range append(a, b...) {
+		if _, exists := seen[s]; !exists {
+			seen[s] = struct{}{}
+
+			result = append(result, s)
+		}
+	}
+
+	return result
+}

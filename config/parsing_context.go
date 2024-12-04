@@ -27,9 +27,6 @@ type ParsingContext struct {
 	// Features are the feature flags that are enabled for the current terragrunt config.
 	Features *cty.Value
 
-	// Exclude is the configuration for excluding certain terragrunt configurations.
-	Exclude *cty.Value
-
 	// DecodedDependencies are references of other terragrunt config. This contains the following attributes that map to
 	// various fields related to that config:
 	// - outputs: The map of outputs from the terraform state obtained by running `terragrunt output` on that target config.

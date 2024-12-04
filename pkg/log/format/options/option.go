@@ -20,7 +20,7 @@ type Option interface {
 	// Name returns the name of the option.
 	Name() string
 	// Format formats the given string.
-	Format(data *Data, str string) (string, error)
+	Format(data *Data, val any) (any, error)
 	// ParseValue parses and sets the value of the option.
 	ParseValue(str string) error
 }
@@ -76,15 +76,15 @@ func (opts Options) Merge(withOpts ...Option) Options {
 }
 
 // Format returns the formatted value.
-func (opts Options) Format(data *Data, str string) (string, error) {
+func (opts Options) Format(data *Data, val any) (string, error) {
 	var err error
 
 	for _, opt := range opts {
-		str, err = opt.Format(data, str)
-		if str == "" || err != nil {
+		val, err = opt.Format(data, val)
+		if val == "" || err != nil {
 			return "", err
 		}
 	}
 
-	return str, nil
+	return toString(val), nil
 }

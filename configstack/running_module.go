@@ -140,7 +140,7 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 
 			stdout := bytes.Buffer{}
 			jsonOptions.ForwardTFStdout = true
-			jsonOptions.TerraformLogsToJSON = false
+			jsonOptions.JSONLogFormat = false
 			jsonOptions.Writer = &stdout
 			jsonOptions.TerraformCommand = terraform.CommandNameShow
 			jsonOptions.TerraformCliArgs = []string{terraform.CommandNameShow, "-json", module.Module.planFile(rootOptions)}

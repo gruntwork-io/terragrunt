@@ -38,7 +38,7 @@ func checkForErrorsAndExit(logger log.Logger, exitCode int) func(error) {
 			os.Exit(exitCode)
 		} else {
 			logger.Error(err.Error())
-			logger.Debug(errors.ErrorStack(err))
+			logger.Trace(errors.ErrorStack(err))
 
 			// exit with the underlying error code
 			exitCoder, exitCodeErr := util.GetExitCode(err)

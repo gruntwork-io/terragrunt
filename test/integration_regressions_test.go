@@ -24,7 +24,7 @@ func TestNoAutoInit(t *testing.T) {
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply --terragrunt-no-auto-init --terragrunt-log-level debug --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply --terragrunt-no-auto-init --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &stdout, &stderr)
 	helpers.LogBufferContentsLineByLine(t, stdout, "no force apply stdout")
 	helpers.LogBufferContentsLineByLine(t, stderr, "no force apply stderr")
 	require.Error(t, err)
@@ -67,21 +67,21 @@ func TestMockOutputsMergeWithState(t *testing.T) {
 	modulePath := util.JoinPath(rootPath, "module")
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, "terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir "+modulePath, &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply --terragrunt-log-level trace --terragrunt-non-interactive -auto-approve --terragrunt-working-dir "+modulePath, &stdout, &stderr)
 	helpers.LogBufferContentsLineByLine(t, stdout, "module-executed")
 	require.NoError(t, err)
 
 	deepMapPath := util.JoinPath(rootPath, "deep-map")
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
-	err = helpers.RunTerragruntCommand(t, "terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir "+deepMapPath, &stdout, &stderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt apply --terragrunt-log-level trace --terragrunt-non-interactive -auto-approve --terragrunt-working-dir "+deepMapPath, &stdout, &stderr)
 	helpers.LogBufferContentsLineByLine(t, stdout, "deep-map-executed")
 	require.NoError(t, err)
 
 	shallowPath := util.JoinPath(rootPath, "shallow")
 	stdout = bytes.Buffer{}
 	stderr = bytes.Buffer{}
-	err = helpers.RunTerragruntCommand(t, "terragrunt apply --terragrunt-log-level debug --terragrunt-non-interactive -auto-approve --terragrunt-working-dir "+shallowPath, &stdout, &stderr)
+	err = helpers.RunTerragruntCommand(t, "terragrunt apply --terragrunt-log-level trace --terragrunt-non-interactive -auto-approve --terragrunt-working-dir "+shallowPath, &stdout, &stderr)
 	helpers.LogBufferContentsLineByLine(t, stdout, "shallow-map-executed")
 	require.NoError(t, err)
 }

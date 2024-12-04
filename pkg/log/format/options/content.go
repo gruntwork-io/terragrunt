@@ -8,12 +8,12 @@ type ContentOption struct {
 }
 
 // Format implements `Option` interface.
-func (option *ContentOption) Format(_ *Data, str string) (string, error) {
+func (option *ContentOption) Format(_ *Data, val any) (any, error) {
 	if val := option.value.Get(); val != "" {
 		return val, nil
 	}
 
-	return str, nil
+	return val, nil
 }
 
 // Content creates the option that sets the content.

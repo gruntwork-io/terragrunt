@@ -35,7 +35,7 @@ var LocalEngineBinaryPath = "terragrunt-iac-engine-opentofu_rpc_" + testEngineVe
 func TestEngineLocalPlan(t *testing.T) {
 	rootPath := setupLocalEngine(t)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s --terragrunt-log-level debug", rootPath))
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt plan --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s --terragrunt-log-level trace", rootPath))
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, LocalEngineBinaryPath)
@@ -225,7 +225,7 @@ func TestEngineLogLevel(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureOpenTofuLatestRunAll)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureOpenTofuLatestRunAll)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s --terragrunt-log-level debug", rootPath))
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir %s --terragrunt-log-level trace", rootPath))
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "level=debug")
 	assert.Contains(t, stderr, "[DEBUG] terragrunt-iac-engine-opentofu_rpc")

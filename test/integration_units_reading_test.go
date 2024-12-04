@@ -132,7 +132,7 @@ func TestUnitsReading(t *testing.T) {
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureUnitsReading)
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureUnitsReading)
 
-			cmd := "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir " + rootPath
+			cmd := "terragrunt run-all plan --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir " + rootPath
 
 			for _, unit := range tt.unitsReading {
 				cmd = cmd + " --terragrunt-queue-include-units-reading " + unit

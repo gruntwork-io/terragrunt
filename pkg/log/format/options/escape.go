@@ -25,18 +25,18 @@ type EscapeOption struct {
 }
 
 // Format implements `Option` interface.
-func (option *EscapeOption) Format(_ *Data, str string) (string, error) {
+func (option *EscapeOption) Format(_ *Data, val any) (any, error) {
 	if option.value.Get() != JSONEscape {
-		return str, nil
+		return val, nil
 	}
 
-	b, err := json.Marshal(str)
+	jsonStr, err := json.Marshal(val)
 	if err != nil {
 		return "", errors.New(err)
 	}
 
 	// Trim the beginning and trailing " character.
-	return string(b[1 : len(b)-1]), nil
+	return string(jsonStr[1 : len(jsonStr)-1]), nil
 }
 
 // Escape creates the option to escape text.
