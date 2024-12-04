@@ -1297,7 +1297,7 @@ Consider using this for units that are expensive to continuously update, and can
 The `errors` block contains all the configurations for handling errors. Each configuration block, such as `retry` and `ignore`,
 is nested within the `errors` block to define specific error-handling strategies.
 
-**Retry Configuration**
+Retry Configuration:
 
 The `retry` block within the `errors` block defines rules for retrying operations when specific errors occur.
 This is useful for handling intermittent errors that may resolve after a short delay or multiple attempts.
@@ -1323,7 +1323,7 @@ Parameters:
 - `sleep_interval_sec`: Time (in seconds) to wait between retries.
   - Example: `10` seconds.
 
-**Ignore Configuration**
+Ignore Configuration:
 
 The `ignore` block within the `errors` block defines rules for ignoring specific errors. This is useful when certain
 errors are known to be safe and should not halt operations.
@@ -1368,7 +1368,7 @@ If an error occurs and the author of the unit has signaled `safe_to_revert = tru
 
 This approach ensures consistent and automated error handling in complex pipelines.
 
-**Combined Example**
+Combined Example:
 
 Below is a combined example showcasing both retry and ignore configurations within the `errors` block.
 
@@ -1401,7 +1401,8 @@ Notes:
 - The `retry` block is prioritized over legacy retry fields (`retryable_errors`, `retry_max_attempts`, `retry_sleep_interval_sec`).
 - Conditional logic can be used within `ignorable_errors` to enable or disable rules dynamically.
 
-**Evaluation Order**
+Evaluation Order:
+
 When processing errors, the **ignore** blocks are evaluated first. If an error matches an ignore rule, it is suppressed
 and will not trigger a retry. After all ignore rules are evaluated, the **retry** blocks are applied to handle errors
 that were not ignored. This ensures precise control over error-handling behavior.
