@@ -841,7 +841,7 @@ type ErrorsConfig struct {
 // RetryConfig represents the configuration for retrying specific errors.
 type RetryConfig struct {
 	Name             string
-	RetryableErrors  []*regexp.Regexp
+	RetryableErrors  []*ErrorsPattern
 	MaxAttempts      int
 	SleepIntervalSec int
 }
@@ -849,9 +849,14 @@ type RetryConfig struct {
 // IgnoreConfig represents the configuration for ignoring specific errors.
 type IgnoreConfig struct {
 	Name            string
-	IgnorableErrors []*regexp.Regexp
+	IgnorableErrors []*ErrorsPattern
 	Message         string
 	Signals         map[string]interface{}
+}
+
+type ErrorsPattern struct {
+	Pattern  *regexp.Regexp
+	Negative bool
 }
 
 func cloneErrorsConfig(config *ErrorsConfig) *ErrorsConfig {
@@ -872,7 +877,7 @@ func cloneErrorsConfig(config *ErrorsConfig) *ErrorsConfig {
 				Name:             retryConfig.Name,
 				MaxAttempts:      retryConfig.MaxAttempts,
 				SleepIntervalSec: retryConfig.SleepIntervalSec,
-				RetryableErrors:  make([]*regexp.Regexp, len(retryConfig.RetryableErrors)),
+				RetryableErrors:  make([]*ErrorsPattern, len(retryConfig.RetryableErrors)),
 			}
 			// Deep copy the RetryableErrors slice
 			copy(cloned.Retry[key].RetryableErrors, retryConfig.RetryableErrors)
@@ -885,7 +890,7 @@ func cloneErrorsConfig(config *ErrorsConfig) *ErrorsConfig {
 			cloned.Ignore[key] = &IgnoreConfig{
 				Name:            ignoreConfig.Name,
 				Message:         ignoreConfig.Message,
-				IgnorableErrors: make([]*regexp.Regexp, len(ignoreConfig.IgnorableErrors)),
+				IgnorableErrors: make([]*ErrorsPattern, len(ignoreConfig.IgnorableErrors)),
 				Signals:         make(map[string]interface{}),
 			}
 			// Deep copy the IgnorableErrors slice
@@ -1042,11 +1047,12 @@ func (c *ErrorsConfig) ProcessError(err error, currentAttempt int) (*ErrorAction
 }
 
 // matchesAnyRegexpPattern checks if the input string matches any of the provided compiled patterns
-func matchesAnyRegexpPattern(input string, patterns []*regexp.Regexp) bool {
+func matchesAnyRegexpPattern(input string, patterns []*ErrorsPattern) bool {
 	for _, pattern := range patterns {
-		matched := pattern.MatchString(input)
+		isNegative := pattern.Negative
+		matched := pattern.Pattern.MatchString(input)
 		if matched {
-			return matched
+			return !isNegative
 		}
 	}
 
