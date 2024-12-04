@@ -95,6 +95,7 @@ const (
 	testFixtureReadConfig                     = "fixtures/read-config"
 	testFixtureRefSource                      = "fixtures/download/remote-ref"
 	testFixtureSkip                           = "fixtures/skip/"
+	testFixtureSkipLegacyRoot                 = "fixtures/skip-legacy-root/"
 	testFixtureSkipDependencies               = "fixtures/skip-dependencies"
 	testFixtureSourceMapSlashes               = "fixtures/source-map/slashes-in-ref"
 	testFixtureStack                          = "fixtures/stack/"
@@ -1085,6 +1086,48 @@ func TestTerragruntExcludeExternalDependencies(t *testing.T) {
 
 	assert.Contains(t, applyAllStdoutString, "Hello World, "+includedModule)
 	assert.NotContains(t, applyAllStdoutString, "Hello World, "+excludedModule)
+}
+
+func TestApplySkipTrue(t *testing.T) {
+	t.Parallel()
+
+	rootPath := helpers.CopyEnvironment(t, testFixtureSkipLegacyRoot)
+	rootPath = util.JoinPath(rootPath, testFixtureSkipLegacyRoot, "skip-true")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := helpers.RunTerragruntCommand(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-log-level info --terragrunt-non-interactive --terragrunt-working-dir %s --var person=Hobbs", rootPath), &showStdout, &showStderr)
+	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
+	helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	stdout := showStdout.String()
+	stderr := showStderr.String()
+
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "Skipping terragrunt module ./terragrunt.hcl due to skip = true.")
+	assert.NotContains(t, stdout, "hello, Hobbs")
+}
+
+func TestApplySkipFalse(t *testing.T) {
+	t.Parallel()
+
+	rootPath := helpers.CopyEnvironment(t, testFixtureSkipLegacyRoot)
+	rootPath = util.JoinPath(rootPath, testFixtureSkipLegacyRoot, "skip-false")
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-forward-tf-stdout --terragrunt-working-dir "+rootPath, &showStdout, &showStderr)
+	helpers.LogBufferContentsLineByLine(t, showStdout, "show stdout")
+	helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	stderr := showStderr.String()
+	stdout := showStdout.String()
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "hello, Hobbs")
+	assert.NotContains(t, stderr, "Skipping terragrunt module")
 }
 
 func TestApplyAllSkipTrue(t *testing.T) {

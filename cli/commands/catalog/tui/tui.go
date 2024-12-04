@@ -18,7 +18,7 @@ func Run(ctx context.Context, modules module.Modules, opts *options.TerragruntOp
 		if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
 			warn, triggered, err := control.Evaluate(opts)
 			if err != nil {
-				opts.ScaffoldRootFileName = config.RecommendedParentConfigPath
+				opts.ScaffoldRootFileName = config.RecommendedParentConfigName
 			}
 
 			if !triggered {
