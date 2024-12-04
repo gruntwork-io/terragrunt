@@ -186,8 +186,18 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, moduleURL, templa
 
 	vars["sourceUrl"] = moduleURL
 
-	vars["EnableRootInclude"] = !opts.ScaffoldNoIncludeRoot
-	vars["RootFileName"] = opts.ScaffoldRootFileName
+	// Only set these if the `vars` map doesn't already have them set
+	if _, found := vars["EnableRootInclude"]; !found {
+		vars["EnableRootInclude"] = !opts.ScaffoldNoIncludeRoot
+	} else {
+		opts.Logger.Warnf("The EnableRootInclude variable is already set in the var flag(s). The --%s flag will be ignored.", NoIncludeRoot)
+	}
+
+	if _, found := vars["RootFileName"]; !found {
+		vars["RootFileName"] = opts.ScaffoldRootFileName
+	} else {
+		opts.Logger.Warnf("The RootFileName variable is already set in the var flag(s). The --%s flag will be ignored.", RootFileName)
+	}
 
 	opts.Logger.Infof("Running boilerplate generation to %s", opts.WorkingDir)
 	boilerplateOpts := &boilerplate_options.BoilerplateOptions{
