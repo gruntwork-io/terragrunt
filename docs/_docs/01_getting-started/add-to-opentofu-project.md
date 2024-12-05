@@ -23,7 +23,7 @@ Depending on why you're looking to adopt Terragrunt, this may be all you need to
 
 With just this empty file, you've already made it so that you no longer need to run `tofu init` or `terraform init` before running `tofu apply` or `terraform apply`. Terragrunt will automatically run `init` for you if necessary. This is a feature called [Auto-init](/docs/features/auto-init/).
 
-This might not be very impressive so far, so you may be wondering _why_ one might want to start using Terragrunt to manage their OpenTofu/Terraform projects. A quick overview of the main benefits of using Terragrunt are covered in the [Quick start](/docs/getting-started/quick-start/), and there is a comprehensive list of features in the [Features](/docs/features/) section.
+This might not be very impressive so far, so you may be wondering _why_ one might want to start using Terragrunt to manage their OpenTofu/Terraform projects. A quick overview of the main benefits of using Terragrunt are covered in the [Quick start](/docs/getting-started/quick-start/), and there is a comprehensive list of features in the [Features](/docs#features) section.
 
 ## Tutorial
 
@@ -457,6 +457,6 @@ Terragrunt was spawned organically out of supporting Gruntwork customers using T
 
 Hopefully, following this simple tutorial has given you confidence in integrating Terragrunt into your existing OpenTofu/Terraform projects. Starting small, and gradually introducing more complex Terragrunt features is a great way to learn how Terragrunt can help you manage your infrastructure more effectively.
 
-There are many more features and capabilities in Terragrunt. You can find more information on them in the [Features](/docs/features/) section of the documentation.
+There are many more features and capabilities in Terragrunt. You can find more information on them in the [Features](/docs#features) section of the documentation.
 
 If you need help with a particular problem, take a look at the resources available to you in the [Support](/docs/community/support/) section.
