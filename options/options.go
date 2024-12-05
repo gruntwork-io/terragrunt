@@ -1051,6 +1051,7 @@ func matchesAnyRegexpPattern(input string, patterns []*ErrorsPattern) bool {
 	for _, pattern := range patterns {
 		isNegative := pattern.Negative
 		matched := pattern.Pattern.MatchString(input)
+
 		if matched {
 			return !isNegative
 		}

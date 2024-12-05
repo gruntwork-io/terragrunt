@@ -1470,6 +1470,7 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 				return nil, fmt.Errorf("invalid retry pattern %q in block %q: %w",
 					pattern, retryBlock.Label, err)
 			}
+
 			compiledPatterns = append(compiledPatterns, value)
 		}
 
@@ -1527,11 +1528,14 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 func errorsPattern(pattern string) (*options.ErrorsPattern, error) {
 	isNegative := false
 	p := pattern
+
 	if len(p) > 0 && p[0] == '!' {
 		isNegative = true
 		p = p[1:]
 	}
+
 	compiled, err := regexp.Compile(p)
+
 	if err != nil {
 		return nil, err
 	}
