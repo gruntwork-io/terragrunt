@@ -1403,9 +1403,14 @@ Notes:
 
 Evaluation Order:
 
-When processing errors, the **ignore** blocks are evaluated first. If an error matches an ignore rule, it is suppressed
-and will not trigger a retry. After all ignore rules are evaluated, the **retry** blocks are applied to handle errors
-that were not ignored. This ensures precise control over error-handling behavior.
+Error handling follows a specific process:
+
+- **Ignore Rules:** Errors are checked against the **ignore** rules first. If an error matches, it is ignored and will not trigger a retry.
+
+- **Retry Rules:** Once ignore rules are applied, the **retry** rules handle any remaining errors.
+
+> **Note:**  
+> Only the **first matching rule** is applied. If there are multiple conflicting rules, any matches after the first one are ignored.
 
 ## Attributes
 
