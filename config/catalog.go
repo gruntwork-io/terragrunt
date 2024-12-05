@@ -91,8 +91,8 @@ func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOption
 
 func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (string, string, error) {
 	var (
-		configPath        = opts.ScaffoldRootFileName
-		configName        = filepath.Base(configPath)
+		configPath        = filepath.Join(filepath.Dir(opts.TerragruntConfigPath), opts.ScaffoldRootFileName)
+		configName        = opts.ScaffoldRootFileName
 		catalogConfigPath string
 	)
 

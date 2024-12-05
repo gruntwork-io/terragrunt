@@ -128,22 +128,22 @@ func TestCatalogParseConfigFile(t *testing.T) {
 		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tt := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			opts, err := options.NewTerragruntOptionsWithConfigPath(testCase.configPath)
+			opts, err := options.NewTerragruntOptionsWithConfigPath(tt.configPath)
 			require.NoError(t, err)
+
+			opts.ScaffoldRootFileName = filepath.Base(tt.configPath)
 
 			config, err := config.ReadCatalogConfig(context.Background(), opts)
 
-			if testCase.expectedErr == nil {
+			if tt.expectedErr == nil {
 				require.NoError(t, err)
-				assert.Equal(t, testCase.expectedConfig, config)
+				assert.Equal(t, tt.expectedConfig, config)
 			} else {
-				assert.EqualError(t, err, testCase.expectedErr.Error())
+				assert.EqualError(t, err, tt.expectedErr.Error())
 			}
 		})
 
