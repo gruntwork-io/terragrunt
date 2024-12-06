@@ -215,11 +215,11 @@ The final step is to update each of the child `terragrunt.hcl` files to tell the
 ``` hcl
 # stage/mysql/terragrunt.hcl
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
 }
 ```
 
-The `find_in_parent_folders()` helper will automatically search up the directory tree to find the root `terragrunt.hcl` and inherit the `remote_state` configuration from it.
+The `find_in_parent_folders("root.hcl")` helper will automatically search up the directory tree to find the root `root.hcl` file and inherit the `remote_state` configuration from it.
 
 Now, [install Terragrunt]({{site.baseurl}}/docs/getting-started/install), and run all the OpenTofu/Terraform commands you’re used to, but with `terragrunt` as the command name rather than `tofu`/`terraform` (e.g., `terragrunt apply` instead of `tofu apply`). To deploy the database module, you would run:
 

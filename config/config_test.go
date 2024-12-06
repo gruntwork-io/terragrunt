@@ -469,7 +469,7 @@ func TestParseTerragruntConfigInclude(t *testing.T) {
 include {
 	path = "../../../%s"
 }
-`, config.DefaultTerragruntConfigPath)
+`, "root.hcl")
 
 	opts := &options.TerragruntOptions{
 		TerragruntConfigPath: "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/" + config.DefaultTerragruntConfigPath,
@@ -499,7 +499,7 @@ func TestParseTerragruntConfigIncludeWithFindInParentFolders(t *testing.T) {
 
 	cfg := `
 include {
-	path = find_in_parent_folders()
+	path = find_in_parent_folders("root.hcl")
 }
 `
 
@@ -541,7 +541,7 @@ remote_state {
 		region = "override"
 	}
 }
-`, config.DefaultTerragruntConfigPath)
+`, "root.hcl")
 
 	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath)
 
@@ -589,7 +589,7 @@ remote_state {
 dependencies {
 	paths = ["override"]
 }
-`, config.DefaultTerragruntConfigPath)
+`, "root.hcl")
 
 	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath)
 
@@ -638,7 +638,7 @@ func TestParseTerragruntJsonConfigIncludeOverrideAll(t *testing.T) {
 		"paths": ["override"]
 	}
 }
-`, config.DefaultTerragruntConfigPath)
+`, "root.hcl")
 
 	opts := mockOptionsForTestWithConfigPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+config.DefaultTerragruntJSONConfigPath)
 
@@ -665,7 +665,7 @@ func TestParseTerragruntJsonConfigIncludeOverrideAll(t *testing.T) {
 func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 	t.Parallel()
 
-	configPath := "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/" + config.DefaultTerragruntConfigPath
+	configPath := "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/" + config.RecommendedParentConfigName
 
 	cfg, err := util.ReadFileAsString(configPath)
 	if err != nil {
@@ -675,12 +675,15 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 	opts := mockOptionsForTestWithConfigPath(t, configPath)
 
 	ctx := config.NewParsingContext(context.Background(), opts)
+
 	_, actualErr := config.ParseConfigString(ctx, configPath, cfg, nil)
+
 	expectedErr := config.TooManyLevelsOfInheritanceError{
 		ConfigPath:             configPath,
-		FirstLevelIncludePath:  filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.DefaultTerragruntConfigPath)),
-		SecondLevelIncludePath: filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.DefaultTerragruntConfigPath)),
+		FirstLevelIncludePath:  filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.RecommendedParentConfigName)),
+		SecondLevelIncludePath: filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.RecommendedParentConfigName)),
 	}
+
 	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)
 }
 
@@ -697,12 +700,15 @@ func TestParseTerragruntConfigThreeLevels(t *testing.T) {
 	opts := mockOptionsForTestWithConfigPath(t, configPath)
 
 	ctx := config.NewParsingContext(context.Background(), opts)
+
 	_, actualErr := config.ParseConfigString(ctx, configPath, cfg, nil)
+
 	expectedErr := config.TooManyLevelsOfInheritanceError{
 		ConfigPath:             configPath,
-		FirstLevelIncludePath:  absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.DefaultTerragruntConfigPath),
-		SecondLevelIncludePath: absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.DefaultTerragruntConfigPath),
+		FirstLevelIncludePath:  absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.RecommendedParentConfigName),
+		SecondLevelIncludePath: absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.RecommendedParentConfigName),
 	}
+
 	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)
 }
 
@@ -1051,7 +1057,6 @@ func TestFindConfigFilesIgnoresTerraformDataDir(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{
-		"../test/fixtures/config-files/ignore-terraform-data-dir/terragrunt.hcl",
 		"../test/fixtures/config-files/ignore-terraform-data-dir/.tf_data/modules/mod/terragrunt.hcl",
 		"../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
 		"../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.tf_data/modules/mod/terragrunt.hcl",
@@ -1069,7 +1074,6 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnv(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{
-		"../test/fixtures/config-files/ignore-terraform-data-dir/terragrunt.hcl",
 		"../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
 		"../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl",
 	}
@@ -1087,7 +1091,6 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvPath(t *testing.T) {
 	t.Parallel()
 
 	expected := []string{
-		"../test/fixtures/config-files/ignore-terraform-data-dir/terragrunt.hcl",
 		"../test/fixtures/config-files/ignore-terraform-data-dir/.tf_data/modules/mod/terragrunt.hcl",
 		"../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl",
 		"../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl",
@@ -1109,7 +1112,6 @@ func TestFindConfigFilesIgnoresTerraformDataDirEnvRoot(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := []string{
-		filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/terragrunt.hcl"),
 		filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/subdir/terragrunt.hcl"),
 		filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.terraform/modules/mod/terragrunt.hcl"),
 		filepath.Join(cwd, "../test/fixtures/config-files/ignore-terraform-data-dir/subdir/.tf_data/modules/mod/terragrunt.hcl"),
@@ -1241,7 +1243,7 @@ func TestIncludeFunctionsWorkInChildConfig(t *testing.T) {
 
 	cfg := `
 include {
-	path = find_in_parent_folders()
+	path = find_in_parent_folders("root.hcl")
 }
 terraform {
 	source = path_relative_to_include()

@@ -67,7 +67,7 @@ func (cfg *CatalogConfig) normalize(configPath string) {
 // config contains `include{...find_in_parent_folders()...}` block to determine if it is the root configuration.
 // If it finds `terragrunt.hcl` that already has `include`, then read that configuration as is,
 // otherwise generate a stub child `terragrunt.hcl` in memory with an `include` to pull in the one we found.
-// Unlike "RoadTerragruntConfig" func, it ignores any configuration errors not related to the "catalog" block.
+// Unlike the "ReadTerragruntConfig" func, it ignores any configuration errors not related to the "catalog" block.
 func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOptions) (*CatalogConfig, error) {
 	configPath, configString, err := findCatalogConfig(parentCtx, opts)
 	if err != nil || configPath == "" {
@@ -91,8 +91,8 @@ func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOption
 
 func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (string, string, error) {
 	var (
-		configPath        = opts.TerragruntConfigPath
-		configName        = filepath.Base(configPath)
+		configPath        = filepath.Join(filepath.Dir(opts.TerragruntConfigPath), opts.ScaffoldRootFileName)
+		configName        = opts.ScaffoldRootFileName
 		catalogConfigPath string
 	)
 
@@ -100,6 +100,7 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 		opts = &options.TerragruntOptions{
 			TerragruntConfigPath: filepath.Join(filepath.Dir(configPath), util.UniqueID(), configName),
 			MaxFoldersToCheck:    opts.MaxFoldersToCheck,
+			Logger:               opts.Logger,
 		}
 
 		// This allows to stop the process by pressing Ctrl-C, in case the loop is endless,

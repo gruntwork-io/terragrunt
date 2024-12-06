@@ -290,7 +290,7 @@ repo:
             └── terragrunt.hcl
 ```
 
-Each **root** `terragrunt.hcl` file (the one at the environment level, e.g `prod/terragrunt.hcl`) should define a
+Each **root** `root.hcl` file (the one at the environment level, e.g `prod/terragrunt.hcl`) should define a
 `generate` block to generate the AWS provider configuration to assume the role for that environment. For example,
 if you wanted to assume the role `arn:aws:iam::0123456789:role/terragrunt` in all the modules for the prod account, you
 would put the following in `prod/terragrunt.hcl`:
@@ -318,7 +318,7 @@ include this configuration using the `include` block:
 
 ```hcl
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
 }
 ```
 

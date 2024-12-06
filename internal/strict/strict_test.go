@@ -65,7 +65,8 @@ func TestStrictControl(t *testing.T) {
 			planAll, ok := strict.GetStrictControl(strict.PlanAll)
 			require.True(t, ok, "control not found")
 
-			warning, err := planAll.Evaluate(&opts)
+			// We intentionally ignore whether the control has already been triggered.
+			warning, _, err := planAll.Evaluate(&opts)
 
 			if tt.enableControl || tt.enableStrictMode {
 				assert.Empty(t, warning)

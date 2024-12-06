@@ -50,12 +50,14 @@ func replaceDeprecatedCommandFunc(terragruntCommandName, terraformCommandName st
 
 			control, ok := strict.GetStrictControl(deprecatedCommandName)
 			if ok {
-				warning, err := control.Evaluate(opts)
+				warning, triggered, err := control.Evaluate(opts)
 				if err != nil {
 					return err //nolint:wrapcheck
 				}
 
-				opts.Logger.Warn(warning)
+				if !triggered {
+					opts.Logger.Warn(warning)
+				}
 
 			} else { //nolint:wsl,whitespace
 				// This else clause should never be hit, as all the commands above are accounted for.

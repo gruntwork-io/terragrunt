@@ -1,11 +1,11 @@
 ---
 layout: collection-browser-doc
 title: Terragrunt 0.19 migration guide
-category: upgrade
-categories_url: upgrade
+category: migrate
+categories_url: migrate
 excerpt: Migration guide to upgrade to terragrunt 0.19.x
 tags: ["migration", "community"]
-order: 601
+order: 502
 nav_title: Documentation
 nav_title_link: /docs/
 ---
@@ -266,7 +266,7 @@ remote_state {
 
 # include is a block, so make sure NOT to include an equals sign
 include {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
 }
 
 # dependencies is a block, so make sure NOT to include an equals sign

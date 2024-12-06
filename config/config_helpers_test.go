@@ -249,78 +249,92 @@ func TestFindInParentFolders(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
+		name              string
 		params            []string
 		terragruntOptions *options.TerragruntOptions
 		expectedPath      string
 		expectedErr       error
 	}{
 		{
-			nil,
+			"simple-lookup",
+			[]string{"root.hcl"},
 			terragruntOptionsForTest(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/"+config.DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/"+config.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/root.hcl"),
 			nil,
 		},
 		{
-			nil,
+			"nested-lookup",
+			[]string{"root.hcl"},
 			terragruntOptionsForTest(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/"+config.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/root.hcl"),
 			nil,
 		},
 		{
-			nil,
+			"lookup-with-max-folders",
+			[]string{"root.hcl"},
 			terragruntOptionsForTestWithMaxFolders(t, "../test/fixtures/parent-folders/no-terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath, 3),
 			"",
 			config.ParentFileNotFoundError{},
 		},
 		{
-			nil,
+			"multiple-terragrunt-in-parents",
+			[]string{"root.hcl"},
 			terragruntOptionsForTest(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/"+config.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/root.hcl"),
 			nil,
 		},
 		{
-			nil,
+			"multiple-terragrunt-in-parents-under-child",
+			[]string{"root.hcl"},
 			terragruntOptionsForTest(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/root.hcl"),
 			nil,
 		},
 		{
-			nil,
+			"multiple-terragrunt-in-parents-under-sub-child",
+
+			[]string{"root.hcl"},
 			terragruntOptionsForTest(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/sub-sub-child/"+config.DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/root.hcl"),
 			nil,
 		},
 		{
+			"parent-file-that-isnt-terragrunt",
 			[]string{"foo.txt"},
 			terragruntOptionsForTest(t, "../test/fixtures/parent-folders/other-file-names/child/"+config.DefaultTerragruntConfigPath),
 			absPath(t, "../test/fixtures/parent-folders/other-file-names/foo.txt"),
 			nil,
 		},
 		{
+			"parent-file-that-isnt-terragrunt-in-another-subfolder",
 			[]string{"common/foo.txt"},
 			terragruntOptionsForTest(t, "../test/fixtures/parent-folders/in-another-subfolder/live/"+config.DefaultTerragruntConfigPath),
 			absPath(t, "../test/fixtures/parent-folders/in-another-subfolder/common/foo.txt"),
 			nil,
 		},
 		{
+			"parent-file-that-isnt-terragrunt-in-another-subfolder-with-params",
 			[]string{"tfwork"},
 			terragruntOptionsForTest(t, "../test/fixtures/parent-folders/with-params/tfwork/tg/"+config.DefaultTerragruntConfigPath),
 			absPath(t, "../test/fixtures/parent-folders/with-params/tfwork"),
 			nil,
 		},
 		{
+			"not-found",
 			nil,
 			terragruntOptionsForTest(t, "/"),
 			"",
 			config.ParentFileNotFoundError{},
 		},
 		{
+			"not-found-with-path",
 			nil,
 			terragruntOptionsForTest(t, "/fake/path"),
 			"",
 			config.ParentFileNotFoundError{},
 		},
 		{
+			"fallback",
 			[]string{"foo.txt", "fallback.txt"},
 			terragruntOptionsForTest(t, "/fake/path"),
 			"fallback.txt",
@@ -331,7 +345,7 @@ func TestFindInParentFolders(t *testing.T) {
 	for _, tt := range tc {
 		tt := tt
 
-		t.Run(tt.terragruntOptions.TerragruntConfigPath, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			ctx := config.NewParsingContext(context.Background(), tt.terragruntOptions)
@@ -373,21 +387,21 @@ func TestResolveTerragruntInterpolation(t *testing.T) {
 			"",
 		},
 		{
-			"terraform { source = find_in_parent_folders() }",
+			"terraform { source = find_in_parent_folders(\"root.hcl\") }",
 			nil,
 			terragruntOptionsForTest(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath),
-			absPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/"+config.DefaultTerragruntConfigPath),
+			absPath(t, "../test/fixtures/parent-folders/terragrunt-in-root/root.hcl"),
 			"",
 		},
 		{
-			"terraform { source = find_in_parent_folders() }",
+			"terraform { source = find_in_parent_folders(\"root.hcl\") }",
 			nil,
 			terragruntOptionsForTestWithMaxFolders(t, "../test/fixtures/parent-folders/terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath, 1),
 			"",
 			"ParentFileNotFoundError",
 		},
 		{
-			"terraform { source = find_in_parent_folders() }",
+			"terraform { source = find_in_parent_folders(\"root.hcl\") }",
 			nil,
 			terragruntOptionsForTestWithMaxFolders(t, "../test/fixtures/parent-folders/no-terragrunt-in-root/child/sub-child/"+config.DefaultTerragruntConfigPath, 3),
 			"",

@@ -73,7 +73,7 @@ func TestTerragruntWorksWithIncludeShallowMerge(t *testing.T) {
 	s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 	defer helpers.DeleteS3Bucket(t, helpers.TerraformRemoteStateS3Region, s3BucketName)
 
-	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigWithParentAndChild(t, includeFixturePath, includeShallowFixturePath, s3BucketName, config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath)
+	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigWithParentAndChild(t, includeFixturePath, includeShallowFixturePath, s3BucketName, "root.hcl", config.DefaultTerragruntConfigPath)
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
 	validateIncludeRemoteStateReflection(t, s3BucketName, includeShallowFixturePath, tmpTerragruntConfigPath, childPath)
@@ -88,7 +88,7 @@ func TestTerragruntWorksWithIncludeNoMerge(t *testing.T) {
 	// We deliberately pick an s3 bucket name that is invalid, as we don't expect to create this s3 bucket.
 	s3BucketName := "__INVALID_NAME__"
 
-	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigWithParentAndChild(t, includeFixturePath, includeNoMergeFixturePath, s3BucketName, config.DefaultTerragruntConfigPath, config.DefaultTerragruntConfigPath)
+	tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigWithParentAndChild(t, includeFixturePath, includeNoMergeFixturePath, s3BucketName, "root.hcl", config.DefaultTerragruntConfigPath)
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-config %s --terragrunt-working-dir %s", tmpTerragruntConfigPath, childPath))
 	validateIncludeRemoteStateReflection(t, s3BucketName, includeNoMergeFixturePath, tmpTerragruntConfigPath, childPath)

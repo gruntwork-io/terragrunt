@@ -24,7 +24,7 @@ nav_title_link: /docs/
 As covered in [Keep your OpenTofu/Terraform code DRY]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry) and [Keep your
 remote state configuration DRY]({{site.baseurl}}/docs/features/keep-your-remote-state-configuration-dry), it becomes
 important to define base Terragrunt configuration files that are included in the child config. For example, you might
-have a **root** Terragrunt configuration that defines the remote state and provider configurations:
+have a **root** Terragrunt configuration in a file named `root.hcl` that defines the remote state and provider configurations:
 
 ```hcl
 remote_state {
@@ -56,7 +56,7 @@ infrastructure module you need to deploy:
 
 ```hcl
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
 }
 ```
 
@@ -67,7 +67,7 @@ each one (an app, a MySQL database, and a VPC):
 
 ```tree
 └── live
-    ├── terragrunt.hcl
+    ├── root.hcl
     ├── prod
     │   ├── app
     │   │   └── terragrunt.hcl
@@ -105,7 +105,7 @@ Suppose your `qa/app/terragrunt.hcl` configuration looks like the following:
 
 ```hcl
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
 }
 
 terraform {
@@ -194,7 +194,7 @@ environment configuration:
 
 ```hcl
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
 }
 
 include "env" {
@@ -228,7 +228,7 @@ the following:
 
 ```hcl
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
 }
 
 include "env" {
@@ -263,7 +263,7 @@ repeat the module source:
 
 ```hcl
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
 }
 
 include "env" {
@@ -398,7 +398,7 @@ Now we can clean up the child config to eliminate the `env` input variable since
 
 ```hcl
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
 }
 
 include "env" {
