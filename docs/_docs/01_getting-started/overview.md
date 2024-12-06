@@ -208,7 +208,6 @@ In this example, Terragrunt is being configured to pass in a bunch of variables 
 
 Under the hood, what happens here is that Terragrunt sets relevant `TF_VAR_` prefixed environment variables, which are automatically detected by OpenTofu/Terraform as values for variables defined in `.tf` files.
 
-
 #### Further Reading
 
 You can learn more about all the configuration blocks and attributes available in Terragrunt in the [reference documentation](/docs/reference/config-blocks-and-attributes/).
@@ -335,7 +334,6 @@ inputs = {
 ```
 
 If you tried to run `terragrunt plan` in that new `ec2` directory, you'd get an error that looked like this:
-
 
 ```bash
 $ terragrunt plan
@@ -532,7 +530,7 @@ This is a simple example, but as you build out more complex stacks of infrastruc
 
 Go ahead and answer `y` to the prompt to allow destruction to proceed, and notice that the logging has also changed slightly:
 
-```
+```logs
 16:33:28.820 STDOUT [ec2] tofu: aws_instance.this[0]: Destruction complete after 1m11s
 16:33:28.936 STDOUT [ec2] tofu:
 16:33:28.936 STDOUT [ec2] tofu: Destroy complete! Resources: 1 destroyed.
@@ -641,13 +639,13 @@ Say, for example, you wanted to provision the same resources you've provisioned 
 With Terragrunt, that's pretty easy to achieve. You would first create a `us-east-1` directory like so:
 
 ```bash
-$ mkdir us-east-1
+mkdir us-east-1
 ```
 
 Then move the contents you have in the `vpc` and `ec2` directories into the `us-east-1` directory:
 
 ```bash
-$ mv vpc/ ec2/ us-east-1/
+mv vpc/ ec2/ us-east-1/
 ```
 
 Remember that now you'll need to migrate state, as changing the location of the units in the filesystem will result in a change in the remote state path:
@@ -655,7 +653,7 @@ Remember that now you'll need to migrate state, as changing the location of the 
 (In production scenarios, you likely want to carefully manage state by migrating over one unit at a time, but for the sake of this tutorial, you can learn about this shortcut)
 
 ```bash
-$ terragrunt run-all init -migrate-state
+terragrunt run-all init -migrate-state
 ```
 
 We want the AWS region used by our units to be determined dynamically, so we can add a configuration file to the `us-east-1` directory that looks like this:
@@ -775,8 +773,8 @@ locals {
 Then run the `terragrunt run-all apply` command in the `us-west-2` directory.
 
 ```bash
-$ cd us-west-2
-$ terragrunt run-all apply
+cd us-west-2
+terragrunt run-all apply
 ```
 
 You should see the VPC and EC2 instances being provisioned in the `us-west-2` region.
