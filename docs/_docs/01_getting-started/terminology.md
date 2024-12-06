@@ -4,7 +4,7 @@ title: Terminology
 category: getting-started
 excerpt: Quickly understand commonly use terms in Terragrunt.
 tags: ["terminology", "glossary"]
-order: 102
+order: 104
 nav_title: Documentation
 nav_title_link: /docs/
 ---

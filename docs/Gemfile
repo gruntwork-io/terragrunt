@@ -27,3 +27,5 @@ gem "nokogiri", "1.16.5", group: :jekyll_plugins
 gem "mini_portile2", "2.8.5", group: :jekyll_plugins
 
 gem "webrick", "~> 1.8"
+
+gem 'html-proofer', "5.0.9"

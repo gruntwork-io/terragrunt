@@ -1,580 +1,476 @@
 ---
 layout: collection-browser-doc
-title: Quick start
+title: Quick Start
 category: getting-started
-excerpt: Learn how to start with Terragrunt.
-tags: ["Quick Start", "DRY", "backend", "CLI"]
-order: 100
+excerpt: Start using Terragrunt today!
+tags: ["tofu", "opentofu", "terraform", "tf"]
+order: 101
 nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Introduction
+## Install Terragrunt
 
-Terragrunt is a flexible orchestration tool that allows Infrastructure as Code written in OpenTofu/Terraform to scale.
+If you haven't already installed Terragrunt, you can do so by following the instructions in the [Install Terragrunt]({{site.baseurl}}/docs/getting-started/install/) guide.
 
-To use it, you:
+## Add `terragrunt.hcl` to your project
 
-1. Install [OpenTofu](https://opentofu.org/docs/intro/install/) or [Terraform](https://learn.hashicorp.com/terraform/getting-started/install).
-
-2. [Install Terragrunt]({{site.baseurl}}/docs/getting-started/install/).
-
-3. Put your Terragrunt configuration in a `terragrunt.hcl` file. You’ll see several example configurations shortly.
-
-4. Now, instead of running `tofu` or `terraform` directly, you run the same commands with `terragrunt`:
-
-<!-- end list -->
+If you are currently using OpenTofu or Terraform, and you want to start using Terragrunt in your project, simply run the following where your OpenTofu project is located:
 
 ```shell
-terragrunt plan
-terragrunt apply
-terragrunt output
-terragrunt destroy
+touch terragrunt.hcl
 ```
 
-Terragrunt will forward almost all commands, arguments, and options directly to OpenTofu/Terraform, with adjustments made based on the settings in your `terragrunt.hcl` file.
+This creates an empty Terragrunt configuration file in the directory where you are using OpenTofu. You can now start using `terragrunt` instead of `tofu` or `terraform` to run your OpenTofu/Terraform commands as if you were simply using OpenTofu or Terraform.
 
-## Example
+Depending on why you're looking to adopt Terragrunt, this may be all you need to do!
 
-Here is an example configuration you can use to get started. The following configuration can be used to deploy the
-[terraform-aws-modules/vpc](https://registry.terraform.io/modules/terraform-aws-modules/vpc/aws/latest) module from the
-[Terraform Registry](https://registry.terraform.io/):
+With just this empty file, you've already made it so that you no longer need to run `tofu init` or `terraform init` before running `tofu apply` or `terraform apply`. Terragrunt will automatically run `init` for you if necessary. This is a feature called [Auto-init](/docs/features/auto-init/).
 
-### terragrunt.hcl
+This might not be very impressive so far, so you may be wondering _why_ one might want to start using Terragrunt to manage their OpenTofu/Terraform projects. A quick overview of the main benefits of using Terragrunt are covered in the [Quick start](/docs/getting-started/quick-start/), and there is a comprehensive list of features in the [Features](/docs#features) section.
+
+## Tutorial
+
+What follows is a gentle step-by-step guide to integrating Terragrunt to an existing OpenTofu/Terraform project.
+
+For the sake of this tutorial, a minimal set of OpenTofu configurations will be used so that you can follow along. Following these steps will give you an idea of how to integrate Terragrunt into an existing project, even if yours is more complex.
+
+This tutorial will assume the following:
+
+1. You have OpenTofu [installed](https://opentofu.org/docs/intro/install/).
+2. You have a basic understanding of OpenTofu or Terraform.
+3. You are using a Unix-like operating system.
+
+This tutorial will not assume the following:
+
+1. You have any subscriptions to any cloud providers.
+2. You have any experience with Terragrunt.
+3. You have any existing Terragrunt, OpenTofu or Terraform projects.
+
+If you would like a less gentle introduction geared towards with an active AWS account, familiarity with OpenTofu/Terraform, and potentially a team actively using Terragrunt, consider starting with the [Overview](/docs/getting-started/overview/).
+
+If you start to feel lost, or don't understand a concept, consider reading the [Terminology](/docs/getting-started/terminology/) page before continuing with this tutorial. It has a brief overview of most of the common terms used when discussing Terragrunt.
+
+### Step 1: Create a new Terragrunt project
+
+Let's say you have the following `main.tf` in directory `foo`:
 
 ```hcl
-# Indicate where to source the terraform module from.
-# The URL used here is a shorthand for
-# "tfr://registry.terraform.io/terraform-aws-modules/vpc/aws?version=5.8.1".
-# Note the extra `/` after the protocol is required for the shorthand
-# notation.
-terraform {
-  source = "tfr:///terraform-aws-modules/vpc/aws?version=5.8.1"
-}
-
-# Indicate what region to deploy the resources into
-generate "provider" {
-  path = "provider.tf"
-  if_exists = "overwrite_terragrunt"
-  contents = <<EOF
-provider "aws" {
-  region = "us-east-1"
-}
-EOF
-}
-
-# Indicate the input values to use for the variables of the module.
-inputs = {
-  name = "my-vpc"
-  cidr = "10.0.0.0/16"
-
-  azs             = ["us-east-1a", "us-east-1b", "us-east-1c"]
-  private_subnets = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
-  public_subnets  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
-
-  enable_nat_gateway = true
-  enable_vpn_gateway = false
-
-  tags = {
-    IAC = "true"
-    Environment = "dev"
-  }
+# foo/main.tf
+resource "local_file" "file" {
+  content  = "Hello, World!"
+  filename = "${path.module}/hi.txt"
 }
 ```
 
-In the configuration, the `terraform` block is used to configure how Terragrunt will interact with OpenTofu/Terraform. You can
-configure things like before and after hooks for indicating custom commands to run before and after each terraform call,
-or what CLI args to pass in for each commands. Here we only use it to indicate where terragrunt should fetch the
-terraform code using the `source` attribute. We indicate that terragrunt should fetch the code from the
-`terraform-aws-modules/vpc/aws` module hosted in the [Public Terraform Registry](https://registry.terraform.io), version
-`5.8.1`. This is indicated by using the `tfr://` protocol in the source URL, which takes the form:
+As we learned above, integrating this OpenTofu project with Terragrunt is as simple as creating a `terragrunt.hcl` file in the same directory:
 
-```text
-tfr://REGISTRY_DOMAIN/MODULE?version=VERSION
+```bash
+touch foo/terragrunt.hcl
 ```
 
-Note that you can omit the `REGISTRY_DOMAIN` to default to the Public Terraform Registry.
+You can now run `terragrunt` commands within the `foo` directory, as if you were using `tofu` or `terraform`.
 
-The `generate` block is used to inject the provider configuration into the active OpenTofu/Terraform module. This can be used to
-customize how OpenTofu/Terraform interacts with cloud APIs, including configuring authentication parameters.
-
-The `inputs` block is used to indicate what variable values should be passed to terraform. This is equivalent to having
-the contents of the map in a tfvars file and passing that to terraform.
-
-You can read more about all the supported blocks of the terragrunt configuration in the [reference
-documentation](https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-attributes), including additional
-sources that terragrunt supports.
-
-You can deploy this example by copy pasting it into a folder and running `terragrunt apply`.
-
-NOTE: Heads up, not all Registry modules can be deployed with Terragrunt, see [A note about using modules from the
-registry]({{ site.baseurl }}/docs/reference/config-blocks-and-attributes#a-note-about-using-modules-from-the-registry) for details.
-
-## Key features
-
-### Keep your backend configuration DRY
-
-_OpenTofu/Terraform_ backends allow you to store OpenTofu/Terraform state in a shared location that everyone on your team can access, such as an S3 bucket, and provide locking around your state files to protect against race conditions. To use an OpenTofu/Terraform backend, you add a `backend` configuration to your configurations:
-
-``` hcl
-# stage/frontend-app/main.tf
-terraform {
-  backend "s3" {
-    bucket         = "my-terraform-state"
-    key            = "stage/frontend-app/terraform.tfstate"
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "my-lock-table"
-  }
-}
+```bash
+$ cd foo
+$ terragrunt apply -auto-approve
+18:44:26.066 STDOUT tofu: Initializing the backend...
+18:44:26.067 STDOUT tofu: Initializing provider plugins...
+18:44:26.067 STDOUT tofu: - Finding latest version of hashicorp/local...
+18:44:26.717 STDOUT tofu: - Installing hashicorp/local v2.5.2...
+18:44:27.033 STDOUT tofu: - Installed hashicorp/local v2.5.2 (signed, key ID 0C0AF313E5FD9F80)
+18:44:27.033 STDOUT tofu: Providers are signed by their developers.
+18:44:27.033 STDOUT tofu: If you'd like to know more about provider signing, you can read about it here:
+18:44:27.033 STDOUT tofu: https://opentofu.org/docs/cli/plugins/signing/
+18:44:27.034 STDOUT tofu: OpenTofu has created a lock file .terraform.lock.hcl to record the provider
+18:44:27.034 STDOUT tofu: selections it made above. Include this file in your version control repository
+18:44:27.034 STDOUT tofu: so that OpenTofu can guarantee to make the same selections by default when
+18:44:27.034 STDOUT tofu: you run "tofu init" in the future.
+18:44:27.034 STDOUT tofu: OpenTofu has been successfully initialized!
+18:44:27.035 STDOUT tofu:
+18:44:27.035 STDOUT tofu: You may now begin working with OpenTofu. Try running "tofu plan" to see
+18:44:27.035 STDOUT tofu: any changes that are required for your infrastructure. All OpenTofu commands
+18:44:27.035 STDOUT tofu: should now work.
+18:44:27.035 STDOUT tofu: If you ever set or change modules or backend configuration for OpenTofu,
+18:44:27.035 STDOUT tofu: rerun this command to reinitialize your working directory. If you forget, other
+18:44:27.035 STDOUT tofu: commands will detect it and remind you to do so if necessary.
+18:44:27.362 STDOUT tofu: OpenTofu used the selected providers to generate the following execution
+18:44:27.362 STDOUT tofu: plan. Resource actions are indicated with the following symbols:
+18:44:27.362 STDOUT tofu:   + create
+18:44:27.362 STDOUT tofu: OpenTofu will perform the following actions:
+18:44:27.362 STDOUT tofu:   # local_file.file will be created
+18:44:27.362 STDOUT tofu:   + resource "local_file" "file" {
+18:44:27.362 STDOUT tofu:       + content              = "Hello, World!"
+18:44:27.362 STDOUT tofu:       + content_base64sha256 = (known after apply)
+18:44:27.362 STDOUT tofu:       + content_base64sha512 = (known after apply)
+18:44:27.362 STDOUT tofu:       + content_md5          = (known after apply)
+18:44:27.362 STDOUT tofu:       + content_sha1         = (known after apply)
+18:44:27.362 STDOUT tofu:       + content_sha256       = (known after apply)
+18:44:27.362 STDOUT tofu:       + content_sha512       = (known after apply)
+18:44:27.362 STDOUT tofu:       + directory_permission = "0777"
+18:44:27.362 STDOUT tofu:       + file_permission      = "0777"
+18:44:27.362 STDOUT tofu:       + filename             = "./hi.txt"
+18:44:27.362 STDOUT tofu:       + id                   = (known after apply)
+18:44:27.362 STDOUT tofu:     }
+18:44:27.362 STDOUT tofu: Plan: 1 to add, 0 to change, 0 to destroy.
+18:44:27.362 STDOUT tofu:
+18:44:27.383 STDOUT tofu: local_file.file: Creating...
+18:44:27.384 STDOUT tofu: local_file.file: Creation complete after 0s [id=0a0a9f2a6772942557ab5355d76af442f8f65e01]
+18:44:27.392 STDOUT tofu:
+18:44:27.392 STDOUT tofu: Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+18:44:27.392 STDOUT tofu:
 ```
 
-The code above tells OpenTofu/Terraform to store the state for a `frontend-app` module in an S3 bucket called `my-terraform-state` under the path `stage/frontend-app/terraform.tfstate`, and to use a DynamoDB table called `my-lock-table` for locking. This is a great feature that almost every single OpenTofu/Terraform team uses to collaborate, but it comes with one major gotcha: the `backend` configuration does not support variables or expressions of any sort (this may change in the near future with [OpenTofu v1.8.0!](https://github.com/opentofu/opentofu/releases/tag/v1.8.0-alpha1)). That is, the following will NOT work:
+You might notice that this is a little more verbose than the output you're used to seeing from running `tofu` or `terraform` directly. This is because Terragrunt does a bit of work behind the scenes to make sure that you can scale your OpenTofu/Terraform usage without running into common problems. As you get more comfortable with using Terragrunt on larger projects, you may find the extra information helpful.
 
-``` hcl
-# stage/frontend-app/main.tf
-terraform {
-  backend "s3" {
-    # Using variables does NOT work here!
-    bucket         = var.terraform_state_bucket
-    key            = var.terraform_state_key
-    region         = var.terraform_state_region
-    encrypt        = var.terraform_state_encrypt
-    dynamodb_table = var.terraform_state_dynamodb_table
-  }
-}
+If you would prefer that Terragrunt output look more like the output from `tofu` or `terraform`, you can use the `--terragrunt-log-format bare` flag (or set the environment variable `TERRAGRUNT_LOG_FORMAT=bare`) to reduce the verbosity of the output.
+
+e.g.
+
+```bash
+$ terragrunt --terragrunt-log-format bare apply
+local_file.file: Refreshing state... [id=0a0a9f2a6772942557ab5355d76af442f8f65e01]
+
+No changes. Your infrastructure matches the configuration.
+
+OpenTofu has compared your real infrastructure against your configuration and
+found no differences, so no changes are needed.
+
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed.
 ```
 
-That means you have to copy/paste the same `backend` configuration into every one of your OpenTofu/Terraform modules. Not only do you have to copy/paste, but you also have to very carefully _not_ copy/paste the `key` value so that you don’t have two modules overwriting each other’s state files\! E.g., The `backend` configuration for a `database` module would look nearly identical to the `backend` configuration of the `frontend-app` module, except for a different `key` value:
-
-``` hcl
-# stage/mysql/main.tf
-terraform {
-  backend "s3" {
-    bucket         = "my-terraform-state"
-    key            = "stage/mysql/terraform.tfstate"
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "my-lock-table"
-  }
-}
-```
-
-Terragrunt allows you to keep your `backend` configuration DRY (“Don’t Repeat Yourself”) by defining it once in a root location and inheriting that configuration in all child modules. Let’s say your OpenTofu/Terraform code has the following folder layout:
-
-```tree
-stage
-├── frontend-app
-│   └── main.tf
-└── mysql
-    └── main.tf
-```
-
-To use Terragrunt, add a single `terragrunt.hcl` file to the root of your repo, in the `stage` folder, and one `terragrunt.hcl` file in each module folder:
-
-```tree
-stage
-├── terragrunt.hcl
-├── frontend-app
-│   ├── main.tf
-│   └── terragrunt.hcl
-└── mysql
-    ├── main.tf
-    └── terragrunt.hcl
-```
-
-Now you can define your `backend` configuration just once in the root `terragrunt.hcl` file:
-
-``` hcl
-# stage/terragrunt.hcl
-remote_state {
-  backend = "s3"
-  generate = {
-    path      = "backend.tf"
-    if_exists = "overwrite_terragrunt"
-  }
-  config = {
-    bucket = "my-terraform-state"
-
-    key = "${path_relative_to_include()}/terraform.tfstate"
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "my-lock-table"
-  }
-}
-```
-
-The `terragrunt.hcl` files use the same configuration language as OpenTofu/Terraform (HCL) and the configuration is more or less the same as the `backend` configuration you had in each module, except that the `key` value is now using the `path_relative_to_include()` built-in function, which will automatically set `key` to the relative path between the root `terragrunt.hcl` and the child module (so your OpenTofu/Terraform state folder structure will match your OpenTofu/Terraform code folder structure, which makes it easy to go from one to the other).
-
-The `generate` attribute is used to inform Terragrunt to generate the OpenTofu/Terraform code for configuring the backend. When
-you run any Terragrunt command, Terragrunt will generate a `backend.tf` file with the contents set to the `terraform`
-block that configures the `s3` backend, just like what we had before in each `main.tf` file.
-
-The final step is to update each of the child `terragrunt.hcl` files to tell them to include the configuration from the root `terragrunt.hcl`:
-
-``` hcl
-# stage/mysql/terragrunt.hcl
-include "root" {
-  path = find_in_parent_folders()
-}
-```
-
-The `find_in_parent_folders()` helper will automatically search up the directory tree to find the root `terragrunt.hcl` and inherit the `remote_state` configuration from it.
-
-Now, [install Terragrunt]({{site.baseurl}}/docs/getting-started/install), and run all the OpenTofu/Terraform commands you’re used to, but with `terragrunt` as the command name rather than `tofu`/`terraform` (e.g., `terragrunt apply` instead of `tofu apply`). To deploy the database module, you would run:
-
-``` bash
-cd stage/mysql
-terragrunt apply
-```
-
-Terragrunt will automatically find the `mysql` module’s `terragrunt.hcl` file, configure the `backend` using the settings from the root `terragrunt.hcl` file, and, thanks to the `path_relative_to_include()` function, will set the `key` to `stage/mysql/terraform.tfstate`. If you run `terragrunt apply` in `stage/frontend-app`, it’ll do the same, except it will set the `key` to `stage/frontend-app/terraform.tfstate`.
-
-You can now add as many child modules as you want, each with a `terragrunt.hcl` with the `include "root" { …​ }` block, and each of those modules will automatically inherit the proper `backend` configuration\!
-
-### Keep your provider configuration DRY
-
-Unifying provider configurations across all your modules can be a pain, especially when you want to customize
-authentication credentials. To configure OpenTofu/Terraform to assume an IAM role before calling out to AWS, you need to add a
-`provider` block with the `assume_role` configuration:
+The way dynamicity is handled in OpenTofu is via `variable` configuration blocks. Let's add one to our `main.tf` so that we can control the content of the file we're creating:
 
 ```hcl
-# stage/frontend-app/main.tf
-provider "aws" {
-  assume_role {
-    role_arn = "arn:aws:iam::0123456789:role/terragrunt"
-  }
+# foo/main.tf
+variable "content" {}
+
+resource "local_file" "file" {
+  content  = var.content
+  filename = "${path.module}/hi.txt"
 }
 ```
 
-This code tells OpenTofu/Terraform to assume the role `arn:aws:iam::0123456789:role/terragrunt` prior to calling out to the AWS
-APIs to create the resources. Unlike the `backend` configurations, `provider` configurations support variables, so
-typically you will resolve this by making the role configurable in the module:
+Now, just like when using `tofu` alone, you can pass in the value for the `content` variable using the `-var` flag:
+
+```bash
+terragrunt apply -auto-approve -var 'content=Hello, Terragrunt!'
+```
+
+This is a common pattern when working with Infrastructure as Code (IaC). You typically create IaC that is relatively static, and then as you need to make configurations dynamic, you add variables to your configuration files to introduce dynamicity.
+
+### Step 2: Add a new Terragrunt unit
+
+In the context of Terragrunt, a "unit" is a directory that contains a `terragrunt.hcl` file, and it represents a single piece of infrastructure. You can think of a unit as a single instance of an OpenTofu/Terraform module.
+
+Let's create a copy of the `foo` directory and call it `bar`:
+
+```bash
+cd ..
+cp -r foo bar
+```
+
+We now have two identical units in our project, `foo` and `bar`. We also have identical code in each of these directories, which is not ideal if we want to be able to avoid duplicating effort when we make changes to our infrastructure.
+
+### Step 3: Create a shared module
+
+To avoid this duplication, we can introduce a new `shared` directory, and reference that directory from both `foo` and `bar`. This way, we can make changes to our infrastructure in one place and have those changes apply to both units.
+
+Let's create a new directory called `shared`:
+
+```bash
+mkdir shared
+```
+
+Now, move the `main.tf` file from `foo` to `shared`:
+
+```bash
+mv foo/main.tf shared/main.tf
+```
+
+Finally, let's update the `foo` and `bar` directories to reference the `shared` directory. Update the `main.tf` files in both `foo` and `bar` to look like this:
 
 ```hcl
-# stage/frontend-app/main.tf
-variable "assume_role_arn" {
-  description = "Role to assume for AWS API calls"
-}
+# foo/main.tf and bar/main.tf
+variable "content" {}
 
-provider "aws" {
-  assume_role {
-    role_arn = var.assume_role_arn
-  }
+module "shared" {
+  source = "../shared"
+
+  content = var.content
 }
 ```
 
-You would then copy paste this configuration in every one of your OpenTofu/Terraform modules. This isn't a lot of lines of code,
-but can be a pain to maintain. For example, if you needed to modify the configuration to expose another parameter (e.g
-`session_name`), you would have to then go through each of your modules to make this change.
+There's now one place where the logic for the resource `local_file.file` is defined, and both `foo` and `bar` reference that logic. You can imagine that as your infrastructure grows, it can become more and more advantageous to put repeated logic into shared modules like this.
 
-In addition, what if you wanted to directly deploy a general purpose module, such as that from the [Terraform module
-registry](https://registry.terraform.io/) or the [Gruntwork Infrastructure as Code
-library](https://gruntwork.io/infrastructure-as-code-library/)? These modules typically do not expose provider
-configurations as it is tedious to expose every single provider configuration parameter imaginable through the module
-interface.
+This setup does have some problems, however. While you could keep navigating to the different units and running `terragrunt apply` in each one with the appropriate `-var` flags, this can quickly become tedious, as you have to know which units require which set of vars applied. You might decide to work around this by creating a file named `terraform.tfvars` in each unit directory, but this also comes with some limitations that Terragrunt can help you avoid.
 
-Terragrunt allows you to refactor common OpenTofu/Terraform code to keep your OpenTofu/Terraform modules DRY. Just like with the `backend`
-configuration, you can define the `provider` configurations once in a root location. In the root `terragrunt.hcl` file,
-you would define the `provider` configuration using the `generate` block:
+### Step 4: Use Terragrunt to manage your units
+
+Luckily, Terragrunt has a built-in feature to control the inputs passed to your OpenTofu/Terraform configurations. This feature is called (aptly enough) [inputs](/docs/reference/config-blocks-and-attributes/#inputs).
+
+Let's add inputs to both `terragrunt.hcl` files in the `foo` and `bar` directories:
 
 ```hcl
-# stage/terragrunt.hcl
-generate "provider" {
-  path = "provider.tf"
-  if_exists = "overwrite_terragrunt"
-  contents = <<EOF
-provider "aws" {
-  assume_role {
-    role_arn = "arn:aws:iam::0123456789:role/terragrunt"
+# foo/terragrunt.hcl
+inputs = {
+  content = "Hello from foo, Terragrunt!"
+}
+```
+
+```hcl
+# bar/terragrunt.hcl
+inputs = {
+  content = "Hello from bar, Terragrunt!"
+}
+```
+
+You don't have to maintain the extra `main.tf` files just to instantiate the `module` blocks. You can use the `terraform` block to handle this for you. Update the `terragrunt.hcl` files in `foo` and `bar` to look like this:
+
+```hcl
+# foo/terragrunt.hcl
+terraform {
+  source = "../shared"
+}
+
+inputs = {
+  content = "Hello from foo, Terragrunt!"
+}
+```
+
+```hcl
+# bar/terragrunt.hcl
+terraform {
+  source = "../shared"
+}
+
+inputs = {
+  content = "Hello from bar, Terragrunt!"
+}
+```
+
+And you can delete the `main.tf` files from both `foo` and `bar`:
+
+```bash
+rm foo/main.tf bar/main.tf
+```
+
+This saves you some duplicated content, as you no longer need to maintain that extra `content` variable in each `main.tf` file. You can imagine that for especially large modules, the ability to define inputs in the `terragrunt.hcl` file can save you a lot of time and effort. The patterns for your infrastructure are exclusively defined in `.tf` files now, and the `terragrunt.hcl` files are used to manage the instances of those patterns as units.
+
+If you run `terragrunt apply -auto-approve` in the `foo` and `bar` directories, you'll see that the `content` variable is set to the value you defined in the `inputs` block of the `terragrunt.hcl` file. You might also notice that there's now a special `.terragrunt-cache` directory generated for you in each unit directory. This is where Terragrunt copies the contents of modules, and performs any necessary additional code generation to make sure that your OpenTofu/Terraform code is ready to be run.
+
+The `.terragrunt-cache` directory is typically added to `.gitignore` files, similar to the `.terraform` directory that OpenTofu generates.
+
+### Step 5: Use Terragrunt to manage your stacks
+
+In the context of Terragrunt, a "stack" is a collection of units that are managed together. You can think of a stack as a single environment, such as `dev`, `staging`, or `prod`, or an entire project.
+
+One of the main reasons users adopt Terragrunt is how it can help manage the complexity of managing multiple units across multiple environments.
+
+e.g. Let's say we wanted to update both our `foo` and `bar` environments simultaneously.
+
+In the directory above `foo` and `bar`, run the following:
+
+```bash
+$ terragrunt run-all apply -auto-approve
+08:42:00.150 INFO   The stack at . will be processed in the following order for command apply:
+Group 1
+- Module ./bar
+- Module ./foo
+
+
+Are you sure you want to run 'terragrunt apply' in each folder of the stack described above? (y/n) y
+08:43:10.702 STDOUT [foo] tofu: local_file.file: Refreshing state... [id=c4ae21736a6297f44ea86791e528338e9d14a0e9]
+08:43:10.702 STDOUT [bar] tofu: local_file.file: Refreshing state... [id=f855394a0316da09618c8b1fde7b91e00e759f80]
+08:43:10.708 STDOUT [bar] tofu: No changes. Your infrastructure matches the configuration.
+08:43:10.708 STDOUT [bar] tofu: OpenTofu has compared your real infrastructure against your configuration and
+08:43:10.708 STDOUT [bar] tofu: found no differences, so no changes are needed.
+08:43:10.708 STDOUT [foo] tofu: No changes. Your infrastructure matches the configuration.
+08:43:10.708 STDOUT [foo] tofu: OpenTofu has compared your real infrastructure against your configuration and
+08:43:10.708 STDOUT [foo] tofu: found no differences, so no changes are needed.
+08:43:10.716 STDOUT [foo] tofu:
+08:43:10.716 STDOUT [foo] tofu: Apply complete! Resources: 0 added, 0 changed, 0 destroyed.
+08:43:10.716 STDOUT [foo] tofu:
+08:43:10.720 STDOUT [bar] tofu:
+08:43:10.720 STDOUT [bar] tofu: Apply complete! Resources: 0 added, 0 changed, 0 destroyed.
+08:43:10.720 STDOUT [bar] tofu:
+```
+
+This is where that additional verbosity in Terragrunt logging is really handy. You can see that Terragrunt concurrently ran `apply -auto-approve` in both the `foo` and `bar` units. The extra logging for Terragrunt also included information on the names of the units that were processed, and disambiguated the output from each unit.
+
+Similar to the `tofu` CLI, there is a prompt to confirm that you are sure you want to run the command in each unit when performing a command that's potentially destructive. You can skip this prompt by using the `--terragrunt-non-interactive` flag, just as you would with `-auto-approve` in OpenTofu.
+
+```bash
+terragrunt run-all --terragrunt-non-interactive apply -auto-approve
+```
+
+### Step 6: Use Terragrunt to manage your DAG
+
+In the context of Terragrunt, a Directed Acyclic Graph (DAG) that represents the graph units in your stack, determined by their dependencies. Terragrunt uses the DAG to determine the order in which it performs runs across your stack.
+
+For example, let's say that the `content` of the `bar` unit depended on the `content` of the `foo` unit. You can express this dependency first by adding an `output` block to the `shared` module:
+
+```hcl
+# shared/output.tf
+output "content" {
+  value = local_file.file.content
+}
+```
+
+Then, you can update the `bar` unit to depend on the `foo` unit by using the `dependencies` block in the `terragrunt.hcl` file:
+
+```hcl
+# bar/terragrunt.hcl
+terraform {
+ source = "../shared"
+}
+
+dependency "foo" {
+ config_path = "../foo"
+}
+
+inputs = {
+ content = "Foo content: ${dependency.foo.outputs.content}"
+}
+```
+
+Being good citizens of the IaC world, we should run a `plan` before an `apply` to see what changes Terragrunt will make to our infrastructure (note that you will get an error here. This is expected, and we'll fix it in the next step):
+
+```bash
+$ terragrunt run-all plan
+08:57:09.271 INFO   The stack at . will be processed in the following order for command plan:
+Group 1
+- Module ./foo
+
+Group 2
+- Module ./bar
+
+...
+
+08:57:09.936 ERROR  [bar] Module ./bar has finished with an error
+08:57:09.936 ERROR  error occurred:
+
+* ./foo/terragrunt.hcl is a dependency of ./bar/terragrunt.hcl but detected no outputs. Either the target module has not been applied yet, or the module has no outputs. If this is expected, set the skip_outputs flag to true on the dependency block.
+
+08:57:09.936 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
+```
+
+Oh no! We got an error. This happens because the way in which dependencies are resolved by default in Terragrunt is to run `terragrunt output` within the dependency for use in the dependent unit. In this case, the `foo` unit has not been applied yet, so there are no outputs to fetch.
+
+You should notice, however, that Terragrunt has already figured out the order in which to run the `plan` command across the units in your stack. This is what we mean when we say that Terragrunt uses a DAG to determine the order in which to run commands across your stack. Terragrunt analyzes the dependencies across your units, and determines the order for runs so that outputs are ready to be used as inputs in dependent units.
+
+If you instead decided to run `terragrunt run-all apply -auto-approve`, you would instead see Terragrunt complete the `apply` in the `foo` unit first, and then complete the `apply` in the `bar` unit, as it's aware that the `bar` unit might need some outputs from the `foo` unit.
+
+### Step 7: Use mocks to handle unavailable outputs
+
+In this scenario, most Terragrunt users leverage `mock_outputs` to handle unavailable outputs (see [limitations on accessing exposed config](https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-attributes/#limitations-on-accessing-exposed-config)). Given that it's expected that the `foo` unit won't be able to provide outputs until it's applied, you can use the `mock_outputs` block to provide a placeholder value for the `content` output during the `plan` phase.
+
+```hcl
+# bar/terragrunt.hcl
+terraform {
+  source = "../shared"
+}
+
+dependency "foo" {
+  config_path = "../foo"
+  mock_outputs = {
+    content = "Mocked content from foo"
   }
 }
-EOF
+
+inputs = {
+  content = "Foo content: ${dependency.foo.outputs.content}"
 }
 ```
 
-This instructs Terragrunt to create the file `provider.tf` in the working directory (where Terragrunt calls `tofu`/`terraform`)
-before it calls any of the Terraform commands (e.g `plan`, `apply`, `validate`, etc). This allows you to inject this
-provider configuration in all the modules that includes the root file without having to define them in the underlying
-modules.
+Re-running the `plan` command should now complete successfully:
 
-When you run `terragrunt plan` or `terragrunt apply`, you can see that this file is created in the module working
-directory:
+```bash
+$ terragrunt run-all plan
+09:29:03.461 INFO   The stack at . will be processed in the following order for command plan:
+Group 1
+- Module ./foo
 
-``` bash
-$ cd stage/mysql
-$ terragrunt apply
-$ find . -name "provider.tf"
-.terragrunt-cache/some-unique-hash/provider.tf
+Group 2
+- Module ./bar
+
+...
+
+09:29:03.644 WARN   [bar] Config ./foo/terragrunt.hcl is a dependency of ./bar/terragrunt.hcl that has no outputs, but mock outputs provided and returning those in dependency output.
+
+...
+
+09:29:03.898 STDOUT [bar] tofu:   + resource "local_file" "file" {
+09:29:03.898 STDOUT [bar] tofu:       + content              = "Foo content: Mocked content from foo"
+09:29:03.898 STDOUT [bar] tofu:       + content_base64sha256 = (known after apply)
+09:29:03.898 STDOUT [bar] tofu:       + content_base64sha512 = (known after apply)
+09:29:03.898 STDOUT [bar] tofu:       + content_md5          = (known after apply)
+09:29:03.898 STDOUT [bar] tofu:       + content_sha1         = (known after apply)
+09:29:03.898 STDOUT [bar] tofu:       + content_sha256       = (known after apply)
+09:29:03.898 STDOUT [bar] tofu:       + content_sha512       = (known after apply)
+09:29:03.898 STDOUT [bar] tofu:       + directory_permission = "0777"
+09:29:03.898 STDOUT [bar] tofu:       + file_permission      = "0777"
+09:29:03.898 STDOUT [bar] tofu:       + filename             = "./hi.txt"
+09:29:03.898 STDOUT [bar] tofu:       + id                   = (known after apply)
+09:29:03.898 STDOUT [bar] tofu:     }
 ```
 
-### Keep your OpenTofu/Terraform CLI arguments DRY
+If you're concerned about the `mock_outputs` attribute resulting in invalid configurations, note that during an apply, the outputs of `foo` will be known, and Terragrunt won't use `mock_outputs` to resolve the outputs of `foo`.
 
-CLI flags are another common source of copy/paste in the OpenTofu/Terraform world. For example, a typical pattern with OpenTofu/Terraform is to define common account-level variables in an `account.tfvars` file:
+```bash
+$ terragrunt run-all --terragrunt-non-interactive apply -auto-approve
 
-``` hcl
-# account.tfvars
-account_id     = "123456789012"
-account_bucket = "my-terraform-bucket"
+...
+
+09:31:21.587 STDOUT [bar] tofu:   + resource "local_file" "file" {
+09:31:21.587 STDOUT [bar] tofu:       + content              = "Foo content: Hello from foo, Terragrunt!"
+09:31:21.587 STDOUT [bar] tofu:       + content_base64sha256 = (known after apply)
+09:31:21.587 STDOUT [bar] tofu:       + content_base64sha512 = (known after apply)
+09:31:21.587 STDOUT [bar] tofu:       + content_md5          = (known after apply)
+09:31:21.587 STDOUT [bar] tofu:       + content_sha1         = (known after apply)
+09:31:21.587 STDOUT [bar] tofu:       + content_sha256       = (known after apply)
+09:31:21.587 STDOUT [bar] tofu:       + content_sha512       = (known after apply)
+09:31:21.587 STDOUT [bar] tofu:       + directory_permission = "0777"
+09:31:21.587 STDOUT [bar] tofu:       + file_permission      = "0777"
+09:31:21.587 STDOUT [bar] tofu:       + filename             = "./hi.txt"
+09:31:21.587 STDOUT [bar] tofu:       + id                   = (known after apply)
+09:31:21.587 STDOUT [bar] tofu:     }
+
+...
 ```
 
-And to define common region-level variables in a `region.tfvars` file:
+You can also be explicit about the fact that you only want to use `mock_outputs` during the `plan` phase by specifying that in your `mock_outputs` configuration:
 
-``` hcl
-# region.tfvars
-aws_region = "us-east-2"
-foo        = "bar"
-```
-
-You can tell OpenTofu/Terraform to use these variables using the `-var-file` argument:
-
-``` bash
-$ tofu apply \
-    -var-file=../../common.tfvars \
-    -var-file=../region.tfvars
-```
-
-Having to remember these `-var-file` arguments every time can be tedious and error prone. Terragrunt allows you to keep your CLI arguments DRY by defining those arguments as code in your `terragrunt.hcl` configuration:
-
-``` hcl
-# terragrunt.hcl
+```hcl
+# bar/terragrunt.hcl
 terraform {
-  extra_arguments "common_vars" {
-    commands = ["plan", "apply"]
+  source = "../shared"
+}
 
-    arguments = [
-      "-var-file=../../common.tfvars",
-      "-var-file=../region.tfvars"
-    ]
+dependency "foo" {
+  config_path = "../foo"
+  mock_outputs = {
+    content = "Mocked content from foo"
   }
-}
-```
 
-Now, when you run the `plan` or `apply` commands, Terragrunt will automatically add those arguments:
-
-``` bash
-$ terragrunt apply
-# Runs tofu apply -var-file=../../common.tfvars -var-file=../region.tfvars
-```
-
-You can even use the `get_terraform_commands_that_need_vars()` built-in function to automatically get the list of all commands that accept `-var-file` and `-var` arguments:
-
-``` hcl
-# terragrunt.hcl
-terraform {
-  extra_arguments "common_vars" {
-    commands = get_terraform_commands_that_need_vars()
-
-    arguments = [
-      "-var-file=../../common.tfvars",
-      "-var-file=../region.tfvars"
-    ]
-  }
-}
-```
-
-### Promote immutable, versioned OpenTofu/Terraform modules across environments
-
-One of the most important [lessons we’ve learned from writing hundreds of thousands of lines of infrastructure code](https://blog.gruntwork.io/5-lessons-learned-from-writing-over-300-000-lines-of-infrastructure-code-36ba7fadeac1) is that large modules should be considered harmful. That is, it is a Bad Idea to define all of your environments (dev, stage, prod, etc), or even a large amount of infrastructure (servers, databases, load balancers, DNS, etc), in a single OpenTofu/Terraform module. Large modules are slow, insecure, hard to update, hard to code review, hard to test, and brittle (i.e., you have all your eggs in one basket).
-
-Therefore, you typically want to break up your infrastructure across multiple modules:
-
-```tree
-├── prod
-│   ├── app
-│   │   ├── main.tf
-│   │   └── outputs.tf
-│   ├── mysql
-│   │   ├── main.tf
-│   │   └── outputs.tf
-│   └── vpc
-│       ├── main.tf
-│       └── outputs.tf
-├── qa
-│   ├── app
-│   │   ├── main.tf
-│   │   └── outputs.tf
-│   ├── mysql
-│   │   ├── main.tf
-│   │   └── outputs.tf
-│   └── vpc
-│       ├── main.tf
-│       └── outputs.tf
-└── stage
-    ├── app
-    │   ├── main.tf
-    │   └── outputs.tf
-    ├── mysql
-    │   ├── main.tf
-    │   └── outputs.tf
-    └── vpc
-        ├── main.tf
-        └── outputs.tf
-```
-
-The folder structure above shows how to separate the code for each environment (`prod`, `qa`, `stage`) and for each type of infrastructure (apps, databases, VPCs). However, the downside is that it isn’t DRY. The `.tf` files will contain a LOT of duplication. You can reduce it somewhat by defining all the infrastructure in [reusable OpenTofu/Terraform modules](https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d), but even the code to instantiate a module—including configuring the `provider`, `backend`, the module’s input variables, and `output` variables means you still end up with dozens or hundreds of lines of copy/paste for every module in every environment:
-
-``` hcl
-# prod/app/main.tf
-provider "aws" {
-  region = "us-east-1"
-  # ... other provider settings ...
+  mock_outputs_allowed_terraform_commands = ["plan"]
 }
 
-terraform {
-  backend "s3" {}
-}
-
-module "app" {
-  source = "../../../app"
-  instance_type  = "m4.large"
-  instance_count = 10
-  # ... other app settings ...
-}
-
-# prod/app/outputs.tf
-output "url" {
-  value = module.app.url
-}
-# ... and so on!
-```
-
-Terragrunt allows you to define your OpenTofu/Terraform code _once_ and to promote a versioned, immutable “artifact” of that exact same code from environment to environment. Here’s a quick overview of how.
-
-First, create a Git repo called `infrastructure-modules` that has your OpenTofu/Terraform code (`.tf` files). This is the exact same OpenTofu/Terraform code you just saw above, except that any variables that will differ between environments should be exposed as input variables:
-
-``` hcl
-# infrastructure-modules/app/main.tf
-provider "aws" {
-  region = "us-east-1"
-  # ... other provider settings ...
-}
-
-terraform {
-  backend "s3" {}
-}
-
-module "app" {
-  source = "../../../app"
-  instance_type  = var.instance_type
-  instance_count = var.instance_count
-  # ... other app settings ...
-}
-
-# infrastructure-modules/app/outputs.tf
-output "url" {
-  value = module.app.url
-}
-
-# infrastructure-modules/app/variables.tf
-variable "instance_type" {}
-variable "instance_count" {}
-```
-
-Once this is in place, you can release a new version of this module by creating a Git tag:
-
-``` bash
-git tag -a "v0.0.1" -m "First release of app module"
-git push --follow-tags
-```
-
-Now, in another Git repo called `infrastructure-live`, you create the same folder structure you had before for all of your environments, but instead of lots of copy/pasted `.tf` files for each module, you have just a single `terragrunt.hcl` file:
-
-```tree
-# infrastructure-live
-├── prod
-│   ├── app
-│   │   └── terragrunt.hcl
-│   ├── mysql
-│   │   └── terragrunt.hcl
-│   └── vpc
-│       └── terragrunt.hcl
-├── qa
-│   ├── app
-│   │   └── terragrunt.hcl
-│   ├── mysql
-│   │   └── terragrunt.hcl
-│   └── vpc
-│       └── terragrunt.hcl
-└── stage
-    ├── app
-    │   └── terragrunt.hcl
-    ├── mysql
-    │   └── terragrunt.hcl
-    └── vpc
-        └── terragrunt.hcl
-```
-
-The contents of each `terragrunt.hcl` file look something like this:
-
-``` hcl
-# infrastructure-live/prod/app/terragrunt.hcl
-terraform {
-  source =
-    "github.com:foo/infrastructure-modules.git//app?ref=v0.0.1"
-}
 inputs = {
-  instance_count = 10
-  instance_type  = "m4.large"
+  content = "Foo content: ${dependency.foo.outputs.content}"
 }
 ```
 
-The `terragrunt.hcl` file above sets the `source` parameter to point at the `app` module you just created in your `infrastructure-modules` repo, using the `ref` parameter to specify version `v0.0.1` of that repo. It also configures the variables for this module for the `prod` environment in the `inputs = {…​}` block.
+Something a little subtle just happened there. Note that the `inputs` attribute is dynamic. This addresses some of the limitations mentioned earlier about using `terraform.tfvars` files to manage inputs for units. Given that the `bar` unit is dependent on output values from the `foo` unit, you wouldn't be able to use a `terraform.tfvars` file to populate this variable without some additional tooling to populate it dynamically.
 
-The `terragrunt.hcl` file in the `stage` environment will look similar, but it will configure smaller/fewer instances in the `inputs = {…​}` block to save money:
+Terragrunt was spawned organically out of supporting Gruntwork customers using Terraform at scale, and features in the product are designed to address common problems like these that arise when managing OpenTofu/Terraform projects at scale in production.
 
-``` hcl
-# infrastructure-live/stage/app/terragrunt.hcl
-terraform {
-  source =
-    "github.com:foo/infrastructure-modules.git//app?ref=v0.0.1"
-}
-inputs = {
-  instance_count = 3
-  instance_type  = "t2.micro"
-}
-```
+### Step 8: Continue learning and exploring
 
-When you run `terragrunt apply`, Terragrunt will download your `app` module into a temporary folder, run `terraform apply` in that folder, passing the module the input variables you specified in the `inputs = {…​}` block:
+Hopefully, following this simple tutorial has given you confidence in integrating Terragrunt into your existing OpenTofu/Terraform projects. Starting small, and gradually introducing more complex Terragrunt features is a great way to learn how Terragrunt can help you manage your infrastructure more effectively.
 
-``` bash
-$ terragrunt apply
-Downloading OpenTofu configurations from github.com:foo/infrastructure-modules.git...
-Running command: terraform with arguments [apply]...
-```
+The next step of the Getting Started guide is to follow the [Overview](/docs/getting-started/overview/) guide. This guide will introduce you to more advanced Terragrunt features, and show you how to use Terragrunt to manage your infrastructure across multiple environments in a real-world AWS account.
 
-This way, each module in each environment is defined by a single `terragrunt.hcl` file that solely specifies the OpenTofu/Terraform module to deploy and the input variables specific to that environment. This is about as DRY as you can get\!
+If you're ready to get your hands dirty with more advanced Terragrunt features yourself, you can skip ahead to the [Features](/docs#features) section of the documentation.
 
-Moreover, you can specify a different version of the module to deploy in each environment\! For example, after making some changes to the `app` module in the `infrastructure-modules` repo, you could create a `v0.0.2` tag, and update just the `qa` environment to run this new version:
-
-``` bash
-# infrastructure-live/qa/app/terragrunt.hcl
-terraform {
-  source =
-    "github.com:foo/infrastructure-modules.git//app?ref=v0.0.2"
-}
-inputs = {
-  instance_count = 3
-  instance_type  = "t2.micro"
-}
-```
-
-If it works well in the `qa` environment, you could promote the exact same code to the `stage` environment by updating its `terragrunt.hcl` file to run `v0.0.2`. And finally, if that code works well in `stage`, you could again promote the exact same code to `prod` by updating that `terragrunt.hcl` file to use `v0.0.2` as well.
-
-![Using Terragrunt to promote immutable Terraform code across environments]({{site.baseurl}}/assets/img/collections/documentation/promote-immutable-Terraform-code-across-envs.png)
-
-If at any point you hit a problem, it will only affect the one environment, and you can roll back by deploying a previous version number. That’s immutable infrastructure at work\!
-
-## Next steps
-
-Now that you’ve seen the basics of Terragrunt, here is some further reading to learn more:
-
-1. [Use cases]({{site.baseurl}}/docs/#features): Learn about the core use cases Terragrunt supports.
-
-2. [Documentation]({{site.baseurl}}/docs/): Check out the detailed Terragrunt documentation.
-
-3. [Add Terragrunt to your OpenTofu project]({{site.baseurl}}/docs/getting-started/add-to-opentofu-project): Follow the step-by-step guide to add Terragrunt to an existing OpenTofu/Terraform project.
-
-4. [Fundamentals of DevOps and Software Delivery](https://www.gruntwork.io/fundamentals-of-devops): Learn the fundamentals of DevOps and Software Delivery from one of the founders of Gruntwork!
-
-5. [_Terraform: Up & Running_](https://www.terraformupandrunning.com/): This book is the fastest way to get up and running with Terraform\! Terragrunt is a direct implementation of many of the ideas from this book.
+If you ever need help with a particular problem, take a look at the resources available to you in the [Support](/docs/community/support/) section. You are especially encouraged to join the [Terragrunt Discord](https://discord.gg/SPu4Degs5f) server, and become part of the Terragrunt community.
