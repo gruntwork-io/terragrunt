@@ -631,7 +631,7 @@ Say, for example, you wanted to provision the same resources you've provisioned 
 │   │   └── terragrunt.hcl
 │   └── ec2
 │       └── terragrunt.hcl
-└── us-west-1
+└── us-west-2
     ├── vpc
     │   └── terragrunt.hcl
     └── ec2
@@ -713,7 +713,7 @@ Now, when the configurations in the `us-east-1` directory include the `root.hcl`
 
 Before moving on, take note of one thing, the `azs` attribute in the `vpc` unit of the `us-east-1` stack is hardcoded to `["us-east-1a", "us-east-1b", "us-east-1c"]`.
 
-This would cause issues if we were to try to deploy the `vpc` unit in the `us-west-1` stack, as those availability zones don't exist in the `us-west-1` region. What we need to do is make the `azs` attribute dynamic and use the resolved region to determine the correct availability zones.
+This would cause issues if we were to try to deploy the `vpc` unit in the `us-west-2` stack, as those availability zones don't exist in the `us-west-2` region. What we need to do is make the `azs` attribute dynamic and use the resolved region to determine the correct availability zones.
 
 To do this, we can _expose_ the attributes on the included `root` configuration by setting the `expose` attribute to `true`:
 
@@ -755,68 +755,168 @@ inputs = {
 }
 ```
 
+This makes it so that the values of the `azs` attribute are determined dynamically based on the region that the unit is being deployed to.
 
-
-
-
-Now that you've set up the `us-east-1` directory, you can repeat the process for the `us-west-1` directory:
+Now that you've set up the `us-east-1` directory, you can repeat the process for the `us-west-2` directory:
 
 ```bash
-cp -R us-east-1/ us-west-1/
+cp -R us-east-1/ us-west-2/
 ```
 
-Then update the `region.hcl` file in the `us-west-1` directory to set the region to `us-west-1`:
+Then update the `region.hcl` file in the `us-west-2` directory to set the region to `us-west-2`:
 
 ```hcl
-# us-west-1/region.hcl
+# us-west-2/region.hcl
 locals {
-  region = "us-west-1"
+  region = "us-west-2"
 }
 ```
 
-Then run the `terragrunt run-all apply` command in the `us-west-1` directory.
+Then run the `terragrunt run-all apply` command in the `us-west-2` directory.
 
+```bash
+$ cd us-west-2
+$ terragrunt run-all apply
+```
 
----
+You should see the VPC and EC2 instances being provisioned in the `us-west-2` region.
 
+This showcases three superpowers you gain when you leverage Terragrunt:
 
+1. **Automatic DAG Resolution**: No configuration file needed to be updated or modified to ensure that the `ec2` unit was run after the `vpc` unit when provisioning the `us-west-2` stack. Terragrunt automatically resolved the dependency graph and ran the units in the correct order.
+2. **Dynamic Configuration**: The code you copied from the `us-east-1` directory to the `us-west-2` directory didn't need to be modified at all to provision resources in a different region (with the exception of naming the region in the `region.hcl` file). Terragrunt was able to dynamically resolve the correct configuration based on context, and apply it to the OpenTofu/Terraform modules as generic patterns of infrastructure.
+3. **Reduced Blast Radius**: By applying Terragrunt within the `us-west-2` directory, you were able to confidently target only the resources in that region, without affecting the resources in the `us-east-1` region. This is a powerful tool for safely managing multiple environments, regions, or accounts with a single codebase. Your current working directory when using Terragrunt is your blast radius, and Terragrunt makes it easy to manage that blast radius effectively.
 
+### Cleanup
 
+If you still have all the resources that were provisioned as part of this tutorial active, this is a reminder that you might want to clean them up.
 
+To destroy all the resources you've provisioned thus far, run the following:
 
+```bash
+# From the root directory
+$ terragrunt run-all destroy
+```
 
+In real-world scenarios, it's generally advised that you plan your destroys first before cleaning them up:
 
+```bash
+# From the root directory
+$ terragrunt run-all plan -destroy
+```
 
+### Recommended Repository Patterns
 
+Outside of the patterns used for setting up Terragrunt configurations within a project, there are are also some patterns that we recommend for managing one or more repositories used to manage infrastructure. At Gruntwork, we refer to this as your "Infrastructure Estate".
 
+These recommendations are merely guidelines, and you should adapt them to suit your team's needs and constraints.
 
+#### `infrastructure-live`
 
+The core of the infrastructure you manage with a Terragrunt is typically stored in a repository named `infrastructure-live` (or some variant of it). This repository is where you store the Terragrunt configurations used for infrastructure that is intended to be "live" (i.e. provisioned and active).
 
+Most successful teams stick to [Trunk Based Development](https://trunkbaseddevelopment.com/), perform plans on any change being proposed via a pull request / merge request, and only apply changes to live infrastructure after a successful plan and review.
 
+This repository is generally concerned with the configuration of reliably reproducible, immutable and versioned infrastructure. You generally don't author OpenTofu/Terraform code directly into it, and you apply appropriate branch protection rules to ensure that changes are merged only if they get the appropriate sign-off from responsible parties.
 
+What's on the default branch for this repository is generally considered the source of truth for the infrastructure you have provisioned. That default branch is generally the only version that matters when considering the state of your infrastructure.
 
+You can see an example of this in the [terragrunt-infrastructure-live-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example) repository maintained by Gruntwork.
 
+#### `infrastructure-modules`
 
+The patterns for your infrastructure you want to reliably reproduce. This repository is where you store the OpenTofu/Terraform modules that you use in your `infrastructure-live` repository.
 
+This repository is generally concerned with maintaining versioned, well tested and vetted patterns of infrastructure, ready to be consumed by the `infrastructure-live` repository.
 
+You typically integrate this repository with tools like [Terratest](https://terratest.gruntwork.io/) to ensure that every change to a module is well tested and reliable.
 
+[Semantic Versioning](https://semver.org/) is widely used to manage communicating the impact of updates to this repository, and you typically pin the version of a consumed module in the `infrastructure-live` repository to a specific tag.
 
+You can see an example of this in the [terragrunt-infrastructure-modules-example](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example) repository maintained by Gruntwork.
 
+### Atomic Deployments
 
+Following the repository patterns outlined above, you typically see Terragrunt repositories that have configurations which look like this:
 
+```hcl
+# infrastructure-live/qa/app/terragrunt.hcl
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
 
+terraform {
+  source = "github.com:foo/infrastructure-modules.git//app?ref=v0.0.1"
+}
 
+inputs = {
+  instance_count = 3
+  instance_type  = "t2.micro"
+}
+```
+
+Where `app` is an opinionated module in the `infrastructure-modules` repository, maintained by the team managing infrastructure for the `foo` organization.
+
+The code in that module might be hand-rolled, it may wrap a community maintained module, or it might wrap a module like one found in the [Gruntwork IaC Library](https://www.gruntwork.io/platform/iac-library).
+
+Regardless, the module is something that the team managing infrastructure for an organization has vetted for deployment.
+
+When deploying a change to live infrastructure, the team would typically make a change like the following:
+
+```hcl
+# infrastructure-live/qa/app/terragrunt.hcl
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+terraform {
+  source = "github.com:foo/infrastructure-modules.git//app?ref=v0.0.2" # <--
+}
+
+inputs = {
+  instance_count = 1
+  instance_type  = "t3.micro"
+}
+```
+
+Given that all the changes here are part of one atomic deployment, it's fairly easy to determine the impact of the change, and to roll back if necessary.
+
+After that, they would propagate the change up however many intermediary environments they have, and finally to production.
+
+```hcl
+# infrastructure-live/prod/app/terragrunt.hcl
+include "root" {
+  path = find_in_parent_folders("root.hcl")
+}
+
+terraform {
+  source = "github.com:foo/infrastructure-modules.git//app?ref=v0.0.2" # <--
+}
+
+inputs = {
+  instance_count = 3
+  instance_type  = "t3.large"
+}
+```
+
+Note that the two `terragrunt.hcl` files here have different `inputs` values, as those values are specific to the environment they are being deployed to.
+
+The end result of this process is that _infrastructure changes_ are atomic and reproduceable, and that the infrastructure being deployed is versioned and immutable.
+
+![Using Terragrunt to promote immutable Infrastructure as Code across environments]({{site.baseurl}}/assets/img/collections/documentation/promote-immutable-Terraform-code-across-envs.png)
+
+If at any point during this process a change is found to be problematic, the team can simply roll back to the previous version of the module for a single unit in a given environment.
+
+That's the power of reducing your blast radius with Terragrunt!
 
 ## Next steps
 
-Now that you’ve seen the basics of Terragrunt, here is some further reading to learn more:
+Now that you’ve learned the basics of Terragrunt, here is some further reading to learn more:
 
-1. [Use cases]({{site.baseurl}}/docs/#features): Learn about the core use cases Terragrunt supports.
+1. [Features]({{site.baseurl}}/docs/#features): Learn about the core features Terragrunt supports.
 
 2. [Documentation]({{site.baseurl}}/docs/): Check out the detailed Terragrunt documentation.
 
-3. [Add Terragrunt to your OpenTofu project]({{site.baseurl}}/docs/getting-started/add-to-opentofu-project): Follow the step-by-step guide to add Terragrunt to an existing OpenTofu/Terraform project.
+3. [_Fundamentals of DevOps and Software Delivery_](https://www.gruntwork.io/fundamentals-of-devops): Learn the fundamentals of DevOps and Software Delivery from one of the founders of Gruntwork!
 
-4. [Fundamentals of DevOps and Software Delivery](https://www.gruntwork.io/fundamentals-of-devops): Learn the fundamentals of DevOps and Software Delivery from one of the founders of Gruntwork!
-
-5. [_Terraform: Up & Running_](https://www.terraformupandrunning.com/): This book is the fastest way to get up and running with Terraform\! Terragrunt is a direct implementation of many of the ideas from this book.
+4. [_Terraform: Up & Running_](https://www.terraformupandrunning.com/): Terragrunt is a direct implementation of many of the ideas from this book.
