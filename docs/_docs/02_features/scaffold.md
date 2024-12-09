@@ -3,7 +3,7 @@ layout: collection-browser-doc
 title: Scaffold
 category: features
 categories_url: features
-excerpt: Learn how to scaffold Terragrunt projects.
+excerpt: Learn how to scaffold Terragrunt units.
 tags: ["scaffold"]
 order: 213
 nav_title: Documentation

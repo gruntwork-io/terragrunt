@@ -1,31 +1,34 @@
 ---
 layout: collection-browser-doc
-title: Keep your OpenTofu/Terraform code DRY
+title: Units
 category: features
 categories_url: features
-excerpt: Learn how to achieve DRY OpenTofu/Terraform code and immutable infrastructure.
-tags: ["DRY", "Use cases", "backend"]
+excerpt: Learn how Terragrunt units result in atomic deployments and immutable infrastructure.
+tags: ["DRY", "Use cases", "backend", "unit"]
 order: 200
 nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Keep your OpenTofu/Terraform code DRY
+## Units
 
-- [Keep your OpenTofu/Terraform code DRY](#keep-your-opentofuterraform-code-dry)
+- [Units](#units)
   - [Motivation](#motivation)
-  - [Remote OpenTofu/Terraform configurations](#remote-opentofuterraform-configurations)
-  - [Achieve DRY OpenTofu/Terraform code and immutable infrastructure](#achieve-dry-opentofuterraform-code-and-immutable-infrastructure)
+  - [Terragrunt units](#terragrunt-units)
+  - [Remote OpenTofu/Terraform modules](#remote-opentofuterraform-modules)
+  - [Achieve immutable infrastructure patterns and atomic deployments](#achieve-immutable-infrastructure-patterns-and-atomic-deployments)
   - [Working locally](#working-locally)
   - [Working with lock files](#working-with-lock-files)
-  - [Important gotcha: Terragrunt caching](#important-gotcha-terragrunt-caching)
-  - [Important gotcha: working with relative file paths](#important-gotcha-working-with-relative-file-paths)
+  - [Terragrunt caching](#terragrunt-caching)
+  - [Working with relative file paths](#working-with-relative-file-paths)
   - [Using Terragrunt with private Git repos](#using-terragrunt-with-private-git-repos)
-  - [DRY common OpenTofu/Terraform code with Terragrunt generate blocks](#dry-common-opentofuterraform-code-with-terragrunt-generate-blocks)
+  - [Generate blocks](#generate-blocks)
+  - [Further reading](#further-reading)
+
 
 ### Motivation
 
-Consider the following file structure, which defines three environments (prod, qa, stage) with the same infrastructure in each one (an app, a MySQL database, and a VPC):
+Consider the following file structure in a typical OpenTofu/Terraform project, which defines three environments (prod, qa, stage) with the same infrastructure in each one (an app, a MySQL database, and a VPC):
 
 ```tree
 └── live
@@ -52,11 +55,21 @@ Consider the following file structure, which defines three environments (prod, q
             └── main.tf
 ```
 
-The contents of each environment will be more or less identical, except perhaps for a few settings (e.g. the prod environment may run bigger or more servers). As the size of the infrastructure grows, having to maintain all of this duplicated code between environments becomes more error prone. You can reduce the amount of copy paste using [OpenTofu/Terraform modules](https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d), but even the code to instantiate a module and set up input variables, output variables, providers, and remote state can still create a lot of maintenance overhead.
+The contents of each environment could be more or less identical, except perhaps for a few settings (e.g. the prod environment may run bigger or more servers). As the size of the infrastructure grows, having to maintain all of this duplicated code between environments becomes more error prone. You can reduce the amount of copy paste using [OpenTofu/Terraform modules](https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d), but even the code to instantiate a module and set up input variables, output variables, providers, and remote state can still create a lot of maintenance overhead.
 
-How can you keep your OpenTofu/Terraform code [DRY](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself) so that you only have to define it once, no matter how many environments you have?
+How can you keep your OpenTofu/Terraform code [DRY](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself) so that you can maximize code re-use and minimize maintenance overhead?
 
-### Remote OpenTofu/Terraform configurations
+Moreover, how can you ensure that you are reproducing as close to the same infrastructure as possible across environments, so that you can be confident that what you test in qa will work when you deploy to prod?
+
+### Terragrunt units
+
+A unit in Terragrunt is a directory containing a `terragrunt.hcl` file. This hermetic unit of infrastructure is the smallest deployable entity in Terragrunt. It's also the most important feature Terragrunt has.
+
+Units are designed to be contained, and can be operated on independently of other units. Infrastructure changes to units are also meant to be atomic. The interface you have with a unit is a single `terragrunt.hcl` file, and any change you make to it should result in one reproducible change to a limited subset of your infrastructure.
+
+Units are designed to work with immutable OpenTofu/Terraform modules. The OpenTofu/Terraform code referenced by a unit should be versioned, and that version of the module should be immutable. This ensures that the infrastructure you deploy is consistent across environments, and that you are confident you can reproduce the same pattern of infrastructure as many times as you need.
+
+### Remote OpenTofu/Terraform modules
 
 Terragrunt has the ability to download remote OpenTofu/Terraform configurations. The idea is that you define the OpenTofu/Terraform code for your infrastructure just once, in a single repo, called, for example, `modules`:
 
@@ -78,13 +91,13 @@ variable "instance_count" {
 }
 
 variable "instance_type" {
-  description = "What kind of servers to run (e.g. t2.large)"
+  description = "What kind of servers to run (e.g. t3.large)"
 }
 ```
 
-These variables allow you to run smaller/fewer servers in qa and stage to save money and larger/more servers in prod to ensure availability and scalability.
+These variables allow you to run smaller/fewer servers in qa and stage to save money and larger/more servers in prod to ensure availability and scalability. They also define the _variability_ of this infrastructure pattern. When instantiating the `app` module as a Terragrunt unit, you can be fairly confident that the only variance you are likely to see between environments is in the values of these variables.
 
-In a separate repo, called, for example, `live`, you define the code for all of your environments, which now consists of just one `terragrunt.hcl` file per component (e.g. `app/terragrunt.hcl`, `mysql/terragrunt.hcl`, etc). This gives you the following file layout:
+In a separate repo, called, for example, `live`, you define the code for all of your environments, which now consists of just one `terragrunt.hcl` file per unit (e.g. `app/terragrunt.hcl`, `mysql/terragrunt.hcl`, etc). This gives you the following file layout:
 
 ```tree
 └── live
@@ -121,7 +134,7 @@ terraform {
 
 inputs = {
   instance_count = 3
-  instance_type  = "t2.micro"
+  instance_type  = "t4g.micro"
 }
 ```
 
@@ -137,7 +150,7 @@ terraform {
 
 inputs = {
   instance_count = 10
-  instance_type  = "m2.large"
+  instance_type  = "m8g.large"
 }
 ```
 
@@ -154,17 +167,21 @@ When Terragrunt finds the `terraform` block with a `source` parameter in `live/s
 
 2. Copy all files from the current working directory into the temporary folder.
 
-3. Execute whatever OpenTofu/Terraform command you specified in that temporary folder.
+3. Execute whatever OpenTofu/Terraform command you specified in that temporary folder (assuming you are performing a [run](/docs/getting-started/terminology/#run)).
 
-4. Pass any variables defined in the `inputs = { …​ }` block as environment variables (prefixed with `TF_VAR_` to your OpenTofu/Terraform code. Notice how the `inputs` block in `stage/app/terragrunt.hcl` deploys fewer and smaller instances than prod.
+4. Set any variables defined in the `inputs = { …​ }` block as environment variables (prefixed with `TF_VAR_`) before running your OpenTofu/Terraform code. Notice how the `inputs` block in `stage/app/terragrunt.hcl` deploys fewer and smaller instances than prod.
 
-Check out the [terragrunt-infrastructure-modules-example](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example) and [terragrunt-infrastructure-live-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example) repos for fully-working sample code that demonstrates this new folder structure.
+Check out the [terragrunt-infrastructure-modules-example](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example) and [terragrunt-infrastructure-live-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example) repos for fully-working sample code that demonstrates our recommended folder structure for successful infrastructure management.
 
-### Achieve DRY OpenTofu/Terraform code and immutable infrastructure
+### Achieve immutable infrastructure patterns and atomic deployments
 
-With this new approach, copy/paste between environments is minimized. The `terragrunt.hcl` files contain solely the `source` URL of the module to deploy and the `inputs` to set for that module in the current environment. To create a new environment, you copy an old one and update just the environment-specific `inputs` in the `terragrunt.hcl` files, which is about as close to the "essential complexity" of the problem as you can get.
+With this approach, copy/paste between environments is minimized. The `terragrunt.hcl` files contain solely the `source` URL of the module to deploy and the `inputs` to set for that module in the current environment. To create a new unit, you copy an old one and update just the environment-specific `inputs` in the `terragrunt.hcl` files, which is about as close to the "essential complexity" of the problem as you can get.
 
-Just as importantly, since the OpenTofu/Terraform module code is now defined in a single repo, you can version it (e.g., using Git tags and referencing them using the `ref` parameter in the `source` URL, as in the `stage/app/terragrunt.hcl` and `prod/app/terragrunt.hcl` examples above), and promote a single, immutable version through each environment (e.g., qa → stage → prod). This idea is inspired by Kief Morris' blog post [Using Pipelines to Manage Environments with Infrastructure as Code](https://medium.com/@kief/https-medium-com-kief-using-pipelines-to-manage-environments-with-infrastructure-as-code-b37285a1cbf5).
+Just as importantly, since the OpenTofu/Terraform module code is now defined in a single repo, you can version it (e.g., using Git tags and referencing them using the `ref` parameter in the `source` URL, as in the `stage/app/terragrunt.hcl` and `prod/app/terragrunt.hcl` examples above), and promote a single, immutable version through each environment (e.g., qa → stage → prod).
+
+This is especially powerful when thinking about how the pattern is deployed. Because all of the configuration for a unit is defined using a versioned URL and a set of inputs, it's easy to reliably promote an infrastructure change across environments as one atomic change. It's also easy to roll back to a previous version of the infrastructure by changing the `ref` parameter in the `source` URL.
+
+This idea is inspired by Kief Morris' blog post [Using Pipelines to Manage Environments with Infrastructure as Code](https://medium.com/@kief/https-medium-com-kief-using-pipelines-to-manage-environments-with-infrastructure-as-code-b37285a1cbf5).
 
 ### Working locally
 
@@ -181,9 +198,11 @@ terragrunt apply --terragrunt-source ../../../modules//app
 
 Terraform 0.14 introduced lock files. These should mostly "just work" with Terragrunt version v0.27.0 and above: that
 is, the lock file (`.terraform.lock.hcl`) will be generated next to your `terragrunt.hcl`, and you should check it into
-version control. See the [Lock File Handling docs]({{site.baseurl}}/docs/features/lock-file-handling/) for more details.
+version control.
 
-### Important gotcha: Terragrunt caching
+See the [Lock File Handling docs]({{site.baseurl}}/docs/features/lock-file-handling/) for more details.
+
+### Terragrunt caching
 
 The first time you set the `source` parameter to a remote URL, Terragrunt will download the code from that URL into a tmp folder. It will *NOT* download it again afterwards unless you change that URL. That’s because downloading code—and more importantly, reinitializing remote state, redownloading provider plugins, and redownloading modules—can take a long time. To avoid adding 10-90 seconds of overhead to every Terragrunt command, Terragrunt assumes all remote URLs are immutable, and only downloads them once.
 
@@ -191,9 +210,9 @@ Therefore, when working locally, you should use the `--terragrunt-source` parame
 
 If you need to force Terragrunt to redownload something from a remote URL, run Terragrunt with the `--terragrunt-source-update` flag and it’ll delete the tmp folder, download the files from scratch, and reinitialize everything. This can take a while, so avoid it and use `--terragrunt-source` when you can\!
 
-### Important gotcha: working with relative file paths
+### Working with relative file paths
 
-One of the gotchas with downloading OpenTofu/Terraform configurations is that when you run `terragrunt apply` in folder `foo`, OpenTofu/Terraform will actually execute in some temporary folder such as `.terragrunt-cache/foo`. That means you have to be especially careful with relative file paths, as they will be relative to that temporary folder and not the folder where you ran Terragrunt\!
+One of the gotchas with downloading OpenTofu/Terraform configurations is that when you run `terragrunt apply` in folder `foo`, OpenTofu/Terraform will actually run in some temporary folder such as `.terragrunt-cache/foo`. That means you have to be especially careful with relative file paths, as they will be relative to that temporary folder and not the folder where you ran Terragrunt\!
 
 In particular:
 
@@ -202,6 +221,9 @@ In particular:
     ``` bash
     # Use absolute file paths on the CLI!
     terragrunt apply -var-file /foo/bar/extra.tfvars
+    # Or use the PWD environment variable to construct
+    # an absolute path before passing it to Terragrunt
+    # $ terragrunt apply -var-file "$PWD/extra.tfvars"
     ```
 
 - **Terragrunt configuration**: When using file paths directly in your Terragrunt configuration (`terragrunt.hcl`), such as in an `extra_arguments` block, you can’t use hard-coded absolute file paths, or it won’t work on your teammates' computers. Therefore, you should utilize the Terragrunt built-in function `get_terragrunt_dir()` to use a relative file path:
@@ -248,24 +270,34 @@ Note: In automated pipelines, you may need to run the following command for your
 ssh -T -oStrictHostKeyChecking=accept-new git@github.com || true
 ```
 
-### DRY common OpenTofu/Terraform code with Terragrunt generate blocks
+### Generate blocks
 
-Terragrunt has the ability to generate code in to the downloaded remote OpenTofu/Terraform modules before calling out to
-`tofu`/`terraform` using the [generate block](/docs/reference/config-blocks-and-attributes#generate). This can be used to
-inject common OpenTofu/Terraform configurations into all the modules that you use.
+In an ideal world, all that units do would be to run versioned, immutable OpenTofu/Terraform modules with environment-specific inputs.
+In the real world, however, certain scenarios arise when you have to inject additional configurations to the immutable OpenTofu/Terraform
+modules you use. This is where [generate blocks](/docs/reference/config-blocks-and-attributes#generate) come in handy.
 
-For example, it is common to have custom provider configurations in your code to customize authentication. Consider a
-setup where you want to always assume a specific role when calling out to the OpenTofu/Terraform module. However, not all modules
-expose the right variables for configuring the `aws` provider so that you can assume the role through OpenTofu/Terraform.
+When you define a `generate` block, Terragrunt will do the following before any run:
+
+1. Fetch any module referenced in a source URL in the `terraform` block into the `.terragrunt-cache` folder (if there is none, it will run in the current working directory).
+2. Generate the file specified in the `generate` block into the directory where Terragrunt will run OpenTofu/Terraform.
+3. Run the OpenTofu/Terraform command.
+
+The most common example of this is to dynamically generate a `provider.tf` file that includes provider configurations.
+Most OpenTofu/Terraform modules are authored in such a way that defining a provider is an exercise left to the consumer of the module.
+This is a good practice, as it allows the consumer to define the provider configuration in a way that suits their needs, and
+it may not make sense for a nested module to define a provider configuration that is not used by the consumer.
+
+Consider a setup where you want to always assume a specific role when calling out to a given OpenTofu/Terraform module.
+Not all modules expose the right variables for configuring the `aws` provider so that you can assume the role through OpenTofu/Terraform.
 
 In this situation, you can use Terragrunt `generate` blocks to generate a tf file called `provider.tf` that includes the
-provider configuration. Add a root `terragrunt.hcl` file for each of the environments in the file layout for the live
+provider configuration. Add an `env.hcl` file for each of the environments in the file layout for the live
 repo:
 
 ```bash
 └── live
     ├── prod
-    │   ├── terragrunt.hcl
+    │   ├── env.hcl
     │   ├── app
     │   │   └── terragrunt.hcl
     │   ├── mysql
@@ -273,7 +305,7 @@ repo:
     │   └── vpc
     │       └── terragrunt.hcl
     ├── qa
-    │   ├── terragrunt.hcl
+    │   ├── env.hcl
     │   ├── app
     │   │   └── terragrunt.hcl
     │   ├── mysql
@@ -281,7 +313,7 @@ repo:
     │   └── vpc
     │       └── terragrunt.hcl
     └── stage
-        ├── terragrunt.hcl
+        ├── env.hcl
         ├── app
         │   └── terragrunt.hcl
         ├── mysql
@@ -290,7 +322,7 @@ repo:
             └── terragrunt.hcl
 ```
 
-Each **root** `terragrunt.hcl` file (the one at the environment level, e.g `prod/terragrunt.hcl`) should define a
+Each `env.hcl` file (the one at the environment level, e.g `prod/env.hcl`) should define a
 `generate` block to generate the AWS provider configuration to assume the role for that environment. For example,
 if you wanted to assume the role `arn:aws:iam::0123456789:role/terragrunt` in all the modules for the prod account, you
 would put the following in `prod/terragrunt.hcl`:
@@ -309,19 +341,24 @@ EOF
 }
 ```
 
-This instructs Terragrunt to create the file `provider.tf` in the working directory (where Terragrunt calls `tofu`/`terraform`)
-before it calls any of the OpenTofu/Terraform commands (e.g `plan`, `apply`, `validate`, etc). This allows you to inject this
-provider configuration in all the modules that includes the root file.
+This instructs Terragrunt to create the file `provider.tf` in the working directory where Terragrunt calls `tofu`/`terraform`
+before it runs any of the OpenTofu/Terraform commands (e.g `plan`, `apply`, `validate`, etc). This allows you to inject this
+provider configuration for any unit that includes the `env.hcl` file.
 
-To include this in the child configurations (e.g `mysql/terragrunt.hcl`), you would update all the child modules to
+To include this in the child configurations (e.g `mysql/terragrunt.hcl`), you would update all the units to
 include this configuration using the `include` block:
 
 ```hcl
-include "root" {
-  path = find_in_parent_folders()
+include "env" {
+  path = find_in_parent_folders("env.hcl")
 }
 ```
 
-The `include` block tells Terragrunt to use the exact same Terragrunt configuration from the `terragrunt.hcl` file
+The `include` block tells Terragrunt to use the exact same Terragrunt configuration from the `env.hcl` file
 specified via the `path` parameter. It behaves exactly as if you had copy/pasted the OpenTofu/Terraform configuration from the
 included file `generate` configuration into the child, but this approach is much easier to maintain\!
+
+### Further Reading
+
+Note that if you're considering this solution because you're struggling with dynamic provider authentication in AWS,
+you may be interested in the dedicated documentation on [working with multiple AWS accounts](/docs/features/work-with-multiple-aws-accounts/).

@@ -3,7 +3,7 @@ layout: collection-browser-doc
 title: Catalog
 category: features
 categories_url: features
-excerpt: Learn how to use catalog function in  Terragrunt.
+excerpt: Learn how to search and use your module catalog with Terragrunt.
 tags: ["catalog"]
 order: 212
 nav_title: Documentation

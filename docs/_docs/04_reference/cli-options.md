@@ -145,7 +145,7 @@ tree and run the OpenTofu/Terraform command in dependency order (unless the comm
 in which case the command is run in reverse dependency order).
 
 Make sure to read [Execute OpenTofu/Terraform
-commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-units-at-once/) for
+commands on multiple modules at once](/docs/features/stacks) for
 context.
 
 Example:
@@ -193,7 +193,7 @@ The algorithm for determining the aggregate exit code is as follows:
 **DEPRECATED: Use `run-all plan` instead.**
 
 Display the plans of a `stack` by running `terragrunt plan` in each subfolder. Make sure to read [Execute OpenTofu/Terraform
-commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-units-at-once/) for
+commands on multiple modules at once](/docs/features/stacks) for
 context.
 
 Example:
@@ -218,7 +218,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-
 **DEPRECATED: Use `run-all apply` instead.**
 
 Apply a `stack` by running `terragrunt apply` in each subfolder. Make sure to read [Execute OpenTofu/Terraform
-commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-units-at-once/) for
+commands on multiple modules at once](/docs/features/stacks) for
 context.
 
 Example:
@@ -241,7 +241,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/386#issuecomment-
 **DEPRECATED: Use `run-all output` instead.**
 
 Display the outputs of a `stack` by running `terragrunt output` in each subfolder. Make sure to read [Execute OpenTofu/Terraform
-commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-units-at-once/) for
+commands on multiple modules at once](/docs/features/stacks) for
 context.
 
 Example:
@@ -266,7 +266,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-
 **DEPRECATED: Use `run-all destroy` instead.**
 
 Destroy a `stack` by running `terragrunt destroy` in each subfolder. Make sure to read [Execute OpenTofu/Terraform
-commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-units-at-once/) for
+commands on multiple modules at once](/docs/features/stacks) for
 context.
 
 Example:
@@ -289,7 +289,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/386#issuecomment-
 **DEPRECATED: Use `run-all validate` instead.**
 
 Validate `stack` by running `terragrunt validate` in each subfolder. Make sure to read [Execute OpenTofu/Terraform
-commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-units-at-once/) for
+commands on multiple modules at once](/docs/features/stacks) for
 context.
 
 Example:
