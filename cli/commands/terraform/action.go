@@ -14,7 +14,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds"
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/amazonsts"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/gruntwork-io/terragrunt/terraform"
@@ -72,6 +71,9 @@ const TerraformExtensionGlob = "*.tf"
 // sourceChangeLocks is a map that keeps track of locks for source changes, to ensure we aren't overriding the generated
 // code while another hook (e.g. `tflint`) is running. We use sync.Map to ensure atomic updates during concurrent access.
 var sourceChangeLocks = sync.Map{}
+
+// Global cache directory for modules
+var globalCacheDir = filepath.Join(os.TempDir(), "terragrunt-cache")
 
 // Run downloads terraform source if necessary, then runs terraform with the given options and CLI args.
 // This will forward all the args and extra_arguments directly to Terraform.
