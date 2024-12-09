@@ -1,18 +1,18 @@
 ---
 layout: collection-browser-doc
-title: Keep your CLI flags DRY
+title: Extra Arguments
 category: features
 categories_url: features
-excerpt: Learn how to keep CLI flags DRY with "extra_arguments" block in your "terragrunt.hcl".
+excerpt: Learn how to pass extra arguments to every OpenTofu/Terraform run.
 tags: ["DRY", "Use cases", "CLI"]
 order: 215
 nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Keep your CLI flags DRY
+## Extra Arguments
 
-- [Keep your CLI flags DRY](#keep-your-cli-flags-dry)
+- [Extra Arguments](#extra-arguments)
   - [Motivation](#motivation)
   - [Multiple extra\_arguments blocks](#multiple-extra_arguments-blocks)
   - [`extra_arguments` for `init`](#extra_arguments-for-init)
@@ -21,7 +21,9 @@ nav_title_link: /docs/
 
 ### Motivation
 
-Sometimes you may need to pass extra CLI arguments every time you run certain `tofu`/`terraform` commands. For example, you may want to set the `lock-timeout` setting to 20 minutes for all commands that may modify remote state so that OpenTofu/Terraform will keep trying to acquire a lock for up to 20 minutes if someone else already has the lock rather than immediately exiting with an error.
+Sometimes you need to pass extra CLI arguments every time you run certain `tofu`/`terraform` commands.
+
+For example, you may want to set the `lock-timeout` setting to 20 minutes for all commands that may modify remote state so that OpenTofu/Terraform will keep trying to acquire a lock for up to 20 minutes if someone else already has the lock rather than immediately exiting with an error.
 
 You can configure Terragrunt to pass specific CLI arguments for specific commands using an `extra_arguments` block in your `terragrunt.hcl` file:
 
@@ -51,14 +53,16 @@ terraform {
 }
 ```
 
-Each `extra_arguments` block includes an arbitrary name (in the example above, `retry_lock`), a list of `commands` to which the extra arguments should be added, and a list of `arguments` or `required_var_files` or `optional_var_files` to add. You can also pass custom environment variables using `env_vars` block, which stores environment variables in key value pairs. With the configuration above, when you run `terragrunt apply`, Terragrunt will call OpenTofu/Terraform as follows:
+Each `extra_arguments` block includes an arbitrary label (in the example above, `retry_lock`), a list of `commands` to which the extra arguments should be added, and a list of `arguments`, `required_var_files` or `optional_var_files` to add. 
+
+You can also pass custom environment variables using `env_vars` block, which stores environment variables in key value pairs. With the configuration above, when you run `terragrunt apply`, Terragrunt will call OpenTofu/Terraform as follows:
 
 ```bash
 $ terragrunt apply
-# terraform apply -lock-timeout=20m
+# tofu apply -lock-timeout=20m
 ```
 
-You can even use built-in functions such as [get\_terraform\_commands\_that\_need\_locking]({{site.baseurl}}/docs/reference/built-in-functions/#get_terraform_commands_that_need_locking) to automatically populate the list of OpenTofu/Terraform commands that need locking:
+You can even use built-in functions such as [get\_terraform\_commands\_that\_need\_locking]({{site.baseurl}}/docs/reference/built-in-functions/#get_terraform_commands_that_need_locking) to conveniently populate the list of OpenTofu/Terraform commands that need locking:
 
 ``` hcl
 terraform {
@@ -133,6 +137,8 @@ terraform {
   }
 }
 ```
+
+Note that you're encouraged to use the [Provider Caching]({{site.baseurl}}/docs/features/provider-caching) feature instead of manually installing plugins in most cases.
 
 ### Required and optional var-files
 

@@ -116,7 +116,7 @@ The `terraform` block supports the following arguments:
   of the generated or existing `.terraform.lock.hcl` from the temp folder into the working directory. Default is `true`.
 
 - `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `tofu`/`terraform` binary. Learn more
-  about its usage in the [Keep your CLI flags DRY]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/) use case overview. Supports
+  about its usage in the [Keep your CLI flags DRY]({{site.baseurl}}/docs/features/extra-arguments) use case overview. Supports
   the following arguments:
 
   - `arguments` (required) : A list of CLI arguments to pass to `tofu`/`terraform`.
@@ -331,7 +331,7 @@ instead of the module repository.**
 
 The `remote_state` block is used to configure how Terragrunt will set up the remote state configuration of your
 OpenTofu/Terraform code. You can read more about Terragrunt's remote state functionality in [Keep your remote state configuration
-DRY](/docs/features/keep-your-remote-state-configuration-dry/) use case overview.
+DRY](/docs/features/state-backend/) use case overview.
 
 The `remote_state` block supports the following arguments:
 
@@ -559,7 +559,7 @@ terraform {
 The `include` block is used to specify inheritance of Terragrunt configuration files. The included config (also called
 the `parent`) will be merged with the current configuration (also called the `child`) before processing. You can learn
 more about the inheritance properties of Terragrunt in the [Filling in remote state settings with Terragrunt
-section](/docs/features/keep-your-remote-state-configuration-dry/#filling-in-remote-state-settings-with-terragrunt) of the
+section](/docs/features/state-backend/#generating-remote-state-settings-with-terragrunt) of the
 "Keep your remote state configuration DRY" use case overview.
 
 You can have more than one `include` block, but each one must have a unique label. It is recommended to always label
@@ -984,7 +984,7 @@ inputs = {
 The `dependency` block is used to configure module dependencies. Each dependency block exports the outputs of the target
 module as block attributes you can reference throughout the configuration. You can learn more about `dependency` blocks
 in the [Dependencies between modules
-section](/docs/features/execute-terraform-commands-on-multiple-units-at-once/#dependencies-between-modules) of the
+section](/docs/features/stacks#dependencies-between-units) of the
 "Execute Opentofu/Terraform commands on multiple modules at once" use case overview.
 
 You can define more than one `dependency` block. Each label you provide to the block identifies another `dependency`

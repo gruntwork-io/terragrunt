@@ -1,18 +1,18 @@
 ---
 layout: collection-browser-doc
-title: Keep your Terragrunt Architecture DRY
+title: Includes
 category: features
 categories_url: features
-excerpt: Learn how to use multiple terragrunt configurations to DRY up your architecture.
-tags: ["DRY", "Use cases", "backend"]
-order: 210
+excerpt: Learn how to reuse partial Terragrunt configurations to DRY up your configurations.
+tags: ["DRY", "Use cases", "include"]
+order: 203
 nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Keep your Terragrunt Architecture DRY
+## Includes
 
-- [Keep your Terragrunt Architecture DRY](#keep-your-terragrunt-architecture-dry)
+- [Includes](#includes)
   - [Motivation](#motivation)
   - [Using include to DRY common Terragrunt config](#using-include-to-dry-common-terragrunt-config)
   - [Using exposed includes to override common configurations](#using-exposed-includes-to-override-common-configurations)
@@ -21,17 +21,18 @@ nav_title_link: /docs/
 
 ### Motivation
 
-As covered in [Keep your OpenTofu/Terraform code DRY]({{site.baseurl}}/docs/features/units) and [Keep your
-remote state configuration DRY]({{site.baseurl}}/docs/features/keep-your-remote-state-configuration-dry), it becomes
-important to define base Terragrunt configuration files that are included in the child config. For example, you might
-have a **root** Terragrunt configuration that defines the remote state and provider configurations:
+As covered in [Units]({{site.baseurl}}/docs/features/units) and [State Backend]({{site.baseurl}}/docs/features/state-backend), 
+it quickly becomes important to define base Terragrunt configuration files that are included in units. This is to ensure
+that all units have a consistent configuration, and to avoid repeating the same configuration across multiple units.
+
+For example, you might have a **root** Terragrunt configuration that defines the remote state and provider configurations for all your units:
 
 ```hcl
 remote_state {
   backend = "s3"
   config = {
-    bucket         = "my-terraform-state"
-    key            = "${path_relative_to_include()}/terraform.tfstate"
+    bucket         = "my-tofu-state"
+    key            = "${path_relative_to_include()}/tofu.tfstate"
     region         = "us-east-1"
     encrypt        = true
     dynamodb_table = "my-lock-table"
@@ -51,23 +52,24 @@ EOF
 }
 ```
 
-You can then include this in each of your **child** `terragrunt.hcl` files using the `include` block for each
+You can then include this in each of your **unit** `terragrunt.hcl` files using the `include` block for each
 infrastructure module you need to deploy:
 
 ```hcl
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
 }
 ```
 
 This pattern is useful for global configuration blocks that need to be included in all of your modules, but what if you
-have Terragrunt configurations that are only relevant to subsets of your module? For example, consider the following
-terragrunt file structure, which defines three environments (`prod`, `qa`, and `stage`) with the same infrastructure in
-each one (an app, a MySQL database, and a VPC):
+have Terragrunt configurations that are only relevant to subsets of your stack?
+
+For example, consider the following terragrunt file structure, which defines three environments (`prod`, `qa`, and `stage`)
+with the same infrastructure in each one (an app, a MySQL database, and a VPC):
 
 ```tree
 └── live
-    ├── terragrunt.hcl
+    ├── root.hcl
     ├── prod
     │   ├── app
     │   │   └── terragrunt.hcl
@@ -92,20 +94,21 @@ each one (an app, a MySQL database, and a VPC):
 ```
 
 More often than not, each of the services will look similar across the different environments, only requiring small
-tweaks. For example, the `app/terragrunt.hcl` files may be identical across all three environments except for an
+tweaks.
+
+For example, the `app/terragrunt.hcl` files may be identical across all three environments except for an
 adjustment to the `instance_type` parameter for each environment. These identical settings don't belong in the root
 `terragrunt.hcl` configuration because they are only relevant to the `app` configurations, and not `mysql` or `vpc`.
-However, it is cumbersome to copy paste these settings across all three environments.
 
 To solve this, you can use [multiple include blocks]({{site.baseurl}}/docs/reference/config-blocks-and-attributes#include).
 
-### Using include to DRY common Terragrunt config
+### Using include to reuse common Terragrunt config
 
 Suppose your `qa/app/terragrunt.hcl` configuration looks like the following:
 
 ```hcl
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
 }
 
 terraform {
@@ -132,12 +135,13 @@ inputs = {
 In this example, the only thing that is different between the environments is the `env` input variable. This means that
 except for one line, everything in the config is duplicated across `prod`, `qa`, and `stage`.
 
-To DRY this up, we will introduce a new folder called `_env` which will contain the common configurations across the
-three environments (we prefix with `_` to indicate that this folder doesn't contain deployable configurations):
+To [DRY](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself) this up, we will introduce a new folder called `_env`
+which will contain the common configurations across the three environments (we prefix with `_` to indicate that this
+folder doesn't contain deployable configurations, and so that it is lexically sorted first in the directory listing):
 
 ```tree
 └── live
-    ├── terragrunt.hcl
+    ├── root.hcl
     ├── _env
     │   ├── app.hcl
     │   ├── mysql.hcl
@@ -194,7 +198,7 @@ environment configuration:
 
 ```hcl
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
 }
 
 include "env" {
@@ -223,12 +227,12 @@ terraform {
 ```
 
 What if we want to deploy a different version for each environment? One way you can do this is by redefining the
-`terraform` block in the child config. For example, if you want to deploy `v0.2.0` in the `qa` environment, you can do
+`terraform` block in the unit. For example, if you want to deploy `v0.2.0` in the `qa` environment, you can do
 the following:
 
 ```hcl
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
 }
 
 include "env" {
@@ -258,12 +262,12 @@ locals {
 ```
 
 We then set the `expose` attribute to `true` on the `include` block in the child configuration so that we can reference
-the defined data in the parent configuration. Using that, we can construct the terraform source URL without having to
+the data defined in the included configuration. Using that, we can construct the terraform source URL without having to
 repeat the module source:
 
 ```hcl
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
 }
 
 include "env" {
@@ -281,13 +285,13 @@ inputs = {
 }
 ```
 
-### Using read\_terragrunt\_config to DRY parent configurations
+### Using read\_terragrunt\_config to access configurations directly
 
-In the previous two sections, we covered using `include` to DRY common component configurations through static merges
-with the child configuration. What if you want to dynamically update the parent configuration without having to define
-the override blocks in the child config?
+In the previous two sections, we covered using `include` to merge Terragrunt configurations through static merges
+with unit configuration. What if you want included configurations to be dynamic in the context of unit where they
+are being used?
 
-In our example, the child configuration defines the `env` input in its configuration (pasted below for convenience):
+In our example, the unit configuration defines the `env` input in its configuration (pasted below for convenience):
 
 ```hcl
 # ... other blocks omitted for brevity ...
@@ -298,7 +302,9 @@ inputs = {
 ```
 
 What if some inputs depend on this `env` input? For example, what if we want to append the `env` to the `name` input
-prior to passing to terraform? One way is to define the override parameters in the child config instead of the parent:
+prior to passing to OpenTofu/Terraform?
+
+One way to do this is to define the override parameters in the child config instead of the parent:
 
 ```hcl
 # ... other blocks omitted for brevity ...
@@ -315,14 +321,14 @@ inputs = {
 ```
 
 While this works, you could lose all the DRY advantages of the include block if you have many configurations that depend
-on the `env` input. Instead, you can use `read_terragrunt_config` to load additional context into the the parent
-configuration by taking advantage of the folder structure, and define the env based logic in the parent configuration.
+on the `env` input. Instead, you can use `read_terragrunt_config` to load additional context when including configurations
+by taking advantage of the folder structure, and define the env based logic in the included configuration.
 
-To do this, we will introduce a new `env.hcl` configuration in each environment:
+To show this, let's introduce a new `env.hcl` configuration in each environment:
 
 ```tree
 └── live
-    ├── terragrunt.hcl
+    ├── root.hcl
     ├── _env
     │   ├── app.hcl
     │   ├── mysql.hcl
@@ -361,12 +367,12 @@ locals {
 }
 ```
 
-We can then load the `env.hcl` file in the `_env/app.hcl` file to load the `env` string:
+We can then read the `env.hcl` file in the included `_env/app.hcl` file and use the `env` local:
 
 ```hcl
 locals {
-  # Load the relevant env.hcl file based on where terragrunt was invoked. This works because find_in_parent_folders
-  # always works at the context of the child configuration.
+  # Load the relevant env.hcl file based on where the including unit is. 
+  # This works because find_in_parent_folders always runs in the context of the unit.
   env_vars = read_terragrunt_config(find_in_parent_folders("env.hcl"))
   env_name = local.env_vars.locals.env
 
@@ -390,15 +396,16 @@ inputs = {
 }
 ```
 
-With this configuration, `env_vars` is loaded based on which folder is being invoked. For example, when Terragrunt is
-invoked in the `prod/app/terragrunt.hcl` folder, `prod/env.hcl` is loaded, while `qa/env.hcl` is loaded when
-Terragrunt is invoked in the `qa/app/terragrunt.hcl` folder.
+With this configuration, the `env_vars` local is set based on the location of the unit. 
+
+For example, when Terragrunt is run in the context of the `prod/app` unit, `prod/env.hcl` is read,
+while `qa/env.hcl` is read when Terragrunt is run in the `qa/app` unit.
 
 Now we can clean up the child config to eliminate the `env` input variable since that is loaded in the `env.hcl` context:
 
 ```hcl
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
 }
 
 include "env" {
@@ -415,33 +422,37 @@ terraform {
 ### Considerations for CI/CD Pipelines
 
 For infrastructure CI/CD pipelines, it is common to only want to run the workflow on the modules that were updated. For
-example, if you only changed the `terragrunt.hcl` configuration for the RDS database in the dev account, then you only
+example, if you only changed the unit configuration for the RDS database in the dev account, then you only
 want to run `plan` and `apply` on that module, not other components or other accounts.
 
 If you did not take advantage of `include` or `read_terragrunt_config`, then implementing this pipeline is
 straightforward: you can use `git diff` to collect all the files that changed, and for those `terragrunt.hcl` files that
-were updated, you can run `terragrunt plan` or `terragrunt apply` by passing in the updated file with
-`--terragrunt-config`.
+were updated, you can run `terragrunt plan` or `terragrunt apply` in that unit.
 
 However, if you use `include` or `read_terragrunt_config`, then a single file change may need to be reflected on
 multiple files that were not touched at all in the commit. In our previous example, when a configuration is updated in
 the `_env/app.hcl` file, we need to apply the change to all the modules that `include` that common environment
 configuration.
 
-Terragrunt currently does not have any features for supporting this use case when `read_terragrunt_config` is
-used. However, for `include` blocks, you can use the
-[--terragrunt-modules-that-include]({{site.baseurl}}/docs/reference/cli-options/#terragrunt-modules-that-include) CLI
-option for the `run-all` command.
+The most comprehensive approach to managing this is to use the [--terragrunt-queue-include-units-reading](https://terragrunt.gruntwork.io/docs/reference/cli-options/#terragrunt-queue-include-units-reading)
+flag. This flag will automatically add all units that read the file to the queue of units to be run. This includes
+both units that include the file, and units that read the file using something like `read_terragrunt_config` (make
+to read the documentation on this so that you know the limitations of this flag).
 
-In the previous example, your CI/CD pipeline can run `terragrunt run-all plan --terragrunt-modules-that-include
-_env/app.hcl`. This will:
+In the previous example, your CI/CD pipeline can run:
 
-- Recursively find all Terragrunt modules in the current directory tree.
-- Filter out any modules that don't include `_env/app.hcl` so that they won't be touched.
-- Run `plan` on any modules remaining (which will be the set of modules in the current tree that include
+```bash
+terragrunt run-all plan --terragrunt-queue-include-units-reading _env/app.hcl
+```
+
+This will:
+
+- Recursively find all Terragrunt units in the current directory tree.
+- Filter out any units that don't include `_env/app.hcl` so that they won't be run.
+- Run `plan` on any modules remaining (which will be the set of units in the current tree that include
   `_env/app.hcl`).
 
-Thereby allowing you to only touch those modules that need to be updated by the code change.
+Thereby allowing you to only run those modules that need to be updated by the code change.
 
 Alternatively, you can implement a promotion workflow if you have multiple environments that depend on the
 `_env/app.hcl` configuration. In the above example, suppose you wanted to progressively roll out the changes through the
@@ -450,14 +461,14 @@ updates from the common file:
 
 ```bash
 # Roll out the change to the qa environment first
-terragrunt run-all plan --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir qa
-terragrunt run-all apply --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir qa
+terragrunt run-all plan --terragrunt-queue-include-units-reading _env/app.hcl --terragrunt-working-dir qa
+terragrunt run-all apply --terragrunt-queue-include-units-reading _env/app.hcl --terragrunt-working-dir qa
 # If the apply succeeds to qa, move on to the stage environment
-terragrunt run-all plan --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir stage
-terragrunt run-all apply --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir stage
+terragrunt run-all plan --terragrunt-queue-include-units-reading _env/app.hcl --terragrunt-working-dir stage
+terragrunt run-all apply --terragrunt-queue-include-units-reading _env/app.hcl --terragrunt-working-dir stage
 # And finally, prod.
-terragrunt run-all plan --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir prod
-terragrunt run-all apply --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir prod
+terragrunt run-all plan --terragrunt-queue-include-units-reading _env/app.hcl --terragrunt-working-dir prod
+terragrunt run-all apply --terragrunt-queue-include-units-reading _env/app.hcl --terragrunt-working-dir prod
 ```
 
 This allows you to have flexibility in how changes are rolled out. For example, you can add extra validation stages

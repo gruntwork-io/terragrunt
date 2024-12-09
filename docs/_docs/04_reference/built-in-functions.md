@@ -501,7 +501,7 @@ terraform {
 
 ## get_terraform_commands_that_need_vars
 
-`get_terraform_commands_that_need_vars()` returns the list of OpenTofu/Terraform commands that accept `-var` and `-var-file` parameters. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_vars()` returns the list of OpenTofu/Terraform commands that accept `-var` and `-var-file` parameters. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 terraform {
@@ -514,7 +514,7 @@ terraform {
 
 ## get_terraform_commands_that_need_input
 
-`get_terraform_commands_that_need_input()` returns the list of OpenTofu/Terraform commands that accept the `-input=(true or false)` parameter. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_input()` returns the list of OpenTofu/Terraform commands that accept the `-input=(true or false)` parameter. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 terraform {
@@ -528,7 +528,7 @@ terraform {
 
 ## get_terraform_commands_that_need_locking
 
-`get_terraform_commands_that_need_locking()` returns the list of terraform commands that accept the `-lock-timeout` parameter. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_locking()` returns the list of terraform commands that accept the `-lock-timeout` parameter. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 terraform {
@@ -542,7 +542,7 @@ terraform {
 
 ## get_terraform_commands_that_need_parallelism
 
-`get_terraform_commands_that_need_parallelism()` returns the list of terraform commands that accept the `-parallelism` parameter. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_parallelism()` returns the list of terraform commands that accept the `-parallelism` parameter. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 terraform {
