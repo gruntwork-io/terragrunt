@@ -340,7 +340,7 @@ in reverse order (bottom up)
 
 ### Testing multiple units locally
 
-If you are using Terragrunt to configure [remote OpenTofu/Terraform configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/#remote-terraform-configurations) and all of your units have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--terragrunt-source` parameter:
+If you are using Terragrunt to download [remote OpenTofu/Terraform modules]({{site.baseurl}}/docs/features/units/#remote-opentofuterraform-modules) and all of your units have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--terragrunt-source` parameter:
 
 ```bash
 cd root

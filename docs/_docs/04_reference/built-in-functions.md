@@ -375,7 +375,7 @@ This function will error if the file is not located in a Git repository.
 
 ## get_terragrunt_dir
 
-`get_terragrunt_dir()` returns the directory where the Terragrunt configuration file (by default `terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote OpenTofu/Terraform configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/#remote-opentofu-terraform-configurations) and you want those paths relative to your Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
+`get_terragrunt_dir()` returns the directory where the Terragrunt configuration file (by default `terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote OpenTofu/Terraform configurations]({{site.baseurl}}/docs/features/units/#remote-opentofuterraform-modules) and you want those paths relative to your Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
 
 For example, imagine you have the following file structure:
 
@@ -438,7 +438,7 @@ terraform {
 
 ## get_parent_terragrunt_dir
 
-`get_parent_terragrunt_dir()` returns the absolute directory where the Terragrunt parent configuration file (by default `terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote OpenTofu/Terraform configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/#remote-opentofu-terraform-configurations) and you want those paths relative to your parent Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
+`get_parent_terragrunt_dir()` returns the absolute directory where the Terragrunt parent configuration file (by default `terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote OpenTofu/Terraform configurations]({{site.baseurl}}/docs/features/units/#remote-opentofuterraform-modules) and you want those paths relative to your parent Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
 
 This function is very similar to [get_terragrunt_dir()](#get_terragrunt_dir) except it returns the root instead of the leaf of your terragrunt configuration folder.
 

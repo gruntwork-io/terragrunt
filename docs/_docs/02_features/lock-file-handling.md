@@ -34,7 +34,7 @@ version control so that when your team members run OpenTofu/Terraform, they get 
 ### The problem with mixing remote OpenTofu/Terraform configurations in Terragrunt and lock files
 
 Let's say you are using Terragrunt with [remote OpenTofu/Terraform
-configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/) and you have the following folder
+configurations]({{site.baseurl}}/docs/features/units/) and you have the following folder
 structure:
 
 ```tree
