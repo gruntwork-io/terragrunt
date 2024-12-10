@@ -56,7 +56,7 @@ Consider the following file structure in a typical OpenTofu/Terraform project, w
 
 The contents of each environment could be more or less identical, except perhaps for a few settings (e.g. the prod environment may run bigger or more servers). As the size of the infrastructure grows, having to maintain all of this duplicated code between environments becomes more error prone. You can reduce the amount of copy paste using [OpenTofu/Terraform modules](https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d), but even the code to instantiate a module and set up input variables, output variables, providers, and remote state can still create a lot of maintenance overhead.
 
-How can you keep your OpenTofu/Terraform code [DRY](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself) so that you can maximize code re-use and minimize maintenance overhead?
+How can you keep your OpenTofu/Terraform code [DRY](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself) so that you can maximize code reuse and minimize maintenance overhead?
 
 Moreover, how can you ensure that you are reproducing as close to the same infrastructure as possible across environments, so that you can be confident that what you test in qa will work when you deploy to prod?
 
