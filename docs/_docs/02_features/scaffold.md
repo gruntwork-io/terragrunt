@@ -10,8 +10,6 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Scaffold
-
 Terragrunt scaffolding can generate files for you automatically using [boilerplate](https://github.com/gruntwork-io/boilerplate) templates.
 
 Currently, one boilerplate template is supported out-of-the-box, which you can use to generate a best-practices `terragrunt.hcl` that configures a OpenTofu/Terraform module for deployment:
@@ -67,7 +65,7 @@ Important notes:
 - The `source` URL is configured for you automatically, with the `ref` pointing to the latest "release" tag of the module (found by scanning git tags).
 - The `inputs` section is generated for you automatically, and will list all required and optional variables from the module, with their types, descriptions, and defaults, so you can easily fill them in to configure the module as you like.
 
-### Custom templates for scaffolding
+## Custom templates for scaffolding
 
 Terragrunt has a basic template built-in for rendering `terragrunt.hcl` files, but you can provide your own templates to customize what code is generated! Scaffolding is done via [boilerplate](https://github.com/gruntwork-io/boilerplate), and Terragrunt allows you to specify custom boilerplate templates via two mechanisms:
 
@@ -96,7 +94,7 @@ Optional variables which can be passed to `scaffold` command:
 - `SourceUrlType` - if set to `git-ssh` module url will be converted to Git/SSH format
 - `SourceGitSshUser` - git user for Git/SSH format, by default `git`
 
-### Examples
+## Examples
 
 Scaffold new project but use specific module version:
 

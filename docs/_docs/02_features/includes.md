@@ -10,16 +10,13 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Includes
+- [Motivation](#motivation)
+- [Using include to DRY common Terragrunt config](#using-include-to-dry-common-terragrunt-config)
+- [Using exposed includes to override common configurations](#using-exposed-includes-to-override-common-configurations)
+- [Using read\_terragrunt\_config to access configurations directly](#using-read_terragrunt_config-to-access-configurations-directly)
+- [Considerations for CI/CD Pipelines](#considerations-for-cicd-pipelines)
 
-- [Includes](#includes)
-  - [Motivation](#motivation)
-  - [Using include to DRY common Terragrunt config](#using-include-to-dry-common-terragrunt-config)
-  - [Using exposed includes to override common configurations](#using-exposed-includes-to-override-common-configurations)
-  - [Using read\_terragrunt\_config to access configurations directly](#using-read_terragrunt_config-to-access-configurations-directly)
-  - [Considerations for CI/CD Pipelines](#considerations-for-cicd-pipelines)
-
-### Motivation
+## Motivation
 
 As covered in [Units]({{site.baseurl}}/docs/features/units) and [State Backend]({{site.baseurl}}/docs/features/state-backend),
 it quickly becomes important to define base Terragrunt configuration files that are included in units. This is to ensure
@@ -102,7 +99,7 @@ adjustment to the `instance_type` parameter for each environment. These identica
 
 To solve this, you can use [multiple include blocks]({{site.baseurl}}/docs/reference/config-blocks-and-attributes#include).
 
-### Using include to DRY common Terragrunt config
+## Using include to DRY common Terragrunt config
 
 Suppose your `qa/app/terragrunt.hcl` configuration looks like the following:
 
@@ -210,7 +207,7 @@ inputs = {
 }
 ```
 
-### Using exposed includes to override common configurations
+## Using exposed includes to override common configurations
 
 In the previous section, we covered using `include` to DRY common component configurations. While powerful, `include` has
 a limitation where the included configuration is statically merged into the child configuration.
@@ -285,7 +282,7 @@ inputs = {
 }
 ```
 
-### Using read\_terragrunt\_config to access configurations directly
+## Using read\_terragrunt\_config to access configurations directly
 
 In the previous two sections, we covered using `include` to merge Terragrunt configurations through static merges
 with unit configuration. What if you want included configurations to be dynamic in the context of unit where they
@@ -419,7 +416,7 @@ terraform {
 }
 ```
 
-### Considerations for CI/CD Pipelines
+## Considerations for CI/CD Pipelines
 
 For infrastructure CI/CD pipelines, it is common to only want to run the workflow on the modules that were updated. For
 example, if you only changed the unit configuration for the RDS database in the dev account, then you only

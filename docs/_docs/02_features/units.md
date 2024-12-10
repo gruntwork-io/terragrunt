@@ -10,22 +10,19 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Units
+- [Motivation](#motivation)
+- [Terragrunt units](#terragrunt-units)
+- [Remote OpenTofu/Terraform modules](#remote-opentofuterraform-modules)
+- [Achieve immutable infrastructure patterns and atomic deployments](#achieve-immutable-infrastructure-patterns-and-atomic-deployments)
+- [Working locally](#working-locally)
+- [Working with lock files](#working-with-lock-files)
+- [Terragrunt caching](#terragrunt-caching)
+- [Working with relative file paths](#working-with-relative-file-paths)
+- [Using Terragrunt with private Git repos](#using-terragrunt-with-private-git-repos)
+- [Generate blocks](#generate-blocks)
+- [Further reading](#further-reading)
 
-- [Units](#units)
-  - [Motivation](#motivation)
-  - [Terragrunt units](#terragrunt-units)
-  - [Remote OpenTofu/Terraform modules](#remote-opentofuterraform-modules)
-  - [Achieve immutable infrastructure patterns and atomic deployments](#achieve-immutable-infrastructure-patterns-and-atomic-deployments)
-  - [Working locally](#working-locally)
-  - [Working with lock files](#working-with-lock-files)
-  - [Terragrunt caching](#terragrunt-caching)
-  - [Working with relative file paths](#working-with-relative-file-paths)
-  - [Using Terragrunt with private Git repos](#using-terragrunt-with-private-git-repos)
-  - [Generate blocks](#generate-blocks)
-  - [Further reading](#further-reading)
-
-### Motivation
+## Motivation
 
 Consider the following file structure in a typical OpenTofu/Terraform project, which defines three environments (prod, qa, stage) with the same infrastructure in each one (an app, a MySQL database, and a VPC):
 
@@ -60,7 +57,7 @@ How can you keep your OpenTofu/Terraform code [DRY](https://en.wikipedia.org/wik
 
 Moreover, how can you ensure that you are reproducing as close to the same infrastructure as possible across environments, so that you can be confident that what you test in qa will work when you deploy to prod?
 
-### Terragrunt units
+## Terragrunt units
 
 A unit in Terragrunt is a directory containing a `terragrunt.hcl` file. This hermetic unit of infrastructure is the smallest deployable entity in Terragrunt. It's also the most important feature Terragrunt has.
 
@@ -68,7 +65,7 @@ Units are designed to be contained, and can be operated on independently of othe
 
 Units are designed to work with immutable OpenTofu/Terraform modules. The OpenTofu/Terraform code referenced by a unit should be versioned, and that version of the module should be immutable. This ensures that the infrastructure you deploy is consistent across environments, and that you are confident you can reproduce the same pattern of infrastructure as many times as you need.
 
-### Remote OpenTofu/Terraform modules
+## Remote OpenTofu/Terraform modules
 
 Terragrunt has the ability to download remote OpenTofu/Terraform configurations. The idea is that you define the OpenTofu/Terraform code for your infrastructure just once, in a single repo, called, for example, `modules`:
 
@@ -172,7 +169,7 @@ When Terragrunt finds the `terraform` block with a `source` parameter in `live/s
 
 Check out the [terragrunt-infrastructure-modules-example](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example) and [terragrunt-infrastructure-live-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example) repos for fully-working sample code that demonstrates our recommended folder structure for successful infrastructure management.
 
-### Achieve immutable infrastructure patterns and atomic deployments
+## Achieve immutable infrastructure patterns and atomic deployments
 
 With this approach, copy/paste between environments is minimized. The `terragrunt.hcl` files contain solely the `source` URL of the module to deploy and the `inputs` to set for that module in the current environment. To create a new unit, you copy an old one and update just the environment-specific `inputs` in the `terragrunt.hcl` files, which is about as close to the "essential complexity" of the problem as you can get.
 
@@ -182,7 +179,7 @@ This is especially powerful when thinking about how the pattern is deployed. Bec
 
 This idea is inspired by Kief Morris' blog post [Using Pipelines to Manage Environments with Infrastructure as Code](https://medium.com/@kief/https-medium-com-kief-using-pipelines-to-manage-environments-with-infrastructure-as-code-b37285a1cbf5).
 
-### Working locally
+## Working locally
 
 If you’re testing changes to a local copy of the `modules` repo, you can use the `--terragrunt-source` command-line option or the `TERRAGRUNT_SOURCE` environment variable to override the `source` parameter. This is useful to point Terragrunt at a local checkout of your code so you can do rapid, iterative, make-a-change-and-rerun development:
 
@@ -193,7 +190,7 @@ terragrunt apply --terragrunt-source ../../../modules//app
 
 _(Note: the double slash (`//`) here too is intentional and required. Terragrunt downloads all the code in the folder before the double-slash into the temporary folder so that relative paths between modules work correctly. OpenTofu/Terraform may display a "OpenTofu/Terraform initialized in an empty directory" warning, but you can safely ignore it.)_
 
-### Working with lock files
+## Working with lock files
 
 Terraform 0.14 introduced lock files. These should mostly "just work" with Terragrunt version v0.27.0 and above: that
 is, the lock file (`.terraform.lock.hcl`) will be generated next to your `terragrunt.hcl`, and you should check it into
@@ -201,7 +198,7 @@ version control.
 
 See the [Lock File Handling docs]({{site.baseurl}}/docs/features/lock-file-handling/) for more details.
 
-### Terragrunt caching
+## Terragrunt caching
 
 The first time you set the `source` parameter to a remote URL, Terragrunt will download the code from that URL into a tmp folder. It will _NOT_ download it again afterwards unless you change that URL. That’s because downloading code—and more importantly, reinitializing remote state, redownloading provider plugins, and redownloading modules—can take a long time. To avoid adding 10-90 seconds of overhead to every Terragrunt command, Terragrunt assumes all remote URLs are immutable, and only downloads them once.
 
@@ -209,7 +206,7 @@ Therefore, when working locally, you should use the `--terragrunt-source` parame
 
 If you need to force Terragrunt to redownload something from a remote URL, run Terragrunt with the `--terragrunt-source-update` flag and it’ll delete the tmp folder, download the files from scratch, and reinitialize everything. This can take a while, so avoid it and use `--terragrunt-source` when you can\!
 
-### Working with relative file paths
+## Working with relative file paths
 
 One of the gotchas with downloading OpenTofu/Terraform configurations is that when you run `terragrunt apply` in folder `foo`, OpenTofu/Terraform will actually run in some temporary folder such as `.terragrunt-cache/foo`. That means you have to be especially careful with relative file paths, as they will be relative to that temporary folder and not the folder where you ran Terragrunt\!
 
@@ -251,7 +248,7 @@ In particular:
 
     See the [get\_terragrunt\_dir()]({{site.baseurl}}/docs/reference/built-in-functions/#get_terragrunt_dir) documentation for more details.
 
-### Using Terragrunt with private Git repos
+## Using Terragrunt with private Git repos
 
 The easiest way to use Terragrunt with private Git repos is to use SSH authentication. Configure your Git account so you can use it with SSH (see the [guide for GitHub here](https://help.github.com/articles/connecting-to-github-with-ssh/)) and use the SSH URL for your repo:
 
@@ -269,7 +266,7 @@ Note: In automated pipelines, you may need to run the following command for your
 ssh -T -oStrictHostKeyChecking=accept-new git@github.com || true
 ```
 
-### Generate blocks
+## Generate blocks
 
 In an ideal world, all that units do would be to run versioned, immutable OpenTofu/Terraform modules with environment-specific inputs.
 In the real world, however, certain scenarios arise when you have to inject additional configurations to the immutable OpenTofu/Terraform
@@ -357,7 +354,7 @@ The `include` block tells Terragrunt to use the exact same Terragrunt configurat
 specified via the `path` parameter. It behaves exactly as if you had copy/pasted the OpenTofu/Terraform configuration from the
 included file `generate` configuration into the child, but this approach is much easier to maintain\!
 
-### Further Reading
+## Further Reading
 
 Note that if you're considering this solution because you're struggling with dynamic provider authentication in AWS,
 you may be interested in the dedicated documentation on [working with multiple AWS accounts](/docs/features/work-with-multiple-aws-accounts/).

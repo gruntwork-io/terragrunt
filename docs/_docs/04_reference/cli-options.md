@@ -1159,7 +1159,7 @@ There are four log format presets:
 
 This allows you to customize logging however you like.
 
-Make sure to read [Custom Log Format](https://terragrunt.gruntwork.io/docs/features/custom-log-format/) for syntax details.
+Make sure to read [Custom Log Format](https://terragrunt.gruntwork.io/docs/features/log-formatting) for syntax details.
 
 ### terragrunt-log-disable
 

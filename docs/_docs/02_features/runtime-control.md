@@ -10,8 +10,6 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Feature Flags, Errors and Excludes
-
 Sometimes, you need to have Terragrunt behave differently at runtime due to specific context that you have in your environment.
 
 The following configuration blocks have been designed to work together in concert to provide you a great deal of flexibility in how Terragrunt behaves at runtime:
@@ -20,7 +18,7 @@ The following configuration blocks have been designed to work together in concer
 - [Errors](#errors)
 - [Excludes](#excludes)
 
-### Feature Flags
+## Feature Flags
 
 Defined using the [feature](/docs/reference/config-blocks-and-attributes/#feature) configuration block, Terragrunt allows for the control of specific features at runtime using feature flags.
 
@@ -55,7 +53,7 @@ This can be a useful way to opt-in to new features or to test changes in your in
 
 Setting a different version of an OpenTofu/Terraform module in a lower environment can be useful for testing changes before rolling them out to production. Users will always use the default version unless they explicitly set a different value.
 
-### Errors
+## Errors
 
 Defined using the [errors](/docs/reference/config-blocks-and-attributes/#errors) configuration block, Terragrunt allows for fine-grained control of errors at runtime.
 
@@ -137,7 +135,7 @@ In this example, the `enable_flaky_module` feature flag sets _both_ the version 
 
 This pattern allows for greater speed of integration with larger codebases, and can be a useful tool for managing risk in your infrastructure.
 
-### Excludes
+## Excludes
 
 Defined using the [exclude](/docs/reference/config-blocks-and-attributes/#exclude) configuration block, Terragrunt allows for the exclusion of specific units at runtime.
 
@@ -163,7 +161,7 @@ You can use this block to prevent certain units from running in certain environm
 
 Note that, just like with the other blocks mentioned so far, you can use a combination of configurations mentioned here to ensure that Terragrunt behaves exactly as you need it to at runtime.
 
-#### Exclusion from the Run Queue
+### Exclusion from the Run Queue
 
 The `exclude` block will only exclude the unit from the run queue, which is only relevant in the context of a `run-all` command.
 

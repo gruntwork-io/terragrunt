@@ -10,8 +10,6 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Terragrunt Cache
-
 Terragrunt uses a cache directory (`.terragrunt-cache`) to store downloaded modules when using the `source` attribute in the `terraform` block.
 
 This cache directory is created whenever Terragrunt downloads a module from a remote source, and where it runs the OpenTofu/Terraform commands. It also stores any modules and providers that are downloaded as part of these commands by default.

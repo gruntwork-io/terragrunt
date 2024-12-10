@@ -10,8 +10,6 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Catalog
-
 Launch the user interface for searching and managing your module catalog.
 
 Example:

@@ -10,8 +10,6 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Debugging
-
 Terragrunt and OpenTofu/Terraform usually play well together in helping you
 write DRY, reusable infrastructure. But how do we figure out what
 went wrong in the rare case that they _don't_ play well?
@@ -45,7 +43,7 @@ root cause of your problem:
 
 Let's run through a few use-cases.
 
-### Use-case: I use locals or dependencies in terragrunt.hcl, and the tofu/terraform output isn't what I expected
+## Debugging OpenTofu/Terraform Behavior
 
 Consider this file structure for a fictional production environment where we
 have configured an application to deploy as many tasks as there are minimum

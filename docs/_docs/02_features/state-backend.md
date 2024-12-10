@@ -10,16 +10,13 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## State Backend
+- [Motivation](#motivation)
+- [Generating remote state settings with Terragrunt](#generating-remote-state-settings-with-terragrunt)
+- [Create remote state resources automatically](#create-remote-state-resources-automatically)
+- [S3-specific remote state settings](#s3-specific-remote-state-settings)
+- [GCS-specific remote state settings](#gcs-specific-remote-state-settings)
 
-- [State Backend](#state-backend)
-  - [Motivation](#motivation)
-  - [Generating remote state settings with Terragrunt](#generating-remote-state-settings-with-terragrunt)
-  - [Create remote state resources automatically](#create-remote-state-resources-automatically)
-  - [S3-specific remote state settings](#s3-specific-remote-state-settings)
-  - [GCS-specific remote state settings](#gcs-specific-remote-state-settings)
-
-### Motivation
+## Motivation
 
 OpenTofu/Terraform supports [remote state storage](https://www.terraform.io/docs/state/remote.html) via a variety of [backends](https://www.terraform.io/docs/backends) that you normally configure in your `.tf` files as follows:
 
@@ -54,7 +51,7 @@ In addition, the resources used for remote state are going to be provisioned _so
 
 Luckily, Terragrunt has built-in tooling to make it easy to manage remote state.
 
-### Generating remote state settings with Terragrunt
+## Generating remote state settings with Terragrunt
 
 To fill in the settings via Terragrunt, create a `root.hcl` file in the root folder, plus one `terragrunt.hcl` file in each of the OpenTofu/Terraform modules:
 
@@ -120,7 +117,7 @@ The `terragrunt.hcl` files above use two Terragrunt built-in functions:
 
 Read [Built-in Functions docs]({{site.baseurl}}/docs/reference/built-in-functions/#built-in-functions) for more info.
 
-### Create remote state resources automatically
+## Create remote state resources automatically
 
 The `generate` block is useful for allowing you to setup the remote state backend configuration automatically, but
 this introduces a bootstrapping problem: how do you create and manage the underlying storage resources for the remote
@@ -225,7 +222,7 @@ remote_state {
 
 Check out the [terragrunt-infrastructure-modules-example](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example) and [terragrunt-infrastructure-live-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example) repos for fully-working sample code that demonstrates how to use Terragrunt to manage remote state.
 
-### S3-specific remote state settings
+## S3-specific remote state settings
 
 For the `s3` backend, the following config options can be used for S3-compatible object stores, as necessary:
 
@@ -256,7 +253,7 @@ If you experience an error for any of these configurations, confirm you are usin
 
 Further, the `config` options `s3_bucket_tags`, `dynamodb_table_tags`, `accesslogging_bucket_tags`, `skip_bucket_versioning`, `skip_bucket_ssencryption`, `skip_bucket_root_access`, `skip_bucket_enforced_tls`, `skip_bucket_public_access_blocking`, `accesslogging_bucket_name`, `accesslogging_target_prefix`, and `enable_lock_table_ssencryption` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to OpenTofu/Terraform. See section [Create remote state resources automatically](#create-remote-state-resources-automatically)
 
-### GCS-specific remote state settings
+## GCS-specific remote state settings
 
 For the `gcs` backend, the following config options can be used for GCS-compatible object stores, as necessary:
 
@@ -276,7 +273,7 @@ If you experience an error for any of these configurations, confirm you are usin
 
 Further, the config options `gcs_bucket_labels`, `skip_bucket_versioning` and `enable_bucket_policy_only` are only valid for the backend `gcs`. They are used by terragrunt and are **not** passed on to terraform. See section [Create remote state resources automatically](#create-remote-state-resources-automatically).
 
-### Further Reading
+## Further Reading
 
 Managing your remote state like this is really valuable when you organize your units into a [stack](/docs/features/stacks).
 

@@ -10,7 +10,7 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## The short version: how to use lock files with Terragrunt
+## How to use lock files with Terragrunt
 
 To use [OpenTofu/Terraform lock files](https://opentofu.org/docs/language/files/dependency-lock/) with Terragrunt, you
 need to:
@@ -20,7 +20,7 @@ need to:
 
 Everything else with OpenTofu/Terraform and Terragrunt should work as expected. To learn the details of how this works, read on!
 
-## The long version: details of how Terragrunt handles lock files
+## How Terragrunt handles lock files
 
 ### What's a lock file?
 

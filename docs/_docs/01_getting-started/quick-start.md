@@ -9,8 +9,6 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Install Terragrunt
-
 If you haven't already installed Terragrunt, you can do so by following the instructions in the [Install Terragrunt]({{site.baseurl}}/docs/getting-started/install/) guide.
 
 ## Add `terragrunt.hcl` to your project

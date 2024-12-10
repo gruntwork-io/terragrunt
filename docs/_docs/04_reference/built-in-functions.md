@@ -10,9 +10,10 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like OpenTofu/Terraform\! The functions currently available are:
+Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like OpenTofu/Terraform\!
 
-- [OpenTofu/Terraform built-in functions](#opentofuterraform-built-in-functions)
+The functions currently available are:
+
 - [find\_in\_parent\_folders](#find_in_parent_folders)
 - [path\_relative\_to\_include](#path_relative_to_include)
 - [path\_relative\_from\_include](#path_relative_from_include)
@@ -42,8 +43,6 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
 - [get\_terragrunt\_source\_cli\_flag](#get_terragrunt_source_cli_flag)
 - [read\_tfvars\_file](#read_tfvars_file)
 - [mark\_as\_read](#mark_as_read)
-
-## OpenTofu/Terraform built-in functions
 
 All [OpenTofu/Terraform built-in functions (as of v0.15.3)](https://opentofu.org/docs/language/functions/) are supported in Terragrunt config files:
 

@@ -10,20 +10,17 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Stacks
+- [Motivation](#motivation)
+- [Stacks to the rescue!](#stacks-to-the-rescue)
+- [The run-all command](#the-run-all-command)
+- [Passing outputs between units](#passing-outputs-between-units)
+  - [Unapplied dependency and mock outputs](#unapplied-dependency-and-mock-outputs)
+- [Dependencies between units](#dependencies-between-units)
+- [Testing multiple units locally](#testing-multiple-units-locally)
+- [Limiting run parallelism](#limiting-run-parallelism)
+- [Saving OpenTofu/Terraform plan output](#saving-opentofuterraform-plan-output)
 
-- [Stacks](#stacks)
-  - [Motivation](#motivation)
-  - [Stacks to the rescue!](#stacks-to-the-rescue)
-  - [The run-all command](#the-run-all-command)
-  - [Passing outputs between units](#passing-outputs-between-units)
-    - [Unapplied dependency and mock outputs](#unapplied-dependency-and-mock-outputs)
-  - [Dependencies between units](#dependencies-between-units)
-  - [Testing multiple units locally](#testing-multiple-units-locally)
-  - [Limiting run parallelism](#limiting-run-parallelism)
-  - [Saving OpenTofu/Terraform plan output](#saving-opentofuterraform-plan-output)
-
-### Motivation
+## Motivation
 
 Let’s say your infrastructure is defined across multiple OpenTofu/Terraform modules:
 
@@ -47,7 +44,7 @@ To deploy such an environment, you’d have to manually run `tofu`/`terraform` `
 
 How do you avoid this tedious, error-prone and time-consuming process?
 
-### Stacks to the rescue
+## Stacks to the rescue
 
 Terragrunt provides special tooling for operating on sets of units at once. Sets of units in Terragrunt are called [stacks](/docs/getting-started/terminology/#stack).
 
@@ -56,7 +53,7 @@ Right now, there is no special syntax for defining a stack as a single file, but
 Regardless of whether you are using the new syntax or not, the core functionality provided by Stacks are the same.
 The new `terragrunt.stack.hcl` file is merely a shorthand for defining a stack, just like you could by placing units directly in a folder.
 
-### The `run-all` command
+## The `run-all` command
 
 To solve the problem above, first convert the OpenTofu/Terraform modules into units. This is done simply by adding an empty `terragrunt.hcl` file within each module folder.
 
@@ -122,7 +119,7 @@ If your units have dependencies between them, for example, you can’t deploy th
 
 Additional note: If your units have dependencies between them, and you run a `terragrunt run-all destroy` command, Terragrunt will destroy all the units under the current working directory, _as well as each of the unit dependencies_ (that is, units you depend on via `dependencies` and `dependency` blocks)! If you wish to use exclude dependencies from being destroyed, add the `--terragrunt-ignore-external-dependencies` flag, or use the `--terragrunt-exclude-dir` once for each directory you wish to exclude.
 
-### Passing outputs between units
+## Passing outputs between units
 
 Consider the following file structure:
 
@@ -191,7 +188,7 @@ If any of the units failed to deploy, then Terragrunt will not attempt to deploy
 
 **Note**: Not all blocks are able to access outputs passed by `dependency` blocks. See the section on [Configuration parsing order]({{site.baseurl}}/docs/getting-started/configuration/#configuration-parsing-order) for more information.
 
-#### Unapplied dependency and mock outputs
+### Unapplied dependency and mock outputs
 
 Terragrunt will return an error if the unit referenced in a `dependency` block has not been applied yet. This is because you cannot actually fetch outputs out of an unapplied unit, even if there are no resources being created in the unit.
 
@@ -288,7 +285,7 @@ dependency "vpc" {
 
 If real outputs only contain `vpc_id`, `dependency.outputs` will contain a real value for `vpc_id` and a mocked value for `new_output`.
 
-### Dependencies between units
+## Dependencies between units
 
 You can also specify dependencies explicitly. Consider the following file structure:
 
@@ -357,7 +354,7 @@ To check all of your dependencies and validate the code in them, you can use the
 
 **Note:** During `destroy` runs, Terragrunt will try to find all dependent units and show a confirmation prompt with a list of detected dependencies. This is because Terragrunt knows that once resources in a dependency is destroyed, any commands run on dependent units may fail. For example, if `destroy` was called on the `redis` unit, you'll be asked for confirmation, as the `backend-app` depends on `redis`. You can avoid the prompt by using `--terragrunt-non-interactive`.
 
-### Visualizing the DAG
+## Visualizing the DAG
 
 To visualize the dependency graph you can use the `graph-dependencies` command (similar to the `terraform graph` command).
 
@@ -377,7 +374,7 @@ For most commands, Terragrunt will run in the opposite direction, however (e.g. 
 
 The exception to this rule is during the `destroy` (and `plan -destroy`) command, where Terragrunt will run in the direction of the arrow (e.g. `frontend-app` would be destroyed before `backend-app`).
 
-### Testing multiple units locally
+## Testing multiple units locally
 
 If you are using Terragrunt to download [remote OpenTofu/Terraform modules]({{site.baseurl}}/docs/features/units/#remote-opentofuterraform-modules) and all of your units have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--terragrunt-source` parameter to override that value:
 
@@ -410,7 +407,7 @@ terragrunt run-all apply --terragrunt-source /source/infrastructure-modules
 
 Will result in a unit with the configuration for the source above being resolved to `/source/infrastructure-modules//networking/vpc`.
 
-### Limiting run parallelism
+## Limiting run parallelism
 
 By default, Terragrunt will not impose a limit on the number of units it executes when it traverses the dependency graph,
 meaning that if it finds 5 units without dependencies, it'll run OpenTofu/Terraform 5 times in parallel, once in each unit.
@@ -424,7 +421,7 @@ To limit the maximum number of unit executions at any given time use the `--terr
 terragrunt run-all apply --terragrunt-parallelism 4
 ```
 
-### Saving OpenTofu/Terraform plan output
+## Saving OpenTofu/Terraform plan output
 
 A powerful feature of OpenTofu/Terraform is the ability to [save the result of a plan as a binary or JSON file using the -out flag](https://opentofu.org/docs/cli/commands/plan/).
 
@@ -498,7 +495,7 @@ To recap:
 - JSON plan files can't be used with `terragrunt run-all apply` command, only binary plan files can be used.
 - Output directories can be combined which will lead to saving both binary and JSON plans.
 
-### Nested Stacks
+## Nested Stacks
 
 Note that you can also have nested stacks.
 

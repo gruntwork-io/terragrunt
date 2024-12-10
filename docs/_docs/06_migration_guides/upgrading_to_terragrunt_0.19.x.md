@@ -10,9 +10,6 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-<!-- markdownlint-disable MD025 -->
-# Upgrading to Terragrunt 0.19.x
-
 ## Background
 
 Terraform 0.12 was released in May, 2019, and it included a few major changes:

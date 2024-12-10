@@ -10,8 +10,6 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Before, After and Error Hooks
-
 _Before Hooks_, _After Hooks_ and _Error Hooks_ are a feature of terragrunt that make it possible to define custom actions that will be called before or after running an `tofu`/`terraform` command.
 
 They allow you to _orchestrate_ certain operations around IaC updates so that you have a consistent way to run custom code before or after running OpenTofu/Terraform.
@@ -51,7 +49,7 @@ In this example configuration, whenever Terragrunt runs `tofu apply` or `tofu pl
 You can learn more about all the various configuration options supported in [the reference docs for the terraform
 block](/docs/reference/config-blocks-and-attributes/#terraform).
 
-### Hook Context
+## Hook Context
 
 All hooks add extra environment variables when executing the hook's run command:
 
@@ -131,7 +129,7 @@ BUCKET_NAME="$TF_VAR_bucket_name"
 aws s3 ls "s3://$BUCKET_NAME"
 ```
 
-### Orchestrating execution outside IaC
+## Orchestrating execution outside IaC
 
 Hooks can be used to handle operations that need to happen, but are not directly related to the OpenTofu/Terraform.
 
@@ -200,7 +198,7 @@ curl -sSf "$SERVICE_URL"
 
 You might even decide to integrate with a product like [Terratest](https://github.com/gruntwork-io/terratest) for more complex testing.
 
-### Hook Ordering
+## Hook Ordering
 
 You can have multiple before and after hooks. Each hook will execute in the order they are defined.
 
@@ -223,7 +221,7 @@ terraform {
 This configuration will cause Terragrunt to output `Will run OpenTofu` and then `Running OpenTofu` before the call
 to OpenTofu/Terraform.
 
-### Tflint hook
+## Tflint hook
 
 _Before Hooks_ or _After Hooks_ natively support _tflint_, a linter for OpenTofu/Terraform code. It will validate the
 OpenTofu/Terraform code used by Terragrunt, and it's inputs.
@@ -255,7 +253,7 @@ config {
 }
 ```
 
-#### Configuration
+### Configuration
 
 By default, `tflint` is executed with the internal `tflint` built into Terragrunt, which will evaluate parameters passed in.
 
@@ -277,7 +275,7 @@ terraform {
 }
 ```
 
-#### Authentication for tflint rulesets
+### Authentication for tflint rulesets
 
 <!-- markdownlint-disable MD036 -->
 _Public rulesets_
@@ -288,7 +286,7 @@ _Private rulesets_
 
 If you want to run a the `tflint` hook with custom rulesets defined in a private repository, you will need to export a valid `GITHUB_TOKEN` token.
 
-#### Troubleshooting
+### Troubleshooting
 
 __`flag provided but not defined: -act-as-bundled-plugin` error__
 

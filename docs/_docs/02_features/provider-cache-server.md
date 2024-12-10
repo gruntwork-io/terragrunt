@@ -10,19 +10,17 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Provider Cache Server
-
 Terragrunt has the ability to cache OpenTofu/Terraform providers across all OpenTofu/Terraform instances, ensuring that each provider is only ever downloaded and stored on disk exactly once by running a local provider cache server while running Terragrunt.
 
-### Why caching is useful
+## Why caching is useful
 
 Let's imagine that your project consists of 50 Terragrunt modules (terragrunt.hcl), each of them uses the same provider `aws`. Without caching, each of them will download the provider from the Internet and stored in its own `.terraform` directory. For clarity, the downloadable archive `terraform-provider-aws_5.36.0_darwin_arm64.zip` has a size of ~100MB, and when unzipped it takes up ~450MB of disk space. It’s easy to calculate that initializing such a project with 50 modules will cost you 5GB of traffic and 22.5GB of free space instead of 100MB and 450MB using the cache.
 
-### Why OpenTofu/Terraform's built-in provider caching doesn't work
+## Why OpenTofu/Terraform's built-in provider caching doesn't work
 
 OpenTofu/Terraform has provider caching feature [Provider Plugin Cache](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache), that does the job well until you run multiple OpenTofu/Terraform processes simultaneously, such as when you use `terragrunt run-all`. Then the OpenTofu/Terraform processes begin conflict by overwriting each other’s cache, which causes the error like `Error: Failed to install provider`. As a result, Terragrunt previously had to disable concurrency for `init` steps in `run-all`, which is significantly slower. If you enable Terragrunt Provider Caching, as described in this section, that will no longer be necessary, and you should see significant performance improvements with `init`, as well as significant savings in terms of bandwidth and disk space usage.
 
-### Usage
+## Usage
 
 Terragrunt Provider Cache is currently considered an experimental feature, so it is disabled by default. To enable it you need to use the flag [`terragrunt-provider-cache`](https://terragrunt.gruntwork.io/docs/reference/cli-options/#terragrunt-provider-cache):
 
@@ -75,7 +73,7 @@ TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES=example1.com,example2.com \
 terragrunt apply
 ```
 
-### How Terragrunt Provider Caching works
+## How Terragrunt Provider Caching works
 
 - Start a server on localhost. This is the _Terragrunt Provider Cache server_.
 - Configure OpenTofu/Terraform instances to use the Terragrunt Provider Cache server as a remote registry:
@@ -95,18 +93,18 @@ terragrunt apply
   - At this point, all providers are downloaded and cached, so finally, we run `terragrunt init` a second time, which will find all the providers it needs in the cache, and it'll create symlinks to them nearly instantly, with no additional downloading.
   - Note that if a OpenTofu/Terraform module doesn't have a lock file, OpenTofu/Terraform does _not_ use the cache, so it would end up downloading all the providers from scratch. To work around this, we generate `.terraform.lock.hcl` based on the request made by `terrafrom init` to the Terragrunt Provider Cache server. Since `terraform init` only requests the providers that need to be added/updated, we can keep track of them using the Terragrunt Provider Cache server and update the OpenTofu/Terraform lock file with the appropriate hashes without having to parse `tf` configs.
 
-#### Reusing providers from the user plugins directory
+### Reusing providers from the user plugins directory
 
 Some plugins for some operating systems may not be available in the remote registries. Thus, the cache server will not be able to download the requested provider. As an example, plugin `template v2.2.0` for `darwin-arm64`, see [Template v2.2.0 does not have a package available - Mac M1](https://discuss.hashicorp.com/t/template-v2-2-0-does-not-have-a-package-available-mac-m1/35099). The workaround is to compile the plugin from source code and put it into the user plugins directory or use the automated solution [https://github.com/kreuzwerker/m1-terraform-provider-helper](https://github.com/kreuzwerker/m1-terraform-provider-helper). For this reason, the cache server first tries to create a symlink from the user's plugin directory if the required provider already exists there:
 
 - %APPDATA%\terraform.d\plugins on Windows
 - ~/.terraform.d/plugins on other systems
 
-#### How forwarding OpenTofu/Terraform requests through the Terragrunt Provider Cache works
+### How forwarding OpenTofu/Terraform requests through the Terragrunt Provider Cache works
 
 OpenTofu/Terraform has an official documented setting [network_mirror](https://developer.hashicorp.com/terraform/cli/config/config-file#network_mirror), that works great, but has one major drawback for the local cache server - the need to use https connection with a trusted certificate. Fortunately, there is another way - using the undocumented [host](https://github.com/hashicorp/terraform/issues/28309) setting, which allows OpenTofu/Terraform to create connections to the caching server over HTTP.
 
-#### Provider Cache with `providers lock` command
+### Provider Cache with `providers lock` command
 
 If you run `providers lock` with enabled Terragrunt Provider Cache, Terragrunt creates the provider cache and generates the lock file on its own, without running `terraform providers lock` at all.
 
@@ -115,7 +113,7 @@ terragrunt providers lock -platform=linux_amd64 -platform=darwin_arm64 -platform
 --terragrunt-provider-cache
 ```
 
-### Configure the Terragrunt Cache Provider
+## Configure the Terragrunt Cache Provider
 
 Since Terragrunt Provider Cache is essentially a Private Registry server that accepts requests from OpenTofu/Terraform, downloads and saves providers to the cache directory, there are a few more flags that are unlikely to be needed, but are useful to know about:
 

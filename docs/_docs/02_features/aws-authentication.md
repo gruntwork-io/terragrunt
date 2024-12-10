@@ -10,9 +10,7 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## AWS Authentication
-
-### Motivation
+## Motivation
 
 AWS is by far the most popular OpenTofu/Terraform provider, and most Terragrunt users are using it to manage AWS infrastructure, at least in part. As a consequence, Terragrunt has a number of features that make it easier to work with AWS, especially when you have to manage multiple AWS accounts.
 
@@ -44,7 +42,7 @@ There are a few ways to assume IAM roles when using AWS CLI tools, such as OpenT
 
 To avoid these frustrating trade-offs, you can configure Terragrunt to assume an IAM role for you.
 
-### Configuring Terragrunt to assume an IAM role
+## Configuring Terragrunt to assume an IAM role
 
 To tell Terragrunt to assume an IAM role, just set the [`--terragrunt-iam-role`](/docs/reference/cli-options/#terragrunt-iam-role) command line argument:
 
@@ -69,7 +67,7 @@ Terragrunt will resolve the value of the option by first looking for the cli arg
 
 Terragrunt will call the `sts assume-role` API on your behalf and expose the credentials it gets back as environment variables when running OpenTofu/Terraform. The advantage of this approach is that you can store your AWS credentials in a secret store and never write them to disk in plaintext, you get fresh credentials on every run of Terragrunt, without the complexity of calling `assume-role` yourself, and you don’t have to modify your OpenTofu/Terraform code or backend configuration at all.
 
-### Leveraging OIDC role assumption
+## Leveraging OIDC role assumption
 
 In addition, you can combine the `--terragrunt-iam-role` flag with the [`--terragrunt-iam-web-identity-token`](/docs/reference/cli-options/#terragrunt-iam-web-identity-token) to use the `AssumeRoleWithWebIdentity` API instead of the `AssumeRole` API.
 
@@ -98,7 +96,7 @@ iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 iam_web_identity_token = get_env("AN_OIDC_TOKEN")
 ```
 
-### Auth provider command
+## Auth provider command
 
 Finally, there is also a special flag that allows you to use an external command to provide the role assumption credentials. This is the most powerful and flexible option for setting up Terragrunt authentication, but it does require a bit more setup.
 
@@ -152,7 +150,7 @@ Given that the working directory of Terragrunt execution is the same as the comm
 
 This feature is integrated with the [Gruntwork Pipelines](https://www.gruntwork.io/platform/pipelines) product to provide a secure and flexible way to manage assumption of different roles in different accounts based on context.
 
-### Required Permissions
+## Required Permissions
 
 You are ultimately responsible for ensuring that the IAM role you are assuming has the minimal and necessary permissions required to perform the activity you are attempting.
 

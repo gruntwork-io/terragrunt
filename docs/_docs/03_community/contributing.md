@@ -10,8 +10,6 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Contributing
-
 Terragrunt is an open source project, and contributions from the community are very welcome\! Please check out the
 [Contribution Guidelines](#contribution-guidelines) and [Developing Terragrunt](#developing-terragrunt) for
 instructions.

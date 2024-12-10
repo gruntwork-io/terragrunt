@@ -9,7 +9,6 @@ order: 245
 nav_title: Documentation
 nav_title_link: /docs/
 ---
-## Auto-Init
 
 *Auto-Init* is a feature of Terragrunt that makes it so that `terragrunt init` does not need to be called explicitly before other terragrunt commands.
 
@@ -24,7 +23,7 @@ As [mentioned]({{site.baseurl}}/docs/features/extra-arguments/#extra_arguments-f
 
 Note that there might be cases where terragrunt does not properly detect that `terraform init` needs be called. In this case, OpenTofu/Terraform can fail. Running `terragrunt init` again in these circumstances can correct the issue.
 
-### Disabling Auto-Init
+## Disabling Auto-Init
 
 In some cases, it might be desirable to disable Auto-Init.
 

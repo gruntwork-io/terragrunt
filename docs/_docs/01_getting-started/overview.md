@@ -9,8 +9,6 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Overview
-
 The following is a simple overview of the main features in Terragrunt.
 
 It includes configurations that are a bit more complex than the ones found in the [Quick Start](/docs/getting-started/overview), but don't panic!
