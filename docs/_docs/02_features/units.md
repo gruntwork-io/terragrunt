@@ -13,7 +13,7 @@ nav_title_link: /docs/
 - [Motivation](#motivation)
 - [Terragrunt units](#terragrunt-units)
 - [Remote OpenTofu/Terraform modules](#remote-opentofuterraform-modules)
-- [Achieve immutable infrastructure patterns and atomic deployments](#achieve-immutable-infrastructure-patterns-and-atomic-deployments)
+- [Immutable modules and atomic deployments](#immutable-modules-and-atomic-deployments)
 - [Working locally](#working-locally)
 - [Working with lock files](#working-with-lock-files)
 - [Terragrunt caching](#terragrunt-caching)
@@ -169,7 +169,7 @@ When Terragrunt finds the `terraform` block with a `source` parameter in `live/s
 
 Check out the [terragrunt-infrastructure-modules-example](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example) and [terragrunt-infrastructure-live-example](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example) repos for fully-working sample code that demonstrates our recommended folder structure for successful infrastructure management.
 
-## Achieve immutable infrastructure patterns and atomic deployments
+## Immutable modules and atomic deployments
 
 With this approach, copy/paste between environments is minimized. The `terragrunt.hcl` files contain solely the `source` URL of the module to deploy and the `inputs` to set for that module in the current environment. To create a new unit, you copy an old one and update just the environment-specific `inputs` in the `terragrunt.hcl` files, which is about as close to the "essential complexity" of the problem as you can get.
 

@@ -11,9 +11,9 @@ nav_title_link: /docs/
 ---
 
 - [Motivation](#motivation)
-- [Using include to DRY common Terragrunt config](#using-include-to-dry-common-terragrunt-config)
-- [Using exposed includes to override common configurations](#using-exposed-includes-to-override-common-configurations)
-- [Using read\_terragrunt\_config to access configurations directly](#using-read_terragrunt_config-to-access-configurations-directly)
+- [Using multiple includes](#using-multiple-includes)
+- [Using exposed includes](#using-exposed-includes)
+- [Using read\_terragrunt\_config](#using-read_terragrunt_config)
 - [Considerations for CI/CD Pipelines](#considerations-for-cicd-pipelines)
 
 ## Motivation
@@ -99,7 +99,7 @@ adjustment to the `instance_type` parameter for each environment. These identica
 
 To solve this, you can use [multiple include blocks]({{site.baseurl}}/docs/reference/config-blocks-and-attributes#include).
 
-## Using include to DRY common Terragrunt config
+## Using multiple includes
 
 Suppose your `qa/app/terragrunt.hcl` configuration looks like the following:
 
@@ -207,7 +207,7 @@ inputs = {
 }
 ```
 
-## Using exposed includes to override common configurations
+## Using exposed includes
 
 In the previous section, we covered using `include` to DRY common component configurations. While powerful, `include` has
 a limitation where the included configuration is statically merged into the child configuration.
@@ -282,7 +282,7 @@ inputs = {
 }
 ```
 
-## Using read\_terragrunt\_config to access configurations directly
+## Using `read_terragrunt_config`
 
 In the previous two sections, we covered using `include` to merge Terragrunt configurations through static merges
 with unit configuration. What if you want included configurations to be dynamic in the context of unit where they
