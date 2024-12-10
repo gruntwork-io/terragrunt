@@ -288,6 +288,8 @@ func (remoteState *remoteStateConfigFile) toConfig() (*remote.RemoteState, error
 		}
 
 		config.Encryption = remoteStateEncryption
+	} else {
+		config.Encryption = nil
 	}
 
 	if remoteState.DisableInit != nil {
