@@ -17,8 +17,8 @@ When Auto-Init is enabled (the default), terragrunt will automatically call [`to
 
 - `init` has never been called.
 - `source` needs to be downloaded.
-- The `.terragrunt-init-required` file is in downloaded module directory (`.terragrunt-cache/aaa/bbb/modules/<module>`).
-- The modules or remote state used by the module have changed since the previous call to `init`.
+- The `.terragrunt-init-required` file is in the downloaded module directory (`.terragrunt-cache/aaa/bbb/modules/<module>`).
+- The modules or remote state used by a module have changed since the previous call to `init`.
 
 As [mentioned]({{site.baseurl}}/docs/features/extra-arguments/#extra_arguments-for-init), `extra_arguments` can be configured to allow customization of the `terraform init` command.
 
