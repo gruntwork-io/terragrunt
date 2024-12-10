@@ -19,7 +19,6 @@ instructions.
 Contributions to this repo are very welcome! We follow a fairly standard [pull request
 process](https://help.github.com/articles/about-pull-requests/) for contributions, subject to the following guidelines:
 
-- [Contributing](#contributing)
 - [Contribution Guidelines](#contribution-guidelines)
   - [File a GitHub issue or write an RFC](#file-a-github-issue-or-write-an-rfc)
   - [Update the documentation](#update-the-documentation)
