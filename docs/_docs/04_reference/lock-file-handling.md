@@ -1,11 +1,11 @@
 ---
 layout: collection-browser-doc
 title: Lock File Handling
-category: features
-categories_url: features
+category: reference
+categories_url: reference
 excerpt: Learn how to Terragrunt handles the OpenTofu/Terraform lock file
 tags: ["CLI", "DRY"]
-order: 270
+order: 407
 nav_title: Documentation
 nav_title_link: /docs/
 ---

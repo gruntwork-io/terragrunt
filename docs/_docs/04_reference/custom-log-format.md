@@ -1,11 +1,11 @@
 ---
 layout: collection-browser-doc
-title: Custom Log Format
-category: features
-categories_url: features
-excerpt: Learn how to use terragrunt provider cache.
+title: Log Formatting
+category: reference
+categories_url: reference
+excerpt: Learn how customize Terragrunt logging.
 tags: ["log"]
-order: 280
+order: 408
 nav_title: Documentation
 nav_title_link: /docs/
 ---

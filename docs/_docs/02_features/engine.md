@@ -3,7 +3,7 @@ layout: collection-browser-doc
 title: IaC Engines
 category: features
 categories_url: features
-excerpt: IaC Engines
+excerpt: Learn how to dynamically control OpenTofu/Terraform runs using IaC engines.
 tags: ["engine"]
 order: 313
 nav_title: Documentation
