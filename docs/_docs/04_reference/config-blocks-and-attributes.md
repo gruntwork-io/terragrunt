@@ -421,6 +421,9 @@ For the `s3` backend, the following additional properties are supported in the `
 - `region` - (Optional) The region of the S3 bucket.
 - `profile` - (Optional) This is the AWS profile name as set in the shared credentials file.
 - `endpoint` - (Optional) A custom endpoint for the S3 API.
+- `endpoints`: (Optional) A configuration `map` for custom service API (starting with Terraform 1.6).
+  - `s3` - (Optional) A custom endpoint for the S3 API. Overrides `endpoint` argument.
+  - `dynamodb` - (Optional) A custom endpoint for the DynamoDB API. Overrides `dynamodb_endpoint` argument.
 - `encrypt` - (Optional) Whether to enable server side encryption of the state file. If disabled, a log warning will be issued in the console output to notify the user. If `skip_bucket_ssencryption` is enabled, the log will be written as a debug log.
 - `role_arn` - (Optional) The role to be assumed.
 - `shared_credentials_file` - (Optional) This is the path to the shared credentials file. If this is not set and a profile is specified, `~/.aws/credentials` will be used.

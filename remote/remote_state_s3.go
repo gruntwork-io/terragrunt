@@ -99,6 +99,11 @@ type RemoteStateConfigS3AssumeRole struct {
 	SessionName string `mapstructure:"session_name"`
 }
 
+type RemoteStateConfigS3Endpoints struct {
+	S3       string `mapstructure:"s3"`
+	DynamoDB string `mapstructure:"dynamodb"`
+}
+
 // RemoteStateConfigS3 is a representation of the
 // configuration options available for S3 remote state.
 type RemoteStateConfigS3 struct {
@@ -106,8 +111,9 @@ type RemoteStateConfigS3 struct {
 	Bucket           string                        `mapstructure:"bucket"`
 	Key              string                        `mapstructure:"key"`
 	Region           string                        `mapstructure:"region"`
-	Endpoint         string                        `mapstructure:"endpoint"`
-	DynamoDBEndpoint string                        `mapstructure:"dynamodb_endpoint"`
+	Endpoint         string                        `mapstructure:"endpoint"`          // Deprecated in Terraform version 1.6 or newer.
+	DynamoDBEndpoint string                        `mapstructure:"dynamodb_endpoint"` // Deprecated in Terraform version 1.6 or newer.
+	Endpoints        RemoteStateConfigS3Endpoints  `mapstructure:"endpoints"`
 	Profile          string                        `mapstructure:"profile"`
 	RoleArn          string                        `mapstructure:"role_arn"`     // Deprecated in Terraform version 1.6 or newer.
 	ExternalID       string                        `mapstructure:"external_id"`  // Deprecated in Terraform version 1.6 or newer.
@@ -122,10 +128,20 @@ type RemoteStateConfigS3 struct {
 // GetAwsSessionConfig builds a session config for AWS related requests
 // from the RemoteStateConfigS3 configuration.
 func (c *ExtendedRemoteStateConfigS3) GetAwsSessionConfig() *awshelper.AwsSessionConfig {
+	s3Endpoint := c.RemoteStateConfigS3.Endpoint
+	if c.RemoteStateConfigS3.Endpoints.S3 != "" {
+		s3Endpoint = c.RemoteStateConfigS3.Endpoints.S3
+	}
+
+	dynamoDBEndpoint := c.RemoteStateConfigS3.DynamoDBEndpoint
+	if c.RemoteStateConfigS3.Endpoints.DynamoDB != "" {
+		dynamoDBEndpoint = c.RemoteStateConfigS3.Endpoints.DynamoDB
+	}
+
 	return &awshelper.AwsSessionConfig{
 		Region:                  c.RemoteStateConfigS3.Region,
-		CustomS3Endpoint:        c.RemoteStateConfigS3.Endpoint,
-		CustomDynamoDBEndpoint:  c.RemoteStateConfigS3.DynamoDBEndpoint,
+		CustomS3Endpoint:        s3Endpoint,
+		CustomDynamoDBEndpoint:  dynamoDBEndpoint,
 		Profile:                 c.RemoteStateConfigS3.Profile,
 		RoleArn:                 c.RemoteStateConfigS3.GetSessionRoleArn(),
 		ExternalID:              c.RemoteStateConfigS3.GetExternalID(),
