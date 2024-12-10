@@ -792,7 +792,7 @@ footer hr {
       padding-left: 18px;
       font-size: 15px;
     }
-    .navbar-nav > li:has(.github-nav-link):after {
+    .navbar-nav > li:has(.github-nav-link) {
       padding-left: 10px;
     }
   }
