@@ -234,24 +234,33 @@ func (state *RemoteState) GenerateTerraformCode(terragruntOptions *options.Terra
 	config := state.Config
 
 	// Initialize the encryption config based on the key provider
-	keyProvider, ok := state.Encryption["key_provider"].(string)
-	if !ok {
-		return errors.New("key_provider not found in encryption config")
-	}
+	var encryption map[string]interface{}
 
-	encryptionProvider, err := NewRemoteEncryptionKeyProvider(keyProvider)
-	if err != nil {
-		return fmt.Errorf("error creating provider: %w", err)
-	}
+	switch {
+	case state.Encryption == nil:
+		terragruntOptions.Logger.Debugf("No encryption block in remote_state config")
+	case len(state.Encryption) == 0:
+		terragruntOptions.Logger.Debugf("Empty encryption block in remote_state config")
+	default:
+		keyProvider, ok := state.Encryption["key_provider"].(string)
+		if !ok {
+			return errors.New("key_provider not found in encryption config")
+		}
 
-	err = encryptionProvider.UnmarshalConfig(state.Encryption)
-	if err != nil {
-		return err
-	}
+		encryptionProvider, err := NewRemoteEncryptionKeyProvider(keyProvider)
+		if err != nil {
+			return fmt.Errorf("error creating provider: %w", err)
+		}
 
-	encryption, err := encryptionProvider.ToMap()
-	if err != nil {
-		return fmt.Errorf("error decoding struct to map: %w", err)
+		err = encryptionProvider.UnmarshalConfig(state.Encryption)
+		if err != nil {
+			return err
+		}
+
+		encryption, err = encryptionProvider.ToMap()
+		if err != nil {
+			return fmt.Errorf("error decoding struct to map: %w", err)
+		}
 	}
 
 	initializer, hasInitializer := remoteStateInitializers[state.Backend]
