@@ -20,7 +20,7 @@ type RemoteEncryptionKeyProviderBase struct {
 }
 
 type GenericRemoteEncryptionKeyProvider[T RemoteEncryptionKeyProvider] struct {
-	T T
+	T T `mapstructure:",squash"`
 }
 
 func (b *GenericRemoteEncryptionKeyProvider[T]) UnmarshalConfig(encryptionConfig map[string]interface{}) error {
@@ -35,9 +35,11 @@ func (b *GenericRemoteEncryptionKeyProvider[T]) UnmarshalConfig(encryptionConfig
 		ErrorUnused: true,
 	}
 	decoder, err := mapstructure.NewDecoder(decoderConfig)
+
 	if err != nil {
 		return fmt.Errorf("failed to create decoder: %w", err)
 	}
+
 	if err := decoder.Decode(encryptionConfig); err != nil {
 		return fmt.Errorf("failed to decode key provider properties: %w", err)
 	}
@@ -48,9 +50,11 @@ func (b *GenericRemoteEncryptionKeyProvider[T]) UnmarshalConfig(encryptionConfig
 func (b *GenericRemoteEncryptionKeyProvider[T]) ToMap() (map[string]interface{}, error) {
 	var result map[string]interface{}
 	err := mapstructure.Decode(b.T, &result)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode struct to map: %w", err)
 	}
+
 	return result, nil
 }
 
