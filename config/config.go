@@ -286,6 +286,7 @@ func (remoteState *remoteStateConfigFile) toConfig() (*remote.RemoteState, error
 		if err != nil {
 			return nil, err
 		}
+
 		config.Encryption = remoteStateEncryption
 	}
 

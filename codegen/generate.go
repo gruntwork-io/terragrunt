@@ -292,11 +292,12 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]interfac
 
 	// encryption can be empty
 	if len(encryption) > 0 {
-		//extract key_provider first to create key_provider block
+		// extract key_provider first to create key_provider block
 		keyProvider, found := encryption[encryptionKeyProviderKey].(string)
 		if !found {
-			return nil, fmt.Errorf(encryptionKeyProviderKey + " is mandatory but not found in the encryption map")
+			return nil, errors.New(encryptionKeyProviderKey + " is mandatory but not found in the encryption map")
 		}
+
 		keyProviderTraversal := hcl.Traversal{
 			hcl.TraverseRoot{Name: encryptionKeyProviderKey},
 			hcl.TraverseAttr{Name: keyProvider},
@@ -341,10 +342,12 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]interfac
 			if key == encryptionKeyProviderKey {
 				continue
 			}
+
 			ctyVal, err := convertValue(encryption[key])
 			if err != nil {
 				return nil, errors.New(err)
 			}
+
 			if keyProviderBlockBody != nil {
 				keyProviderBlockBody.SetAttributeValue(key, ctyVal.Value)
 			}

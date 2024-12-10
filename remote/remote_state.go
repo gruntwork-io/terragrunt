@@ -241,7 +241,7 @@ func (state *RemoteState) GenerateTerraformCode(terragruntOptions *options.Terra
 
 	encryptionProvider, err := NewRemoteEncryptionKeyProvider(keyProvider)
 	if err != nil {
-		return fmt.Errorf("error creating provider: %v", err)
+		return fmt.Errorf("error creating provider: %w", err)
 	}
 
 	err = encryptionProvider.UnmarshalConfig(state.Encryption)
@@ -251,7 +251,7 @@ func (state *RemoteState) GenerateTerraformCode(terragruntOptions *options.Terra
 
 	encryption, err := encryptionProvider.ToMap()
 	if err != nil {
-		return fmt.Errorf("error decoding struct to map: %v", err)
+		return fmt.Errorf("error decoding struct to map: %w", err)
 	}
 
 	initializer, hasInitializer := remoteStateInitializers[state.Backend]

@@ -5,10 +5,13 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestUnmarshalConfig(t *testing.T) {
-	tests := []struct {
+	t.Parallel()
+
+	tc := []struct {
 		name             string
 		providerType     string
 		encryptionConfig map[string]interface{}
@@ -105,8 +108,12 @@ func TestUnmarshalConfig(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range tc {
+		tt := tt
+
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			provider, err := remote.NewRemoteEncryptionKeyProvider(tt.providerType)
 			if err != nil {
 				t.Fatalf("failed to create provider: %v", err)
@@ -114,15 +121,17 @@ func TestUnmarshalConfig(t *testing.T) {
 
 			err = provider.UnmarshalConfig(tt.encryptionConfig)
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
 }
 func TestToMap(t *testing.T) {
-	tests := []struct {
+	t.Parallel()
+
+	tc := []struct {
 		name             string
 		providerType     string
 		encryptionConfig map[string]interface{}
@@ -182,8 +191,12 @@ func TestToMap(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
+	for _, tt := range tc {
+		tt := tt
+
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			provider, err := remote.NewRemoteEncryptionKeyProvider(tt.providerType)
 			if err != nil {
 				t.Fatalf("failed to create provider: %v", err)
@@ -198,7 +211,7 @@ func TestToMap(t *testing.T) {
 			if tt.expectedError {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expectedMap, result)
 			}
 		})
