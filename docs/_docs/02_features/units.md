@@ -25,7 +25,6 @@ nav_title_link: /docs/
   - [Generate blocks](#generate-blocks)
   - [Further reading](#further-reading)
 
-
 ### Motivation
 
 Consider the following file structure in a typical OpenTofu/Terraform project, which defines three environments (prod, qa, stage) with the same infrastructure in each one (an app, a MySQL database, and a VPC):
@@ -138,7 +137,7 @@ inputs = {
 }
 ```
 
-*(Note: the double slash (`//`) in the `source` parameter is intentional and required. It’s part of OpenTofu/Terraform’s Git syntax for [module sources](https://opentofu.org/docs/language/modules/sources/). OpenTofu/Terraform may display a "OpenTofu/Terraform initialized in an empty directory" warning, but you can safely ignore it.)*
+_(Note: the double slash (`//`) in the `source` parameter is intentional and required. It’s part of OpenTofu/Terraform’s Git syntax for [module sources](https://opentofu.org/docs/language/modules/sources/). OpenTofu/Terraform may display a "OpenTofu/Terraform initialized in an empty directory" warning, but you can safely ignore it.)_
 
 And `prod/app/terragrunt.hcl` may look like this:
 
@@ -192,7 +191,7 @@ cd live/stage/app
 terragrunt apply --terragrunt-source ../../../modules//app
 ```
 
-*(Note: the double slash (`//`) here too is intentional and required. Terragrunt downloads all the code in the folder before the double-slash into the temporary folder so that relative paths between modules work correctly. OpenTofu/Terraform may display a "OpenTofu/Terraform initialized in an empty directory" warning, but you can safely ignore it.)*
+_(Note: the double slash (`//`) here too is intentional and required. Terragrunt downloads all the code in the folder before the double-slash into the temporary folder so that relative paths between modules work correctly. OpenTofu/Terraform may display a "OpenTofu/Terraform initialized in an empty directory" warning, but you can safely ignore it.)_
 
 ### Working with lock files
 
@@ -204,7 +203,7 @@ See the [Lock File Handling docs]({{site.baseurl}}/docs/features/lock-file-handl
 
 ### Terragrunt caching
 
-The first time you set the `source` parameter to a remote URL, Terragrunt will download the code from that URL into a tmp folder. It will *NOT* download it again afterwards unless you change that URL. That’s because downloading code—and more importantly, reinitializing remote state, redownloading provider plugins, and redownloading modules—can take a long time. To avoid adding 10-90 seconds of overhead to every Terragrunt command, Terragrunt assumes all remote URLs are immutable, and only downloads them once.
+The first time you set the `source` parameter to a remote URL, Terragrunt will download the code from that URL into a tmp folder. It will _NOT_ download it again afterwards unless you change that URL. That’s because downloading code—and more importantly, reinitializing remote state, redownloading provider plugins, and redownloading modules—can take a long time. To avoid adding 10-90 seconds of overhead to every Terragrunt command, Terragrunt assumes all remote URLs are immutable, and only downloads them once.
 
 Therefore, when working locally, you should use the `--terragrunt-source` parameter and point it at a local file path as described in the previous section. Terragrunt will copy the local files every time you run it, which is nearly instantaneous, and doesn’t require reinitializing everything, so you’ll be able to iterate quickly.
 

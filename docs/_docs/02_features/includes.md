@@ -16,12 +16,12 @@ nav_title_link: /docs/
   - [Motivation](#motivation)
   - [Using include to DRY common Terragrunt config](#using-include-to-dry-common-terragrunt-config)
   - [Using exposed includes to override common configurations](#using-exposed-includes-to-override-common-configurations)
-  - [Using read\_terragrunt\_config to DRY parent configurations](#using-read_terragrunt_config-to-dry-parent-configurations)
+  - [Using read\_terragrunt\_config to access configurations directly](#using-read_terragrunt_config-to-access-configurations-directly)
   - [Considerations for CI/CD Pipelines](#considerations-for-cicd-pipelines)
 
 ### Motivation
 
-As covered in [Units]({{site.baseurl}}/docs/features/units) and [State Backend]({{site.baseurl}}/docs/features/state-backend), 
+As covered in [Units]({{site.baseurl}}/docs/features/units) and [State Backend]({{site.baseurl}}/docs/features/state-backend),
 it quickly becomes important to define base Terragrunt configuration files that are included in units. This is to ensure
 that all units have a consistent configuration, and to avoid repeating the same configuration across multiple units.
 
@@ -102,7 +102,7 @@ adjustment to the `instance_type` parameter for each environment. These identica
 
 To solve this, you can use [multiple include blocks]({{site.baseurl}}/docs/reference/config-blocks-and-attributes#include).
 
-### Using include to reuse common Terragrunt config
+### Using include to DRY common Terragrunt config
 
 Suppose your `qa/app/terragrunt.hcl` configuration looks like the following:
 
@@ -396,7 +396,7 @@ inputs = {
 }
 ```
 
-With this configuration, the `env_vars` local is set based on the location of the unit. 
+With this configuration, the `env_vars` local is set based on the location of the unit.
 
 For example, when Terragrunt is run in the context of the `prod/app` unit, `prod/env.hcl` is read,
 while `qa/env.hcl` is read when Terragrunt is run in the `qa/app` unit.

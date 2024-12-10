@@ -41,14 +41,14 @@ The configuration above allows you to set a default version for the `s3_version`
 At runtime, you can override the default value by doing one of the following:
 
 ```bash
-$ terragrunt apply --feature s3_version=v1.1.0
+terragrunt apply --feature s3_version=v1.1.0
 ```
 
 Or by setting the corresponding environment variable:
 
 ```bash
-$ export TERRAGRUNT_FEATURE="s3_version=v1.1.0"
-$ terragrunt apply
+export TERRAGRUNT_FEATURE="s3_version=v1.1.0"
+terragrunt apply
 ```
 
 This can be a useful way to opt-in to new features or to test changes in your infrastructure.
@@ -193,4 +193,3 @@ terraform {
 ```
 
 Note that this will result in an exit code of 1, rather than merely excluding the unit from the run queue, which is slightly different behavior.
-

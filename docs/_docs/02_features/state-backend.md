@@ -254,7 +254,7 @@ remote_state {
 
 If you experience an error for any of these configurations, confirm you are using OpenTofu or Terraform v0.12.2 or greater.
 
-Further, the `config` options `s3_bucket_tags`, `dynamodb_table_tags`, `accesslogging_bucket_tags`, `skip_bucket_versioning`, `skip_bucket_ssencryption`, `skip_bucket_root_access`, `skip_bucket_enforced_tls`, `skip_bucket_public_access_blocking`, `accesslogging_bucket_name`, `accesslogging_target_prefix`, and `enable_lock_table_ssencryption` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to OpenTofu/Terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
+Further, the `config` options `s3_bucket_tags`, `dynamodb_table_tags`, `accesslogging_bucket_tags`, `skip_bucket_versioning`, `skip_bucket_ssencryption`, `skip_bucket_root_access`, `skip_bucket_enforced_tls`, `skip_bucket_public_access_blocking`, `accesslogging_bucket_name`, `accesslogging_target_prefix`, and `enable_lock_table_ssencryption` are only valid for backend `s3`. They are used by terragrunt and are **not** passed on to OpenTofu/Terraform. See section [Create remote state resources automatically](#create-remote-state-resources-automatically)
 
 ### GCS-specific remote state settings
 
@@ -274,11 +274,10 @@ remote_state {
 
 If you experience an error for any of these configurations, confirm you are using Terraform v0.12.0 or greater.
 
-Further, the config options `gcs_bucket_labels`, `skip_bucket_versioning` and `enable_bucket_policy_only` are only valid for the backend `gcs`. They are used by terragrunt and are **not** passed on to terraform. See section [Create remote state and locking resources automatically](#create-remote-state-and-locking-resources-automatically).
+Further, the config options `gcs_bucket_labels`, `skip_bucket_versioning` and `enable_bucket_policy_only` are only valid for the backend `gcs`. They are used by terragrunt and are **not** passed on to terraform. See section [Create remote state resources automatically](#create-remote-state-resources-automatically).
 
 ### Further Reading
 
 Managing your remote state like this is really valuable when you organize your units into a [stack](/docs/features/stacks).
 
 Reading about those concepts will help you understand how to organize your infrastructure such that different units stored in isolated state are able to interact with each other.
-

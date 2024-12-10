@@ -20,7 +20,7 @@ nav_title_link: /docs/
     - [Unapplied dependency and mock outputs](#unapplied-dependency-and-mock-outputs)
   - [Dependencies between units](#dependencies-between-units)
   - [Testing multiple units locally](#testing-multiple-units-locally)
-  - [Limiting the unit execution parallelism](#limiting-the-unit-execution-parallelism)
+  - [Limiting run parallelism](#limiting-run-parallelism)
   - [Saving OpenTofu/Terraform plan output](#saving-opentofuterraform-plan-output)
 
 ### Motivation
@@ -47,7 +47,7 @@ To deploy such an environment, you’d have to manually run `tofu`/`terraform` `
 
 How do you avoid this tedious, error-prone and time-consuming process?
 
-### Stacks to the rescue!
+### Stacks to the rescue
 
 Terragrunt provides special tooling for operating on sets of units at once. Sets of units in Terragrunt are called [stacks](/docs/getting-started/terminology/#stack).
 
@@ -109,7 +109,7 @@ Finally, if you make some changes to your project, you could evaluate the impact
 Note: It is important to realize that you could get errors running `run-all plan` if you have dependencies between your
 projects and some of those dependencies haven’t been applied yet.
 
-*Ex: If unit A depends on unit B and unit B hasn’t been applied yet, then run-all plan will show the plan for B, but exit with an error when trying to show the plan for A.*
+_Ex: If unit A depends on unit B and unit B hasn’t been applied yet, then run-all plan will show the plan for B, but exit with an error when trying to show the plan for A._
 
 ```bash
 cd root
@@ -120,7 +120,7 @@ terragrunt run-all plan
 
 If your units have dependencies between them, for example, you can’t deploy the backend-app until MySQL and redis are deployed. You’ll need to express those dependencies in your Terragrunt configuration as explained in the next section.
 
-Additional note: If your units have dependencies between them, and you run a `terragrunt run-all destroy` command, Terragrunt will destroy all the units under the current working directory, *as well as each of the unit dependencies* (that is, units you depend on via `dependencies` and `dependency` blocks)! If you wish to use exclude dependencies from being destroyed, add the `--terragrunt-ignore-external-dependencies` flag, or use the `--terragrunt-exclude-dir` once for each directory you wish to exclude.
+Additional note: If your units have dependencies between them, and you run a `terragrunt run-all destroy` command, Terragrunt will destroy all the units under the current working directory, _as well as each of the unit dependencies_ (that is, units you depend on via `dependencies` and `dependency` blocks)! If you wish to use exclude dependencies from being destroyed, add the `--terragrunt-ignore-external-dependencies` flag, or use the `--terragrunt-exclude-dir` once for each directory you wish to exclude.
 
 ### Passing outputs between units
 
@@ -537,4 +537,3 @@ Generally speaking, this is the primary tool Terragrunt users use to control the
 In addition to using your working directory to control what's included in a [run queue](/docs/getting-started/terminology/#runner-queue), you can also use flags like [--terragrunt-include-dir](/docs/reference/cli-options/#terragrunt-include-dir) and [--terragrunt-exclude-dir](/docs/reference/cli-options/#terragrunt-exclude-dir) to explicitly control what's included in a run queue within a stack, or outside of it.
 
 There are more flags that control the behavior of the `run-all` command, which you can find in the [CLI Options](/docs/reference/cli-options) section.
-

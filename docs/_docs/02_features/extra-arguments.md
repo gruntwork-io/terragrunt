@@ -53,7 +53,7 @@ terraform {
 }
 ```
 
-Each `extra_arguments` block includes an arbitrary label (in the example above, `retry_lock`), a list of `commands` to which the extra arguments should be added, and a list of `arguments`, `required_var_files` or `optional_var_files` to add. 
+Each `extra_arguments` block includes an arbitrary label (in the example above, `retry_lock`), a list of `commands` to which the extra arguments should be added, and a list of `arguments`, `required_var_files` or `optional_var_files` to add.
 
 You can also pass custom environment variables using `env_vars` block, which stores environment variables in key value pairs. With the configuration above, when you run `terragrunt apply`, Terragrunt will call OpenTofu/Terraform as follows:
 
