@@ -343,7 +343,17 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]interfac
 				continue
 			}
 
-			ctyVal, err := convertValue(encryption[key])
+			value, ok := encryption[key]
+			if !ok {
+				continue
+			}
+
+			// Skip basic types with zero values
+			if value == "" || value == 0 {
+				continue
+			}
+
+			ctyVal, err := convertValue(value)
 			if err != nil {
 				return nil, errors.New(err)
 			}

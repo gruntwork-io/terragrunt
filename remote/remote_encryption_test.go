@@ -18,7 +18,7 @@ func TestUnmarshalConfig(t *testing.T) {
 		expectedError    bool
 	}{
 		{
-			name:         "PBKDF2 valid config",
+			name:         "PBKDF2 full config",
 			providerType: "pbkdf2",
 			encryptionConfig: map[string]interface{}{
 				"key_provider":  "pbkdf2",
@@ -49,7 +49,7 @@ func TestUnmarshalConfig(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name:         "AWSKMS valid config",
+			name:         "AWSKMS full config",
 			providerType: "aws_kms",
 			encryptionConfig: map[string]interface{}{
 				"key_provider": "aws_kms",
@@ -78,7 +78,7 @@ func TestUnmarshalConfig(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name:         "GCPKMS valid config",
+			name:         "GCPKMS full config",
 			providerType: "gcp_kms",
 			encryptionConfig: map[string]interface{}{
 				"key_provider":       "gcp_kms",
@@ -139,7 +139,7 @@ func TestToMap(t *testing.T) {
 		expectedError    bool
 	}{
 		{
-			name:         "PBKDF2 valid config",
+			name:         "PBKDF2 full config",
 			providerType: "pbkdf2",
 			encryptionConfig: map[string]interface{}{
 				"key_provider":  "pbkdf2",
@@ -160,7 +160,24 @@ func TestToMap(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name:         "AWSKMS valid config",
+			name:         "PBKDF2 partial config",
+			providerType: "pbkdf2",
+			encryptionConfig: map[string]interface{}{
+				"key_provider": "pbkdf2",
+				"passphrase":   "passphrase",
+			},
+			expectedMap: map[string]interface{}{
+				"key_provider":  "pbkdf2",
+				"passphrase":    "passphrase",
+				"key_length":    0,
+				"iterations":    0,
+				"salt_length":   0,
+				"hash_function": "",
+			},
+			expectedError: false,
+		},
+		{
+			name:         "AWSKMS full config",
 			providerType: "aws_kms",
 			encryptionConfig: map[string]interface{}{
 				"key_provider": "aws_kms",
@@ -175,7 +192,7 @@ func TestToMap(t *testing.T) {
 			expectedError: false,
 		},
 		{
-			name:         "GCPKMS valid config",
+			name:         "GCPKMS full config",
 			providerType: "gcp_kms",
 			encryptionConfig: map[string]interface{}{
 				"key_provider":       "gcp_kms",
