@@ -56,7 +56,7 @@ Right now, there is no special syntax for defining a stack as a single file, but
 Regardless of whether you are using the new syntax or not, the core functionality provided by Stacks are the same.
 The new `terragrunt.stack.hcl` file is merely a shorthand for defining a stack, just like you could by placing units directly in a folder.
 
-### The run-all command
+### The `run-all` command
 
 To solve the problem above, first convert the OpenTofu/Terraform modules into units. This is done simply by adding an empty `terragrunt.hcl` file within each module folder.
 
@@ -81,15 +81,14 @@ root
 
 Because you've created a directory of units, you've also implicitly created a stack!
 
-Now you can go into the `root` folder and deploy all the units within it by using the `run-all` command with
-`apply`:
+Now, you can go into the `root` folder and deploy all the units within it by using the `run-all` command with `apply`:
 
 ```bash
 cd root
 terragrunt run-all apply
 ```
 
-When you run this command, Terragrunt will recursively look through all the subfolders of the current working directory, find all folders with a `terragrunt.hcl` file, and run `terragrunt apply` in each of those folders concurrently.
+When you run this command, Terragrunt will recursively discover all the units under the current working directory, and run `terragrunt apply` on each of those units concurrently\*.
 
 Similarly, to undeploy all the OpenTofu/Terraform units, you can use the `run-all` command with `destroy`:
 
@@ -116,6 +115,8 @@ projects and some of those dependencies haven’t been applied yet.
 cd root
 terragrunt run-all plan
 ```
+
+\* Note that the units _might_ run concurrently, but some units can be blocked from running until their dependencies are run.
 
 If your units have dependencies between them, for example, you can’t deploy the backend-app until MySQL and redis are deployed. You’ll need to express those dependencies in your Terragrunt configuration as explained in the next section.
 
@@ -529,6 +530,11 @@ cd root/us-east-1
 terragrunt run-all apply
 ```
 
-Terragrunt will only include the units in the `us-east-1` stack and its children in the queue of units to run.
+Terragrunt will only include the units in the `us-east-1` stack and its children in the queue of units to run (unless external dependencies are pulled in, as discussed in the [run-all command](#the-run-all-command) section).
+
+Generally speaking, this is the primary tool Terragrunt users use to control the blast radius of their changes. For the most part, it is the current working directory that determines the blast radius of a `run-all` command.
 
 In addition to using your working directory to control what's included in a [run queue](/docs/getting-started/terminology/#runner-queue), you can also use flags like [--terragrunt-include-dir](/docs/reference/cli-options/#terragrunt-include-dir) and [--terragrunt-exclude-dir](/docs/reference/cli-options/#terragrunt-exclude-dir) to explicitly control what's included in a run queue within a stack, or outside of it.
+
+There are more flags that control the behavior of the `run-all` command, which you can find in the [CLI Options](/docs/reference/cli-options) section.
+
