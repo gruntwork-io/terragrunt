@@ -1,14 +1,18 @@
 ---
 layout: collection-browser-doc
-title: Caching
-category: features
-categories_url: features
-excerpt: Learn more about caching in Terragrunt.
-tags: ["caching"]
-order: 255
+title: Terragrunt Cache
+category: reference
+categories_url: reference
+excerpt: Learn what the `.terragrunt-cache` directory is and how to manage it.
+tags: [ "install" ]
+order: 406
 nav_title: Documentation
 nav_title_link: /docs/
 ---
+
+Terragrunt uses a cache directory (`.terragrunt-cache`) to store downloaded modules when using the `source` attribute in the `terraform` block.
+
+This cache directory is created whenever Terragrunt downloads a module from a remote source, and where it runs the OpenTofu/Terraform commands. It also stores any modules and providers that are downloaded as part of these commands by default.
 
 ## Clearing the Terragrunt cache
 
@@ -29,3 +33,5 @@ find . -type d -name ".terragrunt-cache" -prune -exec rm -rf {} \;
 ```
 
 Also consider setting the `TERRAGRUNT_DOWNLOAD` environment variable if you wish to place the cache directories somewhere else.
+
+If the reason you are clearing out your Terragrunt cache is that you are struggling with running out of disk space, consider using the [Provider Cache](/docs/features/provider-cache-server/#provider-cache-server) feature to store OpenTofu/Terraform provider plugins in a shared location, as those are typically the largest files stored in the `.terragrunt-cache` directory.

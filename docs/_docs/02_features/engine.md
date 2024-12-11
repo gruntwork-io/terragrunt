@@ -3,14 +3,12 @@ layout: collection-browser-doc
 title: IaC Engines
 category: features
 categories_url: features
-excerpt: IaC Engines
+excerpt: Learn how to dynamically control OpenTofu/Terraform runs using IaC engines.
 tags: ["engine"]
 order: 313
 nav_title: Documentation
 nav_title_link: /docs/
 ---
-
-## IAC Engines
 
 IaC engines allow you to customize and configure how IaC updates are orchestrated by Terragrunt. This feature is still experimental and not recommended for general production usage.
 
@@ -35,7 +33,7 @@ Due to the fact that this functionality is still experimental, and not recommend
 export TG_EXPERIMENTAL_ENGINE=1
 ```
 
-### Use Cases
+## Use Cases
 
 IaC Engines were introduced in order to offer advanced users of Terragrunt a level of customization over how exactly IaC updates are performed with a given set of Terragrunt configurations.
 
@@ -49,7 +47,7 @@ e.g.
 * Running `tofu` in a remote environment, such as a separate Kubernetes pod from the one executing Terragrunt.
 * Using different versions of `tofu` for different Terragrunt configurations in the same `run-all` execution.
 
-### HTTPS Sources
+## HTTPS Sources
 
 Use an HTTP(S) URL to specify the path to the engine:
 
@@ -60,7 +58,7 @@ engine {
 
 ```
 
-### Local Sources
+## Local Sources
 
 Specify a local absolute path as the source:
 
@@ -70,14 +68,14 @@ engine {
 }
 ```
 
-### Parameters
+## Parameters
 
 * `source`: (Required) The source of the plugin. Multiple engine approaches are supported, including GitHub repositories, HTTP(S) paths, and local absolute paths.
 * `version`: The version of the engine to download from GitHub releases, if not specified, the latest release is always downloaded.
 * `type`: (Optional) Currently, the only supported type is `rpc`.
 * `meta`: (Optional) A block for setting engine-specific metadata. This can include various configuration settings required by the engine.
 
-### Caching
+## Caching
 
 Engines are cached locally by default to enhance performance and minimize repeated downloads.
 
@@ -103,7 +101,7 @@ To configure a custom log level for the engine, set the `TG_ENGINE_LOG_LEVEL` en
 export TG_ENGINE_LOG_LEVEL=debug
 ```
 
-### Engine Metadata
+## Engine Metadata
 
 The `meta` block is used to pass metadata to the engine. This metadata can be used to configure the engine or pass additional information to the engine.
 

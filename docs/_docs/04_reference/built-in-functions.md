@@ -10,9 +10,10 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like OpenTofu/Terraform\! The functions currently available are:
+Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like OpenTofu/Terraform\!
 
-- [OpenTofu/Terraform built-in functions](#opentofuterraform-built-in-functions)
+The functions currently available are:
+
 - [find\_in\_parent\_folders](#find_in_parent_folders)
 - [path\_relative\_to\_include](#path_relative_to_include)
 - [path\_relative\_from\_include](#path_relative_from_include)
@@ -42,8 +43,6 @@ Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, ju
 - [get\_terragrunt\_source\_cli\_flag](#get_terragrunt_source_cli_flag)
 - [read\_tfvars\_file](#read_tfvars_file)
 - [mark\_as\_read](#mark_as_read)
-
-## OpenTofu/Terraform built-in functions
 
 All [OpenTofu/Terraform built-in functions (as of v0.15.3)](https://opentofu.org/docs/language/functions/) are supported in Terragrunt config files:
 
@@ -375,7 +374,7 @@ This function will error if the file is not located in a Git repository.
 
 ## get_terragrunt_dir
 
-`get_terragrunt_dir()` returns the directory where the Terragrunt configuration file (by default `terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote OpenTofu/Terraform configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/#remote-opentofu-terraform-configurations) and you want those paths relative to your Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
+`get_terragrunt_dir()` returns the directory where the Terragrunt configuration file (by default `terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote OpenTofu/Terraform configurations]({{site.baseurl}}/docs/features/units/#remote-opentofuterraform-modules) and you want those paths relative to your Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
 
 For example, imagine you have the following file structure:
 
@@ -438,7 +437,7 @@ terraform {
 
 ## get_parent_terragrunt_dir
 
-`get_parent_terragrunt_dir()` returns the absolute directory where the Terragrunt parent configuration file (by default `terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote OpenTofu/Terraform configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/#remote-opentofu-terraform-configurations) and you want those paths relative to your parent Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
+`get_parent_terragrunt_dir()` returns the absolute directory where the Terragrunt parent configuration file (by default `terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote OpenTofu/Terraform configurations]({{site.baseurl}}/docs/features/units/#remote-opentofuterraform-modules) and you want those paths relative to your parent Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
 
 This function is very similar to [get_terragrunt_dir()](#get_terragrunt_dir) except it returns the root instead of the leaf of your terragrunt configuration folder.
 
@@ -501,7 +500,7 @@ terraform {
 
 ## get_terraform_commands_that_need_vars
 
-`get_terraform_commands_that_need_vars()` returns the list of OpenTofu/Terraform commands that accept `-var` and `-var-file` parameters. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_vars()` returns the list of OpenTofu/Terraform commands that accept `-var` and `-var-file` parameters. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 terraform {
@@ -514,7 +513,7 @@ terraform {
 
 ## get_terraform_commands_that_need_input
 
-`get_terraform_commands_that_need_input()` returns the list of OpenTofu/Terraform commands that accept the `-input=(true or false)` parameter. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_input()` returns the list of OpenTofu/Terraform commands that accept the `-input=(true or false)` parameter. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 terraform {
@@ -528,7 +527,7 @@ terraform {
 
 ## get_terraform_commands_that_need_locking
 
-`get_terraform_commands_that_need_locking()` returns the list of terraform commands that accept the `-lock-timeout` parameter. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_locking()` returns the list of terraform commands that accept the `-lock-timeout` parameter. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 terraform {
@@ -542,7 +541,7 @@ terraform {
 
 ## get_terraform_commands_that_need_parallelism
 
-`get_terraform_commands_that_need_parallelism()` returns the list of terraform commands that accept the `-parallelism` parameter. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_parallelism()` returns the list of terraform commands that accept the `-parallelism` parameter. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 terraform {
