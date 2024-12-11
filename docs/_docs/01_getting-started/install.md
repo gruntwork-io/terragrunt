@@ -30,7 +30,7 @@ To verify the integrity of the file, do the following:
 2. Generate the SHA256 checksum of the binary.
 3. Download the `SHA256SUMS` file from the releases page.
 4. Find the expected checksum for the binary you downloaded.
-3. If the checksums match, the binary is intact and has not been tampered with.
+5. If the checksums match, the binary is intact and has not been tampered with.
 
 Here is a basic bash script that does that for an AMD64 Linux environment:
 
@@ -58,9 +58,9 @@ EXPECTED_CHECKSUM="$(grep "$BINARY_NAME" <SHA256SUMS | awk '{print $1}')"
 
 # Compare the checksums
 if [ "$CHECKSUM" == "$EXPECTED_CHECKSUM" ]; then
-	echo "Checksums match!"
+ echo "Checksums match!"
 else
-	echo "Checksums do not match!"
+ echo "Checksums do not match!"
 fi
 ```
 
