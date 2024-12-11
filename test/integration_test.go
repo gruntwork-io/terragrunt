@@ -379,7 +379,6 @@ func TestLogStdoutLevel(t *testing.T) {
 
 	assert.Empty(t, stdout)
 	assert.Contains(t, stderr, "STDOUT "+wrappedBinary()+": Changes to Outputs")
-
 }
 
 func TestLogFormatKeyValueOutput(t *testing.T) {
