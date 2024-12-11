@@ -69,6 +69,7 @@ const (
 	testFixtureInputs                         = "fixtures/inputs"
 	testFixtureInputsFromDependency           = "fixtures/inputs-from-dependency"
 	testFixtureLogFormatter                   = "fixtures/log/formatter"
+	testFixtureLogStdoutLevel                 = "fixtures/log/levels"
 	testFixtureLogRelPaths                    = "fixtures/log/rel-paths"
 	testFixtureMissingDependence              = "fixtures/missing-dependencies/main"
 	testFixtureModulePathError                = "fixtures/module-path-in-error"
@@ -358,6 +359,27 @@ func TestLogFormatPrettyOutput(t *testing.T) {
 
 	assert.Empty(t, stdout)
 	assert.Contains(t, stderr, "DEBUG  Terragrunt Version:")
+}
+
+func TestLogStdoutLevel(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureLogStdoutLevel)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogStdoutLevel)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogStdoutLevel)
+
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-log-level trace --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-format=pretty  --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Empty(t, stdout)
+	assert.Contains(t, stderr, "STDOUT "+wrappedBinary()+": Changes to Outputs")
+
+	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt destroy -auto-approve --terragrunt-log-level trace --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-format=pretty  --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Empty(t, stdout)
+	assert.Contains(t, stderr, "STDOUT "+wrappedBinary()+": Changes to Outputs")
+
 }
 
 func TestLogFormatKeyValueOutput(t *testing.T) {
