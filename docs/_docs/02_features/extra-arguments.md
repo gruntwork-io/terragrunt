@@ -16,7 +16,7 @@ nav_title_link: /docs/
 - [Required and optional var-files](#required-and-optional-var-files)
 - [Handling whitespace](#handling-whitespace)
 
-### Motivation
+## Motivation
 
 Sometimes you need to pass extra CLI arguments every time you run certain `tofu`/`terraform` commands.
 
@@ -71,7 +71,7 @@ terraform {
 }
 ```
 
-### Multiple extra\_arguments blocks
+## Multiple extra\_arguments blocks
 
 You can specify one or more `extra_arguments` blocks. The `arguments` in each block will be applied any time you call `terragrunt` with one of the commands in the `commands` list. If more than one `extra_arguments` block matches a command, the arguments will be added in the order of appearance in the configuration. For example, in addition to lock settings, you may also want to pass custom `-var-file` arguments to several commands:
 
@@ -109,7 +109,7 @@ $ terragrunt apply
 # tofu apply -lock-timeout=20m -var foo=bar -var region=us-west-1
 ```
 
-### `extra_arguments` for `init`
+## `extra_arguments` for `init`
 
 Extra arguments for the `init` command have some additional behavior and constraints.
 
@@ -137,7 +137,7 @@ terraform {
 
 Note that you're encouraged to use the [Provider Caching]({{site.baseurl}}/docs/features/provider-caching) feature instead of manually installing plugins in most cases.
 
-### Required and optional var-files
+## Required and optional var-files
 
 One common usage of extra\_arguments is to include tfvars files. Instead of using arguments, it is simpler to use either `required_var_files` or `optional_var_files`. Both options require only to provide the list of file to include. The only difference is that `required_var_files` will add the extra argument `-var-file=<your file>` for each file specified and if they don’t exist, exit with an error. `optional_var_files`, on the other hand, will skip over files that don’t exists. This allows many conditional configurations based on environment variables as you can see in the following example:
 
@@ -198,7 +198,7 @@ $ TF_VAR_env=prod TF_VAR_region=us-west-2 terragrunt run-all apply
 [frontend-app] tofu apply -var-file=/my/tf/tofu.tfvars -var-file=/my/tf/prod.tfvars -var-file=/my/tf/us-west-2.tfvars
 ```
 
-### Handling whitespace
+## Handling whitespace
 
 The list of arguments cannot include whitespaces, so if you need to pass command line arguments that include spaces (e.g. `-var bucket=example.bucket.name`), then each of the arguments will need to be a separate item in the `arguments` list:
 
