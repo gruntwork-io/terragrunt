@@ -15,9 +15,90 @@ nav_title_link: /docs/
 
 1. Go to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases).
 2. Downloading the binary for your operating system: e.g., if you're on a Mac, download `terragrunt_darwin_amd64`; if you're on Windows, download `terragrunt_windows_amd64.exe`, etc.
-3. Rename the downloaded file to `terragrunt`.
-4. Add execute permissions to the binary: e.g., On Linux and Mac: `chmod u+x terragrunt`.
-5. Put the binary somewhere on your `PATH`: e.g., On Linux and Mac: `mv terragrunt /usr/local/bin/terragrunt`.
+3. Optionally, follow the instructions below on [verifying the checksum](#verifying-the-checksum).
+4. Rename the downloaded file to `terragrunt`.
+5. Add execute permissions to the binary: e.g., On Linux and Mac: `chmod u+x terragrunt`.
+6. Put the binary somewhere on your `PATH`: e.g., On Linux and Mac: `mv terragrunt /usr/local/bin/terragrunt`.
+
+### Verifying the checksum
+
+When you download the binary from the releases page, you can also use the checksum file to verify the integrity of the binary. This can be useful for ensuring that you have an intact binary and that it has not been tampered with.
+
+To verify the integrity of the file, do the following:
+
+1. Have the binary downloaded, and accessible.
+2. Generate the SHA256 checksum of the binary.
+3. Download the `SHA256SUMS` file from the releases page.
+4. Find the expected checksum for the binary you downloaded.
+3. If the checksums match, the binary is intact and has not been tampered with.
+
+Here is a basic bash script that does that for an AMD64 Linux environment:
+
+```bash
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+OS="linux"
+ARCH="amd64"
+VERSION="v0.69.10"
+BINARY_NAME="terragrunt_${OS}_${ARCH}"
+
+# Download the binary
+curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/$VERSION/$BINARY_NAME" -o "$BINARY_NAME"
+
+# Generate the checksum
+CHECKSUM="$(sha256sum "$BINARY_NAME" | awk '{print $1}')"
+
+# Download the checksum file
+curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/$VERSION/SHA256SUMS" -o SHA256SUMS
+
+# Grab the expected checksum
+EXPECTED_CHECKSUM="$(grep "$BINARY_NAME" <SHA256SUMS | awk '{print $1}')"
+
+# Compare the checksums
+if [ "$CHECKSUM" == "$EXPECTED_CHECKSUM" ]; then
+	echo "Checksums match!"
+else
+	echo "Checksums do not match!"
+fi
+```
+
+Aside from adjusting the `OS` and `ARCH` variables above for different operating systems, you may also need to use different utilities to generate the checksum.
+
+In MacOS environments, you can use the `shasum` command instead of `sha256sum`, if you don't have `sha256sum` installed.
+
+```bash
+CHECKSUM="$(shasum -a 256 "$BINARY_NAME" | awk '{print $1}')"
+```
+
+In Windows environments, you can either use Windows Subsystem for Linux (WSL) or use `Get-FileHash` in PowerShell.
+
+```powershell
+$os = "windows"
+$arch = "amd64"
+$version = "v0.69.10"
+$binaryName = "terragrunt_${os}_${arch}"
+
+# Download the binary
+Invoke-WebRequest "https://github.com/gruntwork-io/terragrunt/releases/download/$VERSION/$BINARY_NAME" -OutFile $binaryName
+
+# Generate the checksum
+$checksum = $(Get-FileHash -Algorithm SHA256 $binaryName).Hash
+
+# Download the checksum file
+Invoke-WebRequest "https://github.com/gruntwork-io/terragrunt/releases/download/$VERSION/SHA256SUMS" -OutFile SHA256SUMS
+
+# Grab the expected checksum
+$expectedChecksum = $((Get-Content "SHA256SUMS" | Select-String -Pattern $binaryName) -split '\s+')[0]
+
+# Compare the checksums
+if ($realHash -ne $expectedHash) {
+    Write-Error "Checksum mismatch"
+} else {
+    Write-Output "Checksums match!"
+}
+```
 
 ### Install via a package manager
 
@@ -46,6 +127,11 @@ Both of these tools allow you to pin the version of Terragrunt you are using in 
 Colleagues and CI/CD pipelines can then install the associated tool manager, and run using the pinned version.
 
 Note that the tools Terragrunt integrates with, such as OpenTofu and Terraform, can also be managed by these tool managers, so you can also pin the versions of those tools in the same file.
+
+Also note that the asdf plugin that both of these tools rely on is maintained by a third party:
+<https://github.com/ohmer/asdf-terragrunt>
+
+Gruntwork makes no guarantees about the safety or reliability of third-party plugins.
 
 ### Building from source
 
