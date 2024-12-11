@@ -78,25 +78,34 @@ In Windows environments, you can either use Windows Subsystem for Linux (WSL) or
 $os = "windows"
 $arch = "amd64"
 $version = "v0.69.10"
-$binaryName = "terragrunt_${os}_${arch}"
+$binaryName = "terragrunt_${os}_${arch}.exe"
 
-# Download the binary
-Invoke-WebRequest "https://github.com/gruntwork-io/terragrunt/releases/download/$VERSION/$BINARY_NAME" -OutFile $binaryName
+try {
+    $ProgressPreference = 'SilentlyContinue'
 
-# Generate the checksum
-$checksum = $(Get-FileHash -Algorithm SHA256 $binaryName).Hash
+    # Download binary and checksum
+    $baseUrl = "https://github.com/gruntwork-io/terragrunt/releases/download/$version"
+    Write-Host "Downloading Terragrunt $version..."
+    
+    Invoke-WebRequest -Uri "$baseUrl/$binaryName" -OutFile $binaryName -UseBasicParsing
+    Invoke-WebRequest -Uri "$baseUrl/SHA256SUMS" -OutFile "SHA256SUMS" -UseBasicParsing
 
-# Download the checksum file
-Invoke-WebRequest "https://github.com/gruntwork-io/terragrunt/releases/download/$VERSION/SHA256SUMS" -OutFile SHA256SUMS
+    $actualChecksum = (Get-FileHash -Algorithm SHA256 $binaryName).Hash.ToLower()
+    $expectedChecksum = (Get-Content "SHA256SUMS" | Select-String -Pattern $binaryName).Line.Split()[0].ToLower()
 
-# Grab the expected checksum
-$expectedChecksum = $((Get-Content "SHA256SUMS" | Select-String -Pattern $binaryName) -split '\s+')[0]
+    if ($actualChecksum -ne $expectedChecksum) {
+        Write-Error "Checksum verification failed"
+        exit 1
+    }
 
-# Compare the checksums
-if ($realHash -ne $expectedHash) {
-    Write-Error "Checksum mismatch"
-} else {
-    Write-Output "Checksums match!"
+    Write-Host "Terragrunt $version has been downloaded and verified successfully"
+}
+catch {
+    Write-Error "Failed to download: $_"
+    exit 1
+}
+finally {
+    $ProgressPreference = 'Continue'
 }
 ```
 
