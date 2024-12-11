@@ -10,14 +10,11 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Extra Arguments
-
-- [Extra Arguments](#extra-arguments)
-  - [Motivation](#motivation)
-  - [Multiple extra\_arguments blocks](#multiple-extra_arguments-blocks)
-  - [`extra_arguments` for `init`](#extra_arguments-for-init)
-  - [Required and optional var-files](#required-and-optional-var-files)
-  - [Handling whitespace](#handling-whitespace)
+- [Motivation](#motivation)
+- [Multiple extra\_arguments blocks](#multiple-extra_arguments-blocks)
+- [`extra_arguments` for `init`](#extra_arguments-for-init)
+- [Required and optional var-files](#required-and-optional-var-files)
+- [Handling whitespace](#handling-whitespace)
 
 ### Motivation
 
