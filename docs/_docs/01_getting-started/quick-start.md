@@ -51,6 +51,11 @@ If you would like a less gentle introduction geared towards with an active AWS a
 
 If you start to feel lost, or don't understand a concept, consider reading the [Terminology](/docs/getting-started/terminology/) page before continuing with this tutorial. It has a brief overview of most of the common terms used when discussing Terragrunt.
 
+Finally, note that all of the files created in this tutorial can be copied directly from the code block, none of them are partial files, so you don't have to worry about figuring out where to put the code. Just copy and paste!
+
+You can access the complete tutorial [here](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/docs/01-quick-start).
+<!-- Maintainer's Note: we also test this continuously in `tests/integration_docs_test.go` -->
+
 ### Step 1: Create a new Terragrunt project
 
 Let's say you have the following `main.tf` in directory `foo`:
@@ -154,7 +159,7 @@ resource "local_file" "file" {
 Now, just like when using `tofu` alone, you can pass in the value for the `content` variable using the `-var` flag:
 
 ```bash
-terragrunt apply -auto-approve -var 'content=Hello, Terragrunt!'
+terragrunt apply -auto-approve -var content='Hello, Terragrunt!'
 ```
 
 This is a common pattern when working with Infrastructure as Code (IaC). You typically create IaC that is relatively static, and then as you need to make configurations dynamic, you add variables to your configuration files to introduce dynamicity.
