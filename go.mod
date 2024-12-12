@@ -27,10 +27,10 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
 	github.com/zclconf/go-cty v1.14.2
-	golang.org/x/crypto v0.28.0 // indirect
+	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/oauth2 v0.23.0
-	golang.org/x/sync v0.9.0
-	golang.org/x/sys v0.27.0
+	golang.org/x/sync v0.10.0
+	golang.org/x/sys v0.28.0
 	google.golang.org/api v0.203.0
 )
 
@@ -92,8 +92,8 @@ require (
 	go.opentelemetry.io/otel/trace v1.32.0
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	golang.org/x/mod v0.21.0
-	golang.org/x/term v0.26.0
-	golang.org/x/text v0.20.0
+	golang.org/x/term v0.27.0
+	golang.org/x/text v0.21.0
 	google.golang.org/grpc v1.68.0
 	google.golang.org/protobuf v1.35.1
 	gopkg.in/ini.v1 v1.67.0
