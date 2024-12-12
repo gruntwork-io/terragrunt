@@ -14,10 +14,6 @@ import (
 	"github.com/hashicorp/go-version"
 )
 
-// DefaultTerraformVersionConstraint uses the constraint syntax from https://github.com/hashicorp/go-version
-// This version of Terragrunt was tested to work with Terraform 0.12.0 and above only
-const DefaultTerraformVersionConstraint = ">= v0.12.0"
-
 // TerraformVersionRegex verifies that terraform --version output is in one of the following formats:
 // - OpenTofu v1.6.0-dev
 // - Terraform v0.9.5-dev (cad024a5fe131a546936674ef85445215bbc4226+CHANGES)
@@ -54,17 +50,14 @@ func checkVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 		terragruntOptions.TerraformPath = partialTerragruntConfig.TerraformBinary
 	}
 
-	if err := PopulateTerraformVersion(ctx, terragruntOptions); err != nil {
-		return err
-	}
+	if terraformVersionConstraint := partialTerragruntConfig.TerraformVersionConstraint; terraformVersionConstraint != "" {
+		if err := PopulateTerraformVersion(ctx, terragruntOptions); err != nil {
+			return err
+		}
 
-	terraformVersionConstraint := DefaultTerraformVersionConstraint
-	if partialTerragruntConfig.TerraformVersionConstraint != "" {
-		terraformVersionConstraint = partialTerragruntConfig.TerraformVersionConstraint
-	}
-
-	if err := CheckTerraformVersion(terraformVersionConstraint, terragruntOptions); err != nil {
-		return err
+		if err := CheckTerraformVersion(terraformVersionConstraint, terragruntOptions); err != nil {
+			return err
+		}
 	}
 
 	if partialTerragruntConfig.TerragruntVersionConstraint != "" {
