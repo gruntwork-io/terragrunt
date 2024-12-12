@@ -940,7 +940,7 @@ If at any point during this process a change is found to be problematic, the tea
 
 That's the power of reducing your blast radius with Terragrunt!
 
-### Keep It Simple, Silly!
+### Keep It Simple, Silly
 
 One last pattern to internalize is the general tendency to prefer simple configurations over complex ones when possible.
 
