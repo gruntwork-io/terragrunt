@@ -44,7 +44,7 @@ terraform {
 
 # Configure the inputs for the module
 inputs = {
-  name = "my-vpc"
+  name = "step-one-vpc"
   cidr = "10.0.0.0/16"
 
   azs             = ["us-east-1a", "us-east-1b", "us-east-1c"]

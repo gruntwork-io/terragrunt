@@ -12,7 +12,7 @@ terraform {
 }
 
 inputs = {
-  name = "my-vpc"
+  name = "step-five-vpc-${local.region}"
   cidr = "10.0.0.0/16"
 
   azs             = ["${local.region}a", "${local.region}b", "${local.region}c"]
