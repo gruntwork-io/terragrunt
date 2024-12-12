@@ -16,6 +16,10 @@ const (
 	testFixtureOverview = "fixtures/docs/02-overview"
 )
 
+// These sub-tests explicitly run sequentially, as we don't want to over-consume network
+// resources.
+//
+//nolint:tparallel,paralleltest
 func TestAwsDocsOverview(t *testing.T) {
 	t.Parallel()
 
@@ -23,8 +27,6 @@ func TestAwsDocsOverview(t *testing.T) {
 	region := "us-east-1"
 
 	t.Run("step-01-terragrunt.hcl", func(t *testing.T) {
-		t.Parallel()
-
 		s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 		stepPath := util.JoinPath(testFixtureOverview, "step-01-terragrunt.hcl")
@@ -47,8 +49,6 @@ func TestAwsDocsOverview(t *testing.T) {
 	})
 
 	t.Run("step-02-dependencies", func(t *testing.T) {
-		t.Parallel()
-
 		s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 		stepPath := util.JoinPath(testFixtureOverview, "step-02-dependencies")
@@ -71,8 +71,6 @@ func TestAwsDocsOverview(t *testing.T) {
 	})
 
 	t.Run("step-03-mock-outputs", func(t *testing.T) {
-		t.Parallel()
-
 		s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 		stepPath := util.JoinPath(testFixtureOverview, "step-03-mock-outputs")
@@ -95,8 +93,6 @@ func TestAwsDocsOverview(t *testing.T) {
 	})
 
 	t.Run("step-04-configuration-hierarchy", func(t *testing.T) {
-		t.Parallel()
-
 		s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 		stepPath := util.JoinPath(testFixtureOverview, "step-04-configuration-hierarchy")
@@ -119,8 +115,6 @@ func TestAwsDocsOverview(t *testing.T) {
 	})
 
 	t.Run("step-05-exposed-includes", func(t *testing.T) {
-		t.Parallel()
-
 		s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
 		stepPath := util.JoinPath(testFixtureOverview, "step-05-exposed-includes")
