@@ -1,6 +1,3 @@
-// `hclFmt` command recursively looks for hcl files in the directory tree starting at workingDir, and formats them
-// based on the language style guides provided by Hashicorp. This is done using the official hcl2 library.
-
 package hclfmt
 
 import (
@@ -68,6 +65,10 @@ func Run(opts *options.TerragruntOptions) error {
 		}
 
 		if util.ListContainsElement(pathList, util.DefaultBoilerplateDir) {
+			skipFile = true
+		}
+
+		if util.ListContainsElement(pathList, "terragrunt-cache") {
 			skipFile = true
 		}
 
