@@ -63,9 +63,9 @@ func TestTofuStateEncryptionAWSKMS(t *testing.T) {
 
 	helpers.CopyAndFillMapPlaceholders(t, configPath, configPath, map[string]string{
 		"__FILL_IN_KMS_KEY_ID__": awsKMSKeyID,
+		"__FILL_IN_AWS_REGION__": awsKMSKeyRegion,
 	})
 
-	os.Setenv("AWS_REGION", awsKMSKeyRegion)
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", workDir))
 	assert.True(t, helpers.FileIsInFolder(t, stateFile, workDir))
 	validateStateIsEncrypted(t, stateFile, workDir)

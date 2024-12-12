@@ -13,6 +13,7 @@ remote_state {
 
   encryption = {
     key_provider = "aws_kms"
+    region       = "__FILL_IN_AWS_REGION__"
     kms_key_id   = "__FILL_IN_KMS_KEY_ID__"
     key_spec     = "AES_256"
   }

@@ -84,6 +84,7 @@ type RemoteEncryptionKeyProviderAWSKMS struct {
 	RemoteEncryptionKeyProviderBase `mapstructure:",squash"`
 	KmsKeyID                        string `mapstructure:"kms_key_id"`
 	KeySpec                         string `mapstructure:"key_spec"`
+	Region                          string `mapstructure:"region"`
 }
 
 type RemoteEncryptionKeyProviderGCPKMS struct {
