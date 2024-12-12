@@ -9,8 +9,6 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Overview
-
 The following is a simple overview of the main features in Terragrunt.
 
 It includes configurations that are a bit more complex than the ones found in the [Quick Start](/docs/getting-started/overview), but don't panic!
@@ -19,9 +17,20 @@ We'll walk you through each one, and you don't need to understand everything rig
 
 This guide is geared towards users who have either already gone through the [Quick Start](/docs/getting-started/overview) or are joining a team of users that are already using Terragrunt. As a consequence, we'll be using more complex configurations, discussing more advanced features, and showing how to use Terragrunt to manage real AWS infrastructure.
 
-If you don't have an AWS account, you can either sign up for a free tier account at [aws.amazon.com](https://aws.amazon.com/) or adapt the examples to use a different cloud provider.
-
 If you are unfamiliar with OpenTofu/Terraform, you may want to also read [OpenTofu](https://opentofu.org/docs/intro/) or [Terraform](https://developer.hashicorp.com/terraform/intro) documentation after reading this guide.
+
+## Following Along
+
+What follows isn't a tutorial in the same sense as the [Quick Start](/docs/getting-started/overview), but more of a guided tour of some of the more commonly used features of Terragrunt. You don't need to follow along to understand the concepts, but if you want to, you can.
+
+The code samples provided here are available as individual "steps" [here](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/docs/02-overview).
+<!-- Maintainer's Note: we also test this continuously in `tests/integration_docs_aws_test.go` -->
+
+If you would prefer it, you can clone the [Terragrunt repository](https://github.com/gruntwork-io/terragrunt.git), and follow along with the examples in your own environment without any copy + paste.
+
+Just make sure to replace the values prefixed `__FILL_IN_` with values relevant to your AWS account.
+
+If you don't have an AWS account, you can either sign up for a free tier account at [aws.amazon.com](https://aws.amazon.com/) or adapt the examples to use a different cloud provider.
 
 ## Example
 
@@ -172,7 +181,7 @@ You'll notice that in the examples above, we were using `find` to locate the `.t
 
 Over the years supporting customers managing IaC at scale, the patterns that we've seen emerge for really successful organizations is to treat OpenTofu/Terraform modules as versioned, generic, well tested patterns of infrastructure, and to deploy them in as close to the exact same way as possible across all uses of them.
 
-Terragrunt supports this pattern by treating each unit of Terragrunt configuration (a directory with a `terragrunt.hcl` file in it) as a hermetic container of infrastructure that can be reasoned about in isolation, and then composed together to form a larger system of one or more stacks (each stack being a collection of units).
+Terragrunt supports this pattern by treating each [unit](/docs/getting-started/terminology/#unit) of Terragrunt configuration (a directory with a `terragrunt.hcl` file in it) as a hermetic container of infrastructure that can be reasoned about in isolation, and then composed together to form a larger system of one or more [stacks](/docs/getting-started/terminology/#stack) (each stack being a collection of units).
 
 To that end, the way that Terragrunt loads OpenTofu/Terraform configurations is to download them into a subdirectory of the `.terragrunt-cache` directory, and then to orchestrate OpenTofu/Terraform commands from that directory. This ensures that the OpenTofu/Terraform modules are treated as immutable, versioned, and hermetic, and that the OpenTofu/Terraform runs are reliably reproducible.
 
@@ -218,9 +227,9 @@ This statement above is kind of a lie:
 
 \*  Here is a typical `terragrunt.hcl` file you might find in a Terragrunt project.
 
-The truth is, you'll almost never see configuration like that outside of some tests or examples. The reason for this is that one of the main responsibilities Terragrunt has is to scale IaC, and the configuration above would result in quite a lot of code duplication across a project. In an AWS project for example, you will probably use the same (or very similar) `provider` configuration across all your modules, and you'll probably use the same `backend` configuration across all your modules (with the only exception being the `key` for where in S3 your state should be stored).
+The truth is, you'll almost never see configuration like that outside of some tests or examples. The reason for this is that one of the main responsibilities Terragrunt has is to scale IaC, and the configuration above would result in quite a lot of code duplication across a project. In an AWS project for example, you will probably use the same (or very similar) `provider` configuration across all your units, and you'll probably use the same `backend` configuration across all your units (with the only exception being the `key` for where in S3 your state should be stored).
 
-Aware of this pattern, Terragrunt is designed to leverage a hierarchy of reusable configurations so that your code can be DRY (Don't Repeat Yourself).
+Aware of this pattern, Terragrunt is designed to leverage a hierarchy of reusable configurations so that your code can be [DRY (Don't Repeat Yourself)](/docs/getting-started/terminology#dont-repeat-yourself-dry).
 
 ### The `include` block
 
@@ -303,6 +312,8 @@ When you see `include` blocks in Terragrunt, remember that they result in the co
 
 The exception to this is when you are using directives that explicitly leverage the fact that configurations are being included.
 
+### Building out the stack
+
 For example, say you wanted to add another unit of infrastructure into the _stack_ that you're building out here. You could create a new directory named `ec2`, and add a `terragrunt.hcl` file to it like this:
 
 ```hcl
@@ -332,6 +343,8 @@ inputs = {
   }
 }
 ```
+
+### Key Collisions
 
 If you tried to run `terragrunt plan` in that new `ec2` directory, you'd get an error that looked like this:
 
@@ -372,6 +385,8 @@ terraform {
   }
 }
 ```
+
+### Dynamic keys
 
 What most folks would really prefer here is to have the state for the `ec2` unit stored in a different, but predictable, location relative to the `vpc` unit.
 
@@ -433,6 +448,12 @@ EOF
 
 What this does is set the `key` attribute of the generated `backend.tf` file to be the relative path from the `root.hcl` file to the `terragrunt.hcl` file that is being processed.
 
+### Migrating state
+
+You have to be careful when adjusting the `key` attribute of units (including when moving units around in the filesystem, if you use something like `path_relative_to_include` to drive the value of the `key` attribute) because it can result in state being stored in a different location in the remote backend.
+
+There's native tooling in OpenTofu/Terraform to support these procedures, but you want to be confident you know what you're doing when you run them. By default, Terragrunt will provision a remote backend that uses versioning, so you can always roll back to a previous state if you need to.
+
 ```bash
 # First, we'll migrate state to the new location
 $ terragrunt init -migrate-state
@@ -471,7 +492,11 @@ terraform {
 
 Following this pattern, you can create as many units of infrastructure in your project as you like without worrying about collisions in remote state keys.
 
-Note that while this is the idiomatic approach for defining the `key` attribute for your `backend` configuration, it is not a requirement. You can set the `key` attribute to any value you like, and you can use any Terragrunt HCL function to generate that value dynamically such that you avoid collisions in your remote state. Just make sure to test your configuration carefully, and document your approach so that others can understand what you're doing.
+Note that while this is the idiomatic approach for defining the `key` attribute for your `backend` configuration, it is not a requirement. You can set the `key` attribute to any value you like, and you can use any Terragrunt HCL function to generate that value dynamically such that you avoid collisions in your remote state.
+
+Another completely valid approach, for example, is to utilize [get_repo_root](/docs/reference/built-in-functions/#get_repo_root), which returns a path relative to the root of the git repository. This, of course, has the drawback that it will not work if you are not using git.
+
+Just make sure to test your configuration carefully, and document your approach so that others can understand what you're doing.
 
 ### The `dependency` block
 
@@ -504,7 +529,9 @@ When Terragrunt is performing a run for a dependency, it will first run `terragr
 
 This is a very useful mechanism, as it keeps each unit isolated, while allowing for message passing between units when they need to interact.
 
-Dependencies also give Terragrunt a way to reason about the order in which units of infrastructure should be run. It uses what's called a Directed Acyclic Graph (DAG) to determine the order in which units should be run, and then runs them in that order.
+### The Directed Acyclic Graph (DAG)
+
+Dependencies also give Terragrunt a way to reason about the order in which units of infrastructure should be run. It uses what's called a [Directed Acyclic Graph (DAG)](/docs/getting-started/terminology/#directed-acyclic-graph-dag) to determine the order in which units should be run, and then runs them in that order.
 
 For example, let's go ahead and destroy all the infrastructure that we've created so far:
 
@@ -684,7 +711,7 @@ remote_state {
   config = {
     bucket = "my-tofu-state"
 
-    key = "${path_relative_to_include()}/tofu.tfstate"
+    key            = "${path_relative_to_include()}/tofu.tfstate"
     region         = "us-east-1"
     encrypt        = true
     dynamodb_table = "my-lock-table"
@@ -708,6 +735,8 @@ Now, when the configurations in the `us-east-1` directory include the `root.hcl`
 **NOTE** In the generate block, we're using `"${local.region}"`, rather than `local.region`. This is because the `generate` block is going to generate a file directly into the OpenTofu/Terraform module. We need to ensure that when the value is interpolated, it's done so in a way that OpenTofu/Terraform can understand, so we wrap it in quotes.
 
 **ALSO NOTE** The `remote_state` block is still storing all state in the `us-east-1` region by design. We don't have to do this, and you could easily set it to store state in multiple regions. For the sake of simplicity, and demonstration, we're keeping it in one region.
+
+### Exposed includes
 
 Before moving on, take note of one thing, the `azs` attribute in the `vpc` unit of the `us-east-1` stack is hardcoded to `["us-east-1a", "us-east-1b", "us-east-1c"]`.
 
@@ -770,7 +799,9 @@ locals {
 }
 ```
 
-Then run the `terragrunt run-all apply` command in the `us-west-2` directory.
+### Tightening the blast radius
+
+Run the `terragrunt run-all apply` command after changing your current working directory to the `us-west-2` directory:
 
 ```bash
 cd us-west-2
@@ -781,9 +812,9 @@ You should see the VPC and EC2 instances being provisioned in the `us-west-2` re
 
 This showcases three superpowers you gain when you leverage Terragrunt:
 
-1. **Automatic DAG Resolution**: No configuration file needed to be updated or modified to ensure that the `ec2` unit was run after the `vpc` unit when provisioning the `us-west-2` stack. Terragrunt automatically resolved the dependency graph and ran the units in the correct order.
+1. **Automatic DAG Resolution**: No configuration file had to be updated or modified to ensure that the `ec2` unit was run after the `vpc` unit when provisioning the `us-west-2` stack. Terragrunt automatically resolved the dependency graph and ran the units in the correct order.
 2. **Dynamic Configuration**: The code you copied from the `us-east-1` directory to the `us-west-2` directory didn't need to be modified at all to provision resources in a different region (with the exception of naming the region in the `region.hcl` file). Terragrunt was able to dynamically resolve the correct configuration based on context, and apply it to the OpenTofu/Terraform modules as generic patterns of infrastructure.
-3. **Reduced Blast Radius**: By applying Terragrunt within the `us-west-2` directory, you were able to confidently target only the resources in that region, without affecting the resources in the `us-east-1` region. This is a powerful tool for safely managing multiple environments, regions, or accounts with a single codebase. Your current working directory when using Terragrunt is your blast radius, and Terragrunt makes it easy to manage that blast radius effectively.
+3. **Reduced Blast Radius**: By applying Terragrunt within the `us-west-2` directory, you were able to confidently target only the resources in that region, without affecting the resources in the `us-east-1` region. This is a powerful tool for safely managing multiple environments, regions, or accounts with a single codebase. Your current working directory when using Terragrunt is your [blast radius](/docs/getting-started/terminology/#blast-radius), and Terragrunt makes it easy to manage that blast radius effectively.
 
 ### Cleanup
 
@@ -802,6 +833,8 @@ In real-world scenarios, it's generally advised that you plan your destroys firs
 # From the root directory
 $ terragrunt run-all plan -destroy
 ```
+
+You won't need to run any more Terragrunt commands for the rest of this guide.
 
 ### Recommended Repository Patterns
 
@@ -906,6 +939,70 @@ The end result of this process is that _infrastructure changes_ are atomic and r
 If at any point during this process a change is found to be problematic, the team can simply roll back to the previous version of the module for a single unit in a given environment.
 
 That's the power of reducing your blast radius with Terragrunt!
+
+### Keep It Simple, Silly!
+
+One last pattern to internalize is the general tendency to prefer simple configurations over complex ones when possible.
+
+Terragrunt provides a lot of power and flexibility, but it's generally best to use that power to make your configurations more readable and maintainable. Keep in mind that you're writing code that will be read by other humans, and that you might not be around to explain any complexity you introduce.
+
+As an example, consider one potential solution to a step outlined in the [Exposed includes](#exposed-includes) section, the requirement to update the `region` local in the `region.hcl` file:
+
+```hcl
+# us-west-2/region.hcl
+locals {
+  region = "us-west-2"
+}
+```
+
+You might think to yourself "Hey, I know a lot about Terragrunt functionality, I can make this more dynamic, such that I don't even need to create a `region.hcl` file!" and come up with a solution like this:
+
+```hcl
+# root.hcl
+locals {
+  region = split("/", path_relative_to_include())[0]
+}
+
+# Configure the remote backend
+remote_state {
+  backend = "s3"
+  generate = {
+    path      = "backend.tf"
+    if_exists = "overwrite_terragrunt"
+  }
+  config = {
+    bucket = "my-tofu-state"
+
+    key            = "${path_relative_to_include()}/tofu.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "my-lock-table"
+  }
+}
+
+# Configure the AWS provider
+generate "provider" {
+  path = "provider.tf"
+  if_exists = "overwrite_terragrunt"
+  contents = <<EOF
+provider "aws" {
+  region = "${local.region}"
+}
+EOF
+}
+```
+
+This would result in the `region` local being set to the name of the first directory in the path to the `terragrunt.hcl` file that is being run during an include (`us-east-1` and `us-west-1` in each respective stack). This would allow you to remove the `region.hcl` file from both the `us-east-1` and `us-west-2` directories.
+
+Consider, though, that this might make the configuration harder to understand for someone who is not as familiar with Terragrunt as you are. You've now tightly coupled the name of the directory to the region that the infrastructure is being deployed to, and you've made it harder for someone to understand if they run into issues.
+
+Say a user tries to deploy infrastructure while on a Windows machine, where the path separator is `\` instead of `/`. Using this configuration would result in the `region` local being set to something like `us-east-1\vpc`, which is confusing and not what you want.
+
+In this case, you might prefer to have kept the `region.hcl` file, as it makes the configuration more explicit and easier to understand.
+
+On the other hand, maybe you work with a team that's very comfortable with Terragrunt, exclusively using Unix-based systems, and you've all agreed and documented this as a good pattern to follow. In that case, this might be a perfectly acceptable solution.
+
+You have to exercise your best judgment when deciding how much complexity to introduce into your Terragrunt configurations. As a general rule, the best patterns to follow are the ones that are easiest to reproduce, understand, and maintain.
 
 ## Next steps
 

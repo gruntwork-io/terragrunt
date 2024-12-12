@@ -22,12 +22,12 @@ func TestAwsDocsOverview(t *testing.T) {
 	// These docs examples specifically run here
 	region := "us-east-1"
 
-	t.Run("step-01", func(t *testing.T) {
+	t.Run("step-01-terragrunt.hcl", func(t *testing.T) {
 		t.Parallel()
 
 		s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
 
-		stepPath := util.JoinPath(testFixtureOverview, "step-01")
+		stepPath := util.JoinPath(testFixtureOverview, "step-01-terragrunt.hcl")
 
 		helpers.CleanupTerraformFolder(t, stepPath)
 		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
@@ -43,6 +43,102 @@ func TestAwsDocsOverview(t *testing.T) {
 		helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", region)
 
 		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+		require.NoError(t, err)
+	})
+
+	t.Run("step-02-dependencies", func(t *testing.T) {
+		t.Parallel()
+
+		s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+
+		stepPath := util.JoinPath(testFixtureOverview, "step-02-dependencies")
+
+		helpers.CleanupTerraformFolder(t, stepPath)
+		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
+		rootPath := util.JoinPath(tmpEnvPath, stepPath)
+
+		defer helpers.DeleteS3Bucket(t, region, s3BucketName)
+		defer func() {
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all destroy -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+			require.NoError(t, err)
+		}()
+
+		rootTerragruntConfigPath := util.JoinPath(rootPath, "root.hcl")
+		helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", region)
+
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+		require.NoError(t, err)
+	})
+
+	t.Run("step-03-mock-outputs", func(t *testing.T) {
+		t.Parallel()
+
+		s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+
+		stepPath := util.JoinPath(testFixtureOverview, "step-03-mock-outputs")
+
+		helpers.CleanupTerraformFolder(t, stepPath)
+		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
+		rootPath := util.JoinPath(tmpEnvPath, stepPath)
+
+		defer helpers.DeleteS3Bucket(t, region, s3BucketName)
+		defer func() {
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all destroy -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+			require.NoError(t, err)
+		}()
+
+		rootTerragruntConfigPath := util.JoinPath(rootPath, "root.hcl")
+		helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", region)
+
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+		require.NoError(t, err)
+	})
+
+	t.Run("step-04-configuration-hierarchy", func(t *testing.T) {
+		t.Parallel()
+
+		s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+
+		stepPath := util.JoinPath(testFixtureOverview, "step-04-configuration-hierarchy")
+
+		helpers.CleanupTerraformFolder(t, stepPath)
+		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
+		rootPath := util.JoinPath(tmpEnvPath, stepPath)
+
+		defer helpers.DeleteS3Bucket(t, region, s3BucketName)
+		defer func() {
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all destroy -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+			require.NoError(t, err)
+		}()
+
+		rootTerragruntConfigPath := util.JoinPath(rootPath, "root.hcl")
+		helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", region)
+
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+		require.NoError(t, err)
+	})
+
+	t.Run("step-05-exposed-includes", func(t *testing.T) {
+		t.Parallel()
+
+		s3BucketName := "terragrunt-test-bucket-" + strings.ToLower(helpers.UniqueID())
+
+		stepPath := util.JoinPath(testFixtureOverview, "step-05-exposed-includes")
+
+		helpers.CleanupTerraformFolder(t, stepPath)
+		tmpEnvPath := helpers.CopyEnvironment(t, stepPath)
+		rootPath := util.JoinPath(tmpEnvPath, stepPath)
+
+		defer helpers.DeleteS3Bucket(t, region, s3BucketName)
+		defer func() {
+			_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all destroy -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+			require.NoError(t, err)
+		}()
+
+		rootTerragruntConfigPath := util.JoinPath(rootPath, "root.hcl")
+		helpers.CopyTerragruntConfigAndFillPlaceholders(t, rootTerragruntConfigPath, rootTerragruntConfigPath, s3BucketName, "not-used", region)
+
+		_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 		require.NoError(t, err)
 	})
 }

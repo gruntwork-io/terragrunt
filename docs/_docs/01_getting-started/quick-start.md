@@ -53,7 +53,7 @@ If you start to feel lost, or don't understand a concept, consider reading the [
 
 Finally, note that all of the files created in this tutorial can be copied directly from the code block, none of them are partial files, so you don't have to worry about figuring out where to put the code. Just copy and paste!
 
-You can access the complete tutorial [here](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/docs/01-quick-start).
+You can also see what to expect in your filesystem at each step [here](https://github.com/gruntwork-io/terragrunt/tree/main/test/fixtures/docs/01-quick-start).
 <!-- Maintainer's Note: we also test this continuously in `tests/integration_docs_test.go` -->
 
 ### Step 1: Create a new Terragrunt project
