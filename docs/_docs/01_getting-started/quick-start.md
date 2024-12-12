@@ -27,18 +27,18 @@ Depending on why you're looking to adopt Terragrunt, this may be all you need to
 
 With just this empty file, you've already made it so that you no longer need to run `tofu init` or `terraform init` before running `tofu apply` or `terraform apply`. Terragrunt will automatically run `init` for you if necessary. This is a feature called [Auto-init](/docs/features/auto-init/).
 
-This might not be very impressive so far, so you may be wondering _why_ one might want to start using Terragrunt to manage their OpenTofu/Terraform projects. A quick overview of the main benefits of using Terragrunt are covered in the [Quick start](/docs/getting-started/quick-start/), and there is a comprehensive list of features in the [Features](/docs#features) section.
+This might not be very impressive so far, so you may be wondering _why_ one might want to start using Terragrunt to manage their OpenTofu/Terraform projects. The next section will give you a very gentle introduction to using Terragrunt, and show you how you can start to leverage Terragrunt to manage your OpenTofu/Terraform projects more effectively.
 
 ## Tutorial
 
-What follows is a gentle step-by-step guide to integrating Terragrunt to an existing OpenTofu/Terraform project.
+What follows is a gentle step-by-step guide to integrating Terragrunt into a new (or existing) OpenTofu/Terraform project.
 
 For the sake of this tutorial, a minimal set of OpenTofu configurations will be used so that you can follow along. Following these steps will give you an idea of how to integrate Terragrunt into an existing project, even if yours is more complex.
 
 This tutorial will assume the following:
 
-1. You have OpenTofu [installed](https://opentofu.org/docs/intro/install/).
-2. You have a basic understanding of OpenTofu or Terraform.
+1. You have [OpenTofu](https://opentofu.org/docs/intro/install/) or [Terraform](https://developer.hashicorp.com/terraform/install) installed\*.
+2. You have a basic understanding of what OpenTofu/Terraform do.
 3. You are using a Unix-like operating system.
 
 This tutorial will not assume the following:
@@ -47,7 +47,9 @@ This tutorial will not assume the following:
 2. You have any experience with Terragrunt.
 3. You have any existing Terragrunt, OpenTofu or Terraform projects.
 
-If you would like a less gentle introduction geared towards with an active AWS account, familiarity with OpenTofu/Terraform, and potentially a team actively using Terragrunt, consider starting with the [Overview](/docs/getting-started/overview/).
+\* Note that if you have _both_ OpenTofu and Terraform installed, you'll want to read the [terragrunt-tfpath](/docs/reference/cli-options/#terragrunt-tfpath) docs to understand how Terragrunt determines which binary to use.
+
+If you would like a less gentle introduction geared towards users with an active AWS account, familiarity with OpenTofu/Terraform, and potentially a team actively using Terragrunt, consider starting with the [Overview](/docs/getting-started/overview/).
 
 If you start to feel lost, or don't understand a concept, consider reading the [Terminology](/docs/getting-started/terminology/) page before continuing with this tutorial. It has a brief overview of most of the common terms used when discussing Terragrunt.
 
