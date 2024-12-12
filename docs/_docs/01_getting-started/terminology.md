@@ -53,7 +53,7 @@ Note that units don't technically need to call their configuration files `terrag
 
 ### Stack
 
-A stack is a collection of units managed by Terragrunt. There is ([as of writing](https://github.com/gruntwork-io/terragrunt/issues/3313) work underway to provide a top level artifact for interacting with stacks via a `terragrunt.stack.hcl` file, but as of now, stacks are generally defined by a directory with a tree of units. Units within a stack can be dependent on each other, and can be updated in a specific order to ensure that dependencies are resolved in the correct order.
+A stack is a collection of units managed by Terragrunt. There is ([as of writing](https://github.com/gruntwork-io/terragrunt/issues/3313)) work underway to provide a top level artifact for interacting with stacks via a `terragrunt.stack.hcl` file, but as of now, stacks are generally defined by a directory with a tree of units. Units within a stack can be dependent on each other, and can be updated in a specific order to ensure that dependencies are resolved in the correct order.
 
 Stacks typically represent a collection of units that need to be managed in concert.
 
