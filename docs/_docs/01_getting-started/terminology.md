@@ -109,6 +109,28 @@ This is still true even when working with multiple units in a stack. Terragrunt 
 
 Note that DAGs are _Acyclic_, meaning that there are no loops in the graph. This is because loops would create circular dependencies, which would make it impossible to determine the correct order to resolve resources.
 
+### Don't Repeat Yourself (DRY)
+
+The [Don't Repeat Yourself (DRY)](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself) principle is a software development principle that states that duplication in code should be avoided.
+
+Early on, a lot of Terragrunt functionality was designed to make it easier to follow the DRY principle. This was because Terraform users at the time found that they were often repeating the same, or very similar code across multiple configurations. Examples of this included the limitation that remote state and provider configurations needed to be repeated in every root module, and that there were limitations in the dynamicity of these configurations.
+
+Over time, Terragrunt has evolved to provide more features that make it easier to manage infrastructure at scale, and the focus has shifted to offering more tooling for _orchestrating_ infrastructure, rather than simply making it easier to avoid repeating yourself. Many of the features still serve to make it easier to follow the DRY principle, but this is no longer the primary focus of the tool.
+
+Much of the marketing around Terragrunt still emphasizes the DRY principle, as it is a useful way to explain the value of Terragrunt to new users. However, you might miss the forest for the trees if you focus too much on the DRY principle when evaluating Terragrunt. Terragrunt is a powerful tool that can be used to manage infrastructure at scale, and it is worth evaluating it based on its capabilities to do so.
+
+### Blast Radius
+
+[Blast Radius](https://en.wikipedia.org/wiki/Blast_radius) is a term used in software development to describe the potential impact of a change, derived from the term used to describe the potential impact of an explosion.
+
+In the context of infrastructure management, blast radius is used to describe the potential impact (negative or positive) of a change to infrastructure. The larger the blast radius, the more potential impact a change has.
+
+Terragrunt was born out of a need to reduce the blast radii of infrastructure changes. By making it easier to segment state in infrastructure, and to manage dependencies between units, Terragrunt makes it easier to reason about the impact of changes to infrastructure, and to ensure that changes can be made safely.
+
+When using Terragrunt, there is very frequently a mapping between your filesystem and the infrastructure you have provisioned with OpenTofu/Terraform. As such, when changing your current working directory in a Terragrunt project, you end up implicitly changing the blast radius of Terragrunt commands. The more units you have as children of your current working directory (the units in your stack), the more infrastructure you are likely to impact with a Terragrunt command.
+
+As an adage, you can generally think of this property as: "Your current working directory is your blast radius".
+
 ### Run
 
 A run is a single invocation of OpenTofu/Terraform by Terragrunt.
@@ -200,9 +222,9 @@ Like all good feature flags, you are encouraged to use them with good judgement 
 
 ### IaC Engine
 
-[IaC Engines](/docs/features/engine/) (typically appreviated "Engine") are a way to extend the capabilities of Terragrunt by allowing users to control exactly how Terragrunt performs runs.
+[IaC Engines](/docs/features/engine/) (typically abbreviated "Engines") are a way to extend the capabilities of Terragrunt by allowing users to control exactly how Terragrunt performs runs.
 
-Engines allow Terragrunt users to define custom logic for how runs are to be executed, including defining exactly how OpenTofu/Terraform is to be invoked, where OpenTofu/Terraform is to be invoked, etc.
+Engines allow Terragrunt users to author custom logic for how runs are to be executed in plugins, including defining exactly how OpenTofu/Terraform is to be invoked, where OpenTofu/Terraform is to be invoked, etc.
 
 ### Infrastructure Estate
 
