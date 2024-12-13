@@ -167,12 +167,14 @@ func TestProviderCache(t *testing.T) {
 func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 	// testing.T can Setenv, but can't Unsetenv
 	unsetEnv := func(t *testing.T, v string) {
+		t.Helper()
+
 		// let testing.T do the recovery and work around t.Parallel()
 		t.Setenv(v, "")
 		require.NoError(t, os.Unsetenv(v))
 	}
 
-	t.Run("Homeless", func(t *testing.T) {
+	t.Run("Homeless", func(t *testing.T) { //nolint:paralleltest
 		cacheDir := t.TempDir()
 
 		unsetEnv(t, "HOME")
