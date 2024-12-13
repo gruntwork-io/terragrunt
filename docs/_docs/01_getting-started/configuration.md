@@ -5,7 +5,7 @@ category: getting-started
 excerpt: >-
   Learn how to configure Terragrunt.
 tags: ["config", "formatting"]
-order: 104
+order: 105
 nav_title: Documentation
 nav_title_link: /docs/
 ---

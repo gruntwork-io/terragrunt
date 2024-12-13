@@ -14,13 +14,14 @@ import (
 )
 
 const (
-	testSimpleErrors       = "fixtures/errors/default"
-	testIgnoreErrors       = "fixtures/errors/ignore"
-	testIgnoreSignalErrors = "fixtures/errors/ignore-signal"
-	testRunAllIgnoreErrors = "fixtures/errors/run-all-ignore"
-	testRetryErrors        = "fixtures/errors/retry"
-	testRetryFailErrors    = "fixtures/errors/retry-fail"
-	testRunAllErrors       = "fixtures/errors/run-all"
+	testSimpleErrors          = "fixtures/errors/default"
+	testIgnoreErrors          = "fixtures/errors/ignore"
+	testIgnoreSignalErrors    = "fixtures/errors/ignore-signal"
+	testRunAllIgnoreErrors    = "fixtures/errors/run-all-ignore"
+	testRetryErrors           = "fixtures/errors/retry"
+	testRetryFailErrors       = "fixtures/errors/retry-fail"
+	testRunAllErrors          = "fixtures/errors/run-all"
+	testNegativePatternErrors = "fixtures/errors/ignore-negative-pattern"
 )
 
 func TestErrorsHandling(t *testing.T) {
@@ -144,4 +145,17 @@ func TestRunAllFail(t *testing.T) {
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --feature unstable=false --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	require.Error(t, err)
+}
+
+func TestIgnoreNegativePattern(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testNegativePatternErrors)
+	tmpEnvPath := helpers.CopyEnvironment(t, testNegativePatternErrors)
+	rootPath := util.JoinPath(tmpEnvPath, testNegativePatternErrors)
+
+	_, stdout, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	require.Error(t, err)
+	assert.Contains(t, stdout, "Error: baz")
 }

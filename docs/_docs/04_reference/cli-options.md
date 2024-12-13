@@ -839,9 +839,16 @@ explanation). This argument is not used with the `run-all` commands.
 
 **CLI Arg**: `--terragrunt-tfpath`<br/>
 **Environment Variable**: `TERRAGRUNT_TFPATH`<br/>
-**Requires an argument**: `--terragrunt-tfpath /path/to/terraform-binary`<br/>
+**Requires an argument**: `--terragrunt-tfpath /path/to/tofu-or-terraform-binary`<br/>
+**Default**: `tofu`<br/>
 
-A custom path to the OpenTofu/Terraform binary. The default is `tofu` in a directory on your PATH.
+An explicit path to the `tofu` or `terraform` binary you wish to have Terragrunt use.
+
+Note that if you _only_ have `terraform` installed, and available in your PATH, Terragrunt will automatically use that binary.
+
+If you have _both_ `terraform` and `tofu` installed, and you want to use `terraform`, you can set the `TERRAGRUNT_TFPATH` to `terraform`.
+
+If you have _multiple_ versions of `tofu` and/or `terraform` available, or you have a custom wrapper for `tofu` or `terraform`, you can set the `TERRAGRUNT_TFPATH` to the absolute path of the executable you want to use.
 
 **NOTE**: This will override the `terraform` binary that is used by `terragrunt` in all instances, including
 `dependency` lookups. This setting will also override any [terraform_binary]({{site.baseurl}}/docs/reference/config-blocks-and-attributes/#terraform_binary)
@@ -1407,7 +1414,7 @@ read the file `shared.hcl`. This hook is used by all native HCL functions that T
 Note, however, that there are certain scenarios where Terragrunt may not be able to track that a file has been read this way.
 
 For example, you may be using a bash script to read a file via `run_cmd`, or reading the file via OpenTofu code. To support these
-use-cases, the [mark_as_read](./built-in-functions.md#mark_as_read) function can be used to manually mark a file as read.
+use-cases, the [mark_as_read](/docs/reference/built-in-functions/#mark_as_read) function can be used to manually mark a file as read.
 
 That would look something like this:
 
