@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
@@ -156,6 +157,13 @@ const (
 
 	TerragruntStrictControlFlagName = "strict-control"
 	TerragruntStrictControlEnvName  = "TERRAGRUNT_STRICT_CONTROL"
+
+	// Experiment Mode related flags/envs
+	TerragruntExperimentModeFlagName = "experiment-mode"
+	TerragruntExperimentModeEnvName  = "TERRAGRUNT_EXPERIMENT_MODE"
+
+	TerragruntExperimentFlagName = "experiment"
+	TerragruntExperimentEnvName  = "TERRAGRUNT_EXPERIMENT"
 
 	// Terragrunt Provider Cache related flags/envs
 
@@ -515,6 +523,33 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 				if err := strict.StrictControls.ValidateControlNames(val); err != nil {
 					return cli.NewExitError(err, 1)
 				}
+
+				return nil
+			},
+		},
+		// Experiment Mode flags
+		&cli.BoolFlag{
+			Name:        TerragruntExperimentModeFlagName,
+			EnvVar:      TerragruntExperimentModeEnvName,
+			Destination: &opts.ExperimentMode,
+			Usage:       "Enables experiment mode for Terragrunt. For more information, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
+		},
+		&cli.SliceFlag[string]{
+			Name:   TerragruntExperimentFlagName,
+			EnvVar: TerragruntExperimentEnvName,
+			Usage:  "Enables specific experiments. For a list of available experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
+			Action: func(ctx *cli.Context, val []string) error {
+				experiments := experiment.NewExperiments()
+				warning, err := experiments.ValidateExperimentNames(val)
+				if err != nil {
+					return cli.NewExitError(err, 1)
+				}
+
+				if warning != "" {
+					log.Warn(warning)
+				}
+
+				opts.Experiments = experiments
 
 				return nil
 			},

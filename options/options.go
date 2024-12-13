@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -363,6 +364,12 @@ type TerragruntOptions struct {
 
 	// StrictControls is a slice of strict controls enabled.
 	StrictControls []string
+
+	// ExperimentMode is a flag to enable experiment mode for terragrunt.
+	ExperimentMode bool
+
+	// Experiments is a map of experiments, and their status.
+	Experiments experiment.Experiments
 
 	// FeatureFlags is a map of feature flags to enable.
 	FeatureFlags map[string]string
