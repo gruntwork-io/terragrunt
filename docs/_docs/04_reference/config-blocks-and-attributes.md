@@ -368,6 +368,9 @@ The `remote_state` block supports the following arguments:
 - `config` (attribute): An arbitrary map that is used to fill in the backend configuration in OpenTofu/Terraform. All the
   properties will automatically be included in the OpenTofu/Terraform backend block (with a few exceptions: see below).
 
+- `encryption` (attribute): A map that is used to configure state and plan encryption in OpenTofu. The properties will be transformed
+  into an `encryption` block in the OpenTofu terraform block. The properties are specific to the respective `key_provider` (see below).
+
   For example, if you had the following `remote_state` block:
 
   ```hcl
@@ -418,6 +421,8 @@ locals {
 # Set the remote_state config dynamically to the remote_state config in common.hcl
 remote_state = local.common.remote_state
 ```
+
+#### backend
 
 Note that Terragrunt does special processing of the `config` attribute for the `s3` and `gcs` remote state backends, and
 supports additional keys that are used to configure the automatic initialization feature of Terragrunt.
@@ -560,6 +565,56 @@ include "root" {
 # child/main.tf
 terraform {
   backend "gcs" {}
+}
+```
+
+#### encryption
+
+The encryption map needs a `key_provider` property, which can be set to one of `pbkdf2`, `aws_kms` or `gcp_kms`.
+
+Documentation for each provider type and its possible configuration can be found in the [OpenTofu docs](https://opentofu.org/docs/language/state/encryption/).
+
+A `terragrunt.hcl` file configuring PBKDF2 encryption could look like this:
+
+```hcl
+remote_state {
+  backend = "s3"
+  config = {
+    bucket = "mybucket"
+    key    = "path/to/my/key"
+    region = "us-east-1"
+  }
+
+  encryption = {
+    key_provider = "pbkdf2"
+    passphrase = "SUPERSECRETPASSPHRASE"
+  }
+}
+```
+
+This would result in the following OpenTofu code:
+
+```hcl
+terraform {
+  backend "s3" {
+    bucket = "mybucket"
+    key    = "path/to/my/key"
+    region = "us-east-1"
+  }
+  encryption {
+    key_provider "pbkdf2" "default" {
+      passphrase = "SUPERSECRETPASSPHRASE"
+    }
+    method "aes_gcm" "default" {
+      keys = key_provider.pbkdf2.default
+    }
+    state {
+      method = method.aes_gcm.default
+    }
+    plan {
+      method = method.aes_gcm.default
+    }
+  }
 }
 ```
 
