@@ -12,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -34,17 +35,20 @@ const fileURIScheme = "file://"
 //
 // See the NewTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
 // runs of Terragrunt to avoid downloading everything from scratch every time.
-func downloadTerraformSource(ctx context.Context, source string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (*options.TerragruntOptions, error) {
-	terraformSource, err := terraform.NewSource(source, terragruntOptions.DownloadDir, terragruntOptions.WorkingDir, terragruntOptions.Logger)
+func downloadTerraformSource(ctx context.Context, source string, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (*options.TerragruntOptions, error) {
+	experiment := opts.Experiments[experiment.Symlinks]
+	walkWithSymlinks := experiment.Evaluate(opts.ExperimentMode)
+
+	terraformSource, err := terraform.NewSource(source, opts.DownloadDir, opts.WorkingDir, opts.Logger, walkWithSymlinks)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := DownloadTerraformSourceIfNecessary(ctx, terraformSource, terragruntOptions, terragruntConfig); err != nil {
+	if err := DownloadTerraformSourceIfNecessary(ctx, terraformSource, opts, terragruntConfig); err != nil {
 		return nil, err
 	}
 
-	terragruntOptions.Logger.Debugf("Copying files from %s into %s", terragruntOptions.WorkingDir, terraformSource.WorkingDir)
+	opts.Logger.Debugf("Copying files from %s into %s", opts.WorkingDir, terraformSource.WorkingDir)
 
 	var includeInCopy []string
 	if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.IncludeInCopy != nil {
@@ -52,16 +56,16 @@ func downloadTerraformSource(ctx context.Context, source string, terragruntOptio
 	}
 	// Always include the .tflint.hcl file, if it exists
 	includeInCopy = append(includeInCopy, tfLintConfig)
-	if err := util.CopyFolderContents(terragruntOptions.Logger, terragruntOptions.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, includeInCopy); err != nil {
+	if err := util.CopyFolderContents(opts.Logger, opts.WorkingDir, terraformSource.WorkingDir, ModuleManifestName, includeInCopy); err != nil {
 		return nil, err
 	}
 
-	updatedTerragruntOptions, err := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	updatedTerragruntOptions, err := opts.Clone(opts.TerragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}
 
-	terragruntOptions.Logger.Debugf("Setting working directory to %s", terraformSource.WorkingDir)
+	opts.Logger.Debugf("Setting working directory to %s", terraformSource.WorkingDir)
 	updatedTerragruntOptions.WorkingDir = terraformSource.WorkingDir
 
 	return updatedTerragruntOptions, nil

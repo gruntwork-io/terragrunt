@@ -104,10 +104,10 @@ func (e InvalidExperimentsError) Error() string {
 }
 
 // Evaluate returns true if either the experiment is enabled, or experiment mode is enabled.
-func (experiment Experiment) Evaluate(experimentMode bool) bool {
+func (e Experiment) Evaluate(experimentMode bool) bool {
 	if experimentMode {
 		return true
 	}
 
-	return experiment.Enabled
+	return e.Enabled
 }

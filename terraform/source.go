@@ -39,7 +39,11 @@ type Source struct {
 	// The path to a file in DownloadDir that stores the version number of the code
 	VersionFile string
 
+	// Logger to use for logging
 	Logger log.Logger
+
+	// WalkWithSymlinks controls whether to walk symlinks in the downloaded source
+	WalkWithSymlinks bool
 }
 
 func (src *Source) String() string {
@@ -58,31 +62,60 @@ func (src Source) EncodeSourceVersion() (string, error) {
 		sourceHash := sha256.New()
 		sourceDir := filepath.Clean(src.CanonicalSourceURL.Path)
 
-		err := util.WalkWithSymlinks(sourceDir, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				// If we've encountered an error while walking the tree, give up
-				return err
-			}
+		var err error
+		if src.WalkWithSymlinks {
+			err = util.WalkWithSymlinks(sourceDir, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					// If we've encountered an error while walking the tree, give up
+					return err
+				}
 
-			if info.IsDir() {
-				// We don't use any info from directories to calculate our hash
-				return nil
-			}
-			// avoid checking files in .terragrunt-cache directory since contents is auto-generated
-			if strings.Contains(path, util.TerragruntCacheDir) {
-				return nil
-			}
-			// avoid checking files in .terraform directory since contents is auto-generated
-			if info.Name() == util.TerraformLockFile {
-				return nil
-			}
+				if info.IsDir() {
+					// We don't use any info from directories to calculate our hash
+					return nil
+				}
+				// avoid checking files in .terragrunt-cache directory since contents is auto-generated
+				if strings.Contains(path, util.TerragruntCacheDir) {
+					return nil
+				}
+				// avoid checking files in .terraform directory since contents is auto-generated
+				if info.Name() == util.TerraformLockFile {
+					return nil
+				}
 
-			fileModified := info.ModTime().UnixMicro()
-			hashContents := fmt.Sprintf("%s:%d", path, fileModified)
-			sourceHash.Write([]byte(hashContents))
+				fileModified := info.ModTime().UnixMicro()
+				hashContents := fmt.Sprintf("%s:%d", path, fileModified)
+				sourceHash.Write([]byte(hashContents))
 
-			return nil
-		})
+				return nil
+			})
+		} else {
+			err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					// If we've encountered an error while walking the tree, give up
+					return err
+				}
+
+				if info.IsDir() {
+					// We don't use any info from directories to calculate our hash
+					return nil
+				}
+				// avoid checking files in .terragrunt-cache directory since contents is auto-generated
+				if strings.Contains(path, util.TerragruntCacheDir) {
+					return nil
+				}
+				// avoid checking files in .terraform directory since contents is auto-generated
+				if info.Name() == util.TerraformLockFile {
+					return nil
+				}
+
+				fileModified := info.ModTime().UnixMicro()
+				hashContents := fmt.Sprintf("%s:%d", path, fileModified)
+				sourceHash.Write([]byte(hashContents))
+
+				return nil
+			})
+		}
 
 		if err == nil {
 			hash := hex.EncodeToString(sourceHash.Sum(nil))
@@ -146,7 +179,7 @@ func (src Source) WriteVersionFile() error {
 //  1. Always download source URLs pointing to local file paths.
 //  2. Only download source URLs pointing to remote paths if /T/W/H doesn't already exist or, if it does exist, if the
 //     version number in /T/W/H/.terragrunt-source-version doesn't match the current version.
-func NewSource(source string, downloadDir string, workingDir string, logger log.Logger) (*Source, error) {
+func NewSource(source string, downloadDir string, workingDir string, logger log.Logger, walkWithSymlinks bool) (*Source, error) {
 	canonicalWorkingDir, err := util.CanonicalPath(workingDir, "")
 	if err != nil {
 		return nil, err
@@ -190,6 +223,7 @@ func NewSource(source string, downloadDir string, workingDir string, logger log.
 		WorkingDir:         updatedWorkingDir,
 		VersionFile:        versionFile,
 		Logger:             logger,
+		WalkWithSymlinks:   walkWithSymlinks,
 	}, nil
 }
 

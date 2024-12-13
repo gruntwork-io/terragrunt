@@ -493,6 +493,8 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		JSONOutputFolder:           "",
 		FeatureFlags:               map[string]string{},
 		ReadFiles:                  xsync.NewMapOf[string, []string](),
+		ExperimentMode:             false,
+		Experiments:                experiment.NewExperiments(),
 	}
 }
 
