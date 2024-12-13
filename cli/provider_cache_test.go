@@ -186,7 +186,7 @@ func TestProviderCacheWithProviderCacheDir(t *testing.T) {
 		require.NoError(t, err, "ProviderCache shouldn't read HOME environment variable")
 	})
 
-	t.Run("NoNewDirectoriesAtHOME", func(t *testing.T) { //nolint:paralleltest
+	t.Run("NoNewDirectoriesAtHOME", func(t *testing.T) {
 		home := t.TempDir()
 		cacheDir := t.TempDir()
 
