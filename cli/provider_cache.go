@@ -95,6 +95,12 @@ func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, e
 		return nil, err
 	}
 
+	// Check if global cache directory is set
+	globalCacheDir := os.Getenv("TERRAGRUNT_GLOBAL_CACHE")
+	if globalCacheDir != "" {
+		opts.ProviderCacheDir = globalCacheDir
+	}
+
 	providerService := services.NewProviderService(opts.ProviderCacheDir, userProviderDir, cliCfg.CredentialsSource(), opts.Logger)
 
 	var (
