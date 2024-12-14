@@ -25,12 +25,12 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/sirupsen/logrus v1.9.3
-	github.com/stretchr/testify v1.9.0
-	github.com/zclconf/go-cty v1.14.2
-	golang.org/x/crypto v0.28.0 // indirect
-	golang.org/x/oauth2 v0.23.0
-	golang.org/x/sync v0.9.0
-	golang.org/x/sys v0.27.0
+	github.com/stretchr/testify v1.10.0
+	github.com/zclconf/go-cty v1.15.1
+	golang.org/x/crypto v0.31.0 // indirect
+	golang.org/x/oauth2 v0.24.0
+	golang.org/x/sync v0.10.0
+	golang.org/x/sys v0.28.0
 	google.golang.org/api v0.203.0
 )
 
@@ -57,7 +57,7 @@ require (
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.1.0
 	github.com/charmbracelet/glamour v0.8.0
-	github.com/charmbracelet/lipgloss v0.13.0
+	github.com/charmbracelet/lipgloss v1.0.0
 	github.com/getsops/sops/v3 v3.9.0
 	github.com/gitsight/go-vcsurl v1.0.1
 	github.com/gofrs/flock v0.8.1
@@ -92,8 +92,8 @@ require (
 	go.opentelemetry.io/otel/trace v1.32.0
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	golang.org/x/mod v0.21.0
-	golang.org/x/term v0.26.0
-	golang.org/x/text v0.20.0
+	golang.org/x/term v0.27.0
+	golang.org/x/text v0.21.0
 	google.golang.org/grpc v1.68.1
 	google.golang.org/protobuf v1.35.1
 	gopkg.in/ini.v1 v1.67.0
@@ -161,7 +161,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/charmbracelet/x/ansi v0.2.3 // indirect
+	github.com/charmbracelet/x/ansi v0.4.2 // indirect
 	github.com/charmbracelet/x/term v0.2.0 // indirect
 	github.com/cloudflare/circl v1.3.9 // indirect
 	github.com/cncf/xds/go v0.0.0-20240905190251-b4127c9b8d78 // indirect

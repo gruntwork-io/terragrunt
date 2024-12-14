@@ -293,6 +293,54 @@ func TestAwsForcePathStyleClientSession(t *testing.T) {
 	}
 }
 
+func TestAwsCustomStateEndpoints(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		config   map[string]interface{}
+		expected *awshelper.AwsSessionConfig
+	}{
+		{
+			name:   "using pre 1.6.x settings only",
+			config: map[string]interface{}{"endpoint": "foo", "dynamodb_endpoint": "bar"},
+			expected: &awshelper.AwsSessionConfig{
+				CustomS3Endpoint:       "foo",
+				CustomDynamoDBEndpoint: "bar",
+			},
+		},
+		{
+			name: "using 1.6+ settings",
+			config: map[string]interface{}{
+				"endpoint": "foo", "dynamodb_endpoint": "bar",
+				"endpoints": map[string]interface{}{
+					"s3":       "fooBar",
+					"dynamodb": "barFoo",
+				},
+			},
+			expected: &awshelper.AwsSessionConfig{
+				CustomS3Endpoint:       "fooBar",
+				CustomDynamoDBEndpoint: "barFoo",
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			s3ConfigExtended, err := remote.ParseExtendedS3Config(testCase.config)
+			require.NoError(t, err, "Unexpected error parsing config for test: %v", err)
+
+			actual := s3ConfigExtended.GetAwsSessionConfig()
+
+			assert.Equal(t, testCase.expected, actual)
+		})
+	}
+}
+
 func TestAwsGetAwsSessionConfig(t *testing.T) {
 	t.Parallel()
 
