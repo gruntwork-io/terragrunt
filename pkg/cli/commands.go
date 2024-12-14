@@ -17,11 +17,6 @@ func (commands Commands) Get(name string) *Command {
 	return nil
 }
 
-// Add adds a new cmd to the list.
-func (commands *Commands) Add(cmd *Command) {
-	*commands = append(*commands, cmd)
-}
-
 // Filter returns a list of commands filtered by the given names.
 func (commands Commands) Filter(names []string) Commands {
 	var filtered Commands
@@ -67,7 +62,8 @@ func (commands Commands) VisibleCommands() []*cli.Command {
 			Usage:       cmd.Usage,
 			UsageText:   cmd.UsageText,
 			Description: cmd.Description,
-			Hidden:      cmd.Hidden,
+			//Examples:    cmd.Examples,
+			Hidden: cmd.Hidden,
 		})
 	}
 
@@ -87,10 +83,10 @@ func (commands Commands) Swap(i, j int) {
 }
 
 func (commands Commands) WrapAction(fn func(ctx *Context, action ActionFunc) error) Commands {
-	var wrapped Commands
+	wrapped := make(Commands, len(commands))
 
-	for _, cmd := range commands {
-		wrapped.Add(cmd.WrapAction(fn))
+	for i := range commands {
+		wrapped[i] = commands[i].WrapAction(fn)
 	}
 
 	return wrapped

@@ -2,6 +2,7 @@
 package scaffold
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -32,7 +33,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Name:                   CommandName,
 		Usage:                  "Scaffold a new Terragrunt module.",
 		DisallowUndefinedFlags: true,
-		Flags:                  NewFlags(opts).Sort(),
+		Flags:                  append(flags.NewCommonFlags(opts), NewFlags(opts)...).Sort(),
 		Action: func(ctx *cli.Context) error {
 			var moduleURL, templateURL string
 

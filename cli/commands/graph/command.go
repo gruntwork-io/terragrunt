@@ -5,7 +5,6 @@ import (
 	"context"
 	"sort"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
@@ -13,19 +12,22 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
 
 const (
 	CommandName = "graph"
+
+	GraphRootFlagName = "graph-root"
 )
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
-	globalFlags := commands.NewGlobalFlags(opts)
-	globalFlags.Add(
+	globalFlags := flags.NewCommonFlags(opts)
+	globalFlags = append(globalFlags,
 		&cli.GenericFlag[string]{
-			Name:        "terragrunt-graph-root",
+			Name:        GraphRootFlagName,
 			Destination: &opts.GraphRoot,
 			Usage:       "Root directory from where to build graph dependencies.",
 		})
@@ -38,7 +40,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Name:                   CommandName,
 		Usage:                  "Execute commands on the full graph of dependent modules for the current module, ensuring correct execution order.",
 		DisallowUndefinedFlags: true,
-		Flags:                  NewFlags(opts).Sort(),
+		Flags:                  append(flags.NewCommonFlags(opts), NewFlags(opts)...).Sort(),
 		Subcommands:            subCommands(opts).SkipRunning(),
 		Action:                 action(opts),
 	}
@@ -70,7 +72,7 @@ func subCommands(opts *options.TerragruntOptions) cli.Commands {
 		awsproviderpatch.NewCommand(opts),  // aws-provider-patch
 	}
 	sort.Sort(cmds)
-	cmds.Add(terraform.NewCommand(opts))
+	cmds = append(cmds, terraform.NewCommand(opts))
 
 	return cmds
 }

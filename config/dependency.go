@@ -114,7 +114,7 @@ func (dep *Dependency) DeepMerge(sourceDepConfig Dependency) error {
 // - If mock_outputs_merge_strategy_with_state is null and mock_outputs_merge_with_state is not null:
 //   - mock_outputs_merge_with_state being true returns ShallowMerge
 //   - mock_outputs_merge_with_state being false returns NoMerge
-func (dep Dependency) getMockOutputsMergeStrategy() MergeStrategyType {
+func (dep *Dependency) getMockOutputsMergeStrategy() MergeStrategyType {
 	if dep.MockOutputsMergeStrategyWithState == nil {
 		if dep.MockOutputsMergeWithState != nil && (*dep.MockOutputsMergeWithState) {
 			return ShallowMerge
@@ -127,12 +127,12 @@ func (dep Dependency) getMockOutputsMergeStrategy() MergeStrategyType {
 }
 
 // Given a dependency config, we should only attempt to get the outputs if SkipOutputs is nil or false
-func (dep Dependency) shouldGetOutputs(ctx *ParsingContext) bool {
+func (dep *Dependency) shouldGetOutputs(ctx *ParsingContext) bool {
 	return !ctx.TerragruntOptions.SkipOutput && dep.isEnabled() && (dep.SkipOutputs == nil || !*dep.SkipOutputs)
 }
 
 // isEnabled returns true if the dependency is enabled
-func (dep Dependency) isEnabled() bool {
+func (dep *Dependency) isEnabled() bool {
 	if dep.Enabled == nil {
 		return true
 	}
@@ -141,12 +141,12 @@ func (dep Dependency) isEnabled() bool {
 }
 
 // isDisabled returns true if the dependency is disabled
-func (dep Dependency) isDisabled() bool {
+func (dep *Dependency) isDisabled() bool {
 	return !dep.isEnabled()
 }
 
 // Given a dependency config, we should only attempt to merge mocks outputs with the outputs if MockOutputsMergeWithState is not nil or true
-func (dep Dependency) shouldMergeMockOutputsWithState(ctx *ParsingContext) bool {
+func (dep *Dependency) shouldMergeMockOutputsWithState(ctx *ParsingContext) bool {
 	allowedCommand :=
 		dep.MockOutputsAllowedTerraformCommands == nil ||
 			len(*dep.MockOutputsAllowedTerraformCommands) == 0 ||
@@ -522,7 +522,7 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, depe
 
 // We should only return default outputs if the mock_outputs attribute is set, and if we are running one of the
 // allowed commands when `mock_outputs_allowed_terraform_commands` is set as well.
-func (dep Dependency) shouldReturnMockOutputs(ctx *ParsingContext) bool {
+func (dep *Dependency) shouldReturnMockOutputs(ctx *ParsingContext) bool {
 	if dep.isDisabled() {
 		return true
 	}

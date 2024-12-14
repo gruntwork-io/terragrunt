@@ -47,18 +47,18 @@ func (result *PackageAuthenticationResult) String() string {
 }
 
 // SignedByHashiCorp returns whether the package was authenticated as signed by HashiCorp.
-func (result PackageAuthenticationResult) SignedByHashiCorp() bool {
-	return result == OfficialProvider
+func (result *PackageAuthenticationResult) SignedByHashiCorp() bool {
+	return *result == OfficialProvider
 }
 
 // SignedByAnyParty returns whether the package was authenticated as signed by either HashiCorp or by a third-party.
-func (result PackageAuthenticationResult) SignedByAnyParty() bool {
-	return result == OfficialProvider || result == PartnerProvider || result == CommunityProvider
+func (result *PackageAuthenticationResult) SignedByAnyParty() bool {
+	return *result == OfficialProvider || *result == PartnerProvider || *result == CommunityProvider
 }
 
 // ThirdPartySigned returns whether the package was authenticated as signed by a party other than HashiCorp.
-func (result PackageAuthenticationResult) ThirdPartySigned() bool {
-	return result == PartnerProvider || result == CommunityProvider
+func (result *PackageAuthenticationResult) ThirdPartySigned() bool {
+	return *result == PartnerProvider || *result == CommunityProvider
 }
 
 // PackageAuthentication implementation is responsible for authenticating that a package is what its distributor intended to distribute and that it has not been tampered with.

@@ -44,7 +44,9 @@ type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	// The action to execute when flag is specified
 	Action MapActionFunc[K, V]
 	// The name of the env variable that is parsed and assigned to `Destination` before the flag value.
-	EnvVar string
+	EnvVars []string
+	// DisalbeEnvVar disables the creation of the environment variable by default.
+	DisableEnvVar bool
 	// The pointer to which the value of the flag or env var is assigned.
 	// It also uses as the default value displayed in the help.
 	Destination *map[K]V
@@ -78,19 +80,23 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 
 	var (
 		err      error
+		envVar   string
 		envValue *string
 	)
 
 	keyType := FlagType[K](new(genericType[K]))
 	valType := FlagType[V](new(genericType[V]))
 
-	if val := flag.LookupEnv(flag.EnvVar); val != nil {
-		envValue = val
+	for _, envVar = range flag.EnvVars {
+		if val := flag.LookupEnv(envVar); val != nil {
+			envValue = val
+			break
+		}
 	}
 
 	if flag.FlagValue, err = newMapValue(keyType, valType, envValue, flag.EnvVarSep, flag.KeyValSep, flag.Splitter, flag.Destination); err != nil {
 		if envValue != nil {
-			return errors.Errorf("invalid value %q for %s: %w", *envValue, flag.EnvVar, err)
+			return errors.Errorf("invalid value %q for %s: %w", *envValue, envVar, err)
 		}
 
 		return err
@@ -115,11 +121,7 @@ func (flag *MapFlag[K, V]) GetUsage() string {
 
 // GetEnvVars returns the env vars for this flag.
 func (flag *MapFlag[K, V]) GetEnvVars() []string {
-	if flag.EnvVar == "" {
-		return nil
-	}
-
-	return []string{flag.EnvVar}
+	return flag.EnvVars
 }
 
 // GetDefaultText returns the flags value as string representation and an empty string if the flag takes no value at all.

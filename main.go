@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/gruntwork-io/terragrunt/cli"
-	"github.com/gruntwork-io/terragrunt/cli/commands"
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -58,13 +58,23 @@ func checkForErrorsAndExit(logger log.Logger, exitCode int) func(error) {
 }
 
 func parseAndSetLogEnvs(opts *options.TerragruntOptions) {
-	if levelStr := os.Getenv(commands.TerragruntLogLevelEnvName); levelStr != "" {
-		level, err := log.ParseLevel(levelStr)
-		if err != nil {
-			err := errors.Errorf("Could not parse log level from environment variable %s=%s, %w", commands.TerragruntLogLevelEnvName, levelStr, err)
-			checkForErrorsAndExit(opts.Logger, 0)(err)
-		}
+	var (
+		level = options.DefaultLogLevel
+		flag  = flags.NewLogLevelFlag(opts)
+		err   error
+	)
 
-		opts.Logger.SetOptions(log.WithLevel(level))
+	for _, envVarName := range flag.GetEnvVars() {
+		if levelStr := os.Getenv(envVarName); levelStr != "" {
+			level, err = log.ParseLevel(levelStr)
+			if err != nil {
+				err = errors.Errorf("Could not parse log level from environment variable %s=%s, %w", envVarName, levelStr, err)
+				checkForErrorsAndExit(opts.Logger, 0)(err)
+			}
+
+			break
+		}
 	}
+
+	opts.Logger.SetOptions(log.WithLevel(level))
 }

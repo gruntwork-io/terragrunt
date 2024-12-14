@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
@@ -86,6 +87,7 @@ func DeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 			Name:   commandName,
 			Hidden: true,
 			Action: runFunc(opts),
+			Flags:  flags.NewCommonFlags(opts).Sort(),
 		}
 		commands = append(commands, command)
 	}

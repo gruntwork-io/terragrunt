@@ -25,7 +25,7 @@ type BoolFlag struct {
 	// Aliases are usually used for the short flag name, like `-h`.
 	Aliases []string
 	// The name of the env variable that is parsed and assigned to `Destination` before the flag value.
-	EnvVar string
+	EnvVars []string
 	// The action to execute when flag is specified
 	Action BoolActionFunc[bool]
 	// The pointer to which the value of the flag or env var is assigned.
@@ -45,18 +45,22 @@ func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
 
 	var (
 		err      error
+		envVar   string
 		envValue *string
 	)
 
 	valType := FlagType[bool](&boolFlagType{negative: flag.Negative})
 
-	if val := flag.LookupEnv(flag.EnvVar); val != nil && *val != "" {
-		envValue = val
+	for _, envVar = range flag.EnvVars {
+		if val := flag.LookupEnv(envVar); val != nil && *val != "" {
+			envValue = val
+			break
+		}
 	}
 
 	if flag.FlagValue, err = newGenericValue(valType, envValue, flag.Destination); err != nil {
 		if envValue != nil {
-			return errors.Errorf("invalid boolean value %q for %s: %w", *envValue, flag.EnvVar, err)
+			return errors.Errorf("invalid boolean value %q for %s: %w", *envValue, envVar, err)
 		}
 
 		return err
@@ -81,11 +85,7 @@ func (flag *BoolFlag) GetUsage() string {
 
 // GetEnvVars returns the env vars for this flag.
 func (flag *BoolFlag) GetEnvVars() []string {
-	if flag.EnvVar == "" {
-		return nil
-	}
-
-	return []string{flag.EnvVar}
+	return flag.EnvVars
 }
 
 // GetDefaultText returns the flags value as string representation and an empty string if the flag takes no value at all.

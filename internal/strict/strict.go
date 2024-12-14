@@ -49,6 +49,8 @@ const (
 	JSONLog = "terragrunt-json-log"
 	// TfLogJSON is the control that prevents the deprecated `--terragrunt-tf-logs-to-json` flag from being used.
 	TfLogJSON = "terragrunt-tf-logs-to-json"
+	// RenamedFlag is the control that prevents the use of old flag/env names with `terragrunt-`/`TERRAGRUNT_` prefixes.
+	RenamedFlag = "renamed-flag"
 )
 
 // GetStrictControl returns the strict control with the given name.
@@ -127,6 +129,10 @@ var StrictControls = Controls{
 	TfLogJSON: {
 		Error:   errors.Errorf("The `--%s` flag is no longer supported. Use `--terragrunt-log-format=json` instead.", TfLogJSON), //nolint:revive
 		Warning: fmt.Sprintf("The `--%s` flag is deprecated and will be removed in a future version. Use `--terragrunt-log-format=json` instead.", TfLogJSON),
+	},
+	RenamedFlag: {
+		Error:   errors.Errorf("The flag with `--terragrunt` prefix is no longer supported. Use without prefix instead."), //nolint:revive
+		Warning: "The flag with `--terragrunt` prefix is deprecated and will be removed in a future version. Use without prefix instead.",
 	},
 }
 

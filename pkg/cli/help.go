@@ -53,7 +53,7 @@ func ShowCommandHelp(ctx *Context, cmdName string) error {
 				cmd.HelpName = cmd.Name
 			}
 
-			ctx = ctx.Clone(cmd, ctx.Args().Tail())
+			ctx = ctx.NewCommandContext(cmd, ctx.Args().Tail())
 
 			cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, nil)
 

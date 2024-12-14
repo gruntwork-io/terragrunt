@@ -42,7 +42,7 @@ type Source struct {
 	Logger log.Logger
 }
 
-func (src *Source) String() string {
+func (src Source) String() string {
 	return fmt.Sprintf("Source{CanonicalSourceURL = %v, DownloadDir = %v, WorkingDir = %v, VersionFile = %v}", src.CanonicalSourceURL, src.DownloadDir, src.WorkingDir, src.VersionFile)
 }
 

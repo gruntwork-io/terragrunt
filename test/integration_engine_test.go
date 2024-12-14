@@ -196,7 +196,7 @@ func TestEngineDisableChecksumCheck(t *testing.T) {
 	require.Contains(t, err.Error(), "verification failure")
 
 	// disable checksum check
-	t.Setenv(commands.TerragruntEngineSkipCheckEnv, "1")
+	t.Setenv(commands.EngineSkipCheckEnv, "1")
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)

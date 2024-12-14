@@ -2,6 +2,7 @@
 package hclfmt
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -9,42 +10,38 @@ import (
 const (
 	CommandName = "hclfmt"
 
-	FlagNameTerragruntHCLFmt           = "terragrunt-hclfmt-file"
-	FlagNameTerragruntHCLFmtExcludeDir = "terragrunt-hclfmt-exclude-dir"
-	FlagNameTerragruntCheck            = "terragrunt-check"
-	FlagNameTerragruntDiff             = "terragrunt-diff"
-	FlagNameTerragruntHCLFmtStdin      = "terragrunt-hclfmt-stdin"
+	HCLFmtFlagName           = "hclfmt-file"
+	HCLFmtExcludeDirFlagName = "hclfmt-exclude-dir"
+	CheckFlagName            = "check"
+	DiffFlagName             = "diff"
+	HCLFmtStdinFlagName      = "hclfmt-stdin"
 )
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
 		&cli.GenericFlag[string]{
-			Name:        FlagNameTerragruntHCLFmt,
+			Name:        HCLFmtFlagName,
 			Destination: &opts.HclFile,
 			Usage:       "The path to a single hcl file that the hclfmt command should run on.",
 		},
 		&cli.SliceFlag[string]{
-			Name:        FlagNameTerragruntHCLFmtExcludeDir,
+			Name:        HCLFmtExcludeDirFlagName,
 			Destination: &opts.HclExclude,
-			EnvVar:      "TERRAGRUNT_HCLFMT_EXCLUDE_DIR",
 			Usage:       "Skip HCL formatting in given directories.",
 		},
 		&cli.BoolFlag{
-			Name:        FlagNameTerragruntCheck,
+			Name:        CheckFlagName,
 			Destination: &opts.Check,
-			EnvVar:      "TERRAGRUNT_CHECK",
 			Usage:       "Enable check mode in the hclfmt command.",
 		},
 		&cli.BoolFlag{
-			Name:        FlagNameTerragruntDiff,
+			Name:        DiffFlagName,
 			Destination: &opts.Diff,
-			EnvVar:      "TERRAGRUNT_DIFF",
 			Usage:       "Print diff between original and modified file versions when running with 'hclfmt'.",
 		},
 		&cli.BoolFlag{
-			Name:        FlagNameTerragruntHCLFmtStdin,
+			Name:        HCLFmtStdinFlagName,
 			Destination: &opts.HclFromStdin,
-			EnvVar:      "TERRAGRUNT_HCLFMT_STDIN",
 			Usage:       "Format HCL from stdin and print result to stdout.",
 		},
 	}
@@ -54,7 +51,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:   CommandName,
 		Usage:  "Recursively find hcl files and rewrite them into a canonical format.",
-		Flags:  NewFlags(opts).Sort(),
+		Flags:  append(flags.NewCommonFlags(opts), NewFlags(opts)...).Sort(),
 		Action: func(ctx *cli.Context) error { return Run(opts.OptionsFromContext(ctx)) },
 	}
 }

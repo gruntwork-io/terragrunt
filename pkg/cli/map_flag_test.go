@@ -23,28 +23,28 @@ func TestMapFlagStringStringApply(t *testing.T) {
 		expectedErr   error
 	}{
 		{
-			cli.MapFlag[string, string]{Name: "foo", EnvVar: "FOO"},
+			cli.MapFlag[string, string]{Name: "foo", EnvVars: []string{"FOO"}},
 			[]string{"--foo", "arg1-key=arg1-value", "--foo", "arg2-key = arg2-value"},
 			map[string]string{"FOO": "env1-key=env1-value,env2-key=env2-value"},
 			map[string]string{"arg1-key": "arg1-value", "arg2-key": "arg2-value"},
 			nil,
 		},
 		{
-			cli.MapFlag[string, string]{Name: "foo", EnvVar: "FOO"},
+			cli.MapFlag[string, string]{Name: "foo", EnvVars: []string{"FOO"}},
 			nil,
 			map[string]string{"FOO": "env1-key=env1-value,env2-key = env2-value"},
 			map[string]string{"env1-key": "env1-value", "env2-key": "env2-value"},
 			nil,
 		},
 		{
-			cli.MapFlag[string, string]{Name: "foo", EnvVar: "FOO"},
+			cli.MapFlag[string, string]{Name: "foo", EnvVars: []string{"FOO"}},
 			nil,
 			nil,
 			map[string]string{},
 			nil,
 		},
 		{
-			cli.MapFlag[string, string]{Name: "foo", EnvVar: "FOO", Destination: mockDestValue(map[string]string{"default1-key": "default1-value", "default2-key": "default2-value"})},
+			cli.MapFlag[string, string]{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue(map[string]string{"default1-key": "default1-value", "default2-key": "default2-value"})},
 			[]string{"--foo", "arg1-key=arg1-value", "--foo", "arg2-key=arg2-value"},
 			map[string]string{"FOO": "env1-key=env1-value,env2-key=env2-value"},
 			map[string]string{"arg1-key": "arg1-value", "arg2-key": "arg2-value"},
@@ -81,14 +81,14 @@ func TestMapFlagStringIntApply(t *testing.T) {
 		expectedErr   error
 	}{
 		{
-			cli.MapFlag[string, int]{Name: "foo", EnvVar: "FOO"},
+			cli.MapFlag[string, int]{Name: "foo", EnvVars: []string{"FOO"}},
 			[]string{"--foo", "arg1-key=10", "--foo", "arg2-key=11"},
 			map[string]string{"FOO": "env1-key=20,env2-key=21"},
 			map[string]int{"arg1-key": 10, "arg2-key": 11},
 			nil,
 		},
 		{
-			cli.MapFlag[string, int]{Name: "foo", EnvVar: "FOO"},
+			cli.MapFlag[string, int]{Name: "foo", EnvVars: []string{"FOO"}},
 			nil,
 			map[string]string{"FOO": "env1-key=20,env2-key=21"},
 			map[string]int{"env1-key": 20, "env2-key": 21},
@@ -96,7 +96,7 @@ func TestMapFlagStringIntApply(t *testing.T) {
 		},
 
 		{
-			cli.MapFlag[string, int]{Name: "foo", EnvVar: "FOO", Destination: mockDestValue(map[string]int{"default1-key": 50, "default2-key": 51})},
+			cli.MapFlag[string, int]{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue(map[string]int{"default1-key": 50, "default2-key": 51})},
 			[]string{"--foo", "arg1-key=10", "--foo", "arg2-key=11"},
 			map[string]string{"FOO": "env1-key=20,env2-key=21"},
 			map[string]int{"arg1-key": 10, "arg2-key": 11},

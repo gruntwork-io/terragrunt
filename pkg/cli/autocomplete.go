@@ -101,7 +101,7 @@ func printCommandSuggestions(arg string, commands []*Command, writer io.Writer) 
 }
 
 func printFlagSuggestions(arg string, flags []Flag, writer io.Writer) error {
-	cur := strings.TrimPrefix(arg, "-")
+	cur := strings.TrimLeft(arg, "-")
 
 	errs := []error{}
 
@@ -121,6 +121,7 @@ func printFlagSuggestions(arg string, flags []Flag, writer io.Writer) error {
 			// match if last argument matches this flag and it is not repeated
 			if strings.HasPrefix(name, cur) && cur != name && !cliArgContains(name) {
 				flagCompletion := fmt.Sprintf("%s%s", strings.Repeat("-", count), name)
+
 				_, err := fmt.Fprintln(writer, flagCompletion)
 				errs = append(errs, err)
 			}

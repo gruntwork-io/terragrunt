@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands"
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -108,7 +108,7 @@ func (state *RemoteState) Initialize(ctx context.Context, terragruntOptions *opt
 // 4. The remote state initializer for this backend type, if there is one, says initialization is necessary
 func (state *RemoteState) NeedsInit(terragruntOptions *options.TerragruntOptions) (bool, error) {
 	if terragruntOptions.DisableBucketUpdate {
-		terragruntOptions.Logger.Debugf("Skipping remote state initialization due to %s flag", commands.TerragruntDisableBucketUpdateFlagName)
+		terragruntOptions.Logger.Debugf("Skipping remote state initialization due to %s flag", flags.DisableBucketUpdateFlagName)
 		return false, nil
 	}
 
@@ -194,7 +194,7 @@ func copyExistingNotNullValues(existingMap map[string]interface{}, newMap map[st
 
 // ToTerraformInitArgs converts the RemoteState config into the
 // format used by the terraform init command
-func (state RemoteState) ToTerraformInitArgs() []string {
+func (state *RemoteState) ToTerraformInitArgs() []string {
 	config := state.Config
 
 	if state.DisableInit {

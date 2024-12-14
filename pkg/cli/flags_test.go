@@ -42,7 +42,7 @@ func TestFalgsAdd(t *testing.T) {
 	testNewFlag := &cli.GenericFlag[string]{Name: "qux"}
 
 	actual := newMockFlags()
-	actual.Add(testNewFlag)
+	actual = append(actual, testNewFlag)
 
 	expected := append(newMockFlags(), testNewFlag)
 	assert.Equal(t, expected, actual)
@@ -51,7 +51,7 @@ func TestFalgsAdd(t *testing.T) {
 func TestFalgsFilter(t *testing.T) {
 	t.Parallel()
 
-	actual := newMockFlags().Filter([]string{"bar", "baz"})
+	actual := newMockFlags().Filter(([]string{"bar", "baz"})...)
 	expected := cli.Flags{mockFlagBar, mockFlagBaz}
 	assert.Equal(t, expected, actual)
 }

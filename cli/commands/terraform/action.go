@@ -336,7 +336,7 @@ func runTerragruntWithConfig(ctx context.Context, originalTerragruntOptions *opt
 		return err
 	}
 
-	return runActionWithHooks(ctx, "terraform", terragruntOptions, terragruntConfig, func(ctx context.Context) error {
+	return RunActionWithHooks(ctx, "terraform", terragruntOptions, terragruntConfig, func(ctx context.Context) error {
 		runTerraformError := RunTerraformWithRetry(ctx, terragruntOptions)
 
 		var lockFileError error
@@ -420,9 +420,9 @@ func ShouldCopyLockFile(args []string, terraformConfig *config.TerraformConfig) 
 	return false
 }
 
-// Run the given action function surrounded by hooks. That is, run the before hooks first, then, if there were no
+// RunActionWithHooks runs the given action function surrounded by hooks. That is, run the before hooks first, then, if there were no
 // errors, run the action, and finally, run the after hooks. Return any errors hit from the hooks or action.
-func runActionWithHooks(ctx context.Context, description string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, action func(ctx context.Context) error) error {
+func RunActionWithHooks(ctx context.Context, description string, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, action func(ctx context.Context) error) error {
 	var allErrors *errors.MultiError
 	beforeHookErrors := processHooks(ctx, terragruntConfig.Terraform.GetBeforeHooks(), terragruntOptions, terragruntConfig, allErrors)
 	allErrors = allErrors.Append(beforeHookErrors)

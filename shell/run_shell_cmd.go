@@ -107,6 +107,8 @@ func RunShellCommandWithOutput(
 	args ...string,
 ) (*util.CmdOutput, error) {
 	if command == opts.TerraformPath {
+		args = cli.Args(args).Normalize(cli.SingleDashFlag)
+
 		if fn := TerraformCommandHookFromContext(ctx); fn != nil {
 			return fn(ctx, opts, args)
 		}

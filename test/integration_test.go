@@ -394,7 +394,7 @@ func TestLogRawModuleOutput(t *testing.T) {
 
 	stdoutInline := strings.ReplaceAll(stdout, "\n", "")
 	assert.Contains(t, stdoutInline, "Initializing the backend...Initializing provider plugins...")
-	assert.NotRegexp(t, regexp.MustCompile(`(?i)(`+strings.Join(log.AllLevels.Names(), "|")+`)+`), stdoutInline)
+	assert.NotRegexp(t, `(?i)(`+strings.Join(log.AllLevels.Names(), "|")+`)+`, stdoutInline)
 }
 
 func TestTerragruntExcludesFile(t *testing.T) {
@@ -738,7 +738,7 @@ func TestTerragruntGraphDependenciesCommand(t *testing.T) {
 	)
 	helpers.RunTerragruntRedirectOutput(t, "terragrunt graph-dependencies --terragrunt-working-dir "+environmentPath, &stdout, &stderr)
 	output := stdout.String()
-	assert.True(t, strings.Contains(output, strings.TrimSpace(`
+	assert.Contains(t, output, strings.TrimSpace(`
 digraph {
 	"backend-app" ;
 	"backend-app" -> "mysql";
@@ -753,7 +753,7 @@ digraph {
 	"redis" -> "vpc";
 	"vpc" ;
 }
-	`)))
+	`))
 }
 
 // Check that Terragrunt does not pollute stdout with anything
@@ -857,7 +857,7 @@ func TestTerragruntOutputModuleGroupsWithSymlinks(t *testing.T) {
 
 	output := strings.ReplaceAll(stdout, " ", "")
 	expectedOutput := strings.ReplaceAll(strings.ReplaceAll(expectedApplyOutput, "\t", ""), " ", "")
-	assert.True(t, strings.Contains(strings.TrimSpace(output), strings.TrimSpace(expectedOutput)))
+	assert.Contains(t, strings.TrimSpace(output), strings.TrimSpace(expectedOutput))
 }
 
 func TestInvalidSource(t *testing.T) {
@@ -1885,7 +1885,7 @@ func TestDependencyOutputCycleHandling(t *testing.T) {
 			helpers.LogBufferContentsLineByLine(t, planStdout, "plan stdout")
 			helpers.LogBufferContentsLineByLine(t, planStderr, "plan stderr")
 			require.Error(t, err)
-			assert.True(t, strings.Contains(err.Error(), "Found a dependency cycle between modules"))
+			assert.Contains(t, err.Error(), "Found a dependency cycle between modules")
 		})
 	}
 }
@@ -3075,7 +3075,7 @@ func TestOutputModuleGroups(t *testing.T) {
 			helpers.RunTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output-module-groups --terragrunt-working-dir %s %s", environmentPath, tt.subCommand), &stdout, &stderr)
 			output := strings.ReplaceAll(stdout.String(), " ", "")
 			expectedOutput := strings.ReplaceAll(strings.ReplaceAll(tt.expectedOutput, "\t", ""), " ", "")
-			assert.True(t, strings.Contains(strings.TrimSpace(output), strings.TrimSpace(expectedOutput)))
+			assert.Contains(t, strings.TrimSpace(output), strings.TrimSpace(expectedOutput))
 		})
 	}
 }

@@ -19,6 +19,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclvalidate"
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 
@@ -31,9 +32,9 @@ import (
 	hashicorpversion "github.com/hashicorp/go-version"
 
 	"github.com/gruntwork-io/go-commons/env"
-	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog"
+	execCmd "github.com/gruntwork-io/terragrunt/cli/commands/exec"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
@@ -68,9 +69,7 @@ func NewApp(opts *options.TerragruntOptions) *App {
 	app.Writer = opts.Writer
 	app.ErrWriter = opts.ErrWriter
 
-	app.Flags = append(
-		commands.NewGlobalFlags(opts),
-		NewDeprecatedFlags(opts)...)
+	app.Flags = flags.NewGlobalFlags(opts)
 
 	app.Commands = append(
 		DeprecatedCommands(opts),
@@ -156,12 +155,13 @@ func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 		scaffold.NewCommand(opts),           // scaffold
 		graph.NewCommand(opts),              // graph
 		hclvalidate.NewCommand(opts),        // hclvalidate
+		execCmd.NewCommand(opts),            // exec
 	}
 
 	sort.Sort(cmds)
 
 	// add terraform command `*` after sorting to put the command at the end of the list in the help.
-	cmds.Add(terraformCmd.NewCommand(opts))
+	cmds = append(cmds, terraformCmd.NewCommand(opts))
 
 	return cmds
 }

@@ -94,13 +94,13 @@ func ParseLevel(str string) (Level, error) {
 }
 
 // String implements fmt.Stringer.
-func (level Level) String() string {
+func (level *Level) String() string {
 	return level.FullName()
 }
 
 // FullName returns the full level name.
-func (level Level) FullName() string {
-	if name, ok := levelNames[level]; ok {
+func (level *Level) FullName() string {
+	if name, ok := levelNames[*level]; ok {
 		return name
 	}
 
@@ -108,8 +108,8 @@ func (level Level) FullName() string {
 }
 
 // TinyName returns the level name in one character.
-func (level Level) TinyName() string {
-	if name, ok := levelTinyNames[level]; ok {
+func (level *Level) TinyName() string {
+	if name, ok := levelTinyNames[*level]; ok {
 		return name
 	}
 
@@ -117,8 +117,8 @@ func (level Level) TinyName() string {
 }
 
 // ShortName returns the level name in third characters.
-func (level Level) ShortName() string {
-	if name, ok := levelShortNames[level]; ok {
+func (level *Level) ShortName() string {
+	if name, ok := levelShortNames[*level]; ok {
 		return name
 	}
 
@@ -138,12 +138,21 @@ func (level *Level) UnmarshalText(text []byte) error {
 }
 
 // MarshalText implements encoding.MarshalText.
-func (level Level) MarshalText() ([]byte, error) {
+func (level *Level) MarshalText() ([]byte, error) {
 	if name := level.String(); name != "" {
 		return []byte(name), nil
 	}
 
 	return nil, errors.Errorf("invalid: %q", level)
+}
+
+// ToLogrusLevel converts our `Level` to `logrus.Level`.
+func (level *Level) ToLogrusLevel() logrus.Level {
+	if logrusLevel, ok := logrusLevels[*level]; ok {
+		return logrusLevel
+	}
+
+	return logrus.Level(0)
 }
 
 // Levels is a slice of `Level` type.
@@ -185,15 +194,6 @@ func (levels Levels) Names() []string {
 // String implements the `fmt.Stringer` interface.
 func (levels Levels) String() string {
 	return strings.Join(levels.Names(), ", ")
-}
-
-// ToLogrusLevel converts our `Level` to `logrus.Level`.
-func (level Level) ToLogrusLevel() logrus.Level {
-	if logrusLevel, ok := logrusLevels[level]; ok {
-		return logrusLevel
-	}
-
-	return logrus.Level(0)
 }
 
 // FromLogrusLevel converts `logrus.Level` to our `Level`.

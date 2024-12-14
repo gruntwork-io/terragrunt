@@ -68,10 +68,10 @@ func TestScanDefaultVariables(t *testing.T) {
 	assert.Equal(t, "0", varByName["number_default"].DefaultValuePlaceholder)
 
 	assert.Equal(t, "object", varByName["object_var"].Type)
-	assert.Equal(t, "{\"num\":42,\"str\":\"default\"}", varByName["object_var"].DefaultValue)
+	assert.JSONEq(t, "{\"num\":42,\"str\":\"default\"}", varByName["object_var"].DefaultValue)
 
 	assert.Equal(t, "map", varByName["map_var"].Type)
-	assert.Equal(t, "{\"key\":\"value42\"}", varByName["map_var"].DefaultValue)
+	assert.JSONEq(t, "{\"key\":\"value42\"}", varByName["map_var"].DefaultValue)
 
 	assert.Equal(t, "bool", varByName["enabled"].Type)
 	assert.Equal(t, "true", varByName["enabled"].DefaultValue)

@@ -10,17 +10,19 @@ import (
 )
 
 type Command struct {
-	// The name of the cmd
+	// Name is the command name.
 	Name string
-	// A list of aliases for the cmd
+	// Aliases is a list of aliases for the command.
 	Aliases []string
-	// A short description of the usage of this cmd
+	// Usage is a short description of the usage of the command.
 	Usage string
-	// Custom text to show on USAGE section of help
+	// UsageText is custom text to show on `Usage` section of help.
 	UsageText string
-	// A longer explanation of how the cmd works
+	// Description is a longer explanation of how the command works.
 	Description string
-	// List of flags to parse
+	// Examples is list of examples of using the command in the help.
+	Examples []string
+	// Flags is list of flags to parse.
 	Flags Flags
 	// if DisallowUndefinedFlags is true, any undefined flag will cause the application to exit and return an error.
 	DisallowUndefinedFlags bool
@@ -85,7 +87,7 @@ func (cmd *Command) VisibleFlags() Flags {
 
 // VisibleSubcommands returns a slice of the Commands with Hidden=false.
 // Used by `urfave/cli` package to generate help.
-func (cmd Command) VisibleSubcommands() []*cli.Command {
+func (cmd *Command) VisibleSubcommands() []*cli.Command {
 	if cmd.Subcommands == nil {
 		return nil
 	}
@@ -101,7 +103,7 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 		return err
 	}
 
-	ctx = ctx.Clone(cmd, args)
+	ctx = ctx.NewCommandContext(cmd, args)
 
 	subCmdName := ctx.Args().CommandName()
 	subCmdArgs := ctx.Args().Tail()
@@ -245,12 +247,14 @@ func (cmd *Command) flagSetParse(flagSet *libflag.FlagSet, args []string) ([]str
 	return undefArgs, nil
 }
 
-func (cmd Command) WrapAction(fn func(ctx *Context, action ActionFunc) error) *Command {
-	action := cmd.Action
-	cmd.Action = func(ctx *Context) error {
+func (cmd *Command) WrapAction(fn func(ctx *Context, action ActionFunc) error) *Command {
+	clone := *cmd
+
+	action := clone.Action
+	clone.Action = func(ctx *Context) error {
 		return fn(ctx, action)
 	}
-	cmd.Subcommands = cmd.Subcommands.WrapAction(fn)
+	clone.Subcommands = clone.Subcommands.WrapAction(fn)
 
-	return &cmd
+	return &clone
 }

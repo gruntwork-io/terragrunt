@@ -5,6 +5,7 @@
 package hclvalidate
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -12,24 +13,19 @@ import (
 const (
 	CommandName = "hclvalidate"
 
-	ShowConfigPathFlagName = "terragrunt-hclvalidate-show-config-path"
-	ShowConfigPathEnvName  = "TERRAGRUNT_HCLVALIDATE_SHOW_CONFIG_PATH"
-
-	JSONOutputFlagName = "terragrunt-hclvalidate-json"
-	JSONOutputEnvName  = "TERRAGRUNT_HCLVALIDATE_JSON"
+	ShowConfigPathFlagName = "hclvalidate-show-config-path"
+	JSONOutputFlagName     = "hclvalidate-json"
 )
 
 func NewFlags(opts *Options) cli.Flags {
 	return cli.Flags{
 		&cli.BoolFlag{
 			Name:        ShowConfigPathFlagName,
-			EnvVar:      ShowConfigPathEnvName,
 			Usage:       "Show a list of files with invalid configuration.",
 			Destination: &opts.ShowConfigPath,
 		},
 		&cli.BoolFlag{
 			Name:        JSONOutputFlagName,
-			EnvVar:      JSONOutputEnvName,
 			Destination: &opts.JSONOutput,
 			Usage:       "Output the result in JSON format.",
 		},
@@ -42,7 +38,7 @@ func NewCommand(generalOpts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:   CommandName,
 		Usage:  "Find all hcl files from the config stack and validate them.",
-		Flags:  NewFlags(opts).Sort(),
+		Flags:  append(flags.NewCommonFlags(opts.TerragruntOptions), NewFlags(opts)...).Sort(),
 		Action: func(ctx *cli.Context) error { return Run(ctx, opts) },
 	}
 }
