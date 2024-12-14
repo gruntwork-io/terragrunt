@@ -28,7 +28,7 @@ require (
 	github.com/stretchr/testify v1.9.0
 	github.com/zclconf/go-cty v1.14.2
 	golang.org/x/crypto v0.31.0 // indirect
-	golang.org/x/oauth2 v0.23.0
+	golang.org/x/oauth2 v0.24.0
 	golang.org/x/sync v0.10.0
 	golang.org/x/sys v0.28.0
 	google.golang.org/api v0.203.0
