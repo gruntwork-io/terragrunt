@@ -48,7 +48,7 @@ const (
 
 	defaultExcludesFile = ".terragrunt-excludes"
 
-	DefaultLogLevel = log.TraceLevel
+	DefaultLogLevel = log.InfoLevel
 
 	EnvVarPrefix = "TG_"
 )

@@ -80,7 +80,7 @@ func NewTimeFormatValue(list map[string]string) *TimeFormatValue {
 	}
 }
 
-func (val *TimeFormatValue) SortedKeys() []string {
+func (val TimeFormatValue) SortedKeys() []string {
 	keys := maps.Keys(val.list)
 
 	sort.Slice(keys, func(i, j int) bool {
@@ -90,13 +90,13 @@ func (val *TimeFormatValue) SortedKeys() []string {
 	return keys
 }
 
-func (val *TimeFormatValue) Set(v string) *TimeFormatValue {
+func (val TimeFormatValue) Set(v string) *TimeFormatValue {
 	val.value = timeFormatList.Value(v)
 
-	return val
+	return &val
 }
 
-func (val *TimeFormatValue) Value(str string) string {
+func (val TimeFormatValue) Value(str string) string {
 	for _, key := range val.SortedKeys() {
 		str = strings.ReplaceAll(str, key, val.list[key])
 	}

@@ -42,7 +42,7 @@ func TestFalgsAdd(t *testing.T) {
 	testNewFlag := &cli.GenericFlag[string]{Name: "qux"}
 
 	actual := newMockFlags()
-	actual = append(actual, testNewFlag)
+	actual = actual.Add(testNewFlag)
 
 	expected := append(newMockFlags(), testNewFlag)
 	assert.Equal(t, expected, actual)

@@ -33,6 +33,10 @@ func NewBoolFlag(opts *options.TerragruntOptions, flag *cli.BoolFlag, renamedNam
 	flag.Aliases = append(flag.Aliases, deprecatedName)
 	flag.EnvVars = append(flag.EnvVars, deprecatedEnvVar, envVar)
 
+	if flag.Name != name && deprecatedName != name {
+		flag.Aliases = append(flag.Aliases, name)
+	}
+
 	return &Flag{
 		opts:             opts,
 		Flag:             flag,
@@ -87,6 +91,10 @@ func NewSliceFlag[T cli.SliceFlagType](opts *options.TerragruntOptions, flag *cl
 	flag.Aliases = append(flag.Aliases, deprecatedName)
 	flag.EnvVars = append(flag.EnvVars, deprecatedEnvVar, envVar)
 
+	if flag.Name != name && deprecatedName != name {
+		flag.Aliases = append(flag.Aliases, name)
+	}
+
 	return &Flag{
 		opts:             opts,
 		Flag:             flag,
@@ -111,6 +119,10 @@ func NewMapFlag[K cli.MapFlagKeyType, V cli.MapFlagValueType](opts *options.Terr
 
 	flag.Aliases = append(flag.Aliases, deprecatedName)
 	flag.EnvVars = append(flag.EnvVars, deprecatedEnvVar, envVar)
+
+	if flag.Name != name && deprecatedName != name {
+		flag.Aliases = append(flag.Aliases, name)
+	}
 
 	return &Flag{
 		opts:             opts,
@@ -150,6 +162,10 @@ func (flag *Flag) Names() []string {
 
 // RunAction checks for use of deprecated flag renamedNames/envs and runs the inherited `RunAction` function.
 func (flag *Flag) RunAction(ctx *cli.Context) error {
+	if err := flag.Flag.RunAction(ctx); err != nil {
+		return err
+	}
+
 	var strictControl bool
 
 	if control, ok := strict.GetStrictControl(strict.RenamedFlag); ok {
@@ -174,14 +190,17 @@ func (flag *Flag) RunAction(ctx *cli.Context) error {
 		flag.opts.Logger.Warnf("The `%s` environment variable is deprecated and will be removed in a future version. Use `%s` instead.", envVar, flag.envVar)
 	}
 
-	return flag.Flag.RunAction(ctx)
+	return nil
 }
 
 // usedDeprecatedFlagName returns the deprecated flag if used, otherwise an empty string.
 func (flag *Flag) usedDeprecatedFlagName(ctx *cli.Context) string {
 	args := util.RemoveSublistFromList(ctx.Parent().Args(), ctx.Args())
+
 	for _, arg := range args {
-		flagName := strings.TrimLeft(strings.SplitN(arg, " ", 1)[0], "-")
+		arg = strings.SplitN(arg, "=", 2)[0]
+
+		flagName := strings.TrimLeft(arg, "-")
 
 		if flag.deprecatedName == flagName {
 			return flagName
