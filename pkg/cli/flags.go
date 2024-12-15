@@ -36,6 +36,11 @@ func (flags Flags) Filter(names ...string) Flags {
 	return filtered
 }
 
+// Add adds a new flag to the list.
+func (flags *Flags) Add(newFlags ...Flag) Flags {
+	return append(*flags, newFlags...)
+}
+
 // VisibleFlags returns a slice of the Flags.
 // Used by `urfave/cli` package to generate help.
 func (flags Flags) VisibleFlags() Flags {

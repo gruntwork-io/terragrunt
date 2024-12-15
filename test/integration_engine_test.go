@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands"
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -196,7 +196,7 @@ func TestEngineDisableChecksumCheck(t *testing.T) {
 	require.Contains(t, err.Error(), "verification failure")
 
 	// disable checksum check
-	t.Setenv(commands.EngineSkipCheckEnv, "1")
+	t.Setenv(flags.EngineSkipCheckFlagName, "1")
 
 	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all apply -no-color -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 	require.NoError(t, err)

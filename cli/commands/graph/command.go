@@ -24,15 +24,13 @@ const (
 )
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
-	globalFlags := flags.NewCommonFlags(opts)
-	globalFlags = append(globalFlags,
-		&cli.GenericFlag[string]{
+	return cli.Flags{
+		flags.NewGenericFlag(opts, &cli.GenericFlag[string]{
 			Name:        GraphRootFlagName,
 			Destination: &opts.GraphRoot,
 			Usage:       "Root directory from where to build graph dependencies.",
-		})
-
-	return globalFlags
+		}),
+	}
 }
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
@@ -72,7 +70,7 @@ func subCommands(opts *options.TerragruntOptions) cli.Commands {
 		awsproviderpatch.NewCommand(opts),  // aws-provider-patch
 	}
 	sort.Sort(cmds)
-	cmds = append(cmds, terraform.NewCommand(opts))
+	cmds.Add(terraform.NewCommand(opts))
 
 	return cmds
 }

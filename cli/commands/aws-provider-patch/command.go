@@ -43,11 +43,11 @@ const (
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
-		&cli.MapFlag[string, string]{
+		flags.NewMapFlag(opts, &cli.MapFlag[string, string]{
 			Name:        TerragruntOverrideAttrFlagName,
 			Destination: &opts.AwsProviderPatchOverrides,
 			Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",
-		},
+		}),
 	}
 }
 

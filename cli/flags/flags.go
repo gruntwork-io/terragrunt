@@ -1,4 +1,4 @@
-// Package flags provides Terragrunt command falgs.
+// Package flags provides Terragrunt command flags.
 package flags
 
 import (
@@ -348,8 +348,8 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 		}),
 	}
 
-	flags.Sort()
-	flags = append(flags, NewHelpVersionFlags(opts)...)
+	flags = flags.Sort()
+	flags = flags.Add(NewHelpVersionFlags(opts)...)
 
 	return flags
 }

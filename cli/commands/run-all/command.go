@@ -34,16 +34,16 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
-		&cli.GenericFlag[string]{
+		flags.NewGenericFlag(opts, &cli.GenericFlag[string]{
 			Name:        flags.OutDirFlagName,
 			Destination: &opts.OutputFolder,
 			Usage:       "Directory to store plan files.",
-		},
-		&cli.GenericFlag[string]{
+		}),
+		flags.NewGenericFlag(opts, &cli.GenericFlag[string]{
 			Name:        flags.JSONOutDirFlagName,
 			Destination: &opts.JSONOutputFolder,
 			Usage:       "Directory to store json plan files.",
-		},
+		}),
 	}
 }
 
@@ -75,7 +75,7 @@ func subCommands(opts *options.TerragruntOptions) cli.Commands {
 	sort.Sort(cmds)
 
 	// add terraform command `*` after sorting to put the command at the end of the list in the help.
-	cmds = append(cmds, terraform.NewCommand(opts))
+	cmds.Add(terraform.NewCommand(opts))
 
 	return cmds
 }

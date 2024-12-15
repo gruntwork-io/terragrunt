@@ -161,7 +161,7 @@ func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	sort.Sort(cmds)
 
 	// add terraform command `*` after sorting to put the command at the end of the list in the help.
-	cmds = append(cmds, terraformCmd.NewCommand(opts))
+	cmds.Add(terraformCmd.NewCommand(opts))
 
 	return cmds
 }

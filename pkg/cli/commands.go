@@ -17,6 +17,11 @@ func (commands Commands) Get(name string) *Command {
 	return nil
 }
 
+// Add adds a new cmd to the list.
+func (commands *Commands) Add(cmd *Command) {
+	*commands = append(*commands, cmd)
+}
+
 // Filter returns a list of commands filtered by the given names.
 func (commands Commands) Filter(names []string) Commands {
 	var filtered Commands
@@ -62,8 +67,7 @@ func (commands Commands) VisibleCommands() []*cli.Command {
 			Usage:       cmd.Usage,
 			UsageText:   cmd.UsageText,
 			Description: cmd.Description,
-			//Examples:    cmd.Examples,
-			Hidden: cmd.Hidden,
+			Hidden:      cmd.Hidden,
 		})
 	}
 

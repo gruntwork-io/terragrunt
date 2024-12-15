@@ -19,31 +19,31 @@ const (
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
-		&cli.GenericFlag[string]{
+		flags.NewGenericFlag(opts, &cli.GenericFlag[string]{
 			Name:        HCLFmtFlagName,
 			Destination: &opts.HclFile,
 			Usage:       "The path to a single hcl file that the hclfmt command should run on.",
-		},
-		&cli.SliceFlag[string]{
+		}),
+		flags.NewSliceFlag(opts, &cli.SliceFlag[string]{
 			Name:        HCLFmtExcludeDirFlagName,
 			Destination: &opts.HclExclude,
 			Usage:       "Skip HCL formatting in given directories.",
-		},
-		&cli.BoolFlag{
+		}),
+		flags.NewBoolFlag(opts, &cli.BoolFlag{
 			Name:        CheckFlagName,
 			Destination: &opts.Check,
 			Usage:       "Enable check mode in the hclfmt command.",
-		},
-		&cli.BoolFlag{
+		}),
+		flags.NewBoolFlag(opts, &cli.BoolFlag{
 			Name:        DiffFlagName,
 			Destination: &opts.Diff,
 			Usage:       "Print diff between original and modified file versions when running with 'hclfmt'.",
-		},
-		&cli.BoolFlag{
+		}),
+		flags.NewBoolFlag(opts, &cli.BoolFlag{
 			Name:        HCLFmtStdinFlagName,
 			Destination: &opts.HclFromStdin,
 			Usage:       "Format HCL from stdin and print result to stdout.",
-		},
+		}),
 	}
 }
 

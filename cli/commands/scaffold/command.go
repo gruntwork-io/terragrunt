@@ -15,16 +15,16 @@ const (
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
-		&cli.SliceFlag[string]{
+		flags.NewSliceFlag(opts, &cli.SliceFlag[string]{
 			Name:        Var,
 			Destination: &opts.ScaffoldVars,
 			Usage:       "Variables for usage in scaffolding.",
-		},
-		&cli.SliceFlag[string]{
+		}),
+		flags.NewSliceFlag(opts, &cli.SliceFlag[string]{
 			Name:        VarFile,
 			Destination: &opts.ScaffoldVarFiles,
 			Usage:       "Files with variables to be used in modules scaffolding.",
-		},
+		}),
 	}
 }
 
