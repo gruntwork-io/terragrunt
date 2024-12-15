@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/engine"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
@@ -133,11 +134,33 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		}
 	}(ctx)
 
+	args = RemoveNoColorDuplicates(args)
+
 	if err := app.App.RunContext(ctx, args); err != nil && !errors.IsContextCanceled(err) {
 		return err
 	}
 
 	return nil
+}
+
+func RemoveNoColorDuplicates(args []string) []string {
+	var (
+		foundNoColor bool
+		filteredArgs []string
+	)
+
+	for _, arg := range args {
+		if strings.HasSuffix(arg, "-"+flags.NoColorFlagName) {
+			if foundNoColor {
+				continue
+			}
+			foundNoColor = true
+		}
+
+		filteredArgs = append(filteredArgs, arg)
+	}
+
+	return filteredArgs
 }
 
 // TerragruntCommands returns the set of Terragrunt commands.
@@ -268,6 +291,10 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 		}
 	default:
 		args = append([]string{cmdName}, args...)
+	}
+
+	if opts.DisableLogColors {
+		args = append(args, terraform.FlagNameNoColor)
 	}
 
 	opts.TerraformCommand = cmdName

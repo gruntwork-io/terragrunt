@@ -25,19 +25,19 @@ const (
 	NonInteractiveFlagName = "non-interactive"
 	WorkingDirFlagName     = "working-dir"
 	DownloadDirFlagName    = "download-dir"
-	SourceFlagName         = "source"
-	SourceMapFlagName      = "source-map"
-	SourceUpdateFlagName   = "source-update"
+	DownloadFlagName       = "download" // Deprecated env `TERRAGRUNT_DOWNLOAD`
+
+	SourceFlagName       = "source"
+	SourceMapFlagName    = "source-map"
+	SourceUpdateFlagName = "source-update"
 
 	// Assume IAM Role flags.
 	IAMAssumeRoleFlagName                 = "iam-assume-role"
+	IAMRoleFlagName                       = "iam-role" // Deprecated flag.
 	IAMAssumeRoleDurationFlagName         = "iam-assume-role-duration"
 	IAMAssumeRoleSessionNameFlagName      = "iam-assume-role-session-name"
 	IAMAssumeRoleWebIdentityTokenFlagName = "iam-assume-role-web-identity-token"
-
-	// Deprecated assume IAM Role flags.
-	IAMRoleFlagName             = "iam-role"
-	IAMWebIdentityTokenFlagName = "iam-web-identity-token"
+	IAMWebIdentityTokenFlagName           = "iam-web-identity-token" // Deprecated flag.
 
 	ParallelismFlagName                    = "parallelism"
 	DebugFlagName                          = "debug"
@@ -394,7 +394,7 @@ func NewCommonFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        DownloadDirFlagName,
 			Destination: &opts.DownloadDir,
 			Usage:       "The path to download OpenTofu/Terraform modules into. Default is .cache in the working directory.",
-		}),
+		}, DownloadFlagName),
 		NewGenericFlag(opts, &cli.GenericFlag[string]{
 			Name:        SourceFlagName,
 			Destination: &opts.Source,

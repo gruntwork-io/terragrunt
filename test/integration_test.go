@@ -292,6 +292,9 @@ func TestLogWithAbsPath(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
 
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level trace --terragrunt-log-show-abs-paths --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-format=pretty --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
@@ -347,6 +350,9 @@ func TestLogFormatPrettyOutput(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, testFixtureLogFormatter)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
+
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
 
 	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level trace --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-format=pretty  --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)

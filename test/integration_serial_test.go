@@ -698,7 +698,10 @@ func TestParseTFLog(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-log-format=pretty -no-color --terragrunt-no-color --terragrunt-working-dir "+rootPath)
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-log-format=pretty --no-color --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
 	for _, prefixName := range []string{"app", "dep"} {
