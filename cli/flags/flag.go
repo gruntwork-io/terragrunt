@@ -198,7 +198,8 @@ func (flag *Flag) usedDeprecatedFlagName(ctx *cli.Context) string {
 	args := util.RemoveSublistFromList(ctx.Parent().Args(), ctx.Args())
 
 	for _, arg := range args {
-		arg = strings.SplitN(arg, "=", 2)[0]
+		substringNumber := 2
+		arg = strings.SplitN(arg, "=", substringNumber)[0]
 
 		flagName := strings.TrimLeft(arg, "-")
 

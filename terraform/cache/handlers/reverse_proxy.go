@@ -32,7 +32,7 @@ func (reverseProxy ReverseProxy) WithModifyResponse(fn func(resp *http.Response)
 	return &reverseProxy
 }
 
-func (reverseProxy ReverseProxy) NewRequest(ctx echo.Context, targetURL *url.URL) (er error) {
+func (reverseProxy *ReverseProxy) NewRequest(ctx echo.Context, targetURL *url.URL) (er error) {
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(req *httputil.ProxyRequest) {
 			req.Out.Host = targetURL.Host

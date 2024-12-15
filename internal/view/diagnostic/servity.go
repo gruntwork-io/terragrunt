@@ -15,9 +15,9 @@ const (
 
 type DiagnosticSeverity hcl.DiagnosticSeverity
 
-func (severity *DiagnosticSeverity) String() string {
+func (severity DiagnosticSeverity) String() string {
 	// TODO: Remove lint suppression
-	switch hcl.DiagnosticSeverity(*severity) { //nolint:exhaustive
+	switch hcl.DiagnosticSeverity(severity) { //nolint:exhaustive
 	case hcl.DiagError:
 		return DiagnosticSeverityError
 	case hcl.DiagWarning:
@@ -27,7 +27,7 @@ func (severity *DiagnosticSeverity) String() string {
 	}
 }
 
-func (severity *DiagnosticSeverity) MarshalJSON() ([]byte, error) {
+func (severity DiagnosticSeverity) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf(`"%s"`, severity.String())), nil
 }
 

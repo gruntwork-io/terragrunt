@@ -194,7 +194,7 @@ func copyExistingNotNullValues(existingMap map[string]interface{}, newMap map[st
 
 // ToTerraformInitArgs converts the RemoteState config into the
 // format used by the terraform init command
-func (state *RemoteState) ToTerraformInitArgs() []string {
+func (state RemoteState) ToTerraformInitArgs() []string {
 	config := state.Config
 
 	if state.DisableInit {
