@@ -134,7 +134,7 @@ func TestScaffoldErrorNoModuleUrl(t *testing.T) {
 	tmpEnvPath, err := os.MkdirTemp("", "terragrunt-scaffold-test")
 	require.NoError(t, err)
 
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt scaffold --terragrunt-non-interactive --terragrunt-working-dir %s", tmpEnvPath))
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt scaffold --terragrunt-non-interactive --terragrunt-working-dir "+tmpEnvPath)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "No module URL passed")
 }
@@ -197,6 +197,6 @@ func TestScaffold3rdPartyModule(t *testing.T) {
 	assert.FileExists(t, tmpEnvPath+"/terragrunt.hcl")
 
 	// validate the generated files
-	_, _, err = helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt hclvalidate --terragrunt-non-interactive --terragrunt-working-dir %s", tmpEnvPath))
+	_, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt hclvalidate --terragrunt-non-interactive --terragrunt-working-dir "+tmpEnvPath)
 	require.NoError(t, err)
 }

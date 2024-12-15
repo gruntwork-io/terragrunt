@@ -134,7 +134,7 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		}
 	}(ctx)
 
-	args = RemoveNoColorDuplicates(args)
+	args = removeNoColorFlagDuplicates(args)
 
 	if err := app.App.RunContext(ctx, args); err != nil && !errors.IsContextCanceled(err) {
 		return err
@@ -143,8 +143,8 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	return nil
 }
 
-func RemoveNoColorDuplicates(args []string) []string {
-	var (
+func removeNoColorFlagDuplicates(args []string) []string {
+	var ( //nolint:prealloc
 		foundNoColor bool
 		filteredArgs []string
 	)
@@ -154,6 +154,7 @@ func RemoveNoColorDuplicates(args []string) []string {
 			if foundNoColor {
 				continue
 			}
+
 			foundNoColor = true
 		}
 

@@ -197,13 +197,14 @@ func autoEnvVar(name string) string {
 }
 
 func deprecatedNames(names []string) ([]string, []string) {
-	var deprecatedNames, deprecatedEnvVars []string
+	var (
+		deprecatedNames   = make([]string, len(names))
+		deprecatedEnvVars = make([]string, len(names))
+	)
 
-	for _, name := range names {
-		envVarSuffix := strings.ToUpper(strings.ReplaceAll(name, "-", "_"))
-
-		deprecatedEnvVars = append(deprecatedEnvVars, DeprecatedEnvVarPrefix+envVarSuffix)
-		deprecatedNames = append(deprecatedNames, DeprecatedFlagNamePrefix+name)
+	for i := range names {
+		deprecatedEnvVars[i] = DeprecatedEnvVarPrefix + strings.ToUpper(strings.ReplaceAll(names[i], "-", "_"))
+		deprecatedNames[i] = DeprecatedFlagNamePrefix + names[i]
 	}
 
 	return deprecatedNames, deprecatedEnvVars
