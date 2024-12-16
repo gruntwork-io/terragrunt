@@ -49,7 +49,7 @@ func TestValidateExperiments(t *testing.T) {
 				},
 			},
 			experimentNames: []string{experiment.Symlinks},
-			expectedWarning: "The following experiment(s) are already completed: symlinks. Please remove this experiment flag, as it no longer does anything. For a list of all ongoing experiments, and the outcomes of previous experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode",
+			expectedWarning: "The following experiment(s) are already completed: symlinks. Please remove any completed experiments, as setting them no longer does anything. For a list of all ongoing experiments, and the outcomes of previous experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode",
 			expectedError:   nil,
 		},
 		{
@@ -61,7 +61,7 @@ func TestValidateExperiments(t *testing.T) {
 				},
 			},
 			experimentNames: []string{"invalid", experiment.Symlinks},
-			expectedWarning: "The following experiment(s) are already completed: symlinks. Please remove this experiment flag, as it no longer does anything. For a list of all ongoing experiments, and the outcomes of previous experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode",
+			expectedWarning: "The following experiment(s) are already completed: symlinks. Please remove any completed experiments, as setting them no longer does anything. For a list of all ongoing experiments, and the outcomes of previous experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode",
 			expectedError: experiment.InvalidExperimentsError{
 				ExperimentNames: []string{"invalid"},
 			},
