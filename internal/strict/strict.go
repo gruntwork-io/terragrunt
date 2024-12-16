@@ -63,7 +63,7 @@ const (
 )
 
 // GetStrictControl returns the strict control with the given name.
-func GetStrictControl(name string) (Control, bool) {
+func GetStrictControl(name string) (*Control, bool) {
 	control, ok := StrictControls[name]
 
 	return control, ok
@@ -86,7 +86,7 @@ func (control *Control) Evaluate(opts *options.TerragruntOptions) (string, bool,
 			return "", false, errors.New("Invalid strict control: " + controlName)
 		}
 
-		if strictControl == *control {
+		if strictControl == control {
 			return "", triggered, control.Error
 		}
 	}
@@ -94,7 +94,7 @@ func (control *Control) Evaluate(opts *options.TerragruntOptions) (string, bool,
 	return control.Warning, triggered, nil
 }
 
-type Controls map[string]Control
+type Controls map[string]*Control
 
 //nolint:lll,gochecknoglobals,stylecheck,revive
 var StrictControls = Controls{
