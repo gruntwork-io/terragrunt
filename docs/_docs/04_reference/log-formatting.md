@@ -1,22 +1,20 @@
 ---
 layout: collection-browser-doc
-title: Custom Log Format
-category: features
-categories_url: features
-excerpt: Learn how to use terragrunt provider cache.
+title: Log Formatting
+category: reference
+categories_url: reference
+excerpt: Learn how customize Terragrunt logging.
 tags: ["log"]
-order: 280
+order: 408
 nav_title: Documentation
 nav_title_link: /docs/
 ---
-
-## Custom Log Format
 
 Using the `--terragrunt-log-custom-format <format>` flag you can customize the way Terragrunt logs with total control over the logging format.
 
 The argument passed to this flag is a Terragrunt native format string that has special syntax, as described below.
 
-### Placeholders
+## Placeholders
 
 The format string consists of placeholders and text. Placeholders start with the `%` sign.
 
@@ -146,7 +144,7 @@ time=12:33:08.513 level=debug msg=Running command: tofu --version
 
 [![screenshot](/assets/img/screenshots/custom-log-format-1.jpg){: width="50%" }](https://terragrunt.gruntwork.io/assets/img/screenshots/custom-log-format-1.jpg)
 
-### Options
+## Options
 
 Options can be divided into common ones, which can be passed to any placeholder, and specific ones for each placeholder.
 
@@ -272,7 +270,7 @@ Specific options for placeholders:
 
     * `relative` - Converts all absolute paths to paths relative to the working directory.
 
-### Presets
+## Presets
 
 The examples below replicate the preset formats specified with `--terragrunt-log-format`. They can be useful if you need to change existing formats to suit your needs.
 

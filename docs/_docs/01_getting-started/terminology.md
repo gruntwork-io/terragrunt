@@ -151,15 +151,15 @@ Ways in which Terragrunt can perform executions are limited to features like [ho
 
 These utilities are part of what makes Terragrunt so powerful, as they allow users to move infrastructure management complexity out of modules.
 
-### Runner Queue
+### Run Queue
 
-The Runner Queue is the queue of all units that Terragrunt will do work on over one or more runs.
+The Run Queue is the queue of all units that Terragrunt will do work on over one or more runs.
 
-Certain commands like [run-all](/docs/reference/cli-options/#run-all) populate the Runner Queue with all units in a stack, while other commands like `plan` or `apply` will only populate the Runner Queue with the unit that the command was run in.
+Certain commands like [run-all](/docs/reference/cli-options/#run-all) populate the Run Queue with all units in a stack, while other commands like `plan` or `apply` will only populate the Run Queue with the unit that the command was run in.
 
-Certain flags like [--terragrunt-include-dir](/docs/reference/cli-options/#terragrunt-include-dir) can be used to adjust the Runner Queue to include additional units. Conversely, there are flags like [--terragrunt-exclude-dir](/docs/reference/cli-options/#terragrunt-exclude-dir) that can be used to adjust the Runner Queue to exclude units.
+Certain flags like [--terragrunt-include-dir](/docs/reference/cli-options/#terragrunt-include-dir) can be used to adjust the Run Queue to include additional units. Conversely, there are flags like [--terragrunt-exclude-dir](/docs/reference/cli-options/#terragrunt-exclude-dir) that can be used to adjust the Run Queue to exclude units.
 
-Terragrunt will always attempt to run until the Runner Queue is empty.
+Terragrunt will always attempt to run until the Run Queue is empty.
 
 ### Runner Pool
 
@@ -182,11 +182,11 @@ Dependencies are important for resolving the DAG, and the DAG is one of the most
 The term "include" is used in two different contexts in Terragrunt.
 
 1. **Include in configuration**: This is when one configuration file is included as partial configuration in another configuration file. This is done using the [include block](/docs/reference/config-blocks-and-attributes#include) in Terragrunt configuration files.
-2. **Include in the Runner Queue**: This is when a unit is included in the Runner Queue. There are multiple ways for a unit to be included in the Runner Queue.
+2. **Include in the Run Queue**: This is when a unit is included in the Run Queue. There are multiple ways for a unit to be included in the Run Queue.
 
 ### Exclude
 
-The term "exclude" is only used in the context of excluding units from the Runner Queue.
+The term "exclude" is only used in the context of excluding units from the Run Queue.
 
 ### Variable
 
