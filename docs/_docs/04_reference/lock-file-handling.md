@@ -1,16 +1,16 @@
 ---
 layout: collection-browser-doc
 title: Lock File Handling
-category: features
-categories_url: features
+category: reference
+categories_url: reference
 excerpt: Learn how to Terragrunt handles the OpenTofu/Terraform lock file
 tags: ["CLI", "DRY"]
-order: 270
+order: 407
 nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## The short version: how to use lock files with Terragrunt
+## How to use lock files with Terragrunt
 
 To use [OpenTofu/Terraform lock files](https://opentofu.org/docs/language/files/dependency-lock/) with Terragrunt, you
 need to:
@@ -20,7 +20,7 @@ need to:
 
 Everything else with OpenTofu/Terraform and Terragrunt should work as expected. To learn the details of how this works, read on!
 
-## The long version: details of how Terragrunt handles lock files
+## How Terragrunt handles lock files
 
 ### What's a lock file?
 
@@ -34,7 +34,7 @@ version control so that when your team members run OpenTofu/Terraform, they get 
 ### The problem with mixing remote OpenTofu/Terraform configurations in Terragrunt and lock files
 
 Let's say you are using Terragrunt with [remote OpenTofu/Terraform
-configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/) and you have the following folder
+configurations]({{site.baseurl}}/docs/features/units/) and you have the following folder
 structure:
 
 ```tree

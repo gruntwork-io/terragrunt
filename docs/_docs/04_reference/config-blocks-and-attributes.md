@@ -116,7 +116,7 @@ The `terraform` block supports the following arguments:
   of the generated or existing `.terraform.lock.hcl` from the temp folder into the working directory. Default is `true`.
 
 - `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `tofu`/`terraform` binary. Learn more
-  about its usage in the [Keep your CLI flags DRY]({{site.baseurl}}/docs/features/keep-your-cli-flags-dry/) use case overview. Supports
+  about its usage in the [Keep your CLI flags DRY]({{site.baseurl}}/docs/features/extra-arguments) use case overview. Supports
   the following arguments:
 
   - `arguments` (required) : A list of CLI arguments to pass to `tofu`/`terraform`.
@@ -159,7 +159,7 @@ supported:
   command will be the terragrunt config directory.
 
 - `init-from-module` and `init`: Terragrunt has two stages of initialization: one is to download [remote
-  configurations](/docs/features/keep-your-terraform-code-dry) using `go-getter`; the other
+  configurations](/docs/features/units) using `go-getter`; the other
   is [Auto-Init](/docs/features/auto-init), which configures the backend and downloads
   provider plugins and modules. If you wish to run a hook when Terragrunt is using `go-getter` to download remote
   configurations, use `init-from-module` for the command. If you wish to execute a hook when Terragrunt is using
@@ -331,7 +331,7 @@ instead of the module repository.**
 
 The `remote_state` block is used to configure how Terragrunt will set up the remote state configuration of your
 OpenTofu/Terraform code. You can read more about Terragrunt's remote state functionality in [Keep your remote state configuration
-DRY](/docs/features/keep-your-remote-state-configuration-dry/) use case overview.
+DRY](/docs/features/state-backend/) use case overview.
 
 The `remote_state` block supports the following arguments:
 
@@ -562,7 +562,7 @@ terraform {
 The `include` block is used to specify inheritance of Terragrunt configuration files. The included config (also called
 the `parent`) will be merged with the current configuration (also called the `child`) before processing. You can learn
 more about the inheritance properties of Terragrunt in the [Filling in remote state settings with Terragrunt
-section](/docs/features/keep-your-remote-state-configuration-dry/#filling-in-remote-state-settings-with-terragrunt) of the
+section](/docs/features/state-backend/#generating-remote-state-settings-with-terragrunt) of the
 "Keep your remote state configuration DRY" use case overview.
 
 You can have more than one `include` block, but each one must have a unique label. It is recommended to always label
@@ -962,11 +962,10 @@ inputs = {
 
 ### locals
 
-The `locals` block is used to define aliases for Terragrunt expressions that can be referenced within the configuration.
-You can learn more about locals in the [feature overview](/docs/features/locals/).
+The `locals` block is used to define aliases for Terragrunt expressions that can be referenced elsewhere in configuration.
 
 The `locals` block does not have a defined set of arguments that are supported. Instead, all the arguments passed into
-`locals` are available under the reference `local.ARG_NAME` throughout the Terragrunt configuration.
+`locals` are available under the reference `local.<local name>` throughout the file where the `locals` block is defined.
 
 Example:
 
@@ -982,12 +981,113 @@ inputs = {
 }
 ```
 
+#### Complex locals
+
+Some `local` variables can be complex types, such as `list` or `map`.
+
+For example:
+
+```hcl
+locals {
+  # Define a list of regions
+  regions = ["us-east-1", "us-west-2", "eu-west-1"]
+
+  # Define a map of regions to their corresponding bucket names
+  region_to_bucket_name = {
+    us-east-1 = "east-bucket"
+    us-west-2 = "west-bucket"
+    eu-west-1 = "eu-bucket"
+  }
+
+  # The first region is accessed like this
+  first_region = local.regions[0]
+
+  # The bucket name for us-east-1 is accessed like this
+  us_east_1_bucket = local.region_to_bucket_name["us-east-1"]
+}
+```
+
+These complex types can also arise when using values derived from reading other files.
+
+For example:
+
+```hcl
+# region.hcl
+locals {
+  region = "us-east-1"
+}
+```
+
+```hcl
+# unit/terragrunt.hcl
+locals {
+  # Load the data from region.hcl
+  region_hcl = read_terragrunt_config(find_in_parent_folders("region.hcl"))
+
+  # Access the region from the loaded file
+  region = local.region_hcl.locals.region
+}
+
+inputs = {
+  bucket_name = "${local.region}-bucket"
+}
+```
+
+Similarly, you might want to define this shared data using other serialization formats, like JSON or YAML:
+
+```yaml
+# region.yml
+region: us-east-1
+```
+
+```hcl
+# unit/terragrunt.hcl
+locals {
+  # Load the data from region.json
+  region_yml = yamldecode(file(find_in_parent_folders("region.yml")))
+
+  # Access the region from the loaded file
+  region = local.region_json.region
+}
+
+inputs = {
+  bucket_name = "${local.region}-bucket"
+}
+```
+
+#### Computed locals
+
+When reading Terragrunt HCL configurations, you might read in a computed configuration:
+
+```hcl
+# computed.hcl
+locals {
+  computed_value = run_cmd("--terragrunt-quiet", "python3", "-c", "print('Hello,')")
+}
+```
+
+```hcl
+# unit/terragrunt.hcl
+locals {
+  # Load the data from computed.hcl
+  computed = read_terragrunt_config(find_in_parent_folders("computed.hcl"))
+
+  # Access the computed value from the loaded file
+  computed_value = "${local.computed.locals.computed_value} world!" # <-- This will be "Hello, world!"
+}
+```
+
+Note that this can be a powerful feature, but it can easily lead to performance issues if you are not careful,
+as each read will require a full parse of the HCL file and potentially execute expensive computation.
+
+Use this feature judiciously.
+
 ### dependency
 
 The `dependency` block is used to configure module dependencies. Each dependency block exports the outputs of the target
 module as block attributes you can reference throughout the configuration. You can learn more about `dependency` blocks
 in the [Dependencies between modules
-section](/docs/features/execute-terraform-commands-on-multiple-units-at-once/#dependencies-between-modules) of the
+section](/docs/features/stacks#dependencies-between-units) of the
 "Execute Opentofu/Terraform commands on multiple modules at once" use case overview.
 
 You can define more than one `dependency` block. Each label you provide to the block identifies another `dependency`
@@ -1312,8 +1412,9 @@ Consider using this for units that are expensive to continuously update, and can
 
 ### errors
 
-The `errors` block contains all the configurations for handling errors. Each configuration block, such as `retry` and `ignore`,
-is nested within the `errors` block to define specific error-handling strategies.
+The `errors` block contains all the configurations for handling errors.
+
+It supports different nested configuration blocks like `retry` and `ignore` to define specific error-handling strategies.
 
 #### Retry Configuration
 
@@ -1334,17 +1435,22 @@ errors {
 
 Parameters:
 
-- `retryable_errors`: A list of regex patterns to match errors eligible for retry.
-  - Example: `".*Error: transient.*"` matches errors containing `Error: transient`.
+- `retryable_errors`: A list of regex patterns to match errors that are eligible to be retried.
+
+  e.g. `".*Error: transient.*"` matches errors containing `Error: transient`.
+
 - `max_attempts`: The maximum number of retry attempts.
-  - Example: `5` retries.
+
+  e.g. `5` retries.
+
 - `sleep_interval_sec`: Time (in seconds) to wait between retries.
-  - Example: `10` seconds.
+
+  e.g. `10` seconds.
 
 #### Ignore Configuration
 
 The `ignore` block within the `errors` block defines rules for ignoring specific errors. This is useful when certain
-errors are known to be safe and should not halt operations.
+errors are known to be safe and should not prevent the run from proceeding.
 
 Example: Ignore Configuration
 
@@ -1413,21 +1519,19 @@ errors {
 }
 ```
 
-Notes:
+Take note that:
 
-- All retry and ignore configurations must be defined within the `errors` block.
+- All retry and ignore configurations must be defined within a single `errors` block.
 - The `retry` block is prioritized over legacy retry fields (`retryable_errors`, `retry_max_attempts`, `retry_sleep_interval_sec`).
 - Conditional logic can be used within `ignorable_errors` to enable or disable rules dynamically.
 
 Evaluation Order:
 
-Error handling follows a specific process:
-
 - **Ignore Rules:** Errors are checked against the **ignore** rules first. If an error matches, it is ignored and will not trigger a retry.
 
 - **Retry Rules:** Once ignore rules are applied, the **retry** rules handle any remaining errors.
 
-> **Note:**  
+> **Note:**
 > Only the **first matching rule** is applied. If there are multiple conflicting rules, any matches after the first one are ignored.
 
 ## Attributes
@@ -1448,14 +1552,14 @@ Error handling follows a specific process:
 ### inputs
 
 The `inputs` attribute is a map that is used to specify the input variables and their values to pass in to OpenTofu/Terraform.
-Each entry of the map will be passed to OpenTofu/Terraform using [the environment variable
+Each entry of the map is passed to OpenTofu/Terraform using [the environment variable
 mechanism](https://opentofu.org/docs/language/values/variables/#environment-variables). This means that each input
 will be set using the form `TF_VAR_variablename`, with the value in `json` encoded format.
 
 Note that because the values are being passed in with environment variables and `json`, the type information is lost
 when crossing the boundary between Terragrunt and OpenTofu/Terraform. You must specify the proper [type
 constraint](https://opentofu.org/docs/language/values/variables/#type-constraints) on the variable in OpenTofu/Terraform in
-order for OpenTofu/Terraform to process the inputs to the right type.
+order for OpenTofu/Terraform to process the inputs as the right type.
 
 Example:
 
@@ -1496,6 +1600,48 @@ inputs = {
   from_env = get_env("FROM_ENV", "default")
 }
 ```
+
+Using this attribute is roughly equivalent to setting the corresponding `TF_VAR_` attribute.
+
+For example, setting this in your `terragrunt.hcl`:
+
+```hcl
+# terragrunt.hcl
+inputs = {
+  instance_type  = "t2.micro"
+  instance_count = 10
+
+  tags = {
+    Name = "example-app"
+  }
+}
+```
+
+And running:
+
+```bash
+terragrunt apply
+```
+
+Is roughly equivalent to running:
+
+```bash
+TF_VAR_instance_type="t2.micro" \
+TF_VAR_instance_count=10 \
+TF_VAR_tags='{"Name":"example-app"}' \
+tofu apply # or terraform apply
+```
+
+#### Variable Precedence
+
+Variables loaded in OpenTofu/Terraform will consequently use the following precedence order (with the highest precedence being lowest on the list):
+
+1. `inputs` set in `terragrunt.hcl` files.
+2. Explicitly set `TF_VAR_` environment variables (these will override the `inputs` set in `terragrunt.hcl` if they conflict).
+3. `terraform.tfvars` files if present.
+4. `terraform.tfvars.json` files if present.
+5. Any `*.auto.tfvars` or `*.auto.tfvars.json` files, processed in lexical order of their filenames.
+6. Any `-var` and `-var-file` options on the command line, in the order they are provided.
 
 ### download_dir
 
@@ -1672,7 +1818,6 @@ terragrunt_version_constraint = ">= 0.23"
 **DEPRECATED: Use [errors](#errors) instead.**
 
 The terragrunt `retryable_errors` list can be used to override the default list of retryable errors with your own custom list.
-To learn more about the `retryable_errors` attribute, see the [auto-retry feature overview](/docs/features/auto-retry).
 
 Default List:
 

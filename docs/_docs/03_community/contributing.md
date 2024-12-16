@@ -10,8 +10,6 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Contributing
-
 Terragrunt is an open source project, and contributions from the community are very welcome\! Please check out the
 [Contribution Guidelines](#contribution-guidelines) and [Developing Terragrunt](#developing-terragrunt) for
 instructions.
@@ -21,7 +19,6 @@ instructions.
 Contributions to this repo are very welcome! We follow a fairly standard [pull request
 process](https://help.github.com/articles/about-pull-requests/) for contributions, subject to the following guidelines:
 
-- [Contributing](#contributing)
 - [Contribution Guidelines](#contribution-guidelines)
   - [File a GitHub issue or write an RFC](#file-a-github-issue-or-write-an-rfc)
   - [Update the documentation](#update-the-documentation)
