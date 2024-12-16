@@ -37,3 +37,15 @@ func FromCtyValue(v cty.Value) (*StackConfigFile, error) {
 	}
 	return &config, nil
 }
+
+// Clone creates a deep copy of Unit.
+func (u *Unit) Clone() *Unit {
+	if u == nil {
+		return nil
+	}
+	return &Unit{
+		Name:   u.Name,
+		Source: u.Source,
+		Path:   u.Path,
+	}
+}
