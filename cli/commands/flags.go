@@ -512,8 +512,13 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.StrictControls,
 			Usage:       "Enables specific strict controls. For a list of available controls, see https://terragrunt.gruntwork.io/docs/reference/strict-mode .",
 			Action: func(ctx *cli.Context, val []string) error {
-				if err := strict.StrictControls.ValidateControlNames(val); err != nil {
+				warning, err := strict.StrictControls.ValidateControlNames(val)
+				if err != nil {
 					return cli.NewExitError(err, 1)
+				}
+
+				if warning != "" {
+					log.Warn(warning)
 				}
 
 				return nil
