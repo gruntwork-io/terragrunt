@@ -21,9 +21,16 @@ future versions of Terragrunt.
 Whenever possible, Terragrunt will initially provide you with a warning when you use a deprecated feature, without throwing an error.
 However, in Strict Mode, these warnings will be converted to errors, which will cause the Terragrunt command to fail.
 
+A good practice for using strict controls is to enable Strict Mode in your CI/CD pipelines for lower environments
+to catch any deprecated features early on. This allows you to fix them before they become a problem
+in production in a future Terragrunt release.
+
+If you are unsure about the impact of enabling strict controls, you can enable them for specific controls to
+gradually increase your confidence in the future compatibility of your Terragrunt usage.
+
 ## Controlling Strict Mode
 
-The simplest way to enable strict mode is to set the `TERRAGRUNT_STRICT_MODE` environment variable to `true`.
+The simplest way to enable strict mode is to set the [strict-mode](/docs/reference/cli-options/#strict-mode) flag.
 
 This will enable strict mode for all Terragrunt commands, for all strict mode controls.
 
@@ -33,25 +40,53 @@ $ terragrunt plan-all
 ```
 
 ```bash
+$ terragrunt --strict-mode plan-all
+15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
+```
+
+You can also use the environment variable, which can be more useful in CI/CD pipelines:
+
+```bash
 $ TERRAGRUNT_STRICT_MODE='true' terragrunt plan-all
 15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
 ```
 
-Instead of setting this environment variable, you can also enable strict mode for specific controls by setting the `TERRAGRUNT_STRICT_CONTROL`
-environment variable to a value that's specific to a particular strict control.
+Instead of enabling strict mode like this, you can also enable specific strict controls by setting the [strict-control](/docs/reference/cli-options/#strict-control)
+flag to a value that's specific to a particular strict control.
 This can allow you to gradually increase your confidence in the future compatibility of your Terragrunt usage.
 
 ```bash
-$ TERRAGRUNT_STRICT_CONTROL='apply-all' terragrunt plan-all
+$ terragrunt plan-all --strict-control apply-all
 15:26:08.585 WARN   The `plan-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all plan` instead.
 ```
+
+```bash
+$ terragrunt plan-all --strict-control plan-all
+15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
+```
+
+Again, you can also use the environment variable, which might be more useful in CI/CD pipelines:
 
 ```bash
 $ TERRAGRUNT_STRICT_CONTROL='plan-all' terragrunt plan-all
 15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
 ```
 
-You can also enable multiple strict controls at once with a comma delimited list.
+You can enable multiple strict controls at once:
+
+```bash
+$ terragrunt plan-all --strict-control plan-all --strict-control apply-all
+15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
+15:26:46.521 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
+```
+
+```bash
+$ terragrunt apply-all --strict-control plan-all --strict-control apply-all
+15:26:46.564 ERROR  The `apply-all` command is no longer supported. Use `terragrunt run-all apply` instead.
+15:26:46.564 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
+```
+
+You can also enable multiple strict controls at once when using the environment variable by using a comma delimited list.
 
 ```bash
 $ TERRAGRUNT_STRICT_CONTROL='plan-all,apply-all' bash -c 'terragrunt plan-all; terragrunt apply-all'
