@@ -52,12 +52,12 @@ const (
 type Experiments map[string]Experiment
 
 // ValidateExperimentNames validates the given slice of experiment names are valid.
-func (e Experiments) ValidateExperimentNames(experimentNames []string) (string, error) {
+func (e *Experiments) ValidateExperimentNames(experimentNames []string) (string, error) {
 	completedExperiments := []string{}
 	invalidExperiments := []string{}
 
 	for _, name := range experimentNames {
-		experiment, ok := e[name]
+		experiment, ok := (*e)[name]
 		if !ok {
 			invalidExperiments = append(invalidExperiments, name)
 			continue
@@ -83,6 +83,30 @@ func (e Experiments) ValidateExperimentNames(experimentNames []string) (string, 
 	}
 
 	return warning, err
+}
+
+// EnableExperiments enables the given experiments.
+func (e *Experiments) EnableExperiments(experimentNames []string) error {
+	invalidExperiments := []string{}
+
+	for _, name := range experimentNames {
+		experiment, ok := (*e)[name]
+		if !ok {
+			invalidExperiments = append(invalidExperiments, name)
+			continue
+		}
+
+		experiment.Enabled = true
+		(*e)[name] = experiment
+	}
+
+	if len(invalidExperiments) > 0 {
+		return InvalidExperimentsError{
+			ExperimentNames: invalidExperiments,
+		}
+	}
+
+	return nil
 }
 
 // CompletedExperimentsWarning is a warning that is returned when completed experiments are requested.

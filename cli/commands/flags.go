@@ -549,6 +549,10 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 					log.Warn(warning)
 				}
 
+				if err := experiments.EnableExperiments(val); err != nil {
+					return cli.NewExitError(err, 1)
+				}
+
 				opts.Experiments = experiments
 
 				return nil
