@@ -1,6 +1,7 @@
 package test_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/strict"
@@ -48,7 +49,7 @@ func TestStrictMode(t *testing.T) {
 			controls:       []string{},
 			strictMode:     true,
 			expectedStderr: "",
-			expectedError:  strict.StrictControls[strict.PlanAll].Error,
+			expectedError:  errors.New("is no longer supported"),
 		},
 	}
 
@@ -72,7 +73,7 @@ func TestStrictMode(t *testing.T) {
 
 			if tt.expectedError != nil {
 				require.Error(t, err)
-				require.ErrorIs(t, err, tt.expectedError)
+				require.ErrorContains(t, err, tt.expectedError.Error())
 			} else {
 				require.NoError(t, err)
 			}
