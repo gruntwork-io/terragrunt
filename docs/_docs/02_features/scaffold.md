@@ -3,14 +3,12 @@ layout: collection-browser-doc
 title: Scaffold
 category: features
 categories_url: features
-excerpt: Learn how to scaffold Terragrunt projects.
+excerpt: Learn how to scaffold Terragrunt units.
 tags: ["scaffold"]
 order: 213
 nav_title: Documentation
 nav_title_link: /docs/
 ---
-
-## Scaffold
 
 Terragrunt scaffolding can generate files for you automatically using [boilerplate](https://github.com/gruntwork-io/boilerplate) templates.
 
@@ -67,7 +65,7 @@ Important notes:
 - The `source` URL is configured for you automatically, with the `ref` pointing to the latest "release" tag of the module (found by scanning git tags).
 - The `inputs` section is generated for you automatically, and will list all required and optional variables from the module, with their types, descriptions, and defaults, so you can easily fill them in to configure the module as you like.
 
-### Custom templates for scaffolding
+## Custom templates for scaffolding
 
 Terragrunt has a basic template built-in for rendering `terragrunt.hcl` files, but you can provide your own templates to customize what code is generated! Scaffolding is done via [boilerplate](https://github.com/gruntwork-io/boilerplate), and Terragrunt allows you to specify custom boilerplate templates via two mechanisms:
 
@@ -106,7 +104,11 @@ Optional variables which can be passed to `scaffold` command:
 - `--no-include-root` - Disable inclusion of the root module in the generated `terragrunt.hcl` file (equivalent to using `--var=EnableRootInclude=false`, and will be overridden if the corresponding `var` value is set).
 - `--root-file-name` - Set the name of the root configuration file to include in the generated `terragrunt.hcl` file (equivalent to using `--var=RootFileName=<name>`, and will be overridden if the corresponding `var` value is set).
 
-### Examples
+\* **NOTE**: `RootFileName` is set to `terragrunt.hcl` by default to ensure backwards compatibility, but the pattern of using a `terragrunt.hcl` file at the root of Terragrunt projects has since been deprecated.
+
+   Setting the [Strict Control](/docs/reference/strict-mode/#root-terragrunt-hcl) that enforces moving away from this practice will change the default to `root.hcl`, which is a better practice. For more information, read [Migrating from root `terragrunt.hcl`](/docs/migrate/migrating-from-root-terragrunt-hcl).
+
+## Examples
 
 Scaffold new project but use specific module version:
 

@@ -2,6 +2,7 @@
 package engine
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -18,7 +19,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 
 	"github.com/hashicorp/go-getter"
-	"github.com/mholt/archiver/v3"
 
 	"github.com/hashicorp/go-hclog"
 
@@ -285,7 +285,7 @@ func lastReleaseVersion(ctx context.Context, opts *options.TerragruntOptions) (s
 }
 
 func extractArchive(opts *options.TerragruntOptions, downloadFile string, engineFile string) error {
-	if !isArchiveByHeader(downloadFile) {
+	if !isArchiveByHeader(opts, downloadFile) {
 		opts.Logger.Info("Downloaded file is not an archive, no extraction needed")
 		// move file directly if it is not an archive
 		if err := os.Rename(downloadFile, engineFile); err != nil {
@@ -308,7 +308,7 @@ func extractArchive(opts *options.TerragruntOptions, downloadFile string, engine
 		}
 	}()
 	// extract archive
-	if err := archiver.Unarchive(downloadFile, tempDir); err != nil {
+	if err := extract(opts, downloadFile, tempDir); err != nil {
 		return errors.New(err)
 	}
 	// process files
@@ -400,16 +400,10 @@ func enginePackageName(e *options.EngineOptions) string {
 }
 
 // isArchiveByHeader checks if a file is an archive by examining its header.
-func isArchiveByHeader(filePath string) bool {
-	f, err := os.Open(filePath)
-	if err != nil {
-		return false
-	}
-	defer f.Close()
+func isArchiveByHeader(opts *options.TerragruntOptions, filePath string) bool {
+	archiveType, err := detectFileType(opts, filePath)
 
-	archiveType, err := archiver.ByHeader(f)
-
-	return err == nil && archiveType != nil
+	return err == nil && archiveType != ""
 }
 
 // engineClientsFromContext returns the engine clients map from the context.
@@ -804,4 +798,108 @@ func ConvertMetaToProtobuf(meta map[string]interface{}) (map[string]*anypb.Any, 
 	}
 
 	return protoMeta, nil
+}
+
+// extract extracts a ZIP file into a specified destination directory.
+func extract(opts *options.TerragruntOptions, zipFile, destDir string) error {
+	r, err := zip.OpenReader(zipFile)
+	if err != nil {
+		return errors.New(err)
+	}
+
+	defer func() {
+		if closeErr := r.Close(); closeErr != nil {
+			opts.Logger.Warnf("warning: failed to close zip reader: %v", closeErr)
+		}
+	}()
+
+	const dirPerm = 0755
+	if err := os.MkdirAll(destDir, dirPerm); err != nil {
+		return errors.New(err)
+	}
+
+	// Extract each file in the archive
+	for _, file := range r.File {
+		fPath := filepath.Join(destDir, file.Name)
+
+		// Check for ZipSlip vulnerability
+		if !strings.HasPrefix(fPath, filepath.Clean(destDir)+string(os.PathSeparator)) {
+			return errors.New(err)
+		}
+
+		if file.FileInfo().IsDir() {
+			// Create directories
+			if err := os.MkdirAll(fPath, file.Mode()); err != nil {
+				return errors.New(err)
+			}
+
+			continue
+		}
+
+		const dirPerm = 0755
+		if err := os.MkdirAll(filepath.Dir(fPath), dirPerm); err != nil {
+			return errors.New(err)
+		}
+
+		outFile, err := os.OpenFile(fPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.Mode())
+		if err != nil {
+			return errors.New(err)
+		}
+
+		defer func() {
+			if closeErr := outFile.Close(); closeErr != nil {
+				opts.Logger.Warnf("warning: failed to close zip reader: %v", closeErr)
+			}
+		}()
+
+		rc, err := file.Open()
+		if err != nil {
+			return errors.New(err)
+		}
+
+		defer func() {
+			if closeErr := rc.Close(); closeErr != nil {
+				opts.Logger.Warnf("warning: failed to close file reader: %v", closeErr)
+			}
+		}()
+
+		// Write file content
+		if _, err := io.Copy(outFile, rc); err != nil {
+			return errors.New(err)
+		}
+	}
+
+	return nil
+}
+
+// detectFileType determines the type of file based on its magic bytes.
+func detectFileType(opts *options.TerragruntOptions, filePath string) (string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", errors.New(err)
+	}
+
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			opts.Logger.Warnf("warning: failed to close file : %v", filePath)
+		}
+	}()
+
+	const headerSize = 4 // 4 bytes are enough for common formats
+	header := make([]byte, headerSize)
+
+	if _, err := file.Read(header); err != nil {
+		return "", errors.New(err)
+	}
+
+	switch {
+	case bytes.HasPrefix(header, []byte("PK\x03\x04")):
+		return "zip", nil
+	case bytes.HasPrefix(header, []byte("\x1F\x8B")):
+		return "gzip", nil
+	case bytes.HasPrefix(header, []byte("ustar")):
+		return "tar", nil
+	default:
+		return "", nil
+	}
 }

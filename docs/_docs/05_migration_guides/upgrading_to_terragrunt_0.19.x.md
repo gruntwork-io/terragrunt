@@ -10,9 +10,6 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-<!-- markdownlint-disable MD025 -->
-# Upgrading to Terragrunt 0.19.x
-
 ## Background
 
 Terraform 0.12 was released in May, 2019, and it included a few major changes:
@@ -32,15 +29,14 @@ gives us a nicer syntax and new functionality!
 The following sections outline the steps you may need to take in order to migrate from Terragrunt <= v0.18.x
 to Terragrunt 0.19.x and newer:
 
-- [Upgrading to Terragrunt 0.19.x](#upgrading-to-terragrunt-019x)
-  - [Background](#background)
-  - [Migration guide](#migration-guide)
-    - [Move from terraform.tfvars to terragrunt.hcl](#move-from-terraformtfvars-to-terragrunthcl)
-    - [Move input variables into inputs](#move-input-variables-into-inputs)
-    - [Use first-class expressions](#use-first-class-expressions)
-    - [Check attributes vs blocks usage](#check-attributes-vs-blocks-usage)
-    - [Rename a few built-in functions](#rename-a-few-built-in-functions)
-    - [Use older Terraform](#use-older-terraform)
+- [Background](#background)
+- [Migration guide](#migration-guide)
+  - [Move from terraform.tfvars to terragrunt.hcl](#move-from-terraformtfvars-to-terragrunthcl)
+  - [Move input variables into inputs](#move-input-variables-into-inputs)
+  - [Use first-class expressions](#use-first-class-expressions)
+  - [Check attributes vs blocks usage](#check-attributes-vs-blocks-usage)
+  - [Rename a few built-in functions](#rename-a-few-built-in-functions)
+  - [Use older Terraform](#use-older-terraform)
 
 Check out [this PR in the terragrunt-infrastructure-live-example
 repo](https://github.com/gruntwork-io/terragrunt-infrastructure-live-example/pull/17) for an example of what the code

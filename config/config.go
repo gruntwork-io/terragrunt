@@ -1463,16 +1463,16 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			continue
 		}
 
-		compiledPatterns := make([]*regexp.Regexp, 0, len(retryBlock.RetryableErrors))
+		compiledPatterns := make([]*options.ErrorsPattern, 0, len(retryBlock.RetryableErrors))
 
 		for _, pattern := range retryBlock.RetryableErrors {
-			compiled, err := regexp.Compile(pattern)
+			value, err := errorsPattern(pattern)
 			if err != nil {
 				return nil, fmt.Errorf("invalid retry pattern %q in block %q: %w",
 					pattern, retryBlock.Label, err)
 			}
 
-			compiledPatterns = append(compiledPatterns, compiled)
+			compiledPatterns = append(compiledPatterns, value)
 		}
 
 		result.Retry[retryBlock.Label] = &options.RetryConfig{
@@ -1502,16 +1502,16 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 			}
 		}
 
-		compiledPatterns := make([]*regexp.Regexp, 0, len(ignoreBlock.IgnorableErrors))
+		compiledPatterns := make([]*options.ErrorsPattern, 0, len(ignoreBlock.IgnorableErrors))
 
 		for _, pattern := range ignoreBlock.IgnorableErrors {
-			compiled, err := regexp.Compile(pattern)
+			value, err := errorsPattern(pattern)
 			if err != nil {
-				return nil, fmt.Errorf("invalid retry pattern %q in block %q: %w",
+				return nil, fmt.Errorf("invalid ignore pattern %q in block %q: %w",
 					pattern, ignoreBlock.Label, err)
 			}
 
-			compiledPatterns = append(compiledPatterns, compiled)
+			compiledPatterns = append(compiledPatterns, value)
 		}
 
 		result.Ignore[ignoreBlock.Label] = &options.IgnoreConfig{
@@ -1523,4 +1523,26 @@ func (cfg *TerragruntConfig) ErrorsConfig() (*options.ErrorsConfig, error) {
 	}
 
 	return result, nil
+}
+
+// Build ErrorsPattern from string
+func errorsPattern(pattern string) (*options.ErrorsPattern, error) {
+	isNegative := false
+	p := pattern
+
+	if len(p) > 0 && p[0] == '!' {
+		isNegative = true
+		p = p[1:]
+	}
+
+	compiled, err := regexp.Compile(p)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &options.ErrorsPattern{
+		Pattern:  compiled,
+		Negative: isNegative,
+	}, nil
 }

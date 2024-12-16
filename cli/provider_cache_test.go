@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gruntwork-io/terragrunt/cli"
+	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/terraform/cache"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
@@ -161,4 +162,44 @@ func TestProviderCache(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestProviderCacheWithProviderCacheDir(t *testing.T) {
+	// testing.T can Setenv, but can't Unsetenv
+	unsetEnv := func(t *testing.T, v string) {
+		t.Helper()
+
+		// let testing.T do the recovery and work around t.Parallel()
+		t.Setenv(v, "")
+		require.NoError(t, os.Unsetenv(v))
+	}
+
+	t.Run("Homeless", func(t *testing.T) { //nolint:paralleltest
+		cacheDir := t.TempDir()
+
+		unsetEnv(t, "HOME")
+		unsetEnv(t, "XDG_CACHE_HOME")
+
+		_, err := cli.InitProviderCacheServer(&options.TerragruntOptions{
+			ProviderCacheDir: cacheDir,
+		})
+		require.NoError(t, err, "ProviderCache shouldn't read HOME environment variable")
+	})
+
+	t.Run("NoNewDirectoriesAtHOME", func(t *testing.T) {
+		home := t.TempDir()
+		cacheDir := t.TempDir()
+
+		t.Setenv("HOME", home)
+
+		_, err := cli.InitProviderCacheServer(&options.TerragruntOptions{
+			ProviderCacheDir: cacheDir,
+		})
+		require.NoError(t, err)
+
+		// Cache server shouldn't create any directory at $HOME when ProviderCacheDir is specified
+		entries, err := os.ReadDir(home)
+		require.NoError(t, err)
+		require.Empty(t, entries, "No new directories should be created at $HOME")
+	})
 }

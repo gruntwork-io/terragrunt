@@ -145,7 +145,7 @@ tree and run the OpenTofu/Terraform command in dependency order (unless the comm
 in which case the command is run in reverse dependency order).
 
 Make sure to read [Execute OpenTofu/Terraform
-commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-units-at-once/) for
+commands on multiple modules at once](/docs/features/stacks) for
 context.
 
 Example:
@@ -193,7 +193,7 @@ The algorithm for determining the aggregate exit code is as follows:
 **DEPRECATED: Use `run-all plan` instead.**
 
 Display the plans of a `stack` by running `terragrunt plan` in each subfolder. Make sure to read [Execute OpenTofu/Terraform
-commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-units-at-once/) for
+commands on multiple modules at once](/docs/features/stacks) for
 context.
 
 Example:
@@ -218,7 +218,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-
 **DEPRECATED: Use `run-all apply` instead.**
 
 Apply a `stack` by running `terragrunt apply` in each subfolder. Make sure to read [Execute OpenTofu/Terraform
-commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-units-at-once/) for
+commands on multiple modules at once](/docs/features/stacks) for
 context.
 
 Example:
@@ -241,7 +241,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/386#issuecomment-
 **DEPRECATED: Use `run-all output` instead.**
 
 Display the outputs of a `stack` by running `terragrunt output` in each subfolder. Make sure to read [Execute OpenTofu/Terraform
-commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-units-at-once/) for
+commands on multiple modules at once](/docs/features/stacks) for
 context.
 
 Example:
@@ -266,7 +266,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-
 **DEPRECATED: Use `run-all destroy` instead.**
 
 Destroy a `stack` by running `terragrunt destroy` in each subfolder. Make sure to read [Execute OpenTofu/Terraform
-commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-units-at-once/) for
+commands on multiple modules at once](/docs/features/stacks) for
 context.
 
 Example:
@@ -289,7 +289,7 @@ information](https://github.com/gruntwork-io/terragrunt/issues/386#issuecomment-
 **DEPRECATED: Use `run-all validate` instead.**
 
 Validate `stack` by running `terragrunt validate` in each subfolder. Make sure to read [Execute OpenTofu/Terraform
-commands on multiple modules at once](/docs/features/execute-terraform-commands-on-multiple-units-at-once/) for
+commands on multiple modules at once](/docs/features/stacks) for
 context.
 
 Example:
@@ -839,9 +839,16 @@ explanation). This argument is not used with the `run-all` commands.
 
 **CLI Arg**: `--terragrunt-tfpath`<br/>
 **Environment Variable**: `TERRAGRUNT_TFPATH`<br/>
-**Requires an argument**: `--terragrunt-tfpath /path/to/terraform-binary`<br/>
+**Requires an argument**: `--terragrunt-tfpath /path/to/tofu-or-terraform-binary`<br/>
+**Default**: `tofu`<br/>
 
-A custom path to the OpenTofu/Terraform binary. The default is `tofu` in a directory on your PATH.
+An explicit path to the `tofu` or `terraform` binary you wish to have Terragrunt use.
+
+Note that if you _only_ have `terraform` installed, and available in your PATH, Terragrunt will automatically use that binary.
+
+If you have _both_ `terraform` and `tofu` installed, and you want to use `terraform`, you can set the `TERRAGRUNT_TFPATH` to `terraform`.
+
+If you have _multiple_ versions of `tofu` and/or `terraform` available, or you have a custom wrapper for `tofu` or `terraform`, you can set the `TERRAGRUNT_TFPATH` to the absolute path of the executable you want to use.
 
 **NOTE**: This will override the `terraform` binary that is used by `terragrunt` in all instances, including
 `dependency` lookups. This setting will also override any [terraform_binary]({{site.baseurl}}/docs/reference/config-blocks-and-attributes/#terraform_binary)
@@ -879,7 +886,7 @@ with `run-all`. Note that due to the interactive prompts, this flag will also **
 _(Prior to Terragrunt v0.48.6, this environment variable was called `TERRAGRUNT_AUTO_RETRY` (set to `false`), and is still available for backwards compatibility)_
 
 When passed in, don't automatically retry commands which fail with transient errors. See
-[Auto-Retry]({{site.baseurl}}/docs/features/auto-retry#auto-retry)
+[Feature Flags, Errors and Excludes]({{site.baseurl}}/docs/features/runtime-control#errors)
 
 ### terragrunt-non-interactive
 
@@ -1159,7 +1166,7 @@ There are four log format presets:
 
 This allows you to customize logging however you like.
 
-Make sure to read [Custom Log Format](https://terragrunt.gruntwork.io/docs/features/custom-log-format/) for syntax details.
+Make sure to read [Custom Log Format](https://terragrunt.gruntwork.io/docs/features/log-formatting) for syntax details.
 
 ### terragrunt-log-disable
 
@@ -1407,7 +1414,7 @@ read the file `shared.hcl`. This hook is used by all native HCL functions that T
 Note, however, that there are certain scenarios where Terragrunt may not be able to track that a file has been read this way.
 
 For example, you may be using a bash script to read a file via `run_cmd`, or reading the file via OpenTofu code. To support these
-use-cases, the [mark_as_read](./built-in-functions.md#mark_as_read) function can be used to manually mark a file as read.
+use-cases, the [mark_as_read](/docs/reference/built-in-functions/#mark_as_read) function can be used to manually mark a file as read.
 
 That would look something like this:
 
@@ -1512,7 +1519,7 @@ When this flag is set, Terragrunt will wrap OpenTofu/Terraform `stdout` and `std
 
 - [run-all](#run-all)
 
-Enables Terragrunt's provider caching. This forces OpenTofu/Terraform to make provider requests through the Terragrunt Provider Cache server. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-cache/) for context.
+Enables Terragrunt's provider caching. This forces OpenTofu/Terraform to make provider requests through the Terragrunt Provider Cache server. Make sure to read [Provider Cache Server](https://terragrunt.gruntwork.io/docs/features/provider-cache-server) for context.
 
 ### terragrunt-provider-cache-dir
 
@@ -1522,7 +1529,7 @@ Enables Terragrunt's provider caching. This forces OpenTofu/Terraform to make pr
 
 - [run-all](#run-all)
 
-The path to the Terragrunt provider cache directory. By default, `terragrunt/providers` folder in the user cache directory: `$HOME/.cache` on Unix systems, `$HOME/Library/Caches` on Darwin, `%LocalAppData%` on Windows. The file structure of the cache directory is identical to the OpenTofu/Terraform [plugin_cache_dir](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache) directory. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-cache/) for context.
+The path to the Terragrunt provider cache directory. By default, `terragrunt/providers` folder in the user cache directory: `$HOME/.cache` on Unix systems, `$HOME/Library/Caches` on Darwin, `%LocalAppData%` on Windows. The file structure of the cache directory is identical to the OpenTofu/Terraform [plugin_cache_dir](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache) directory. Make sure to read [Provider Cache Server](https://terragrunt.gruntwork.io/docs/features/provider-cache-server) for context.
 
 ### terragrunt-provider-cache-hostname
 
@@ -1532,7 +1539,7 @@ The path to the Terragrunt provider cache directory. By default, `terragrunt/pro
 
 - [run-all](#run-all)
 
-The hostname of the Terragrunt Provider Cache server. By default, 'localhost'. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-cache/) for context.
+The hostname of the Terragrunt Provider Cache server. By default, 'localhost'. Make sure to read [Provider Cache Server](https://terragrunt.gruntwork.io/docs/features/provider-cache-server) for context.
 
 ### terragrunt-provider-cache-port
 
@@ -1542,7 +1549,7 @@ The hostname of the Terragrunt Provider Cache server. By default, 'localhost'. M
 
 - [run-all](#run-all)
 
-The port of the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-cache/) for context.
+The port of the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Cache Server](https://terragrunt.gruntwork.io/docs/features/provider-cache-server) for context.
 
 ### terragrunt-provider-cache-token
 
@@ -1552,7 +1559,7 @@ The port of the Terragrunt Provider Cache server. By default, assigned automatic
 
 - [run-all](#run-all)
 
-The Token for authentication on the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-cache/) for context.
+The Token for authentication on the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Cache Server](https://terragrunt.gruntwork.io/docs/features/provider-cache-server) for context.
 
 ### terragrunt-provider-cache-registry-names
 
@@ -1562,7 +1569,7 @@ The Token for authentication on the Terragrunt Provider Cache server. By default
 
 - [run-all](#run-all)
 
-The list of remote registries to cached by Terragrunt Provider Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-cache/) for context.
+The list of remote registries to cached by Terragrunt Provider Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'. Make sure to read [Provider Cache Server](https://terragrunt.gruntwork.io/docs/features/provider-cache-server) for context.
 
 ### terragrunt-out-dir
 

@@ -10,8 +10,6 @@ nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Contributing
-
 Terragrunt is an open source project, and contributions from the community are very welcome\! Please check out the
 [Contribution Guidelines](#contribution-guidelines) and [Developing Terragrunt](#developing-terragrunt) for
 instructions.
@@ -21,7 +19,6 @@ instructions.
 Contributions to this repo are very welcome! We follow a fairly standard [pull request
 process](https://help.github.com/articles/about-pull-requests/) for contributions, subject to the following guidelines:
 
-- [Contributing](#contributing)
 - [Contribution Guidelines](#contribution-guidelines)
   - [File a GitHub issue or write an RFC](#file-a-github-issue-or-write-an-rfc)
   - [Update the documentation](#update-the-documentation)
@@ -49,16 +46,11 @@ code. If there is anything you're unsure about, just ask!
 
 Sometimes, the scope of the feature proposal is large enough that it requires major updates to the code base to
 implement. In these situations, a maintainer may suggest writing up an RFC that describes the feature in more details
-than what can be reasonably captured in a Github Issue. RFCs are written in markdown and live in the directory
-`docs/_docs/05_rfc`.
+than what can be reasonably captured in an enhancement.
 
-To write an RFC:
+To write an RFC, click the [RFC](https://github.com/gruntwork-io/terragrunt/issues/new?assignees=&labels=rfc%2Cpending-decision&projects=&template=02-rfc.yml) button in the issues tab.
 
-- Clone the repository
-- Create a new branch
-- Copy the template (`docs/_docs/05_rfc/template.md`) to a new file in the same directory.
-- Fill out the template
-- Open a PR for comments, prefixing the title with the term `[RFC]` to indicate that it is an RFC PR.
+This will present you a template you can fill out to describe the feature you want to propose.
 
 ### Update the documentation
 
