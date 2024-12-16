@@ -1799,4 +1799,3 @@ For more information, see the [Strict Mode](/docs/reference/strict-mode) documen
 Enable all strict controls that opt-in future breaking changes in Terragrunt.
 
 For more information, see the [Strict Mode](/docs/reference/strict-mode) documentation.
-
