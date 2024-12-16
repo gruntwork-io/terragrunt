@@ -656,8 +656,8 @@ func ListTfFiles(directoryPath string, walkWithSymlinks bool) ([]string, error) 
 
 		return nil
 	})
-	return tfFiles, err
 
+	return tfFiles, err
 }
 
 // IsDirectoryEmpty - returns true if the given path exists and is a empty directory.
