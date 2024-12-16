@@ -62,17 +62,18 @@ type ProviderCache struct {
 }
 
 func InitProviderCacheServer(opts *options.TerragruntOptions) (*ProviderCache, error) {
-	cacheDir, err := util.GetCacheDir()
-	if err != nil {
-		return nil, err
-	}
-
 	// ProviderCacheDir has the same file structure as terraform plugin_cache_dir.
 	// https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache
 	if opts.ProviderCacheDir == "" {
+		cacheDir, err := util.GetCacheDir()
+		if err != nil {
+			return nil, err
+		}
+
 		opts.ProviderCacheDir = filepath.Join(cacheDir, "providers")
 	}
 
+	var err error
 	if opts.ProviderCacheDir, err = filepath.Abs(opts.ProviderCacheDir); err != nil {
 		return nil, errors.New(err)
 	}
