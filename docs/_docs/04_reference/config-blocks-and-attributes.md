@@ -597,7 +597,7 @@ Examples:
 
 ```hcl
 # If you have the following folder structure, and the following contents for ./child/terragrunt.hcl, this will include
-# and merge the items in the terragrunt.hcl file at the root.
+# and merge the configurations in the root.hcl file.
 #
 # .
 # ├── root.hcl
@@ -637,7 +637,7 @@ terraform {
 
 ```hcl
 # If you have the following folder structure, and the following contents for ./child/terragrunt.hcl, this will include
-# and merge the items in the root.hcl file at the root, while only loading the data in the region.hcl
+# and merge the configurations in the root.hcl, while only loading the data in the region.hcl
 # configuration.
 #
 # .

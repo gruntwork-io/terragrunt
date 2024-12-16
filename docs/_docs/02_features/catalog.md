@@ -47,7 +47,7 @@ This will recursively search for OpenTofu/Terraform modules in the root of the r
 
 ## Scaffolding Flags
 
-The following `catalog` flags control behavior of the underlying `scaffold` command when the `S` key is pressed in the catalog:
+The following `catalog` flags control behavior of the underlying `scaffold` command when the `S` key is pressed in a catalog entry:
 
 - `--no-include-root` - Do not include the root configuration file in any generated `terragrunt.hcl` during scaffolding.
-- `--root-file-name` - The name of the root configuration file to include in any generated `terragrunt.hcl` during scaffolding.
+- `--root-file-name` - The name of the root configuration file to include in any generated `terragrunt.hcl` during scaffolding. This value also controls the name of the root configuration file to search for when trying to determine Catalog urls.

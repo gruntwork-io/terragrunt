@@ -33,7 +33,6 @@ This page documents the CLI commands and options available with Terragrunt:
   - [catalog](#catalog)
   - [graph](#graph)
 - [CLI options](#cli-options)
-  - [feature](#feature)
   - [terragrunt-check](#terragrunt-check)
   - [terragrunt-config](#terragrunt-config)
   - [terragrunt-debug](#terragrunt-debug)
@@ -95,6 +94,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-tfpath](#terragrunt-tfpath)
   - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
   - [terragrunt-working-dir](#terragrunt-working-dir)
+  - [feature](#feature)
 
 ## CLI commands
 
@@ -1298,7 +1298,7 @@ This lead to a faster rendering process, but the output will not include any dep
 
 **CLI Arg**: `--terragrunt-modules-that-include`<br/>
 **Environment Variable**: `TERRAGRUNT_MODULES_THAT_INCLUDE`<br/>
-**Requires an argument**: `--terragrunt-modules-that-include /path/to/included-terragrunt-hcl`<br/>
+**Requires an argument**: `--terragrunt-modules-that-include /path/to/included-hcl`<br/>
 **Commands**:
 
 - [run-all](#run-all)
