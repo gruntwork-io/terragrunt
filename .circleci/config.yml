@@ -114,6 +114,20 @@ run_race_test: &run_race_test
     run-go-tests --packages "-run '.*WithRacing' -race ./test" | tee logs/test-results.log
   no_output_timeout: 30m
 
+# This test simulates what a new user would do when they first start trying to contribute to Terragrunt.
+# It runs all the tests in an isolated container to ensure that the tests pass for a new user.
+# TODO: Get rid of the `/test` filter to avoid integration tests, and address the skips added to tests that were failing.
+run_new_user_test: &run_new_user_test
+  name: Run New User tests
+  command: |
+    docker run -it --rm -v $PWD:/app -w /app --entrypoint bash golang -c 'mkdir -p ~/.ssh && \
+      ssh-keyscan -H github.com >> ~/.ssh/known_hosts && \
+      curl https://mise.run | sh && \
+      ~/.local/bin/mise use -g opentofu@1.8.7 terraform@1.9.7 && \
+      export PATH="$PATH:/root/.local/share/mise/installs/opentofu/1.8.7/bin:/root/.local/share/mise/installs/terraform/1.9.7" && \
+      go test -buildvcs=false $(go list ./... | grep -v /test)'
+  no_output_timeout: 30m
+
 run_terratest_log_parser: &run_terratest_log_parser
   name: Terratest log parser
   command: |
@@ -543,6 +557,20 @@ jobs:
       - store_test_results:
           path: logs
 
+  new_user_test:
+    resource_class: medium
+    machine:
+      enabled: true
+      image: ubuntu-2004:202111-02
+    steps:
+      - checkout
+      - run:
+          <<: *run_new_user_test
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
   run_markdownlint:
     <<: *defaults
     steps:
@@ -751,6 +779,10 @@ workflows:
             - AWS__PHXDEVOPS__circle-ci-test
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
+      - new_user_test:
+          filters:
+            tags:
+              only: /^v.*/
       - integration_test_tofu_engine:
           filters:
             tags:

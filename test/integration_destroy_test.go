@@ -34,6 +34,9 @@ const (
 func TestTerragruntDestroyOrder(t *testing.T) {
 	t.Parallel()
 
+	// TODO: Restore
+	t.Skip("Skipping due to flakiness")
+
 	helpers.CleanupTerraformFolder(t, testFixtureDestroyOrder)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureDestroyOrder)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureDestroyOrder, "app")

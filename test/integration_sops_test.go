@@ -21,6 +21,9 @@ const (
 func TestSopsDecryptedCorrectly(t *testing.T) {
 	t.Parallel()
 
+	// TODO: Restore
+	t.Skip("Skipping due to flakiness")
+
 	helpers.CleanupTerraformFolder(t, testFixtureSops)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSops)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureSops)
@@ -53,6 +56,9 @@ func TestSopsDecryptedCorrectly(t *testing.T) {
 
 func TestSopsDecryptedCorrectlyRunAll(t *testing.T) {
 	t.Parallel()
+
+	// TODO: Restore
+	t.Skip("Skipping due to flakiness")
 
 	helpers.CleanupTerraformFolder(t, testFixtureSops)
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureSops)

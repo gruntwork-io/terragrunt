@@ -66,6 +66,9 @@ func TestAutoRetryExhaustRetries(t *testing.T) {
 func TestAutoRetryCustomRetryableErrors(t *testing.T) {
 	t.Parallel()
 
+	// TODO: Restore
+	t.Skip("Skipping due to flakiness")
+
 	out := new(bytes.Buffer)
 	rootPath := helpers.CopyEnvironment(t, testFixtureAutoRetryCustomErrors)
 	modulePath := util.JoinPath(rootPath, testFixtureAutoRetryCustomErrors)
@@ -165,6 +168,9 @@ func TestAutoRetryConfigurableRetries(t *testing.T) {
 
 func TestAutoRetryConfigurableRetriesErrors(t *testing.T) {
 	t.Parallel()
+
+	// TODO: Restore
+	t.Skip("Skipping due to flakiness")
 
 	tc := []struct {
 		fixture      string

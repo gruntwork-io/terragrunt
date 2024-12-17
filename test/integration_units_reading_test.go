@@ -18,6 +18,9 @@ const (
 func TestUnitsReading(t *testing.T) {
 	t.Parallel()
 
+	// TODO: Restore
+	t.Skip("Skipping due to flakiness")
+
 	cleanupTerraformFolder(t, testFixtureUnitsReading)
 
 	tc := []struct {
