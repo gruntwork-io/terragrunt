@@ -9,6 +9,8 @@ package experiment
 
 import (
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 // NewExperiments returns a new Experiments map with all experiments disabled.
@@ -77,9 +79,9 @@ func (e *Experiments) ValidateExperimentNames(experimentNames []string) (string,
 
 	var err error
 	if len(invalidExperiments) > 0 {
-		err = InvalidExperimentsError{
+		err = errors.New(InvalidExperimentsError{
 			ExperimentNames: invalidExperiments,
-		}
+		})
 	}
 
 	return warning, err
@@ -101,9 +103,9 @@ func (e *Experiments) EnableExperiments(experimentNames []string) error {
 	}
 
 	if len(invalidExperiments) > 0 {
-		return InvalidExperimentsError{
+		return errors.New(InvalidExperimentsError{
 			ExperimentNames: invalidExperiments,
-		}
+		})
 	}
 
 	return nil

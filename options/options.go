@@ -655,6 +655,11 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		EngineLogLevel:                 opts.EngineLogLevel,
 		EngineSkipChecksumCheck:        opts.EngineSkipChecksumCheck,
 		Engine:                         cloneEngineOptions(opts.Engine),
+		ExperimentMode:                 opts.ExperimentMode,
+		// This doesn't have to be deep cloned, as the same experiments
+		// are used across all units in a `run-all`. If that changes in
+		// the future, we can deep clone this as well.
+		Experiments: opts.Experiments,
 		// copy array
 		StrictControls: util.CloneStringList(opts.StrictControls),
 		FeatureFlags:   opts.FeatureFlags,

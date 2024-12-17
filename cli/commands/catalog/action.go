@@ -37,11 +37,11 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, repoURL string) e
 
 	var modules module.Modules
 
+	experiment := opts.Experiments[experiment.Symlinks]
+	walkWithSymlinks := experiment.Evaluate(opts.ExperimentMode)
+
 	for _, repoURL := range repoURLs {
 		tempDir := filepath.Join(os.TempDir(), fmt.Sprintf(tempDirFormat, util.EncodeBase64Sha1(repoURL)))
-
-		experiment := opts.Experiments[experiment.Symlinks]
-		walkWithSymlinks := experiment.Evaluate(opts.ExperimentMode)
 
 		repo, err := module.NewRepo(ctx, opts.Logger, repoURL, tempDir, walkWithSymlinks)
 		if err != nil {
