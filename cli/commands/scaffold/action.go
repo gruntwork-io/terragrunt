@@ -13,6 +13,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/terraform"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	"github.com/gruntwork-io/terragrunt/util"
 
@@ -190,13 +191,13 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, moduleURL, templa
 	if _, found := vars["EnableRootInclude"]; !found {
 		vars["EnableRootInclude"] = !opts.ScaffoldNoIncludeRoot
 	} else {
-		opts.Logger.Warnf("The EnableRootInclude variable is already set in the var flag(s). The --%s flag will be ignored.", NoIncludeRoot)
+		opts.Logger.Warnf("The EnableRootInclude variable is already set in the var flag(s). The --%s flag will be ignored.", commands.NoIncludeRootFlagName)
 	}
 
 	if _, found := vars["RootFileName"]; !found {
 		vars["RootFileName"] = opts.ScaffoldRootFileName
 	} else {
-		opts.Logger.Warnf("The RootFileName variable is already set in the var flag(s). The --%s flag will be ignored.", RootFileName)
+		opts.Logger.Warnf("The RootFileName variable is already set in the var flag(s). The --%s flag will be ignored.", commands.NoIncludeRootFlagName)
 	}
 
 	opts.Logger.Infof("Running boilerplate generation to %s", opts.WorkingDir)

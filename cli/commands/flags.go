@@ -664,3 +664,41 @@ func NewVersionFlag(opts *options.TerragruntOptions) cli.Flag {
 		},
 	}
 }
+
+// Scaffold/Catalog shared flags
+
+const RootFileNameFlagName = "root-file-name"
+
+func NewRootFileNameFlag(opts *options.TerragruntOptions) cli.Flag {
+	return &cli.GenericFlag[string]{
+		Name:        RootFileNameFlagName,
+		Destination: &opts.ScaffoldRootFileName,
+		Usage:       "Name of the root Terragrunt configuration file, if used.",
+		Action: func(ctx *cli.Context, value string) error {
+			if value == opts.TerragruntConfigPath {
+				if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
+					warn, triggered, err := control.Evaluate(opts)
+					if err != nil {
+						return err
+					}
+
+					if !triggered {
+						opts.Logger.Warnf(warn)
+					}
+				}
+			}
+
+			return nil
+		},
+	}
+}
+
+const NoIncludeRootFlagName = "no-include-root"
+
+func NewNoIncludeRootFlag(opts *options.TerragruntOptions) cli.Flag {
+	return &cli.BoolFlag{
+		Name:        NoIncludeRootFlagName,
+		Destination: &opts.ScaffoldNoIncludeRoot,
+		Usage:       "Do not include root unit in scaffolding done by catalog.",
+	}
+}

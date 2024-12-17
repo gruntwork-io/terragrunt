@@ -3,9 +3,7 @@
 package catalog
 
 import (
-	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
-	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -16,32 +14,8 @@ const (
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
-		&cli.BoolFlag{
-			Name:        scaffold.NoIncludeRoot,
-			Destination: &opts.ScaffoldNoIncludeRoot,
-			Usage:       "Do not include root unit in scaffolding done by catalog.",
-		},
-		&cli.GenericFlag[string]{
-			Name:        scaffold.RootFileName,
-			Destination: &opts.ScaffoldRootFileName,
-			Usage:       "Name of the root Terragrunt configuration file, if used.",
-			Action: func(ctx *cli.Context, value string) error {
-				if value == config.DefaultTerragruntConfigPath {
-					if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
-						warn, triggered, err := control.Evaluate(opts)
-						if err != nil {
-							return err
-						}
-
-						if !triggered {
-							opts.Logger.Warnf(warn)
-						}
-					}
-				}
-
-				return nil
-			},
-		},
+		commands.NewNoIncludeRootFlag(opts),
+		commands.NewRootFileNameFlag(opts),
 	}
 }
 

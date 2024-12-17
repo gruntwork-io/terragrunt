@@ -2,20 +2,15 @@
 package scaffold
 
 import (
-	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
 
 const (
-	CommandName   = "scaffold"
-	Var           = "var"
-	VarFile       = "var-file"
-	NoIncludeRoot = "no-include-root"
-
-	// This is being deprecated.
-	RootFileName = "root-file-name"
+	CommandName = "scaffold"
+	Var         = "var"
+	VarFile     = "var-file"
 )
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
@@ -30,32 +25,8 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.ScaffoldVarFiles,
 			Usage:       "Files with variables to be used in unit scaffolding.",
 		},
-		&cli.BoolFlag{
-			Name:        NoIncludeRoot,
-			Destination: &opts.ScaffoldNoIncludeRoot,
-			Usage:       "Do not include root unit in scaffolding.",
-		},
-		&cli.GenericFlag[string]{
-			Name:        RootFileName,
-			Destination: &opts.ScaffoldRootFileName,
-			Usage:       "Name of the root Terragrunt configuration file, if used.",
-			Action: func(ctx *cli.Context, value string) error {
-				if value == config.DefaultTerragruntConfigPath {
-					if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
-						warn, triggered, err := control.Evaluate(opts)
-						if err != nil {
-							return err
-						}
-
-						if !triggered {
-							opts.Logger.Warnf(warn)
-						}
-					}
-				}
-
-				return nil
-			},
-		},
+		commands.NewNoIncludeRootFlag(opts),
+		commands.NewRootFileNameFlag(opts),
 	}
 }
 
