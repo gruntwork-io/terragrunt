@@ -245,7 +245,7 @@ func TestTerragruntCatchErrorsInTerraformExecution(t *testing.T) {
 func TestTerragruntCatchErrorsFromStdout(t *testing.T) {
 	t.Parallel()
 
-	if os.Getenv("TERRAGRUNT_PROVIDER_CACHE") == "1" {
+	if os.Getenv("TERRAGRUNT_PROVIDER_CACHE") == "1" || os.Getenv("TG_PROVIDER_CACHE") == "1" {
 		t.Skip()
 	}
 

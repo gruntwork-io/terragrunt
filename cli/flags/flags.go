@@ -25,7 +25,7 @@ const (
 	NonInteractiveFlagName     = "non-interactive"
 	WorkingDirFlagName         = "working-dir"
 	DownloadDirFlagName        = "download-dir"
-	DeprecatedDownloadFlagName = "download" // Old env `TERRAGRUNT_DOWNLOAD` for `download-dir` flag.
+	DeprecatedDownloadFlagName = DeprecatedFlagNamePrefix + "download" // Old `TERRAGRUNT_DOWNLOAD` env var for `download-dir` flag.
 
 	SourceFlagName       = "source"
 	SourceMapFlagName    = "source-map"
@@ -33,11 +33,11 @@ const (
 
 	// Assume IAM Role flags.
 	IAMAssumeRoleFlagName                 = "iam-assume-role"
-	DeprecatedIAMRoleFlagName             = "iam-role" // Old name for `iam-assume-role` flag.
+	DeprecatedIAMRoleFlagName             = DeprecatedFlagNamePrefix + "iam-role" // Old name for `iam-assume-role` flag.
 	IAMAssumeRoleDurationFlagName         = "iam-assume-role-duration"
 	IAMAssumeRoleSessionNameFlagName      = "iam-assume-role-session-name"
 	IAMAssumeRoleWebIdentityTokenFlagName = "iam-assume-role-web-identity-token"
-	DeprecatedIAMWebIdentityTokenFlagName = "iam-web-identity-token" // Old name for `iam-assume-role-web-identity-token` flag.
+	DeprecatedIAMWebIdentityTokenFlagName = DeprecatedFlagNamePrefix + "iam-web-identity-token" // Old name for `iam-assume-role-web-identity-token` flag.
 
 	ParallelismFlagName                    = "parallelism"
 	DebugFlagName                          = "debug"
@@ -414,7 +414,7 @@ func NewCommonFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVars:     EnvVars(DownloadDirFlagName),
 			Destination: &opts.DownloadDir,
 			Usage:       "The path to download OpenTofu/Terraform modules into. Default is .cache in the working directory.",
-		}, DeprecatedFlagNamePrefix+DownloadDirFlagName, DeprecatedFlagNamePrefix+DeprecatedDownloadFlagName), // the old flag had `terragrunt-download-dir` name and `TERRAGRUNT_DOWNLOAD` env.
+		}, DeprecatedFlagNamePrefix+DownloadDirFlagName, DeprecatedDownloadFlagName), // the old flag had `terragrunt-download-dir` name and `TERRAGRUNT_DOWNLOAD` env.
 		GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
 			Name:        SourceFlagName,
 			EnvVars:     EnvVars(SourceFlagName),
