@@ -19,28 +19,33 @@ const (
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
-		flags.NewGenericFlag(opts, &cli.GenericFlag[string]{
+		flags.GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
 			Name:        HCLFmtFlagName,
+			EnvVars:     flags.EnvVars(HCLFmtFlagName),
 			Destination: &opts.HclFile,
 			Usage:       "The path to a single hcl file that the hclfmt command should run on.",
 		}),
-		flags.NewSliceFlag(opts, &cli.SliceFlag[string]{
+		flags.SliceFlagWithDeprecated(opts, &cli.SliceFlag[string]{
 			Name:        HCLFmtExcludeDirFlagName,
+			EnvVars:     flags.EnvVars(HCLFmtExcludeDirFlagName),
 			Destination: &opts.HclExclude,
 			Usage:       "Skip HCL formatting in given directories.",
 		}),
-		flags.NewBoolFlag(opts, &cli.BoolFlag{
+		flags.BoolFlagWithDeprecated(opts, &cli.BoolFlag{
 			Name:        CheckFlagName,
+			EnvVars:     flags.EnvVars(CheckFlagName),
 			Destination: &opts.Check,
 			Usage:       "Enable check mode in the hclfmt command.",
 		}),
-		flags.NewBoolFlag(opts, &cli.BoolFlag{
+		flags.BoolFlagWithDeprecated(opts, &cli.BoolFlag{
 			Name:        DiffFlagName,
+			EnvVars:     flags.EnvVars(DiffFlagName),
 			Destination: &opts.Diff,
 			Usage:       "Print diff between original and modified file versions when running with 'hclfmt'.",
 		}),
-		flags.NewBoolFlag(opts, &cli.BoolFlag{
+		flags.BoolFlagWithDeprecated(opts, &cli.BoolFlag{
 			Name:        HCLFmtStdinFlagName,
+			EnvVars:     flags.EnvVars(HCLFmtStdinFlagName),
 			Destination: &opts.HclFromStdin,
 			Usage:       "Format HCL from stdin and print result to stdout.",
 		}),

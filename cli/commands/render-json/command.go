@@ -17,18 +17,21 @@ const (
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
-		flags.NewGenericFlag(opts, &cli.GenericFlag[string]{
+		flags.GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
 			Name:        JSONOutFlagName,
+			EnvVars:     flags.EnvVars(JSONOutFlagName),
 			Destination: &opts.JSONOut,
 			Usage:       "The file path that terragrunt should use when rendering the terragrunt.hcl config as json.",
 		}),
-		flags.NewBoolFlag(opts, &cli.BoolFlag{
+		flags.BoolFlagWithDeprecated(opts, &cli.BoolFlag{
 			Name:        WithMetadataFlagName,
+			EnvVars:     flags.EnvVars(WithMetadataFlagName),
 			Destination: &opts.RenderJSONWithMetadata,
 			Usage:       "Add metadata to the rendered JSON file.",
 		}),
-		flags.NewBoolFlag(opts, &cli.BoolFlag{
+		flags.BoolFlagWithDeprecated(opts, &cli.BoolFlag{
 			Name:        DisableDependentModulesFlagName,
+			EnvVars:     flags.EnvVars(DisableDependentModulesFlagName),
 			Destination: &opts.JSONDisableDependentModules,
 			Usage:       "Disable identification of dependent modules rendering json config.",
 		}),

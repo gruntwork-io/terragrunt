@@ -18,99 +18,76 @@ const (
 	DeprecatedFlagNamePrefix = "terragrunt-"
 )
 
-// NewBoolFlag wraps the given flag to detect the use of deprecated flag/environment renamedNames and creates an env with the `TG_` prefix.
-func NewBoolFlag(opts *options.TerragruntOptions, flag *cli.BoolFlag, renamedNames ...string) cli.Flag {
+// BoolFlagWithDeprecated adds deprecated names with strict mode control for the given flag.
+func BoolFlagWithDeprecated(opts *options.TerragruntOptions, flag *cli.BoolFlag, oldNames ...string) cli.Flag {
 	names := flag.Names()
-	renamedNames = util.RemoveDuplicatesFromList(append(renamedNames, flag.Name))
+	envVars := flag.GetEnvVars()
 
-	envVar := autoEnvVar(flag.Name)
-	deprecatedNames, deprecatedEnvVars := deprecatedNames(renamedNames)
-
-	flag.EnvVars = append(flag.EnvVars, append(deprecatedEnvVars, envVar)...)
-	flag.Aliases = append(flag.Aliases, deprecatedNames...)
+	flag.Aliases = append(flag.Aliases, deprecatedFlagNames(flag.Name, oldNames)...)
+	flag.EnvVars = append(flag.EnvVars, deprecatedEnvVars(flag.Name, oldNames)...)
 
 	return &Flag{
-		opts:              opts,
-		Flag:              flag,
-		names:             names,
-		envVar:            envVar,
-		deprecatedNames:   deprecatedNames,
-		deprecatedEnvVars: deprecatedEnvVars,
+		opts:    opts,
+		Flag:    flag,
+		names:   names,
+		envVars: envVars,
 	}
 }
 
-// NewGenericFlag wraps the given flag to detect the use of deprecated flag/environment renamedNames and automatically create an env with the `TG_` prefix.
-func NewGenericFlag[T cli.GenericType](opts *options.TerragruntOptions, flag *cli.GenericFlag[T], renamedNames ...string) cli.Flag {
+// GenericFlagWithDeprecated adds deprecated names with strict mode control for the given flag.
+func GenericFlagWithDeprecated[T cli.GenericType](opts *options.TerragruntOptions, flag *cli.GenericFlag[T], oldNames ...string) cli.Flag {
 	names := flag.Names()
-	renamedNames = util.RemoveDuplicatesFromList(append(renamedNames, flag.Name))
+	envVars := flag.GetEnvVars()
 
-	envVar := autoEnvVar(flag.Name)
-	deprecatedNames, deprecatedEnvVars := deprecatedNames(renamedNames)
-
-	flag.EnvVars = append(flag.EnvVars, append(deprecatedEnvVars, envVar)...)
-	flag.Aliases = append(flag.Aliases, deprecatedNames...)
+	flag.Aliases = append(flag.Aliases, deprecatedFlagNames(flag.Name, oldNames)...)
+	flag.EnvVars = append(flag.EnvVars, deprecatedEnvVars(flag.Name, oldNames)...)
 
 	return &Flag{
-		opts:              opts,
-		Flag:              flag,
-		names:             names,
-		envVar:            envVar,
-		deprecatedNames:   deprecatedNames,
-		deprecatedEnvVars: deprecatedEnvVars,
+		opts:    opts,
+		Flag:    flag,
+		names:   names,
+		envVars: envVars,
 	}
 }
 
-// NewSliceFlag wraps the given flag to detect the use of deprecated flag/environment renamedNames and automatically create an env with the `TG_` prefix.
-func NewSliceFlag[T cli.SliceFlagType](opts *options.TerragruntOptions, flag *cli.SliceFlag[T], renamedNames ...string) cli.Flag {
+// SliceFlagWithDeprecated adds deprecated names with strict mode control for the given flag.
+func SliceFlagWithDeprecated[T cli.SliceFlagType](opts *options.TerragruntOptions, flag *cli.SliceFlag[T], oldNames ...string) cli.Flag {
 	names := flag.Names()
-	renamedNames = util.RemoveDuplicatesFromList(append(renamedNames, flag.Name))
+	envVars := flag.GetEnvVars()
 
-	envVar := autoEnvVar(flag.Name)
-	deprecatedNames, deprecatedEnvVars := deprecatedNames(renamedNames)
-
-	flag.EnvVars = append(flag.EnvVars, append(deprecatedEnvVars, envVar)...)
-	flag.Aliases = append(flag.Aliases, deprecatedNames...)
+	flag.Aliases = append(flag.Aliases, deprecatedFlagNames(flag.Name, oldNames)...)
+	flag.EnvVars = append(flag.EnvVars, deprecatedEnvVars(flag.Name, oldNames)...)
 
 	return &Flag{
-		opts:              opts,
-		Flag:              flag,
-		names:             names,
-		envVar:            envVar,
-		deprecatedNames:   deprecatedNames,
-		deprecatedEnvVars: deprecatedEnvVars,
+		opts:    opts,
+		Flag:    flag,
+		names:   names,
+		envVars: envVars,
 	}
 }
 
-// NewMapFlag wraps the given flag to detect the use of deprecated flag/environment renamedNames and automatically create an env with the `TG_` prefix.
-func NewMapFlag[K cli.MapFlagKeyType, V cli.MapFlagValueType](opts *options.TerragruntOptions, flag *cli.MapFlag[K, V], renamedNames ...string) cli.Flag {
+// MapFlagWithDeprecated adds deprecated names with strict mode control for the given flag.
+func MapFlagWithDeprecated[K cli.MapFlagKeyType, V cli.MapFlagValueType](opts *options.TerragruntOptions, flag *cli.MapFlag[K, V], oldNames ...string) cli.Flag {
 	names := flag.Names()
-	renamedNames = util.RemoveDuplicatesFromList(append(renamedNames, flag.Name))
+	envVars := flag.GetEnvVars()
 
-	envVar := autoEnvVar(flag.Name)
-	deprecatedNames, deprecatedEnvVars := deprecatedNames(renamedNames)
-
-	flag.EnvVars = append(flag.EnvVars, append(deprecatedEnvVars, envVar)...)
-	flag.Aliases = append(flag.Aliases, deprecatedNames...)
+	flag.Aliases = append(flag.Aliases, deprecatedFlagNames(flag.Name, oldNames)...)
+	flag.EnvVars = append(flag.EnvVars, deprecatedEnvVars(flag.Name, oldNames)...)
 
 	return &Flag{
-		opts:              opts,
-		Flag:              flag,
-		names:             names,
-		envVar:            envVar,
-		deprecatedNames:   deprecatedNames,
-		deprecatedEnvVars: deprecatedEnvVars,
+		opts:    opts,
+		Flag:    flag,
+		names:   names,
+		envVars: envVars,
 	}
 }
 
-// Flag is a flag wrapper that creates an env variable with prefix `TG_` from the flag name
-// and checks for deprecated flag renamedNames/envs usage with prefixes `--terragrunt`/`TERRAGRUNT_`.
+// Flag is a wrapper for `cli.Flag` to avoid displaying depreacted namas in help.
 type Flag struct {
 	cli.Flag
-	opts              *options.TerragruntOptions
-	names             []string
-	envVar            string
-	deprecatedNames   []string
-	deprecatedEnvVars []string
+	opts    *options.TerragruntOptions
+	names   []string
+	envVars []string
 }
 
 // String returns a readable representation of this value (for usage defaults).
@@ -120,7 +97,7 @@ func (flag *Flag) String() string {
 
 // GetEnvVars returns flag envs without deprecated renamedNames to avoid showing them in help.
 func (flag *Flag) GetEnvVars() []string {
-	return []string{flag.envVar}
+	return flag.envVars
 }
 
 // Names returns flag renamedNames without deprecated renamedNames to avoid showing them in help.
@@ -152,10 +129,10 @@ func (flag *Flag) RunAction(ctx *cli.Context) error {
 
 	if envVar := flag.usedDeprecatedEnvVar(ctx); envVar != "" {
 		if strictControl {
-			return errors.Errorf("`%s` environment variable is no longer supported, use `%s` instead.", envVar, flag.envVar)
+			return errors.Errorf("`%s` environment variable is no longer supported, use `%s` instead.", envVar, flag.envVars[0])
 		}
 
-		flag.opts.Logger.Warnf("The `%s` environment variable is deprecated and will be removed in a future version. Use `%s` instead.", envVar, flag.envVar)
+		flag.opts.Logger.Warnf("The `%s` environment variable is deprecated and will be removed in a future version. Use `%s` instead.", envVar, flag.envVars[0])
 	}
 
 	return nil
@@ -164,6 +141,7 @@ func (flag *Flag) RunAction(ctx *cli.Context) error {
 // usedDeprecatedFlagName returns the deprecated flag if used, otherwise an empty string.
 func (flag *Flag) usedDeprecatedFlagName(ctx *cli.Context) string {
 	args := util.RemoveSublistFromList(ctx.Parent().Args(), ctx.Args())
+	deprecatedNames := util.RemoveSublistFromList(flag.Flag.Names(), flag.names)
 
 	for _, arg := range args {
 		substringNumber := 2
@@ -171,7 +149,7 @@ func (flag *Flag) usedDeprecatedFlagName(ctx *cli.Context) string {
 
 		flagName := strings.TrimLeft(arg, "-")
 
-		if util.ListContainsElement(flag.deprecatedNames, flagName) {
+		if util.ListContainsElement(deprecatedNames, flagName) {
 			return flagName
 		}
 	}
@@ -181,7 +159,9 @@ func (flag *Flag) usedDeprecatedFlagName(ctx *cli.Context) string {
 
 // usedDeprecatedEnvVar returns the deprecated env var if used, otherwise an empty string.
 func (flag *Flag) usedDeprecatedEnvVar(_ *cli.Context) string {
-	for _, envVar := range flag.deprecatedEnvVars {
+	deprecatedEnvVars := util.RemoveSublistFromList(flag.Flag.GetEnvVars(), flag.envVars)
+
+	for _, envVar := range deprecatedEnvVars {
 		if _, ok := os.LookupEnv(envVar); ok {
 			return envVar
 		}
@@ -190,22 +170,46 @@ func (flag *Flag) usedDeprecatedEnvVar(_ *cli.Context) string {
 	return ""
 }
 
-// flagNames returns an auto created environment variable and deprecated flag renamedNames/envs.
-func autoEnvVar(name string) string {
-	envVarSuffix := strings.ToUpper(strings.ReplaceAll(name, "-", "_"))
-	return EnvVarPrefix + envVarSuffix
+// EnvVars does same `EnvVarsWithPrefix` but with default specified `EnvVarPrefix` prefix.
+func EnvVars(names ...string) []string {
+	return EnvVarsWithPrefix(EnvVarPrefix, names...)
 }
 
-func deprecatedNames(names []string) ([]string, []string) {
-	var (
-		deprecatedNames   = make([]string, len(names))
-		deprecatedEnvVars = make([]string, len(names))
-	)
+// EnvVarsWithPrefix converts the given flag names into their environment variables with the given prefix added.
+func EnvVarsWithPrefix(prefix string, names ...string) []string {
+	var envVars = make([]string, len(names))
 
 	for i := range names {
-		deprecatedEnvVars[i] = DeprecatedEnvVarPrefix + strings.ToUpper(strings.ReplaceAll(names[i], "-", "_"))
-		deprecatedNames[i] = DeprecatedFlagNamePrefix + names[i]
+		suffix := strings.ToUpper(strings.ReplaceAll(names[i], "-", "_"))
+		envVars[i] = prefix + suffix
 	}
 
-	return deprecatedNames, deprecatedEnvVars
+	return envVars
+}
+
+// FlagNames returns the given names with the given prefix added.
+func FlagNames(prefix string, names ...string) []string {
+	var flagNames = make([]string, len(names))
+
+	for i := range names {
+		flagNames[i] = prefix + names[i]
+	}
+
+	return flagNames
+}
+
+func deprecatedEnvVars(flagName string, oldNames []string) []string {
+	if len(oldNames) > 0 {
+		return EnvVarsWithPrefix("", oldNames...)
+	}
+
+	return EnvVarsWithPrefix(DeprecatedEnvVarPrefix, flagName)
+}
+
+func deprecatedFlagNames(flagName string, oldNames []string) []string {
+	if len(oldNames) > 0 {
+		return oldNames
+	}
+
+	return FlagNames(DeprecatedFlagNamePrefix, flagName)
 }

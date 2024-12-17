@@ -8,20 +8,22 @@ import (
 )
 
 const (
-	CommandName = "scaffold"
-	Var         = "var"
-	VarFile     = "var-file"
+	CommandName     = "scaffold"
+	VarFlagName     = "var"
+	VarFileFlagName = "var-file"
 )
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
-		flags.NewSliceFlag(opts, &cli.SliceFlag[string]{
-			Name:        Var,
+		flags.SliceFlagWithDeprecated(opts, &cli.SliceFlag[string]{
+			Name:        VarFlagName,
+			EnvVars:     flags.EnvVars(VarFlagName),
 			Destination: &opts.ScaffoldVars,
 			Usage:       "Variables for usage in scaffolding.",
 		}),
-		flags.NewSliceFlag(opts, &cli.SliceFlag[string]{
-			Name:        VarFile,
+		flags.SliceFlagWithDeprecated(opts, &cli.SliceFlag[string]{
+			Name:        VarFileFlagName,
+			EnvVars:     flags.EnvVars(VarFileFlagName),
 			Destination: &opts.ScaffoldVarFiles,
 			Usage:       "Files with variables to be used in modules scaffolding.",
 		}),

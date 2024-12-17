@@ -25,11 +25,12 @@ func NewFlags(opts *options.TerragruntOptions, cmdOpts *Options) cli.Flags {
 		flags.IAMAssumeRoleSessionNameFlagName,
 		flags.IAMAssumeRoleWebIdentityTokenFlagName,
 	),
-		flags.NewBoolFlag(opts, &cli.BoolFlag{
+		&cli.BoolFlag{
 			Name:        InDownloadDirFlagName,
+			EnvVars:     flags.EnvVars(InDownloadDirFlagName),
 			Destination: &cmdOpts.InDownloadDir,
 			Usage:       "Run the provided command in the download directory.",
-		}),
+		},
 	)
 }
 

@@ -19,13 +19,15 @@ const (
 
 func NewFlags(opts *Options) cli.Flags {
 	return cli.Flags{
-		flags.NewBoolFlag(opts.TerragruntOptions, &cli.BoolFlag{
+		flags.BoolFlagWithDeprecated(opts.TerragruntOptions, &cli.BoolFlag{
 			Name:        ShowConfigPathFlagName,
+			EnvVars:     flags.EnvVars(ShowConfigPathFlagName),
 			Usage:       "Show a list of files with invalid configuration.",
 			Destination: &opts.ShowConfigPath,
 		}),
-		flags.NewBoolFlag(opts.TerragruntOptions, &cli.BoolFlag{
+		flags.BoolFlagWithDeprecated(opts.TerragruntOptions, &cli.BoolFlag{
 			Name:        JSONOutputFlagName,
+			EnvVars:     flags.EnvVars(JSONOutputFlagName),
 			Destination: &opts.JSONOutput,
 			Usage:       "Output the result in JSON format.",
 		}),

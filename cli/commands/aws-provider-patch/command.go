@@ -43,8 +43,9 @@ const (
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
-		flags.NewMapFlag(opts, &cli.MapFlag[string, string]{
+		flags.MapFlagWithDeprecated(opts, &cli.MapFlag[string, string]{
 			Name:        TerragruntOverrideAttrFlagName,
+			EnvVars:     flags.EnvVars(TerragruntOverrideAttrFlagName),
 			Destination: &opts.AwsProviderPatchOverrides,
 			Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",
 		}),

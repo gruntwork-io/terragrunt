@@ -14,7 +14,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
-	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -268,7 +267,7 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	// This test cannot be run using Terragrunt Provider Cache because it causes the flock files to be locked forever, which in turn blocks other TGs (processes).
 	// We use flock files to prevent multiple TGs from caching the same provider in parallel in a shared cache, which causes to conflicts.
-	if envProviderCache := os.Getenv(flags.EnvVarPrefix + "PROVIDER_CACHE"); envProviderCache != "" {
+	if envProviderCache := os.Getenv("TG_PROVIDER_CACHE"); envProviderCache != "" {
 		providerCache, err := strconv.ParseBool(envProviderCache)
 		require.NoError(t, err)
 		if providerCache {

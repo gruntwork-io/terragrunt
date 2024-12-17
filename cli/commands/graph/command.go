@@ -25,8 +25,9 @@ const (
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
-		flags.NewGenericFlag(opts, &cli.GenericFlag[string]{
+		flags.GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
 			Name:        GraphRootFlagName,
+			EnvVars:     flags.EnvVars(GraphRootFlagName),
 			Destination: &opts.GraphRoot,
 			Usage:       "Root directory from where to build graph dependencies.",
 		}),
