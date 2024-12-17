@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/tui"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -20,21 +19,6 @@ const (
 )
 
 func Run(ctx context.Context, opts *options.TerragruntOptions, repoURL string) error {
-	if opts.ScaffoldRootFileName == "" {
-		if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
-			warn, triggered, err := control.Evaluate(opts)
-			if err != nil {
-				opts.ScaffoldRootFileName = config.RecommendedParentConfigName
-			}
-
-			if !triggered {
-				opts.Logger.Warnf(warn)
-			}
-
-			opts.ScaffoldRootFileName = config.DefaultTerragruntConfigPath
-		}
-	}
-
 	repoURLs := []string{repoURL}
 
 	if repoURL == "" {

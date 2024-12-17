@@ -38,7 +38,6 @@ import (
 const (
 	DefaultTerragruntConfigPath     = "terragrunt.hcl"
 	DefaultTerragruntJSONConfigPath = "terragrunt.hcl.json"
-	RecommendedParentConfigName     = "root.hcl"
 	FoundInFile                     = "found_in_file"
 
 	iamRoleCacheName = "iamRoleCache"

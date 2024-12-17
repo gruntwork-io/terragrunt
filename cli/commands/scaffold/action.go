@@ -21,7 +21,6 @@ import (
 	"github.com/gruntwork-io/boilerplate/templates"
 	"github.com/gruntwork-io/boilerplate/variables"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terratest/modules/files"
 	"github.com/hashicorp/go-getter/v2"
@@ -101,22 +100,12 @@ inputs = {
 
 var moduleURLRegex = regexp.MustCompile(moduleURLPattern)
 
+const (
+	enableRootInclude = "EnableRootInclude"
+	rootFileName      = "RootFileName"
+)
+
 func Run(ctx context.Context, opts *options.TerragruntOptions, moduleURL, templateURL string) error {
-	if opts.ScaffoldRootFileName == "" {
-		if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
-			warn, triggered, err := control.Evaluate(opts)
-			if err != nil {
-				opts.ScaffoldRootFileName = config.RecommendedParentConfigName
-			}
-
-			if !triggered {
-				opts.Logger.Warnf(warn)
-			}
-
-			opts.ScaffoldRootFileName = config.DefaultTerragruntConfigPath
-		}
-	}
-
 	// download remote repo to local
 	var dirsToClean []string
 	// clean all temp dirs
@@ -188,16 +177,16 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, moduleURL, templa
 	vars["sourceUrl"] = moduleURL
 
 	// Only set these if the `vars` map doesn't already have them set
-	if _, found := vars["EnableRootInclude"]; !found {
-		vars["EnableRootInclude"] = !opts.ScaffoldNoIncludeRoot
+	if _, found := vars[enableRootInclude]; !found {
+		vars[enableRootInclude] = !opts.ScaffoldNoIncludeRoot
 	} else {
-		opts.Logger.Warnf("The EnableRootInclude variable is already set in the var flag(s). The --%s flag will be ignored.", commands.NoIncludeRootFlagName)
+		opts.Logger.Warnf("The %s variable is already set in the var flag(s). The --%s flag will be ignored.", enableRootInclude, commands.NoIncludeRootFlagName)
 	}
 
-	if _, found := vars["RootFileName"]; !found {
-		vars["RootFileName"] = opts.ScaffoldRootFileName
+	if _, found := vars[rootFileName]; !found {
+		vars[rootFileName] = opts.ScaffoldRootFileName
 	} else {
-		opts.Logger.Warnf("The RootFileName variable is already set in the var flag(s). The --%s flag will be ignored.", commands.NoIncludeRootFlagName)
+		opts.Logger.Warnf("The %s variable is already set in the var flag(s). The --%s flag will be ignored.", rootFileName, commands.NoIncludeRootFlagName)
 	}
 
 	opts.Logger.Infof("Running boilerplate generation to %s", opts.WorkingDir)
