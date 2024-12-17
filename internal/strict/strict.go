@@ -192,7 +192,7 @@ func (controls Controls) ValidateControlNames(strictControlNames []string) (stri
 
 	var err error
 	if len(invalidControls) > 0 {
-		err = fmt.Errorf("%w\nInvalid control(s):\n- %s\nAllowed control(s):\n- %s",
+		err = errors.Errorf("%w\nInvalid control(s):\n- %s\nAllowed control(s):\n- %s",
 			ErrInvalidStrictControl,
 			strings.Join(invalidControls, "\n- "),
 			strings.Join(validControls, "\n- "),
