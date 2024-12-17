@@ -5,6 +5,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateExperiments(t *testing.T) {
@@ -75,7 +76,12 @@ func TestValidateExperiments(t *testing.T) {
 			warning, err := tt.experiments.ValidateExperimentNames(tt.experimentNames)
 
 			assert.Equal(t, tt.expectedWarning, warning)
-			assert.Equal(t, tt.expectedError, err)
+
+			if tt.expectedError != nil {
+				require.EqualError(t, err, tt.expectedError.Error())
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }
