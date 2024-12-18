@@ -8,6 +8,8 @@ tags: ["CLI", "DRY"]
 order: 407
 nav_title: Documentation
 nav_title_link: /docs/
+redirect_from:
+    - /docs/features/lock-file-handling/
 ---
 
 ## How to use lock files with Terragrunt

@@ -8,6 +8,8 @@ tags: ["CLI"]
 order: 250
 nav_title: Documentation
 nav_title_link: /docs/
+redirect_from:
+    - /docs/features/auto-retry/
 ---
 
 Sometimes, you need to have Terragrunt behave differently at runtime due to specific context that you have in your environment.

@@ -8,6 +8,10 @@ tags: ["DRY", "Use cases", "backend", "unit"]
 order: 200
 nav_title: Documentation
 nav_title_link: /docs/
+redirect_from:
+  - /docs/features/inputs/
+  - /docs/features/locals/
+  - /docs/features/keep-your-terraform-code-dry/
 ---
 
 - [Motivation](#motivation)
