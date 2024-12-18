@@ -22,9 +22,9 @@ const (
 	testFixtureTofuStateEncryptionGCPKMS = "fixtures/tofu-state-encryption/gcp-kms"
 	testFixtureTofuStateEncryptionAWSKMS = "fixtures/tofu-state-encryption/aws-kms"
 	gcpKMSKeyID                          = "projects/terragrunt-test/locations/global/keyRings/terragrunt-test/cryptoKeys/terragrunt-test-key"
-	awsKMSKeyID                          = "arn:aws:kms:us-west-2:123456789012:key/12345678-1234-1234-1234-123456789012"
+	awsKMSKeyID                          = "bd372994-d969-464a-a261-6cc850c58a92"
 	stateFile                            = "terraform.tfstate"
-	awsKMSKeyRegion                      = "us-west-2"
+	awsKMSKeyRegion                      = "us-east-1"
 )
 
 func TestTofuStateEncryptionPBKDF2(t *testing.T) {
@@ -39,6 +39,7 @@ func TestTofuStateEncryptionPBKDF2(t *testing.T) {
 }
 
 func TestTofuStateEncryptionGCPKMS(t *testing.T) {
+	t.Skip("Skipping test as the GCP KMS key is not available. You have to setup your own GCP KMS key to run this test.")
 	t.Parallel()
 
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureTofuStateEncryptionGCPKMS)
