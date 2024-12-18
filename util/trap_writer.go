@@ -1,9 +1,8 @@
 package util
 
 import (
+	"fmt"
 	"io"
-
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 )
 
 // TrapWriter intercepts any messages received from the `writer` output.
@@ -24,7 +23,8 @@ func NewTrapWriter(writer io.Writer) *TrapWriter {
 func (trap *TrapWriter) Flush() error {
 	for _, msg := range trap.msgs {
 		if _, err := trap.writer.Write(msg); err != nil {
-			return errors.New(err)
+			fmt.Println("occurred formatter error: " + err.Error())
+			return nil
 		}
 	}
 
