@@ -707,40 +707,36 @@ func NewVersionFlag(opts *options.TerragruntOptions) cli.Flag {
 // Scaffold/Catalog shared flags
 
 const (
+	LegacyParentConfigName      = "terragrunt.hcl"
 	RecommendedParentConfigName = "root.hcl"
 
 	RootFileNameFlagName  = "root-file-name"
 	NoIncludeRootFlagName = "no-include-root"
 )
 
+func GetDefaultRootFileName(opts *options.TerragruntOptions) string {
+	if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
+		warn, triggered, err := control.Evaluate(opts)
+		if err != nil {
+			return RecommendedParentConfigName
+		}
+
+		if !triggered {
+			opts.Logger.Warnf(warn)
+		}
+	}
+
+	return LegacyParentConfigName
+}
+
 func NewRootFileNameFlag(opts *options.TerragruntOptions) cli.Flag {
 	return &cli.GenericFlag[string]{
-		Name:  RootFileNameFlagName,
-		Usage: "Name of the root Terragrunt configuration file, if used.",
+		Name:        RootFileNameFlagName,
+		Destination: &opts.ScaffoldRootFileName,
+		Usage:       "Name of the root Terragrunt configuration file, if used.",
 		Action: func(ctx *cli.Context, value string) error {
-			// The default behavior of this flag will vary depending on whether the RootTerragruntHCL
-			// strict control is set.
-			//
-			// If it is, the default behavior will be to use the value of the
-			// RecommendedParentConfigName constant.
-			//
-			// If it is not, the default behavior will be to use
-			// the value of the TerragruntConfigPath option for backwards compatibility.
 			if value == "" {
-				if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
-					warn, triggered, err := control.Evaluate(opts)
-					if err != nil {
-						opts.ScaffoldRootFileName = RecommendedParentConfigName
-					} else {
-						opts.ScaffoldRootFileName = opts.TerragruntConfigPath
-					}
-
-					if !triggered {
-						opts.Logger.Warnf(warn)
-					}
-				}
-
-				return nil
+				return errors.New("root-file-name flag cannot be empty")
 			}
 
 			if value == opts.TerragruntConfigPath {

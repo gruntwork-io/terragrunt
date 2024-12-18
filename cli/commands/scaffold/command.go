@@ -47,6 +47,10 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				templateURL = val
 			}
 
+			if opts.ScaffoldRootFileName == "" {
+				opts.ScaffoldRootFileName = commands.GetDefaultRootFileName(opts)
+			}
+
 			return Run(ctx, opts.OptionsFromContext(ctx), moduleURL, templateURL)
 		},
 	}

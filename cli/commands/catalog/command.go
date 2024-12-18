@@ -32,6 +32,10 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				repoPath = val
 			}
 
+			if opts.ScaffoldRootFileName == "" {
+				opts.ScaffoldRootFileName = commands.GetDefaultRootFileName(opts)
+			}
+
 			return Run(ctx, opts.OptionsFromContext(ctx), repoPath)
 		},
 	}
