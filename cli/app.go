@@ -143,6 +143,9 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 	return nil
 }
 
+// removeNoColorFlagDuplicates removes one of the `--no-color` or `--terragrunt-no-color` arguments if both are present.
+// We have to do this because `--terragrunt-no-color` is a deprecated alias for `--no-color`,
+// therefore we end up specifying the same flag twice, which causes the `setting the flag multiple times` error.
 func removeNoColorFlagDuplicates(args []string) []string {
 	var ( //nolint:prealloc
 		foundNoColor bool
@@ -294,6 +297,8 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 		args = append([]string{cmdName}, args...)
 	}
 
+	// Since Terragrunt and Terraform have the same `-no-color` flag,
+	// if a user specifies `-no-color` for Terragrunt, we should propagate it to Terraform as well.
 	if opts.DisableLogColors {
 		args = append(args, terraform.FlagNameNoColor)
 	}

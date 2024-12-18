@@ -46,7 +46,7 @@ func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
 		RelativePather: formatter.relativePather,
 	})
 	if err != nil {
-		return []byte("occurred formatter error: " + err.Error()), nil
+		return nil, err
 	}
 
 	formatter.mu.Lock()

@@ -440,25 +440,25 @@ func NewCommonFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        IAMAssumeRoleFlagName,
 			EnvVars:     EnvVars(IAMAssumeRoleFlagName),
 			Destination: &opts.IAMRoleOptions.RoleARN,
-			Usage:       "Assume the specified IAM role before executing OpenTofu/Terraform. Can also be set via the TERRAGRUNT_IAM_ROLE environment variable.",
+			Usage:       "Assume the specified IAM role before executing OpenTofu/Terraform.",
 		}, DeprecatedIAMRoleFlagName),
 		GenericFlagWithDeprecated(opts, &cli.GenericFlag[int64]{
 			Name:        IAMAssumeRoleDurationFlagName,
 			EnvVars:     EnvVars(IAMAssumeRoleDurationFlagName),
 			Destination: &opts.IAMRoleOptions.AssumeRoleDuration,
-			Usage:       "Session duration for IAM Assume Role session. Can also be set via the TERRAGRUNT_IAM_ASSUME_ROLE_DURATION environment variable.",
+			Usage:       "Session duration for IAM Assume Role session.",
 		}),
 		GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
 			Name:        IAMAssumeRoleSessionNameFlagName,
 			EnvVars:     EnvVars(IAMAssumeRoleSessionNameFlagName),
 			Destination: &opts.IAMRoleOptions.AssumeRoleSessionName,
-			Usage:       "Name for the IAM Assumed Role session. Can also be set via TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME environment variable.",
+			Usage:       "Name for the IAM Assumed Role session.",
 		}),
 		GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
 			Name:        IAMAssumeRoleWebIdentityTokenFlagName,
 			EnvVars:     EnvVars(IAMAssumeRoleWebIdentityTokenFlagName),
 			Destination: &opts.IAMRoleOptions.WebIdentityToken,
-			Usage:       "For AssumeRoleWithWebIdentity, the WebIdentity token. Can also be set via TERRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN environment variable",
+			Usage:       "For AssumeRoleWithWebIdentity, the WebIdentity token.",
 		}, DeprecatedIAMWebIdentityTokenFlagName),
 
 		BoolFlagWithDeprecated(opts, &cli.BoolFlag{

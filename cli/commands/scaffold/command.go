@@ -15,18 +15,18 @@ const (
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
-		flags.SliceFlagWithDeprecated(opts, &cli.SliceFlag[string]{
+		&cli.SliceFlag[string]{
 			Name:        VarFlagName,
 			EnvVars:     flags.EnvVars(VarFlagName),
 			Destination: &opts.ScaffoldVars,
 			Usage:       "Variables for usage in scaffolding.",
-		}),
-		flags.SliceFlagWithDeprecated(opts, &cli.SliceFlag[string]{
+		},
+		&cli.SliceFlag[string]{
 			Name:        VarFileFlagName,
 			EnvVars:     flags.EnvVars(VarFileFlagName),
 			Destination: &opts.ScaffoldVarFiles,
 			Usage:       "Files with variables to be used in modules scaffolding.",
-		}),
+		},
 	}
 }
 

@@ -23,12 +23,12 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.JSONOut,
 			Usage:       "The file path that terragrunt should use when rendering the terragrunt.hcl config as json.",
 		}),
-		flags.BoolFlagWithDeprecated(opts, &cli.BoolFlag{
+		&cli.BoolFlag{
 			Name:        WithMetadataFlagName,
 			EnvVars:     flags.EnvVars(WithMetadataFlagName),
 			Destination: &opts.RenderJSONWithMetadata,
 			Usage:       "Add metadata to the rendered JSON file.",
-		}),
+		},
 		flags.BoolFlagWithDeprecated(opts, &cli.BoolFlag{
 			Name:        DisableDependentModulesFlagName,
 			EnvVars:     flags.EnvVars(DisableDependentModulesFlagName),
