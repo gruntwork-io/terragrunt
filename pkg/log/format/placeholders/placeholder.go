@@ -115,6 +115,7 @@ func newPlaceholders() Placeholders {
 		Message(),
 		Field(WorkDirKeyName, options.PathFormat(options.NonePath, options.RelativePath, options.ShortRelativePath, options.ShortPath)),
 		Field(TFPathKeyName, options.PathFormat(options.NonePath, options.FilenamePath, options.DirectoryPath)),
+		Field(TFCmdArgsKeyName),
 	}
 }
 
