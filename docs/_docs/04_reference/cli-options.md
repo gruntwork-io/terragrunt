@@ -95,6 +95,10 @@ This page documents the CLI commands and options available with Terragrunt:
   - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
   - [terragrunt-working-dir](#terragrunt-working-dir)
   - [feature](#feature)
+  - [experiment](#experiment)
+  - [experiment-mode](#experiment-mode)
+  - [strict-control](#strict-control)
+  - [strict-mode](#strict-mode)
 
 ## CLI commands
 
@@ -1759,3 +1763,39 @@ Setting feature flags through environment variables:
 export TERRAGRUNT_FEATURE=int_feature_flag=123,bool_feature_flag=true,string_feature_flag=app1
 terragrunt apply
 ```
+
+### experiment
+
+**CLI Arg**: `--experiment`<br/>
+**Environment Variable**: `TERRAGRUNT_EXPERIMENT`<br/>
+
+Enable experimental features in Terragrunt before they're stable.
+
+For more information, see the [Experiments](/docs/reference/experiments) documentation.
+
+### experiment-mode
+
+**CLI Arg**: `--experiment-mode`<br/>
+**Environment Variable**: `TERRAGRUNT_EXPERIMENT_MODE`<br/>
+
+Enable all experimental features in Terragrunt before they're stable.
+
+For more information, see the [Experiments](/docs/reference/experiments) documentation.
+
+### strict-control
+
+**CLI Arg**: `--strict-control`<br/>
+**Environment Variable**: `TERRAGRUNT_STRICT_CONTROL`<br/>
+
+Enable strict controls that opt-in future breaking changes in Terragrunt.
+
+For more information, see the [Strict Mode](/docs/reference/strict-mode) documentation.
+
+### strict-mode
+
+**CLI Arg**: `--strict-mode`<br/>
+**Environment Variable**: `TERRAGRUNT_STRICT_MODE`<br/>
+
+Enable all strict controls that opt-in future breaking changes in Terragrunt.
+
+For more information, see the [Strict Mode](/docs/reference/strict-mode) documentation.

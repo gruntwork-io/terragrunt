@@ -637,10 +637,15 @@ func (err PathIsNotFile) Error() string {
 }
 
 // ListTfFiles returns a list of all TF files in the specified directory.
-func ListTfFiles(directoryPath string) ([]string, error) {
+func ListTfFiles(directoryPath string, walkWithSymlinks bool) ([]string, error) {
 	var tfFiles []string
 
-	err := WalkWithSymlinks(directoryPath, func(path string, info os.FileInfo, err error) error {
+	walkFunc := filepath.Walk
+	if walkWithSymlinks {
+		walkFunc = WalkWithSymlinks
+	}
+
+	err := walkFunc(directoryPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}

@@ -42,13 +42,16 @@ type Repo struct {
 
 	remoteURL  string
 	branchName string
+
+	walkWithSymlinks bool
 }
 
-func NewRepo(ctx context.Context, logger log.Logger, cloneURL, tempDir string) (*Repo, error) {
+func NewRepo(ctx context.Context, logger log.Logger, cloneURL, tempDir string, walkWithSymlinks bool) (*Repo, error) {
 	repo := &Repo{
-		logger:   logger,
-		cloneURL: cloneURL,
-		path:     tempDir,
+		logger:           logger,
+		cloneURL:         cloneURL,
+		path:             tempDir,
+		walkWithSymlinks: walkWithSymlinks,
 	}
 
 	if err := repo.clone(ctx); err != nil {
@@ -84,7 +87,12 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 			continue
 		}
 
-		err := util.WalkWithSymlinks(modulesPath,
+		walkFunc := filepath.Walk
+		if repo.walkWithSymlinks {
+			walkFunc = util.WalkWithSymlinks
+		}
+
+		err := walkFunc(modulesPath,
 			func(dir string, remote os.FileInfo, err error) error {
 				if err != nil {
 					return err
