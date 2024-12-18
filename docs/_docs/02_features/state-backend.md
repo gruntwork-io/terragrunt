@@ -8,6 +8,8 @@ tags: ["DRY", "remote", "Use cases", "CLI", "state"]
 order: 204
 nav_title: Documentation
 nav_title_link: /docs/
+redirect_from:
+    - /docs/features/keep-your-remote-state-configuration-dry/
 ---
 
 - [Motivation](#motivation)
