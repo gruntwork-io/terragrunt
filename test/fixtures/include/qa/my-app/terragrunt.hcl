@@ -1,5 +1,5 @@
 include "root" {
-  path   = "${find_in_parent_folders()}"
+  path   = "${find_in_parent_folders("root.hcl")}"
   expose = true
 
   # Don't merge in remote state block so we store state locally

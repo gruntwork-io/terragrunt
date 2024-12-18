@@ -17,6 +17,7 @@ redirect_from:
 - [Create remote state resources automatically](#create-remote-state-resources-automatically)
 - [S3-specific remote state settings](#s3-specific-remote-state-settings)
 - [GCS-specific remote state settings](#gcs-specific-remote-state-settings)
+- [Further reading](#further-reading)
 
 ## Motivation
 
@@ -275,7 +276,7 @@ If you experience an error for any of these configurations, confirm you are usin
 
 Further, the config options `gcs_bucket_labels`, `skip_bucket_versioning` and `enable_bucket_policy_only` are only valid for the backend `gcs`. They are used by terragrunt and are **not** passed on to terraform. See section [Create remote state resources automatically](#create-remote-state-resources-automatically).
 
-## Further Reading
+## Further reading
 
 Managing your remote state like this is really valuable when you organize your units into a [stack](/docs/features/stacks).
 

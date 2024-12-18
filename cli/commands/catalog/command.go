@@ -3,6 +3,7 @@
 package catalog
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -11,11 +12,19 @@ const (
 	CommandName = "catalog"
 )
 
+func NewFlags(opts *options.TerragruntOptions) cli.Flags {
+	return cli.Flags{
+		commands.NewNoIncludeRootFlag(opts),
+		commands.NewRootFileNameFlag(opts),
+	}
+}
+
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:                   CommandName,
 		DisallowUndefinedFlags: true,
 		Usage:                  "Launch the user interface for searching and managing your module catalog.",
+		Flags:                  NewFlags(opts),
 		Action: func(ctx *cli.Context) error {
 			var repoPath string
 

@@ -475,7 +475,7 @@ For the `gcs` backend, the following additional properties are supported in the 
 # relative to included terragrunt config. For example, if you had the following folder structure:
 #
 # .
-# ├── terragrunt.hcl
+# ├── root.hcl
 # └── child
 #     ├── main.tf
 #     └── terragrunt.hcl
@@ -499,7 +499,7 @@ remote_state {
 
 # child/terragrunt.hcl
 include "root" {
-  path   = find_in_parent_folders()
+  path   = find_in_parent_folders("root.hcl")
 }
 
 # child/main.tf
@@ -518,7 +518,7 @@ Example with GCS:
 # For example, if you had the following folder structure:
 #
 # .
-# ├── terragrunt.hcl
+# ├── root.hcl
 # └── child
 #     ├── main.tf
 #     └── terragrunt.hcl
@@ -548,7 +548,7 @@ remote_state {
 
 # child/terragrunt.hcl
 include "root" {
-  path   = find_in_parent_folders()
+  path   = find_in_parent_folders("root.hcl")
 }
 
 # child/main.tf
@@ -597,10 +597,10 @@ Examples:
 
 ```hcl
 # If you have the following folder structure, and the following contents for ./child/terragrunt.hcl, this will include
-# and merge the items in the terragrunt.hcl file at the root.
+# and merge the configurations in the root.hcl file.
 #
 # .
-# ├── terragrunt.hcl
+# ├── root.hcl
 # └── child
 #     ├── main.tf
 #     └── terragrunt.hcl
@@ -619,7 +619,7 @@ remote_state {
 
 # child/terragrunt.hcl
 include "root" {
-  path   = find_in_parent_folders()
+  path   = find_in_parent_folders("root.hcl")
   expose = true
 }
 
@@ -637,11 +637,11 @@ terraform {
 
 ```hcl
 # If you have the following folder structure, and the following contents for ./child/terragrunt.hcl, this will include
-# and merge the items in the terragrunt.hcl file at the root, while only loading the data in the region.hcl
+# and merge the configurations in the root.hcl, while only loading the data in the region.hcl
 # configuration.
 #
 # .
-# ├── terragrunt.hcl
+# ├── root.hcl
 # ├── region.hcl
 # └── child
 #     └── terragrunt.hcl
@@ -665,7 +665,7 @@ locals {
 
 # child/terragrunt.hcl
 include "remote_state" {
-  path   = find_in_parent_folders()
+  path   = find_in_parent_folders("root.hcl")
   expose = true
 }
 
@@ -695,7 +695,7 @@ However, to support `run-all`, Terragrunt is unable to expose all attributes whe
 block. To understand this, consider the following example:
 
 ```hcl
-# Root terragrunt.hcl
+# Root root.hcl
 dependency "vpc" {
   config_path = "${get_terragrunt_dir()}/../vpc"
 }
@@ -708,7 +708,7 @@ inputs = {
 ```hcl
 # Child terragrunt.hcl
 include "root" {
-  path   = find_in_parent_folders()
+  path   = find_in_parent_folders("root.hcl")
   expose = true
 }
 
@@ -752,7 +752,7 @@ For example, the following alternative configuration is valid even if the alb de
 attribute from the included config:
 
 ```hcl
-# Root terragrunt.hcl
+# Root root.hcl
 inputs = {
   vpc_name = "mgmt"
 }
@@ -761,7 +761,7 @@ inputs = {
 ```hcl
 # Child terragrunt.hcl
 include "root" {
-  path   = find_in_parent_folders()
+  path   = find_in_parent_folders("root.hcl")
   expose = true
 }
 
@@ -821,7 +821,7 @@ inputs = {
 ```hcl
 # Child config
 include "root" {
-  path           = find_in_parent_folders()
+  path           = find_in_parent_folders("root.hcl")
   merge_strategy = "deep"
 }
 
@@ -841,7 +841,7 @@ child.
 Full example:
 
 ```hcl
-# Parent terragrunt.hcl
+# Parent root.hcl
 remote_state {
   backend = "s3"
   config = {
@@ -881,7 +881,7 @@ inputs = {
 ```hcl
 # Child terragrunt.hcl
 include "root" {
-  path           = find_in_parent_folders()
+  path           = find_in_parent_folders("root.hcl")
   merge_strategy = "deep"
 }
 

@@ -370,7 +370,7 @@ We can then read the `env.hcl` file in the included `_env/app.hcl` file and use 
 
 ```hcl
 locals {
-  # Load the relevant env.hcl file based on where the including unit is. 
+  # Load the relevant env.hcl file based on where the including unit is.
   # This works because find_in_parent_folders always runs in the context of the unit.
   env_vars = read_terragrunt_config(find_in_parent_folders("env.hcl"))
   env_name = local.env_vars.locals.env

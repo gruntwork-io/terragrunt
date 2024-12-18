@@ -24,7 +24,7 @@ redirect_from:
 - [Working with relative file paths](#working-with-relative-file-paths)
 - [Using Terragrunt with private Git repos](#using-terragrunt-with-private-git-repos)
 - [Generate blocks](#generate-blocks)
-- [Further reading](#further-reading)
+- [Further Reading](#further-reading)
 
 ## Motivation
 
