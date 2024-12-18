@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
@@ -156,6 +157,13 @@ const (
 
 	TerragruntStrictControlFlagName = "strict-control"
 	TerragruntStrictControlEnvName  = "TERRAGRUNT_STRICT_CONTROL"
+
+	// Experiment Mode related flags/envs
+	TerragruntExperimentModeFlagName = "experiment-mode"
+	TerragruntExperimentModeEnvName  = "TERRAGRUNT_EXPERIMENT_MODE"
+
+	TerragruntExperimentFlagName = "experiment"
+	TerragruntExperimentEnvName  = "TERRAGRUNT_EXPERIMENT"
 
 	// Terragrunt Provider Cache related flags/envs
 
@@ -512,9 +520,45 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.StrictControls,
 			Usage:       "Enables specific strict controls. For a list of available controls, see https://terragrunt.gruntwork.io/docs/reference/strict-mode .",
 			Action: func(ctx *cli.Context, val []string) error {
-				if err := strict.StrictControls.ValidateControlNames(val); err != nil {
+				warning, err := strict.StrictControls.ValidateControlNames(val)
+				if err != nil {
 					return cli.NewExitError(err, 1)
 				}
+
+				if warning != "" {
+					log.Warn(warning)
+				}
+
+				return nil
+			},
+		},
+		// Experiment Mode flags
+		&cli.BoolFlag{
+			Name:        TerragruntExperimentModeFlagName,
+			EnvVar:      TerragruntExperimentModeEnvName,
+			Destination: &opts.ExperimentMode,
+			Usage:       "Enables experiment mode for Terragrunt. For more information, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
+		},
+		&cli.SliceFlag[string]{
+			Name:   TerragruntExperimentFlagName,
+			EnvVar: TerragruntExperimentEnvName,
+			Usage:  "Enables specific experiments. For a list of available experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
+			Action: func(ctx *cli.Context, val []string) error {
+				experiments := experiment.NewExperiments()
+				warning, err := experiments.ValidateExperimentNames(val)
+				if err != nil {
+					return cli.NewExitError(err, 1)
+				}
+
+				if warning != "" {
+					log.Warn(warning)
+				}
+
+				if err := experiments.EnableExperiments(val); err != nil {
+					return cli.NewExitError(err, 1)
+				}
+
+				opts.Experiments = experiments
 
 				return nil
 			},
@@ -657,5 +701,72 @@ func NewVersionFlag(opts *options.TerragruntOptions) cli.Flag {
 
 			return cli.ShowVersion(ctx)
 		},
+	}
+}
+
+// Scaffold/Catalog shared flags
+
+const (
+	RecommendedParentConfigName = "root.hcl"
+
+	RootFileNameFlagName  = "root-file-name"
+	NoIncludeRootFlagName = "no-include-root"
+)
+
+func NewRootFileNameFlag(opts *options.TerragruntOptions) cli.Flag {
+	return &cli.GenericFlag[string]{
+		Name:  RootFileNameFlagName,
+		Usage: "Name of the root Terragrunt configuration file, if used.",
+		Action: func(ctx *cli.Context, value string) error {
+			// The default behavior of this flag will vary depending on whether the RootTerragruntHCL
+			// strict control is set.
+			//
+			// If it is, the default behavior will be to use the value of the
+			// RecommendedParentConfigName constant.
+			//
+			// If it is not, the default behavior will be to use
+			// the value of the TerragruntConfigPath option for backwards compatibility.
+			if value == "" {
+				if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
+					warn, triggered, err := control.Evaluate(opts)
+					if err != nil {
+						opts.ScaffoldRootFileName = RecommendedParentConfigName
+					} else {
+						opts.ScaffoldRootFileName = opts.TerragruntConfigPath
+					}
+
+					if !triggered {
+						opts.Logger.Warnf(warn)
+					}
+				}
+
+				return nil
+			}
+
+			if value == opts.TerragruntConfigPath {
+				if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
+					warn, triggered, err := control.Evaluate(opts)
+					if err != nil {
+						return err
+					}
+
+					if !triggered {
+						opts.Logger.Warnf(warn)
+					}
+				}
+			}
+
+			opts.ScaffoldRootFileName = value
+
+			return nil
+		},
+	}
+}
+
+func NewNoIncludeRootFlag(opts *options.TerragruntOptions) cli.Flag {
+	return &cli.BoolFlag{
+		Name:        NoIncludeRootFlagName,
+		Destination: &opts.ScaffoldNoIncludeRoot,
+		Usage:       "Do not include root unit in scaffolding done by catalog.",
 	}
 }

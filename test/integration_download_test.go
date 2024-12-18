@@ -236,7 +236,7 @@ func TestCustomLockFile(t *testing.T) {
 
 	source := "../custom-lock-file-module"
 	downloadDir := util.JoinPath(rootPath, helpers.TerragruntCache)
-	result, err := tfsource.NewSource(source, downloadDir, rootPath, createLogger())
+	result, err := tfsource.NewSource(source, downloadDir, rootPath, createLogger(), false)
 	require.NoError(t, err)
 
 	lockFilePath := util.JoinPath(result.WorkingDir, util.TerraformLockFile)

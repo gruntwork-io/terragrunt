@@ -16,6 +16,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
@@ -657,10 +658,17 @@ func GetDefaultConfigPath(workingDir string) string {
 
 // FindConfigFilesInPath returns a list of all Terragrunt config files in the given path or any subfolder of the path. A file is a Terragrunt
 // config file if it has a name as returned by the DefaultConfigPath method
-func FindConfigFilesInPath(rootPath string, terragruntOptions *options.TerragruntOptions) ([]string, error) {
+func FindConfigFilesInPath(rootPath string, opts *options.TerragruntOptions) ([]string, error) {
 	configFiles := []string{}
 
-	err := util.WalkWithSymlinks(rootPath, func(path string, info os.FileInfo, err error) error {
+	experiment := opts.Experiments[experiment.Symlinks]
+
+	walkFunc := filepath.Walk
+	if experiment.Evaluate(opts.ExperimentMode) {
+		walkFunc = util.WalkWithSymlinks
+	}
+
+	err := walkFunc(rootPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -669,13 +677,13 @@ func FindConfigFilesInPath(rootPath string, terragruntOptions *options.Terragrun
 			return nil
 		}
 
-		if ok, err := isTerragruntModuleDir(path, terragruntOptions); err != nil {
+		if ok, err := isTerragruntModuleDir(path, opts); err != nil {
 			return err
 		} else if !ok {
 			return filepath.SkipDir
 		}
 
-		for _, configFile := range append(DefaultTerragruntConfigPaths, filepath.Base(terragruntOptions.TerragruntConfigPath)) {
+		for _, configFile := range append(DefaultTerragruntConfigPaths, filepath.Base(opts.TerragruntConfigPath)) {
 			if !filepath.IsAbs(configFile) {
 				configFile = util.JoinPath(path, configFile)
 			}

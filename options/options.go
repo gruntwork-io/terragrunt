@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -306,6 +307,12 @@ type TerragruntOptions struct {
 	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
 
+	// Do not include root unit in scaffolding.
+	ScaffoldNoIncludeRoot bool
+
+	// Name of the root Terragrunt configuration file, if used.
+	ScaffoldRootFileName string
+
 	// Root directory for graph command.
 	GraphRoot string
 
@@ -363,6 +370,12 @@ type TerragruntOptions struct {
 
 	// StrictControls is a slice of strict controls enabled.
 	StrictControls []string
+
+	// ExperimentMode is a flag to enable experiment mode for terragrunt.
+	ExperimentMode bool
+
+	// Experiments is a map of experiments, and their status.
+	Experiments experiment.Experiments
 
 	// FeatureFlags is a map of feature flags to enable.
 	FeatureFlags map[string]string
@@ -486,6 +499,8 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		JSONOutputFolder:           "",
 		FeatureFlags:               map[string]string{},
 		ReadFiles:                  xsync.NewMapOf[string, []string](),
+		ExperimentMode:             false,
+		Experiments:                experiment.NewExperiments(),
 	}
 }
 
@@ -646,10 +661,17 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		EngineLogLevel:                 opts.EngineLogLevel,
 		EngineSkipChecksumCheck:        opts.EngineSkipChecksumCheck,
 		Engine:                         cloneEngineOptions(opts.Engine),
+		ExperimentMode:                 opts.ExperimentMode,
+		// This doesn't have to be deep cloned, as the same experiments
+		// are used across all units in a `run-all`. If that changes in
+		// the future, we can deep clone this as well.
+		Experiments: opts.Experiments,
 		// copy array
-		StrictControls: util.CloneStringList(opts.StrictControls),
-		FeatureFlags:   opts.FeatureFlags,
-		Errors:         cloneErrorsConfig(opts.Errors),
+		StrictControls:        util.CloneStringList(opts.StrictControls),
+		FeatureFlags:          opts.FeatureFlags,
+		Errors:                cloneErrorsConfig(opts.Errors),
+		ScaffoldNoIncludeRoot: opts.ScaffoldNoIncludeRoot,
+		ScaffoldRootFileName:  opts.ScaffoldRootFileName,
 	}, nil
 }
 

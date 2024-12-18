@@ -8,6 +8,8 @@ tags: ["DRY", "Use cases", "CLI"]
 order: 215
 nav_title: Documentation
 nav_title_link: /docs/
+redirect_from:
+    - /docs/features/keep-your-cli-flags-dry/
 ---
 
 - [Motivation](#motivation)

@@ -2,6 +2,7 @@
 package scaffold
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -22,8 +23,10 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 		&cli.SliceFlag[string]{
 			Name:        VarFile,
 			Destination: &opts.ScaffoldVarFiles,
-			Usage:       "Files with variables to be used in modules scaffolding.",
+			Usage:       "Files with variables to be used in unit scaffolding.",
 		},
+		commands.NewNoIncludeRootFlag(opts),
+		commands.NewRootFileNameFlag(opts),
 	}
 }
 
