@@ -82,7 +82,7 @@ func MapFlagWithDeprecated[K cli.MapFlagKeyType, V cli.MapFlagValueType](opts *o
 	}
 }
 
-// Flag is a wrapper for `cli.Flag` to avoid displaying depreacted namas in help.
+// Flag is a wrapper for `cli.Flag` to avoid displaying deprecated namas in help.
 type Flag struct {
 	cli.Flag
 	opts    *options.TerragruntOptions
