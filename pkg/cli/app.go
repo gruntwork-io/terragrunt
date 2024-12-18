@@ -140,7 +140,7 @@ func (app *App) RunContext(ctx context.Context, arguments []string) (err error) 
 			}
 		}
 
-		return cmd.Run(ctx, args)
+		return cmd.Run(ctx, args.Normalize(SingleDashFlag))
 	}
 
 	return app.App.RunContext(ctx, arguments)
