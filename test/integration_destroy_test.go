@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -267,12 +266,8 @@ func TestPreventDestroyDependenciesIncludedConfig(t *testing.T) {
 func TestTerragruntSkipConfirmExternalDependencies(t *testing.T) {
 	// This test cannot be run using Terragrunt Provider Cache because it causes the flock files to be locked forever, which in turn blocks other TGs (processes).
 	// We use flock files to prevent multiple TGs from caching the same provider in parallel in a shared cache, which causes to conflicts.
-	if envProviderCache := os.Getenv("TG_PROVIDER_CACHE"); envProviderCache != "" {
-		providerCache, err := strconv.ParseBool(envProviderCache)
-		require.NoError(t, err)
-		if providerCache {
-			return
-		}
+	if helpers.IsTerragruntProviderCacheEnabled(t) {
+		t.Skip()
 	}
 
 	t.Parallel()
