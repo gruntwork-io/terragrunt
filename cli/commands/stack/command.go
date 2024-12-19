@@ -24,7 +24,8 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		DisallowUndefinedFlags: true,
 		Flags:                  NewFlags(opts).Sort(),
 		Action: func(ctx *cli.Context) error {
-			return Run(ctx.Context, opts.OptionsFromContext(ctx))
+			command := ctx.Args().Get(0)
+			return Run(ctx.Context, opts.OptionsFromContext(ctx), command)
 		},
 	}
 }

@@ -7,10 +7,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-func Run(ctx context.Context, opts *options.TerragruntOptions) error {
-	if opts.TerraformCommand == "" {
+func Run(ctx context.Context, opts *options.TerragruntOptions, command string) error {
+	if command == "" {
 		return errors.New("No terraform command specified")
 	}
 
-	return Run(ctx, opts)
+	return nil
 }
