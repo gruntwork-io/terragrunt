@@ -14,27 +14,17 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-const (
-	rootConfigFmt = `
-include "root" {
-  path = find_in_parent_folders("%s")
-}
-`
-	// matches a block and ignores commented out config, where the block name is passed as the first argument to fmt, e.g.
-	// `fmt.Sprintf(hclBlockRegExprFmt, "include")` returns a regexp expression matching the `include` block:
-	//
-	// ```hcl
-	// include {
-	//
-	// }
-	// ```
-	hclBlockRegExprFmt = `(?is)(?:^|^((?:[^/]|/[^*])*)(?:/\*.*?\*/)?((?:[^/]|/[^*])*)\n)(%s[ {][^\}]+)`
-)
+// matches a block and ignores commented out config, where the block name is passed as the first argument to fmt, e.g.
+// `fmt.Sprintf(hclBlockRegExprFmt, "include")` returns a regexp expression matching the `include` block:
+//
+// ```hcl
+// include {
+//
+// }
+// ```
+const hclBlockRegExprFmt = `(?is)(?:^|^((?:[^/]|/[^*])*)(?:/\*.*?\*/)?((?:[^/]|/[^*])*)\n)(%s[ {][^\}]+)`
 
-var (
-	includeBlockReg = regexp.MustCompile(fmt.Sprintf(hclBlockRegExprFmt, MetadataInclude))
-	catalogBlockReg = regexp.MustCompile(fmt.Sprintf(hclBlockRegExprFmt, MetadataCatalog))
-)
+var catalogBlockReg = regexp.MustCompile(fmt.Sprintf(hclBlockRegExprFmt, MetadataCatalog))
 
 type CatalogConfig struct {
 	URLs []string `hcl:"urls,attr" cty:"urls"`
@@ -89,66 +79,47 @@ func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOption
 	return config.Catalog, nil
 }
 
+var ErrCatalogConfigNotFound = errors.New("catalog configuration not found")
+
 func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (string, string, error) {
-	var (
-		configPath        = filepath.Join(filepath.Dir(opts.TerragruntConfigPath), opts.ScaffoldRootFileName)
-		configName        = opts.ScaffoldRootFileName
-		catalogConfigPath string
-	)
-
-	for {
-		opts = &options.TerragruntOptions{
-			TerragruntConfigPath: filepath.Join(filepath.Dir(configPath), util.UniqueID(), configName),
-			MaxFoldersToCheck:    opts.MaxFoldersToCheck,
-			Logger:               opts.Logger,
-		}
-
-		// This allows to stop the process by pressing Ctrl-C, in case the loop is endless,
-		// it can happen if the functions of the `filepath` package do not work correctly under a certain operating system.
-		select {
-		case <-ctx.Done():
-			return "", "", nil
-		default: // continue
-		}
-
-		newConfigPath, err := FindInParentFolders(NewParsingContext(ctx, opts), []string{configName})
-		if err != nil {
-			var parentFileNotFoundError ParentFileNotFoundError
-			if ok := errors.As(err, &parentFileNotFoundError); ok {
-				break
-			}
-
-			return "", "", err
-		}
-
-		configString, err := util.ReadFileAsString(newConfigPath)
+	if util.FileExists(opts.ScaffoldRootFileName) {
+		configString, err := util.ReadFileAsString(opts.ScaffoldRootFileName)
 		if err != nil {
 			return "", "", err
 		}
 
-		// if the config contains `include` block (root config), read the config as is.
-		if includeBlockReg.MatchString(configString) {
-			return newConfigPath, configString, nil
-		}
-
-		// if the config contains a `catalog` block, save the path in case the root config is not found
 		if catalogBlockReg.MatchString(configString) {
-			catalogConfigPath = newConfigPath
+			return opts.ScaffoldRootFileName, configString, nil
+		}
+	}
+
+	newConfigPath, err := FindInParentFolders(NewParsingContext(ctx, opts), []string{opts.ScaffoldRootFileName})
+	if err != nil {
+		var parentFileNotFoundError ParentFileNotFoundError
+		if ok := errors.As(err, &parentFileNotFoundError); ok {
+			opts.Logger.Error("Failed to find root terragrunt configuration from current working directory")
+			opts.Logger.Error("For more information, read the documentation here: https://terragrunt.gruntwork.io/docs/features/catalog")
+
+			return "", "", ErrCatalogConfigNotFound
 		}
 
-		configPath = filepath.Dir(newConfigPath)
+		return "", "", err
 	}
 
-	// if the config with the `catalog` block is found, create the root config with `include{ find_in_parent_folders() }`
-	// and the path one directory deeper in order for `find_in_parent_folders` can find the catalog configuration.
-	if catalogConfigPath != "" {
-		configString := fmt.Sprintf(rootConfigFmt, configName)
-		configPath = filepath.Join(filepath.Dir(catalogConfigPath), util.UniqueID(), configName)
-
-		return configPath, configString, nil
+	configString, err := util.ReadFileAsString(newConfigPath)
+	if err != nil {
+		return "", "", err
 	}
 
-	return "", "", nil
+	if catalogBlockReg.MatchString(configString) {
+		return newConfigPath, configString, nil
+	}
+
+	opts.Logger.Errorf("No catalog block found in root terragrunt configuration. Check that %s contains a valid catalog block.", newConfigPath)
+	opts.Logger.Error("For more information, read the documentation here: https://terragrunt.gruntwork.io/docs/features/catalog")
+
+	//nolint:gosimple
+	return "", "", ErrCatalogConfigNotFound
 }
 
 func convertToTerragruntCatalogConfig(ctx *ParsingContext, configPath string, terragruntConfigFromFile *terragruntConfigFile) (cfg *TerragruntConfig, err error) {
