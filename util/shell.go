@@ -75,16 +75,16 @@ func GetExitCode(err error) (int, error) {
 
 // ProcessExecutionError - error returned when a command fails, contains StdOut and StdErr
 type ProcessExecutionError struct {
-	Err         error
-	Output      CmdOutput
-	WorkingDir  string
-	Command     string
-	Args        []string
-	SkipSummary bool
+	Err            error
+	Output         CmdOutput
+	WorkingDir     string
+	Command        string
+	Args           []string
+	DisableSummary bool
 }
 
 func (err ProcessExecutionError) Error() string {
-	if err.SkipSummary {
+	if err.DisableSummary {
 		return fmt.Sprintf("Failed to execute \"%s %s\" in %s",
 			err.Command,
 			strings.Join(err.Args, " "),
