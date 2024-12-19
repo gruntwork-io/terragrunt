@@ -151,6 +151,9 @@ const (
 	TerragruntLogCustomFormatFlagName = "terragrunt-log-custom-format"
 	TerragruntLogCustomFormatEnvName  = "TERRAGRUNT_LOG_CUSTOM_FORMAT"
 
+	TerragruntSkippErrorSummaryFlagName = "terragrunt-skip-error-summary"
+	TerragruntSkippErrorSummaryEnvName  = "TERRAGRUNT_SKIP_ERROR_SUMMARY"
+
 	// Strict Mode related flags/envs
 	TerragruntStrictModeFlagName = "strict-mode"
 	TerragruntStrictModeEnvName  = "TERRAGRUNT_STRICT_MODE"
@@ -641,6 +644,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.EngineLogLevel,
 			Usage:       "Terragrunt engine log level.",
 			Hidden:      true,
+		},
+		&cli.BoolFlag{
+			Name:        TerragruntSkippErrorSummaryFlagName,
+			EnvVar:      TerragruntSkippErrorSummaryEnvName,
+			Destination: &opts.SkipErrorSummary,
+			Usage:       "Skip error summary at the end of the command.",
 		},
 	}
 

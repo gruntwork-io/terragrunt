@@ -386,6 +386,12 @@ type TerragruntOptions struct {
 
 	// Errors is a configuration for error handling.
 	Errors *ErrorsConfig
+
+	// SkipErrorSummary is a flag to skip the error summary
+	// provided at the end of Terragrunt execution to
+	// recap all that was emitted in stderr throughout
+	// the run of an orchestrated process.
+	SkipErrorSummary bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -672,6 +678,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		Errors:                cloneErrorsConfig(opts.Errors),
 		ScaffoldNoIncludeRoot: opts.ScaffoldNoIncludeRoot,
 		ScaffoldRootFileName:  opts.ScaffoldRootFileName,
+		SkipErrorSummary:      opts.SkipErrorSummary,
 	}, nil
 }
 
