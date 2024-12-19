@@ -96,8 +96,11 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 	newConfigPath, err := FindInParentFolders(NewParsingContext(ctx, opts), []string{opts.ScaffoldRootFileName})
 	if err != nil {
 		var parentFileNotFoundError ParentFileNotFoundError
-		if ok := errors.As(err, &parentFileNotFoundError); !ok {
-			return "", "", err
+		if ok := errors.As(err, &parentFileNotFoundError); ok {
+			opts.Logger.Error("Failed to find root terragrunt configuration from current working directory")
+			opts.Logger.Error("For more information, read the documentation here: https://terragrunt.gruntwork.io/docs/features/catalog")
+
+			return "", "", ErrCatalogConfigNotFound
 		}
 
 		return "", "", err
