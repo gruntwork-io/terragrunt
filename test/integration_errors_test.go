@@ -57,12 +57,12 @@ func TestRunAllIgnoreError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testRunAllIgnoreErrors)
 	rootPath := util.JoinPath(tmpEnvPath, testRunAllIgnoreErrors)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "Ignoring error example1")
 	assert.NotContains(t, stderr, "Ignoring error example2")
-	assert.Contains(t, stderr, "value-from-app-2")
+	assert.Contains(t, stdout, "value-from-app-2")
 }
 
 func TestRetryError(t *testing.T) {
