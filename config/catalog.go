@@ -14,27 +14,17 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-const (
-	rootConfigFmt = `
-include "root" {
-  path = find_in_parent_folders("%s")
-}
-`
-	// matches a block and ignores commented out config, where the block name is passed as the first argument to fmt, e.g.
-	// `fmt.Sprintf(hclBlockRegExprFmt, "include")` returns a regexp expression matching the `include` block:
-	//
-	// ```hcl
-	// include {
-	//
-	// }
-	// ```
-	hclBlockRegExprFmt = `(?is)(?:^|^((?:[^/]|/[^*])*)(?:/\*.*?\*/)?((?:[^/]|/[^*])*)\n)(%s[ {][^\}]+)`
-)
+// matches a block and ignores commented out config, where the block name is passed as the first argument to fmt, e.g.
+// `fmt.Sprintf(hclBlockRegExprFmt, "include")` returns a regexp expression matching the `include` block:
+//
+// ```hcl
+// include {
+//
+// }
+// ```
+const hclBlockRegExprFmt = `(?is)(?:^|^((?:[^/]|/[^*])*)(?:/\*.*?\*/)?((?:[^/]|/[^*])*)\n)(%s[ {][^\}]+)`
 
-var (
-	includeBlockReg = regexp.MustCompile(fmt.Sprintf(hclBlockRegExprFmt, MetadataInclude))
-	catalogBlockReg = regexp.MustCompile(fmt.Sprintf(hclBlockRegExprFmt, MetadataCatalog))
-)
+var catalogBlockReg = regexp.MustCompile(fmt.Sprintf(hclBlockRegExprFmt, MetadataCatalog))
 
 type CatalogConfig struct {
 	URLs []string `hcl:"urls,attr" cty:"urls"`
