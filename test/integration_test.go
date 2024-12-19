@@ -200,19 +200,22 @@ func TestLogCustomFormatOutput(t *testing.T) {
 
 	testCases := []struct {
 		logCustomFormat    string
-		expectedOutputRegs []*regexp.Regexp
+		expectedStdOutRegs []*regexp.Regexp
+		expectedStdErrRegs []*regexp.Regexp
 	}{
 		{
-			logCustomFormat: "%time %level %prefix %msg",
-			expectedOutputRegs: []*regexp.Regexp{
+			logCustomFormat:    "%time %level %prefix %msg",
+			expectedStdOutRegs: []*regexp.Regexp{},
+			expectedStdErrRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + regexp.QuoteMeta(" Terragrunt Version:")),
 				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + `/dep Module ` + absPathReg + `/dep must wait for 0 dependencies to finish`),
 				regexp.MustCompile(`\d{2}:\d{2}:\d{2}\.\d{3} debug ` + absPathReg + `/app Module ` + absPathReg + `/app must wait for 1 dependencies to finish`),
 			},
 		},
 		{
-			logCustomFormat: "%interval %level(case=upper) %prefix(path=short-relative,prefix='[',suffix='] ')%msg(path=relative)",
-			expectedOutputRegs: []*regexp.Regexp{
+			logCustomFormat:    "%interval %level(case=upper) %prefix(path=short-relative,prefix='[',suffix='] ')%msg(path=relative)",
+			expectedStdOutRegs: []*regexp.Regexp{},
+			expectedStdErrRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG Terragrunt Version:")),
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG [dep] Module ./dep must wait for 0 dependencies to finish")),
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" DEBUG [app] Module ./app must wait for 1 dependencies to finish")),
@@ -220,10 +223,12 @@ func TestLogCustomFormatOutput(t *testing.T) {
 		},
 		{
 			logCustomFormat: "%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tf-path(suffix=' ')%tf-command-args(suffix=': ')%msg(path=relative)",
-			expectedOutputRegs: []*regexp.Regexp{
-				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text DEBUG  Terragrunt Version:")),
+			expectedStdOutRegs: []*regexp.Regexp{
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT dep "+wrappedBinary()+" init -input=false -no-color: Initializing the backend...")),
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT app "+wrappedBinary()+" init -input=false -no-color: Initializing the backend...")),
+			},
+			expectedStdErrRegs: []*regexp.Regexp{
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text DEBUG  Terragrunt Version:")),
 			},
 		},
 	}
@@ -241,10 +246,14 @@ func TestLogCustomFormatOutput(t *testing.T) {
 			rootPath, err := filepath.EvalSymlinks(rootPath)
 			require.NoError(t, err)
 
-			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all init --terragrunt-log-level trace --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-custom-format=%q --terragrunt-working-dir %s", testCase.logCustomFormat, rootPath))
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all init --terragrunt-log-level trace --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-custom-format=%q --terragrunt-working-dir %s", testCase.logCustomFormat, rootPath))
 			require.NoError(t, err)
 
-			for _, reg := range testCase.expectedOutputRegs {
+			for _, reg := range testCase.expectedStdOutRegs {
+				assert.Regexp(t, reg, stdout)
+			}
+
+			for _, reg := range testCase.expectedStdErrRegs {
 				assert.Regexp(t, reg, stderr)
 			}
 		})
@@ -296,12 +305,12 @@ func TestLogWithAbsPath(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level trace --terragrunt-log-show-abs-paths --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-format=pretty --terragrunt-working-dir "+rootPath)
+	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level trace --terragrunt-log-show-abs-paths --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-format=pretty --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
 	for _, prefixName := range []string{"app", "dep"} {
 		prefixName = filepath.Join(rootPath, prefixName)
-		assert.Contains(t, stderr, "STDOUT ["+prefixName+"] "+wrappedBinary()+": Initializing provider plugins...")
+		assert.Contains(t, stdout, "STDOUT ["+prefixName+"] "+wrappedBinary()+": Initializing provider plugins...")
 		assert.Contains(t, stderr, "DEBUG  ["+prefixName+"] Reading Terragrunt config file at "+prefixName+"/terragrunt.hcl")
 	}
 }
@@ -356,11 +365,11 @@ func TestLogFormatPrettyOutput(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, prefixName := range []string{"app", "dep"} {
-		assert.Contains(t, stderr, "STDOUT ["+prefixName+"] "+wrappedBinary()+": Initializing provider plugins...")
+		assert.Contains(t, stdout, "STDOUT ["+prefixName+"] "+wrappedBinary()+": Initializing provider plugins...")
 		assert.Contains(t, stderr, "DEBUG  ["+prefixName+"] Reading Terragrunt config file at ./"+prefixName+"/terragrunt.hcl")
 	}
 
-	assert.Empty(t, stdout)
+	assert.NotEmpty(t, stdout)
 	assert.Contains(t, stderr, "DEBUG  Terragrunt Version:")
 }
 
@@ -371,17 +380,15 @@ func TestLogStdoutLevel(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogStdoutLevel)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogStdoutLevel)
 
-	stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-log-level trace --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-format=pretty  --terragrunt-working-dir "+rootPath)
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-log-level trace --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-format=pretty  --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Empty(t, stdout)
-	assert.Contains(t, stderr, "STDOUT "+wrappedBinary()+": Changes to Outputs")
+	assert.Contains(t, stdout, "STDOUT "+wrappedBinary()+": Changes to Outputs")
 
-	stdout, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt destroy -auto-approve --terragrunt-log-level trace --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-format=pretty  --terragrunt-working-dir "+rootPath)
+	stdout, _, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt destroy -auto-approve --terragrunt-log-level trace --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-format=pretty  --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
-	assert.Empty(t, stdout)
-	assert.Contains(t, stderr, "STDOUT "+wrappedBinary()+": Changes to Outputs")
+	assert.Contains(t, stdout, "STDOUT "+wrappedBinary()+": Changes to Outputs")
 }
 
 func TestLogFormatKeyValueOutput(t *testing.T) {
@@ -395,11 +402,11 @@ func TestLogFormatKeyValueOutput(t *testing.T) {
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
 
-			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init -no-color --terragrunt-log-level trace --terragrunt-non-interactive "+flag+" --terragrunt-working-dir "+rootPath)
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init -no-color --terragrunt-log-level trace --terragrunt-non-interactive "+flag+" --terragrunt-working-dir "+rootPath)
 			require.NoError(t, err)
 
 			for _, prefixName := range []string{"app", "dep"} {
-				assert.Contains(t, stderr, "level=stdout prefix="+prefixName+" tf-path="+wrappedBinary()+" msg=Initializing provider plugins...\n")
+				assert.Contains(t, stdout, "level=stdout prefix="+prefixName+" tf-path="+wrappedBinary()+" msg=Initializing provider plugins...\n")
 				assert.Contains(t, stderr, "level=debug prefix="+prefixName+" msg=Reading Terragrunt config file at ./"+prefixName+"/terragrunt.hcl\n")
 			}
 		})
@@ -418,7 +425,7 @@ func TestLogRawModuleOutput(t *testing.T) {
 
 	stdoutInline := strings.ReplaceAll(stdout, "\n", "")
 	assert.Contains(t, stdoutInline, "Initializing the backend...Initializing provider plugins...")
-	assert.NotRegexp(t, regexp.MustCompile(`(?i)(`+strings.Join(log.AllLevels.Names(), "|")+`)+`), stdoutInline)
+	assert.NotRegexp(t, `(?i)(`+strings.Join(log.AllLevels.Names(), "|")+`)+`, stdoutInline)
 }
 
 func TestTerragruntExcludesFile(t *testing.T) {
