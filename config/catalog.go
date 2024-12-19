@@ -70,7 +70,8 @@ func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOption
 	ctx.ParserOptions = append(ctx.ParserOptions, hclparse.WithHaltOnErrorOnlyForBlocks([]string{MetadataCatalog}))
 	ctx.ConvertToTerragruntConfigFunc = convertToTerragruntCatalogConfig
 
-	// TODO: Resolve lint error
+	opts.Logger.Debugf("Parsing catalog configuration at %s", configPath)
+
 	config, err := ParseConfigString(ctx, configPath, configString, nil) //nolint:contextcheck
 	if err != nil {
 		return nil, err
@@ -82,22 +83,24 @@ func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOption
 var ErrCatalogConfigNotFound = errors.New("catalog configuration not found")
 
 func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (string, string, error) {
-	if util.FileExists(opts.ScaffoldRootFileName) {
-		configString, err := util.ReadFileAsString(opts.ScaffoldRootFileName)
+	if util.FileExists(opts.TerragruntConfigPath) {
+		configString, err := util.ReadFileAsString(opts.TerragruntConfigPath)
 		if err != nil {
 			return "", "", err
 		}
 
 		if catalogBlockReg.MatchString(configString) {
-			return opts.ScaffoldRootFileName, configString, nil
+			return opts.TerragruntConfigPath, configString, nil
 		}
 	}
+
+	opts.Logger.Debugf("Searching for root terragrunt configuration named '%s' from working directory of %s", opts.ScaffoldRootFileName, opts.TerragruntConfigPath)
 
 	newConfigPath, err := FindInParentFolders(NewParsingContext(ctx, opts), []string{opts.ScaffoldRootFileName})
 	if err != nil {
 		var parentFileNotFoundError ParentFileNotFoundError
 		if ok := errors.As(err, &parentFileNotFoundError); ok {
-			opts.Logger.Error("Failed to find root terragrunt configuration from current working directory")
+			opts.Logger.Error("Failed to find root terragrunt configuration from working directory")
 			opts.Logger.Error("For more information, read the documentation here: https://terragrunt.gruntwork.io/docs/features/catalog")
 
 			return "", "", ErrCatalogConfigNotFound
