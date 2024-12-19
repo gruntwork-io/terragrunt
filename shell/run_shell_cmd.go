@@ -215,11 +215,11 @@ func RunShellCommandWithOutput(
 
 		if err := cmd.Start(); err != nil { //nolint:contextcheck
 			err = util.ProcessExecutionError{
-				Err:         err,
-				Args:        args,
-				Command:     command,
-				WorkingDir:  cmd.Dir,
-				SkipSummary: opts.SkipErrorSummary,
+				Err:            err,
+				Args:           args,
+				Command:        command,
+				WorkingDir:     cmd.Dir,
+				DisableSummary: opts.LogDisableErrorSummary,
 			}
 
 			return errors.New(err)
@@ -230,12 +230,12 @@ func RunShellCommandWithOutput(
 
 		if err := cmd.Wait(); err != nil {
 			err = util.ProcessExecutionError{
-				Err:         err,
-				Args:        args,
-				Command:     command,
-				Output:      output,
-				WorkingDir:  cmd.Dir,
-				SkipSummary: opts.SkipErrorSummary,
+				Err:            err,
+				Args:           args,
+				Command:        command,
+				Output:         output,
+				WorkingDir:     cmd.Dir,
+				DisableSummary: opts.LogDisableErrorSummary,
 			}
 
 			return errors.New(err)

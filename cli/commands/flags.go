@@ -151,8 +151,8 @@ const (
 	TerragruntLogCustomFormatFlagName = "terragrunt-log-custom-format"
 	TerragruntLogCustomFormatEnvName  = "TERRAGRUNT_LOG_CUSTOM_FORMAT"
 
-	TerragruntSkippErrorSummaryFlagName = "terragrunt-skip-error-summary"
-	TerragruntSkippErrorSummaryEnvName  = "TERRAGRUNT_SKIP_ERROR_SUMMARY"
+	TerragruntLogDisableErrorSummaryFlagName = "terragrunt-log-disable-error-summary"
+	TerragruntLogDisableErrorSummaryEnvName  = "TERRAGRUNT_LOG_DISABLE_ERROR_SUMMARY"
 
 	// Strict Mode related flags/envs
 	TerragruntStrictModeFlagName = "strict-mode"
@@ -646,9 +646,9 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Hidden:      true,
 		},
 		&cli.BoolFlag{
-			Name:        TerragruntSkippErrorSummaryFlagName,
-			EnvVar:      TerragruntSkippErrorSummaryEnvName,
-			Destination: &opts.SkipErrorSummary,
+			Name:        TerragruntLogDisableErrorSummaryFlagName,
+			EnvVar:      TerragruntLogDisableErrorSummaryEnvName,
+			Destination: &opts.LogDisableErrorSummary,
 			Usage:       "Skip error summary at the end of the command.",
 		},
 	}
