@@ -7,10 +7,26 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-func Run(ctx context.Context, opts *options.TerragruntOptions, command string) error {
-	if command == "" {
-		return errors.New("No terraform command specified")
+const (
+	generate = "generate"
+)
+
+func Run(ctx context.Context, opts *options.TerragruntOptions, subCommand string) error {
+	if subCommand == "" {
+		return errors.New("No subCommand specified")
 	}
+
+	switch subCommand {
+	case generate:
+		{
+			return generateStack(ctx, opts)
+		}
+	}
+
+	return nil
+}
+
+func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 
 	return nil
 }
