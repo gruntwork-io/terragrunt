@@ -9,8 +9,8 @@ import (
 
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	if opts.TerraformCommand == "" {
-		return errors.New(MissingCommand{})
+		return errors.New("No terraform command specified")
 	}
 
-	return runTerraform(ctx, opts, new(Target))
+	return Run(ctx, opts)
 }
