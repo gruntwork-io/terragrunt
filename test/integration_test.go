@@ -99,6 +99,7 @@ const (
 	testFixtureBufferModuleOutput             = "fixtures/buffer-module-output"
 	testFixtureDependenciesOptimisation       = "fixtures/dependency-optimisation"
 	testFixtureDetailedExitCode               = "fixtures/detailed-exitcode"
+	testFixtureExecCmd                        = "fixtures/exec-cmd"
 
 	terraformFolder = ".terraform"
 
@@ -107,6 +108,50 @@ const (
 	terraformStateBackup = "terraform.tfstate.backup"
 	terragruntCache      = ".terragrunt-cache"
 )
+
+func TestExecCommand(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureExecCmd)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExecCmd)
+
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureExecCmd, "app")
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	downloadDirPath := util.JoinPath(rootPath, ".terragrunt-cache")
+	scriptPath := util.JoinPath(tmpEnvPath, testFixtureExecCmd, "./script.sh")
+
+	err = os.Mkdir(downloadDirPath, os.ModePerm)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		args           []string
+		scriptPath     string
+		expectedOutput string
+	}{
+		{
+			nil,
+			scriptPath,
+			"The script is running in the directory " + rootPath + ".",
+		},
+		{
+			[]string{"--in-download-dir"},
+			scriptPath,
+			"The script is running in the directory " + downloadDirPath + ".",
+		},
+	}
+
+	for i, tt := range testCases {
+		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
+			t.Parallel()
+
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt exec --terragrunt-working-dir "+rootPath+" "+strings.Join(tt.args, " ")+" -- "+tt.scriptPath)
+			require.NoError(t, err)
+			assert.Contains(t, stdout, tt.expectedOutput)
+		})
+	}
+}
 
 func TestDetailedExitCodeError(t *testing.T) {
 	t.Parallel()

@@ -9,27 +9,37 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 func Run(ctx context.Context, opts *options.TerragruntOptions, cmdOpts *Options, args cli.Args) error {
 	if len(args) == 0 {
-		return errors.New("exec command not specified")
+		return errors.New("target command not specified")
 	}
 
-	target := terraform.NewTarget(terraform.TargetPointInitCommand, runTargetCommand(args))
+	target := terraform.NewTarget(terraform.TargetPointInitCommand, runTargetCommand(cmdOpts, args))
 
 	opts.AutoInit = false
 
 	return terraform.RunWithTarget(ctx, opts, target)
 }
 
-func runTargetCommand(args cli.Args) terraform.TargetCallbackType {
+func runTargetCommand(cmdOpts *Options, args cli.Args) terraform.TargetCallbackType {
 	return func(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
-		command := args.CommandName()
-		args := args.Tail()
+		var (
+			command = args.CommandName()
+			args    = args.Tail()
+			dir     = opts.WorkingDir
+		)
+
+		if cmdOpts.InDownloadDir && util.FileExists(opts.DownloadDir) {
+			dir = opts.DownloadDir
+		}
 
 		return terraform.RunActionWithHooks(ctx, command, opts, cfg, func(ctx context.Context) error {
-			return shell.RunShellCommand(ctx, opts, command, args...)
+			_, err := shell.RunShellCommandWithOutput(ctx, opts, dir, false, false, command, args...)
+
+			return err
 		})
 	}
 }
