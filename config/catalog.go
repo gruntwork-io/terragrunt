@@ -82,6 +82,17 @@ func ReadCatalogConfig(parentCtx context.Context, opts *options.TerragruntOption
 var ErrCatalogConfigNotFound = errors.New("catalog configuration not found")
 
 func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (string, string, error) {
+	if util.FileExists(opts.ScaffoldRootFileName) {
+		configString, err := util.ReadFileAsString(opts.ScaffoldRootFileName)
+		if err != nil {
+			return "", "", err
+		}
+
+		if catalogBlockReg.MatchString(configString) {
+			return opts.ScaffoldRootFileName, configString, nil
+		}
+	}
+
 	newConfigPath, err := FindInParentFolders(NewParsingContext(ctx, opts), []string{opts.ScaffoldRootFileName})
 	if err != nil {
 		var parentFileNotFoundError ParentFileNotFoundError
