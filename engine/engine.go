@@ -551,7 +551,7 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 
 // invoke engine for working directory
 func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.EngineClient) (*util.CmdOutput, error) {
-	terragruntOptions := runOptions.TerragruntOptions
+	opts := runOptions.TerragruntOptions
 
 	meta, err := ConvertMetaToProtobuf(runOptions.TerragruntOptions.Engine.Meta)
 	if err != nil {
@@ -607,15 +607,16 @@ func invoke(ctx context.Context, runOptions *ExecutionOptions, client *proto.Eng
 		return nil, errors.New(err)
 	}
 
-	terragruntOptions.Logger.Debugf("Engine execution done in %v", terragruntOptions.WorkingDir)
+	opts.Logger.Debugf("Engine execution done in %v", opts.WorkingDir)
 
 	if resultCode != 0 {
 		err = util.ProcessExecutionError{
-			Err:        errors.Errorf("command failed with exit code %d", resultCode),
-			Output:     output,
-			WorkingDir: terragruntOptions.WorkingDir,
-			Command:    runOptions.Command,
-			Args:       runOptions.Args,
+			Err:            errors.Errorf("command failed with exit code %d", resultCode),
+			Output:         output,
+			WorkingDir:     opts.WorkingDir,
+			Command:        runOptions.Command,
+			Args:           runOptions.Args,
+			DisableSummary: opts.LogDisableErrorSummary,
 		}
 
 		return nil, errors.New(err)
