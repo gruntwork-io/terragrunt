@@ -32,6 +32,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [scaffold](#scaffold)
   - [catalog](#catalog)
   - [graph](#graph)
+  - [exec](#exec)
 - [CLI options](#cli-options)
   - [auth-provider-cmd](#auth-provider-cmd)
   - [config](#config)
@@ -101,6 +102,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [experiment-mode](#experiment-mode)
   - [strict-control](#strict-control)
   - [strict-mode](#strict-mode)
+  - [in-download-dir](#in-download-dir)
 
 ## CLI commands
 
@@ -124,6 +126,7 @@ Terragrunt supports the following CLI commands:
 - [scaffold](#scaffold)
 - [catalog](#catalog)
 - [graph](#graph)
+- [exec](#exec)
 
 ### All OpenTofu/Terraform built-in commands
 
@@ -743,6 +746,10 @@ Notes:
 
 - destroy will be executed only on subset of services dependent from `eks-service-3`
 
+### exec
+
+Execute a command using Terragrunt.
+
 ## CLI options
 
 The currently available options are:
@@ -834,6 +841,7 @@ The currently available options are:
   - [experiment-mode](#experiment-mode)
   - [strict-control](#strict-control)
   - [strict-mode](#strict-mode)
+  - [in-download-dir](#in-download-dir)
 
 ### config
 
@@ -1936,3 +1944,13 @@ For more information, see the [Strict Mode](/docs/reference/strict-mode) documen
 Enable all strict controls that opt-in future breaking changes in Terragrunt.
 
 For more information, see the [Strict Mode](/docs/reference/strict-mode) documentation.
+
+### in-download-dir
+
+**CLI Arg**: `--in-download-dir`<br/>
+**Environment Variable**: `TG_IN_DOWNLOAD_DIR`<br/>
+**Commands**:
+
+- [exec](#exec)
+
+Run the provided command in the download directory.
