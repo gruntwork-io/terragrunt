@@ -11,7 +11,7 @@ import (
 type Unit struct {
 	Name   string `cty:"name"    hcl:",label"`
 	Source string `hcl:"source,attr" cty:"source"`
-	Path   string `hcl:"source,attr" cty:"source"`
+	Path   string `hcl:"path,attr" cty:"path"`
 }
 
 // ToCtyValue converts StackConfigFile to cty.Value

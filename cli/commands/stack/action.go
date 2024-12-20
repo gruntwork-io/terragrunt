@@ -41,19 +41,20 @@ func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 		return err
 	}
 
-	if err := processStackFile(ctx, stackFile); err != nil {
+	if err := processStackFile(ctx, opts, stackFile); err != nil {
 		return err
 	}
 
 	return nil
 }
-func processStackFile(ctx context.Context, stackFile *config.StackConfigFile) error {
-	if err := os.MkdirAll(stackCacheDir, 0755); err != nil {
+func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stackFile *config.StackConfigFile) error {
+	baseDir := filepath.Join(opts.WorkingDir, stackCacheDir)
+	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		return errors.New(fmt.Errorf("failed to create base directory: %w", err))
 	}
 
 	for _, unit := range stackFile.Units {
-		destPath := filepath.Join(stackCacheDir, unit.Path)
+		destPath := filepath.Join(baseDir, unit.Path)
 
 		if err := os.MkdirAll(destPath, 0755); err != nil {
 			return errors.New(fmt.Errorf("failed to create destination directory '%s': %w", destPath, err))

@@ -27,7 +27,7 @@ func ReadStackConfigFile(ctx context.Context, terragruntOptions *options.Terragr
 	evalParsingContext, err := createTerragruntEvalContext(parseCtx, file.ConfigPath)
 
 	config := &StackConfigFile{}
-	if err := file.Decode(&config, evalParsingContext); err != nil {
+	if err := file.Decode(config, evalParsingContext); err != nil {
 		return nil, err
 	}
 
