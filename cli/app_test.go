@@ -540,7 +540,7 @@ func TestAutocomplete(t *testing.T) { //nolint:paralleltest
 		},
 		{
 			"render-json -",
-			[]string{"--json-out", "--with-metadata"},
+			[]string{"--out", "--with-metadata"},
 		},
 		{
 			"run-all ren",
