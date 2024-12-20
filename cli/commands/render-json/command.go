@@ -14,8 +14,8 @@ const (
 	WithMetadataFlagName            = "with-metadata"
 	DisableDependentModulesFlagName = "disable-dependent-modules"
 
-	TerragruntJSONOutFlagName                 = flags.DeprecatedFlagNamePrefix + "-json-out"
-	TerragruntDisableDependentModulesFlagName = flags.DeprecatedFlagNamePrefix + "-json-disable-dependent-modules"
+	TerragruntJSONOutFlagName                 = flags.DeprecatedFlagNamePrefix + "json-out"
+	TerragruntDisableDependentModulesFlagName = flags.DeprecatedFlagNamePrefix + "json-disable-dependent-modules"
 )
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
