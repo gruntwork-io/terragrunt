@@ -12,8 +12,6 @@ import (
 )
 
 const (
-	EnvVarPrefix = "TG_"
-
 	DeprecatedEnvVarPrefix   = "TERRAGRUNT_"
 	DeprecatedFlagNamePrefix = "terragrunt-"
 )

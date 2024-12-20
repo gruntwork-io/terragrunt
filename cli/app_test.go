@@ -175,7 +175,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 			argMissingValueError(flags.ConfigFlagName),
 		},
 		{
-			[]string{doubleDashed(flags.DebugFlagName)},
+			[]string{doubleDashed(flags.DebugInputsFlagName)},
 			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, defaultLogLevel, true),
 			nil,
 		},
@@ -302,7 +302,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		{[]string{"foo", "--bar"}, []string{"foo", "-bar"}},
 		{[]string{"foo", doubleDashed(flags.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath}, []string{"foo"}},
 		{[]string{"foo", doubleDashed(flags.NonInteractiveFlagName)}, []string{"foo"}},
-		{[]string{"foo", doubleDashed(flags.DebugFlagName)}, []string{"foo"}},
+		{[]string{"foo", doubleDashed(flags.DebugInputsFlagName)}, []string{"foo"}},
 		{[]string{"foo", doubleDashed(flags.NonInteractiveFlagName), "-bar", doubleDashed(flags.WorkingDirFlagName), "/some/path", "--baz", doubleDashed(flags.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath}, []string{"foo", "-bar", "-baz"}},
 		{[]string{cli.CommandNameApplyAll, "foo", "bar"}, []string{terraform.CommandNameApply, "foo", "bar"}},
 		{[]string{cli.CommandNameDestroyAll, "foo", "-foo", "--bar"}, []string{terraform.CommandNameDestroy, "foo", "-foo", "-bar"}},
@@ -321,7 +321,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 func TestParseMultiStringArg(t *testing.T) {
 	t.Parallel()
 
-	flagName := doubleDashed(flags.ModulesThatIncludeFlagName)
+	flagName := doubleDashed(flags.UnitsThatIncludeFlagName)
 
 	testCases := []struct {
 		args         []string
@@ -332,7 +332,7 @@ func TestParseMultiStringArg(t *testing.T) {
 		{[]string{cli.CommandNameApplyAll, flagName, "bar"}, []string{"default_bar"}, []string{"bar"}, nil},
 		{[]string{cli.CommandNameApplyAll, "--test", "bar"}, []string{"default_bar"}, []string{"default_bar"}, nil},
 		{[]string{cli.CommandNamePlanAll, "--test", flagName, "bar1", flagName, "bar2"}, []string{"default_bar"}, []string{"bar1", "bar2"}, nil},
-		{[]string{cli.CommandNamePlanAll, "--test", "value", flagName, "bar1", flagName}, []string{"default_bar"}, nil, argMissingValueError(flags.ModulesThatIncludeFlagName)},
+		{[]string{cli.CommandNamePlanAll, "--test", "value", flagName, "bar1", flagName}, []string{"default_bar"}, nil, argMissingValueError(flags.UnitsThatIncludeFlagName)},
 	}
 
 	for _, testCase := range testCases {

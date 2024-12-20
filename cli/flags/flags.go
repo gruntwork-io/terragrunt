@@ -16,6 +16,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
+const EnvVarPrefix = "TG_"
+
 const (
 	ConfigFlagName                         = "config"
 	NoAutoInitFlagName                     = "no-auto-init"
@@ -33,12 +35,8 @@ const (
 	DependencyFetchOutputFromStateFlagName = "dependency-fetch-output-from-state"
 	UsePartialParseConfigCacheFlagName     = "use-partial-parse-config-cache"
 
-	BackendRequireBootstrapFlagName             = "backend-require-bootstrap"
-	TerragruntFailOnStateBucketCreationFlagName = DeprecatedFlagNamePrefix + "fail-on-state-bucket-creation" // `backend-require-bootstrap`
-
-	DisableBucketUpdateFlagName = "disable-bucket-update"
-	//DisableBucketUpdateFlagName           = "bootstrap-backend"
-	//TerragruntDisableBucketUpdateFlagName = DeprecatedFlagNamePrefix + "disable-bucket-update" // `bootstrap-backend`
+	BackendRequireBootstrapFlagName = "backend-require-bootstrap"
+	DisableBucketUpdateFlagName     = "disable-bucket-update"
 
 	DisableCommandValidationFlagName   = "disable-command-validation"
 	AuthProviderCmdFlagName            = "auth-provider-cmd"
@@ -98,6 +96,7 @@ const (
 	VersionFlagName = "version"
 
 	// Renamed flags.
+	TerragruntFailOnStateBucketCreationFlagName      = DeprecatedFlagNamePrefix + "fail-on-state-bucket-creation"      // `backend-require-bootstrap`
 	TerragruntModulesThatIncludeFlagName             = DeprecatedFlagNamePrefix + "modules-that-include"               // `units-that-include`
 	TerragruntForwardTFStdoutFlagName                = DeprecatedFlagNamePrefix + "forward-tf-stdout"                  // `tf-forward-stdout`.
 	TerragruntTFPathFlagName                         = DeprecatedFlagNamePrefix + "tfpath"                             // `tf-path`.
