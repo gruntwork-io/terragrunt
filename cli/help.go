@@ -21,27 +21,50 @@ VERSION: {{.App.Version}}{{if len .App.Authors}}{{end}}
 AUTHOR: {{range .App.Authors}}{{.}}{{end}} {{end}}
 `
 
-const CommandHelpTemplate = `NAME:
-   {{$v := offset .Command.HelpName 6}}{{wrap .Command.HelpName 3}}{{if .Usage}} - {{wrap .Command.Usage $v}}{{end}}
+const CommandHelpTemplate = `Usage: {{if .Command.UsageText}}{{wrap .Command.UsageText 3}}{{else}}{{.App.Name}} {{.Command.HelpName}}{{if .Command.VisibleSubcommands}} <command>{{end}}{{if .Command.VisibleFlags}} [options]{{end}}{{end}}{{if .Command.Usage}}
 
-USAGE:
-   {{if .Command.UsageText}}{{wrap .Command.UsageText 3}}{{else}}terragrunt {{.Command.HelpName}}{{if .Command.VisibleSubcommands}} <command>{{end}}{{if .Command.VisibleFlags}} [options]{{end}}{{end}}{{if .Description}}
+   {{.Command.Usage}}{{end}}{{if .Description}}
 
-DESCRIPTION:
-   {{wrap .Command.Description 3}}{{end}}{{if .Command.VisibleSubcommands}}
+Description:
+   {{wrap .Command.Description 3}}{{end}}{{if .Command.Examples}}
 
-COMMANDS:{{ $cv := offsetCommands .Command.VisibleSubcommands 5}}{{range .Command.VisibleSubcommands}}
+Examples:
+   {{$s := join .Command.Examples "\n\n"}}{{wrap $s 3}}{{end}}{{if .Command.VisibleSubcommands}}
+
+Subcommands:{{ $cv := offsetCommands .Command.VisibleSubcommands 5}}{{range .Command.VisibleSubcommands}}
    {{$s := .HelpName}}{{$s}}{{ $sp := subtract $cv (offset $s 3) }}{{ indent $sp ""}} {{wrap .Usage $cv}}{{end}}{{end}}{{if .Command.VisibleFlags}}
 
-OPTIONS:
+Options:
    {{range $index, $option := .Command.VisibleFlags}}{{if $index}}
    {{end}}{{wrap $option.String 6}}{{end}}{{end}}{{if .App.VisibleFlags}}
 
-GLOBAL OPTIONS:
+Global Options:
    {{range $index, $option := .App.VisibleFlags}}{{if $index}}
    {{end}}{{wrap $option.String 6}}{{end}}{{end}}
 
 `
 
-const AppVersionTemplate = `terragrunt version {{.App.Version}}
+// const CommandHelpTemplate = `NAME:
+//    {{$v := offset .Command.HelpName 6}}{{wrap .Command.HelpName 3}}{{if .Usage}} - {{wrap .Command.Usage $v}}{{end}}
+
+// USAGE:
+//    {{if .Command.UsageText}}{{wrap .Command.UsageText 3}}{{else}}terragrunt {{.Command.HelpName}}{{if .Command.VisibleSubcommands}} <command>{{end}}{{if .Command.VisibleFlags}} [options]{{end}}{{end}}{{if .Description}}
+
+// DESCRIPTION:
+//    {{wrap .Command.Description 3}}{{end}}{{if .Command.VisibleSubcommands}}
+
+// COMMANDS:{{ $cv := offsetCommands .Command.VisibleSubcommands 5}}{{range .Command.VisibleSubcommands}}
+//    {{$s := .HelpName}}{{$s}}{{ $sp := subtract $cv (offset $s 3) }}{{ indent $sp ""}} {{wrap .Usage $cv}}{{end}}{{end}}{{if .Command.VisibleFlags}}
+
+// OPTIONS:
+//    {{range $index, $option := .Command.VisibleFlags}}{{if $index}}
+//    {{end}}{{wrap $option.String 6}}{{end}}{{end}}{{if .App.VisibleFlags}}
+
+// GLOBAL OPTIONS:
+//    {{range $index, $option := .App.VisibleFlags}}{{if $index}}
+//    {{end}}{{wrap $option.String 6}}{{end}}{{end}}
+
+// `
+
+const AppVersionTemplate = `{{.App.Name}} version {{.App.Version}}
 `

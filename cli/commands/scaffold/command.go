@@ -2,31 +2,34 @@
 package scaffold
 
 import (
-	"github.com/gruntwork-io/terragrunt/cli/commands"
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
 
 const (
 	CommandName = "scaffold"
-	Var         = "var"
-	VarFile     = "var-file"
+
+	VarFlagName     = "var"
+	VarFileFlagName = "var-file"
 )
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
 		&cli.SliceFlag[string]{
-			Name:        Var,
+			Name:        VarFlagName,
+			EnvVars:     flags.EnvVars(VarFlagName),
 			Destination: &opts.ScaffoldVars,
 			Usage:       "Variables for usage in scaffolding.",
 		},
 		&cli.SliceFlag[string]{
-			Name:        VarFile,
+			Name:        VarFileFlagName,
+			EnvVars:     flags.EnvVars(VarFileFlagName),
 			Destination: &opts.ScaffoldVarFiles,
 			Usage:       "Files with variables to be used in unit scaffolding.",
 		},
-		commands.NewNoIncludeRootFlag(opts),
-		commands.NewRootFileNameFlag(opts),
+		flags.NewNoIncludeRootFlag(opts),
+		flags.NewRootFileNameFlag(opts),
 	}
 }
 
@@ -48,7 +51,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			}
 
 			if opts.ScaffoldRootFileName == "" {
-				opts.ScaffoldRootFileName = commands.GetDefaultRootFileName(opts)
+				opts.ScaffoldRootFileName = flags.GetDefaultRootFileName(opts)
 			}
 
 			return Run(ctx, opts.OptionsFromContext(ctx), moduleURL, templateURL)

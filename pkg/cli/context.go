@@ -9,30 +9,39 @@ type Context struct {
 	context.Context
 	*App
 	Command       *Command
+	parent        *Context
 	args          Args
 	shellComplete bool
 }
 
-func NewContext(parentCtx context.Context, app *App) *Context {
+func NewAppContext(ctx context.Context, app *App, args Args) *Context {
 	return &Context{
-		Context: parentCtx,
+		Context: ctx,
 		App:     app,
+		args:    args,
 	}
 }
 
-func (ctx *Context) Clone(command *Command, args Args) *Context {
+func (ctx *Context) NewCommandContext(command *Command, args Args) *Context {
 	return &Context{
 		Context:       ctx.Context,
 		App:           ctx.App,
-		shellComplete: ctx.shellComplete,
 		Command:       command,
+		parent:        ctx,
 		args:          args,
+		shellComplete: ctx.shellComplete,
 	}
 }
 
-func (ctx Context) WithValue(key, val any) *Context {
-	ctx.Context = context.WithValue(ctx.Context, key, val)
-	return &ctx
+func (ctx *Context) Parent() *Context {
+	return ctx.parent
+}
+
+func (ctx *Context) WithValue(key, val any) *Context {
+	newCtx := *ctx
+	newCtx.Context = context.WithValue(newCtx.Context, key, val)
+
+	return &newCtx
 }
 
 func (ctx *Context) Value(key any) any {

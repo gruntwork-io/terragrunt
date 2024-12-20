@@ -23,28 +23,28 @@ func TestGenericFlagStringApply(t *testing.T) {
 		expectedErr   error
 	}{
 		{
-			cli.GenericFlag[string]{Name: "foo", EnvVar: "FOO"},
+			cli.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
 			[]string{"--foo", "arg-value"},
 			map[string]string{"FOO": "env-value"},
 			"arg-value",
 			nil,
 		},
 		{
-			cli.GenericFlag[string]{Name: "foo", EnvVar: "FOO"},
+			cli.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
 			nil,
 			map[string]string{"FOO": "env-value"},
 			"env-value",
 			nil,
 		},
 		{
-			cli.GenericFlag[string]{Name: "foo", EnvVar: "FOO"},
+			cli.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
 			nil,
 			nil,
 			"",
 			nil,
 		},
 		{
-			cli.GenericFlag[string]{Name: "foo", EnvVar: "FOO", Destination: mockDestValue("default-value")},
+			cli.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue("default-value")},
 			[]string{"--foo", "arg-value"},
 			map[string]string{"FOO": "env-value"},
 			"arg-value",
@@ -58,7 +58,7 @@ func TestGenericFlagStringApply(t *testing.T) {
 			nil,
 		},
 		{
-			cli.GenericFlag[string]{Name: "foo", EnvVar: "FOO"},
+			cli.GenericFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
 			[]string{"--foo", "arg-value1", "--foo", "arg-value2"},
 			nil,
 			"",
@@ -88,21 +88,21 @@ func TestGenericFlagIntApply(t *testing.T) {
 		expectedErr   error
 	}{
 		{
-			cli.GenericFlag[int]{Name: "foo", EnvVar: "FOO"},
+			cli.GenericFlag[int]{Name: "foo", EnvVars: []string{"FOO"}},
 			[]string{"--foo", "10"},
 			map[string]string{"FOO": "20"},
 			10,
 			nil,
 		},
 		{
-			cli.GenericFlag[int]{Name: "foo", EnvVar: "FOO"},
+			cli.GenericFlag[int]{Name: "foo", EnvVars: []string{"FOO"}},
 			[]string{},
 			map[string]string{"FOO": "20"},
 			20,
 			nil,
 		},
 		{
-			cli.GenericFlag[int]{Name: "foo", EnvVar: "FOO"},
+			cli.GenericFlag[int]{Name: "foo", EnvVars: []string{"FOO"}},
 			[]string{},
 			map[string]string{"FOO": "monkey"},
 			0,
@@ -139,21 +139,21 @@ func TestGenericFlagInt64Apply(t *testing.T) {
 		expectedErr   error
 	}{
 		{
-			cli.GenericFlag[int64]{Name: "foo", EnvVar: "FOO"},
+			cli.GenericFlag[int64]{Name: "foo", EnvVars: []string{"FOO"}},
 			[]string{"--foo", "10"},
 			map[string]string{"FOO": "20"},
 			10,
 			nil,
 		},
 		{
-			cli.GenericFlag[int64]{Name: "foo", EnvVar: "FOO"},
+			cli.GenericFlag[int64]{Name: "foo", EnvVars: []string{"FOO"}},
 			[]string{},
 			map[string]string{"FOO": "20"},
 			20,
 			nil,
 		},
 		{
-			cli.GenericFlag[int64]{Name: "foo", EnvVar: "FOO"},
+			cli.GenericFlag[int64]{Name: "foo", EnvVars: []string{"FOO"}},
 			[]string{},
 			map[string]string{"FOO": "monkey"},
 			0,

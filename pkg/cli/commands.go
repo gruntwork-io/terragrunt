@@ -87,10 +87,10 @@ func (commands Commands) Swap(i, j int) {
 }
 
 func (commands Commands) WrapAction(fn func(ctx *Context, action ActionFunc) error) Commands {
-	var wrapped Commands
+	wrapped := make(Commands, len(commands))
 
-	for _, cmd := range commands {
-		wrapped.Add(cmd.WrapAction(fn))
+	for i := range commands {
+		wrapped[i] = commands[i].WrapAction(fn)
 	}
 
 	return wrapped

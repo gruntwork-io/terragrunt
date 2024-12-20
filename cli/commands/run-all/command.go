@@ -5,8 +5,6 @@ import (
 	"context"
 	"sort"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands"
-
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
@@ -14,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -29,24 +28,24 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Description: "The command will recursively find terragrunt modules in the current directory tree and run the terraform command in dependency order (unless the command is destroy, in which case the command is run in reverse dependency order).",
 		Subcommands: subCommands(opts).SkipRunning(),
 		Action:      action(opts),
-		Flags:       NewFlags(opts).Sort(),
+		Flags:       append(flags.NewCommonFlags(opts).Sort(), NewFlags(opts)...).Sort(),
 	}
 }
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
-		&cli.GenericFlag[string]{
-			Name:        commands.TerragruntOutDirFlagName,
-			EnvVar:      commands.TerragruntOutDirFlagEnvName,
+		flags.GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
+			Name:        flags.OutDirFlagName,
+			EnvVars:     flags.EnvVars(flags.OutDirFlagName),
 			Destination: &opts.OutputFolder,
 			Usage:       "Directory to store plan files.",
-		},
-		&cli.GenericFlag[string]{
-			Name:        commands.TerragruntJSONOutDirFlagName,
-			EnvVar:      commands.TerragruntJSONOutDirFlagEnvName,
+		}),
+		flags.GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
+			Name:        flags.JSONOutDirFlagName,
+			EnvVars:     flags.EnvVars(flags.JSONOutDirFlagName),
 			Destination: &opts.JSONOutputFolder,
 			Usage:       "Directory to store json plan files.",
-		},
+		}),
 	}
 }
 

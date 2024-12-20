@@ -23,28 +23,28 @@ func TestSliceFlagStringApply(t *testing.T) {
 		expectedErr   error
 	}{
 		{
-			cli.SliceFlag[string]{Name: "foo", EnvVar: "FOO"},
+			cli.SliceFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
 			[]string{"--foo", "arg-value1", "--foo", "arg-value2"},
 			map[string]string{"FOO": "env-value"},
 			[]string{"arg-value1", "arg-value2"},
 			nil,
 		},
 		{
-			cli.SliceFlag[string]{Name: "foo", EnvVar: "FOO"},
+			cli.SliceFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
 			nil,
 			map[string]string{"FOO": "env-value1,env-value2"},
 			[]string{"env-value1", "env-value2"},
 			nil,
 		},
 		{
-			cli.SliceFlag[string]{Name: "foo", EnvVar: "FOO"},
+			cli.SliceFlag[string]{Name: "foo", EnvVars: []string{"FOO"}},
 			nil,
 			nil,
 			nil,
 			nil,
 		},
 		{
-			cli.SliceFlag[string]{Name: "foo", EnvVar: "FOO", Destination: mockDestValue([]string{"default-value1", "default-value2"})},
+			cli.SliceFlag[string]{Name: "foo", EnvVars: []string{"FOO"}, Destination: mockDestValue([]string{"default-value1", "default-value2"})},
 			[]string{"--foo", "arg-value1", "--foo", "arg-value2"},
 			map[string]string{"FOO": "env-value1,env-value2"},
 			[]string{"arg-value1", "arg-value2"},
@@ -81,14 +81,14 @@ func TestSliceFlagIntApply(t *testing.T) {
 		expectedErr   error
 	}{
 		{
-			cli.SliceFlag[int]{Name: "foo", EnvVar: "FOO"},
+			cli.SliceFlag[int]{Name: "foo", EnvVars: []string{"FOO"}},
 			[]string{"--foo", "10", "--foo", "11"},
 			map[string]string{"FOO": "20,21"},
 			[]int{10, 11},
 			nil,
 		},
 		{
-			cli.SliceFlag[int]{Name: "foo", EnvVar: "FOO"},
+			cli.SliceFlag[int]{Name: "foo", EnvVars: []string{"FOO"}},
 			[]string{},
 			map[string]string{"FOO": "20,21"},
 			[]int{20, 21},
@@ -125,14 +125,14 @@ func TestSliceFlagInt64Apply(t *testing.T) {
 		expectedErr   error
 	}{
 		{
-			cli.SliceFlag[int64]{Name: "foo", EnvVar: "FOO"},
+			cli.SliceFlag[int64]{Name: "foo", EnvVars: []string{"FOO"}},
 			[]string{"--foo", "10", "--foo", "11"},
 			map[string]string{"FOO": "20,21"},
 			[]int64{10, 11},
 			nil,
 		},
 		{
-			cli.SliceFlag[int64]{Name: "foo", EnvVar: "FOO"},
+			cli.SliceFlag[int64]{Name: "foo", EnvVars: []string{"FOO"}},
 			[]string{},
 			map[string]string{"FOO": "20,21"},
 			[]int64{20, 21},

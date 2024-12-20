@@ -3,7 +3,6 @@ package shell_test
 import (
 	"bytes"
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
@@ -42,7 +41,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	cmd := shell.RunShellCommand(context.Background(), terragruntOptions, "terraform", "--version")
 	require.NoError(t, cmd)
 
-	assert.True(t, strings.Contains(stdout.String(), "Terraform"), "Output directed to stdout")
+	assert.Contains(t, stdout.String(), "Terraform", "Output directed to stdout")
 	assert.Empty(t, stderr.String(), "No output to stderr")
 
 	stdout = new(bytes.Buffer)
@@ -55,7 +54,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	cmd = shell.RunShellCommand(context.Background(), terragruntOptions, "terraform", "--version")
 	require.NoError(t, cmd)
 
-	assert.True(t, strings.Contains(stderr.String(), "Terraform"), "Output directed to stderr")
+	assert.Contains(t, stderr.String(), "Terraform", "Output directed to stderr")
 	assert.Empty(t, stdout.String(), "No output to stdout")
 }
 

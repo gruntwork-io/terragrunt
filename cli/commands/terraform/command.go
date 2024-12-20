@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
@@ -12,8 +13,7 @@ import (
 )
 
 const (
-	CommandName     = ""
-	CommandHelpName = "*"
+	CommandName = "run"
 )
 
 var (
@@ -22,10 +22,10 @@ var (
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
-		Name:     CommandName,
-		HelpName: CommandHelpName,
-		Usage:    "Terragrunt forwards all other commands directly to Terraform",
-		Action:   Action(opts),
+		Name:   CommandName,
+		Usage:  "Terragrunt forwards all other commands directly to Terraform",
+		Flags:  flags.NewCommonFlags(opts).Sort(),
+		Action: Action(opts),
 	}
 }
 

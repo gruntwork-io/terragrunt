@@ -79,6 +79,7 @@ linters:
     - nolintlint
     - wrapcheck
     - varnamelen
+    - recvcheck
 
   fast: false
   mnd:

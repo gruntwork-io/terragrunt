@@ -49,7 +49,7 @@ const (
 
 	defaultExcludesFile = ".terragrunt-excludes"
 
-	defaultLogLevel = log.InfoLevel
+	DefaultLogLevel = log.InfoLevel
 )
 
 var (
@@ -475,9 +475,9 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		RunAllAutoApprove:              true,
 		NonInteractive:                 false,
 		TerraformCliArgs:               []string{},
-		LogLevel:                       defaultLogLevel,
+		LogLevel:                       DefaultLogLevel,
 		LogFormatter:                   logFormatter,
-		Logger:                         log.New(log.WithOutput(stderr), log.WithLevel(defaultLogLevel), log.WithFormatter(logFormatter)),
+		Logger:                         log.New(log.WithOutput(stderr), log.WithLevel(DefaultLogLevel), log.WithFormatter(logFormatter)),
 		Env:                            map[string]string{},
 		Source:                         "",
 		SourceMap:                      map[string]string{},

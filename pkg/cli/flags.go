@@ -22,7 +22,7 @@ func (flags Flags) Get(name string) Flag {
 }
 
 // Filter returns a list of flags filtered by the given names.
-func (flags Flags) Filter(names []string) Flags {
+func (flags Flags) Filter(names ...string) Flags {
 	var filtered Flags
 
 	for _, flag := range flags {
@@ -37,8 +37,8 @@ func (flags Flags) Filter(names []string) Flags {
 }
 
 // Add adds a new flag to the list.
-func (flags *Flags) Add(newFlags ...Flag) {
-	*flags = append(*flags, newFlags...)
+func (flags Flags) Add(newFlags ...Flag) Flags {
+	return append(flags, newFlags...)
 }
 
 // VisibleFlags returns a slice of the Flags.

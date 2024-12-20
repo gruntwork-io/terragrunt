@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -666,7 +665,7 @@ func TestParseTerragruntJsonConfigIncludeOverrideAll(t *testing.T) {
 func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 	t.Parallel()
 
-	configPath := "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/" + commands.RecommendedParentConfigName
+	configPath := "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/" + config.RecommendedParentConfigName
 
 	cfg, err := util.ReadFileAsString(configPath)
 	if err != nil {
@@ -681,8 +680,8 @@ func TestParseTerragruntConfigTwoLevels(t *testing.T) {
 
 	expectedErr := config.TooManyLevelsOfInheritanceError{
 		ConfigPath:             configPath,
-		FirstLevelIncludePath:  filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+commands.RecommendedParentConfigName)),
-		SecondLevelIncludePath: filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+commands.RecommendedParentConfigName)),
+		FirstLevelIncludePath:  filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.RecommendedParentConfigName)),
+		SecondLevelIncludePath: filepath.ToSlash(absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/"+config.RecommendedParentConfigName)),
 	}
 
 	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)
@@ -706,8 +705,8 @@ func TestParseTerragruntConfigThreeLevels(t *testing.T) {
 
 	expectedErr := config.TooManyLevelsOfInheritanceError{
 		ConfigPath:             configPath,
-		FirstLevelIncludePath:  absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+commands.RecommendedParentConfigName),
-		SecondLevelIncludePath: absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+commands.RecommendedParentConfigName),
+		FirstLevelIncludePath:  absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.RecommendedParentConfigName),
+		SecondLevelIncludePath: absPath(t, "../test/fixtures/parent-folders/multiple-terragrunt-in-parents/child/sub-child/"+config.RecommendedParentConfigName),
 	}
 
 	assert.True(t, errors.IsError(actualErr, expectedErr), "Expected error %v but got %v", expectedErr, actualErr)

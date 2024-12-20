@@ -13,6 +13,10 @@ var (
 	FlagSplitter = strings.Split
 )
 
+// FlagStringer converts a flag definition to a string. This is used by help
+// to display a flag.
+var FlagStringer = cli.FlagStringer
+
 type FlagType[T any] interface {
 	libflag.Getter
 	Clone(dest *T) FlagType[T]

@@ -51,6 +51,8 @@ const (
 	JSONLog = "terragrunt-json-log"
 	// TfLogJSON is the control that prevents the deprecated `--terragrunt-tf-logs-to-json` flag from being used.
 	TfLogJSON = "terragrunt-tf-logs-to-json"
+	// RenamedFlag is the control that prevents the use of old flag/env names with `terragrunt-`/`TERRAGRUNT_` prefixes.
+	RenamedFlag = "renamed-flag"
 	// RootTerragruntHCL is the control that prevents usage of a `terragrunt.hcl` file as the root of Terragrunt configurations.
 	RootTerragruntHCL = "root-terragrunt-hcl"
 )
@@ -142,6 +144,7 @@ var StrictControls = Controls{
 		Error:   errors.Errorf("The `--%s` flag is no longer supported. Use `--terragrunt-log-format=json` instead.", TfLogJSON),
 		Warning: fmt.Sprintf("The `--%s` flag is deprecated and will be removed in a future version. Use `--terragrunt-log-format=json` instead.", TfLogJSON),
 	},
+	RenamedFlag: {},
 	RootTerragruntHCL: {
 		Error:   errors.Errorf("Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer supported. Use a differently named file like `root.hcl` instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/migrating-from-root-terragrunt-hcl"),
 		Warning: "Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer recommended. In a future version of Terragrunt, this will result in an error. You are advised to use a differently named file like `root.hcl` instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/migrating-from-root-terragrunt-hcl",

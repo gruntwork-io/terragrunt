@@ -889,3 +889,20 @@ func splitCommand(command string) []string {
 
 	return append(args, command[next:])
 }
+
+func IsTerragruntProviderCacheEnabled(t *testing.T) bool {
+	t.Helper()
+
+	for _, envName := range []string{"TERRAGRUNT_PROVIDER_CACHE", "TG_PROVIDER_CACHE"} {
+		if val := os.Getenv(envName); val != "" {
+			providerCache, err := strconv.ParseBool(val)
+			require.NoError(t, err)
+
+			if providerCache {
+				return true
+			}
+		}
+	}
+
+	return false
+}

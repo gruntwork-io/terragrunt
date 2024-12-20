@@ -22,6 +22,8 @@ import (
 // ctx.Args().Slice()
 type App struct {
 	*cli.App
+	// Examples is list of examples of using the App in the help.
+	Examples []string
 	// List of commands to execute
 	Commands Commands
 	// List of flags to parse
@@ -121,7 +123,7 @@ func (app *App) RunContext(ctx context.Context, arguments []string) (err error) 
 		cmd := app.newRootCommand()
 
 		args := Args(parentCtx.Args().Slice())
-		ctx := NewContext(parentCtx.Context, app)
+		ctx := NewAppContext(parentCtx.Context, app, args)
 
 		if app.Autocomplete {
 			if err := app.setupAutocomplete(args); err != nil {
@@ -138,7 +140,7 @@ func (app *App) RunContext(ctx context.Context, arguments []string) (err error) 
 			}
 		}
 
-		return cmd.Run(ctx, args.Normalize(SingleDashFlag))
+		return cmd.Run(ctx, args)
 	}
 
 	return app.App.RunContext(ctx, arguments)
@@ -167,6 +169,7 @@ func (app *App) newRootCommand() *Command {
 		Usage:       app.Usage,
 		UsageText:   app.UsageText,
 		Description: app.Description,
+		Examples:    app.Examples,
 		Flags:       app.Flags,
 		Subcommands: app.Commands,
 		Complete:    app.Complete,
