@@ -81,7 +81,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [use-partial-parse-config-cache](#use-partial-parse-config-cache)
   - [terragrunt-include-module-prefix](#terragrunt-include-module-prefix) (DEPRECATED: use [tf-forward-stdout](#tf-forward-stdout))
   - [backend-require-bootstrap](#backend-require-bootstrap)
-  - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
+  - [disable-bucket-update](#disable-bucket-update)
   - [disable-command-validation](#disable-command-validation)
   - [terragrunt-json-log](#terragrunt-json-log) (DEPRECATED: use [log-format](#log-format))
   - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json) (DEPRECATED: use [log-format](#log-format))
@@ -810,7 +810,7 @@ The currently available options are:
   - [use-partial-parse-config-cache](#use-partial-parse-config-cache)
   - [terragrunt-include-module-prefix](#terragrunt-include-module-prefix) (DEPRECATED: use [tf-forward-stdout](#tf-forward-stdout))
   - [backend-require-bootstrap](#backend-require-bootstrap)
-  - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
+  - [disable-bucket-update](#disable-bucket-update)
   - [disable-command-validation](#disable-command-validation)
   - [terragrunt-json-log](#terragrunt-json-log) (DEPRECATED: use [log-format](#log-format))
   - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json) (DEPRECATED: use [log-format](#log-format))
@@ -1575,12 +1575,12 @@ When this flag is set output from OpenTofu/Terraform sub-commands is prefixed wi
 
 When this flag is set, Terragrunt will fail and exit if it is necessary to create the remote state bucket.
 
-### terragrunt-disable-bucket-update
+### disable-bucket-update
 
-**CLI Arg**: `--terragrunt-disable-bucket-update`<br/>
-**Environment Variable**: `TERRAGRUNT_DISABLE_BUCKET_UPDATE` (set to `true`)<br/>
-**CLI Arg Alias**: `` (deprecated: [See migration guide](https://terragrunt.gruntwork.io/should-be-replaced))<br/>
-**Environment Variable Alias**: `` (deprecated: [See migration guide](https://terragrunt.gruntwork.io/should-be-replaced))<br/>
+**CLI Arg**: `--disable-bucket-update`<br/>
+**CLI Arg Alias**: `--terragrunt-disable-bucket-update` (deprecated: [See migration guide](https://terragrunt.gruntwork.io/should-be-replaced))<br/>
+**Environment Variable**: `TG_DISABLE_BUCKET_UPDATE` (set to `true`)<br/>
+**Environment Variable Alias**: `TERRAGRUNT_DISABLE_BUCKET_UPDATE` (deprecated: [See migration guide](https://terragrunt.gruntwork.io/should-be-replaced))<br/>
 
 When this flag is set, Terragrunt does not update the remote state bucket, which is useful to set if the state bucket is managed by a third party.
 
