@@ -21,10 +21,11 @@ import (
 )
 
 const (
-	githubHost    = "github.com"
-	gitlabHost    = "gitlab.com"
-	azuredevHost  = "dev.azure.com"
-	bitbucketHost = "bitbucket.org"
+	githubHost            = "github.com"
+	githubEnterpriseRegex = `^(github\.(.+))$`
+	gitlabHost            = "gitlab.com"
+	azuredevHost          = "dev.azure.com"
+	bitbucketHost         = "bitbucket.org"
 )
 
 var (
@@ -40,8 +41,8 @@ type Repo struct {
 	cloneURL string
 	path     string
 
-	remoteURL  string
-	branchName string
+	RemoteURL  string
+	BranchName string
 
 	walkWithSymlinks bool
 }
@@ -123,29 +124,37 @@ func (repo *Repo) FindModules(ctx context.Context) (Modules, error) {
 	return modules, nil
 }
 
+var githubEnterprisePatternReg = regexp.MustCompile(githubEnterpriseRegex)
+
 // ModuleURL returns the URL of the module in this repository. `moduleDir` is the path from the repository root.
 func (repo *Repo) ModuleURL(moduleDir string) (string, error) {
-	if repo.remoteURL == "" {
+	if repo.RemoteURL == "" {
 		return filepath.Join(repo.path, moduleDir), nil
 	}
 
-	remote, err := vcsurl.Parse(repo.remoteURL)
+	remote, err := vcsurl.Parse(repo.RemoteURL)
 	if err != nil {
 		return "", errors.New(err)
 	}
 
+	// Simple, predictable hosts
 	switch remote.Host {
 	case githubHost:
-		return fmt.Sprintf("https://%s/%s/tree/%s/%s", remote.Host, remote.FullName, repo.branchName, moduleDir), nil
+		return fmt.Sprintf("https://%s/%s/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir), nil
 	case gitlabHost:
-		return fmt.Sprintf("https://%s/%s/-/tree/%s/%s", remote.Host, remote.FullName, repo.branchName, moduleDir), nil
+		return fmt.Sprintf("https://%s/%s/-/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir), nil
 	case bitbucketHost:
-		return fmt.Sprintf("https://%s/%s/browse/%s?at=%s", remote.Host, remote.FullName, moduleDir, repo.branchName), nil
+		return fmt.Sprintf("https://%s/%s/browse/%s?at=%s", remote.Host, remote.FullName, moduleDir, repo.BranchName), nil
 	case azuredevHost:
-		return fmt.Sprintf("https://%s/_git/%s?path=%s&version=GB%s", remote.Host, remote.FullName, moduleDir, repo.branchName), nil
-	default:
-		return "", errors.Errorf("hosting: %q is not supported yet", remote.Host)
+		return fmt.Sprintf("https://%s/_git/%s?path=%s&version=GB%s", remote.Host, remote.FullName, moduleDir, repo.BranchName), nil
 	}
+
+	// // Hosts that require special handling
+	if githubEnterprisePatternReg.MatchString(string(remote.Host)) {
+		return fmt.Sprintf("https://%s/%s/tree/%s/%s", remote.Host, remote.FullName, repo.BranchName, moduleDir), nil
+	}
+
+	return "", errors.Errorf("hosting: %q is not supported yet", remote.Host)
 }
 
 // clone clones the repository to a temporary directory if the repoPath is URL
@@ -251,8 +260,8 @@ func (repo *Repo) parseRemoteURL() error {
 		return nil
 	}
 
-	repo.remoteURL = inidata.Section(sectionName).Key("url").String()
-	repo.logger.Debugf("Remote url: %q for repo: %q", repo.remoteURL, repo.path)
+	repo.RemoteURL = inidata.Section(sectionName).Key("url").String()
+	repo.logger.Debugf("Remote url: %q for repo: %q", repo.RemoteURL, repo.path)
 
 	return nil
 }
@@ -269,7 +278,7 @@ func (repo *Repo) parseBranchName() error {
 	}
 
 	if match := gitHeadBranchNameReg.FindStringSubmatch(data); len(match) > 0 {
-		repo.branchName = strings.TrimSpace(match[1])
+		repo.BranchName = strings.TrimSpace(match[1])
 		return nil
 	}
 

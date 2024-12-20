@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog/module"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -85,4 +86,84 @@ func TestFindModules(t *testing.T) {
 		})
 	}
 
+}
+
+func TestModuleURL(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		repo        *module.Repo
+		moduleDir   string
+		expectedURL string
+		expectedErr error
+	}{
+		{
+			"github",
+			newRepo(t, "https://github.com/acme/terraform-aws-modules"),
+			".",
+			"https://github.com/acme/terraform-aws-modules/tree/main/.",
+			nil,
+		},
+		{
+			"github enterprise",
+			newRepo(t, "https://github.acme.com/acme/terraform-aws-modules"),
+			".",
+			"https://github.acme.com/acme/terraform-aws-modules/tree/main/.",
+			nil,
+		},
+		{
+			"gitlab",
+			newRepo(t, "https://gitlab.com/acme/terraform-aws-modules"),
+			".",
+			"https://gitlab.com/acme/terraform-aws-modules/-/tree/main/.",
+			nil,
+		},
+		{
+			"bitbucket",
+			newRepo(t, "https://bitbucket.org/acme/terraform-aws-modules"),
+			".",
+			"https://bitbucket.org/acme/terraform-aws-modules/browse/.?at=main",
+			nil,
+		},
+		{
+			"azuredev",
+			newRepo(t, "https://dev.azure.com/acme/terraform-aws-modules"),
+			".",
+			"https://dev.azure.com/_git/acme/terraform-aws-modules?path=.&version=GBmain",
+			nil,
+		},
+		{
+			"unsupported",
+			newRepo(t, "https://fake.com/acme/terraform-aws-modules"),
+			".",
+			"",
+			errors.Errorf("hosting: %q is not supported yet", "fake.com"),
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			url, err := testCase.repo.ModuleURL(testCase.moduleDir)
+			assert.Equal(t, testCase.expectedURL, url)
+			if testCase.expectedErr != nil {
+				assert.EqualError(t, err, testCase.expectedErr.Error())
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func newRepo(t *testing.T, url string) *module.Repo {
+	t.Helper()
+
+	return &module.Repo{
+		RemoteURL:  url,
+		BranchName: "main",
+	}
 }

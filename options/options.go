@@ -386,6 +386,21 @@ type TerragruntOptions struct {
 
 	// Errors is a configuration for error handling.
 	Errors *ErrorsConfig
+
+	// Headless is set when Terragrunt is running in
+	// headless mode. In this mode, Terragrunt will not
+	// return stdout/stderr directly to the caller.
+	//
+	// It will instead write the output to INFO,
+	// as it's not something intended for a user
+	// to use in a programmatic way.
+	Headless bool
+
+	// LogDisableErrorSummary is a flag to skip the error summary
+	// provided at the end of Terragrunt execution to
+	// recap all that was emitted in stderr throughout
+	// the run of an orchestrated process.
+	LogDisableErrorSummary bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -667,11 +682,13 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		// the future, we can deep clone this as well.
 		Experiments: opts.Experiments,
 		// copy array
-		StrictControls:        util.CloneStringList(opts.StrictControls),
-		FeatureFlags:          opts.FeatureFlags,
-		Errors:                cloneErrorsConfig(opts.Errors),
-		ScaffoldNoIncludeRoot: opts.ScaffoldNoIncludeRoot,
-		ScaffoldRootFileName:  opts.ScaffoldRootFileName,
+		StrictControls:         util.CloneStringList(opts.StrictControls),
+		FeatureFlags:           opts.FeatureFlags,
+		Errors:                 cloneErrorsConfig(opts.Errors),
+		ScaffoldNoIncludeRoot:  opts.ScaffoldNoIncludeRoot,
+		ScaffoldRootFileName:   opts.ScaffoldRootFileName,
+		Headless:               opts.Headless,
+		LogDisableErrorSummary: opts.LogDisableErrorSummary,
 	}, nil
 }
 

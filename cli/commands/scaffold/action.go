@@ -58,7 +58,7 @@ terraform {
 }
 {{ if .EnableRootInclude }}
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("{{ .RootFileName }}")
 }
 {{ end }}
 inputs = {

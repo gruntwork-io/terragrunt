@@ -5,7 +5,7 @@ category: reference
 categories_url: reference
 excerpt: Learn how customize Terragrunt logging.
 tags: ["log"]
-order: 408
+order: 409
 nav_title: Documentation
 nav_title_link: /docs/
 redirect_from:
@@ -276,11 +276,15 @@ Specific options for placeholders:
 
 The examples below replicate the preset formats specified with `--terragrunt-log-format`. They can be useful if you need to change existing formats to suit your needs.
 
+### Pretty
+
 `--terragrunt-log-format pretty`
 
 ```shell
 --terragrunt-log-custom-format "%time(color=light-black) %level(case=upper,width=6,color=preset) %prefix(path=short-relative,color=gradient,suffix=' ')%tf-path(color=cyan,suffix=': ')%msg(path=relative)"
 ```
+
+### Bare
 
 `--terragrunt-log-format bare`
 
@@ -288,11 +292,15 @@ The examples below replicate the preset formats specified with `--terragrunt-log
 --terragrunt-forward-tf-stdout --terragrunt-log-custom-format "%level(case=upper,width=4)[%interval] %msg %prefix(path=short,prefix='prefix=[',suffix=']')"
 ```
 
+### Key-value
+
 `--terragrunt-log-format key-value`
 
 ```shell
 --terragrunt-log-custom-format "time=%time(format=rfc3339) level=%level prefix=%prefix(path=short-relative) tf-path=%tf-path(path=filename) msg=%msg(path=relative,color=disable)"
 ```
+
+### JSON
 
 `--terragrunt-log-format json`
 
