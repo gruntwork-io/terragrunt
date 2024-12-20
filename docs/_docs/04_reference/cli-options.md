@@ -561,7 +561,7 @@ Renders to the following `terragrunt_rendered.json`:
 }
 ```
 
-You can use the CLI option `--json-out` to configure where terragrunt renders out the json representation.
+You can use the CLI option `--out` to configure where terragrunt renders out the json representation.
 
 To generate json with metadata can be specified argument `--with-metadata` which will add metadata to the json output.
 
@@ -1356,11 +1356,11 @@ block by specifying `<BLOCK>.<ATTR>`, where `<BLOCK>` is the block name: e.g., `
 
 ### json-out
 
-**CLI Arg**: `--json-out`<br/>
+**CLI Arg**: `--out`<br/>
 **CLI Arg Alias**: `--terragrunt-json-out` (deprecated: [See migration guide](https://terragrunt.gruntwork.io/should-be-replaced))<br/>
-**Environment Variable**: `TG_JSON_OUT` (set to `true`)<br/>
+**Environment Variable**: `TG_OUT` (set to `true`)<br/>
 **Environment Variable Alias**: `TERRAGRUNT_JSON_OUT` (deprecated: [See migration guide](https://terragrunt.gruntwork.io/should-be-replaced))<br/>
-**Requires an argument**: `--json-out /path/to/terragrunt_rendered.json`<br/>
+**Requires an argument**: `--out /path/to/terragrunt_rendered.json`<br/>
 **Commands**:
 
 - [render-json](#render-json)
@@ -1369,16 +1369,16 @@ When passed in, render the json representation in this file.
 
 ### json-disable-dependent-modules
 
-**CLI Arg**: `--json-disable-dependent-modules`<br/>
+**CLI Arg**: `--disable-dependent-modules`<br/>
 **CLI Arg Alias**: `--terragrunt-json-disable-dependent-modules` (deprecated: [See migration guide](https://terragrunt.gruntwork.io/should-be-replaced))<br/>
-**Environment Variable**: `TG_JSON_DISABLE_DEPENDENT_MODULES` (set to `true`)<br/>
+**Environment Variable**: `TG_DISABLE_DEPENDENT_MODULES` (set to `true`)<br/>
 **Environment Variable Alias**: `TERRAGRUNT_JSON_DISABLE_DEPENDENT_MODULES` (deprecated: [See migration guide](https://terragrunt.gruntwork.io/should-be-replaced))<br/>
-**Requires an argument**: `--json-disable-dependent-modules`<br/>
+**Requires an argument**: `--disable-dependent-modules`<br/>
 **Commands**:
 
 - [render-json](#render-json)
 
-When the `--json-disable-dependent-modules` flag is included in the command, the process of identifying dependent modules will be disabled during JSON rendering.
+When the `--disable-dependent-modules` flag is included in the command, the process of identifying dependent modules will be disabled during JSON rendering.
 This lead to a faster rendering process, but the output will not include any dependent modules.
 
 ### units-that-include

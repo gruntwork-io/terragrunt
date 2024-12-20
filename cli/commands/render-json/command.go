@@ -10,19 +10,22 @@ import (
 const (
 	CommandName = "render-json"
 
-	JSONOutFlagName                 = "json-out"
+	OutFlagName                     = "out"
 	WithMetadataFlagName            = "with-metadata"
-	DisableDependentModulesFlagName = "json-disable-dependent-modules"
+	DisableDependentModulesFlagName = "disable-dependent-modules"
+
+	TerragruntJSONOutFlagName                 = flags.DeprecatedFlagNamePrefix + "-json-out"
+	TerragruntDisableDependentModulesFlagName = flags.DeprecatedFlagNamePrefix + "-json-disable-dependent-modules"
 )
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
 		flags.GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
-			Name:        JSONOutFlagName,
-			EnvVars:     flags.EnvVars(JSONOutFlagName),
+			Name:        OutFlagName,
+			EnvVars:     flags.EnvVars(OutFlagName),
 			Destination: &opts.JSONOut,
 			Usage:       "The file path that terragrunt should use when rendering the terragrunt.hcl config as json.",
-		}),
+		}, TerragruntJSONOutFlagName),
 		&cli.BoolFlag{
 			Name:        WithMetadataFlagName,
 			EnvVars:     flags.EnvVars(WithMetadataFlagName),
@@ -34,7 +37,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVars:     flags.EnvVars(DisableDependentModulesFlagName),
 			Destination: &opts.JSONDisableDependentModules,
 			Usage:       "Disable identification of dependent modules rendering json config.",
-		}),
+		}, TerragruntDisableDependentModulesFlagName),
 	}
 }
 

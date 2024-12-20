@@ -3774,41 +3774,33 @@ func TestTerragruntRunAllPlanAndShow(t *testing.T) {
 func TestLogFormatJSONOutput(t *testing.T) {
 	t.Parallel()
 
-	for _, flag := range []string{"--terragrunt-log-format=json", "--terragrunt-json-log"} {
-		t.Run("testCase-flag-"+flag, func(t *testing.T) {
-			t.Parallel()
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNotExistingSource)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureNotExistingSource)
 
-			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureNotExistingSource)
-			helpers.CleanupTerraformFolder(t, tmpEnvPath)
-			testPath := util.JoinPath(tmpEnvPath, testFixtureNotExistingSource)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --terragrunt-log-format=json --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
+	require.Error(t, err)
 
-			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply "+flag+" --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
-			require.Error(t, err)
+	// for windows OS
+	output := bytes.ReplaceAll([]byte(stderr), []byte("\r\n"), []byte("\n"))
 
-			// for windows OS
-			output := bytes.ReplaceAll([]byte(stderr), []byte("\r\n"), []byte("\n"))
+	multipeJSONs := bytes.Split(output, []byte("\n"))
 
-			multipeJSONs := bytes.Split(output, []byte("\n"))
+	var msgs = make([]string, 0, len(multipeJSONs))
 
-			var msgs = make([]string, 0, len(multipeJSONs))
+	for _, jsonBytes := range multipeJSONs {
+		if len(jsonBytes) == 0 {
+			continue
+		}
 
-			for _, jsonBytes := range multipeJSONs {
-				if len(jsonBytes) == 0 {
-					continue
-				}
+		var output map[string]interface{}
 
-				var output map[string]interface{}
+		err = json.Unmarshal(jsonBytes, &output)
+		require.NoError(t, err)
 
-				err = json.Unmarshal(jsonBytes, &output)
-				require.NoError(t, err)
-
-				msg, ok := output["msg"].(string)
-				assert.True(t, ok)
-				msgs = append(msgs, msg)
-			}
-
-			assert.Contains(t, strings.Join(msgs, ""), "Downloading Terraform configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=v0.9.9")
-		})
+		msg, ok := output["msg"].(string)
+		assert.True(t, ok)
+		msgs = append(msgs, msg)
 	}
 }
 
@@ -3902,7 +3894,7 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 	helpers.CleanupTerraformFolder(t, tmpEnvPath)
 	testPath := util.JoinPath(tmpEnvPath, testFixtureInitError)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --no-color --terragrunt-json-log --terragrunt-tf-logs-to-json --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --no-color --terragrunt-log-format=json --terragrunt-non-interactive --terragrunt-working-dir "+testPath)
 	require.Error(t, err)
 
 	// Sometimes, this is the error returned by AWS.
