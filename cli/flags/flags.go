@@ -307,6 +307,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 				return nil
 			},
 		}),
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
+			Name:        NonInteractiveFlagName,
+			EnvVars:     EnvVars(NonInteractiveFlagName),
+			Destination: &opts.NonInteractive,
+			Usage:       `Assume "yes" for all prompts.`,
+		}),
 
 		// Deprecated flags.
 		&cli.BoolFlag{
@@ -422,12 +428,6 @@ func NewCommonFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.RunAllAutoApprove,
 			Usage:       "Don't automatically append `-auto-approve` to the underlying OpenTofu/Terraform commands run with 'run-all'.",
 			Negative:    true,
-		}),
-		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
-			Name:        NonInteractiveFlagName,
-			EnvVars:     EnvVars(NonInteractiveFlagName),
-			Destination: &opts.NonInteractive,
-			Usage:       `Assume "yes" for all prompts.`,
 		}),
 		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:        DownloadDirFlagName,
