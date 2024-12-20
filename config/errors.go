@@ -242,8 +242,7 @@ func (err TerragruntOutputTargetNoOutputs) Unwrap() error {
 
 func (err TerragruntOutputTargetNoOutputs) Error() string {
 	msg := `
-If this dependency is accessed before the outputs are ready (which can happen during the planning phase of an unapplied stack), consider using mock_outputs.
-e.g.
+If this dependency is accessed before the outputs are ready (which can happen during the planning phase of an unapplied stack), consider using mock_outputs:
 
 dependency "` + err.targetName + `" {
     config_path = "` + err.targetPath + `"
@@ -253,7 +252,7 @@ dependency "` + err.targetName + `" {
     }
 }
 
-For further details, refer to this resource:
+For more info, see:
 https://terragrunt.gruntwork.io/docs/features/stacks/#unapplied-dependency-and-mock-outputs
 
 If you do not require outputs from your dependency, consider using the dependencies block instead:
@@ -261,7 +260,7 @@ https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-attributes/#dep
 `
 
 	return fmt.Sprintf(
-		"%s is a dependency of %s but detected no outputs. Either the target module has not been applied yet, or the module has no outputs. If this is expected, set the skip_outputs flag to true on the dependency block.\n%s",
+		"%s is a dependency of %s but detected no outputs. Either the target module has not been applied yet, or the module has no outputs.\n%s",
 		err.targetConfig,
 		err.currentConfig,
 		msg,
