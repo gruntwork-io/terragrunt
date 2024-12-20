@@ -22,7 +22,6 @@ const (
 	testFixtureDownloadPath                         = "fixtures/download"
 	testFixtureLocalRelativeArgsWindowsDownloadPath = "fixtures/download/local-windows"
 	testFixtureManifestRemoval                      = "fixtures/manifest-removal"
-	testFixtureFindParent                           = "fixtures/find-parent"
 	testFixtureTflintNoIssuesFound                  = "fixtures/tflint/no-issues-found"
 )
 
@@ -143,7 +142,7 @@ func TestWindowsFindParent(t *testing.T) {
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run-all plan --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureFindParent))
 
-	// second run shouldn't fail with find_in_parent_folders() issue
+	// second run shouldn't fail with find_in_parent_folders("root.hcl") issue
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s", testFixtureFindParent))
 }
 

@@ -3,21 +3,19 @@ layout: collection-browser-doc
 title: Catalog
 category: features
 categories_url: features
-excerpt: Learn how to use catalog function in  Terragrunt.
+excerpt: Learn how to search and use your module catalog with Terragrunt.
 tags: ["catalog"]
 order: 212
 nav_title: Documentation
 nav_title_link: /docs/
 ---
 
-## Catalog
-
 Launch the user interface for searching and managing your module catalog.
 
 Example:
 
 ```bash
-terragrunt catalog <repo-url>
+terragrunt catalog <repo-url> [--no-include-root] [--root-file-name]
 ```
 
 [![screenshot](/assets/img/screenshots/catalog-screenshot.png){: width="50%" }](https://terragrunt.gruntwork.io/assets/img/screenshots/catalog-screenshot.png)
@@ -46,3 +44,10 @@ This will recursively search for OpenTofu/Terraform modules in the root of the r
 1. Select a module in the table: use the arrow keys to go up and down and next/previous page.
 1. See the docs for a selected module: `ENTER`.
 1. Use [`terragrunt scaffold`](https://terragrunt.gruntwork.io/docs/features/scaffold/) to render a `terragrunt.hcl` for using the module: `S`.
+
+## Scaffolding Flags
+
+The following `catalog` flags control behavior of the underlying `scaffold` command when the `S` key is pressed in a catalog entry:
+
+- `--no-include-root` - Do not include the root configuration file in any generated `terragrunt.hcl` during scaffolding.
+- `--root-file-name` - The name of the root configuration file to include in any generated `terragrunt.hcl` during scaffolding. This value also controls the name of the root configuration file to search for when trying to determine Catalog urls.

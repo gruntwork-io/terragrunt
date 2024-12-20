@@ -52,7 +52,7 @@ func parseIncludedConfig(ctx *ParsingContext, includedConfig *IncludeConfig) (*T
 	// cause this! For example, suppose the user has a dependency path that depends on an included input:
 	//
 	// include "root" {
-	//   path = find_in_parent_folders()
+	//   path = find_in_parent_folders("root.hcl")
 	//   expose = true
 	// }
 	// dependency "dep" {

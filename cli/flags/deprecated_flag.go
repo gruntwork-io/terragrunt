@@ -112,7 +112,7 @@ func (flag *Flag) RunAction(ctx *cli.Context) error {
 	var strictControl bool
 
 	if control, ok := strict.GetStrictControl(strict.RenamedFlag); ok {
-		if _, err := control.Evaluate(flag.opts); err != nil {
+		if _, _, err := control.Evaluate(flag.opts); err != nil {
 			strictControl = true
 		}
 	}

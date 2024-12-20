@@ -5,12 +5,10 @@ category: getting-started
 excerpt: >-
   Learn how to configure Terragrunt.
 tags: ["config", "formatting"]
-order: 104
+order: 105
 nav_title: Documentation
 nav_title_link: /docs/
 ---
-
-## Terragrunt configuration file
 
 Terragrunt configuration is defined in a `terragrunt.hcl` file. This uses the same HCL syntax as OpenTofu/Terraform itself.
 
@@ -18,7 +16,7 @@ Here’s an example:
 
 ``` hcl
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
 }
 
 dependencies {
@@ -47,7 +45,7 @@ Refer to the following pages for a complete reference of supported features in t
 
 ## Configuration parsing order
 
-It is important to be aware of the terragrunt configuration parsing order when using features like [locals]({{site.baseurl}}/docs/features/locals/#locals) and [dependency outputs]({{site.baseurl}}/docs/features/execute-terraform-commands-on-multiple-units-at-once/#passing-outputs-between-units), where you can reference attributes of other blocks in the config in your `inputs`. For example, because `locals` are evaluated before `dependency` blocks, you can not bind outputs from `dependency` into `locals`. On the other hand, for the same reason, you can use `locals` in the `dependency` blocks.
+It is important to be aware of the terragrunt configuration parsing order when using features like [locals]({{site.baseurl}}/docs/features/locals/#locals) and [dependency outputs]({{site.baseurl}}/docs/features/stacks#passing-outputs-between-units), where you can reference attributes of other blocks in the config in your `inputs`. For example, because `locals` are evaluated before `dependency` blocks, you can not bind outputs from `dependency` into `locals`. On the other hand, for the same reason, you can use `locals` in the `dependency` blocks.
 
 Currently terragrunt parses the config in the following order:
 

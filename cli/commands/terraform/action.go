@@ -283,7 +283,7 @@ func generateConfig(terragruntConfig *config.TerragruntConfig, updatedTerragrunt
 
 // Runs terraform with the given options and CLI args.
 // This will forward all the args and extra_arguments directly to Terraform.
-
+//
 // This function takes in the "original" terragrunt options which has the unmodified 'WorkingDir' from before downloading the code from the source URL,
 // and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
 func runTerragruntWithConfig(ctx context.Context, originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig, target *Target) error {
@@ -674,6 +674,7 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions) (*options.
 	initOptions.TerraformCliArgs = []string{terraform.CommandNameInit}
 	initOptions.WorkingDir = terragruntOptions.WorkingDir
 	initOptions.TerraformCommand = terraform.CommandNameInit
+	initOptions.Headless = true
 
 	initOutputForCommands := []string{terraform.CommandNamePlan, terraform.CommandNameApply}
 	terraformCommand := util.FirstArg(terragruntOptions.TerraformCliArgs)

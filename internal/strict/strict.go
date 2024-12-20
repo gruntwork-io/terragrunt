@@ -12,9 +12,9 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/puzpuzpuz/xsync/v3"
 
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // Control represents a control that can be enabled or disabled in strict mode.
@@ -24,6 +24,8 @@ type Control struct {
 	Error error
 	// Warning is a warning that will be logged when the control is not enabled.
 	Warning string
+	// Status of the strict control.
+	Status int
 }
 
 const (
@@ -51,19 +53,31 @@ const (
 	TfLogJSON = "terragrunt-tf-logs-to-json"
 	// RenamedFlag is the control that prevents the use of old flag/env names with `terragrunt-`/`TERRAGRUNT_` prefixes.
 	RenamedFlag = "renamed-flag"
+	// RootTerragruntHCL is the control that prevents usage of a `terragrunt.hcl` file as the root of Terragrunt configurations.
+	RootTerragruntHCL = "root-terragrunt-hcl"
+)
+
+const (
+	// StatusOngoing is the status of a control that is ongoing.
+	StatusOngoing = iota
+	// StatusCompleted is the status of a control that is completed.
+	StatusCompleted
 )
 
 // GetStrictControl returns the strict control with the given name.
-func GetStrictControl(name string) (Control, bool) {
+func GetStrictControl(name string) (*Control, bool) {
 	control, ok := StrictControls[name]
 
 	return control, ok
 }
 
-// Evaluate returns a warning if the control is not enabled, and an error if the control is enabled.
-func (control Control) Evaluate(opts *options.TerragruntOptions) (string, error) {
+// Evaluate returns a warning if the control is not enabled, an indication of whether the control has already been triggered,
+// and an error if the control is enabled.
+func (control *Control) Evaluate(opts *options.TerragruntOptions) (string, bool, error) {
+	_, triggered := TriggeredControls.LoadAndStore(control, true)
+
 	if opts.StrictMode {
-		return "", control.Error
+		return "", triggered, control.Error
 	}
 
 	for _, controlName := range opts.StrictControls {
@@ -71,70 +85,76 @@ func (control Control) Evaluate(opts *options.TerragruntOptions) (string, error)
 		if !ok {
 			// This should never happen, but if it does, it's a bug in Terragrunt.
 			// The slice of StrictControls should be validated before they're used.
-			return "", errors.New("Invalid strict control: " + controlName)
+			return "", false, errors.New("Invalid strict control: " + controlName)
 		}
 
 		if strictControl == control {
-			return "", control.Error
+			return "", triggered, control.Error
 		}
 	}
 
-	return control.Warning, nil
+	return control.Warning, triggered, nil
 }
 
-type Controls map[string]Control
+type Controls map[string]*Control
 
-//nolint:lll,gochecknoglobals,stylecheck
+//nolint:lll,gochecknoglobals,stylecheck,revive
 var StrictControls = Controls{
 	SpinUp: {
-		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all apply` instead.", SpinUp), //nolint:revive
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all apply` instead.", SpinUp),
 		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all apply` instead.", SpinUp),
 	},
 	TearDown: {
-		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all destroy` instead.", TearDown), //nolint:revive
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all destroy` instead.", TearDown),
 		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all destroy` instead.", TearDown),
 	},
 	PlanAll: {
-		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all plan` instead.", PlanAll), //nolint:revive
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all plan` instead.", PlanAll),
 		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all plan` instead.", PlanAll),
 	},
 	ApplyAll: {
-		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all apply` instead.", ApplyAll), //nolint:revive
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all apply` instead.", ApplyAll),
 		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all apply` instead.", ApplyAll),
 	},
 	DestroyAll: {
-		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all destroy` instead.", DestroyAll), //nolint:revive
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all destroy` instead.", DestroyAll),
 		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all destroy` instead.", DestroyAll),
 	},
 	OutputAll: {
-		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all output` instead.", OutputAll), //nolint:revive
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all output` instead.", OutputAll),
 		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all output` instead.", OutputAll),
 	},
 	ValidateAll: {
-		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all validate` instead.", ValidateAll), //nolint:revive
+		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all validate` instead.", ValidateAll),
 		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all validate` instead.", ValidateAll),
 	},
 	SkipDependenciesInputs: {
-		Error:   errors.Errorf("The `%s` option is deprecated. Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs), //nolint:revive
+		Error:   errors.Errorf("The `%s` option is deprecated. Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs),
 		Warning: fmt.Sprintf("The `%s` option is deprecated and will be removed in a future version of Terragrunt. Reading inputs from dependencies has been deprecated. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs),
 	},
 	DisableLogFormatting: {
-		Error:   errors.Errorf("The `--%s` flag is no longer supported. Use `--terragrunt-log-format=key-value` instead.", DisableLogFormatting), //nolint:revive
+		Error:   errors.Errorf("The `--%s` flag is no longer supported. Use `--terragrunt-log-format=key-value` instead.", DisableLogFormatting),
 		Warning: fmt.Sprintf("The `--%s` flag is deprecated and will be removed in a future version. Use `--terragrunt-log-format=key-value` instead.", DisableLogFormatting),
 	},
 	JSONLog: {
-		Error:   errors.Errorf("The `--%s` flag is no longer supported. Use `--terragrunt-log-format=json` instead.", JSONLog), //nolint:revive
+		Error:   errors.Errorf("The `--%s` flag is no longer supported. Use `--terragrunt-log-format=json` instead.", JSONLog),
 		Warning: fmt.Sprintf("The `--%s` flag is deprecated and will be removed in a future version. Use `--terragrunt-log-format=json` instead.", JSONLog),
 	},
 	TfLogJSON: {
-		Error:   errors.Errorf("The `--%s` flag is no longer supported. Use `--terragrunt-log-format=json` instead.", TfLogJSON), //nolint:revive
+		Error:   errors.Errorf("The `--%s` flag is no longer supported. Use `--terragrunt-log-format=json` instead.", TfLogJSON),
 		Warning: fmt.Sprintf("The `--%s` flag is deprecated and will be removed in a future version. Use `--terragrunt-log-format=json` instead.", TfLogJSON),
 	},
 	RenamedFlag: {
-		Error:   errors.Errorf("The flag with `--terragrunt` prefix is no longer supported. Use without prefix instead."), //nolint:revive
+		Error:   errors.Errorf("The flag with `--terragrunt` prefix is no longer supported. Use without prefix instead."),
 		Warning: "The flag with `--terragrunt` prefix is deprecated and will be removed in a future version. Use without prefix instead.",
 	},
+	RootTerragruntHCL: {
+		Error:   errors.Errorf("Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer supported. Use a differently named file like `root.hcl` instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/migrating-from-root-terragrunt-hcl"),
+		Warning: "Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer recommended. In a future version of Terragrunt, this will result in an error. You are advised to use a differently named file like `root.hcl` instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/migrating-from-root-terragrunt-hcl",
+	},
 }
+
+var TriggeredControls = xsync.NewMapOf[*Control, bool]()
 
 // Names returns the names of all strict controls.
 func (controls Controls) Names() []string {
@@ -153,23 +173,37 @@ var (
 )
 
 // ValidateControlNames validates that the given control names are valid.
-func (controls Controls) ValidateControlNames(strictControlNames []string) error {
+func (controls Controls) ValidateControlNames(strictControlNames []string) (string, error) {
+	completedControls := []string{}
 	invalidControls := []string{}
 	validControls := controls.Names()
 
 	for _, controlName := range strictControlNames {
-		if !util.ListContainsElement(validControls, controlName) {
+		control, ok := controls[controlName]
+		if !ok {
 			invalidControls = append(invalidControls, controlName)
+			continue
+		}
+
+		if control.Status == StatusCompleted {
+			completedControls = append(completedControls, controlName)
 		}
 	}
 
+	var warning string
+	if len(completedControls) > 0 {
+		warning = fmt.Sprintf("The following strict control(s) are already completed: %s. Please remove any completed strict controls, as setting them no longer does anything. For a list of all ongoing strict controls, and the outcomes of previous strict controls, see https://terragrunt.gruntwork.io/docs/reference/strict-mode",
+			strings.Join(completedControls, ", "))
+	}
+
+	var err error
 	if len(invalidControls) > 0 {
-		return fmt.Errorf("%w\nInvalid value(s):\n- %s\nAllowed value(s):\n- %s",
+		err = errors.Errorf("%w\nInvalid control(s):\n- %s\nAllowed control(s):\n- %s",
 			ErrInvalidStrictControl,
 			strings.Join(invalidControls, "\n- "),
 			strings.Join(validControls, "\n- "),
 		)
 	}
 
-	return nil
+	return warning, err
 }
