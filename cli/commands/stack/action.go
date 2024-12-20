@@ -53,25 +53,28 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 		return errors.New(fmt.Errorf("failed to create base directory: %w", err))
 	}
 
+	//client := getter.Client{
+	//	Getters:         getter.Getters,
+	//	Decompressors:   getter.Decompressors,
+	//	DisableSymlinks: true,
+	//}
+
 	for _, unit := range stackFile.Units {
 		destPath := filepath.Join(baseDir, unit.Path)
-		src := unit.Source
-		src, err := filepath.Abs(src)
+		dest, err := filepath.Abs(destPath)
 		if err != nil {
-			return errors.New(fmt.Errorf("failed to get absolute path for source '%s': %w", unit.Source, err))
-		}
-		opts.Logger.Infof("Processing unit: %s (%s) to %s", unit.Name, src, destPath)
-
-		req := &getter.Request{
-			Src:             src,
-			Dst:             destPath,
-			GetMode:         getter.ModeAny,
-			Copy:            true,
-			DisableSymlinks: true,
-			Umask:           0755,
+			return errors.New(fmt.Errorf("failed to get absolute path for destination '%s': %w", destPath, err))
 		}
 
-		if _, err := getter.DefaultClient.Get(ctx, req); err != nil {
+		src := unit.Source
+		src, err = filepath.Abs(src)
+		if err != nil {
+			opts.Logger.Warnf("failed to get absolute path for source '%s': %v", unit.Source, err)
+			src = unit.Source
+		}
+		opts.Logger.Infof("Processing unit: %s (%s) to %s", unit.Name, src, dest)
+
+		if _, err := getter.GetAny(ctx, dest, src); err != nil {
 			return fmt.Errorf("failed to fetch source '%s' to destination '%s': %w", unit.Source, destPath, err)
 		}
 	}
