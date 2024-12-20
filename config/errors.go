@@ -226,15 +226,45 @@ func (err TerragruntOutputListEncodingError) Error() string {
 }
 
 type TerragruntOutputTargetNoOutputs struct {
+	targetName    string
+	targetPath    string
 	targetConfig  string
 	currentConfig string
 }
 
+func (err TerragruntOutputTargetNoOutputs) ExitCode() int {
+	return 1
+}
+
+func (err TerragruntOutputTargetNoOutputs) Unwrap() error {
+	return nil
+}
+
 func (err TerragruntOutputTargetNoOutputs) Error() string {
+	msg := `
+If this dependency is accessed before the outputs are ready (which can happen during the planning phase of an unapplied stack), consider using mock_outputs.
+e.g.
+
+dependency "` + err.targetName + `" {
+    config_path = "` + err.targetPath + `"
+
+    mock_outputs = {
+        ` + err.targetName + `_output = "mock-` + err.targetName + `-output"
+    }
+}
+
+For further details, refer to this resource:
+https://terragrunt.gruntwork.io/docs/features/stacks/#unapplied-dependency-and-mock-outputs
+
+If you do not require outputs from your dependency, consider using the dependencies block instead:
+https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-attributes/#dependencies
+`
+
 	return fmt.Sprintf(
-		"%s is a dependency of %s but detected no outputs. Either the target module has not been applied yet, or the module has no outputs. If this is expected, set the skip_outputs flag to true on the dependency block.",
+		"%s is a dependency of %s but detected no outputs. Either the target module has not been applied yet, or the module has no outputs. If this is expected, set the skip_outputs flag to true on the dependency block.\n%s",
 		err.targetConfig,
 		err.currentConfig,
+		msg,
 	)
 }
 
