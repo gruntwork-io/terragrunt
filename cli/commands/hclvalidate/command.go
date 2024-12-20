@@ -41,9 +41,10 @@ func NewCommand(generalOpts *options.TerragruntOptions) *cli.Command {
 	opts := NewOptions(generalOpts)
 
 	return &cli.Command{
-		Name:   CommandName,
-		Usage:  "Find all hcl files from the config stack and validate them.",
-		Flags:  append(flags.NewCommonFlags(opts.TerragruntOptions), NewFlags(opts)...).Sort(),
-		Action: func(ctx *cli.Context) error { return Run(ctx, opts) },
+		Name:                   CommandName,
+		Usage:                  "Find all hcl files from the config stack and validate them.",
+		Flags:                  NewFlags(opts).Sort(),
+		DisallowUndefinedFlags: true,
+		Action:                 func(ctx *cli.Context) error { return Run(ctx, opts) },
 	}
 }

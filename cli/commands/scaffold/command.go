@@ -8,7 +8,8 @@ import (
 )
 
 const (
-	CommandName     = "scaffold"
+	CommandName = "scaffold"
+
 	VarFlagName     = "var"
 	VarFileFlagName = "var-file"
 )
@@ -35,7 +36,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Name:                   CommandName,
 		Usage:                  "Scaffold a new Terragrunt module.",
 		DisallowUndefinedFlags: true,
-		Flags:                  append(flags.NewCommonFlags(opts), NewFlags(opts)...).Sort(),
+		Flags:                  NewFlags(opts).Sort(),
 		Action: func(ctx *cli.Context) error {
 			var moduleURL, templateURL string
 

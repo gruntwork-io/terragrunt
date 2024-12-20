@@ -3802,6 +3802,8 @@ func TestLogFormatJSONOutput(t *testing.T) {
 		assert.True(t, ok)
 		msgs = append(msgs, msg)
 	}
+
+	assert.Contains(t, strings.Join(msgs, ""), "Downloading Terraform configurations from git::https://github.com/gruntwork-io/terragrunt.git?ref=v0.9.9")
 }
 
 func TestTerragruntOutputFromDependencyLogsJson(t *testing.T) {

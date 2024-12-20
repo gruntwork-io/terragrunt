@@ -58,9 +58,10 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
-		Name:   CommandName,
-		Usage:  "Recursively find hcl files and rewrite them into a canonical format.",
-		Flags:  append(flags.NewCommonFlags(opts), NewFlags(opts)...).Sort(),
-		Action: func(ctx *cli.Context) error { return Run(opts.OptionsFromContext(ctx)) },
+		Name:                   CommandName,
+		Usage:                  "Recursively find hcl files and rewrite them into a canonical format.",
+		Flags:                  NewFlags(opts).Sort(),
+		DisallowUndefinedFlags: true,
+		Action:                 func(ctx *cli.Context) error { return Run(opts.OptionsFromContext(ctx)) },
 	}
 }
