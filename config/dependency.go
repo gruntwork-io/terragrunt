@@ -514,6 +514,8 @@ func getTerragruntOutputIfAppliedElseConfiguredDefault(ctx *ParsingContext, depe
 	// returning mocks is not allowed. So return a useful error message indicating that we expected outputs, but they
 	// did not exist.
 	err := TerragruntOutputTargetNoOutputs{
+		targetName:    dependencyConfig.Name,
+		targetPath:    dependencyConfig.ConfigPath.AsString(),
 		targetConfig:  targetConfig,
 		currentConfig: ctx.TerragruntOptions.TerragruntConfigPath,
 	}
