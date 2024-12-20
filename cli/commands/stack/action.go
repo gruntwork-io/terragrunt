@@ -55,13 +55,24 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 
 	for _, unit := range stackFile.Units {
 		destPath := filepath.Join(baseDir, unit.Path)
+		src := unit.Source
+		src, err := filepath.Abs(src)
+		if err != nil {
+			return errors.New(fmt.Errorf("failed to get absolute path for source '%s': %w", unit.Source, err))
+		}
+		opts.Logger.Infof("Processing unit: %s (%s) to %s", unit.Name, src, destPath)
 
-		if err := os.MkdirAll(destPath, 0755); err != nil {
-			return errors.New(fmt.Errorf("failed to create destination directory '%s': %w", destPath, err))
+		req := &getter.Request{
+			Src:             src,
+			Dst:             destPath,
+			GetMode:         getter.ModeAny,
+			Copy:            true,
+			DisableSymlinks: true,
+			Umask:           0755,
 		}
 
-		if _, err := getter.GetAny(ctx, unit.Source, destPath); err != nil {
-			return errors.New(fmt.Errorf("failed to fetch source '%s' to destination '%s': %w", unit.Source, destPath, err))
+		if _, err := getter.DefaultClient.Get(ctx, req); err != nil {
+			return fmt.Errorf("failed to fetch source '%s' to destination '%s': %w", unit.Source, destPath, err)
 		}
 	}
 
