@@ -74,8 +74,8 @@ This page documents the CLI commands and options available with Terragrunt:
   - [hclvalidate-json](#hclvalidate-json)
   - [hclvalidate-show-config-path](#hclvalidate-show-config-path)
   - [override-attr](#override-attr)
-  - [json-out](#json-out)
-  - [json-disable-dependent-modules](#json-disable-dependent-modules)
+  - [out](#out)
+  - [disable-dependent-modules](#disable-dependent-modules)
   - [units-that-include](#units-that-include)
   - [dependency-fetch-output-from-state](#dependency-fetch-output-from-state)
   - [use-partial-parse-config-cache](#use-partial-parse-config-cache)
@@ -803,8 +803,8 @@ The currently available options are:
   - [hclvalidate-json](#hclvalidate-json)
   - [hclvalidate-show-config-path](#hclvalidate-show-config-path)
   - [override-attr](#override-attr)
-  - [json-out](#json-out)
-  - [json-disable-dependent-modules](#json-disable-dependent-modules)
+  - [out](#out)
+  - [disable-dependent-modules](#disable-dependent-modules)
   - [units-that-include](#units-that-include)
   - [dependency-fetch-output-from-state](#dependency-fetch-output-from-state)
   - [use-partial-parse-config-cache](#use-partial-parse-config-cache)
@@ -1354,7 +1354,7 @@ command](#aws-provider-patch). May be specified multiple times. Also, `ATTR` can
 block by specifying `<BLOCK>.<ATTR>`, where `<BLOCK>` is the block name: e.g., `assume_role.role` arn will override the
 `role_arn` attribute of the `assume_role { ... }` block.
 
-### json-out
+### out
 
 **CLI Arg**: `--out`<br/>
 **CLI Arg Alias**: `--terragrunt-json-out` (deprecated: [See migration guide](https://terragrunt.gruntwork.io/should-be-replaced))<br/>
@@ -1367,7 +1367,7 @@ block by specifying `<BLOCK>.<ATTR>`, where `<BLOCK>` is the block name: e.g., `
 
 When passed in, render the json representation in this file.
 
-### json-disable-dependent-modules
+### disable-dependent-modules
 
 **CLI Arg**: `--disable-dependent-modules`<br/>
 **CLI Arg Alias**: `--terragrunt-json-disable-dependent-modules` (deprecated: [See migration guide](https://terragrunt.gruntwork.io/should-be-replaced))<br/>
