@@ -28,7 +28,7 @@ The `STDOUT` and `STDERR` log levels are non-standard, and exist due to Terragru
 
 For the most part, whenever you use Terragrunt to run something using another tool (like OpenTofu or Terraform), Terragrunt will capture the stdout and stderr terminal output from that tool, enrich it with additional information, then _log_ it as `STDOUT` or `STDERR` respectively.
 
-The exception to this is when Terragrunt is running a process in "Headless Mode", where it will instead emit stdout and stderr terminal output to `INFO` and `ERROR` log levels respectively. This happens when 
+The exception to this is when Terragrunt is running a process in "Headless Mode", where it will instead emit stdout and stderr terminal output to `INFO` and `ERROR` log levels respectively. This happens when
 
 All other log levels are standard, and are used by Terragrunt to log its own messages.
 
@@ -68,7 +68,6 @@ Here, we have three types of log messages:
 1. `DEBUG` messages from Terragrunt itself. By default, Terragrunt's log level is `INFO`, but we've set it to `DEBUG` using the `--terragrunt-log-level` flag.
 2. `STDOUT` messages from OpenTofu. These are messages that OpenTofu would normally print directly to the terminal, but instead, Terragrunt captures them and logs them as `STDOUT` log messages, along with timestamps and other metadata.
 3. `INFO` messages from Terragrunt [auto-init](/docs/features/auto-init). These were initially emitted by OpenTofu, however the user did not specifically ask for them, so Terragrunt logs them as `INFO` messages.
-
 
 ## Enrichment
 
