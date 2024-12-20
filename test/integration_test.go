@@ -125,7 +125,7 @@ func TestExecCommand(t *testing.T) {
 	err = os.Mkdir(downloadDirPath, os.ModePerm)
 	require.NoError(t, err)
 
-	testCases := []struct {
+	tc := []struct {
 		args           []string
 		scriptPath     string
 		expectedOutput string
@@ -142,7 +142,7 @@ func TestExecCommand(t *testing.T) {
 		},
 	}
 
-	for i, tt := range testCases {
+	for i, tt := range tc {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 

@@ -28,16 +28,16 @@ To avoid these frustrating trade-offs, you can configure Terragrunt to assume an
 
 ### Configuring Terragrunt to assume an IAM role
 
-To tell Terragrunt to assume an IAM role, just set the `--terragrunt-iam-role` command line argument:
+To tell Terragrunt to assume an IAM role, just set the `--iam-assume-role` command line argument:
 
 ```bash
-terragrunt apply --terragrunt-iam-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+terragrunt apply --iam-assume-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 ```
 
-Alternatively, you can set the `TERRAGRUNT_IAM_ROLE` environment variable:
+Alternatively, you can set the `TG_IAM_ASSUME_ROLE` environment variable:
 
 ```bash
-export TERRAGRUNT_IAM_ROLE="arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
+export TG_IAM_ROLE="arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 terragrunt apply
 ```
 

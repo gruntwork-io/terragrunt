@@ -25,7 +25,7 @@ const (
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
-		flags.GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+		flags.GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:        GraphRootFlagName,
 			EnvVars:     flags.EnvVars(GraphRootFlagName),
 			Destination: &opts.GraphRoot,

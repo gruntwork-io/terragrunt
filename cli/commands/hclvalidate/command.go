@@ -13,24 +13,27 @@ import (
 const (
 	CommandName = "hclvalidate"
 
-	ShowConfigPathFlagName = "hclvalidate-show-config-path"
-	JSONOutputFlagName     = "hclvalidate-json"
+	ShowConfigPathFlagName = "show-config-path"
+	JSONFlagName           = "json"
+
+	TerragruntHclvalidateShowConfigPathFlagName = flags.DeprecatedFlagNamePrefix + CommandName + "-show-config-path"
+	TerragruntHclvalidateJSONFlagName           = flags.DeprecatedFlagNamePrefix + CommandName + "-json"
 )
 
 func NewFlags(opts *Options) cli.Flags {
 	return cli.Flags{
-		flags.BoolFlagWithDeprecated(opts.TerragruntOptions, &cli.BoolFlag{
+		flags.BoolWithDeprecatedFlag(opts.TerragruntOptions, &cli.BoolFlag{
 			Name:        ShowConfigPathFlagName,
 			EnvVars:     flags.EnvVars(ShowConfigPathFlagName),
 			Usage:       "Show a list of files with invalid configuration.",
 			Destination: &opts.ShowConfigPath,
-		}),
-		flags.BoolFlagWithDeprecated(opts.TerragruntOptions, &cli.BoolFlag{
-			Name:        JSONOutputFlagName,
-			EnvVars:     flags.EnvVars(JSONOutputFlagName),
+		}, TerragruntHclvalidateShowConfigPathFlagName),
+		flags.BoolWithDeprecatedFlag(opts.TerragruntOptions, &cli.BoolFlag{
+			Name:        JSONFlagName,
+			EnvVars:     flags.EnvVars(JSONFlagName),
 			Destination: &opts.JSONOutput,
 			Usage:       "Output the result in JSON format.",
-		}),
+		}, TerragruntHclvalidateJSONFlagName),
 	}
 }
 

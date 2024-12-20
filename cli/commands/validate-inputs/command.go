@@ -16,7 +16,7 @@ const (
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
-		flags.BoolFlagWithDeprecated(opts, &cli.BoolFlag{
+		flags.BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
 			Name:        StrictValidateFlagName,
 			EnvVars:     flags.EnvVars(StrictValidateFlagName),
 			Destination: &opts.ValidateStrict,

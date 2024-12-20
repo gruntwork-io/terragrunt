@@ -33,67 +33,69 @@ This page documents the CLI commands and options available with Terragrunt:
   - [catalog](#catalog)
   - [graph](#graph)
 - [CLI options](#cli-options)
-  - [terragrunt-config](#terragrunt-config)
-  - [terragrunt-tfpath](#terragrunt-tfpath)
-  - [terragrunt-no-auto-init](#terragrunt-no-auto-init)
-  - [terragrunt-no-auto-approve](#terragrunt-no-auto-approve)
-  - [terragrunt-no-auto-retry](#terragrunt-no-auto-retry)
-  - [terragrunt-non-interactive](#terragrunt-non-interactive)
-  - [terragrunt-working-dir](#terragrunt-working-dir)
-  - [terragrunt-download-dir](#terragrunt-download-dir)
-  - [terragrunt-source](#terragrunt-source)
-  - [terragrunt-source-map](#terragrunt-source-map)
-  - [terragrunt-source-update](#terragrunt-source-update)
-  - [terragrunt-ignore-dependency-errors](#terragrunt-ignore-dependency-errors)
-  - [terragrunt-iam-role](#terragrunt-iam-role)
-  - [terragrunt-iam-assume-role-duration](#terragrunt-iam-assume-role-duration)
-  - [terragrunt-iam-assume-role-session-name](#terragrunt-iam-assume-role-session-name)
-  - [terragrunt-iam-web-identity-token](#terragrunt-iam-web-identity-token)
-  - [terragrunt-excludes-file](#terragrunt-excludes-file)
-  - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
-  - [terragrunt-include-dir](#terragrunt-include-dir)
-  - [terragrunt-strict-include](#terragrunt-strict-include)
-  - [terragrunt-strict-validate](#terragrunt-strict-validate)
-  - [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
-  - [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
-  - [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
-  - [terragrunt-parallelism](#terragrunt-parallelism)
-  - [terragrunt-debug](#terragrunt-debug)
-  - [terragrunt-log-level](#terragrunt-log-level)
-  - [terragrunt-log-disable](#terragrunt-log-disable)
-  - [terragrunt-log-format](#terragrunt-log-format)
-  - [terragrunt-log-custom-format](#terragrunt-log-custom-format)
-  - [terragrunt-log-show-abs-paths](#terragrunt-log-show-abs-paths)
-  - [terragrunt-no-color](#terragrunt-no-color)
-  - [terragrunt-check](#terragrunt-check)
-  - [terragrunt-diff](#terragrunt-diff)
-  - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
-  - [terragrunt-hclfmt-stdin](#terragrunt-hclfmt-stdin)
-  - [terragrunt-hclvalidate-json](#terragrunt-hclvalidate-json)
-  - [terragrunt-hclvalidate-show-config-path](#terragrunt-hclvalidate-show-config-path)
-  - [terragrunt-override-attr](#terragrunt-override-attr)
-  - [terragrunt-json-out](#terragrunt-json-out)
-  - [terragrunt-json-disable-dependent-modules](#terragrunt-json-disable-dependent-modules)
-  - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
-  - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
-  - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
-  - [terragrunt-include-module-prefix](#terragrunt-include-module-prefix) (DEPRECATED: use [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout))
-  - [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
+  - [auth-provider-cmd](#auth-provider-cmd)
+  - [config](#config)
+  - [tfpath](#tfpath)
+  - [no-auto-init](#no-auto-init)
+  - [no-auto-approve](#no-auto-approve)
+  - [no-auto-retry](#no-auto-retry)
+  - [non-interactive](#non-interactive)
+  - [working-dir](#working-dir)
+  - [download-dir](#download-dir)
+  - [source](#source)
+  - [source-map](#source-map)
+  - [source-update](#source-update)
+  - [iam-assume-role](#iam-assume-role)
+  - [iam-assume-role-duration](#iam-assume-role-duration)
+  - [iam-assume-role-session-name](#iam-assume-role-session-name)
+  - [iam-assume-role-web-identity-token](#iam-assume-role-web-identity-token)
+  - [queue-ignore-errors](#queue-ignore-errors)
+  - [queue-exclude-file](#queue-exclude-file)
+  - [queue-exclude-dir](#queue-exclude-dir)
+  - [queue-include-dir](#queue-include-dir)
+  - [queue-strict-include](#queue-strict-include)
+  - [strict-validate](#strict-validate)
+  - [queue-ignore-dag-order](#queue-ignore-dag-order)
+  - [queue-exclude-external](#queue-exclude-external)
+  - [queue-include-external](#queue-include-external)
+  - [parallelism](#parallelism)
+  - [debug-inputs](#debug-inputs)
+  - [log-level](#log-level)
+  - [log-disable](#log-disable)
+  - [log-format](#log-format)
+  - [log-custom-format](#log-custom-format)
+  - [log-show-abs-paths](#log-show-abs-paths)
+  - [no-color](#no-color)
+  - [check](#check)
+  - [diff](#diff)
+  - [hclfmt-file](#hclfmt-file)
+  - [hclfmt-exclude-dir](#hclfmt-exclude-dir)
+  - [hclfmt-stdin](#hclfmt-stdin)
+  - [hclvalidate-json](#hclvalidate-json)
+  - [hclvalidate-show-config-path](#hclvalidate-show-config-path)
+  - [override-attr](#override-attr)
+  - [json-out](#json-out)
+  - [json-disable-dependent-modules](#json-disable-dependent-modules)
+  - [units-that-include](#units-that-include)
+  - [dependency-fetch-output-from-state](#dependency-fetch-output-from-state)
+  - [use-partial-parse-config-cache](#use-partial-parse-config-cache)
+  - [terragrunt-include-module-prefix](#terragrunt-include-module-prefix) (DEPRECATED: use [tf-forward-stdout](#tf-forward-stdout))
+  - [backend-require-bootstrap](#backend-require-bootstrap)
   - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
-  - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
-  - [terragrunt-json-log](#terragrunt-json-log) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-  - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-  - [terragrunt-provider-cache](#terragrunt-provider-cache)
-  - [terragrunt-provider-cache-dir](#terragrunt-provider-cache-dir)
-  - [terragrunt-provider-cache-hostname](#terragrunt-provider-cache-hostname)
-  - [terragrunt-provider-cache-port](#terragrunt-provider-cache-port)
-  - [terragrunt-provider-cache-token](#terragrunt-provider-cache-token)
-  - [terragrunt-provider-cache-registry-names](#terragrunt-provider-cache-registry-names)
-  - [terragrunt-out-dir](#terragrunt-out-dir)
-  - [terragrunt-json-out-dir](#terragrunt-json-out-dir)
-  - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-  - [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout)
-  - [terragrunt-no-destroy-dependencies-check](#terragrunt-no-destroy-dependencies-check)
+  - [disable-command-validation](#disable-command-validation)
+  - [terragrunt-json-log](#terragrunt-json-log) (DEPRECATED: use [log-format](#log-format))
+  - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json) (DEPRECATED: use [log-format](#log-format))
+  - [provider-cache](#provider-cache)
+  - [provider-cache-dir](#provider-cache-dir)
+  - [provider-cache-hostname](#provider-cache-hostname)
+  - [provider-cache-port](#provider-cache-port)
+  - [provider-cache-token](#provider-cache-token)
+  - [provider-cache-registry-names](#provider-cache-registry-names)
+  - [out-dir](#out-dir)
+  - [json-out-dir](#json-out-dir)
+  - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting) (DEPRECATED: use [log-format](#log-format))
+  - [tf-forward-stdout](#tf-forward-stdout)
+  - [no-destroy-dependencies-check](#no-destroy-dependencies-check)
   - [feature](#feature)
 
 ## CLI commands
@@ -373,10 +375,10 @@ Additionally, there are **two modes** in which the `validate-inputs` command can
 If you run the `validate-inputs` command without flags, relaxed mode will be enabled by default. In relaxed mode, any unused variables
 that are passed, but not used by the underlying OpenTofu/Terraform configuration, will generate a warning, but not an error. Missing required variables will _always_ return an error, whether `validate-inputs` is running in relaxed or strict mode.
 
-To enable strict mode, you can pass the `--terragrunt-strict-validate` flag like so:
+To enable strict mode, you can pass the `--strict-validate` flag like so:
 
 ```bash
-> terragrunt validate-inputs --terragrunt-strict-validate
+> terragrunt validate-inputs --strict-validate
 ```
 
 When running in strict mode, `validate-inputs` will return an error if there are unused inputs.
@@ -452,20 +454,20 @@ terragrunt hclvalidate
 This will search all hcl files from the configuration stack in the current working directory and run the equivalent
 of `tofu validate`/`terraform validate` on them.
 
-For convenience in programmatically parsing these findings, you can also pass the `--terragrunt-hclvalidate-json` flag to output the results in JSON format.
+For convenience in programmatically parsing these findings, you can also pass the `--json` flag to output the results in JSON format.
 
 Example:
 
 ```bash
-terragrunt hclvalidate --terragrunt-hclvalidate-json
+terragrunt hclvalidate --json
 ```
 
-In addition, you can pass the `--terragrunt-hclvalidate-show-config-path` flag to only output paths of the invalid config files, delimited by newlines. This can be especially useful when combined with the [terragrunt-excludes-file](#terragrunt-excludes-file) flag.
+In addition, you can pass the `--show-config-path` flag to only output paths of the invalid config files, delimited by newlines. This can be especially useful when combined with the [queue-exclude-file](#queue-exclude-file) flag.
 
 Example:
 
 ```bash
-terragrunt hclvalidate --terragrunt-hclvalidate-show-config-path
+terragrunt hclvalidate --show-config-path
 ```
 
 ### aws-provider-patch
@@ -477,9 +479,9 @@ code uses a module that has a `provider` block nested within it that sets any of
 This command is a hacky attempt at working around this problem by allowing you to temporarily hard-code those
 attributes so `import` can work.
 
-You specify which attributes to hard-code using the [`--terragrunt-override-attr`](#terragrunt-override-attr) option,
+You specify which attributes to hard-code using the [`--override-attr`](#override-attr) option,
 passing it `ATTR=VALUE`, where `ATTR` is the attribute name and `VALUE` is the new value. `VALUE` is assumed to be a
-json encoded string, which means that you must have quotes (e.g., `--terragrunt-override-attr 'region="eu-west-1"'`).
+json encoded string, which means that you must have quotes (e.g., `--override-attr 'region="eu-west-1"'`).
 Additionally, note that `ATTR` can specify attributes within a nested block by specifying `<BLOCK>.<ATTR>`, where
 `<BLOCK>` is the block name.
 
@@ -502,9 +504,9 @@ around it, run the following command:
 # NOTE: The single quotes around the args is to allow you to pass through the " character in the args via bash quoting
 # rules.
 terragrunt aws-provider-patch \
-  --terragrunt-override-attr 'region="eu-west-1"' \
-  --terragrunt-override-attr 'assume_role.role_arn=""' \
-  --terragrunt-override-attr 'allowed_account_ids=["00000000"]'
+  --override-attr 'region="eu-west-1"' \
+  --override-attr 'assume_role.role_arn=""' \
+  --override-attr 'allowed_account_ids=["00000000"]'
 ```
 
 When you run the command above, Terragrunt will:
@@ -559,7 +561,7 @@ Renders to the following `terragrunt_rendered.json`:
 }
 ```
 
-You can use the CLI option `--terragrunt-json-out` to configure where terragrunt renders out the json representation.
+You can use the CLI option `--json-out` to configure where terragrunt renders out the json representation.
 
 To generate json with metadata can be specified argument `--with-metadata` which will add metadata to the json output.
 
@@ -607,7 +609,7 @@ the dependency graph based on [`dependency`](/docs/reference/config-blocks-and-a
 [`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks and output the graph as a JSON list of list (unless the sub-command is destroy, in which case the command will output the reverse dependency order).
 
 This can be be useful in several scenarios, such as in CICD, when determining apply order or searching for all files to apply with CLI options
-such as [`--terragrunt-modules-that-include`](#terragrunt-modules-that-include)
+such as [`--units-that-include`](#units-that-include)
 
 This may produce output such as:
 
@@ -739,8 +741,7 @@ Notes:
 
 ## CLI options
 
-Terragrunt forwards all options to OpenTofu/Terraform. The only exceptions are `--version` and arguments that start with the
-prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available options are:
+The currently available options are:
 
 - [CLI commands](#cli-commands)
   - [All OpenTofu/Terraform built-in commands](#all-opentofuterraform-built-in-commands)
@@ -761,85 +762,92 @@ prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available op
   - [catalog](#catalog)
   - [graph](#graph)
 - [CLI options](#cli-options)
-  - [terragrunt-config](#terragrunt-config)
-  - [terragrunt-tfpath](#terragrunt-tfpath)
-  - [terragrunt-no-auto-init](#terragrunt-no-auto-init)
-  - [terragrunt-no-auto-approve](#terragrunt-no-auto-approve)
-  - [terragrunt-no-auto-retry](#terragrunt-no-auto-retry)
-  - [terragrunt-non-interactive](#terragrunt-non-interactive)
-  - [terragrunt-working-dir](#terragrunt-working-dir)
-  - [terragrunt-download-dir](#terragrunt-download-dir)
-  - [terragrunt-source](#terragrunt-source)
-  - [terragrunt-source-map](#terragrunt-source-map)
-  - [terragrunt-source-update](#terragrunt-source-update)
-  - [terragrunt-ignore-dependency-errors](#terragrunt-ignore-dependency-errors)
-  - [terragrunt-iam-role](#terragrunt-iam-role)
-  - [terragrunt-iam-assume-role-duration](#terragrunt-iam-assume-role-duration)
-  - [terragrunt-iam-assume-role-session-name](#terragrunt-iam-assume-role-session-name)
-  - [terragrunt-excludes-file](#terragrunt-excludes-file)
-  - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
-  - [terragrunt-include-dir](#terragrunt-include-dir)
-  - [terragrunt-strict-include](#terragrunt-strict-include)
-  - [terragrunt-strict-validate](#terragrunt-strict-validate)
-  - [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
-  - [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
-  - [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
-  - [terragrunt-parallelism](#terragrunt-parallelism)
-  - [terragrunt-debug](#terragrunt-debug)
-  - [terragrunt-log-level](#terragrunt-log-level)
-  - [terragrunt-log-format](#terragrunt-log-format)
-  - [terragrunt-log-custom-format](#terragrunt-log-custom-format)
-  - [terragrunt-log-disable](#terragrunt-log-disable)
-  - [terragrunt-log-show-abs-paths](#terragrunt-log-show-abs-paths)
-  - [terragrunt-no-color](#terragrunt-no-color)
-  - [terragrunt-check](#terragrunt-check)
-  - [terragrunt-diff](#terragrunt-diff)
-  - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
-  - [terragrunt-hclfmt-stdin](#terragrunt-hclfmt-stdin)
-  - [terragrunt-hclvalidate-json](#terragrunt-hclvalidate-json)
-  - [terragrunt-hclvalidate-show-config-path](#terragrunt-hclvalidate-show-config-path)
-  - [terragrunt-override-attr](#terragrunt-override-attr)
-  - [terragrunt-json-out](#terragrunt-json-out)
-  - [terragrunt-json-disable-dependent-modules](#terragrunt-json-disable-dependent-modules)
-  - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
-  - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
-  - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
-  - [terragrunt-include-module-prefix](#terragrunt-include-module-prefix) (DEPRECATED: use [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout))
-  - [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
+  - [auth-provider-cmd](#auth-provider-cmd)
+  - [config](#config)
+  - [tfpath](#tfpath)
+  - [no-auto-init](#no-auto-init)
+  - [no-auto-approve](#no-auto-approve)
+  - [no-auto-retry](#no-auto-retry)
+  - [non-interactive](#non-interactive)
+  - [working-dir](#working-dir)
+  - [download-dir](#download-dir)
+  - [source](#source)
+  - [source-map](#source-map)
+  - [source-update](#source-update)
+  - [iam-assume-role](#iam-assume-role)
+  - [iam-assume-role-duration](#iam-assume-role-duration)
+  - [iam-assume-role-session-name](#iam-assume-role-session-name)
+  - [iam-assume-role-web-identity-token](#iam-assume-role-web-identity-token)
+  - [queue-ignore-errors](#queue-ignore-errors)
+  - [queue-exclude-file](#queue-exclude-file)
+  - [queue-exclude-dir](#queue-exclude-dir)
+  - [queue-include-dir](#queue-include-dir)
+  - [queue-strict-include](#queue-strict-include)
+  - [strict-validate](#strict-validate)
+  - [queue-ignore-dag-order](#queue-ignore-dag-order)
+  - [queue-exclude-external](#queue-exclude-external)
+  - [queue-include-external](#queue-include-external)
+  - [parallelism](#parallelism)
+  - [debug-inputs](#debug-inputs)
+  - [log-level](#log-level)
+  - [log-format](#log-format)
+  - [log-custom-format](#log-custom-format)
+  - [log-disable](#log-disable)
+  - [log-show-abs-paths](#log-show-abs-paths)
+  - [no-color](#no-color)
+  - [check](#check)
+  - [diff](#diff)
+  - [hclfmt-file](#hclfmt-file)
+  - [hclfmt-exclude-dir](#hclfmt-exclude-dir)
+  - [hclfmt-stdin](#hclfmt-stdin)
+  - [hclvalidate-json](#hclvalidate-json)
+  - [hclvalidate-show-config-path](#hclvalidate-show-config-path)
+  - [override-attr](#override-attr)
+  - [json-out](#json-out)
+  - [json-disable-dependent-modules](#json-disable-dependent-modules)
+  - [units-that-include](#units-that-include)
+  - [dependency-fetch-output-from-state](#dependency-fetch-output-from-state)
+  - [use-partial-parse-config-cache](#use-partial-parse-config-cache)
+  - [terragrunt-include-module-prefix](#terragrunt-include-module-prefix) (DEPRECATED: use [tf-forward-stdout](#tf-forward-stdout))
+  - [backend-require-bootstrap](#backend-require-bootstrap)
   - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
-  - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
-  - [terragrunt-json-log](#terragrunt-json-log) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-  - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-  - [terragrunt-provider-cache](#terragrunt-provider-cache)
-  - [terragrunt-provider-cache-dir](#terragrunt-provider-cache-dir)
-  - [terragrunt-provider-cache-hostname](#terragrunt-provider-cache-hostname)
-  - [terragrunt-provider-cache-port](#terragrunt-provider-cache-port)
-  - [terragrunt-provider-cache-token](#terragrunt-provider-cache-token)
-  - [terragrunt-provider-cache-registry-names](#terragrunt-provider-cache-registry-names)
-  - [terragrunt-out-dir](#terragrunt-out-dir)
-  - [terragrunt-json-out-dir](#terragrunt-json-out-dir)
-  - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-  - [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout)
-  - [terragrunt-no-destroy-dependencies-check](#terragrunt-no-destroy-dependencies-check)
+  - [disable-command-validation](#disable-command-validation)
+  - [terragrunt-json-log](#terragrunt-json-log) (DEPRECATED: use [log-format](#log-format))
+  - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json) (DEPRECATED: use [log-format](#log-format))
+  - [provider-cache](#provider-cache)
+  - [provider-cache-dir](#provider-cache-dir)
+  - [provider-cache-hostname](#provider-cache-hostname)
+  - [provider-cache-port](#provider-cache-port)
+  - [provider-cache-token](#provider-cache-token)
+  - [provider-cache-registry-names](#provider-cache-registry-names)
+  - [out-dir](#out-dir)
+  - [json-out-dir](#json-out-dir)
+  - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting) (DEPRECATED: use [log-format](#log-format))
+  - [tf-forward-stdout](#tf-forward-stdout)
+  - [no-destroy-dependencies-check](#no-destroy-dependencies-check)
 
-### terragrunt-config
+### config
 
 <!-- markdownlint-disable MD033 -->
 
-**CLI Arg**: `--terragrunt-config`<br/>
-**Environment Variable**: `TERRAGRUNT_CONFIG`<br/>
-**Requires an argument**: `--terragrunt-config /path/to/terragrunt.hcl`<br/>
+**CLI Arg**: `--config`<br/>
+**CLI Arg Alias**: `--terragrunt-config` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_CONFIG`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_CONFIG` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--config /path/to/terragrunt.hcl`<br/>
 
 A custom path to the `terragrunt.hcl` or `terragrunt.hcl.json` file. The
 default path is `terragrunt.hcl` (preferred) or `terragrunt.hcl.json` in the current directory (see
 [Configuration]({{site.baseurl}}/docs/getting-started/configuration/#configuration) for a slightly more nuanced
 explanation). This argument is not used with the `run-all` commands.
 
-### terragrunt-tfpath
+### tfpath
 
-**CLI Arg**: `--terragrunt-tfpath`<br/>
-**Environment Variable**: `TERRAGRUNT_TFPATH`<br/>
-**Requires an argument**: `--terragrunt-tfpath /path/to/terraform-binary`<br/>
+**CLI Arg**: `--tf-path`<br/>
+**CLI Arg Alias**: `--terragrunt-tfpath` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_TF_PATH`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_TFPATH` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--tfpath /path/to/terraform-binary`<br/>
 
 A custom path to the OpenTofu/Terraform binary. The default is `tofu` in a directory on your PATH.
 
@@ -847,10 +855,12 @@ A custom path to the OpenTofu/Terraform binary. The default is `tofu` in a direc
 `dependency` lookups. This setting will also override any [terraform_binary]({{site.baseurl}}/docs/reference/config-blocks-and-attributes/#terraform_binary)
 configuration values specified in the `terragrunt.hcl` config for both the top level, and dependency lookups.
 
-### terragrunt-no-auto-init
+### no-auto-init
 
-**CLI Arg**: `--terragrunt-no-auto-init`<br/>
-**Environment Variable**: `TERRAGRUNT_NO_AUTO_INIT` (set to `true`)<br/>
+**CLI Arg**: `--no-auto-init`<br/>
+**CLI Arg Alias**: `--terragrunt-no-auto-init` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_NO_AUTO_INIT` (set to `true`)<br/>
+**Environment Variable Alias**: `TERRAGRUNT_NO_AUTO_INIT` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 _(Prior to Terragrunt v0.48.6, this environment variable was called `TERRAGRUNT_AUTO_INIT` (set to `false`), and is still available for backwards compatibility)_
 
 When passed in, don't automatically run `terraform init` when other commands are run (e.g. `terragrunt apply`). Useful
@@ -859,10 +869,12 @@ therefore cannot be specified as `extra_arguments`. For example, `-plugin-dir`. 
 yourself in this case if needed. `terragrunt` will fail if it detects that `init` is needed, but auto init is
 disabled. See [Auto-Init]({{site.baseurl}}/docs/features/auto-init#auto-init)
 
-### terragrunt-no-auto-approve
+### no-auto-approve
 
-**CLI Arg**: `--terragrunt-no-auto-approve`<br/>
-**Environment Variable**: `TERRAGRUNT_NO_AUTO_APPROVE` (set to `true`)<br/>
+**CLI Arg**: `--no-auto-approve`<br/>
+**CLI Arg Alias**: `--terragrunt-no-auto-approve` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_NO_AUTO_APPROVE` (set to `true`)<br/>
+**Environment Variable Alias**: `TERRAGRUNT_NO_AUTO_APPROVE` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 _(Prior to Terragrunt v0.48.6, this environment variable was called `TERRAGRUNT_AUTO_APPROVE` (set to `false`), and is still available for backwards compatibility)_
 **Commands**:
 
@@ -870,21 +882,25 @@ _(Prior to Terragrunt v0.48.6, this environment variable was called `TERRAGRUNT_
 
 When passed in, Terragrunt will no longer automatically append `-auto-approve` to the underlying OpenTofu/Terraform commands run
 with `run-all`. Note that due to the interactive prompts, this flag will also **automatically assume
-`--terragrunt-parallelism 1`**.
+`--parallelism 1`**.
 
-### terragrunt-no-auto-retry
+### no-auto-retry
 
-**CLI Arg**: `--terragrunt-no-auto-retry`<br/>
-**Environment Variable**: `TERRAGRUNT_NO_AUTO_RETRY` (set to `true`)<br/>
+**CLI Arg**: `--no-auto-retry`<br/>
+**CLI Arg Alias**: `--terragrunt-no-auto-retry` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_NO_AUTO_RETRY` (set to `true`)<br/>
+**Environment Variable Alias**: `TERRAGRUNT_NO_AUTO_RETRY` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 _(Prior to Terragrunt v0.48.6, this environment variable was called `TERRAGRUNT_AUTO_RETRY` (set to `false`), and is still available for backwards compatibility)_
 
 When passed in, don't automatically retry commands which fail with transient errors. See
 [Auto-Retry]({{site.baseurl}}/docs/features/auto-retry#auto-retry)
 
-### terragrunt-non-interactive
+### non-interactive
 
-**CLI Arg**: `--terragrunt-non-interactive`<br/>
-**Environment Variable**: `TERRAGRUNT_NON_INTERACTIVE` (set to `true`)<br/>
+**CLI Arg**: `--non-interactive`<br/>
+**CLI Arg Alias**: `--terragrunt-non-interactive` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_NON_INTERACTIVE` (set to `true`)<br/>
+**Environment Variable Alias**: `TERRAGRUNT_NON_INTERACTIVE` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 _(Prior to Terragrunt v0.48.6, this environment variable was called `TF_INPUT` (set to `false`), and is still available for backwards compatibility. NOTE: [TF_INPUT](https://developer.hashicorp.com/terraform/cli/config/environment-variables#tf_input) is native to OpenTofu/Terraform!)_
 
 When passed in, don't show interactive user prompts. This will default the answer for all Terragrunt (not OpenTofu/Terraform) prompts to `yes` except for
@@ -894,73 +910,81 @@ also be specified with the [TF_INPUT](https://www.terraform.io/docs/configuratio
 This setting will default to `no` for the following cases:
 
 - Prompts related to pulling in external dependencies. You can force include external dependencies using the
-  [--terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies) option.
+  [--queue-include-external](#queue-include-external) option.
 
 Note that this does not impact the behavior of OpenTofu/Terraform commands invoked by Terragrunt.
 
 e.g.
 
 ```bash
-terragrunt --terragrunt-non-interactive apply -auto-approve
+terragrunt --non-interactive apply -auto-approve
 ```
 
 Is how you would make Terragrunt apply without any user prompts from Terragrunt or OpenTofu/Terraform.
 
-### terragrunt-working-dir
+### working-dir
 
-**CLI Arg**: `--terragrunt-working-dir`<br/>
-**Environment Variable**: `TERRAGRUNT_WORKING_DIR`<br/>
-**Requires an argument**: `--terragrunt-working-dir /path/to/working-directory`<br/>
+**CLI Arg**: `--working-dir`<br/>
+**CLI Arg Alias**: `--terragrunt-working-dir` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_WORKING_DIR`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_WORKING_DIR` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--working-dir /path/to/working-directory`<br/>
 
 Set the directory where Terragrunt should execute the `terraform` command. Default is the current working directory.
 Note that for the `run-all` commands, this parameter has a different meaning: Terragrunt will apply or destroy all the
-OpenTofu/Terraform modules in the subfolders of the `terragrunt-working-dir`, running `terraform` in the root of each module it
+OpenTofu/Terraform modules in the subfolders of the `working-dir`, running `terraform` in the root of each module it
 finds.
 
-### terragrunt-download-dir
+### download-dir
 
-**CLI Arg**: `--terragrunt-download-dir`<br/>
-**Environment Variable**: `TERRAGRUNT_DOWNLOAD`<br/>
-**Requires an argument**: `--terragrunt-download-dir /path/to/dir-to-download-terraform-code`<br/>
+**CLI Arg**: `--download-dir`<br/>
+**CLI Arg Alias**: `--terragrunt-download-dir` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_DOWNLOAD_DIR`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_DOWNLOAD` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--download-dir /path/to/dir-to-download-terraform-code`<br/>
 
 The path where to download OpenTofu/Terraform code when using [remote OpenTofu/Terraform
 configurations](https://blog.gruntwork.io/terragrunt-how-to-keep-your-terraform-code-dry-and-maintainable-f61ae06959d8).
 Default is `.terragrunt-cache` in the working directory. We recommend adding this folder to your `.gitignore`.
 
-### terragrunt-source
+### source
 
-**CLI Arg**: `--terragrunt-source`<br/>
-**Environment Variable**: `TERRAGRUNT_SOURCE`<br/>
-**Requires an argument**: `--terragrunt-source /path/to/local-terraform-code`<br/>
+**CLI Arg**: `--source`<br/>
+**CLI Arg Alias**: `--terragrunt-source` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_SOURCE`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_SOURCE` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--source /path/to/local-terraform-code`<br/>
 
 Download OpenTofu/Terraform configurations from the specified source into a temporary folder, and run OpenTofu/Terraform in that temporary
 folder. The source should use the same syntax as the [OpenTofu/Terraform module
 source](https://www.terraform.io/docs/modules/sources.html) parameter. If you specify this argument for the `run-all`
 commands, Terragrunt will assume this is the local file path for all of your OpenTofu/Terraform modules, and for each module
 processed by the `run-all` command, Terragrunt will automatically append the path of `source` parameter in each module
-to the `--terragrunt-source` parameter you passed in.
+to the `--source` parameter you passed in.
 
-### terragrunt-source-map
+### source-map
 
-**CLI Arg**: `--terragrunt-source-map`<br/>
-**Environment Variable**: `TERRAGRUNT_SOURCE_MAP` (encoded as comma separated value, e.g., `source1=dest1,source2=dest2`)<br/>
-**Requires an argument**: `--terragrunt-source-map git::ssh://github.com=/path/to/local-terraform-code`<br/>
+**CLI Arg**: `--source-map`<br/>
+**CLI Arg Alias**: `--terragrunt-source-map` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_SOURCE_MAP` (encoded as comma separated value, e.g., `source1=dest1,source2=dest2`)<br/>
+**Environment Variable Alias**: `TERRAGRUNT_SOURCE_MAP` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--source-map git::ssh://github.com=/path/to/local-terraform-code`<br/>
 
-Can be supplied multiple times: `--terragrunt-source-map source1=dest1 --terragrunt-source-map source2=dest2`
+Can be supplied multiple times: `--source-map source1=dest1 --source-map source2=dest2`
 
-The `--terragrunt-source-map source=dest` param replaces any `source` URL (including the source URL of a config pulled
+The `--source-map source=dest` param replaces any `source` URL (including the source URL of a config pulled
 in with `dependency` blocks) that has root `source` with `dest`.
 
 For example:
 
 ```bash
-terragrunt apply --terragrunt-source-map github.com/org/modules.git=/local/path/to/modules
+terragrunt apply --source-map github.com/org/modules.git=/local/path/to/modules
 ```
 
 The above would replace `terraform { source = "github.com/org/modules.git//xxx" }` with `terraform { source = /local/path/to/modules//xxx }` regardless of
 whether you were running `apply`, or `run-all`, or using a `dependency`.
 
-**NOTE**: This setting is ignored if you pass in `--terragrunt-source`.
+**NOTE**: This setting is ignored if you pass in `--source`.
 
 Note that this only performs literal matches on the URL portion. For example, a map key of
 `ssh://git@github.com/gruntwork-io/terragrunt.git` will only match terragrunt configurations with source `source =
@@ -968,163 +992,199 @@ Note that this only performs literal matches on the URL portion. For example, a 
 "git::ssh://git@github.com/gruntwork-io/terragrunt.git//xxx"`. The latter requires a map key of
 `git::ssh://git@github.com/gruntwork-io/terragrunt.git`.
 
-### terragrunt-source-update
+### source-update
 
-**CLI Arg**: `--terragrunt-source-update`<br/>
-**Environment Variable**: `TERRAGRUNT_SOURCE_UPDATE` (set to `true`)<br/>
+**CLI Arg**: `--source-update`<br/>
+**CLI Arg Alias**: `--terragrunt-source-update` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_SOURCE_UPDATE` (set to `true`)<br/>
+**Environment Variable Alias**: `TERRAGRUNT_SOURCE_UPDATE` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 
 When passed in, delete the contents of the temporary folder before downloading OpenTofu/Terraform source code into it.
 
-### terragrunt-ignore-dependency-errors
+### iam-assume-role
 
-**CLI Arg**: `--terragrunt-ignore-dependency-errors`<br/>
-**Environment Variable**: `TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS`<br/>
-
-When passed in, the `*-all` commands continue processing components even if a dependency fails
-
-### terragrunt-iam-role
-
-**CLI Arg**: `--terragrunt-iam-role`<br/>
-**Environment Variable**: `TERRAGRUNT_IAM_ROLE`<br/>
-**Requires an argument**: `--terragrunt-iam-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"`<br/>
+**CLI Arg**: `--iam-assume-role`<br/>
+**CLI Arg Alias**: `--terragrunt-iam-role` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_IAM_ASSUME_ROLE`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_IAM_ROLE` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--iam-assume-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"`<br/>
 
 Assume the specified IAM role ARN before running OpenTofu/Terraform or AWS commands. This is a convenient way to use Terragrunt
 and OpenTofu/Terraform with multiple AWS accounts.
 
-### terragrunt-iam-assume-role-duration
+### iam-assume-role-duration
 
-**CLI Arg**: `--terragrunt-iam-assume-role-duration`<br/>
-**Environment Variable**: `TERRAGRUNT_IAM_ASSUME_ROLE_DURATION`<br/>
-**Requires an argument**: `--terragrunt-iam-assume-role-duration 3600`<br/>
+**CLI Arg**: `--iam-assume-role-duration`<br/>
+**CLI Arg Alias**: `--terragrunt-iam-assume-role-duration` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_IAM_ASSUME_ROLE_DURATION`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_IAM_ASSUME_ROLE_DURATION` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--iam-assume-role-duration 3600`<br/>
 
-Uses the specified duration as the session duration (in seconds) for the STS session which assumes the role defined in `--terragrunt-iam-role`.
+Uses the specified duration as the session duration (in seconds) for the STS session which assumes the role defined in `--iam-assume-role`.
 
-### terragrunt-iam-assume-role-session-name
+### iam-assume-role-session-name
 
-**CLI Arg**: `--terragrunt-iam-assume-role-session-name`<br/>
-**Environment Variable**: `TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME`<br/>
-**Requires an argument**: `--terragrunt-iam-assume-role-session-name "terragrunt-iam-role-session-name"`<br/>
+**CLI Arg**: `--iam-assume-role-session-name`<br/>
+**CLI Arg Alias**: `--terragrunt-iam-assume-role-session-name` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_IAM_ASSUME_ROLE_SESSION_NAME`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--iam-assume-role-session-name "terragrunt-iam-role-session-name"`<br/>
 
-Used as the session name for the STS session which assumes the role defined in `--terragrunt-iam-role`.
+Used as the session name for the STS session which assumes the role defined in `--iam-assume-role`.
 
-### terragrunt-iam-web-identity-token
+### iam-assume-role-web-identity-token
 
-**CLI Arg**: `--terragrunt-iam-web-identity-token`<br/>
-**Environment Variable**: `TERRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN`<br/>
-**Requires an argument**: `--terragrunt-iam-web-identity-token [/path/to/web-identity-token | web-identity-token-value]`<br/>
+**CLI Arg**: `--iam-assume-role-web-identity-token`<br/>
+**CLI Arg Alias**: `--terragrunt-iam-web-identity-token` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--iam-assume-role-web-identity-token [/path/to/web-identity-token | web-identity-token-value]`<br/>
 
 Used as the web identity token for assuming a role temporarily using the AWS Security Token Service (STS) with the [AssumeRoleWithWebIdentity](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html) API.
 
-### terragrunt-excludes-file
+### queue-ignore-errors
 
-**CLI Arg**: `--terragrunt-excludes-file`<br/>
-**Environment Variable**: `TERRAGRUNT_EXCLUDES_FILE`<br/>
-**Requires an argument**: `--terragrunt-excludes-file /path/to/file`<br/>
+**CLI Arg**: `--queue-ignore-errors`<br/>
+**CLI Arg Alias**: `--terragrunt-ignore-dependency-errors` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_QUEUE_IGNORE_ERRORS`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+
+When passed in, the `*-all` commands continue processing components even if a dependency fails
+
+### queue-exclude-file
+
+**CLI Arg**: `--queue-exclude-file`<br/>
+**CLI Arg Alias**: `--terragrunt-excludes-file` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_QUEUE_EXCLUDES_FILE`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_EXCLUDES_FILE` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--queue-exclude-file /path/to/file`<br/>
 
 Path to a file with a list of directories that need to be excluded when running *-all commands, by default `.terragrunt-excludes`. Modules under these directories will be
 excluded during execution of the commands. If a relative path is specified, it should be relative from
-[--terragrunt-working-dir](#terragrunt-working-dir). This will only exclude the module, not its dependencies.
+[--working-dir](#working-dir). This will only exclude the module, not its dependencies.
 
-This flag has been designed to integrate nicely with the `hclvalidate` command, which can return a list of invalid files delimited by newlines when passed the `--terragrunt-hclvalidate-show-config-path` flag. To integrate the two, you can run something like the following using bash process substitution:
+This flag has been designed to integrate nicely with the `hclvalidate` command, which can return a list of invalid files delimited by newlines when passed the `--show-config-path` flag. To integrate the two, you can run something like the following using bash process substitution:
 
 ```bash
-terragrunt run-all plan --terragrunt-excludes-file <(terragrunt hclvalidate --terragrunt-hclvalidate-show-config-path)
+terragrunt run-all plan --queue-exclude-file <(terragrunt hclvalidate --show-config-path)
 ```
 
-### terragrunt-exclude-dir
+### queue-exclude-dir
 
-**CLI Arg**: `--terragrunt-exclude-dir`<br/>
-**Environment Variable**: `TERRAGRUNT_EXCLUDE_DIR`<br/>
-**Requires an argument**: `--terragrunt-exclude-dir /path/to/dirs/to/exclude*`<br/>
+**CLI Arg**: `--queue-exclude-dir`<br/>
+**CLI Arg Alias**: `--terragrunt-exclude-dir` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_QUEUE_EXCLUDE_DIR`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_EXCLUDE_DIR` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--queue-exclude-dir /path/to/dirs/to/exclude*`<br/>
 
-Can be supplied multiple times: `--terragrunt-exclude-dir /path/to/dirs/to/exclude --terragrunt-exclude-dir /another/path/to/dirs/to/exclude`
+Can be supplied multiple times: `--queue-exclude-dir /path/to/dirs/to/exclude --queue-exclude-dir /another/path/to/dirs/to/exclude`
 
 Unix-style glob of directories to exclude when running `*-all` commands. Modules under these directories will be
 excluded during execution of the commands. If a relative path is specified, it should be relative from
-[--terragrunt-working-dir](#terragrunt-working-dir). Flag can be specified multiple times. This will only exclude the
+[--working-dir](#working-dir). Flag can be specified multiple times. This will only exclude the
 module, not its dependencies.
 
 Please note that the glob curly braces expansion is not taken in account using environment variable unlike of its equivalent as a parameter on the command line.
 You should consider using `TERRAGRUNT_EXCLUDE_DIR="foo/module,bar/module"` instead of `TERRAGRUNT_EXCLUDE_DIR="{foo,bar}/module"`.
 
-### terragrunt-include-dir
+### queue-include-dir
 
-**CLI Arg**: `--terragrunt-include-dir`<br/>
-**Environment Variable**: `TERRAGRUNT_INCLUDE_DIR`<br/>
-**Requires an argument**: `--terragrunt-include-dir /path/to/dirs/to/include*`<br/>
+**CLI Arg**: `--queue-include-dir`<br/>
+**CLI Arg Alias**: `--terragrunt-include-dir` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_QUEUE_INCLUDE_DIR`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_INCLUDE_DIR` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--queue-include-dir /path/to/dirs/to/include*`<br/>
 
-Can be supplied multiple times: `--terragrunt-include-dir /path/to/dirs/to/include --terragrunt-include-dir /another/path/to/dirs/to/include`
+Can be supplied multiple times: `--queue-include-dir /path/to/dirs/to/include --queue-include-dir /another/path/to/dirs/to/include`
 
 Unix-style glob of directories to include when running `*-all` commands. Only modules under these directories (and all
 dependent modules) will be included during execution of the commands. If a relative path is specified, it should be
-relative from `--terragrunt-working-dir`. Flag can be specified multiple times.
+relative from `--working-dir`. Flag can be specified multiple times.
 
 Please note that the glob curly braces expansion is not taken in account using environment variable unlike of its equivalent as a parameter on the command line.
 You should consider using `TERRAGRUNT_INCLUDE_DIR="foo/module,bar/module"` instead of `TERRAGRUNT_INCLUDE_DIR="{foo,bar}/module"`.
 
-### terragrunt-strict-include
+### queue-strict-include
 
-**CLI Arg**: `--terragrunt-strict-include`<br/>
-**Environment Variable**: `TERRAGRUNT_STRICT_INCLUDE`<br/>
+**CLI Arg**: `--queue-strict-include`<br/>
+**CLI Arg Alias**: `--terragrunt-strict-include` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_QUEUE_STRICT_INCLUDE`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_STRICT_INCLUDE` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 
-When passed in, only modules under the directories passed in with [--terragrunt-include-dir](#terragrunt-include-dir)
+When passed in, only modules under the directories passed in with [--queue-include-dir](#queue-include-dir)
 will be included. All dependencies of the included directories will be excluded if they are not in the included
-directories. If no [--terragrunt-include-dir](#terragrunt-include-dir) flags are included, terragrunt will not include
+directories. If no [--queue-include-dir](#queue-include-dir) flags are included, terragrunt will not include
 any modules during the execution of the commands.
 
-### terragrunt-strict-validate
+### queue-ignore-dag-order
 
-**CLI Arg**: `--terragrunt-strict-validate`<br/>
-
-When passed in, and running `terragrunt validate-inputs`, enables strict mode for the `validate-inputs` command. When strict mode is enabled, an error will be returned if any variables required by the underlying OpenTofu/Terraform configuration are not passed in, OR if any unused variables are passed in. By default, `terragrunt validate-inputs` runs in relaxed mode. In relaxed mode, an error is only returned when a variable required by the underlying OpenTofu/Terraform configuration is not passed in.
-
-### terragrunt-ignore-dependency-order
-
-**CLI Arg**: `--terragrunt-ignore-dependency-order`<br/>
-**Environment Variable**: `TERRAGRUNT_IGNORE_DEPENDENCY_ORDER`<br/>
+**CLI Arg**: `--queue-ignore-dag-order`<br/>
+**CLI Arg Alias**: `--terragrunt-ignore-dependency-order` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_QUEUE_IGNORE_DAG_ORDER`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_IGNORE_DEPENDENCY_ORDER` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 
 When passed in, ignore the dependencies between modules when running `*-all` commands.
 
-### terragrunt-ignore-external-dependencies
+### queue-exclude-external
 
-**CLI Arg**: `--terragrunt-ignore-external-dependencies`<br/>
-**Environment Variable**: `TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES`<br/>
+**CLI Arg**: `--queue-exclude-external`<br/>
+**CLI Arg Alias**: `--terragrunt-ignore-external-dependencies` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_QUEUE_EXCLUDE_EXTERNAL`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_IGNORE_EXTERNAL_DEPENDENCIES` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 
 When passed in, don't attempt to include any external dependencies when running `*-all` commands. Note that an external
 dependency is a dependency that is outside the current terragrunt working directory, and is not respective to the
-included directories with `terragrunt-include-dir`.
+included directories with `queue-include-dir`.
 
-### terragrunt-include-external-dependencies
+### queue-include-external
 
-**CLI Arg**: `--terragrunt-include-external-dependencies`<br/>
-**Environment Variable**: `TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES`<br/>
+**CLI Arg**: `--queue-include-external`<br/>
+**CLI Arg Alias**: `--terragrunt-include-external-dependencies` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_QUEUE_INCLUDE_EXTERNAL`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_INCLUDE_EXTERNAL_DEPENDENCIES` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 
 When passed in, include any external dependencies when running `*-all` without asking. Note that an external
 dependency is a dependency that is outside the current terragrunt working directory, and is not respective to the
-included directories with `terragrunt-include-dir`.
+included directories with `queue-include-dir`.
 
-### terragrunt-parallelism
+### strict-validate
 
-**CLI Arg**: `--terragrunt-parallelism`<br/>
-**Environment Variable**: `TERRAGRUNT_PARALLELISM`<br/>
+**CLI Arg**: `--strict-validate`<br/>
+**CLI Arg Alias**: `--terragrunt-strict-validate` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_STRICT_VALIDATE`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_STRICT_VALIDATE` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+
+When passed in, and running `terragrunt validate-inputs`, enables strict mode for the `validate-inputs` command. When strict mode is enabled, an error will be returned if any variables required by the underlying OpenTofu/Terraform configuration are not passed in, OR if any unused variables are passed in. By default, `terragrunt validate-inputs` runs in relaxed mode. In relaxed mode, an error is only returned when a variable required by the underlying OpenTofu/Terraform configuration is not passed in.
+
+
+### parallelism
+
+**CLI Arg**: `--parallelism`<br/>
+**CLI Arg Alias**: `--terragrunt-parallelism` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_PARALLELISM`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_PARALLELISM` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 
 When passed in, limit the number of modules that are run concurrently to this number during \*-all commands.
 The exception is the `terraform init` command, which is always executed sequentially if the [terraform plugin cache](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache) is used. This is because the terraform plugin cache is not guaranteed to be concurrency safe.
 
-### terragrunt-debug
+### debug-inputs
 
-**CLI Arg**: `--terragrunt-debug`<br/>
-**Environment Variable**: `TERRAGRUNT_DEBUG`<br/>
+**CLI Arg**: `--debug-inputs`<br/>
+**CLI Arg Alias**: `--terragrunt-debug` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_DEBUG_INPUTS`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_DEBUG` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 
 When passed in, Terragrunt will create a tfvars file that can be used to invoke the terraform module in the same way
 that Terragrunt invokes the module, so that you can debug issues with the terragrunt config. See
 [Debugging]({{site.baseurl}}/docs/features/debugging) for some additional details.
 
-### terragrunt-log-level
+### log-level
 
-**CLI Arg**: `--terragrunt-log-level`<br/>
-**Environment Variable**: `TERRAGRUNT_LOG_LEVEL`<br/>
-**Requires an argument**: `--terragrunt-log-level <LOG_LEVEL>`<br/>
+**CLI Arg**: `--log-level`<br/>
+**CLI Arg Alias**: `--terragrunt-log-level` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_LOG_LEVEL`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_LOG_LEVEL` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--log-level <LOG_LEVEL>`<br/>
 
 When passed it, sets logging level for terragrunt. All supported levels are:
 
@@ -1138,11 +1198,13 @@ When passed it, sets logging level for terragrunt. All supported levels are:
 
 Where the first two control the logging of Terraform/OpenTofu output.
 
-### terragrunt-log-format
+### log-format
 
-**CLI Arg**: `--terragrunt-log-format`<br/>
-**Environment Variable**: `TERRAGRUNT_LOG_FORMAT`<br/>
-**Requires an argument**: `--terragrunt-log-format <LOG_FORMAT>`<br/>
+**CLI Arg**: `--log-format`<br/>
+**CLI Arg Alias**: `--terragrunt-log-format` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_LOG_FORMAT`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_LOG_FORMAT` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--log-format <LOG_FORMAT>`<br/>
 
 There are four log format presets:
 
@@ -1151,43 +1213,53 @@ There are four log format presets:
 - `json`
 - `key-value`
 
-### terragrunt-log-custom-format
+### log-custom-format
 
-**CLI Arg**: `--terragrunt-log-custom-format`<br/>
-**Environment Variable**: `TERRAGRUNT_LOG_CUSTOM_FORMAT`<br/>
-**Requires an argument**: `--terragrunt-log-custom-format <LOG_CUSTOM_FORMAT>`<br/>
+**CLI Arg**: `--log-custom-format`<br/>
+**CLI Arg Alias**: `--terragrunt-log-custom-format` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_LOG_CUSTOM_FORMAT`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_LOG_CUSTOM_FORMAT` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--log-custom-format <LOG_CUSTOM_FORMAT>`<br/>
 
 This allows you to customize logging however you like.
 
 Make sure to read [Custom Log Format](https://terragrunt.gruntwork.io/docs/features/custom-log-format/) for syntax details.
 
-### terragrunt-log-disable
+### log-disable
 
-**CLI Arg**: `--terragrunt-log-disable`<br/>
-**Environment Variable**: `TERRAGRUNT_LOG_DISABLE`<br/>
+**CLI Arg**: `--log-disable`<br/>
+**CLI Arg Alias**: `--terragrunt-log-disable` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_LOG_DISABLE`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_LOG_DISABLE` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 
-Disable logging. This flag also enables [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout).
+Disable logging. This flag also enables [tf-forward-stdout](#tf-forward-stdout).
 
-### terragrunt-log-show-abs-paths
+### log-show-abs-paths
 
-**CLI Arg**: `--terragrunt-log-show-abs-paths`<br/>
-**Environment Variable**: `TERRAGRUNT_LOG_SHOW_ABS_PATHS`<br/>
+**CLI Arg**: `--log-show-abs-paths`<br/>
+**CLI Arg Alias**: `--terragrunt-log-show-abs-paths` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_LOG_SHOW_ABS_PATHS`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_LOG_SHOW_ABS_PATHS` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 
 If specified, Terragrunt paths in logs will be absolute. By default, the paths are relative to the working directory.
 
-### terragrunt-no-color
+### no-color
 
-**CLI Arg**: `--terragrunt-no-color`<br/>
-**Environment Variable**: `TERRAGRUNT_NO_COLOR`<br/>
+**CLI Arg**: `--no-color`<br/>
+**CLI Arg Alias**: `--terragrunt-no-color` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_NO_COLOR`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_NO_COLOR` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 
 If specified, Terragrunt output won't contain any color.
 
-NOTE: This option does not disable OpenTofu/Terraform output colors. Use the OpenTofu/Terraform [`-no-color`](https://developer.hashicorp.com/terraform/cli/commands/plan#no-color) argument.
+NOTE: This option also disables OpenTofu/Terraform output colors by propagating the OpenTofu/Terraform [`-no-color`](https://developer.hashicorp.com/terraform/cli/commands/plan#no-color) argument.
 
-### terragrunt-check
+### check
 
-**CLI Arg**: `--terragrunt-check`<br/>
-**Environment Variable**: `TERRAGRUNT_CHECK` (set to `true`)<br/>
+**CLI Arg**: `--check`<br/>
+**CLI Arg Alias**: `--terragrunt-check` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_CHECK` (set to `true`)<br/>
+**Environment Variable Alias**: `TERRAGRUNT_CHECK` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 **Commands**:
 
 - [hclfmt](#hclfmt)
@@ -1195,103 +1267,128 @@ NOTE: This option does not disable OpenTofu/Terraform output colors. Use the Ope
 When passed in, run `hclfmt` in check only mode instead of actively overwriting the files. This will cause the
 command to exit with exit code 1 if there are any files that are not formatted.
 
-### terragrunt-diff
+### diff
 
-**CLI Arg**: `--terragrunt-diff`<br/>
-**Environment Variable**: `TERRAGRUNT_DIFF` (set to `true`)<br/>
+**CLI Arg**: `--diff`<br/>
+**CLI Arg Alias**: `--terragrunt-diff` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_DIFF` (set to `true`)<br/>
+**Environment Variable Alias**: `TERRAGRUNT_DIFF` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 **Commands**:
 
 - [hclfmt](#hclfmt)
 
 When passed in, running `hclfmt` will print diff between original and modified file versions.
 
-### terragrunt-hclfmt-file
+### hclfmt-file
 
-**CLI Arg**: `--terragrunt-hclfmt-file`<br/>
-**Requires an argument**: `--terragrunt-hclfmt-file /path/to/terragrunt.hcl`<br/>
+**CLI Arg**: `--file`<br/>
+**CLI Arg Alias**: `--terragrunt-hclfmt-file` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_FILE` (set to `true`)<br/>
+**Environment Variable Alias**: `TERRAGRUNT_HCLFMT_FILE` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--file /path/to/terragrunt.hcl`<br/>
 **Commands**:
 
 - [hclfmt](#hclfmt)
 
 When passed in, run `hclfmt` only on the specified file.
 
-### terragrunt-hclfmt-exclude-dir
+### hclfmt-exclude-dir
 
-**CLI Arg**: `--terragrunt-hclfmt-exclude-dir .dir-name`<br/>
-**Environment Variable**: `TERRAGRUNT_HCLFMT_EXCLUDE_DIR`<br/>
+**CLI Arg**: `--exclude-dir`<br/>
+**CLI Arg Alias**: `--terragrunt-hclfmt-exclude-dir` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_EXCLUDE_DIR`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_HCLFMT_EXCLUDE_DIR` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--exclude-dir /path/to/dir`<br/>
 **Commands**:
 
 - [hclfmt](#hclfmt)
 
-Can be supplied multiple times: `--terragrunt-hclfmt-exclude-dir .back --terragrunt-hclfmt-exclude-dir .archive`<br/>
+Can be supplied multiple times: `--exclude-dir .back --exclude-dir .archive`<br/>
 When passed in, `hclfmt` will ignore files in the specified directories.
 
-### terragrunt-hclfmt-stdin
+### hclfmt-stdin
 
-**CLI Arg**: `--terragrunt-hclfmt-stdin`<br/>
-**Environment Variable**: `TERRAGRUNT_HCLFMT_STDIN` (set to `true`)<br/>
+**CLI Arg**: `--stdin`<br/>
+**CLI Arg Alias**: `--terragrunt-hclfmt-stdin` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_STDIN` (set to `true`)<br/>
+**Environment Variable Alias**: `TERRAGRUNT_HCLFMT_STDIN` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 **Commands**:
 
 - [hclfmt](#hclfmt)
 
 When passed in, run `hclfmt` only on hcl passed to `stdin`, result is printed to `stdout`.
 
-### terragrunt-hclvalidate-json
+### hclvalidate-json
 
-**CLI Arg**: `--terragrunt-hclvalidate-json`<br/>
-**Environment Variable**: `TERRAGRUNT_HCLVALIDATE_JSON` (set to `true`)<br/>
+**CLI Arg**: `--json`<br/>
+**CLI Arg Alias**: `--terragrunt-hclvalidate-json` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_JSON` (set to `true`)<br/>
+**Environment Variable Alias**: `TERRAGRUNT_HCLVALIDATE_JSON` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 **Commands**:
 
 - [hclvalidate](#hclvalidate)
 
 When passed in, render the output in the JSON format.
 
-### terragrunt-hclvalidate-show-config-path
+### hclvalidate-show-config-path
 
-**CLI Arg**: `--terragrunt-hclvalidate-show-config-path`<br/>
-**Environment Variable**: `TERRAGRUNT_HCLVALIDATE_INVALID` (set to `true`)<br/>
+**CLI Arg**: `--show-config-path`<br/>
+**CLI Arg Alias**: `--terragrunt-hclvalidate-show-config-path` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_SHOW_CONFIG_PATH` (set to `true`)<br/>
+**Environment Variable Alias**: `TERRAGRUNT_HCLVALIDATE_SHOW_CONFIG_PATH` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 **Commands**:
 
 - [hclvalidate](#hclvalidate)
 
 When passed in, output a list of files with invalid configuration.
 
-### terragrunt-override-attr
+### override-attr
 
-**CLI Arg**: `--terragrunt-override-attr`<br/>
-**Requires an argument**: `--terragrunt-override-attr ATTR=VALUE`<br/>
+**CLI Arg**: `--override-attr`<br/>
+**CLI Arg Alias**: `--terragrunt-override-attr` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_OVERRIDE_ATTR` (set to `true`)<br/>
+**Environment Variable Alias**: `TERRAGRUNT_OVERRIDE_ATTR` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--override-attr ATTR=VALUE`<br/>
 
 Override the attribute named `ATTR` with the value `VALUE` in a `provider` block as part of the [aws-provider-patch
 command](#aws-provider-patch). May be specified multiple times. Also, `ATTR` can specify attributes within a nested
 block by specifying `<BLOCK>.<ATTR>`, where `<BLOCK>` is the block name: e.g., `assume_role.role` arn will override the
 `role_arn` attribute of the `assume_role { ... }` block.
 
-### terragrunt-json-out
+### json-out
 
-**CLI Arg**: `--terragrunt-json-out`<br/>
-**Requires an argument**: `--terragrunt-json-out /path/to/terragrunt_rendered.json`<br/>
+**CLI Arg**: `--json-out`<br/>
+**CLI Arg Alias**: `--terragrunt-json-out` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_JSON_OUT` (set to `true`)<br/>
+**Environment Variable Alias**: `TERRAGRUNT_JSON_OUT` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--json-out /path/to/terragrunt_rendered.json`<br/>
 **Commands**:
 
 - [render-json](#render-json)
 
 When passed in, render the json representation in this file.
 
-### terragrunt-json-disable-dependent-modules
+### json-disable-dependent-modules
 
-**CLI Arg**: `--terragrunt-json-disable-dependent-modules`<br/>
-**Requires an argument**: `--terragrunt-json-disable-dependent-modules`<br/>
+**CLI Arg**: `--json-disable-dependent-modules`<br/>
+**CLI Arg Alias**: `--terragrunt-json-disable-dependent-modules` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_JSON_DISABLE_DEPENDENT_MODULES` (set to `true`)<br/>
+**Environment Variable Alias**: `TERRAGRUNT_JSON_DISABLE_DEPENDENT_MODULES` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--json-disable-dependent-modules`<br/>
 **Commands**:
 
 - [render-json](#render-json)
 
-When the `--terragrunt-json-disable-dependent-modules` flag is included in the command, the process of identifying dependent modules will be disabled during JSON rendering.
+When the `--json-disable-dependent-modules` flag is included in the command, the process of identifying dependent modules will be disabled during JSON rendering.
 This lead to a faster rendering process, but the output will not include any dependent modules.
 
-### terragrunt-modules-that-include
+### units-that-include
 
-**CLI Arg**: `--terragrunt-modules-that-include`<br/>
-**Environment Variable**: `TERRAGRUNT_MODULES_THAT_INCLUDE`<br/>
-**Requires an argument**: `--terragrunt-modules-that-include /path/to/included-terragrunt.hcl`<br/>
+**CLI Arg**: `--units-that-include`<br/>
+**CLI Arg Alias**: `--terragrunt-modules-that-include` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_UNITS_THAT_INCLUDE`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_MODULES_THAT_INCLUDE` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--units-that-include /path/to/included-terragrunt.hcl`<br/>
 **Commands**:
 
 - [run-all](#run-all)
@@ -1340,10 +1437,10 @@ include "envcommon" {
 }
 ```
 
-If you run the command `run-all init --terragrunt-modules-that-include ../_envcommon/data-stores/aurora.hcl` from the
+If you run the command `run-all init --units-that-include ../_envcommon/data-stores/aurora.hcl` from the
 `dev` folder, only `dev/us-west-2/dev/data-stores/aurora` will be run; not `stage/us-west-2/stage/data-stores/aurora`.
 This is because `run-all` by default restricts the modules to only those that are direct descendents of the current
-folder you are running from. If you also pass in `--terragrunt-include-dir ../stage`, then it will now include
+folder you are running from. If you also pass in `--queue-include-dir ../stage`, then it will now include
 `stage/us-west-2/stage/data-stores/aurora` because now the `stage` folder is in consideration.
 
 In other words, Terragrunt will always first find all the modules that should be included before applying this filter,
@@ -1353,7 +1450,7 @@ You can pass this argument in multiple times to provide a list of include files 
 passed in, the set will be the union of modules that includes at least one of the files in the list.
 
 **NOTE**: When using relative paths, the paths are relative to the working directory. This is either the current working
-directory, or any path passed in to [terragrunt-working-dir](#terragrunt-working-dir).
+directory, or any path passed in to [working-dir](#working-dir).
 
 **TIP**: This flag is functionally covered by the `--terragrunt-queue-include-units-reading` flag, but is more explicitly
 only for the `include` configuration block.
@@ -1362,6 +1459,8 @@ only for the `include` configuration block.
 
 **CLI Arg**: `--terragrunt-queue-include-units-reading`<br/>
 **Environment Variable**: `TERRAGRUNT_QUEUE_INCLUDE_UNITS_READING`<br/>
+**CLI Arg Alias**: `` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable Alias**: `` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 **Commands**:
 
 - [run-all](#run-all)
@@ -1371,7 +1470,7 @@ only for the `include` configuration block.
 - [destroy-all (DEPRECATED: use run-all)](#destroy-all-deprecated-use-run-all)
 - [validate-all (DEPRECATED: use run-all)](#validate-all-deprecated-use-run-all)
 
-This flag works very similarly to the `--terragrunt-modules-that-include` flag, but instead of looking only for included configurations,
+This flag works very similarly to the `--units-that-include` flag, but instead of looking only for included configurations,
 it also looks for configurations that read a given file.
 
 When passed in, the `*-all` commands will include all units (modules) that read a given file into the queue. This is useful
@@ -1425,20 +1524,24 @@ inputs = {
 if they are used in the `locals` block. Reading a file directly in the `inputs` block will not mark the file as read, as the `inputs`
 block is not evaluated until _after_ the queue has been populated with units to run.
 
-### terragrunt-fetch-dependency-output-from-state
+### dependency-fetch-output-from-state
 
-**CLI Arg**: `--terragrunt-fetch-dependency-output-from-state`<br/>
-**Environment Variable**: `TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE` (set to `true`)<br/>
+**CLI Arg**: `--dependency-fetch-output-from-state`<br/>
+**CLI Arg Alias**: `--terragrunt-fetch-dependency-output-from-state` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_DEPENDENCY_FETCH_OUTPUT_FROM_STATE` (set to `true`)<br/>
+**Environment Variable Alias**:  `TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 
 When using many dependencies, this option can speed up the dependency processing by fetching dependency output directly
 from the state file instead of init dependencies and running terraform on them.
 NOTE: This is an experimental feature, use with caution.
 Currently only AWS S3 backend is supported.
 
-### terragrunt-use-partial-parse-config-cache
+### use-partial-parse-config-cache
 
-**CLI Arg**: `--terragrunt-use-partial-parse-config-cache`<br/>
-**Environment Variable**: `TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE` (set to `true`)<br/>
+**CLI Arg**: `--use-partial-parse-config-cache`<br/>
+**CLI Arg Alias**: `--terragrunt-use-partial-parse-config-cache` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_USE_PARTIAL_PARSE_CONFIG_CACHE` (set to `true`)<br/>
+**Environment Variable Alias**: `TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 
 This flag can be used to drastically decrease time required for parsing Terragrunt files. The effect will only show if a lot of similar includes are expected such as the root terragrunt.hcl include.
 NOTE: This is an experimental feature, use with caution.
@@ -1457,17 +1560,19 @@ Once this flag has been tested thoroughly, we will consider making it the defaul
 
 ### terragrunt-include-module-prefix
 
-DEPRECATED: Since this behavior has become by default, this flag has been removed. In order to get raw Terraform/OpenTofu output, use [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout).
+DEPRECATED: Since this behavior has become by default, this flag has been removed. In order to get raw Terraform/OpenTofu output, use [tf-forward-stdout](#tf-forward-stdout).
 
 **CLI Arg**: `--terragrunt-include-module-prefix`<br/>
 **Environment Variable**: `TERRAGRUNT_INCLUDE_MODULE_PREFIX` (set to `true`)<br/>
 
 When this flag is set output from OpenTofu/Terraform sub-commands is prefixed with module path.
 
-### terragrunt-fail-on-state-bucket-creation
+### backend-require-bootstrap
 
-**CLI Arg**: `--terragrunt-fail-on-state-bucket-creation`<br/>
-**Environment Variable**: `TERRAGRUNT_FAIL_ON_STATE_BUCKET_CREATION` (set to `true`)<br/>
+**CLI Arg**: `--backend-require-bootstrap`<br/>
+**CLI Arg Alias**: `--terragrunt-fail-on-state-bucket-creation` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_BACKEND_REQUIRE_BOOTSTRAP` (set to `true`)<br/>
+**Environment Variable Alias**: `TERRAGRUNT_FAIL_ON_STATE_BUCKET_CREATION` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 
 When this flag is set, Terragrunt will fail and exit if it is necessary to create the remote state bucket.
 
@@ -1475,19 +1580,23 @@ When this flag is set, Terragrunt will fail and exit if it is necessary to creat
 
 **CLI Arg**: `--terragrunt-disable-bucket-update`<br/>
 **Environment Variable**: `TERRAGRUNT_DISABLE_BUCKET_UPDATE` (set to `true`)<br/>
+**CLI Arg Alias**: `` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable Alias**: `` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 
 When this flag is set, Terragrunt does not update the remote state bucket, which is useful to set if the state bucket is managed by a third party.
 
-### terragrunt-disable-command-validation
+### disable-command-validation
 
-**CLI Arg**: `--terragrunt-disable-command-validation`<br/>
-**Environment Variable**: `TERRAGRUNT_DISABLE_COMMAND_VALIDATION` (set to `true`)<br/>
+**CLI Arg**: `--disable-command-validation`<br/>
+**CLI Arg Alias**: `--terragrunt-disable-command-validation` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_DISABLE_COMMAND_VALIDATION` (set to `true`)<br/>
+**Environment Variable Alias**: `TERRAGRUNT_DISABLE_COMMAND_VALIDATION` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 
 When this flag is set, Terragrunt will not validate the terraform command, which can be useful when need to use non-existent commands in hooks.
 
 ### terragrunt-json-log
 
-DEPRECATED: Use [terragrunt-log-format](#terragrunt-log-format).
+DEPRECATED: Use [log-format](#log-format).
 
 **CLI Arg**: `--terragrunt-json-log`<br/>
 **Environment Variable**: `TERRAGRUNT_JSON_LOG` (set to `true`)<br/>
@@ -1496,99 +1605,117 @@ When this flag is set, Terragrunt will output its logs in JSON format.
 
 ### terragrunt-tf-logs-to-json
 
-DEPRECATED: Use [terragrunt-log-format](#terragrunt-log-format). OpenTofu/Terraform `stdout` and `stderr` is wrapped in JSON by default with `--terragurnt-log-format json` flag if `--terragrunt-forward-tf-stdout` flag is not specified.
-In other words, the previous behavior with the `--terragrunt-json-log --terragrunt-tf-logs-to-json` flags is now equivalent to `--terragrunt-log-format json` and the previous behavior with the `--terragrunt-json-log` is now equivalent to `--terragrunt-log-format json --terragrunt-forward-tf-stdout`.
+DEPRECATED: Use [log-format](#log-format). OpenTofu/Terraform `stdout` and `stderr` is wrapped in JSON by default with `--terragurnt-log-format json` flag if `--tf-forward-stdout` flag is not specified.
+In other words, the previous behavior with the `--terragrunt-json-log --terragrunt-tf-logs-to-json` flags is now equivalent to `--log-format json` and the previous behavior with the `--terragrunt-json-log` is now equivalent to `--log-format json --tf-forward-stdout`.
 
 **CLI Arg**: `--terragrunt-tf-logs-to-json`<br/>
 **Environment Variable**: `TERRAGRUNT_TF_JSON_LOG` (set to `true`)<br/>
 
 When this flag is set, Terragrunt will wrap OpenTofu/Terraform `stdout` and `stderr` in JSON log messages. Works only with `--terragrunt-json-log` flag.
 
-### terragrunt-provider-cache
+### provider-cache
 
-**CLI Arg**: `--terragrunt-provider-cache`<br/>
-**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE`<br/>
+**CLI Arg**: `--provider-cache`<br/>
+**CLI Arg Alias**: `--terragrunt-provider-cache` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_PROVIDER_CACHE`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_PROVIDER_CACHE` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 **Commands**:
 
 - [run-all](#run-all)
 
 Enables Terragrunt's provider caching. This forces OpenTofu/Terraform to make provider requests through the Terragrunt Provider Cache server. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-cache/) for context.
 
-### terragrunt-provider-cache-dir
+### provider-cache-dir
 
-**CLI Arg**: `--terragrunt-provider-cache-dir`<br/>
-**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_DIR`<br/>
+**CLI Arg**: `--provider-cache-dir`<br/>
+**CLI Arg Alias**: `--terragrunt-provider-cache-dir` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_PROVIDER_CACHE_DIR`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_PROVIDER_CACHE_DIR` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 **Commands**:
 
 - [run-all](#run-all)
 
 The path to the Terragrunt provider cache directory. By default, `terragrunt/providers` folder in the user cache directory: `$HOME/.cache` on Unix systems, `$HOME/Library/Caches` on Darwin, `%LocalAppData%` on Windows. The file structure of the cache directory is identical to the OpenTofu/Terraform [plugin_cache_dir](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache) directory. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-cache/) for context.
 
-### terragrunt-provider-cache-hostname
+### provider-cache-hostname
 
-**CLI Arg**: `--terragrunt-provider-cache-hostname`<br/>
-**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_HOSTNAME`<br/>
+**CLI Arg**: `--provider-cache-hostname`<br/>
+**CLI Arg Alias**: `--terragrunt-provider-cache-hostname` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_PROVIDER_CACHE_HOSTNAME`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_PROVIDER_CACHE_HOSTNAME` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 **Commands**:
 
 - [run-all](#run-all)
 
 The hostname of the Terragrunt Provider Cache server. By default, 'localhost'. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-cache/) for context.
 
-### terragrunt-provider-cache-port
+### provider-cache-port
 
-**CLI Arg**: `--terragrunt-provider-cache-port`<br/>
-**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_PORT`<br/>
+**CLI Arg**: `--provider-cache-port`<br/>
+**CLI Arg Alias**: `--terragrunt-provider-cache-port` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_PROVIDER_CACHE_PORT`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_PROVIDER_CACHE_PORT` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 **Commands**:
 
 - [run-all](#run-all)
 
 The port of the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-cache/) for context.
 
-### terragrunt-provider-cache-token
+### provider-cache-token
 
-**CLI Arg**: `--terragrunt-provider-cache-token`<br/>
-**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_TOKEN`<br/>
+**CLI Arg**: `--provider-cache-token`<br/>
+**CLI Arg Alias**: `--terragrunt-provider-cache-token` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_PROVIDER_CACHE_TOKEN`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_PROVIDER_CACHE_TOKEN` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 **Commands**:
 
 - [run-all](#run-all)
 
 The Token for authentication on the Terragrunt Provider Cache server. By default, assigned automatically. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-cache/) for context.
 
-### terragrunt-provider-cache-registry-names
+### provider-cache-registry-names
 
-**CLI Arg**: `--terragrunt-provider-cache-registry-names`<br/>
-**Environment Variable**: `TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES`<br/>
+**CLI Arg**: `--provider-cache-registry-names`<br/>
+**CLI Arg Alias**: `--terragrunt-provider-cache-registry-names` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_PROVIDER_CACHE_REGISTRY_NAMES`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_PROVIDER_CACHE_REGISTRY_NAMES` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 **Commands**:
 
 - [run-all](#run-all)
 
 The list of remote registries to cached by Terragrunt Provider Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'. Make sure to read [Provider Caching](https://terragrunt.gruntwork.io/docs/features/provider-cache/) for context.
 
-### terragrunt-out-dir
+### out-dir
 
-**CLI Arg**: `--terragrunt-out-dir`<br/>
-**Environment Variable**: `TERRAGRUNT_OUT_DIR`<br/>
+**CLI Arg**: `--out-dir`<br/>
+**CLI Arg Alias**: `--terragrunt-out-dir` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_OUT_DIR`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_OUT_DIR` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 **Commands**:
 
 - [run-all](#run-all)
 
 Specify the plan output directory for the `*-all` commands. Useful to save plans between runs in a single place.
 
-### terragrunt-json-out-dir
+### json-out-dir
 
-**CLI Arg**: `--terragrunt-json-out-dir`<br/>
-**Environment Variable**: `TERRAGRUNT_JSON_OUT_DIR`<br/>
+**CLI Arg**: `--json-out-dir`<br/>
+**CLI Arg Alias**: `--terragrunt-json-out-dir` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_JSON_OUT_DIR`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_JSON_OUT_DIR` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 **Commands**:
 
 - [run-all](#run-all)
 
 Specify the output directory for the `*-all` commands to store plans in JSON format. Useful to read plans programmatically.
 
-### terragrunt-auth-provider-cmd
+### auth-provider-cmd
 
-**CLI Arg**: `--terragrunt-auth-provider-cmd`<br/>
-**Environment Variable**: `TERRAGRUNT_AUTH_PROVIDER_CMD`<br/>
-**Requires an argument**: `--terragrunt-auth-provider-cmd "command [arguments]"`<br/>
+**CLI Arg**: `--auth-provider-cmd`<br/>
+**CLI Arg Alias**: `--terragrunt-auth-provider-cmd` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_AUTH_PROVIDER_CMD`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_AUTH_PROVIDER_CMD` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Requires an argument**: `--auth-provider-cmd "command [arguments]"`<br/>
 
 The command and arguments used to obtain authentication credentials dynamically. If specified, Terragrunt runs this command for every working directory before running the underlying IAC for a `terragrunt.hcl` file.
 
@@ -1615,7 +1742,7 @@ The output must be valid JSON of the following schema:
 
 This allows Terragrunt to acquire different credentials at runtime without changing any `terragrunt.hcl` configuration. You can use this flag to set arbitrary credentials for continuous integration, authentication with providers other than AWS and more.
 
-As long as the standard output of the command passed to `terragrunt-auth-provider-cmd` results in JSON matching the schema above, corresponding environment variables will be set before Terragrunt begins IAC execution for a `terragrunt.hcl` file.
+As long as the standard output of the command passed to `auth-provider-cmd` results in JSON matching the schema above, corresponding environment variables will be set before Terragrunt begins IAC execution for a `terragrunt.hcl` file.
 
 The simplest approach to leverage this flag is to write a script that fetches desired credentials, and emits them to STDOUT in the JSON format listed above:
 
@@ -1639,10 +1766,12 @@ Other credential configurations will be supported in the future, but until then,
 
 ### terragrunt-disable-log-formatting
 
-DEPRECATED: Use [terragrunt-log-format](#terragrunt-log-format).
+DEPRECATED: Use [log-format](#log-format).
 
 **CLI Arg**: `--terragrunt-disable-log-formatting`<br/>
 **Environment Variable**: `TERRAGRUNT_DISABLE_LOG_FORMATTING`<br/>
+**CLI Arg Alias**: `` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable Alias**: `` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 
 If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.
 
@@ -1656,7 +1785,7 @@ The example of what the log looks like without the `--terragrunt-disable-log-for
 14:19:25.174 STDOUT [app] tofu: OpenTofu will perform the following actions:
 ```
 
-The example of what the log looks like with the `--terragrunt-forward-tf-stdout` flag specified:
+The example of what the log looks like with the `--tf-forward-stdout` flag specified:
 
 ```bash
 time=2024-08-23T11:47:18+03:00 level=info prefix=app msg=Running command: tofu plan -input=false
@@ -1666,14 +1795,16 @@ time=2024-08-23T11:47:18+03:00 level=stdout prefix=app binary=tofu msg=  + creat
 time=2024-08-23T11:47:18+03:00 level=stdout prefix=app binary=tofu msg=OpenTofu will perform the following actions:
 ```
 
-### terragrunt-forward-tf-stdout
+### tf-forward-stdout
 
-**CLI Arg**: `--terragrunt-forward-tf-stdout`<br/>
-**Environment Variable**: `TERRAGRUNT_FORWARD_TF_STDOUT`<br/>
+**CLI Arg**: `--tf-forward-stdout`<br/>
+**CLI Arg Alias**: `--terragrunt-forward-tf-stdout` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_TF_FORWARD_STDOUT`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_FORWARD_TF_STDOUT` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 
 If specified, the output of Terraform/OpenTofu commands will be printed as is. By default, all logs, except when using the `output` command or `-json` flags, are integrated into the Terragrunt log.
 
-The example of what the log looks like without the `--terragrunt-forward-tf-stdout` flag specified:
+The example of what the log looks like without the `--tf-forward-stdout` flag specified:
 
 ```bash
 14:19:25.081 INFO   [app] Running command: tofu plan -input=false
@@ -1683,7 +1814,7 @@ The example of what the log looks like without the `--terragrunt-forward-tf-stdo
 14:19:25.174 STDOUT [app] tofu: OpenTofu will perform the following actions:
 ```
 
-The example of what the log looks like with the `--terragrunt-forward-tf-stdout` flag specified:
+The example of what the log looks like with the `--tf-forward-stdout` flag specified:
 
 ```bash
 14:19:25.081 INFO   [app] Running command: tofu plan -input=false
@@ -1695,17 +1826,20 @@ plan. Resource actions are indicated with the following symbols:
 OpenTofu will perform the following actions:
 ```
 
-### terragrunt-no-destroy-dependencies-check
+### no-destroy-dependencies-check
 
-**CLI Arg**: `--terragrunt-no-destroy-dependencies-check`<br/>
-**Environment Variable**: `TERRAGRUNT_NO_DESTROY_DEPENDENCIES_CHECK`<br/>
+**CLI Arg**: `--no-destroy-dependencies-check`<br/>
+**CLI Arg Alias**: `--terragrunt-no-destroy-dependencies-check` (deprecated: [See migration guide](#flag-migration-guide))<br/>
+**Environment Variable**: `TG_NO_DESTROY_DEPENDENCIES_CHECK`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_NO_DESTROY_DEPENDENCIES_CHECK` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 
 If specified, Terragrunt will not check dependent modules when running `destroy` command. By default, Terragrunt checks dependent modules when running `destroy` command.
 
 ### feature
 
 **CLI Arg**: `--feature`<br/>
-**Environment Variable**: `TERRAGRUNT_FEATURE`<br/>
+**Environment Variable**: `TG_FEATURE`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_FEATURE` (deprecated: [See migration guide](#flag-migration-guide))<br/>
 
 Feature flags in Terragrunt allow users to dynamically control configuration behavior through CLI arguments or environment variables.
 

@@ -34,13 +34,13 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
-		flags.GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+		flags.GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:        flags.OutDirFlagName,
 			EnvVars:     flags.EnvVars(flags.OutDirFlagName),
 			Destination: &opts.OutputFolder,
 			Usage:       "Directory to store plan files.",
 		}),
-		flags.GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+		flags.GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:        flags.JSONOutDirFlagName,
 			EnvVars:     flags.EnvVars(flags.JSONOutDirFlagName),
 			Destination: &opts.JSONOutputFolder,

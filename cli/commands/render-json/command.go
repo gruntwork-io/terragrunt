@@ -17,7 +17,7 @@ const (
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
-		flags.GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+		flags.GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:        JSONOutFlagName,
 			EnvVars:     flags.EnvVars(JSONOutFlagName),
 			Destination: &opts.JSONOut,
@@ -29,7 +29,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.RenderJSONWithMetadata,
 			Usage:       "Add metadata to the rendered JSON file.",
 		},
-		flags.BoolFlagWithDeprecated(opts, &cli.BoolFlag{
+		flags.BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
 			Name:        DisableDependentModulesFlagName,
 			EnvVars:     flags.EnvVars(DisableDependentModulesFlagName),
 			Destination: &opts.JSONDisableDependentModules,

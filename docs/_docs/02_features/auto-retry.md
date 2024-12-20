@@ -54,4 +54,4 @@ retry_max_attempts = 5
 retry_sleep_interval_sec = 60
 ```
 
-To disable `auto-retry`, use the `--terragrunt-no-auto-retry` command line option or set the `TERRAGRUNT_NO_AUTO_RETRY` environment variable to `true`.
+To disable `auto-retry`, use the `--no-auto-retry` command line option or set the `TG_NO_AUTO_RETRY` environment variable to `true`.

@@ -19,7 +19,7 @@ func NewFlags(opts *options.TerragruntOptions, cmdOpts *Options) cli.Flags {
 		flags.AuthProviderCmdFlagName,
 		flags.ConfigFlagName,
 		flags.DownloadDirFlagName,
-		flags.DebugFlagName,
+		flags.DebugInputsFlagName,
 		flags.IAMAssumeRoleFlagName,
 		flags.IAMAssumeRoleDurationFlagName,
 		flags.IAMAssumeRoleSessionNameFlagName,

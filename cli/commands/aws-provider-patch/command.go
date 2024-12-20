@@ -43,7 +43,7 @@ const (
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
-		flags.MapFlagWithDeprecated(opts, &cli.MapFlag[string, string]{
+		flags.MapWithDeprecatedFlag(opts, &cli.MapFlag[string, string]{
 			Name:        TerragruntOverrideAttrFlagName,
 			EnvVars:     flags.EnvVars(TerragruntOverrideAttrFlagName),
 			Destination: &opts.AwsProviderPatchOverrides,

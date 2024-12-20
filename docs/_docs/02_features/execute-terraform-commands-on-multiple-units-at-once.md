@@ -103,7 +103,7 @@ terragrunt run-all plan
 
 If your units have dependencies between them, for example, you can’t deploy the backend-app until MySQL and redis are deployed—you’ll need to express those dependencies in your Terragrunt configuration as explained in the next section.
 
-Additional note: If your units have dependencies between them, and you run a `terragrunt run-all destroy` command, Terragrunt will destroy all the units under the current working directory, *as well as each of the unit dependencies* (that is, units you depend on via `dependencies` and `dependency` blocks)! If you wish to use exclude dependencies from being destroyed, add the `--terragrunt-ignore-external-dependencies` flag, or use the `--terragrunt-exclude-dir` once for each directory you wish to exclude.
+Additional note: If your units have dependencies between them, and you run a `terragrunt run-all destroy` command, Terragrunt will destroy all the units under the current working directory, *as well as each of the unit dependencies* (that is, units you depend on via `dependencies` and `dependency` blocks)! If you wish to use exclude dependencies from being destroyed, add the `--queue-exclude-external` flag, or use the `--queue-exclude-dir` once for each directory you wish to exclude.
 
 ### Passing outputs between units
 
@@ -336,18 +336,18 @@ In the example above it'll generate this graph
 Note that this graph shows the dependency relationship in the direction of the arrow (top down), however terragrunt will run the action
 in reverse order (bottom up)
 
-**Note:** During execution of `destroy` command, Terragrunt will try to find all dependent units and show a confirmation prompt with a list of all detected dependencies, because once resources will be destroyed, any commands on dependent units will fail with missing dependencies. For example, if `destroy` was called on the `redis` unit, you will be asked to confirm the action because `backend-app` depends on `redis`. You can avoid the prompt by using `--terragrunt-non-interactive`.
+**Note:** During execution of `destroy` command, Terragrunt will try to find all dependent units and show a confirmation prompt with a list of all detected dependencies, because once resources will be destroyed, any commands on dependent units will fail with missing dependencies. For example, if `destroy` was called on the `redis` unit, you will be asked to confirm the action because `backend-app` depends on `redis`. You can avoid the prompt by using `--non-interactive`.
 
 ### Testing multiple units locally
 
-If you are using Terragrunt to configure [remote OpenTofu/Terraform configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/#remote-terraform-configurations) and all of your units have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--terragrunt-source` parameter:
+If you are using Terragrunt to configure [remote OpenTofu/Terraform configurations]({{site.baseurl}}/docs/features/keep-your-terraform-code-dry/#remote-terraform-configurations) and all of your units have the `source` parameter set to a Git URL, but you want to test with a local checkout of the code, you can use the `--source` parameter:
 
 ```bash
 cd root
-terragrunt run-all plan --terragrunt-source /source/modules
+terragrunt run-all plan --source /source/modules
 ```
 
-If you set the `--terragrunt-source` parameter, the `run-all` commands will assume that parameter is pointing to a folder on your local file system that has a local checkout of all of your OpenTofu/Terraform modules. For each unit that is being processed via a `run-all` command, Terragrunt will read in the `source` parameter in that unit’s `terragrunt.hcl` file, parse out the path (the portion after the double-slash), and append the path to the `--terragrunt-source` parameter to create the final local path for that unit.
+If you set the `--source` parameter, the `run-all` commands will assume that parameter is pointing to a folder on your local file system that has a local checkout of all of your OpenTofu/Terraform modules. For each unit that is being processed via a `run-all` command, Terragrunt will read in the `source` parameter in that unit’s `terragrunt.hcl` file, parse out the path (the portion after the double-slash), and append the path to the `--source` parameter to create the final local path for that unit.
 
 For example, consider the following `terragrunt.hcl` file:
 
@@ -357,7 +357,7 @@ terraform {
 }
 ```
 
-If you run `terragrunt run-all apply --terragrunt-source /source/infrastructure-modules`, then the local path Terragrunt will compute for the module above will be `/source/infrastructure-modules//networking/vpc`.
+If you run `terragrunt run-all apply --source /source/infrastructure-modules`, then the local path Terragrunt will compute for the module above will be `/source/infrastructure-modules//networking/vpc`.
 
 ### Limiting the unit execution parallelism
 
@@ -366,19 +366,19 @@ meaning that if it finds 5 units it'll run OpenTofu/Terraform 5 times in paralle
 this might create a problem if there are a lot of units in the dependency graph like hitting a rate limit on some
 cloud provider.
 
-To limit the maximum number of unit executions at any given time use the `--terragrunt-parallelism [number]` flag
+To limit the maximum number of unit executions at any given time use the `--parallelism [number]` flag
 
 ```sh
-terragrunt run-all apply --terragrunt-parallelism 4
+terragrunt run-all apply --parallelism 4
 ```
 
 ### Saving OpenTofu/Terraform plan output
 
 Terragrunt enables you to save the execution plan to a designated directory in binary or JSON format, which is helpful for reviewing and reusing the plan at a later time.
-To save the plan, use the `--terragrunt-out-dir` flag (or `TERRAGRUNT_OUT_DIR` environment variable) as demonstrated below:
+To save the plan, use the `--out-dir` flag (or `TG_OUT_DIR` environment variable) as demonstrated below:
 
 ```sh
-$ terragrunt run-all plan --terragrunt-out-dir /tmp/tfplan
+$ terragrunt run-all plan --out-dir /tmp/tfplan
 $ tree /tmp/tfplan
 /tmp/tfplan
 ├── app1
@@ -390,20 +390,20 @@ $ tree /tmp/tfplan
 └── project-2
     └── project-2-app1
         └── tfplan.tfplan
-$ terragrunt run-all apply --terragrunt-out-dir /tmp/tfplan
+$ terragrunt run-all apply --out-dir /tmp/tfplan
 ```
 
 For planning a destroy operation, use the following commands:
 
 ```sh
-terragrunt run-all plan -destroy --terragrunt-out-dir /tmp/tfplan
-terragrunt run-all apply --terragrunt-out-dir /tmp/tfplan
+terragrunt run-all plan -destroy --out-dir /tmp/tfplan
+terragrunt run-all apply --out-dir /tmp/tfplan
 ```
 
-To save plan in json format use `--terragrunt-json-out-dir` flag (or `TERRAGRUNT_JSON_OUT_DIR` environment variable):
+To save plan in json format use `--json-out-dir` flag (or `TG_JSON_OUT_DIR` environment variable):
 
 ```sh
-$ terragrunt run-all plan --terragrunt-json-out-dir /tmp/json
+$ terragrunt run-all plan --json-out-dir /tmp/json
 $ tree /tmp/json
 /tmp/json
 ├── app1
@@ -417,7 +417,7 @@ $ tree /tmp/json
         └── tfplan.json
 
 # combine binary and json plans
-$ terragrunt run-all plan --terragrunt-out-dir /tmp/all --terragrunt-json-out-dir /tmp/all
+$ terragrunt run-all plan --out-dir /tmp/all --json-out-dir /tmp/all
 $ tree /tmp/all
 /tmp/all
 ├── app1

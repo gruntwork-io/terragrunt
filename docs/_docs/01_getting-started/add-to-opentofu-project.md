@@ -111,12 +111,12 @@ $ terragrunt apply -auto-approve
 
 You might notice that this is a little more verbose than the output you're used to seeing from running `tofu` or `terraform` directly. This is because Terragrunt does a bit of work behind the scenes to make sure that you can scale your OpenTofu/Terraform usage without running into common problems. As you get more comfortable with using Terragrunt on larger projects, you may find the extra information helpful.
 
-If you would prefer that Terragrunt output look more like the output from `tofu` or `terraform`, you can use the `--terragrunt-log-format bare` flag (or set the environment variable `TERRAGRUNT_LOG_FORMAT=bare`) to reduce the verbosity of the output.
+If you would prefer that Terragrunt output look more like the output from `tofu` or `terraform`, you can use the `--log-format bare` flag (or set the environment variable `TG_LOG_FORMAT=bare`) to reduce the verbosity of the output.
 
 e.g.
 
 ```bash
-$ terragrunt --terragrunt-log-format bare apply
+$ terragrunt --log-format bare apply
 local_file.file: Refreshing state... [id=0a0a9f2a6772942557ab5355d76af442f8f65e01]
 
 No changes. Your infrastructure matches the configuration.
@@ -286,10 +286,10 @@ Are you sure you want to run 'terragrunt apply' in each folder of the stack desc
 
 This is where that additional verbosity in Terragrunt logging is really handy. You can see that Terragrunt concurrently ran `apply -auto-approve` in both the `foo` and `bar` units. The extra logging for Terragrunt also included information on the names of the units that were processed, and disambiguated the output from each unit.
 
-Similar to the `tofu` CLI, there is a prompt to confirm that you are sure you want to run the command in each unit when performing a command that's potentially destructive. You can skip this prompt by using the `--terragrunt-non-interactive` flag, just as you would with `-auto-approve` in OpenTofu.
+Similar to the `tofu` CLI, there is a prompt to confirm that you are sure you want to run the command in each unit when performing a command that's potentially destructive. You can skip this prompt by using the `--non-interactive` flag, just as you would with `-auto-approve` in OpenTofu.
 
 ```bash
-terragrunt run-all --terragrunt-non-interactive apply -auto-approve
+terragrunt run-all --non-interactive apply -auto-approve
 ```
 
 ### Step 6: Use Terragrunt to manage your DAG
@@ -406,7 +406,7 @@ Group 2
 If you're concerned about the `mock_outputs` attribute resulting in invalid configurations, note that during an apply, the outputs of `foo` will be known, and Terragrunt won't use `mock_outputs` to resolve the outputs of `foo`.
 
 ```bash
-$ terragrunt run-all --terragrunt-non-interactive apply -auto-approve
+$ terragrunt run-all --non-interactive apply -auto-approve
 
 ...
 

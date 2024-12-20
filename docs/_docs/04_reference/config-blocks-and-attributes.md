@@ -1227,10 +1227,10 @@ terragrunt --feature run_hook=true --feature string_flag=dev apply
 Setting feature flags through env variables:
 
 ```bash
-export TERRAGRUNT_FEATURE=run_hook=true
+export TG_FEATURE=run_hook=true
 terragrunt apply
 
-export TERRAGRUNT_FEATURE=run_hook=true,string_flag=dev
+export TG_FEATURE=run_hook=true,string_flag=dev
 terragrunt apply
 ```
 
@@ -1424,7 +1424,7 @@ Error handling follows a specific process:
 
 - **Retry Rules:** Once ignore rules are applied, the **retry** rules handle any remaining errors.
 
-> **Note:**  
+> **Note:**
 > Only the **first matching rule** is applied. If there are multiple conflicting rules, any matches after the first one are ignored.
 
 ## Attributes
@@ -1498,7 +1498,7 @@ inputs = {
 
 The terragrunt `download_dir` string option can be used to override the default download directory.
 
-The precedence is as follows: `--terragrunt-download-dir` command line option → `TERRAGRUNT_DOWNLOAD` env variable →
+The precedence is as follows: `--download-dir` command line option → `TG_DOWNLOAD_DIR` env variable →
 `download_dir` attribute of the `terragrunt.hcl` file in the module directory → `download_dir` attribute of the included
 `terragrunt.hcl`.
 
@@ -1557,7 +1557,7 @@ explicitly redefined in the current's module `terragrunt.hcl` file.
 
 The `iam_role` attribute can be used to specify an IAM role that Terragrunt should assume prior to invoking OpenTofu/Terraform.
 
-The precedence is as follows: `--terragrunt-iam-role` command line option → `TERRAGRUNT_IAM_ROLE` env variable →
+The precedence is as follows: `--iam-assume-role` command line option → `TG_IAM_ASSUME_ROLE` env variable →
 `iam_role` attribute of the `terragrunt.hcl` file in the module directory → `iam_role` attribute of the included
 `terragrunt.hcl`.
 
@@ -1576,7 +1576,7 @@ iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 
 The `iam_assume_role_duration` attribute can be used to specify the STS session duration, in seconds, for the IAM role that Terragrunt should assume prior to invoking OpenTofu/Terraform.
 
-The precedence is as follows: `--terragrunt-iam-assume-role-duration` command line option → `TERRAGRUNT_IAM_ASSUME_ROLE_DURATION` env variable →
+The precedence is as follows: `--iam-assume-role-duration` command line option → `TG_IAM_ASSUME_ROLE_DURATION` env variable →
 `iam_assume_role_duration` attribute of the `terragrunt.hcl` file in the module directory → `iam_assume_role_duration` attribute of the included
 `terragrunt.hcl`.
 
@@ -1590,7 +1590,7 @@ iam_assume_role_duration = 14400
 
 The `iam_assume_role_session_name` attribute can be used to specify the STS session name, for the IAM role that Terragrunt should assume prior to invoking OpenTofu/Terraform.
 
-The precedence is as follows: `--terragrunt-iam-assume-role-session-name` command line option → `TERRAGRUNT_IAM_ASSUME_ROLE_SESSION_NAME` env variable →
+The precedence is as follows: `--iam-assume-role-session-name` command line option → `TG_IAM_ASSUME_ROLE_SESSION_NAME` env variable →
 `iam_assume_role_session_name` attribute of the `terragrunt.hcl` file in the module directory → `iam_assume_role_session_name` attribute of the included
 `terragrunt.hcl`.
 
@@ -1598,7 +1598,7 @@ The precedence is as follows: `--terragrunt-iam-assume-role-session-name` comman
 
 The `iam_web_identity_token` attribute can be used along with `iam_role` to assume a role using AssumeRoleWithWebIdentity. `iam_web_identity_token` can be set to either the token value (typically using `get_env()`), or the path to a file on disk.
 
-The precedence is as follows: `--terragrunt-iam-web-identity-token` command line option → `TERRAGRUNT_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN` env variable →
+The precedence is as follows: `--iam-assume-role-web-identity-token` command line option → `TG_IAM_ASSUME_ROLE_WEB_IDENTITY_TOKEN` env variable →
 `iam_web_identity_token` attribute of the `terragrunt.hcl` file in the module directory → `iam_web_identity_token` attribute of the included
 `terragrunt.hcl`.
 
@@ -1632,7 +1632,7 @@ If your Git provider provides the OIDC token as a file, simply pass the file pat
 ```terragrunt
 iam_role = "arn:aws:iam::<AWS account number>:role/<IAM role name>"
 
-iam_web_identity_token = "/path/to/token/file" 
+iam_web_identity_token = "/path/to/token/file"
 ```
 
 ### terraform_binary
@@ -1640,7 +1640,7 @@ iam_web_identity_token = "/path/to/token/file"
 The terragrunt `terraform_binary` string option can be used to override the default binary Terragrunt calls (which is
 `tofu`).
 
-The precedence is as follows: `--terragrunt-tfpath` command line option → `TERRAGRUNT_TFPATH` env variable →
+The precedence is as follows: `--tf-path` command line option → `TG_TF_PATH` env variable →
 `terragrunt.hcl` in the module directory → included `terragrunt.hcl`
 
 ### terraform_version_constraint

@@ -23,7 +23,7 @@ However, in Strict Mode, these warnings will be converted to errors, which will 
 
 ## Controlling Strict Mode
 
-The simplest way to enable strict mode is to set the `TERRAGRUNT_STRICT_MODE` environment variable to `true`.
+The simplest way to enable strict mode is to set the `TG_STRICT_MODE` environment variable to `true`.
 
 This will enable strict mode for all Terragrunt commands, for all strict mode controls.
 
@@ -33,28 +33,28 @@ $ terragrunt plan-all
 ```
 
 ```bash
-$ TERRAGRUNT_STRICT_MODE='true' terragrunt plan-all
+$ TG_STRICT_MODE='true' terragrunt plan-all
 15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
 ```
 
-Instead of setting this environment variable, you can also enable strict mode for specific controls by setting the `TERRAGRUNT_STRICT_CONTROL`
+Instead of setting this environment variable, you can also enable strict mode for specific controls by setting the `TG_STRICT_CONTROL`
 environment variable to a value that's specific to a particular strict control.
 This can allow you to gradually increase your confidence in the future compatibility of your Terragrunt usage.
 
 ```bash
-$ TERRAGRUNT_STRICT_CONTROL='apply-all' terragrunt plan-all
+$ TG_STRICT_CONTROL='apply-all' terragrunt plan-all
 15:26:08.585 WARN   The `plan-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all plan` instead.
 ```
 
 ```bash
-$ TERRAGRUNT_STRICT_CONTROL='plan-all' terragrunt plan-all
+$ TG_STRICT_CONTROL='plan-all' terragrunt plan-all
 15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
 ```
 
 You can also enable multiple strict controls at once with a comma delimited list.
 
 ```bash
-$ TERRAGRUNT_STRICT_CONTROL='plan-all,apply-all' bash -c 'terragrunt plan-all; terragrunt apply-all'
+$ TG_STRICT_CONTROL='plan-all,apply-all' bash -c 'terragrunt plan-all; terragrunt apply-all'
 15:26:46.521 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
 15:26:46.521 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
 15:26:46.564 ERROR  The `apply-all` command is no longer supported. Use `terragrunt run-all apply` instead.

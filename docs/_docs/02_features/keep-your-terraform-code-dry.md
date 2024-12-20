@@ -150,7 +150,7 @@ terragrunt apply
 
 When Terragrunt finds the `terraform` block with a `source` parameter in `live/stage/app/terragrunt.hcl` file, it will:
 
-1. Download the configurations specified via the `source` parameter into the `--terragrunt-download-dir` folder (by default `.terragrunt-cache` in the working directory, which we recommend adding to `.gitignore`). This downloading is done by using the same [go-getter library](https://github.com/hashicorp/go-getter) OpenTofu/Terraform uses, so the `source` parameter supports the exact same syntax as the [module source](https://opentofu.org/docs/language/modules/sources/) parameter, including local file paths, Git URLs, and Git URLs with `ref` parameters (useful for checking out a specific tag, commit, or branch of Git repo). Terragrunt will download all the code in the repo (i.e. the part before the double-slash `//`) so that relative paths work correctly between modules in that repo.
+1. Download the configurations specified via the `source` parameter into the `--download-dir` folder (by default `.terragrunt-cache` in the working directory, which we recommend adding to `.gitignore`). This downloading is done by using the same [go-getter library](https://github.com/hashicorp/go-getter) OpenTofu/Terraform uses, so the `source` parameter supports the exact same syntax as the [module source](https://opentofu.org/docs/language/modules/sources/) parameter, including local file paths, Git URLs, and Git URLs with `ref` parameters (useful for checking out a specific tag, commit, or branch of Git repo). Terragrunt will download all the code in the repo (i.e. the part before the double-slash `//`) so that relative paths work correctly between modules in that repo.
 
 2. Copy all files from the current working directory into the temporary folder.
 
@@ -168,11 +168,11 @@ Just as importantly, since the OpenTofu/Terraform module code is now defined in 
 
 ### Working locally
 
-If you’re testing changes to a local copy of the `modules` repo, you can use the `--terragrunt-source` command-line option or the `TERRAGRUNT_SOURCE` environment variable to override the `source` parameter. This is useful to point Terragrunt at a local checkout of your code so you can do rapid, iterative, make-a-change-and-rerun development:
+If you’re testing changes to a local copy of the `modules` repo, you can use the `--source` command-line option or the `TERRAGRUNT_SOURCE` environment variable to override the `source` parameter. This is useful to point Terragrunt at a local checkout of your code so you can do rapid, iterative, make-a-change-and-rerun development:
 
 ```bash
 cd live/stage/app
-terragrunt apply --terragrunt-source ../../../modules//app
+terragrunt apply --source ../../../modules//app
 ```
 
 *(Note: the double slash (`//`) here too is intentional and required. Terragrunt downloads all the code in the folder before the double-slash into the temporary folder so that relative paths between modules work correctly. OpenTofu/Terraform may display a "OpenTofu/Terraform initialized in an empty directory" warning, but you can safely ignore it.)*
@@ -187,9 +187,9 @@ version control. See the [Lock File Handling docs]({{site.baseurl}}/docs/feature
 
 The first time you set the `source` parameter to a remote URL, Terragrunt will download the code from that URL into a tmp folder. It will *NOT* download it again afterwards unless you change that URL. That’s because downloading code—and more importantly, reinitializing remote state, redownloading provider plugins, and redownloading modules—can take a long time. To avoid adding 10-90 seconds of overhead to every Terragrunt command, Terragrunt assumes all remote URLs are immutable, and only downloads them once.
 
-Therefore, when working locally, you should use the `--terragrunt-source` parameter and point it at a local file path as described in the previous section. Terragrunt will copy the local files every time you run it, which is nearly instantaneous, and doesn’t require reinitializing everything, so you’ll be able to iterate quickly.
+Therefore, when working locally, you should use the `--source` parameter and point it at a local file path as described in the previous section. Terragrunt will copy the local files every time you run it, which is nearly instantaneous, and doesn’t require reinitializing everything, so you’ll be able to iterate quickly.
 
-If you need to force Terragrunt to redownload something from a remote URL, run Terragrunt with the `--terragrunt-source-update` flag and it’ll delete the tmp folder, download the files from scratch, and reinitialize everything. This can take a while, so avoid it and use `--terragrunt-source` when you can\!
+If you need to force Terragrunt to redownload something from a remote URL, run Terragrunt with the `--source-update` flag and it’ll delete the tmp folder, download the files from scratch, and reinitialize everything. This can take a while, so avoid it and use `--source` when you can\!
 
 ### Important gotcha: working with relative file paths
 

@@ -28,4 +28,4 @@ If you are ABSOLUTELY SURE you want to delete all the folders that come up in th
 find . -type d -name ".terragrunt-cache" -prune -exec rm -rf {} \;
 ```
 
-Also consider setting the `TERRAGRUNT_DOWNLOAD` environment variable if you wish to place the cache directories somewhere else.
+Also consider setting the `TG_DOWNLOAD_DIR` environment variable if you wish to place the cache directories somewhere else.

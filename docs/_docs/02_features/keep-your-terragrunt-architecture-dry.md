@@ -421,7 +421,7 @@ want to run `plan` and `apply` on that module, not other components or other acc
 If you did not take advantage of `include` or `read_terragrunt_config`, then implementing this pipeline is
 straightforward: you can use `git diff` to collect all the files that changed, and for those `terragrunt.hcl` files that
 were updated, you can run `terragrunt plan` or `terragrunt apply` by passing in the updated file with
-`--terragrunt-config`.
+`--config`.
 
 However, if you use `include` or `read_terragrunt_config`, then a single file change may need to be reflected on
 multiple files that were not touched at all in the commit. In our previous example, when a configuration is updated in
@@ -430,10 +430,10 @@ configuration.
 
 Terragrunt currently does not have any features for supporting this use case when `read_terragrunt_config` is
 used. However, for `include` blocks, you can use the
-[--terragrunt-modules-that-include]({{site.baseurl}}/docs/reference/cli-options/#terragrunt-modules-that-include) CLI
+[--untis-that-include]({{site.baseurl}}/docs/reference/cli-options/#units-that-include) CLI
 option for the `run-all` command.
 
-In the previous example, your CI/CD pipeline can run `terragrunt run-all plan --terragrunt-modules-that-include
+In the previous example, your CI/CD pipeline can run `terragrunt run-all plan --units-that-include
 _env/app.hcl`. This will:
 
 - Recursively find all Terragrunt modules in the current directory tree.
@@ -445,19 +445,19 @@ Thereby allowing you to only touch those modules that need to be updated by the 
 
 Alternatively, you can implement a promotion workflow if you have multiple environments that depend on the
 `_env/app.hcl` configuration. In the above example, suppose you wanted to progressively roll out the changes through the
-environments, `qa`, `stage`, and `prod` in order. In this case, you can use `--terragrunt-working-dir` to scope down the
+environments, `qa`, `stage`, and `prod` in order. In this case, you can use `--working-dir` to scope down the
 updates from the common file:
 
 ```bash
 # Roll out the change to the qa environment first
-terragrunt run-all plan --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir qa
-terragrunt run-all apply --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir qa
+terragrunt run-all plan --units-that-include _env/app.hcl --working-dir qa
+terragrunt run-all apply --units-that-include _env/app.hcl --working-dir qa
 # If the apply succeeds to qa, move on to the stage environment
-terragrunt run-all plan --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir stage
-terragrunt run-all apply --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir stage
+terragrunt run-all plan --units-that-include _env/app.hcl --working-dir stage
+terragrunt run-all apply --units-that-include _env/app.hcl --working-dir stage
 # And finally, prod.
-terragrunt run-all plan --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir prod
-terragrunt run-all apply --terragrunt-modules-that-include _env/app.hcl --terragrunt-working-dir prod
+terragrunt run-all plan --units-that-include _env/app.hcl --working-dir prod
+terragrunt run-all apply --units-that-include _env/app.hcl --working-dir prod
 ```
 
 This allows you to have flexibility in how changes are rolled out. For example, you can add extra validation stages

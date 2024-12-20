@@ -18,8 +18,8 @@ const (
 	DeprecatedFlagNamePrefix = "terragrunt-"
 )
 
-// BoolFlagWithDeprecated adds deprecated names with strict mode control for the given flag.
-func BoolFlagWithDeprecated(opts *options.TerragruntOptions, flag *cli.BoolFlag, oldNames ...string) cli.Flag {
+// BoolWithDeprecatedFlag adds deprecated names with strict mode control for the given flag.
+func BoolWithDeprecatedFlag(opts *options.TerragruntOptions, flag *cli.BoolFlag, oldNames ...string) cli.Flag {
 	names := flag.Names()
 	envVars := flag.GetEnvVars()
 
@@ -34,8 +34,8 @@ func BoolFlagWithDeprecated(opts *options.TerragruntOptions, flag *cli.BoolFlag,
 	}
 }
 
-// GenericFlagWithDeprecated adds deprecated names with strict mode control for the given flag.
-func GenericFlagWithDeprecated[T cli.GenericType](opts *options.TerragruntOptions, flag *cli.GenericFlag[T], oldNames ...string) cli.Flag {
+// GenericWithDeprecatedFlag adds deprecated names with strict mode control for the given flag.
+func GenericWithDeprecatedFlag[T cli.GenericType](opts *options.TerragruntOptions, flag *cli.GenericFlag[T], oldNames ...string) cli.Flag {
 	names := flag.Names()
 	envVars := flag.GetEnvVars()
 
@@ -50,8 +50,8 @@ func GenericFlagWithDeprecated[T cli.GenericType](opts *options.TerragruntOption
 	}
 }
 
-// SliceFlagWithDeprecated adds deprecated names with strict mode control for the given flag.
-func SliceFlagWithDeprecated[T cli.SliceFlagType](opts *options.TerragruntOptions, flag *cli.SliceFlag[T], oldNames ...string) cli.Flag {
+// SliceWithDeprecatedFlag adds deprecated names with strict mode control for the given flag.
+func SliceWithDeprecatedFlag[T cli.SliceFlagType](opts *options.TerragruntOptions, flag *cli.SliceFlag[T], oldNames ...string) cli.Flag {
 	names := flag.Names()
 	envVars := flag.GetEnvVars()
 
@@ -66,8 +66,8 @@ func SliceFlagWithDeprecated[T cli.SliceFlagType](opts *options.TerragruntOption
 	}
 }
 
-// MapFlagWithDeprecated adds deprecated names with strict mode control for the given flag.
-func MapFlagWithDeprecated[K cli.MapFlagKeyType, V cli.MapFlagValueType](opts *options.TerragruntOptions, flag *cli.MapFlag[K, V], oldNames ...string) cli.Flag {
+// MapWithDeprecatedFlag adds deprecated names with strict mode control for the given flag.
+func MapWithDeprecatedFlag[K cli.MapFlagKeyType, V cli.MapFlagValueType](opts *options.TerragruntOptions, flag *cli.MapFlag[K, V], oldNames ...string) cli.Flag {
 	names := flag.Names()
 	envVars := flag.GetEnvVars()
 

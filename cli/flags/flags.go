@@ -17,15 +17,34 @@ import (
 )
 
 const (
-	ConfigFlagName             = "config"
-	TFPathFlagName             = "tfpath"
-	NoAutoInitFlagName         = "no-auto-init"
-	NoAutoRetryFlagName        = "no-auto-retry"
-	NoAutoApproveFlagName      = "no-auto-approve"
-	NonInteractiveFlagName     = "non-interactive"
-	WorkingDirFlagName         = "working-dir"
-	DownloadDirFlagName        = "download-dir"
-	DeprecatedDownloadFlagName = DeprecatedFlagNamePrefix + "download" // Old `TERRAGRUNT_DOWNLOAD` env var for `download-dir` flag.
+	ConfigFlagName                         = "config"
+	NoAutoInitFlagName                     = "no-auto-init"
+	NoAutoRetryFlagName                    = "no-auto-retry"
+	NoAutoApproveFlagName                  = "no-auto-approve"
+	NonInteractiveFlagName                 = "non-interactive"
+	WorkingDirFlagName                     = "working-dir"
+	DownloadDirFlagName                    = "download-dir"
+	TFForwardStdoutFlagName                = "tf-forward-stdout"
+	TFPathFlagName                         = "tf-path"
+	FeatureMapFlagName                     = "feature"
+	ParallelismFlagName                    = "parallelism"
+	DebugInputsFlagName                    = "debug-inputs"
+	UnitsThatIncludeFlagName               = "units-that-include"
+	DependencyFetchOutputFromStateFlagName = "dependency-fetch-output-from-state"
+	UsePartialParseConfigCacheFlagName     = "use-partial-parse-config-cache"
+
+	BackendRequireBootstrapFlagName             = "backend-require-bootstrap"
+	TerragruntFailOnStateBucketCreationFlagName = DeprecatedFlagNamePrefix + "fail-on-state-bucket-creation" // `backend-require-bootstrap`
+
+	DisableBucketUpdateFlagName = "disable-bucket-update"
+	//DisableBucketUpdateFlagName           = "bootstrap-backend"
+	//TerragruntDisableBucketUpdateFlagName = DeprecatedFlagNamePrefix + "disable-bucket-update" // `bootstrap-backend`
+
+	DisableCommandValidationFlagName   = "disable-command-validation"
+	AuthProviderCmdFlagName            = "auth-provider-cmd"
+	OutDirFlagName                     = "out-dir"
+	JSONOutDirFlagName                 = "json-out-dir"
+	NoDestroyDependenciesCheckFlagName = "no-destroy-dependencies-check"
 
 	SourceFlagName       = "source"
 	SourceMapFlagName    = "source-map"
@@ -33,50 +52,28 @@ const (
 
 	// Assume IAM Role flags.
 	IAMAssumeRoleFlagName                 = "iam-assume-role"
-	DeprecatedIAMRoleFlagName             = DeprecatedFlagNamePrefix + "iam-role" // Old name for `iam-assume-role` flag.
 	IAMAssumeRoleDurationFlagName         = "iam-assume-role-duration"
 	IAMAssumeRoleSessionNameFlagName      = "iam-assume-role-session-name"
 	IAMAssumeRoleWebIdentityTokenFlagName = "iam-assume-role-web-identity-token"
-	DeprecatedIAMWebIdentityTokenFlagName = DeprecatedFlagNamePrefix + "iam-web-identity-token" // Old name for `iam-assume-role-web-identity-token` flag.
-
-	ParallelismFlagName                    = "parallelism"
-	DebugFlagName                          = "debug"
-	ModulesThatIncludeFlagName             = "modules-that-include"
-	FetchDependencyOutputFromStateFlagName = "fetch-dependency-output-from-state"
-	UsePartialParseConfigCacheFlagName     = "use-partial-parse-config-cache"
-	FailOnStateBucketCreationFlagName      = "fail-on-state-bucket-creation"
-	DisableBucketUpdateFlagName            = "disable-bucket-update"
-	DisableCommandValidationFlagName       = "disable-command-validation"
-	AuthProviderCmdFlagName                = "auth-provider-cmd"
-	OutDirFlagName                         = "out-dir"
-	JSONOutDirFlagName                     = "json-out-dir"
-	NoDestroyDependenciesCheckFlagName     = "no-destroy-dependencies-check"
 
 	// Queue related flags.
-	IgnoreDependencyErrorsFlagName      = "ignore-dependency-errors"
-	IgnoreDependencyOrderFlagName       = "ignore-dependency-order"
-	IgnoreExternalDependenciesFlagName  = "ignore-external-dependencies"
-	IncludeExternalDependenciesFlagName = "include-external-dependencies"
-	ExcludesFileFlagName                = "excludes-file"
-	ExcludeDirFlagName                  = "exclude-dir"
-	IncludeDirFlagName                  = "include-dir"
-	StrictIncludeFlagName               = "strict-include"
-	UnitsReadingFlagName                = "queue-include-units-reading"
+	QueueIgnoreErrorsFlagName        = "queue-ignore-errors"
+	QueueIgnoreDAGOrderFlagName      = "queue-ignore-dag-order"
+	QueueExcludeExternalFlagName     = "queue-exclude-external"
+	QueueExcludeDirFlagName          = "queue-exclude-dir"
+	QueueExcludeFileFlagName         = "queue-exclude-file"
+	QueueIncludeDirFlagName          = "queue-include-dir"
+	QueueIncludeExternalFlagName     = "queue-include-external"
+	QueueStrictIncludeFlagName       = "queue-strict-include"
+	QueueIncludeUnitsReadingFlagName = "queue-include-units-reading"
 
 	// Logs related flags.
 	LogLevelFlagName        = "log-level"
 	LogDisableFlagName      = "log-disable"
-	NoColorFlagName         = "no-color"
 	ShowLogAbsPathsFlagName = "log-show-abs-paths"
-	ForwardTFStdoutFlagName = "forward-tf-stdout"
 	LogFormatFlagName       = "log-format"
 	LogCustomFormatFlagName = "log-custom-format"
-
-	// Deprecated flags.
-	IncludeModulePrefixFlagName  = "include-module-prefix"
-	DisableLogFormattingFlagName = "disable-log-formatting"
-	JSONLogFlagName              = "json-log"
-	TfLogJSONFlagName            = "tf-logs-to-json"
+	NoColorFlagName         = "no-color"
 
 	// Strict Mode related flags.
 	StrictModeFlagName    = "strict-mode"
@@ -90,16 +87,40 @@ const (
 	ProviderCacheTokenFlagName         = "provider-cache-token"
 	ProviderCacheRegistryNamesFlagName = "provider-cache-registry-names"
 
-	FeatureMapFlagName = "feature"
-
 	// Engine related environment variables.
 	EngineEnableFlagName    = "experimental-engine"
 	EngineCachePathFlagName = "engine-cache-path"
 	EngineSkipCheckFlagName = "engine-skip-check"
 	EngineLogLevelFlagName  = "engine-log-level"
 
+	// App flags.
 	HelpFlagName    = "help"
 	VersionFlagName = "version"
+
+	// Renamed flags.
+	TerragruntModulesThatIncludeFlagName             = DeprecatedFlagNamePrefix + "modules-that-include"               // `units-that-include`
+	TerragruntForwardTFStdoutFlagName                = DeprecatedFlagNamePrefix + "forward-tf-stdout"                  // `tf-forward-stdout`.
+	TerragruntTFPathFlagName                         = DeprecatedFlagNamePrefix + "tfpath"                             // `tf-path`.
+	TerragruntDownloadFlagName                       = DeprecatedFlagNamePrefix + "download"                           // `download-dir` for old `TERRAGRUNT_DOWNLOAD` env var.
+	TerragruntIAMRoleFlagName                        = DeprecatedFlagNamePrefix + "iam-role"                           // `iam-assume-role`.
+	TerragruntIAMWebIdentityTokenFlagName            = DeprecatedFlagNamePrefix + "iam-web-identity-token"             // `iam-assume-role-web-identity-token`.
+	TerragruntDebugFlagName                          = DeprecatedFlagNamePrefix + "debug"                              // `debug-inputs`.
+	TerragruntFetchDependencyOutputFromStateFlagName = DeprecatedFlagNamePrefix + "fetch-dependency-output-from-state" // `dependency-fetch-output-from-state`.
+	TerragruntIgnoreDependencyOrderFlagName          = DeprecatedFlagNamePrefix + "ignore-dependency-order"            // `queue-ignore-dag-order`.
+	TerragruntIgnoreExternalDependenciesFlagName     = DeprecatedFlagNamePrefix + "ignore-external-dependencies"       // `queue-exclude-external`.
+	TerragruntExcludeDirFlagName                     = DeprecatedFlagNamePrefix + "exclude-dir"                        // `queue-exclude-dir`.
+	TerragruntExcludesFileFlagName                   = DeprecatedFlagNamePrefix + "excludes-file"                      // `queue-exclude-file`.
+	TerragruntIncludeDirFlagName                     = DeprecatedFlagNamePrefix + "include-dir"                        // `queue-include-dir`.
+	TerragruntIncludeExternalDependenciesFlagName    = DeprecatedFlagNamePrefix + "include-external-dependencies"      // `queue-include-external`.
+	TerragruntStrictIncludeFlagName                  = DeprecatedFlagNamePrefix + "strict-include"                     // `queue-strict-include`.
+	TerragruntUnitsReadingFlagName                   = DeprecatedFlagNamePrefix + "queue-include-units-reading"        // `queue-include-units-reading`.
+	TerragruntIgnoreDependencyErrorsFlagName         = DeprecatedFlagNamePrefix + "ignore-dependency-errors"           // `queue-ignore-errors`.
+
+	// Deprecated flags.
+	TerragruntIncludeModulePrefixFlagName  = DeprecatedFlagNamePrefix + "include-module-prefix"
+	TerragruntDisableLogFormattingFlagName = DeprecatedFlagNamePrefix + "disable-log-formatting"
+	TerragruntJSONLogFlagName              = DeprecatedFlagNamePrefix + "json-log"
+	TerragruntTfLogJSONFlagName            = DeprecatedFlagNamePrefix + "tf-logs-to-json"
 )
 
 func NewHelpFlag(opts *options.TerragruntOptions) cli.Flag {
@@ -150,7 +171,7 @@ func NewVersionFlag(opts *options.TerragruntOptions) cli.Flag {
 }
 
 func NewLogLevelFlag(opts *options.TerragruntOptions) cli.Flag {
-	return GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+	return GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 		Name:        LogLevelFlagName,
 		EnvVars:     EnvVars(LogLevelFlagName),
 		DefaultText: opts.LogLevel.String(),
@@ -192,13 +213,13 @@ func NewHelpVersionFlags(opts *options.TerragruntOptions) cli.Flags {
 func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 	flags := cli.Flags{
 		NewLogLevelFlag(opts),
-		GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:        WorkingDirFlagName,
 			EnvVars:     EnvVars(WorkingDirFlagName),
 			Destination: &opts.WorkingDir,
 			Usage:       "The path to the directory of Terragrunt configurations. Default is current directory.",
 		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
 			Name:        LogDisableFlagName,
 			EnvVars:     EnvVars(LogDisableFlagName),
 			Usage:       "Disable logging.",
@@ -209,13 +230,13 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 				return nil
 			},
 		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
 			Name:        ShowLogAbsPathsFlagName,
 			EnvVars:     EnvVars(ShowLogAbsPathsFlagName),
 			Destination: &opts.LogShowAbsPaths,
 			Usage:       "Show absolute paths in logs.",
 		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
 			Name:        NoColorFlagName,
 			EnvVars:     EnvVars(NoColorFlagName),
 			Destination: &opts.DisableLogColors,
@@ -225,7 +246,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 				return nil
 			},
 		}),
-		GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:    LogFormatFlagName,
 			EnvVars: EnvVars(LogFormatFlagName),
 			Usage:   "Set the log format.",
@@ -251,7 +272,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 				return nil
 			},
 		}),
-		GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:    LogCustomFormatFlagName,
 			EnvVars: EnvVars(LogCustomFormatFlagName),
 			Usage:   "Set the custom log formatting.",
@@ -268,13 +289,13 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 		}),
 
 		// Strict Mode flags.
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
 			Name:        StrictModeFlagName,
 			EnvVars:     EnvVars(StrictModeFlagName),
 			Destination: &opts.StrictMode,
 			Usage:       "Enables strict mode for Terragrunt. For more information, see https://terragrunt.gruntwork.io/docs/reference/strict-mode .",
 		}),
-		SliceFlagWithDeprecated(opts, &cli.SliceFlag[string]{
+		SliceWithDeprecatedFlag(opts, &cli.SliceFlag[string]{
 			Name:        StrictControlFlagName,
 			EnvVars:     EnvVars(StrictControlFlagName),
 			Destination: &opts.StrictControls,
@@ -289,19 +310,19 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 		}),
 
 		// Deprecated flags.
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
-			Name:    IncludeModulePrefixFlagName,
-			EnvVars: EnvVars(IncludeModulePrefixFlagName),
+		&cli.BoolFlag{
+			Name:    TerragruntIncludeModulePrefixFlagName,
+			EnvVars: EnvVars(TerragruntIncludeModulePrefixFlagName),
 			Usage:   "When this flag is set output from Terraform sub-commands is prefixed with module path.",
 			Hidden:  true,
 			Action: func(ctx *cli.Context, _ bool) error {
-				opts.Logger.Warnf("The %q flag is deprecated. Use the functionality-inverted %q flag instead. By default, Terraform/OpenTofu output is integrated into the Terragrunt log, which prepends additional data, such as timestamps and prefixes, to log entries.", IncludeModulePrefixFlagName, ForwardTFStdoutFlagName)
+				opts.Logger.Warnf("The %q flag is deprecated. Use the functionality-inverted %q flag instead. By default, Terraform/OpenTofu output is integrated into the Terragrunt log, which prepends additional data, such as timestamps and prefixes, to log entries.", TerragruntIncludeModulePrefixFlagName, TFForwardStdoutFlagName)
 				return nil
 			},
-		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
-			Name:        DisableLogFormattingFlagName,
-			EnvVars:     EnvVars(DisableLogFormattingFlagName),
+		},
+		&cli.BoolFlag{
+			Name:        TerragruntDisableLogFormattingFlagName,
+			EnvVars:     EnvVars(TerragruntDisableLogFormattingFlagName),
 			Destination: &opts.DisableLogFormatting,
 			Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
 			Hidden:      true,
@@ -319,10 +340,10 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 
 				return nil
 			},
-		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
-			Name:        JSONLogFlagName,
-			EnvVars:     EnvVars(JSONLogFlagName),
+		},
+		&cli.BoolFlag{
+			Name:        TerragruntJSONLogFlagName,
+			EnvVars:     EnvVars(TerragruntJSONLogFlagName),
 			Destination: &opts.JSONLogFormat,
 			Usage:       "If specified, Terragrunt will output its logs in JSON format.",
 			Hidden:      true,
@@ -340,10 +361,10 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 
 				return nil
 			},
-		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
-			Name:    TfLogJSONFlagName,
-			EnvVars: EnvVars(TfLogJSONFlagName),
+		},
+		&cli.BoolFlag{
+			Name:    TerragruntTfLogJSONFlagName,
+			EnvVars: EnvVars(TerragruntTfLogJSONFlagName),
 			Usage:   "If specified, Terragrunt will wrap Terraform stdout and stderr in JSON.",
 			Hidden:  true,
 			Action: func(_ *cli.Context, _ bool) error {
@@ -358,7 +379,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 
 				return nil
 			},
-		}),
+		},
 	}
 
 	flags = flags.Sort()
@@ -370,64 +391,64 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 // NewCommonFlags creates and returns global flags.
 func NewCommonFlags(opts *options.TerragruntOptions) cli.Flags {
 	flags := cli.Flags{
-		GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:        ConfigFlagName,
 			EnvVars:     EnvVars(ConfigFlagName),
 			Destination: &opts.TerragruntConfigPath,
 			Usage:       "The path to the Terragrunt config file. Default is terragrunt.hcl.",
 		}),
-		GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:        TFPathFlagName,
 			EnvVars:     EnvVars(TFPathFlagName),
 			Destination: &opts.TerraformPath,
-			Usage:       "Path to the Terraform binary. Default is tofu (on PATH).",
-		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
+			Usage:       "Path to the OpenTofu/Terraform binary. Default is tofu (on PATH).",
+		}, TerragruntTFPathFlagName),
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
 			Name:        NoAutoInitFlagName,
 			EnvVars:     EnvVars(NoAutoInitFlagName),
 			Usage:       "Don't automatically run 'terraform/tofu init' during other terragrunt commands. You must run 'terragrunt init' manually.",
 			Negative:    true,
 			Destination: &opts.AutoInit,
 		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
 			Name:        NoAutoRetryFlagName,
 			EnvVars:     EnvVars(NoAutoRetryFlagName),
 			Destination: &opts.AutoRetry,
 			Usage:       "Don't automatically re-run command in case of transient errors.",
 			Negative:    true,
 		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
 			Name:        NoAutoApproveFlagName,
 			EnvVars:     EnvVars(NoAutoApproveFlagName),
 			Destination: &opts.RunAllAutoApprove,
 			Usage:       "Don't automatically append `-auto-approve` to the underlying OpenTofu/Terraform commands run with 'run-all'.",
 			Negative:    true,
 		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
 			Name:        NonInteractiveFlagName,
 			EnvVars:     EnvVars(NonInteractiveFlagName),
 			Destination: &opts.NonInteractive,
 			Usage:       `Assume "yes" for all prompts.`,
 		}),
-		GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:        DownloadDirFlagName,
 			EnvVars:     EnvVars(DownloadDirFlagName),
 			Destination: &opts.DownloadDir,
 			Usage:       "The path to download OpenTofu/Terraform modules into. Default is .cache in the working directory.",
-		}, DeprecatedFlagNamePrefix+DownloadDirFlagName, DeprecatedDownloadFlagName), // the old flag had `terragrunt-download-dir` name and `TERRAGRUNT_DOWNLOAD` env.
-		GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+		}, DeprecatedFlagNamePrefix+DownloadDirFlagName, TerragruntDownloadFlagName), // the old flag had `terragrunt-download-dir` name and `TERRAGRUNT_DOWNLOAD` env.
+		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:        SourceFlagName,
 			EnvVars:     EnvVars(SourceFlagName),
 			Destination: &opts.Source,
 			Usage:       "Download OpenTofu/Terraform configurations from the specified source into a temporary folder, and run Terraform in that temporary folder.",
 		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
 			Name:        SourceUpdateFlagName,
 			EnvVars:     EnvVars(SourceUpdateFlagName),
 			Destination: &opts.SourceUpdate,
 			Usage:       "Delete the contents of the temporary folder to clear out any old, cached source code before downloading new source code into it.",
 		}),
-		MapFlagWithDeprecated(opts, &cli.MapFlag[string, string]{
+		MapWithDeprecatedFlag(opts, &cli.MapFlag[string, string]{
 			Name:        SourceMapFlagName,
 			EnvVars:     EnvVars(SourceMapFlagName),
 			Destination: &opts.SourceMap,
@@ -436,189 +457,189 @@ func NewCommonFlags(opts *options.TerragruntOptions) cli.Flags {
 		}),
 
 		// Assume IAM Role flags.
-		GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:        IAMAssumeRoleFlagName,
 			EnvVars:     EnvVars(IAMAssumeRoleFlagName),
 			Destination: &opts.IAMRoleOptions.RoleARN,
 			Usage:       "Assume the specified IAM role before executing OpenTofu/Terraform.",
-		}, DeprecatedIAMRoleFlagName),
-		GenericFlagWithDeprecated(opts, &cli.GenericFlag[int64]{
+		}, TerragruntIAMRoleFlagName),
+		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[int64]{
 			Name:        IAMAssumeRoleDurationFlagName,
 			EnvVars:     EnvVars(IAMAssumeRoleDurationFlagName),
 			Destination: &opts.IAMRoleOptions.AssumeRoleDuration,
 			Usage:       "Session duration for IAM Assume Role session.",
 		}),
-		GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:        IAMAssumeRoleSessionNameFlagName,
 			EnvVars:     EnvVars(IAMAssumeRoleSessionNameFlagName),
 			Destination: &opts.IAMRoleOptions.AssumeRoleSessionName,
 			Usage:       "Name for the IAM Assumed Role session.",
 		}),
-		GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:        IAMAssumeRoleWebIdentityTokenFlagName,
 			EnvVars:     EnvVars(IAMAssumeRoleWebIdentityTokenFlagName),
 			Destination: &opts.IAMRoleOptions.WebIdentityToken,
 			Usage:       "For AssumeRoleWithWebIdentity, the WebIdentity token.",
-		}, DeprecatedIAMWebIdentityTokenFlagName),
+		}, TerragruntIAMWebIdentityTokenFlagName),
 
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
-			Name:        IgnoreDependencyErrorsFlagName,
-			EnvVars:     EnvVars(IgnoreDependencyErrorsFlagName),
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
+			Name:        QueueIgnoreErrorsFlagName,
+			EnvVars:     EnvVars(QueueIgnoreErrorsFlagName),
 			Destination: &opts.IgnoreDependencyErrors,
-			Usage:       "*-all commands continue processing components even if a dependency fails.",
-		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
-			Name:        IgnoreDependencyOrderFlagName,
-			EnvVars:     EnvVars(IgnoreDependencyOrderFlagName),
+			Usage:       "Continue processing Units even if a dependency fails.",
+		}, TerragruntIgnoreDependencyErrorsFlagName),
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
+			Name:        QueueIgnoreDAGOrderFlagName,
+			EnvVars:     EnvVars(QueueIgnoreDAGOrderFlagName),
 			Destination: &opts.IgnoreDependencyOrder,
-			Usage:       "*-all commands will be run disregarding the dependencies",
-		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
-			Name:        IgnoreExternalDependenciesFlagName,
-			EnvVars:     EnvVars(IgnoreExternalDependenciesFlagName),
+			Usage:       "Ignore DAG order for --all commands.",
+		}, TerragruntIgnoreDependencyOrderFlagName),
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
+			Name:        QueueExcludeExternalFlagName,
+			EnvVars:     EnvVars(QueueExcludeExternalFlagName),
 			Destination: &opts.IgnoreExternalDependencies,
-			Usage:       "*-all commands will not attempt to include external dependencies",
-		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
-			Name:        IncludeExternalDependenciesFlagName,
-			EnvVars:     EnvVars(IncludeExternalDependenciesFlagName),
+			Usage:       "Ignore external dependencies for --all commands.",
+		}, TerragruntIgnoreExternalDependenciesFlagName),
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
+			Name:        QueueIncludeExternalFlagName,
+			EnvVars:     EnvVars(QueueIncludeExternalFlagName),
 			Destination: &opts.IncludeExternalDependencies,
-			Usage:       "*-all commands will include external dependencies",
-		}),
-		GenericFlagWithDeprecated(opts, &cli.GenericFlag[int]{
+			Usage:       "Include external dependencies for --all commands without asking.",
+		}, TerragruntIncludeExternalDependenciesFlagName),
+		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[int]{
 			Name:        ParallelismFlagName,
 			EnvVars:     EnvVars(ParallelismFlagName),
 			Destination: &opts.Parallelism,
-			Usage:       "*-all commands parallelism set to at most N modules",
+			Usage:       "Parallelism for --all commands.",
 		}),
-		GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
-			Name:        ExcludesFileFlagName,
-			EnvVars:     EnvVars(ExcludesFileFlagName),
+		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
+			Name:        QueueExcludeFileFlagName,
+			EnvVars:     EnvVars(QueueExcludeFileFlagName),
 			Destination: &opts.ExcludesFile,
 			Usage:       "Path to a file with a list of directories that need to be excluded when running *-all commands.",
-		}),
-		SliceFlagWithDeprecated(opts, &cli.SliceFlag[string]{
-			Name:        ExcludeDirFlagName,
-			EnvVars:     EnvVars(ExcludeDirFlagName),
+		}, TerragruntExcludesFileFlagName),
+		SliceWithDeprecatedFlag(opts, &cli.SliceFlag[string]{
+			Name:        QueueExcludeDirFlagName,
+			EnvVars:     EnvVars(QueueExcludeDirFlagName),
 			Destination: &opts.ExcludeDirs,
-			Usage:       "Unix-style glob of directories to exclude when running *-all commands.",
-		}),
-		SliceFlagWithDeprecated(opts, &cli.SliceFlag[string]{
-			Name:        IncludeDirFlagName,
-			EnvVars:     EnvVars(IncludeDirFlagName),
+			Usage:       "Unix-style glob of directories to exclude from the queue of Units to run.",
+		}, TerragruntExcludeDirFlagName),
+		SliceWithDeprecatedFlag(opts, &cli.SliceFlag[string]{
+			Name:        QueueIncludeDirFlagName,
+			EnvVars:     EnvVars(QueueIncludeDirFlagName),
 			Destination: &opts.IncludeDirs,
-			Usage:       "Unix-style glob of directories to include when running *-all commands",
-		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
-			Name:        DebugFlagName,
-			EnvVars:     EnvVars(DebugFlagName),
+			Usage:       "Unix-style glob of directories to include from the queue of Units to run.",
+		}, TerragruntIncludeDirFlagName),
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
+			Name:        DebugInputsFlagName,
+			EnvVars:     EnvVars(DebugInputsFlagName),
 			Destination: &opts.Debug,
 			Usage:       "Write debug.tfvars to working folder to help root-cause issues.",
-		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
+		}, TerragruntDebugFlagName),
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
 			Name:        UsePartialParseConfigCacheFlagName,
 			EnvVars:     EnvVars(UsePartialParseConfigCacheFlagName),
 			Destination: &opts.UsePartialParseConfigCache,
 			Usage:       "Enables caching of includes during partial parsing operations. Will also be used for the --iam-role option if provided.",
 		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
-			Name:        FetchDependencyOutputFromStateFlagName,
-			EnvVars:     EnvVars(FetchDependencyOutputFromStateFlagName),
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
+			Name:        DependencyFetchOutputFromStateFlagName,
+			EnvVars:     EnvVars(DependencyFetchOutputFromStateFlagName),
 			Destination: &opts.FetchDependencyOutputFromState,
 			Usage:       "The option fetches dependency output directly from the state file instead of init dependencies and running terraform on them.",
-		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
-			Name:        ForwardTFStdoutFlagName,
-			EnvVars:     EnvVars(ForwardTFStdoutFlagName),
+		}, TerragruntFetchDependencyOutputFromStateFlagName),
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
+			Name:        TFForwardStdoutFlagName,
+			EnvVars:     EnvVars(TFForwardStdoutFlagName),
 			Destination: &opts.ForwardTFStdout,
 			Usage:       "If specified, the output of OpenTofu/Terraform commands will be printed as is, without being integrated into the Terragrunt log.",
-		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
-			Name:        StrictIncludeFlagName,
-			EnvVars:     EnvVars(StrictIncludeFlagName),
+		}, TerragruntForwardTFStdoutFlagName),
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
+			Name:        QueueStrictIncludeFlagName,
+			EnvVars:     EnvVars(QueueStrictIncludeFlagName),
 			Destination: &opts.StrictInclude,
 			Usage:       "If flag is set, only modules under the directories passed in with '--include-dir' will be included.",
-		}),
-		SliceFlagWithDeprecated(opts, &cli.SliceFlag[string]{
-			Name:        ModulesThatIncludeFlagName,
-			EnvVars:     EnvVars(ModulesThatIncludeFlagName),
+		}, TerragruntStrictIncludeFlagName),
+		SliceWithDeprecatedFlag(opts, &cli.SliceFlag[string]{
+			Name:        UnitsThatIncludeFlagName,
+			EnvVars:     EnvVars(UnitsThatIncludeFlagName),
 			Destination: &opts.ModulesThatInclude,
 			Usage:       "If flag is set, 'run-all' will only run the command against Terragrunt modules that include the specified file.",
-		}),
-		SliceFlagWithDeprecated(opts, &cli.SliceFlag[string]{
-			Name:        UnitsReadingFlagName,
-			EnvVars:     EnvVars(UnitsReadingFlagName),
+		}, TerragruntModulesThatIncludeFlagName),
+		SliceWithDeprecatedFlag(opts, &cli.SliceFlag[string]{
+			Name:        QueueIncludeUnitsReadingFlagName,
+			EnvVars:     EnvVars(QueueIncludeUnitsReadingFlagName),
 			Destination: &opts.UnitsReading,
 			Usage:       "If flag is set, 'run-all' will only run the command against Terragrunt units that read the specified file via an HCL function.",
-		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
-			Name:        FailOnStateBucketCreationFlagName,
-			EnvVars:     EnvVars(FailOnStateBucketCreationFlagName),
+		}, TerragruntUnitsReadingFlagName),
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
+			Name:        BackendRequireBootstrapFlagName,
+			EnvVars:     EnvVars(BackendRequireBootstrapFlagName),
 			Destination: &opts.FailIfBucketCreationRequired,
 			Usage:       "When this flag is set Terragrunt will fail if the remote state bucket needs to be created.",
-		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
+		}, TerragruntFailOnStateBucketCreationFlagName),
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
 			Name:        DisableBucketUpdateFlagName,
 			EnvVars:     EnvVars(DisableBucketUpdateFlagName),
 			Destination: &opts.DisableBucketUpdate,
 			Usage:       "When this flag is set Terragrunt will not update the remote state bucket.",
 		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
 			Name:        DisableCommandValidationFlagName,
 			EnvVars:     EnvVars(DisableCommandValidationFlagName),
 			Destination: &opts.DisableCommandValidation,
 			Usage:       "When this flag is set, Terragrunt will not validate the terraform command.",
 		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
 			Name:        NoDestroyDependenciesCheckFlagName,
 			EnvVars:     EnvVars(NoDestroyDependenciesCheckFlagName),
 			Destination: &opts.NoDestroyDependenciesCheck,
 			Usage:       "When this flag is set, Terragrunt will not check for dependent modules when destroying.",
 		}),
 		// Terragrunt Provider Cache flags
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
 			Name:        ProviderCacheFlagName,
 			EnvVars:     EnvVars(ProviderCacheFlagName),
 			Destination: &opts.ProviderCache,
 			Usage:       "Enables Terragrunt's provider caching.",
 		}),
-		GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:        ProviderCacheDirFlagName,
 			EnvVars:     EnvVars(ProviderCacheDirFlagName),
 			Destination: &opts.ProviderCacheDir,
 			Usage:       "The path to the Terragrunt provider cache directory. By default, 'terragrunt/providers' folder in the user cache directory.",
 		}),
-		GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:        ProviderCacheTokenFlagName,
 			EnvVars:     EnvVars(ProviderCacheTokenFlagName),
 			Destination: &opts.ProviderCacheToken,
 			Usage:       "The Token for authentication to the Terragrunt Provider Cache server. By default, assigned automatically.",
 		}),
-		GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:        ProviderCacheHostnameFlagName,
 			EnvVars:     EnvVars(ProviderCacheHostnameFlagName),
 			Destination: &opts.ProviderCacheHostname,
 			Usage:       "The hostname of the Terragrunt Provider Cache server. By default, 'localhost'.",
 		}),
-		GenericFlagWithDeprecated(opts, &cli.GenericFlag[int]{
+		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[int]{
 			Name:        ProviderCachePortFlagName,
 			EnvVars:     EnvVars(ProviderCachePortFlagName),
 			Destination: &opts.ProviderCachePort,
 			Usage:       "The port of the Terragrunt Provider Cache server. By default, assigned automatically.",
 		}),
-		SliceFlagWithDeprecated(opts, &cli.SliceFlag[string]{
+		SliceWithDeprecatedFlag(opts, &cli.SliceFlag[string]{
 			Name:        ProviderCacheRegistryNamesFlagName,
 			EnvVars:     EnvVars(ProviderCacheRegistryNamesFlagName),
 			Destination: &opts.ProviderCacheRegistryNames,
 			Usage:       "The list of remote registries to cached by Terragrunt Provider Cache server. By default, 'registry.terraform.io', 'registry.opentofu.org'.",
 		}),
-		GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:        AuthProviderCmdFlagName,
 			EnvVars:     EnvVars(AuthProviderCmdFlagName),
 			Destination: &opts.AuthProviderCmd,
-			Usage:       "The command and arguments that can be used to fetch authentication configurations.",
+			Usage:       "Run the provided command and arguments to authenticate Terragrunt dynamically when necessary.",
 		}),
-		MapFlagWithDeprecated(opts, &cli.MapFlag[string, string]{
+		MapWithDeprecatedFlag(opts, &cli.MapFlag[string, string]{
 			Name:        FeatureMapFlagName,
 			EnvVars:     EnvVars(FeatureMapFlagName),
 			Destination: &opts.FeatureFlags,
@@ -626,28 +647,28 @@ func NewCommonFlags(opts *options.TerragruntOptions) cli.Flags {
 			Splitter:    util.SplitComma,
 		}),
 		// Terragrunt engine flags
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
 			Name:        EngineEnableFlagName,
 			EnvVars:     EnvVars(EngineEnableFlagName),
 			Destination: &opts.EngineEnabled,
 			Usage:       "Enable Terragrunt experimental engine.",
 			Hidden:      true,
 		}),
-		GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:        EngineCachePathFlagName,
 			EnvVars:     EnvVars(EngineCachePathFlagName),
 			Destination: &opts.EngineCachePath,
 			Usage:       "Cache path for Terragrunt engine files.",
 			Hidden:      true,
 		}),
-		BoolFlagWithDeprecated(opts, &cli.BoolFlag{
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
 			Name:        EngineSkipCheckFlagName,
 			EnvVars:     EnvVars(EngineSkipCheckFlagName),
 			Destination: &opts.EngineSkipChecksumCheck,
 			Usage:       "Skip checksum check for Terragrunt engine files.",
 			Hidden:      true,
 		}),
-		GenericFlagWithDeprecated(opts, &cli.GenericFlag[string]{
+		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:        EngineLogLevelFlagName,
 			EnvVars:     EnvVars(EngineLogLevelFlagName),
 			Destination: &opts.EngineLogLevel,
