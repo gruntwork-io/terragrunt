@@ -1,7 +1,6 @@
 package stack
 
 import (
-	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -11,10 +10,7 @@ const (
 )
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
-	return cli.Flags{
-		commands.NewNoIncludeRootFlag(opts),
-		commands.NewRootFileNameFlag(opts),
-	}
+	return cli.Flags{}
 }
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
