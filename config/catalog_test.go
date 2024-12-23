@@ -23,11 +23,13 @@ func TestCatalogParseConfigFile(t *testing.T) {
 
 	testCases := []struct {
 		configPath     string
+		rootFileName   string
 		expectedConfig *config.CatalogConfig
 		expectedErr    error
 	}{
 		{
 			filepath.Join(basePath, "config1.hcl"),
+			"config1.hcl",
 			&config.CatalogConfig{
 				URLs: []string{
 					filepath.Join(basePath, "terraform-aws-eks"), // this path exists in the fixture directory and must be converted to the absolute path.
@@ -41,16 +43,19 @@ func TestCatalogParseConfigFile(t *testing.T) {
 		},
 		{
 			filepath.Join(basePath, "config2.hcl"),
+			"config2.hcl",
 			nil,
 			nil,
 		},
 		{
 			filepath.Join(basePath, "config3.hcl"),
+			"config3.hcl",
 			&config.CatalogConfig{},
 			nil,
 		},
 		{
 			filepath.Join(basePath, "complex-legacy-root/terragrunt.hcl"),
+			"terragrunt.hcl",
 			&config.CatalogConfig{
 				URLs: []string{
 					filepath.Join(basePath, "complex-legacy-root/dev/us-west-1/modules/terraform-aws-eks"),
@@ -62,6 +67,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 		},
 		{
 			filepath.Join(basePath, "complex/root.hcl"),
+			"root.hcl",
 			&config.CatalogConfig{
 				URLs: []string{
 					filepath.Join(basePath, "complex/dev/us-west-1/modules/terraform-aws-eks"),
@@ -73,6 +79,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 		},
 		{
 			filepath.Join(basePath, "complex-legacy-root/dev/terragrunt.hcl"),
+			"terragrunt.hcl",
 			&config.CatalogConfig{
 				URLs: []string{
 					filepath.Join(basePath, "complex-legacy-root/dev/us-west-1/modules/terraform-aws-eks"),
@@ -83,7 +90,8 @@ func TestCatalogParseConfigFile(t *testing.T) {
 			nil,
 		},
 		{
-			filepath.Join(basePath, "complex/dev/root.hcl"),
+			filepath.Join(basePath, "complex/dev/terragrunt.hcl"),
+			"root.hcl",
 			&config.CatalogConfig{
 				URLs: []string{
 					filepath.Join(basePath, "complex/dev/us-west-1/modules/terraform-aws-eks"),
@@ -95,6 +103,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 		},
 		{
 			filepath.Join(basePath, "complex/dev/us-west-1/terragrunt.hcl"),
+			"root.hcl",
 			&config.CatalogConfig{
 				URLs: []string{
 					filepath.Join(basePath, "complex/dev/us-west-1/modules/terraform-aws-eks"),
@@ -106,6 +115,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 		},
 		{
 			filepath.Join(basePath, "complex/dev/us-west-1/modules/terragrunt.hcl"),
+			"root.hcl",
 			&config.CatalogConfig{
 				URLs: []string{
 					filepath.Join(basePath, "complex/dev/us-west-1/modules/terraform-aws-eks"),
@@ -117,6 +127,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 		},
 		{
 			filepath.Join(basePath, "complex/prod/terragrunt.hcl"),
+			"root.hcl",
 			&config.CatalogConfig{
 				URLs: []string{
 					filepath.Join(basePath, "complex/dev/us-west-1/modules/terraform-aws-eks"),
@@ -135,7 +146,7 @@ func TestCatalogParseConfigFile(t *testing.T) {
 			opts, err := options.NewTerragruntOptionsWithConfigPath(tt.configPath)
 			require.NoError(t, err)
 
-			opts.ScaffoldRootFileName = filepath.Base(tt.configPath)
+			opts.ScaffoldRootFileName = tt.rootFileName
 
 			config, err := config.ReadCatalogConfig(context.Background(), opts)
 
