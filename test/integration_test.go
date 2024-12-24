@@ -198,7 +198,7 @@ func TestLogCustomFormatOutput(t *testing.T) {
 		absPathReg = `(?:/[^/]+)*/` + regexp.QuoteMeta(testFixtureLogFormatter)
 	)
 
-	testCases := []struct {
+	tc := []struct {
 		logCustomFormat    string
 		expectedStdOutRegs []*regexp.Regexp
 		expectedStdErrRegs []*regexp.Regexp
@@ -231,11 +231,19 @@ func TestLogCustomFormatOutput(t *testing.T) {
 				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text DEBUG  Terragrunt Version:")),
 			},
 		},
+		{
+			logCustomFormat: "%interval%(content=' plain-text ')%level(case=upper,width=6) %prefix(path=short-relative,suffix=' ')%tf-path(suffix=' ')%tf-command(suffix=': ')%msg(path=relative)",
+			expectedStdOutRegs: []*regexp.Regexp{
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT dep "+wrappedBinary()+" init: Initializing the backend...")),
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text STDOUT app "+wrappedBinary()+" init: Initializing the backend...")),
+			},
+			expectedStdErrRegs: []*regexp.Regexp{
+				regexp.MustCompile(`\d{4}` + regexp.QuoteMeta(" plain-text DEBUG  Terragrunt Version:")),
+			},
+		},
 	}
 
-	for i, testCase := range testCases {
-		testCase := testCase
-
+	for i, tt := range tc {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -246,14 +254,14 @@ func TestLogCustomFormatOutput(t *testing.T) {
 			rootPath, err := filepath.EvalSymlinks(rootPath)
 			require.NoError(t, err)
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all init --terragrunt-log-level trace --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-custom-format=%q --terragrunt-working-dir %s", testCase.logCustomFormat, rootPath))
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all init --terragrunt-log-level trace --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-custom-format=%q --terragrunt-working-dir %s", tt.logCustomFormat, rootPath))
 			require.NoError(t, err)
 
-			for _, reg := range testCase.expectedStdOutRegs {
+			for _, reg := range tt.expectedStdOutRegs {
 				assert.Regexp(t, reg, stdout)
 			}
 
-			for _, reg := range testCase.expectedStdErrRegs {
+			for _, reg := range tt.expectedStdErrRegs {
 				assert.Regexp(t, reg, stderr)
 			}
 		})

@@ -116,15 +116,15 @@ func newPlaceholders() Placeholders {
 		Field(WorkDirKeyName, options.PathFormat(options.NonePath, options.RelativePath, options.ShortRelativePath, options.ShortPath)),
 		Field(TFPathKeyName, options.PathFormat(options.NonePath, options.FilenamePath, options.DirectoryPath)),
 		Field(TFCmdArgsKeyName),
+		Field(TFCmdKeyName),
 	}
 }
 
-func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, error) {
+func parsePlaceholderOption(placeholder Placeholder, str string) (int, error) {
 	var (
-		next        int
-		quoted      byte
-		placeholder Placeholder
-		option      options.Option
+		nextOptStart int
+		quoted       byte
+		option       options.Option
 	)
 
 	for index := range len(str) {
@@ -142,78 +142,92 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 			continue
 		}
 
-		if index == 0 && char == '(' {
-			placeholder = PlainText("")
-			next = index + 1
+		if char != '=' && char != ',' && char != ')' {
+			continue
 		}
 
-		if placeholder == nil {
-			if !isPlaceholderNameCharacter(char) {
-				str = str[next:index]
+		val := str[nextOptStart:index]
+		val = strings.TrimSpace(val)
+		val = strings.Trim(val, "'")
+		val = strings.Trim(val, "\"")
 
-				switch str[0] {
-				case 't':
-					return PlainText("\t"), next, nil
-				case 'n':
-					return PlainText("\n"), next, nil
-				}
-
-				break
+		if nextOptStart > 0 && str[nextOptStart-1] == '=' {
+			if option == nil {
+				return 0, errors.Errorf("empty option name for placeholder %q", placeholder.Name())
 			}
 
-			name := str[next : index+1]
+			if err := option.ParseValue(val); err != nil {
+				return 0, errors.Errorf("invalid value %q for option %q, placeholder %q: %w", val, option.Name(), placeholder.Name(), err)
+			}
+		} else if val != "" {
+			opt, err := placeholder.GetOption(val)
+			if err != nil {
+				return 0, errors.Errorf("invalid option name %q for placeholder %q: %w", val, placeholder.Name(), err)
+			}
 
-			if placeholder = registered.Get(name); placeholder != nil {
-				next = index + 2 //nolint:mnd
+			option = opt
+		}
+
+		nextOptStart = index + 1
+
+		if char == ')' {
+			return index + 1, nil
+		}
+	}
+
+	return 0, errors.Errorf("invalid option %q for placeholder %q", str[nextOptStart:], placeholder.Name())
+}
+
+func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, error) {
+	var (
+		placeholder Placeholder
+		optStart    int
+	)
+
+	for index := range len(str) {
+		char := str[index]
+
+		switch {
+		case index == 0 && char == '(':
+			placeholder = PlainText("")
+		case isPlaceholderNameCharacter(char):
+			name := str[:index+1]
+
+			if pl := registered.Get(name); pl != nil {
+				placeholder = pl
+				optStart = index + 1
 			}
 
 			continue
 		}
 
-		if next-1 == index && char != '(' {
-			return placeholder, index - 1, nil
+		if placeholder == nil {
+			break
 		}
 
-		if char == '=' || char == ',' || char == ')' {
-			val := str[next:index]
-			val = strings.TrimSpace(val)
-			val = strings.Trim(val, "'")
-			val = strings.Trim(val, "\"")
+		optStr := str[optStart:]
 
-			if str[next-1] == '=' {
-				if option == nil {
-					return nil, 0, errors.Errorf("empty option name for placeholder %q", placeholder.Name())
-				}
+		if len(optStr) != 0 && optStr[0] == '(' {
+			optLen, err := parsePlaceholderOption(placeholder, optStr[1:])
 
-				if err := option.ParseValue(val); err != nil {
-					return nil, 0, errors.Errorf("invalid value %q for option %q, placeholder %q: %w", val, option.Name(), placeholder.Name(), err)
-				}
-			} else if val != "" {
-				opt, err := placeholder.GetOption(val)
-				if err != nil {
-					return nil, 0, errors.Errorf("invalid option name %q for placeholder %q: %w", val, placeholder.Name(), err)
-				}
-
-				option = opt
-			}
-
-			next = index + 1
+			return placeholder, index + optLen, err
 		}
 
-		if char == ')' {
-			return placeholder, index, nil
-		}
+		return placeholder, optStart - 1, nil
 	}
 
-	if placeholder == nil {
-		return nil, 0, errors.Errorf("invalid placeholder name %q, available values: %s", str, strings.Join(registered.Names(), ","))
+	if placeholder != nil {
+		return placeholder, len(str) - 1, nil
 	}
 
-	if next < len(str) {
-		return nil, 0, errors.Errorf("invalid option %q for placeholder %q", str[next:], placeholder.Name())
+	switch str[0] {
+	case 't':
+		return PlainText("\t"), 0, nil
+	case 'n':
+		return PlainText("\n"), 0, nil
 	}
 
-	return placeholder, len(str) - 1, nil
+	return nil, 0, errors.Errorf("invalid placeholder name %q, available values: %s", str, strings.Join(registered.Names(), ","))
 }
 
 func isPlaceholderNameCharacter(c byte) bool {
