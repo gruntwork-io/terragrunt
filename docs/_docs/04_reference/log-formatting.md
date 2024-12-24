@@ -60,13 +60,16 @@ Placeholders have preset names:
 
 * `%tf-path` - Path to the OpenTofu/Terraform executable (as defined by [terragrunt-tfpath](https://terragrunt.gruntwork.io/docs/reference/cli-options/#terragrunt-tfpath)).
 
-* `%tf-command-args` - Arguments of the executed OpenTofu/Terraform command.
+* `%tf-command` - Executed OpenTofu/Terraform command, e.g. `apply`.
+
+* `%tf-command-args` - Arguments of the executed OpenTofu/Terraform command, e.g. `apply -auto-approve`.
 
 * `%t` - Tab.
 
 * `%n` - Newline.
 
 Any other text is considered plain text.
+The parser always tries to find the longest name. The string `%tf-command-args` will be evaluated as `%tf-command-args`, not as `%tf-command` and the text "-args". If you need to evaluate it as `%tf-command` and the text "-args", use empty brackets `%tf-command()-args`.
 
 e.g.
 
