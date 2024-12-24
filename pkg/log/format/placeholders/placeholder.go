@@ -200,7 +200,7 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 				optIndex = index + 1
 			}
 
-			// We don't stop at the first one we find, we look for the longest flag name.
+			// We don't stop at the first one we find, we look for the longest name.
 			// Of these two `%tf-command` `%tf-command-args` we need to find the second one.
 			continue
 		}
