@@ -122,7 +122,7 @@ func newPlaceholders() Placeholders {
 
 func parsePlaceholderOption(placeholder Placeholder, str string) (int, error) {
 	var (
-		nextOptStart int
+		nextOptIndex int
 		quoted       byte
 		option       options.Option
 	)
@@ -138,6 +138,7 @@ func parsePlaceholderOption(placeholder Placeholder, str string) (int, error) {
 			}
 		}
 
+		// Skip quoted text, e.g. `%(content='level()')`.
 		if quoted != 0 {
 			continue
 		}
@@ -146,12 +147,12 @@ func parsePlaceholderOption(placeholder Placeholder, str string) (int, error) {
 			continue
 		}
 
-		val := str[nextOptStart:index]
+		val := str[nextOptIndex:index]
 		val = strings.TrimSpace(val)
 		val = strings.Trim(val, "'")
 		val = strings.Trim(val, "\"")
 
-		if nextOptStart > 0 && str[nextOptStart-1] == '=' {
+		if nextOptIndex > 0 && str[nextOptIndex-1] == '=' {
 			if option == nil {
 				return 0, errors.Errorf("empty option name for placeholder %q", placeholder.Name())
 			}
@@ -168,20 +169,20 @@ func parsePlaceholderOption(placeholder Placeholder, str string) (int, error) {
 			option = opt
 		}
 
-		nextOptStart = index + 1
+		nextOptIndex = index + 1
 
 		if char == ')' {
 			return index + 1, nil
 		}
 	}
 
-	return 0, errors.Errorf("invalid option %q for placeholder %q", str[nextOptStart:], placeholder.Name())
+	return 0, errors.Errorf("invalid option %q for placeholder %q", str[nextOptIndex:], placeholder.Name())
 }
 
 func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, error) {
 	var (
 		placeholder Placeholder
-		optStart    int
+		optIndex    int
 	)
 
 	for index := range len(str) {
@@ -189,15 +190,18 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 
 		switch {
 		case index == 0 && char == '(':
+			// Unnamed placeholder, e.g. `%(content='...')`.
 			placeholder = PlainText("")
 		case isPlaceholderNameCharacter(char):
 			name := str[:index+1]
 
 			if pl := registered.Get(name); pl != nil {
 				placeholder = pl
-				optStart = index + 1
+				optIndex = index + 1
 			}
 
+			// We don't stop at the first one we find, we look for the longest flag name.
+			// Of these two `%tf-command` `%tf-command-args` we need to find the second one.
 			continue
 		}
 
@@ -205,7 +209,7 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 			break
 		}
 
-		optStr := str[optStart:]
+		optStr := str[optIndex:]
 
 		if len(optStr) != 0 && optStr[0] == '(' {
 			optLen, err := parsePlaceholderOption(placeholder, optStr[1:])
@@ -213,7 +217,7 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 			return placeholder, index + optLen, err
 		}
 
-		return placeholder, optStart - 1, nil
+		return placeholder, optIndex - 1, nil
 	}
 
 	if placeholder != nil {
@@ -222,8 +226,10 @@ func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, er
 
 	switch str[0] {
 	case 't':
+		// Placeholder indent, e.g. `%t`.
 		return PlainText("\t"), 0, nil
 	case 'n':
+		// Placeholder newline, e.g. `%n`.
 		return PlainText("\n"), 0, nil
 	}
 
