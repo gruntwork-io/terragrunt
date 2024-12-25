@@ -1,4 +1,4 @@
-package terraform_test
+package run_test
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -77,7 +77,7 @@ func TestSetTerragruntInputsAsEnvVars(t *testing.T) {
 
 			cfg := &config.TerragruntConfig{Inputs: testCase.inputsInConfig}
 
-			require.NoError(t, terraform.SetTerragruntInputsAsEnvVars(opts, cfg))
+			require.NoError(t, run.SetTerragruntInputsAsEnvVars(opts, cfg))
 
 			assert.Equal(t, testCase.expected, opts.Env)
 		})
@@ -123,7 +123,7 @@ func TestTerragruntTerraformCodeCheck(t *testing.T) {
 			opts, err := options.NewTerragruntOptionsForTest("mock-path-for-test.hcl")
 			require.NoError(t, err)
 			opts.WorkingDir = testCase.workingDir
-			err = terraform.CheckFolderContainsTerraformCode(opts)
+			err = run.CheckFolderContainsTerraformCode(opts)
 			if (err != nil) && testCase.valid {
 				t.Error("valid terraform returned error")
 			}
@@ -153,7 +153,7 @@ func TestErrorRetryableOnStdoutError(t *testing.T) {
 	out := new(util.CmdOutput)
 	out.Stderr = *bytes.NewBufferString("error is here")
 
-	retryable := terraform.IsRetryable(tgOptions, out)
+	retryable := run.IsRetryable(tgOptions, out)
 	require.True(t, retryable, "The error should have retried")
 }
 
@@ -170,7 +170,7 @@ func TestErrorMultipleRetryableOnStderrError(t *testing.T) {
 	out := new(util.CmdOutput)
 	out.Stderr = *bytes.NewBufferString("error is here")
 
-	retryable := terraform.IsRetryable(tgOptions, out)
+	retryable := run.IsRetryable(tgOptions, out)
 	require.True(t, retryable, "The error should have retried")
 }
 
@@ -187,7 +187,7 @@ func TestEmptyRetryablesOnStderrError(t *testing.T) {
 	out := new(util.CmdOutput)
 	out.Stderr = *bytes.NewBufferString("error is here")
 
-	retryable := terraform.IsRetryable(tgOptions, out)
+	retryable := run.IsRetryable(tgOptions, out)
 	require.False(t, retryable, "The error should not have retried, the list of retryable errors was empty")
 }
 
@@ -204,7 +204,7 @@ func TestErrorRetryableOnStderrError(t *testing.T) {
 	out := new(util.CmdOutput)
 	out.Stderr = *bytes.NewBufferString("error is here")
 
-	retryable := terraform.IsRetryable(tgOptions, out)
+	retryable := run.IsRetryable(tgOptions, out)
 	require.True(t, retryable, "The error should have retried")
 }
 
@@ -221,7 +221,7 @@ func TestErrorNotRetryableOnStdoutError(t *testing.T) {
 	out := new(util.CmdOutput)
 	out.Stdout = *bytes.NewBufferString("error is here")
 
-	retryable := terraform.IsRetryable(tgOptions, out)
+	retryable := run.IsRetryable(tgOptions, out)
 	require.False(t, retryable, "The error should not retry")
 }
 
@@ -238,7 +238,7 @@ func TestErrorNotRetryableOnStderrError(t *testing.T) {
 	out := new(util.CmdOutput)
 	out.Stderr = *bytes.NewBufferString("error is here")
 
-	retryable := terraform.IsRetryable(tgOptions, out)
+	retryable := run.IsRetryable(tgOptions, out)
 	require.False(t, retryable, "The error should not retry")
 }
 
@@ -250,7 +250,7 @@ func TestTerragruntHandlesCatastrophicTerraformFailure(t *testing.T) {
 
 	// Use a path that doesn't exist to induce error
 	tgOptions.TerraformPath = "i-dont-exist"
-	err = terraform.RunTerraformWithRetry(context.Background(), tgOptions)
+	err = run.RunTerraformWithRetry(context.Background(), tgOptions)
 	require.Error(t, err)
 }
 
@@ -312,7 +312,7 @@ func TestToTerraformEnvVars(t *testing.T) {
 			t.Parallel()
 			opts, err := options.NewTerragruntOptionsForTest("")
 			require.NoError(t, err)
-			actual, err := terraform.ToTerraformEnvVars(opts, testCase.vars)
+			actual, err := run.ToTerraformEnvVars(opts, testCase.vars)
 			require.NoError(t, err)
 			assert.Equal(t, testCase.expected, actual)
 		})
@@ -429,7 +429,7 @@ func TestFilterTerraformExtraArgs(t *testing.T) {
 			Terraform: &config.TerraformConfig{ExtraArgs: []config.TerraformExtraArguments{testCase.extraArgs}},
 		}
 
-		out := terraform.FilterTerraformExtraArgs(testCase.options, &config)
+		out := run.FilterTerraformExtraArgs(testCase.options, &config)
 
 		assert.Equal(t, testCase.expectedArgs, out)
 	}
@@ -560,7 +560,7 @@ func TestShouldCopyLockFile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equalf(t, tt.want, terraform.ShouldCopyLockFile(tt.args.args, tt.args.terraformConfig), "shouldCopyLockFile(%v, %v)", tt.args.args, tt.args.terraformConfig)
+			assert.Equalf(t, tt.want, run.ShouldCopyLockFile(tt.args.args, tt.args.terraformConfig), "shouldCopyLockFile(%v, %v)", tt.args.args, tt.args.terraformConfig)
 		})
 	}
 }

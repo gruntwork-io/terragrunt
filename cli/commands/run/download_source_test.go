@@ -1,4 +1,4 @@
-package terraform_test
+package run_test
 
 import (
 	"context"
@@ -15,8 +15,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 
 	"github.com/gruntwork-io/go-commons/env"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
-	tgTerraform "github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
+	"github.com/gruntwork-io/terragrunt/terraform"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -254,9 +254,9 @@ func TestDownloadTerraformSourceIfNecessaryInvalidTerraformSource(t *testing.T) 
 
 	require.NoError(t, err)
 
-	err = terraform.DownloadTerraformSourceIfNecessary(context.Background(), terraformSource, terragruntOptions, terragruntConfig)
+	err = run.DownloadTerraformSourceIfNecessary(context.Background(), terraformSource, terragruntOptions, terragruntConfig)
 	require.Error(t, err)
-	var downloadingTerraformSourceErr terraform.DownloadingTerraformSourceErr
+	var downloadingTerraformSourceErr run.DownloadingTerraformSourceErr
 	ok := errors.As(err, &downloadingTerraformSourceErr)
 	assert.True(t, ok)
 }
@@ -274,9 +274,9 @@ func TestInvalidModulePath(t *testing.T) {
 	require.NoError(t, err)
 	terraformSource.WorkingDir += "/not-existing-path"
 
-	err = terraform.ValidateWorkingDir(terraformSource)
+	err = run.ValidateWorkingDir(terraformSource)
 	require.Error(t, err)
-	var workingDirNotFound terraform.WorkingDirNotFound
+	var workingDirNotFound run.WorkingDirNotFound
 	ok := errors.As(err, &workingDirNotFound)
 	assert.True(t, ok)
 }
@@ -294,9 +294,9 @@ func TestDownloadInvalidPathToFilePath(t *testing.T) {
 	require.NoError(t, err)
 	terraformSource.WorkingDir += "/main.tf"
 
-	err = terraform.ValidateWorkingDir(terraformSource)
+	err = run.ValidateWorkingDir(terraformSource)
 	require.Error(t, err)
-	var workingDirNotDir terraform.WorkingDirNotDir
+	var workingDirNotDir run.WorkingDirNotDir
 	ok := errors.As(err, &workingDirNotDir)
 	assert.True(t, ok)
 }
@@ -378,7 +378,7 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalURL string, d
 
 	require.NoError(t, err)
 
-	err = terraform.DownloadTerraformSourceIfNecessary(context.Background(), terraformSource, terragruntOptions, terragruntConfig)
+	err = run.DownloadTerraformSourceIfNecessary(context.Background(), terraformSource, terragruntOptions, terragruntConfig)
 	require.NoError(t, err, "For terraform source %v: %v", terraformSource, err)
 
 	expectedFilePath := util.JoinPath(downloadDir, "main.tf")
@@ -388,17 +388,17 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalURL string, d
 	}
 
 	if requireInitFile {
-		existsInitFile := util.FileExists(util.JoinPath(terraformSource.WorkingDir, terraform.ModuleInitRequiredFile))
+		existsInitFile := util.FileExists(util.JoinPath(terraformSource.WorkingDir, run.ModuleInitRequiredFile))
 		require.True(t, existsInitFile)
 	}
 }
 
-func createConfig(t *testing.T, canonicalURL string, downloadDir string, sourceUpdate bool) (*tgTerraform.Source, *options.TerragruntOptions, *config.TerragruntConfig, error) {
+func createConfig(t *testing.T, canonicalURL string, downloadDir string, sourceUpdate bool) (*terraform.Source, *options.TerragruntOptions, *config.TerragruntConfig, error) {
 	t.Helper()
 
 	logger := log.New()
 	logger.SetOptions(log.WithOutput(io.Discard))
-	terraformSource := &tgTerraform.Source{
+	terraformSource := &terraform.Source{
 		CanonicalSourceURL: parseURL(t, canonicalURL),
 		DownloadDir:        downloadDir,
 		WorkingDir:         downloadDir,
@@ -419,7 +419,7 @@ func createConfig(t *testing.T, canonicalURL string, downloadDir string, sourceU
 		},
 	}
 
-	err = terraform.PopulateTerraformVersion(context.Background(), terragruntOptions)
+	err = run.PopulateTerraformVersion(context.Background(), terragruntOptions)
 	require.NoError(t, err)
 	return terraformSource, terragruntOptions, terragruntConfig, err
 }
@@ -429,7 +429,7 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir st
 
 	logger := log.New()
 	logger.SetOptions(log.WithOutput(io.Discard))
-	terraformSource := &tgTerraform.Source{
+	terraformSource := &terraform.Source{
 		CanonicalSourceURL: parseURL(t, canonicalURL),
 		DownloadDir:        downloadDir,
 		WorkingDir:         downloadDir,
@@ -440,7 +440,7 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir st
 	opts, err := options.NewTerragruntOptionsForTest("./should-not-be-used")
 	require.NoError(t, err)
 
-	actual, err := terraform.AlreadyHaveLatestCode(terraformSource, opts)
+	actual, err := run.AlreadyHaveLatestCode(terraformSource, opts)
 	require.NoError(t, err)
 	assert.Equal(t, expected, actual, "For terraform source %v", terraformSource)
 }

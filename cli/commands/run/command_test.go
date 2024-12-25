@@ -1,10 +1,10 @@
-package terraform_test
+package run_test
 
 import (
 	"context"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/stretchr/testify/require"
@@ -24,7 +24,7 @@ func TestAction(t *testing.T) {
 				TerraformCommand: "foo",
 				TerraformPath:    "tofu",
 			},
-			expectedErr: terraform.WrongTofuCommand("foo"),
+			expectedErr: run.WrongTofuCommand("foo"),
 		},
 		{
 			name: "wrong terraform command",
@@ -32,7 +32,7 @@ func TestAction(t *testing.T) {
 				TerraformCommand: "foo",
 				TerraformPath:    "terraform",
 			},
-			expectedErr: terraform.WrongTerraformCommand("foo"),
+			expectedErr: run.WrongTerraformCommand("foo"),
 		},
 	}
 
@@ -42,7 +42,7 @@ func TestAction(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			fn := terraform.Action(tc.opts)
+			fn := run.Action(tc.opts)
 
 			ctx := cli.Context{
 				Context: context.Background(),

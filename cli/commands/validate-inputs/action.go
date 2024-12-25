@@ -14,7 +14,7 @@ import (
 
 	"github.com/google/shlex"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	tr "github.com/gruntwork-io/terragrunt/terraform"
@@ -24,9 +24,9 @@ import (
 const splitCount = 2
 
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
-	target := terraform.NewTarget(terraform.TargetPointGenerateConfig, runValidateInputs)
+	target := run.NewTarget(run.TargetPointGenerateConfig, runValidateInputs)
 
-	return terraform.RunWithTarget(ctx, opts, target)
+	return run.RunWithTarget(ctx, opts, target)
 }
 
 func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {

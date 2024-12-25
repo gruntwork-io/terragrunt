@@ -7,15 +7,15 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
-	target := terraform.NewTargetWithErrorHandler(terraform.TargetPointDownloadSource, runTerragruntInfo, runErrorTerragruntInfo)
+	target := run.NewTargetWithErrorHandler(run.TargetPointDownloadSource, runTerragruntInfo, runErrorTerragruntInfo)
 
-	return terraform.RunWithTarget(ctx, opts, target)
+	return run.RunWithTarget(ctx, opts, target)
 }
 
 // TerragruntInfoGroup is the output emit as JSON by 'terragrunt-info':

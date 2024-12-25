@@ -1,4 +1,4 @@
-package terraform
+package run
 
 import (
 	"context"
@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/amazonsts"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/externalcmd"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/amazonsts"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/gruntwork-io/terragrunt/terraform"

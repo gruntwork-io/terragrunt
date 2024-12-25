@@ -12,8 +12,8 @@ import (
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
-	terraformcmd "github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -495,7 +495,7 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 		}
 	}
 
-	defaultCommand := terraformcmd.NewCommand(opts)
+	defaultCommand := run.NewCommand(opts)
 	defaultCommand.Action = emptyAction
 
 	app := cliPkg.NewApp()

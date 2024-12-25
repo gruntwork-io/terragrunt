@@ -9,7 +9,7 @@ import (
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
@@ -54,7 +54,7 @@ func action(opts *options.TerragruntOptions) cli.ActionFunc {
 				return cmd.Action(cliCtx)
 			}
 
-			return terraform.Run(ctx, opts)
+			return run.Run(ctx, opts)
 		}
 
 		return Run(cliCtx.Context, opts.OptionsFromContext(cliCtx))
@@ -71,7 +71,7 @@ func subCommands(opts *options.TerragruntOptions) cli.Commands {
 		awsproviderpatch.NewCommand(opts),  // aws-provider-patch
 	}
 	sort.Sort(cmds)
-	cmds.Add(terraform.NewCommand(opts))
+	cmds.Add(run.NewCommand(opts))
 
 	return cmds
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/mattn/go-zglob"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -22,9 +22,9 @@ import (
 const defaultKeyParts = 2
 
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
-	target := terraform.NewTarget(terraform.TargetPointInitCommand, runAwsProviderPatch)
+	target := run.NewTarget(run.TargetPointInitCommand, runAwsProviderPatch)
 
-	return terraform.RunWithTarget(ctx, opts, target)
+	return run.RunWithTarget(ctx, opts, target)
 }
 
 func runAwsProviderPatch(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {

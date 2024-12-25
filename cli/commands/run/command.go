@@ -1,5 +1,5 @@
 // Package terraform contains the logic for interacting with OpenTofu/Terraform.
-package terraform
+package run
 
 import (
 	"strings"

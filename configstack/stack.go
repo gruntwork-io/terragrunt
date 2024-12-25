@@ -16,8 +16,8 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/go-commons/collections"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/externalcmd"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"

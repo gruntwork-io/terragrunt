@@ -24,9 +24,9 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/amazonsts"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers/externalcmd"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/amazonsts"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/errors"

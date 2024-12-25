@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	tfsource "github.com/gruntwork-io/terragrunt/terraform"
@@ -145,7 +145,7 @@ func TestLocalWithMissingBackend(t *testing.T) {
 	err := helpers.RunTerragruntCommand(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, os.Stdout, os.Stderr)
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		assert.IsType(t, terraform.BackendNotDefined{}, underlying)
+		assert.IsType(t, run.BackendNotDefined{}, underlying)
 	}
 }
 
@@ -482,7 +482,7 @@ func TestPreventDestroy(t *testing.T) {
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		assert.IsType(t, terraform.ModuleIsProtected{}, underlying)
+		assert.IsType(t, run.ModuleIsProtected{}, underlying)
 	}
 }
 
@@ -498,7 +498,7 @@ func TestPreventDestroyApply(t *testing.T) {
 
 	if assert.Error(t, err) {
 		underlying := errors.Unwrap(err)
-		assert.IsType(t, terraform.ModuleIsProtected{}, underlying)
+		assert.IsType(t, run.ModuleIsProtected{}, underlying)
 	}
 }
 

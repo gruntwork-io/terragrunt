@@ -37,7 +37,7 @@ import (
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/cli"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -657,10 +657,10 @@ func WrappedBinary() string {
 // ExpectedWrongCommandErr - return expected error message for wrong command
 func ExpectedWrongCommandErr(command string) error {
 	if WrappedBinary() == TofuBinary {
-		return terraform.WrongTofuCommand(command)
+		return run.WrongTofuCommand(command)
 	}
 
-	return terraform.WrongTerraformCommand(command)
+	return run.WrongTerraformCommand(command)
 }
 
 func IsTerraform() bool {

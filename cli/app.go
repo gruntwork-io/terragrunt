@@ -40,8 +40,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
 	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
+	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
-	terraformCmd "github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -77,7 +77,7 @@ func NewApp(opts *options.TerragruntOptions) *App {
 		TerragruntCommands(opts)...).WrapAction(WrapWithTelemetry(opts))
 
 	app.Before = beforeAction(opts)
-	app.DefaultCommand = terraformCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
+	app.DefaultCommand = runCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
 	app.OsExiter = OSExiter
 	app.ExitErrHandler = ExitErrHandler
 
@@ -188,7 +188,7 @@ func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 	sort.Sort(cmds)
 
 	// add terraform command `*` after sorting to put the command at the end of the list in the help.
-	cmds.Add(terraformCmd.NewCommand(opts))
+	cmds.Add(runCmd.NewCommand(opts))
 
 	return cmds
 }
@@ -283,7 +283,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	cmdName := cliCtx.Command.Name
 
 	switch cmdName {
-	case terraformCmd.CommandName, runall.CommandName, graph.CommandName:
+	case runCmd.CommandName, runall.CommandName, graph.CommandName:
 		cmdName = cliCtx.Args().CommandName()
 
 		// `terraform apply -destroy` is an alias for `terraform destroy`.
@@ -352,7 +352,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	// --- Terragrunt ConfigPath
 	if opts.TerragruntConfigPath == "" {
 		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
-	} else if !filepath.IsAbs(opts.TerragruntConfigPath) && cliCtx.Command.Name == terraformCmd.CommandName {
+	} else if !filepath.IsAbs(opts.TerragruntConfigPath) && cliCtx.Command.Name == runCmd.CommandName {
 		opts.TerragruntConfigPath = util.JoinPath(opts.WorkingDir, opts.TerragruntConfigPath)
 	}
 
@@ -423,7 +423,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.OriginalTerraformCommand = opts.TerraformCommand
 	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
 
-	opts.RunTerragrunt = terraformCmd.Run
+	opts.RunTerragrunt = runCmd.Run
 
 	exec.PrepareConsole(opts.Logger)
 

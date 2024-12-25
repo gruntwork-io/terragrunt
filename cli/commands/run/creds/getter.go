@@ -4,7 +4,7 @@ package creds
 import (
 	"context"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform/creds/providers"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers"
 	"github.com/gruntwork-io/terragrunt/options"
 	"golang.org/x/exp/maps"
 )

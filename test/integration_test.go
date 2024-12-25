@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -951,7 +951,7 @@ func TestInvalidSource(t *testing.T) {
 	err := helpers.RunTerragruntCommand(t, "terragrunt init --terragrunt-working-dir "+generateTestCase, &stdout, &stderr)
 	require.Error(t, err)
 
-	var workingDirNotFoundErr terraform.WorkingDirNotFound
+	var workingDirNotFoundErr run.WorkingDirNotFound
 
 	ok := errors.As(err, &workingDirNotFoundErr)
 	assert.True(t, ok)
@@ -2917,7 +2917,7 @@ func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
 
 	require.Error(t, err)
 
-	var invalidVersionError terraform.InvalidTerragruntVersion
+	var invalidVersionError run.InvalidTerragruntVersion
 	ok := errors.As(err, &invalidVersionError)
 	assert.True(t, ok)
 }
@@ -3447,12 +3447,12 @@ func TestTerragruntPassNullValues(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if strings.HasPrefix(path, terraform.NullTFVarsFile) {
+			if strings.HasPrefix(path, run.NullTFVarsFile) {
 				foundNullValuesFile = true
 			}
 			return nil
 		})
-	assert.Falsef(t, foundNullValuesFile, "Found %s file in cache directory", terraform.NullTFVarsFile)
+	assert.Falsef(t, foundNullValuesFile, "Found %s file in cache directory", run.NullTFVarsFile)
 	require.NoError(t, err)
 }
 
