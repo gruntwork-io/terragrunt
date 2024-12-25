@@ -21,10 +21,10 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
-		Name:                   CommandName,
-		Usage:                  "Launch the user interface for searching and managing your module catalog.",
-		DisallowUndefinedFlags: true,
-		Flags:                  NewFlags(opts),
+		Name:                 CommandName,
+		Usage:                "Launch the user interface for searching and managing your module catalog.",
+		ErrorOnUndefinedFlag: true,
+		Flags:                NewFlags(opts),
 		Action: func(ctx *cli.Context) error {
 			var repoPath string
 

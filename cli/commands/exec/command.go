@@ -46,7 +46,8 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			"# Utilize the AWS CLI.\nterragrunt exec -- aws s3 ls",
 			"# Inspect `main.tf` file of module for Unit\nterragrunt exec -- cat main.tf",
 		},
-		Flags: NewFlags(opts, cmdOpts).Sort(),
+		Flags:                NewFlags(opts, cmdOpts).Sort(),
+		ErrorOnUndefinedFlag: true,
 		Action: func(ctx *cli.Context) error {
 			return Run(ctx, opts, cmdOpts, ctx.Args())
 		},

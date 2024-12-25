@@ -36,12 +36,12 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
-		Name:                   CommandName,
-		Usage:                  "Execute commands on the full graph of dependent modules for the current module, ensuring correct execution order.",
-		DisallowUndefinedFlags: true,
-		Flags:                  append(run.NewFlags(opts), NewFlags(opts)...).Sort(),
-		Subcommands:            subCommands(opts).SkipRunning(),
-		Action:                 action(opts),
+		Name:                 CommandName,
+		Usage:                "Execute commands on the full graph of dependent modules for the current module, ensuring correct execution order.",
+		ErrorOnUndefinedFlag: true,
+		Flags:                append(run.NewFlags(opts), NewFlags(opts)...).Sort(),
+		Subcommands:          subCommands(opts).SkipRunning(),
+		Action:               action(opts),
 	}
 }
 

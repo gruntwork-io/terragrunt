@@ -5,7 +5,10 @@ import (
 	"strings"
 )
 
-const tailMinArgsLen = 2
+const (
+	tailMinArgsLen = 2
+	EndOfFlagsSign = "--"
+)
 
 const (
 	SingleDashFlag NormalizeActsType = iota
@@ -21,6 +24,29 @@ type NormalizeActsType byte
 
 // Args provides convenient access to CLI arguments.
 type Args []string
+
+// SplitToFlagsAndNonFlags returns app Args and non-app Args.
+// if withEndOfFlagsSign is true, the first element of non-app Args will contain the `--` separated sign.
+func (args Args) SplitToFlagsAndNonFlags(withEndOfFlagsSign bool) (Args, Args) {
+	for i := range args {
+		if args[i] == EndOfFlagsSign {
+			if withEndOfFlagsSign {
+				return args[:i], args[i:]
+			}
+
+			return args[:i], args[i+1:]
+		}
+	}
+
+	return args, nil
+}
+
+// WithoutEndOfFlagsSign returns Args without the `--` separated sign.
+func (args Args) WithoutEndOfFlagsSign() Args {
+	flags, nonFlags := args.SplitToFlagsAndNonFlags(false)
+
+	return append(flags, nonFlags...)
+}
 
 // Get returns the nth argument, or else a blank string
 func (args Args) Get(n int) string {

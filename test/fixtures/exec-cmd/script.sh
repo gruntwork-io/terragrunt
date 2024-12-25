@@ -2,7 +2,7 @@
 
 dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
-echo "The script is running in the directory $PWD."
+echo "The script is running in the directory $PWD. The first arg is $1. The second arg is $2"
 
 if [ "$TF_VAR_foo" != "FOO" ]
 then

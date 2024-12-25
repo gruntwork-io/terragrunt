@@ -70,10 +70,10 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
-		Name:                   CommandName,
-		Usage:                  "Scaffold a new Terragrunt module.",
-		DisallowUndefinedFlags: true,
-		Flags:                  NewFlags(opts).Sort(),
+		Name:                 CommandName,
+		Usage:                "Scaffold a new Terragrunt module.",
+		ErrorOnUndefinedFlag: true,
+		Flags:                NewFlags(opts).Sort(),
 		Action: func(ctx *cli.Context) error {
 			var moduleURL, templateURL string
 

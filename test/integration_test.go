@@ -124,7 +124,7 @@ func TestExecCommand(t *testing.T) {
 	require.NoError(t, err)
 
 	downloadDirPath := util.JoinPath(rootPath, ".terragrunt-cache")
-	scriptPath := util.JoinPath(tmpEnvPath, testFixtureExecCmd, "./script.sh")
+	scriptPath := util.JoinPath(tmpEnvPath, testFixtureExecCmd, "./script.sh arg1 arg2")
 
 	err = os.Mkdir(downloadDirPath, os.ModePerm)
 	require.NoError(t, err)
@@ -137,12 +137,12 @@ func TestExecCommand(t *testing.T) {
 		{
 			nil,
 			scriptPath,
-			"The script is running in the directory " + rootPath + ".",
+			"The script is running in the directory " + rootPath + ". The first arg is arg1. The second arg is arg2",
 		},
 		{
 			[]string{"--in-download-dir"},
 			scriptPath,
-			"The script is running in the directory " + downloadDirPath + ".",
+			"The script is running in the directory " + downloadDirPath + ". The first arg is arg1. The second arg is arg2",
 		},
 	}
 

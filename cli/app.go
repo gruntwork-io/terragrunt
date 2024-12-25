@@ -279,7 +279,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	// --- Args
 	// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
-	args := cliCtx.Args().Normalize(cli.SingleDashFlag)
+	args := cliCtx.Args().WithoutEndOfFlagsSign().Normalize(cli.SingleDashFlag)
 	cmdName := cliCtx.Command.Name
 
 	switch cmdName {

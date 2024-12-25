@@ -24,8 +24,8 @@ type Command struct {
 	Examples []string
 	// Flags is list of flags to parse.
 	Flags Flags
-	// if DisallowUndefinedFlags is true, any undefined flag will cause the application to exit and return an error.
-	DisallowUndefinedFlags bool
+	// ErrorOnUndefinedFlag causes the application to exit and return an error on any undefined flag.
+	ErrorOnUndefinedFlag bool
 	// Full name of cmd for help, defaults to full cmd name, including parent commands.
 	HelpName string
 	// if this is a root "special" cmd
@@ -154,7 +154,7 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 	return nil
 }
 
-func (cmd *Command) parseFlags(args []string) ([]string, error) {
+func (cmd *Command) parseFlags(args Args) ([]string, error) {
 	var undefArgs []string
 
 	flagSet, err := cmd.newFlagSet(libflag.ContinueOnError)
@@ -165,6 +165,8 @@ func (cmd *Command) parseFlags(args []string) ([]string, error) {
 	if cmd.SkipFlagParsing {
 		return args, nil
 	}
+
+	args, nonFlags := args.SplitToFlagsAndNonFlags(true)
 
 	for {
 		args, err = cmd.flagSetParse(flagSet, args)
@@ -179,6 +181,8 @@ func (cmd *Command) parseFlags(args []string) ([]string, error) {
 		undefArgs = append(undefArgs, args[0])
 		args = args[1:]
 	}
+
+	undefArgs = append(undefArgs, nonFlags...)
 
 	return undefArgs, nil
 }
@@ -214,7 +218,7 @@ func (cmd *Command) flagSetParse(flagSet *libflag.FlagSet, args []string) ([]str
 
 		errStr := err.Error()
 
-		if cmd.DisallowUndefinedFlags || !strings.HasPrefix(errStr, errFlagUndefined) {
+		if cmd.ErrorOnUndefinedFlag || !strings.HasPrefix(errStr, errFlagUndefined) {
 			return nil, errors.New(err)
 		}
 
