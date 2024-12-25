@@ -19,6 +19,9 @@ import (
 
 const (
 	CommandName = "run-all"
+
+	OutDirFlagName     = "out-dir"
+	JSONOutDirFlagName = "json-out-dir"
 )
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
@@ -28,21 +31,21 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Description: "The command will recursively find terragrunt modules in the current directory tree and run the terraform command in dependency order (unless the command is destroy, in which case the command is run in reverse dependency order).",
 		Subcommands: subCommands(opts).SkipRunning(),
 		Action:      action(opts),
-		Flags:       append(flags.NewCommonFlags(opts).Sort(), NewFlags(opts)...).Sort(),
+		Flags:       append(run.NewFlags(opts), NewFlags(opts)...).Sort(),
 	}
 }
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
 		flags.GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
-			Name:        flags.OutDirFlagName,
-			EnvVars:     flags.EnvVars(flags.OutDirFlagName),
+			Name:        OutDirFlagName,
+			EnvVars:     flags.EnvVars(OutDirFlagName),
 			Destination: &opts.OutputFolder,
 			Usage:       "Directory to store plan files.",
 		}),
 		flags.GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
-			Name:        flags.JSONOutDirFlagName,
-			EnvVars:     flags.EnvVars(flags.JSONOutDirFlagName),
+			Name:        JSONOutDirFlagName,
+			EnvVars:     flags.EnvVars(JSONOutDirFlagName),
 			Destination: &opts.JSONOutputFolder,
 			Usage:       "Directory to store json plan files.",
 		}),

@@ -9,7 +9,6 @@ import (
 
 	"github.com/hashicorp/go-getter"
 
-	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
@@ -74,7 +73,7 @@ func downloadTerraformSource(ctx context.Context, source string, opts *options.T
 // DownloadTerraformSourceIfNecessary downloads the specified TerraformSource if the latest code hasn't already been downloaded.
 func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	if terragruntOptions.SourceUpdate {
-		terragruntOptions.Logger.Debugf("The --%s flag is set, so deleting the temporary folder %s before downloading source.", flags.SourceUpdateFlagName, terraformSource.DownloadDir)
+		terragruntOptions.Logger.Debugf("The --%s flag is set, so deleting the temporary folder %s before downloading source.", SourceUpdateFlagName, terraformSource.DownloadDir)
 
 		if err := os.RemoveAll(terraformSource.DownloadDir); err != nil {
 			return errors.New(err)

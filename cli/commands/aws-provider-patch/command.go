@@ -30,6 +30,7 @@
 package awsproviderpatch
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
@@ -56,7 +57,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:   CommandName,
 		Usage:  "Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018).",
-		Flags:  append(flags.NewCommonFlags(opts), NewFlags(opts)...).Sort(),
+		Flags:  append(run.NewFlags(opts), NewFlags(opts)...).Sort(),
 		Action: func(ctx *cli.Context) error { return Run(ctx, opts.OptionsFromContext(ctx)) },
 	}
 }

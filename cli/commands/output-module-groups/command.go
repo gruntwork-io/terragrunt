@@ -2,7 +2,7 @@
 package outputmodulegroups
 
 import (
-	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -16,7 +16,7 @@ const (
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:  CommandName,
-		Flags: flags.NewCommonFlags(opts),
+		Flags: run.NewFlags(opts),
 		Usage: "Output groups of modules ordered by command (apply or destroy) as a list of list in JSON (useful for CI use cases).",
 		Subcommands: cli.Commands{
 			subCommandFunc(SubCommandApply, opts),

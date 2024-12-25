@@ -3,7 +3,7 @@
 package catalog
 
 import (
-	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -13,10 +13,10 @@ const (
 )
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
-	return cli.Flags{
-		flags.NewNoIncludeRootFlag(opts),
-		flags.NewRootFileNameFlag(opts),
-	}
+	return scaffold.NewFlags(opts).Filter(
+		scaffold.RootFileNameFlagName,
+		scaffold.NoIncludeRootFlagName,
+	)
 }
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
@@ -33,7 +33,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			}
 
 			if opts.ScaffoldRootFileName == "" {
-				opts.ScaffoldRootFileName = flags.GetDefaultRootFileName(opts)
+				opts.ScaffoldRootFileName = scaffold.GetDefaultRootFileName(opts)
 			}
 
 			return Run(ctx, opts.OptionsFromContext(ctx), repoPath)

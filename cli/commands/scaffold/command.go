@@ -3,6 +3,9 @@ package scaffold
 
 import (
 	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
@@ -10,12 +13,46 @@ import (
 const (
 	CommandName = "scaffold"
 
-	VarFlagName     = "var"
-	VarFileFlagName = "var-file"
+	RootFileNameFlagName  = "root-file-name"
+	NoIncludeRootFlagName = "no-include-root"
+	VarFlagName           = "var"
+	VarFileFlagName       = "var-file"
 )
 
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{
+		&cli.GenericFlag[string]{
+			Name:        RootFileNameFlagName,
+			Destination: &opts.ScaffoldRootFileName,
+			Usage:       "Name of the root Terragrunt configuration file, if used.",
+			Action: func(ctx *cli.Context, value string) error {
+				if value == "" {
+					return errors.New("root-file-name flag cannot be empty")
+				}
+
+				if value == opts.TerragruntConfigPath {
+					if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
+						warn, triggered, err := control.Evaluate(opts)
+						if err != nil {
+							return err
+						}
+
+						if !triggered {
+							opts.Logger.Warnf(warn)
+						}
+					}
+				}
+
+				opts.ScaffoldRootFileName = value
+
+				return nil
+			},
+		},
+		&cli.BoolFlag{
+			Name:        NoIncludeRootFlagName,
+			Destination: &opts.ScaffoldNoIncludeRoot,
+			Usage:       "Do not include root unit in scaffolding done by catalog.",
+		},
 		&cli.SliceFlag[string]{
 			Name:        VarFlagName,
 			EnvVars:     flags.EnvVars(VarFlagName),
@@ -28,8 +65,6 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.ScaffoldVarFiles,
 			Usage:       "Files with variables to be used in unit scaffolding.",
 		},
-		flags.NewNoIncludeRootFlag(opts),
-		flags.NewRootFileNameFlag(opts),
 	}
 }
 
@@ -51,10 +86,25 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			}
 
 			if opts.ScaffoldRootFileName == "" {
-				opts.ScaffoldRootFileName = flags.GetDefaultRootFileName(opts)
+				opts.ScaffoldRootFileName = GetDefaultRootFileName(opts)
 			}
 
 			return Run(ctx, opts.OptionsFromContext(ctx), moduleURL, templateURL)
 		},
 	}
+}
+
+func GetDefaultRootFileName(opts *options.TerragruntOptions) string {
+	if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
+		warn, triggered, err := control.Evaluate(opts)
+		if err != nil {
+			return config.RecommendedParentConfigName
+		}
+
+		if !triggered {
+			opts.Logger.Warnf(warn)
+		}
+	}
+
+	return config.DefaultTerragruntConfigPath
 }

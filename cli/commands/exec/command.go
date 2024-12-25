@@ -3,6 +3,7 @@
 package exec
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
@@ -15,15 +16,15 @@ const (
 )
 
 func NewFlags(opts *options.TerragruntOptions, cmdOpts *Options) cli.Flags {
-	return append(flags.NewCommonFlags(opts).Filter(
-		flags.AuthProviderCmdFlagName,
-		flags.ConfigFlagName,
-		flags.DownloadDirFlagName,
-		flags.DebugInputsFlagName,
-		flags.IAMAssumeRoleFlagName,
-		flags.IAMAssumeRoleDurationFlagName,
-		flags.IAMAssumeRoleSessionNameFlagName,
-		flags.IAMAssumeRoleWebIdentityTokenFlagName,
+	return append(run.NewFlags(opts).Filter(
+		run.AuthProviderCmdFlagName,
+		run.ConfigFlagName,
+		run.DownloadDirFlagName,
+		run.DebugInputsFlagName,
+		run.IAMAssumeRoleFlagName,
+		run.IAMAssumeRoleDurationFlagName,
+		run.IAMAssumeRoleSessionNameFlagName,
+		run.IAMAssumeRoleWebIdentityTokenFlagName,
 	),
 		&cli.BoolFlag{
 			Name:        InDownloadDirFlagName,
