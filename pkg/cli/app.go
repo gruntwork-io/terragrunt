@@ -122,8 +122,9 @@ func (app *App) RunContext(ctx context.Context, arguments []string) (err error) 
 	app.App.Action = func(parentCtx *cli.Context) error {
 		cmd := app.newRootCommand()
 
-		args := Args(parentCtx.Args().Slice())
-		ctx := NewAppContext(parentCtx.Context, app, args)
+		args, nonAppArgs := Args(parentCtx.Args().Slice()).SplitToFlagsAndNonFlags()
+
+		ctx := NewAppContext(parentCtx.Context, app, args, nonAppArgs)
 
 		if app.Autocomplete {
 			if err := app.setupAutocomplete(args); err != nil {

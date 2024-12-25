@@ -279,12 +279,12 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	// --- Args
 	// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
-	args := cliCtx.Args().WithoutEndOfFlagsSign().Normalize(cli.SingleDashFlag)
+	args := append(cliCtx.Args(), cliCtx.NonAppArgs()...).Normalize(cli.SingleDashFlag)
 	cmdName := cliCtx.Command.Name
 
 	switch cmdName {
 	case runCmd.CommandName, runall.CommandName, graph.CommandName:
-		cmdName = cliCtx.Args().CommandName()
+		cmdName = args.CommandName()
 
 		// `terraform apply -destroy` is an alias for `terraform destroy`.
 		// It is important to resolve the alias because the `run-all` relies on terraform command to determine the order, for `destroy` command is used the reverse order.

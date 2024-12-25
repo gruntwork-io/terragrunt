@@ -181,7 +181,7 @@ func TestCommandRun(t *testing.T) {
 			testCase := testCaseFn(action, skip)
 
 			app := &cli.App{App: &urfaveCli.App{Writer: io.Discard}}
-			ctx := cli.NewAppContext(context.Background(), app, testCase.args)
+			ctx := cli.NewAppContext(context.Background(), app, testCase.args, nil)
 
 			err := testCase.command.Run(ctx, testCase.args)
 			if testCase.expectedErr != nil {

@@ -166,8 +166,6 @@ func (cmd *Command) parseFlags(args Args) ([]string, error) {
 		return args, nil
 	}
 
-	args, nonFlags := args.SplitToFlagsAndNonFlags(true)
-
 	for {
 		args, err = cmd.flagSetParse(flagSet, args)
 		if err != nil {
@@ -181,8 +179,6 @@ func (cmd *Command) parseFlags(args Args) ([]string, error) {
 		undefArgs = append(undefArgs, args[0])
 		args = args[1:]
 	}
-
-	undefArgs = append(undefArgs, nonFlags...)
 
 	return undefArgs, nil
 }
