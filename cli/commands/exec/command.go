@@ -49,7 +49,9 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Flags:                NewFlags(opts, cmdOpts).Sort(),
 		ErrorOnUndefinedFlag: true,
 		Action: func(ctx *cli.Context) error {
-			return Run(ctx, opts, cmdOpts, ctx.NonAppArgs())
+			_, cmdArgs := ctx.Args().Split(cli.BuiltinCmdSep)
+
+			return Run(ctx, opts, cmdOpts, cmdArgs)
 		},
 	}
 }

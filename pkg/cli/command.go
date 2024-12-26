@@ -166,6 +166,8 @@ func (cmd *Command) parseFlags(args Args) ([]string, error) {
 		return args, nil
 	}
 
+	args, builtinCmd := args.Split(BuiltinCmdSep)
+
 	for {
 		args, err = cmd.flagSetParse(flagSet, args)
 		if err != nil {
@@ -178,6 +180,11 @@ func (cmd *Command) parseFlags(args Args) ([]string, error) {
 
 		undefArgs = append(undefArgs, args[0])
 		args = args[1:]
+	}
+
+	if len(builtinCmd) > 0 {
+		undefArgs = append(undefArgs, BuiltinCmdSep)
+		undefArgs = append(undefArgs, builtinCmd...)
 	}
 
 	return undefArgs, nil

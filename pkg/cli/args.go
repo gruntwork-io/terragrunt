@@ -2,12 +2,13 @@ package cli
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 )
 
 const (
 	tailMinArgsLen = 2
-	EndOfFlagsSign = "--"
+	BuiltinCmdSep  = "--"
 )
 
 const (
@@ -25,15 +26,21 @@ type NormalizeActsType byte
 // Args provides convenient access to CLI arguments.
 type Args []string
 
-// SplitToFlagsAndNonFlags returns app Args and non-app Args.
-func (args Args) SplitToFlagsAndNonFlags() (Args, Args) {
+// Split splits slices `args` into two slices separated by `sep`.
+func (args Args) Split(sep string) (Args, Args) {
 	for i := range args {
-		if args[i] == EndOfFlagsSign {
+		if args[i] == sep {
 			return args[:i], args[i+1:]
 		}
 	}
 
 	return args, nil
+}
+
+func (args Args) WithoutBuiltinCmdSep() Args {
+	flags, nonFlags := args.Split(BuiltinCmdSep)
+
+	return append(slices.Clone(flags), nonFlags...)
 }
 
 // Get returns the nth argument, or else a blank string
