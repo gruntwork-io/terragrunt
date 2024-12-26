@@ -198,7 +198,7 @@ func TestLogCustomFormatOutput(t *testing.T) {
 		absPathReg = `(?:/[^/]+)*/` + regexp.QuoteMeta(testFixtureLogFormatter)
 	)
 
-	tc := []struct {
+	testCases := []struct {
 		logCustomFormat    string
 		expectedStdOutRegs []*regexp.Regexp
 		expectedStdErrRegs []*regexp.Regexp
@@ -253,7 +253,7 @@ func TestLogCustomFormatOutput(t *testing.T) {
 		},
 	}
 
-	for i, tt := range tc {
+	for i, testCase := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -264,14 +264,14 @@ func TestLogCustomFormatOutput(t *testing.T) {
 			rootPath, err := filepath.EvalSymlinks(rootPath)
 			require.NoError(t, err)
 
-			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all init --terragrunt-log-level trace --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-custom-format=%q --terragrunt-working-dir %s", tt.logCustomFormat, rootPath))
+			stdout, stderr, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all init --terragrunt-log-level trace --terragrunt-non-interactive -no-color --terragrunt-no-color --terragrunt-log-custom-format=%q --terragrunt-working-dir %s", testCase.logCustomFormat, rootPath))
 			require.NoError(t, err)
 
-			for _, reg := range tt.expectedStdOutRegs {
+			for _, reg := range testCase.expectedStdOutRegs {
 				assert.Regexp(t, reg, stdout)
 			}
 
-			for _, reg := range tt.expectedStdErrRegs {
+			for _, reg := range testCase.expectedStdErrRegs {
 				assert.Regexp(t, reg, stderr)
 			}
 		})
