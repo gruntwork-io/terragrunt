@@ -195,6 +195,7 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 	}
 
 	var loopErr error
+
 	ctx.TerragruntOptions.FeatureFlags.Range(func(name string, value string) bool {
 		// convert flag value to respective type
 		var evaluatedFlag cty.Value
