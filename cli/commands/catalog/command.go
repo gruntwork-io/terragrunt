@@ -4,8 +4,8 @@ package catalog
 
 import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/cli"
 )
 
 const (

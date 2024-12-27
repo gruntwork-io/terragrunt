@@ -3,7 +3,7 @@ package cli_test
 import (
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/pkg/cli"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/stretchr/testify/assert"
 )
 

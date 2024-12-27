@@ -3,7 +3,6 @@ package options
 import (
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -213,7 +212,7 @@ type gradientColor struct {
 	// We use [xsync.MapOf](https://github.com/puzpuzpuz/xsync?tab=readme-ov-file#map) instead of standard `sync.Map` since it's faster and has generic types.
 	cache  *xsync.MapOf[string, ColorValue]
 	values []ColorValue
-	mu     sync.Mutex
+
 	// nextStyleIndex is used to get the next style from the `codes` list for a newly discovered text.
 	nextStyleIndex int
 }
@@ -226,9 +225,6 @@ func newGradientColor() *gradientColor {
 }
 
 func (color *gradientColor) Value(text string) ColorValue {
-	color.mu.Lock()
-	defer color.mu.Unlock()
-
 	if colorCode, ok := color.cache.Load(text); ok {
 		return colorCode
 	}
