@@ -1,9 +1,6 @@
 package placeholders
 
 import (
-	"strings"
-
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/options"
 )
 
@@ -39,13 +36,9 @@ func (common *CommonPlaceholder) Name() string {
 	return common.name
 }
 
-// GetOption implements `Placeholder` interface.
-func (common *CommonPlaceholder) GetOption(str string) (options.Option, error) {
-	if opt := common.opts.Get(str); opt != nil {
-		return opt, nil
-	}
-
-	return nil, errors.Errorf("available values: %s", strings.Join(common.opts.Names(), ","))
+// Options implements `Placeholder` interface.
+func (common *CommonPlaceholder) Options() options.Options {
+	return common.opts
 }
 
 // Format implements `Placeholder` interface.
