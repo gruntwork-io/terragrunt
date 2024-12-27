@@ -58,6 +58,7 @@ func (flag *GenericFlag[T]) Apply(set *libflag.FlagSet) error {
 	for _, envVar = range flag.EnvVars {
 		if val := flag.LookupEnv(envVar); val != nil {
 			envValue = val
+
 			break
 		}
 	}

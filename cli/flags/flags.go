@@ -51,12 +51,14 @@ const (
 	SourceUpdateFlagName = "source-update"
 
 	// Assume IAM Role flags.
+
 	IAMAssumeRoleFlagName                 = "iam-assume-role"
 	IAMAssumeRoleDurationFlagName         = "iam-assume-role-duration"
 	IAMAssumeRoleSessionNameFlagName      = "iam-assume-role-session-name"
 	IAMAssumeRoleWebIdentityTokenFlagName = "iam-assume-role-web-identity-token"
 
 	// Queue related flags.
+
 	QueueIgnoreErrorsFlagName        = "queue-ignore-errors"
 	QueueIgnoreDAGOrderFlagName      = "queue-ignore-dag-order"
 	QueueExcludeExternalFlagName     = "queue-exclude-external"
@@ -68,6 +70,7 @@ const (
 	QueueIncludeUnitsReadingFlagName = "queue-include-units-reading"
 
 	// Logs related flags.
+
 	LogLevelFlagName        = "log-level"
 	LogDisableFlagName      = "log-disable"
 	ShowLogAbsPathsFlagName = "log-show-abs-paths"
@@ -76,14 +79,17 @@ const (
 	NoColorFlagName         = "no-color"
 
 	// Strict Mode related flags.
+
 	StrictModeFlagName    = "strict-mode"
 	StrictControlFlagName = "strict-control"
 
 	// Experiment Mode related flags/envs.
+
 	ExperimentModeFlagName = "experiment-mode"
 	ExperimentFlagName     = "experiment"
 
 	// Terragrunt Provider Cache related flags.
+
 	ProviderCacheFlagName              = "provider-cache"
 	ProviderCacheDirFlagName           = "provider-cache-dir"
 	ProviderCacheHostnameFlagName      = "provider-cache-hostname"
@@ -92,20 +98,24 @@ const (
 	ProviderCacheRegistryNamesFlagName = "provider-cache-registry-names"
 
 	// Engine related environment variables.
+
 	EngineEnableFlagName    = "experimental-engine"
 	EngineCachePathFlagName = "engine-cache-path"
 	EngineSkipCheckFlagName = "engine-skip-check"
 	EngineLogLevelFlagName  = "engine-log-level"
 
-	// Scaffold/Catalog shared flags
+	// Scaffold/Catalog shared flags.
+
 	RootFileNameFlagName  = "root-file-name"
 	NoIncludeRootFlagName = "no-include-root"
 
 	// App flags.
+
 	HelpFlagName    = "help"
 	VersionFlagName = "version"
 
 	// Renamed flags.
+
 	TerragruntFailOnStateBucketCreationFlagName      = DeprecatedFlagNamePrefix + "fail-on-state-bucket-creation"      // `backend-require-bootstrap`
 	TerragruntModulesThatIncludeFlagName             = DeprecatedFlagNamePrefix + "modules-that-include"               // `units-that-include`
 	TerragruntForwardTFStdoutFlagName                = DeprecatedFlagNamePrefix + "forward-tf-stdout"                  // `tf-forward-stdout`.
@@ -126,6 +136,7 @@ const (
 	TerragruntIgnoreDependencyErrorsFlagName         = DeprecatedFlagNamePrefix + "ignore-dependency-errors"           // `queue-ignore-errors`.
 
 	// Deprecated flags.
+
 	TerragruntIncludeModulePrefixFlagName  = DeprecatedFlagNamePrefix + "include-module-prefix"
 	TerragruntDisableLogFormattingFlagName = DeprecatedFlagNamePrefix + "disable-log-formatting"
 	TerragruntJSONLogFlagName              = DeprecatedFlagNamePrefix + "json-log"
@@ -151,6 +162,7 @@ func NewHelpFlag(opts *options.TerragruntOptions) cli.Flag {
 				var invalidCommandNameError cli.InvalidCommandNameError
 				if ok := errors.As(err, &invalidCommandNameError); ok {
 					terraformHelpCmd := append([]string{cmdName, "-help"}, ctx.Args().Tail()...)
+
 					return shell.RunTerraformCommand(ctx, opts, terraformHelpCmd...)
 				}
 
@@ -196,6 +208,7 @@ func NewLogLevelFlag(opts *options.TerragruntOptions) cli.Flag {
 			if collections.ListContainsElement(removedLevels, val) {
 				opts.ForwardTFStdout = true
 				opts.LogFormatter.SetFormat(nil)
+
 				return nil
 			}
 
@@ -206,6 +219,7 @@ func NewLogLevelFlag(opts *options.TerragruntOptions) cli.Flag {
 
 			opts.Logger.SetOptions(log.WithLevel(level))
 			opts.LogLevel = level
+
 			return nil
 		},
 	})
@@ -236,6 +250,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Action: func(_ *cli.Context, _ bool) error {
 				opts.ForwardTFStdout = true
 				opts.LogFormatter.SetFormat(nil)
+
 				return nil
 			},
 		}),
@@ -252,6 +267,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "Disable color output.",
 			Action: func(_ *cli.Context, _ bool) error {
 				opts.LogFormatter.DisableColors()
+
 				return nil
 			},
 		}),
@@ -307,7 +323,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:    ExperimentFlagName,
 			EnvVars: EnvVars(ExperimentFlagName),
 			Usage:   "Enables specific experiments. For a list of available experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
-			Action: func(ctx *cli.Context, val []string) error {
+			Action: func(_ *cli.Context, val []string) error {
 				experiments := experiment.NewExperiments()
 				warning, err := experiments.ValidateExperimentNames(val)
 				if err != nil {
@@ -339,7 +355,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVars:     EnvVars(StrictControlFlagName),
 			Destination: &opts.StrictControls,
 			Usage:       "Enables specific strict controls. For a list of available controls, see https://terragrunt.gruntwork.io/docs/reference/strict-mode .",
-			Action: func(ctx *cli.Context, val []string) error {
+			Action: func(_ *cli.Context, val []string) error {
 				warning, err := strict.StrictControls.ValidateControlNames(val)
 				if err != nil {
 					return cli.NewExitError(err, 1)
@@ -365,8 +381,9 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVars: EnvVars(TerragruntIncludeModulePrefixFlagName),
 			Usage:   "When this flag is set output from Terraform sub-commands is prefixed with module path.",
 			Hidden:  true,
-			Action: func(ctx *cli.Context, _ bool) error {
+			Action: func(_ *cli.Context, _ bool) error {
 				opts.Logger.Warnf("The %q flag is deprecated. Use the functionality-inverted %q flag instead. By default, Terraform/OpenTofu output is integrated into the Terragrunt log, which prepends additional data, such as timestamps and prefixes, to log entries.", TerragruntIncludeModulePrefixFlagName, TFForwardStdoutFlagName)
+
 				return nil
 			},
 		},
@@ -750,7 +767,7 @@ func NewRootFileNameFlag(opts *options.TerragruntOptions) cli.Flag {
 		Name:        RootFileNameFlagName,
 		Destination: &opts.ScaffoldRootFileName,
 		Usage:       "Name of the root Terragrunt configuration file, if used.",
-		Action: func(ctx *cli.Context, value string) error {
+		Action: func(_ *cli.Context, value string) error {
 			if value == "" {
 				return errors.New("root-file-name flag cannot be empty")
 			}

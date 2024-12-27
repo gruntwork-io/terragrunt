@@ -130,7 +130,7 @@ func TestExecCommand(t *testing.T) {
 	err = os.Mkdir(downloadDirPath, os.ModePerm)
 	require.NoError(t, err)
 
-	tc := []struct {
+	testCases := []struct {
 		args           []string
 		scriptPath     string
 		expectedOutput string
@@ -147,13 +147,13 @@ func TestExecCommand(t *testing.T) {
 		},
 	}
 
-	for i, tt := range tc {
+	for i, testCase := range testCases {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt exec --terragrunt-working-dir "+rootPath+" "+strings.Join(tt.args, " ")+" -- "+tt.scriptPath)
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt exec --terragrunt-working-dir "+rootPath+" "+strings.Join(testCase.args, " ")+" -- "+testCase.scriptPath)
 			require.NoError(t, err)
-			assert.Contains(t, stdout, tt.expectedOutput)
+			assert.Contains(t, stdout, testCase.expectedOutput)
 		})
 	}
 }
@@ -545,7 +545,7 @@ func TestTerragruntExcludesFile(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExcludesFile, ".terragrunt-excludes")
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureExcludesFile)
 
-	tc := []struct {
+	testCases := []struct {
 		flags          string
 		expectedOutput []string
 	}{
@@ -559,21 +559,19 @@ func TestTerragruntExcludesFile(t *testing.T) {
 		},
 	}
 
-	for i, tt := range tc {
-		tt := tt
-
-		t.Run(fmt.Sprintf("tt-%d", i), func(t *testing.T) {
+	for i, testCase := range testCases {
+		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
 			helpers.CleanupTerraformFolder(t, testFixtureExcludesFile)
 
-			helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s %s", rootPath, tt.flags))
+			helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt run-all apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir %s %s", rootPath, testCase.flags))
 
-			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all output --terragrunt-non-interactive --terragrunt-working-dir %s %s", rootPath, tt.flags))
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, fmt.Sprintf("terragrunt run-all output --terragrunt-non-interactive --terragrunt-working-dir %s %s", rootPath, testCase.flags))
 			require.NoError(t, err)
 
 			actualOutput := strings.Split(strings.TrimSpace(stdout), "\n")
-			assert.ElementsMatch(t, tt.expectedOutput, actualOutput)
+			assert.ElementsMatch(t, testCase.expectedOutput, actualOutput)
 		})
 	}
 }
@@ -1037,7 +1035,7 @@ func TestPlanfileOrder(t *testing.T) {
 func TestTerraformCommandCliArgs(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		command     []string
 		expected    string
 		expectedErr error
@@ -1074,8 +1072,8 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tc {
-		cmd := fmt.Sprintf("terragrunt %s --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s", strings.Join(tt.command, " "), testFixtureExtraArgsPath)
+	for _, testCase := range testCases {
+		cmd := fmt.Sprintf("terragrunt %s --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s", strings.Join(testCase.command, " "), testFixtureExtraArgsPath)
 
 		var (
 			stdout bytes.Buffer
@@ -1083,13 +1081,13 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 		)
 
 		err := helpers.RunTerragruntCommand(t, cmd, &stdout, &stderr)
-		if tt.expectedErr != nil {
-			require.ErrorIs(t, err, tt.expectedErr)
+		if testCase.expectedErr != nil {
+			require.ErrorIs(t, err, testCase.expectedErr)
 		}
 
 		output := stdout.String()
 		errOutput := stderr.String()
-		assert.True(t, strings.Contains(errOutput, tt.expected) || strings.Contains(output, tt.expected))
+		assert.True(t, strings.Contains(errOutput, testCase.expected) || strings.Contains(output, testCase.expected))
 	}
 }
 
@@ -1098,7 +1096,7 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 func TestTerraformSubcommandCliArgs(t *testing.T) {
 	t.Parallel()
 
-	tc := []struct {
+	testCases := []struct {
 		command  []string
 		expected string
 	}{
@@ -1120,8 +1118,8 @@ func TestTerraformSubcommandCliArgs(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tc {
-		cmd := fmt.Sprintf("terragrunt %s --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s", strings.Join(tt.command, " "), testFixtureExtraArgsPath)
+	for _, testCase := range testCases {
+		cmd := fmt.Sprintf("terragrunt %s --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s", strings.Join(testCase.command, " "), testFixtureExtraArgsPath)
 
 		var (
 			stdout bytes.Buffer
@@ -1133,7 +1131,7 @@ func TestTerraformSubcommandCliArgs(t *testing.T) {
 		}
 		output := stdout.String()
 		errOutput := stderr.String()
-		assert.True(t, strings.Contains(errOutput, tt.expected) || strings.Contains(output, tt.expected))
+		assert.True(t, strings.Contains(errOutput, testCase.expected) || strings.Contains(output, testCase.expected))
 	}
 }
 
@@ -1997,22 +1995,19 @@ func TestDependencyOutputCycleHandling(t *testing.T) {
 
 	helpers.CleanupTerraformFolder(t, testFixtureGetOutput)
 
-	tc := []string{
+	testCases := []string{
 		"aa",
 		"aba",
 		"abca",
 		"abcda",
 	}
 
-	for _, tt := range tc {
-		// Capture range variable into forloop so that the binding is consistent across runs.
-		tt := tt
-
-		t.Run(tt, func(t *testing.T) {
+	for _, testCase := range testCases {
+		t.Run(testCase, func(t *testing.T) {
 			t.Parallel()
 
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureGetOutput)
-			rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "cycle", tt)
+			rootPath := util.JoinPath(tmpEnvPath, testFixtureGetOutput, "cycle", testCase)
 			fooPath := util.JoinPath(rootPath, "foo")
 
 			planStdout := bytes.Buffer{}
@@ -2825,7 +2820,7 @@ func TestTerragruntIncludeParentHclFile(t *testing.T) {
 //
 //nolint:paralleltest,funlen
 func TestTerragruntVersionConstraints(t *testing.T) {
-	tc := []struct {
+	testCases := []struct {
 		name                 string
 		terragruntVersion    string
 		terragruntConstraint string
@@ -2875,19 +2870,19 @@ func TestTerragruntVersionConstraints(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tc { //nolint:paralleltest
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range testCases { //nolint:paralleltest
+		t.Run(testCase.name, func(t *testing.T) {
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureReadConfig)
 			rootPath := filepath.Join(tmpEnvPath, testFixtureReadConfig, "with_constraints")
 
-			tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigContent(t, tt.terragruntConstraint, config.DefaultTerragruntConfigPath)
+			tmpTerragruntConfigPath := helpers.CreateTmpTerragruntConfigContent(t, testCase.terragruntConstraint, config.DefaultTerragruntConfigPath)
 
 			stdout := bytes.Buffer{}
 			stderr := bytes.Buffer{}
 
 			err := helpers.RunTerragruntVersionCommand(
 				t,
-				tt.terragruntVersion,
+				testCase.terragruntVersion,
 				fmt.Sprintf(
 					"terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-config %s --terragrunt-working-dir %s",
 					tmpTerragruntConfigPath,
@@ -2900,7 +2895,7 @@ func TestTerragruntVersionConstraints(t *testing.T) {
 			helpers.LogBufferContentsLineByLine(t, stdout, "stdout")
 			helpers.LogBufferContentsLineByLine(t, stderr, "stderr")
 
-			if tt.shouldSucceed {
+			if testCase.shouldSucceed {
 				require.NoError(t, err)
 			} else {
 				require.Error(t, err)
@@ -3203,9 +3198,7 @@ func TestOutputModuleGroups(t *testing.T) {
 		},
 	}
 
-	for name, tt := range tests {
-		tt := tt
-
+	for name, testCase := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
@@ -3213,9 +3206,9 @@ func TestOutputModuleGroups(t *testing.T) {
 				stdout bytes.Buffer
 				stderr bytes.Buffer
 			)
-			helpers.RunTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output-module-groups --terragrunt-working-dir %s %s", environmentPath, tt.subCommand), &stdout, &stderr)
+			helpers.RunTerragruntRedirectOutput(t, fmt.Sprintf("terragrunt output-module-groups --terragrunt-working-dir %s %s", environmentPath, testCase.subCommand), &stdout, &stderr)
 			output := strings.ReplaceAll(stdout.String(), " ", "")
-			expectedOutput := strings.ReplaceAll(strings.ReplaceAll(tt.expectedOutput, "\t", ""), " ", "")
+			expectedOutput := strings.ReplaceAll(strings.ReplaceAll(testCase.expectedOutput, "\t", ""), " ", "")
 			assert.Contains(t, strings.TrimSpace(output), strings.TrimSpace(expectedOutput))
 		})
 	}

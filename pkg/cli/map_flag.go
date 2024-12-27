@@ -90,6 +90,7 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 	for _, envVar = range flag.EnvVars {
 		if val := flag.LookupEnv(envVar); val != nil {
 			envValue = val
+
 			break
 		}
 	}
