@@ -306,6 +306,7 @@ func TestLogCustomFormatOutput(t *testing.T) {
 
 			if testCase.expectedErr != nil {
 				assert.EqualError(t, err, testCase.expectedErr.Error())
+
 				return
 			}
 

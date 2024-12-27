@@ -112,7 +112,7 @@ func (val *MapValue[T]) Parse(str string) error {
 	}
 
 	list := maps.Values(val.list)
-	sort.Sort(sort.StringSlice(list))
+	sort.Strings(list)
 
 	return errors.Errorf("available values: %s", strings.Join(list, ","))
 }
