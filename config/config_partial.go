@@ -194,6 +194,7 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 		flagByName[flag.Name] = flag
 	}
 
+	var loopErr error
 	ctx.TerragruntOptions.FeatureFlags.Range(func(name string, value string) bool {
 		// convert flag value to respective type
 		var evaluatedFlag cty.Value
@@ -203,6 +204,7 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 		if exists {
 			flag, err := flagToTypedCtyValue(name, existingFlag.Default.Type(), value)
 			if err != nil {
+				loopErr = err
 				return false
 			}
 
@@ -210,6 +212,7 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 		} else {
 			flag, err := flagToCtyValue(name, value)
 			if err != nil {
+				loopErr = err
 				return false
 			}
 
@@ -217,8 +220,13 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 		}
 
 		evaluatedFlags[name] = evaluatedFlag
+
 		return true
 	})
+
+	if loopErr != nil {
+		return cty.NilVal, loopErr
+	}
 
 	for _, flag := range tgFlags {
 		if _, exists := evaluatedFlags[flag.Name]; !exists {
