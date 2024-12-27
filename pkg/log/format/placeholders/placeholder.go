@@ -8,7 +8,10 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/options"
 )
 
-const placeholderSign = "%"
+const (
+	placeholderSign             = "%"
+	splitIntoTextAndPlaceholder = 2
+)
 
 // Placeholder is part of the log message, used to format different log values.
 type Placeholder interface {
@@ -23,7 +26,8 @@ type Placeholder interface {
 // Placeholders are a set of Placeholders.
 type Placeholders []Placeholder
 
-func newPlaceholders() Placeholders {
+// NewPlaceholderRegister returns a new `Placeholder` collection instance available for use in a custom format string.
+func NewPlaceholderRegister() Placeholders {
 	return Placeholders{
 		Interval(),
 		Time(),
@@ -74,61 +78,12 @@ func (phs Placeholders) Format(data *options.Data) (string, error) {
 	return str, nil
 }
 
-// Parse parses the given string and returns a set of placeholders that are then used to format log data.
-func Parse(str string) (Placeholders, error) {
-	var (
-		splitIntoTextAndPlaceholder = 2
-		parts                       = strings.SplitN(str, placeholderSign, splitIntoTextAndPlaceholder)
-		plaintext                   = parts[0]
-		placeholders                = Placeholders{PlainText(plaintext)}
-	)
-
-	if len(parts) == 1 {
-		return placeholders, nil
-	}
-
-	if strings.HasPrefix(parts[1], placeholderSign) {
-		// `%%` evaluates as `%`.
-		placeholders = append(placeholders, PlainText(placeholderSign))
-
-		phs, err := Parse(str)
-		if err != nil {
-			return nil, err
-		}
-
-		return append(placeholders, phs...), nil
-	}
-
-	str = parts[1]
-	if str == "" {
-		return nil, errors.Errorf("empty placeholder name")
-	}
-
-	registered := newPlaceholders()
-	placeholder, str := registered.parsePlaceholder(str)
-
-	if placeholder == nil {
-		return nil, errors.Errorf("invalid placeholder name %q, available names: %s", str, strings.Join(registered.Names(), ","))
-	}
-
-	str, err := placeholder.Options().Parse(str)
-	if err != nil {
-		return nil, errors.Errorf("placeholder %q: %w", placeholder.Name(), err)
-	}
-
-	placeholders = append(placeholders, placeholder)
-
-	phs, err := Parse(str)
-	if err != nil {
-		return nil, err
-	}
-
-	placeholders = append(placeholders, phs...)
-
-	return placeholders, nil
-}
-
-func (phs Placeholders) parsePlaceholder(str string) (Placeholder, string) { //nolint:ireturn
+// findPlaceholder parses the given `str` to find a placeholder name present in the `phs` collection,
+// returns that placeholder, and the rest of the given `str`.
+//
+// e.g. "%level(color=green, case=upper) some-text" returns the instance of the `level` placeholder
+// and "(color=green, case=upper) some-text".
+func (phs Placeholders) findPlaceholder(str string) (Placeholder, string) { //nolint:ireturn
 	var (
 		placeholder Placeholder
 		optIndex    int
@@ -153,21 +108,71 @@ func (phs Placeholders) parsePlaceholder(str string) (Placeholder, string) { //n
 		return placeholder, str[optIndex:]
 	}
 
-	switch {
-	case strings.HasPrefix(str, options.OptStartSign):
-		// Unnamed placeholder, e.g. `%(content='...')`.
+	switch str[0:1] {
+	case options.OptStartSign:
+		// Unnamed placeholder, format `%(content='...')`.
 		return PlainText(""), str
-	case strings.HasPrefix(str, "t"):
-		// Placeholder indent, e.g. `%t`.
+	case placeholderSign:
+		// Raw `%`, format `%%`.
+		return PlainText(placeholderSign), str[1:]
+	case "t":
+		// Indent, format `%t`.
 		return PlainText("\t"), str[1:]
-	case strings.HasPrefix(str, "n"):
-		// Placeholder newline, e.g. `%n`.
+	case "n":
+		// Newline, format `%n`.
 		return PlainText("\n"), str[1:]
 	}
 
 	return nil, str
 }
 
+// Parse parses the given `str` and returns a set of placeholders that are then used to format log data.
+func Parse(str string) (Placeholders, error) {
+	var (
+		placeholders Placeholders
+		placeholder  Placeholder
+		err          error
+	)
+
+	for {
+		// We need to create a new placeholders collection to avoid overriding options
+		// if the custom format string contains two or more same placeholders.
+		// e.g. "%level(format=full) some-text %level(format=tiny)"
+		placeholderRegister := NewPlaceholderRegister()
+
+		parts := strings.SplitN(str, placeholderSign, splitIntoTextAndPlaceholder)
+
+		if plaintext := parts[0]; plaintext != "" {
+			placeholders = append(placeholders, PlainText(plaintext))
+		}
+
+		if len(parts) == 1 {
+			return placeholders, nil
+		}
+
+		if str = parts[1]; str == "" {
+			return nil, errors.New(NewEmptyPlaceholderNameError(str))
+		}
+
+		placeholder, str = placeholderRegister.findPlaceholder(str)
+		if placeholder == nil {
+			return nil, errors.New(NewInvalidPlaceholderNameError(str, placeholderRegister))
+		}
+
+		str, err = placeholder.Options().Configure(str)
+		if err != nil {
+			return nil, errors.New(NewInvalidPlaceholderOptionError(placeholder, err))
+		}
+
+		placeholders = append(placeholders, placeholder)
+	}
+}
+
+// isPlaceholderNameCharacter returns true if the given character `c` does not contain any restricted characters for placeholder names.
+//
+// e.g. "time" return `true`.
+// e.g. "time " return `false`.
+// e.g. "time(" return `false`.
 func isPlaceholderNameCharacter(c byte) bool {
 	// Check if the byte value falls within the range of alphanumeric characters
 	return c == '-' || c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')

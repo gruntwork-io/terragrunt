@@ -22,7 +22,7 @@ const splitIntoNameAndValue = 2
 
 // OptionValue contains the value of the option.
 type OptionValue[T any] interface {
-	// Parse parses and sets the value of the option.
+	// Configure parses and sets the value of the option.
 	Parse(str string) error
 	// Get returns the value of the option.
 	Get() T
@@ -102,39 +102,63 @@ func (opts Options) Format(data *Data, str any) (string, error) {
 	return toString(str), nil
 }
 
-// Parse parsers the given `str` to configure the `opts` and returns the offset index.
-func (opts Options) Parse(str string) (string, error) {
-	str, ok := isNext(str)
-	if !ok {
+// Configure parsers the given `str` to configure the `opts` and returns the rest of the given `str`.
+//
+// e.g. (color=green, case=upper) some-text" sets `color` option to `green`, `case` option to `upper` and returns " some-text".
+func (opts Options) Configure(str string) (string, error) {
+	if len(str) == 0 || !strings.HasPrefix(str, OptStartSign) {
 		return str, nil
 	}
 
-	parts := strings.SplitN(str, OptNameValueSep, splitIntoNameAndValue)
-	if len(parts) != splitIntoNameAndValue {
-		return "", errors.Errorf("invalid option %q", str)
+	str = str[1:]
+
+	for {
+		var (
+			ok  bool
+			err error
+		)
+
+		if str, ok = nextOption(str); !ok {
+			return str, nil
+		}
+
+		parts := strings.SplitN(str, OptNameValueSep, splitIntoNameAndValue)
+		if len(parts) != splitIntoNameAndValue {
+			return "", errors.New(NewInvalidOptionError(str))
+		}
+
+		name := strings.TrimSpace(parts[0])
+
+		if name == "" {
+			return "", errors.New(NewEmptyOptionNameError(str))
+		}
+
+		opt := opts.Get(name)
+		if opt == nil {
+			return "", errors.New(NewInvalidOptionNameError(name, opts))
+		}
+
+		if str, err = setOptionValue(opt, parts[1]); err != nil {
+			return "", err
+		}
 	}
+}
 
-	name := strings.TrimSpace(parts[0])
-	if name == "" {
-		return "", errors.New("empty option name")
-	}
-
-	opt := opts.Get(name)
-	if opt == nil {
-		return "", errors.Errorf("invalid option name %q, available names: %s", name, strings.Join(opts.Names(), ","))
-	}
-
-	str = parts[1]
-
-	var quoted byte
+// setOptionValue parses the given `str` and sets the value for the given `opt` and returns the rest of the given `str`.
+//
+// e.g. "green, case=upper) some-text" sets "green" to the option and returns ", case=upper) some-text".
+// e.g. "' quoted value ') some-text" sets " quoted value " to the option and returns ") some-text".
+func setOptionValue(opt Option, str string) (string, error) {
+	var quoteChar byte
 
 	for index := range str {
-		// Skip quoted text, e.g. `%(content='level()')`.
-		if isQuoted(str[:index], &quoted) {
+		// Skip quoteChar text, e.g. `%(content='level()')`.
+		if quoteOpened(str[:index], &quoteChar) {
 			continue
 		}
 
-		if !strings.HasSuffix(str[:index+1], OptSep) && !strings.HasSuffix(str[:index+1], OptEndSign) {
+		lastSign := str[index : index+1]
+		if !strings.HasSuffix(lastSign, OptSep) && !strings.HasSuffix(lastSign, OptEndSign) {
 			continue
 		}
 
@@ -143,21 +167,23 @@ func (opts Options) Parse(str string) (string, error) {
 		val = strings.Trim(val, "\"")
 
 		if err := opt.ParseValue(val); err != nil {
-			return "", errors.Errorf("invalid value %q for option %q: %w", val, opt.Name(), err)
+			return "", errors.New(NewInvalidOptionValueError(opt, val, err))
 		}
 
-		return opts.Parse(OptStartSign + str[index:])
+		return str[index:], nil
 	}
 
-	return "", errors.Errorf("invalid option %q", str)
+	return str, nil
 }
 
-func isNext(str string) (string, bool) {
-	if len(str) == 0 || !strings.HasPrefix(str, OptStartSign) {
-		return str, false
-	}
-
-	str = strings.TrimLeftFunc(str[1:], unicode.IsSpace)
+// nextOption returns true if the given `str` contains one more option
+// and returns the given `str` without separator sign "," or ")".
+//
+// e.g. ",color=green) some-text" returns "color=green) some-text" and `true`.
+// e.g. "(color=green) some-text" returns "color=green) some-text" and `true`.
+// e.g. ") some-text"  returns " some-text" and `false`.
+func nextOption(str string) (string, bool) {
+	str = strings.TrimLeftFunc(str, unicode.IsSpace)
 
 	switch {
 	case strings.HasPrefix(str, OptEndSign):
@@ -169,7 +195,12 @@ func isNext(str string) (string, bool) {
 	return str, true
 }
 
-func isQuoted(str string, quoted *byte) bool {
+// quoteOpened returns true if the given `str` contains an unclosed quote.
+//
+// e.g. "%(content=' level" return `true`.
+// e.g. "%(content=' level '" return `false`.
+// e.g. "%(content=\" level" return `true`.
+func quoteOpened(str string, quoteChar *byte) bool {
 	strlen := len(str)
 
 	if strlen == 0 {
@@ -179,12 +210,12 @@ func isQuoted(str string, quoted *byte) bool {
 	char := str[strlen-1]
 
 	if char == '"' || char == '\'' {
-		if *quoted == 0 {
-			*quoted = char
-		} else if *quoted == char && (strlen < 2 || str[strlen-2] != '\\') {
-			*quoted = 0
+		if *quoteChar == 0 {
+			*quoteChar = char
+		} else if *quoteChar == char && (strlen < 2 || str[strlen-2] != '\\') {
+			*quoteChar = 0
 		}
 	}
 
-	return *quoted != 0
+	return *quoteChar != 0
 }
