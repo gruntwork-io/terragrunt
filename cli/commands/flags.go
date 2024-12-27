@@ -618,6 +618,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 				for key, val := range value {
 					opts.FeatureFlags.Store(key, val)
 				}
+
 				return nil
 			},
 		},

@@ -206,6 +206,7 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 			flag, err := flagToTypedCtyValue(name, existingFlag.Default.Type(), value)
 			if err != nil {
 				loopErr = err
+
 				return false
 			}
 
@@ -214,6 +215,7 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 			flag, err := flagToCtyValue(name, value)
 			if err != nil {
 				loopErr = err
+
 				return false
 			}
 
