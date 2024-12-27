@@ -8,20 +8,33 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/options"
 )
 
-const placeholderSign = '%'
+const placeholderSign = "%"
 
 // Placeholder is part of the log message, used to format different log values.
 type Placeholder interface {
 	// Name returns a placeholder name.
 	Name() string
-	// GetOption returns the option with the given option name.
-	GetOption(name string) (options.Option, error)
+	// Options returns the placeholder options.
+	Options() options.Options
 	// Format returns the formatted value.
 	Format(data *options.Data) (string, error)
 }
 
 // Placeholders are a set of Placeholders.
 type Placeholders []Placeholder
+
+func newPlaceholders() Placeholders {
+	return Placeholders{
+		Interval(),
+		Time(),
+		Level(),
+		Message(),
+		Field(WorkDirKeyName, options.PathFormat(options.NonePath, options.RelativePath, options.ShortRelativePath, options.ShortPath)),
+		Field(TFPathKeyName, options.PathFormat(options.NonePath, options.FilenamePath, options.DirectoryPath)),
+		Field(TFCmdArgsKeyName),
+		Field(TFCmdKeyName),
+	}
+}
 
 // Get returns the placeholder by its name.
 func (phs Placeholders) Get(name string) Placeholder {
@@ -64,176 +77,95 @@ func (phs Placeholders) Format(data *options.Data) (string, error) {
 // Parse parses the given string and returns a set of placeholders that are then used to format log data.
 func Parse(str string) (Placeholders, error) {
 	var (
-		registered   = newPlaceholders()
-		placeholders Placeholders
-		next         int
+		splitIntoTextAndPlaceholder = 2
+		parts                       = strings.SplitN(str, placeholderSign, splitIntoTextAndPlaceholder)
+		plaintext                   = parts[0]
+		placeholders                = Placeholders{PlainText(plaintext)}
 	)
 
-	for index := 0; index < len(str); index++ {
-		char := str[index]
+	if len(parts) == 1 {
+		return placeholders, nil
+	}
 
-		if char == placeholderSign {
-			if index+1 >= len(str) {
-				return nil, errors.Errorf("empty placeholder name")
-			}
+	if strings.HasPrefix(parts[1], placeholderSign) {
+		// `%%` evaluates as `%`.
+		placeholders = append(placeholders, PlainText(placeholderSign))
 
-			if str[index+1] == placeholderSign {
-				str = str[:index] + str[index+1:]
-
-				continue
-			}
-
-			if next != index {
-				placeholder := PlainText(str[next:index])
-				placeholders = append(placeholders, placeholder)
-			}
-
-			placeholder, num, err := parsePlaceholder(str[index+1:], registered)
-			if err != nil {
-				return nil, err
-			}
-
-			placeholders = append(placeholders, placeholder)
-			index += num + 1
-			next = index + 1
+		phs, err := Parse(str)
+		if err != nil {
+			return nil, err
 		}
+
+		return append(placeholders, phs...), nil
 	}
 
-	if next != len(str) {
-		placeholder := PlainText(str[next:])
-		placeholders = append(placeholders, placeholder)
+	str = parts[1]
+	if str == "" {
+		return nil, errors.Errorf("empty placeholder name")
 	}
+
+	registered := newPlaceholders()
+	placeholder, str := registered.parsePlaceholder(str)
+
+	if placeholder == nil {
+		return nil, errors.Errorf("invalid placeholder name %q, available names: %s", str, strings.Join(registered.Names(), ","))
+	}
+
+	str, err := placeholder.Options().Parse(str)
+	if err != nil {
+		return nil, errors.Errorf("placeholder %q: %w", placeholder.Name(), err)
+	}
+
+	placeholders = append(placeholders, placeholder)
+
+	phs, err := Parse(str)
+	if err != nil {
+		return nil, err
+	}
+
+	placeholders = append(placeholders, phs...)
 
 	return placeholders, nil
 }
 
-func newPlaceholders() Placeholders {
-	return Placeholders{
-		Interval(),
-		Time(),
-		Level(),
-		Message(),
-		Field(WorkDirKeyName, options.PathFormat(options.NonePath, options.RelativePath, options.ShortRelativePath, options.ShortPath)),
-		Field(TFPathKeyName, options.PathFormat(options.NonePath, options.FilenamePath, options.DirectoryPath)),
-		Field(TFCmdArgsKeyName),
-		Field(TFCmdKeyName),
-	}
-}
-
-func parsePlaceholderOption(placeholder Placeholder, str string) (int, error) {
-	var (
-		nextOptIndex int
-		quoted       byte
-		option       options.Option
-	)
-
-	for index := range len(str) {
-		char := str[index]
-
-		if char == '"' || char == '\'' {
-			if quoted == 0 {
-				quoted = char
-			} else if quoted == char && index > 0 && str[index-1] != '\\' {
-				quoted = 0
-			}
-		}
-
-		// Skip quoted text, e.g. `%(content='level()')`.
-		if quoted != 0 {
-			continue
-		}
-
-		if char != '=' && char != ',' && char != ')' {
-			continue
-		}
-
-		val := str[nextOptIndex:index]
-		val = strings.TrimSpace(val)
-		val = strings.Trim(val, "'")
-		val = strings.Trim(val, "\"")
-
-		if nextOptIndex > 0 && str[nextOptIndex-1] == '=' {
-			if option == nil {
-				return 0, errors.Errorf("empty option name for placeholder %q", placeholder.Name())
-			}
-
-			if err := option.ParseValue(val); err != nil {
-				return 0, errors.Errorf("invalid value %q for option %q, placeholder %q: %w", val, option.Name(), placeholder.Name(), err)
-			}
-		} else if val != "" {
-			opt, err := placeholder.GetOption(val)
-			if err != nil {
-				return 0, errors.Errorf("invalid option name %q for placeholder %q: %w", val, placeholder.Name(), err)
-			}
-
-			option = opt
-		}
-
-		nextOptIndex = index + 1
-
-		if char == ')' {
-			return index + 1, nil
-		}
-	}
-
-	return 0, errors.Errorf("invalid option %q for placeholder %q", str[nextOptIndex:], placeholder.Name())
-}
-
-func parsePlaceholder(str string, registered Placeholders) (Placeholder, int, error) {
+func (phs Placeholders) parsePlaceholder(str string) (Placeholder, string) { //nolint:ireturn
 	var (
 		placeholder Placeholder
 		optIndex    int
 	)
 
+	// We don't stop at the first one we find, we look for the longest name.
+	// Of these two `%tf-command` `%tf-command-args` we need to find the second one.
 	for index := range len(str) {
-		char := str[index]
-
-		switch {
-		case index == 0 && char == '(':
-			// Unnamed placeholder, e.g. `%(content='...')`.
-			placeholder = PlainText("")
-		case isPlaceholderNameCharacter(char):
-			name := str[:index+1]
-
-			if pl := registered.Get(name); pl != nil {
-				placeholder = pl
-				optIndex = index + 1
-			}
-
-			// We don't stop at the first one we find, we look for the longest name.
-			// Of these two `%tf-command` `%tf-command-args` we need to find the second one.
-			continue
-		}
-
-		if placeholder == nil {
+		if !isPlaceholderNameCharacter(str[index]) {
 			break
 		}
 
-		optStr := str[optIndex:]
+		name := str[:index+1]
 
-		if len(optStr) != 0 && optStr[0] == '(' {
-			optLen, err := parsePlaceholderOption(placeholder, optStr[1:])
-
-			return placeholder, index + optLen, err
+		if pl := phs.Get(name); pl != nil {
+			placeholder = pl
+			optIndex = index + 1
 		}
-
-		return placeholder, optIndex - 1, nil
 	}
 
-	if placeholder != nil {
-		return placeholder, len(str) - 1, nil
+	if placeholder != nil || len(str) == 0 {
+		return placeholder, str[optIndex:]
 	}
 
-	switch str[0] {
-	case 't':
+	switch {
+	case strings.HasPrefix(str, options.OptStartSign):
+		// Unnamed placeholder, e.g. `%(content='...')`.
+		return PlainText(""), str
+	case strings.HasPrefix(str, "t"):
 		// Placeholder indent, e.g. `%t`.
-		return PlainText("\t"), 0, nil
-	case 'n':
+		return PlainText("\t"), str[1:]
+	case strings.HasPrefix(str, "n"):
 		// Placeholder newline, e.g. `%n`.
-		return PlainText("\n"), 0, nil
+		return PlainText("\n"), str[1:]
 	}
 
-	return nil, 0, errors.Errorf("invalid placeholder name %q, available values: %s", str, strings.Join(registered.Names(), ","))
+	return nil, str
 }
 
 func isPlaceholderNameCharacter(c byte) bool {
