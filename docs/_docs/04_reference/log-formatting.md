@@ -64,12 +64,11 @@ Placeholders have preset names:
 
 * `%tf-command-args` - Arguments of the executed OpenTofu/Terraform command, e.g. `apply -auto-approve`.
 
-* `%t` - Tab.
+* `%t` - Indent.
 
 * `%n` - Newline.
 
-Any other text is considered plain text.
-The parser always tries to find the longest name. The string `%tf-command-args` will be evaluated as `%tf-command-args`, not as `%tf-command` and the text "-args". If you need to evaluate it as `%tf-command` and the text "-args", use empty brackets `%tf-command()-args`.
+Any other text is considered plain text. The parser always tries to find the longest name. For example, tofu command `apply -auto-approve` with format `%tf-command-args` will be replaced with `apply -auto-approve`, but not `apply-args`. If you need to replace it with `apply-args`, use empty brackets `%tf-command()-args`. More examples: `%tf-path` will be replaced with `tofu`, `%t()-path` will be replaced with `   -path`.
 
 e.g.
 

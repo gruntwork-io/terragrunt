@@ -81,8 +81,8 @@ func (phs Placeholders) Format(data *options.Data) (string, error) {
 // findPlaceholder parses the given `str` to find a placeholder name present in the `phs` collection,
 // returns that placeholder, and the rest of the given `str`.
 //
-// e.g. "%level(color=green, case=upper) some-text" returns the instance of the `level` placeholder
-// and "(color=green, case=upper) some-text".
+// e.g. "level(color=green, case=upper) some-text" returns the instance of the `level` placeholder
+// and "(color=green, case=upper) some-text" string.
 func (phs Placeholders) findPlaceholder(str string) (Placeholder, string) { //nolint:ireturn
 	var (
 		placeholder Placeholder
@@ -108,22 +108,7 @@ func (phs Placeholders) findPlaceholder(str string) (Placeholder, string) { //no
 		return placeholder, str[optIndex:]
 	}
 
-	switch str[0:1] {
-	case options.OptStartSign:
-		// Unnamed placeholder, format `%(content='...')`.
-		return PlainText(""), str
-	case placeholderSign:
-		// Raw `%`, format `%%`.
-		return PlainText(placeholderSign), str[1:]
-	case "t":
-		// Indent, format `%t`.
-		return PlainText("\t"), str[1:]
-	case "n":
-		// Newline, format `%n`.
-		return PlainText("\n"), str[1:]
-	}
-
-	return nil, str
+	return findPlaintextPlaceholder(str)
 }
 
 // Parse parses the given `str` and returns a set of placeholders that are then used to format log data.
@@ -150,9 +135,7 @@ func Parse(str string) (Placeholders, error) {
 			return placeholders, nil
 		}
 
-		if str = parts[1]; str == "" {
-			return nil, errors.New(NewEmptyPlaceholderNameError(str))
-		}
+		str = parts[1]
 
 		placeholder, str = placeholderRegister.findPlaceholder(str)
 		if placeholder == nil {
@@ -166,6 +149,28 @@ func Parse(str string) (Placeholders, error) {
 
 		placeholders = append(placeholders, placeholder)
 	}
+}
+
+func findPlaintextPlaceholder(str string) (Placeholder, string) { //nolint:ireturn
+	switch str[0:1] {
+	case options.OptStartSign:
+		// Unnamed placeholder, format `%(content='...')`.
+		return PlainText(""), str
+	case " ":
+		// Singe `%` character, format `% `.
+		return PlainText(placeholderSign), str
+	case placeholderSign:
+		// Escaped `%`, format `%%`.
+		return PlainText(placeholderSign), str[1:]
+	case "t":
+		// Indent, format `%t`.
+		return PlainText("\t"), str[1:]
+	case "n":
+		// Newline, format `%n`.
+		return PlainText("\n"), str[1:]
+	}
+
+	return nil, str
 }
 
 // isPlaceholderNameCharacter returns true if the given character `c` does not contain any restricted characters for placeholder names.

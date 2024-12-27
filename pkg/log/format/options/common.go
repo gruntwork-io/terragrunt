@@ -2,6 +2,7 @@ package options
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -110,7 +111,10 @@ func (val *MapValue[T]) Parse(str string) error {
 		}
 	}
 
-	return errors.Errorf("available values: %s", strings.Join(maps.Values(val.list), ","))
+	list := maps.Values(val.list)
+	sort.Sort(sort.StringSlice(list))
+
+	return errors.Errorf("available values: %s", strings.Join(list, ","))
 }
 
 func (val *MapValue[T]) Filter(vals ...T) MapValue[T] {

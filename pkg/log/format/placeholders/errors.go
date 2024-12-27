@@ -5,38 +5,32 @@ import (
 	"strings"
 )
 
-// EmptyPlaceholderNameError is an empty `placeholder` name error.
-type EmptyPlaceholderNameError struct {
-	str string
-}
-
-// NewEmptyPlaceholderNameError returns a new `EmptyPlaceholderNameError` instance.
-func NewEmptyPlaceholderNameError(str string) *EmptyPlaceholderNameError {
-	return &EmptyPlaceholderNameError{
-		str: str,
-	}
-}
-
-func (err EmptyPlaceholderNameError) Error() string {
-	return fmt.Sprintf("empty placeholder name %q", err.str)
-}
-
 // InvalidPlaceholderNameError is an invalid `placeholder` name error.
 type InvalidPlaceholderNameError struct {
-	name string
+	str  string
 	opts Placeholders
 }
 
 // NewInvalidPlaceholderNameError returns a new `InvalidPlaceholderNameError` instance.
-func NewInvalidPlaceholderNameError(name string, opts Placeholders) *InvalidPlaceholderNameError {
+func NewInvalidPlaceholderNameError(str string, opts Placeholders) *InvalidPlaceholderNameError {
 	return &InvalidPlaceholderNameError{
-		name: name,
+		str:  str,
 		opts: opts,
 	}
 }
 
 func (err InvalidPlaceholderNameError) Error() string {
-	return fmt.Sprintf("invalid placeholder name %q, available names: %s", err.name, strings.Join(err.opts.Names(), ","))
+	var name string
+
+	for index := range len(err.str) {
+		if !isPlaceholderNameCharacter(err.str[index]) {
+			break
+		}
+
+		name = err.str[:index+1]
+	}
+
+	return fmt.Sprintf("invalid placeholder name %q, available names: %s", name, strings.Join(err.opts.Names(), ","))
 }
 
 // InvalidPlaceholderOptionError is an invalid `placeholder` option error.
