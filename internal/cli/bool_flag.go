@@ -54,6 +54,7 @@ func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
 	for _, envVar = range flag.EnvVars {
 		if val := flag.LookupEnv(envVar); val != nil && *val != "" {
 			envValue = val
+
 			break
 		}
 	}

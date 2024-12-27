@@ -36,12 +36,14 @@ const (
 	SourceUpdateFlagName = "source-update"
 
 	// Assume IAM Role flags.
+
 	IAMAssumeRoleFlagName                 = "iam-assume-role"
 	IAMAssumeRoleDurationFlagName         = "iam-assume-role-duration"
 	IAMAssumeRoleSessionNameFlagName      = "iam-assume-role-session-name"
 	IAMAssumeRoleWebIdentityTokenFlagName = "iam-assume-role-web-identity-token"
 
 	// Queue related flags.
+
 	QueueIgnoreErrorsFlagName        = "queue-ignore-errors"
 	QueueIgnoreDAGOrderFlagName      = "queue-ignore-dag-order"
 	QueueExcludeExternalFlagName     = "queue-exclude-external"
@@ -53,6 +55,7 @@ const (
 	QueueIncludeUnitsReadingFlagName = "queue-include-units-reading"
 
 	// Terragrunt Provider Cache related flags.
+
 	ProviderCacheFlagName              = "provider-cache"
 	ProviderCacheDirFlagName           = "provider-cache-dir"
 	ProviderCacheHostnameFlagName      = "provider-cache-hostname"
@@ -61,12 +64,14 @@ const (
 	ProviderCacheRegistryNamesFlagName = "provider-cache-registry-names"
 
 	// Engine related environment variables.
+
 	EngineEnableFlagName    = "experimental-engine"
 	EngineCachePathFlagName = "engine-cache-path"
 	EngineSkipCheckFlagName = "engine-skip-check"
 	EngineLogLevelFlagName  = "engine-log-level"
 
 	// Renamed flags.
+
 	TerragruntFailOnStateBucketCreationFlagName      = flags.DeprecatedFlagNamePrefix + "fail-on-state-bucket-creation"      // `backend-require-bootstrap`
 	TerragruntModulesThatIncludeFlagName             = flags.DeprecatedFlagNamePrefix + "modules-that-include"               // `units-that-include`
 	TerragruntForwardTFStdoutFlagName                = flags.DeprecatedFlagNamePrefix + "forward-tf-stdout"                  // `tf-forward-stdout`.
@@ -87,6 +92,7 @@ const (
 	TerragruntIgnoreDependencyErrorsFlagName         = flags.DeprecatedFlagNamePrefix + "ignore-dependency-errors"           // `queue-ignore-errors`.
 
 	// Deprecated flags.
+
 	TerragruntIncludeModulePrefixFlagName = flags.DeprecatedFlagNamePrefix + "include-module-prefix"
 	TerragruntTfLogJSONFlagName           = flags.DeprecatedFlagNamePrefix + "tf-logs-to-json"
 )
@@ -379,8 +385,9 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVars: flags.EnvVars(TerragruntIncludeModulePrefixFlagName),
 			Usage:   "When this flag is set output from Terraform sub-commands is prefixed with module path.",
 			Hidden:  true,
-			Action: func(ctx *cli.Context, _ bool) error {
+			Action: func(_ *cli.Context, _ bool) error {
 				opts.Logger.Warnf("The %q flag is deprecated. Use the functionality-inverted %q flag instead. By default, Terraform/OpenTofu output is integrated into the Terragrunt log, which prepends additional data, such as timestamps and prefixes, to log entries.", TerragruntIncludeModulePrefixFlagName, TFForwardStdoutFlagName)
+
 				return nil
 			},
 		},

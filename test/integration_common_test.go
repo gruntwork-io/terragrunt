@@ -376,6 +376,7 @@ func expectedWrongCommandErr(command string) error {
 	if wrappedBinary() == helpers.TofuBinary {
 		return run.WrongTofuCommand(command)
 	}
+
 	return run.WrongTerraformCommand(command)
 }
 

@@ -15,7 +15,7 @@ var (
 
 // FlagStringer converts a flag definition to a string. This is used by help
 // to display a flag.
-var FlagStringer = cli.FlagStringer
+var FlagStringer = cli.FlagStringer //nolint:gochecknoglobals
 
 type FlagType[T any] interface {
 	libflag.Getter

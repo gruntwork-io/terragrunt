@@ -20,6 +20,7 @@ const EnvVarPrefix = "TG_"
 
 const (
 	// Logs related flags.
+
 	LogLevelFlagName        = "log-level"
 	LogDisableFlagName      = "log-disable"
 	ShowLogAbsPathsFlagName = "log-show-abs-paths"
@@ -31,18 +32,22 @@ const (
 	WorkingDirFlagName     = "working-dir"
 
 	// Strict Mode related flags.
+
 	StrictModeFlagName    = "strict-mode"
 	StrictControlFlagName = "strict-control"
 
 	// Experiment Mode related flags/envs.
+
 	ExperimentModeFlagName = "experiment-mode"
 	ExperimentFlagName     = "experiment"
 
 	// App flags.
+
 	HelpFlagName    = "help"
 	VersionFlagName = "version"
 
 	// Deprecated flags.
+
 	TerragruntDisableLogFormattingFlagName = DeprecatedFlagNamePrefix + "disable-log-formatting"
 	TerragruntJSONLogFlagName              = DeprecatedFlagNamePrefix + "json-log"
 )
@@ -65,6 +70,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Action: func(_ *cli.Context, _ bool) error {
 				opts.ForwardTFStdout = true
 				opts.LogFormatter.SetFormat(nil)
+
 				return nil
 			},
 		}),
@@ -81,6 +87,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "Disable color output.",
 			Action: func(_ *cli.Context, _ bool) error {
 				opts.LogFormatter.DisableColors()
+
 				return nil
 			},
 		}),
@@ -136,7 +143,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:    ExperimentFlagName,
 			EnvVars: EnvVars(ExperimentFlagName),
 			Usage:   "Enables specific experiments. For a list of available experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
-			Action: func(ctx *cli.Context, val []string) error {
+			Action: func(_ *cli.Context, val []string) error {
 				experiments := experiment.NewExperiments()
 				warning, err := experiments.ValidateExperimentNames(val)
 				if err != nil {
@@ -168,7 +175,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVars:     EnvVars(StrictControlFlagName),
 			Destination: &opts.StrictControls,
 			Usage:       "Enables specific strict controls. For a list of available controls, see https://terragrunt.gruntwork.io/docs/reference/strict-mode .",
-			Action: func(ctx *cli.Context, val []string) error {
+			Action: func(_ *cli.Context, val []string) error {
 				warning, err := strict.StrictControls.ValidateControlNames(val)
 				if err != nil {
 					return cli.NewExitError(err, 1)
@@ -260,6 +267,7 @@ func NewLogLevelFlag(opts *options.TerragruntOptions) cli.Flag {
 			if collections.ListContainsElement(removedLevels, val) {
 				opts.ForwardTFStdout = true
 				opts.LogFormatter.SetFormat(nil)
+
 				return nil
 			}
 
@@ -270,6 +278,7 @@ func NewLogLevelFlag(opts *options.TerragruntOptions) cli.Flag {
 
 			opts.Logger.SetOptions(log.WithLevel(level))
 			opts.LogLevel = level
+
 			return nil
 		},
 	})
@@ -295,6 +304,7 @@ func NewHelpVersionFlags(opts *options.TerragruntOptions) cli.Flags {
 					var invalidCommandNameError cli.InvalidCommandNameError
 					if ok := errors.As(err, &invalidCommandNameError); ok {
 						terraformHelpCmd := append([]string{cmdName, "-help"}, ctx.Args().Tail()...)
+
 						return shell.RunTerraformCommand(ctx, opts, terraformHelpCmd...)
 					}
 

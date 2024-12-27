@@ -17,7 +17,7 @@ const (
 )
 
 // BoolWithDeprecatedFlag adds deprecated names with strict mode control for the given flag.
-func BoolWithDeprecatedFlag(opts *options.TerragruntOptions, flag *cli.BoolFlag, oldNames ...string) cli.Flag {
+func BoolWithDeprecatedFlag(opts *options.TerragruntOptions, flag *cli.BoolFlag, oldNames ...string) cli.Flag { //nolint:ireturn
 	names := flag.Names()
 	envVars := flag.GetEnvVars()
 
@@ -33,7 +33,7 @@ func BoolWithDeprecatedFlag(opts *options.TerragruntOptions, flag *cli.BoolFlag,
 }
 
 // GenericWithDeprecatedFlag adds deprecated names with strict mode control for the given flag.
-func GenericWithDeprecatedFlag[T cli.GenericType](opts *options.TerragruntOptions, flag *cli.GenericFlag[T], oldNames ...string) cli.Flag {
+func GenericWithDeprecatedFlag[T cli.GenericType](opts *options.TerragruntOptions, flag *cli.GenericFlag[T], oldNames ...string) cli.Flag { //nolint:ireturn
 	names := flag.Names()
 	envVars := flag.GetEnvVars()
 
@@ -49,7 +49,7 @@ func GenericWithDeprecatedFlag[T cli.GenericType](opts *options.TerragruntOption
 }
 
 // SliceWithDeprecatedFlag adds deprecated names with strict mode control for the given flag.
-func SliceWithDeprecatedFlag[T cli.SliceFlagType](opts *options.TerragruntOptions, flag *cli.SliceFlag[T], oldNames ...string) cli.Flag {
+func SliceWithDeprecatedFlag[T cli.SliceFlagType](opts *options.TerragruntOptions, flag *cli.SliceFlag[T], oldNames ...string) cli.Flag { //nolint:ireturn
 	names := flag.Names()
 	envVars := flag.GetEnvVars()
 
@@ -65,7 +65,7 @@ func SliceWithDeprecatedFlag[T cli.SliceFlagType](opts *options.TerragruntOption
 }
 
 // MapWithDeprecatedFlag adds deprecated names with strict mode control for the given flag.
-func MapWithDeprecatedFlag[K cli.MapFlagKeyType, V cli.MapFlagValueType](opts *options.TerragruntOptions, flag *cli.MapFlag[K, V], oldNames ...string) cli.Flag {
+func MapWithDeprecatedFlag[K cli.MapFlagKeyType, V cli.MapFlagValueType](opts *options.TerragruntOptions, flag *cli.MapFlag[K, V], oldNames ...string) cli.Flag { //nolint:ireturn
 	names := flag.Names()
 	envVars := flag.GetEnvVars()
 
@@ -119,7 +119,7 @@ func (flag *Flag) RunAction(ctx *cli.Context) error {
 
 	if flagName := flag.usedDeprecatedFlagName(ctx); flagName != "" {
 		if strictControl {
-			return errors.Errorf("`--%s` flag is no longer supported, use `--%s` instead.", flagName, flag.names[0])
+			return errors.Errorf("`--%s` flag is no longer supported, use `--%s` instead", flagName, flag.names[0])
 		}
 
 		flag.opts.Logger.Warnf("The `--%s` flag is deprecated and will be removed in a future version. Use `--%s` instead.", flagName, flag.names[0])
@@ -127,7 +127,7 @@ func (flag *Flag) RunAction(ctx *cli.Context) error {
 
 	if envVar := flag.usedDeprecatedEnvVar(ctx); envVar != "" {
 		if strictControl {
-			return errors.Errorf("`%s` environment variable is no longer supported, use `%s` instead.", envVar, flag.envVars[0])
+			return errors.Errorf("`%s` environment variable is no longer supported, use `%s` instead", envVar, flag.envVars[0])
 		}
 
 		flag.opts.Logger.Warnf("The `%s` environment variable is deprecated and will be removed in a future version. Use `%s` instead.", envVar, flag.envVars[0])

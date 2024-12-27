@@ -25,25 +25,25 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        RootFileNameFlagName,
 			Destination: &opts.ScaffoldRootFileName,
 			Usage:       "Name of the root Terragrunt configuration file, if used.",
-			Action: func(ctx *cli.Context, value string) error {
+			Action: func(_ *cli.Context, value string) error {
 				if value == "" {
 					return errors.New("root-file-name flag cannot be empty")
 				}
 
-				if value == opts.TerragruntConfigPath {
-					if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
-						warn, triggered, err := control.Evaluate(opts)
-						if err != nil {
-							return err
-						}
-
-						if !triggered {
-							opts.Logger.Warnf(warn)
-						}
-					}
+				if value != opts.TerragruntConfigPath {
+					opts.ScaffoldRootFileName = value
 				}
 
-				opts.ScaffoldRootFileName = value
+				if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
+					warn, triggered, err := control.Evaluate(opts)
+					if err != nil {
+						return err
+					}
+
+					if !triggered {
+						opts.Logger.Warnf(warn)
+					}
+				}
 
 				return nil
 			},
