@@ -68,7 +68,7 @@ Placeholders have preset names:
 
 * `%n` - Newline.
 
-Any other text is considered plain text. The parser always tries to find the longest name. For example, tofu command `apply -auto-approve` with format `%tf-command-args` will be replaced with `apply -auto-approve`, but not `apply-args`. If you need to replace it with `apply-args`, use empty brackets `%tf-command()-args`. More examples: `%tf-path` will be replaced with `tofu`, `%t()-path` will be replaced with `   -path`.
+Any other text is considered plain text. The parser always tries to find the longest name. For example, tofu command "apply -auto-approve" with format "%tf-command-args" will be replaced with "apply -auto-approve", but not "apply-args". If you need to replace it with "apply-args", use empty brackets "%tf-command()-args". More examples: "%tf-path" will be replaced with "tofu", `%t()-path` will be replaced with "   -path".
 
 e.g.
 

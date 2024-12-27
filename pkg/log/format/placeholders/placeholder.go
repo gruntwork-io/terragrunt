@@ -157,7 +157,7 @@ func findPlaintextPlaceholder(str string) (Placeholder, string) { //nolint:iretu
 		// Unnamed placeholder, format `%(content='...')`.
 		return PlainText(""), str
 	case " ":
-		// Singe `%` character, format `% `.
+		// Single `%` character, format `% `.
 		return PlainText(placeholderSign), str
 	case placeholderSign:
 		// Escaped `%`, format `%%`.
