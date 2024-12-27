@@ -152,7 +152,6 @@ func setOptionValue(opt Option, str string) (string, error) {
 	var quoteChar byte
 
 	for index := range str {
-		// Skip quoteChar text, e.g. `%(content='level()')`.
 		if quoteOpened(str[:index], &quoteChar) {
 			continue
 		}
