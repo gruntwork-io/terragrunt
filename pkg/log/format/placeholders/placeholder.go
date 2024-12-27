@@ -104,7 +104,7 @@ func (phs Placeholders) findPlaceholder(str string) (Placeholder, string) { //no
 		}
 	}
 
-	if placeholder != nil || len(str) == 0 {
+	if placeholder != nil {
 		return placeholder, str[optIndex:]
 	}
 
@@ -152,6 +152,10 @@ func Parse(str string) (Placeholders, error) {
 }
 
 func findPlaintextPlaceholder(str string) (Placeholder, string) { //nolint:ireturn
+	if len(str) == 0 {
+		return nil, str
+	}
+
 	switch str[0:1] {
 	case options.OptStartSign:
 		// Unnamed placeholder, format `%(content='...')`.
