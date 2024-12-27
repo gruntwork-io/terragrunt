@@ -610,11 +610,16 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "The command and arguments that can be used to fetch authentication configurations.",
 		},
 		&cli.MapFlag[string, string]{
-			Name:        TerragruntFeatureMapFlagName,
-			EnvVar:      TerragruntFeatureMapEnvName,
-			Destination: &opts.FeatureFlags,
-			Usage:       "Set feature flags for the HCL code.",
-			Splitter:    util.SplitComma,
+			Name:     TerragruntFeatureMapFlagName,
+			EnvVar:   TerragruntFeatureMapEnvName,
+			Usage:    "Set feature flags for the HCL code.",
+			Splitter: util.SplitComma,
+			Action: func(ctx *cli.Context, value map[string]string) error {
+				for key, val := range value {
+					opts.FeatureFlags.Store(key, val)
+				}
+				return nil
+			},
 		},
 		// Terragrunt engine flags
 		&cli.BoolFlag{
