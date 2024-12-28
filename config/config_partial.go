@@ -219,48 +219,37 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 	return flagsAsCtyVal, nil
 }
 
+// cliFlagsToCty converts CLI feature flags to Cty values. It returns a map of flag names
+// to their corresponding Cty values and any error encountered during conversion.
 func cliFlagsToCty(ctx *ParsingContext, flagByName map[string]*FeatureFlag) (map[string]cty.Value, error) {
-	evaluatedFlags := map[string]cty.Value{}
-
 	if ctx.TerragruntOptions.FeatureFlags == nil {
-		return evaluatedFlags, nil
+		return make(map[string]cty.Value), nil
 	}
 
-	var loopErr error
+	evaluatedFlags := make(map[string]cty.Value)
+	var conversionErr error
 
-	ctx.TerragruntOptions.FeatureFlags.Range(func(name string, value string) bool {
-		// convert flag value to respective type
-		var evaluatedFlag cty.Value
+	ctx.TerragruntOptions.FeatureFlags.Range(func(name, value string) bool {
+		var flag cty.Value
+		var err error
 
-		existingFlag, exists := flagByName[name]
-
-		if exists {
-			flag, err := flagToTypedCtyValue(name, existingFlag.Default.Type(), value)
-			if err != nil {
-				loopErr = err
-
-				return false
-			}
-
-			evaluatedFlag = flag
+		if existingFlag, ok := flagByName[name]; ok {
+			flag, err = flagToTypedCtyValue(name, existingFlag.Default.Type(), value)
 		} else {
-			flag, err := flagToCtyValue(name, value)
-			if err != nil {
-				loopErr = err
-
-				return false
-			}
-
-			evaluatedFlag = flag
+			flag, err = flagToCtyValue(name, value)
 		}
 
-		evaluatedFlags[name] = evaluatedFlag
+		if err != nil {
+			conversionErr = err
+			return false
+		}
 
+		evaluatedFlags[name] = flag
 		return true
 	})
 
-	if loopErr != nil {
-		return nil, loopErr
+	if conversionErr != nil {
+		return nil, conversionErr
 	}
 
 	return evaluatedFlags, nil
