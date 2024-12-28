@@ -187,11 +187,43 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 }
 
 func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
-	evaluatedFlags := map[string]cty.Value{}
 	// extract all flags in map by name
 	flagByName := map[string]*FeatureFlag{}
 	for _, flag := range tgFlags {
 		flagByName[flag.Name] = flag
+	}
+
+	evaluatedFlags, err := cliFlagsToCty(ctx, flagByName)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	for _, flag := range tgFlags {
+		if _, exists := evaluatedFlags[flag.Name]; !exists {
+			contextFlag, err := flagToCtyValue(flag.Name, *flag.Default)
+
+			if err != nil {
+				return cty.NilVal, err
+			}
+
+			evaluatedFlags[flag.Name] = contextFlag
+		}
+	}
+
+	flagsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedFlags)
+
+	if err != nil {
+		return cty.NilVal, err
+	}
+
+	return flagsAsCtyVal, nil
+}
+
+func cliFlagsToCty(ctx *ParsingContext, flagByName map[string]*FeatureFlag) (map[string]cty.Value, error) {
+	evaluatedFlags := map[string]cty.Value{}
+
+	if ctx.TerragruntOptions.FeatureFlags == nil {
+		return evaluatedFlags, nil
 	}
 
 	var loopErr error
@@ -228,28 +260,10 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 	})
 
 	if loopErr != nil {
-		return cty.NilVal, loopErr
+		return nil, loopErr
 	}
 
-	for _, flag := range tgFlags {
-		if _, exists := evaluatedFlags[flag.Name]; !exists {
-			contextFlag, err := flagToCtyValue(flag.Name, *flag.Default)
-
-			if err != nil {
-				return cty.NilVal, err
-			}
-
-			evaluatedFlags[flag.Name] = contextFlag
-		}
-	}
-
-	flagsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedFlags)
-
-	if err != nil {
-		return cty.NilVal, err
-	}
-
-	return flagsAsCtyVal, nil
+	return evaluatedFlags, nil
 }
 
 func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *IncludeConfig) (*TerragruntConfig, error) {
