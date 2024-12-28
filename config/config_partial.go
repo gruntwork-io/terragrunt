@@ -227,10 +227,12 @@ func cliFlagsToCty(ctx *ParsingContext, flagByName map[string]*FeatureFlag) (map
 	}
 
 	evaluatedFlags := make(map[string]cty.Value)
+
 	var conversionErr error
 
 	ctx.TerragruntOptions.FeatureFlags.Range(func(name, value string) bool {
 		var flag cty.Value
+
 		var err error
 
 		if existingFlag, ok := flagByName[name]; ok {
@@ -241,10 +243,12 @@ func cliFlagsToCty(ctx *ParsingContext, flagByName map[string]*FeatureFlag) (map
 
 		if err != nil {
 			conversionErr = err
+
 			return false
 		}
 
 		evaluatedFlags[name] = flag
+
 		return true
 	})
 
