@@ -46,6 +46,8 @@ const (
 	fileNameFormat         = "terragrunt-iac-%s_%s_%s_%s_%s"
 	checksumFileNameFormat = "terragrunt-iac-%s_%s_%s_SHA256SUMS"
 
+	engineLogLevelEnv = "TG_ENGINE_LOG_LEVEL"
+
 	defaultEngineRepoRoot                       = "github.com/"
 	terraformCommandContextKey engineClientsKey = iota
 	locksContextKey            engineLocksKey   = iota
@@ -517,6 +519,8 @@ func createEngine(terragruntOptions *options.TerragruntOptions) (*proto.EngineCl
 	})
 
 	cmd := exec.Command(localEnginePath)
+	// pass log level to engine
+	cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", engineLogLevelEnv, engineLogLevel))
 	client := plugin.NewClient(&plugin.ClientConfig{
 		Logger: logger,
 		HandshakeConfig: plugin.HandshakeConfig{
