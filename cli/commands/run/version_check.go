@@ -83,8 +83,8 @@ func checkVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 				return err
 			}
 
-			if _, exists := terragruntOptions.FeatureFlags[flagName]; !exists {
-				terragruntOptions.FeatureFlags[flagName] = defaultValue
+			if _, exists := terragruntOptions.FeatureFlags.Load(flagName); !exists {
+				terragruntOptions.FeatureFlags.Store(flagName, defaultValue)
 			}
 		}
 	}
