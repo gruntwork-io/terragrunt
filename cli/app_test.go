@@ -503,7 +503,9 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 	app.Writer = &bytes.Buffer{}
 	app.ErrWriter = &bytes.Buffer{}
 	app.Flags = append(flags.NewGlobalFlags(opts), run.NewFlags(opts)...)
-	app.Commands = terragruntCommands.WrapAction(cli.WrapWithTelemetry(opts))
+	app.Commands = append(
+		commands.NewDeprecatedCommands(opts),
+		terragruntCommands...).WrapAction(cli.WrapWithTelemetry(opts))
 	app.DefaultCommand = defaultCommand.WrapAction(cli.WrapWithTelemetry(opts))
 	app.OsExiter = cli.OSExiter
 	app.ExitErrHandler = cli.ExitErrHandler
