@@ -30,7 +30,7 @@ const (
 	DownloadDirFlagName                    = "download-dir"
 	TFForwardStdoutFlagName                = "tf-forward-stdout"
 	TFPathFlagName                         = "tf-path"
-	FeatureMapFlagName                     = "feature"
+	FeatureFlagName                        = "feature"
 	ParallelismFlagName                    = "parallelism"
 	DebugInputsFlagName                    = "debug-inputs"
 	UnitsThatIncludeFlagName               = "units-that-include"
@@ -707,11 +707,17 @@ func NewCommonFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "Run the provided command and arguments to authenticate Terragrunt dynamically when necessary.",
 		}),
 		MapWithDeprecatedFlag(opts, &cli.MapFlag[string, string]{
-			Name:        FeatureMapFlagName,
-			EnvVars:     EnvVars(FeatureMapFlagName),
-			Destination: &opts.FeatureFlags,
-			Usage:       "Set feature flags for the HCL code.",
-			Splitter:    util.SplitComma,
+			Name:     FeatureFlagName,
+			EnvVars:  EnvVars(FeatureFlagName),
+			Usage:    "Set feature flags for the HCL code.",
+			Splitter: util.SplitComma,
+			Action: func(_ *cli.Context, value map[string]string) error {
+				for key, val := range value {
+					opts.FeatureFlags.Store(key, val)
+				}
+
+				return nil
+			},
 		}),
 		// Terragrunt engine flags
 		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
