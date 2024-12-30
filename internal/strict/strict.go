@@ -43,6 +43,8 @@ const (
 	OutputAll = "output-all"
 	// ValidateAll is the control that prevents the deprecated `validate-all` command from being used.
 	ValidateAll = "validate-all"
+	// DefaultCommand is the control that prevents the deprecated default command from being used.
+	DefaultCommand = "default-command"
 	// SkipDependenciesInputs is the control that prevents reading dependencies inputs and get performance boost.
 	SkipDependenciesInputs = "skip-dependencies-inputs"
 	// DisableLogFormattingName is the control that prevents the deprecated `--terragrunt-disable-log-formatting` flag from being used.
@@ -127,6 +129,10 @@ var StrictControls = Controls{
 	ValidateAll: {
 		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all validate` instead.", ValidateAll),
 		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all validate` instead.", ValidateAll),
+	},
+	DefaultCommand: {
+		Error:   errors.Errorf("The default command is no longer supported. Use `terragrunt run` instead."),
+		Warning: fmt.Sprintf("The default command is deprecated and will be removed in a future version. Use `terragrunt run` instead."),
 	},
 	SkipDependenciesInputs: {
 		Error:   errors.Errorf("The `%s` option is deprecated. Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs),

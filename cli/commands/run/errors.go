@@ -12,7 +12,7 @@ import (
 type MissingCommand struct{}
 
 func (err MissingCommand) Error() string {
-	return "Missing terraform command (Example: terragrunt plan)"
+	return "Missing terraform command (Example: terragrunt run plan)"
 }
 
 type WrongTerraformCommand string
@@ -56,4 +56,13 @@ type MaxRetriesExceeded struct {
 
 func (err MaxRetriesExceeded) Error() string {
 	return fmt.Sprintf("Exhausted retries (%v) for command %v %v", err.Opts.RetryMaxAttempts, err.Opts.TerraformPath, strings.Join(err.Opts.TerraformCliArgs, " "))
+}
+
+type RunAllDisabledErr struct {
+	command string
+	reason  string
+}
+
+func (err RunAllDisabledErr) Error() string {
+	return fmt.Sprintf("%s with run-all is disabled: %s", err.command, err.reason)
 }

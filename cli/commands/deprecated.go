@@ -1,5 +1,5 @@
 //nolint:unparam
-package cli
+package commands
 
 import (
 	"fmt"
@@ -79,7 +79,7 @@ func replaceDeprecatedCommandFunc(terragruntCommandName, terraformCommandName st
 	}
 }
 
-func DeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
+func NewDeprecatedCommands(opts *options.TerragruntOptions) cli.Commands {
 	var commands cli.Commands
 
 	for commandName, runFunc := range replaceDeprecatedCommandsFuncs {

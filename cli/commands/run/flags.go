@@ -10,6 +10,8 @@ import (
 )
 
 const (
+	AllFlagName                            = "all"
+	GraphFlagName                          = "graph"
 	ConfigFlagName                         = "config"
 	NoAutoInitFlagName                     = "no-auto-init"
 	NoAutoRetryFlagName                    = "no-auto-retry"
@@ -100,6 +102,21 @@ const (
 // NewFlags creates and returns global flags.
 func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 	flags := cli.Flags{
+		&cli.BoolFlag{
+			Name:        AllFlagName,
+			EnvVars:     flags.EnvVars(AllFlagName),
+			Destination: &opts.SourceUpdate,
+			Usage:       `Run the specified OpenTofu/Terraform command on the "Stack" of Units in the current directory.`,
+		},
+		&cli.BoolFlag{
+			Name:        GraphFlagName,
+			EnvVars:     flags.EnvVars(GraphFlagName),
+			Destination: &opts.SourceUpdate,
+			Usage:       "Run the specified OpenTofu/Terraform command following the Directed Acyclic Graph (DAG) of dependencies.",
+		},
+
+		//  Backward compatibility with `terragrunt-` prefix flags.
+
 		flags.GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:        ConfigFlagName,
 			EnvVars:     flags.EnvVars(ConfigFlagName),

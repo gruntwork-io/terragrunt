@@ -21,10 +21,11 @@ var (
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
-		Name:   CommandName,
-		Usage:  "Terragrunt forwards all other commands directly to Terraform",
-		Flags:  NewFlags(opts),
-		Action: Action(opts),
+		Name:                 CommandName,
+		Usage:                "Terragrunt forwards all other commands directly to Terraform",
+		Flags:                NewFlags(opts),
+		ErrorOnUndefinedFlag: true,
+		Action:               Action(opts),
 	}
 }
 

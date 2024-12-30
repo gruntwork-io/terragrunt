@@ -18,6 +18,7 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/cli/commands/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclvalidate"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
@@ -69,15 +70,10 @@ func NewApp(opts *options.TerragruntOptions) *App {
 	app.Version = version.GetVersion()
 	app.Writer = opts.Writer
 	app.ErrWriter = opts.ErrWriter
-
 	app.Flags = flags.NewGlobalFlags(opts)
-
-	app.Commands = append(
-		DeprecatedCommands(opts),
-		TerragruntCommands(opts)...).WrapAction(WrapWithTelemetry(opts))
-
+	app.Commands = TerragruntCommands(opts).WrapAction(WrapWithTelemetry(opts))
 	app.Before = beforeAction(opts)
-	app.DefaultCommand = runCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
+	app.DefaultCommand = commands.NewDetaultCommand(opts).WrapAction(WrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
 	app.OsExiter = OSExiter
 	app.ExitErrHandler = ExitErrHandler
 
@@ -183,12 +179,11 @@ func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 		graph.NewCommand(opts),              // graph
 		hclvalidate.NewCommand(opts),        // hclvalidate
 		execCmd.NewCommand(opts),            // exec
+		runCmd.NewCommand(opts),             // run
 	}
+	cmds = append(cmds, commands.NewDeprecatedCommands(opts)...)
 
 	sort.Sort(cmds)
-
-	// add terraform command `*` after sorting to put the command at the end of the list in the help.
-	cmds.Add(runCmd.NewCommand(opts))
 
 	return cmds
 }
@@ -283,7 +278,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	cmdName := cliCtx.Command.Name
 
 	switch cmdName {
-	case runCmd.CommandName, runall.CommandName, graph.CommandName:
+	case runCmd.CommandName, runall.CommandName, graph.CommandName, commands.DefaultCommandName:
 		cmdName = args.CommandName()
 
 		// `terraform apply -destroy` is an alias for `terraform destroy`.
