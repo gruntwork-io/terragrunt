@@ -1,16 +1,21 @@
 //go:build linux || darwin
 // +build linux darwin
 
-package shell_test
+package terraform_test
 
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 
-	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
+	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 
 	"github.com/stretchr/testify/assert"
@@ -19,36 +24,35 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-func TestCommandOutputOrder(t *testing.T) {
+var (
+	FullOutput = []string{"stdout1", "stderr1", "stdout2", "stderr2", "stderr3"}
+	Stdout     = []string{"stdout1", "stdout2"}
+	Stderr     = []string{"stderr1", "stderr2", "stderr3"}
+)
+
+func TestCommandOutputPrefix(t *testing.T) {
 	t.Parallel()
+	prefix := "."
+	terraformPath := "testdata/test_outputs.sh"
+	prefixedOutput := []string{}
+	for _, line := range FullOutput {
+		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s tf-path=%s msg=%s", prefix, filepath.Base(terraformPath), line))
+	}
 
-	t.Run("withPtty", func(t *testing.T) {
-		t.Parallel()
-		testCommandOutputOrder(t, true,
-			[]string{"stdout1", "stderr1", "stdout2", "stderr2", "stderr3"},
-			[]string{"stdout1", "stdout2"},
-			[]string{"stderr1", "stderr2", "stderr3"},
-		)
-	})
-	t.Run("withoutPtty", func(t *testing.T) {
-		t.Parallel()
-		testCommandOutputOrder(t, false,
-			[]string{"stderr1", "stderr2", "stderr3"},
-			[]string{"stdout1", "stdout2"},
-			[]string{"stderr1", "stderr2", "stderr3"},
-		)
-	})
+	logFormatter := format.NewFormatter(format.NewKeyValueFormat())
+
+	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
+		terragruntOptions.TerraformPath = terraformPath
+		terragruntOptions.Logger.SetOptions(log.WithFormatter(logFormatter))
+		terragruntOptions.Logger = terragruntOptions.Logger.WithField(placeholders.WorkDirKeyName, prefix)
+	}, assertOutputs(t,
+		prefixedOutput,
+		Stdout,
+		Stderr,
+	))
 }
 
-func noop[T any](t T) {}
-
-func testCommandOutputOrder(t *testing.T, withPtty bool, fullOutput []string, stdout []string, stderr []string) {
-	t.Helper()
-
-	testCommandOutput(t, noop[*options.TerragruntOptions], assertOutputs(t, fullOutput, stdout, stderr), withPtty)
-}
-
-func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions), assertResults func(string, *util.CmdOutput), allocateStdout bool) {
+func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions), assertResults func(string, *util.CmdOutput)) {
 	t.Helper()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
@@ -61,10 +65,11 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 	terragruntOptions.ErrWriter = &allOutputBuffer
 
 	terragruntOptions.TerraformCliArgs = append(terragruntOptions.TerraformCliArgs, "same")
+	terragruntOptions.TerraformPath = "testdata/test_outputs.sh"
 
 	withOptions(terragruntOptions)
 
-	out, err := shell.RunCommandWithOutput(context.Background(), terragruntOptions, "", !allocateStdout, false, "testdata/test_outputs.sh", "same")
+	out, err := terraform.RunCommandWithOutput(context.Background(), terragruntOptions, "same")
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")

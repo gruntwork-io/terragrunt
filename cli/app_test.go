@@ -496,7 +496,7 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 		}
 	}
 
-	defaultCommand := run.NewCommand(opts)
+	defaultCommand := commands.NewDefaultCommand(opts)
 	defaultCommand.Action = emptyAction
 
 	app := cliPkg.NewApp()

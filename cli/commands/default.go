@@ -10,7 +10,7 @@ import (
 
 const DefaultCommandName = "*"
 
-func NewDetaultCommand(opts *options.TerragruntOptions) *cli.Command {
+func NewDefaultCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmd := runCmd.NewCommand(opts)
 	cmd.Name = DefaultCommandName
 	cmd.Hidden = true
