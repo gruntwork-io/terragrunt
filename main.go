@@ -10,15 +10,16 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // The main entrypoint for Terragrunt
 func main() {
-	var exitCode shell.DetailedExitCode
+	var exitCode terraform.DetailedExitCode
 
 	ctx := context.Background()
-	ctx = shell.ContextWithDetailedExitCode(ctx, &exitCode)
+	ctx = terraform.ContextWithDetailedExitCode(ctx, &exitCode)
 
 	opts := options.NewTerragruntOptions()
 	parseAndSetLogEnvs(opts)

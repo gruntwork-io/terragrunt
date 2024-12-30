@@ -37,7 +37,7 @@ func runTargetCommand(cmdOpts *Options, args cli.Args) run.TargetCallbackType {
 		}
 
 		return run.RunActionWithHooks(ctx, command, opts, cfg, func(ctx context.Context) error {
-			_, err := shell.RunShellCommandWithOutput(ctx, opts, dir, false, false, command, args...)
+			_, err := shell.RunCommandWithOutput(ctx, opts, dir, false, false, command, args...)
 
 			return err
 		})

@@ -19,10 +19,10 @@ func TestRunShellCommand(t *testing.T) {
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
 	require.NoError(t, err, "Unexpected error creating NewTerragruntOptionsForTest: %v", err)
 
-	cmd := shell.RunShellCommand(context.Background(), terragruntOptions, "terraform", "--version")
+	cmd := shell.RunCommand(context.Background(), terragruntOptions, "terraform", "--version")
 	require.NoError(t, cmd)
 
-	cmd = shell.RunShellCommand(context.Background(), terragruntOptions, "terraform", "not-a-real-command")
+	cmd = shell.RunCommand(context.Background(), terragruntOptions, "terraform", "not-a-real-command")
 	require.Error(t, cmd)
 }
 
@@ -38,7 +38,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	terragruntOptions.Writer = stdout
 	terragruntOptions.ErrWriter = stderr
 
-	cmd := shell.RunShellCommand(context.Background(), terragruntOptions, "terraform", "--version")
+	cmd := shell.RunCommand(context.Background(), terragruntOptions, "terraform", "--version")
 	require.NoError(t, cmd)
 
 	assert.Contains(t, stdout.String(), "Terraform", "Output directed to stdout")
@@ -51,7 +51,7 @@ func TestRunShellOutputToStderrAndStdout(t *testing.T) {
 	terragruntOptions.Writer = stderr
 	terragruntOptions.ErrWriter = stderr
 
-	cmd = shell.RunShellCommand(context.Background(), terragruntOptions, "terraform", "--version")
+	cmd = shell.RunCommand(context.Background(), terragruntOptions, "terraform", "--version")
 	require.NoError(t, cmd)
 
 	assert.Contains(t, stderr.String(), "Terraform", "Output directed to stderr")
@@ -77,8 +77,8 @@ func TestLastReleaseTag(t *testing.T) {
 func TestGitLevelTopDirCaching(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
-	c := cache.ContextCache[string](ctx, shell.RunCmdCacheContextKey)
+	ctx = cache.ContextWithCache(ctx)
+	c := cache.ContextCache[string](ctx, cache.RunCmdCacheContextKey)
 	assert.NotNil(t, c)
 	assert.Empty(t, c.Cache)
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")

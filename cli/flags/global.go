@@ -13,7 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
-	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/terraform"
 )
 
 const EnvVarPrefix = "TG_"
@@ -305,7 +305,7 @@ func NewHelpVersionFlags(opts *options.TerragruntOptions) cli.Flags {
 					if ok := errors.As(err, &invalidCommandNameError); ok {
 						terraformHelpCmd := append([]string{cmdName, "-help"}, ctx.Args().Tail()...)
 
-						return shell.RunTerraformCommand(ctx, opts, terraformHelpCmd...)
+						return terraform.RunCommand(ctx, opts, terraformHelpCmd...)
 					}
 
 					return err

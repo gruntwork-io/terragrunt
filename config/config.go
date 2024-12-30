@@ -14,10 +14,10 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/writer"
+	"github.com/gruntwork-io/terragrunt/terraform"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
 	"github.com/mitchellh/mapstructure"
@@ -743,7 +743,7 @@ func isTerragruntModuleDir(path string, terragruntOptions *options.TerragruntOpt
 func ReadTerragruntConfig(ctx context.Context, terragruntOptions *options.TerragruntOptions, parserOptions []hclparse.Option) (*TerragruntConfig, error) {
 	terragruntOptions.Logger.Debugf("Reading Terragrunt config file at %s", terragruntOptions.TerragruntConfigPath)
 
-	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
+	ctx = terraform.ContextWithTerraformCommandHook(ctx, nil)
 	parcingCtx := NewParsingContext(ctx, terragruntOptions).WithParseOption(parserOptions)
 
 	// TODO: Remove lint ignore

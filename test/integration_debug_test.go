@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -56,7 +56,7 @@ func TestDebugGeneratedInputs(t *testing.T) {
 	mockOptions.WorkingDir = rootPath
 	require.NoError(
 		t,
-		shell.RunTerraformCommand(context.Background(), mockOptions, "apply", "-auto-approve", "-var-file", debugFile),
+		terraform.RunCommand(context.Background(), mockOptions, "apply", "-auto-approve", "-var-file", debugFile),
 	)
 
 	stdout = bytes.Buffer{}

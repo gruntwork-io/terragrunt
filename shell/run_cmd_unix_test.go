@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunShellCommandWithOutputInterrupt(t *testing.T) {
+func TestRunCommandWithOutputInterrupt(t *testing.T) {
 	t.Parallel()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
@@ -33,7 +33,7 @@ func TestRunShellCommandWithOutputInterrupt(t *testing.T) {
 	cmdPath := "testdata/test_sigint_wait.sh"
 
 	go func() {
-		_, err := shell.RunShellCommandWithOutput(ctx, terragruntOptions, "", false, false, cmdPath, strconv.Itoa(expectedWait))
+		_, err := shell.RunCommandWithOutput(ctx, terragruntOptions, "", false, false, cmdPath, strconv.Itoa(expectedWait))
 		errCh <- err
 	}()
 

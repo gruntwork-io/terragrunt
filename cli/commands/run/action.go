@@ -94,7 +94,7 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 		return err
 	}
 
-	if err := checkVersionConstraints(ctx, terragruntOptions); err != nil {
+	if err := config.CheckVersionConstraints(ctx, terragruntOptions); err != nil {
 		return target.runErrorCallback(terragruntOptions, nil, err)
 	}
 
@@ -467,7 +467,7 @@ func SetTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, 
 func RunTerraformWithRetry(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
 	// Retry the command configurable time with sleep in between
 	for i := 0; i < terragruntOptions.RetryMaxAttempts; i++ {
-		if out, err := shell.RunTerraformCommandWithOutput(ctx, terragruntOptions, terragruntOptions.TerraformCliArgs...); err != nil {
+		if out, err := terraform.RunCommandWithOutput(ctx, terragruntOptions, terragruntOptions.TerraformCliArgs...); err != nil {
 			if out == nil || !IsRetryable(terragruntOptions, out) {
 				terragruntOptions.Logger.Errorf("%s invocation failed in %s", terragruntOptions.TerraformImplementation, terragruntOptions.WorkingDir)
 

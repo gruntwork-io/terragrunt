@@ -374,7 +374,7 @@ func RunCommand(ctx *ParsingContext, args []string) (string, error) {
 		return cachedValue, nil
 	}
 
-	cmdOutput, err := shell.RunShellCommandWithOutput(ctx, ctx.TerragruntOptions, currentPath, suppressOutput, false, args[0], args[1:]...)
+	cmdOutput, err := shell.RunCommandWithOutput(ctx, ctx.TerragruntOptions, currentPath, suppressOutput, false, args[0], args[1:]...)
 	if err != nil {
 		return "", errors.New(err)
 	}

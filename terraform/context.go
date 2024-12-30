@@ -1,4 +1,4 @@
-package shell
+package terraform
 
 import (
 	"context"
@@ -12,10 +12,7 @@ import (
 
 const (
 	TerraformCommandContextKey ctxKey = iota
-	RunCmdCacheContextKey
 	DetailedExitCodeContextKey
-
-	runCmdCacheName = "runCmdCache"
 )
 
 type ctxKey byte
@@ -24,7 +21,7 @@ type ctxKey byte
 type RunShellCommandFunc func(ctx context.Context, opts *options.TerragruntOptions, args cli.Args) (*util.CmdOutput, error)
 
 func ContextWithTerraformCommandHook(ctx context.Context, fn RunShellCommandFunc) context.Context {
-	ctx = context.WithValue(ctx, RunCmdCacheContextKey, cache.NewCache[string](runCmdCacheName))
+	ctx = cache.ContextWithCache(ctx)
 	return context.WithValue(ctx, TerraformCommandContextKey, fn)
 }
 

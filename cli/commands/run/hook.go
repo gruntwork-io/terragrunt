@@ -71,7 +71,7 @@ func processErrorHooks(ctx context.Context, hooks []config.ErrorHook, terragrunt
 			actionParams := curHook.Execute[1:]
 			terragruntOptions = terragruntOptionsWithHookEnvs(terragruntOptions, curHook.Name)
 
-			_, possibleError := shell.RunShellCommandWithOutput(
+			_, possibleError := shell.RunCommandWithOutput(
 				ctx,
 				terragruntOptions,
 				workingDir,
@@ -157,7 +157,7 @@ func runHook(ctx context.Context, terragruntOptions *options.TerragruntOptions, 
 			return err
 		}
 	} else {
-		_, possibleError := shell.RunShellCommandWithOutput(
+		_, possibleError := shell.RunCommandWithOutput(
 			ctx,
 			terragruntOptions,
 			workingDir,

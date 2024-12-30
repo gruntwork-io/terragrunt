@@ -15,7 +15,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/terraform/cache"
 	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
@@ -158,7 +157,7 @@ func (cache *ProviderCache) TerraformCommandHook(
 	args cli.Args,
 ) (*util.CmdOutput, error) {
 	// To prevent a loop
-	ctx = shell.ContextWithTerraformCommandHook(ctx, nil)
+	ctx = terraform.ContextWithTerraformCommandHook(ctx, nil)
 
 	cliConfigFilename := filepath.Join(opts.WorkingDir, localCLIFilename)
 
@@ -186,7 +185,7 @@ func (cache *ProviderCache) TerraformCommandHook(
 		skipRunTargetCommand = true
 	default:
 		// skip cache creation for all other commands
-		return shell.RunTerraformCommandWithOutput(ctx, opts, args...)
+		return terraform.RunCommandWithOutput(ctx, opts, args...)
 	}
 
 	if output, err := cache.warmUpCache(ctx, opts, cliConfigFilename, args, env); err != nil {
@@ -258,7 +257,7 @@ func (cache *ProviderCache) runTerraformWithCache(
 	cloneOpts.WorkingDir = opts.WorkingDir
 	cloneOpts.Env = env
 
-	return shell.RunTerraformCommandWithOutput(ctx, cloneOpts, args...)
+	return terraform.RunCommandWithOutput(ctx, cloneOpts, args...)
 }
 
 // createLocalCLIConfig creates a local CLI config that merges the default/user configuration with our Provider Cache configuration.
@@ -353,7 +352,7 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 	cloneOpts.TerraformCliArgs = args
 	cloneOpts.Env = envs
 
-	output, err := shell.RunTerraformCommandWithOutput(ctx, cloneOpts, cloneOpts.TerraformCliArgs...)
+	output, err := terraform.RunCommandWithOutput(ctx, cloneOpts, cloneOpts.TerraformCliArgs...)
 	// If the Terraform error matches `httpStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process the error as is.
 	if err != nil && httpStatusCacheProviderReg.Match(output.Stderr.Bytes()) {
 		return new(util.CmdOutput), nil

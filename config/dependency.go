@@ -32,7 +32,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
-	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/util"
 )
@@ -845,7 +844,7 @@ func getTerragruntOutputJSONFromInitFolder(ctx *ParsingContext, terraformWorking
 
 	ctx.TerragruntOptions.Logger.Debugf("Detected module %s is already init-ed. Retrieving outputs directly from working directory.", targetTGOptions.TerragruntConfigPath)
 
-	out, err := shell.RunTerraformCommandWithOutput(ctx, targetTGOptions, terraform.CommandNameOutput, "-json")
+	out, err := terraform.RunCommandWithOutput(ctx, targetTGOptions, terraform.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -952,7 +951,7 @@ func getTerragruntOutputJSONFromRemoteState(
 	}
 
 	// Now that the backend is initialized, run terraform output to get the data and return it.
-	out, err := shell.RunTerraformCommandWithOutput(ctx, targetTGOptions, terraform.CommandNameOutput, "-json")
+	out, err := terraform.RunCommandWithOutput(ctx, targetTGOptions, terraform.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -1138,7 +1137,7 @@ func runTerraformInitForDependencyOutput(ctx *ParsingContext, workingDir string,
 	initTGOptions.WorkingDir = workingDir
 	initTGOptions.ErrWriter = &stderr
 
-	if err = shell.RunTerraformCommand(ctx, initTGOptions, terraform.CommandNameInit, "-get=false"); err != nil {
+	if err = terraform.RunCommand(ctx, initTGOptions, terraform.CommandNameInit, "-get=false"); err != nil {
 		ctx.TerragruntOptions.Logger.Debugf("Ignoring expected error from dependency init call")
 		ctx.TerragruntOptions.Logger.Debugf("Init call stderr:")
 		ctx.TerragruntOptions.Logger.Debugf(stderr.String())

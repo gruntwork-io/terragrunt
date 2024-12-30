@@ -25,8 +25,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 
-	"github.com/gruntwork-io/terragrunt/shell"
-
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -240,7 +238,7 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 		}
 		defer ln.Close() //nolint:errcheck
 
-		cliCtx.Context = shell.ContextWithTerraformCommandHook(ctx, server.TerraformCommandHook)
+		cliCtx.Context = terraform.ContextWithTerraformCommandHook(ctx, server.TerraformCommandHook)
 
 		errGroup.Go(func() error {
 			return server.Run(ctx, ln)

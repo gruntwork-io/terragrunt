@@ -1,4 +1,4 @@
-package run
+package config
 
 import (
 	"context"
@@ -7,10 +7,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/shell"
+	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/hashicorp/go-version"
 )
 
@@ -28,18 +27,18 @@ var TerraformVersionRegex = regexp.MustCompile(`^(\S+)\s(v?\d+\.\d+\.\d+)`)
 
 const versionParts = 3
 
-// Check the version constraints of both terragrunt and terraform. Note that as a side effect this will set the
+// CheckVersionConstraints checks the version constraints of both terragrunt and terraform. Note that as a side effect this will set the
 // following settings on terragruntOptions:
 // - TerraformPath
 // - TerraformVersion
 // - FeatureFlags
 // TODO: Look into a way to refactor this function to avoid the side effect.
-func checkVersionConstraints(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
-	configContext := config.NewParsingContext(ctx, terragruntOptions).WithDecodeList(
-		config.TerragruntVersionConstraints, config.FeatureFlagsBlock)
+func CheckVersionConstraints(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
+	configContext := NewParsingContext(ctx, terragruntOptions).WithDecodeList(
+		TerragruntVersionConstraints, FeatureFlagsBlock)
 
 	// TODO: See if we should be ignore this lint error
-	partialTerragruntConfig, err := config.PartialParseConfigFile( //nolint: contextcheck
+	partialTerragruntConfig, err := PartialParseConfigFile( //nolint: contextcheck
 		configContext,
 		terragruntOptions.TerragruntConfigPath,
 		nil,
@@ -112,7 +111,7 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 		}
 	}
 
-	output, err := shell.RunTerraformCommandWithOutput(ctx, terragruntOptionsCopy, "--version")
+	output, err := terraform.RunCommandWithOutput(ctx, terragruntOptionsCopy, terraform.FlagNameVersion)
 	if err != nil {
 		return err
 	}
