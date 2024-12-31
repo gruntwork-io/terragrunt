@@ -187,36 +187,15 @@ func DecodeBaseBlocks(ctx *ParsingContext, file *hclparse.File, includeFromChild
 }
 
 func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
-	evaluatedFlags := map[string]cty.Value{}
 	// extract all flags in map by name
 	flagByName := map[string]*FeatureFlag{}
 	for _, flag := range tgFlags {
 		flagByName[flag.Name] = flag
 	}
 
-	for name, value := range ctx.TerragruntOptions.FeatureFlags {
-		// convert flag value to respective type
-		var evaluatedFlag cty.Value
-
-		existingFlag, exists := flagByName[name]
-
-		if exists {
-			flag, err := flagToTypedCtyValue(name, existingFlag.Default.Type(), value)
-			if err != nil {
-				return cty.NilVal, err
-			}
-
-			evaluatedFlag = flag
-		} else {
-			flag, err := flagToCtyValue(name, value)
-			if err != nil {
-				return cty.NilVal, err
-			}
-
-			evaluatedFlag = flag
-		}
-
-		evaluatedFlags[name] = evaluatedFlag
+	evaluatedFlags, err := cliFlagsToCty(ctx, flagByName)
+	if err != nil {
+		return cty.NilVal, err
 	}
 
 	for _, flag := range tgFlags {
@@ -238,6 +217,46 @@ func flagsAsCty(ctx *ParsingContext, tgFlags FeatureFlags) (cty.Value, error) {
 	}
 
 	return flagsAsCtyVal, nil
+}
+
+// cliFlagsToCty converts CLI feature flags to Cty values. It returns a map of flag names
+// to their corresponding Cty values and any error encountered during conversion.
+func cliFlagsToCty(ctx *ParsingContext, flagByName map[string]*FeatureFlag) (map[string]cty.Value, error) {
+	if ctx.TerragruntOptions.FeatureFlags == nil {
+		return make(map[string]cty.Value), nil
+	}
+
+	evaluatedFlags := make(map[string]cty.Value)
+
+	var conversionErr error
+
+	ctx.TerragruntOptions.FeatureFlags.Range(func(name, value string) bool {
+		var flag cty.Value
+
+		var err error
+
+		if existingFlag, ok := flagByName[name]; ok {
+			flag, err = flagToTypedCtyValue(name, existingFlag.Default.Type(), value)
+		} else {
+			flag, err = flagToCtyValue(name, value)
+		}
+
+		if err != nil {
+			conversionErr = err
+
+			return false
+		}
+
+		evaluatedFlags[name] = flag
+
+		return true
+	})
+
+	if conversionErr != nil {
+		return nil, conversionErr
+	}
+
+	return evaluatedFlags, nil
 }
 
 func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *IncludeConfig) (*TerragruntConfig, error) {

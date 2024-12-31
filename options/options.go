@@ -379,8 +379,8 @@ type TerragruntOptions struct {
 	// Experiments is a map of experiments, and their status.
 	Experiments experiment.Experiments
 
-	// FeatureFlags is a map of feature flags to enable.
-	FeatureFlags map[string]string
+	// ]FeatureFlags is a map of feature flags to enable.
+	FeatureFlags *xsync.MapOf[string, string]
 
 	// ReadFiles is a map of files to the Units
 	// that read them using HCL functions in the unit.
@@ -514,7 +514,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
 		OutputFolder:               "",
 		JSONOutputFolder:           "",
-		FeatureFlags:               map[string]string{},
+		FeatureFlags:               xsync.NewMapOf[string, string](),
 		ReadFiles:                  xsync.NewMapOf[string, []string](),
 		ExperimentMode:             false,
 		Experiments:                experiment.NewExperiments(),
