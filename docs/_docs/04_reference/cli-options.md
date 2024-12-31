@@ -33,68 +33,72 @@ This page documents the CLI commands and options available with Terragrunt:
   - [catalog](#catalog)
   - [graph](#graph)
 - [CLI options](#cli-options)
-  - [terragrunt-config](#terragrunt-config)
-  - [terragrunt-tfpath](#terragrunt-tfpath)
-  - [terragrunt-no-auto-init](#terragrunt-no-auto-init)
-  - [terragrunt-no-auto-approve](#terragrunt-no-auto-approve)
-  - [terragrunt-no-auto-retry](#terragrunt-no-auto-retry)
-  - [terragrunt-non-interactive](#terragrunt-non-interactive)
-  - [terragrunt-working-dir](#terragrunt-working-dir)
-  - [terragrunt-download-dir](#terragrunt-download-dir)
-  - [terragrunt-source](#terragrunt-source)
-  - [terragrunt-source-map](#terragrunt-source-map)
-  - [terragrunt-source-update](#terragrunt-source-update)
-  - [terragrunt-ignore-dependency-errors](#terragrunt-ignore-dependency-errors)
-  - [terragrunt-iam-role](#terragrunt-iam-role)
-  - [terragrunt-iam-assume-role-duration](#terragrunt-iam-assume-role-duration)
-  - [terragrunt-iam-assume-role-session-name](#terragrunt-iam-assume-role-session-name)
-  - [terragrunt-iam-web-identity-token](#terragrunt-iam-web-identity-token)
-  - [terragrunt-excludes-file](#terragrunt-excludes-file)
-  - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
-  - [terragrunt-include-dir](#terragrunt-include-dir)
-  - [terragrunt-strict-include](#terragrunt-strict-include)
-  - [terragrunt-strict-validate](#terragrunt-strict-validate)
-  - [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
-  - [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
-  - [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
-  - [terragrunt-parallelism](#terragrunt-parallelism)
-  - [terragrunt-debug](#terragrunt-debug)
-  - [terragrunt-log-level](#terragrunt-log-level)
-  - [terragrunt-log-disable](#terragrunt-log-disable)
-  - [terragrunt-log-format](#terragrunt-log-format)
-  - [terragrunt-log-custom-format](#terragrunt-log-custom-format)
-  - [terragrunt-log-show-abs-paths](#terragrunt-log-show-abs-paths)
-  - [terragrunt-no-color](#terragrunt-no-color)
   - [terragrunt-check](#terragrunt-check)
+  - [terragrunt-config](#terragrunt-config)
+  - [terragrunt-debug](#terragrunt-debug)
   - [terragrunt-diff](#terragrunt-diff)
+  - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
+  - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
+  - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
+  - [terragrunt-download-dir](#terragrunt-download-dir)
+  - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
+  - [terragrunt-excludes-file](#terragrunt-excludes-file)
+  - [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
+  - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
+  - [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout)
   - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
   - [terragrunt-hclfmt-stdin](#terragrunt-hclfmt-stdin)
   - [terragrunt-hclvalidate-json](#terragrunt-hclvalidate-json)
   - [terragrunt-hclvalidate-show-config-path](#terragrunt-hclvalidate-show-config-path)
-  - [terragrunt-override-attr](#terragrunt-override-attr)
-  - [terragrunt-json-out](#terragrunt-json-out)
-  - [terragrunt-json-disable-dependent-modules](#terragrunt-json-disable-dependent-modules)
-  - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
-  - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
-  - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
+  - [terragrunt-iam-assume-role-duration](#terragrunt-iam-assume-role-duration)
+  - [terragrunt-iam-assume-role-session-name](#terragrunt-iam-assume-role-session-name)
+  - [terragrunt-iam-role](#terragrunt-iam-role)
+  - [terragrunt-iam-web-identity-token](#terragrunt-iam-web-identity-token)
+  - [terragrunt-ignore-dependency-errors](#terragrunt-ignore-dependency-errors)
+  - [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
+  - [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
+  - [terragrunt-include-dir](#terragrunt-include-dir)
+  - [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
   - [terragrunt-include-module-prefix](#terragrunt-include-module-prefix) (DEPRECATED: use [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout))
-  - [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
-  - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
-  - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
+  - [terragrunt-json-disable-dependent-modules](#terragrunt-json-disable-dependent-modules)
   - [terragrunt-json-log](#terragrunt-json-log) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-  - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-  - [terragrunt-provider-cache](#terragrunt-provider-cache)
+  - [terragrunt-json-out-dir](#terragrunt-json-out-dir)
+  - [terragrunt-json-out](#terragrunt-json-out)
+  - [terragrunt-log-custom-format](#terragrunt-log-custom-format)
+  - [terragrunt-log-disable](#terragrunt-log-disable)
+  - [terragrunt-log-format](#terragrunt-log-format)
+  - [terragrunt-log-level](#terragrunt-log-level)
+  - [terragrunt-log-show-abs-paths](#terragrunt-log-show-abs-paths)
+  - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
+  - [terragrunt-no-auto-approve](#terragrunt-no-auto-approve)
+  - [terragrunt-no-auto-init](#terragrunt-no-auto-init)
+  - [terragrunt-no-auto-retry](#terragrunt-no-auto-retry)
+  - [terragrunt-no-color](#terragrunt-no-color)
+  - [terragrunt-no-destroy-dependencies-check](#terragrunt-no-destroy-dependencies-check)
+  - [terragrunt-non-interactive](#terragrunt-non-interactive)
+  - [terragrunt-out-dir](#terragrunt-out-dir)
+  - [terragrunt-override-attr](#terragrunt-override-attr)
+  - [terragrunt-parallelism](#terragrunt-parallelism)
   - [terragrunt-provider-cache-dir](#terragrunt-provider-cache-dir)
   - [terragrunt-provider-cache-hostname](#terragrunt-provider-cache-hostname)
   - [terragrunt-provider-cache-port](#terragrunt-provider-cache-port)
-  - [terragrunt-provider-cache-token](#terragrunt-provider-cache-token)
   - [terragrunt-provider-cache-registry-names](#terragrunt-provider-cache-registry-names)
-  - [terragrunt-out-dir](#terragrunt-out-dir)
-  - [terragrunt-json-out-dir](#terragrunt-json-out-dir)
-  - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-  - [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout)
-  - [terragrunt-no-destroy-dependencies-check](#terragrunt-no-destroy-dependencies-check)
+  - [terragrunt-provider-cache-token](#terragrunt-provider-cache-token)
+  - [terragrunt-provider-cache](#terragrunt-provider-cache)
+  - [terragrunt-source-map](#terragrunt-source-map)
+  - [terragrunt-source-update](#terragrunt-source-update)
+  - [terragrunt-source](#terragrunt-source)
+  - [terragrunt-strict-include](#terragrunt-strict-include)
+  - [terragrunt-strict-validate](#terragrunt-strict-validate)
+  - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
+  - [terragrunt-tfpath](#terragrunt-tfpath)
+  - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
+  - [terragrunt-working-dir](#terragrunt-working-dir)
   - [feature](#feature)
+  - [experiment](#experiment)
+  - [experiment-mode](#experiment-mode)
+  - [strict-control](#strict-control)
+  - [strict-mode](#strict-mode)
 
 ## CLI commands
 
@@ -1298,7 +1302,7 @@ This lead to a faster rendering process, but the output will not include any dep
 
 **CLI Arg**: `--terragrunt-modules-that-include`<br/>
 **Environment Variable**: `TERRAGRUNT_MODULES_THAT_INCLUDE`<br/>
-**Requires an argument**: `--terragrunt-modules-that-include /path/to/included-terragrunt.hcl`<br/>
+**Requires an argument**: `--terragrunt-modules-that-include /path/to/included-hcl`<br/>
 **Commands**:
 
 - [run-all](#run-all)
@@ -1447,7 +1451,7 @@ Currently only AWS S3 backend is supported.
 **CLI Arg**: `--terragrunt-use-partial-parse-config-cache`<br/>
 **Environment Variable**: `TERRAGRUNT_USE_PARTIAL_PARSE_CONFIG_CACHE` (set to `true`)<br/>
 
-This flag can be used to drastically decrease time required for parsing Terragrunt files. The effect will only show if a lot of similar includes are expected such as the root terragrunt.hcl include.
+This flag can be used to drastically decrease time required for parsing Terragrunt files. The effect will only show if a lot of similar includes are expected such as the root terragrunt configuration (e.g. `root.hcl`) include.
 NOTE: This is an experimental feature, use with caution.
 
 The reason you might want to use this flag is that Terragrunt frequently only needs to perform a partial parse of Terragrunt configurations.
@@ -1759,3 +1763,39 @@ Setting feature flags through environment variables:
 export TERRAGRUNT_FEATURE=int_feature_flag=123,bool_feature_flag=true,string_feature_flag=app1
 terragrunt apply
 ```
+
+### experiment
+
+**CLI Arg**: `--experiment`<br/>
+**Environment Variable**: `TERRAGRUNT_EXPERIMENT`<br/>
+
+Enable experimental features in Terragrunt before they're stable.
+
+For more information, see the [Experiments](/docs/reference/experiments) documentation.
+
+### experiment-mode
+
+**CLI Arg**: `--experiment-mode`<br/>
+**Environment Variable**: `TERRAGRUNT_EXPERIMENT_MODE`<br/>
+
+Enable all experimental features in Terragrunt before they're stable.
+
+For more information, see the [Experiments](/docs/reference/experiments) documentation.
+
+### strict-control
+
+**CLI Arg**: `--strict-control`<br/>
+**Environment Variable**: `TERRAGRUNT_STRICT_CONTROL`<br/>
+
+Enable strict controls that opt-in future breaking changes in Terragrunt.
+
+For more information, see the [Strict Mode](/docs/reference/strict-mode) documentation.
+
+### strict-mode
+
+**CLI Arg**: `--strict-mode`<br/>
+**Environment Variable**: `TERRAGRUNT_STRICT_MODE`<br/>
+
+Enable all strict controls that opt-in future breaking changes in Terragrunt.
+
+For more information, see the [Strict Mode](/docs/reference/strict-mode) documentation.

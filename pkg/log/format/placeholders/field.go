@@ -9,6 +9,7 @@ const (
 	DownloadDirKeyName = "download-dir"
 	TFPathKeyName      = "tf-path"
 	TFCmdArgsKeyName   = "tf-command-args"
+	TFCmdKeyName       = "tf-command"
 )
 
 type fieldPlaceholder struct {

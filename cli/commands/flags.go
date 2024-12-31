@@ -6,6 +6,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/cli"
@@ -150,12 +151,22 @@ const (
 	TerragruntLogCustomFormatFlagName = "terragrunt-log-custom-format"
 	TerragruntLogCustomFormatEnvName  = "TERRAGRUNT_LOG_CUSTOM_FORMAT"
 
+	TerragruntLogDisableErrorSummaryFlagName = "terragrunt-log-disable-error-summary"
+	TerragruntLogDisableErrorSummaryEnvName  = "TERRAGRUNT_LOG_DISABLE_ERROR_SUMMARY"
+
 	// Strict Mode related flags/envs
 	TerragruntStrictModeFlagName = "strict-mode"
 	TerragruntStrictModeEnvName  = "TERRAGRUNT_STRICT_MODE"
 
 	TerragruntStrictControlFlagName = "strict-control"
 	TerragruntStrictControlEnvName  = "TERRAGRUNT_STRICT_CONTROL"
+
+	// Experiment Mode related flags/envs
+	TerragruntExperimentModeFlagName = "experiment-mode"
+	TerragruntExperimentModeEnvName  = "TERRAGRUNT_EXPERIMENT_MODE"
+
+	TerragruntExperimentFlagName = "experiment"
+	TerragruntExperimentEnvName  = "TERRAGRUNT_EXPERIMENT"
 
 	// Terragrunt Provider Cache related flags/envs
 
@@ -512,9 +523,45 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.StrictControls,
 			Usage:       "Enables specific strict controls. For a list of available controls, see https://terragrunt.gruntwork.io/docs/reference/strict-mode .",
 			Action: func(ctx *cli.Context, val []string) error {
-				if err := strict.StrictControls.ValidateControlNames(val); err != nil {
+				warning, err := strict.StrictControls.ValidateControlNames(val)
+				if err != nil {
 					return cli.NewExitError(err, 1)
 				}
+
+				if warning != "" {
+					log.Warn(warning)
+				}
+
+				return nil
+			},
+		},
+		// Experiment Mode flags
+		&cli.BoolFlag{
+			Name:        TerragruntExperimentModeFlagName,
+			EnvVar:      TerragruntExperimentModeEnvName,
+			Destination: &opts.ExperimentMode,
+			Usage:       "Enables experiment mode for Terragrunt. For more information, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
+		},
+		&cli.SliceFlag[string]{
+			Name:   TerragruntExperimentFlagName,
+			EnvVar: TerragruntExperimentEnvName,
+			Usage:  "Enables specific experiments. For a list of available experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
+			Action: func(ctx *cli.Context, val []string) error {
+				experiments := experiment.NewExperiments()
+				warning, err := experiments.ValidateExperimentNames(val)
+				if err != nil {
+					return cli.NewExitError(err, 1)
+				}
+
+				if warning != "" {
+					log.Warn(warning)
+				}
+
+				if err := experiments.EnableExperiments(val); err != nil {
+					return cli.NewExitError(err, 1)
+				}
+
+				opts.Experiments = experiments
 
 				return nil
 			},
@@ -563,11 +610,17 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "The command and arguments that can be used to fetch authentication configurations.",
 		},
 		&cli.MapFlag[string, string]{
-			Name:        TerragruntFeatureMapFlagName,
-			EnvVar:      TerragruntFeatureMapEnvName,
-			Destination: &opts.FeatureFlags,
-			Usage:       "Set feature flags for the HCL code.",
-			Splitter:    util.SplitComma,
+			Name:     TerragruntFeatureMapFlagName,
+			EnvVar:   TerragruntFeatureMapEnvName,
+			Usage:    "Set feature flags for the HCL code.",
+			Splitter: util.SplitComma,
+			Action: func(_ *cli.Context, value map[string]string) error {
+				for key, val := range value {
+					opts.FeatureFlags.Store(key, val)
+				}
+
+				return nil
+			},
 		},
 		// Terragrunt engine flags
 		&cli.BoolFlag{
@@ -597,6 +650,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Destination: &opts.EngineLogLevel,
 			Usage:       "Terragrunt engine log level.",
 			Hidden:      true,
+		},
+		&cli.BoolFlag{
+			Name:        TerragruntLogDisableErrorSummaryFlagName,
+			EnvVar:      TerragruntLogDisableErrorSummaryEnvName,
+			Destination: &opts.LogDisableErrorSummary,
+			Usage:       "Skip error summary at the end of the command.",
 		},
 	}
 
@@ -657,5 +716,68 @@ func NewVersionFlag(opts *options.TerragruntOptions) cli.Flag {
 
 			return cli.ShowVersion(ctx)
 		},
+	}
+}
+
+// Scaffold/Catalog shared flags
+
+const (
+	LegacyParentConfigName      = "terragrunt.hcl"
+	RecommendedParentConfigName = "root.hcl"
+
+	RootFileNameFlagName  = "root-file-name"
+	NoIncludeRootFlagName = "no-include-root"
+)
+
+func GetDefaultRootFileName(opts *options.TerragruntOptions) string {
+	if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
+		warn, triggered, err := control.Evaluate(opts)
+		if err != nil {
+			return RecommendedParentConfigName
+		}
+
+		if !triggered {
+			opts.Logger.Warnf(warn)
+		}
+	}
+
+	return LegacyParentConfigName
+}
+
+func NewRootFileNameFlag(opts *options.TerragruntOptions) cli.Flag {
+	return &cli.GenericFlag[string]{
+		Name:        RootFileNameFlagName,
+		Destination: &opts.ScaffoldRootFileName,
+		Usage:       "Name of the root Terragrunt configuration file, if used.",
+		Action: func(ctx *cli.Context, value string) error {
+			if value == "" {
+				return errors.New("root-file-name flag cannot be empty")
+			}
+
+			if value == opts.TerragruntConfigPath {
+				if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
+					warn, triggered, err := control.Evaluate(opts)
+					if err != nil {
+						return err
+					}
+
+					if !triggered {
+						opts.Logger.Warnf(warn)
+					}
+				}
+			}
+
+			opts.ScaffoldRootFileName = value
+
+			return nil
+		},
+	}
+}
+
+func NewNoIncludeRootFlag(opts *options.TerragruntOptions) cli.Flag {
+	return &cli.BoolFlag{
+		Name:        NoIncludeRootFlagName,
+		Destination: &opts.ScaffoldNoIncludeRoot,
+		Usage:       "Do not include root unit in scaffolding done by catalog.",
 	}
 }

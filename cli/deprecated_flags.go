@@ -47,12 +47,14 @@ func NewDeprecatedFlags(opts *options.TerragruntOptions) cli.Flags {
 				opts.LogFormatter.SetFormat(format.NewKeyValueFormat())
 
 				if control, ok := strict.GetStrictControl(strict.DisableLogFormatting); ok {
-					warn, err := control.Evaluate(opts)
+					warn, triggered, err := control.Evaluate(opts)
 					if err != nil {
 						return err
 					}
 
-					opts.Logger.Warnf(warn)
+					if !triggered {
+						opts.Logger.Warnf(warn)
+					}
 				}
 
 				return nil
@@ -68,12 +70,14 @@ func NewDeprecatedFlags(opts *options.TerragruntOptions) cli.Flags {
 				opts.LogFormatter.SetFormat(format.NewJSONFormat())
 
 				if control, ok := strict.GetStrictControl(strict.JSONLog); ok {
-					warn, err := control.Evaluate(opts)
+					warn, triggered, err := control.Evaluate(opts)
 					if err != nil {
 						return err
 					}
 
-					opts.Logger.Warnf(warn)
+					if !triggered {
+						opts.Logger.Warnf(warn)
+					}
 				}
 
 				return nil
@@ -86,12 +90,14 @@ func NewDeprecatedFlags(opts *options.TerragruntOptions) cli.Flags {
 			Hidden: true,
 			Action: func(_ *cli.Context, _ bool) error {
 				if control, ok := strict.GetStrictControl(strict.JSONLog); ok {
-					warn, err := control.Evaluate(opts)
+					warn, triggered, err := control.Evaluate(opts)
 					if err != nil {
 						return err
 					}
 
-					opts.Logger.Warnf(warn)
+					if !triggered {
+						opts.Logger.Warnf(warn)
+					}
 				}
 
 				return nil

@@ -24,7 +24,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/locks"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/terraform"
@@ -444,6 +446,23 @@ func FindInParentFolders(
 
 	previousDir = filepath.ToSlash(previousDir)
 
+	if fileToFindParam == "" || fileToFindParam == DefaultTerragruntConfigPath {
+		if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
+			warn, triggered, err := control.Evaluate(ctx.TerragruntOptions)
+			if err != nil {
+				return "", err
+			}
+
+			if !triggered {
+				ctx.TerragruntOptions.Logger.Warnf(warn)
+			}
+		}
+	}
+
+	// The strict control above will make this function return an error when no parameter is passed.
+	// When this becomes a breaking change, we can remove the strict control and
+	// do some validation here to ensure that users aren't using "terragrunt.hcl" as the root of their Terragrunt
+	// configurations.
 	fileToFindStr := DefaultTerragruntConfigPath
 	if fileToFindParam != "" {
 		fileToFindStr = fileToFindParam
@@ -573,7 +592,10 @@ func getWorkingDir(ctx *ParsingContext) (string, error) {
 		return ctx.TerragruntOptions.WorkingDir, nil
 	}
 
-	source, err := terraform.NewSource(sourceURL, ctx.TerragruntOptions.DownloadDir, ctx.TerragruntOptions.WorkingDir, ctx.TerragruntOptions.Logger)
+	experiment := ctx.TerragruntOptions.Experiments[experiment.Symlinks]
+	walkWithSymlinks := experiment.Evaluate(ctx.TerragruntOptions.ExperimentMode)
+
+	source, err := terraform.NewSource(sourceURL, ctx.TerragruntOptions.DownloadDir, ctx.TerragruntOptions.WorkingDir, ctx.TerragruntOptions.Logger, walkWithSymlinks)
 	if err != nil {
 		return "", err
 	}

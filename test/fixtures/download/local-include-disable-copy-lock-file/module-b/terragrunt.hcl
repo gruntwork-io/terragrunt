@@ -10,5 +10,5 @@ terraform {
 prevent_destroy = true
 
 include {
-  path = find_in_parent_folders("terragrunt.hcl")
+  path = find_in_parent_folders("root.hcl")
 }

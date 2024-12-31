@@ -266,7 +266,7 @@ func TestResolveTerraformModulesOneModuleWithIncludesNoDependencies(t *testing.T
 			Terraform: &config.TerraformConfig{Source: ptr("...")},
 			IsPartial: true,
 			ProcessedIncludes: map[string]config.IncludeConfig{
-				"": {Path: canonical(t, "../test/fixtures/modules/module-b/terragrunt.hcl")},
+				"": {Path: canonical(t, "../test/fixtures/modules/module-b/root.hcl")},
 			},
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -332,16 +332,16 @@ func TestResolveTerraformModulesReadConfigFromParentConfig(t *testing.T) {
 			Terraform: &config.TerraformConfig{Source: ptr("...")},
 			IsPartial: true,
 			ProcessedIncludes: map[string]config.IncludeConfig{
-				"": {Path: canonical(t, "../test/fixtures/modules/module-m/terragrunt.hcl")},
+				"": {Path: canonical(t, "../test/fixtures/modules/module-m/root.hcl")},
 			},
 			Locals:          localsConfigs,
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 			FieldsMetadata: map[string]map[string]interface{}{
 				"locals-env_vars": {
-					"found_in_file": canonical(t, "../test/fixtures/modules/module-m/terragrunt.hcl"),
+					"found_in_file": canonical(t, "../test/fixtures/modules/module-m/root.hcl"),
 				},
 				"locals-tier_vars": {
-					"found_in_file": canonical(t, "../test/fixtures/modules/module-m/terragrunt.hcl"),
+					"found_in_file": canonical(t, "../test/fixtures/modules/module-m/root.hcl"),
 				},
 			},
 		},
@@ -377,7 +377,7 @@ func TestResolveTerraformModulesOneJsonModuleWithIncludesNoDependencies(t *testi
 			Terraform: &config.TerraformConfig{Source: ptr("...")},
 			IsPartial: true,
 			ProcessedIncludes: map[string]config.IncludeConfig{
-				"": {Path: canonical(t, "../test/fixtures/modules/json-module-b/terragrunt.hcl")},
+				"": {Path: canonical(t, "../test/fixtures/modules/json-module-b/root.hcl")},
 			},
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -403,7 +403,7 @@ func TestResolveTerraformModulesOneHclModuleWithIncludesNoDependencies(t *testin
 			Terraform: &config.TerraformConfig{Source: ptr("...")},
 			IsPartial: true,
 			ProcessedIncludes: map[string]config.IncludeConfig{
-				"": {Path: canonical(t, "../test/fixtures/modules/hcl-module-b/terragrunt.hcl.json")},
+				"": {Path: canonical(t, "../test/fixtures/modules/hcl-module-b/root.hcl.json")},
 			},
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -844,7 +844,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependencies(t *testing.T) {
 			Terraform: &config.TerraformConfig{Source: ptr("...")},
 			IsPartial: true,
 			ProcessedIncludes: map[string]config.IncludeConfig{
-				"": {Path: canonical(t, "../test/fixtures/modules/module-b/terragrunt.hcl")},
+				"": {Path: canonical(t, "../test/fixtures/modules/module-b/root.hcl")},
 			},
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -904,7 +904,7 @@ func TestResolveTerraformModulesMultipleModulesWithMixedDependencies(t *testing.
 			Terraform: &config.TerraformConfig{Source: ptr("...")},
 			IsPartial: true,
 			ProcessedIncludes: map[string]config.IncludeConfig{
-				"": {Path: canonical(t, "../test/fixtures/modules/json-module-b/terragrunt.hcl")},
+				"": {Path: canonical(t, "../test/fixtures/modules/json-module-b/root.hcl")},
 			},
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -964,7 +964,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 			Terraform: &config.TerraformConfig{Source: ptr("...")},
 			IsPartial: true,
 			ProcessedIncludes: map[string]config.IncludeConfig{
-				"": {Path: canonical(t, "../test/fixtures/modules/module-b/terragrunt.hcl")},
+				"": {Path: canonical(t, "../test/fixtures/modules/module-b/root.hcl")},
 			},
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},
@@ -979,7 +979,7 @@ func TestResolveTerraformModulesMultipleModulesWithDependenciesWithIncludes(t *t
 			Terraform:    &config.TerraformConfig{Source: ptr("test")},
 			IsPartial:    true,
 			ProcessedIncludes: map[string]config.IncludeConfig{
-				"": {Path: canonical(t, "../test/fixtures/modules/module-e/terragrunt.hcl")},
+				"": {Path: canonical(t, "../test/fixtures/modules/module-e/root.hcl")},
 			},
 			GenerateConfigs: make(map[string]codegen.GenerateConfig),
 		},

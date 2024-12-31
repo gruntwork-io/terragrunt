@@ -44,6 +44,7 @@ func TestDefaultTemplateVariables(t *testing.T) {
 	vars["sourceUrl"] = "git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8"
 
 	vars["EnableRootInclude"] = false
+	vars["RootFileName"] = "root.hcl"
 
 	workDir := t.TempDir()
 	templateDir := util.JoinPath(workDir, "template")

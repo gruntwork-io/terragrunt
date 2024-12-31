@@ -8,6 +8,10 @@ tags: ["DRY", "Use cases", "backend", "unit"]
 order: 200
 nav_title: Documentation
 nav_title_link: /docs/
+redirect_from:
+  - /docs/features/inputs/
+  - /docs/features/locals/
+  - /docs/features/keep-your-terraform-code-dry/
 ---
 
 - [Motivation](#motivation)
@@ -20,7 +24,7 @@ nav_title_link: /docs/
 - [Working with relative file paths](#working-with-relative-file-paths)
 - [Using Terragrunt with private Git repos](#using-terragrunt-with-private-git-repos)
 - [Generate blocks](#generate-blocks)
-- [Further reading](#further-reading)
+- [Further Reading](#further-reading)
 
 ## Motivation
 

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -306,6 +307,12 @@ type TerragruntOptions struct {
 	// Files with variables to be used in modules scaffolding.
 	ScaffoldVarFiles []string
 
+	// Do not include root unit in scaffolding.
+	ScaffoldNoIncludeRoot bool
+
+	// Name of the root Terragrunt configuration file, if used.
+	ScaffoldRootFileName string
+
 	// Root directory for graph command.
 	GraphRoot string
 
@@ -364,8 +371,14 @@ type TerragruntOptions struct {
 	// StrictControls is a slice of strict controls enabled.
 	StrictControls []string
 
-	// FeatureFlags is a map of feature flags to enable.
-	FeatureFlags map[string]string
+	// ExperimentMode is a flag to enable experiment mode for terragrunt.
+	ExperimentMode bool
+
+	// Experiments is a map of experiments, and their status.
+	Experiments experiment.Experiments
+
+	// ]FeatureFlags is a map of feature flags to enable.
+	FeatureFlags *xsync.MapOf[string, string]
 
 	// ReadFiles is a map of files to the Units
 	// that read them using HCL functions in the unit.
@@ -373,6 +386,21 @@ type TerragruntOptions struct {
 
 	// Errors is a configuration for error handling.
 	Errors *ErrorsConfig
+
+	// Headless is set when Terragrunt is running in
+	// headless mode. In this mode, Terragrunt will not
+	// return stdout/stderr directly to the caller.
+	//
+	// It will instead write the output to INFO,
+	// as it's not something intended for a user
+	// to use in a programmatic way.
+	Headless bool
+
+	// LogDisableErrorSummary is a flag to skip the error summary
+	// provided at the end of Terragrunt execution to
+	// recap all that was emitted in stderr throughout
+	// the run of an orchestrated process.
+	LogDisableErrorSummary bool
 }
 
 // TerragruntOptionsFunc is a functional option type used to pass options in certain integration tests
@@ -484,8 +512,10 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		ProviderCacheRegistryNames: defaultProviderCacheRegistryNames,
 		OutputFolder:               "",
 		JSONOutputFolder:           "",
-		FeatureFlags:               map[string]string{},
+		FeatureFlags:               xsync.NewMapOf[string, string](),
 		ReadFiles:                  xsync.NewMapOf[string, []string](),
+		ExperimentMode:             false,
+		Experiments:                experiment.NewExperiments(),
 	}
 }
 
@@ -646,10 +676,19 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		EngineLogLevel:                 opts.EngineLogLevel,
 		EngineSkipChecksumCheck:        opts.EngineSkipChecksumCheck,
 		Engine:                         cloneEngineOptions(opts.Engine),
+		ExperimentMode:                 opts.ExperimentMode,
+		// This doesn't have to be deep cloned, as the same experiments
+		// are used across all units in a `run-all`. If that changes in
+		// the future, we can deep clone this as well.
+		Experiments: opts.Experiments,
 		// copy array
-		StrictControls: util.CloneStringList(opts.StrictControls),
-		FeatureFlags:   opts.FeatureFlags,
-		Errors:         cloneErrorsConfig(opts.Errors),
+		StrictControls:         util.CloneStringList(opts.StrictControls),
+		FeatureFlags:           opts.FeatureFlags,
+		Errors:                 cloneErrorsConfig(opts.Errors),
+		ScaffoldNoIncludeRoot:  opts.ScaffoldNoIncludeRoot,
+		ScaffoldRootFileName:   opts.ScaffoldRootFileName,
+		Headless:               opts.Headless,
+		LogDisableErrorSummary: opts.LogDisableErrorSummary,
 	}, nil
 }
 

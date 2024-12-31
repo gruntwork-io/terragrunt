@@ -10,9 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestStrictMode uses globally mutated state to determine if strict mode has already
+// been triggered, so we don't run it in parallel.
+//
+//nolint:paralleltest,tparallel
 func TestStrictMode(t *testing.T) {
-	t.Parallel()
-
 	helpers.CleanupTerraformFolder(t, testFixtureEmptyState)
 
 	tc := []struct {
@@ -54,8 +56,6 @@ func TestStrictMode(t *testing.T) {
 
 	for _, tt := range tc {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureEmptyState)
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureEmptyState)
 
@@ -73,6 +73,66 @@ func TestStrictMode(t *testing.T) {
 			if tt.expectedError != nil {
 				require.Error(t, err)
 				require.ErrorIs(t, err, tt.expectedError)
+			} else {
+				require.NoError(t, err)
+			}
+
+			assert.Contains(t, stderr, tt.expectedStderr)
+		})
+	}
+}
+
+// TestRootTerragruntHCLStrictMode uses globally mutated state to determine if strict mode has already
+// been triggered, so we don't run it in parallel.
+//
+//nolint:paralleltest,tparallel
+func TestRootTerragruntHCLStrictMode(t *testing.T) {
+	helpers.CleanupTerraformFolder(t, testFixtureFindParentWithDeprecatedRoot)
+
+	tc := []struct {
+		name           string
+		controls       []string
+		strictMode     bool
+		expectedStderr string
+		expectedError  error
+	}{
+		{
+			name:           "root terragrunt.hcl",
+			strictMode:     false,
+			expectedStderr: strict.StrictControls[strict.RootTerragruntHCL].Warning,
+		},
+		{
+			name:          "root terragrunt.hcl with root-terragrunt-hcl strict control",
+			controls:      []string{"root-terragrunt-hcl"},
+			strictMode:    false,
+			expectedError: strict.StrictControls[strict.RootTerragruntHCL].Error,
+		},
+		{
+			name:          "root terragrunt.hcl with strict mode",
+			strictMode:    true,
+			expectedError: strict.StrictControls[strict.RootTerragruntHCL].Error,
+		},
+	}
+
+	for _, tt := range tc {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFindParentWithDeprecatedRoot)
+			rootPath := util.JoinPath(tmpEnvPath, testFixtureFindParentWithDeprecatedRoot, "app")
+
+			args := "--terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir " + rootPath
+			if tt.strictMode {
+				args = "--strict-mode " + args
+			}
+
+			for _, control := range tt.controls {
+				args = " --strict-control " + control + " " + args
+			}
+
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan "+args)
+
+			if tt.expectedError != nil {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError.Error())
 			} else {
 				require.NoError(t, err)
 			}

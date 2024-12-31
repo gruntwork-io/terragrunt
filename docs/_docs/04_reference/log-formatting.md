@@ -5,9 +5,11 @@ category: reference
 categories_url: reference
 excerpt: Learn how customize Terragrunt logging.
 tags: ["log"]
-order: 408
+order: 409
 nav_title: Documentation
 nav_title_link: /docs/
+redirect_from:
+    - /docs/features/custom-log-format/
 ---
 
 Using the `--terragrunt-log-custom-format <format>` flag you can customize the way Terragrunt logs with total control over the logging format.
@@ -58,13 +60,15 @@ Placeholders have preset names:
 
 * `%tf-path` - Path to the OpenTofu/Terraform executable (as defined by [terragrunt-tfpath](https://terragrunt.gruntwork.io/docs/reference/cli-options/#terragrunt-tfpath)).
 
-* `%tf-command-args` - Arguments of the executed OpenTofu/Terraform command.
+* `%tf-command` - Executed OpenTofu/Terraform command, e.g. `apply`.
 
-* `%t` - Tab.
+* `%tf-command-args` - Arguments of the executed OpenTofu/Terraform command, e.g. `apply -auto-approve`.
+
+* `%t` - Indent.
 
 * `%n` - Newline.
 
-Any other text is considered plain text.
+Any other text is considered plain text. The parser always tries to find the longest name. For example, tofu command "apply -auto-approve" with format "%tf-command-args" will be replaced with "apply -auto-approve", but not "apply-args". If you need to replace it with "apply-args", use empty brackets "%tf-command()-args". More examples: "%tf-path" will be replaced with "tofu", `%t()-path` will be replaced with "   -path".
 
 e.g.
 
@@ -274,11 +278,15 @@ Specific options for placeholders:
 
 The examples below replicate the preset formats specified with `--terragrunt-log-format`. They can be useful if you need to change existing formats to suit your needs.
 
+### Pretty
+
 `--terragrunt-log-format pretty`
 
 ```shell
 --terragrunt-log-custom-format "%time(color=light-black) %level(case=upper,width=6,color=preset) %prefix(path=short-relative,color=gradient,suffix=' ')%tf-path(color=cyan,suffix=': ')%msg(path=relative)"
 ```
+
+### Bare
 
 `--terragrunt-log-format bare`
 
@@ -286,11 +294,15 @@ The examples below replicate the preset formats specified with `--terragrunt-log
 --terragrunt-forward-tf-stdout --terragrunt-log-custom-format "%level(case=upper,width=4)[%interval] %msg %prefix(path=short,prefix='prefix=[',suffix=']')"
 ```
 
+### Key-value
+
 `--terragrunt-log-format key-value`
 
 ```shell
 --terragrunt-log-custom-format "time=%time(format=rfc3339) level=%level prefix=%prefix(path=short-relative) tf-path=%tf-path(path=filename) msg=%msg(path=relative,color=disable)"
 ```
+
+### JSON
 
 `--terragrunt-log-format json`
 

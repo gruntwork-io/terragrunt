@@ -136,28 +136,35 @@ func RunShellCommandWithOutput(
 		if command == opts.TerraformPath && !opts.ForwardTFStdout {
 			logger := opts.Logger.
 				WithField(placeholders.TFPathKeyName, filepath.Base(opts.TerraformPath)).
-				WithField(placeholders.TFCmdArgsKeyName, args)
+				WithField(placeholders.TFCmdArgsKeyName, args).
+				WithField(placeholders.TFCmdKeyName, cli.Args(args).CommandName())
 
 			if opts.JSONLogFormat && !cli.Args(args).Normalize(cli.SingleDashFlag).Contains(terraform.FlagNameJSON) {
-				outWriter = writer.New(
-					writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
-					writer.WithDefaultLevel(log.StdoutLevel),
+				outWriter = buildOutWriter(
+					opts,
+					logger,
+					outWriter,
+					errWriter,
 				)
 
-				errWriter = writer.New(
-					writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
-					writer.WithDefaultLevel(log.StderrLevel),
+				errWriter = buildErrWriter(
+					opts,
+					logger,
+					errWriter,
 				)
 			} else if !shouldForceForwardTFStdout(args) {
-				outWriter = writer.New(
-					writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
-					writer.WithDefaultLevel(log.StdoutLevel),
+				outWriter = buildOutWriter(
+					opts,
+					logger,
+					outWriter,
+					errWriter,
 					writer.WithMsgSeparator(logMsgSeparator),
 				)
 
-				errWriter = writer.New(
-					writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
-					writer.WithDefaultLevel(log.StderrLevel),
+				errWriter = buildErrWriter(
+					opts,
+					logger,
+					errWriter,
 					writer.WithMsgSeparator(logMsgSeparator),
 					writer.WithParseFunc(terraform.ParseLogFunc(tfLogMsgPrefix, false)),
 				)
@@ -215,10 +222,11 @@ func RunShellCommandWithOutput(
 
 		if err := cmd.Start(); err != nil { //nolint:contextcheck
 			err = util.ProcessExecutionError{
-				Err:        err,
-				Args:       args,
-				Command:    command,
-				WorkingDir: cmd.Dir,
+				Err:            err,
+				Args:           args,
+				Command:        command,
+				WorkingDir:     cmd.Dir,
+				DisableSummary: opts.LogDisableErrorSummary,
 			}
 
 			return errors.New(err)
@@ -229,11 +237,12 @@ func RunShellCommandWithOutput(
 
 		if err := cmd.Wait(); err != nil {
 			err = util.ProcessExecutionError{
-				Err:        err,
-				Args:       args,
-				Command:    command,
-				Output:     output,
-				WorkingDir: cmd.Dir,
+				Err:            err,
+				Args:           args,
+				Command:        command,
+				Output:         output,
+				WorkingDir:     cmd.Dir,
+				DisableSummary: opts.LogDisableErrorSummary,
 			}
 
 			return errors.New(err)
@@ -243,6 +252,53 @@ func RunShellCommandWithOutput(
 	})
 
 	return &output, err
+}
+
+// buildOutWriter returns the writer for the command's stdout.
+//
+// When Terragrunt is running in Headless mode, we want to forward
+// any stdout to the INFO log level, otherwise, we want to forward
+// stdout to the STDOUT log level.
+//
+// Also accepts any additional writer options desired.
+func buildOutWriter(opts *options.TerragruntOptions, logger log.Logger, outWriter, errWriter io.Writer, writerOptions ...writer.Option) io.Writer {
+	logLevel := log.StdoutLevel
+
+	if opts.Headless {
+		logLevel = log.InfoLevel
+		outWriter = errWriter
+	}
+
+	options := []writer.Option{
+		writer.WithLogger(logger.WithOptions(log.WithOutput(outWriter))),
+		writer.WithDefaultLevel(logLevel),
+	}
+	options = append(options, writerOptions...)
+
+	return writer.New(options...)
+}
+
+// buildErrWriter returns the writer for the command's stderr.
+//
+// When Terragrunt is running in Headless mode, we want to forward
+// any stderr to the ERROR log level, otherwise, we want to forward
+// stderr to the STDERR log level.
+//
+// Also accepts any additional writer options desired.
+func buildErrWriter(opts *options.TerragruntOptions, logger log.Logger, errWriter io.Writer, writerOptions ...writer.Option) io.Writer {
+	logLevel := log.StderrLevel
+
+	if opts.Headless {
+		logLevel = log.ErrorLevel
+	}
+
+	options := []writer.Option{
+		writer.WithLogger(logger.WithOptions(log.WithOutput(errWriter))),
+		writer.WithDefaultLevel(logLevel),
+	}
+	options = append(options, writerOptions...)
+
+	return writer.New(options...)
 }
 
 // isTerraformCommandThatNeedsPty returns true if the sub command of terraform we are running requires a pty.
