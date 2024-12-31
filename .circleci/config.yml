@@ -175,6 +175,7 @@ jobs:
     executor:
       name: win/default
       size: "large"
+    <<: *env
     steps:
       - checkout
       - run:
@@ -200,6 +201,7 @@ jobs:
   # performance penalty.
   unit_test:
     <<: *defaults
+    <<: *env
     steps:
       - checkout
       # Run pre-commit hooks and fail the build if any hook finds required changes.
@@ -240,6 +242,7 @@ jobs:
   integration_test_terraform_1_5:
     resource_class: xlarge
     <<: *defaults
+    <<: *env
     steps:
       - checkout
       - run:
@@ -258,6 +261,7 @@ jobs:
   integration_test_terraform_with_provider_cache:
     resource_class: xlarge
     <<: *defaults
+    <<: *env
     steps:
       - checkout
       - run:
@@ -278,6 +282,7 @@ jobs:
   integration_test_terraform_latest:
     resource_class: xlarge
     <<: *defaults
+    <<: *env
     steps:
       - checkout
       - run:
@@ -298,6 +303,7 @@ jobs:
   integration_test_tofu:
     resource_class: xlarge
     <<: *defaults
+    <<: *env
     steps:
       - checkout
       - run:
@@ -320,6 +326,7 @@ jobs:
   integration_test_tofu_with_provider_cache:
     resource_class: xlarge
     <<: *defaults
+    <<: *env
     steps:
       - checkout
       - run:
@@ -497,6 +504,7 @@ jobs:
   strict_lint:
     resource_class: medium
     <<: *defaults
+    <<: *env
     steps:
       - checkout
       # The `run-strict-lint` target requires the `main` ref for comparison.
@@ -511,6 +519,7 @@ jobs:
   integration_test_tflint:
     resource_class: large
     <<: *defaults
+    <<: *env
     steps:
       - checkout
       - run:
@@ -531,6 +540,7 @@ jobs:
   race_test:
     resource_class: medium
     <<: *defaults
+    <<: *env
     steps:
       - checkout
       - run:
