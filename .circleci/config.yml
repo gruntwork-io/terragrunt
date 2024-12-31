@@ -9,9 +9,9 @@ env: &env
     GRUNTWORK_INSTALLER_VERSION: v0.0.39
     MODULE_CI_VERSION: v0.57.0
     OPENTOFU_VERSION: "1.8.8"
-    TOFU_ENGINE_VERSION: "0.0.9"
     TERRAFORM_VERSION: "1.9.7"
     TFLINT_VERSION: "0.47.0"
+    TOFU_ENGINE_VERSION: "v0.0.11"
 
 defaults: &defaults
   docker:
@@ -65,8 +65,8 @@ install_tofu_engine: &install_tofu_engine
     # Download the OpenTofu Engine binary
     set -x
     export REPO="gruntwork-io/terragrunt-engine-opentofu"
-    export ASSET_NAME="terragrunt-iac-engine-opentofu_rpc_v${TOFU_ENGINE_VERSION}_linux_amd64.zip"
-    wget -O "engine.zip" "https://github.com/${REPO}/releases/download/v${TOFU_ENGINE_VERSION}/${ASSET_NAME}"
+    export ASSET_NAME="terragrunt-iac-engine-opentofu_rpc_${TOFU_ENGINE_VERSION}_linux_amd64.zip"
+    wget -O "engine.zip" "https://github.com/${REPO}/releases/download/${TOFU_ENGINE_VERSION}/${ASSET_NAME}"
     unzip -o "engine.zip"
 
 setup_test_environment: &setup_test_environment
