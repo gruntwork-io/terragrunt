@@ -6,8 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/gruntwork-io/terragrunt/internal/strict"
-
-	clone "github.com/huandu/go-clone"
+	"github.com/huandu/go-clone"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
 
