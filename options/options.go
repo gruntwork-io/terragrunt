@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -88,7 +89,7 @@ type TerragruntOptions struct {
 	OriginalTerragruntConfigPath string
 
 	// Version of terragrunt
-	TerragruntVersion *version.Version
+	TerragruntVersion *version.Version `clone:"shadow"`
 
 	// Location of the terraform binary
 	TerraformPath string
@@ -109,7 +110,7 @@ type TerragruntOptions struct {
 	TerraformImplementation TerraformImplementationType
 
 	// Version of terraform (obtained by running 'terraform version')
-	TerraformVersion *version.Version
+	TerraformVersion *version.Version `clone:"shadow"`
 
 	// Whether we should prompt the user for confirmation or always assume "yes"
 	NonInteractive bool
@@ -145,7 +146,7 @@ type TerragruntOptions struct {
 	LogLevel log.Level
 
 	// Log formatter
-	LogFormatter *format.Formatter
+	LogFormatter *format.Formatter `clone:"shadow"`
 
 	// If true, logs will be disabled
 	DisableLog bool
@@ -375,14 +376,17 @@ type TerragruntOptions struct {
 	ExperimentMode bool
 
 	// Experiments is a map of experiments, and their status.
-	Experiments experiment.Experiments
+	// This doesn't have to be deep cloned, as the same experiments
+	// are used across all units in a `run-all`. If that changes in
+	// the future, we can deep clone this as well.
+	Experiments experiment.Experiments `clone:"shadow"`
 
 	// ]FeatureFlags is a map of feature flags to enable.
-	FeatureFlags *xsync.MapOf[string, string]
+	FeatureFlags *xsync.MapOf[string, string] `clone:"shadow"`
 
 	// ReadFiles is a map of files to the Units
 	// that read them using HCL functions in the unit.
-	ReadFiles *xsync.MapOf[string, []string]
+	ReadFiles *xsync.MapOf[string, []string] `clone:"shadow"`
 
 	// Errors is a configuration for error handling.
 	Errors *ErrorsConfig
@@ -586,124 +590,28 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 
 // Clone creates a copy of this TerragruntOptions, but with different values for the given variables. This is useful for
 // creating a TerragruntOptions that behaves the same way, but is used for a Terraform module in a different folder.
-func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOptions, error) {
-	workingDir := filepath.Dir(terragruntConfigPath)
+func (opts *TerragruntOptions) Clone() *TerragruntOptions {
+	newOpts := cloner.Clone(opts)
+	newOpts.Logger = newOpts.Logger.Clone()
 
-	// Note that we clone lists and maps below as TerragruntOptions may be used and modified concurrently in the code
-	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
-	// for more info.
-	return &TerragruntOptions{
-		TerragruntConfigPath:         terragruntConfigPath,
-		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
-		TerraformPath:                opts.TerraformPath,
-		OriginalTerraformCommand:     opts.OriginalTerraformCommand,
-		TerraformCommand:             opts.TerraformCommand,
-		TerraformVersion:             opts.TerraformVersion,
-		TerragruntVersion:            opts.TerragruntVersion,
-		AutoInit:                     opts.AutoInit,
-		RunAllAutoApprove:            opts.RunAllAutoApprove,
-		NonInteractive:               opts.NonInteractive,
-		TerraformCliArgs:             util.CloneStringList(opts.TerraformCliArgs),
-		WorkingDir:                   workingDir,
-		RootWorkingDir:               opts.RootWorkingDir,
-		Logger: opts.Logger.WithFields(log.Fields{
-			placeholders.WorkDirKeyName:     workingDir,
-			placeholders.DownloadDirKeyName: opts.DownloadDir,
-		}),
-		LogLevel:                       opts.LogLevel,
-		LogFormatter:                   opts.LogFormatter,
-		ValidateStrict:                 opts.ValidateStrict,
-		Env:                            util.CloneStringMap(opts.Env),
-		Source:                         opts.Source,
-		SourceMap:                      opts.SourceMap,
-		SourceUpdate:                   opts.SourceUpdate,
-		DownloadDir:                    opts.DownloadDir,
-		Debug:                          opts.Debug,
-		OriginalIAMRoleOptions:         opts.OriginalIAMRoleOptions,
-		IAMRoleOptions:                 opts.IAMRoleOptions,
-		IgnoreDependencyErrors:         opts.IgnoreDependencyErrors,
-		IgnoreDependencyOrder:          opts.IgnoreDependencyOrder,
-		IgnoreExternalDependencies:     opts.IgnoreExternalDependencies,
-		IncludeExternalDependencies:    opts.IncludeExternalDependencies,
-		Writer:                         opts.Writer,
-		ErrWriter:                      opts.ErrWriter,
-		MaxFoldersToCheck:              opts.MaxFoldersToCheck,
-		AutoRetry:                      opts.AutoRetry,
-		RetryMaxAttempts:               opts.RetryMaxAttempts,
-		RetrySleepInterval:             opts.RetrySleepInterval,
-		RetryableErrors:                util.CloneStringList(opts.RetryableErrors),
-		ExcludesFile:                   opts.ExcludesFile,
-		ExcludeDirs:                    opts.ExcludeDirs,
-		IncludeDirs:                    opts.IncludeDirs,
-		ExcludeByDefault:               opts.ExcludeByDefault,
-		ModulesThatInclude:             opts.ModulesThatInclude,
-		UnitsReading:                   opts.UnitsReading,
-		ReadFiles:                      opts.ReadFiles,
-		Parallelism:                    opts.Parallelism,
-		StrictInclude:                  opts.StrictInclude,
-		RunTerragrunt:                  opts.RunTerragrunt,
-		AwsProviderPatchOverrides:      opts.AwsProviderPatchOverrides,
-		HclFile:                        opts.HclFile,
-		HclExclude:                     opts.HclExclude,
-		HclFromStdin:                   opts.HclFromStdin,
-		JSONOut:                        opts.JSONOut,
-		JSONLogFormat:                  opts.JSONLogFormat,
-		Check:                          opts.Check,
-		CheckDependentModules:          opts.CheckDependentModules,
-		NoDestroyDependenciesCheck:     opts.NoDestroyDependenciesCheck,
-		FetchDependencyOutputFromState: opts.FetchDependencyOutputFromState,
-		UsePartialParseConfigCache:     opts.UsePartialParseConfigCache,
-		ForwardTFStdout:                opts.ForwardTFStdout,
-		FailIfBucketCreationRequired:   opts.FailIfBucketCreationRequired,
-		DisableBucketUpdate:            opts.DisableBucketUpdate,
-		TerraformImplementation:        opts.TerraformImplementation,
-		GraphRoot:                      opts.GraphRoot,
-		ScaffoldVars:                   opts.ScaffoldVars,
-		ScaffoldVarFiles:               opts.ScaffoldVarFiles,
-		JSONDisableDependentModules:    opts.JSONDisableDependentModules,
-		ProviderCache:                  opts.ProviderCache,
-		ProviderCacheToken:             opts.ProviderCacheToken,
-		ProviderCacheDir:               opts.ProviderCacheDir,
-		ProviderCacheRegistryNames:     opts.ProviderCacheRegistryNames,
-		DisableLogColors:               opts.DisableLogColors,
-		OutputFolder:                   opts.OutputFolder,
-		JSONOutputFolder:               opts.JSONOutputFolder,
-		AuthProviderCmd:                opts.AuthProviderCmd,
-		SkipOutput:                     opts.SkipOutput,
-		DisableLog:                     opts.DisableLog,
-		EngineEnabled:                  opts.EngineEnabled,
-		EngineCachePath:                opts.EngineCachePath,
-		EngineLogLevel:                 opts.EngineLogLevel,
-		EngineSkipChecksumCheck:        opts.EngineSkipChecksumCheck,
-		Engine:                         cloneEngineOptions(opts.Engine),
-		ExperimentMode:                 opts.ExperimentMode,
-		// This doesn't have to be deep cloned, as the same experiments
-		// are used across all units in a `run-all`. If that changes in
-		// the future, we can deep clone this as well.
-		Experiments: opts.Experiments,
-		// copy array
-		StrictControls:         util.CloneStringList(opts.StrictControls),
-		FeatureFlags:           opts.FeatureFlags,
-		Errors:                 cloneErrorsConfig(opts.Errors),
-		ScaffoldNoIncludeRoot:  opts.ScaffoldNoIncludeRoot,
-		ScaffoldRootFileName:   opts.ScaffoldRootFileName,
-		Headless:               opts.Headless,
-		LogDisableErrorSummary: opts.LogDisableErrorSummary,
-	}, nil
+	// TODO: get rid of
+	newOpts.Errors = cloneErrorsConfig(opts.Errors)
+
+	return newOpts
 }
 
-// cloneEngineOptions creates a deep copy of the given EngineOptions
-func cloneEngineOptions(opts *EngineOptions) *EngineOptions {
-	if opts == nil {
-		return nil
-	}
+func (opts *TerragruntOptions) CloneWithConfigPath(configPath string) (*TerragruntOptions, error) {
+	newOpts := opts.Clone()
 
-	return &EngineOptions{
-		Source:  opts.Source,
-		Version: opts.Version,
-		Type:    opts.Type,
-		Meta:    opts.Meta,
-	}
+	workingDir := filepath.Dir(configPath)
+
+	newOpts.TerragruntConfigPath = configPath
+	newOpts.WorkingDir = workingDir
+	newOpts.Logger = newOpts.Logger.WithFields(log.Fields{
+		placeholders.WorkDirKeyName: workingDir,
+	})
+
+	return newOpts, nil
 }
 
 // Check if argument is planfile TODO check file formatter
@@ -894,7 +802,7 @@ type IgnoreConfig struct {
 }
 
 type ErrorsPattern struct {
-	Pattern  *regexp.Regexp
+	Pattern  *regexp.Regexp `clone:"shadow"`
 	Negative bool
 }
 

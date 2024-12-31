@@ -56,9 +56,7 @@ func RunCommandWithOutput(ctx context.Context, opts *options.TerragruntOptions, 
 		return nil, err
 	}
 
-	if opts, err = opts.Clone(opts.TerragruntConfigPath); err != nil {
-		return nil, err
-	}
+	opts = opts.Clone()
 
 	var (
 		outWriter = opts.Writer

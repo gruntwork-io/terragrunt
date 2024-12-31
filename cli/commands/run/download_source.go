@@ -59,7 +59,7 @@ func downloadTerraformSource(ctx context.Context, source string, opts *options.T
 		return nil, err
 	}
 
-	updatedTerragruntOptions, err := opts.Clone(opts.TerragruntConfigPath)
+	updatedTerragruntOptions, err := opts.CloneWithConfigPath(opts.TerragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *te
 	// When downloading source, we need to process any hooks waiting on `init-from-module`. Therefore, we clone the
 	// options struct, set the command to the value the hooks are expecting, and run the download action surrounded by
 	// before and after hooks (if any).
-	terragruntOptionsForDownload, err := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	terragruntOptionsForDownload, err := terragruntOptions.CloneWithConfigPath(terragruntOptions.TerragruntConfigPath)
 	if err != nil {
 		return err
 	}

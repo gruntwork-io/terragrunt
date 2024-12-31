@@ -94,7 +94,7 @@ func CheckVersionConstraints(ctx context.Context, terragruntOptions *options.Ter
 // PopulateTerraformVersion populates the currently installed version of Terraform into the given terragruntOptions.
 func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
 	// Discard all log output to make sure we don't pollute stdout or stderr with this extra call to '--version'
-	terragruntOptionsCopy, err := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
+	terragruntOptionsCopy, err := terragruntOptions.CloneWithConfigPath(terragruntOptions.TerragruntConfigPath)
 	if err != nil {
 		return err
 	}

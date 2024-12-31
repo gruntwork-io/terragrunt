@@ -39,7 +39,7 @@ func graph(ctx context.Context, opts *options.TerragruntOptions, cfg *config.Ter
 		rootDir = gitRoot
 	}
 
-	rootOptions, err := opts.Clone(rootDir)
+	rootOptions, err := opts.CloneWithConfigPath(rootDir)
 	if err != nil {
 		return err
 	}

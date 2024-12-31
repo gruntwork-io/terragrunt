@@ -249,7 +249,7 @@ func (cache *ProviderCache) runTerraformWithCache(
 		return nil, err
 	}
 
-	cloneOpts, err := opts.Clone(opts.TerragruntConfigPath)
+	cloneOpts, err := opts.CloneWithConfigPath(opts.TerragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -341,7 +341,7 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 		args = append(args, terraform.FlagNameNoColor)
 	}
 
-	cloneOpts, err := opts.Clone(opts.TerragruntConfigPath)
+	cloneOpts, err := opts.CloneWithConfigPath(opts.TerragruntConfigPath)
 	if err != nil {
 		return nil, err
 	}
