@@ -34,6 +34,7 @@ import (
 	"github.com/gruntwork-io/go-commons/env"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog"
+	defaultCmd "github.com/gruntwork-io/terragrunt/cli/commands/default"
 	execCmd "github.com/gruntwork-io/terragrunt/cli/commands/exec"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
@@ -71,7 +72,7 @@ func NewApp(opts *options.TerragruntOptions) *App {
 	app.Flags = flags.NewGlobalFlags(opts)
 	app.Commands = TerragruntCommands(opts).WrapAction(WrapWithTelemetry(opts))
 	app.Before = beforeAction(opts)
-	app.DefaultCommand = commands.NewDefaultCommand(opts).WrapAction(WrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
+	app.DefaultCommand = defaultCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // if no terragrunt command is specified, run the default command
 	app.OsExiter = OSExiter
 	app.ExitErrHandler = ExitErrHandler
 
@@ -276,7 +277,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	cmdName := cliCtx.Command.Name
 
 	switch cmdName {
-	case runCmd.CommandName, runall.CommandName, graph.CommandName, commands.DefaultCommandName:
+	case runCmd.CommandName, runall.CommandName, graph.CommandName, defaultCmd.CommandName:
 		cmdName = args.CommandName()
 
 		// `terraform apply -destroy` is an alias for `terraform destroy`.
@@ -346,7 +347,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	if opts.TerragruntConfigPath == "" {
 		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
 	} else if !filepath.IsAbs(opts.TerragruntConfigPath) &&
-		(cliCtx.Command.Name == runCmd.CommandName || cliCtx.Command.Name == commands.DefaultCommandName) {
+		(cliCtx.Command.Name == runCmd.CommandName || cliCtx.Command.Name == defaultCmd.CommandName) {
 		opts.TerragruntConfigPath = util.JoinPath(opts.WorkingDir, opts.TerragruntConfigPath)
 	}
 

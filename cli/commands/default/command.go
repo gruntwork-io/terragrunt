@@ -1,4 +1,5 @@
-package commands
+// Package defaultcmd represents the default CLI command.
+package defaultcmd
 
 import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -8,16 +9,19 @@ import (
 	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 )
 
-const DefaultCommandName = "*"
+const CommandName = "*"
 
-func NewDefaultCommand(opts *options.TerragruntOptions) *cli.Command {
-	cmd := runCmd.NewCommand(opts)
-	cmd.Name = DefaultCommandName
-	cmd.Hidden = true
-	cmd.ErrorOnUndefinedFlag = false
+func NewCommand(opts *options.TerragruntOptions) *cli.Command {
+	return &cli.Command{
+		Name:   CommandName,
+		Hidden: true,
+		Flags:  runCmd.NewFlags(opts),
+		Action: Action(opts),
+	}
+}
 
-	action := cmd.Action
-	cmd.Action = func(ctx *cli.Context) error {
+func Action(opts *options.TerragruntOptions) cli.ActionFunc {
+	return func(ctx *cli.Context) error {
 		if control, ok := strict.GetStrictControl(strict.DefaultCommand); ok {
 			warn, triggered, err := control.Evaluate(opts)
 			if err != nil {
@@ -29,8 +33,6 @@ func NewDefaultCommand(opts *options.TerragruntOptions) *cli.Command {
 			}
 		}
 
-		return action(ctx)
+		return runCmd.Action(opts)(ctx)
 	}
-
-	return cmd
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli"
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
+	defaultCmd "github.com/gruntwork-io/terragrunt/cli/commands/default"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
@@ -496,7 +497,7 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 		}
 	}
 
-	defaultCommand := commands.NewDefaultCommand(opts)
+	defaultCommand := defaultCmd.NewCommand(opts)
 	defaultCommand.Action = emptyAction
 
 	app := cliPkg.NewApp()
