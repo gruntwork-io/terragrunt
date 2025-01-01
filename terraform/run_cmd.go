@@ -56,53 +56,10 @@ func RunCommandWithOutput(ctx context.Context, opts *options.TerragruntOptions, 
 		return nil, err
 	}
 
-	opts = opts.Clone()
-
-	var (
-		outWriter = opts.Writer
-		errWriter = opts.ErrWriter
-	)
-
 	if !opts.ForwardTFStdout {
-		logger := opts.Logger.
-			WithField(placeholders.TFPathKeyName, filepath.Base(opts.TerraformPath)).
-			WithField(placeholders.TFCmdArgsKeyName, args).
-			WithField(placeholders.TFCmdKeyName, cli.Args(args).CommandName())
-
-		if opts.JSONLogFormat && !cli.Args(args).Normalize(cli.SingleDashFlag).Contains(FlagNameJSON) {
-			outWriter = buildOutWriter(
-				opts,
-				logger,
-				outWriter,
-				errWriter,
-			)
-
-			errWriter = buildErrWriter(
-				opts,
-				logger,
-				errWriter,
-			)
-		} else if !shouldForceForwardTFStdout(args) {
-			outWriter = buildOutWriter(
-				opts,
-				logger,
-				outWriter,
-				errWriter,
-				writer.WithMsgSeparator(logMsgSeparator),
-			)
-
-			errWriter = buildErrWriter(
-				opts,
-				logger,
-				errWriter,
-				writer.WithMsgSeparator(logMsgSeparator),
-				writer.WithParseFunc(ParseLogFunc(tfLogMsgPrefix, false)),
-			)
-		}
+		opts = opts.Clone()
+		opts.Writer, opts.ErrWriter = logTFOutput(opts, args)
 	}
-
-	opts.Writer = outWriter
-	opts.ErrWriter = errWriter
 
 	output, err := shell.RunCommandWithOutput(ctx, opts, "", false, needsPTY, opts.TerraformPath, args...)
 
@@ -118,6 +75,51 @@ func RunCommandWithOutput(ctx context.Context, opts *options.TerragruntOptions, 
 	}
 
 	return output, err
+}
+
+func logTFOutput(opts *options.TerragruntOptions, args cli.Args) (io.Writer, io.Writer) {
+	var (
+		outWriter = opts.Writer
+		errWriter = opts.ErrWriter
+	)
+
+	logger := opts.Logger.
+		WithField(placeholders.TFPathKeyName, filepath.Base(opts.TerraformPath)).
+		WithField(placeholders.TFCmdArgsKeyName, args).
+		WithField(placeholders.TFCmdKeyName, cli.Args(args).CommandName())
+
+	if opts.JSONLogFormat && !cli.Args(args).Normalize(cli.SingleDashFlag).Contains(FlagNameJSON) {
+		outWriter = buildOutWriter(
+			opts,
+			logger,
+			outWriter,
+			errWriter,
+		)
+
+		errWriter = buildErrWriter(
+			opts,
+			logger,
+			errWriter,
+		)
+	} else if !shouldForceForwardTFStdout(args) {
+		outWriter = buildOutWriter(
+			opts,
+			logger,
+			outWriter,
+			errWriter,
+			writer.WithMsgSeparator(logMsgSeparator),
+		)
+
+		errWriter = buildErrWriter(
+			opts,
+			logger,
+			errWriter,
+			writer.WithMsgSeparator(logMsgSeparator),
+			writer.WithParseFunc(ParseLogFunc(tfLogMsgPrefix, false)),
+		)
+	}
+
+	return outWriter, errWriter
 }
 
 // isCommandThatNeedsPty returns true if the sub command of terraform we are running requires a pty.
