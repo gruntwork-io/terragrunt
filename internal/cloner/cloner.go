@@ -57,6 +57,7 @@ func (cloner *Cloner[T]) getDstValue(src reflect.Value) (reflect.Value, bool) {
 		for _, pkgPrefix := range cloner.shadowCopyInversePkgPrefixes {
 			if pkgPath == "" || strings.HasPrefix(pkgPath, pkgPrefix) {
 				validInverse = true
+
 				break
 			}
 		}
@@ -157,7 +158,7 @@ func (cloner *Cloner[T]) cloneSlice(src reflect.Value) reflect.Value {
 	size := src.Len()
 	dst := reflect.MakeSlice(src.Type(), size, size)
 
-	for i := 0; i < size; i++ {
+	for i := range size {
 		if val := cloner.cloneValue(src.Index(i)); val.IsValid() {
 			dst.Index(i).Set(val)
 		}
@@ -170,7 +171,7 @@ func (cloner *Cloner[T]) cloneArray(src reflect.Value) reflect.Value {
 	size := src.Type().Len()
 	dst := reflect.New(reflect.ArrayOf(size, src.Type().Elem())).Elem()
 
-	for i := 0; i < size; i++ {
+	for i := range size {
 		if val := cloner.cloneValue(src.Index(i)); val.IsValid() {
 			dst.Index(i).Set(val)
 		}
@@ -194,7 +195,7 @@ func (cloner *Cloner[T]) cloneMap(src reflect.Value) reflect.Value {
 
 func (cloner *Cloner[T]) clonePointer(src reflect.Value) reflect.Value {
 	if src.IsNil() {
-		return src
+		return reflect.Zero(src.Type()).Elem()
 	}
 
 	dst := reflect.New(src.Type().Elem())
@@ -210,24 +211,27 @@ func (cloner *Cloner[T]) cloneStruct(src reflect.Value) reflect.Value {
 	t := src.Type()
 	dst := reflect.New(t)
 
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		if !field.IsExported() {
+	for i := range t.NumField() {
+		srcTypeField := t.Field(i)
+		srcField := src.Field(i)
+
+		if !srcTypeField.IsExported() {
 			continue
 		}
 
 		var val reflect.Value
 
-		switch field.Tag.Get(fieldTagName) {
+		switch srcTypeField.Tag.Get(fieldTagName) {
 		case fieldTagValueSkip, fieldTagValueSkipAlias:
-			val = reflect.Zero(src.Field(i).Type()).Elem()
+			val = reflect.Zero(srcField.Type()).Elem()
 		case fieldTagValueShadowCopy:
-			val = src.Field(i)
+			val = srcField
 		case fieldTagValueRequired:
 			cloner.requiredCopyOnce = true
+
 			fallthrough
 		default:
-			val = cloner.cloneValue(src.Field(i))
+			val = cloner.cloneValue(srcField)
 		}
 
 		if val.IsValid() {
