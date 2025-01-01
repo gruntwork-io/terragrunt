@@ -264,7 +264,7 @@ func PartialParseConfigFile(ctx *ParsingContext, configPath string, include *Inc
 
 	fileInfo, err := os.Stat(configPath)
 	if err != nil {
-		return nil, err
+		return nil, errors.New(err)
 	}
 
 	var (
