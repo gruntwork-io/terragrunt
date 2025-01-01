@@ -345,7 +345,8 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	// --- Terragrunt ConfigPath
 	if opts.TerragruntConfigPath == "" {
 		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
-	} else if !filepath.IsAbs(opts.TerragruntConfigPath) && cliCtx.Command.Name == runCmd.CommandName {
+	} else if !filepath.IsAbs(opts.TerragruntConfigPath) &&
+		(cliCtx.Command.Name == runCmd.CommandName || cliCtx.Command.Name == commands.DefaultCommandName) {
 		opts.TerragruntConfigPath = util.JoinPath(opts.WorkingDir, opts.TerragruntConfigPath)
 	}
 
