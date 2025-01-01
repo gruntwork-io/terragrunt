@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/gruntwork-io/terragrunt/config"
+	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
@@ -192,7 +193,7 @@ func executeTFLint(ctx context.Context, terragruntOptions *options.TerragruntOpt
 
 func terragruntOptionsWithHookEnvs(opts *options.TerragruntOptions, hookName string) *options.TerragruntOptions {
 	newOpts := *opts
-	newOpts.Env = util.CloneStringMap(opts.Env)
+	newOpts.Env = cloner.Clone(opts.Env)
 	newOpts.Env[HookCtxTFPathEnvName] = opts.TerraformPath
 	newOpts.Env[HookCtxCommandEnvName] = opts.TerraformCommand
 	newOpts.Env[HookCtxHookNameEnvName] = hookName

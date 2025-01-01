@@ -27,17 +27,12 @@ type Cloner[T any] struct {
 	*Config
 }
 
-func (cloner *Cloner[T]) Clone(src *T) *T {
-	var nilPtr *T
+func (cloner *Cloner[T]) Clone(src T) T {
+	var dst T
 
-	if src == nilPtr {
-		return nil
-	}
-
-	dst := new(T)
 	val := cloner.cloneValue(reflect.ValueOf(src))
 
-	reflect.ValueOf(dst).Elem().Set(val.Elem())
+	reflect.ValueOf(&dst).Elem().Set(val)
 
 	return dst
 }
@@ -198,12 +193,14 @@ func (cloner *Cloner[T]) cloneMap(src reflect.Value) reflect.Value {
 }
 
 func (cloner *Cloner[T]) clonePointer(src reflect.Value) reflect.Value {
+	if src.IsNil() {
+		return src
+	}
+
 	dst := reflect.New(src.Type().Elem())
 
-	if !src.IsNil() {
-		if val := cloner.cloneValue(src.Elem()); val.IsValid() {
-			dst.Elem().Set(val)
-		}
+	if val := cloner.cloneValue(src.Elem()); val.IsValid() {
+		dst.Elem().Set(val)
 	}
 
 	return dst

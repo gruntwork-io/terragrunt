@@ -2,7 +2,7 @@
 package cloner
 
 // Clone recursively deep clones src into a new value on the heap.
-func Clone[T any](src *T, opts ...Option) *T {
+func Clone[T any](src T, opts ...Option) T {
 	conf := &Config{}
 	for _, opt := range opts {
 		opt(conf)

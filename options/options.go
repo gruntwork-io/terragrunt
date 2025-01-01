@@ -493,7 +493,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		AutoRetry:                      true,
 		RetryMaxAttempts:               DefaultRetryMaxAttempts,
 		RetrySleepInterval:             DefaultRetrySleepInterval,
-		RetryableErrors:                util.CloneStringList(DefaultRetryableErrors),
+		RetryableErrors:                cloner.Clone(DefaultRetryableErrors),
 		ExcludeDirs:                    []string{},
 		IncludeDirs:                    []string{},
 		ModulesThatInclude:             []string{},
@@ -593,7 +593,7 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 // LogFormatter *format.Formatter `clone:"shadowcopy"` is a terragrunt type, we can't make a full copy because of unexported fields.
 func (opts *TerragruntOptions) Clone() *TerragruntOptions {
 	newOpts := cloner.Clone(opts, cloner.WithShadowCopyThirdPartyTypes())
-	newOpts.Logger = newOpts.Logger.Clone()
+	newOpts.Logger = opts.Logger.Clone()
 
 	return newOpts
 }

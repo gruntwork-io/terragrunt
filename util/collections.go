@@ -138,24 +138,6 @@ func CommaSeparatedStrings(list []string) string {
 	return strings.Join(values, ", ")
 }
 
-// CloneStringList makes a copy of the given list of strings.
-func CloneStringList(listToClone []string) []string {
-	var out []string
-	out = append(out, listToClone...)
-
-	return out
-}
-
-// CloneStringMap makes a copy of the given map of strings.
-func CloneStringMap(mapToClone map[string]string) map[string]string {
-	out := map[string]string{}
-	for key, value := range mapToClone {
-		out[key] = value
-	}
-
-	return out
-}
-
 // FirstArg is a convenience method that returns the first item (0th index) in the given
 // list or an empty string if this is an empty list.
 func FirstArg[S ~[]E, E comparable](args S) E {
