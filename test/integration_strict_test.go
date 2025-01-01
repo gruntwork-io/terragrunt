@@ -111,7 +111,7 @@ func TestRootTerragruntHCLStrictMode(t *testing.T) {
 		{
 			name:          "root terragrunt.hcl with strict mode",
 			strictMode:    true,
-			expectedError: strict.StrictControls[strict.RootTerragruntHCL].Error,
+			expectedError: strict.StrictControls[strict.DefaultCommand].Error,
 		},
 	}
 

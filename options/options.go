@@ -89,7 +89,7 @@ type TerragruntOptions struct {
 	OriginalTerragruntConfigPath string
 
 	// Version of terragrunt
-	TerragruntVersion *version.Version `clone:"shadow"`
+	TerragruntVersion *version.Version
 
 	// Location of the terraform binary
 	TerraformPath string
@@ -110,7 +110,7 @@ type TerragruntOptions struct {
 	TerraformImplementation TerraformImplementationType
 
 	// Version of terraform (obtained by running 'terraform version')
-	TerraformVersion *version.Version `clone:"shadow"`
+	TerraformVersion *version.Version
 
 	// Whether we should prompt the user for confirmation or always assume "yes"
 	NonInteractive bool
@@ -146,7 +146,7 @@ type TerragruntOptions struct {
 	LogLevel log.Level
 
 	// Log formatter
-	LogFormatter *format.Formatter `clone:"shadow"`
+	LogFormatter *format.Formatter `clone:"shadowcopy"`
 
 	// If true, logs will be disabled
 	DisableLog bool
@@ -210,7 +210,7 @@ type TerragruntOptions struct {
 	RetryMaxAttempts int
 
 	// The duration in seconds to wait before retrying
-	RetrySleepInterval time.Duration
+	RetrySleepInterval time.Duration `clone:"required"`
 
 	// RetryableErrors is an array of regular expressions with RE2 syntax (https://github.com/google/re2/wiki/Syntax) that qualify for retrying
 	RetryableErrors []string
@@ -376,17 +376,14 @@ type TerragruntOptions struct {
 	ExperimentMode bool
 
 	// Experiments is a map of experiments, and their status.
-	// This doesn't have to be deep cloned, as the same experiments
-	// are used across all units in a `run-all`. If that changes in
-	// the future, we can deep clone this as well.
-	Experiments experiment.Experiments `clone:"shadow"`
+	Experiments experiment.Experiments
 
 	// ]FeatureFlags is a map of feature flags to enable.
-	FeatureFlags *xsync.MapOf[string, string] `clone:"shadow"`
+	FeatureFlags *xsync.MapOf[string, string]
 
 	// ReadFiles is a map of files to the Units
 	// that read them using HCL functions in the unit.
-	ReadFiles *xsync.MapOf[string, []string] `clone:"shadow"`
+	ReadFiles *xsync.MapOf[string, []string]
 
 	// Errors is a configuration for error handling.
 	Errors *ErrorsConfig
@@ -588,18 +585,21 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 	return opts
 }
 
-// Clone creates a copy of this TerragruntOptions, but with different values for the given variables. This is useful for
-// creating a TerragruntOptions that behaves the same way, but is used for a Terraform module in a different folder.
+// Clone performs a deep copy of `opts` with shadow copies of: third-party types, interfaces, and funcs.
+// Fields with "clone" tags can override this behavior.
+//
+// Examples:
+// RetrySleepInterval time.Duration `clone:"required"` is a third-party type, we can make a full copy.
+// LogFormatter *format.Formatter `clone:"shadowcopy"` is a terragrunt type, we can't make a full copy because of unexported fields.
 func (opts *TerragruntOptions) Clone() *TerragruntOptions {
-	newOpts := cloner.Clone(opts)
+	newOpts := cloner.Clone(opts, cloner.WithShadowCopyThirdPartyTypes())
 	newOpts.Logger = newOpts.Logger.Clone()
-
-	// TODO: get rid of
-	newOpts.Errors = cloneErrorsConfig(opts.Errors)
 
 	return newOpts
 }
 
+// CloneWithConfigPath creates a copy of this TerragruntOptions, but with different values for the given variables. This is useful for
+// creating a TerragruntOptions that behaves the same way, but is used for a Terraform module in a different folder.
 func (opts *TerragruntOptions) CloneWithConfigPath(configPath string) (*TerragruntOptions, error) {
 	newOpts := opts.Clone()
 
@@ -802,55 +802,8 @@ type IgnoreConfig struct {
 }
 
 type ErrorsPattern struct {
-	Pattern  *regexp.Regexp `clone:"shadow"`
+	Pattern  *regexp.Regexp
 	Negative bool
-}
-
-func cloneErrorsConfig(config *ErrorsConfig) *ErrorsConfig {
-	if config == nil {
-		return nil
-	}
-
-	// Create a new Errors
-	cloned := &ErrorsConfig{
-		Retry:  make(map[string]*RetryConfig),
-		Ignore: make(map[string]*IgnoreConfig),
-	}
-
-	// Clone Retry configurations
-	for key, retryConfig := range config.Retry {
-		if retryConfig != nil {
-			cloned.Retry[key] = &RetryConfig{
-				Name:             retryConfig.Name,
-				MaxAttempts:      retryConfig.MaxAttempts,
-				SleepIntervalSec: retryConfig.SleepIntervalSec,
-				RetryableErrors:  make([]*ErrorsPattern, len(retryConfig.RetryableErrors)),
-			}
-			// Deep copy the RetryableErrors slice
-			copy(cloned.Retry[key].RetryableErrors, retryConfig.RetryableErrors)
-		}
-	}
-
-	// Clone Ignore configurations
-	for key, ignoreConfig := range config.Ignore {
-		if ignoreConfig != nil {
-			cloned.Ignore[key] = &IgnoreConfig{
-				Name:            ignoreConfig.Name,
-				Message:         ignoreConfig.Message,
-				IgnorableErrors: make([]*ErrorsPattern, len(ignoreConfig.IgnorableErrors)),
-				Signals:         make(map[string]interface{}),
-			}
-			// Deep copy the IgnorableErrors slice
-			copy(cloned.Ignore[key].IgnorableErrors, ignoreConfig.IgnorableErrors)
-
-			// Deep copy the Signals map
-			for sigKey, sigVal := range ignoreConfig.Signals {
-				cloned.Ignore[key].Signals[sigKey] = sigVal
-			}
-		}
-	}
-
-	return cloned
 }
 
 // RunWithErrorHandling runs the given operation and handles any errors according to the configuration.

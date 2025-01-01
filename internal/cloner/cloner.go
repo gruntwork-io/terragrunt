@@ -8,13 +8,19 @@ import (
 const (
 	fieldTagName = "clone"
 
-	fieldTagValueSkip       = "skip"
 	fieldTagValueSkipAlias  = "-"
-	fieldTagValueShadowCopy = "shadow"
+	fieldTagValueSkip       = "skip"
+	fieldTagValueShadowCopy = "shadowcopy"
+	fieldTagValueRequired   = "required"
 )
 
 type Config struct {
-	disallowTypes []reflect.Type
+	shadowCopyTypes []reflect.Type
+	skippingTypes   []reflect.Type
+
+	shadowCopyInversePkgPrefixes []string
+
+	requiredCopyOnce bool
 }
 
 type Cloner[T any] struct {
@@ -36,11 +42,52 @@ func (cloner *Cloner[T]) Clone(src *T) *T {
 	return dst
 }
 
-func (cloner *Cloner[T]) cloneValue(src reflect.Value) reflect.Value {
-	for i := range cloner.disallowTypes {
-		if src.Type() == cloner.disallowTypes[i] {
-			return src
+func (cloner *Cloner[T]) getDstValue(src reflect.Value) (reflect.Value, bool) {
+	var (
+		srcType = src.Type()
+		pkgPath = src.Type().PkgPath()
+		dst     = src
+		valid   = false
+	)
+
+	if cloner.requiredCopyOnce {
+		cloner.requiredCopyOnce = false
+
+		return dst, valid
+	}
+
+	if len(cloner.shadowCopyInversePkgPrefixes) != 0 {
+		validInverse := false
+
+		for _, pkgPrefix := range cloner.shadowCopyInversePkgPrefixes {
+			if pkgPath == "" || strings.HasPrefix(pkgPath, pkgPrefix) {
+				validInverse = true
+				break
+			}
 		}
+
+		valid = !validInverse
+	}
+
+	for i := range cloner.skippingTypes {
+		if srcType == cloner.skippingTypes[i] {
+			dst = reflect.Zero(srcType).Elem()
+			valid = true
+		}
+	}
+
+	for i := range cloner.shadowCopyTypes {
+		if srcType == cloner.shadowCopyTypes[i] {
+			valid = true
+		}
+	}
+
+	return dst, valid
+}
+
+func (cloner *Cloner[T]) cloneValue(src reflect.Value) reflect.Value {
+	if dst, ok := cloner.getDstValue(src); ok {
+		return dst
 	}
 
 	if !src.IsValid() {
@@ -176,9 +223,12 @@ func (cloner *Cloner[T]) cloneStruct(src reflect.Value) reflect.Value {
 
 		switch field.Tag.Get(fieldTagName) {
 		case fieldTagValueSkip, fieldTagValueSkipAlias:
-			val = reflect.New(src.Field(i).Type()).Elem()
+			val = reflect.Zero(src.Field(i).Type()).Elem()
 		case fieldTagValueShadowCopy:
 			val = src.Field(i)
+		case fieldTagValueRequired:
+			cloner.requiredCopyOnce = true
+			fallthrough
 		default:
 			val = cloner.cloneValue(src.Field(i))
 		}
