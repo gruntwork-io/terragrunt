@@ -17,6 +17,7 @@ redirect_from:
 - [Using exposed includes](#using-exposed-includes)
 - [Using read\_terragrunt\_config](#using-read_terragrunt_config)
 - [Considerations for CI/CD Pipelines](#considerations-for-cicd-pipelines)
+- [Using .terragrunt.ignore](#using-terragrunt-ignore)
 
 ## Motivation
 
@@ -478,3 +479,32 @@ need to make sure that that environment uses the older version of the common con
 configuration is now partially rolled out, where some environments need to use the new updated common configuration,
 while other environments need the old one. The best way to handle this situation is to create a new copy of the common
 configuration at the old version and have the environments that depend on the older version point to that version.
+
+## Using .terragrunt.ignore
+
+The `.terragrunt.ignore` file allows you to specify a list of modules to exclude or skip during Terragrunt operations. This file supports glob patterns, making it flexible and powerful for excluding specific modules or directories.
+
+### Creating a .terragrunt.ignore file
+
+To create a `.terragrunt.ignore` file, place it in the root of your Terragrunt configuration directory (where `root.hcl` is located). You can also place `.terragrunt.ignore` files in nested folders, and these nested files will have higher precedence than the root one.
+
+### Example .terragrunt.ignore file
+
+Here is an example of a `.terragrunt.ignore` file:
+
+```
+# Ignore the entire "qa" environment
+qa/**
+
+# Ignore specific modules in the "prod" environment
+prod/app
+prod/mysql
+```
+
+### Using .terragrunt.ignore with Terragrunt commands
+
+When you run Terragrunt commands, the `.terragrunt.ignore` file will be automatically read and parsed to exclude or skip the specified modules. For example, if you run `terragrunt run-all apply`, the modules listed in the `.terragrunt.ignore` file will be excluded from the operation.
+
+### Combining .terragrunt.ignore with other exclusion methods
+
+The `.terragrunt.ignore` file can be used in combination with other exclusion methods, such as the `--terragrunt-exclude-path` command-line argument and the `exclude` block in the configuration. This allows you to have fine-grained control over which modules are included or excluded during Terragrunt operations.

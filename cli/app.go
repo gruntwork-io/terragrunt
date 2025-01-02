@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/engine"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
@@ -236,6 +237,16 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 		return nil
 	})
 
+	// Read and parse the .terragrunt.ignore file
+	ignoreFilePath := filepath.Join(opts.WorkingDir, ".terragrunt.ignore")
+	if util.FileExists(ignoreFilePath) {
+		ignorePatterns, err := util.ReadFileAsString(ignoreFilePath)
+		if err != nil {
+			return errors.New(err)
+		}
+		opts.IgnorePatterns = strings.Split(ignorePatterns, "\n")
+	}
+
 	return errGroup.Wait()
 }
 
@@ -393,6 +404,16 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.RunTerragrunt = terraformCmd.Run
 
 	exec.PrepareConsole(opts.Logger)
+
+	// Read and parse the .terragrunt.ignore file
+	ignoreFilePath := filepath.Join(opts.WorkingDir, ".terragrunt.ignore")
+	if util.FileExists(ignoreFilePath) {
+		ignorePatterns, err := util.ReadFileAsString(ignoreFilePath)
+		if err != nil {
+			return errors.New(err)
+		}
+		opts.IgnorePatterns = strings.Split(ignorePatterns, "\n")
+	}
 
 	return nil
 }

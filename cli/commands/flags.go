@@ -200,6 +200,10 @@ const (
 
 	HelpFlagName    = "help"
 	VersionFlagName = "version"
+
+	// New flag for specifying the .terragrunt.ignore file path
+	TerragruntIgnoreFileFlagName = "terragrunt-ignore-file"
+	TerragruntIgnoreFileEnvName  = "TERRAGRUNT_IGNORE_FILE"
 )
 
 // NewGlobalFlags creates and returns global flags.
@@ -656,6 +660,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar:      TerragruntLogDisableErrorSummaryEnvName,
 			Destination: &opts.LogDisableErrorSummary,
 			Usage:       "Skip error summary at the end of the command.",
+		},
+		&cli.GenericFlag[string]{
+			Name:        TerragruntIgnoreFileFlagName,
+			EnvVar:      TerragruntIgnoreFileEnvName,
+			Destination: &opts.IgnoreFilePath,
+			Usage:       "The path to the .terragrunt.ignore file. Default is .terragrunt.ignore in the working directory.",
 		},
 	}
 
