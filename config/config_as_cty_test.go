@@ -178,6 +178,9 @@ func TestRemoteStateAsCtyDrift(t *testing.T) {
 		Config: map[string]interface{}{
 			"bar": "baz",
 		},
+		Encryption: map[string]interface{}{
+			"bar": "baz",
+		},
 	}
 
 	ctyVal, err := config.RemoteStateAsCty(&testConfig)
@@ -301,6 +304,8 @@ func remoteStateStructFieldToMapKey(t *testing.T, fieldName string) (string, boo
 		return "generate", true
 	case "Config":
 		return "config", true
+	case "Encryption":
+		return "encryption", true
 	default:
 		t.Fatalf("Unknown struct property: %s", fieldName)
 		// This should not execute
