@@ -865,6 +865,7 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
             - APPLE__OSX__code-signing
+            - WINDOWS__code-signing
       - test_build_no_proxy:
           filters:
             tags:
