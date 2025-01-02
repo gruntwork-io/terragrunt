@@ -26,7 +26,7 @@ import (
 
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -71,9 +71,9 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	require.NoError(t, err)
 	defer cliConfigFilename.Close()
 
-	t.Setenv(terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
+	t.Setenv(tf.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
 
-	t.Logf("%s=%s", terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
+	t.Logf("%s=%s", tf.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
 
 	cliConfigSettings := &test.CLIConfigSettings{
 		FilesystemMirrorMethods: []test.CLIConfigProviderInstallationFilesystemMirror{
@@ -155,10 +155,10 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	t.Setenv(tokenEnvName, token)
 	defer os.Unsetenv(tokenEnvName)
 
-	t.Setenv(terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
-	defer os.Unsetenv(terraform.EnvNameTFCLIConfigFile)
+	t.Setenv(tf.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
+	defer os.Unsetenv(tf.EnvNameTFCLIConfigFile)
 
-	t.Logf("%s=%s", terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
+	t.Logf("%s=%s", tf.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
 
 	cliConfigSettings := &test.CLIConfigSettings{
 		DirectMethods: []test.CLIConfigProviderInstallationDirect{

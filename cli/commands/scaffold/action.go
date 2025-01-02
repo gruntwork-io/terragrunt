@@ -11,7 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/shell"
 
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -223,7 +223,7 @@ func prepareBoilerplateFiles(ctx context.Context, opts *options.TerragruntOption
 
 	if templateURL != "" {
 		// process template url if was passed
-		parsedTemplateURL, err := terraform.ToSourceURL(templateURL, tempDir)
+		parsedTemplateURL, err := tf.ToSourceURL(templateURL, tempDir)
 		if err != nil {
 			return "", errors.New(err)
 		}
@@ -304,7 +304,7 @@ func parseVariables(opts *options.TerragruntOptions, moduleDir string) ([]*confi
 
 // parseModuleURL - parse module url and rewrite it if required
 func parseModuleURL(ctx context.Context, opts *options.TerragruntOptions, vars map[string]interface{}, moduleURL string) (string, error) {
-	parsedModuleURL, err := terraform.ToSourceURL(moduleURL, opts.WorkingDir)
+	parsedModuleURL, err := tf.ToSourceURL(moduleURL, opts.WorkingDir)
 	if err != nil {
 		return "", errors.New(err)
 	}
@@ -342,7 +342,7 @@ func rewriteModuleURL(opts *options.TerragruntOptions, vars map[string]interface
 	if err != nil {
 		opts.Logger.Warnf("Failed to parse module url %s", moduleURL)
 
-		parsedModuleURL, err := terraform.ToSourceURL(updatedModuleURL, opts.WorkingDir)
+		parsedModuleURL, err := tf.ToSourceURL(updatedModuleURL, opts.WorkingDir)
 		if err != nil {
 			return nil, errors.New(err)
 		}
@@ -362,7 +362,7 @@ func rewriteModuleURL(opts *options.TerragruntOptions, vars map[string]interface
 	}
 
 	// persist changes in url.URL
-	parsedModuleURL, err := terraform.ToSourceURL(updatedModuleURL, opts.WorkingDir)
+	parsedModuleURL, err := tf.ToSourceURL(updatedModuleURL, opts.WorkingDir)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -380,7 +380,7 @@ func rewriteTemplateURL(ctx context.Context, opts *options.TerragruntOptions, pa
 
 	ref := templateParams.Get(refParam)
 	if ref == "" {
-		rootSourceURL, _, err := terraform.SplitSourceURL(updatedTemplateURL, opts.Logger)
+		rootSourceURL, _, err := tf.SplitSourceURL(updatedTemplateURL, opts.Logger)
 		if err != nil {
 			return nil, errors.New(err)
 		}
@@ -413,7 +413,7 @@ func addRefToModuleURL(ctx context.Context, opts *options.TerragruntOptions, par
 	if ref == "" {
 		// if ref is not passed, find last release tag
 		// git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs => git::https://github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=v0.53.8
-		rootSourceURL, _, err := terraform.SplitSourceURL(moduleURL, opts.Logger)
+		rootSourceURL, _, err := tf.SplitSourceURL(moduleURL, opts.Logger)
 		if err != nil {
 			return nil, errors.New(err)
 		}

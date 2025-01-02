@@ -15,12 +15,12 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/terraform"
-	"github.com/gruntwork-io/terragrunt/terraform/cache"
-	"github.com/gruntwork-io/terragrunt/terraform/cache/handlers"
-	"github.com/gruntwork-io/terragrunt/terraform/cache/services"
-	"github.com/gruntwork-io/terragrunt/terraform/cliconfig"
-	"github.com/gruntwork-io/terragrunt/terraform/getproviders"
+	"github.com/gruntwork-io/terragrunt/tf"
+	"github.com/gruntwork-io/terragrunt/tf/cache"
+	"github.com/gruntwork-io/terragrunt/tf/cache/handlers"
+	"github.com/gruntwork-io/terragrunt/tf/cache/services"
+	"github.com/gruntwork-io/terragrunt/tf/cliconfig"
+	"github.com/gruntwork-io/terragrunt/tf/getproviders"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -157,7 +157,7 @@ func (cache *ProviderCache) TerraformCommandHook(
 	args cli.Args,
 ) (*util.CmdOutput, error) {
 	// To prevent a loop
-	ctx = terraform.ContextWithTerraformCommandHook(ctx, nil)
+	ctx = tf.ContextWithTerraformCommandHook(ctx, nil)
 
 	cliConfigFilename := filepath.Join(opts.WorkingDir, localCLIFilename)
 
@@ -177,15 +177,15 @@ func (cache *ProviderCache) TerraformCommandHook(
 
 	// Use Hook only for the `terraform init` command, which can be run explicitly by the user or Terragrunt's `auto-init` feature.
 	switch {
-	case args.CommandName() == terraform.CommandNameInit:
+	case args.CommandName() == tf.CommandNameInit:
 		// Provider caching for `terraform init` command.
-	case args.CommandName() == terraform.CommandNameProviders && args.SubCommandName() == terraform.CommandNameLock:
+	case args.CommandName() == tf.CommandNameProviders && args.SubCommandName() == tf.CommandNameLock:
 		// Provider caching for `terraform providers lock` command.
 		// Since the Terragrunt provider cache server creates the cache and generates the lock file, we don't need to run the `terraform providers lock ...` command at all.
 		skipRunTargetCommand = true
 	default:
 		// skip cache creation for all other commands
-		return terraform.RunCommandWithOutput(ctx, opts, args...)
+		return tf.RunCommandWithOutput(ctx, opts, args...)
 	}
 
 	if output, err := cache.warmUpCache(ctx, opts, cliConfigFilename, args, env); err != nil {
@@ -257,7 +257,7 @@ func (cache *ProviderCache) runTerraformWithCache(
 	cloneOpts.WorkingDir = opts.WorkingDir
 	cloneOpts.Env = env
 
-	return terraform.RunCommandWithOutput(ctx, cloneOpts, args...)
+	return tf.RunCommandWithOutput(ctx, cloneOpts, args...)
 }
 
 // createLocalCLIConfig creates a local CLI config that merges the default/user configuration with our Provider Cache configuration.
@@ -336,9 +336,9 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 	errWriter := util.NewTrapWriter(opts.ErrWriter)
 
 	// add -no-color flag to args if it was set in Terragrunt arguments
-	if util.ListContainsElement(opts.TerraformCliArgs, terraform.FlagNameNoColor) &&
-		!util.ListContainsElement(args, terraform.FlagNameNoColor) {
-		args = append(args, terraform.FlagNameNoColor)
+	if util.ListContainsElement(opts.TerraformCliArgs, tf.FlagNameNoColor) &&
+		!util.ListContainsElement(args, tf.FlagNameNoColor) {
+		args = append(args, tf.FlagNameNoColor)
 	}
 
 	cloneOpts, err := opts.CloneWithConfigPath(opts.TerragruntConfigPath)
@@ -352,7 +352,7 @@ func runTerraformCommand(ctx context.Context, opts *options.TerragruntOptions, a
 	cloneOpts.TerraformCliArgs = args
 	cloneOpts.Env = envs
 
-	output, err := terraform.RunCommandWithOutput(ctx, cloneOpts, cloneOpts.TerraformCliArgs...)
+	output, err := tf.RunCommandWithOutput(ctx, cloneOpts, cloneOpts.TerraformCliArgs...)
 	// If the Terraform error matches `httpStatusCacheProviderReg` we ignore it and hide the log from users, otherwise we process the error as is.
 	if err != nil && httpStatusCacheProviderReg.Match(output.Stderr.Bytes()) {
 		return new(util.CmdOutput), nil
@@ -370,7 +370,7 @@ func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile str
 	envs := opts.Env
 
 	for _, registryName := range opts.ProviderCacheRegistryNames {
-		envName := fmt.Sprintf(terraform.EnvNameTFTokenFmt, strings.ReplaceAll(registryName, ".", "_"))
+		envName := fmt.Sprintf(tf.EnvNameTFTokenFmt, strings.ReplaceAll(registryName, ".", "_"))
 
 		// delete existing key case insensitive
 		for key := range envs {
@@ -386,10 +386,10 @@ func providerCacheEnvironment(opts *options.TerragruntOptions, cliConfigFile str
 
 	// By using `TF_CLI_CONFIG_FILE` we force terraform to use our auto-generated cli configuration file.
 	// https://developer.hashicorp.com/terraform/cli/config/environment-variables#tf_cli_config_file
-	envs[terraform.EnvNameTFCLIConfigFile] = cliConfigFile
+	envs[tf.EnvNameTFCLIConfigFile] = cliConfigFile
 	// Clear this `TF_PLUGIN_CACHE_DIR` value since we are using our own caching mechanism.
 	// https://developer.hashicorp.com/terraform/cli/config/environment-variables#tf_plugin_cache_dir
-	envs[terraform.EnvNameTFPluginCacheDir] = ""
+	envs[tf.EnvNameTFPluginCacheDir] = ""
 
 	return envs
 }
@@ -408,7 +408,7 @@ func convertToMultipleCommandsByPlatforms(args []string) [][]string {
 	)
 
 	for _, arg := range args {
-		if strings.HasPrefix(arg, terraform.FlagNamePlatform) {
+		if strings.HasPrefix(arg, tf.FlagNamePlatform) {
 			platformArgs = append(platformArgs, arg)
 		} else {
 			filteredArgs = append(filteredArgs, arg)

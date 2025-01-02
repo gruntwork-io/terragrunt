@@ -10,7 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 )
 
 // The following commands are DEPRECATED
@@ -28,13 +28,13 @@ const (
 // alternative. The handler should return the new TerragruntOptions (if any modifications are needed) and command
 // string.
 var replaceDeprecatedCommandsFuncs = map[string]replaceDeprecatedCommandFuncType{
-	CommandNameSpinUp:      replaceDeprecatedCommandFunc(runall.CommandName, terraform.CommandNameApply),
-	CommandNameTearDown:    replaceDeprecatedCommandFunc(runall.CommandName, terraform.CommandNameDestroy),
-	CommandNameApplyAll:    replaceDeprecatedCommandFunc(runall.CommandName, terraform.CommandNameApply),
-	CommandNameDestroyAll:  replaceDeprecatedCommandFunc(runall.CommandName, terraform.CommandNameDestroy),
-	CommandNamePlanAll:     replaceDeprecatedCommandFunc(runall.CommandName, terraform.CommandNamePlan),
-	CommandNameValidateAll: replaceDeprecatedCommandFunc(runall.CommandName, terraform.CommandNameValidate),
-	CommandNameOutputAll:   replaceDeprecatedCommandFunc(runall.CommandName, terraform.CommandNameOutput),
+	CommandNameSpinUp:      replaceDeprecatedCommandFunc(runall.CommandName, tf.CommandNameApply),
+	CommandNameTearDown:    replaceDeprecatedCommandFunc(runall.CommandName, tf.CommandNameDestroy),
+	CommandNameApplyAll:    replaceDeprecatedCommandFunc(runall.CommandName, tf.CommandNameApply),
+	CommandNameDestroyAll:  replaceDeprecatedCommandFunc(runall.CommandName, tf.CommandNameDestroy),
+	CommandNamePlanAll:     replaceDeprecatedCommandFunc(runall.CommandName, tf.CommandNamePlan),
+	CommandNameValidateAll: replaceDeprecatedCommandFunc(runall.CommandName, tf.CommandNameValidate),
+	CommandNameOutputAll:   replaceDeprecatedCommandFunc(runall.CommandName, tf.CommandNameOutput),
 }
 
 type replaceDeprecatedCommandFuncType func(opts *options.TerragruntOptions) cli.ActionFunc

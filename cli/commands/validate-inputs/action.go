@@ -17,7 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
-	tr "github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -30,7 +30,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 }
 
 func runValidateInputs(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
-	required, optional, err := tr.ModuleVariables(opts.WorkingDir)
+	required, optional, err := tf.ModuleVariables(opts.WorkingDir)
 	if err != nil {
 		return err
 	}
@@ -176,7 +176,7 @@ func getTerraformInputNamesFromEnvVar(opts *options.TerragruntOptions, terragrun
 
 	var (
 		out         = []string{}
-		tfVarPrefix = fmt.Sprintf(tr.EnvNameTFVarFmt, "")
+		tfVarPrefix = fmt.Sprintf(tf.EnvNameTFVarFmt, "")
 	)
 
 	for envName := range envVars {

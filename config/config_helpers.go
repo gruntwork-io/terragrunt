@@ -29,7 +29,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -595,7 +595,7 @@ func getWorkingDir(ctx *ParsingContext) (string, error) {
 	experiment := ctx.TerragruntOptions.Experiments[experiment.Symlinks]
 	walkWithSymlinks := experiment.Evaluate(ctx.TerragruntOptions.ExperimentMode)
 
-	source, err := terraform.NewSource(sourceURL, ctx.TerragruntOptions.DownloadDir, ctx.TerragruntOptions.WorkingDir, ctx.TerragruntOptions.Logger, walkWithSymlinks)
+	source, err := tf.NewSource(sourceURL, ctx.TerragruntOptions.DownloadDir, ctx.TerragruntOptions.WorkingDir, ctx.TerragruntOptions.Logger, walkWithSymlinks)
 	if err != nil {
 		return "", err
 	}

@@ -8,7 +8,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 )
 
 const (
@@ -31,7 +31,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 func Action(opts *options.TerragruntOptions) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
-		if opts.TerraformCommand == terraform.CommandNameDestroy {
+		if opts.TerraformCommand == tf.CommandNameDestroy {
 			opts.CheckDependentModules = !opts.NoDestroyDependenciesCheck
 		}
 

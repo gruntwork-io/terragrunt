@@ -9,7 +9,7 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/hashicorp/go-version"
 )
 
@@ -111,7 +111,7 @@ func PopulateTerraformVersion(ctx context.Context, terragruntOptions *options.Te
 		}
 	}
 
-	output, err := terraform.RunCommandWithOutput(ctx, terragruntOptionsCopy, terraform.FlagNameVersion)
+	output, err := tf.RunCommandWithOutput(ctx, terragruntOptionsCopy, tf.FlagNameVersion)
 	if err != nil {
 		return err
 	}

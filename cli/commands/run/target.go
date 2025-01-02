@@ -41,7 +41,7 @@ type TargetErrorCallbackType func(opts *options.TerragruntOptions, config *confi
 */
 
 /*
-   package terraform
+   package run
    ... code omitted
 
    func runTerraform(terragruntOptions *options.TerragruntOptions, target *Target) error {

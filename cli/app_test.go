@@ -22,7 +22,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -306,8 +306,8 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		{[]string{"foo", doubleDashed(flags.NonInteractiveFlagName)}, []string{"foo"}},
 		{[]string{"foo", doubleDashed(run.DebugInputsFlagName)}, []string{"foo"}},
 		{[]string{"foo", doubleDashed(flags.NonInteractiveFlagName), "-bar", doubleDashed(flags.WorkingDirFlagName), "/some/path", "--baz", doubleDashed(run.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath}, []string{"foo", "-bar", "-baz"}},
-		{[]string{commands.CommandNameApplyAll, "foo", "bar"}, []string{terraform.CommandNameApply, "foo", "bar"}},
-		{[]string{commands.CommandNameDestroyAll, "foo", "-foo", "--bar"}, []string{terraform.CommandNameDestroy, "foo", "-foo", "-bar"}},
+		{[]string{commands.CommandNameApplyAll, "foo", "bar"}, []string{tf.CommandNameApply, "foo", "bar"}},
+		{[]string{commands.CommandNameDestroyAll, "foo", "-foo", "--bar"}, []string{tf.CommandNameDestroy, "foo", "-foo", "-bar"}},
 	}
 
 	for i, testCase := range testCases {
@@ -455,9 +455,9 @@ func TestTerraformHelp(t *testing.T) {
 		args     []string
 		expected string
 	}{
-		{[]string{"terragrunt", terraform.CommandNamePlan, "--help"}, "Usage: " + wrappedBinary + " .* plan"},
-		{[]string{"terragrunt", terraform.CommandNameApply, "-help"}, "Usage: " + wrappedBinary + " .* apply"},
-		{[]string{"terragrunt", terraform.CommandNameApply, "-h"}, "Usage: " + wrappedBinary + " .* apply"},
+		{[]string{"terragrunt", tf.CommandNamePlan, "--help"}, "Usage: " + wrappedBinary + " .* plan"},
+		{[]string{"terragrunt", tf.CommandNameApply, "-help"}, "Usage: " + wrappedBinary + " .* apply"},
+		{[]string{"terragrunt", tf.CommandNameApply, "-h"}, "Usage: " + wrappedBinary + " .* apply"},
 	}
 
 	for _, testCase := range testCases {

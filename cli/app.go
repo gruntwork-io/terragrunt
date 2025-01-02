@@ -13,7 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/telemetry"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -239,7 +239,7 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 		}
 		defer ln.Close() //nolint:errcheck
 
-		cliCtx.Context = terraform.ContextWithTerraformCommandHook(ctx, server.TerraformCommandHook)
+		cliCtx.Context = tf.ContextWithTerraformCommandHook(ctx, server.TerraformCommandHook)
 
 		errGroup.Go(func() error {
 			return server.Run(ctx, ln)
@@ -282,10 +282,10 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 		// `terraform apply -destroy` is an alias for `terraform destroy`.
 		// It is important to resolve the alias because the `run-all` relies on terraform command to determine the order, for `destroy` command is used the reverse order.
-		if cmdName == terraform.CommandNameApply && util.ListContainsElement(args, terraform.FlagNameDestroy) {
-			cmdName = terraform.CommandNameDestroy
-			args = append([]string{terraform.CommandNameDestroy}, args.Tail()...)
-			args = util.RemoveElementFromList(args, terraform.FlagNameDestroy)
+		if cmdName == tf.CommandNameApply && util.ListContainsElement(args, tf.FlagNameDestroy) {
+			cmdName = tf.CommandNameDestroy
+			args = append([]string{tf.CommandNameDestroy}, args.Tail()...)
+			args = util.RemoveElementFromList(args, tf.FlagNameDestroy)
 		}
 	default:
 		args = append([]string{cmdName}, args...)
@@ -294,7 +294,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	// Since Terragrunt and Terraform have the same `-no-color` flag,
 	// if a user specifies `-no-color` for Terragrunt, we should propagate it to Terraform as well.
 	if opts.DisableLogColors {
-		args = append(args, terraform.FlagNameNoColor)
+		args = append(args, tf.FlagNameNoColor)
 	}
 
 	opts.TerraformCommand = cmdName

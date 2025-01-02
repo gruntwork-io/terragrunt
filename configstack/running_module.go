@@ -11,7 +11,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/telemetry"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 )
 
 const (
@@ -142,8 +142,8 @@ func (module *RunningModule) runNow(ctx context.Context, rootOptions *options.Te
 			jsonOptions.ForwardTFStdout = true
 			jsonOptions.JSONLogFormat = false
 			jsonOptions.Writer = &stdout
-			jsonOptions.TerraformCommand = terraform.CommandNameShow
-			jsonOptions.TerraformCliArgs = []string{terraform.CommandNameShow, "-json", module.Module.planFile(rootOptions)}
+			jsonOptions.TerraformCommand = tf.CommandNameShow
+			jsonOptions.TerraformCliArgs = []string{tf.CommandNameShow, "-json", module.Module.planFile(rootOptions)}
 
 			if err := jsonOptions.RunTerragrunt(ctx, jsonOptions); err != nil {
 				return err

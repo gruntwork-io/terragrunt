@@ -10,7 +10,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -27,7 +27,7 @@ func WriteTerragruntDebugFile(terragruntOptions *options.TerragruntOptions, terr
 		terragruntOptions.WorkingDir,
 	)
 
-	required, optional, err := terraform.ModuleVariables(terragruntOptions.WorkingDir)
+	required, optional, err := tf.ModuleVariables(terragruntOptions.WorkingDir)
 	if err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func terragruntDebugFileContents(
 	jsonValuesByKey := make(map[string]interface{})
 
 	for varName, varValue := range terragruntConfig.Inputs {
-		nameAsEnvVar := fmt.Sprintf(terraform.EnvNameTFVarFmt, varName)
+		nameAsEnvVar := fmt.Sprintf(tf.EnvNameTFVarFmt, varName)
 		_, varIsInEnv := envVars[nameAsEnvVar]
 		varIsDefined := util.ListContainsElement(moduleVariables, varName)
 

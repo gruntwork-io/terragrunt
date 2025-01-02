@@ -13,7 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -38,7 +38,7 @@ func downloadTerraformSource(ctx context.Context, source string, opts *options.T
 	experiment := opts.Experiments[experiment.Symlinks]
 	walkWithSymlinks := experiment.Evaluate(opts.ExperimentMode)
 
-	terraformSource, err := terraform.NewSource(source, opts.DownloadDir, opts.WorkingDir, opts.Logger, walkWithSymlinks)
+	terraformSource, err := tf.NewSource(source, opts.DownloadDir, opts.WorkingDir, opts.Logger, walkWithSymlinks)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func downloadTerraformSource(ctx context.Context, source string, opts *options.T
 }
 
 // DownloadTerraformSourceIfNecessary downloads the specified TerraformSource if the latest code hasn't already been downloaded.
-func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *tf.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	if terragruntOptions.SourceUpdate {
 		terragruntOptions.Logger.Debugf("The --%s flag is set, so deleting the temporary folder %s before downloading source.", SourceUpdateFlagName, terraformSource.DownloadDir)
 
@@ -113,7 +113,7 @@ func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *te
 		return err
 	}
 
-	terragruntOptionsForDownload.TerraformCommand = terraform.CommandNameInitFromModule
+	terragruntOptionsForDownload.TerraformCommand = tf.CommandNameInitFromModule
 	downloadErr := RunActionWithHooks(ctx, "download source", terragruntOptionsForDownload, terragruntConfig, func(_ context.Context) error {
 		return downloadSource(terraformSource, terragruntOptions, terragruntConfig)
 	})
@@ -152,7 +152,7 @@ func DownloadTerraformSourceIfNecessary(ctx context.Context, terraformSource *te
 // AlreadyHaveLatestCode returns true if the specified TerraformSource, of the exact same version, has already been downloaded into the
 // DownloadFolder. This helps avoid downloading the same code multiple times. Note that if the TerraformSource points
 // to a local file path, a hash will be generated from the contents of the source dir. See the ProcessTerraformSource method for more info.
-func AlreadyHaveLatestCode(terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions) (bool, error) {
+func AlreadyHaveLatestCode(terraformSource *tf.Source, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	if !util.FileExists(terraformSource.DownloadDir) ||
 		!util.FileExists(terraformSource.WorkingDir) ||
 		!util.FileExists(terraformSource.VersionFile) {
@@ -191,7 +191,7 @@ func AlreadyHaveLatestCode(terraformSource *terraform.Source, terragruntOptions 
 // Return the version number stored in the DownloadDir. This version number can be used to check if the Terraform code
 // that has already been downloaded is the same as the version the user is currently requesting. The version number is
 // calculated using the encodeSourceVersion method.
-func readVersionFile(terraformSource *terraform.Source) (string, error) {
+func readVersionFile(terraformSource *tf.Source) (string, error) {
 	return util.ReadFileAsString(terraformSource.VersionFile)
 }
 
@@ -224,7 +224,7 @@ func updateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfi
 		}
 
 		// Load in custom getters that are only supported in Terragrunt
-		client.Getters["tfr"] = &terraform.RegistryGetter{
+		client.Getters["tfr"] = &tf.RegistryGetter{
 			TerragruntOptions: terragruntOptions,
 		}
 
@@ -233,7 +233,7 @@ func updateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfi
 }
 
 // Download the code from the Canonical Source URL into the Download Folder using the go-getter library
-func downloadSource(terraformSource *terraform.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
+func downloadSource(terraformSource *tf.Source, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	canonicalSourceURL := terraformSource.CanonicalSourceURL.String()
 
 	// Since we convert abs paths to rel in logs, `file://../../path/to/dir` doesn't look good,
@@ -253,7 +253,7 @@ func downloadSource(terraformSource *terraform.Source, terragruntOptions *option
 }
 
 // ValidateWorkingDir checks if working terraformSource.WorkingDir exists and is directory
-func ValidateWorkingDir(terraformSource *terraform.Source) error {
+func ValidateWorkingDir(terraformSource *tf.Source) error {
 	workingLocalDir := strings.ReplaceAll(terraformSource.WorkingDir, terraformSource.DownloadDir+filepath.FromSlash("/"), "")
 	if util.IsFile(terraformSource.WorkingDir) {
 		return WorkingDirNotDir{Dir: workingLocalDir, Source: terraformSource.CanonicalSourceURL.String()}

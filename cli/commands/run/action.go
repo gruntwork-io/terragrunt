@@ -17,7 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run/creds/providers/externalcmd"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/hashicorp/go-multierror"
@@ -302,7 +302,7 @@ func runTerragruntWithConfig(ctx context.Context, originalTerragruntOptions *opt
 		return err
 	}
 
-	if util.FirstArg(terragruntOptions.TerraformCliArgs) == terraform.CommandNameInit {
+	if util.FirstArg(terragruntOptions.TerraformCliArgs) == tf.CommandNameInit {
 		if err := prepareInitCommand(ctx, terragruntOptions, terragruntConfig); err != nil {
 			return err
 		}
@@ -409,11 +409,11 @@ func ShouldCopyLockFile(args []string, terraformConfig *config.TerraformConfig) 
 		return false
 	}
 
-	if util.FirstArg(args) == terraform.CommandNameInit {
+	if util.FirstArg(args) == tf.CommandNameInit {
 		return true
 	}
 
-	if util.FirstArg(args) == terraform.CommandNameProviders && util.SecondArg(args) == terraform.CommandNameLock {
+	if util.FirstArg(args) == tf.CommandNameProviders && util.SecondArg(args) == tf.CommandNameLock {
 		return true
 	}
 
@@ -467,7 +467,7 @@ func SetTerragruntInputsAsEnvVars(terragruntOptions *options.TerragruntOptions, 
 func RunTerraformWithRetry(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
 	// Retry the command configurable time with sleep in between
 	for i := 0; i < terragruntOptions.RetryMaxAttempts; i++ {
-		if out, err := terraform.RunCommandWithOutput(ctx, terragruntOptions, terragruntOptions.TerraformCliArgs...); err != nil {
+		if out, err := tf.RunCommandWithOutput(ctx, terragruntOptions, terragruntOptions.TerraformCliArgs...); err != nil {
 			if out == nil || !IsRetryable(terragruntOptions, out) {
 				terragruntOptions.Logger.Errorf("%s invocation failed in %s", terragruntOptions.TerraformImplementation, terragruntOptions.WorkingDir)
 
@@ -622,7 +622,7 @@ func needsInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *c
 func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 	pluginsPath := util.JoinPath(terragruntOptions.DataDir(), "plugins")
 	providersPath := util.JoinPath(terragruntOptions.DataDir(), "providers")
-	terraformLockPath := util.JoinPath(terragruntOptions.WorkingDir, terraform.TerraformLockFile)
+	terraformLockPath := util.JoinPath(terragruntOptions.WorkingDir, tf.TerraformLockFile)
 
 	return !(util.FileExists(pluginsPath) || util.FileExists(providersPath)) || !util.FileExists(terraformLockPath)
 }
@@ -642,7 +642,7 @@ func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 // and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
 func runTerraformInit(ctx context.Context, originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	// Prevent Auto-Init if the user has disabled it
-	if util.FirstArg(terragruntOptions.TerraformCliArgs) != terraform.CommandNameInit && !terragruntOptions.AutoInit {
+	if util.FirstArg(terragruntOptions.TerraformCliArgs) != tf.CommandNameInit && !terragruntOptions.AutoInit {
 		terragruntOptions.Logger.Warnf("Detected that init is needed, but Auto-Init is disabled. Continuing with further actions, but subsequent terraform commands may fail.")
 		return nil
 	}
@@ -671,12 +671,12 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions) (*options.
 		return nil, err
 	}
 
-	initOptions.TerraformCliArgs = []string{terraform.CommandNameInit}
+	initOptions.TerraformCliArgs = []string{tf.CommandNameInit}
 	initOptions.WorkingDir = terragruntOptions.WorkingDir
-	initOptions.TerraformCommand = terraform.CommandNameInit
+	initOptions.TerraformCommand = tf.CommandNameInit
 	initOptions.Headless = true
 
-	initOutputForCommands := []string{terraform.CommandNamePlan, terraform.CommandNameApply}
+	initOutputForCommands := []string{tf.CommandNamePlan, tf.CommandNameApply}
 	terraformCommand := util.FirstArg(terragruntOptions.TerraformCliArgs)
 
 	if !collections.ListContainsElement(initOutputForCommands, terraformCommand) {
@@ -684,8 +684,8 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions) (*options.
 		initOptions.Writer = io.Discard
 	}
 
-	if collections.ListContainsElement(terragruntOptions.TerraformCliArgs, terraform.FlagNameNoColor) {
-		initOptions.TerraformCliArgs = append(initOptions.TerraformCliArgs, terraform.FlagNameNoColor)
+	if collections.ListContainsElement(terragruntOptions.TerraformCliArgs, tf.FlagNameNoColor) {
+		initOptions.TerraformCliArgs = append(initOptions.TerraformCliArgs, tf.FlagNameNoColor)
 	}
 
 	return initOptions, nil
@@ -726,11 +726,11 @@ func remoteStateNeedsInit(remoteState *remote.RemoteState, terragruntOptions *op
 // checkProtectedModule checks if module is protected via the "prevent_destroy" flag
 func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	var destroyFlag = false
-	if util.FirstArg(terragruntOptions.TerraformCliArgs) == terraform.CommandNameDestroy {
+	if util.FirstArg(terragruntOptions.TerraformCliArgs) == tf.CommandNameDestroy {
 		destroyFlag = true
 	}
 
-	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-"+terraform.CommandNameDestroy) {
+	if util.ListContainsElement(terragruntOptions.TerraformCliArgs, "-"+tf.CommandNameDestroy) {
 		destroyFlag = true
 	}
 
@@ -753,7 +753,7 @@ func FilterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 		for _, argCmd := range arg.Commands {
 			if cmd == argCmd {
 				lastArg := util.LastArg(terragruntOptions.TerraformCliArgs)
-				skipVars := (cmd == terraform.CommandNameApply || cmd == terraform.CommandNameDestroy) && util.IsFile(lastArg)
+				skipVars := (cmd == tf.CommandNameApply || cmd == tf.CommandNameDestroy) && util.IsFile(lastArg)
 
 				// The following is a fix for GH-493.
 				// If the first argument is "apply" and the second argument is a file (plan),
@@ -825,7 +825,7 @@ func ToTerraformEnvVars(opts *options.TerragruntOptions, vars map[string]interfa
 			}
 		}
 
-		envVarName := fmt.Sprintf(terraform.EnvNameTFVarFmt, varName)
+		envVarName := fmt.Sprintf(tf.EnvNameTFVarFmt, varName)
 
 		envVarValue, err := util.AsTerraformEnvVarJSONValue(varValue)
 		if err != nil {

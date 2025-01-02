@@ -32,7 +32,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -818,7 +818,7 @@ func terragruntAlreadyInit(opts *options.TerragruntOptions, configPath string, c
 		experiment := opts.Experiments[experiment.Symlinks]
 		walkWithSymlinks := experiment.Evaluate(opts.ExperimentMode)
 
-		terraformSource, err := terraform.NewSource(sourceURL, opts.DownloadDir, opts.WorkingDir, opts.Logger, walkWithSymlinks)
+		terraformSource, err := tf.NewSource(sourceURL, opts.DownloadDir, opts.WorkingDir, opts.Logger, walkWithSymlinks)
 		if err != nil {
 			return false, "", err
 		}
@@ -844,7 +844,7 @@ func getTerragruntOutputJSONFromInitFolder(ctx *ParsingContext, terraformWorking
 
 	ctx.TerragruntOptions.Logger.Debugf("Detected module %s is already init-ed. Retrieving outputs directly from working directory.", targetTGOptions.TerragruntConfigPath)
 
-	out, err := terraform.RunCommandWithOutput(ctx, targetTGOptions, terraform.CommandNameOutput, "-json")
+	out, err := tf.RunCommandWithOutput(ctx, targetTGOptions, tf.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -951,7 +951,7 @@ func getTerragruntOutputJSONFromRemoteState(
 	}
 
 	// Now that the backend is initialized, run terraform output to get the data and return it.
-	out, err := terraform.RunCommandWithOutput(ctx, targetTGOptions, terraform.CommandNameOutput, "-json")
+	out, err := tf.RunCommandWithOutput(ctx, targetTGOptions, tf.CommandNameOutput, "-json")
 	if err != nil {
 		return nil, err
 	}
@@ -1137,7 +1137,7 @@ func runTerraformInitForDependencyOutput(ctx *ParsingContext, workingDir string,
 	initTGOptions.WorkingDir = workingDir
 	initTGOptions.ErrWriter = &stderr
 
-	if err = terraform.RunCommand(ctx, initTGOptions, terraform.CommandNameInit, "-get=false"); err != nil {
+	if err = tf.RunCommand(ctx, initTGOptions, tf.CommandNameInit, "-get=false"); err != nil {
 		ctx.TerragruntOptions.Logger.Debugf("Ignoring expected error from dependency init call")
 		ctx.TerragruntOptions.Logger.Debugf("Init call stderr:")
 		ctx.TerragruntOptions.Logger.Debugf(stderr.String())

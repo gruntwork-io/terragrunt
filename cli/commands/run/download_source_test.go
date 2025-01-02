@@ -16,7 +16,7 @@ import (
 
 	"github.com/gruntwork-io/go-commons/env"
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -393,12 +393,12 @@ func testDownloadTerraformSourceIfNecessary(t *testing.T, canonicalURL string, d
 	}
 }
 
-func createConfig(t *testing.T, canonicalURL string, downloadDir string, sourceUpdate bool) (*terraform.Source, *options.TerragruntOptions, *config.TerragruntConfig, error) {
+func createConfig(t *testing.T, canonicalURL string, downloadDir string, sourceUpdate bool) (*tf.Source, *options.TerragruntOptions, *config.TerragruntConfig, error) {
 	t.Helper()
 
 	logger := log.New()
 	logger.SetOptions(log.WithOutput(io.Discard))
-	terraformSource := &terraform.Source{
+	terraformSource := &tf.Source{
 		CanonicalSourceURL: parseURL(t, canonicalURL),
 		DownloadDir:        downloadDir,
 		WorkingDir:         downloadDir,
@@ -429,7 +429,7 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir st
 
 	logger := log.New()
 	logger.SetOptions(log.WithOutput(io.Discard))
-	terraformSource := &terraform.Source{
+	terraformSource := &tf.Source{
 		CanonicalSourceURL: parseURL(t, canonicalURL),
 		DownloadDir:        downloadDir,
 		WorkingDir:         downloadDir,

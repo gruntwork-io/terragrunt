@@ -11,8 +11,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	tfsource "github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -236,7 +236,7 @@ func TestCustomLockFile(t *testing.T) {
 
 	source := "../custom-lock-file-module"
 	downloadDir := util.JoinPath(rootPath, helpers.TerragruntCache)
-	result, err := tfsource.NewSource(source, downloadDir, rootPath, createLogger(), false)
+	result, err := tf.NewSource(source, downloadDir, rootPath, createLogger(), false)
 	require.NoError(t, err)
 
 	lockFilePath := util.JoinPath(result.WorkingDir, util.TerraformLockFile)

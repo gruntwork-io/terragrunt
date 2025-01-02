@@ -21,7 +21,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/telemetry"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -188,7 +188,7 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 	// This is not ideal, but until we have a better way of handling interactivity with run-all, we take the evil of
 	// having a global prompt (managed in cli/cli_app.go) be the gate keeper.
 	switch stackCmd {
-	case terraform.CommandNameApply, terraform.CommandNameDestroy:
+	case tf.CommandNameApply, tf.CommandNameDestroy:
 		// to support potential positional args in the args list, we append the input=false arg after the first element,
 		// which is the target command.
 		if terragruntOptions.RunAllAutoApprove {
@@ -196,9 +196,9 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 		}
 
 		stack.syncTerraformCliArgs(terragruntOptions)
-	case terraform.CommandNameShow:
+	case tf.CommandNameShow:
 		stack.syncTerraformCliArgs(terragruntOptions)
-	case terraform.CommandNamePlan:
+	case tf.CommandNamePlan:
 		// We capture the out stream for each module
 		errorStreams := make([]bytes.Buffer, len(stack.Modules))
 
@@ -212,7 +212,7 @@ func (stack *Stack) Run(ctx context.Context, terragruntOptions *options.Terragru
 	switch {
 	case terragruntOptions.IgnoreDependencyOrder:
 		return stack.Modules.RunModulesIgnoreOrder(ctx, terragruntOptions, terragruntOptions.Parallelism)
-	case stackCmd == terraform.CommandNameDestroy:
+	case stackCmd == tf.CommandNameDestroy:
 		return stack.Modules.RunModulesReverseOrder(ctx, terragruntOptions, terragruntOptions.Parallelism)
 	default:
 		return stack.Modules.RunModules(ctx, terragruntOptions, terragruntOptions.Parallelism)
@@ -256,7 +256,7 @@ func (stack *Stack) syncTerraformCliArgs(terragruntOptions *options.TerragruntOp
 		if planFile != "" {
 			terragruntOptions.Logger.Debugf("Using output file %s for module %s", planFile, module.TerragruntOptions.TerragruntConfigPath)
 
-			if module.TerragruntOptions.TerraformCommand == terraform.CommandNamePlan {
+			if module.TerragruntOptions.TerraformCommand == tf.CommandNamePlan {
 				// for plan command add -out=<file> to the terraform cli args
 				module.TerragruntOptions.TerraformCliArgs = util.StringListInsert(module.TerragruntOptions.TerraformCliArgs, "-out="+planFile, len(module.TerragruntOptions.TerraformCliArgs))
 			} else {
@@ -268,7 +268,7 @@ func (stack *Stack) syncTerraformCliArgs(terragruntOptions *options.TerragruntOp
 
 func (stack *Stack) toRunningModules(terraformCommand string) (RunningModules, error) {
 	switch terraformCommand {
-	case terraform.CommandNameDestroy:
+	case tf.CommandNameDestroy:
 		return stack.Modules.ToRunningModules(ReverseOrder)
 	default:
 		return stack.Modules.ToRunningModules(NormalOrder)

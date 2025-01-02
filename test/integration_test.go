@@ -24,8 +24,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/terragrunt/terraform"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
+	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -168,9 +168,9 @@ func TestDetailedExitCodeError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
 
-	var exitCode terraform.DetailedExitCode
+	var exitCode tf.DetailedExitCode
 	ctx := context.Background()
-	ctx = terraform.ContextWithDetailedExitCode(ctx, &exitCode)
+	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
 
 	_, stderr, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run-all plan --terragrunt-log-level trace --terragrunt-non-interactive -detailed-exitcode --terragrunt-working-dir "+rootPath)
 	require.Error(t, err)
@@ -187,9 +187,9 @@ func TestDetailedExitCodeChangesPresentAll(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
 
-	var exitCode terraform.DetailedExitCode
+	var exitCode tf.DetailedExitCode
 	ctx := context.Background()
-	ctx = terraform.ContextWithDetailedExitCode(ctx, &exitCode)
+	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutputWithContext(t, ctx, "terragrunt run-all plan --terragrunt-log-level trace --terragrunt-non-interactive -detailed-exitcode --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
@@ -205,9 +205,9 @@ func TestDetailedExitCodeChangesPresentOne(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
 
-	var exitCode terraform.DetailedExitCode
+	var exitCode tf.DetailedExitCode
 	ctx := context.Background()
-	ctx = terraform.ContextWithDetailedExitCode(ctx, &exitCode)
+	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir "+filepath.Join(rootPath, "app1"))
 	require.NoError(t, err)
@@ -226,9 +226,9 @@ func TestDetailedExitCodeNoChanges(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixturePath)
 	rootPath := util.JoinPath(tmpEnvPath, testFixturePath)
 
-	var exitCode terraform.DetailedExitCode
+	var exitCode tf.DetailedExitCode
 	ctx := context.Background()
-	ctx = terraform.ContextWithDetailedExitCode(ctx, &exitCode)
+	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
 
 	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
