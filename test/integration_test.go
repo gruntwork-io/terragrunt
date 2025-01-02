@@ -1171,6 +1171,25 @@ func TestInputsPassedThroughCorrectly(t *testing.T) {
 	validateInputs(t, outputs)
 }
 
+func TestRunCommand(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureInputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureInputs)
+
+	helpers.RunTerragrunt(t, "terragrunt run --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
+
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+	err := helpers.RunTerragruntCommand(t, "terragrunt run -no-color --non-interactive --working-dir "+rootPath+" -- output -json", &stdout, &stderr)
+	require.NoError(t, err)
+
+	outputs := map[string]helpers.TerraformOutput{}
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &outputs))
+	validateInputs(t, outputs)
+}
+
 func TestTerragruntMissingDependenciesFail(t *testing.T) {
 	t.Parallel()
 

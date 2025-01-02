@@ -726,7 +726,19 @@ func RunTerragruntCommandWithContext(t *testing.T, ctx context.Context, command 
 	args := splitCommand(command)
 
 	if !strings.Contains(command, "-terragrunt-log-format") && !strings.Contains(command, "-terragrunt-log-custom-format") {
-		args = append(args, "--terragrunt-log-format=key-value")
+		var builtinCmd []string
+
+		for i := range args {
+			if args[i] == "--" {
+				builtinCmd = make([]string, len(args[i:]))
+				copy(builtinCmd, args[i:])
+				args = args[:i]
+
+				break
+			}
+		}
+
+		args = append(append(args, "--terragrunt-log-format=key-value"), builtinCmd...)
 	}
 
 	t.Log(args)

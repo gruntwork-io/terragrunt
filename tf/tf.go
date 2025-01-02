@@ -6,6 +6,8 @@ import (
 )
 
 const (
+	// TF commands.
+
 	CommandNameInit           = "init"
 	CommandNameInitFromModule = "init-from-module"
 	CommandNameImport         = "import"
@@ -18,12 +20,27 @@ const (
 	CommandNameState          = "state"
 	CommandNameLock           = "lock"
 	CommandNameGet            = "get"
+	CommandNameGraph          = "graph"
 	CommandNameTaint          = "taint"
 	CommandNameUntaint        = "untaint"
 	CommandNameConsole        = "console"
 	CommandNameForceUnlock    = "force-unlock"
 	CommandNameShow           = "show"
 	CommandNameVersion        = "version"
+	CommandNameFmt            = "fmt"
+	CommandNameLogin          = "login"
+	CommandNameLogout         = "logout"
+	CommandNameMetadate       = "metadata"
+	CommandNamePush           = "push"
+	CommandNameRefresh        = "refresh"
+	CommandNameTest           = "test"
+	CommandNameWorkspace      = "workspace"
+
+	// Deprecated TF commands.
+
+	CommandNameEnv = "env"
+
+	// TF flags.
 
 	FlagNameDetailedExitCode = "-detailed-exitcode"
 	FlagNameHelpLong         = "-help"
@@ -47,6 +64,37 @@ const (
 
 	TerraformPlanFile     = "tfplan.tfplan"
 	TerraformPlanJSONFile = "tfplan.json"
+)
+
+var (
+	CommandNames = []string{
+		CommandNameApply,
+		CommandNameConsole,
+		CommandNameDestroy,
+		CommandNameEnv,
+		CommandNameFmt,
+		CommandNameGet,
+		CommandNameGraph,
+		CommandNameImport,
+		CommandNameInit,
+		CommandNameLogin,
+		CommandNameLogout,
+		CommandNameMetadate,
+		CommandNameOutput,
+		CommandNamePlan,
+		CommandNameProviders,
+		CommandNamePush,
+		CommandNameRefresh,
+		CommandNameShow,
+		CommandNameTaint,
+		CommandNameTest,
+		CommandNameVersion,
+		CommandNameValidate,
+		CommandNameUntaint,
+		CommandNameWorkspace,
+		CommandNameForceUnlock,
+		CommandNameState,
+	}
 )
 
 // ModuleVariables will return all the variables defined in the downloaded terraform modules, taking into

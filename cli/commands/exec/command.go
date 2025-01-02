@@ -39,15 +39,17 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	cmdOpts := NewOptions()
 
 	return &cli.Command{
-		Name:      CommandName,
-		Usage:     "Execute a command using Terragrunt.",
-		UsageText: "terragrunt exec [options] -- <command>",
+		Name:        CommandName,
+		Usage:       "Execute an arbitrary command, wrapped by Terragrunt.",
+		UsageText:   "terragrunt exec [options] -- <command>",
+		Description: "Execute a command using Terragrunt.",
 		Examples: []string{
 			"# Utilize the AWS CLI.\nterragrunt exec -- aws s3 ls",
 			"# Inspect `main.tf` file of module for Unit\nterragrunt exec -- cat main.tf",
 		},
 		Flags:                NewFlags(opts, cmdOpts).Sort(),
 		ErrorOnUndefinedFlag: true,
+		Hidden:               true,
 		Action: func(ctx *cli.Context) error {
 			_, cmdArgs := ctx.Args().Split(cli.BuiltinCmdSep)
 

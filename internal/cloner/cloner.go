@@ -8,11 +8,14 @@ import (
 const (
 	fieldTagName = "clone"
 
-	fieldTagValueSkipAlias  = "-"
-	fieldTagValueSkip       = "skip"
-	fieldTagValueShadowCopy = "shadowcopy"
 	fieldTagValueRequired   = "required"
+	fieldTagValueShadowCopy = "shadowcopy"
+	fieldTagValueSkip       = "skip"
+	fieldTagValueSkipAlias  = "-"
 )
+
+// Option represents an option to customize deep copied results.
+type Option func(*Config)
 
 type Config struct {
 	shadowCopyTypes []reflect.Type
