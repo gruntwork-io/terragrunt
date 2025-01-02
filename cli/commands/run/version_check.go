@@ -1,4 +1,4 @@
-package config
+package run
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -34,11 +35,11 @@ const versionParts = 3
 // - FeatureFlags
 // TODO: Look into a way to refactor this function to avoid the side effect.
 func CheckVersionConstraints(ctx context.Context, terragruntOptions *options.TerragruntOptions) error {
-	configContext := NewParsingContext(ctx, terragruntOptions).WithDecodeList(
-		TerragruntVersionConstraints, FeatureFlagsBlock)
+	configContext := config.NewParsingContext(ctx, terragruntOptions).WithDecodeList(
+		config.TerragruntVersionConstraints, config.FeatureFlagsBlock)
 
 	// TODO: See if we should be ignore this lint error
-	partialTerragruntConfig, err := PartialParseConfigFile( //nolint: contextcheck
+	partialTerragruntConfig, err := config.PartialParseConfigFile( //nolint: contextcheck
 		configContext,
 		terragruntOptions.TerragruntConfigPath,
 		nil,

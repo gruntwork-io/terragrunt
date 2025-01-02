@@ -94,7 +94,7 @@ func runTerraform(ctx context.Context, terragruntOptions *options.TerragruntOpti
 		return err
 	}
 
-	if err := config.CheckVersionConstraints(ctx, terragruntOptions); err != nil {
+	if err := CheckVersionConstraints(ctx, terragruntOptions); err != nil {
 		return target.runErrorCallback(terragruntOptions, nil, err)
 	}
 

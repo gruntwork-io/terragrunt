@@ -2976,7 +2976,7 @@ func TestTerragruntVersionConstraintsPartialParse(t *testing.T) {
 
 	require.Error(t, err)
 
-	var invalidVersionError config.InvalidTerragruntVersion
+	var invalidVersionError run.InvalidTerragruntVersion
 	ok := errors.As(err, &invalidVersionError)
 	assert.True(t, ok)
 }

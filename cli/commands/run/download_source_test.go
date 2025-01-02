@@ -419,7 +419,7 @@ func createConfig(t *testing.T, canonicalURL string, downloadDir string, sourceU
 		},
 	}
 
-	err = config.PopulateTerraformVersion(context.Background(), terragruntOptions)
+	err = run.PopulateTerraformVersion(context.Background(), terragruntOptions)
 	require.NoError(t, err)
 	return terraformSource, terragruntOptions, terragruntConfig, err
 }
