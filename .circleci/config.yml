@@ -592,6 +592,8 @@ jobs:
             GOPROXY=direct build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X github.com/gruntwork-io/go-commons/version.Version=$CIRCLE_TAG -extldflags '-static'"
 
   test_signing_windows:
+    machine:
+      image: ubuntu-2204:2024.11.1
     <<: *env
     steps:
       - checkout
