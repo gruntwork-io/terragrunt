@@ -610,7 +610,7 @@ jobs:
           command: |
             env
             
-            udo apt-get update
+            sudo apt-get update
             sudo apt-get install -y osslsigncode
             
             echo "$WINDOWS_CERT" | base64 -d > certificate.p12
