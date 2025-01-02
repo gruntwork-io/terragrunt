@@ -607,7 +607,7 @@ jobs:
       - run:
           name: Sign windows binaries
           command: |
-            sign-binary --os windows --install-macos-sign-dependencies bin/terragrunt_windows_amd64.exe
+            sign-binary --os windows --install-windows-sign-dependencies bin/terragrunt_windows_amd64.exe
             sign-binary --os windows bin/terragrunt_windows_386.exe
       - persist_to_workspace:
           root: .
