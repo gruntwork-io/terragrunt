@@ -85,7 +85,7 @@ func logTFOutput(opts *options.TerragruntOptions, args cli.Args) (io.Writer, io.
 
 	logger := opts.Logger.
 		WithField(placeholders.TFPathKeyName, filepath.Base(opts.TerraformPath)).
-		WithField(placeholders.TFCmdArgsKeyName, args).
+		WithField(placeholders.TFCmdArgsKeyName, args.Slice()).
 		WithField(placeholders.TFCmdKeyName, args.CommandName())
 
 	if opts.JSONLogFormat && !args.Normalize(cli.SingleDashFlag).Contains(FlagNameJSON) {
