@@ -7,22 +7,23 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/engine"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/telemetry"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/cli/commands/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclvalidate"
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
-
-	"github.com/gruntwork-io/terragrunt/shell"
 
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/config"
@@ -31,19 +32,20 @@ import (
 	hashicorpversion "github.com/hashicorp/go-version"
 
 	"github.com/gruntwork-io/go-commons/env"
-	"github.com/gruntwork-io/terragrunt/cli/commands"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog"
+	defaultCmd "github.com/gruntwork-io/terragrunt/cli/commands/default"
+	execCmd "github.com/gruntwork-io/terragrunt/cli/commands/exec"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
 	outputmodulegroups "github.com/gruntwork-io/terragrunt/cli/commands/output-module-groups"
 	renderjson "github.com/gruntwork-io/terragrunt/cli/commands/render-json"
+	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
-	terraformCmd "github.com/gruntwork-io/terragrunt/cli/commands/terraform"
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/pkg/cli"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 )
 
@@ -67,17 +69,10 @@ func NewApp(opts *options.TerragruntOptions) *App {
 	app.Version = version.GetVersion()
 	app.Writer = opts.Writer
 	app.ErrWriter = opts.ErrWriter
-
-	app.Flags = append(
-		commands.NewGlobalFlags(opts),
-		NewDeprecatedFlags(opts)...)
-
-	app.Commands = append(
-		DeprecatedCommands(opts),
-		TerragruntCommands(opts)...).WrapAction(WrapWithTelemetry(opts))
-
+	app.Flags = flags.NewGlobalFlags(opts)
+	app.Commands = TerragruntCommands(opts).WrapAction(WrapWithTelemetry(opts))
 	app.Before = beforeAction(opts)
-	app.DefaultCommand = terraformCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // by default, if no terragrunt command is specified, run the Terraform command
+	app.DefaultCommand = defaultCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // if no terragrunt command is specified, run the default command
 	app.OsExiter = OSExiter
 	app.ExitErrHandler = ExitErrHandler
 
@@ -134,11 +129,37 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 		}
 	}(ctx)
 
+	args = removeNoColorFlagDuplicates(args)
+
 	if err := app.App.RunContext(ctx, args); err != nil && !errors.IsContextCanceled(err) {
 		return err
 	}
 
 	return nil
+}
+
+// removeNoColorFlagDuplicates removes one of the `--no-color` or `--terragrunt-no-color` arguments if both are present.
+// We have to do this because `--terragrunt-no-color` is a deprecated alias for `--no-color`,
+// therefore we end up specifying the same flag twice, which causes the `setting the flag multiple times` error.
+func removeNoColorFlagDuplicates(args []string) []string {
+	var ( //nolint:prealloc
+		foundNoColor bool
+		filteredArgs []string
+	)
+
+	for _, arg := range args {
+		if strings.HasSuffix(arg, "-"+flags.NoColorFlagName) {
+			if foundNoColor {
+				continue
+			}
+
+			foundNoColor = true
+		}
+
+		filteredArgs = append(filteredArgs, arg)
+	}
+
+	return filteredArgs
 }
 
 // TerragruntCommands returns the set of Terragrunt commands.
@@ -156,12 +177,12 @@ func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 		scaffold.NewCommand(opts),           // scaffold
 		graph.NewCommand(opts),              // graph
 		hclvalidate.NewCommand(opts),        // hclvalidate
+		execCmd.NewCommand(opts),            // exec
+		runCmd.NewCommand(opts),             // run
 	}
+	cmds = append(cmds, commands.NewDeprecatedCommands(opts)...)
 
 	sort.Sort(cmds)
-
-	// add terraform command `*` after sorting to put the command at the end of the list in the help.
-	cmds.Add(terraformCmd.NewCommand(opts))
 
 	return cmds
 }
@@ -218,7 +239,7 @@ func runAction(cliCtx *cli.Context, opts *options.TerragruntOptions, action cli.
 		}
 		defer ln.Close() //nolint:errcheck
 
-		cliCtx.Context = shell.ContextWithTerraformCommandHook(ctx, server.TerraformCommandHook)
+		cliCtx.Context = tf.ContextWithTerraformCommandHook(ctx, server.TerraformCommandHook)
 
 		errGroup.Go(func() error {
 			return server.Run(ctx, ln)
@@ -252,22 +273,28 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	// --- Args
 	// convert the rest flags (intended for terraform) to one dash, e.g. `--input=true` to `-input=true`
-	args := cliCtx.Args().Normalize(cli.SingleDashFlag)
+	args := cliCtx.Args().WithoutBuiltinCmdSep().Normalize(cli.SingleDashFlag)
 	cmdName := cliCtx.Command.Name
 
 	switch cmdName {
-	case terraformCmd.CommandName, runall.CommandName, graph.CommandName:
-		cmdName = cliCtx.Args().CommandName()
+	case runCmd.CommandName, runall.CommandName, graph.CommandName, defaultCmd.CommandName:
+		cmdName = args.CommandName()
 
 		// `terraform apply -destroy` is an alias for `terraform destroy`.
 		// It is important to resolve the alias because the `run-all` relies on terraform command to determine the order, for `destroy` command is used the reverse order.
-		if cmdName == terraform.CommandNameApply && util.ListContainsElement(args, terraform.FlagNameDestroy) {
-			cmdName = terraform.CommandNameDestroy
-			args = append([]string{terraform.CommandNameDestroy}, args.Tail()...)
-			args = util.RemoveElementFromList(args, terraform.FlagNameDestroy)
+		if cmdName == tf.CommandNameApply && util.ListContainsElement(args, tf.FlagNameDestroy) {
+			cmdName = tf.CommandNameDestroy
+			args = append([]string{tf.CommandNameDestroy}, args.Tail()...)
+			args = util.RemoveElementFromList(args, tf.FlagNameDestroy)
 		}
 	default:
 		args = append([]string{cmdName}, args...)
+	}
+
+	// Since Terragrunt and Terraform have the same `-no-color` flag,
+	// if a user specifies `-no-color` for Terragrunt, we should propagate it to Terraform as well.
+	if opts.DisableLogColors {
+		args = append(args, tf.FlagNameNoColor)
 	}
 
 	opts.TerraformCommand = cmdName
@@ -319,7 +346,8 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	// --- Terragrunt ConfigPath
 	if opts.TerragruntConfigPath == "" {
 		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
-	} else if !filepath.IsAbs(opts.TerragruntConfigPath) && cliCtx.Command.Name == terraformCmd.CommandName {
+	} else if !filepath.IsAbs(opts.TerragruntConfigPath) &&
+		(cliCtx.Command.Name == runCmd.CommandName || cliCtx.Command.Name == defaultCmd.CommandName) {
 		opts.TerragruntConfigPath = util.JoinPath(opts.WorkingDir, opts.TerragruntConfigPath)
 	}
 
@@ -390,7 +418,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	opts.OriginalTerraformCommand = opts.TerraformCommand
 	opts.OriginalIAMRoleOptions = opts.IAMRoleOptions
 
-	opts.RunTerragrunt = terraformCmd.Run
+	opts.RunTerragrunt = runCmd.Run
 
 	exec.PrepareConsole(opts.Logger)
 

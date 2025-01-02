@@ -21,7 +21,7 @@ const (
 
 // GitTopLevelDir fetches git repository path from passed directory.
 func GitTopLevelDir(ctx context.Context, terragruntOptions *options.TerragruntOptions, path string) (string, error) {
-	runCache := cache.ContextCache[string](ctx, RunCmdCacheContextKey)
+	runCache := cache.ContextCache[string](ctx, cache.RunCmdCacheContextKey)
 	cacheKey := "top-level-dir-" + path
 
 	if gitTopLevelDir, found := runCache.Get(ctx, cacheKey); found {
@@ -41,7 +41,7 @@ func GitTopLevelDir(ctx context.Context, terragruntOptions *options.TerragruntOp
 	opts.Writer = &stdout
 	opts.ErrWriter = &stderr
 
-	cmd, err := RunShellCommandWithOutput(ctx, opts, path, true, false, "git", "rev-parse", "--show-toplevel")
+	cmd, err := RunCommandWithOutput(ctx, opts, path, true, false, "git", "rev-parse", "--show-toplevel")
 	if err != nil {
 		return "", err
 	}
@@ -72,7 +72,7 @@ func GitRepoTags(ctx context.Context, opts *options.TerragruntOptions, gitRepo *
 	gitOpts.Writer = &stdout
 	gitOpts.ErrWriter = &stderr
 
-	output, err := RunShellCommandWithOutput(ctx, opts, opts.WorkingDir, true, false, "git", "ls-remote", "--tags", repoPath)
+	output, err := RunCommandWithOutput(ctx, opts, opts.WorkingDir, true, false, "git", "ls-remote", "--tags", repoPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}

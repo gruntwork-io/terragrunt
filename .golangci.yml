@@ -79,6 +79,8 @@ linters:
     - nolintlint
     - wrapcheck
     - varnamelen
+    - recvcheck
+    - ireturn
 
   fast: false
   mnd:

@@ -8,17 +8,17 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/telemetry"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 )
 
 // Known terraform commands that are explicitly not supported in run-all due to the nature of the command. This is
 // tracked as a map that maps the terraform command to the reasoning behind disallowing the command in run-all.
 var runAllDisabledCommands = map[string]string{
-	terraform.CommandNameImport:      "terraform import should only be run against a single state representation to avoid injecting the wrong object in the wrong state representation.",
-	terraform.CommandNameTaint:       "terraform taint should only be run against a single state representation to avoid using the wrong state address.",
-	terraform.CommandNameUntaint:     "terraform untaint should only be run against a single state representation to avoid using the wrong state address.",
-	terraform.CommandNameConsole:     "terraform console requires stdin, which is shared across all instances of run-all when multiple modules run concurrently.",
-	terraform.CommandNameForceUnlock: "lock IDs are unique per state representation and thus should not be run with run-all.",
+	tf.CommandNameImport:      "terraform import should only be run against a single state representation to avoid injecting the wrong object in the wrong state representation.",
+	tf.CommandNameTaint:       "terraform taint should only be run against a single state representation to avoid using the wrong state address.",
+	tf.CommandNameUntaint:     "terraform untaint should only be run against a single state representation to avoid using the wrong state address.",
+	tf.CommandNameConsole:     "terraform console requires stdin, which is shared across all instances of run-all when multiple modules run concurrently.",
+	tf.CommandNameForceUnlock: "lock IDs are unique per state representation and thus should not be run with run-all.",
 
 	// MAINTAINER'S NOTE: There are a few other commands that might not make sense, but we deliberately allow it for
 	// certain use cases that are documented here:
@@ -60,11 +60,11 @@ func RunAllOnStack(ctx context.Context, opts *options.TerragruntOptions, stack *
 	var prompt string
 
 	switch opts.TerraformCommand {
-	case terraform.CommandNameApply:
+	case tf.CommandNameApply:
 		prompt = "Are you sure you want to run 'terragrunt apply' in each folder of the stack described above?"
-	case terraform.CommandNameDestroy:
+	case tf.CommandNameDestroy:
 		prompt = "WARNING: Are you sure you want to run `terragrunt destroy` in each folder of the stack described above? There is no undo!"
-	case terraform.CommandNameState:
+	case tf.CommandNameState:
 		prompt = "Are you sure you want to manipulate the state with `terragrunt state` in each folder of the stack described above? Note that absolute paths are shared, while relative paths will be relative to each working directory."
 	}
 

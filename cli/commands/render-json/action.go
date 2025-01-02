@@ -17,7 +17,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -25,9 +25,9 @@ import (
 )
 
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
-	target := terraform.NewTarget(terraform.TargetPointParseConfig, runRenderJSON)
+	target := run.NewTarget(run.TargetPointParseConfig, runRenderJSON)
 
-	return terraform.RunWithTarget(ctx, opts, target)
+	return run.RunWithTarget(ctx, opts, target)
 }
 
 func runRenderJSON(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {

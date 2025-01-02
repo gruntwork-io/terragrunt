@@ -289,20 +289,24 @@ func (logger *logger) Errorln(args ...interface{}) {
 	logger.Logln(ErrorLevel, args...)
 }
 
-func (logger logger) setEntry(entry *logrus.Entry) *logger {
-	logger.Entry = entry
-	return &logger
+func (logger *logger) setEntry(entry *logrus.Entry) *logger {
+	newLogger := *logger
+	newLogger.Entry = entry
+
+	return &newLogger
 }
 
-func (logger logger) clone() *logger {
-	parentLogger := logger.Logger
+func (logger *logger) clone() *logger {
+	newLogger := *logger
 
-	logger.Logger = logrus.New()
-	logger.Logger.SetOutput(parentLogger.Out)
-	logger.Logger.SetLevel(parentLogger.Level)
-	logger.Logger.SetFormatter(parentLogger.Formatter)
-	logger.Logger.ReplaceHooks(parentLogger.Hooks)
-	logger.Entry = logger.Entry.Dup()
+	parentLogger := newLogger.Logger
 
-	return &logger
+	newLogger.Logger = logrus.New()
+	newLogger.Logger.SetOutput(parentLogger.Out)
+	newLogger.Logger.SetLevel(parentLogger.Level)
+	newLogger.Logger.SetFormatter(parentLogger.Formatter)
+	newLogger.Logger.ReplaceHooks(parentLogger.Hooks)
+	newLogger.Entry = newLogger.Entry.Dup()
+
+	return &newLogger
 }

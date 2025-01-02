@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -49,7 +50,7 @@ const (
 
 	defaultExcludesFile = ".terragrunt-excludes"
 
-	defaultLogLevel = log.InfoLevel
+	DefaultLogLevel = log.InfoLevel
 )
 
 var (
@@ -145,7 +146,7 @@ type TerragruntOptions struct {
 	LogLevel log.Level
 
 	// Log formatter
-	LogFormatter *format.Formatter
+	LogFormatter *format.Formatter `clone:"shadowcopy"`
 
 	// If true, logs will be disabled
 	DisableLog bool
@@ -209,7 +210,7 @@ type TerragruntOptions struct {
 	RetryMaxAttempts int
 
 	// The duration in seconds to wait before retrying
-	RetrySleepInterval time.Duration
+	RetrySleepInterval time.Duration `clone:"required"`
 
 	// RetryableErrors is an array of regular expressions with RE2 syntax (https://github.com/google/re2/wiki/Syntax) that qualify for retrying
 	RetryableErrors []string
@@ -475,9 +476,9 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		RunAllAutoApprove:              true,
 		NonInteractive:                 false,
 		TerraformCliArgs:               []string{},
-		LogLevel:                       defaultLogLevel,
+		LogLevel:                       DefaultLogLevel,
 		LogFormatter:                   logFormatter,
-		Logger:                         log.New(log.WithOutput(stderr), log.WithLevel(defaultLogLevel), log.WithFormatter(logFormatter)),
+		Logger:                         log.New(log.WithOutput(stderr), log.WithLevel(DefaultLogLevel), log.WithFormatter(logFormatter)),
 		Env:                            map[string]string{},
 		Source:                         "",
 		SourceMap:                      map[string]string{},
@@ -492,7 +493,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		AutoRetry:                      true,
 		RetryMaxAttempts:               DefaultRetryMaxAttempts,
 		RetrySleepInterval:             DefaultRetrySleepInterval,
-		RetryableErrors:                util.CloneStringList(DefaultRetryableErrors),
+		RetryableErrors:                cloner.Clone(DefaultRetryableErrors),
 		ExcludeDirs:                    []string{},
 		IncludeDirs:                    []string{},
 		ModulesThatInclude:             []string{},
@@ -584,126 +585,33 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 	return opts
 }
 
-// Clone creates a copy of this TerragruntOptions, but with different values for the given variables. This is useful for
-// creating a TerragruntOptions that behaves the same way, but is used for a Terraform module in a different folder.
-func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOptions, error) {
-	workingDir := filepath.Dir(terragruntConfigPath)
+// Clone performs a deep copy of `opts` with shadow copies of: third-party types, interfaces, and funcs.
+// Fields with "clone" tags can override this behavior.
+//
+// Examples:
+// RetrySleepInterval time.Duration `clone:"required"` is a third-party type, we can make a full copy.
+// LogFormatter *format.Formatter `clone:"shadowcopy"` is a terragrunt type, we can't make a full copy because of unexported fields.
+func (opts *TerragruntOptions) Clone() *TerragruntOptions {
+	newOpts := cloner.Clone(opts, cloner.WithShadowCopyThirdPartyTypes())
+	newOpts.Logger = opts.Logger.Clone()
 
-	// Note that we clone lists and maps below as TerragruntOptions may be used and modified concurrently in the code
-	// during xxx-all commands (e.g., apply-all, plan-all). See https://github.com/gruntwork-io/terragrunt/issues/367
-	// for more info.
-	return &TerragruntOptions{
-		TerragruntConfigPath:         terragruntConfigPath,
-		OriginalTerragruntConfigPath: opts.OriginalTerragruntConfigPath,
-		TerraformPath:                opts.TerraformPath,
-		OriginalTerraformCommand:     opts.OriginalTerraformCommand,
-		TerraformCommand:             opts.TerraformCommand,
-		TerraformVersion:             opts.TerraformVersion,
-		TerragruntVersion:            opts.TerragruntVersion,
-		AutoInit:                     opts.AutoInit,
-		RunAllAutoApprove:            opts.RunAllAutoApprove,
-		NonInteractive:               opts.NonInteractive,
-		TerraformCliArgs:             util.CloneStringList(opts.TerraformCliArgs),
-		WorkingDir:                   workingDir,
-		RootWorkingDir:               opts.RootWorkingDir,
-		Logger: opts.Logger.WithFields(log.Fields{
-			placeholders.WorkDirKeyName:     workingDir,
-			placeholders.DownloadDirKeyName: opts.DownloadDir,
-		}),
-		LogLevel:                       opts.LogLevel,
-		LogFormatter:                   opts.LogFormatter,
-		ValidateStrict:                 opts.ValidateStrict,
-		Env:                            util.CloneStringMap(opts.Env),
-		Source:                         opts.Source,
-		SourceMap:                      opts.SourceMap,
-		SourceUpdate:                   opts.SourceUpdate,
-		DownloadDir:                    opts.DownloadDir,
-		Debug:                          opts.Debug,
-		OriginalIAMRoleOptions:         opts.OriginalIAMRoleOptions,
-		IAMRoleOptions:                 opts.IAMRoleOptions,
-		IgnoreDependencyErrors:         opts.IgnoreDependencyErrors,
-		IgnoreDependencyOrder:          opts.IgnoreDependencyOrder,
-		IgnoreExternalDependencies:     opts.IgnoreExternalDependencies,
-		IncludeExternalDependencies:    opts.IncludeExternalDependencies,
-		Writer:                         opts.Writer,
-		ErrWriter:                      opts.ErrWriter,
-		MaxFoldersToCheck:              opts.MaxFoldersToCheck,
-		AutoRetry:                      opts.AutoRetry,
-		RetryMaxAttempts:               opts.RetryMaxAttempts,
-		RetrySleepInterval:             opts.RetrySleepInterval,
-		RetryableErrors:                util.CloneStringList(opts.RetryableErrors),
-		ExcludesFile:                   opts.ExcludesFile,
-		ExcludeDirs:                    opts.ExcludeDirs,
-		IncludeDirs:                    opts.IncludeDirs,
-		ExcludeByDefault:               opts.ExcludeByDefault,
-		ModulesThatInclude:             opts.ModulesThatInclude,
-		UnitsReading:                   opts.UnitsReading,
-		ReadFiles:                      opts.ReadFiles,
-		Parallelism:                    opts.Parallelism,
-		StrictInclude:                  opts.StrictInclude,
-		RunTerragrunt:                  opts.RunTerragrunt,
-		AwsProviderPatchOverrides:      opts.AwsProviderPatchOverrides,
-		HclFile:                        opts.HclFile,
-		HclExclude:                     opts.HclExclude,
-		HclFromStdin:                   opts.HclFromStdin,
-		JSONOut:                        opts.JSONOut,
-		JSONLogFormat:                  opts.JSONLogFormat,
-		Check:                          opts.Check,
-		CheckDependentModules:          opts.CheckDependentModules,
-		NoDestroyDependenciesCheck:     opts.NoDestroyDependenciesCheck,
-		FetchDependencyOutputFromState: opts.FetchDependencyOutputFromState,
-		UsePartialParseConfigCache:     opts.UsePartialParseConfigCache,
-		ForwardTFStdout:                opts.ForwardTFStdout,
-		FailIfBucketCreationRequired:   opts.FailIfBucketCreationRequired,
-		DisableBucketUpdate:            opts.DisableBucketUpdate,
-		TerraformImplementation:        opts.TerraformImplementation,
-		GraphRoot:                      opts.GraphRoot,
-		ScaffoldVars:                   opts.ScaffoldVars,
-		ScaffoldVarFiles:               opts.ScaffoldVarFiles,
-		JSONDisableDependentModules:    opts.JSONDisableDependentModules,
-		ProviderCache:                  opts.ProviderCache,
-		ProviderCacheToken:             opts.ProviderCacheToken,
-		ProviderCacheDir:               opts.ProviderCacheDir,
-		ProviderCacheRegistryNames:     opts.ProviderCacheRegistryNames,
-		DisableLogColors:               opts.DisableLogColors,
-		OutputFolder:                   opts.OutputFolder,
-		JSONOutputFolder:               opts.JSONOutputFolder,
-		AuthProviderCmd:                opts.AuthProviderCmd,
-		SkipOutput:                     opts.SkipOutput,
-		DisableLog:                     opts.DisableLog,
-		EngineEnabled:                  opts.EngineEnabled,
-		EngineCachePath:                opts.EngineCachePath,
-		EngineLogLevel:                 opts.EngineLogLevel,
-		EngineSkipChecksumCheck:        opts.EngineSkipChecksumCheck,
-		Engine:                         cloneEngineOptions(opts.Engine),
-		ExperimentMode:                 opts.ExperimentMode,
-		// This doesn't have to be deep cloned, as the same experiments
-		// are used across all units in a `run-all`. If that changes in
-		// the future, we can deep clone this as well.
-		Experiments: opts.Experiments,
-		// copy array
-		StrictControls:         util.CloneStringList(opts.StrictControls),
-		FeatureFlags:           opts.FeatureFlags,
-		Errors:                 cloneErrorsConfig(opts.Errors),
-		ScaffoldNoIncludeRoot:  opts.ScaffoldNoIncludeRoot,
-		ScaffoldRootFileName:   opts.ScaffoldRootFileName,
-		Headless:               opts.Headless,
-		LogDisableErrorSummary: opts.LogDisableErrorSummary,
-	}, nil
+	return newOpts
 }
 
-// cloneEngineOptions creates a deep copy of the given EngineOptions
-func cloneEngineOptions(opts *EngineOptions) *EngineOptions {
-	if opts == nil {
-		return nil
-	}
+// CloneWithConfigPath creates a copy of this TerragruntOptions, but with different values for the given variables. This is useful for
+// creating a TerragruntOptions that behaves the same way, but is used for a Terraform module in a different folder.
+func (opts *TerragruntOptions) CloneWithConfigPath(configPath string) (*TerragruntOptions, error) {
+	newOpts := opts.Clone()
 
-	return &EngineOptions{
-		Source:  opts.Source,
-		Version: opts.Version,
-		Type:    opts.Type,
-		Meta:    opts.Meta,
-	}
+	workingDir := filepath.Dir(configPath)
+
+	newOpts.TerragruntConfigPath = configPath
+	newOpts.WorkingDir = workingDir
+	newOpts.Logger = newOpts.Logger.WithFields(log.Fields{
+		placeholders.WorkDirKeyName: workingDir,
+	})
+
+	return newOpts, nil
 }
 
 // Check if argument is planfile TODO check file formatter
@@ -896,53 +804,6 @@ type IgnoreConfig struct {
 type ErrorsPattern struct {
 	Pattern  *regexp.Regexp
 	Negative bool
-}
-
-func cloneErrorsConfig(config *ErrorsConfig) *ErrorsConfig {
-	if config == nil {
-		return nil
-	}
-
-	// Create a new Errors
-	cloned := &ErrorsConfig{
-		Retry:  make(map[string]*RetryConfig),
-		Ignore: make(map[string]*IgnoreConfig),
-	}
-
-	// Clone Retry configurations
-	for key, retryConfig := range config.Retry {
-		if retryConfig != nil {
-			cloned.Retry[key] = &RetryConfig{
-				Name:             retryConfig.Name,
-				MaxAttempts:      retryConfig.MaxAttempts,
-				SleepIntervalSec: retryConfig.SleepIntervalSec,
-				RetryableErrors:  make([]*ErrorsPattern, len(retryConfig.RetryableErrors)),
-			}
-			// Deep copy the RetryableErrors slice
-			copy(cloned.Retry[key].RetryableErrors, retryConfig.RetryableErrors)
-		}
-	}
-
-	// Clone Ignore configurations
-	for key, ignoreConfig := range config.Ignore {
-		if ignoreConfig != nil {
-			cloned.Ignore[key] = &IgnoreConfig{
-				Name:            ignoreConfig.Name,
-				Message:         ignoreConfig.Message,
-				IgnorableErrors: make([]*ErrorsPattern, len(ignoreConfig.IgnorableErrors)),
-				Signals:         make(map[string]interface{}),
-			}
-			// Deep copy the IgnorableErrors slice
-			copy(cloned.Ignore[key].IgnorableErrors, ignoreConfig.IgnorableErrors)
-
-			// Deep copy the Signals map
-			for sigKey, sigVal := range ignoreConfig.Signals {
-				cloned.Ignore[key].Signals[sigKey] = sigVal
-			}
-		}
-	}
-
-	return cloned
 }
 
 // RunWithErrorHandling runs the given operation and handles any errors according to the configuration.

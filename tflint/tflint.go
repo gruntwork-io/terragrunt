@@ -69,7 +69,7 @@ func RunTflintWithOpts(ctx context.Context, opts *options.TerragruntOptions, con
 	if externalTfLint {
 		opts.Logger.Debugf("Running external tflint init with args %v", initArgs)
 
-		_, err := shell.RunShellCommandWithOutput(ctx, opts, opts.WorkingDir, false, false,
+		_, err := shell.RunCommandWithOutput(ctx, opts, opts.WorkingDir, false, false,
 			initArgs[0], initArgs[1:]...)
 		if err != nil {
 			return errors.New(ErrorRunningTflint{args: initArgs})
@@ -95,7 +95,7 @@ func RunTflintWithOpts(ctx context.Context, opts *options.TerragruntOptions, con
 	if externalTfLint {
 		opts.Logger.Debugf("Running external tflint with args %v", args)
 
-		_, err := shell.RunShellCommandWithOutput(ctx, opts, opts.WorkingDir, false, false,
+		_, err := shell.RunCommandWithOutput(ctx, opts, opts.WorkingDir, false, false,
 			args[0], args[1:]...)
 		if err != nil {
 			return errors.New(ErrorRunningTflint{args: args})

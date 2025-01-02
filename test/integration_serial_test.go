@@ -26,7 +26,7 @@ import (
 
 	terragruntinfo "github.com/gruntwork-io/terragrunt/cli/commands/terragrunt-info"
 	"github.com/gruntwork-io/terragrunt/config"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -71,9 +71,9 @@ func TestTerragruntProviderCacheWithFilesystemMirror(t *testing.T) {
 	require.NoError(t, err)
 	defer cliConfigFilename.Close()
 
-	t.Setenv(terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
+	t.Setenv(tf.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
 
-	t.Logf("%s=%s", terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
+	t.Logf("%s=%s", tf.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
 
 	cliConfigSettings := &test.CLIConfigSettings{
 		FilesystemMirrorMethods: []test.CLIConfigProviderInstallationFilesystemMirror{
@@ -155,10 +155,10 @@ func TestTerragruntProviderCacheWithNetworkMirror(t *testing.T) {
 	t.Setenv(tokenEnvName, token)
 	defer os.Unsetenv(tokenEnvName)
 
-	t.Setenv(terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
-	defer os.Unsetenv(terraform.EnvNameTFCLIConfigFile)
+	t.Setenv(tf.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
+	defer os.Unsetenv(tf.EnvNameTFCLIConfigFile)
 
-	t.Logf("%s=%s", terraform.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
+	t.Logf("%s=%s", tf.EnvNameTFCLIConfigFile, cliConfigFilename.Name())
 
 	cliConfigSettings := &test.CLIConfigSettings{
 		DirectMethods: []test.CLIConfigProviderInstallationDirect{
@@ -698,7 +698,10 @@ func TestParseTFLog(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogFormatter)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureLogFormatter)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-log-format=pretty -no-color --terragrunt-no-color --terragrunt-working-dir "+rootPath)
+	rootPath, err := filepath.EvalSymlinks(rootPath)
+	require.NoError(t, err)
+
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all init --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-log-format=pretty --no-color --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
 	for _, prefixName := range []string{"app", "dep"} {

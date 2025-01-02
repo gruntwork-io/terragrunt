@@ -37,7 +37,7 @@ import (
 	"github.com/gruntwork-io/go-commons/version"
 	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/cli"
-	"github.com/gruntwork-io/terragrunt/cli/commands/terraform"
+	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
@@ -657,10 +657,10 @@ func WrappedBinary() string {
 // ExpectedWrongCommandErr - return expected error message for wrong command
 func ExpectedWrongCommandErr(command string) error {
 	if WrappedBinary() == TofuBinary {
-		return terraform.WrongTofuCommand(command)
+		return run.WrongTofuCommand(command)
 	}
 
-	return terraform.WrongTerraformCommand(command)
+	return run.WrongTerraformCommand(command)
 }
 
 func IsTerraform() bool {
@@ -726,7 +726,19 @@ func RunTerragruntCommandWithContext(t *testing.T, ctx context.Context, command 
 	args := splitCommand(command)
 
 	if !strings.Contains(command, "-terragrunt-log-format") && !strings.Contains(command, "-terragrunt-log-custom-format") {
-		args = append(args, "--terragrunt-log-format=key-value")
+		var builtinCmd []string
+
+		for i := range args {
+			if args[i] == "--" {
+				builtinCmd = make([]string, len(args[i:]))
+				copy(builtinCmd, args[i:])
+				args = args[:i]
+
+				break
+			}
+		}
+
+		args = append(append(args, "--terragrunt-log-format=key-value"), builtinCmd...)
 	}
 
 	t.Log(args)
@@ -888,4 +900,21 @@ func splitCommand(command string) []string {
 	}
 
 	return append(args, command[next:])
+}
+
+func IsTerragruntProviderCacheEnabled(t *testing.T) bool {
+	t.Helper()
+
+	for _, envName := range []string{"TERRAGRUNT_PROVIDER_CACHE", "TG_PROVIDER_CACHE"} {
+		if val := os.Getenv(envName); val != "" {
+			providerCache, err := strconv.ParseBool(val)
+			require.NoError(t, err)
+
+			if providerCache {
+				return true
+			}
+		}
+	}
+
+	return false
 }

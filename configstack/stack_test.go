@@ -13,7 +13,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
-	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/require"
 
@@ -64,7 +64,7 @@ func TestGetModuleRunGraphApplyOrder(t *testing.T) {
 	t.Parallel()
 
 	stack := createTestStack()
-	runGraph, err := stack.GetModuleRunGraph(terraform.CommandNameApply)
+	runGraph, err := stack.GetModuleRunGraph(tf.CommandNameApply)
 	require.NoError(t, err)
 
 	require.Equal(
@@ -89,7 +89,7 @@ func TestGetModuleRunGraphDestroyOrder(t *testing.T) {
 	t.Parallel()
 
 	stack := createTestStack()
-	runGraph, err := stack.GetModuleRunGraph(terraform.CommandNameDestroy)
+	runGraph, err := stack.GetModuleRunGraph(tf.CommandNameDestroy)
 	require.NoError(t, err)
 
 	require.Equal(
