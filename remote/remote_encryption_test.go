@@ -53,7 +53,7 @@ func TestUnmarshalConfig(t *testing.T) {
 			providerType: "aws_kms",
 			encryptionConfig: map[string]interface{}{
 				"key_provider": "aws_kms",
-				"kms_key_id":   123456789,
+				"kms_key_id":   "123456789",
 				"key_spec":     "AES_256",
 			},
 			expectedError: false,
@@ -72,7 +72,7 @@ func TestUnmarshalConfig(t *testing.T) {
 			providerType: "aws_kms",
 			encryptionConfig: map[string]interface{}{
 				"key_provider": "aws_kms",
-				"kms_key_id":   "invalid_id", // Invalid type
+				"kms_key_id":   123456789, // Invalid type
 				"key_spec":     "AES_256",
 			},
 			expectedError: true,

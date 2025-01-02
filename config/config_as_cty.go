@@ -599,8 +599,8 @@ func terraformConfigAsCty(config *TerraformConfig) (cty.Value, error) {
 }
 
 // RemoteStateAsCty serializes RemoteState to a cty Value. We can't directly
-// serialize the struct because `config` is an arbitrary
-// interface whose type we do not know, so we have to do a hack to go through json.
+// serialize the struct because `config` and `encryption` are arbitrary
+// interfaces whose type we do not know, so we have to do a hack to go through json.
 func RemoteStateAsCty(remoteState *remote.RemoteState) (cty.Value, error) {
 	if remoteState == nil {
 		return cty.NilVal, nil
@@ -624,6 +624,7 @@ func RemoteStateAsCty(remoteState *remote.RemoteState) (cty.Value, error) {
 	}
 
 	output["config"] = ctyJSONVal
+	output["encryption"] = ctyJSONVal
 
 	return convertValuesMapToCtyVal(output)
 }
