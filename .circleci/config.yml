@@ -592,7 +592,6 @@ jobs:
             GOPROXY=direct build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X github.com/gruntwork-io/go-commons/version.Version=$CIRCLE_TAG -extldflags '-static'"
 
   test_signing_windows:
-    <<: *defaults
     <<: *env
     steps:
       - checkout
@@ -607,6 +606,7 @@ jobs:
       - run:
           name: Sign windows binaries
           command: |
+            env
             sign-binary --os windows --install-windows-sign-dependencies bin/terragrunt_windows_amd64.exe
             sign-binary --os windows bin/terragrunt_windows_386.exe
       - persist_to_workspace:
