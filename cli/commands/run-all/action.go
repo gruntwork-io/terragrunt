@@ -2,6 +2,9 @@ package runall
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/configstack"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -9,6 +12,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/terraform"
+	"github.com/gruntwork-io/terragrunt/util"
 )
 
 // Known terraform commands that are explicitly not supported in run-all due to the nature of the command. This is
@@ -77,6 +81,16 @@ func RunAllOnStack(ctx context.Context, opts *options.TerragruntOptions, stack *
 		if !shouldRunAll {
 			return nil
 		}
+	}
+
+	// Read and parse the .terragrunt.ignore file
+	ignoreFilePath := filepath.Join(opts.WorkingDir, ".terragrunt.ignore")
+	if util.FileExists(ignoreFilePath) {
+		ignorePatterns, err := util.ReadFileAsString(ignoreFilePath)
+		if err != nil {
+			return errors.New(err)
+		}
+		opts.IgnorePatterns = strings.Split(ignorePatterns, "\n")
 	}
 
 	return telemetry.Telemetry(ctx, opts, "run_all_on_stack", map[string]interface{}{
