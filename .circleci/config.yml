@@ -609,8 +609,26 @@ jobs:
           name: Sign windows binaries
           command: |
             env
-            sign-binary --os windows --install-windows-sign-dependencies bin/terragrunt_windows_amd64.exe
-            sign-binary --os windows bin/terragrunt_windows_386.exe
+            
+            udo apt-get update
+            sudo apt-get install -y osslsigncode
+            
+            echo "$WINDOWS_CERT" | base64 -d > certificate.p12
+            
+            osslsigncode sign \
+              -pkcs12 certificate.p12 \
+              -pass "$WINDOWS_KEY" \
+              -n "$WINDOWS_CERT_NAME" \
+              -i "$WINDOWS_CERT_URL" \
+              -ts "http://timestamp.digicert.com" \
+              -h sha256 \
+              -in "bin/terragrunt_windows_amd64.exe" \
+              -out "terragrunt_windows_amd64.exe"
+            
+            cp terragrunt_windows_amd64.exe bin/
+            
+            #sign-binary --os windows --install-windows-sign-dependencies bin/terragrunt_windows_amd64.exe
+            #sign-binary --os windows bin/terragrunt_windows_386.exe
       - persist_to_workspace:
           root: .
           paths: [bin]
