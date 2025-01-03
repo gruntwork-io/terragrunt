@@ -37,9 +37,10 @@ import (
 )
 
 const (
-	DefaultTerragruntConfigPath     = "terragrunt.hcl"
-	DefaultTerragruntJSONConfigPath = "terragrunt.hcl.json"
-	FoundInFile                     = "found_in_file"
+	DefaultTerragruntConfigPath      = "terragrunt.hcl"
+	DefaultTerragruntStackConfigPath = "terragrunt.stack.hcl"
+	DefaultTerragruntJSONConfigPath  = "terragrunt.hcl.json"
+	FoundInFile                      = "found_in_file"
 
 	iamRoleCacheName = "iamRoleCache"
 
