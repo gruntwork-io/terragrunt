@@ -9,14 +9,18 @@ import (
 	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
 )
 
-const CommandName = "*"
+const (
+	CommandName     = ""
+	CommandHelpName = "*"
+)
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
-		Name:   CommandName,
-		Hidden: true,
-		Flags:  runCmd.NewFlags(opts),
-		Action: Action(opts),
+		Name:     CommandName,
+		HelpName: CommandHelpName,
+		Usage:    "Terragrunt forwards all other commands directly to Terraform",
+		Flags:    runCmd.NewFlags(opts),
+		Action:   Action(opts),
 	}
 }
 

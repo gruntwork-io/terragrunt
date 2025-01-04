@@ -184,6 +184,9 @@ func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 
 	sort.Sort(cmds)
 
+	// add default command `*` after sorting to put the command at the end of the list in the help.
+	cmds.Add(defaultCmd.NewCommand(opts))
+
 	return cmds
 }
 
