@@ -17,6 +17,7 @@ const (
 )
 
 // BoolWithDeprecatedFlag adds deprecated names with strict mode control for the given flag.
+// If `oldNames` is not specified, names are taken from the given `flag` with adding `terragrunt-/TERRAGRUNT_` prefixes.
 func BoolWithDeprecatedFlag(opts *options.TerragruntOptions, flag *cli.BoolFlag, oldNames ...string) cli.Flag { //nolint:ireturn
 	names := flag.Names()
 	envVars := flag.GetEnvVars()
@@ -33,6 +34,7 @@ func BoolWithDeprecatedFlag(opts *options.TerragruntOptions, flag *cli.BoolFlag,
 }
 
 // GenericWithDeprecatedFlag adds deprecated names with strict mode control for the given flag.
+// If `oldNames` is not specified, names are taken from the given `flag` with adding `terragrunt-/TERRAGRUNT_` prefixes.
 func GenericWithDeprecatedFlag[T cli.GenericType](opts *options.TerragruntOptions, flag *cli.GenericFlag[T], oldNames ...string) cli.Flag { //nolint:ireturn
 	names := flag.Names()
 	envVars := flag.GetEnvVars()
@@ -49,6 +51,7 @@ func GenericWithDeprecatedFlag[T cli.GenericType](opts *options.TerragruntOption
 }
 
 // SliceWithDeprecatedFlag adds deprecated names with strict mode control for the given flag.
+// If `oldNames` is not specified, names are taken from the given `flag` with adding `terragrunt-/TERRAGRUNT_` prefixes.
 func SliceWithDeprecatedFlag[T cli.SliceFlagType](opts *options.TerragruntOptions, flag *cli.SliceFlag[T], oldNames ...string) cli.Flag { //nolint:ireturn
 	names := flag.Names()
 	envVars := flag.GetEnvVars()
@@ -65,6 +68,7 @@ func SliceWithDeprecatedFlag[T cli.SliceFlagType](opts *options.TerragruntOption
 }
 
 // MapWithDeprecatedFlag adds deprecated names with strict mode control for the given flag.
+// If `oldNames` is not specified, names are taken from the given `flag` with adding `terragrunt-/TERRAGRUNT_` prefixes.
 func MapWithDeprecatedFlag[K cli.MapFlagKeyType, V cli.MapFlagValueType](opts *options.TerragruntOptions, flag *cli.MapFlag[K, V], oldNames ...string) cli.Flag { //nolint:ireturn
 	names := flag.Names()
 	envVars := flag.GetEnvVars()
@@ -80,7 +84,7 @@ func MapWithDeprecatedFlag[K cli.MapFlagKeyType, V cli.MapFlagValueType](opts *o
 	}
 }
 
-// Flag is a wrapper for `cli.Flag` to avoid displaying deprecated namas in help.
+// Flag is a wrapper for `cli.Flag` to avoid displaying deprecated names in help.
 type Flag struct {
 	cli.Flag
 	opts    *options.TerragruntOptions
@@ -166,34 +170,6 @@ func (flag *Flag) usedDeprecatedEnvVar(_ *cli.Context) string {
 	}
 
 	return ""
-}
-
-// EnvVars does same `EnvVarsWithPrefix` but with default specified `EnvVarPrefix` prefix.
-func EnvVars(names ...string) []string {
-	return EnvVarsWithPrefix(EnvVarPrefix, names...)
-}
-
-// EnvVarsWithPrefix converts the given flag names into their environment variables with the given prefix added.
-func EnvVarsWithPrefix(prefix string, names ...string) []string {
-	var envVars = make([]string, len(names))
-
-	for i := range names {
-		suffix := strings.ToUpper(strings.ReplaceAll(names[i], "-", "_"))
-		envVars[i] = prefix + suffix
-	}
-
-	return envVars
-}
-
-// FlagNames returns the given names with the given prefix added.
-func FlagNames(prefix string, names ...string) []string {
-	var flagNames = make([]string, len(names))
-
-	for i := range names {
-		flagNames[i] = prefix + names[i]
-	}
-
-	return flagNames
 }
 
 func deprecatedEnvVars(flagName string, oldNames []string) []string {

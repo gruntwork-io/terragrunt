@@ -8,10 +8,13 @@ import (
 const (
 	fieldTagName = "clone"
 
-	fieldTagValueRequired   = "required"
+	// fieldTagValueRequired forces to make deep copy of the field even if the field type is disallowed by the option.
+	fieldTagValueRequired = "required"
+	// fieldTagValueShadowCopy specifies that the dst field should be assigned the src field pointer instead of deep copying.
 	fieldTagValueShadowCopy = "shadowcopy"
-	fieldTagValueSkip       = "skip"
-	fieldTagValueSkipAlias  = "-"
+	// fieldTagValueSkip specifies that the dst field should have a null value, regardless of the src value.
+	fieldTagValueSkip      = "skip"
+	fieldTagValueSkipAlias = "-"
 )
 
 // Option represents an option to customize deep copied results.
@@ -23,7 +26,7 @@ type Config struct {
 
 	shadowCopyInversePkgPrefixes []string
 
-	requiredCopyOnce bool
+	tagPriorityOnce bool
 }
 
 type Cloner[T any] struct {
@@ -48,8 +51,8 @@ func (cloner *Cloner[T]) getDstValue(src reflect.Value) (reflect.Value, bool) {
 		valid   = false
 	)
 
-	if cloner.requiredCopyOnce {
-		cloner.requiredCopyOnce = false
+	if cloner.tagPriorityOnce {
+		cloner.tagPriorityOnce = false
 
 		return dst, valid
 	}
@@ -226,12 +229,13 @@ func (cloner *Cloner[T]) cloneStruct(src reflect.Value) reflect.Value {
 
 		switch srcTypeField.Tag.Get(fieldTagName) {
 		case fieldTagValueSkip, fieldTagValueSkipAlias:
+			cloner.tagPriorityOnce = true
 			val = reflect.Zero(srcField.Type()).Elem()
 		case fieldTagValueShadowCopy:
+			cloner.tagPriorityOnce = true
 			val = srcField
 		case fieldTagValueRequired:
-			cloner.requiredCopyOnce = true
-
+			cloner.tagPriorityOnce = true
 			fallthrough
 		default:
 			val = cloner.cloneValue(srcField)

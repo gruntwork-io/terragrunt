@@ -40,7 +40,7 @@ func Action(opts *options.TerragruntOptions) cli.ActionFunc {
 		}
 
 		if !opts.DisableCommandValidation && !collections.ListContainsElement(tf.CommandNames, opts.TerraformCommand) {
-			if strings.HasSuffix(opts.TerraformPath, "terraform") {
+			if strings.HasSuffix(opts.TerraformPath, options.TerraformDefaultPath) {
 				return errors.New(WrongTerraformCommand(opts.TerraformCommand))
 			} else {
 				// We default to tofu if the terraform path does not end in Terraform

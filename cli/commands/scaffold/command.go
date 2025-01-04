@@ -95,15 +95,18 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 }
 
 func GetDefaultRootFileName(opts *options.TerragruntOptions) string {
-	if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
-		warn, triggered, err := control.Evaluate(opts)
-		if err != nil {
-			return config.RecommendedParentConfigName
-		}
+	control, ok := strict.GetStrictControl(strict.RootTerragruntHCL)
+	if !ok {
+		return config.DefaultTerragruntConfigPath
+	}
 
-		if !triggered {
-			opts.Logger.Warnf(warn)
-		}
+	warn, triggered, err := control.Evaluate(opts)
+	if err != nil {
+		return config.RecommendedParentConfigName
+	}
+
+	if !triggered {
+		opts.Logger.Warnf(warn)
 	}
 
 	return config.DefaultTerragruntConfigPath
