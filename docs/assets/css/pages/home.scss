@@ -160,7 +160,7 @@ body.index-page {
   .section-newsletter {
     z-index: 30;
     background-color: #f8f9fa;
-    padding: 60px 0;
+    padding: 60px 0 80px;
     width: 100%;
 
     .container {
@@ -180,32 +180,123 @@ body.index-page {
         margin-bottom: 30px;
       }
 
-      .custom-form {
-        .form-group {
-          display: flex;
-          gap: 10px;
-          max-width: 500px;
-          margin: 0 auto;
-        }
+      .form-container {
+        position: relative;
+        height: 45px;
+        margin: 0 auto;
+        max-width: 500px;
 
-        .custom-input {
-          flex: 1;
-          height: 45px;
-          padding: 10px 15px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          font-size: 16px;
+        .custom-form {
+          transition: opacity 0.3s ease, transform 0.3s ease;
           
-          &:focus {
-            outline: none;
-            border-color: #007bff;
+          .form-group {
+            display: flex;
+            gap: 10px;
+            margin: 0 auto;
+          }
+
+          .custom-input {
+            flex: 1;
+            height: 45px;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            
+            &:focus {
+              outline: none;
+              border-color: #007bff;
+            }
+          }
+
+          .btn {
+            height: 45px;
+            padding: 0 25px;
+            white-space: nowrap;
+            position: relative;
+            transition: all 0.3s ease;
+
+            .button-text {
+              transition: opacity 0.2s ease;
+            }
+
+            .button-loader {
+              position: absolute;
+              left: 50%;
+              top: 50%;
+              transform: translate(-50%, -50%);
+              width: 20px;
+              height: 20px;
+              border: 2px solid rgba(255,255,255,0.3);
+              border-radius: 50%;
+              border-top-color: #fff;
+              opacity: 0;
+              display: none;
+              animation: spin 0.8s linear infinite;
+            }
+
+            &.loading {
+              pointer-events: none;
+              
+              .button-text {
+                opacity: 0;
+              }
+              
+              .button-loader {
+                opacity: 1;
+                display: block;
+              }
+            }
           }
         }
 
-        .btn {
-          height: 45px;
-          padding: 0 25px;
-          white-space: nowrap;
+        .success-message {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          opacity: 0;
+          transform: translateY(10px);
+          transition: all 0.3s ease;
+          text-align: center;
+          pointer-events: none;
+
+          .checkmark {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            background: #28a745;
+            border-radius: 50%;
+            color: white;
+            line-height: 30px;
+            margin-bottom: 10px;
+            transform: scale(0);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          }
+
+          p {
+            margin: 0;
+            color: #28a745;
+            font-size: 16px;
+          }
+        }
+
+        &.success {
+          .custom-form {
+            opacity: 0;
+            transform: translateY(-10px);
+            pointer-events: none;
+          }
+
+          .success-message {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+
+            .checkmark {
+              transform: scale(1);
+            }
+          }
         }
       }
 
@@ -344,15 +435,24 @@ body.index-page {
           padding: 0 20px;
         }
 
-        .custom-form {
-          .form-group {
-            flex-direction: column;
-            gap: 15px;
-            padding: 0 20px;
+        .form-container {
+          height: auto;
+          padding: 0 20px;
+
+          .custom-form {
+            .form-group {
+              flex-direction: column;
+              gap: 15px;
+            }
+            
+            .btn {
+              width: 100%;
+            }
           }
-          
-          .btn {
-            width: 100%;
+
+          .success-message {
+            position: relative;
+            margin-top: 20px;
           }
         }
       }
@@ -379,5 +479,11 @@ body.index-page {
     .code-snippet
     pre {
     font-size: 10px;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
   }
 }
