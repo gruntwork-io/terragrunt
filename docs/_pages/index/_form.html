@@ -1,0 +1,57 @@
+<div class="section section-newsletter">
+  <div class="container">
+    <div class="newsletter-content">
+      <div class="subtitle">
+        Subscribe to the newsletter to hear about the latest updates,
+        features, and innovations in Terragrunt.
+      </div>
+
+      <form id="custom-subscribe-form" class="custom-form">
+        <div class="form-group">
+          <input 
+            type="email" 
+            id="custom-email" 
+            placeholder="Enter your email"
+            required
+            class="custom-input"
+          >
+          <button type="submit" class="btn btn-primary">Subscribe</button>
+        </div>
+      </form>
+
+      <div class="hs-form-frame hidden" 
+        data-region="na1"
+        data-form-id="437b604f-ae08-40cf-b68f-707ae19ab6e9"
+        data-portal-id="8376079">
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const customForm = document.getElementById('custom-subscribe-form');
+  
+  customForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    // Wait for HubSpot form to be ready
+    const checkHubspotForm = setInterval(function() {
+      const hsForm = document.querySelector('.hs-form');
+      if (hsForm) {
+        clearInterval(checkHubspotForm);
+        
+        // Fill HubSpot form
+        const hsEmailInput = hsForm.querySelector('input[name="0-1/email"]');
+        hsEmailInput.value = document.getElementById('custom-email').value;
+        
+        // Submit HubSpot form
+        const hsSubmitButton = hsForm.querySelector('button[type="submit"]');
+        hsSubmitButton.click();
+      }
+    }, 100);
+  });
+});
+</script>
+
+<script src="https://js.hsforms.net/forms/embed/8376079.js" defer></script>
