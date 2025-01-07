@@ -26,13 +26,30 @@ func ReadStackConfigFile(ctx context.Context, terragruntOptions *options.Terragr
 		return nil, errors.New(err)
 	}
 
+	if err := processLocals(terragruntOptions, parseCtx, file); err != nil {
+		return nil, errors.New(err)
+	}
+
+	evalParsingContext, err := createTerragruntEvalContext(parseCtx, file.ConfigPath)
+	config := &StackConfigFile{}
+	if err := file.Decode(config, evalParsingContext); err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
+
+func processLocals(terragruntOptions *options.TerragruntOptions, parseCtx *ParsingContext, file *hclparse.File) error {
 	localsBlock, err := file.Blocks(MetadataLocals, false)
 	if err != nil {
-		return nil, err
+		return errors.New(err)
+	}
+	if len(localsBlock) == 0 {
+		return nil
 	}
 	attrs, err := localsBlock[0].JustAttributes()
 	if err != nil {
-		return nil, err
+		return errors.New(err)
 	}
 	evaluatedLocals := map[string]cty.Value{}
 	evaluated := true
@@ -41,7 +58,7 @@ func ReadStackConfigFile(ctx context.Context, terragruntOptions *options.Terragr
 		if iterations > MaxIter {
 			// Reached maximum supported iterations, which is most likely an infinite loop bug so cut the iteration
 			// short an return an error.
-			return nil, errors.New(MaxIterError{})
+			return errors.New(MaxIterError{})
 		}
 
 		var err error
@@ -53,21 +70,14 @@ func ReadStackConfigFile(ctx context.Context, terragruntOptions *options.Terragr
 		)
 
 		if err != nil {
-			parseCtx.TerragruntOptions.Logger.Debugf("Encountered error while evaluating locals in file %s", terragruntOptions.TerragrungStackConfigPath)
-			return nil, err
+			terragruntOptions.Logger.Debugf("Encountered error while evaluating locals in file %s", terragruntOptions.TerragrungStackConfigPath)
+			return errors.New(err)
 		}
 	}
 	localsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedLocals)
 	if err != nil {
-		return nil, err
+		return errors.New(err)
 	}
 	parseCtx.Locals = &localsAsCtyVal
-
-	evalParsingContext, err := createTerragruntEvalContext(parseCtx, file.ConfigPath)
-	config := &StackConfigFile{}
-	if err := file.Decode(config, evalParsingContext); err != nil {
-		return nil, err
-	}
-
-	return config, nil
+	return nil
 }

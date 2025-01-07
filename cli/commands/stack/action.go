@@ -99,7 +99,7 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 		}
 
 		if err := client.Get(); err != nil {
-			return errors.New(fmt.Errorf("failed to fetch source '%s' to destination '%s': %w", unit.Source, dest, err))
+			return errors.New(err)
 		}
 	}
 
