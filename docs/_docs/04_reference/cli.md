@@ -15,7 +15,7 @@ redirect_from:
 
 ## Commands
 
-Terragrunt supports the following Commands:
+Terragrunt supports the following commands:
 
 - [All OpenTofu/Terraform built-in commands](#all-opentofuterraform-built-in-commands)
 - [run-all](#run-all)
@@ -35,8 +35,9 @@ Terragrunt supports the following Commands:
 ### All OpenTofu/Terraform built-in commands
 
 Terragrunt is an orchestration tool for OpenTofu/Terraform, so except for a few of the special commands defined in these docs,
-Terragrunt forwards all other commands to OpenTofu/Terraform. For example, when you run `terragrunt apply`, Terragrunt executes
-`tofu apply`/`terraform apply`.
+Terragrunt forwards all other commands to OpenTofu/Terraform.
+
+For example, when you run `terragrunt apply`, Terragrunt executes `tofu apply`/`terraform apply`.
 
 Examples:
 
@@ -48,7 +49,7 @@ terragrunt destroy
 # etc
 ```
 
-Run `terraform --help` to get the full list.
+Run `tofu/terraform --help` to get the full list of available OpenTofu/Terraform commands respectively.
 
 ### run-all
 
