@@ -8,7 +8,10 @@ env: &env
   environment:
     GRUNTWORK_INSTALLER_VERSION: v0.0.39
     MODULE_CI_VERSION: v0.57.0
-    TOFU_ENGINE_VERSION: "v0.0.9"
+    OPENTOFU_VERSION: "1.8.8"
+    TERRAFORM_VERSION: "1.9.7"
+    TFLINT_VERSION: "0.47.0"
+    TOFU_ENGINE_VERSION: "v0.0.11"
 
 defaults: &defaults
   docker:
@@ -20,7 +23,6 @@ install_terraform_latest: &install_terraform_latest
   command: |
     pushd .
     cd /tmp
-    export TERRAFORM_VERSION=1.9.7
     curl -L "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o terraform.zip
     unzip -o terraform.zip
     sudo install -m 0755 terraform /usr/local/bin/terraform
@@ -34,7 +36,7 @@ install_tofu: &install_tofu
   command: |
     pushd .
     cd /tmp
-    curl -L "https://github.com/opentofu/opentofu/releases/download/v1.8.3/tofu_1.8.3_linux_amd64.zip" -o tofu.zip
+    curl -L "https://github.com/opentofu/opentofu/releases/download/v${OPENTOFU_VERSION}/tofu_${OPENTOFU_VERSION}_linux_amd64.zip" -o tofu.zip
     unzip -o tofu.zip
     sudo install -m 0755 tofu /usr/local/bin/tofu
     rm -rf tofu
@@ -49,7 +51,7 @@ install_tflint: &install_tflint
   command: |
     pushd .
     cd /tmp
-    curl -L "https://github.com/terraform-linters/tflint/releases/download/v0.47.0/tflint_linux_amd64.zip" -o tflint.zip
+    curl -L "https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/tflint_linux_amd64.zip" -o tflint.zip
     unzip -o tflint.zip
     sudo install -m 0755 tflint /usr/local/bin/tflint
     rm -rf tflint
@@ -151,6 +153,7 @@ jobs:
     executor:
       name: win/default
       size: "large"
+    <<: *env
     steps:
       - checkout
       - run:
@@ -172,6 +175,7 @@ jobs:
     executor:
       name: win/default
       size: "large"
+    <<: *env
     steps:
       - checkout
       - run:
@@ -197,6 +201,7 @@ jobs:
   # performance penalty.
   unit_test:
     <<: *defaults
+    <<: *env
     steps:
       - checkout
       # Run pre-commit hooks and fail the build if any hook finds required changes.
@@ -237,6 +242,7 @@ jobs:
   integration_test_terraform_1_5:
     resource_class: xlarge
     <<: *defaults
+    <<: *env
     steps:
       - checkout
       - run:
@@ -255,6 +261,7 @@ jobs:
   integration_test_terraform_with_provider_cache:
     resource_class: xlarge
     <<: *defaults
+    <<: *env
     steps:
       - checkout
       - run:
@@ -275,6 +282,7 @@ jobs:
   integration_test_terraform_latest:
     resource_class: xlarge
     <<: *defaults
+    <<: *env
     steps:
       - checkout
       - run:
@@ -295,6 +303,7 @@ jobs:
   integration_test_tofu:
     resource_class: xlarge
     <<: *defaults
+    <<: *env
     steps:
       - checkout
       - run:
@@ -317,6 +326,7 @@ jobs:
   integration_test_tofu_with_provider_cache:
     resource_class: xlarge
     <<: *defaults
+    <<: *env
     steps:
       - checkout
       - run:
@@ -494,6 +504,7 @@ jobs:
   strict_lint:
     resource_class: medium
     <<: *defaults
+    <<: *env
     steps:
       - checkout
       # The `run-strict-lint` target requires the `main` ref for comparison.
@@ -508,6 +519,7 @@ jobs:
   integration_test_tflint:
     resource_class: large
     <<: *defaults
+    <<: *env
     steps:
       - checkout
       - run:
@@ -528,6 +540,7 @@ jobs:
   race_test:
     resource_class: medium
     <<: *defaults
+    <<: *env
     steps:
       - checkout
       - run:
