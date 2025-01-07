@@ -19,18 +19,18 @@ type StackConfigFile struct {
 func ReadStackConfigFile(ctx context.Context, terragruntOptions *options.TerragruntOptions) (*StackConfigFile, error) {
 	terragruntOptions.Logger.Debugf("Reading Terragrunt stack config file at %s", terragruntOptions.TerragrungStackConfigPath)
 
-	parseCtx := NewParsingContext(ctx, terragruntOptions)
+	parser := NewParsingContext(ctx, terragruntOptions)
 
-	file, err := hclparse.NewParser(parseCtx.ParserOptions...).ParseFromFile(terragruntOptions.TerragrungStackConfigPath)
+	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(terragruntOptions.TerragrungStackConfigPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
 
-	if err := processLocals(terragruntOptions, parseCtx, file); err != nil {
+	if err := processLocals(parser, terragruntOptions, file); err != nil {
 		return nil, errors.New(err)
 	}
 
-	evalParsingContext, err := createTerragruntEvalContext(parseCtx, file.ConfigPath)
+	evalParsingContext, err := createTerragruntEvalContext(parser, file.ConfigPath)
 	config := &StackConfigFile{}
 	if err := file.Decode(config, evalParsingContext); err != nil {
 		return nil, err
@@ -39,7 +39,7 @@ func ReadStackConfigFile(ctx context.Context, terragruntOptions *options.Terragr
 	return config, nil
 }
 
-func processLocals(terragruntOptions *options.TerragruntOptions, parseCtx *ParsingContext, file *hclparse.File) error {
+func processLocals(parseCtx *ParsingContext, terragruntOptions *options.TerragruntOptions, file *hclparse.File) error {
 	localsBlock, err := file.Blocks(MetadataLocals, false)
 	if err != nil {
 		return errors.New(err)

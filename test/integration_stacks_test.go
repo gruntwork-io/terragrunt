@@ -21,7 +21,7 @@ func TestStacksGenerateBasic(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt stack generate --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt stack generate --terragrunt-working-dir %s", rootPath))
 }
 
 func TestStacksGenerateLocals(t *testing.T) {
@@ -31,7 +31,7 @@ func TestStacksGenerateLocals(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksLocals)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksLocals)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt stack generate --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt stack generate --terragrunt-working-dir %s", rootPath))
 }
 
 func TestStacksGenerateRemote(t *testing.T) {
@@ -41,5 +41,5 @@ func TestStacksGenerateRemote(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksRemote)
 
-	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt stack generate --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt stack generate --terragrunt-working-dir %s", rootPath))
 }

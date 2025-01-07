@@ -27,11 +27,8 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, subCommand string
 		return errors.New("No command specified")
 	}
 
-	switch subCommand {
-	case generate:
-		{
-			return generateStack(ctx, opts)
-		}
+	if subCommand == generate {
+		return generateStack(ctx, opts)
 	}
 
 	return nil
@@ -52,7 +49,8 @@ func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 }
 func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stackFile *config.StackConfigFile) error {
 	baseDir := filepath.Join(opts.WorkingDir, stackCacheDir)
-	if err := os.MkdirAll(baseDir, 0755); err != nil {
+	const dirPerm = 0755
+	if err := os.MkdirAll(baseDir, dirPerm); err != nil {
 		return errors.New(fmt.Errorf("failed to create base directory: %w", err))
 	}
 
@@ -156,7 +154,8 @@ func (p *StacksFileProvider) SetClient(c *getter.Client) {
 }
 
 func (p *StacksFileProvider) copyFile(src, dst string) error {
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+	const dirPerm = 0755
+	if err := os.MkdirAll(filepath.Dir(dst), dirPerm); err != nil {
 		return errors.New(err)
 	}
 
