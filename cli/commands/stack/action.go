@@ -83,11 +83,20 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 			Options: []getter.ClientOption{
 				getter.WithInsecure(),
 				getter.WithContext(ctx),
-				getter.WithGetters(map[string]getter.Getter{
-					"file": &StacksFileProvider{},
-				}),
 			},
 		}
+
+		// setting custom getters
+		client.Getters = map[string]getter.Getter{}
+		for getterName, getterValue := range getter.Getters {
+			// setting custom getter for file to not use symlinks
+			if getterName == "file" {
+				client.Getters[getterName] = &StacksFileProvider{}
+			} else {
+				client.Getters[getterName] = getterValue
+			}
+		}
+
 		if err := client.Get(); err != nil {
 			return errors.New(fmt.Errorf("failed to fetch source '%s' to destination '%s': %w", unit.Source, dest, err))
 		}
