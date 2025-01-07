@@ -32,9 +32,11 @@ func (s *StackConfigFile) ToCtyValue() (cty.Value, error) {
 func FromCtyValue(v cty.Value) (*StackConfigFile, error) {
 	var config StackConfigFile
 	err := gocty.FromCtyValue(v, &config)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode cty value: %w", err)
 	}
+
 	return &config, nil
 }
 
@@ -43,6 +45,7 @@ func (u *Unit) Clone() *Unit {
 	if u == nil {
 		return nil
 	}
+
 	return &Unit{
 		Name:   u.Name,
 		Source: u.Source,

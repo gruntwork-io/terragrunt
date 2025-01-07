@@ -20,6 +20,7 @@ const (
 	generate         = "generate"
 	stackCacheDir    = ".terragrunt-stack"
 	defaultStackFile = "terragrunt.stack.hcl"
+	dirPerm          = 0755
 )
 
 func Run(ctx context.Context, opts *options.TerragruntOptions, subCommand string) error {
@@ -37,6 +38,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, subCommand string
 func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 	opts.TerragrungStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
 	stackFile, err := config.ReadStackConfigFile(ctx, opts)
+
 	if err != nil {
 		return errors.New(err)
 	}
@@ -49,7 +51,6 @@ func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 }
 func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stackFile *config.StackConfigFile) error {
 	baseDir := filepath.Join(opts.WorkingDir, stackCacheDir)
-	const dirPerm = 0755
 	if err := os.MkdirAll(baseDir, dirPerm); err != nil {
 		return errors.New(fmt.Errorf("failed to create base directory: %w", err))
 	}
@@ -57,6 +58,7 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 	for _, unit := range stackFile.Units {
 		destPath := filepath.Join(baseDir, unit.Path)
 		dest, err := filepath.Abs(destPath)
+
 		if err != nil {
 			return errors.New(fmt.Errorf("failed to get absolute path for destination '%s': %w", dest, err))
 		}
@@ -66,11 +68,13 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 		if !filepath.IsAbs(unit.Source) && !isURL(unit.Source) {
 			src = filepath.Join(opts.WorkingDir, unit.Source)
 			src, err = filepath.Abs(src)
+
 			if err != nil {
 				opts.Logger.Warnf("failed to get absolute path for source '%s': %v", unit.Source, err)
 				src = unit.Source
 			}
 		}
+
 		opts.Logger.Infof("Processing unit: %s (%s) to %s", unit.Name, src, dest)
 
 		client := &getter.Client{
@@ -87,6 +91,7 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 
 		// setting custom getters
 		client.Getters = map[string]getter.Getter{}
+
 		for getterName, getterValue := range getter.Getters {
 			// setting custom getter for file to not use symlinks
 			if getterName == "file" {
@@ -108,7 +113,9 @@ func isURL(str string) bool {
 	if strings.Contains(str, "//") {
 		return true
 	}
+
 	u, err := url.Parse(str)
+
 	return err == nil && u.Scheme != "" && u.Host != ""
 }
 
@@ -120,6 +127,7 @@ type StacksFileProvider struct {
 func (p *StacksFileProvider) Get(dst string, u *url.URL) error {
 	src := u.Path
 	fi, err := os.Stat(src)
+
 	if err != nil {
 		return errors.New(fmt.Errorf("source path error: %w", err))
 	}
@@ -127,6 +135,7 @@ func (p *StacksFileProvider) Get(dst string, u *url.URL) error {
 	if fi.IsDir() {
 		return p.copyDir(src, dst)
 	}
+
 	return p.copyFile(src, dst)
 }
 
@@ -145,6 +154,7 @@ func (p *StacksFileProvider) ClientMode(u *url.URL) (getter.ClientMode, error) {
 	if fi.IsDir() {
 		return getter.ClientModeDir, nil
 	}
+
 	return getter.ClientModeFile, nil
 }
 
@@ -154,7 +164,6 @@ func (p *StacksFileProvider) SetClient(c *getter.Client) {
 }
 
 func (p *StacksFileProvider) copyFile(src, dst string) error {
-	const dirPerm = 0755
 	if err := os.MkdirAll(filepath.Dir(dst), dirPerm); err != nil {
 		return errors.New(err)
 	}
@@ -206,6 +215,7 @@ func (p *StacksFileProvider) copyDir(src, dst string) error {
 			if err := p.copyDir(srcPath, dstPath); err != nil {
 				return errors.New(err)
 			}
+
 			continue
 		}
 

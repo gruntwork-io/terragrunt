@@ -25,32 +25,41 @@ func ReadStackConfigFile(ctx context.Context, terragruntOptions *options.Terragr
 	if err != nil {
 		return nil, errors.New(err)
 	}
-
+	// nolint:contextcheck
 	if err := processLocals(parser, terragruntOptions, file); err != nil {
 		return nil, errors.New(err)
 	}
-
+	// nolint:contextcheck
 	evalParsingContext, err := createTerragruntEvalContext(parser, file.ConfigPath)
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
 	config := &StackConfigFile{}
 	if err := file.Decode(config, evalParsingContext); err != nil {
-		return nil, err
+		return nil, errors.New(err)
 	}
 
 	return config, nil
 }
 
-func processLocals(parseCtx *ParsingContext, terragruntOptions *options.TerragruntOptions, file *hclparse.File) error {
+func processLocals(parser *ParsingContext, terragruntOptions *options.TerragruntOptions, file *hclparse.File) error {
 	localsBlock, err := file.Blocks(MetadataLocals, false)
+
 	if err != nil {
 		return errors.New(err)
 	}
+
 	if len(localsBlock) == 0 {
 		return nil
 	}
+
 	attrs, err := localsBlock[0].JustAttributes()
+
 	if err != nil {
 		return errors.New(err)
 	}
+
 	evaluatedLocals := map[string]cty.Value{}
 	evaluated := true
 
@@ -62,8 +71,9 @@ func processLocals(parseCtx *ParsingContext, terragruntOptions *options.Terragru
 		}
 
 		var err error
+		// nolint:contextcheck
 		attrs, evaluatedLocals, evaluated, err = attemptEvaluateLocals(
-			parseCtx,
+			parser,
 			file,
 			attrs,
 			evaluatedLocals,
@@ -74,10 +84,14 @@ func processLocals(parseCtx *ParsingContext, terragruntOptions *options.Terragru
 			return errors.New(err)
 		}
 	}
+
 	localsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedLocals)
+
 	if err != nil {
 		return errors.New(err)
 	}
-	parseCtx.Locals = &localsAsCtyVal
+
+	parser.Locals = &localsAsCtyVal
+
 	return nil
 }

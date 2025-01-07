@@ -1,3 +1,4 @@
+// Package stack provides the command to stack.
 package stack
 
 import (
