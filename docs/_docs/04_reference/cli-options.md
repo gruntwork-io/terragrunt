@@ -749,8 +749,8 @@ These commands simplify the process of handling multiple infrastructure units by
 
 The `terragrunt stack generate` command is used to generate a stack of Terragrunt `hcl` files based on the configuration provided in the `terragrunt.stack.hcl` file.
 
-### Example
 Given the following `terragrunt.stack.hcl` configuration:
+
 ```hcl
 locals {
   version = "v0.68.4"
@@ -767,11 +767,15 @@ unit "app2" {
 }
 
 ```
+
 Running:
+
 ```bash
 terragrunt stack generate
 ```
+
 Will create the following directory structure:
+
 ```
 .terragrunt-stack/
 ├── app1/
