@@ -1,14 +1,16 @@
 ---
 layout: collection-browser-doc
-title: CLI options
+title: CLI
 category: reference
 categories_url: reference
 excerpt: >-
-  Learn about all CLI arguments and options you can use with Terragrunt.
+  Learn about all CLI commands and options you can use with Terragrunt.
 tags: ["CLI"]
 order: 401
 nav_title: Documentation
 nav_title_link: /docs/
+redirect_from:
+    - /docs/reference/cli-options/
 ---
 
 This page documents the CLI commands and options available with Terragrunt:
