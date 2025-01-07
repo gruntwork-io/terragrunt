@@ -63,11 +63,6 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 		}
 
 		src := unit.Source
-		src, err = filepath.Abs(src)
-		if err != nil {
-			opts.Logger.Warnf("failed to get absolute path for source '%s': %v", unit.Source, err)
-			src = unit.Source
-		}
 
 		opts.Logger.Infof("Processing unit: %s (%s) to %s", unit.Name, src, dest)
 
@@ -81,30 +76,28 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 				getter.WithInsecure(),
 				getter.WithContext(ctx),
 				getter.WithGetters(map[string]getter.Getter{
-					"file": &CustomFileProvider{},
+					"file": &StacksFileProvider{},
 				}),
 			},
 		}
 		if err := client.Get(); err != nil {
-			return fmt.Errorf("failed to fetch source '%s' to destination '%s': %w", unit.Source, dest, err)
+			return errors.New(fmt.Errorf("failed to fetch source '%s' to destination '%s': %w", unit.Source, dest, err))
 		}
 	}
 
 	return nil
 }
 
-type CustomFileProvider struct {
+type StacksFileProvider struct {
 	client *getter.Client
 }
 
 // Get implements downloading functionality
-func (p *CustomFileProvider) Get(dst string, u *url.URL) error {
+func (p *StacksFileProvider) Get(dst string, u *url.URL) error {
 	src := u.Path
-
-	// Check if source exists
 	fi, err := os.Stat(src)
 	if err != nil {
-		return err
+		return errors.New(fmt.Errorf("source path error: %w", err))
 	}
 
 	if fi.IsDir() {
@@ -114,15 +107,15 @@ func (p *CustomFileProvider) Get(dst string, u *url.URL) error {
 }
 
 // GetFile implements single file download
-func (p *CustomFileProvider) GetFile(dst string, u *url.URL) error {
+func (p *StacksFileProvider) GetFile(dst string, u *url.URL) error {
 	return p.copyFile(u.Path, dst)
 }
 
 // ClientMode determines if we're getting a directory or single file
-func (p *CustomFileProvider) ClientMode(u *url.URL) (getter.ClientMode, error) {
+func (p *StacksFileProvider) ClientMode(u *url.URL) (getter.ClientMode, error) {
 	fi, err := os.Stat(u.Path)
 	if err != nil {
-		return getter.ClientModeInvalid, err
+		return getter.ClientModeInvalid, errors.New(err)
 	}
 
 	if fi.IsDir() {
@@ -132,59 +125,52 @@ func (p *CustomFileProvider) ClientMode(u *url.URL) (getter.ClientMode, error) {
 }
 
 // SetClient sets the client for this provider
-func (p *CustomFileProvider) SetClient(c *getter.Client) {
+func (p *StacksFileProvider) SetClient(c *getter.Client) {
 	p.client = c
 }
 
-func (p *CustomFileProvider) copyFile(src, dst string) error {
-	// Create destination directory if it doesn't exist
+func (p *StacksFileProvider) copyFile(src, dst string) error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return fmt.Errorf("failed to create destination directory: %v", err)
+		return errors.New(err)
 	}
 
-	// Open source file
 	srcFile, err := os.Open(src)
 	if err != nil {
-		return fmt.Errorf("failed to open source file: %v", err)
+		return errors.New(err)
 	}
 	defer srcFile.Close()
 
-	// Create destination file
-	dstFile, err := os.Create(dst)
+	srcInfo, err := srcFile.Stat()
 	if err != nil {
-		return fmt.Errorf("failed to create destination file: %v", err)
+		return errors.New(err)
+	}
+
+	dstFile, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, srcInfo.Mode())
+	if err != nil {
+		return errors.New(err)
 	}
 	defer dstFile.Close()
 
-	// Copy the contents
 	if _, err := io.Copy(dstFile, srcFile); err != nil {
-		return fmt.Errorf("failed to copy file contents: %v", err)
+		return errors.New(err)
 	}
 
-	// Copy file mode
-	srcInfo, err := os.Stat(src)
-	if err != nil {
-		return fmt.Errorf("failed to stat source file: %v", err)
-	}
-
-	return os.Chmod(dst, srcInfo.Mode())
+	return nil
 }
 
-func (p *CustomFileProvider) copyDir(src, dst string) error {
-	// Create the destination directory
+func (p *StacksFileProvider) copyDir(src, dst string) error {
 	srcInfo, err := os.Stat(src)
 	if err != nil {
-		return fmt.Errorf("failed to stat source directory: %v", err)
+		return errors.New(err)
 	}
 
 	if err := os.MkdirAll(dst, srcInfo.Mode()); err != nil {
-		return fmt.Errorf("failed to create destination directory: %v", err)
+		return errors.New(err)
 	}
 
-	// Read directory contents
 	entries, err := os.ReadDir(src)
 	if err != nil {
-		return fmt.Errorf("failed to read source directory: %v", err)
+		return errors.New(err)
 	}
 
 	for _, entry := range entries {
@@ -193,12 +179,13 @@ func (p *CustomFileProvider) copyDir(src, dst string) error {
 
 		if entry.IsDir() {
 			if err := p.copyDir(srcPath, dstPath); err != nil {
-				return err
+				return errors.New(err)
 			}
-		} else {
-			if err := p.copyFile(srcPath, dstPath); err != nil {
-				return err
-			}
+			continue
+		}
+
+		if err := p.copyFile(srcPath, dstPath); err != nil {
+			return errors.New(err)
 		}
 	}
 
