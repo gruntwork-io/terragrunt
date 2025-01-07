@@ -16,13 +16,14 @@ import (
 )
 
 const (
-	generate      = "generate"
-	stackCacheDir = ".terragrunt-stack"
+	generate         = "generate"
+	stackCacheDir    = ".terragrunt-stack"
+	defaultStackFile = "terragrunt.stack.hcl"
 )
 
 func Run(ctx context.Context, opts *options.TerragruntOptions, subCommand string) error {
 	if subCommand == "" {
-		return errors.New("No subCommand specified")
+		return errors.New("No command specified")
 	}
 
 	switch subCommand {
@@ -36,15 +37,14 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, subCommand string
 }
 
 func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
-	//TODO: update stack path
-	opts.TerragrungStackConfigPath = filepath.Join(opts.WorkingDir, "terragrunt.stack.hcl")
+	opts.TerragrungStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
 	stackFile, err := config.ReadStackConfigFile(ctx, opts)
 	if err != nil {
-		return err
+		return errors.New(err)
 	}
 
 	if err := processStackFile(ctx, opts, stackFile); err != nil {
-		return err
+		return errors.New(err)
 	}
 
 	return nil
