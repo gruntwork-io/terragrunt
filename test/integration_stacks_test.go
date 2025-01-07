@@ -9,7 +9,8 @@ import (
 )
 
 const (
-	testFixtureStacksBasic = "fixtures/stacks/basic"
+	testFixtureStacksBasic  = "fixtures/stacks/basic"
+	testFixtureStacksLocals = "fixtures/stacks/locals"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -20,5 +21,14 @@ func TestStacksGenerateBasic(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic)
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt stack generate --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
+}
 
+func TestStacksGenerateLocals(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksLocals)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksLocals)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksLocals)
+
+	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt stack generate --terragrunt-non-interactive --terragrunt-working-dir %s", rootPath))
 }
