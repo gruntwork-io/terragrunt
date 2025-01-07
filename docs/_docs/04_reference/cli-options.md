@@ -776,7 +776,7 @@ terragrunt stack generate
 
 Will create the following directory structure:
 
-```
+```tree
 .terragrunt-stack/
 ├── app1/
 │   └── terragrunt.hcl
