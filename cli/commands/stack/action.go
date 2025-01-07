@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gruntwork-io/terragrunt/config"
 	getter "github.com/hashicorp/go-getter"
@@ -106,6 +107,9 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 }
 
 func isURL(str string) bool {
+	if strings.Contains(str, "//") {
+		return true
+	}
 	u, err := url.Parse(str)
 	return err == nil && u.Scheme != "" && u.Host != ""
 }
