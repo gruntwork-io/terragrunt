@@ -87,7 +87,7 @@ This allows Terragrunt to avoid resolving `dependency` on units that haven’t b
 
 You can rewrite the HCL files to a canonical format using the `hclfmt` command built into `terragrunt`. Similar to `tofu fmt`, this command applies a subset of [the OpenTofu/Terraform language style conventions](https://www.terraform.io/docs/configuration/style.html), along with other minor adjustments for readability.
 
-This command will recursively search for hcl files and format all of them under a given directory tree. Consider the following file structure:
+By default, this command will recursively search for hcl files and format all of them under a given directory tree. Consider the following file structure:
 
 ```tree
 root
@@ -121,3 +121,9 @@ If you run `terragrunt hclfmt` at the `root`, this will update:
 You can set `--diff` option. `terragrunt hclfmt --diff` will output the diff in a unified format which can be redirected to your favourite diff tool. `diff` utility must be presented in PATH.
 
 Additionally, there’s a flag `--check`. `terragrunt hclfmt --check` will only verify if the files are correctly formatted **without rewriting** them. The command will return exit status 1 if any matching files are improperly formatted, or 0 if all matching `.hcl` files are correctly formatted.
+
+You can exclude directories from the formatting process by using the `--exclude-dir` flag. For example, `terragrunt hclfmt --exclude-dir=qa/services`.
+
+If you want to format a single file, you can use the `--file` flag. For example, `terragrunt hclfmt --file qa/services/services.hcl`.
+
+If you want to format HCL from stdin and print the result to stdout, you can use the `--stdin` flag. For example, `echo 'module "foo" {}' | terragrunt hclfmt --stdin`.
