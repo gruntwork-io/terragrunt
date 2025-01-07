@@ -35,7 +35,7 @@ body.index-page {
     right: -100px;
     width: 250px;
     height: 400px;
-    background: url('/assets/img/home/t-o-3@3x.png');
+    background: url("/assets/img/home/t-o-3@3x.png");
     background-position: top left;
     background-size: 250px 400px;
     background-repeat: no-repeat;
@@ -80,6 +80,10 @@ body.index-page {
       padding: 15px;
       max-width: 600px;
       position: relative;
+      
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
 
       h1 {
         line-height: 1;
@@ -95,6 +99,7 @@ body.index-page {
 
       .btn {
         min-width: 250px;
+        width: fit-content;
       }
     }
   }
@@ -151,6 +156,155 @@ body.index-page {
       transform: translateX(-50%);
     }
   }
+
+  .section-newsletter {
+    z-index: 30;
+    background-color: #f8f9fa;
+    padding: 60px 0 80px;
+    width: 100%;
+
+    .container {
+      max-width: 650px;
+      margin: 0 auto;
+      padding: 0 15px;
+    }
+
+    .newsletter-content {
+      max-width: 800px;
+      margin: 0 auto;
+      text-align: center;
+
+      .subtitle {
+        font-size: 22px;
+        line-height: 1.23;
+        margin-bottom: 30px;
+      }
+
+      .form-container {
+        position: relative;
+        height: 45px;
+        margin: 0 auto;
+        max-width: 500px;
+
+        .custom-form {
+          transition: opacity 0.3s ease, transform 0.3s ease;
+          
+          .form-group {
+            display: flex;
+            gap: 10px;
+            margin: 0 auto;
+          }
+
+          .custom-input {
+            flex: 1;
+            height: 45px;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            
+            &:focus {
+              outline: none;
+              border-color: #007bff;
+            }
+          }
+
+          .btn {
+            height: 45px;
+            padding: 0 25px;
+            white-space: nowrap;
+            position: relative;
+            transition: all 0.3s ease;
+
+            .button-text {
+              transition: opacity 0.2s ease;
+            }
+
+            .button-loader {
+              position: absolute;
+              left: 50%;
+              top: 50%;
+              transform: translate(-50%, -50%);
+              width: 20px;
+              height: 20px;
+              border: 2px solid rgba(255,255,255,0.3);
+              border-radius: 50%;
+              border-top-color: #fff;
+              opacity: 0;
+              display: none;
+              animation: spin 0.8s linear infinite;
+            }
+
+            &.loading {
+              pointer-events: none;
+              
+              .button-text {
+                opacity: 0;
+              }
+              
+              .button-loader {
+                opacity: 1;
+                display: block;
+              }
+            }
+          }
+        }
+
+        .success-message {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          opacity: 0;
+          transform: translateY(10px);
+          transition: all 0.3s ease;
+          text-align: center;
+          pointer-events: none;
+
+          .checkmark {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            background: #28a745;
+            border-radius: 50%;
+            color: white;
+            line-height: 30px;
+            margin-bottom: 10px;
+            transform: scale(0);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          }
+
+          p {
+            margin: 0;
+            color: #28a745;
+            font-size: 16px;
+          }
+        }
+
+        &.success {
+          .custom-form {
+            opacity: 0;
+            transform: translateY(-10px);
+            pointer-events: none;
+          }
+
+          .success-message {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+
+            .checkmark {
+              transform: scale(1);
+            }
+          }
+        }
+      }
+
+      .hidden {
+        display: none;
+      }
+    }
+  }
 }
 
 @media all and (max-width: 1600px) {
@@ -160,6 +314,7 @@ body.index-page {
     }
 
     .index-page__header .img-container .header-shapes-hero {
+      pointer-events: none;
       left: 15px;
     }
   }
@@ -216,7 +371,7 @@ body.index-page {
 
       .text-container {
         text-align: center;
-        max-width: 700px;
+        max-width: 100%;
 
         .subtitle {
           font-size: 16px;
@@ -234,7 +389,8 @@ body.index-page {
       }
 
       img {
-        &.custom-width, &.custom-width-2 {
+        &.custom-width,
+        &.custom-width-2 {
           display: none;
         }
       }
@@ -254,6 +410,53 @@ body.index-page {
         }
       }
     }
+
+    .index-page__header {
+      .index-page__header-form {
+        .custom-form {
+          .form-group {
+            flex-direction: column;
+            gap: 15px;
+          }
+          
+          .btn {
+            width: 100%;
+          }
+        }
+      }
+    }
+
+    .section-newsletter {
+      padding: 40px 0;
+      
+      .newsletter-content {
+        .subtitle {
+          font-size: 16px;
+          padding: 0 20px;
+        }
+
+        .form-container {
+          height: auto;
+          padding: 0 20px;
+
+          .custom-form {
+            .form-group {
+              flex-direction: column;
+              gap: 15px;
+            }
+            
+            .btn {
+              width: 100%;
+            }
+          }
+
+          .success-message {
+            position: relative;
+            margin-top: 20px;
+          }
+        }
+      }
+    }
   }
 }
 
@@ -270,7 +473,17 @@ body.index-page {
 }
 
 @media all and (max-width: 480px) {
-  body.index-page .index-page__key-features .index-page__key-feature .code-snippet pre {
+  body.index-page
+    .index-page__key-features
+    .index-page__key-feature
+    .code-snippet
+    pre {
     font-size: 10px;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
   }
 }
