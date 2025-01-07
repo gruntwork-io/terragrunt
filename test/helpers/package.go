@@ -81,10 +81,7 @@ type TerraformOutput struct {
 func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...string) string {
 	t.Helper()
 
-	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir due to error: %v", err)
-	}
+	tmpDir := t.TempDir()
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
@@ -96,10 +93,7 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 func CreateTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName string, lockTableName string, configFileName string) string {
 	t.Helper()
 
-	tmpFolder, err := os.MkdirTemp("", "terragrunt-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp folder due to error: %v", err)
-	}
+	tmpFolder := t.TempDir()
 
 	tmpTerragruntConfigFile := util.JoinPath(tmpFolder, configFileName)
 	originalTerragruntConfigPath := util.JoinPath(templatesPath, configFileName)
@@ -111,10 +105,7 @@ func CreateTmpTerragruntConfig(t *testing.T, templatesPath string, s3BucketName 
 func CreateTmpTerragruntConfigContent(t *testing.T, contents string, configFileName string) string {
 	t.Helper()
 
-	tmpFolder, err := os.MkdirTemp("", "terragrunt-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp folder due to error: %v", err)
-	}
+	tmpFolder := t.TempDir()
 
 	tmpTerragruntConfigFile := util.JoinPath(tmpFolder, configFileName)
 
@@ -847,10 +838,7 @@ func RunTerragruntValidateInputs(t *testing.T, moduleDir string, extraArgs []str
 func CreateTmpTerragruntConfigWithParentAndChild(t *testing.T, parentPath string, childRelPath string, s3BucketName string, parentConfigFileName string, childConfigFileName string) string {
 	t.Helper()
 
-	tmpDir, err := os.MkdirTemp("", "terragrunt-parent-child-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir due to error: %v", err)
-	}
+	tmpDir := t.TempDir()
 
 	childDestPath := util.JoinPath(tmpDir, childRelPath)
 

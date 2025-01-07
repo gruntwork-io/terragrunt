@@ -162,10 +162,7 @@ func createTestStack() *configstack.Stack {
 func createTempFolder(t *testing.T) string {
 	t.Helper()
 
-	tmpFolder, err := os.MkdirTemp("", "")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %s\n", err.Error())
-	}
+	tmpFolder := os.TempDir()
 
 	return filepath.ToSlash(tmpFolder)
 }

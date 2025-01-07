@@ -18,7 +18,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:     CommandName,
 		HelpName: CommandHelpName,
-		Usage:    "Terragrunt forwards all other commands directly to Terraform",
+		Usage:    "Terragrunt forwards all other commands directly to OpenTofu/Terraform",
 		Flags:    runCmd.NewFlags(opts),
 		Action:   Action(opts),
 	}

@@ -480,7 +480,7 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 func createTempFile(t *testing.T) string {
 	t.Helper()
 
-	tmpFile, err := os.CreateTemp("", "")
+	tmpFile, err := os.CreateTemp(t.TempDir(), "")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %s\n", err.Error())
 	}

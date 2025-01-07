@@ -6,7 +6,7 @@ import "reflect"
 const terragruntPkgPrefix = "github.com/gruntwork-io/terragrunt"
 
 // Clone returns a deep cloned instance of the given `src` variable.
-func Clone[T any](src T, opts ...Option) T {
+func Clone[T any](src T, opts ...Option) T { //nolint:ireturn
 	conf := &Config{}
 	for _, opt := range opts {
 		opt(conf)

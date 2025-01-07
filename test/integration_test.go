@@ -139,12 +139,12 @@ func TestExecCommand(t *testing.T) {
 		{
 			nil,
 			scriptPath,
-			"The script is running in the directory " + rootPath + ". The first arg is arg1. The second arg is arg2",
+			"The first arg is arg1. The second arg is arg2. The script is running in the directory " + rootPath,
 		},
 		{
 			[]string{"--in-download-dir"},
 			scriptPath,
-			"The script is running in the directory " + downloadDirPath + ". The first arg is arg1. The second arg is arg2",
+			"The first arg is arg1. The second arg is arg2. The script is running in the directory " + downloadDirPath,
 		},
 	}
 

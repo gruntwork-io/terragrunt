@@ -19,8 +19,7 @@ func TestConfig(t *testing.T) {
 		exclude = []string{"registry.opentofu.org/*/*"}
 	)
 
-	tempCacheDir, err := os.MkdirTemp("", "*")
-	require.NoError(t, err)
+	tempCacheDir := os.TempDir()
 
 	testCases := []struct {
 		providerInstallationMethods []cliconfig.ProviderInstallationMethod
@@ -99,7 +98,7 @@ provider_installation {
 			}
 			testCase.config.AddProviderInstallationMethods(testCase.providerInstallationMethods...)
 
-			err = testCase.config.Save(configFile)
+			err := testCase.config.Save(configFile)
 			require.NoError(t, err)
 
 			hclBytes, err := os.ReadFile(configFile)

@@ -79,8 +79,7 @@ linters:
     - nolintlint
     - wrapcheck
     - varnamelen
-    - recvcheck
-    - ireturn
+    - recvcheck # In the latest version of golangci-lint this https://github.com/raeperd/recvcheck/issues/7 issue is not fixed yet.
 
   fast: false
   mnd:

@@ -142,9 +142,9 @@ func (app *App) RunContext(ctx context.Context, args []string) error {
 // We have to do this because `--terragrunt-no-color` is a deprecated alias for `--no-color`,
 // therefore we end up specifying the same flag twice, which causes the `setting the flag multiple times` error.
 func removeNoColorFlagDuplicates(args []string) []string {
-	var ( //nolint:prealloc
+	var (
 		foundNoColor bool
-		filteredArgs []string
+		filteredArgs = make([]string, len(args))
 	)
 
 	for _, arg := range args {

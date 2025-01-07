@@ -448,10 +448,8 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir st
 func tmpDir(t *testing.T) string {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "download-source-test")
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir := os.TempDir()
+
 	return filepath.FromSlash(dir)
 }
 

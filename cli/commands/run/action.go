@@ -302,6 +302,10 @@ func runTerragruntWithConfig(ctx context.Context, originalTerragruntOptions *opt
 		return err
 	}
 
+	if target.isPoint(TargetPointSetInputsAsEnvVars) {
+		return target.runCallback(ctx, terragruntOptions, terragruntConfig)
+	}
+
 	if util.FirstArg(terragruntOptions.TerraformCliArgs) == tf.CommandNameInit {
 		if err := prepareInitCommand(ctx, terragruntOptions, terragruntConfig); err != nil {
 			return err

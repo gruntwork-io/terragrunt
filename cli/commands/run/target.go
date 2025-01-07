@@ -11,6 +11,7 @@ const (
 	TargetPointParseConfig TargetPointType = iota + 1
 	TargetPointDownloadSource
 	TargetPointGenerateConfig
+	TargetPointSetInputsAsEnvVars
 	TargetPointInitCommand
 )
 

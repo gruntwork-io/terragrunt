@@ -9,7 +9,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
-	"github.com/gruntwork-io/terragrunt/util"
 )
 
 func Run(ctx context.Context, opts *options.TerragruntOptions, cmdOpts *Options, args cli.Args) error {
@@ -17,9 +16,14 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, cmdOpts *Options,
 		return errors.New("target command not specified")
 	}
 
-	target := run.NewTarget(run.TargetPointInitCommand, runTargetCommand(cmdOpts, args))
+	targetConfigPoint := run.TargetPointInitCommand
 
-	opts.AutoInit = false
+	if !cmdOpts.InDownloadDir {
+		targetConfigPoint = run.TargetPointSetInputsAsEnvVars
+		opts.AutoInit = false
+	}
+
+	target := run.NewTarget(targetConfigPoint, runTargetCommand(cmdOpts, args))
 
 	return run.RunWithTarget(ctx, opts, target)
 }
@@ -32,8 +36,8 @@ func runTargetCommand(cmdOpts *Options, args cli.Args) run.TargetCallbackType {
 			dir     = opts.WorkingDir
 		)
 
-		if cmdOpts.InDownloadDir && util.FileExists(opts.DownloadDir) {
-			dir = opts.DownloadDir
+		if !cmdOpts.InDownloadDir {
+			dir = opts.RootWorkingDir
 		}
 
 		return run.RunActionWithHooks(ctx, command, opts, cfg, func(ctx context.Context) error {
