@@ -3,6 +3,8 @@ package config
 import (
 	"context"
 
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
@@ -24,8 +26,44 @@ func ReadStackConfigFile(ctx context.Context, terragruntOptions *options.Terragr
 		return nil, errors.New(err)
 	}
 
-	evalParsingContext, err := createTerragruntEvalContext(parseCtx, file.ConfigPath)
+	localsBlock, err := file.Blocks(MetadataLocals, false)
+	if err != nil {
+		return nil, err
+	}
+	attrs, err := localsBlock[0].JustAttributes()
+	if err != nil {
+		return nil, err
+	}
+	evaluatedLocals := map[string]cty.Value{}
+	evaluated := true
 
+	for iterations := 0; len(attrs) > 0 && evaluated; iterations++ {
+		if iterations > MaxIter {
+			// Reached maximum supported iterations, which is most likely an infinite loop bug so cut the iteration
+			// short an return an error.
+			return nil, errors.New(MaxIterError{})
+		}
+
+		var err error
+		attrs, evaluatedLocals, evaluated, err = attemptEvaluateLocals(
+			parseCtx,
+			file,
+			attrs,
+			evaluatedLocals,
+		)
+
+		if err != nil {
+			parseCtx.TerragruntOptions.Logger.Debugf("Encountered error while evaluating locals in file %s", terragruntOptions.TerragrungStackConfigPath)
+			return nil, err
+		}
+	}
+	localsAsCtyVal, err := convertValuesMapToCtyVal(evaluatedLocals)
+	if err != nil {
+		return nil, err
+	}
+	parseCtx.Locals = &localsAsCtyVal
+
+	evalParsingContext, err := createTerragruntEvalContext(parseCtx, file.ConfigPath)
 	config := &StackConfigFile{}
 	if err := file.Decode(config, evalParsingContext); err != nil {
 		return nil, err
