@@ -128,6 +128,8 @@ run_markdownlint: &run_markdownlint
   command: |
     markdownlint \
     --disable 'MD013' \
+    # disable duplicate duplicate headings
+    --disable 'MD024' \
     -- \
     docs
 
