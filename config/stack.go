@@ -13,15 +13,15 @@ import (
 
 // StackConfigFile represents the structure of terragrunt.stack.hcl stack file
 type StackConfigFile struct {
-	Locals *terragruntLocal `cty:"locals"  hcl:"locals,block"`
-	Units  []*Unit          `cty:"unit" hcl:"unit,block"`
+	Locals *terragruntLocal `hcl:"locals,block" cty:"locals"`
+	Units  []*Unit          `hcl:"unit,block"   cty:"unit"`
 }
 
 // Unit represent unit from stack file.
 type Unit struct {
-	Name   string `cty:"name"    hcl:",label"`
+	Name   string `hcl:",label"      cty:"name"`
 	Source string `hcl:"source,attr" cty:"source"`
-	Path   string `hcl:"path,attr" cty:"path"`
+	Path   string `hcl:"path,attr"   cty:"path"`
 }
 
 func ReadStackConfigFile(ctx context.Context, terragruntOptions *options.TerragruntOptions) (*StackConfigFile, error) {
@@ -78,7 +78,7 @@ func processLocals(parser *ParsingContext, terragruntOptions *options.Terragrunt
 	for iterations := 0; len(attrs) > 0 && evaluated; iterations++ {
 		if iterations > MaxIter {
 			// Reached maximum supported iterations, which is most likely an infinite loop bug so cut the iteration
-			// short an return an error.
+			// short and return an error.
 			return errors.New(MaxIterError{})
 		}
 
