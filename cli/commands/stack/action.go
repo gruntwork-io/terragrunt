@@ -27,7 +27,6 @@ const (
 
 // Run runs the stack command.
 func Run(ctx context.Context, opts *options.TerragruntOptions, subCommand string) error {
-
 	stacksEnabled := opts.Experiments[experiment.Stacks]
 	if !stacksEnabled.Enabled {
 		return errors.New("stacks experiment is not enabled use --experiment stacks to enable it")
