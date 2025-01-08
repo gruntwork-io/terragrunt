@@ -118,33 +118,20 @@ const (
 func TestExecCommand(t *testing.T) {
 	t.Parallel()
 
-	helpers.CleanupTerraformFolder(t, testFixtureExecCmd)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExecCmd)
-
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureExecCmd, "app")
-	rootPath, err := filepath.EvalSymlinks(rootPath)
-	require.NoError(t, err)
-
-	downloadDirPath := util.JoinPath(rootPath, ".terragrunt-cache")
-	scriptPath := util.JoinPath(tmpEnvPath, testFixtureExecCmd, "./script.sh arg1 arg2")
-
-	err = os.Mkdir(downloadDirPath, os.ModePerm)
-	require.NoError(t, err)
-
 	testCases := []struct {
-		args           []string
-		scriptPath     string
-		expectedOutput string
+		args       []string
+		scriptPath string
+		runInDir   string
 	}{
 		{
 			nil,
-			scriptPath,
-			"The first arg is arg1. The second arg is arg2. The script is running in the directory " + rootPath,
+			"./script.sh arg1 arg2",
+			"",
 		},
 		{
 			[]string{"--in-download-dir"},
-			scriptPath,
-			"The first arg is arg1. The second arg is arg2. The script is running in the directory " + downloadDirPath,
+			"./script.sh arg1 arg2",
+			".terragrunt-cache",
 		},
 	}
 
@@ -152,9 +139,22 @@ func TestExecCommand(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt exec --working-dir "+rootPath+" "+strings.Join(testCase.args, " ")+" -- "+testCase.scriptPath)
+			helpers.CleanupTerraformFolder(t, testFixtureExecCmd)
+			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureExecCmd)
+
+			rootPath := util.JoinPath(tmpEnvPath, testFixtureExecCmd, "app")
+			rootPath, err := filepath.EvalSymlinks(rootPath)
 			require.NoError(t, err)
-			assert.Contains(t, stdout, testCase.expectedOutput)
+
+			downloadDirPath := util.JoinPath(rootPath, ".terragrunt-cache")
+			scriptPath := util.JoinPath(tmpEnvPath, testFixtureExecCmd, testCase.scriptPath)
+
+			err = os.Mkdir(downloadDirPath, os.ModePerm)
+			require.NoError(t, err)
+
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt exec --working-dir "+rootPath+" "+strings.Join(testCase.args, " ")+" -- "+scriptPath)
+			require.NoError(t, err)
+			assert.Contains(t, stdout, "The first arg is arg1. The second arg is arg2. The script is running in the directory "+util.JoinPath(rootPath, testCase.runInDir))
 		})
 	}
 }

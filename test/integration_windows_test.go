@@ -23,15 +23,27 @@ const (
 	testFixtureLocalRelativeArgsWindowsDownloadPath = "fixtures/download/local-windows"
 	testFixtureManifestRemoval                      = "fixtures/manifest-removal"
 	testFixtureTflintNoIssuesFound                  = "fixtures/tflint/no-issues-found"
+
+	tempDir = `C:\tmp`
 )
 
 func TestMain(m *testing.M) {
 	// By default, t.TempDir() creates a temporary directory inside the user directory
 	// `C:/Users/circleci/AppData/Local/Temp/`, which ends up exceeding the maximum allowed length
 	// and causes the error: "fatal: '$GIT_DIR' too big". Example:
-	// "C:/Users/circleci/AppData/Local/Temp/TestWindowsLocalWithRelativeExtraArgsWindows1263358614/001/fixtures/download/local-windows/.terragrunt-cache/rviFlp3V5mrXldwi6Hbi8p2rDL0/U0tL3quoR7Yt-oR6jROJomrYpTs"
+	// "C:/Users/circleci/AppData/Local/Temp/TestWindowsLocalWithRelativeExtraArgsWindows1263358614/001/fixtures/download/local-windows/.terragrunt-cache/rviFlp3V5mrXldwi6Hbi8p2rDL0/U0tL3quoR7Yt-oR6jROJomrYpTs".
 
-	tempDir := `C:\tmp`
+	// Save old values to restore them at the end.
+	tmpDirEnvVars := map[string]string{
+		"TMP":  os.Getenv("TMP"),
+		"TEMP": os.Getenv("TEMP"),
+	}
+
+	defer func() {
+		for name, val := range tmpDirEnvVars {
+			os.Setenv(name, val)
+		}
+	}()
 
 	if _, err := os.Stat(tempDir); os.IsNotExist(err) {
 		if err := os.Mkdir(tempDir, os.ModePerm); err != nil {
@@ -40,9 +52,12 @@ func TestMain(m *testing.M) {
 		}
 	}
 
-	os.Setenv("TMP", tempDir)
-	os.Setenv("TEMP", tempDir)
-
+	for name := range tmpDirEnvVars {
+		if err := os.Setenv(name, tempDir); err != nil {
+			fmt.Printf("Failed to set env var %s=%s due to error: %v", name, tempDir, err)
+			os.Exit(1)
+		}
+	}
 	os.Exit(m.Run())
 }
 
