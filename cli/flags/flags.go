@@ -2,6 +2,8 @@ package flags
 
 import "strings"
 
+const EnvVarPrefix = "TG_"
+
 // EnvVars does same `EnvVarsWithPrefix` but with default specified `EnvVarPrefix` prefix.
 func EnvVars(names ...string) []string {
 	return EnvVarsWithPrefix(EnvVarPrefix, names...)

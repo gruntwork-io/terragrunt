@@ -7,6 +7,6 @@ terraform {
   }
 }
 
-variable foo {
+variable "foo" {
   type = string
 }

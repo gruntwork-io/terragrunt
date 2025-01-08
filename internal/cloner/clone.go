@@ -3,8 +3,6 @@ package cloner
 
 import "reflect"
 
-const terragruntPkgPrefix = "github.com/gruntwork-io/terragrunt"
-
 // Clone returns a deep cloned instance of the given `src` variable.
 func Clone[T any](src T, opts ...Option) T { //nolint:ireturn
 	conf := &Config{}
@@ -43,10 +41,4 @@ func WithShadowCopyInversePkgPrefixes(prefixes ...string) Option {
 	return func(opt *Config) {
 		opt.shadowCopyInversePkgPrefixes = append(opt.shadowCopyInversePkgPrefixes, prefixes...)
 	}
-}
-
-// WithShadowCopyThirdPartyTypes returns an `Option` that forces shadow copies
-// of all third-party types.
-func WithShadowCopyThirdPartyTypes(prefixes ...string) Option {
-	return WithShadowCopyInversePkgPrefixes(terragruntPkgPrefix)
 }

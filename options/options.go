@@ -89,7 +89,7 @@ type TerragruntOptions struct {
 	OriginalTerragruntConfigPath string
 
 	// Version of terragrunt
-	TerragruntVersion *version.Version
+	TerragruntVersion *version.Version `clone:"shadowcopy"`
 
 	// Location of the terraform binary
 	TerraformPath string
@@ -110,7 +110,7 @@ type TerragruntOptions struct {
 	TerraformImplementation TerraformImplementationType
 
 	// Version of terraform (obtained by running 'terraform version')
-	TerraformVersion *version.Version
+	TerraformVersion *version.Version `clone:"shadowcopy"`
 
 	// Whether we should prompt the user for confirmation or always assume "yes"
 	NonInteractive bool
@@ -210,7 +210,7 @@ type TerragruntOptions struct {
 	RetryMaxAttempts int
 
 	// The duration in seconds to wait before retrying
-	RetrySleepInterval time.Duration `clone:"required"`
+	RetrySleepInterval time.Duration
 
 	// RetryableErrors is an array of regular expressions with RE2 syntax (https://github.com/google/re2/wiki/Syntax) that qualify for retrying
 	RetryableErrors []string
@@ -379,11 +379,11 @@ type TerragruntOptions struct {
 	Experiments experiment.Experiments
 
 	// ]FeatureFlags is a map of feature flags to enable.
-	FeatureFlags *xsync.MapOf[string, string]
+	FeatureFlags *xsync.MapOf[string, string] `clone:"shadowcopy"`
 
 	// ReadFiles is a map of files to the Units
 	// that read them using HCL functions in the unit.
-	ReadFiles *xsync.MapOf[string, []string]
+	ReadFiles *xsync.MapOf[string, []string] `clone:"shadowcopy"`
 
 	// Errors is a configuration for error handling.
 	Errors *ErrorsConfig
@@ -592,7 +592,7 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 // RetrySleepInterval time.Duration `clone:"required"` is a third-party type, we can make a full copy.
 // LogFormatter *format.Formatter `clone:"shadowcopy"` is a terragrunt type, we can't make a full copy because of unexported fields.
 func (opts *TerragruntOptions) Clone() *TerragruntOptions {
-	newOpts := cloner.Clone(opts, cloner.WithShadowCopyThirdPartyTypes())
+	newOpts := cloner.Clone(opts)
 	newOpts.Logger = opts.Logger.Clone()
 
 	return newOpts
@@ -802,7 +802,7 @@ type IgnoreConfig struct {
 }
 
 type ErrorsPattern struct {
-	Pattern  *regexp.Regexp
+	Pattern  *regexp.Regexp `clone:"shadowcopy"`
 	Negative bool
 }
 

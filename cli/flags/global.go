@@ -16,8 +16,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/tf"
 )
 
-const EnvVarPrefix = "TG_"
-
 const (
 	// Logs related flags.
 
