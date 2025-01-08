@@ -20,7 +20,7 @@ Please see the following for more info, including install instructions and compl
 
 Join our community for discussions, support, and contributions:
 
-[![Discord](https://discord.com/api/guilds/SPu4Degs5f/widget.png?style=shield)](https://discord.gg/SPu4Degs5f)
+[![Discord](https://img.shields.io/discord/SPu4Degs5f)](https://discord.gg/SPu4Degs5f)
 
 ## License
 
