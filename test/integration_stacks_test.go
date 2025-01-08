@@ -3,14 +3,17 @@ package test_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
 const (
-	testFixtureStacksBasic  = "fixtures/stacks/basic"
-	testFixtureStacksLocals = "fixtures/stacks/locals"
-	testFixtureStacksRemote = "fixtures/stacks/remote"
+	testFixtureStacksBasic       = "fixtures/stacks/basic"
+	testFixtureStacksLocals      = "fixtures/stacks/locals"
+	testFixtureStacksLocalsError = "fixtures/stacks/locals-error"
+	testFixtureStacksRemote      = "fixtures/stacks/remote"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -31,6 +34,17 @@ func TestStacksGenerateLocals(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksLocals)
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --terragrunt-working-dir "+rootPath)
+}
+
+func TestStacksGenerateLocalsError(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksLocalsError)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksLocalsError)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksLocalsError)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --terragrunt-working-dir "+rootPath)
+	require.Error(t, err)
 }
 
 func TestStacksGenerateRemote(t *testing.T) {

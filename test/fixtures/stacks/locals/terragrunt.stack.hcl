@@ -1,6 +1,6 @@
 locals {
-	chicken = "units/chicken"
-	chick = "units/chick"
+	chicken = "./units/chicken"
+	chick = "./units/chick"
 }
 
 unit "mother" {

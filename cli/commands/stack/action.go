@@ -109,18 +109,12 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 }
 
 func isURL(str string) bool {
-	// check if string starts with / or .
+	// as convention, using / or . for local paths
 	if strings.HasPrefix(str, "/") || strings.HasPrefix(str, ".") {
 		return false
 	}
 
-	if strings.Contains(str, "//") {
-		return true
-	}
-
-	u, err := url.Parse(str)
-
-	return err == nil && u.Scheme != "" && u.Host != ""
+	return true
 }
 
 type StacksFileProvider struct {
