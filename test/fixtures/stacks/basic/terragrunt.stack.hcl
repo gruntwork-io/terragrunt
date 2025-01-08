@@ -1,5 +1,5 @@
 unit "mother" {
-	source = "./units/chicken"
+	source = "units/chicken"
 	path   = "mother"
 }
 
@@ -14,7 +14,7 @@ unit "chick_1" {
 }
 
 unit "chick_2" {
-	source = "./units/chick"
+	source = "units/chick"
 	path   = "chicks/chick-2"
 }
 
