@@ -18,7 +18,9 @@ Please see the following for more info, including install instructions and compl
 
 ## Join the Discord!
 
-[![](https://dcbadge.limes.pink/api/server/https://discord.gg/SPu4Degs5f)](https://discord.gg/SPu4Degs5f)
+Join our community for discussions, support, and contributions:
+
+[![Discord](https://dcbadge.limes.pink/api/server/SPu4Degs5f?style=flat)](https://discord.gg/SPu4Degs5f)
 
 ## License
 
