@@ -744,10 +744,10 @@ Notes:
 
 ### stack
 
-The `terragrunt stack` commands provide a new interface for managing collections of Terragrunt units defined in `terragrunt.stack.hcl` files.
+The `terragrunt stack` commands provide an interface for managing collections of Terragrunt units defined in `terragrunt.stack.hcl` files.
 These commands simplify the process of handling multiple infrastructure units by grouping them into a "stack," reducing code duplication and streamlining operations across environments.
 
-The `terragrunt stack generate` command is used to generate a stack of Terragrunt `hcl` files based on the configuration provided in the `terragrunt.stack.hcl` file.
+The `terragrunt stack generate` command is used to generate a stack of `terragrunt.hcl` files based on the configuration provided in the `terragrunt.stack.hcl` file.
 
 Given the following `terragrunt.stack.hcl` configuration:
 
