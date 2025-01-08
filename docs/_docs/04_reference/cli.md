@@ -548,6 +548,7 @@ This command will exit with an error if terragrunt detects any unused inputs or 
 ## Flags
 
 - [Flags](#flags)
+  - [all](#all)
   - [auth-provider-cmd](#auth-provider-cmd)
   - [config](#config)
   - [tfpath](#tfpath)
@@ -588,7 +589,6 @@ This command will exit with an error if terragrunt detects any unused inputs or 
   - [hclfmt-stdin](#hclfmt-stdin)
   - [hclvalidate-json](#hclvalidate-json)
   - [hclvalidate-show-config-path](#hclvalidate-show-config-path)
-  - [override-attr](#override-attr)
   - [out](#out)
   - [disable-dependent-modules](#disable-dependent-modules)
   - [units-that-include](#units-that-include)
@@ -614,9 +614,18 @@ This command will exit with an error if terragrunt detects any unused inputs or 
   - [strict-mode](#strict-mode)
   - [in-download-dir](#in-download-dir)
 
-### config
+### all
 
 <!-- markdownlint-disable MD033 -->
+
+**CLI Arg**: `--all`<br/>
+**Environment Variable**: `TG_ALL` (set to `true`)<br/>
+
+Run the provided OpenTofu/Terraform command against all units in the current stack. This is equivalent to the deprecated `run-all` command.
+
+See [Stacks](/docs/features/stacks/) for more information.
+
+### config
 
 **CLI Arg**: `--config`<br/>
 **CLI Arg Alias**: `--terragrunt-config` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
@@ -1135,19 +1144,6 @@ When passed in, render the output in the JSON format.
 
 When passed in, output a list of files with invalid configuration.
 
-### override-attr
-
-**CLI Arg**: `--override-attr`<br/>
-**CLI Arg Alias**: `--terragrunt-override-attr` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Environment Variable**: `TG_OVERRIDE_ATTR` (set to `true`)<br/>
-**Environment Variable Alias**: `TERRAGRUNT_OVERRIDE_ATTR` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Requires an argument**: `--override-attr ATTR=VALUE`<br/>
-
-Override the attribute named `ATTR` with the value `VALUE` in a `provider` block as part of the [aws-provider-patch
-command](#aws-provider-patch). May be specified multiple times. Also, `ATTR` can specify attributes within a nested
-block by specifying `<BLOCK>.<ATTR>`, where `<BLOCK>` is the block name: e.g., `assume_role.role` arn will override the
-`role_arn` attribute of the `assume_role { ... }` block.
-
 ### out
 
 **CLI Arg**: `--out`<br/>
@@ -1184,12 +1180,8 @@ This lead to a faster rendering process, but the output will not include any dep
 **Requires an argument**: `--units-that-include /path/to/included-terragrunt.hcl`<br/>
 **Commands**:
 
+- [run](#run)
 - [run-all](#run-all)
-- [plan-all (DEPRECATED: use run-all)](#plan-all-deprecated-use-run-all)
-- [apply-all (DEPRECATED: use run-all)](#apply-all-deprecated-use-run-all)
-- [output-all (DEPRECATED: use run-all)](#output-all-deprecated-use-run-all)
-- [destroy-all (DEPRECATED: use run-all)](#destroy-all-deprecated-use-run-all)
-- [validate-all (DEPRECATED: use run-all)](#validate-all-deprecated-use-run-all)
 
 When passed in, `run-all` will only run the command against Terragrunt modules that include the specified file.
 
@@ -1256,12 +1248,8 @@ only for the `include` configuration block.
 **Environment Variable Alias**: `` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Commands**:
 
+- [run](#run)
 - [run-all](#run-all)
-- [plan-all (DEPRECATED: use run-all)](#plan-all-deprecated-use-run-all)
-- [apply-all (DEPRECATED: use run-all)](#apply-all-deprecated-use-run-all)
-- [output-all (DEPRECATED: use run-all)](#output-all-deprecated-use-run-all)
-- [destroy-all (DEPRECATED: use run-all)](#destroy-all-deprecated-use-run-all)
-- [validate-all (DEPRECATED: use run-all)](#validate-all-deprecated-use-run-all)
 
 This flag works very similarly to the `--units-that-include` flag, but instead of looking only for included configurations,
 it also looks for configurations that read a given file.
@@ -1825,7 +1813,7 @@ When this flag is set, Terragrunt will output its logs in JSON format.
 
 #### terragrunt-tf-logs-to-json
 
-**DEPRECATED: Use [log-format](#log-format).** 
+**DEPRECATED: Use [log-format](#log-format).**
 
 **OpenTofu/Terraform `stdout` and `stderr` are wrapped in JSON by default when using the `--terragrunt-log-format json` flag if the `--tf-forward-stdout` flag is not specified.**
 
