@@ -448,7 +448,7 @@ func testAlreadyHaveLatestCode(t *testing.T, canonicalURL string, downloadDir st
 func tmpDir(t *testing.T) string {
 	t.Helper()
 
-	dir := os.TempDir()
+	dir := t.TempDir()
 
 	return filepath.FromSlash(dir)
 }

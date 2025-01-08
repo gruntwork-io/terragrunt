@@ -19,7 +19,7 @@ func TestConfig(t *testing.T) {
 		exclude = []string{"registry.opentofu.org/*/*"}
 	)
 
-	tempCacheDir := os.TempDir()
+	tempCacheDir := t.TempDir()
 
 	testCases := []struct {
 		providerInstallationMethods []cliconfig.ProviderInstallationMethod

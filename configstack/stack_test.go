@@ -162,7 +162,7 @@ func createTestStack() *configstack.Stack {
 func createTempFolder(t *testing.T) string {
 	t.Helper()
 
-	tmpFolder := os.TempDir()
+	tmpFolder := t.TempDir()
 
 	return filepath.ToSlash(tmpFolder)
 }
