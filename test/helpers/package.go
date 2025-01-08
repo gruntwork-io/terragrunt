@@ -85,7 +85,8 @@ func CopyEnvironment(t *testing.T, environmentPath string, includeInCopy ...stri
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
-	require.NoError(t, util.CopyFolderContents(createLogger(), environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", includeInCopy))
+	err := util.CopyFolderContents(createLogger(), environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", includeInCopy)
+	require.NoError(t, err)
 
 	return tmpDir
 }
@@ -716,7 +717,7 @@ func RunTerragruntCommandWithContext(t *testing.T, ctx context.Context, command 
 
 	args := splitCommand(command)
 
-	if !strings.Contains(command, "-terragrunt-log-format") && !strings.Contains(command, "-terragrunt-log-custom-format") {
+	if !strings.Contains(command, "-log-format") && !strings.Contains(command, "-log-custom-format") {
 		var builtinCmd []string
 
 		for i := range args {
@@ -729,7 +730,7 @@ func RunTerragruntCommandWithContext(t *testing.T, ctx context.Context, command 
 			}
 		}
 
-		args = append(append(args, "--terragrunt-log-format=key-value"), builtinCmd...)
+		args = append(append(args, "--log-format=key-value"), builtinCmd...)
 	}
 
 	t.Log(args)

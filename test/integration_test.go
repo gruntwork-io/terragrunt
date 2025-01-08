@@ -152,7 +152,7 @@ func TestExecCommand(t *testing.T) {
 		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt exec --terragrunt-working-dir "+rootPath+" "+strings.Join(testCase.args, " ")+" -- "+testCase.scriptPath)
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt exec --working-dir "+rootPath+" "+strings.Join(testCase.args, " ")+" -- "+testCase.scriptPath)
 			require.NoError(t, err)
 			assert.Contains(t, stdout, testCase.expectedOutput)
 		})

@@ -25,6 +25,21 @@ const (
 	testFixtureTflintNoIssuesFound                  = "fixtures/tflint/no-issues-found"
 )
 
+func TestMain(m *testing.M) {
+	tempDir := "C:\tmp"
+
+	err := os.MkdirAll(tempDir, os.ModePerm)
+	if err != nil {
+		fmt.Printf("Failed to create temp dir due to error: %v", err)
+		os.Exit(1)
+	}
+
+	os.Setenv("TMP", tempDir)
+	os.Setenv("TEMP", tempDir)
+
+	os.Exit(m.Run())
+}
+
 func TestWindowsLocalWithRelativeExtraArgsWindows(t *testing.T) {
 	t.Parallel()
 
