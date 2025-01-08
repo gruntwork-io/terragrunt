@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -59,6 +60,10 @@ func processLocals(parser *ParsingContext, terragruntOptions *options.Terragrunt
 
 	if len(localsBlock) == 0 {
 		return nil
+	}
+
+	if len(localsBlock) > 1 {
+		return errors.New(fmt.Errorf("only one locals block is allowed in a terragrunt stack file, but found %d in %s", len(localsBlock), file.ConfigPath))
 	}
 
 	attrs, err := localsBlock[0].JustAttributes()
