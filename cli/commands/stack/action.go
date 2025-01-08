@@ -62,23 +62,9 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 		if err != nil {
 			return errors.New(fmt.Errorf("failed to get absolute path for destination '%s': %w", dest, err))
 		}
-
 		src := unit.Source
-		// set absolute path for source if it's not an absolute path or URL
-		if !filepath.IsAbs(unit.Source) && !isURL(unit.Source) {
-			src = filepath.Join(opts.WorkingDir, unit.Source)
-			src, err = filepath.Abs(src)
-
-			if err != nil {
-				opts.Logger.Warnf("failed to get absolute path for source '%s': %v", unit.Source, err)
-				src = unit.Source
-			}
-		}
-
-		opts.Logger.Debugf("Processing unit: %s (%s) to %s", unit.Name, src, dest)
 
 		client := &getter.Client{
-			Src:             src,
 			Dst:             dest,
 			Mode:            getter.ClientModeAny,
 			Dir:             true,
@@ -100,6 +86,21 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 			}
 		}
 
+		// set absolute path for source if it's not an absolute path or URL
+		if !filepath.IsAbs(unit.Source) && !isURL(client, unit.Source) {
+			src = filepath.Join(opts.WorkingDir, unit.Source)
+			src, err = filepath.Abs(src)
+
+			if err != nil {
+				opts.Logger.Warnf("failed to get absolute path for source '%s': %v", unit.Source, err)
+				src = unit.Source
+			}
+		}
+
+		opts.Logger.Debugf("Processing unit: %s (%s) to %s", unit.Name, src, dest)
+
+		client.Src = src
+
 		if err := client.Get(); err != nil {
 			return errors.New(err)
 		}
@@ -108,12 +109,15 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 	return nil
 }
 
-func isURL(str string) bool {
-	// as convention, using / or . for local paths
-	if strings.HasPrefix(str, "/") || strings.HasPrefix(str, ".") {
+func isURL(client *getter.Client, str string) bool {
+	value, err := getter.Detect(str, client.Dst, getter.Detectors)
+	if err != nil {
 		return false
 	}
-
+	// check if starts with file://
+	if strings.HasPrefix(value, "file://") {
+		return false
+	}
 	return true
 }
 
