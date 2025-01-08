@@ -17,11 +17,11 @@ type StackConfigFile struct {
 }
 
 func ReadStackConfigFile(ctx context.Context, terragruntOptions *options.TerragruntOptions) (*StackConfigFile, error) {
-	terragruntOptions.Logger.Debugf("Reading Terragrunt stack config file at %s", terragruntOptions.TerragrungStackConfigPath)
+	terragruntOptions.Logger.Debugf("Reading Terragrunt stack config file at %s", terragruntOptions.TerragruntStackConfigPath)
 
 	parser := NewParsingContext(ctx, terragruntOptions)
 
-	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(terragruntOptions.TerragrungStackConfigPath)
+	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(terragruntOptions.TerragruntStackConfigPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
@@ -80,7 +80,7 @@ func processLocals(parser *ParsingContext, terragruntOptions *options.Terragrunt
 		)
 
 		if err != nil {
-			terragruntOptions.Logger.Debugf("Encountered error while evaluating locals in file %s", terragruntOptions.TerragrungStackConfigPath)
+			terragruntOptions.Logger.Debugf("Encountered error while evaluating locals in file %s", terragruntOptions.TerragruntStackConfigPath)
 			return errors.New(err)
 		}
 	}

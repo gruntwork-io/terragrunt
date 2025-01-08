@@ -82,7 +82,7 @@ type TerragruntOptions struct {
 	// Location of the Terragrunt config file
 	TerragruntConfigPath string
 
-	TerragrungStackConfigPath string
+	TerragruntStackConfigPath string
 
 	// Location of the original Terragrunt config file. This is primarily useful when one Terragrunt config is being
 	// read from another: e.g., if /terraform-code/terragrunt.hcl calls read_terragrunt_config("/foo/bar.hcl"),

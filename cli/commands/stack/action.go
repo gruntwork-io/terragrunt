@@ -36,7 +36,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, subCommand string
 }
 
 func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
-	opts.TerragrungStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
+	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
 	stackFile, err := config.ReadStackConfigFile(ctx, opts)
 
 	if err != nil {
