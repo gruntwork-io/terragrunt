@@ -32,7 +32,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, subCommand string
 		return generateStack(ctx, opts)
 	}
 
-	return nil
+	return errors.New(fmt.Errorf("unknown command: %s", subCommand))
 }
 
 func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
@@ -75,7 +75,7 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 			}
 		}
 
-		opts.Logger.Infof("Processing unit: %s (%s) to %s", unit.Name, src, dest)
+		opts.Logger.Debugf("Processing unit: %s (%s) to %s", unit.Name, src, dest)
 
 		client := &getter.Client{
 			Src:             src,
