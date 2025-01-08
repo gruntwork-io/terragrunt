@@ -23,7 +23,7 @@ func TestStacksGenerateBasic(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic)
 
-	helpers.RunTerragrunt(t, "terragrunt stack generate --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
 }
 
 func TestStacksGenerateLocals(t *testing.T) {
@@ -33,7 +33,7 @@ func TestStacksGenerateLocals(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksLocals)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksLocals)
 
-	helpers.RunTerragrunt(t, "terragrunt stack generate --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
 }
 
 func TestStacksGenerateLocalsError(t *testing.T) {
@@ -43,7 +43,7 @@ func TestStacksGenerateLocalsError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksLocalsError)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksLocalsError)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --terragrunt-working-dir "+rootPath)
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
 	require.Error(t, err)
 }
 
@@ -54,5 +54,5 @@ func TestStacksGenerateRemote(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksRemote)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksRemote)
 
-	helpers.RunTerragrunt(t, "terragrunt stack generate --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
 }

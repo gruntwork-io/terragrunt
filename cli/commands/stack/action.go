@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
+
 	"github.com/gruntwork-io/terragrunt/config"
 	getter "github.com/hashicorp/go-getter"
 
@@ -25,6 +27,12 @@ const (
 
 // Run runs the stack command.
 func Run(ctx context.Context, opts *options.TerragruntOptions, subCommand string) error {
+
+	stacksEnabled := opts.Experiments[experiment.Stacks]
+	if !stacksEnabled.Enabled {
+		return errors.New("stacks experiment is not enabled use --experiment stacks to enable it")
+	}
+
 	if subCommand == "" {
 		return errors.New("No command specified")
 	}

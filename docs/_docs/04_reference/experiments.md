@@ -65,6 +65,7 @@ You can also enable multiple experiments at once with a comma delimited list.
 The following strict mode controls are available:
 
 - [symlinks](#symlinks)
+- [stacks](#stacks)
 
 ### symlinks
 
@@ -86,3 +87,28 @@ To stabilize this feature, the following need to be resolved, at a minimum:
   - [ ] Add integration tests for all filesystem flags to confirm support with symlinks (or document the fact that they cannot be supported).
 - [ ] Ensure that MacOS integration tests still work. See [#3616](https://github.com/gruntwork-io/terragrunt/issues/3616).
   - [ ] Add integration tests for MacOS in CI.
+
+### stacks
+
+Support for Terragrunt stacks.
+
+#### What it does
+
+Enable `stack` command to manage Terragrunt stacks.
+
+#### How to provide feedback
+
+Share your experience with the `stack` command in the [Stacks](https://github.com/gruntwork-io/terragrunt/issues/3313) RFC. 
+Feedback is crucial for ensuring the feature meets real-world use cases. Please include:
+- Details about your infrastructure's complexity and use case.
+- Any bugs or issues encountered (including logs or stack traces if possible).
+- Suggestions for additional improvements or enhancements.
+
+#### Criteria for stabilization
+
+To transition the `stacks` feature to a stable release, the following must be addressed:
+
+- [ ] Add support for `stack run *` and `stack output` commands to extend stack-level operations.
+- [ ] Integration testing for recursive stack handling across typical workflows, ensuring smooth transitions during `plan`, `apply`, and `destroy` operations.
+- [ ] Confirm compatibility with parallelism flags (e.g., `--parallel`), especially for stacks with dependencies.
+- [ ] Ensure that error handling and failure recovery strategies work as intended across large and nested stacks.
