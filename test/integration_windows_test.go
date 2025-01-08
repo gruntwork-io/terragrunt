@@ -28,9 +28,11 @@ const (
 func TestMain(m *testing.M) {
 	tempDir := `C:\tmp`
 
-	if err := os.Mkdir(tempDir, os.ModePerm); err != nil {
-		fmt.Printf("Failed to create temp dir due to error: %v", err)
-		os.Exit(1)
+	if _, err := os.Stat(tempDir); os.IsNotExist(err) {
+		if err := os.Mkdir(tempDir, os.ModePerm); err != nil {
+			fmt.Printf("Failed to create temp dir due to error: %v", err)
+			os.Exit(1)
+		}
 	}
 
 	os.Setenv("TMP", tempDir)
