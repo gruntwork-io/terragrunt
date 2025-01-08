@@ -11,30 +11,31 @@ import (
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
-// StackConfigFile represents the structure of terragrunt.stack.hcl stack file
+// StackConfigFile represents the structure of terragrunt.stack.hcl stack file.
 type StackConfigFile struct {
-	Locals *terragruntLocal `hcl:"locals,block" cty:"locals"`
-	Units  []*Unit          `hcl:"unit,block"   cty:"unit"`
+	Locals *terragruntLocal `hcl:"locals,block"`
+	Units  []*Unit          `hcl:"unit,block"`
 }
 
 // Unit represent unit from stack file.
 type Unit struct {
-	Name   string `hcl:",label"      cty:"name"`
-	Source string `hcl:"source,attr" cty:"source"`
-	Path   string `hcl:"path,attr"   cty:"path"`
+	Name   string `hcl:",label"`
+	Source string `hcl:"source,attr"`
+	Path   string `hcl:"path,attr"`
 }
 
-func ReadStackConfigFile(ctx context.Context, terragruntOptions *options.TerragruntOptions) (*StackConfigFile, error) {
-	terragruntOptions.Logger.Debugf("Reading Terragrunt stack config file at %s", terragruntOptions.TerragruntStackConfigPath)
+// ReadStackConfigFile reads the terragrunt.stack.hcl file.
+func ReadStackConfigFile(ctx context.Context, opts *options.TerragruntOptions) (*StackConfigFile, error) {
+	opts.Logger.Debugf("Reading Terragrunt stack config file at %s", opts.TerragruntStackConfigPath)
 
-	parser := NewParsingContext(ctx, terragruntOptions)
+	parser := NewParsingContext(ctx, opts)
 
-	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(terragruntOptions.TerragruntStackConfigPath)
+	file, err := hclparse.NewParser(parser.ParserOptions...).ParseFromFile(opts.TerragruntStackConfigPath)
 	if err != nil {
 		return nil, errors.New(err)
 	}
 	//nolint:contextcheck
-	if err := processLocals(parser, terragruntOptions, file); err != nil {
+	if err := processLocals(parser, opts, file); err != nil {
 		return nil, errors.New(err)
 	}
 	//nolint:contextcheck
@@ -51,7 +52,7 @@ func ReadStackConfigFile(ctx context.Context, terragruntOptions *options.Terragr
 	return config, nil
 }
 
-func processLocals(parser *ParsingContext, terragruntOptions *options.TerragruntOptions, file *hclparse.File) error {
+func processLocals(parser *ParsingContext, opts *options.TerragruntOptions, file *hclparse.File) error {
 	localsBlock, err := file.Blocks(MetadataLocals, false)
 
 	if err != nil {
@@ -63,7 +64,8 @@ func processLocals(parser *ParsingContext, terragruntOptions *options.Terragrunt
 	}
 
 	if len(localsBlock) > 1 {
-		return errors.New(fmt.Errorf("only one locals block is allowed in a terragrunt stack file, but found %d in %s", len(localsBlock), file.ConfigPath))
+		return errors.New(fmt.Sprintf("only one locals block is allowed %s stack file, "+
+			"but found %d ", file.ConfigPath, len(localsBlock)))
 	}
 
 	attrs, err := localsBlock[0].JustAttributes()
@@ -83,7 +85,6 @@ func processLocals(parser *ParsingContext, terragruntOptions *options.Terragrunt
 		}
 
 		var err error
-		//nolint:contextcheck
 		attrs, evaluatedLocals, evaluated, err = attemptEvaluateLocals(
 			parser,
 			file,
@@ -92,7 +93,8 @@ func processLocals(parser *ParsingContext, terragruntOptions *options.Terragrunt
 		)
 
 		if err != nil {
-			terragruntOptions.Logger.Debugf("Encountered error while evaluating locals in file %s", terragruntOptions.TerragruntStackConfigPath)
+			opts.Logger.Debugf("Encountered error while evaluating locals in file %s", opts.TerragruntStackConfigPath)
+
 			return errors.New(err)
 		}
 	}

@@ -23,6 +23,7 @@ const (
 	dirPerm          = 0755
 )
 
+// Run runs the stack command.
 func Run(ctx context.Context, opts *options.TerragruntOptions, subCommand string) error {
 	if subCommand == "" {
 		return errors.New("No command specified")
@@ -32,7 +33,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, subCommand string
 		return generateStack(ctx, opts)
 	}
 
-	return errors.New(fmt.Errorf("unknown command: %s", subCommand))
+	return errors.New("unknown command: " + subCommand)
 }
 
 func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
@@ -79,7 +80,7 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 		for getterName, getterValue := range getter.Getters {
 			// setting custom getter for file to not use symlinks
 			if getterName == "file" {
-				client.Getters[getterName] = &StacksFileProvider{}
+				client.Getters[getterName] = &stacksFileProvider{}
 			} else {
 				client.Getters[getterName] = getterValue
 			}
@@ -124,33 +125,34 @@ func isURL(client *getter.Client, str string) bool {
 	return true
 }
 
-type StacksFileProvider struct {
+// stacksFileProvider is a custom getter for file:// protocol.
+type stacksFileProvider struct {
 	client *getter.Client
 }
 
-// Get implements downloading functionality
-func (p *StacksFileProvider) Get(dst string, u *url.URL) error {
+// Get implements downloading functionality.
+func (p *stacksFileProvider) Get(dst string, u *url.URL) error {
 	src := u.Path
-	fi, err := os.Stat(src)
+	file, err := os.Stat(src)
 
 	if err != nil {
 		return errors.New(fmt.Errorf("source path error: %w", err))
 	}
 
-	if fi.IsDir() {
+	if file.IsDir() {
 		return p.copyDir(src, dst)
 	}
 
 	return p.copyFile(src, dst)
 }
 
-// GetFile implements single file download
-func (p *StacksFileProvider) GetFile(dst string, u *url.URL) error {
+// GetFile implements single file download.
+func (p *stacksFileProvider) GetFile(dst string, u *url.URL) error {
 	return p.copyFile(u.Path, dst)
 }
 
-// ClientMode determines if we're getting a directory or single file
-func (p *StacksFileProvider) ClientMode(u *url.URL) (getter.ClientMode, error) {
+// ClientMode determines if we're getting a directory or single file.
+func (p *stacksFileProvider) ClientMode(u *url.URL) (getter.ClientMode, error) {
 	fi, err := os.Stat(u.Path)
 	if err != nil {
 		return getter.ClientModeInvalid, errors.New(err)
@@ -163,12 +165,12 @@ func (p *StacksFileProvider) ClientMode(u *url.URL) (getter.ClientMode, error) {
 	return getter.ClientModeFile, nil
 }
 
-// SetClient sets the client for this provider
-func (p *StacksFileProvider) SetClient(c *getter.Client) {
+// SetClient sets the client for this provider.
+func (p *stacksFileProvider) SetClient(c *getter.Client) {
 	p.client = c
 }
 
-func (p *StacksFileProvider) copyFile(src, dst string) error {
+func (p *stacksFileProvider) copyFile(src, dst string) error {
 	if err := os.MkdirAll(filepath.Dir(dst), dirPerm); err != nil {
 		return errors.New(err)
 	}
@@ -197,7 +199,7 @@ func (p *StacksFileProvider) copyFile(src, dst string) error {
 	return nil
 }
 
-func (p *StacksFileProvider) copyDir(src, dst string) error {
+func (p *stacksFileProvider) copyDir(src, dst string) error {
 	srcInfo, err := os.Stat(src)
 	if err != nil {
 		return errors.New(err)

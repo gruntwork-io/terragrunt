@@ -7,13 +7,16 @@ import (
 )
 
 const (
+	// CommandName stack command name.
 	CommandName = "stack"
 )
 
-func NewFlags(opts *options.TerragruntOptions) cli.Flags {
+// NewFlags builds the flags for stack.
+func NewFlags(_ *options.TerragruntOptions) cli.Flags {
 	return cli.Flags{}
 }
 
+// NewCommand builds the command for stack.
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:                   CommandName,
@@ -22,6 +25,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Flags:                  NewFlags(opts).Sort(),
 		Action: func(ctx *cli.Context) error {
 			command := ctx.Args().Get(0)
+
 			return Run(ctx.Context, opts.OptionsFromContext(ctx), command)
 		},
 	}
