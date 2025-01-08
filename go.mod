@@ -26,11 +26,11 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.10.0
-	github.com/zclconf/go-cty v1.15.1
+	github.com/zclconf/go-cty v1.16.0
 	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/oauth2 v0.24.0
 	golang.org/x/sync v0.10.0
-	golang.org/x/sys v0.28.0
+	golang.org/x/sys v0.29.0
 	google.golang.org/api v0.214.0
 )
 
@@ -53,7 +53,7 @@ require (
 	dario.cat/mergo v1.0.1
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/ProtonMail/go-crypto v1.1.3
-	github.com/aws/aws-sdk-go-v2 v1.32.5
+	github.com/aws/aws-sdk-go-v2 v1.32.7
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.1.0
 	github.com/charmbracelet/glamour v0.8.0
@@ -62,7 +62,7 @@ require (
 	github.com/gitsight/go-vcsurl v1.0.1
 	github.com/gofrs/flock v0.12.1
 	github.com/google/uuid v1.6.0
-	github.com/gruntwork-io/boilerplate v0.5.19
+	github.com/gruntwork-io/boilerplate v0.6.0
 	github.com/gruntwork-io/go-commons v0.17.2
 	github.com/gruntwork-io/terragrunt-engine-go v0.0.4
 	github.com/hashicorp/go-getter/v2 v2.2.3
@@ -92,7 +92,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.33.0
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	golang.org/x/mod v0.21.0
-	golang.org/x/term v0.27.0
+	golang.org/x/term v0.28.0
 	golang.org/x/text v0.21.0
 	google.golang.org/grpc v1.68.1
 	google.golang.org/protobuf v1.35.2
