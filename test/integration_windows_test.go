@@ -33,14 +33,16 @@ func TestMain(m *testing.M) {
 	// and causes the error: "fatal: '$GIT_DIR' too big". Example:
 	// "C:/Users/circleci/AppData/Local/Temp/TestWindowsLocalWithRelativeExtraArgsWindows1263358614/001/fixtures/download/local-windows/.terragrunt-cache/rviFlp3V5mrXldwi6Hbi8p2rDL0/U0tL3quoR7Yt-oR6jROJomrYpTs".
 
-	// Save old values to restore them at the end.
-	tmpDirEnvVars := map[string]string{
-		"TMP":  os.Getenv("TMP"),
-		"TEMP": os.Getenv("TEMP"),
+	envVars := map[string]string{"TMP": "", "TEMP": ""}
+
+	// Save current values to restore them at the end.
+	for name := range envVars {
+		envVars[name] = os.Getenv(name)
 	}
 
 	defer func() {
-		for name, val := range tmpDirEnvVars {
+		// Restore previous values.
+		for name, val := range envVars {
 			os.Setenv(name, val)
 		}
 	}()
@@ -52,7 +54,8 @@ func TestMain(m *testing.M) {
 		}
 	}
 
-	for name := range tmpDirEnvVars {
+	// Set temporary values.
+	for name := range envVars {
 		if err := os.Setenv(name, tempDir); err != nil {
 			fmt.Printf("Failed to set env var %s=%s due to error: %v", name, tempDir, err)
 			os.Exit(1)
