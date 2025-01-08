@@ -84,7 +84,6 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 			Dir:             true,
 			DisableSymlinks: true,
 			Options: []getter.ClientOption{
-				getter.WithInsecure(),
 				getter.WithContext(ctx),
 			},
 		}
@@ -110,6 +109,11 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 }
 
 func isURL(str string) bool {
+	// check if string starts with / or .
+	if strings.HasPrefix(str, "/") || strings.HasPrefix(str, ".") {
+		return false
+	}
+
 	if strings.Contains(str, "//") {
 		return true
 	}
