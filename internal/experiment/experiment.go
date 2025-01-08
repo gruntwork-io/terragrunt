@@ -45,7 +45,8 @@ func (e Experiment) String() string {
 const (
 	// Symlinks is the experiment that allows symlinks to be used in Terragrunt configurations.
 	Symlinks = "symlinks"
-	Stacks   = "stacks"
+	// Stacks is the experiment that allows stacks to be used in Terragrunt.
+	Stacks = "stacks"
 )
 
 const (
