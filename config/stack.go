@@ -16,6 +16,13 @@ type StackConfigFile struct {
 	Units  []*Unit          `cty:"unit" hcl:"unit,block"`
 }
 
+// Unit represent unit from stack file.
+type Unit struct {
+	Name   string `cty:"name"    hcl:",label"`
+	Source string `hcl:"source,attr" cty:"source"`
+	Path   string `hcl:"path,attr" cty:"path"`
+}
+
 func ReadStackConfigFile(ctx context.Context, terragruntOptions *options.TerragruntOptions) (*StackConfigFile, error) {
 	terragruntOptions.Logger.Debugf("Reading Terragrunt stack config file at %s", terragruntOptions.TerragruntStackConfigPath)
 
