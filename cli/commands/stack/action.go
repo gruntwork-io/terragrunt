@@ -62,7 +62,6 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 		if err != nil {
 			return errors.New(fmt.Errorf("failed to get absolute path for destination '%s': %w", dest, err))
 		}
-		src := unit.Source
 
 		client := &getter.Client{
 			Dst:             dest,
@@ -85,6 +84,9 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 				client.Getters[getterName] = getterValue
 			}
 		}
+
+		// fetching unit source
+		src := unit.Source
 
 		// set absolute path for source if it's not an absolute path or URL
 		if !filepath.IsAbs(unit.Source) && !isURL(client, unit.Source) {
@@ -118,6 +120,7 @@ func isURL(client *getter.Client, str string) bool {
 	if strings.HasPrefix(value, "file://") {
 		return false
 	}
+
 	return true
 }
 
