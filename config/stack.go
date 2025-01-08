@@ -33,11 +33,11 @@ func ReadStackConfigFile(ctx context.Context, terragruntOptions *options.Terragr
 	if err != nil {
 		return nil, errors.New(err)
 	}
-	// nolint:contextcheck
+	//nolint:contextcheck
 	if err := processLocals(parser, terragruntOptions, file); err != nil {
 		return nil, errors.New(err)
 	}
-	// nolint:contextcheck
+	//nolint:contextcheck
 	evalParsingContext, err := createTerragruntEvalContext(parser, file.ConfigPath)
 	if err != nil {
 		return nil, errors.New(err)
@@ -83,7 +83,7 @@ func processLocals(parser *ParsingContext, terragruntOptions *options.Terragrunt
 		}
 
 		var err error
-		// nolint:contextcheck
+		//nolint:contextcheck
 		attrs, evaluatedLocals, evaluated, err = attemptEvaluateLocals(
 			parser,
 			file,
