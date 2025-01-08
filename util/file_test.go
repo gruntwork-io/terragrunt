@@ -365,7 +365,6 @@ func TestIncludeInCopy(t *testing.T) {
 	require.NoError(t, util.CopyFolderContents(log.New(), source, destination, ".terragrunt-test", includeInCopy, nil))
 
 	for i, tt := range tc {
-		tt := tt
 
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
@@ -384,7 +383,7 @@ func TestExcludeFromCopy(t *testing.T) {
 
 	excludeFromCopy := []string{"module/region2", "**/exclude-me-here", "**/app1"}
 
-	tc := []struct {
+	testCases := []struct {
 		path         string
 		copyExpected bool
 	}{
@@ -405,7 +404,7 @@ func TestExcludeFromCopy(t *testing.T) {
 	destination := filepath.Join(tempDir, "destination")
 
 	fileContent := []byte("source file")
-	for _, tt := range tc {
+	for _, tt := range testCases {
 		path := filepath.Join(source, tt.path)
 		assert.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
 		assert.NoError(t, os.WriteFile(path, fileContent, 0644))
@@ -413,17 +412,15 @@ func TestExcludeFromCopy(t *testing.T) {
 
 	require.NoError(t, util.CopyFolderContents(log.New(), source, destination, ".terragrunt-test", nil, excludeFromCopy))
 
-	for i, tt := range tc {
-		tt := tt
-
+	for i, testCase := range testCases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			_, err := os.Stat(filepath.Join(destination, tt.path))
+			_, err := os.Stat(filepath.Join(destination, testCase.path))
 			assert.True(t,
-				tt.copyExpected && err == nil ||
-					!tt.copyExpected && errors.Is(err, os.ErrNotExist),
-				"Unexpected copy result for file '%s' (should be copied: '%t') - got error: %s", tt.path, tt.copyExpected, err)
+				testCase.copyExpected && err == nil ||
+					!testCase.copyExpected && errors.Is(err, os.ErrNotExist),
+				"Unexpected copy result for file '%s' (should be copied: '%t') - got error: %s", testCase.path, testCase.copyExpected, err)
 		})
 	}
 }
@@ -434,7 +431,7 @@ func TestExcludeIncludeBehaviourPriority(t *testing.T) {
 	includeInCopy := []string{"_module/.region2", "_module/.region3"}
 	excludeFromCopy := []string{"**/.project2-2", "_module/.region3"}
 
-	tc := []struct {
+	testCases := []struct {
 		path         string
 		copyExpected bool
 	}{
@@ -449,7 +446,7 @@ func TestExcludeIncludeBehaviourPriority(t *testing.T) {
 	destination := filepath.Join(tempDir, "destination")
 
 	fileContent := []byte("source file")
-	for _, tt := range tc {
+	for _, tt := range testCases {
 		path := filepath.Join(source, tt.path)
 		assert.NoError(t, os.MkdirAll(filepath.Dir(path), os.ModePerm))
 		assert.NoError(t, os.WriteFile(path, fileContent, 0644))
@@ -457,7 +454,7 @@ func TestExcludeIncludeBehaviourPriority(t *testing.T) {
 
 	require.NoError(t, util.CopyFolderContents(log.New(), source, destination, ".terragrunt-test", includeInCopy, excludeFromCopy))
 
-	for i, tt := range tc {
+	for i, tt := range testCases {
 		tt := tt
 
 		t.Run(strconv.Itoa(i), func(t *testing.T) {

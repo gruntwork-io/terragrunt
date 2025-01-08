@@ -114,7 +114,7 @@ The `terraform` block supports the following arguments:
   OpenTofu/Terraform working directory. All examples valid for `include_in_copy` can be used here.
 
   *Note that using `include_in_copy` and `exclude_from_copy` are not mutually exclusive.*
-  If a file matches a pattern in both `include_in_copy` and `exclude_from_copy`, it will not be included. If you would like to ensure that the file _is_ included, make sure the patterns you use for `include_in_copy` do not match the patterns in `exclude_from_copy`. 
+  If a file matches a pattern in both `include_in_copy` and `exclude_from_copy`, it will not be included. If you would like to ensure that the file *is* included, make sure the patterns you use for `include_in_copy` do not match the patterns in `exclude_from_copy`.
 
 - `copy_terraform_lock_file` (attribute): In certain use cases, you don't want to check the terraform provider lock
   file into your source repository from your working directory as described in
@@ -438,7 +438,7 @@ For the `s3` backend, the following additional properties are supported in the `
 - `dynamodb_table` - (Optional) The name of a DynamoDB table to use for state locking and consistency. The table must have a primary key named LockID. If not present, locking will be disabled.
 - `skip_bucket_versioning`: When `true`, the S3 bucket that is created to store the state will not be versioned.
 - `skip_bucket_ssencryption`: When `true`, the S3 bucket that is created to store the state will not be configured with server-side encryption.
-- `skip_bucket_accesslogging`: _DEPRECATED_ If provided, will be ignored. A log warning will be issued in the console output to notify the user.
+- `skip_bucket_accesslogging`: *DEPRECATED* If provided, will be ignored. A log warning will be issued in the console output to notify the user.
 - `skip_bucket_root_access`: When `true`, the S3 bucket that is created will not be configured with bucket policies that allow access to the root AWS user.
 - `skip_bucket_enforced_tls`: When `true`, the S3 bucket that is created will not be configured with a bucket policy that enforces access to the bucket via a TLS connection.
 - `skip_bucket_public_access_blocking`: When `true`, the S3 bucket that is created will not have public access blocking enabled.

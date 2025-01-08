@@ -245,6 +245,7 @@ func pathContainsPrefix(path string, prefixes []string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -285,7 +286,14 @@ func expandGlobPath(source, absoluteGlobPath string) ([]string, error) {
 
 // CopyFolderContents copies the files and folders within the source folder into the destination folder. Note that hidden files and folders
 // (those starting with a dot) will be skipped. Will create a specified manifest file that contains paths of all copied files.
-func CopyFolderContents(logger log.Logger, source, destination, manifestFile string, includeInCopy []string, excludeFromCopy []string) error {
+func CopyFolderContents(
+	logger log.Logger,
+	source,
+	destination,
+	manifestFile string,
+	includeInCopy []string,
+	excludeFromCopy []string,
+) error {
 	// Expand all the includeInCopy glob paths, converting the globbed results to relative paths so that they work in
 	// the copy filter.
 	includeExpandedGlobs := []string{}
@@ -316,10 +324,13 @@ func CopyFolderContents(logger log.Logger, source, destination, manifestFile str
 
 	return CopyFolderContentsWithFilter(logger, source, destination, manifestFile, func(absolutePath string) bool {
 		relativePath, err := GetPathRelativeTo(absolutePath, source)
+		pathHasPrefix := pathContainsPrefix(relativePath, excludeExpandedGlobs)
 
-		if err == nil && listContainsElementWithPrefix(includeExpandedGlobs, relativePath) && !pathContainsPrefix(relativePath, excludeExpandedGlobs) {
+		listHasElementWithPrefix := listContainsElementWithPrefix(includeExpandedGlobs, relativePath)
+		if err == nil && listHasElementWithPrefix && !pathHasPrefix {
 			return true
 		}
+
 		if err == nil && pathContainsPrefix(relativePath, excludeExpandedGlobs) {
 			return false
 		}
