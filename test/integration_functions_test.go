@@ -220,7 +220,7 @@ func TestGetRepoRoot(t *testing.T) {
 	repoRoot, ok := outputs["repo_root"]
 
 	assert.True(t, ok)
-	assert.Regexp(t, "/tmp/terragrunt-.*/fixtures/get-repo-root", repoRoot.Value)
+	assert.Regexp(t, "/.*/TestGetRepoRoot.*/fixtures/get-repo-root", repoRoot.Value)
 }
 
 func TestGetWorkingDirBuiltInFunc(t *testing.T) {
