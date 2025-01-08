@@ -62,7 +62,7 @@ require (
 	github.com/gitsight/go-vcsurl v1.0.1
 	github.com/gofrs/flock v0.12.1
 	github.com/google/uuid v1.6.0
-	github.com/gruntwork-io/boilerplate v0.5.19
+	github.com/gruntwork-io/boilerplate v0.6.0
 	github.com/gruntwork-io/go-commons v0.17.2
 	github.com/gruntwork-io/terragrunt-engine-go v0.0.4
 	github.com/hashicorp/go-getter/v2 v2.2.3
