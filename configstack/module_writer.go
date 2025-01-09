@@ -34,7 +34,9 @@ func (writer *ModuleWriter) Write(p []byte) (int, error) {
 	// If the last byte is a newline character, flush the buffer early.
 	if writer.buffer.Len() > 0 {
 		if p[len(p)-1] == '\n' {
-			writer.Flush()
+			if err := writer.Flush(); err != nil {
+				return n, errors.New(err)
+			}
 		}
 	}
 
