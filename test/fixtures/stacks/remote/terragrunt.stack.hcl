@@ -1,14 +1,14 @@
 locals {
-	version = "v0.6.0"
+	version = "2d526f9ce8f295d5754e51856999a5cc35f26c7e"
 }
 
 unit "app1" {
-	source = "github.com/gruntwork-io/terraform-google-sql.git//modules/cloud-sql?ref=${local.version}"
+	source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=${local.version}"
 	path   = "app1"
 }
 
 unit "app2" {
-	source = "github.com/gruntwork-io/terraform-google-sql.git//modules/cloud-sql?ref=${local.version}"
+	source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/stacks/basic/units/chick?ref=${local.version}"
 	path   = "app2"
 }
 
