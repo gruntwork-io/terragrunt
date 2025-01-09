@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/tf"
 )
@@ -41,10 +42,23 @@ func Action(opts *options.TerragruntOptions) cli.ActionFunc {
 
 		if !opts.DisableCommandValidation && !collections.ListContainsElement(tf.CommandNames, opts.TerraformCommand) {
 			if strings.HasSuffix(opts.TerraformPath, options.TerraformDefaultPath) {
-				return errors.New(WrongTerraformCommand(opts.TerraformCommand))
+				return cli.NewExitError(errors.New(WrongTerraformCommand(opts.TerraformCommand)), cli.ExitCodeGeneralError)
 			} else {
 				// We default to tofu if the terraform path does not end in Terraform
-				return errors.New(WrongTofuCommand(opts.TerraformCommand))
+				return cli.NewExitError(errors.New(WrongTofuCommand(opts.TerraformCommand)), cli.ExitCodeGeneralError)
+			}
+		}
+
+		if ctx.Command.Name != CommandName {
+			if control, ok := strict.GetStrictControl(strict.DefaultCommand); ok {
+				_, triggered, err := control.Evaluate(opts)
+				if err != nil {
+					return cli.NewExitError(errors.Errorf("The command `%[1]s` is not a valid Terragrunt command. Use `terragrunt run` to explicitly pass commands to OpenTofu/Terraform instead. e.g. `terragrunt run -- %[1]s`", opts.TerraformCommand), cli.ExitCodeGeneralError)
+				}
+
+				if !triggered {
+					opts.Logger.Warnf("The default command `%[1]s` is deprecated and will be removed in a future version. Use `terragrunt run -- %[1]s` instead.", opts.TerraformCommand)
+				}
 			}
 		}
 

@@ -16,7 +16,7 @@ type Command struct {
 	Aliases []string
 	// Usage is a short description of the usage of the command.
 	Usage string
-	// UsageText is custom text to show on `Usage` section of help.
+	// UsageText is custom text to show on the `Usage` section of help.
 	UsageText string
 	// Description is a longer explanation of how the command works.
 	Description string
@@ -100,7 +100,7 @@ func (cmd *Command) VisibleSubcommands() []*cli.Command {
 func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 	args, err = cmd.parseFlags(args.Slice())
 	if err != nil {
-		return err
+		return NewExitError(err, ExitCodeGeneralError)
 	}
 
 	ctx = ctx.NewCommandContext(cmd, args)

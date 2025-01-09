@@ -3,7 +3,6 @@ package defaultcmd
 
 import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 
 	runCmd "github.com/gruntwork-io/terragrunt/cli/commands/run"
@@ -26,17 +25,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 func Action(opts *options.TerragruntOptions) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
-		if control, ok := strict.GetStrictControl(strict.DefaultCommand); ok {
-			warn, triggered, err := control.Evaluate(opts)
-			if err != nil {
-				return err
-			}
-
-			if !triggered {
-				opts.Logger.Warnf(warn)
-			}
-		}
-
 		return runCmd.Action(opts)(ctx)
 	}
 }

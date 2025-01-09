@@ -26,7 +26,7 @@ type NormalizeActsType byte
 // Args provides convenient access to CLI arguments.
 type Args []string
 
-// Split splits slices `args` into two slices separated by `sep`.
+// Split splits `args` into two slices separated by `sep`.
 func (args Args) Split(sep string) (Args, Args) {
 	for i := range args {
 		if args[i] == sep {

@@ -4,12 +4,12 @@ import "strings"
 
 const EnvVarPrefix = "TG_"
 
-// EnvVars does same `EnvVarsWithPrefix` but with default specified `EnvVarPrefix` prefix.
+// EnvVars calls `EnvVarsWithPrefix` with a default `EnvVarPrefix` prefix.
 func EnvVars(names ...string) []string {
 	return EnvVarsWithPrefix(EnvVarPrefix, names...)
 }
 
-// EnvVarsWithPrefix converts the given flag names into their environment variables with the given prefix added.
+// EnvVarsWithPrefix converts the given flag names into their corresponding environment variables, with a given `prefix` added.
 func EnvVarsWithPrefix(prefix string, names ...string) []string {
 	var envVars = make([]string, len(names))
 

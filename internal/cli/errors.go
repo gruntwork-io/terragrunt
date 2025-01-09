@@ -27,7 +27,7 @@ func (err InvalidKeyValueError) Error() string {
 }
 
 type exitError struct {
-	exitCode int
+	exitCode ExitCode
 	err      error
 }
 
@@ -44,18 +44,11 @@ func (ee *exitError) Error() string {
 }
 
 func (ee *exitError) ExitCode() int {
-	return ee.exitCode
-}
-
-// ExitCoder is the interface checked by `App` and `Command` for a custom exit code
-type ExitCoder interface {
-	error
-	ExitCode() int
-	Unwrap() error
+	return int(ee.exitCode)
 }
 
 // NewExitError calls Exit to create a new ExitCoder.
-func NewExitError(message interface{}, exitCode int) ExitCoder {
+func NewExitError(message interface{}, exitCode ExitCode) ExitCoder {
 	var err error
 
 	if message != nil {

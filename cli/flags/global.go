@@ -50,7 +50,7 @@ const (
 	TerragruntJSONLogFlagName              = DeprecatedFlagNamePrefix + "json-log"
 )
 
-// NewGlobalFlags creates and returns common flags.
+// NewGlobalFlags creates and returns flags common to all commands.
 func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 	flags := cli.Flags{
 		NewLogLevelFlag(opts),
@@ -96,7 +96,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Action: func(_ *cli.Context, val string) error {
 				phs, err := format.ParseFormat(val)
 				if err != nil {
-					return cli.NewExitError(errors.Errorf("flag --%s, invalid format %q, %v", LogFormatFlagName, val, err), 1)
+					return cli.NewExitError(errors.Errorf("flag --%s, invalid format %q, %v", LogFormatFlagName, val, err), cli.ExitCodeGeneralError)
 				}
 
 				if opts.DisableLog || opts.DisableLogFormatting || opts.JSONLogFormat {

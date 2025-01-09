@@ -30,7 +30,7 @@ type GenericFlag[T GenericType] struct {
 	Usage string
 	// Aliases are usually used for the short flag name, like `-h`.
 	Aliases []string
-	// The name of the env variable that is parsed and assigned to `Destination` before the flag value.
+	// The names of the env variables that are parsed and assigned to `Destination` before the flag value.
 	EnvVars []string
 	// The action to execute when flag is specified
 	Action GenericActionFunc[T]

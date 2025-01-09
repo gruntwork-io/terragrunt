@@ -121,7 +121,7 @@ func (flag *Flag) RunAction(ctx *cli.Context) error {
 		}
 	}
 
-	if flagName := flag.usedDeprecatedFlagName(ctx); flagName != "" {
+	if flagName := flag.usedDeprecatedFlagName(ctx); flagName != "" && len(flag.names) > 0 {
 		if strictControl {
 			return errors.Errorf("`--%s` flag is no longer supported, use `--%s` instead", flagName, flag.names[0])
 		}
@@ -129,7 +129,7 @@ func (flag *Flag) RunAction(ctx *cli.Context) error {
 		flag.opts.Logger.Warnf("The `--%s` flag is deprecated and will be removed in a future version. Use `--%s` instead.", flagName, flag.names[0])
 	}
 
-	if envVar := flag.usedDeprecatedEnvVar(ctx); envVar != "" {
+	if envVar := flag.usedDeprecatedEnvVar(ctx); envVar != "" && len(flag.envVars) > 0 {
 		if strictControl {
 			return errors.Errorf("`%s` environment variable is no longer supported, use `%s` instead", envVar, flag.envVars[0])
 		}
@@ -140,7 +140,7 @@ func (flag *Flag) RunAction(ctx *cli.Context) error {
 	return nil
 }
 
-// usedDeprecatedFlagName returns the deprecated flag if used, otherwise an empty string.
+// usedDeprecatedFlagName returns the first deprecated flag found if any, otherwise it returns an empty string.
 func (flag *Flag) usedDeprecatedFlagName(ctx *cli.Context) string {
 	args := util.RemoveSublistFromList(ctx.Parent().Args(), ctx.Args())
 	deprecatedNames := util.RemoveSublistFromList(flag.Flag.Names(), flag.names)
@@ -159,7 +159,7 @@ func (flag *Flag) usedDeprecatedFlagName(ctx *cli.Context) string {
 	return ""
 }
 
-// usedDeprecatedEnvVar returns the deprecated env var if used, otherwise an empty string.
+// usedDeprecatedEnvVar returns the first deprecated env var if any, otherwise an empty string.
 func (flag *Flag) usedDeprecatedEnvVar(_ *cli.Context) string {
 	deprecatedEnvVars := util.RemoveSublistFromList(flag.Flag.GetEnvVars(), flag.envVars)
 

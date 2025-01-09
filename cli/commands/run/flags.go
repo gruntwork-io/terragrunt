@@ -50,7 +50,7 @@ const (
 	QueueIgnoreDAGOrderFlagName      = "queue-ignore-dag-order"
 	QueueExcludeExternalFlagName     = "queue-exclude-external"
 	QueueExcludeDirFlagName          = "queue-exclude-dir"
-	QueueExcludeFileFlagName         = "queue-exclude-file"
+	QueueExcludesFileFlagName        = "queue-excludes-file"
 	QueueIncludeDirFlagName          = "queue-include-dir"
 	QueueIncludeExternalFlagName     = "queue-include-external"
 	QueueStrictIncludeFlagName       = "queue-strict-include"
@@ -86,7 +86,7 @@ const (
 	TerragruntIgnoreDependencyOrderFlagName          = flags.DeprecatedFlagNamePrefix + "ignore-dependency-order"            // `queue-ignore-dag-order`.
 	TerragruntIgnoreExternalDependenciesFlagName     = flags.DeprecatedFlagNamePrefix + "ignore-external-dependencies"       // `queue-exclude-external`.
 	TerragruntExcludeDirFlagName                     = flags.DeprecatedFlagNamePrefix + "exclude-dir"                        // `queue-exclude-dir`.
-	TerragruntExcludesFileFlagName                   = flags.DeprecatedFlagNamePrefix + "excludes-file"                      // `queue-exclude-file`.
+	TerragruntExcludesFileFlagName                   = flags.DeprecatedFlagNamePrefix + "excludes-file"                      // `queue-excludes-file`.
 	TerragruntIncludeDirFlagName                     = flags.DeprecatedFlagNamePrefix + "include-dir"                        // `queue-include-dir`.
 	TerragruntIncludeExternalDependenciesFlagName    = flags.DeprecatedFlagNamePrefix + "include-external-dependencies"      // `queue-include-external`.
 	TerragruntStrictIncludeFlagName                  = flags.DeprecatedFlagNamePrefix + "strict-include"                     // `queue-strict-include`.
@@ -233,8 +233,8 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "Parallelism for --all commands.",
 		}),
 		flags.GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
-			Name:        QueueExcludeFileFlagName,
-			EnvVars:     flags.EnvVars(QueueExcludeFileFlagName),
+			Name:        QueueExcludesFileFlagName,
+			EnvVars:     flags.EnvVars(QueueExcludesFileFlagName),
 			Destination: &opts.ExcludesFile,
 			Usage:       "Path to a file with a list of directories that need to be excluded when running *-all commands.",
 		}, TerragruntExcludesFileFlagName),

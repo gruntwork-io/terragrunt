@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -51,12 +52,16 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		ErrorOnUndefinedFlag: true,
 		Hidden:               true,
 		Action: func(ctx *cli.Context) error {
-			args, cmdArgs := ctx.Args().Split(cli.BuiltinCmdSep)
+			tgArgs, cmdArgs := ctx.Args().Split(cli.BuiltinCmdSep)
 
 			// Use unspecified arguments from the terragrunt command if the user
 			// specified the target command without `--`, e.g. `terragrunt plan ls`.
 			if len(cmdArgs) == 0 {
-				cmdArgs = args
+				cmdArgs = tgArgs
+			}
+
+			if len(cmdArgs) == 0 {
+				return cli.NewExitError(errors.New("exec command requires arguments to be used, e.g. `terragrunt exec -- echo \"Hello from Terragrunt!\"`"), cli.ExitCodeGeneralError)
 			}
 
 			return Run(ctx, opts, cmdOpts, cmdArgs)

@@ -6,16 +6,11 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/shell"
 )
 
 func Run(ctx context.Context, opts *options.TerragruntOptions, cmdOpts *Options, args cli.Args) error {
-	if len(args) == 0 {
-		return errors.New("target command not specified")
-	}
-
 	targetConfigPoint := run.TargetPointInitCommand
 
 	if !cmdOpts.InDownloadDir {

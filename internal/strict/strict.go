@@ -130,10 +130,7 @@ var StrictControls = Controls{
 		Error:   errors.Errorf("The `%s` command is no longer supported. Use `terragrunt run-all validate` instead.", ValidateAll),
 		Warning: fmt.Sprintf("The `%s` command is deprecated and will be removed in a future version. Use `terragrunt run-all validate` instead.", ValidateAll),
 	},
-	DefaultCommand: {
-		Error:   errors.New("The default command is no longer supported. Use `terragrunt run` instead."),
-		Warning: "The default command is deprecated and will be removed in a future version. Use `terragrunt run` instead.",
-	},
+	DefaultCommand: {},
 	SkipDependenciesInputs: {
 		Error:   errors.Errorf("The `%s` option is deprecated. Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs),
 		Warning: fmt.Sprintf("The `%s` option is deprecated and will be removed in a future version of Terragrunt. Reading inputs from dependencies has been deprecated. To continue using inputs from dependencies, forward them as outputs.", SkipDependenciesInputs),

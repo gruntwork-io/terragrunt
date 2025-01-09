@@ -42,7 +42,7 @@ By default, cached providers are stored in `terragrunt/providers` folder, which 
 - `$HOME/Library/Caches/terragrunt/providers` on Darwin
 - `%LocalAppData%\terragrunt\providers` on Windows
 
-The file structure of the cache directory is identical to the OpenTofu/Terraform [plugin_cache_dir](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache) directory. If you already have a directory with providers cached by OpenTofu/Terraform [plugin_cache_dir](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache), you can set this path using the flag [`provider-cache-dir`](/docs/reference/cli-options/#provider-cache-dir), to make cache server reuse them.
+The file structure of the cache directory is identical to the OpenTofu/Terraform [plugin_cache_dir](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache) directory. If you already have a directory with providers cached by OpenTofu/Terraform [plugin_cache_dir](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache), you can use the [`provider-cache-dir`](/docs/reference/cli-options/#provider-cache-dir) flag to make the cache server reuse them.
 
 ```shell
 terragrunt plan \

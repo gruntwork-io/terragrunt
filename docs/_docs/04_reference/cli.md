@@ -365,7 +365,7 @@ Example:
 terragrunt hclvalidate --json
 ```
 
-In addition, you can pass the `--show-config-path` flag to only output paths of the invalid config files, delimited by newlines. This can be especially useful when combined with the [queue-exclude-file](#queue-exclude-file) flag.
+In addition, you can pass the `--show-config-path` flag to only output paths of the invalid config files, delimited by newlines. This can be especially useful when combined with the [queue-excludes-file](#queue-excludes-file) flag.
 
 Example:
 
@@ -551,7 +551,7 @@ This command will exit with an error if terragrunt detects any unused inputs or 
   - [all](#all)
   - [auth-provider-cmd](#auth-provider-cmd)
   - [config](#config)
-  - [tfpath](#tfpath)
+  - [tf-path](#tf-path)
   - [no-auto-init](#no-auto-init)
   - [no-auto-approve](#no-auto-approve)
   - [no-auto-retry](#no-auto-retry)
@@ -566,7 +566,7 @@ This command will exit with an error if terragrunt detects any unused inputs or 
   - [iam-assume-role-session-name](#iam-assume-role-session-name)
   - [iam-assume-role-web-identity-token](#iam-assume-role-web-identity-token)
   - [queue-ignore-errors](#queue-ignore-errors)
-  - [queue-exclude-file](#queue-exclude-file)
+  - [queue-excludes-file](#queue-excludes-file)
   - [queue-exclude-dir](#queue-exclude-dir)
   - [queue-include-dir](#queue-include-dir)
   - [queue-strict-include](#queue-strict-include)
@@ -638,21 +638,21 @@ default path is `terragrunt.hcl` (preferred) or `terragrunt.hcl.json` in the cur
 [Configuration]({{site.baseurl}}/docs/getting-started/configuration/#configuration) for a slightly more nuanced
 explanation). This argument is not used with the `run-all` commands.
 
-### tfpath
+### tf-path
 
 **CLI Arg**: `--tf-path`<br/>
 **CLI Arg Alias**: `--terragrunt-tfpath` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Environment Variable**: `TG_TF_PATH`<br/>
 **Environment Variable Alias**: `TERRAGRUNT_TFPATH` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Requires an argument**: `--tfpath /path/to/tofu-or-terraform-binary`<br/>
+**Requires an argument**: `--tf-path /path/to/tofu-or-terraform-binary`<br/>
 
 An explicit path to the `tofu` or `terraform` binary you wish to have Terragrunt use.
 
 Note that if you _only_ have `terraform` installed, and available in your PATH, Terragrunt will automatically use that binary.
 
-If you have _both_ `terraform` and `tofu` installed, and you want to use `terraform`, you can set the `TERRAGRUNT_TFPATH` to `terraform`.
+If you have _both_ `terraform` and `tofu` installed, and you want to use `terraform`, you can set the `TG_TF_PATH` to `terraform`.
 
-If you have _multiple_ versions of `tofu` and/or `terraform` available, or you have a custom wrapper for `tofu` or `terraform`, you can set the `TERRAGRUNT_TFPATH` to the absolute path of the executable you want to use.
+If you have _multiple_ versions of `tofu` and/or `terraform` available, or you have a custom wrapper for `tofu` or `terraform`, you can set the `TG_TF_PATH` to the absolute path of the executable you want to use.
 
 **NOTE**: This will override the `terraform` binary that is used by `terragrunt` in all instances, including
 `dependency` lookups. This setting will also override any [terraform_binary]({{site.baseurl}}/docs/reference/config-blocks-and-attributes/#terraform_binary)
@@ -854,13 +854,13 @@ Used as the web identity token for assuming a role temporarily using the AWS Sec
 
 When passed in, the `*-all` commands continue processing components even if a dependency fails
 
-### queue-exclude-file
+### queue-excludes-file
 
-**CLI Arg**: `--queue-exclude-file`<br/>
+**CLI Arg**: `--queue-excludes-file`<br/>
 **CLI Arg Alias**: `--terragrunt-excludes-file` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Environment Variable**: `TG_QUEUE_EXCLUDES_FILE`<br/>
 **Environment Variable Alias**: `TERRAGRUNT_EXCLUDES_FILE` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Requires an argument**: `--queue-exclude-file /path/to/file`<br/>
+**Requires an argument**: `--queue-excludes-file /path/to/file`<br/>
 
 Path to a file with a list of directories that need to be excluded when running *-all commands, by default `.terragrunt-excludes`. Modules under these directories will be
 excluded during execution of the commands. If a relative path is specified, it should be relative from
@@ -869,7 +869,7 @@ excluded during execution of the commands. If a relative path is specified, it s
 This flag has been designed to integrate nicely with the `hclvalidate` command, which can return a list of invalid files delimited by newlines when passed the `--show-config-path` flag. To integrate the two, you can run something like the following using bash process substitution:
 
 ```bash
-terragrunt run-all plan --queue-exclude-file <(terragrunt hclvalidate --show-config-path)
+terragrunt run-all plan --queue-excludes-file <(terragrunt hclvalidate --show-config-path)
 ```
 
 ### queue-exclude-dir
@@ -926,7 +926,7 @@ any modules during the execution of the commands.
 **Environment Variable**: `TG_QUEUE_IGNORE_DAG_ORDER`<br/>
 **Environment Variable Alias**: `TERRAGRUNT_IGNORE_DEPENDENCY_ORDER` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 
-When passed in, ignore the dependencies between modules when running `*-all` commands.
+When passed in, ignore the dependencies between units when running `*-all` commands.
 
 ### queue-exclude-external
 
@@ -966,8 +966,10 @@ When passed in, and running `terragrunt validate-inputs`, enables strict mode fo
 **Environment Variable**: `TG_PARALLELISM`<br/>
 **Environment Variable Alias**: `TERRAGRUNT_PARALLELISM` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 
-When passed in, limit the number of modules that are run concurrently to this number during \*-all commands.
-The exception is the `terraform init` command, which is always executed sequentially if the [terraform plugin cache](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache) is used. This is because the terraform plugin cache is not guaranteed to be concurrency safe.
+When passed in, limit the number of units that are run concurrently to this number during \*-all commands.
+The exception is the `terraform init` command, which is always executed sequentially if the [OpenTofu provider plugin cache](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache) is used. This is because the provider plugin cache is not guaranteed to be concurrency safe when used in isolation.
+
+To safely access provider cache concurrently, enable the [Provider Cache Server](https://terragrunt.gruntwork.io/docs/features/provider-cache-server/).
 
 ### debug-inputs
 
@@ -978,7 +980,7 @@ The exception is the `terraform init` command, which is always executed sequenti
 
 When passed in, Terragrunt will create a tfvars file that can be used to invoke the terraform module in the same way
 that Terragrunt invokes the module, so that you can debug issues with the terragrunt config. See
-[Debugging]({{site.baseurl}}/docs/features/debugging) for some additional details.
+[Debugging]({{site.baseurl}}/docs/features/debugging) for additional details.
 
 ### log-level
 
@@ -1168,8 +1170,8 @@ When passed in, render the json representation in this file.
 
 - [render-json](#render-json)
 
-When the `--disable-dependent-modules` flag is included in the command, the process of identifying dependent modules will be disabled during JSON rendering.
-This lead to a faster rendering process, but the output will not include any dependent modules.
+When `--disable-dependent-modules` is set, the process of identifying dependent modules will be disabled during JSON rendering.
+This lead to a faster rendering process, but the output will not include any dependent units.
 
 ### units-that-include
 
@@ -1313,7 +1315,7 @@ block is not evaluated until _after_ the queue has been populated with units to 
 **Environment Variable Alias**:  `TERRAGRUNT_FETCH_DEPENDENCY_OUTPUT_FROM_STATE` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 
 When using many dependencies, this option can speed up the dependency processing by fetching dependency output directly
-from the state file instead of init dependencies and running terraform on them.
+from the state file instead of using `tofu/terraform output` to fetch them.
 NOTE: This is an experimental feature, use with caution.
 Currently only AWS S3 backend is supported.
 
@@ -1555,7 +1557,9 @@ OpenTofu will perform the following actions:
 **Environment Variable**: `TG_NO_DESTROY_DEPENDENCIES_CHECK`<br/>
 **Environment Variable Alias**: `TERRAGRUNT_NO_DESTROY_DEPENDENCIES_CHECK` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 
-If specified, Terragrunt will not check dependent modules when running `destroy` command. By default, Terragrunt checks dependent modules when running `destroy` command.
+If specified, Terragrunt will not check dependent units when running the `destroy` command.
+
+By default, Terragrunt checks dependent units when running `destroy` command to provide a warning that other units may be not work correctly if their dependency is destroyed.
 
 ### feature
 
@@ -1653,7 +1657,7 @@ For more information, see the [Strict Mode](/docs/reference/strict-mode) documen
 
 - [exec](#exec)
 
-Run the provided command in the download directory.
+Execute the provided command in the download directory.
 
 ## Deprecated
 
@@ -1795,7 +1799,7 @@ The following are deprecated flags that are no longer recommended for use. They 
 
 #### terragrunt-include-module-prefix
 
-**DEPRECATED: Since this behavior has become by default, this flag has been removed. In order to get raw Terraform/OpenTofu output, use [tf-forward-stdout](#tf-forward-stdout).**
+**DEPRECATED: Since this behavior has become the default, this flag has been removed. In order to get raw Terraform/OpenTofu output, use [tf-forward-stdout](#tf-forward-stdout).**
 
 **CLI Arg**: `--terragrunt-include-module-prefix`<br/>
 **Environment Variable**: `TERRAGRUNT_INCLUDE_MODULE_PREFIX` (set to `true`)<br/>

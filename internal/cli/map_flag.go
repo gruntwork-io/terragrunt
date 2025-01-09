@@ -43,9 +43,9 @@ type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	Aliases []string
 	// The action to execute when flag is specified
 	Action MapActionFunc[K, V]
-	// The name of the env variable that is parsed and assigned to `Destination` before the flag value.
+	// The names of the env variables that are parsed and assigned to `Destination` before the flag value.
 	EnvVars []string
-	// DisalbeEnvVar disables the creation of the environment variable by default.
+	// DisableEnvVar disables the creation of the environment variable by default.
 	DisableEnvVar bool
 	// The pointer to which the value of the flag or env var is assigned.
 	// It also uses as the default value displayed in the help.
