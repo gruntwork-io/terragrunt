@@ -440,6 +440,7 @@ type ErrorHook struct {
 func (conf *Hook) String() string {
 	return fmt.Sprintf("Hook{Name = %s, Commands = %v}", conf.Name, len(conf.Commands))
 }
+
 func (conf *ErrorHook) String() string {
 	return fmt.Sprintf("Hook{Name = %s, Commands = %v}", conf.Name, len(conf.Commands))
 }
@@ -456,7 +457,8 @@ type TerraformConfig struct {
 
 	// Ideally we can avoid the pointer to list slice, but if it is not a pointer, Terraform requires the attribute to
 	// be defined and we want to make this optional.
-	IncludeInCopy *[]string `hcl:"include_in_copy,attr"`
+	IncludeInCopy   *[]string `hcl:"include_in_copy,attr"`
+	ExcludeFromCopy *[]string `hcl:"exclude_from_copy,attr"`
 
 	CopyTerraformLockFile *bool `hcl:"copy_terraform_lock_file,attr"`
 }
@@ -1408,7 +1410,7 @@ func (cfg *TerragruntConfig) GetMapFieldMetadata(fieldType, fieldName string) (m
 		return nil, false
 	}
 
-	var result = make(map[string]string)
+	result := make(map[string]string)
 	for key, value := range value {
 		result[key] = fmt.Sprintf("%v", value)
 	}
@@ -1422,7 +1424,7 @@ func (cfg *TerragruntConfig) EngineOptions() (*options.EngineOptions, error) {
 		return nil, nil
 	}
 	// in case of Meta is null, set empty meta
-	var meta = map[string]interface{}{}
+	meta := map[string]interface{}{}
 
 	if cfg.Engine.Meta != nil {
 		parsedMeta, err := ParseCtyValueToMap(*cfg.Engine.Meta)
