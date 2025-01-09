@@ -9,6 +9,7 @@ import (
 const (
 	// CommandName stack command name.
 	CommandName = "stack"
+	generate    = "generate"
 )
 
 // NewFlags builds the flags for stack.
@@ -23,10 +24,18 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Usage:                  "Terragrunt stack commands.",
 		DisallowUndefinedFlags: true,
 		Flags:                  NewFlags(opts).Sort(),
-		Action: func(ctx *cli.Context) error {
-			command := ctx.Args().Get(0)
+		Subcommands: cli.Commands{
+			&cli.Command{
+				Name:  "generate",
+				Usage: "Generate the stack file.",
+				Action: func(ctx *cli.Context) error {
+					return RunGenerate(ctx.Context, opts.OptionsFromContext(ctx))
 
-			return Run(ctx.Context, opts.OptionsFromContext(ctx), command)
+				},
+			},
+		},
+		Action: func(ctx *cli.Context) error {
+			return cli.ShowCommandHelp(ctx, generate)
 		},
 	}
 }

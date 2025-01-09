@@ -64,8 +64,7 @@ func processLocals(parser *ParsingContext, opts *options.TerragruntOptions, file
 	}
 
 	if len(localsBlock) > 1 {
-		return errors.New(fmt.Sprintf("only one locals block is allowed %s stack file, "+
-			"but found %d ", file.ConfigPath, len(localsBlock)))
+		return errors.New(fmt.Sprintf("up to one locals block is allowed per stack file, but found %d in %s", len(localsBlock), file.ConfigPath))
 	}
 
 	attrs, err := localsBlock[0].JustAttributes()

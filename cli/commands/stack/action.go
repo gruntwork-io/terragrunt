@@ -19,28 +19,19 @@ import (
 )
 
 const (
-	generate         = "generate"
 	stackCacheDir    = ".terragrunt-stack"
 	defaultStackFile = "terragrunt.stack.hcl"
 	dirPerm          = 0755
 )
 
-// Run runs the stack command.
-func Run(ctx context.Context, opts *options.TerragruntOptions, subCommand string) error {
+// RunGenerate runs the stack command.
+func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
 	stacksEnabled := opts.Experiments[experiment.Stacks]
 	if !stacksEnabled.Enabled {
 		return errors.New("stacks experiment is not enabled use --experiment stacks to enable it")
 	}
 
-	if subCommand == "" {
-		return errors.New("No command specified")
-	}
-
-	if subCommand == generate {
-		return generateStack(ctx, opts)
-	}
-
-	return errors.New("unknown command: " + subCommand)
+	return generateStack(ctx, opts)
 }
 
 func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
