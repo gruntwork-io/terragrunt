@@ -163,7 +163,7 @@ OpenTofu has compared your real infrastructure against your configuration and
 found no differences, so no changes are needed.
 ```
 
-This tells Terragrunt to log messages from OpenTofu/Terraform without any enrichment. As you can see, it's not as easy to disambiguate the messages from the two units, so Terragrunt automatically buffers the output from each unit and logs them in order so that you can see what each unit is doing.
+This tells Terragrunt to log messages from OpenTofu/Terraform without any enrichment. As you can see, it's not as easy to disambiguate the messages from the two units, so it helps to use Terragrunt's default log format when managing IaC at scale.
 
 ## Exceptions to enrichment
 
@@ -224,7 +224,82 @@ $ terragrunt output -json | jq '.something'
 }
 ```
 
-## Disabling Logs
+## Streaming and buffering
+
+While Terragrunt logs stdout from OpenTofu/Terraform in real time, it buffers each line of stdout before logging it. This is because Terragrunt needs to be able to buffer stdout to prevent different units from interleaving their log messages.
+
+Depending on what you're doing with Terragrunt, this might occasionally result in issues when multiple units are running concurrently and they are each producing multi-line output that is more convenient to be read independently. In these cases, you can do some post-processing on the logs to read the units in isolation.
+
+For example:
+
+```bash
+$ terragrunt run-all apply --terragrunt-no-color --terragrunt-non-interactive > logs
+16:01:51.164 INFO   The stack at . will be processed in the following order for command apply:
+Group 1
+- Module ./unit1
+- Module ./unit2
+
+```
+
+```bash
+$ grep '\[unit1\]' < logs
+16:01:51.272 STDOUT [unit1] tofu: null_resource.empty: Refreshing state... [id=3335573617542340690]
+16:01:51.279 STDOUT [unit1] tofu: OpenTofu used the selected providers to generate the following execution
+16:01:51.279 STDOUT [unit1] tofu: plan. Resource actions are indicated with the following symbols:
+16:01:51.279 STDOUT [unit1] tofu: -/+ destroy and then create replacement
+16:01:51.279 STDOUT [unit1] tofu: OpenTofu will perform the following actions:
+16:01:51.279 STDOUT [unit1] tofu:   # null_resource.empty must be replaced
+16:01:51.279 STDOUT [unit1] tofu: -/+ resource "null_resource" "empty" {
+16:01:51.279 STDOUT [unit1] tofu:       ~ id       = "3335573617542340690" -> (known after apply)
+16:01:51.279 STDOUT [unit1] tofu:       ~ triggers = { # forces replacement
+16:01:51.280 STDOUT [unit1] tofu:           ~ "always_run" = "2025-01-09T21:01:17Z" -> (known after apply)
+16:01:51.280 STDOUT [unit1] tofu:         }
+16:01:51.280 STDOUT [unit1] tofu:     }
+16:01:51.280 STDOUT [unit1] tofu: Plan: 1 to add, 0 to change, 1 to destroy.
+16:01:51.280 STDOUT [unit1] tofu:
+16:01:51.297 STDOUT [unit1] tofu: null_resource.empty: Destroying... [id=3335573617542340690]
+16:01:51.297 STDOUT [unit1] tofu: null_resource.empty: Destruction complete after 0s
+16:01:51.300 STDOUT [unit1] tofu: null_resource.empty: Creating...
+16:01:51.301 STDOUT [unit1] tofu: null_resource.empty: Provisioning with 'local-exec'...
+16:01:51.301 STDOUT [unit1] tofu: null_resource.empty (local-exec): Executing: ["/bin/sh" "-c" "echo 'sleeping...'; sleep 1; echo 'done sleeping'"]
+16:01:51.304 STDOUT [unit1] tofu: null_resource.empty (local-exec): sleeping...
+16:01:52.311 STDOUT [unit1] tofu: null_resource.empty (local-exec): done sleeping
+16:01:52.312 STDOUT [unit1] tofu: null_resource.empty: Creation complete after 1s [id=4749136145104485309]
+16:01:52.322 STDOUT [unit1] tofu:
+16:01:52.322 STDOUT [unit1] tofu: Apply complete! Resources: 1 added, 0 changed, 1 destroyed.
+16:01:52.322 STDOUT [unit1] tofu:
+```
+
+```bash
+$ grep '\[unit2\]' < logs
+16:01:51.273 STDOUT [unit2] tofu: null_resource.empty: Refreshing state... [id=7532622543468447677]
+16:01:51.280 STDOUT [unit2] tofu: OpenTofu used the selected providers to generate the following execution
+16:01:51.280 STDOUT [unit2] tofu: plan. Resource actions are indicated with the following symbols:
+16:01:51.280 STDOUT [unit2] tofu: -/+ destroy and then create replacement
+16:01:51.280 STDOUT [unit2] tofu: OpenTofu will perform the following actions:
+16:01:51.280 STDOUT [unit2] tofu:   # null_resource.empty must be replaced
+16:01:51.280 STDOUT [unit2] tofu: -/+ resource "null_resource" "empty" {
+16:01:51.280 STDOUT [unit2] tofu:       ~ id       = "7532622543468447677" -> (known after apply)
+16:01:51.280 STDOUT [unit2] tofu:       ~ triggers = { # forces replacement
+16:01:51.280 STDOUT [unit2] tofu:           ~ "always_run" = "2025-01-09T21:01:17Z" -> (known after apply)
+16:01:51.280 STDOUT [unit2] tofu:         }
+16:01:51.280 STDOUT [unit2] tofu:     }
+16:01:51.280 STDOUT [unit2] tofu: Plan: 1 to add, 0 to change, 1 to destroy.
+16:01:51.280 STDOUT [unit2] tofu:
+16:01:51.297 STDOUT [unit2] tofu: null_resource.empty: Destroying... [id=7532622543468447677]
+16:01:51.297 STDOUT [unit2] tofu: null_resource.empty: Destruction complete after 0s
+16:01:51.300 STDOUT [unit2] tofu: null_resource.empty: Creating...
+16:01:51.301 STDOUT [unit2] tofu: null_resource.empty: Provisioning with 'local-exec'...
+16:01:51.301 STDOUT [unit2] tofu: null_resource.empty (local-exec): Executing: ["/bin/sh" "-c" "echo 'sleeping...'; sleep 1; echo 'done sleeping'"]
+16:01:51.303 STDOUT [unit2] tofu: null_resource.empty (local-exec): sleeping...
+16:01:52.311 STDOUT [unit2] tofu: null_resource.empty (local-exec): done sleeping
+16:01:52.312 STDOUT [unit2] tofu: null_resource.empty: Creation complete after 1s [id=6569505210291935319]
+16:01:52.322 STDOUT [unit2] tofu:
+16:01:52.322 STDOUT [unit2] tofu: Apply complete! Resources: 1 added, 0 changed, 1 destroyed.
+16:01:52.322 STDOUT [unit2] tofu:
+```
+
+## Disabling logs
 
 Finally, you can also disable logs entirely like so:
 
