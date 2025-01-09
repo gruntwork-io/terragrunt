@@ -10,6 +10,7 @@ nav_title: Documentation
 nav_title_link: /docs/
 redirect_from:
     - /docs/features/provider-cache/
+    - /docs/features/provider-caching/
 ---
 
 Terragrunt has the ability to cache OpenTofu/Terraform providers across all OpenTofu/Terraform instances, ensuring that each provider is only ever downloaded and stored on disk exactly once by running a local provider cache server while running Terragrunt.
