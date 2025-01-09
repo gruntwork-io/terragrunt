@@ -32,6 +32,7 @@ This page documents the CLI commands and options available with Terragrunt:
   - [scaffold](#scaffold)
   - [catalog](#catalog)
   - [graph](#graph)
+  - [stack](#stack)
 - [CLI options](#cli-options)
   - [terragrunt-check](#terragrunt-check)
   - [terragrunt-config](#terragrunt-config)
@@ -740,6 +741,48 @@ Group 3
 Notes:
 
 - destroy will be executed only on subset of services dependent from `eks-service-3`
+
+### stack
+
+The `terragrunt stack` commands provide an interface for managing collections of Terragrunt units defined in `terragrunt.stack.hcl` files.
+These commands simplify the process of handling multiple infrastructure units by grouping them into a "stack", reducing code duplication and streamlining operations across environments.
+
+The `terragrunt stack generate` command is used to generate a stack of `terragrunt.hcl` files based on the configuration provided in the `terragrunt.stack.hcl` file.
+
+Given the following `terragrunt.stack.hcl` configuration:
+
+```hcl
+locals {
+  version = "v0.68.4"
+}
+
+unit "app1" {
+  source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=${local.version}"
+  path   = "app1"
+}
+
+unit "app2" {
+  source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=${local.version}"
+  path   = "app2"
+}
+
+```
+
+Running:
+
+```bash
+terragrunt stack generate
+```
+
+Will create the following directory structure:
+
+```tree
+.terragrunt-stack/
+├── app1/
+│   └── terragrunt.hcl
+└── app2/
+    └── terragrunt.hcl
+```
 
 ## CLI options
 
