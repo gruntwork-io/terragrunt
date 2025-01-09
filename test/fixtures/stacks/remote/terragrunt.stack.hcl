@@ -1,5 +1,5 @@
 locals {
-	version = "2d526f9ce8f295d5754e51856999a5cc35f26c7e"
+	version = "main"
 }
 
 unit "app1" {
