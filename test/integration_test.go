@@ -153,7 +153,7 @@ func TestExecCommand(t *testing.T) {
 			err = os.Mkdir(downloadDirPath, os.ModePerm)
 			require.NoError(t, err)
 
-			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt exec --working-dir "+rootPath+" "+strings.Join(testCase.args, " ")+" -- "+scriptPath)
+			stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt exec --experiment cli-redesign --working-dir "+rootPath+" "+strings.Join(testCase.args, " ")+" -- "+scriptPath)
 			require.NoError(t, err)
 			assert.Contains(t, stdout, "The first arg is arg1. The second arg is arg2. The script is running in the directory "+util.JoinPath(rootPath, testCase.runInDir))
 		})
@@ -1043,39 +1043,39 @@ func TestTerraformCommandCliArgs(t *testing.T) {
 		expectedErr error
 	}{
 		{
-			[]string{"version"},
+			[]string{"--", "version"},
 			wrappedBinary() + " version",
 			nil,
 		},
 		{
-			[]string{"version", "foo"},
-			wrappedBinary() + " version foo",
+			[]string{"--", "version", "foo"},
+			wrappedBinary() + " version",
 			nil,
 		},
 		{
-			[]string{"version", "foo", "bar", "baz"},
-			wrappedBinary() + " version foo bar baz",
+			[]string{"--", "version", "foo", "bar", "baz"},
+			wrappedBinary() + " version",
 			nil,
 		},
 		{
-			[]string{"version", "foo", "bar", "baz", "foobar"},
-			wrappedBinary() + " version foo bar baz foobar",
+			[]string{"--", "version", "foo", "bar", "baz", "foobar"},
+			wrappedBinary() + " version",
 			nil,
 		},
 		{
-			[]string{"paln"}, //codespell:ignore
+			[]string{"--", "paln"}, //codespell:ignore
 			"",
 			expectedWrongCommandErr("paln"), //codespell:ignore
 		},
 		{
-			[]string{"paln", "--terragrunt-disable-command-validation"}, //codespell:ignore
-			wrappedBinary() + " invocation failed",                      // error caused by running terraform with the wrong command
+			[]string{"--terragrunt-disable-command-validation", "--", "paln"}, //codespell:ignore
+			wrappedBinary() + " invocation failed",                            // error caused by running terraform with the wrong command
 			nil,
 		},
 	}
 
 	for _, testCase := range testCases {
-		cmd := fmt.Sprintf("terragrunt %s --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s", strings.Join(testCase.command, " "), testFixtureExtraArgsPath)
+		cmd := fmt.Sprintf("terragrunt run --experiment cli-redesign --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir %s %s", testFixtureExtraArgsPath, strings.Join(testCase.command, " "))
 
 		var (
 			stdout bytes.Buffer
@@ -1179,11 +1179,11 @@ func TestRunCommand(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureInputs)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureInputs)
 
-	helpers.RunTerragrunt(t, "terragrunt run --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
+	helpers.RunTerragrunt(t, "terragrunt run --experiment cli-redesign --non-interactive --working-dir "+rootPath+" -- apply -auto-approve")
 
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
-	err := helpers.RunTerragruntCommand(t, "terragrunt run -no-color --non-interactive --working-dir "+rootPath+" -- output -json", &stdout, &stderr)
+	err := helpers.RunTerragruntCommand(t, "terragrunt run --experiment cli-redesign -no-color --non-interactive --working-dir "+rootPath+" -- output -json", &stdout, &stderr)
 	require.NoError(t, err)
 
 	outputs := map[string]helpers.TerraformOutput{}
