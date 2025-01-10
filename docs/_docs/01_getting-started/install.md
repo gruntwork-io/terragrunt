@@ -135,10 +135,13 @@ Colleagues and CI/CD pipelines can then install the associated tool manager, and
 
 Note that the tools Terragrunt integrates with, such as OpenTofu and Terraform, can also be managed by these tool managers, so you can also pin the versions of those tools in the same file.
 
-Also note that the asdf plugin that both of these tools rely on is maintained by a third party:
+Also note that the asdf plugin that `asdf` relies on is maintained by a third party:
 <https://github.com/ohmer/asdf-terragrunt>
 
 Gruntwork makes no guarantees about the safety or reliability of third-party plugins.
+
+The asdf plugin relied upon by `mise` is maintained by Gruntwork, as requested by the community:
+<https://github.com/gruntwork-io/asdf-terragrunt>
 
 ## Building from source
 
