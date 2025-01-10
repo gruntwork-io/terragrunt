@@ -153,6 +153,7 @@ func shouldForceForwardTFStdout(args cli.Args) bool {
 		CommandNameState,
 		CommandNameVersion,
 		CommandNameConsole,
+		CommandNameGraph,
 	}
 
 	tfFlags := []string{
