@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/test/helpers"
@@ -111,7 +112,9 @@ func TestSopsDecryptOnMissing(t *testing.T) {
 	_, errorOut, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+rootPath)
 	require.Error(t, err)
 
+	errorOut = strings.ReplaceAll(errorOut, "\n", " ")
+
 	assert.Contains(t, errorOut, "Encountered error while evaluating locals in file ./terragrunt.hcl")
-	assert.Contains(t, errorOut, "./missing.yaml:\nno such file")
+	assert.Contains(t, errorOut, "./missing.yaml: no such file")
 
 }
