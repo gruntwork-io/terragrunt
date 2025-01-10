@@ -34,6 +34,12 @@ func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
 	return generateStack(ctx, opts)
 }
 
+// Run execute stack command.
+func Run(ctx context.Context, opts *options.TerragruntOptions) error {
+	opts.Logger.Infof("Running stack command")
+	return nil
+}
+
 func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
 	stackFile, err := config.ReadStackConfigFile(ctx, opts)
@@ -48,6 +54,7 @@ func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 
 	return nil
 }
+
 func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stackFile *config.StackConfigFile) error {
 	baseDir := filepath.Join(opts.WorkingDir, stackCacheDir)
 	if err := os.MkdirAll(baseDir, dirPerm); err != nil {
