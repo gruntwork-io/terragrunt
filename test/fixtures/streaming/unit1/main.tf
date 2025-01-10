@@ -15,6 +15,6 @@ resource "null_resource" "empty" {
   }
 
   provisioner "local-exec" {
-    command = "echo 'sleeping...'; sleep 1; echo 'done sleeping'"
+    command = "echo 'sleeping...'; sleep 3; echo 'done sleeping'"
   }
 }
