@@ -288,29 +288,8 @@ func NewHelpVersionFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:    HelpFlagName,  // --help, -help
 			Aliases: []string{"h"}, //  -h
 			Usage:   "Show help.",
-			Action: func(ctx *cli.Context, _ bool) (err error) {
-				defer func() {
-					// exit the app
-					err = cli.NewExitError(err, 0)
-				}()
-
-				// If the app command is specified, show help for the command
-				if cmdName := ctx.Args().CommandName(); cmdName != "" {
-					err := cli.ShowCommandHelp(ctx, cmdName)
-
-					// If the command name is not found, it is most likely a terraform command, show Terraform help.
-					var invalidCommandNameError cli.InvalidCommandNameError
-					if ok := errors.As(err, &invalidCommandNameError); ok {
-						terraformHelpCmd := append([]string{cmdName, "-help"}, ctx.Args().Tail()...)
-
-						return tf.RunCommand(ctx, opts, terraformHelpCmd...)
-					}
-
-					return err
-				}
-
-				// In other cases, show the App help.
-				return cli.ShowAppHelp(ctx)
+			Action: func(ctx *cli.Context, _ bool) error {
+				return HelpAction(ctx, opts)
 			},
 		},
 		&cli.BoolFlag{
@@ -318,13 +297,32 @@ func NewHelpVersionFlags(opts *options.TerragruntOptions) cli.Flags {
 			Aliases: []string{"v"},   //  -v
 			Usage:   "Show terragrunt version.",
 			Action: func(ctx *cli.Context, _ bool) (err error) {
-				defer func() {
-					// exit the app
-					err = cli.NewExitError(err, 0)
-				}()
-
-				return cli.ShowVersion(ctx)
+				return VersionAction(ctx, opts)
 			},
 		},
 	}
+}
+
+func HelpAction(ctx *cli.Context, opts *options.TerragruntOptions) error {
+	// If the app command is specified, show help for the command
+	if cmdName := ctx.Args().CommandName(); cmdName != "" {
+		err := cli.ShowSubcommandHelp(ctx, cmdName)
+
+		// If the command name is not found, it is most likely a terraform command, show Terraform help.
+		var invalidCommandNameError cli.InvalidCommandNameError
+		if ok := errors.As(err, &invalidCommandNameError); ok {
+			terraformHelpCmd := append([]string{cmdName, "-help"}, ctx.Args().Tail()...)
+
+			return cli.NewExitError(tf.RunCommand(ctx, opts, terraformHelpCmd...), cli.ExitCodeSuccess)
+		}
+
+		return err
+	}
+
+	// In other cases, show the App help.
+	return cli.ShowAppHelp(ctx)
+}
+
+func VersionAction(ctx *cli.Context, _ *options.TerragruntOptions) error {
+	return cli.ShowVersion(ctx)
 }

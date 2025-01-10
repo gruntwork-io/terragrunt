@@ -133,8 +133,6 @@ func (flag *Flag) RunAction(ctx *cli.Context) error {
 		if strictControl {
 			return errors.Errorf("`%s` environment variable is no longer supported, use `%s` instead", envVar, flag.envVars[0])
 		}
-
-		flag.opts.Logger.Warnf("The `%s` environment variable is deprecated and will be removed in a future version. Use `%s` instead.", envVar, flag.envVars[0])
 	}
 
 	return nil

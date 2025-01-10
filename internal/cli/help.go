@@ -33,31 +33,36 @@ func ShowAppHelp(ctx *Context) error {
 
 	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, nil)
 
-	return nil
+	return NewExitError(nil, ExitCodeSuccess)
 }
 
-// ShowCommandHelp prints help for the given command.
-func ShowCommandHelp(ctx *Context, cmdName string) error {
+// ShowCommandHelp prints command help for the given `ctx`.
+func ShowCommandHelp(ctx *Context) error {
+	tpl := ctx.Command.CustomHelpTemplate
+	if tpl == "" {
+		tpl = CommandHelpTemplate
+	}
+
+	if tpl == "" {
+		return errors.Errorf("command help template not defined")
+	}
+
+	if ctx.Command.HelpName == "" {
+		ctx.Command.HelpName = ctx.Command.Name
+	}
+
+	ctx = ctx.NewCommandContext(ctx.Command, ctx.Args().Tail())
+
+	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, nil)
+
+	return NewExitError(nil, ExitCodeSuccess)
+}
+
+// ShowSubcommandHelp prints help for the given `cmdName` subcommand.
+func ShowSubcommandHelp(ctx *Context, cmdName string) error {
 	for _, cmd := range ctx.Command.Subcommands {
 		if cmd.HasName(cmdName) {
-			tpl := cmd.CustomHelpTemplate
-			if tpl == "" {
-				tpl = CommandHelpTemplate
-			}
-
-			if tpl == "" {
-				return errors.Errorf("command help template not defined")
-			}
-
-			if cmd.HelpName == "" {
-				cmd.HelpName = cmd.Name
-			}
-
-			ctx = ctx.NewCommandContext(cmd, ctx.Args().Tail())
-
-			cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, nil)
-
-			return nil
+			return ShowCommandHelp(ctx.NewCommandContext(cmd, nil))
 		}
 	}
 
@@ -76,5 +81,5 @@ func ShowVersion(ctx *Context) error {
 
 	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, nil)
 
-	return nil
+	return NewExitError(nil, ExitCodeSuccess)
 }

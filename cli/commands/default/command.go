@@ -19,12 +19,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		HelpName: CommandHelpName,
 		Usage:    "Terragrunt forwards all other commands directly to OpenTofu/Terraform",
 		Flags:    runCmd.NewFlags(opts),
-		Action:   Action(opts),
-	}
-}
-
-func Action(opts *options.TerragruntOptions) cli.ActionFunc {
-	return func(ctx *cli.Context) error {
-		return runCmd.Action(opts)(ctx)
+		Action:   runCmd.Action(opts),
 	}
 }

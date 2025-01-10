@@ -21,6 +21,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands"
 	"github.com/gruntwork-io/terragrunt/cli/commands/graph"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclvalidate"
+	helpCmd "github.com/gruntwork-io/terragrunt/cli/commands/help"
+	versionCmd "github.com/gruntwork-io/terragrunt/cli/commands/version"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
@@ -179,6 +181,8 @@ func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 		hclvalidate.NewCommand(opts),        // hclvalidate
 		execCmd.NewCommand(opts),            // exec
 		runCmd.NewCommand(opts),             // run
+		helpCmd.NewCommand(opts),            // help
+		versionCmd.NewCommand(opts),         // version
 	}
 	cmds = append(cmds, commands.NewDeprecatedCommands(opts)...)
 

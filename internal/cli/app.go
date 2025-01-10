@@ -79,6 +79,8 @@ type App struct {
 func NewApp() *App {
 	cliApp := cli.NewApp()
 	cliApp.ExitErrHandler = func(_ *cli.Context, _ error) {}
+	cliApp.HideHelp = true
+	cliApp.HideHelpCommand = true
 
 	return &App{
 		App:          cliApp,

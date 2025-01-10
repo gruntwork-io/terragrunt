@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -50,8 +51,11 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		},
 		Flags:                NewFlags(opts, cmdOpts).Sort(),
 		ErrorOnUndefinedFlag: true,
-		Hidden:               true,
 		Action: func(ctx *cli.Context) error {
+			if exp := opts.Experiments[experiment.CLIRedesign]; !exp.Evaluate(opts.ExperimentMode) {
+				return cli.NewExitError(errors.Errorf("requires that the %[1]s experiment is enabled. e.g. --experiment %[1]s", experiment.CLIRedesign), cli.ExitCodeGeneralError)
+			}
+
 			tgArgs, cmdArgs := ctx.Args().Split(cli.BuiltinCmdSep)
 
 			// Use unspecified arguments from the terragrunt command if the user
@@ -61,7 +65,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			}
 
 			if len(cmdArgs) == 0 {
-				return cli.NewExitError(errors.New("exec command requires arguments to be used, e.g. `terragrunt exec -- echo \"Hello from Terragrunt!\"`"), cli.ExitCodeGeneralError)
+				return cli.ShowCommandHelp(ctx)
 			}
 
 			return Run(ctx, opts, cmdOpts, cmdArgs)

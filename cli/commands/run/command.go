@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/tf"
@@ -30,12 +31,21 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Flags:                NewFlags(opts),
 		ErrorOnUndefinedFlag: true,
 		Action:               Action(opts),
-		Hidden:               true,
 	}
 }
 
 func Action(opts *options.TerragruntOptions) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
+		if ctx.Command.Name == CommandName {
+			if exp := opts.Experiments[experiment.CLIRedesign]; !exp.Evaluate(opts.ExperimentMode) {
+				return cli.NewExitError(errors.Errorf("requires that the %[1]s experiment is enabled. e.g. --experiment %[1]s", experiment.CLIRedesign), cli.ExitCodeGeneralError)
+			}
+		}
+
+		if len(ctx.Args()) == 0 {
+			return cli.ShowCommandHelp(ctx)
+		}
+
 		if opts.TerraformCommand == tf.CommandNameDestroy {
 			opts.CheckDependentModules = !opts.NoDestroyDependenciesCheck
 		}

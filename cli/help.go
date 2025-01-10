@@ -12,7 +12,7 @@ DESCRIPTION:
 COMMANDS:{{ $cv := offsetCommands .App.VisibleCommands 5}}{{range .App.VisibleCommands}}
    {{$s := .HelpName}}{{$s}}{{ $sp := subtract $cv (offset $s 3) }}{{ indent $sp ""}} {{wrap .Usage $cv}}{{end}}{{end}}
 
-GLOBAL OPTIONS:{{if .Command.VisibleFlags}}
+GLOBAL OPTIONS:{{if .App.VisibleFlags}}
    {{range $index, $option := .App.VisibleFlags}}{{if $index}}
    {{end}}{{wrap $option.String 6}}{{end}}{{end}}{{if not .App.HideVersion}}
 
