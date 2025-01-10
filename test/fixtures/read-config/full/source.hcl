@@ -26,6 +26,7 @@ remote_state {
 terraform {
   source                   = "./delorean"
   include_in_copy          = ["time_machine.*"]
+  exclude_from_copy        = ["excluded_time_machine.*"]
   copy_terraform_lock_file = true
 
   extra_arguments "var-files" {

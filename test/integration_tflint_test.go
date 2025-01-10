@@ -98,7 +98,7 @@ func TestTflintInitSameModule(t *testing.T) {
 	// generate multiple "app" modules that will be initialized in parallel
 	for i := 0; i < 50; i++ {
 		appPath := util.JoinPath(modulePath, "dev", fmt.Sprintf("app-%d", i))
-		err := util.CopyFolderContents(createLogger(), appTemplate, appPath, ".terragrunt-test", []string{})
+		err := util.CopyFolderContents(createLogger(), appTemplate, appPath, ".terragrunt-test", []string{}, []string{})
 		require.NoError(t, err)
 	}
 	helpers.RunTerragrunt(t, "terragrunt run-all init --terragrunt-log-level trace --terragrunt-non-interactive --terragrunt-working-dir "+runPath)
@@ -203,7 +203,7 @@ func CopyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
-	require.NoError(t, util.CopyFolderContents(createLogger(), environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", []string{".tflint.hcl"}))
+	require.NoError(t, util.CopyFolderContents(createLogger(), environmentPath, util.JoinPath(tmpDir, environmentPath), ".terragrunt-test", []string{".tflint.hcl"}, []string{}))
 
 	return tmpDir
 }

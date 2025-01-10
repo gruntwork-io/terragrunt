@@ -40,6 +40,77 @@ The commands used for managing Terragrunt configuration itself are:
   - [render-json](#render-json)
   - [terragrunt-info](#terragrunt-info)
   - [validate-inputs](#validate-inputs)
+  - [scaffold](#scaffold)
+  - [catalog](#catalog)
+  - [graph](#graph)
+  - [stack](#stack)
+- [CLI options](#cli-options)
+  - [terragrunt-check](#terragrunt-check)
+  - [terragrunt-config](#terragrunt-config)
+  - [terragrunt-debug](#terragrunt-debug)
+  - [terragrunt-diff](#terragrunt-diff)
+  - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
+  - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
+  - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
+  - [terragrunt-download-dir](#terragrunt-download-dir)
+  - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
+  - [terragrunt-excludes-file](#terragrunt-excludes-file)
+  - [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
+  - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
+  - [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout)
+  - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
+  - [terragrunt-hclfmt-stdin](#terragrunt-hclfmt-stdin)
+  - [terragrunt-hclvalidate-json](#terragrunt-hclvalidate-json)
+  - [terragrunt-hclvalidate-show-config-path](#terragrunt-hclvalidate-show-config-path)
+  - [terragrunt-iam-assume-role-duration](#terragrunt-iam-assume-role-duration)
+  - [terragrunt-iam-assume-role-session-name](#terragrunt-iam-assume-role-session-name)
+  - [terragrunt-iam-role](#terragrunt-iam-role)
+  - [terragrunt-iam-web-identity-token](#terragrunt-iam-web-identity-token)
+  - [terragrunt-ignore-dependency-errors](#terragrunt-ignore-dependency-errors)
+  - [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
+  - [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
+  - [terragrunt-include-dir](#terragrunt-include-dir)
+  - [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
+  - [terragrunt-include-module-prefix](#terragrunt-include-module-prefix) (DEPRECATED: use [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout))
+  - [terragrunt-json-disable-dependent-modules](#terragrunt-json-disable-dependent-modules)
+  - [terragrunt-json-log](#terragrunt-json-log) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
+  - [terragrunt-json-out-dir](#terragrunt-json-out-dir)
+  - [terragrunt-json-out](#terragrunt-json-out)
+  - [terragrunt-log-custom-format](#terragrunt-log-custom-format)
+  - [terragrunt-log-disable](#terragrunt-log-disable)
+  - [terragrunt-log-format](#terragrunt-log-format)
+  - [terragrunt-log-level](#terragrunt-log-level)
+  - [terragrunt-log-show-abs-paths](#terragrunt-log-show-abs-paths)
+  - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
+  - [terragrunt-no-auto-approve](#terragrunt-no-auto-approve)
+  - [terragrunt-no-auto-init](#terragrunt-no-auto-init)
+  - [terragrunt-no-auto-retry](#terragrunt-no-auto-retry)
+  - [terragrunt-no-color](#terragrunt-no-color)
+  - [terragrunt-no-destroy-dependencies-check](#terragrunt-no-destroy-dependencies-check)
+  - [terragrunt-non-interactive](#terragrunt-non-interactive)
+  - [terragrunt-out-dir](#terragrunt-out-dir)
+  - [terragrunt-override-attr](#terragrunt-override-attr)
+  - [terragrunt-parallelism](#terragrunt-parallelism)
+  - [terragrunt-provider-cache-dir](#terragrunt-provider-cache-dir)
+  - [terragrunt-provider-cache-hostname](#terragrunt-provider-cache-hostname)
+  - [terragrunt-provider-cache-port](#terragrunt-provider-cache-port)
+  - [terragrunt-provider-cache-registry-names](#terragrunt-provider-cache-registry-names)
+  - [terragrunt-provider-cache-token](#terragrunt-provider-cache-token)
+  - [terragrunt-provider-cache](#terragrunt-provider-cache)
+  - [terragrunt-source-map](#terragrunt-source-map)
+  - [terragrunt-source-update](#terragrunt-source-update)
+  - [terragrunt-source](#terragrunt-source)
+  - [terragrunt-strict-include](#terragrunt-strict-include)
+  - [terragrunt-strict-validate](#terragrunt-strict-validate)
+  - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
+  - [terragrunt-tfpath](#terragrunt-tfpath)
+  - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
+  - [terragrunt-working-dir](#terragrunt-working-dir)
+  - [feature](#feature)
+  - [experiment](#experiment)
+  - [experiment-mode](#experiment-mode)
+  - [strict-control](#strict-control)
+  - [strict-mode](#strict-mode)
 
 ### Main commands
 
@@ -271,6 +342,48 @@ Group 3
 Notes:
 
 - destroy will be executed only on subset of services dependent from `eks-service-3`
+
+### stack
+
+The `terragrunt stack` commands provide an interface for managing collections of Terragrunt units defined in `terragrunt.stack.hcl` files.
+These commands simplify the process of handling multiple infrastructure units by grouping them into a "stack", reducing code duplication and streamlining operations across environments.
+
+The `terragrunt stack generate` command is used to generate a stack of `terragrunt.hcl` files based on the configuration provided in the `terragrunt.stack.hcl` file.
+
+Given the following `terragrunt.stack.hcl` configuration:
+
+```hcl
+locals {
+  version = "v0.68.4"
+}
+
+unit "app1" {
+  source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=${local.version}"
+  path   = "app1"
+}
+
+unit "app2" {
+  source = "github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs?ref=${local.version}"
+  path   = "app2"
+}
+
+```
+
+Running:
+
+```bash
+terragrunt stack generate
+```
+
+Will create the following directory structure:
+
+```tree
+.terragrunt-stack/
+├── app1/
+│   └── terragrunt.hcl
+└── app2/
+    └── terragrunt.hcl
+```
 
 ### Catalog commands
 

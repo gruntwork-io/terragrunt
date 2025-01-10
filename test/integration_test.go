@@ -106,6 +106,7 @@ const (
 	testFixtureTfTest                         = "fixtures/tftest/"
 	testFixtureExecCmd                        = "fixtures/exec-cmd"
 	textFixtureDisjointSymlinks               = "fixtures/stack/disjoint-symlinks"
+	testFixtureLogStreaming                   = "fixtures/streaming"
 
 	terraformFolder = ".terraform"
 
@@ -2458,6 +2459,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 		map[string]interface{}{
 			"source":                   "./delorean",
 			"include_in_copy":          []interface{}{"time_machine.*"},
+			"exclude_from_copy":        []interface{}{"excluded_time_machine.*"},
 			"copy_terraform_lock_file": true,
 			"extra_arguments": map[string]interface{}{
 				"var-files": map[string]interface{}{
@@ -4018,5 +4020,52 @@ func TestTerragruntTerraformOutputJson(t *testing.T) {
 		require.NoErrorf(t, err, "Failed to parse json %s", jsonString)
 		assert.NotNil(t, output["level"])
 		assert.NotNil(t, output["time"])
+	}
+}
+
+func TestLogStreaming(t *testing.T) {
+	t.Parallel()
+
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureLogStreaming)
+	helpers.CleanupTerraformFolder(t, tmpEnvPath)
+	testPath := util.JoinPath(tmpEnvPath, testFixtureLogStreaming)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all --terragrunt-non-interactive --terragrunt-working-dir "+testPath+" apply")
+	require.NoError(t, err)
+
+	for _, unit := range []string{"unit1", "unit2"} {
+		// Find the timestamps for the first and second log entries for this unit
+		firstTimestamp := time.Time{}
+		secondTimestamp := time.Time{}
+
+		for _, line := range strings.Split(stdout, "\n") {
+			if strings.Contains(line, unit) {
+				if !strings.Contains(line, "(local-exec): sleeping...") && !strings.Contains(line, "(local-exec): done sleeping") {
+					continue
+				}
+
+				dateTimestampStr := strings.Split(line, " ")[0]
+				// The dateTimestampStr looks like this:
+				// time=2025-01-09EST15:47:04-05:00
+				//
+				// We just need the timestamp
+				timestampStr := dateTimestampStr[18:26]
+
+				timestamp, err := time.Parse("15:04:05.999", timestampStr)
+				require.NoError(t, err)
+
+				if firstTimestamp.IsZero() {
+					assert.Contains(t, line, "(local-exec): sleeping...")
+					firstTimestamp = timestamp
+				} else {
+					assert.Contains(t, line, "(local-exec): done sleeping")
+					secondTimestamp = timestamp
+					break
+				}
+			}
+		}
+
+		// Confirm that the timestamps are at least 1 second apart
+		require.GreaterOrEqualf(t, secondTimestamp.Sub(firstTimestamp), 1*time.Second, "Second log entry for unit %s is not at least 1 second after the first log entry", unit)
 	}
 }

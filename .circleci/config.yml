@@ -127,7 +127,7 @@ run_markdownlint: &run_markdownlint
   name: Run markdownlint
   command: |
     markdownlint \
-    --disable 'MD013' \
+    --disable MD013 MD024 \
     -- \
     docs
 

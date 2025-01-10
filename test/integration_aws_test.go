@@ -1012,7 +1012,7 @@ func TestAwsParallelStateInit(t *testing.T) {
 		require.NoError(t, err)
 	}
 	for i := 0; i < 20; i++ {
-		err := util.CopyFolderContents(createLogger(), testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test", nil)
+		err := util.CopyFolderContents(createLogger(), testFixtureParallelStateInit, tmpEnvPath, ".terragrunt-test", nil, nil)
 		require.NoError(t, err)
 		err = os.Rename(
 			path.Join(tmpEnvPath, "template"),

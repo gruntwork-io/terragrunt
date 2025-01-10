@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/stack"
+
 	"github.com/gruntwork-io/terragrunt/engine"
 	"github.com/gruntwork-io/terragrunt/internal/os/exec"
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
@@ -177,6 +179,7 @@ func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 		outputmodulegroups.NewCommand(opts), // output-module-groups
 		catalog.NewCommand(opts),            // catalog
 		scaffold.NewCommand(opts),           // scaffold
+		stack.NewCommand(opts),              // stack
 		graph.NewCommand(opts),              // graph
 		hclvalidate.NewCommand(opts),        // hclvalidate
 		execCmd.NewCommand(opts),            // exec

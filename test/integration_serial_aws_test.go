@@ -104,7 +104,7 @@ func testRemoteFixtureParallelism(t *testing.T, parallelism int, numberOfModules
 		t.Fatalf("Failed to create temp dir due to error: %v", err)
 	}
 	for i := 0; i < numberOfModules; i++ {
-		err := util.CopyFolderContents(createLogger(), testFixtureParallelism, tmpEnvPath, ".terragrunt-test", nil)
+		err := util.CopyFolderContents(createLogger(), testFixtureParallelism, tmpEnvPath, ".terragrunt-test", nil, nil)
 		if err != nil {
 			return "", 0, err
 		}

@@ -24,6 +24,9 @@ func NewExperiments() Experiments {
 		CLIRedesign: Experiment{
 			Name: CLIRedesign,
 		},
+		Stacks: Experiment{
+			Name: Stacks,
+		},
 	}
 }
 
@@ -47,6 +50,8 @@ const (
 	Symlinks = "symlinks"
 	// CLIRedesign is an experiment that allows users to use new commands related to the CLI redesign.
 	CLIRedesign = "cli-redesign"
+	// Stacks is the experiment that allows stacks to be used in Terragrunt.
+	Stacks = "stacks"
 )
 
 const (

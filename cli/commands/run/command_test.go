@@ -44,10 +44,10 @@ func TestAction(t *testing.T) {
 
 			fn := run.Action(tc.opts)
 
-			ctx := cli.Context{
-				Context: context.Background(),
-			}
-			err := fn(&ctx)
+			ctx := cli.NewAppContext(context.Background(), cli.NewApp(), nil).
+				NewCommandContext(run.NewCommand(tc.opts), []string{"bar"})
+
+			err := fn(ctx)
 			if tc.expectedErr != nil {
 				require.ErrorIs(t, err, tc.expectedErr)
 			} else {
