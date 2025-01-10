@@ -301,6 +301,9 @@ func TestDownloadInvalidPathToFilePath(t *testing.T) {
 	assert.True(t, ok)
 }
 
+// The test cases are run sequentially because they depend on each other.
+//
+//nolint:tparallel
 func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 	t.Parallel()
 
@@ -358,11 +361,13 @@ func TestDownloadTerraformSourceFromLocalFolderWithManifest(t *testing.T) {
 			},
 		},
 	}
+
+	// The test cases are run sequentially because they depend on each other.
+	//
+	//nolint:paralleltest
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-
 			copyFolder(t, testCase.sourceURL, downloadDir)
 			assert.Condition(t, testCase.comp)
 		})
