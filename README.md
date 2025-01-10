@@ -20,7 +20,7 @@ Please see the following for more info, including install instructions and compl
 
 Join our community for discussions, support, and contributions:
 
-[![](https://dcbadge.limes.pink/api/server/1090098780344422490)](https://discord.gg/SPu4Degs5f)
+[![](https://dcbadge.limes.pink/api/server/https://discord.gg/SPu4Degs5f)](https://discord.gg/SPu4Degs5f)
 
 ## License
 
