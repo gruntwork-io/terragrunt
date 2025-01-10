@@ -16,7 +16,7 @@ const (
 	DeprecatedFlagNamePrefix = "terragrunt-"
 )
 
-// BoolWithDeprecatedFlag adds deprecated names with strict mode control for the given flag.
+// BoolWithDeprecatedFlag builds a boolean flag with deprecated names included.
 // If `oldNames` is not specified, names are derived from the given `flag` value with added `terragrunt-/TERRAGRUNT_` prefixes.
 func BoolWithDeprecatedFlag(opts *options.TerragruntOptions, flag *cli.BoolFlag, oldNames ...string) *Flag {
 	names := flag.Names()
@@ -33,7 +33,7 @@ func BoolWithDeprecatedFlag(opts *options.TerragruntOptions, flag *cli.BoolFlag,
 	}
 }
 
-// GenericWithDeprecatedFlag adds deprecated names with strict mode control for the given flag.
+// GenericWithDeprecatedFlag builds a general flag with deprecated names included.
 // If `oldNames` is not specified, names are derived from the given `flag` value with added `terragrunt-/TERRAGRUNT_` prefixes.
 func GenericWithDeprecatedFlag[T cli.GenericType](opts *options.TerragruntOptions, flag *cli.GenericFlag[T], oldNames ...string) *Flag {
 	names := flag.Names()
@@ -50,7 +50,7 @@ func GenericWithDeprecatedFlag[T cli.GenericType](opts *options.TerragruntOption
 	}
 }
 
-// SliceWithDeprecatedFlag adds deprecated names with strict mode control for the given flag.
+// SliceWithDeprecatedFlag builds a slice flag with deprecated names included.
 // If `oldNames` is not specified, names are derived from the given `flag` value with added `terragrunt-/TERRAGRUNT_` prefixes.
 func SliceWithDeprecatedFlag[T cli.SliceFlagType](opts *options.TerragruntOptions, flag *cli.SliceFlag[T], oldNames ...string) *Flag {
 	names := flag.Names()
@@ -67,7 +67,7 @@ func SliceWithDeprecatedFlag[T cli.SliceFlagType](opts *options.TerragruntOption
 	}
 }
 
-// MapWithDeprecatedFlag adds deprecated names with strict mode control for the given flag.
+// MapWithDeprecatedFlag builds a map flag with deprecated names included.
 // If `oldNames` is not specified, names are derived from the given `flag` value with added `terragrunt-/TERRAGRUNT_` prefixes.
 func MapWithDeprecatedFlag[K cli.MapFlagKeyType, V cli.MapFlagValueType](opts *options.TerragruntOptions, flag *cli.MapFlag[K, V], oldNames ...string) *Flag {
 	names := flag.Names()

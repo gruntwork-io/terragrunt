@@ -587,12 +587,8 @@ func (opts *TerragruntOptions) OptionsFromContext(ctx context.Context) *Terragru
 	return opts
 }
 
-// Clone performs a deep copy of `opts` with shadow copies of: third-party types, interfaces, and funcs.
+// Clone performs a deep copy of `opts` with shadow copies of: interfaces, and funcs.
 // Fields with "clone" tags can override this behavior.
-//
-// Examples:
-// RetrySleepInterval time.Duration `clone:"required"` is a third-party type, we can make a full copy.
-// LogFormatter *format.Formatter `clone:"shadowcopy"` is a terragrunt type, we can't make a full copy because of unexported fields.
 func (opts *TerragruntOptions) Clone() *TerragruntOptions {
 	newOpts := cloner.Clone(opts)
 	newOpts.Logger = opts.Logger.Clone()

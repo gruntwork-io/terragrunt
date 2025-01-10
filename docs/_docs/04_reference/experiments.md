@@ -66,6 +66,7 @@ The following strict mode controls are available:
 
 - [symlinks](#symlinks)
 - [stacks](#stacks)
+- [cli-redesign](#cli-redesign)
 
 ### symlinks
 
@@ -74,6 +75,10 @@ Support symlink resolution for Terragrunt units.
 ### stacks
 
 Support for Terragrunt stacks.
+
+### cli-redesign
+
+Support for the new Terragrunt CLI design.
 
 #### What it does
 
