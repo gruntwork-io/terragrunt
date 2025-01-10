@@ -18,7 +18,7 @@ Please see the following for more info, including install instructions and compl
 
 ## Join the Discord!
 
-Join our community for discussions, support, and contributions:
+Join [our community](https://discord.gg/SPu4Degs5f) for discussions, support, and contributions:
 
 [![](https://dcbadge.limes.pink/api/server/https://discord.gg/SPu4Degs5f)](https://discord.gg/SPu4Degs5f)
 
