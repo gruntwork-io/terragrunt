@@ -106,7 +106,7 @@ func TestGenericFlagIntApply(t *testing.T) {
 			[]string{},
 			map[string]string{"FOO": "monkey"},
 			0,
-			errors.New(`invalid value "monkey" for FOO: must be 32-bit integer`),
+			errors.New(`invalid value "monkey" for env var FOO: must be 32-bit integer`),
 		},
 		{
 			cli.GenericFlag[int]{Name: "foo", Destination: mockDestValue(55)},
@@ -157,7 +157,7 @@ func TestGenericFlagInt64Apply(t *testing.T) {
 			[]string{},
 			map[string]string{"FOO": "monkey"},
 			0,
-			errors.New(`invalid value "monkey" for FOO: must be 64-bit integer`),
+			errors.New(`invalid value "monkey" for env var FOO: must be 64-bit integer`),
 		},
 		{
 			cli.GenericFlag[int64]{Name: "foo", Destination: mockDestValue(int64(55))},

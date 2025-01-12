@@ -99,7 +99,7 @@ func TestBoolFlagApply(t *testing.T) {
 			nil,
 			map[string]string{"FOO": "monkey"},
 			false,
-			errors.New(`invalid boolean value "monkey" for FOO: must be one of: "0", "1", "f", "t", "false", "true"`),
+			errors.New(`invalid boolean value "monkey" for env var FOO: must be one of: "0", "1", "f", "t", "false", "true"`),
 		},
 	}
 
