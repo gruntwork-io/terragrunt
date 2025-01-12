@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"os"
 
 	"github.com/gruntwork-io/terragrunt/cli"
@@ -22,7 +23,12 @@ func main() {
 	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
 
 	opts := options.NewTerragruntOptions()
-	parseAndSetLogEnvs(opts)
+
+	// Immediately parse the `TG_LOG_LEVEL` environment variable, e.g. to set the TRACE level.
+	if err := flags.NewLogLevelFlag(opts).Apply(new(flag.FlagSet)); err != nil {
+		opts.Logger.Error(err.Error())
+		os.Exit(1)
+	}
 
 	defer errors.Recover(checkForErrorsAndExit(opts.Logger, exitCode.Get()))
 
@@ -56,26 +62,4 @@ func checkForErrorsAndExit(logger log.Logger, exitCode int) func(error) {
 			os.Exit(exitCoder)
 		}
 	}
-}
-
-func parseAndSetLogEnvs(opts *options.TerragruntOptions) {
-	var (
-		level = options.DefaultLogLevel
-		flag  = flags.NewLogLevelFlag(opts)
-		err   error
-	)
-
-	for _, envVarName := range flag.GetEnvVars() {
-		if levelStr := os.Getenv(envVarName); levelStr != "" {
-			level, err = log.ParseLevel(levelStr)
-			if err != nil {
-				err = errors.Errorf("Could not parse log level from environment variable %s=%s, %w", envVarName, levelStr, err)
-				checkForErrorsAndExit(opts.Logger, 0)(err)
-			}
-
-			break
-		}
-	}
-
-	opts.Logger.SetOptions(log.WithLevel(level))
 }

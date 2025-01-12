@@ -17,6 +17,16 @@ var (
 // to display a flag.
 var FlagStringer = cli.FlagStringer //nolint:gochecknoglobals
 
+// FlagSetterFunc represents function type that is called when the flag is specified.
+// Executed during value parsing, in case of an error the returned error is wrapped with the flag or environment variable name. Example:
+// `fmt.Errorf("invalid value \"wrong-value\" for env var TG_ENV_VAR: %w", err)`
+// Therefore, using FlagSetterFunc is preferable to FlagActionFunc when you need to indicate in the error how the value was passed.
+type FlagSetterFunc[T any] func(T) error
+
+// FlagActionFunc represents function type that is called when the flag is specified.
+// Executed after all command flags have been parsed.
+type FlagActionFunc[T any] func(ctx *Context, value T) error
+
 type FlagType[T any] interface {
 	libflag.Getter
 	Clone(dest *T) FlagType[T]

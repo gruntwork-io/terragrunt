@@ -17,6 +17,12 @@ type Logger interface {
 	// SetOptions sets the given options to the instance.
 	SetOptions(opts ...Option)
 
+	// Level returns log level.
+	Level() Level
+
+	// SetLevel parses and sets log level.
+	SetLevel(str string) error
+
 	// WithOptions clones and sets the given options for the new instance.
 	// In other words, it is a combination of two methods, `log.Clone().SetOptions(...)`, but
 	// unlike `SetOptions(...)`, it returns the instance, which is convenient for further actions.
@@ -148,6 +154,23 @@ func (logger *logger) WithOptions(opts ...Option) Logger {
 	logger.SetOptions(opts...)
 
 	return logger
+}
+
+// Level returns log level.
+func (logger *logger) Level() Level {
+	return FromLogrusLevel(logger.Logger.Level)
+}
+
+// SetLevel parses and sets log level.
+func (logger *logger) SetLevel(str string) error {
+	level, err := ParseLevel(str)
+	if err != nil {
+		return err
+	}
+
+	logger.Logger.SetLevel(level.ToLogrusLevel())
+
+	return nil
 }
 
 // WriterLevel implements the Logger interface method.

@@ -16,9 +16,6 @@ type GenericType interface {
 	string | int | int64 | uint
 }
 
-// GenericActionFunc is the action to execute when the flag has been set either via a flag or via an environment variable.
-type GenericActionFunc[T GenericType] func(ctx *Context, value T) error
-
 type GenericFlag[T GenericType] struct {
 	flag
 
@@ -32,9 +29,11 @@ type GenericFlag[T GenericType] struct {
 	Aliases []string
 	// The names of the env variables that are parsed and assigned to `Destination` before the flag value.
 	EnvVars []string
-	// The action to execute when flag is specified
-	Action GenericActionFunc[T]
-	// The pointer to which the value of the flag or env var is assigned.
+	// Action is a function that is called when the flag is specified. It is executed only after all command flags have been parsed.
+	Action FlagActionFunc[T]
+	// Setter allows to set a value to any type by calling its `func(bool) error` function.
+	Setter FlagSetterFunc[T]
+	// Destination is a pointer to which the value of the flag or env var is assigned.
 	// It also uses as the default value displayed in the help.
 	Destination *T
 	// Hidden hides the flag from the help, if set to true.
@@ -53,7 +52,7 @@ func (flag *GenericFlag[T]) Apply(set *libflag.FlagSet) error {
 		envValue *string
 	)
 
-	valType := FlagType[T](new(genericType[T]))
+	valType := newGenericType(flag.Destination, flag.Setter)
 
 	for _, envVar = range flag.EnvVars {
 		if val := flag.LookupEnv(envVar); val != nil {
@@ -63,9 +62,9 @@ func (flag *GenericFlag[T]) Apply(set *libflag.FlagSet) error {
 		}
 	}
 
-	if flag.FlagValue, err = newGenericValue(valType, envValue, flag.Destination); err != nil {
+	if flag.FlagValue, err = newGenericValue(valType, envValue); err != nil {
 		if envValue != nil {
-			return errors.Errorf("invalid value %q for %s: %w", *envValue, envVar, err)
+			return errors.Errorf("invalid value %q for env var %s: %w", *envValue, envVar, err)
 		}
 
 		return err
@@ -129,14 +128,8 @@ type genericValue[T comparable] struct {
 	envHasBeenSet bool
 }
 
-func newGenericValue[T comparable](value FlagType[T], envValue *string, dest *T) (FlagValue, error) {
-	var nilPtr *T
-	if dest == nilPtr {
-		dest = new(T)
-	}
-
-	defaultText := value.Clone(dest).String()
-	value = value.Clone(dest)
+func newGenericValue[T comparable](value FlagType[T], envValue *string) (FlagValue, error) {
+	defaultText := value.String()
 
 	var envHasBeenSet bool
 
@@ -196,10 +189,23 @@ func (flag *genericValue[T]) GetDefaultText() string {
 
 // -- generic Type
 type genericType[T comparable] struct {
-	dest *T
+	dest   *T
+	setter FlagSetterFunc[T]
+}
+
+func newGenericType[T comparable](dest *T, setter FlagSetterFunc[T]) *genericType[T] {
+	return &genericType[T]{
+		dest:   dest,
+		setter: setter,
+	}
 }
 
 func (val *genericType[T]) Clone(dest *T) FlagType[T] {
+	var nilPtr *T
+	if dest == nilPtr {
+		dest = new(T)
+	}
+
 	return &genericType[T]{dest: dest}
 }
 
@@ -242,6 +248,10 @@ func (val *genericType[T]) Set(str string) error {
 
 	default:
 		return errors.Errorf("flag type %T is undefined", dest)
+	}
+
+	if val.setter != nil {
+		return val.setter(*val.dest)
 	}
 
 	return nil

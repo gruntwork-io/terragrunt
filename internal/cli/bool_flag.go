@@ -10,9 +10,6 @@ import (
 // BoolFlag implements Flag
 var _ Flag = new(BoolFlag)
 
-// BoolActionFunc is the action to execute when the flag has been set either via a flag or via an environment variable.
-type BoolActionFunc[T bool] func(ctx *Context, value T) error
-
 type BoolFlag struct {
 	flag
 
@@ -26,9 +23,12 @@ type BoolFlag struct {
 	Aliases []string
 	// The names of the env variables that are parsed and assigned to `Destination` before the flag value.
 	EnvVars []string
-	// The action to execute when flag is specified
-	Action BoolActionFunc[bool]
-	// The pointer to which the value of the flag or env var is assigned.
+	// Action is a function that is called when the flag is specified. It is executed only after all command flags have been parsed.
+	Action FlagActionFunc[bool]
+	// FlagSetterFunc represents function type that is called when the flag is specified.
+	// Executed during value parsing, in case of an error the returned error is wrapped with the flag or environment variable name.
+	Setter FlagSetterFunc[bool]
+	// Destination ia a pointer to which the value of the flag or env var is assigned.
 	// It also uses as the default value displayed in the help.
 	Destination *bool
 	// If set to true, then the assigned flag value will be inverted
@@ -49,7 +49,7 @@ func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
 		envValue *string
 	)
 
-	valType := FlagType[bool](&boolFlagType{negative: flag.Negative})
+	valType := newBoolType(flag.Destination, flag.Setter, flag.Negative)
 
 	for _, envVar = range flag.EnvVars {
 		if val := flag.LookupEnv(envVar); val != nil && *val != "" {
@@ -59,9 +59,9 @@ func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
 		}
 	}
 
-	if flag.FlagValue, err = newGenericValue(valType, envValue, flag.Destination); err != nil {
+	if flag.FlagValue, err = newGenericValue(valType, envValue); err != nil {
 		if envValue != nil {
-			return errors.Errorf("invalid boolean value %q for %s: %w", *envValue, envVar, err)
+			return errors.Errorf("invalid boolean value %q for env var %s: %w", *envValue, envVar, err)
 		}
 
 		return err
@@ -69,6 +69,10 @@ func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
 
 	for _, name := range flag.Names() {
 		set.Var(flag.FlagValue, name, flag.Usage)
+	}
+
+	if flag.Setter != nil {
+		return flag.Setter(*flag.Destination)
 	}
 
 	return nil
@@ -117,20 +121,27 @@ func (flag *BoolFlag) RunAction(ctx *Context) error {
 	return nil
 }
 
-// -- bool Flag Type
-type boolFlagType struct {
+// -- bool Type
+type boolType struct {
 	*genericType[bool]
 	negative bool
 }
 
-func (val *boolFlagType) Clone(dest *bool) FlagType[bool] {
-	return &boolFlagType{
+func newBoolType(dest *bool, setter FlagSetterFunc[bool], negative bool) *boolType {
+	return &boolType{
+		genericType: newGenericType(dest, setter),
+		negative:    negative,
+	}
+}
+
+func (val *boolType) Clone(dest *bool) FlagType[bool] {
+	return &boolType{
 		genericType: &genericType[bool]{dest: dest},
 		negative:    val.negative,
 	}
 }
 
-func (val *boolFlagType) Set(str string) error {
+func (val *boolType) Set(str string) error {
 	if err := val.genericType.Set(str); err != nil {
 		return err
 	}

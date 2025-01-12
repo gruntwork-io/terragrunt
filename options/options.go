@@ -135,23 +135,14 @@ type TerragruntOptions struct {
 	// Basic log entry
 	Logger log.Logger
 
-	// Disable Terragrunt colors
-	DisableLogColors bool
-
 	// Output Terragrunt logs in JSON format
 	JSONLogFormat bool
 
 	// Disable replacing full paths in logs with short relative paths
 	LogShowAbsPaths bool
 
-	// Log level
-	LogLevel log.Level
-
 	// Log formatter
 	LogFormatter *format.Formatter `clone:"shadowcopy"`
-
-	// If true, logs will be disabled
-	DisableLog bool
 
 	// If true, logs will be displayed in formatter key/value, by default logs are formatted in human-readable formatter.
 	DisableLogFormatting bool
@@ -467,7 +458,7 @@ func NewTerragruntOptions() *TerragruntOptions {
 }
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
-	var logFormatter = format.NewFormatter(format.NewPrettyFormat())
+	var logFormatter = format.NewFormatter(format.NewPrettyFormatPlaceholders())
 
 	return &TerragruntOptions{
 		TerraformPath:                  DefaultWrappedPath,
@@ -478,7 +469,6 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		RunAllAutoApprove:              true,
 		NonInteractive:                 false,
 		TerraformCliArgs:               []string{},
-		LogLevel:                       DefaultLogLevel,
 		LogFormatter:                   logFormatter,
 		Logger:                         log.New(log.WithOutput(stderr), log.WithLevel(DefaultLogLevel), log.WithFormatter(logFormatter)),
 		Env:                            map[string]string{},
@@ -567,7 +557,6 @@ func NewTerragruntOptionsForTest(terragruntConfigPath string, options ...Terragr
 
 	opts.NonInteractive = true
 	opts.Logger.SetOptions(log.WithLevel(log.DebugLevel))
-	opts.LogLevel = log.DebugLevel
 
 	for _, opt := range options {
 		opt(opts)

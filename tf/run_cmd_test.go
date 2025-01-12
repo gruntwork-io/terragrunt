@@ -39,7 +39,7 @@ func TestCommandOutputPrefix(t *testing.T) {
 		prefixedOutput = append(prefixedOutput, fmt.Sprintf("prefix=%s tf-path=%s msg=%s", prefix, filepath.Base(terraformPath), line))
 	}
 
-	logFormatter := format.NewFormatter(format.NewKeyValueFormat())
+	logFormatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
 
 	testCommandOutput(t, func(terragruntOptions *options.TerragruntOptions) {
 		terragruntOptions.TerraformPath = terraformPath

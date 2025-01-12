@@ -16,7 +16,8 @@ var _ log.Formatter = new(Formatter)
 type Formatter struct {
 	baseDir        string
 	placeholders   placeholders.Placeholders
-	disableColors  bool
+	DisableColors  bool
+	DisableOutput  bool
 	relativePather *options.RelativePather
 	mu             sync.Mutex
 }
@@ -30,7 +31,7 @@ func NewFormatter(phs placeholders.Placeholders) *Formatter {
 
 // Format implements logrus.Format.
 func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
-	if formatter.placeholders == nil {
+	if formatter.placeholders == nil || formatter.DisableOutput {
 		return nil, nil
 	}
 
@@ -42,7 +43,7 @@ func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
 	str, err := formatter.placeholders.Format(&options.Data{
 		Entry:          entry,
 		BaseDir:        formatter.baseDir,
-		DisableColors:  formatter.disableColors,
+		DisableColors:  formatter.DisableColors,
 		RelativePather: formatter.relativePather,
 	})
 	if err != nil {
@@ -65,11 +66,6 @@ func (formatter *Formatter) Format(entry *log.Entry) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// DisableColors disables log color.
-func (formatter *Formatter) DisableColors() {
-	formatter.disableColors = true
-}
-
 func (formatter *Formatter) SetBaseDir(baseDir string) error {
 	pather, err := options.NewRelativePather(baseDir)
 	if err != nil {
@@ -87,7 +83,31 @@ func (formatter *Formatter) DisableRelativePaths() {
 	formatter.relativePather = nil
 }
 
-// SetFormat sets log format.
-func (formatter *Formatter) SetFormat(phs placeholders.Placeholders) {
+// SetPlaceholders sets log placeholders.
+func (formatter *Formatter) SetPlaceholders(phs placeholders.Placeholders) {
 	formatter.placeholders = phs
+}
+
+// SetFormat parses and sets log format.
+func (formatter *Formatter) SetFormat(str string) error {
+	phs, err := ParseFormat(str)
+	if err != nil {
+		return err
+	}
+
+	formatter.placeholders = phs
+
+	return nil
+}
+
+// SetCustomFormat parses and sets custom log format.
+func (formatter *Formatter) SetCustomFormat(str string) error {
+	phs, err := placeholders.Parse(str)
+	if err != nil {
+		return err
+	}
+
+	formatter.placeholders = phs
+
+	return nil
 }

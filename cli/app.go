@@ -303,7 +303,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	// Since Terragrunt and Terraform have the same `-no-color` flag,
 	// if a user specifies `-no-color` for Terragrunt, we should propagate it to Terraform as well.
-	if opts.DisableLogColors {
+	if opts.LogFormatter.DisableColors {
 		args = append(args, tf.FlagNameNoColor)
 	}
 

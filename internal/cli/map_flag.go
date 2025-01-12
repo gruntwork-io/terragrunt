@@ -26,9 +26,6 @@ type MapFlagValueType interface {
 	GenericType | bool
 }
 
-// MapActionFunc is the action to execute when the flag has been set either via a flag or via an environment variable.
-type MapActionFunc[K MapFlagKeyType, V MapFlagValueType] func(ctx *Context, value map[K]V) error
-
 // MapFlag is a key value flag.
 type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	flag
@@ -41,13 +38,16 @@ type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	Usage string
 	// Aliases are usually used for the short flag name, like `-h`.
 	Aliases []string
-	// The action to execute when flag is specified
-	Action MapActionFunc[K, V]
+	// Action is a function that is called when the flag is specified. It is executed only after all command flags have been parsed.
+	Action FlagActionFunc[map[K]V]
+	// FlagSetterFunc represents function type that is called when the flag is specified.
+	// Executed during value parsing, in case of an error the returned error is wrapped with the flag or environment variable name.
+	Setter FlagSetterFunc[map[K]V]
 	// The names of the env variables that are parsed and assigned to `Destination` before the flag value.
 	EnvVars []string
 	// DisableEnvVar disables the creation of the environment variable by default.
 	DisableEnvVar bool
-	// The pointer to which the value of the flag or env var is assigned.
+	// Destination is a pointer to which the value of the flag or env var is assigned.
 	// It also uses as the default value displayed in the help.
 	Destination *map[K]V
 	// The func used to split the EvnVar, by default `strings.Split`
@@ -95,9 +95,9 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 		}
 	}
 
-	if flag.FlagValue, err = newMapValue(keyType, valType, envValue, flag.EnvVarSep, flag.KeyValSep, flag.Splitter, flag.Destination); err != nil {
+	if flag.FlagValue, err = newMapValue(keyType, valType, envValue, flag.EnvVarSep, flag.KeyValSep, flag.Splitter, flag.Destination, flag.Setter); err != nil {
 		if envValue != nil {
-			return errors.Errorf("invalid value %q for %s: %w", *envValue, envVar, err)
+			return errors.Errorf("invalid value %q for env var %s: %w", *envValue, envVar, err)
 		}
 
 		return err
@@ -155,6 +155,7 @@ func (flag *MapFlag[K, V]) RunAction(ctx *Context) error {
 
 type mapValue[K, V comparable] struct {
 	values         *map[K]V
+	setter         FlagSetterFunc[map[K]V]
 	keyType        FlagType[K]
 	valType        FlagType[V]
 	defaultText    string
@@ -164,7 +165,7 @@ type mapValue[K, V comparable] struct {
 	envHasBeenSet  bool
 }
 
-func newMapValue[K, V comparable](keyType FlagType[K], valType FlagType[V], envValue *string, argSep, valSep string, splitter SplitterFunc, dest *map[K]V) (FlagValue, error) {
+func newMapValue[K, V comparable](keyType FlagType[K], valType FlagType[V], envValue *string, argSep, valSep string, splitter SplitterFunc, dest *map[K]V, setter FlagSetterFunc[map[K]V]) (FlagValue, error) {
 	var nilPtr *map[K]V
 	if dest == nilPtr {
 		val := make(map[K]V)
@@ -176,7 +177,7 @@ func newMapValue[K, V comparable](keyType FlagType[K], valType FlagType[V], envV
 	var envHasBeenSet bool
 
 	if envValue != nil && splitter != nil {
-		value := mapValue[K, V]{values: dest, keyType: keyType, valType: valType, argSep: argSep, valSep: valSep, splitter: splitter}
+		value := mapValue[K, V]{values: dest, setter: setter, keyType: keyType, valType: valType, argSep: argSep, valSep: valSep, splitter: splitter}
 
 		args := splitter(*envValue, argSep)
 		for _, arg := range args {
@@ -190,6 +191,7 @@ func newMapValue[K, V comparable](keyType FlagType[K], valType FlagType[V], envV
 
 	return &mapValue[K, V]{
 		values:        dest,
+		setter:        setter,
 		keyType:       keyType,
 		valType:       valType,
 		defaultText:   defaultText,
@@ -224,6 +226,10 @@ func (flag *mapValue[K, V]) Set(str string) error {
 	}
 
 	(*flag.values)[key.Get().(K)] = val.Get().(V)
+
+	if flag.setter != nil {
+		return flag.setter(*flag.values)
+	}
 
 	return nil
 }

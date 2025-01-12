@@ -11,6 +11,8 @@ import (
 )
 
 func TestCommandHelpTemplate(t *testing.T) {
+	t.Parallel()
+
 	app := cli.NewApp()
 	app.Flags = cli.Flags{
 		&cli.GenericFlag[string]{
