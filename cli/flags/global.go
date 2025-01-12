@@ -242,8 +242,6 @@ func NewLogLevelFlag(opts *options.TerragruntOptions) cli.Flag {
 			if collections.ListContainsElement(removedLevels, val) {
 				opts.ForwardTFStdout = true
 				opts.LogFormatter.DisableOutput = true
-
-				return nil
 			}
 
 			return nil
