@@ -319,22 +319,23 @@ func TestLogCustomFormatOutput(t *testing.T) {
 		{
 			"%time(color=green) %level %wrong",
 			nil, nil,
-			errors.Errorf(`flag --log-custom-format, invalid placeholder name "wrong", available names: %s`, strings.Join(placeholders.NewPlaceholderRegister().Names(), ",")),
+			//errors.Errorf(`flag --log-custom-format, invalid placeholder name "wrong", available names: %s`, strings.Join(placeholders.NewPlaceholderRegister().Names(), ",")),
+			errors.Errorf(`invalid value "\"%%time(color=green) %%level %%wrong\"" for flag -terragrunt-log-custom-format: invalid placeholder name "wrong", available names: %s`, strings.Join(placeholders.NewPlaceholderRegister().Names(), ",")),
 		},
 		{
 			"%time(colorr=green) %level",
 			nil, nil,
-			errors.Errorf(`flag --log-custom-format, placeholder "time", invalid option name "colorr", available names: %s`, strings.Join(placeholders.Time().Options().Names(), ",")),
+			errors.Errorf(`invalid value "\"%%time(colorr=green) %%level\"" for flag -terragrunt-log-custom-format: placeholder "time", invalid option name "colorr", available names: %s`, strings.Join(placeholders.Time().Options().Names(), ",")),
 		},
 		{
 			"%time(color=green) %level(format=tinyy)",
 			nil, nil,
-			errors.New(`flag --log-custom-format, placeholder "level", option "format", invalid value "tinyy", available values: full,short,tiny`),
+			errors.New(`invalid value "\"%time(color=green) %level(format=tinyy)\"" for flag -terragrunt-log-custom-format: placeholder "level", option "format", invalid value "tinyy", available values: full,short,tiny`),
 		},
 		{
 			"%time(=green) %level(format=tiny)",
 			nil, nil,
-			errors.New(`flag --log-custom-format, placeholder "time", empty option name "=green) %level(format=tiny)\""`),
+			errors.New(`invalid value "\"%time(=green) %level(format=tiny)\"" for flag -terragrunt-log-custom-format: placeholder "time", empty option name "=green) %level(format=tiny)\""`),
 		},
 	}
 
