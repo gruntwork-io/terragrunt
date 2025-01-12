@@ -319,7 +319,6 @@ func TestLogCustomFormatOutput(t *testing.T) {
 		{
 			"%time(color=green) %level %wrong",
 			nil, nil,
-			//errors.Errorf(`flag --log-custom-format, invalid placeholder name "wrong", available names: %s`, strings.Join(placeholders.NewPlaceholderRegister().Names(), ",")),
 			errors.Errorf(`invalid value "\"%%time(color=green) %%level %%wrong\"" for flag -terragrunt-log-custom-format: invalid placeholder name "wrong", available names: %s`, strings.Join(placeholders.NewPlaceholderRegister().Names(), ",")),
 		},
 		{
