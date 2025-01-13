@@ -36,12 +36,17 @@ func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
 
 // Run execute stack command.
 func Run(ctx context.Context, opts *options.TerragruntOptions) error {
+	stacksEnabled := opts.Experiments[experiment.Stacks]
+	if !stacksEnabled.Enabled {
+		return errors.New("stacks experiment is not enabled use --experiment stacks to enable it")
+	}
 	opts.Logger.Infof("Running stack command")
 	return nil
 }
 
 func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
+	opts.Logger.Infof("Generating stack from %s", opts.TerragruntStackConfigPath)
 	stackFile, err := config.ReadStackConfigFile(ctx, opts)
 
 	if err != nil {
@@ -62,6 +67,8 @@ func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stac
 	}
 
 	for _, unit := range stackFile.Units {
+		opts.Logger.Infof("Processing unit %s", unit.Name)
+
 		destPath := filepath.Join(baseDir, unit.Path)
 		dest, err := filepath.Abs(destPath)
 

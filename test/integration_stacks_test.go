@@ -1,7 +1,10 @@
 package test_test
 
 import (
+	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/stretchr/testify/require"
 
@@ -24,6 +27,9 @@ func TestStacksGenerateBasic(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic)
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, path)
 }
 
 func TestStacksGenerateLocals(t *testing.T) {
@@ -55,4 +61,25 @@ func TestStacksGenerateRemote(t *testing.T) {
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksRemote)
 
 	helpers.RunTerragrunt(t, "terragrunt stack generate --experiment stacks --terragrunt-working-dir "+rootPath)
+
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, path)
+}
+
+func validateStackDir(t *testing.T, path string) {
+	assert.DirExists(t, path)
+
+	// check that path is not empty directory
+	entries, err := os.ReadDir(path)
+	require.NoError(t, err, "Failed to read directory contents")
+
+	hasSubdirectories := false
+	for _, entry := range entries {
+		if entry.IsDir() {
+			hasSubdirectories = true
+			break
+		}
+	}
+
+	assert.True(t, hasSubdirectories, "The .terragrunt-stack directory should contain at least one subdirectory")
 }
