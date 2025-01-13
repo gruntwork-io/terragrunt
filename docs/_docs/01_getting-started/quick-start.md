@@ -480,4 +480,4 @@ The next step of the Getting Started guide is to follow the [Overview](/docs/get
 
 If you're ready to get your hands dirty with more advanced Terragrunt features yourself, you can skip ahead to the [Features](/docs#features) section of the documentation.
 
-If you ever need help with a particular problem, take a look at the resources available to you in the [Support](/docs/community/support/) section. You are especially encouraged to join the [Terragrunt Discord](https://discord.gg/SPu4Degs5f) server, and become part of the Terragrunt community.
+If you ever need help with a particular problem, take a look at the resources available to you in the [Support](/docs/community/support/) section. You are especially encouraged to join the [Terragrunt Discord](https://discord.gg/YENaT9h8jh) server, and become part of the Terragrunt community.
