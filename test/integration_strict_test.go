@@ -1,9 +1,10 @@
 package test_test
 
 import (
-	"errors"
+	"fmt"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -29,22 +30,15 @@ func TestStrictMode(t *testing.T) {
 			name:           "plan-all",
 			controls:       []string{},
 			strictMode:     false,
-			expectedStderr: "The `plan-all` command is deprecated and will be removed in a future version. Use `terragrunt run-all plan` instead.",
+			expectedStderr: fmt.Sprintf(strict.NewControls()[strict.DeprecatedCommands].WarnFmt, "plan-all", "terragrunt run-all plan"),
 			expectedError:  nil,
 		},
 		{
 			name:           "plan-all with plan-all strict control",
-			controls:       []string{"plan-all"},
+			controls:       []string{"deprecated-commands"},
 			strictMode:     false,
 			expectedStderr: "",
-			expectedError:  strict.StrictControls[strict.PlanAll].Error,
-		},
-		{
-			name:           "plan-all with multiple strict controls",
-			controls:       []string{"plan-all", "apply-all"},
-			strictMode:     false,
-			expectedStderr: "",
-			expectedError:  strict.StrictControls[strict.PlanAll].Error,
+			expectedError:  errors.Errorf(strict.NewControls()[strict.DeprecatedCommands].ErrorFmt, "plan-all", "terragrunt run-all plan"),
 		},
 		{
 			name:           "plan-all with strict mode",
@@ -100,18 +94,18 @@ func TestRootTerragruntHCLStrictMode(t *testing.T) {
 		{
 			name:           "root terragrunt.hcl",
 			strictMode:     false,
-			expectedStderr: strict.StrictControls[strict.RootTerragruntHCL].Warning,
+			expectedStderr: strict.NewControls()[strict.RootTerragruntHCL].WarnFmt,
 		},
 		{
 			name:          "root terragrunt.hcl with root-terragrunt-hcl strict control",
 			controls:      []string{"root-terragrunt-hcl"},
 			strictMode:    false,
-			expectedError: strict.StrictControls[strict.RootTerragruntHCL].Error,
+			expectedError: errors.New(strict.NewControls()[strict.RootTerragruntHCL].ErrorFmt),
 		},
 		{
 			name:          "root terragrunt.hcl with strict mode",
 			strictMode:    true,
-			expectedError: strict.StrictControls[strict.RootTerragruntHCL].Error,
+			expectedError: errors.New(strict.NewControls()[strict.RootTerragruntHCL].ErrorFmt),
 		},
 	}
 
@@ -120,7 +114,7 @@ func TestRootTerragruntHCLStrictMode(t *testing.T) {
 			tmpEnvPath := helpers.CopyEnvironment(t, testFixtureFindParentWithDeprecatedRoot)
 			rootPath := util.JoinPath(tmpEnvPath, testFixtureFindParentWithDeprecatedRoot, "app")
 
-			args := "--terragrunt-non-interactive --terragrunt-log-level debug --terragrunt-working-dir " + rootPath
+			args := "--non-interactive --log-level debug --working-dir " + rootPath
 			if tt.strictMode {
 				args = "--strict-mode " + args
 			}
@@ -129,7 +123,7 @@ func TestRootTerragruntHCLStrictMode(t *testing.T) {
 				args = " --strict-control " + control + " " + args
 			}
 
-			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan "+args)
+			_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run --experiment cli-redesign "+args+" -- plan")
 
 			if tt.expectedError != nil {
 				require.Error(t, err)

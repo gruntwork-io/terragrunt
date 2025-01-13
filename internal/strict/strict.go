@@ -132,7 +132,7 @@ func (controls Controls) NotifyCompletedControls(logger log.Logger) {
 	logger.Warnf(WarningCompletedControlsFmt, strings.Join(completed.Names(), ", "))
 }
 
-// Evaluate returns an error if the control is Enabled otherwise print a warning once.
+// Evaluate returns an error if the control is Enabled otherwise logs the warning message and returns nil.
 // If the control is not found, returns nil.
 func (controls Controls) Evaluate(logger log.Logger, name ControlName, args ...any) error {
 	if control, ok := controls.FindByStatus(StatusOngoing)[ControlName(name)]; ok {
@@ -155,11 +155,11 @@ type Control struct {
 	Status byte
 	// Enabled indicates that the control is Enabled.
 	Enabled bool
-	// TriggeredArgs keeps the args for which a warning has been previously issued.
+	// TriggeredArgs keeps arguments that have previously triggered a warning message.
 	TriggeredArgs [][]any
 }
 
-// Evaluate returns an error if the control is Enabled otherwise print a warning once.
+// Evaluate returns an error if the control is Enabled otherwise logs the warning message returns nil.
 func (control *Control) Evaluate(logger log.Logger, args ...any) error {
 	if control.Status == StatusCompleted {
 		return nil

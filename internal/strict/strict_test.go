@@ -38,7 +38,7 @@ func testLogger() (log.Logger, *bytes.Buffer) {
 func newTestControls() strict.Controls {
 	return strict.Controls{
 		testOngoingA: {
-			ErrorFmt: "%s error ongoing a %s - %s.",
+			ErrorFmt: "%[1]s error ongoing a %[2]s - %[3]s.",
 			WarnFmt:  "%[1]s warning ongoing a %[2]s.",
 		},
 		testOngoingB: {
@@ -50,18 +50,18 @@ func newTestControls() strict.Controls {
 			WarnFmt:  "%s warning ongoing a %s - %s.",
 		},
 		testCompletedA: {
-			ErrorFmt: "no matters",
-			WarnFmt:  "no matters",
+			ErrorFmt: "no matter",
+			WarnFmt:  "no matter",
 			Status:   strict.StatusCompleted,
 		},
 		testCompletedB: {
-			ErrorFmt: "no matters",
-			WarnFmt:  "no matters",
+			ErrorFmt: "no matter",
+			WarnFmt:  "no matter",
 			Status:   strict.StatusCompleted,
 		},
 		testCompletedC: {
-			ErrorFmt: "no matters",
-			WarnFmt:  "no matters",
+			ErrorFmt: "no matter",
+			WarnFmt:  "no matter",
 			Status:   strict.StatusCompleted,
 		},
 	}
