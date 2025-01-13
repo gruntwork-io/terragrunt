@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
+
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -19,7 +21,7 @@ import (
 )
 
 const (
-	stackCacheDir    = ".terragrunt-stack"
+	stackDir         = ".terragrunt-stack"
 	defaultStackFile = "terragrunt.stack.hcl"
 	dirPerm          = 0755
 )
@@ -40,8 +42,16 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	if !stacksEnabled.Enabled {
 		return errors.New("stacks experiment is not enabled use --experiment stacks to enable it")
 	}
-	opts.Logger.Infof("Running stack command")
-	return nil
+
+	// prepare options for execution
+	// navigate to stack directory
+	opts.WorkingDir = filepath.Join(opts.WorkingDir, stackDir)
+	// remove 0 element from args
+	opts.TerraformCliArgs = opts.TerraformCliArgs[1:]
+	opts.TerraformCommand = opts.TerraformCliArgs[0]
+	opts.OriginalTerraformCommand = strings.Join(opts.TerraformCliArgs, " ")
+
+	return runall.Run(ctx, opts)
 }
 
 func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
@@ -61,7 +71,7 @@ func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 }
 
 func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stackFile *config.StackConfigFile) error {
-	baseDir := filepath.Join(opts.WorkingDir, stackCacheDir)
+	baseDir := filepath.Join(opts.WorkingDir, stackDir)
 	if err := os.MkdirAll(baseDir, dirPerm); err != nil {
 		return errors.New(fmt.Errorf("failed to create base directory: %w", err))
 	}
