@@ -49,27 +49,8 @@ func replaceDeprecatedCommandFunc(terragruntCommandName, terraformCommandName st
 			deprecatedCommandName := ctx.Command.Name
 			newCommandFriendly := fmt.Sprintf("terragrunt %s %s", terragruntCommandName, strings.Join(args, " "))
 
-			control, ok := strict.GetStrictControl(deprecatedCommandName)
-			if ok {
-				warning, triggered, err := control.Evaluate(opts)
-				if err != nil {
-					return err //nolint:wrapcheck
-				}
-
-				if !triggered {
-					opts.Logger.Warn(warning)
-				}
-
-			} else { //nolint:wsl,whitespace
-				// This else clause should never be hit, as all the commands above are accounted for.
-				// This might be missed accidentally in the future, so we'll keep it for safety.
-				opts.Logger.Warnf(
-					"'%s' is deprecated. Running '%s' instead. Please update your workflows to use '%s', as '%s' may be removed in the future!\n", //nolint:lll
-					deprecatedCommandName,
-					newCommandFriendly,
-					newCommandFriendly,
-					deprecatedCommandName,
-				)
+			if err := opts.StrictControls.Evaluate(opts.Logger, strict.DeprecatedCommands, deprecatedCommandName, newCommandFriendly); err != nil {
+				return cli.NewExitError(err, cli.ExitCodeGeneralError)
 			}
 
 			err := command.Run(ctx, args)

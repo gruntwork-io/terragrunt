@@ -23,6 +23,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/awshelper"
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/cache"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/locks"
@@ -447,15 +448,8 @@ func FindInParentFolders(
 	previousDir = filepath.ToSlash(previousDir)
 
 	if fileToFindParam == "" || fileToFindParam == DefaultTerragruntConfigPath {
-		if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
-			warn, triggered, err := control.Evaluate(ctx.TerragruntOptions)
-			if err != nil {
-				return "", err
-			}
-
-			if !triggered {
-				ctx.TerragruntOptions.Logger.Warnf(warn)
-			}
+		if err := ctx.TerragruntOptions.StrictControls.Evaluate(ctx.TerragruntOptions.Logger, strict.RootTerragruntHCL); err != nil {
+			return "", cli.NewExitError(err, cli.ExitCodeGeneralError)
 		}
 	}
 

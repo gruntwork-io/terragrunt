@@ -228,7 +228,7 @@ func (flag *mapValue[K, V]) Set(str string) error {
 	(*flag.values)[key.Get().(K)] = val.Get().(V)
 
 	if flag.setter != nil {
-		return flag.setter(*flag.values)
+		return flag.setter(map[K]V{key.Get().(K): val.Get().(V)})
 	}
 
 	return nil

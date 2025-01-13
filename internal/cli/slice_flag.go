@@ -37,7 +37,7 @@ type SliceFlag[T SliceFlagType] struct {
 	Action FlagActionFunc[[]T]
 	// FlagSetterFunc represents function type that is called when the flag is specified.
 	// Executed during value parsing, in case of an error the returned error is wrapped with the flag or environment variable name.
-	Setter FlagSetterFunc[[]T]
+	Setter FlagSetterFunc[T]
 	// Destination is a pointer to which the value of the flag or env var is assigned.
 	// It also uses as the default value displayed in the help.
 	Destination *[]T
@@ -140,7 +140,7 @@ func (flag *SliceFlag[T]) RunAction(ctx *Context) error {
 // -- slice Value
 type sliceValue[T comparable] struct {
 	values        *[]T
-	setter        FlagSetterFunc[[]T]
+	setter        FlagSetterFunc[T]
 	valueType     FlagType[T]
 	defaultText   string
 	valSep        string
@@ -148,7 +148,7 @@ type sliceValue[T comparable] struct {
 	envHasBeenSet bool
 }
 
-func newSliceValue[T comparable](valueType FlagType[T], envValue *string, valSep string, splitter SplitterFunc, dest *[]T, setter FlagSetterFunc[[]T]) (FlagValue, error) {
+func newSliceValue[T comparable](valueType FlagType[T], envValue *string, valSep string, splitter SplitterFunc, dest *[]T, setter FlagSetterFunc[T]) (FlagValue, error) {
 	var nilPtr *[]T
 	if dest == nilPtr {
 		dest = new([]T)
@@ -197,7 +197,7 @@ func (flag *sliceValue[T]) Set(str string) error {
 	*flag.values = append(*flag.values, value.Get().(T))
 
 	if flag.setter != nil {
-		return flag.setter(*flag.values)
+		return flag.setter(value.Get().(T))
 	}
 
 	return nil

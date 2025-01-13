@@ -34,15 +34,8 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 					opts.ScaffoldRootFileName = value
 				}
 
-				if control, ok := strict.GetStrictControl(strict.RootTerragruntHCL); ok {
-					warn, triggered, err := control.Evaluate(opts)
-					if err != nil {
-						return err
-					}
-
-					if !triggered {
-						opts.Logger.Warnf(warn)
-					}
+				if err := opts.StrictControls.Evaluate(opts.Logger, strict.RootTerragruntHCL); err != nil {
+					return cli.NewExitError(err, cli.ExitCodeGeneralError)
 				}
 
 				return nil
@@ -95,18 +88,8 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 }
 
 func GetDefaultRootFileName(opts *options.TerragruntOptions) string {
-	control, ok := strict.GetStrictControl(strict.RootTerragruntHCL)
-	if !ok {
-		return config.DefaultTerragruntConfigPath
-	}
-
-	warn, triggered, err := control.Evaluate(opts)
-	if err != nil {
+	if err := opts.StrictControls.Evaluate(opts.Logger, strict.RootTerragruntHCL); err != nil {
 		return config.RecommendedParentConfigName
-	}
-
-	if !triggered {
-		opts.Logger.Warnf(warn)
 	}
 
 	return config.DefaultTerragruntConfigPath

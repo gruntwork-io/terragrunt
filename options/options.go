@@ -15,6 +15,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -359,17 +360,14 @@ type TerragruntOptions struct {
 	// Options to use engine for running IaC operations.
 	Engine *EngineOptions
 
-	// StrictMode is a flag to enable strict mode for terragrunt.
-	StrictMode bool
-
-	// StrictControls is a slice of strict controls enabled.
-	StrictControls []string
+	// StrictControls is a slice of strict controls.
+	StrictControls strict.Controls `clone:"shadowcopy"`
 
 	// ExperimentMode is a flag to enable experiment mode for terragrunt.
 	ExperimentMode bool
 
 	// Experiments is a map of experiments, and their status.
-	Experiments experiment.Experiments
+	Experiments experiment.Experiments `clone:"shadowcopy"`
 
 	// ]FeatureFlags is a map of feature flags to enable.
 	FeatureFlags *xsync.MapOf[string, string] `clone:"shadowcopy"`
@@ -509,6 +507,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		ReadFiles:                  xsync.NewMapOf[string, []string](),
 		ExperimentMode:             false,
 		Experiments:                experiment.NewExperiments(),
+		StrictControls:             strict.NewControls(),
 	}
 }
 

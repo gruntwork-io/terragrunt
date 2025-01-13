@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -113,25 +112,22 @@ func (flag *Flag) RunAction(ctx *cli.Context) error {
 		return err
 	}
 
-	var strictControl bool
-
-	if control, ok := strict.GetStrictControl(strict.RenamedFlag); ok {
-		if _, _, err := control.Evaluate(flag.opts); err != nil {
-			strictControl = true
-		}
-	}
-
 	if flagName := flag.usedDeprecatedFlagName(ctx); flagName != "" && len(flag.names) > 0 {
-		if strictControl {
-			return errors.Errorf("`--%s` flag is no longer supported, use `--%s` instead", flagName, flag.names[0])
+		newFlagName := flag.names[0]
+		if flag.TakesValue() {
+			newFlagName += "=" + flag.GetValue()
 		}
 
-		flag.opts.Logger.Warnf("The `--%s` flag is deprecated and will be removed in a future version. Use `--%s` instead.", flagName, flag.names[0])
+		if err := flag.opts.StrictControls.Evaluate(flag.opts.Logger, strict.DeprecatedFlags, flagName, newFlagName); err != nil {
+			return cli.NewExitError(err, cli.ExitCodeGeneralError)
+		}
 	}
 
 	if envVar := flag.usedDeprecatedEnvVar(ctx); envVar != "" && len(flag.envVars) > 0 {
-		if strictControl {
-			return errors.Errorf("`%s` environment variable is no longer supported, use `%s` instead", envVar, flag.envVars[0])
+		newEnvVar := flag.envVars[0] + "=" + flag.GetValue()
+
+		if err := flag.opts.StrictControls.Evaluate(flag.opts.Logger, strict.DeprecatedEnvVars, envVar, newEnvVar); err != nil {
+			return cli.NewExitError(err, cli.ExitCodeGeneralError)
 		}
 	}
 

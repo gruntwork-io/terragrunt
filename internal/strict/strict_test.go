@@ -5,77 +5,324 @@ package strict_test
 // Make sure to test both when the specific control is enabled, and when the global strict mode is enabled.
 
 import (
+	"bytes"
+	"fmt"
+	"strings"
 	"testing"
 
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
-	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestStrictControl(t *testing.T) {
+const (
+	testOngoingA   strict.ControlName = "test-ongoing-a"
+	testOngoingB   strict.ControlName = "test-ongoing-b"
+	testOngoingC   strict.ControlName = "test-ongoing-c"
+	testCompletedA strict.ControlName = "test-completed-a"
+	testCompletedB strict.ControlName = "test-completed-b"
+	testCompletedC strict.ControlName = "test-completed-c"
+)
+
+func testLogger() (log.Logger, *bytes.Buffer) {
+	formatter := format.NewFormatter(placeholders.Placeholders{placeholders.Message()})
+	output := new(bytes.Buffer)
+	logger := log.New(log.WithOutput(output), log.WithLevel(log.InfoLevel), log.WithFormatter(formatter))
+
+	return logger, output
+}
+
+func newTestControls() strict.Controls {
+	return strict.Controls{
+		testOngoingA: {
+			ErrorFmt: "%s error ongoing a %s - %s.",
+			WarnFmt:  "%[1]s warning ongoing a %[2]s.",
+		},
+		testOngoingB: {
+			ErrorFmt: "error ongoing b",
+			WarnFmt:  "warning ongoing b",
+		},
+		testOngoingC: {
+			ErrorFmt: "%s error ongoing a %s - %s.",
+			WarnFmt:  "%s warning ongoing a %s - %s.",
+		},
+		testCompletedA: {
+			ErrorFmt: "no matters",
+			WarnFmt:  "no matters",
+			Status:   strict.StatusCompleted,
+		},
+		testCompletedB: {
+			ErrorFmt: "no matters",
+			WarnFmt:  "no matters",
+			Status:   strict.StatusCompleted,
+		},
+		testCompletedC: {
+			ErrorFmt: "no matters",
+			WarnFmt:  "no matters",
+			Status:   strict.StatusCompleted,
+		},
+	}
+}
+
+func TestEnableControl(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name             string
-		enableControl    bool
-		enableStrictMode bool
-		expectedErr      error
+	type testEnableControl struct {
+		controlName string
+		expectedErr error
+	}
+
+	testCases := []struct {
+		enableControls          []testEnableControl
+		expectedEnabledControls []strict.ControlName
+		expectedCompletedMsg    string
 	}{
 		{
-			name:             "control enabled",
-			enableControl:    true,
-			enableStrictMode: false,
-			expectedErr:      strict.StrictControls[strict.PlanAll].Error,
+			[]testEnableControl{
+				{
+					string(testOngoingA),
+					nil,
+				},
+				{
+					string(testOngoingC),
+					nil,
+				},
+				{
+					string(testCompletedA),
+					nil,
+				},
+				{
+					string(testCompletedC),
+					nil,
+				},
+				{
+					"wrong-name",
+					strict.NewInvalidControlNameError([]string{string(testOngoingA), string(testOngoingB), string(testOngoingC)}),
+				},
+			},
+			[]strict.ControlName{testOngoingA, testOngoingC, testCompletedA, testCompletedC},
+			fmt.Sprintf(strict.WarningCompletedControlsFmt, strings.Join([]string{string(testCompletedA), string(testCompletedC)}, ", ")),
 		},
 		{
-			name:             "control disabled",
-			enableControl:    false,
-			enableStrictMode: false,
-			expectedErr:      nil,
+			[]testEnableControl{
+				{
+					string(testOngoingB),
+					nil,
+				},
+				{
+					string(testCompletedB),
+					nil,
+				},
+			},
+			[]strict.ControlName{testOngoingB, testCompletedB},
+			fmt.Sprintf(strict.WarningCompletedControlsFmt, strings.Join([]string{string(testCompletedB)}, ", ")),
 		},
 		{
-			name:             "control enabled, strict mode enabled",
-			enableControl:    true,
-			enableStrictMode: true,
-			expectedErr:      strict.StrictControls[strict.PlanAll].Error,
-		},
-		{
-			name:             "control disabled, strict mode enabled",
-			enableControl:    false,
-			enableStrictMode: true,
-			expectedErr:      strict.StrictControls[strict.PlanAll].Error,
+			[]testEnableControl{},
+			[]strict.ControlName{},
+			"",
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for i, testCase := range testCases {
+		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
 			t.Parallel()
 
-			opts := options.TerragruntOptions{}
+			logger, output := testLogger()
+			controls := newTestControls()
 
-			if tt.enableControl {
-				opts.StrictMode = true
+			for _, testEnableControl := range testCase.enableControls {
+
+				err := controls.EnableControl(testEnableControl.controlName)
+
+				if testEnableControl.expectedErr != nil {
+					assert.EqualError(t, err, testEnableControl.expectedErr.Error())
+
+					continue
+				}
+
+				assert.NoError(t, err)
 			}
 
-			if tt.enableStrictMode {
-				opts.StrictControls = []string{strict.PlanAll}
+			var actualEnabledControls []strict.ControlName
+
+			for name, control := range controls {
+				if control.Enabled {
+					actualEnabledControls = append(actualEnabledControls, name)
+				}
 			}
 
-			planAll, ok := strict.GetStrictControl(strict.PlanAll)
-			require.True(t, ok, "control not found")
+			assert.ElementsMatch(t, testCase.expectedEnabledControls, actualEnabledControls)
 
-			// We intentionally ignore whether the control has already been triggered.
-			warning, _, err := planAll.Evaluate(&opts)
+			controls.NotifyCompletedControls(logger)
 
-			if tt.enableControl || tt.enableStrictMode {
-				assert.Empty(t, warning)
-				require.Error(t, err)
-				require.Equal(t, tt.expectedErr, err)
-			} else {
-				assert.NotEmpty(t, warning)
-				require.NoError(t, err)
+			if testCase.expectedCompletedMsg == "" {
+				assert.Empty(t, output.String())
+
+				return
 			}
+
+			assert.Contains(t, strings.TrimSpace(output.String()), testCase.expectedCompletedMsg)
+		})
+	}
+}
+
+func TestEnableStrictMode(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		enableStrictMode        bool
+		expectedEnabledControls []strict.ControlName
+	}{
+		{
+			true,
+			[]strict.ControlName{testOngoingA, testOngoingB, testOngoingC},
+		},
+		{
+			false,
+			[]strict.ControlName{},
+		},
+	}
+
+	for i, testCase := range testCases {
+		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
+			t.Parallel()
+
+			logger, output := testLogger()
+			controls := newTestControls()
+
+			if testCase.enableStrictMode {
+				controls.EnableStrictMode()
+			}
+
+			var actualEnabledControls []strict.ControlName
+
+			for name, control := range controls {
+				if control.Enabled {
+					actualEnabledControls = append(actualEnabledControls, name)
+				}
+			}
+
+			assert.ElementsMatch(t, testCase.expectedEnabledControls, actualEnabledControls)
+
+			controls.NotifyCompletedControls(logger)
+			assert.Empty(t, output.String())
+		})
+	}
+}
+
+func TestEvaluateControl(t *testing.T) {
+	t.Parallel()
+
+	type testEvaluateControl struct {
+		controlName strict.ControlName
+		args        []any
+		expectedErr error
+	}
+
+	testCases := []struct {
+		enableControls   []strict.ControlName
+		evaluateControls []testEvaluateControl
+		expectedWarns    []string
+	}{
+		{
+			[]strict.ControlName{testOngoingA, testOngoingB},
+			[]testEvaluateControl{
+				{
+					testOngoingA,
+					[]any{"foo", "bar", "baz"},
+					errors.Errorf(newTestControls()[testOngoingA].ErrorFmt, "foo", "bar", "baz"),
+				},
+			},
+			[]string{""},
+		},
+		{
+			[]strict.ControlName{testOngoingB},
+			[]testEvaluateControl{
+				{
+					testOngoingB,
+					nil,
+					errors.Errorf(newTestControls()[testOngoingB].ErrorFmt),
+				},
+			},
+			[]string{""},
+		},
+		{
+			// Testing output warning message once.
+			[]strict.ControlName{testOngoingB},
+			[]testEvaluateControl{
+				{
+					testOngoingA,
+					[]any{"foo", "bar", "baz"},
+					nil,
+				},
+				{
+					testOngoingA,
+					[]any{"foo", "bar", "baz"},
+					nil,
+				},
+			},
+			[]string{fmt.Sprintf(newTestControls()[testOngoingA].WarnFmt, "foo", "bar", "baz")},
+		},
+		{
+			[]strict.ControlName{testCompletedA},
+			[]testEvaluateControl{
+				{
+					testOngoingA,
+					[]any{"foo", "bar", "baz"},
+					nil,
+				},
+			},
+			[]string{fmt.Sprintf(newTestControls()[testOngoingA].WarnFmt, "foo", "bar", "baz")},
+		},
+		{
+			[]strict.ControlName{testCompletedA},
+			[]testEvaluateControl{
+				{
+					testCompletedA,
+					nil,
+					nil,
+				},
+			},
+			[]string{""},
+		},
+	}
+
+	for i, testCase := range testCases {
+		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
+			t.Parallel()
+
+			logger, output := testLogger()
+			controls := newTestControls()
+
+			for _, name := range testCase.enableControls {
+				controls.EnableControl(string(name))
+			}
+
+			for _, evaluateControl := range testCase.evaluateControls {
+				err := controls.Evaluate(logger, evaluateControl.controlName, evaluateControl.args...)
+
+				if evaluateControl.expectedErr != nil {
+					assert.EqualError(t, err, evaluateControl.expectedErr.Error())
+					assert.Empty(t, output.String())
+
+					return
+				}
+
+				assert.NoError(t, err)
+			}
+
+			if len(testCase.expectedWarns) == 0 {
+				assert.Empty(t, output.String())
+
+				return
+			}
+
+			actualWarns := strings.Split(strings.TrimSpace(output.String()), "\n")
+			assert.ElementsMatch(t, actualWarns, testCase.expectedWarns)
 		})
 	}
 }

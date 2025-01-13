@@ -6,6 +6,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/util"
 )
 
@@ -420,15 +421,9 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:   "If specified, Terragrunt will wrap Terraform stdout and stderr in JSON.",
 			Hidden:  true,
 			Action: func(_ *cli.Context, _ bool) error {
-				if control, ok := strict.GetStrictControl(strict.JSONLog); ok {
-					warn, triggered, err := control.Evaluate(opts)
-					if err != nil {
-						return err
-					}
 
-					if !triggered {
-						opts.Logger.Warnf(warn)
-					}
+				if err := opts.StrictControls.Evaluate(opts.Logger, strict.DeprecatedFlags, TerragruntTfLogJSONFlagName, flags.LogCustomFormatFlagName+"="+format.JSONFormatName); err != nil {
+					return cli.NewExitError(err, cli.ExitCodeGeneralError)
 				}
 
 				return nil

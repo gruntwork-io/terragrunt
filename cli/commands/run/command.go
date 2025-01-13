@@ -31,7 +31,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Flags:                NewFlags(opts),
 		ErrorOnUndefinedFlag: true,
 		Action: func(ctx *cli.Context) error {
-			if exp := opts.Experiments[experiment.CLIRedesign]; !exp.Evaluate(opts.ExperimentMode) {
+			if exp, ok := opts.Experiments[experiment.CLIRedesign]; ok && !exp.Evaluate(opts.ExperimentMode) {
 				return cli.NewExitError(errors.Errorf("requires that the %[1]s experiment is enabled. e.g. --experiment %[1]s", experiment.CLIRedesign), cli.ExitCodeGeneralError)
 			}
 
@@ -60,15 +60,8 @@ func Action(opts *options.TerragruntOptions) cli.ActionFunc {
 		}
 
 		if ctx.Command.Name != CommandName {
-			if control, ok := strict.GetStrictControl(strict.DefaultCommand); ok {
-				_, triggered, err := control.Evaluate(opts)
-				if err != nil {
-					return cli.NewExitError(errors.Errorf("The command `%[1]s` is not a valid Terragrunt command. Use `terragrunt run` to explicitly pass commands to OpenTofu/Terraform instead. e.g. `terragrunt run -- %[1]s`", opts.TerraformCommand), cli.ExitCodeGeneralError)
-				}
-
-				if !triggered {
-					opts.Logger.Warnf("The default command `%[1]s` is deprecated and will be removed in a future version. Use `terragrunt run -- %[1]s` instead.", opts.TerraformCommand)
-				}
+			if err := opts.StrictControls.Evaluate(opts.Logger, strict.DefaultCommand, opts.TerraformCommand); err != nil {
+				return cli.NewExitError(err, cli.ExitCodeGeneralError)
 			}
 		}
 

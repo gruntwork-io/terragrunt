@@ -104,6 +104,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:   "Set the custom log formatting.",
 			Setter:  opts.LogFormatter.SetCustomFormat,
 		}),
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
+			Name:        NonInteractiveFlagName,
+			EnvVars:     EnvVars(NonInteractiveFlagName),
+			Destination: &opts.NonInteractive,
+			Usage:       `Assume "yes" for all prompts.`,
+		}),
 
 		// Experiment Mode flags
 
@@ -137,39 +143,33 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 				return nil
 			},
 		},
-		// Strict Mode flags.
-		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
-			Name:        StrictModeFlagName,
-			EnvVars:     EnvVars(StrictModeFlagName),
-			Destination: &opts.StrictMode,
-			Usage:       "Enables strict mode for Terragrunt. For more information, see https://terragrunt.gruntwork.io/docs/reference/strict-mode .",
-		}),
-		SliceWithDeprecatedFlag(opts, &cli.SliceFlag[string]{
-			Name:        StrictControlFlagName,
-			EnvVars:     EnvVars(StrictControlFlagName),
-			Destination: &opts.StrictControls,
-			Usage:       "Enables specific strict controls. For a list of available controls, see https://terragrunt.gruntwork.io/docs/reference/strict-mode .",
-			Action: func(_ *cli.Context, val []string) error {
-				warning, err := strict.StrictControls.ValidateControlNames(val)
-				if warning != "" {
-					log.Warn(warning)
-				}
 
-				if err != nil {
-					return cli.NewExitError(err, 1)
-				}
+		// Strict Mode flags.
+
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
+			Name:    StrictModeFlagName,
+			EnvVars: EnvVars(StrictModeFlagName),
+			Usage:   "Enables strict mode for Terragrunt. For more information, see https://terragrunt.gruntwork.io/docs/reference/strict-mode .",
+			Setter: func(_ bool) error {
+				opts.StrictControls.EnableStrictMode()
 
 				return nil
 			},
 		}),
-		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
-			Name:        NonInteractiveFlagName,
-			EnvVars:     EnvVars(NonInteractiveFlagName),
-			Destination: &opts.NonInteractive,
-			Usage:       `Assume "yes" for all prompts.`,
+		SliceWithDeprecatedFlag(opts, &cli.SliceFlag[string]{
+			Name:    StrictControlFlagName,
+			EnvVars: EnvVars(StrictControlFlagName),
+			Usage:   "Enables specific strict controls. For a list of available controls, see https://terragrunt.gruntwork.io/docs/reference/strict-mode .",
+			Setter:  opts.StrictControls.EnableControl,
+			Action: func(_ *cli.Context, _ []string) error {
+				opts.StrictControls.NotifyCompletedControls(opts.Logger)
+
+				return nil
+			},
 		}),
 
 		// Deprecated flags.
+
 		&cli.BoolFlag{
 			Name:        TerragruntDisableLogFormattingFlagName,
 			EnvVars:     EnvVars(TerragruntDisableLogFormattingFlagName),
@@ -179,15 +179,8 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Action: func(_ *cli.Context, _ bool) error {
 				opts.LogFormatter.SetPlaceholders(format.NewKeyValueFormatPlaceholders())
 
-				if control, ok := strict.GetStrictControl(strict.DisableLogFormatting); ok {
-					warn, triggered, err := control.Evaluate(opts)
-					if err != nil {
-						return err
-					}
-
-					if !triggered {
-						opts.Logger.Warnf(warn)
-					}
+				if err := opts.StrictControls.Evaluate(opts.Logger, strict.DeprecatedFlags, TerragruntDisableLogFormattingFlagName, LogCustomFormatFlagName+"="+format.KeyValueFormatName); err != nil {
+					return cli.NewExitError(err, cli.ExitCodeGeneralError)
 				}
 
 				return nil
@@ -202,15 +195,8 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Action: func(_ *cli.Context, _ bool) error {
 				opts.LogFormatter.SetPlaceholders(format.NewJSONFormatPlaceholders())
 
-				if control, ok := strict.GetStrictControl(strict.JSONLog); ok {
-					warn, triggered, err := control.Evaluate(opts)
-					if err != nil {
-						return err
-					}
-
-					if !triggered {
-						opts.Logger.Warnf(warn)
-					}
+				if err := opts.StrictControls.Evaluate(opts.Logger, strict.DeprecatedFlags, TerragruntJSONLogFlagName, LogCustomFormatFlagName+"="+format.JSONFormatName); err != nil {
+					return cli.NewExitError(err, cli.ExitCodeGeneralError)
 				}
 
 				return nil

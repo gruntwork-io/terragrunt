@@ -71,10 +71,6 @@ func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
 		set.Var(flag.FlagValue, name, flag.Usage)
 	}
 
-	if flag.Setter != nil {
-		return flag.Setter(*flag.Destination)
-	}
-
 	return nil
 }
 
