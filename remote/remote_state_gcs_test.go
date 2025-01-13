@@ -130,3 +130,77 @@ func TestGcpConfigValuesEqual(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateGCSConfig(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name               string
+		config             map[string]interface{}
+		expectedError      string
+		skipBucketCreation bool
+	}{
+		{
+			name: "Valid config with project and location",
+			config: map[string]interface{}{
+				"bucket":   "test-bucket",
+				"project":  "test-project",
+				"location": "US",
+			},
+			expectedError:      "",
+			skipBucketCreation: false,
+		},
+		{
+			name: "Missing project when bucket creation not skipped",
+			config: map[string]interface{}{
+				"bucket":   "test-bucket",
+				"location": "US",
+			},
+			expectedError:      "Missing required GCS remote state configuration project",
+			skipBucketCreation: false,
+		},
+		{
+			name: "Missing location when bucket creation not skipped",
+			config: map[string]interface{}{
+				"bucket":  "test-bucket",
+				"project": "test-project",
+			},
+			expectedError:      "Missing required GCS remote state configuration location",
+			skipBucketCreation: false,
+		},
+		{
+			name: "Skip bucket creation allows missing project and location",
+			config: map[string]interface{}{
+				"bucket": "test-bucket",
+			},
+			expectedError:      "",
+			skipBucketCreation: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Add skip_bucket_creation to the config if specified
+			if tc.skipBucketCreation {
+				tc.config["skip_bucket_creation"] = true
+			}
+
+			// Parse the config
+			extendedConfig, err := remote.ParseExtendedGCSConfig(tc.config)
+			require.NoError(t, err)
+
+			// Validate the config
+			err = remote.ValidateGCSConfig(extendedConfig)
+
+			if tc.expectedError == "" {
+				assert.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedError)
+			}
+		})
+	}
+}

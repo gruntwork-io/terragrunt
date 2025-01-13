@@ -177,12 +177,12 @@ func (initializer GCSInitializer) buildInitializerCacheKey(gcsConfig *RemoteStat
 // Initialize the remote state GCS bucket specified in the given config. This function will validate the config
 // parameters, create the GCS bucket if it doesn't already exist, and check that versioning is enabled.
 func (initializer GCSInitializer) Initialize(ctx context.Context, remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {
-	gcsConfigExtended, err := parseExtendedGCSConfig(remoteState.Config)
+	gcsConfigExtended, err := ParseExtendedGCSConfig(remoteState.Config)
 	if err != nil {
 		return err
 	}
 
-	if err := validateGCSConfig(gcsConfigExtended); err != nil {
+	if err := ValidateGCSConfig(gcsConfigExtended); err != nil {
 		return err
 	}
 
@@ -255,7 +255,7 @@ func parseGCSConfig(config map[string]interface{}) (*RemoteStateConfigGCS, error
 }
 
 // Parse the given map into a GCS config
-func parseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteStateConfigGCS, error) {
+func ParseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteStateConfigGCS, error) {
 	var (
 		gcsConfig      RemoteStateConfigGCS
 		extendedConfig ExtendedRemoteStateConfigGCS
@@ -275,11 +275,22 @@ func parseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteState
 }
 
 // Validate all the parameters of the given GCS remote state configuration
-func validateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS) error {
+func ValidateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS) error {
 	var config = extendedConfig.remoteStateConfigGCS
 
 	if config.Bucket == "" {
 		return errors.New(MissingRequiredGCSRemoteStateConfig("bucket"))
+	}
+
+	// If bucket creation is not skipped, project and location are required in the `remote_state` config block.
+	if !extendedConfig.SkipBucketCreation {
+		if extendedConfig.Project == "" {
+			return errors.New(MissingRequiredGCSRemoteStateConfig("project"))
+		}
+
+		if extendedConfig.Location == "" {
+			return errors.New(MissingRequiredGCSRemoteStateConfig("location"))
+		}
 	}
 
 	return nil
