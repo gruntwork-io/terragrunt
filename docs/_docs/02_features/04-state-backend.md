@@ -9,8 +9,14 @@ order: 204
 nav_title: Documentation
 nav_title_link: /docs/
 redirect_from:
+<<<<<<< ours:docs/_docs/02_features/04-state-backend.md
     - /docs/features/keep-your-remote-state-configuration-dry/
 slug: state-backend
+||||||| ancestor
+    - /docs/features/keep-your-remote-state-configuration-dry/
+=======
+  - /docs/features/keep-your-remote-state-configuration-dry/
+>>>>>>> theirs:docs/_docs/02_features/state-backend.md
 ---
 
 - [Motivation](#motivation)
@@ -18,13 +24,14 @@ slug: state-backend
 - [Create remote state resources automatically](#create-remote-state-resources-automatically)
 - [S3-specific remote state settings](#s3-specific-remote-state-settings)
 - [GCS-specific remote state settings](#gcs-specific-remote-state-settings)
+  - [Important Considerations](#important-considerations)
 - [Further reading](#further-reading)
 
 ## Motivation
 
 OpenTofu/Terraform supports [remote state storage](https://www.terraform.io/docs/state/remote.html) via a variety of [backends](https://www.terraform.io/docs/backends) that you normally configure in your `.tf` files as follows:
 
-``` hcl
+```hcl
 terraform {
   backend "s3" {
     bucket         = "my-tofu-state"
@@ -103,7 +110,7 @@ interpolated values.
 To inherit this configuration in each unit, such as `mysql/terragrunt.hcl`, you can
 tell Terragrunt to automatically include all the settings from the root `root.hcl` file as follows:
 
-``` hcl
+```hcl
 include "root" {
   path = find_in_parent_folders("root.hcl")
 }
@@ -154,19 +161,19 @@ When you run `terragrunt` with a `remote_state` configuration, it will automatic
 
 - **S3 bucket**: If you are using the [S3 backend](https://opentofu.org/docs/language/settings/backends/s3) for remote state storage and the `bucket` you specify in `remote_state.config` doesn’t already exist, Terragrunt will create it automatically, with [versioning](https://docs.aws.amazon.com/AmazonS3/latest/dev/Versioning.html), [server-side encryption](https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html), and [access logging](https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerLogs.html) enabled.
 
-    In addition, you can let terragrunt tag the bucket with custom tags that you specify in `remote_state.config.s3_bucket_tags`.
+  In addition, you can let terragrunt tag the bucket with custom tags that you specify in `remote_state.config.s3_bucket_tags`.
 
 - **DynamoDB table**: If you are using the [S3 backend](https://opentofu.org/docs/language/settings/backends/s3) for remote state storage and you specify a `dynamodb_table` (a [DynamoDB table used for locking](https://opentofu.org/docs/language/settings/backends/s3/#dynamodb-state-locking)) in `remote_state.config`, if that table doesn’t already exist, Terragrunt will create it automatically, with [server-side encryption](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html) enabled, including a primary key called `LockID`.
 
-    You may configure custom endpoint for the AWS DynamoDB API using `remote_state.config.dynamodb_endpoint`.
+  You may configure custom endpoint for the AWS DynamoDB API using `remote_state.config.dynamodb_endpoint`.
 
-    In addition, you can let terragrunt tag the DynamoDB table with custom tags that you specify in `remote_state.config.dynamodb_table_tags`.
+  In addition, you can let terragrunt tag the DynamoDB table with custom tags that you specify in `remote_state.config.dynamodb_table_tags`.
 
 - **GCS bucket**: If you are using the [GCS backend](https://opentofu.org/docs/language/settings/backends/gcs) for remote state storage and the `bucket` you specify in `remote_state.config` doesn’t already exist, Terragrunt will create it automatically, with [versioning](https://cloud.google.com/storage/docs/object-versioning) enabled. For this to work correctly you must also specify `project` and `location` keys in `remote_state.config`, so Terragrunt knows where to create the bucket. You will also need to supply valid credentials using either `remote_state.config.credentials` or by setting the `GOOGLE_APPLICATION_CREDENTIALS` environment variable. If you want to skip creating the bucket entirely, simply set `skip_bucket_creation` to `true` and Terragrunt will assume the bucket has already been created. If you don’t specify `bucket` in `remote_state` then terragrunt will assume that you will pass `bucket` through `-backend-config` in `extra_arguments`.
 
-    We also strongly recommend you enable [Cloud Audit Logs](https://cloud.google.com/storage/docs/access-logs) to audit and track API operations performed against the state bucket.
+  We also strongly recommend you enable [Cloud Audit Logs](https://cloud.google.com/storage/docs/access-logs) to audit and track API operations performed against the state bucket.
 
-    In addition, you can let Terragrunt label the bucket with custom labels that you specify in `remote_state.config.gcs_bucket_labels`.
+  In addition, you can let Terragrunt label the bucket with custom labels that you specify in `remote_state.config.gcs_bucket_labels`.
 
 **Note**: If you specify a `profile` key in `remote_state.config`, Terragrunt will automatically use this AWS profile when creating the S3 bucket or DynamoDB table.
 
@@ -174,7 +181,7 @@ When you run `terragrunt` with a `remote_state` configuration, it will automatic
 
 The following example demonstrates using an environment variable to configure this option:
 
-``` hcl
+```hcl
 remote_state {
   # ...
 
@@ -232,7 +239,7 @@ For the `s3` backend, the following config options can be used for S3-compatible
 
 **Note**: The `skip_bucket_accesslogging` is now DEPRECATED. It is replaced by `accesslogging_bucket_name`. Please read below for more details on when to use the new config option.
 
-``` hcl
+```hcl
 remote_state {
   # ...
 
@@ -261,7 +268,7 @@ Further, the `config` options `s3_bucket_tags`, `dynamodb_table_tags`, `accesslo
 
 For the `gcs` backend, the following config options can be used for GCS-compatible object stores, as necessary:
 
-``` hcl
+```hcl
 remote_state {
  # ...
 
@@ -272,6 +279,18 @@ remote_state {
  encryption_key = "GOOGLE_ENCRYPTION_KEY"
 }
 ```
+
+### Important Considerations
+
+- **Bucket Creation**: When `skip_bucket_creation` is set to `false` (default):
+
+  - `project` and `location` are **required** to create a new bucket
+  - Terragrunt will automatically create the bucket if it doesn't exist
+  - Versioning will be enabled by default unless `skip_bucket_versioning` is set to `true`
+
+- **Bucket Validation**:
+  - Terragrunt validates the presence of `bucket`, `project`, and `location` when creating a new bucket
+  - If the bucket already exists, `project` and `location` are not strictly required
 
 If you experience an error for any of these configurations, confirm you are using Terraform v0.12.0 or greater.
 
