@@ -3,7 +3,7 @@ layout: collection-browser-doc
 title: Stacks
 category: features
 categories_url: features
-excerpt: Lean how to work with multiple units at once in a stack.
+excerpt: Learn how to work with multiple units at once in a stack.
 tags: ["DRY", "Unit", "Modules", "Use cases", "CLI", "Stack"]
 order: 202
 nav_title: Documentation
