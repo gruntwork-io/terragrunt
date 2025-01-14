@@ -24,6 +24,8 @@ const (
 	DeprecatedCommands ControlName = "deprecated-commands"
 	// DeprecatedDefaultCommand is the control that prevents the deprecated default command from being used.
 	DeprecatedDefaultCommand ControlName = "deprecated-default-command"
+	// DependenciesInputs is control that prevents the recursive parsing of Terragrunt inputs.
+	DependenciesInputs ControlName = "dependencies-inputs"
 	// RootTerragruntHCL is the control that prevents usage of a `terragrunt.hcl` file as the root of Terragrunt configurations.
 	RootTerragruntHCL ControlName = "root-terragrunt-hcl"
 )
@@ -63,6 +65,11 @@ func NewControls() Controls {
 			Name:     DeprecatedDefaultCommand,
 			ErrorFmt: "`%[1]s` command is not a valid Terragrunt command. Use `terragrunt run` to explicitly pass commands to OpenTofu/Terraform instead. e.g. `terragrunt run -- %[1]s`",
 			WarnFmt:  "`%[1]s` command is deprecated and will be removed in a future version. Use `terragrunt run -- %[1]s` instead.",
+		},
+		{
+			Name:     DependenciesInputs,
+			ErrorFmt: "Reading inputs from dependencies is no longer supported. Forward them as outputs instead.",
+			WarnFmt:  "Reading inputs from dependencies is deprecated and will be removed in a future version. Forward them as outputs instead.",
 		},
 		{
 			Name:     RootTerragruntHCL,

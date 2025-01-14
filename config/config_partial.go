@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
+	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/huandu/go-clone"
 
 	"github.com/gruntwork-io/terragrunt/internal/cache"
@@ -455,10 +455,8 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				output.IamWebIdentityToken = *decoded.IamWebIdentityToken
 			}
 		case TerragruntInputs:
-			if ctx.TerragruntOptions.Experiments.Evaluate(experiment.SkipDependenciesInputs) {
-				ctx.TerragruntOptions.Logger.Warnf("Skipping inputs reading from %v inputs for better performance", file.ConfigPath)
-
-				break
+			if err := ctx.TerragruntOptions.StrictControls.Evaluate(ctx.TerragruntOptions.Logger, strict.DependenciesInputs); err != nil {
+				return nil, err
 			}
 
 			decoded := terragruntInputs{}

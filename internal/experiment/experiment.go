@@ -19,8 +19,6 @@ const (
 	CLIRedesign = "cli-redesign"
 	// Stacks is the experiment that allows stacks to be used in Terragrunt.
 	Stacks = "stacks"
-	// SkipDependenciesInputs is the experiment that allows to prevent reading dependencies inputs and get performance boost.
-	SkipDependenciesInputs = "skip-dependencies-inputs"
 )
 
 const (
@@ -45,9 +43,6 @@ func NewExperiments() Experiments {
 		},
 		{
 			Name: Stacks,
-		},
-		{
-			Name: SkipDependenciesInputs,
 		},
 	}
 }

@@ -67,7 +67,6 @@ The following strict mode controls are available:
 - [symlinks](#symlinks)
 - [stacks](#stacks)
 - [cli-redesign](#cli-redesign)
-- [skip-dependencies-inputs](#skip-dependencies-inputs)
 
 ### symlinks
 
@@ -80,10 +79,6 @@ Support for Terragrunt stacks.
 ### cli-redesign
 
 Support for the new Terragrunt CLI design.
-
-### skip-dependencies-inputs
-
-Disable reading of dependency inputs to enhance dependency resolution performance by preventing recursively parsing Terragrunt inputs from dependencies.
 
 #### What it does
 
