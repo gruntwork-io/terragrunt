@@ -181,12 +181,14 @@ func TestToMap(t *testing.T) {
 			providerType: "aws_kms",
 			encryptionConfig: map[string]interface{}{
 				"key_provider": "aws_kms",
-				"kms_key_id":   123456789,
+				"region":       "us-west-1",
+				"kms_key_id":   "123456789",
 				"key_spec":     "AES_256",
 			},
 			expectedMap: map[string]interface{}{
 				"key_provider": "aws_kms",
-				"kms_key_id":   123456789,
+				"region":       "us-west-1",
+				"kms_key_id":   "123456789",
 				"key_spec":     "AES_256",
 			},
 			expectedError: false,

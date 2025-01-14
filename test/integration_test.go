@@ -2386,6 +2386,7 @@ func TestReadTerragruntConfigFull(t *testing.T) {
 			"disable_dependency_optimization": false,
 			"generate":                        map[string]interface{}{"path": "backend.tf", "if_exists": "overwrite_terragrunt"},
 			"config":                          map[string]interface{}{"path": "foo.tfstate"},
+			"encryption":                      map[string]interface{}{"key_provider": "foo"},
 		},
 		remoteStateOut,
 	)
