@@ -624,6 +624,12 @@ func RemoteStateAsCty(remoteState *remote.RemoteState) (cty.Value, error) {
 	}
 
 	output["config"] = ctyJSONVal
+
+	ctyJSONVal, err = convertToCtyWithJSON(remoteState.Encryption)
+	if err != nil {
+		return cty.NilVal, err
+	}
+
 	output["encryption"] = ctyJSONVal
 
 	return convertValuesMapToCtyVal(output)
