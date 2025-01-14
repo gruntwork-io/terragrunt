@@ -104,7 +104,7 @@ The following strict mode controls are available:
 - [deprecated-env-vars](#deprecated-env-vars)
 - [deprecated-commands](#deprecated-commands)
 - [deprecated-default-command](#deprecated-default-command)
-- [dependencies-inputs](#dependencies-inputs)
+- [skip-dependencies-inputs](#skip-dependencies-inputs)
 - [root-terragrunt-hcl](#root-terragrunt-hcl)
 
 ### deprecated-flags
@@ -131,11 +131,11 @@ Throw an error when using the deprecated default command.
 
 **Example**: `plan` command is deprecated and will be removed in a future version. Use `terragrunt run -- plan` instead.
 
-### dependencies-inputs
+### skip-dependencies-inputs
 
-Throw an error when reading of dependency inputs.
+Disable reading of dependency inputs to enhance dependency resolution performance by preventing recursively parsing Terragrunt inputs from dependencies.
 
-**Reason**: Enabling the `dependencies-inputs` option prevents the recursive parsing of Terragrunt inputs, leading to optimized performance during dependency resolution.
+**Reason**: Enabling the `skip-dependencies-inputs` option prevents the recursive parsing of Terragrunt inputs, leading to optimized performance during dependency resolution.
 
 ### root-terragrunt-hcl
 

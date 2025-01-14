@@ -455,8 +455,10 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				output.IamWebIdentityToken = *decoded.IamWebIdentityToken
 			}
 		case TerragruntInputs:
-			if err := ctx.TerragruntOptions.StrictControls.Evaluate(ctx.TerragruntOptions.Logger, strict.DependenciesInputs); err != nil {
-				return nil, err
+			if err := ctx.TerragruntOptions.StrictControls.Evaluate(ctx.TerragruntOptions.Logger, strict.SkipDependenciesInputs); err != nil {
+				ctx.TerragruntOptions.Logger.Warnf("Skipping inputs reading from %v inputs for better performance", file.ConfigPath)
+
+				break
 			}
 
 			decoded := terragruntInputs{}

@@ -24,8 +24,8 @@ const (
 	DeprecatedCommands ControlName = "deprecated-commands"
 	// DeprecatedDefaultCommand is the control that prevents the deprecated default command from being used.
 	DeprecatedDefaultCommand ControlName = "deprecated-default-command"
-	// DependenciesInputs is control that prevents the recursive parsing of Terragrunt inputs.
-	DependenciesInputs ControlName = "dependencies-inputs"
+	// SkipDependenciesInputs is the control that prevents reading dependencies inputs and get performance boost.
+	SkipDependenciesInputs = "skip-dependencies-inputs"
 	// RootTerragruntHCL is the control that prevents usage of a `terragrunt.hcl` file as the root of Terragrunt configurations.
 	RootTerragruntHCL ControlName = "root-terragrunt-hcl"
 )
@@ -67,14 +67,15 @@ func NewControls() Controls {
 			WarnFmt:  "`%[1]s` command is deprecated and will be removed in a future version. Use `terragrunt run -- %[1]s` instead.",
 		},
 		{
-			Name:     DependenciesInputs,
-			ErrorFmt: "Reading inputs from dependencies is no longer supported. Forward them as outputs instead.",
-			WarnFmt:  "Reading inputs from dependencies is deprecated and will be removed in a future version. Forward them as outputs instead.",
-		},
-		{
 			Name:     RootTerragruntHCL,
 			ErrorFmt: "Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer supported. Use a differently named file like `root.hcl` instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/migrating-from-root-terragrunt-hcl",
 			WarnFmt:  "Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer recommended. In a future version of Terragrunt, this will result in an error. You are advised to use a differently named file like `root.hcl` instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/migrating-from-root-terragrunt-hcl",
+		},
+		{
+			// TODO: `ErrorFmt` and `WarnFmt` of this control are not displayed anywhere and needs to be reworked.
+			Name:     SkipDependenciesInputs,
+			ErrorFmt: "The `" + SkipDependenciesInputs + "` option is deprecated. Reading inputs from dependencies has been deprecated and will be removed in a future version of Terragrunt. To continue using inputs from dependencies, forward them as outputs.",
+			WarnFmt:  "The `" + SkipDependenciesInputs + "` option is deprecated and will be removed in a future version of Terragrunt. Reading inputs from dependencies has been deprecated. To continue using inputs from dependencies, forward them as outputs.",
 		},
 	}
 }
@@ -153,9 +154,9 @@ func (controls Controls) NotifyCompletedControls(logger log.Logger) {
 
 // Evaluate returns an error if the control is Enabled otherwise logs the warning message and returns nil.
 // If the control is not found, returns nil.
-func (controls Controls) Evaluate(logger log.Logger, name ControlName, args ...any) error {
+func (controls Controls) Evaluate(logger log.Logger, name ControlName, fmtArgs ...any) error {
 	if control := controls.FindByStatus(StatusOngoing).Find(name); control != nil {
-		if err := control.Evaluate(logger, args...); err != nil {
+		if err := control.Evaluate(logger, fmtArgs...); err != nil {
 			return err
 		}
 	}
@@ -176,7 +177,7 @@ type Control struct {
 	Enabled bool
 	// Status of the strict control.
 	Status byte
-	// triggeredArgs keeps arguments that have previously triggered a warning message.
+	// triggeredArgs keeps `fmtArgs` that have previously triggered a warning message.
 	triggeredArgs [][]any
 }
 
@@ -185,13 +186,13 @@ func (control *Control) String() string {
 }
 
 // Evaluate returns an error if the control is Enabled otherwise logs the warning message returns nil.
-func (control *Control) Evaluate(logger log.Logger, args ...any) error {
+func (control *Control) Evaluate(logger log.Logger, fmtArgs ...any) error {
 	if control.Status == StatusCompleted {
 		return nil
 	}
 
 	if control.Enabled && control.ErrorFmt != "" {
-		return errors.Errorf(control.ErrorFmt, args...)
+		return errors.Errorf(control.ErrorFmt, fmtArgs...)
 	}
 
 	if control.WarnFmt == "" || logger == nil {
@@ -199,14 +200,14 @@ func (control *Control) Evaluate(logger log.Logger, args ...any) error {
 	}
 
 	for _, triggeredArgs := range control.triggeredArgs {
-		if reflect.DeepEqual(triggeredArgs, args) {
+		if reflect.DeepEqual(triggeredArgs, fmtArgs) {
 			return nil
 		}
 	}
 
-	control.triggeredArgs = append(control.triggeredArgs, args)
+	control.triggeredArgs = append(control.triggeredArgs, fmtArgs)
 
-	logger.Warnf(control.WarnFmt, args...)
+	logger.Warnf(control.WarnFmt, fmtArgs...)
 
 	return nil
 }
