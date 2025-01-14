@@ -159,7 +159,7 @@ func newSliceValue[T comparable](valueType FlagType[T], envValue *string, valSep
 	var envHasBeenSet bool
 
 	if envValue != nil && splitter != nil {
-		value := sliceValue[T]{values: dest, valueType: valueType}
+		value := sliceValue[T]{values: dest, setter: setter, valueType: valueType}
 
 		vals := splitter(*envValue, valSep)
 		for _, val := range vals {

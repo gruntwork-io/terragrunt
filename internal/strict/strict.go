@@ -169,8 +169,8 @@ type Control struct {
 	Enabled bool
 	// Status of the strict control.
 	Status byte
-	// TriggeredArgs keeps arguments that have previously triggered a warning message.
-	TriggeredArgs [][]any
+	// triggeredArgs keeps arguments that have previously triggered a warning message.
+	triggeredArgs [][]any
 }
 
 func (control *Control) String() string {
@@ -191,13 +191,13 @@ func (control *Control) Evaluate(logger log.Logger, args ...any) error {
 		return nil
 	}
 
-	for _, TriggeredArgs := range control.TriggeredArgs {
-		if reflect.DeepEqual(TriggeredArgs, args) {
+	for _, triggeredArgs := range control.triggeredArgs {
+		if reflect.DeepEqual(triggeredArgs, args) {
 			return nil
 		}
 	}
 
-	control.TriggeredArgs = append(control.TriggeredArgs, args)
+	control.triggeredArgs = append(control.triggeredArgs, args)
 
 	logger.Warnf(control.WarnFmt, args...)
 
