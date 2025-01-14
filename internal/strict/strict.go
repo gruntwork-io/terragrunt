@@ -8,9 +8,7 @@
 package strict
 
 import (
-	"fmt"
 	"reflect"
-	"strings"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -24,8 +22,8 @@ const (
 	DeprecatedEnvVars ControlName = "deprecated-env-vars"
 	// DeprecatedCommands is the control that prevents the use of deprecated commands.
 	DeprecatedCommands ControlName = "deprecated-commands"
-	// DefaultCommand is the control that prevents the deprecated default command from being used.
-	DefaultCommand ControlName = "default-command"
+	// DeprecatedDefaultCommand is the control that prevents the deprecated default command from being used.
+	DeprecatedDefaultCommand ControlName = "deprecated-default-command"
 	// RootTerragruntHCL is the control that prevents usage of a `terragrunt.hcl` file as the root of Terragrunt configurations.
 	RootTerragruntHCL ControlName = "root-terragrunt-hcl"
 )
@@ -37,46 +35,49 @@ const (
 	StatusCompleted
 )
 
-const (
-	WarningCompletedControlsFmt = "The following strict control(s) are already completed: %s. Please remove any completed strict controls, as setting them no longer does anything. For a list of all ongoing strict controls, and the outcomes of previous strict controls, see https://terragrunt.gruntwork.io/docs/reference/strict-mode"
-)
-
+// ControlName represents a control name.
 type ControlName string
 
-type Controls map[ControlName]*Control
+// Controls is are multiple of `Control`.
+type Controls []*Control
 
 //nolint:lll
 func NewControls() Controls {
 	return Controls{
-		DeprecatedFlags: {
+		{
+			Name:     DeprecatedFlags,
 			ErrorFmt: "--%s` flag is no longer supported. Use `--%s` instead.",
 			WarnFmt:  "`--%s` flag is deprecated and will be removed in a future version. Use `--%s` instead.",
 		},
-		DeprecatedEnvVars: {
+		{
+			Name:     DeprecatedEnvVars,
 			ErrorFmt: "`--%s` env var is no longer supported. Use `--%s` instead.",
 			WarnFmt:  "`--%s` env var is deprecated and will be removed in a future version. Use `--%s` instead.",
 		},
-		DeprecatedCommands: {
+		{
+			Name:     DeprecatedCommands,
 			ErrorFmt: "`%s` command is no longer supported. Use `%s` instead.",
 			WarnFmt:  "`%s` command is deprecated and will be removed in a future version. Use `%s` instead.",
 		},
-		DefaultCommand: {
+		{
+			Name:     DeprecatedDefaultCommand,
 			ErrorFmt: "`%[1]s` command is not a valid Terragrunt command. Use `terragrunt run` to explicitly pass commands to OpenTofu/Terraform instead. e.g. `terragrunt run -- %[1]s`",
 			WarnFmt:  "`%[1]s` command is deprecated and will be removed in a future version. Use `terragrunt run -- %[1]s` instead.",
 		},
-		RootTerragruntHCL: {
-			ErrorFmt: fmt.Sprintf("Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer supported. Use a differently named file like `root.hcl` instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/migrating-from-root-terragrunt-hcl"),
+		{
+			Name:     RootTerragruntHCL,
+			ErrorFmt: "Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer supported. Use a differently named file like `root.hcl` instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/migrating-from-root-terragrunt-hcl",
 			WarnFmt:  "Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern, and no longer recommended. In a future version of Terragrunt, this will result in an error. You are advised to use a differently named file like `root.hcl` instead. For more information, see https://terragrunt.gruntwork.io/docs/migrate/migrating-from-root-terragrunt-hcl",
 		},
 	}
 }
 
-// Names returns the names of all strict controls.
+// Names returns all strict control names.
 func (controls Controls) Names() []string {
 	names := []string{}
 
-	for name := range controls {
-		names = append(names, string(name))
+	for _, control := range controls {
+		names = append(names, string(control.Name))
 	}
 
 	slices.Sort(names)
@@ -85,16 +86,27 @@ func (controls Controls) Names() []string {
 }
 
 // FindByStatus returns controls that have the given `Status`.
-func (controls Controls) FindByStatus(Status byte) Controls {
-	var found = make(Controls)
+func (controls Controls) FindByStatus(status byte) Controls {
+	var found Controls
 
-	for name, control := range controls {
-		if control.Status == Status {
-			found[name] = control
+	for _, control := range controls {
+		if control.Status == status {
+			found = append(found, control)
 		}
 	}
 
 	return found
+}
+
+// Find searches and returns the control by the given `name`.
+func (controls Controls) Find(name ControlName) *Control {
+	for _, control := range controls {
+		if control.Name == name {
+			return control
+		}
+	}
+
+	return nil
 }
 
 // EnableStrictMode enables the strict mode.
@@ -104,9 +116,9 @@ func (controls Controls) EnableStrictMode() {
 	}
 }
 
-// EnableControl validates that the specified control name is valid and sets the Enabled Status for this control.
+// EnableControl validates that the specified control name is valid and enables this control.
 func (controls Controls) EnableControl(name string) error {
-	if control, ok := controls[ControlName(name)]; ok {
+	if control := controls.Find(ControlName(name)); control != nil {
 		control.Enabled = true
 
 		return nil
@@ -117,11 +129,11 @@ func (controls Controls) EnableControl(name string) error {
 
 // NotifyCompletedControls logs the control names that are Enabled and have completed Status.
 func (controls Controls) NotifyCompletedControls(logger log.Logger) {
-	var completed = make(Controls)
+	var completed Controls
 
-	for name, control := range controls.FindByStatus(StatusCompleted) {
+	for _, control := range controls.FindByStatus(StatusCompleted) {
 		if control.Enabled {
-			completed[name] = control
+			completed = append(completed, control)
 		}
 	}
 
@@ -129,13 +141,13 @@ func (controls Controls) NotifyCompletedControls(logger log.Logger) {
 		return
 	}
 
-	logger.Warnf(WarningCompletedControlsFmt, strings.Join(completed.Names(), ", "))
+	logger.Warnf(NewCompletedControlsError(completed.Names()).Error())
 }
 
 // Evaluate returns an error if the control is Enabled otherwise logs the warning message and returns nil.
 // If the control is not found, returns nil.
 func (controls Controls) Evaluate(logger log.Logger, name ControlName, args ...any) error {
-	if control, ok := controls.FindByStatus(StatusOngoing)[ControlName(name)]; ok {
+	if control := controls.FindByStatus(StatusOngoing).Find(name); control != nil {
 		if err := control.Evaluate(logger, args...); err != nil {
 			return err
 		}
@@ -147,16 +159,22 @@ func (controls Controls) Evaluate(logger log.Logger, name ControlName, args ...a
 // Control represents a control that can be Enabled or disabled in strict mode.
 // When the control is Enabled, Terragrunt will behave in a way that is not backwards compatible.
 type Control struct {
+	// Name is the name of the control.
+	Name ControlName
 	// ErrorFmt is the error that will be returned when the control is Enabled.
 	ErrorFmt string
 	// WarnFmt is a warning that will be logged when the control is not Enabled.
 	WarnFmt string
-	// Status of the strict control.
-	Status byte
 	// Enabled indicates that the control is Enabled.
 	Enabled bool
+	// Status of the strict control.
+	Status byte
 	// TriggeredArgs keeps arguments that have previously triggered a warning message.
 	TriggeredArgs [][]any
+}
+
+func (control *Control) String() string {
+	return string(control.Name)
 }
 
 // Evaluate returns an error if the control is Enabled otherwise logs the warning message returns nil.

@@ -815,8 +815,7 @@ func terragruntAlreadyInit(opts *options.TerragruntOptions, configPath string, c
 			workingDir = filepath.Dir(configPath)
 		}
 	} else {
-		experiment := opts.Experiments[experiment.Symlinks]
-		walkWithSymlinks := experiment.Evaluate(opts.ExperimentMode)
+		walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
 
 		terraformSource, err := tf.NewSource(sourceURL, opts.DownloadDir, opts.WorkingDir, opts.Logger, walkWithSymlinks)
 		if err != nil {

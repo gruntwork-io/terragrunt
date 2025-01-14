@@ -455,7 +455,7 @@ func PartialParseConfig(ctx *ParsingContext, file *hclparse.File, includeFromChi
 				output.IamWebIdentityToken = *decoded.IamWebIdentityToken
 			}
 		case TerragruntInputs:
-			if exp, ok := ctx.TerragruntOptions.Experiments[experiment.SkipDependenciesInputs]; ok && !exp.Evaluate(ctx.TerragruntOptions.ExperimentMode) {
+			if ctx.TerragruntOptions.Experiments.Evaluate(experiment.SkipDependenciesInputs) {
 				ctx.TerragruntOptions.Logger.Warnf("Skipping inputs reading from %v inputs for better performance", file.ConfigPath)
 
 				break

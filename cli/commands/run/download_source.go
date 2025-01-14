@@ -35,8 +35,7 @@ const fileURIScheme = "file://"
 // See the NewTerraformSource method for how we determine the temporary folder so we can reuse it across multiple
 // runs of Terragrunt to avoid downloading everything from scratch every time.
 func downloadTerraformSource(ctx context.Context, source string, opts *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (*options.TerragruntOptions, error) {
-	experiment := opts.Experiments[experiment.Symlinks]
-	walkWithSymlinks := experiment.Evaluate(opts.ExperimentMode)
+	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
 
 	terraformSource, err := tf.NewSource(source, opts.DownloadDir, opts.WorkingDir, opts.Logger, walkWithSymlinks)
 	if err != nil {

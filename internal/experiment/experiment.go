@@ -8,45 +8,9 @@
 package experiment
 
 import (
-	"strings"
-
-	"github.com/gruntwork-io/terragrunt/internal/errors"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
+	"golang.org/x/exp/slices"
 )
-
-// NewExperiments returns a new Experiments map with all experiments disabled.
-//
-// Bottom values for each experiment are the defaults, so only the names of experiments need to be set.
-func NewExperiments() Experiments {
-	return Experiments{
-		Symlinks: Experiment{
-			Name: Symlinks,
-		},
-		CLIRedesign: Experiment{
-			Name: CLIRedesign,
-		},
-		Stacks: Experiment{
-			Name: Stacks,
-		},
-		SkipDependenciesInputs: Experiment{
-			Name: SkipDependenciesInputs,
-		},
-	}
-}
-
-// Experiment represents an experiment that can be enabled.
-// When the experiment is enabled, Terragrunt will behave in a way that uses some experimental functionality.
-type Experiment struct {
-	// Enabled determines if the experiment is enabled.
-	Enabled bool
-	// Name is the name of the experiment.
-	Name string
-	// Status is the status of the experiment.
-	Status int
-}
-
-func (e Experiment) String() string {
-	return e.Name
-}
 
 const (
 	// Symlinks is the experiment that allows symlinks to be used in Terragrunt configurations.
@@ -61,94 +25,130 @@ const (
 
 const (
 	// StatusOngoing is the status of an experiment that is ongoing.
-	StatusOngoing = iota
+	StatusOngoing byte = iota
 	// StatusCompleted is the status of an experiment that is completed.
 	StatusCompleted
 )
 
-type Experiments map[string]Experiment
+type Experiments []*Experiment
 
-// ValidateExperimentNames validates the given slice of experiment names are valid.
-func (e *Experiments) ValidateExperimentNames(experimentNames []string) (string, error) {
-	completedExperiments := []string{}
-	invalidExperiments := []string{}
-
-	for _, name := range experimentNames {
-		experiment, ok := (*e)[name]
-		if !ok {
-			invalidExperiments = append(invalidExperiments, name)
-			continue
-		}
-
-		if experiment.Status == StatusCompleted {
-			completedExperiments = append(completedExperiments, name)
-		}
+// NewExperiments returns a new Experiments map with all experiments disabled.
+//
+// Bottom values for each experiment are the defaults, so only the names of experiments need to be set.
+func NewExperiments() Experiments {
+	return Experiments{
+		{
+			Name: Symlinks,
+		},
+		{
+			Name: CLIRedesign,
+		},
+		{
+			Name: Stacks,
+		},
+		{
+			Name: SkipDependenciesInputs,
+		},
 	}
-
-	var warning string
-	if len(completedExperiments) > 0 {
-		warning = CompletedExperimentsWarning{
-			ExperimentNames: completedExperiments,
-		}.String()
-	}
-
-	var err error
-	if len(invalidExperiments) > 0 {
-		err = errors.New(InvalidExperimentsError{
-			ExperimentNames: invalidExperiments,
-		})
-	}
-
-	return warning, err
 }
 
-// EnableExperiments enables the given experiments.
-func (e *Experiments) EnableExperiments(experimentNames []string) error {
-	invalidExperiments := []string{}
+// Names returns all experiment names.
+func (exps Experiments) Names() []string {
+	names := []string{}
 
-	for _, name := range experimentNames {
-		experiment, ok := (*e)[name]
-		if !ok {
-			invalidExperiments = append(invalidExperiments, name)
-			continue
-		}
-
-		experiment.Enabled = true
-		(*e)[name] = experiment
+	for _, exp := range exps {
+		names = append(names, exp.Name)
 	}
 
-	if len(invalidExperiments) > 0 {
-		return errors.New(InvalidExperimentsError{
-			ExperimentNames: invalidExperiments,
-		})
+	slices.Sort(names)
+
+	return names
+}
+
+// FindByStatus returns experiments that have the given `Status`.
+func (exps Experiments) FindByStatus(status byte) Experiments {
+	var found Experiments
+
+	for _, experiment := range exps {
+		if experiment.Status == status {
+			found = append(found, experiment)
+		}
+	}
+
+	return found
+}
+
+// Find searches and returns the experiment by the given `name`.
+func (exps Experiments) Find(name string) *Experiment {
+	for _, experiment := range exps {
+		if experiment.Name == name {
+			return experiment
+		}
 	}
 
 	return nil
 }
 
-// CompletedExperimentsWarning is a warning that is returned when completed experiments are requested.
-type CompletedExperimentsWarning struct {
-	ExperimentNames []string
+// ExperimentMode enables the experiment mode.
+func (exps Experiments) ExperimentMode() {
+	for _, experiment := range exps.FindByStatus(StatusOngoing) {
+		experiment.Enabled = true
+	}
 }
 
-func (e CompletedExperimentsWarning) String() string {
-	return "The following experiment(s) are already completed: " + strings.Join(e.ExperimentNames, ", ") + ". Please remove any completed experiments, as setting them no longer does anything. For a list of all ongoing experiments, and the outcomes of previous experiments, see https://terragrunt.gruntwork.io/docs/reference/experiments"
-}
+// EnableExperiment validates that the specified experiment name is valid and enables this experiment.
+func (exps Experiments) EnableExperiment(name string) error {
+	if experiment := exps.Find(name); experiment != nil {
+		experiment.Enabled = true
 
-// InvalidExperimentsError is an error that is returned when an invalid experiments are requested.
-type InvalidExperimentsError struct {
-	ExperimentNames []string
-}
-
-func (e InvalidExperimentsError) Error() string {
-	return "The following experiment(s) are invalid: " + strings.Join(e.ExperimentNames, ", ") + ". For a list of all valid experiments, see https://terragrunt.gruntwork.io/docs/reference/experiments"
-}
-
-// Evaluate returns true if either the experiment is enabled, or experiment mode is enabled.
-func (e Experiment) Evaluate(experimentMode bool) bool {
-	if experimentMode {
-		return true
+		return nil
 	}
 
-	return e.Enabled
+	return NewInvalidExperimentNameError(exps.FindByStatus(StatusOngoing).Names())
+}
+
+// NotifyCompletedExperiments logs the experiment names that are Enabled and have completed Status.
+func (exps Experiments) NotifyCompletedExperiments(logger log.Logger) {
+	var completed Experiments
+
+	for _, experiment := range exps.FindByStatus(StatusCompleted) {
+		if experiment.Enabled {
+			completed = append(completed, experiment)
+		}
+	}
+
+	if len(completed) == 0 {
+		return
+	}
+
+	logger.Warnf(NewCompletedExperimentsError(completed.Names()).Error())
+}
+
+// Evaluate returns true if the experiment is found and enabled otherwise returns false.
+func (exps Experiments) Evaluate(name string) bool {
+	if experiment := exps.FindByStatus(StatusOngoing).Find(name); experiment != nil {
+		return experiment.Evaluate()
+	}
+
+	return false
+}
+
+// Experiment represents an experiment that can be enabled.
+// When the experiment is enabled, Terragrunt will behave in a way that uses some experimental functionality.
+type Experiment struct {
+	// Name is the name of the experiment.
+	Name string
+	// Enabled determines if the experiment is enabled.
+	Enabled bool
+	// Status is the status of the experiment.
+	Status byte
+}
+
+func (exps Experiment) String() string {
+	return exps.Name
+}
+
+// Evaluate returns true the experiment is enabled.
+func (exps Experiment) Evaluate() bool {
+	return exps.Enabled
 }

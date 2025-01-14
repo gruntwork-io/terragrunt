@@ -31,7 +31,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Flags:                NewFlags(opts),
 		ErrorOnUndefinedFlag: true,
 		Action: func(ctx *cli.Context) error {
-			if exp, ok := opts.Experiments[experiment.CLIRedesign]; ok && !exp.Evaluate(opts.ExperimentMode) {
+			if !opts.Experiments.Evaluate(experiment.CLIRedesign) {
 				return cli.NewExitError(errors.Errorf("requires that the %[1]s experiment is enabled. e.g. --experiment %[1]s", experiment.CLIRedesign), cli.ExitCodeGeneralError)
 			}
 
@@ -60,7 +60,7 @@ func Action(opts *options.TerragruntOptions) cli.ActionFunc {
 		}
 
 		if ctx.Command.Name != CommandName {
-			if err := opts.StrictControls.Evaluate(opts.Logger, strict.DefaultCommand, opts.TerraformCommand); err != nil {
+			if err := opts.StrictControls.Evaluate(opts.Logger, strict.DeprecatedDefaultCommand, opts.TerraformCommand); err != nil {
 				return cli.NewExitError(err, cli.ExitCodeGeneralError)
 			}
 		}

@@ -26,8 +26,7 @@ type ParsedVariable struct {
 
 // ParseVariables - parse variables from tf files.
 func ParseVariables(opts *options.TerragruntOptions, directoryPath string) ([]*ParsedVariable, error) {
-	experiment := opts.Experiments[experiment.Symlinks]
-	walkWithSymlinks := experiment.Evaluate(opts.ExperimentMode)
+	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
 
 	// list all tf files
 	tfFiles, err := util.ListTfFiles(directoryPath, walkWithSymlinks)

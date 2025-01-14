@@ -30,7 +30,7 @@ func TestStrictMode(t *testing.T) {
 			name:           "plan-all",
 			controls:       []string{},
 			strictMode:     false,
-			expectedStderr: fmt.Sprintf(strict.NewControls()[strict.DeprecatedCommands].WarnFmt, "plan-all", "terragrunt run-all plan"),
+			expectedStderr: fmt.Sprintf(strict.NewControls().Find(strict.DeprecatedCommands).WarnFmt, "plan-all", "terragrunt run-all plan"),
 			expectedError:  nil,
 		},
 		{
@@ -38,7 +38,7 @@ func TestStrictMode(t *testing.T) {
 			controls:       []string{"deprecated-commands"},
 			strictMode:     false,
 			expectedStderr: "",
-			expectedError:  errors.Errorf(strict.NewControls()[strict.DeprecatedCommands].ErrorFmt, "plan-all", "terragrunt run-all plan"),
+			expectedError:  errors.Errorf(strict.NewControls().Find(strict.DeprecatedCommands).ErrorFmt, "plan-all", "terragrunt run-all plan"),
 		},
 		{
 			name:           "plan-all with strict mode",
@@ -94,18 +94,18 @@ func TestRootTerragruntHCLStrictMode(t *testing.T) {
 		{
 			name:           "root terragrunt.hcl",
 			strictMode:     false,
-			expectedStderr: strict.NewControls()[strict.RootTerragruntHCL].WarnFmt,
+			expectedStderr: strict.NewControls().Find(strict.RootTerragruntHCL).WarnFmt,
 		},
 		{
 			name:          "root terragrunt.hcl with root-terragrunt-hcl strict control",
 			controls:      []string{"root-terragrunt-hcl"},
 			strictMode:    false,
-			expectedError: errors.New(strict.NewControls()[strict.RootTerragruntHCL].ErrorFmt),
+			expectedError: errors.New(strict.NewControls().Find(strict.RootTerragruntHCL).ErrorFmt),
 		},
 		{
 			name:          "root terragrunt.hcl with strict mode",
 			strictMode:    true,
-			expectedError: errors.New(strict.NewControls()[strict.RootTerragruntHCL].ErrorFmt),
+			expectedError: errors.New(strict.NewControls().Find(strict.RootTerragruntHCL).ErrorFmt),
 		},
 	}
 

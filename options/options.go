@@ -363,9 +363,6 @@ type TerragruntOptions struct {
 	// StrictControls is a slice of strict controls.
 	StrictControls strict.Controls `clone:"shadowcopy"`
 
-	// ExperimentMode is a flag to enable experiment mode for terragrunt.
-	ExperimentMode bool
-
 	// Experiments is a map of experiments, and their status.
 	Experiments experiment.Experiments `clone:"shadowcopy"`
 
@@ -505,9 +502,8 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		JSONOutputFolder:           "",
 		FeatureFlags:               xsync.NewMapOf[string, string](),
 		ReadFiles:                  xsync.NewMapOf[string, []string](),
-		ExperimentMode:             false,
-		Experiments:                experiment.NewExperiments(),
 		StrictControls:             strict.NewControls(),
+		Experiments:                experiment.NewExperiments(),
 	}
 }
 

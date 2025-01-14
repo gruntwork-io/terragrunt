@@ -664,10 +664,8 @@ func GetDefaultConfigPath(workingDir string) string {
 func FindConfigFilesInPath(rootPath string, opts *options.TerragruntOptions) ([]string, error) {
 	configFiles := []string{}
 
-	experiment := opts.Experiments[experiment.Symlinks]
-
 	walkFunc := filepath.Walk
-	if experiment.Evaluate(opts.ExperimentMode) {
+	if opts.Experiments.Evaluate(experiment.Symlinks) {
 		walkFunc = util.WalkWithSymlinks
 	}
 

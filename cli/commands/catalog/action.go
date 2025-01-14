@@ -37,8 +37,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions, repoURL string) e
 
 	var modules module.Modules
 
-	experiment := opts.Experiments[experiment.Symlinks]
-	walkWithSymlinks := experiment.Evaluate(opts.ExperimentMode)
+	walkWithSymlinks := opts.Experiments.Evaluate(experiment.Symlinks)
 
 	for _, repoURL := range repoURLs {
 		tempDir := filepath.Join(os.TempDir(), fmt.Sprintf(tempDirFormat, util.EncodeBase64Sha1(repoURL)))

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -26,9 +27,8 @@ const (
 
 // RunGenerate runs the stack command.
 func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
-	stacksEnabled := opts.Experiments[experiment.Stacks]
-	if !stacksEnabled.Enabled {
-		return errors.New("stacks experiment is not enabled use --experiment stacks to enable it")
+	if !opts.Experiments.Evaluate(experiment.Stacks) {
+		return cli.NewExitError(errors.New("stacks experiment is not enabled use --experiment stacks to enable it"), cli.ExitCodeGeneralError)
 	}
 
 	return generateStack(ctx, opts)

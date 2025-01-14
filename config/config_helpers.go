@@ -586,8 +586,7 @@ func getWorkingDir(ctx *ParsingContext) (string, error) {
 		return ctx.TerragruntOptions.WorkingDir, nil
 	}
 
-	experiment := ctx.TerragruntOptions.Experiments[experiment.Symlinks]
-	walkWithSymlinks := experiment.Evaluate(ctx.TerragruntOptions.ExperimentMode)
+	walkWithSymlinks := ctx.TerragruntOptions.Experiments.Evaluate(experiment.Symlinks)
 
 	source, err := tf.NewSource(sourceURL, ctx.TerragruntOptions.DownloadDir, ctx.TerragruntOptions.WorkingDir, ctx.TerragruntOptions.Logger, walkWithSymlinks)
 	if err != nil {

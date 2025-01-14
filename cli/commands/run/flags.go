@@ -422,7 +422,9 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			Hidden:  true,
 			Action: func(_ *cli.Context, _ bool) error {
 
-				if err := opts.StrictControls.Evaluate(opts.Logger, strict.DeprecatedFlags, TerragruntTfLogJSONFlagName, flags.LogCustomFormatFlagName+"="+format.JSONFormatName); err != nil {
+				newFlagName := flags.LogCustomFormatFlagName + "=" + format.JSONFormatName
+
+				if err := opts.StrictControls.Evaluate(opts.Logger, strict.DeprecatedFlags, TerragruntTfLogJSONFlagName, newFlagName); err != nil {
 					return cli.NewExitError(err, cli.ExitCodeGeneralError)
 				}
 

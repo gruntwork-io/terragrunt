@@ -52,7 +52,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Flags:                NewFlags(opts, cmdOpts).Sort(),
 		ErrorOnUndefinedFlag: true,
 		Action: func(ctx *cli.Context) error {
-			if exp, ok := opts.Experiments[experiment.CLIRedesign]; ok && !exp.Evaluate(opts.ExperimentMode) {
+			if !opts.Experiments.Evaluate(experiment.CLIRedesign) {
 				return cli.NewExitError(errors.Errorf("requires that the %[1]s experiment is enabled. e.g. --experiment %[1]s", experiment.CLIRedesign), cli.ExitCodeGeneralError)
 			}
 

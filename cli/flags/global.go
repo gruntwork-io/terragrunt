@@ -7,7 +7,6 @@ import (
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -114,31 +113,22 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 		// Experiment Mode flags
 
 		&cli.BoolFlag{
-			Name:        ExperimentModeFlagName,
-			EnvVars:     EnvVars(ExperimentModeFlagName),
-			Destination: &opts.ExperimentMode,
-			Usage:       "Enables experiment mode for Terragrunt. For more information, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
+			Name:    ExperimentModeFlagName,
+			EnvVars: EnvVars(ExperimentModeFlagName),
+			Usage:   "Enables experiment mode for Terragrunt. For more information, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
+			Setter: func(_ bool) error {
+				opts.Experiments.ExperimentMode()
+
+				return nil
+			},
 		},
 		&cli.SliceFlag[string]{
 			Name:    ExperimentFlagName,
 			EnvVars: EnvVars(ExperimentFlagName),
 			Usage:   "Enables specific experiments. For a list of available experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
+			Setter:  opts.Experiments.EnableExperiment,
 			Action: func(_ *cli.Context, val []string) error {
-				experiments := experiment.NewExperiments()
-				warning, err := experiments.ValidateExperimentNames(val)
-				if err != nil {
-					return cli.NewExitError(err, 1)
-				}
-
-				if warning != "" {
-					log.Warn(warning)
-				}
-
-				if err := experiments.EnableExperiments(val); err != nil {
-					return cli.NewExitError(err, 1)
-				}
-
-				opts.Experiments = experiments
+				opts.Experiments.NotifyCompletedExperiments(opts.Logger)
 
 				return nil
 			},
@@ -179,7 +169,9 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Action: func(_ *cli.Context, _ bool) error {
 				opts.LogFormatter.SetPlaceholders(format.NewKeyValueFormatPlaceholders())
 
-				if err := opts.StrictControls.Evaluate(opts.Logger, strict.DeprecatedFlags, TerragruntDisableLogFormattingFlagName, LogCustomFormatFlagName+"="+format.KeyValueFormatName); err != nil {
+				newFlagName := LogCustomFormatFlagName + "=" + format.KeyValueFormatName
+
+				if err := opts.StrictControls.Evaluate(opts.Logger, strict.DeprecatedFlags, TerragruntDisableLogFormattingFlagName, newFlagName); err != nil {
 					return cli.NewExitError(err, cli.ExitCodeGeneralError)
 				}
 
@@ -195,7 +187,9 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Action: func(_ *cli.Context, _ bool) error {
 				opts.LogFormatter.SetPlaceholders(format.NewJSONFormatPlaceholders())
 
-				if err := opts.StrictControls.Evaluate(opts.Logger, strict.DeprecatedFlags, TerragruntJSONLogFlagName, LogCustomFormatFlagName+"="+format.JSONFormatName); err != nil {
+				newFlagName := LogCustomFormatFlagName + "=" + format.JSONFormatName
+
+				if err := opts.StrictControls.Evaluate(opts.Logger, strict.DeprecatedFlags, TerragruntJSONLogFlagName, newFlagName); err != nil {
 					return cli.NewExitError(err, cli.ExitCodeGeneralError)
 				}
 
