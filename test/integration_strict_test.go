@@ -102,11 +102,7 @@ func TestRootTerragruntHCLStrictMode(t *testing.T) {
 			strictMode:    false,
 			expectedError: errors.New(strict.NewControls().Find(strict.RootTerragruntHCL).ErrorFmt),
 		},
-		{
-			name:          "root terragrunt.hcl with strict mode",
-			strictMode:    true,
-			expectedError: errors.New(strict.NewControls().Find(strict.RootTerragruntHCL).ErrorFmt),
-		},
+		// we cannot test `-strict-mode` flag, since we cannot know at which strict control TG will output the error.
 	}
 
 	for _, tt := range tc {

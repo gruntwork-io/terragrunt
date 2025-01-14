@@ -3032,7 +3032,7 @@ func TestDependenciesOptimisation(t *testing.T) {
 	config.ClearOutputCache()
 
 	moduleC := util.JoinPath(tmpEnvPath, testFixtureDependenciesOptimisation, "module-c")
-	t.Setenv("TERRAGRUNT_STRICT_CONTROL", "skip-dependencies-inputs")
+	t.Setenv("TERRAGRUNT_EXPERIMENT", "skip-dependencies-inputs")
 	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-log-level trace --terragrunt-working-dir "+moduleC)
 	require.NoError(t, err)
 

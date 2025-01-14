@@ -112,7 +112,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 
 		// Experiment Mode flags
 
-		&cli.BoolFlag{
+		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
 			Name:    ExperimentModeFlagName,
 			EnvVars: EnvVars(ExperimentModeFlagName),
 			Usage:   "Enables experiment mode for Terragrunt. For more information, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
@@ -121,8 +121,8 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 
 				return nil
 			},
-		},
-		&cli.SliceFlag[string]{
+		}),
+		SliceWithDeprecatedFlag(opts, &cli.SliceFlag[string]{
 			Name:    ExperimentFlagName,
 			EnvVars: EnvVars(ExperimentFlagName),
 			Usage:   "Enables specific experiments. For a list of available experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
@@ -132,7 +132,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 
 				return nil
 			},
-		},
+		}),
 
 		// Strict Mode flags.
 
