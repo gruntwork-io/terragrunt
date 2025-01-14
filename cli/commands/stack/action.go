@@ -43,6 +43,10 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 		return errors.New("stacks experiment is not enabled use --experiment stacks to enable it")
 	}
 
+	if err := RunGenerate(ctx, opts); err != nil {
+		return err
+	}
+
 	// prepare options for execution
 	// navigate to stack directory
 	opts.WorkingDir = filepath.Join(opts.WorkingDir, stackDir)
