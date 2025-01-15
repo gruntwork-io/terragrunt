@@ -5,6 +5,7 @@ package remote_test
 import (
 	"testing"
 
+	"cloud.google.com/go/storage"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/stretchr/testify/assert"
@@ -139,6 +140,7 @@ func TestValidateGCSConfig(t *testing.T) {
 		config             map[string]interface{}
 		expectedError      string
 		skipBucketCreation bool
+		bucketExists       bool
 	}{
 		{
 			name: "Valid config with project and location",
@@ -149,24 +151,27 @@ func TestValidateGCSConfig(t *testing.T) {
 			},
 			expectedError:      "",
 			skipBucketCreation: false,
+			bucketExists:       true,
 		},
 		{
-			name: "Missing project when bucket creation not skipped",
+			name: "Missing project when bucket does not exist and creation not skipped",
 			config: map[string]interface{}{
 				"bucket":   "test-bucket",
 				"location": "US",
 			},
 			expectedError:      "Missing required GCS remote state configuration project",
 			skipBucketCreation: false,
+			bucketExists:       false,
 		},
 		{
-			name: "Missing location when bucket creation not skipped",
+			name: "Missing location when bucket does not exist and creation not skipped",
 			config: map[string]interface{}{
 				"bucket":  "test-bucket",
 				"project": "test-project",
 			},
 			expectedError:      "Missing required GCS remote state configuration location",
 			skipBucketCreation: false,
+			bucketExists:       false,
 		},
 		{
 			name: "Skip bucket creation allows missing project and location",
@@ -175,6 +180,25 @@ func TestValidateGCSConfig(t *testing.T) {
 			},
 			expectedError:      "",
 			skipBucketCreation: true,
+			bucketExists:       false,
+		},
+		{
+			name: "Existing bucket without project and location",
+			config: map[string]interface{}{
+				"bucket": "test-bucket",
+			},
+			expectedError:      "",
+			skipBucketCreation: false,
+			bucketExists:       true,
+		},
+		{
+			name: "Non-existing bucket without project and location",
+			config: map[string]interface{}{
+				"bucket": "test-bucket",
+			},
+			expectedError:      "Missing required GCS remote state configuration project",
+			skipBucketCreation: false,
+			bucketExists:       false,
 		},
 	}
 
@@ -186,6 +210,23 @@ func TestValidateGCSConfig(t *testing.T) {
 			// Add skip_bucket_creation to the config if specified
 			if tc.skipBucketCreation {
 				tc.config["skip_bucket_creation"] = true
+			}
+
+			// Mock the CreateGCSClient and DoesGCSBucketExist functions
+			originalCreateGCSClient := remote.CreateGCSClient
+			originalDoesGCSBucketExist := remote.DoesGCSBucketExist
+			defer func() {
+				remote.CreateGCSClient = originalCreateGCSClient
+				remote.DoesGCSBucketExist = originalDoesGCSBucketExist
+			}()
+
+			remote.CreateGCSClient = func(config remote.RemoteStateConfigGCS) (*storage.Client, error) {
+				// Return a mock client
+				return &storage.Client{}, nil
+			}
+
+			remote.DoesGCSBucketExist = func(client *storage.Client, config *remote.RemoteStateConfigGCS) bool {
+				return tc.bucketExists
 			}
 
 			// Parse the config

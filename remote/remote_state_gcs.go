@@ -274,22 +274,42 @@ func ParseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteState
 	return &extendedConfig, nil
 }
 
-// Validate all the parameters of the given GCS remote state configuration
+// ValidateGCSConfig validates the configuration for GCS remote state
 func ValidateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS) error {
-	var config = extendedConfig.remoteStateConfigGCS
+	config := extendedConfig.remoteStateConfigGCS
 
+	// Check if bucket is specified
 	if config.Bucket == "" {
 		return errors.New(MissingRequiredGCSRemoteStateConfig("bucket"))
 	}
 
-	// If bucket creation is not skipped, project and location are required in the `remote_state` config block.
-	if !extendedConfig.SkipBucketCreation {
-		if extendedConfig.Project == "" {
-			return errors.New(MissingRequiredGCSRemoteStateConfig("project"))
-		}
+	// If skip_bucket_creation is true, we don't need to validate project and location or bucket existence
+	// The bucket is assumed to be created by the user, or exists in the environment
+	if extendedConfig.SkipBucketCreation {
+		return nil
+	}
 
-		if extendedConfig.Location == "" {
-			return errors.New(MissingRequiredGCSRemoteStateConfig("location"))
+	// If project or location is not specified, try to validate bucket existence
+	if extendedConfig.Project == "" || extendedConfig.Location == "" {
+		// Create a GCS client to check bucket existence
+		gcsClient, err := CreateGCSClient(config)
+		if err != nil {
+			return fmt.Errorf("error creating GCS client: %v", err)
+		}
+		defer gcsClient.Close()
+
+		// Check if the bucket exists
+		bucketExists := DoesGCSBucketExist(gcsClient, &config)
+		if !bucketExists {
+			// If bucket doesn't exist and project is missing, return error
+			if extendedConfig.Project == "" {
+				return errors.New(MissingRequiredGCSRemoteStateConfig("project"))
+			}
+
+			// If bucket doesn't exist and location is missing, return error
+			if extendedConfig.Location == "" {
+				return errors.New(MissingRequiredGCSRemoteStateConfig("location"))
+			}
 		}
 	}
 
@@ -463,7 +483,7 @@ func WaitUntilGCSBucketExists(gcsClient *storage.Client, config *RemoteStateConf
 
 // DoesGCSBucketExist returns true if the GCS bucket specified in the given config exists and the current user has the
 // ability to access it.
-func DoesGCSBucketExist(gcsClient *storage.Client, config *RemoteStateConfigGCS) bool {
+var DoesGCSBucketExist = func(gcsClient *storage.Client, config *RemoteStateConfigGCS) bool {
 	ctx := context.Background()
 
 	// Creates a Bucket instance.
@@ -487,7 +507,7 @@ func DoesGCSBucketExist(gcsClient *storage.Client, config *RemoteStateConfigGCS)
 }
 
 // CreateGCSClient creates an authenticated client for GCS
-func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, error) {
+var CreateGCSClient = func(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, error) {
 	ctx := context.Background()
 
 	var opts []option.ClientOption
