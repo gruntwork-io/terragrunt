@@ -59,13 +59,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "The path to the directory of Terragrunt configurations. Default is current directory.",
 		}),
 		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
-			Name:        LogDisableFlagName,
-			EnvVars:     EnvVars(LogDisableFlagName),
-			Usage:       "Disable logging.",
-			Destination: &opts.LogFormatter.DisableOutput,
-			Action: func(_ *cli.Context, _ bool) error {
+			Name:    LogDisableFlagName,
+			EnvVars: EnvVars(LogDisableFlagName),
+			Usage:   "Disable logging.",
+			Setter: func(val bool) error {
+				opts.Logger.Formatter().SetDisabledOutput(val)
 				opts.ForwardTFStdout = true
-
 				return nil
 			},
 		}),
@@ -76,16 +75,19 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "Show absolute paths in logs.",
 		}),
 		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
-			Name:        NoColorFlagName,
-			EnvVars:     EnvVars(NoColorFlagName),
-			Destination: &opts.LogFormatter.DisableColors,
-			Usage:       "Disable color output.",
+			Name:    NoColorFlagName,
+			EnvVars: EnvVars(NoColorFlagName),
+			Usage:   "Disable color output.",
+			Setter: func(val bool) error {
+				opts.Logger.Formatter().SetDisabledColors(val)
+				return nil
+			},
 		}),
 		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
 			Name:    LogFormatFlagName,
 			EnvVars: EnvVars(LogFormatFlagName),
 			Usage:   "Set the log format.",
-			Setter:  opts.LogFormatter.SetFormat,
+			Setter:  opts.Logger.Formatter().SetFormat,
 			Action: func(_ *cli.Context, val string) error {
 				switch val {
 				case format.BareFormatName:
@@ -101,7 +103,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:    LogCustomFormatFlagName,
 			EnvVars: EnvVars(LogCustomFormatFlagName),
 			Usage:   "Set the custom log formatting.",
-			Setter:  opts.LogFormatter.SetCustomFormat,
+			Setter:  opts.Logger.Formatter().SetCustomFormat,
 		}),
 		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
 			Name:        NonInteractiveFlagName,
@@ -167,7 +169,9 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
 			Hidden:      true,
 			Action: func(_ *cli.Context, _ bool) error {
-				opts.LogFormatter.SetPlaceholders(format.NewKeyValueFormatPlaceholders())
+				if err := opts.Logger.Formatter().SetFormat(format.KeyValueFormatName); err != nil {
+					return err
+				}
 
 				newFlagName := LogCustomFormatFlagName + "=" + format.KeyValueFormatName
 
@@ -185,7 +189,9 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Usage:       "If specified, Terragrunt will output its logs in JSON format.",
 			Hidden:      true,
 			Action: func(_ *cli.Context, _ bool) error {
-				opts.LogFormatter.SetPlaceholders(format.NewJSONFormatPlaceholders())
+				if err := opts.Logger.Formatter().SetFormat(format.JSONFormatName); err != nil {
+					return err
+				}
 
 				newFlagName := LogCustomFormatFlagName + "=" + format.JSONFormatName
 
@@ -221,7 +227,7 @@ func NewLogLevelFlag(opts *options.TerragruntOptions) cli.Flag {
 
 			if collections.ListContainsElement(removedLevels, val) {
 				opts.ForwardTFStdout = true
-				opts.LogFormatter.DisableOutput = true
+				opts.Logger.Formatter().SetDisabledOutput(true)
 			}
 
 			return nil

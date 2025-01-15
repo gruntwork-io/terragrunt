@@ -303,7 +303,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	// Since Terragrunt and Terraform have the same `-no-color` flag,
 	// if a user specifies `-no-color` for Terragrunt, we should propagate it to Terraform as well.
-	if opts.LogFormatter.DisableColors {
+	if opts.Logger.Formatter().DisabledColors() {
 		args = append(args, tf.FlagNameNoColor)
 	}
 
@@ -333,12 +333,12 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 
 	opts.RootWorkingDir = filepath.ToSlash(workingDir)
 
-	if err := opts.LogFormatter.SetBaseDir(opts.RootWorkingDir); err != nil {
+	if err := opts.Logger.Formatter().SetBaseDir(opts.RootWorkingDir); err != nil {
 		return err
 	}
 
 	if opts.LogShowAbsPaths {
-		opts.LogFormatter.DisableRelativePaths()
+		opts.Logger.Formatter().DisableRelativePaths()
 	}
 
 	// --- Download Dir

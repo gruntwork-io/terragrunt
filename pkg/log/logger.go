@@ -23,6 +23,12 @@ type Logger interface {
 	// SetLevel parses and sets log level.
 	SetLevel(str string) error
 
+	// SetFormatter sets the logger formatter.
+	SetFormatter(formatter Formatter)
+
+	// SetFormatter returns the logger formatter.
+	Formatter() Formatter
+
 	// WithOptions clones and sets the given options for the new instance.
 	// In other words, it is a combination of two methods, `log.Clone().SetOptions(...)`, but
 	// unlike `SetOptions(...)`, it returns the instance, which is convenient for further actions.
@@ -116,6 +122,7 @@ type Logger interface {
 
 type logger struct {
 	*logrus.Entry
+	formatter Formatter
 }
 
 // New returns a new Logger instance.
@@ -142,6 +149,17 @@ func (logger *logger) SetOptions(opts ...Option) {
 	for _, opt := range opts {
 		opt(logger)
 	}
+}
+
+// SetFormatter sets the logger formatter.
+func (logger *logger) SetFormatter(formatter Formatter) {
+	logger.formatter = formatter
+	logger.Logger.SetFormatter(&fromLogrusFormatter{Formatter: formatter})
+}
+
+// SetFormatter returns the logger formatter.
+func (logger *logger) Formatter() Formatter {
+	return logger.formatter
 }
 
 // WithOptions implements the Logger interface method.

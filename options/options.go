@@ -133,17 +133,14 @@ type TerragruntOptions struct {
 	// Unlike `WorkingDir`, this path is the same for all dependencies and points to the root working directory specified in the CLI.
 	RootWorkingDir string
 
-	// Basic log entry
-	Logger log.Logger
+	// Logger is an interface for logging events.
+	Logger log.Logger `clone:"shadowcopy"`
 
 	// Output Terragrunt logs in JSON format
 	JSONLogFormat bool
 
 	// Disable replacing full paths in logs with short relative paths
 	LogShowAbsPaths bool
-
-	// Log formatter
-	LogFormatter *format.Formatter `clone:"shadowcopy"`
 
 	// If true, logs will be displayed in formatter key/value, by default logs are formatted in human-readable formatter.
 	DisableLogFormatting bool
@@ -453,19 +450,20 @@ func NewTerragruntOptions() *TerragruntOptions {
 }
 
 func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOptions {
-	var logFormatter = format.NewFormatter(format.NewPrettyFormatPlaceholders())
-
 	return &TerragruntOptions{
-		TerraformPath:                  DefaultWrappedPath,
-		ExcludesFile:                   defaultExcludesFile,
-		OriginalTerraformCommand:       "",
-		TerraformCommand:               "",
-		AutoInit:                       true,
-		RunAllAutoApprove:              true,
-		NonInteractive:                 false,
-		TerraformCliArgs:               []string{},
-		LogFormatter:                   logFormatter,
-		Logger:                         log.New(log.WithOutput(stderr), log.WithLevel(DefaultLogLevel), log.WithFormatter(logFormatter)),
+		TerraformPath:            DefaultWrappedPath,
+		ExcludesFile:             defaultExcludesFile,
+		OriginalTerraformCommand: "",
+		TerraformCommand:         "",
+		AutoInit:                 true,
+		RunAllAutoApprove:        true,
+		NonInteractive:           false,
+		TerraformCliArgs:         []string{},
+		Logger: log.New(
+			log.WithOutput(stderr),
+			log.WithLevel(DefaultLogLevel),
+			log.WithFormatter(format.NewFormatter(format.NewPrettyFormatPlaceholders())),
+		),
 		Env:                            map[string]string{},
 		Source:                         "",
 		SourceMap:                      map[string]string{},

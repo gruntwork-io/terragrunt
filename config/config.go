@@ -89,7 +89,7 @@ var (
 		writer := writer.New(writer.WithLogger(opts.Logger), writer.WithDefaultLevel(log.ErrorLevel))
 
 		return []hclparse.Option{
-			hclparse.WithDiagnosticsWriter(writer, opts.LogFormatter.DisableColors),
+			hclparse.WithDiagnosticsWriter(writer, opts.Logger.Formatter().DisabledColors()),
 			hclparse.WithFileUpdate(updateBareIncludeBlock),
 			hclparse.WithLogger(opts.Logger),
 		}
