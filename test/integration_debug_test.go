@@ -219,6 +219,9 @@ func TestRenderJSONConfig(t *testing.T) {
 				"config": map[string]interface{}{
 					"path": "foo.tfstate",
 				},
+				"encryption": map[string]interface{}{
+					"key_provider": "foo",
+				},
 				"disable_init":                    false,
 				"disable_dependency_optimization": false,
 			},

@@ -7,6 +7,9 @@ remote_state {
   config = {
     path = "foo.tfstate"
   }
+  encryption = {
+    key_provider = "foo"
+  }
 }
 
 generate "provider" {
