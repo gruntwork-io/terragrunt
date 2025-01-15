@@ -5,7 +5,7 @@ category: reference
 categories_url: reference
 excerpt: Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like OpenTofu/Terraform.
 tags: ["functions"]
-order: 402
+order: 403
 nav_title: Documentation
 nav_title_link: /docs/
 ---

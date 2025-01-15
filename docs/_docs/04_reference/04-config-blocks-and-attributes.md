@@ -6,7 +6,7 @@ categories_url: reference
 excerpt: >-
   Learn about all the blocks and attributes supported in the terragrunt configuration file.
 tags: ["config"]
-order: 403
+order: 404
 nav_title: Documentation
 nav_title_link: /docs/
 ---

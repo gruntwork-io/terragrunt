@@ -5,7 +5,7 @@ category: migrate
 categories_url: migrate
 excerpt: Migration guide to upgrade to terragrunt 0.19.x
 tags: ["migration", "community"]
-order: 502
+order: 602
 nav_title: Documentation
 nav_title_link: /docs/
 ---

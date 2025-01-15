@@ -5,7 +5,7 @@ category: reference
 categories_url: reference
 excerpt: Learn how Terragrunt decides what to log, and when.
 tags: ["log"]
-order: 408
+order: 409
 nav_title: Documentation
 nav_title_link: /docs/
 ---

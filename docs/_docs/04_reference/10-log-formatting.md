@@ -5,15 +5,14 @@ category: reference
 categories_url: reference
 excerpt: Learn how customize Terragrunt logging.
 tags: ["log"]
-order: 409
+order: 410
 nav_title: Documentation
 nav_title_link: /docs/
 redirect_from:
     - /docs/features/custom-log-format/
-    - /docs/features/log-formatting/
 ---
 
-Using the `--terragrunt-log-custom-format <format>` flag you can customize the way Terragrunt logs with total control over the logging format.
+Using the `--log-custom-format <format>` flag you can customize the way Terragrunt logs with total control over the logging format.
 
 The argument passed to this flag is a Terragrunt native format string that has special syntax, as described below.
 
@@ -24,7 +23,7 @@ The format string consists of placeholders and text. Placeholders start with the
 e.g.
 
 ```shell
---terragrunt-log-custom-format "%time %level %msg"
+--log-custom-format "%time %level %msg"
 ```
 
 Output:
@@ -38,7 +37,7 @@ To escape the `%` character, use `%%`.
 e.g.
 
 ```shell
---terragrunt-log-custom-format "%time %level %%msg"
+--log-custom-format "%time %level %%msg"
 ```
 
 Output:
@@ -59,7 +58,7 @@ Placeholders have preset names:
 
 * `%msg` - Log message.
 
-* `%tf-path` - Path to the OpenTofu/Terraform executable (as defined by [terragrunt-tfpath](https://terragrunt.gruntwork.io/docs/reference/cli-options/#terragrunt-tfpath)).
+* `%tf-path` - Path to the OpenTofu/Terraform executable (as defined by [tf-path](https://terragrunt.gruntwork.io/docs/reference/cli-options/#tf-path)).
 
 * `%tf-command` - Executed OpenTofu/Terraform command, e.g. `apply`.
 
@@ -74,7 +73,7 @@ Any other text is considered plain text. The parser always tries to find the lon
 e.g.
 
 ```shell
---terragrunt-log-custom-format "time=%time level=%level message=%msg"
+--log-custom-format "time=%time level=%level message=%msg"
 ```
 
 Output:
@@ -92,7 +91,7 @@ Placeholder formatting uses the following syntax:
 e.g.
 
 ```shell
---terragrunt-log-custom-format "%time(format='Y-m-d H:i:sv') %level(format=short,case=upper) %msg"
+--log-custom-format "%time(format='Y-m-d H:i:sv') %level(format=short,case=upper) %msg"
 ```
 
 Output:
@@ -108,7 +107,7 @@ Even if you don't pass options, the empty parenthesis are added implicitly. Thus
 e.g.
 
 ```shell
---terragrunt-log-custom-format "%time(plain-text)"
+--log-custom-format "%time(plain-text)"
 ```
 
 Output:
@@ -122,7 +121,7 @@ If you would like to escape parentheses so that they appear as plain text in log
 e.g.
 
 ```shell
---terragrunt-log-custom-format "%time()(plain-text)"
+--log-custom-format "%time()(plain-text)"
 ```
 
 Output:
@@ -136,7 +135,7 @@ You can format plain text as well by using an unnamed placeholder.
 e.g.
 
 ```shell
---terragrunt-log-custom-format "%(content='time=',color=magenta)%time %(content='level=',color=light-blue)%level %(content='msg=',color=green)%msg"
+--log-custom-format "%(content='time=',color=magenta)%time %(content='level=',color=light-blue)%level %(content='msg=',color=green)%msg"
 ```
 
 Output:
@@ -277,36 +276,36 @@ Specific options for placeholders:
 
 ## Presets
 
-The examples below replicate the preset formats specified with `--terragrunt-log-format`. They can be useful if you need to change existing formats to suit your needs.
+The examples below replicate the preset formats specified with `--log-format`. They can be useful if you need to change existing formats to suit your needs.
 
 ### Pretty
 
-`--terragrunt-log-format pretty`
+`--log-format pretty`
 
 ```shell
---terragrunt-log-custom-format "%time(color=light-black) %level(case=upper,width=6,color=preset) %prefix(path=short-relative,color=gradient,suffix=' ')%tf-path(color=cyan,suffix=': ')%msg(path=relative)"
+--log-custom-format "%time(color=light-black) %level(case=upper,width=6,color=preset) %prefix(path=short-relative,color=gradient,suffix=' ')%tf-path(color=cyan,suffix=': ')%msg(path=relative)"
 ```
 
 ### Bare
 
-`--terragrunt-log-format bare`
+`--log-format bare`
 
 ```shell
---terragrunt-forward-tf-stdout --terragrunt-log-custom-format "%level(case=upper,width=4)[%interval] %msg %prefix(path=short,prefix='prefix=[',suffix=']')"
+--tf-forward-stdout --log-custom-format "%level(case=upper,width=4)[%interval] %msg %prefix(path=short,prefix='prefix=[',suffix=']')"
 ```
 
 ### Key-value
 
-`--terragrunt-log-format key-value`
+`--log-format key-value`
 
 ```shell
---terragrunt-log-custom-format "time=%time(format=rfc3339) level=%level prefix=%prefix(path=short-relative) tf-path=%tf-path(path=filename) msg=%msg(path=relative,color=disable)"
+--log-custom-format "time=%time(format=rfc3339) level=%level prefix=%prefix(path=short-relative) tf-path=%tf-path(path=filename) msg=%msg(path=relative,color=disable)"
 ```
 
 ### JSON
 
-`--terragrunt-log-format json`
+`--log-format json`
 
 ```shell
---terragrunt-log-custom-format '{"time":"%time(format=rfc3339,escape=json)", "level":"%level(escape=json)", "prefix":"%prefix(path=short-relative,escape=json)", "tf-path":"%tf-path(path=filename,escape=json)", "msg":"%msg(path=relative,escape=json,color=disable)"}'
+--log-custom-format '{"time":"%time(format=rfc3339,escape=json)", "level":"%level(escape=json)", "prefix":"%prefix(path=short-relative,escape=json)", "tf-path":"%tf-path(path=filename,escape=json)", "msg":"%msg(path=relative,escape=json,color=disable)"}'
 ```
