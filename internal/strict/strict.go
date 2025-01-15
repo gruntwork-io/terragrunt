@@ -93,8 +93,8 @@ func (controls Controls) Names() []string {
 	return names
 }
 
-// FindByStatus returns controls that have the given `Status`.
-func (controls Controls) FindByStatus(status byte) Controls {
+// FilterByStatus returns controls filtered by the given `status`.
+func (controls Controls) FilterByStatus(status byte) Controls {
 	var found Controls
 
 	for _, control := range controls {
@@ -119,7 +119,7 @@ func (controls Controls) Find(name ControlName) *Control {
 
 // EnableStrictMode enables the strict mode.
 func (controls Controls) EnableStrictMode() {
-	for _, control := range controls.FindByStatus(StatusOngoing) {
+	for _, control := range controls.FilterByStatus(StatusOngoing) {
 		control.Enabled = true
 	}
 }
@@ -132,14 +132,14 @@ func (controls Controls) EnableControl(name string) error {
 		return nil
 	}
 
-	return NewInvalidControlNameError(controls.FindByStatus(StatusOngoing).Names())
+	return NewInvalidControlNameError(controls.FilterByStatus(StatusOngoing).Names())
 }
 
 // NotifyCompletedControls logs the control names that are Enabled and have completed Status.
 func (controls Controls) NotifyCompletedControls(logger log.Logger) {
 	var completed Controls
 
-	for _, control := range controls.FindByStatus(StatusCompleted) {
+	for _, control := range controls.FilterByStatus(StatusCompleted) {
 		if control.Enabled {
 			completed = append(completed, control)
 		}
@@ -155,7 +155,7 @@ func (controls Controls) NotifyCompletedControls(logger log.Logger) {
 // Evaluate returns an error if the control is Enabled otherwise logs the warning message and returns nil.
 // If the control is not found, returns nil.
 func (controls Controls) Evaluate(logger log.Logger, name ControlName, fmtArgs ...any) error {
-	if control := controls.FindByStatus(StatusOngoing).Find(name); control != nil {
+	if control := controls.FilterByStatus(StatusOngoing).Find(name); control != nil {
 		if err := control.Evaluate(logger, fmtArgs...); err != nil {
 			return err
 		}

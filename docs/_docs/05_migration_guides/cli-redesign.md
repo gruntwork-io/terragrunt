@@ -49,7 +49,7 @@ terragrunt plan --non-interactive
 
 Sometimes, the flag change might be slightly more involved than simply removing the `terragrunt-` prefix.
 
-For example, if you are using the `--terragrunt-debug` flag, you will need to switch to the [`--debug-inputs`](/docs/reference/cli/#debug-inputs) flag instead.
+For example, if you are using the `--terragrunt-debug` flag, you will need to switch to the [`--inputs-debug`](/docs/reference/cli/#inputs-debug) flag instead.
 
 Before:
 
@@ -60,7 +60,7 @@ terragrunt plan --terragrunt-debug
 After:
 
 ```bash
-terragrunt plan --debug-inputs
+terragrunt plan --inputs-debug
 ```
 
 You can find the new flag names in the [CLI reference](/docs/reference/cli/) (including the deprecated flags they replace).
@@ -85,7 +85,7 @@ export TG_NON_INTERACTIVE=true
 
 Sometimes, the environment variable change might be slightly more involved than simply replacing `TERRAGRUNT_` with `TG_`.
 
-For example, if you are using the `TERRAGRUNT_DEBUG` environment variable, you will need to switch to the [`TG_DEBUG_INPUTS`](/docs/reference/cli/#debug-inputs) environment variable instead.
+For example, if you are using the `TERRAGRUNT_DEBUG` environment variable, you will need to switch to the [`TG_DEBUG_INPUTS`](/docs/reference/cli/#inputs-debug) environment variable instead.
 
 Before:
 

@@ -60,8 +60,8 @@ func (exps Experiments) Names() []string {
 	return names
 }
 
-// FindByStatus returns experiments that have the given `Status`.
-func (exps Experiments) FindByStatus(status byte) Experiments {
+// FilterByStatus returns experiments filtered by the given `status`.
+func (exps Experiments) FilterByStatus(status byte) Experiments {
 	var found Experiments
 
 	for _, experiment := range exps {
@@ -86,7 +86,7 @@ func (exps Experiments) Find(name string) *Experiment {
 
 // ExperimentMode enables the experiment mode.
 func (exps Experiments) ExperimentMode() {
-	for _, experiment := range exps.FindByStatus(StatusOngoing) {
+	for _, experiment := range exps.FilterByStatus(StatusOngoing) {
 		experiment.Enabled = true
 	}
 }
@@ -99,14 +99,14 @@ func (exps Experiments) EnableExperiment(name string) error {
 		return nil
 	}
 
-	return NewInvalidExperimentNameError(exps.FindByStatus(StatusOngoing).Names())
+	return NewInvalidExperimentNameError(exps.FilterByStatus(StatusOngoing).Names())
 }
 
 // NotifyCompletedExperiments logs the experiment names that are Enabled and have completed Status.
 func (exps Experiments) NotifyCompletedExperiments(logger log.Logger) {
 	var completed Experiments
 
-	for _, experiment := range exps.FindByStatus(StatusCompleted) {
+	for _, experiment := range exps.FilterByStatus(StatusCompleted) {
 		if experiment.Enabled {
 			completed = append(completed, experiment)
 		}
@@ -121,7 +121,7 @@ func (exps Experiments) NotifyCompletedExperiments(logger log.Logger) {
 
 // Evaluate returns true if the experiment is found and enabled otherwise returns false.
 func (exps Experiments) Evaluate(name string) bool {
-	if experiment := exps.FindByStatus(StatusOngoing).Find(name); experiment != nil {
+	if experiment := exps.FilterByStatus(StatusOngoing).Find(name); experiment != nil {
 		return experiment.Evaluate()
 	}
 

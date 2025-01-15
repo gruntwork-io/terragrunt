@@ -177,7 +177,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 			argMissingValueError(run.ConfigFlagName),
 		},
 		{
-			[]string{doubleDashed(run.DebugInputsFlagName)},
+			[]string{doubleDashed(run.InputsDebugFlagName)},
 			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, defaultLogLevel, true),
 			nil,
 		},
@@ -304,7 +304,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		{[]string{"foo", "--bar"}, []string{"foo", "-bar"}},
 		{[]string{"foo", doubleDashed(run.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath}, []string{"foo"}},
 		{[]string{"foo", doubleDashed(flags.NonInteractiveFlagName)}, []string{"foo"}},
-		{[]string{"foo", doubleDashed(run.DebugInputsFlagName)}, []string{"foo"}},
+		{[]string{"foo", doubleDashed(run.InputsDebugFlagName)}, []string{"foo"}},
 		{[]string{"foo", doubleDashed(flags.NonInteractiveFlagName), "-bar", doubleDashed(flags.WorkingDirFlagName), "/some/path", "--baz", doubleDashed(run.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath}, []string{"foo", "-bar", "-baz"}},
 		{[]string{commands.CommandNameApplyAll, "foo", "bar"}, []string{tf.CommandNameApply, "foo", "bar"}},
 		{[]string{commands.CommandNameDestroyAll, "foo", "-foo", "--bar"}, []string{tf.CommandNameDestroy, "foo", "-foo", "-bar"}},

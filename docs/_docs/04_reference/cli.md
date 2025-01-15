@@ -617,7 +617,7 @@ This command will exit with an error if terragrunt detects any unused inputs or 
   - [queue-exclude-external](#queue-exclude-external)
   - [queue-include-external](#queue-include-external)
   - [parallelism](#parallelism)
-  - [debug-inputs](#debug-inputs)
+  - [inputs-debug](#inputs-debug)
   - [log-level](#log-level)
   - [log-format](#log-format)
   - [log-custom-format](#log-custom-format)
@@ -1013,9 +1013,9 @@ The exception is the `terraform init` command, which is always executed sequenti
 
 To safely access provider cache concurrently, enable the [Provider Cache Server](https://terragrunt.gruntwork.io/docs/features/provider-cache-server/).
 
-### debug-inputs
+### inputs-debug
 
-**CLI Arg**: `--debug-inputs`<br/>
+**CLI Arg**: `--inputs-debug`<br/>
 **CLI Arg Alias**: `--terragrunt-debug` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Environment Variable**: `TG_DEBUG_INPUTS`<br/>
 **Environment Variable Alias**: `TERRAGRUNT_DEBUG` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>

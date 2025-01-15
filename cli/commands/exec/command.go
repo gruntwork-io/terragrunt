@@ -22,7 +22,7 @@ func NewFlags(opts *options.TerragruntOptions, cmdOpts *Options) cli.Flags {
 		run.AuthProviderCmdFlagName,
 		run.ConfigFlagName,
 		run.DownloadDirFlagName,
-		run.DebugInputsFlagName,
+		run.InputsDebugFlagName,
 		run.IAMAssumeRoleFlagName,
 		run.IAMAssumeRoleDurationFlagName,
 		run.IAMAssumeRoleSessionNameFlagName,
