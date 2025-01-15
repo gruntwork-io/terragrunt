@@ -19,7 +19,7 @@ import (
 
 func createLogger() log.Logger {
 	formatter := format.NewFormatter(format.NewKeyValueFormatPlaceholders())
-	formatter.DisableColors = true
+	formatter.SetDisabledColors(true)
 
 	return log.New(log.WithLevel(log.DebugLevel), log.WithFormatter(formatter))
 }
