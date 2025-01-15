@@ -146,7 +146,7 @@ func createTestStack() *configstack.Stack {
 		Dependencies: configstack.TerraformModules{mysql, redis},
 	}
 
-	stack := configstack.NewStack(&options.TerragruntOptions{WorkingDir: "/stage/mystack"})
+	stack := configstack.NewStack(mockOptions)
 	stack.Modules = configstack.TerraformModules{
 		accountBaseline,
 		vpc,
@@ -1128,7 +1128,7 @@ func TestBasicDependency(t *testing.T) {
 	moduleB := &configstack.TerraformModule{Path: "B", Dependencies: configstack.TerraformModules{moduleC}}
 	moduleA := &configstack.TerraformModule{Path: "A", Dependencies: configstack.TerraformModules{moduleB}}
 
-	stack := configstack.NewStack(&options.TerragruntOptions{WorkingDir: "test-stack"})
+	stack := configstack.NewStack(mockOptions)
 	stack.Modules = configstack.TerraformModules{moduleA, moduleB, moduleC}
 
 	expected := map[string][]string{
@@ -1142,6 +1142,7 @@ func TestBasicDependency(t *testing.T) {
 		t.Errorf("Expected %v, got %v", expected, result)
 	}
 }
+
 func TestNestedDependencies(t *testing.T) {
 	t.Parallel()
 
@@ -1151,7 +1152,7 @@ func TestNestedDependencies(t *testing.T) {
 	moduleA := &configstack.TerraformModule{Path: "A", Dependencies: configstack.TerraformModules{moduleB}}
 
 	// Create a mock stack
-	stack := configstack.NewStack(&options.TerragruntOptions{WorkingDir: "nested-stack"})
+	stack := configstack.NewStack(mockOptions)
 	stack.Modules = configstack.TerraformModules{moduleA, moduleB, moduleC, moduleD}
 
 	// Expected result
@@ -1181,7 +1182,7 @@ func TestCircularDependencies(t *testing.T) {
 	moduleB.Dependencies = configstack.TerraformModules{moduleC}
 	moduleC.Dependencies = configstack.TerraformModules{moduleA} // Circular dependency
 
-	stack := configstack.NewStack(&options.TerragruntOptions{WorkingDir: "circular-stack"})
+	stack := configstack.NewStack(mockOptions)
 	stack.Modules = configstack.TerraformModules{moduleA, moduleB, moduleC}
 
 	expected := map[string][]string{
