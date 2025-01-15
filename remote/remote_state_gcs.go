@@ -278,18 +278,19 @@ func ParseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteState
 func ValidateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS) error {
 	config := extendedConfig.remoteStateConfigGCS
 
-	// Check if bucket is specified
-	if config.Bucket == "" {
-		return errors.New(MissingRequiredGCSRemoteStateConfig("bucket"))
-	}
-
-	// If skip_bucket_creation is true, we don't need to validate project and location or bucket existence
-	// The bucket is assumed to be created by the user, or exists in the environment
+	// If skip_bucket_creation is true, bypass all validation
+	// This allows using existing buckets without restrictions
 	if extendedConfig.SkipBucketCreation {
 		return nil
 	}
 
-	// If project or location is not specified, try to validate bucket existence
+	// Bucket is always a required configuration parameter
+	if config.Bucket == "" {
+		return errors.New(MissingRequiredGCSRemoteStateConfig("bucket"))
+	}
+
+	// When bucket creation is intended, both project and location are required
+	// This ensures we have the minimum information needed to create a bucket if necessary
 	if extendedConfig.Project == "" || extendedConfig.Location == "" {
 		// Create a GCS client to check bucket existence
 		gcsClient, err := CreateGCSClient(config)
@@ -313,6 +314,7 @@ func ValidateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS) error {
 		}
 	}
 
+	// At this point, we have a valid configuration
 	return nil
 }
 

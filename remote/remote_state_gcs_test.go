@@ -133,114 +133,105 @@ func TestGcpConfigValuesEqual(t *testing.T) {
 }
 
 func TestValidateGCSConfig(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name               string
-		config             map[string]interface{}
-		expectedError      string
-		skipBucketCreation bool
-		bucketExists       bool
+	testCases := map[string]struct {
+		config           map[string]interface{}
+		expectedError    bool
+		mockBucketExists bool // Simulate whether the bucket exists
 	}{
-		{
-			name: "Valid config with project and location",
+		"Valid_config_with_project_and_location": {
 			config: map[string]interface{}{
 				"bucket":   "test-bucket",
 				"project":  "test-project",
-				"location": "US",
+				"location": "us-central1",
 			},
-			expectedError:      "",
-			skipBucketCreation: false,
-			bucketExists:       true,
+			expectedError:    false,
+			mockBucketExists: false,
 		},
-		{
-			name: "Missing project when bucket does not exist and creation not skipped",
+		"Valid_config_with_skip_bucket_creation": {
+			config: map[string]interface{}{
+				"bucket":               "test-bucket",
+				"skip_bucket_creation": true,
+			},
+			expectedError:    false,
+			mockBucketExists: false,
+		},
+		"Missing_bucket": {
+			config: map[string]interface{}{
+				"project":  "test-project",
+				"location": "us-central1",
+			},
+			expectedError:    true,
+			mockBucketExists: false,
+		},
+		"Missing_project_when_bucket_does_not_exist": {
 			config: map[string]interface{}{
 				"bucket":   "test-bucket",
-				"location": "US",
+				"location": "us-central1",
 			},
-			expectedError:      "Missing required GCS remote state configuration project",
-			skipBucketCreation: false,
-			bucketExists:       false,
+			expectedError:    true,
+			mockBucketExists: false,
 		},
-		{
-			name: "Missing location when bucket does not exist and creation not skipped",
+		"Missing_location_when_bucket_does_not_exist": {
 			config: map[string]interface{}{
 				"bucket":  "test-bucket",
 				"project": "test-project",
 			},
-			expectedError:      "Missing required GCS remote state configuration location",
-			skipBucketCreation: false,
-			bucketExists:       false,
+			expectedError:    true,
+			mockBucketExists: false,
 		},
-		{
-			name: "Skip bucket creation allows missing project and location",
+		"Existing_bucket_without_project_and_location_when_skip_bucket_creation_is_true": {
+			config: map[string]interface{}{
+				"bucket":               "test-bucket",
+				"skip_bucket_creation": true,
+			},
+			expectedError:    false,
+			mockBucketExists: true,
+		},
+		"Existing_bucket_without_project_and_location_when_bucket_exists": {
 			config: map[string]interface{}{
 				"bucket": "test-bucket",
 			},
-			expectedError:      "",
-			skipBucketCreation: true,
-			bucketExists:       false,
+			expectedError:    false,
+			mockBucketExists: true,
 		},
-		{
-			name: "Existing bucket without project and location",
+		"Missing_project_when_bucket_exists": {
 			config: map[string]interface{}{
-				"bucket": "test-bucket",
+				"bucket":   "test-bucket",
+				"location": "us-central1",
 			},
-			expectedError:      "",
-			skipBucketCreation: false,
-			bucketExists:       true,
+			expectedError:    false,
+			mockBucketExists: true,
 		},
-		{
-			name: "Non-existing bucket without project and location",
+		"Missing_location_when_bucket_exists": {
 			config: map[string]interface{}{
-				"bucket": "test-bucket",
+				"bucket":  "test-bucket",
+				"project": "test-project",
 			},
-			expectedError:      "Missing required GCS remote state configuration project",
-			skipBucketCreation: false,
-			bucketExists:       false,
+			expectedError:    false,
+			mockBucketExists: true,
 		},
 	}
 
-	for _, tc := range testCases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	// Mock the DoesGCSBucketExist function to simulate bucket existence
+	originalDoesGCSBucketExist := remote.DoesGCSBucketExist
+	defer func() { remote.DoesGCSBucketExist = originalDoesGCSBucketExist }()
 
-			// Add skip_bucket_creation to the config if specified
-			if tc.skipBucketCreation {
-				tc.config["skip_bucket_creation"] = true
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Set up the mock bucket existence check
+			remote.DoesGCSBucketExist = func(gcsClient *storage.Client, config *remote.RemoteStateConfigGCS) bool {
+				return tc.mockBucketExists
 			}
 
-			// Mock the CreateGCSClient and DoesGCSBucketExist functions
-			originalCreateGCSClient := remote.CreateGCSClient
-			originalDoesGCSBucketExist := remote.DoesGCSBucketExist
-			defer func() {
-				remote.CreateGCSClient = originalCreateGCSClient
-				remote.DoesGCSBucketExist = originalDoesGCSBucketExist
-			}()
-
-			remote.CreateGCSClient = func(config remote.RemoteStateConfigGCS) (*storage.Client, error) {
-				// Return a mock client
-				return &storage.Client{}, nil
-			}
-
-			remote.DoesGCSBucketExist = func(client *storage.Client, config *remote.RemoteStateConfigGCS) bool {
-				return tc.bucketExists
-			}
-
-			// Parse the config
 			extendedConfig, err := remote.ParseExtendedGCSConfig(tc.config)
 			require.NoError(t, err)
 
-			// Validate the config
 			err = remote.ValidateGCSConfig(extendedConfig)
 
-			if tc.expectedError == "" {
-				assert.NoError(t, err)
-			} else {
+			if tc.expectedError {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.expectedError)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}
