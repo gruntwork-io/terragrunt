@@ -66,6 +66,19 @@ func TestStacksGenerateRemote(t *testing.T) {
 	validateStackDir(t, path)
 }
 
+func TestStacksBasic(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic)
+
+	helpers.RunTerragrunt(t, "terragrunt --experiment stacks stack run apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, path)
+}
+
 func validateStackDir(t *testing.T, path string) {
 	assert.DirExists(t, path)
 
@@ -82,17 +95,4 @@ func validateStackDir(t *testing.T, path string) {
 	}
 
 	assert.True(t, hasSubdirectories, "The .terragrunt-stack directory should contain at least one subdirectory")
-}
-
-func TestStacksBasic(t *testing.T) {
-	t.Parallel()
-
-	helpers.CleanupTerraformFolder(t, testFixtureStacksBasic)
-	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
-	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic)
-
-	helpers.RunTerragrunt(t, "terragrunt stack run apply -auto-approve --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
-
-	path := util.JoinPath(rootPath, ".terragrunt-stack")
-	validateStackDir(t, path)
 }
