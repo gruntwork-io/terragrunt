@@ -748,6 +748,8 @@ Notes:
 The `terragrunt stack` commands provide an interface for managing collections of Terragrunt units defined in `terragrunt.stack.hcl` files.
 These commands simplify the process of handling multiple infrastructure units by grouping them into a "stack", reducing code duplication and streamlining operations across environments.
 
+#### generate
+
 The `terragrunt stack generate` command is used to generate a stack of `terragrunt.hcl` files based on the configuration provided in the `terragrunt.stack.hcl` file.
 
 Given the following `terragrunt.stack.hcl` configuration:
@@ -769,7 +771,7 @@ unit "app2" {
 
 ```
 
-Running:
+Executing generate:
 
 ```bash
 terragrunt stack generate
@@ -784,6 +786,37 @@ Will create the following directory structure:
 └── app2/
     └── terragrunt.hcl
 ```
+
+#### run
+
+The `terragrunt stack run *` command enables users to execute IaC commands across all units defined in the `terragrunt.stack.hcl` file.
+This feature facilitates efficient orchestration of operations on multiple units, simplifying workflows for managing complex infrastructure stacks.
+
+**Examples:**
+
+Run a plan on each unit:
+
+```bash
+ terragrunt stack run plan
+```
+
+Apply changes for each unit:
+
+```bash
+terragrunt stack run apply
+```
+
+Destroy all units:
+
+```bash
+terragrunt stack run destroy
+```
+
+**Note:**
+
+Before executing the specified command, the `terragrunt stack run *` command will automatically generate the stack by creating
+the `.terragrunt-stack` directory using the `terragrunt.stack.hcl` configuration file.
+This ensures that all units are up-to-date before running the requested operation.
 
 ## CLI options
 
