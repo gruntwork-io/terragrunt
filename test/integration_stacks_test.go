@@ -3,7 +3,6 @@ package test_test
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -88,7 +87,7 @@ func TestStacksBasic(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() && strings.HasSuffix(info.Name(), ".txt") {
+		if !info.IsDir() && info.Name() == "test.txt" {
 			txtFiles = append(txtFiles, filePath)
 		}
 
