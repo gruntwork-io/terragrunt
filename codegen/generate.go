@@ -305,76 +305,78 @@ func RemoteStateConfigToTerraformCode(backend string, config map[string]any, enc
 	}
 
 	// encryption can be empty
-	if len(encryption) > 0 {
-		// extract key_provider first to create key_provider block
-		keyProvider, found := encryption[EncryptionKeyProviderKey].(string)
-		if !found {
-			return nil, errors.New(EncryptionKeyProviderKey + " is mandatory but not found in the encryption map")
+	if len(encryption) == 0 {
+		return f.Bytes(), nil
+	}
+
+	// extract key_provider first to create key_provider block
+	keyProvider, found := encryption[EncryptionKeyProviderKey].(string)
+	if !found {
+		return nil, errors.New(EncryptionKeyProviderKey + " is mandatory but not found in the encryption map")
+	}
+
+	keyProviderTraversal := hcl.Traversal{
+		hcl.TraverseRoot{Name: EncryptionKeyProviderKey},
+		hcl.TraverseAttr{Name: keyProvider},
+		hcl.TraverseAttr{Name: encryptionResourceName},
+	}
+
+	methodTraversal := hcl.Traversal{
+		hcl.TraverseRoot{Name: encryptionMethodKey},
+		hcl.TraverseAttr{Name: encryptionDefaultMethod},
+		hcl.TraverseAttr{Name: encryptionResourceName},
+	}
+
+	// encryption block
+	encryptionBlock := terraformBlock.AppendNewBlock(encryptionBlockName, nil)
+	encryptionBlockBody := encryptionBlock.Body()
+
+	// Append key_provider block
+	keyProviderBlockBody := encryptionBlockBody.AppendNewBlock(EncryptionKeyProviderKey, []string{keyProvider, encryptionResourceName}).Body()
+
+	// Append method block
+	methodBlock := encryptionBlockBody.AppendNewBlock(encryptionMethodKey, []string{encryptionDefaultMethod, encryptionResourceName}).Body()
+	methodBlock.SetAttributeTraversal(encryptionKeysAttributeName, keyProviderTraversal)
+
+	// Append state block
+	stateBlock := encryptionBlockBody.AppendNewBlock(encryptionStateBlockName, nil).Body()
+	stateBlock.SetAttributeTraversal(encryptionMethodKey, methodTraversal)
+
+	// Append plan block
+	planBlock := encryptionBlockBody.AppendNewBlock(encryptionPlanBlockName, nil).Body()
+	planBlock.SetAttributeTraversal(encryptionMethodKey, methodTraversal)
+
+	var encryptionKeys = make([]string, 0, len(encryption))
+
+	for key := range encryption {
+		encryptionKeys = append(encryptionKeys, key)
+	}
+
+	sort.Strings(encryptionKeys)
+
+	// Fill key_provider block with ordered attributes
+	for _, key := range encryptionKeys {
+		if key == EncryptionKeyProviderKey {
+			continue
 		}
 
-		keyProviderTraversal := hcl.Traversal{
-			hcl.TraverseRoot{Name: EncryptionKeyProviderKey},
-			hcl.TraverseAttr{Name: keyProvider},
-			hcl.TraverseAttr{Name: encryptionResourceName},
+		value, ok := encryption[key]
+		if !ok {
+			continue
 		}
 
-		methodTraversal := hcl.Traversal{
-			hcl.TraverseRoot{Name: encryptionMethodKey},
-			hcl.TraverseAttr{Name: encryptionDefaultMethod},
-			hcl.TraverseAttr{Name: encryptionResourceName},
+		// Skip basic types with zero values
+		if value == "" || value == 0 {
+			continue
 		}
 
-		// encryption block
-		encryptionBlock := terraformBlock.AppendNewBlock(encryptionBlockName, nil)
-		encryptionBlockBody := encryptionBlock.Body()
-
-		// Append key_provider block
-		keyProviderBlockBody := encryptionBlockBody.AppendNewBlock(EncryptionKeyProviderKey, []string{keyProvider, encryptionResourceName}).Body()
-
-		// Append method block
-		methodBlock := encryptionBlockBody.AppendNewBlock(encryptionMethodKey, []string{encryptionDefaultMethod, encryptionResourceName}).Body()
-		methodBlock.SetAttributeTraversal(encryptionKeysAttributeName, keyProviderTraversal)
-
-		// Append state block
-		stateBlock := encryptionBlockBody.AppendNewBlock(encryptionStateBlockName, nil).Body()
-		stateBlock.SetAttributeTraversal(encryptionMethodKey, methodTraversal)
-
-		// Append plan block
-		planBlock := encryptionBlockBody.AppendNewBlock(encryptionPlanBlockName, nil).Body()
-		planBlock.SetAttributeTraversal(encryptionMethodKey, methodTraversal)
-
-		var encryptionKeys = make([]string, 0, len(encryption))
-
-		for key := range encryption {
-			encryptionKeys = append(encryptionKeys, key)
+		ctyVal, err := convertValue(value)
+		if err != nil {
+			return nil, errors.New(err)
 		}
 
-		sort.Strings(encryptionKeys)
-
-		// Fill key_provider block with ordered attributes
-		for _, key := range encryptionKeys {
-			if key == EncryptionKeyProviderKey {
-				continue
-			}
-
-			value, ok := encryption[key]
-			if !ok {
-				continue
-			}
-
-			// Skip basic types with zero values
-			if value == "" || value == 0 {
-				continue
-			}
-
-			ctyVal, err := convertValue(value)
-			if err != nil {
-				return nil, errors.New(err)
-			}
-
-			if keyProviderBlockBody != nil {
-				keyProviderBlockBody.SetAttributeValue(key, ctyVal.Value)
-			}
+		if keyProviderBlockBody != nil {
+			keyProviderBlockBody.SetAttributeValue(key, ctyVal.Value)
 		}
 	}
 
