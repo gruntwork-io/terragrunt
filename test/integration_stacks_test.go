@@ -157,6 +157,7 @@ func TestStacksDestroy(t *testing.T) {
 
 // check if the stack directory is created and contains files
 func validateStackDir(t *testing.T, path string) {
+	t.Helper()
 	assert.DirExists(t, path)
 
 	// check that path is not empty directory
