@@ -23,6 +23,10 @@ type GenericRemoteEncryptionKeyProvider[T RemoteEncryptionKeyProvider] struct {
 }
 
 func (b *GenericRemoteEncryptionKeyProvider[T]) UnmarshalConfig(encryptionConfig map[string]any) error {
+	if encryptionConfig == nil {
+		return errors.New("encryption config is empty")
+	}
+
 	// Decode the key provider type using the default decoder config
 	if err := mapstructure.Decode(encryptionConfig, &b); err != nil {
 		return errors.Errorf("failed to decode key provider: %w", err)
