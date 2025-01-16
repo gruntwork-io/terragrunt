@@ -30,6 +30,8 @@ if RELEASE_JSON=$(gh -R "$REPO" release view "$TAG_NAME" --json body --json url 
 	tmpfile=$(mktemp)
 	jq '.content = "'"<@&$ROLE_ID> $(jq -r '.name' <<<"$RELEASE_JSON")\n"'>>> " + .content + "'"\n\n**[View release on GitHub]($(jq -r '.url' <<<"$RELEASE_JSON"))**"'"' <<<"$PAYLOAD" >"$tmpfile"
 
+	jq '.content' <"$tmpfile"
+
 	curl -X POST \
 		--data-binary "@$tmpfile" \
 		-H "Content-Type: application/json" \
