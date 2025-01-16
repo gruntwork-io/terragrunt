@@ -111,6 +111,20 @@ func TestStacksInputs(t *testing.T) {
 	validateStackDir(t, path)
 }
 
+func TestStacksPlan(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksInputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksInputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksInputs)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run plan --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "Plan: 1 to add, 0 to change, 0 to destroy")
+	assert.Contains(t, stdout, "local_file.file will be created")
+}
+
 func TestStacksApply(t *testing.T) {
 	t.Parallel()
 
@@ -132,8 +146,7 @@ func TestStacksDestroy(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksInputs)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksInputs)
 
-	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
-	require.NoError(t, err)
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run destroy --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
