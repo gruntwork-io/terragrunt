@@ -5,7 +5,7 @@ category: features
 categories_url: features
 excerpt: Learn how to execute custom code before or after running OpenTofu/Terraform, or when errors occur.
 tags: ["hooks"]
-order: 240
+order: 209
 nav_title: Documentation
 nav_title_link: /docs/
 ---

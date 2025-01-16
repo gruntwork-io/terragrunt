@@ -5,7 +5,7 @@ category: community
 excerpt: >-
   Terragrunt is an open source project, and contributions from the community are very welcome!
 tags: ["contributing", "community"]
-order: 300
+order: 301
 nav_title: Documentation
 nav_title_link: /docs/
 ---

@@ -5,7 +5,7 @@ category: features
 categories_url: features
 excerpt: Learn how Terragrunt makes it so that you don't have to explicitly call `init` when using it.
 tags: ["CLI"]
-order: 245
+order: 210
 nav_title: Documentation
 nav_title_link: /docs/
 ---

@@ -5,7 +5,7 @@ category: reference
 categories_url: reference
 excerpt: Learn how to Terragrunt handles the OpenTofu/Terraform lock file
 tags: ["CLI", "DRY"]
-order: 407
+order: 408
 nav_title: Documentation
 nav_title_link: /docs/
 redirect_from:
