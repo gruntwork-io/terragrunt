@@ -12,12 +12,12 @@ AVATAR_URL="${AVATAR_URL:?Required environment variable AVATAR_URL}"
 if RELEASE_JSON=$(gh -R "$REPO" release view "$TAG_NAME" --json body --json url --json name); then
 	RELEASE_NOTES_LENGTH=$(jq '.body | length' <<<"$RELEASE_JSON")
 
+	RELEASE_NOTES=$(jq '.body' <<<"$RELEASE_JSON")
+
 	if [ "$RELEASE_NOTES_LENGTH" -gt 2000 ]; then
 		echo "Release notes are too long ($RELEASE_NOTES_LENGTH characters), truncating to 1997 characters, truncating the last line, then appending '…'"
-		RELEASE_JSON=$(jq '.body |= .[:1997]' <<<"$RELEASE_JSON" | jq '.body | split("\r\n") | del(.[-1]) | join("\r\n")' | jq '. + "\r\n…"')
+		RELEASE_NOTES=$(jq '.body |= .[:1997]' <<<"$RELEASE_JSON" | jq '.body | split("\r\n") | del(.[-1]) | join("\r\n")' | jq '. + "\r\n…"')
 	fi
-
-	RELEASE_NOTES=$(jq '.body' <<<"$RELEASE_JSON")
 
 	PAYLOAD=$(
 		jq \
