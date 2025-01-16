@@ -2,6 +2,8 @@ package test_test
 
 import (
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -77,8 +79,25 @@ func TestStacksBasic(t *testing.T) {
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
+
+	// check that the stack was applied and .txt files got generated in the stack directory
+	var txtFiles []string
+
+	err := filepath.Walk(path, func(filePath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && strings.HasSuffix(info.Name(), ".txt") {
+			txtFiles = append(txtFiles, filePath)
+		}
+		return nil
+	})
+
+	require.NoError(t, err)
+	assert.Len(t, txtFiles, 4)
 }
 
+// check if the stack directory is created and contains files
 func validateStackDir(t *testing.T, path string) {
 	assert.DirExists(t, path)
 
