@@ -12,10 +12,11 @@ func TestUnmarshalConfig(t *testing.T) {
 	t.Parallel()
 
 	tc := []struct {
-		name             string
-		providerType     string
-		encryptionConfig map[string]interface{}
-		expectedError    bool
+		name                          string
+		providerType                  string
+		encryptionConfig              map[string]interface{}
+		expectedErrorCreatingProvider bool
+		expectedErrorFromProvider     bool
 	}{
 		{
 			name:         "PBKDF2 full config",
@@ -28,7 +29,6 @@ func TestUnmarshalConfig(t *testing.T) {
 				"salt_length":   16,
 				"hash_function": "sha256",
 			},
-			expectedError: false,
 		},
 		{
 			name:         "PBKDF2 invalid property",
@@ -37,7 +37,7 @@ func TestUnmarshalConfig(t *testing.T) {
 				"key_provider": "pbkdf2",
 				"password":     "password123", // Invalid property
 			},
-			expectedError: true,
+			expectedErrorFromProvider: true,
 		},
 		{
 			name:         "PBKDF2 invalid config",
@@ -46,7 +46,7 @@ func TestUnmarshalConfig(t *testing.T) {
 				"key_provider": "pbkdf2",
 				"passphrase":   123, // Invalid type
 			},
-			expectedError: true,
+			expectedErrorFromProvider: true,
 		},
 		{
 			name:         "AWSKMS full config",
@@ -56,7 +56,6 @@ func TestUnmarshalConfig(t *testing.T) {
 				"kms_key_id":   "123456789",
 				"key_spec":     "AES_256",
 			},
-			expectedError: false,
 		},
 		{
 			name:         "AWSKMS invalid property",
@@ -65,7 +64,7 @@ func TestUnmarshalConfig(t *testing.T) {
 				"key_provider": "aws_kms",
 				"password":     "password123", // Invalid property
 			},
-			expectedError: true,
+			expectedErrorFromProvider: true,
 		},
 		{
 			name:         "AWSKMS invalid config",
@@ -75,7 +74,7 @@ func TestUnmarshalConfig(t *testing.T) {
 				"kms_key_id":   123456789, // Invalid type
 				"key_spec":     "AES_256",
 			},
-			expectedError: true,
+			expectedErrorFromProvider: true,
 		},
 		{
 			name:         "GCPKMS full config",
@@ -85,7 +84,6 @@ func TestUnmarshalConfig(t *testing.T) {
 				"kms_encryption_key": "projects/123456789/locations/global/keyRings/my-key-ring/cryptoKeys/my-key",
 				"key_length":         32,
 			},
-			expectedError: false,
 		},
 		{
 			name:         "GCPKMS invalid property",
@@ -94,7 +92,7 @@ func TestUnmarshalConfig(t *testing.T) {
 				"key_provider": "gcp_kms",
 				"password":     "password123", // Invalid property
 			},
-			expectedError: true,
+			expectedErrorFromProvider: true,
 		},
 		{
 			name:         "GCPKMS invalid config",
@@ -104,7 +102,15 @@ func TestUnmarshalConfig(t *testing.T) {
 				"kms_encryption_key": 123456789, // Invalid type
 				"key_length":         32,
 			},
-			expectedError: true,
+			expectedErrorFromProvider: true,
+		},
+		{
+			name:         "Unknown provider",
+			providerType: "unknown",
+			encryptionConfig: map[string]interface{}{
+				"key_provider": "unknown",
+			},
+			expectedErrorCreatingProvider: true,
 		},
 	}
 
@@ -115,12 +121,16 @@ func TestUnmarshalConfig(t *testing.T) {
 			t.Parallel()
 
 			provider, err := remote.NewRemoteEncryptionKeyProvider(tt.providerType)
-			if err != nil {
-				t.Fatalf("failed to create provider: %v", err)
+
+			if tt.expectedErrorCreatingProvider {
+				require.Error(t, err)
+				return
 			}
 
+			require.NoError(t, err)
+
 			err = provider.UnmarshalConfig(tt.encryptionConfig)
-			if tt.expectedError {
+			if tt.expectedErrorFromProvider {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
