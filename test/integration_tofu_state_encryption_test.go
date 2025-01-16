@@ -75,7 +75,7 @@ func TestTofuStateEncryptionAWSKMS(t *testing.T) {
 	validateStateIsEncrypted(t, stateFile, workDir)
 }
 
-func TestRenderJSONConfigWithEncryption(t *testing.T) {
+func TestTofuRenderJSONConfigWithEncryption(t *testing.T) {
 	t.Parallel()
 
 	tmpDir, err := os.MkdirTemp("", "terragrunt-render-json-*")
