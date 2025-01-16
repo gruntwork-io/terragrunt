@@ -73,7 +73,7 @@ func TestStacksBasic(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksBasic)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksBasic)
 
-	helpers.RunTerragrunt(t, "terragrunt --experiment stacks stack run apply --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	helpers.RunTerragrunt(t, "terragrunt --experiment stacks stack run applymmi --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	path := util.JoinPath(rootPath, ".terragrunt-stack")
 	validateStackDir(t, path)
