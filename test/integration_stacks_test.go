@@ -125,6 +125,23 @@ func TestStacksApply(t *testing.T) {
 	assert.Contains(t, stdout, "local_file.file: Creation complete")
 }
 
+func TestStacksDestroy(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksInputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksInputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksInputs)
+
+	_, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack run destroy --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "Plan: 0 to add, 0 to change, 1 to destroy")
+	assert.Contains(t, stdout, "local_file.file: Destroying...")
+}
+
 // check if the stack directory is created and contains files
 func validateStackDir(t *testing.T, path string) {
 	assert.DirExists(t, path)
