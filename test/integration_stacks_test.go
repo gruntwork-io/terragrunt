@@ -91,6 +91,7 @@ func TestStacksBasic(t *testing.T) {
 		if !info.IsDir() && strings.HasSuffix(info.Name(), ".txt") {
 			txtFiles = append(txtFiles, filePath)
 		}
+
 		return nil
 	})
 
@@ -155,7 +156,7 @@ func TestStacksDestroy(t *testing.T) {
 	assert.Contains(t, stdout, "local_file.file: Destroying...")
 }
 
-// check if the stack directory is created and contains files
+// check if the stack directory is created and contains files.
 func validateStackDir(t *testing.T, path string) {
 	t.Helper()
 	assert.DirExists(t, path)
@@ -168,6 +169,7 @@ func validateStackDir(t *testing.T, path string) {
 	for _, entry := range entries {
 		if entry.IsDir() {
 			hasSubdirectories = true
+
 			break
 		}
 	}

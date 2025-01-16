@@ -39,7 +39,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				Usage: "Run command on stack",
 				Action: func(ctx *cli.Context) error {
 					return Run(ctx.Context, opts.OptionsFromContext(ctx))
-
 				},
 			},
 		},
