@@ -2,7 +2,7 @@
 // By default experiment mode is disabled, but when enabled, experimental features can be enabled.
 // These features are not yet stable and may change in the future.
 //
-// Note that any behavior outlined here should be documented in /docs/_docs/04_reference/experiment-mode.md
+// Note that any behavior outlined here should be documented in /docs/_docs/04_reference/experiments.md
 //
 // That is how users will know what to expect when they enable experiment mode, and how to customize it.
 package experiment
@@ -122,7 +122,7 @@ type CompletedExperimentsWarning struct {
 }
 
 func (e CompletedExperimentsWarning) String() string {
-	return "The following experiment(s) are already completed: " + strings.Join(e.ExperimentNames, ", ") + ". Please remove any completed experiments, as setting them no longer does anything. For a list of all ongoing experiments, and the outcomes of previous experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode"
+	return "The following experiment(s) are already completed: " + strings.Join(e.ExperimentNames, ", ") + ". Please remove any completed experiments, as setting them no longer does anything. For a list of all ongoing experiments, and the outcomes of previous experiments, see https://terragrunt.gruntwork.io/docs/reference/experiments/"
 }
 
 // InvalidExperimentsError is an error that is returned when an invalid experiments are requested.
@@ -131,7 +131,7 @@ type InvalidExperimentsError struct {
 }
 
 func (e InvalidExperimentsError) Error() string {
-	return "The following experiment(s) are invalid: " + strings.Join(e.ExperimentNames, ", ") + ". For a list of all valid experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode"
+	return "The following experiment(s) are invalid: " + strings.Join(e.ExperimentNames, ", ") + ". For a list of all valid experiments, see https://terragrunt.gruntwork.io/docs/reference/experiments/"
 }
 
 // Evaluate returns true if either the experiment is enabled, or experiment mode is enabled.
