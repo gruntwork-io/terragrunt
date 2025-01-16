@@ -19,6 +19,7 @@ const (
 	testFixtureStacksLocals      = "fixtures/stacks/locals"
 	testFixtureStacksLocalsError = "fixtures/stacks/locals-error"
 	testFixtureStacksRemote      = "fixtures/stacks/remote"
+	testFixtureStacksInputs      = "fixtures/stacks/inputs"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -95,6 +96,19 @@ func TestStacksBasic(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Len(t, txtFiles, 4)
+}
+
+func TestStacksInputs(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksInputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksInputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksInputs)
+
+	helpers.RunTerragrunt(t, "terragrunt stack run plan --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	path := util.JoinPath(rootPath, ".terragrunt-stack")
+	validateStackDir(t, path)
 }
 
 // check if the stack directory is created and contains files
