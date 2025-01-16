@@ -7,6 +7,10 @@ remote_state {
   config = {
     path = "foo.tfstate"
   }
+  encryption = {
+    key_provider = "pbkdf2"
+    passphrase   = "correct-horse-battery-staple"
+  }
 }
 
 generate "provider" {
