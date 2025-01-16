@@ -284,6 +284,7 @@ func validateIncludeRemoteStateReflection(t *testing.T, s3BucketName string, key
 				"key":     keyPath + "/terraform.tfstate",
 				"region":  "us-west-2",
 			},
+			"encryption": nil,
 		},
 		remoteStateOut,
 	)
