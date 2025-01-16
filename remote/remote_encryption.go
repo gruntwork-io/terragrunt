@@ -1,14 +1,13 @@
 package remote
 
 import (
-	"fmt"
-
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/mitchellh/mapstructure"
 )
 
 type RemoteEncryptionConfig interface {
-	UnmarshalConfig(encryptionConfig map[string]interface{}) error
-	ToMap() (map[string]interface{}, error)
+	UnmarshalConfig(encryptionConfig map[string]any) error
+	ToMap() (map[string]any, error)
 }
 
 type RemoteEncryptionKeyProvider interface {
@@ -20,54 +19,66 @@ type RemoteEncryptionKeyProviderBase struct {
 }
 
 type GenericRemoteEncryptionKeyProvider[T RemoteEncryptionKeyProvider] struct {
-	T T `mapstructure:",squash"`
+	Data T `mapstructure:",squash"`
 }
 
-func (b *GenericRemoteEncryptionKeyProvider[T]) UnmarshalConfig(encryptionConfig map[string]interface{}) error {
+func (b *GenericRemoteEncryptionKeyProvider[T]) UnmarshalConfig(encryptionConfig map[string]any) error {
 	// Decode the key provider type using the default decoder config
 	if err := mapstructure.Decode(encryptionConfig, &b); err != nil {
-		return fmt.Errorf("failed to decode key provider: %w", err)
+		return errors.Errorf("failed to decode key provider: %w", err)
 	}
 
 	// Decode the key provider properties using, setting ErrorUnused to true to catch any unused properties
 	decoderConfig := &mapstructure.DecoderConfig{
-		Result:      &b.T,
+		Result:      &b.Data,
 		ErrorUnused: true,
 	}
 	decoder, err := mapstructure.NewDecoder(decoderConfig)
 
 	if err != nil {
-		return fmt.Errorf("failed to create decoder: %w", err)
+		return errors.Errorf("failed to create decoder: %w", err)
 	}
 
 	if err := decoder.Decode(encryptionConfig); err != nil {
-		return fmt.Errorf("failed to decode key provider properties: %w", err)
+		return errors.Errorf("failed to decode key provider properties: %w", err)
 	}
 
 	return nil
 }
 
-func (b *GenericRemoteEncryptionKeyProvider[T]) ToMap() (map[string]interface{}, error) {
-	var result map[string]interface{}
-	err := mapstructure.Decode(b.T, &result)
+func (b *GenericRemoteEncryptionKeyProvider[T]) ToMap() (map[string]any, error) {
+	var result map[string]any
+	err := mapstructure.Decode(b.Data, &result)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode struct to map: %w", err)
+		return nil, errors.Errorf("failed to decode struct to map: %w", err)
 	}
 
 	return result, nil
 }
 
+func (*RemoteEncryptionKeyProviderPBKDF2) Name() string {
+	return "pbkdf2"
+}
+
+func (*RemoteEncryptionKeyProviderGCPKMS) Name() string {
+	return "gcp_kms"
+}
+
+func (*RemoteEncryptionKeyProviderAWSKMS) Name() string {
+	return "aws_kms"
+}
+
 func NewRemoteEncryptionKeyProvider(providerType string) (RemoteEncryptionConfig, error) {
 	switch providerType {
-	case "pbkdf2":
+	case new(RemoteEncryptionKeyProviderPBKDF2).Name():
 		return &GenericRemoteEncryptionKeyProvider[RemoteEncryptionKeyProviderPBKDF2]{}, nil
-	case "gcp_kms":
+	case new(RemoteEncryptionKeyProviderGCPKMS).Name():
 		return &GenericRemoteEncryptionKeyProvider[RemoteEncryptionKeyProviderGCPKMS]{}, nil
-	case "aws_kms":
+	case new(RemoteEncryptionKeyProviderAWSKMS).Name():
 		return &GenericRemoteEncryptionKeyProvider[RemoteEncryptionKeyProviderAWSKMS]{}, nil
 	default:
-		return nil, fmt.Errorf("unknown provider type: %s", providerType)
+		return nil, errors.Errorf("unknown provider type: %s", providerType)
 	}
 }
 

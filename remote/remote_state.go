@@ -19,12 +19,12 @@ const initializedRemoteStateCacheName = "initializedRemoteStateCache"
 // RemoteState is the configuration for Terraform remote state
 // NOTE: If any attributes are added here, be sure to add it to remoteStateAsCty in config/config_as_cty.go
 type RemoteState struct {
-	Backend                       string                 `mapstructure:"backend" json:"Backend"`
-	DisableInit                   bool                   `mapstructure:"disable_init" json:"DisableInit"`
-	DisableDependencyOptimization bool                   `mapstructure:"disable_dependency_optimization" json:"DisableDependencyOptimization"`
-	Generate                      *RemoteStateGenerate   `mapstructure:"generate" json:"Generate"`
-	Config                        map[string]interface{} `mapstructure:"config" json:"Config"`
-	Encryption                    map[string]interface{} `mapstructure:"encryption" json:"Encryption"`
+	Backend                       string               `mapstructure:"backend" json:"Backend"`
+	DisableInit                   bool                 `mapstructure:"disable_init" json:"DisableInit"`
+	DisableDependencyOptimization bool                 `mapstructure:"disable_dependency_optimization" json:"DisableDependencyOptimization"`
+	Generate                      *RemoteStateGenerate `mapstructure:"generate" json:"Generate"`
+	Config                        map[string]any       `mapstructure:"config" json:"Config"`
+	Encryption                    map[string]any       `mapstructure:"encryption" json:"Encryption"`
 }
 
 // map to store mutexes for each state bucket action
@@ -66,7 +66,7 @@ type RemoteStateInitializer interface {
 
 	// Return the config that should be passed on to terraform via -backend-config cmd line param
 	// Allows the Backends to filter and/or modify the configuration given from the user
-	GetTerraformInitArgs(config map[string]interface{}) map[string]interface{}
+	GetTerraformInitArgs(config map[string]any) map[string]interface{}
 }
 
 // TODO: initialization actions for other remote state backends can be added here
@@ -162,7 +162,7 @@ func (state *RemoteState) DiffersFrom(existingBackend *TerraformBackend, terragr
 // null values in the existing config. This is because Terraform >= 0.12 stores ALL possible keys for a given backend
 // in the .tfstate file, even if the user hasn't configured that key, in which case the value will be null, and cause
 // reflect.DeepEqual to fail.
-func terraformStateConfigEqual(existingConfig map[string]interface{}, newConfig map[string]interface{}) bool {
+func terraformStateConfigEqual(existingConfig map[string]any, newConfig map[string]interface{}) bool {
 	if existingConfig == nil {
 		return newConfig == nil
 	}
@@ -173,8 +173,8 @@ func terraformStateConfigEqual(existingConfig map[string]interface{}, newConfig 
 }
 
 // Copy the non-nil values from the existingMap to a new map
-func copyExistingNotNullValues(existingMap map[string]interface{}, newMap map[string]interface{}) map[string]interface{} {
-	existingConfigNonNil := map[string]interface{}{}
+func copyExistingNotNullValues(existingMap map[string]any, newMap map[string]interface{}) map[string]interface{} {
+	existingConfigNonNil := map[string]any{}
 
 	for existingKey, existingValue := range existingMap {
 		newValue, newValueIsSet := newMap[existingKey]
@@ -182,8 +182,8 @@ func copyExistingNotNullValues(existingMap map[string]interface{}, newMap map[st
 			continue
 		}
 		// if newValue and existingValue are both maps, we need to recursively copy the non-nil values
-		if existingValueMap, existingValueIsMap := existingValue.(map[string]interface{}); existingValueIsMap {
-			if newValueMap, newValueIsMap := newValue.(map[string]interface{}); newValueIsMap {
+		if existingValueMap, existingValueIsMap := existingValue.(map[string]any); existingValueIsMap {
+			if newValueMap, newValueIsMap := newValue.(map[string]any); newValueIsMap {
 				existingValue = copyExistingNotNullValues(existingValueMap, newValueMap)
 			}
 		}
@@ -196,7 +196,7 @@ func copyExistingNotNullValues(existingMap map[string]interface{}, newMap map[st
 
 // ToTerraformInitArgs converts the RemoteState config into the
 // format used by the terraform init command
-func (state RemoteState) ToTerraformInitArgs() []string {
+func (state *RemoteState) ToTerraformInitArgs() []string {
 	config := state.Config
 
 	if state.DisableInit {
@@ -234,22 +234,22 @@ func (state *RemoteState) GenerateTerraformCode(terragruntOptions *options.Terra
 	config := state.Config
 
 	// Initialize the encryption config based on the key provider
-	var encryption map[string]interface{}
+	var encryption map[string]any
 
 	switch {
 	case state.Encryption == nil:
-		terragruntOptions.Logger.Debugf("No encryption block in remote_state config")
+		terragruntOptions.Logger.Debug("No encryption block in remote_state config")
 	case len(state.Encryption) == 0:
-		terragruntOptions.Logger.Debugf("Empty encryption block in remote_state config")
+		terragruntOptions.Logger.Debug("Empty encryption block in remote_state config")
 	default:
-		keyProvider, ok := state.Encryption["key_provider"].(string)
+		keyProvider, ok := state.Encryption[codegen.EncryptionKeyProviderKey].(string)
 		if !ok {
 			return errors.New("key_provider not found in encryption config")
 		}
 
 		encryptionProvider, err := NewRemoteEncryptionKeyProvider(keyProvider)
 		if err != nil {
-			return fmt.Errorf("error creating provider: %w", err)
+			return errors.Errorf("error creating provider: %w", err)
 		}
 
 		err = encryptionProvider.UnmarshalConfig(state.Encryption)
@@ -259,7 +259,7 @@ func (state *RemoteState) GenerateTerraformCode(terragruntOptions *options.Terra
 
 		encryption, err = encryptionProvider.ToMap()
 		if err != nil {
-			return fmt.Errorf("error decoding struct to map: %w", err)
+			return errors.Errorf("error decoding struct to map: %w", err)
 		}
 	}
 
