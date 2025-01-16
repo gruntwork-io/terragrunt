@@ -46,7 +46,7 @@ func (provider *Provider) GetCredentials(ctx context.Context) (*providers.Creden
 		args = parts[1:]
 	}
 
-	output, err := shell.RunShellCommandWithOutput(ctx, provider.terragruntOptions, "", true, false, command, args...)
+	output, err := shell.RunShellCommandWithOutput(ctx, provider.terragruntOptions, "", true, true, false, command, args...)
 	if err != nil {
 		return nil, err
 	}

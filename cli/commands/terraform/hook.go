@@ -67,6 +67,11 @@ func processErrorHooks(ctx context.Context, hooks []config.ErrorHook, terragrunt
 				suppressStdout = true
 			}
 
+			var suppressStderr bool
+			if curHook.SuppressStderr != nil && *curHook.SuppressStderr {
+				suppressStderr = true
+			}
+
 			actionToExecute := curHook.Execute[0]
 			actionParams := curHook.Execute[1:]
 			terragruntOptions = terragruntOptionsWithHookEnvs(terragruntOptions, curHook.Name)
@@ -76,6 +81,7 @@ func processErrorHooks(ctx context.Context, hooks []config.ErrorHook, terragrunt
 				terragruntOptions,
 				workingDir,
 				suppressStdout,
+				suppressStderr,
 				false,
 				actionToExecute, actionParams...,
 			)
@@ -148,6 +154,11 @@ func runHook(ctx context.Context, terragruntOptions *options.TerragruntOptions, 
 		suppressStdout = true
 	}
 
+	var suppressStderr bool
+	if curHook.SuppressStderr != nil && *curHook.SuppressStderr {
+		suppressStderr = true
+	}
+
 	actionToExecute := curHook.Execute[0]
 	actionParams := curHook.Execute[1:]
 	terragruntOptions = terragruntOptionsWithHookEnvs(terragruntOptions, curHook.Name)
@@ -162,6 +173,7 @@ func runHook(ctx context.Context, terragruntOptions *options.TerragruntOptions, 
 			terragruntOptions,
 			workingDir,
 			suppressStdout,
+			suppressStderr,
 			false,
 			actionToExecute, actionParams...,
 		)

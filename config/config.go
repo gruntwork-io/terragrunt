@@ -437,6 +437,7 @@ type Hook struct {
 	Execute        []string `hcl:"execute,attr" cty:"execute"`
 	RunOnError     *bool    `hcl:"run_on_error,attr" cty:"run_on_error"`
 	SuppressStdout *bool    `hcl:"suppress_stdout,attr" cty:"suppress_stdout"`
+	SuppressStderr *bool    `hcl:"suppress_stderr,attr" cty:"suppress_stderr"`
 	WorkingDir     *string  `hcl:"working_dir,attr" cty:"working_dir"`
 }
 
@@ -446,6 +447,7 @@ type ErrorHook struct {
 	Execute        []string `hcl:"execute,attr" cty:"execute"`
 	OnErrors       []string `hcl:"on_errors,attr" cty:"on_errors"`
 	SuppressStdout *bool    `hcl:"suppress_stdout,attr" cty:"suppress_stdout"`
+	SuppressStderr *bool    `hcl:"suppress_stderr,attr" cty:"suppress_stderr"`
 	WorkingDir     *string  `hcl:"working_dir,attr" cty:"working_dir"`
 }
 

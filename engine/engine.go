@@ -61,6 +61,7 @@ type ExecutionOptions struct {
 	CmdStderr         io.Writer
 	WorkingDir        string
 	SuppressStdout    bool
+	SuppressStderr    bool
 	AllocatePseudoTty bool
 	Command           string
 	Args              []string
