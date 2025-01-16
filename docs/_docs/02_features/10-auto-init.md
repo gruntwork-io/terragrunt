@@ -8,6 +8,7 @@ tags: ["CLI"]
 order: 210
 nav_title: Documentation
 nav_title_link: /docs/
+slug: auto-init
 ---
 
 *Auto-Init* is a feature of Terragrunt that makes it so that `terragrunt init` does not need to be called explicitly before other terragrunt commands.

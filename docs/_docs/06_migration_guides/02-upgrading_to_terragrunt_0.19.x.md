@@ -8,6 +8,7 @@ tags: ["migration", "community"]
 order: 602
 nav_title: Documentation
 nav_title_link: /docs/
+slug: upgrading_to_terragrunt_0.19.x
 ---
 
 ## Background

@@ -9,6 +9,7 @@ tags: ["CLI"]
 order: 405
 nav_title: Documentation
 nav_title_link: /docs/
+slug: strict-mode
 ---
 
 Terragrunt supports operating in a mode referred to as "Strict Mode".

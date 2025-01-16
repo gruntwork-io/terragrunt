@@ -8,6 +8,7 @@ tags: ["log"]
 order: 409
 nav_title: Documentation
 nav_title_link: /docs/
+slug: logging
 ---
 
 Terragrunt logs messages as it runs to help you understand what it's doing. Given that Terragrunt is an IaC orchestrator, this can result in messages that are surprising if you don't understand what Terragrunt is doing behind the scenes.

@@ -9,6 +9,7 @@ tags: ["CLI"]
 order: 402
 nav_title: Documentation
 nav_title_link: /docs/
+slug: cli-options
 ---
 
 This page documents the CLI commands and options available with Terragrunt:

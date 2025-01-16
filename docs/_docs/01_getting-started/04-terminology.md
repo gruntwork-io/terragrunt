@@ -7,6 +7,7 @@ tags: ["terminology", "glossary"]
 order: 104
 nav_title: Documentation
 nav_title_link: /docs/
+slug: terminology
 ---
 
 ## Preamble

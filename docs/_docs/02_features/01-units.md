@@ -12,6 +12,7 @@ redirect_from:
   - /docs/features/inputs/
   - /docs/features/locals/
   - /docs/features/keep-your-terraform-code-dry/
+slug: units
 ---
 
 - [Motivation](#motivation)

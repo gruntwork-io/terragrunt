@@ -8,6 +8,7 @@ tags: ["functions"]
 order: 403
 nav_title: Documentation
 nav_title_link: /docs/
+slug: built-in-functions
 ---
 
 Terragrunt allows you to use built-in functions anywhere in `terragrunt.hcl`, just like OpenTofu/Terraform\!

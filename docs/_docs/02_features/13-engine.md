@@ -8,6 +8,7 @@ tags: ["engine"]
 order: 213
 nav_title: Documentation
 nav_title_link: /docs/
+slug: engine
 ---
 
 IaC engines allow you to customize and configure how IaC updates are orchestrated by Terragrunt. This feature is still experimental and not recommended for general production usage.

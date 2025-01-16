@@ -8,6 +8,7 @@ tags: ["migration", "community"]
 order: 601
 nav_title: Documentation
 nav_title_link: /docs/
+slug: migrating-from-root-terragrunt-hcl
 ---
 
 ## Problem

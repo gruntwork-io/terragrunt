@@ -10,6 +10,7 @@ nav_title: Documentation
 nav_title_link: /docs/
 redirect_from:
     - /docs/features/debugging/
+slug: debugging
 ---
 
 Terragrunt and OpenTofu/Terraform usually play well together in helping you

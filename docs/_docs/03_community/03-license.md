@@ -8,6 +8,7 @@ tags: ["license"]
 order: 303
 nav_title: Documentation
 nav_title_link: /docs/
+slug: license
 ---
 
 This code is released under the MIT License. See [LICENSE.txt](https://github.com/gruntwork-io/terragrunt/blob/main/LICENSE.txt).

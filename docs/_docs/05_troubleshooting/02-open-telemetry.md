@@ -8,6 +8,7 @@ tags: ["OpenTelemetry", "Tracing", "Metrics", "Otel"]
 order: 502
 nav_title: Documentation
 nav_title_link: /docs/
+slug: open-telemetry
 ---
 
 Terragrunt can be configured to emit telemetry in [OpenTelemetry](https://opentelemetry.io/) format, traces and metrics.

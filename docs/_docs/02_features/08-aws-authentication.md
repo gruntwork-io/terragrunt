@@ -11,6 +11,7 @@ nav_title_link: /docs/
 redirect_from:
     - /docs/features/aws-auth/
     - /docs/features/work-with-multiple-aws-accounts/
+slug: aws-authentication
 ---
 
 ## Motivation

@@ -8,6 +8,7 @@ tags: ["scaffold"]
 order: 206
 nav_title: Documentation
 nav_title_link: /docs/
+slug: scaffold
 ---
 
 Terragrunt scaffolding can generate files for you automatically using [boilerplate](https://github.com/gruntwork-io/boilerplate) templates.

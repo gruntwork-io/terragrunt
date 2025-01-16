@@ -10,6 +10,7 @@ nav_title: Documentation
 nav_title_link: /docs/
 redirect_from:
     - /docs/features/keep-your-remote-state-configuration-dry/
+slug: state-backend
 ---
 
 - [Motivation](#motivation)

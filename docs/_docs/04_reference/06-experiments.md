@@ -9,6 +9,7 @@ tags: ["CLI"]
 order: 406
 nav_title: Documentation
 nav_title_link: /docs/
+slug: experiments
 ---
 
 Terragrunt supports operating in a mode referred to as "Experiment Mode".

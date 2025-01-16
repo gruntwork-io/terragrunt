@@ -10,6 +10,7 @@ nav_title: Documentation
 nav_title_link: /docs/
 redirect_from:
     - /docs/features/custom-log-format/
+slug: log-formatting
 ---
 
 Using the `--log-custom-format <format>` flag you can customize the way Terragrunt logs with total control over the logging format.

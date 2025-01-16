@@ -8,6 +8,7 @@ tags: ["config", "formatting"]
 order: 401
 nav_title: Documentation
 nav_title_link: /docs/
+slug: configuration
 ---
 
 Terragrunt configuration is defined in a `terragrunt.hcl` file. This uses the same HCL syntax as OpenTofu/Terraform itself.

@@ -10,6 +10,7 @@ nav_title: Documentation
 nav_title_link: /docs/
 redirect_from:
     - /docs/features/keep-your-cli-flags-dry/
+slug: extra-arguments
 ---
 
 - [Motivation](#motivation)

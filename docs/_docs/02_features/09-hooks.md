@@ -8,6 +8,7 @@ tags: ["hooks"]
 order: 209
 nav_title: Documentation
 nav_title_link: /docs/
+slug: hooks
 ---
 
 _Before Hooks_, _After Hooks_ and _Error Hooks_ are a feature of terragrunt that make it possible to define custom actions that will be called before or after running an `tofu`/`terraform` command.

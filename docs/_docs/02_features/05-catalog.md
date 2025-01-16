@@ -8,6 +8,7 @@ tags: ["catalog"]
 order: 205
 nav_title: Documentation
 nav_title_link: /docs/
+slug: catalog
 ---
 
 Launch the user interface for searching and managing your module catalog.

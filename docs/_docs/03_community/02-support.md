@@ -8,6 +8,7 @@ tags: ["support", "community"]
 order: 302
 nav_title: Documentation
 nav_title_link: /docs/
+slug: support
 ---
 
 ## Github Discussions

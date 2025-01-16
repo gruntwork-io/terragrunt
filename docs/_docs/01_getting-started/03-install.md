@@ -7,6 +7,7 @@ tags: ["install"]
 order: 103
 nav_title: Documentation
 nav_title_link: /docs/
+slug: install
 ---
 
 ## Download from releases page

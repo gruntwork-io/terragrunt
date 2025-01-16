@@ -8,6 +8,7 @@ tags: ["contributing", "community"]
 order: 301
 nav_title: Documentation
 nav_title_link: /docs/
+slug: contributing
 ---
 
 Terragrunt is an open source project, and contributions from the community are very welcome\! Please check out the

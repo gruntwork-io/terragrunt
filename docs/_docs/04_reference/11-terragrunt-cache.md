@@ -10,6 +10,7 @@ nav_title: Documentation
 nav_title_link: /docs/
 redirect_from:
     - /docs/features/caching/
+slug: terragrunt-cache
 ---
 
 Terragrunt uses a cache directory (`.terragrunt-cache`) to store downloaded modules when using the `source` attribute in the `terraform` block.

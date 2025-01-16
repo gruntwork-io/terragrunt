@@ -10,6 +10,7 @@ nav_title: Documentation
 nav_title_link: /docs/
 redirect_from:
     - /docs/features/auto-retry/
+slug: runtime-control
 ---
 
 Sometimes, you need to have Terragrunt behave differently at runtime due to specific context that you have in your environment.

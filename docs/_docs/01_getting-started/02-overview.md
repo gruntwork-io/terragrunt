@@ -7,6 +7,7 @@ tags: ["Quick Start", "DRY", "backend", "CLI"]
 order: 102
 nav_title: Documentation
 nav_title_link: /docs/
+slug: overview
 ---
 
 The following is a simple overview of the main features in Terragrunt.

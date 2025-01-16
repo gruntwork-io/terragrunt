@@ -8,6 +8,7 @@ tags: [ "install" ]
 order: 407
 nav_title: Documentation
 nav_title_link: /docs/
+slug: supported-versions
 ---
 
 ## Supported OpenTofu Versions

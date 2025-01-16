@@ -10,6 +10,7 @@ nav_title: Documentation
 nav_title_link: /docs/
 redirect_from:
     - /docs/features/keep-your-terragrunt-architecture-dry/
+slug: includes
 ---
 
 - [Motivation](#motivation)

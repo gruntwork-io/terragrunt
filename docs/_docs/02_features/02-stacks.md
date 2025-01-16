@@ -10,6 +10,7 @@ nav_title: Documentation
 nav_title_link: /docs/
 redirect_from:
     - /docs/features/execute-terraform-commands-on-multiple-units-at-once/
+slug: stacks
 ---
 
 - [Motivation](#motivation)

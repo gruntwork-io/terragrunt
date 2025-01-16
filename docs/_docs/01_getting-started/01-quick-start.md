@@ -7,6 +7,7 @@ tags: ["tofu", "opentofu", "terraform", "tf"]
 order: 101
 nav_title: Documentation
 nav_title_link: /docs/
+slug: quick-start
 ---
 
 ## Install Terragrunt

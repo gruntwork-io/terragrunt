@@ -9,6 +9,7 @@ tags: ["config"]
 order: 404
 nav_title: Documentation
 nav_title_link: /docs/
+slug: config-blocks-and-attributes
 ---
 
 The Terragrunt configuration file uses the same HCL syntax as OpenTofu/Terraform itself in `terragrunt.hcl`.
