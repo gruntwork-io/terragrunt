@@ -789,7 +789,7 @@ Will create the following directory structure:
 
 #### run
 
-The `terragrunt stack run *` command enables users to execute IaC commands across all units defined in the `terragrunt.stack.hcl` file. 
+The `terragrunt stack run *` command enables users to execute IaC commands across all units defined in the `terragrunt.stack.hcl` file.
 This feature facilitates efficient orchestration of operations on multiple units, simplifying workflows for managing complex infrastructure stacks.
 
 **Examples:**
@@ -810,14 +810,13 @@ Destroy all units:
 
 ```bash
 terragrunt stack run destroy
-``` 
+```
 
 **Note:**
 
 Before executing the specified command, the `terragrunt stack run *` command will automatically generate the stack by creating
 the `.terragrunt-stack` directory using the `terragrunt.stack.hcl` configuration file.
 This ensures that all units are up-to-date before running the requested operation.
-
 
 ## CLI options
 
