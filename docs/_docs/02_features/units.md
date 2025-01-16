@@ -5,7 +5,7 @@ category: features
 categories_url: features
 excerpt: Learn how Terragrunt units result in atomic deployments and immutable infrastructure.
 tags: ["DRY", "Use cases", "backend", "unit"]
-order: 201
+order: 200
 nav_title: Documentation
 nav_title_link: /docs/
 redirect_from:

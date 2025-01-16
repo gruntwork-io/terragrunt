@@ -5,7 +5,7 @@ category: reference
 categories_url: reference
 excerpt: Learn what the `.terragrunt-cache` directory is and how to manage it.
 tags: [ "install" ]
-order: 411
+order: 406
 nav_title: Documentation
 nav_title_link: /docs/
 redirect_from:
