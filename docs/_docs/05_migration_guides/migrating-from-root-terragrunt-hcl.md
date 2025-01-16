@@ -5,7 +5,7 @@ category: migrate
 categories_url: migrate
 excerpt: Migration guide to replace root `terragrunt.hcl` file
 tags: ["migration", "community"]
-order: 601
+order: 501
 nav_title: Documentation
 nav_title_link: /docs/
 ---

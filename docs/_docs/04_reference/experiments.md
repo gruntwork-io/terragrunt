@@ -6,7 +6,7 @@ categories_url: reference
 excerpt: >-
   Opt-in to experimental features before they're stable.
 tags: ["CLI"]
-order: 406
+order: 405
 nav_title: Documentation
 nav_title_link: /docs/
 ---

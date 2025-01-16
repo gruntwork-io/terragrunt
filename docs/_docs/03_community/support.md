@@ -5,7 +5,7 @@ category: community
 excerpt: >-
   Need help?
 tags: ["support", "community"]
-order: 302
+order: 301
 nav_title: Documentation
 nav_title_link: /docs/
 ---

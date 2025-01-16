@@ -5,7 +5,7 @@ category: reference
 categories_url: reference
 excerpt: Learn which Terraform and OpenTofu versions are compatible with which versions of Terragrunt.
 tags: [ "install" ]
-order: 407
+order: 406
 nav_title: Documentation
 nav_title_link: /docs/
 ---

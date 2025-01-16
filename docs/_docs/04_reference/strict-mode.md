@@ -6,7 +6,7 @@ categories_url: reference
 excerpt: >-
   Opt-in to strict mode to avoid deprecated features and ensure your code is future-proof.
 tags: ["CLI"]
-order: 405
+order: 404
 nav_title: Documentation
 nav_title_link: /docs/
 ---
