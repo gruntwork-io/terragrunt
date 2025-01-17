@@ -56,7 +56,7 @@ var (
 func testCommandOutputOrder(t *testing.T, withPtty bool, fullOutput []string, stdout []string, stderr []string) {
 	t.Helper()
 
-	testCommandOutput(t, noop[*options.TerragruntOptions], assertOutputs(t, fullOutput, stdout, stderr), withPtty)
+	testCommandOutput(t, noop[*options.TerragruntOptions], assertOutputs(t, fullOutput, stdout, stderr), withPtty, withPtty)
 }
 
 func TestCommandOutputPrefix(t *testing.T) {
@@ -78,10 +78,10 @@ func TestCommandOutputPrefix(t *testing.T) {
 		prefixedOutput,
 		Stdout,
 		Stderr,
-	), true)
+	), true, true)
 }
 
-func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions), assertResults func(string, *util.CmdOutput), allocateStdout bool) {
+func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions), assertResults func(string, *util.CmdOutput), allocateStdout bool, allocateStderr bool) {
 	t.Helper()
 
 	terragruntOptions, err := options.NewTerragruntOptionsForTest("")
@@ -97,7 +97,7 @@ func testCommandOutput(t *testing.T, withOptions func(*options.TerragruntOptions
 
 	withOptions(terragruntOptions)
 
-	out, err := shell.RunShellCommandWithOutput(context.Background(), terragruntOptions, "", !allocateStdout, false, "testdata/test_outputs.sh", "same")
+	out, err := shell.RunShellCommandWithOutput(context.Background(), terragruntOptions, "", !allocateStdout, !allocateStderr, false, "testdata/test_outputs.sh", "same")
 
 	assert.NotNil(t, out, "Should get output")
 	require.NoError(t, err, "Should have no error")
