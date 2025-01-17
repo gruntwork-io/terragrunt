@@ -274,7 +274,7 @@ func ParseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteState
 	return &extendedConfig, nil
 }
 
-// ValidateGCSConfig validates the configuration for GCS remote state
+// ValidateGCSConfig validates the configuration for GCS remote state.
 func ValidateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS) error {
 	config := extendedConfig.remoteStateConfigGCS
 
@@ -289,37 +289,38 @@ func ValidateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS) error {
 		return errors.New(MissingRequiredGCSRemoteStateConfig("bucket"))
 	}
 
-	// When bucket creation is intended, both project and location are required
-	// This ensures we have the minimum information needed to create a bucket if necessary
-	if extendedConfig.Project == "" || extendedConfig.Location == "" {
-		// Create a GCS client to check bucket existence
-		gcsClient, err := CreateGCSClient(config)
-		if err != nil {
-			return fmt.Errorf("error creating GCS client: %w", err)
-		}
-
-		defer func() {
-			if closeErr := gcsClient.Close(); closeErr != nil {
-				log.Warnf("Error closing GCS client: %v", closeErr)
-			}
-		}()
-
-		// Check if the bucket exists
-		bucketExists := DoesGCSBucketExist(gcsClient, &config)
-		if !bucketExists {
-			// If bucket doesn't exist and project is missing, return error
-			if extendedConfig.Project == "" {
-				return errors.New(MissingRequiredGCSRemoteStateConfig("project"))
-			}
-
-			// If bucket doesn't exist and location is missing, return error
-			if extendedConfig.Location == "" {
-				return errors.New(MissingRequiredGCSRemoteStateConfig("location"))
-			}
-		}
+	// If both project and location are provided, the configuration is valid
+	if extendedConfig.Project != "" && extendedConfig.Location != "" {
+		return nil
 	}
 
-	// At this point, we have a valid configuration
+	// Create a GCS client to check bucket existence
+	gcsClient, err := CreateGCSClient(config)
+	if err != nil {
+		return fmt.Errorf("error creating GCS client: %w", err)
+	}
+
+	defer func() {
+		if closeErr := gcsClient.Close(); closeErr != nil {
+			log.Warnf("Error closing GCS client: %v", closeErr)
+		}
+	}()
+
+	// Check if the bucket exists
+	bucketExists := DoesGCSBucketExist(gcsClient, &config)
+	if bucketExists {
+		return nil
+	}
+
+	// At this point, the bucket doesn't exist and we need both project and location
+	if extendedConfig.Project == "" {
+		return errors.New(MissingRequiredGCSRemoteStateConfig("project"))
+	}
+
+	if extendedConfig.Location == "" {
+		return errors.New(MissingRequiredGCSRemoteStateConfig("location"))
+	}
+
 	return nil
 }
 
