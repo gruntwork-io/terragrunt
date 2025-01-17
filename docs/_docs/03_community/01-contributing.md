@@ -11,13 +11,9 @@ nav_title_link: /docs/
 slug: contributing
 ---
 
-Terragrunt is an open source project, and contributions from the community are very welcome\! Please check out the
-[Contribution Guidelines](#contribution-guidelines) and [Developing Terragrunt](#developing-terragrunt) for
-instructions.
-
 ## Contribution Guidelines
 
-Contributions to this repo are very welcome! We follow a fairly standard [pull request
+Contributions to Terragrunt are very welcome! We follow a fairly standard [pull request
 process](https://help.github.com/articles/about-pull-requests/) for contributions, subject to the following guidelines:
 
 - [Contribution Guidelines](#contribution-guidelines)
@@ -30,6 +26,7 @@ process](https://help.github.com/articles/about-pull-requests/) for contribution
 - [Developing Terragrunt](#developing-terragrunt)
   - [Running locally](#running-locally)
   - [Dependencies](#dependencies)
+  - [Linting](#linting)
   - [Running tests](#running-tests)
   - [Debug logging](#debug-logging)
   - [Error handling](#error-handling)
@@ -114,6 +111,70 @@ go run main.go plan
 Terragrunt uses go modules (read more about the modules system in [the official
 wiki](https://github.com/golang/go/wiki/Modules)). This means that dependencies are automatically installed when you use
 any go command that compiles the code (`build`, `run`, `test`, etc.).
+
+### Linting
+
+Terragrunt uses [golangci-lint](https://golangci-lint.run/) to lint the codebase. This is a helpful form of static analysis that can catch common bugs and issues related to performance, style and maintainability.
+
+We use the linter as a guide to learn about how we can improve the Terragrunt codebase. We do not enforce 100% compliance with the linter. If you believe that an error thrown by the linter is irrelevant, use the documentation on [false-positives](https://golangci-lint.run/usage/false-positives/) to suppress that error, along with an explanation of why you believe the error is a false positive.
+
+If you feel like the linter is missing a check that would be useful for improving the code quality of Terragrunt, please open an issue to discuss it, then open a pull request to add the check.
+
+There are two lint configurations currently in use:
+
+- **Default linter**
+
+  This is the default configuration that is used when running `golangci-lint run`. The configuration for this lint is defined in the `.golangci.yml` file.
+
+  These lints **must** pass before any code is merged into the `main` branch.
+
+- **Strict linter**
+
+  This is the more strict configuration that is used to check for additional issues in pull requests. This configuration is defined in the `.strict.golanci.yml` file.
+
+  These lints **do not have to pass** before code is merged into the `main` branch, but the results are useful to look at to improve code quality.
+
+#### Default linter
+
+Before any tests run in our continuous integration suite, they must pass the default linter. This is to ensure an acceptable floor for code quality in the codebase.
+
+To run the default linter directly, use:
+
+```bash
+golangci-lint run
+```
+
+There's also a Makefile recipe that runs the default linter:
+
+```bash
+make run-lint
+```
+
+If possible, you are advised to [integrate the linter into your code editor](https://golangci-lint.run/welcome/integrations/) to get immediate feedback as edit Terragrunt code.
+
+#### Strict linter
+
+To run the strict linter, use:
+
+```bash
+golangci-lint run -c .strict.golangci.yml
+```
+
+It's generally not practical to run the strict linter on the entire codebase, as it's very strict and will likely produce a lot of errors. Instead, you can run it on the files that have changed with respect to the `main` branch.
+
+You can do that like so:
+
+```bash
+golangci-lint run -c .strict.golangci.yml --new-from-rev origin/main ./...
+```
+
+This is basically what the `run-strict-lint` Makefile recipe does:
+
+```bash
+make run-strict-lint
+```
+
+In our continuous integration suite, we run the strict linter on the files that have changed with respect to the `main` branch, and very intentionally do not enforce that the lints pass. We pay more attention to the results when the lint fails for a pull request that are changing few small files, as those are much more likely to pass. In those cases, maintainers will review the results, and may suggest changes that are necessary to improve code quality if they believe the cost of implementing the changes is low.
 
 ### Running tests
 
