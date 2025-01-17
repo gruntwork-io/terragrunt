@@ -17,22 +17,24 @@ import (
 )
 
 const (
-	testFixtureHooksBeforeOnlyPath                                = "fixtures/hooks/before-only"
-	testFixtureHooksAllPath                                       = "fixtures/hooks/all"
-	testFixtureHooksAfterOnlyPath                                 = "fixtures/hooks/after-only"
-	testFixtureHooksBeforeAndAfterPath                            = "fixtures/hooks/before-and-after"
-	testFixtureHooksBeforeAfterAndErrorMergePath                  = "fixtures/hooks/before-after-and-error-merge"
-	testFixtureHooksSkipOnErrorPath                               = "fixtures/hooks/skip-on-error"
-	testFixtureErrorHooksPath                                     = "fixtures/hooks/error-hooks"
-	testFixtureHooksOneArgActionPath                              = "fixtures/hooks/one-arg-action"
-	testFixtureHooksEmptyStringCommandPath                        = "fixtures/hooks/bad-arg-action/empty-string-command"
-	testFixtureHooksEmptyCommandListPath                          = "fixtures/hooks/bad-arg-action/empty-command-list"
-	testFixtureHooksInterpolationsPath                            = "fixtures/hooks/interpolations"
-	testFixtureHooksInitOnceNoSourceNoBackend                     = "fixtures/hooks/init-once/no-source-no-backend"
-	testFixtureHooksInitOnceNoSourceWithBackend                   = "fixtures/hooks/init-once/no-source-with-backend"
-	testFixtureHooksInitOnceWithSourceNoBackend                   = "fixtures/hooks/init-once/with-source-no-backend"
-	testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStdout = "fixtures/hooks/init-once/with-source-no-backend-suppress-hook-stdout"
-	testFixtureHooksInitOnceWithSourceWithBackend                 = "fixtures/hooks/init-once/with-source-with-backend"
+	testFixtureHooksBeforeOnlyPath                                  = "fixtures/hooks/before-only"
+	testFixtureHooksAllPath                                         = "fixtures/hooks/all"
+	testFixtureHooksAfterOnlyPath                                   = "fixtures/hooks/after-only"
+	testFixtureHooksBeforeAndAfterPath                              = "fixtures/hooks/before-and-after"
+	testFixtureHooksBeforeAfterAndErrorMergePath                    = "fixtures/hooks/before-after-and-error-merge"
+	testFixtureHooksSkipOnErrorPath                                 = "fixtures/hooks/skip-on-error"
+	testFixtureErrorHooksPath                                       = "fixtures/hooks/error-hooks"
+	testFixtureHooksOneArgActionPath                                = "fixtures/hooks/one-arg-action"
+	testFixtureHooksEmptyStringCommandPath                          = "fixtures/hooks/bad-arg-action/empty-string-command"
+	testFixtureHooksEmptyCommandListPath                            = "fixtures/hooks/bad-arg-action/empty-command-list"
+	testFixtureHooksInterpolationsPath                              = "fixtures/hooks/interpolations"
+	testFixtureHooksInitOnceNoSourceNoBackend                       = "fixtures/hooks/init-once/no-source-no-backend"
+	testFixtureHooksInitOnceNoSourceWithBackend                     = "fixtures/hooks/init-once/no-source-with-backend"
+	testFixtureHooksInitOnceWithSourceNoBackend                     = "fixtures/hooks/init-once/with-source-no-backend"
+	testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStdout   = "fixtures/hooks/init-once/with-source-no-backend-suppress-hook-stdout"
+	testFixtureHooksInitOnceWithSourceNoBackendNoSuppressHookStderr = "fixtures/hooks/init-once/with-source-no-backend-no-suppress-hook-stderr"
+	testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStderr   = "fixtures/hooks/init-once/with-source-no-backend-suppress-hook-stderr"
+	testFixtureHooksInitOnceWithSourceWithBackend                   = "fixtures/hooks/init-once/with-source-with-backend"
 )
 
 func TestTerragruntBeforeHook(t *testing.T) {
@@ -384,4 +386,40 @@ func TestTerragruntInfo(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("%s/%s", rootPath, helpers.TerragruntCache), dat.DownloadDir)
 	assert.Equal(t, wrappedBinary(), dat.TerraformBinary)
 	assert.Empty(t, dat.IamRole)
+}
+
+func TestTerragruntStderr(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureHooksInitOnceWithSourceNoBackendNoSuppressHookStderr)
+	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/hooks/init-once")
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksInitOnceWithSourceNoBackendNoSuppressHookStderr)
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := helpers.RunTerragruntCommand(t, "terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &showStdout, &showStderr)
+	require.NoError(t, err)
+
+	helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	assert.Contains(t, string(showStderr.Bytes()), "ERROR MESSAGE")
+}
+
+func TestTerragruntStderrSuppress(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStderr)
+	tmpEnvPath := helpers.CopyEnvironment(t, "fixtures/hooks/init-once")
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksInitOnceWithSourceNoBackendSuppressHookStderr)
+
+	showStdout := bytes.Buffer{}
+	showStderr := bytes.Buffer{}
+
+	err := helpers.RunTerragruntCommand(t, "terragrunt terragrunt-info --terragrunt-non-interactive --terragrunt-working-dir "+rootPath, &showStdout, &showStderr)
+	require.NoError(t, err)
+
+	helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr")
+
+	assert.NotContains(t, string(showStderr.Bytes()), "ERROR MESSAGE")
 }
