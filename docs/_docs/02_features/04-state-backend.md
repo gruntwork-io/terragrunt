@@ -9,14 +9,8 @@ order: 204
 nav_title: Documentation
 nav_title_link: /docs/
 redirect_from:
-<<<<<<< ours:docs/_docs/02_features/04-state-backend.md
-    - /docs/features/keep-your-remote-state-configuration-dry/
-slug: state-backend
-||||||| ancestor
-    - /docs/features/keep-your-remote-state-configuration-dry/
-=======
   - /docs/features/keep-your-remote-state-configuration-dry/
->>>>>>> theirs:docs/_docs/02_features/state-backend.md
+slug: state-backend
 ---
 
 - [Motivation](#motivation)
@@ -24,7 +18,6 @@ slug: state-backend
 - [Create remote state resources automatically](#create-remote-state-resources-automatically)
 - [S3-specific remote state settings](#s3-specific-remote-state-settings)
 - [GCS-specific remote state settings](#gcs-specific-remote-state-settings)
-  - [Important Considerations](#important-considerations)
 - [Further reading](#further-reading)
 
 ## Motivation
@@ -279,18 +272,6 @@ remote_state {
  encryption_key = "GOOGLE_ENCRYPTION_KEY"
 }
 ```
-
-### Important Considerations
-
-- **Bucket Creation**: When `skip_bucket_creation` is set to `false` (default):
-
-  - `project` and `location` are **required** to create a new bucket
-  - Terragrunt will automatically create the bucket if it doesn't exist
-  - Versioning will be enabled by default unless `skip_bucket_versioning` is set to `true`
-
-- **Bucket Validation**:
-  - Terragrunt validates the presence of `bucket`, `project`, and `location` when creating a new bucket
-  - If the bucket already exists, `project` and `location` are not strictly required
 
 If you experience an error for any of these configurations, confirm you are using Terraform v0.12.0 or greater.
 
