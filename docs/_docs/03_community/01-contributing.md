@@ -191,29 +191,102 @@ markdownlint \
 
 ### Running tests
 
-**Note**: The tests in the `dynamodb` folder for Terragrunt run against a real AWS account and will add and remove real data from DynamoDB. DO NOT hit `CTRL+C` while the tests are running, as this will prevent them from cleaning up temporary tables and data in DynamoDB. We are not responsible for any charges you may incur.
+There are multiple different kinds of tests in the Terragrunt codebase, and each serves a different purpose.
 
-Before running the tests, you must configure your [AWS credentials]({{site.baseurl}}/docs/features/aws-auth/#aws-credentials) and [AWS IAM policies]({{site.baseurl}}/docs/features/aws-auth/#aws-iam-policies).
+#### Unit tests
 
-To run all the tests:
+These are tests that test individual functions in the codebase. They are located in the same package as the code they are testing and are suffixed `*_test.go`.
 
-```bash
-go test -v ./...
-```
+They use a package directive that is suffixed `_test` of the package they test to force them to only test exported functions of that package, while residing in the same directory.
 
-To run only the tests in a specific package, such as the package `remote`:
+The idea behind this practice is to keep the tests close to the code they are testing, and to force them to only test the public API of the package. This allows implementation details of particular functions to change without breaking tests, as long as the public API behaves the same.
 
-```bash
-cd remote
-go test -v
-```
+In general, if you are editing Terragrunt code, and there isn't a unit test that covers the code you are updating, it's probably a good idea to add one. If there is a unit test for the code you are updating, you should make sure that you run that test after any update to ensure that you haven't broken anything.
 
-And to run a specific test, such as `TestToTerraformRemoteConfigArgsNoBackendConfigs` in package `remote`:
+When possible, introduce new tests for code _before_ you start making changes. This is a practice known as [Test Driven Development](https://en.wikipedia.org/wiki/Test-driven_development).
+
+You can run the unit tests for a particular package by running:
 
 ```bash
-cd remote
-go test -v -run TestToTerraformRemoteConfigArgsNoBackendConfigs
+go test ./path/to/package
 ```
+
+To specifically run a single test, you can use the `-run` flag:
+
+```bash
+go test -run TestFunctionName ./path/to/package
+```
+
+There are many ways to customize the `go test` command, including using flags like `-v` to get more verbose output. To learn more about go testing, read the [official documentation](https://pkg.go.dev/testing).
+
+#### Integration tests
+
+These are tests that test integrations between multiple parts of the Terragrunt codebase, and external services. They generally invoke Terragrunt as if you were using it from the command line.
+
+These tests are located in the `test` directory, and are suffixed `*_test.go`.
+
+Often, these tests run against test fixtures, which are small Terragrunt configurations that emulate specific real-world scenarios. These test fixtures are located in the `test/fixtures` directory.
+
+To run the integration tests, you can use the `go test` command:
+
+```bash
+go test ./test
+```
+
+Note that integration tests can be slow, as they often involve running full Terragrunt commands, and that frequently involves spawning new processes. As a result, you may want to run only a subset of the tests while developing. You can do this by using the `-run` flag:
+
+```bash
+go test -run 'TestBeginningOfFunctionName*' ./test
+```
+
+This will run all tests that start with `TestBeginningOfFunctionName`.
+
+Note that some tests may require that you opt-in for them to be tested. This is because they may require access to external services that you need to authenticate with or use a specific external tool that you might not have installed. In these cases, we use [golang build tags](https://pkg.go.dev/go/build) to conditionally compile the tests. You can run these tests by setting the appropriate build tag before testing.
+
+For example, AWS tests are tagged using the `aws` build tag. To run these tests, you can use the `-tags` flag set in the `GOFLAGS` environment variable like so:
+
+```bash
+GOFLAGS='-tags=aws' go test -run 'TestAwsInitHookNoSourceWithBackend' .
+```
+
+Depending on how you've configured your editor, you may need to make sure that your editor has the `GOFLAGS` environment variable set before starting for the best development experience:
+
+```bash
+export GOFLAGS='-tags=aws'
+neovim .
+```
+
+In general, we try to make sure that any test that requires a build tag is also consistently prefixed a certain way so that they can be tested independently.
+
+For example, all AWS tests are prefixed with `TestAws*`.
+
+#### Race tests
+
+Given that Terragrunt is a tool that frequently involves concurrently running multiple things at once, there's always a risk for race conditions to occur. As such, there are dedicated tests that are run with the `-race` flag in CI to use golang's built-in tooling for identifying race conditions.
+
+In general, when encountering a bug caused by a race condition in the wild, we endeavor to write a test for it, and add it to the `./test/race_test.go` file to avoid regressions in the future. If you want to make sure that new code you are writing doesn't introduce a race condition, add a test for it in the `race_test.go` file.
+
+We can do a better job of finding candidates for additional testing here, so if you are interested in helping out, please open an issue to discuss it.
+
+#### Benchmark tests
+
+Benchmark tests are tests that are run with the `-bench` flag to the `go test` command. They are used to measure the performance of a particular function or set of functions.
+
+You can find them by looking for tests that start with `Benchmark*` instead of `Test*` in the codebase.
+
+In general, we have inadequate benchmark testing in the Terragrunt codebase, and want to improve this. If you are interested in helping out, please open an issue to discuss it.
+
+Prior to the release of Terragrunt 1.0, we will have a concerted effort to improve the benchmark testing in the codebase.
+
+#### Continuous Integration
+
+Currently, all of the testing mentioned above is run automatically as part of our continuous integration suite in CircleCI.
+
+This has caused some issues in the past, as many contributors don't have CircleCI accounts, and it can be frustrating to be unable to replicate the automated tests that we run for contributors when they submit a pull request.
+
+We acknowledge this issue, and are working on a solution to make it easier for contributors to run the tests for this project themselves. This will involve moving the tests to GitHub Actions, which will allow contributors to run the tests on their own fork of the project, without needing to sign up for a new account.
+
+This work will be completed prior to the release of Terragrunt 1.0.
 
 ### Debug logging
 
@@ -241,7 +314,7 @@ Here is how the `errors` package should be used:
 
 ### Formatting
 
-Every source file in this project should be formatted with `go fmt`. There are few helper scripts and targets in the Makefile that can help with this (mostly taken from the [terraform repo](https://github.com/hashicorp/terraform/)):
+Every source file in this project should be formatted with `go fmt`. There are few helper scripts and targets in the Makefile that can help with this (mostly taken from the [terraform repo](https://github.com/hashicorp/terraform/) when it was MPL licensed):
 
 1. `make fmtcheck` Checks to see if all source files are formatted. Exits 1 if there are unformatted files.
 
