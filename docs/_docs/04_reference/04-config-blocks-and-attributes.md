@@ -149,6 +149,7 @@ The `terraform` block supports the following arguments:
   - `run_on_error` (optional) : If set to true, this hook will run even if a previous hook hit an error, or in the
     case of "after" hooks, if the OpenTofu/Terraform command hit an error. Default is false.
   - `suppress_stdout` (optional) : If set to true, the stdout output of the executed commands will be suppressed. This can be useful when there are scripts relying on OpenTofu/Terraform's output and any other output would break their parsing.
+  - `suppress_stderr` (optional) : If set to true, the stderr output of the executed commands will be suppressed. This can be useful when there are scripts relying on OpenTofu/Terraform's output and any other output would break their parsing.
 
 - `after_hook` (block): Nested blocks used to specify command hooks that should be run after `tofu`/`terraform` is called.
   Hooks run from the terragrunt configuration directory (the directory where `terragrunt.hcl` lives). Supports the same
