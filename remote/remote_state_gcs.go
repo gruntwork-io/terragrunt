@@ -254,7 +254,7 @@ func parseGCSConfig(config map[string]interface{}) (*RemoteStateConfigGCS, error
 	return &gcsConfig, nil
 }
 
-// Parse the given map into a GCS config
+// ParseExtendedGCSConfig parses the given map into a GCS config
 func ParseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteStateConfigGCS, error) {
 	var (
 		gcsConfig      RemoteStateConfigGCS
@@ -295,9 +295,14 @@ func ValidateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS) error {
 		// Create a GCS client to check bucket existence
 		gcsClient, err := CreateGCSClient(config)
 		if err != nil {
-			return fmt.Errorf("error creating GCS client: %v", err)
+			return fmt.Errorf("error creating GCS client: %w", err)
 		}
-		defer gcsClient.Close()
+
+		defer func() {
+			if closeErr := gcsClient.Close(); closeErr != nil {
+				log.Warnf("Error closing GCS client: %v", closeErr)
+			}
+		}()
 
 		// Check if the bucket exists
 		bucketExists := DoesGCSBucketExist(gcsClient, &config)
@@ -457,7 +462,7 @@ func CreateGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteStateConfi
 	}
 
 	if err := bucket.Create(ctx, projectID, bucketAttrs); err != nil {
-		return errors.Errorf("error creating GCS bucket %s: %w", config.remoteStateConfigGCS.Bucket, err)
+		return fmt.Errorf("error creating GCS bucket %s: %w", config.remoteStateConfigGCS.Bucket, err)
 	}
 
 	return nil
