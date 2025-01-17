@@ -114,7 +114,7 @@ any go command that compiles the code (`build`, `run`, `test`, etc.).
 
 ### Linting
 
-Terragrunt uses [golangci-lint](https://golangci-lint.run/) to lint the codebase. This is a helpful form of static analysis that can catch common bugs and issues related to performance, style and maintainability.
+Terragrunt uses [golangci-lint](https://golangci-lint.run/) to lint the golang code in the codebase. This is a helpful form of static analysis that can catch common bugs and issues related to performance, style and maintainability.
 
 We use the linter as a guide to learn about how we can improve the Terragrunt codebase. We do not enforce 100% compliance with the linter. If you believe that an error thrown by the linter is irrelevant, use the documentation on [false-positives](https://golangci-lint.run/usage/false-positives/) to suppress that error, along with an explanation of why you believe the error is a false positive.
 
@@ -175,6 +175,19 @@ make run-strict-lint
 ```
 
 In our continuous integration suite, we run the strict linter on the files that have changed with respect to the `main` branch, and very intentionally do not enforce that the lints pass. We pay more attention to the results when the lint fails for a pull request that are changing few small files, as those are much more likely to pass. In those cases, maintainers will review the results, and may suggest changes that are necessary to improve code quality if they believe the cost of implementing the changes is low.
+
+#### Markdownlint
+
+In addition to the golang linter, we also use [markdownlint](https://github.com/DavidAnson/markdownlint) to lint the markdown files in the codebase. This is to ensure that the documentation is consistent and easy to read.
+
+You'll want to check that the markdown files are linted correctly before submitting a pull request to update the docs. You can do this by running:
+
+```bash
+markdownlint \
+    --disable MD013 MD024 \
+    -- \
+    docs
+```
 
 ### Running tests
 
