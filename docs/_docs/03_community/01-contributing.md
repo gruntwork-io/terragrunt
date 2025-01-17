@@ -199,7 +199,7 @@ These are tests that test individual functions in the codebase. They are located
 
 They use a package directive that is suffixed `_test` of the package they test to force them to only test exported functions of that package, while residing in the same directory.
 
-The idea behind this practice is to keep the tests close to the code they are testing, and to force them to only test the public API of the package. This allows implementation details of particlar functions to change without breaking tests, as long as the public API behaves the same.
+The idea behind this practice is to keep the tests close to the code they are testing, and to force them to only test the public API of the package. This allows implementation details of particular functions to change without breaking tests, as long as the public API behaves the same.
 
 In general, if you are editing Terragrunt code, and there isn't a unit test that covers the code you are updating, it's probably a good idea to add one. If there is a unit test for the code you are updating, you should make sure that you run that test after any update to ensure that you haven't broken anything.
 
