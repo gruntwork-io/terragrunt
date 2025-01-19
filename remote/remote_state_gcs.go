@@ -254,7 +254,7 @@ func parseGCSConfig(config map[string]interface{}) (*RemoteStateConfigGCS, error
 	return &gcsConfig, nil
 }
 
-// ParseExtendedGCSConfig parses the given map into a GCS config
+// ParseExtendedGCSConfig parses the given map into a GCS config.
 func ParseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteStateConfigGCS, error) {
 	var (
 		gcsConfig      RemoteStateConfigGCS
