@@ -1053,7 +1053,7 @@ func (c *ErrorsConfig) ProcessError(opts *TerragruntOptions, err error, currentA
 	errStr := extractErrorMessage(err)
 	action := &ErrorAction{}
 
-	opts.Logger.Debugf("Processing error value: %s", errStr)
+	opts.Logger.Debugf("Processing error message: %s", errStr)
 
 	// First check ignore rules
 	for _, ignoreBlock := range c.Ignore {
