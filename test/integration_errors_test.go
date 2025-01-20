@@ -22,6 +22,7 @@ const (
 	testRetryFailErrors       = "fixtures/errors/retry-fail"
 	testRunAllErrors          = "fixtures/errors/run-all"
 	testNegativePatternErrors = "fixtures/errors/ignore-negative-pattern"
+	testMultiLineErrors       = "fixtures/errors/multi-line"
 )
 
 func TestErrorsHandling(t *testing.T) {
@@ -158,4 +159,17 @@ func TestIgnoreNegativePattern(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, stdout, "Error: baz")
+}
+
+func TestHandleMultiLineErrors(t *testing.T) {
+	t.Parallel()
+
+	cleanupTerraformFolder(t, testMultiLineErrors)
+	tmpEnvPath := helpers.CopyEnvironment(t, testMultiLineErrors)
+	rootPath := util.JoinPath(tmpEnvPath, testMultiLineErrors)
+
+	_, stdout, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt apply -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "Ignoring transit gateway not found when creating internal route")
 }

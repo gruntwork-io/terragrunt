@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -962,7 +963,7 @@ func (opts *TerragruntOptions) RunWithErrorHandling(ctx context.Context, operati
 		}
 
 		// Process the error through our error handling configuration
-		action, processErr := opts.Errors.ProcessError(err, currentAttempt)
+		action, processErr := opts.Errors.ProcessError(opts, err, currentAttempt)
 		if processErr != nil {
 			return fmt.Errorf("error processing error handling rules: %w", processErr)
 		}
@@ -1041,13 +1042,15 @@ type ErrorAction struct {
 }
 
 // ProcessError evaluates an error against the configuration and returns the appropriate action
-func (c *ErrorsConfig) ProcessError(err error, currentAttempt int) (*ErrorAction, error) {
+func (c *ErrorsConfig) ProcessError(opts *TerragruntOptions, err error, currentAttempt int) (*ErrorAction, error) {
 	if err == nil {
 		return nil, nil
 	}
 
-	errStr := err.Error()
+	errStr := extractErrorMessage(err)
 	action := &ErrorAction{}
+
+	opts.Logger.Debugf("Processing error value: %s", errStr)
 
 	// First check ignore rules
 	for _, ignoreBlock := range c.Ignore {
@@ -1085,6 +1088,16 @@ func (c *ErrorsConfig) ProcessError(err error, currentAttempt int) (*ErrorAction
 	}
 
 	return nil, err
+}
+
+func extractErrorMessage(err error) string {
+	// fetch the error string and remove any ASCII escape sequences
+	multilineText := log.RemoveAllASCISeq(err.Error())
+	keepAlphanumericPattern := `[^a-zA-Z0-9./'"(): ]+`
+	reAlphanumeric := regexp.MustCompile(keepAlphanumericPattern)
+	alphanumericOnly := reAlphanumeric.ReplaceAllString(multilineText, " ")
+	normalized := strings.Join(strings.Fields(alphanumericOnly), " ")
+	return normalized
 }
 
 // matchesAnyRegexpPattern checks if the input string matches any of the provided compiled patterns
