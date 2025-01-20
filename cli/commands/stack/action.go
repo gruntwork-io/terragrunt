@@ -58,6 +58,12 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	return runall.Run(ctx, opts)
 }
 
+// RunOutput stack output.
+func RunOutput(ctx context.Context, opts *options.TerragruntOptions) error {
+
+	return nil
+}
+
 func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
 	opts.Logger.Infof("Generating stack from %s", opts.TerragruntStackConfigPath)

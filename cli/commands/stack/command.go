@@ -11,6 +11,7 @@ const (
 	CommandName = "stack"
 	generate    = "generate"
 	run         = "run"
+	output      = "output"
 )
 
 // NewFlags builds the flags for stack.
@@ -39,6 +40,13 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				Usage: "Run a command on the stack generated from the current directory",
 				Action: func(ctx *cli.Context) error {
 					return Run(ctx.Context, opts.OptionsFromContext(ctx))
+				},
+			},
+			&cli.Command{
+				Name:  output,
+				Usage: "Run fetch stack output",
+				Action: func(ctx *cli.Context) error {
+					return RunOutput(ctx.Context, opts.OptionsFromContext(ctx))
 				},
 			},
 		},
