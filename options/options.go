@@ -66,6 +66,9 @@ var (
 		"force-unlock",
 		"state",
 	}
+
+	// Pattern used to clean error message when looking for retry and ignore patterns
+	errorCleanPattern = regexp.MustCompile(`[^a-zA-Z0-9./'"(): ]+`)
 )
 
 type ctxKey byte
@@ -1093,11 +1096,8 @@ func (c *ErrorsConfig) ProcessError(opts *TerragruntOptions, err error, currentA
 func extractErrorMessage(err error) string {
 	// fetch the error string and remove any ASCII escape sequences
 	multilineText := log.RemoveAllASCISeq(err.Error())
-	keepAlphanumericPattern := `[^a-zA-Z0-9./'"(): ]+`
-	reAlphanumeric := regexp.MustCompile(keepAlphanumericPattern)
-	alphanumericOnly := reAlphanumeric.ReplaceAllString(multilineText, " ")
-	normalized := strings.Join(strings.Fields(alphanumericOnly), " ")
-	return normalized
+	errorText := errorCleanPattern.ReplaceAllString(multilineText, " ")
+	return strings.Join(strings.Fields(errorText), " ")
 }
 
 // matchesAnyRegexpPattern checks if the input string matches any of the provided compiled patterns
