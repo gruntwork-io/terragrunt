@@ -67,7 +67,7 @@ var (
 		"state",
 	}
 
-	// Pattern used to clean error message when looking for retry and ignore patterns
+	// Pattern used to clean error message when looking for retry and ignore patterns.
 	errorCleanPattern = regexp.MustCompile(`[^a-zA-Z0-9./'"(): ]+`)
 )
 
@@ -1097,6 +1097,7 @@ func extractErrorMessage(err error) string {
 	// fetch the error string and remove any ASCII escape sequences
 	multilineText := log.RemoveAllASCISeq(err.Error())
 	errorText := errorCleanPattern.ReplaceAllString(multilineText, " ")
+
 	return strings.Join(strings.Fields(errorText), " ")
 }
 
