@@ -142,7 +142,7 @@ run_markdownlint: &run_markdownlint
 codespell: &codespell
   name: Run codespell
   command: |
-    pip install codespell
+    pip install codespell==2.4.0
     codespell .
 
 win_install_golang: &win_install_golang
