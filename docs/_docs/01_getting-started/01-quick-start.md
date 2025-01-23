@@ -273,14 +273,14 @@ The `.terragrunt-cache` directory is typically added to `.gitignore` files, simi
 
 In the context of Terragrunt, a "stack" is a collection of units that are managed together. You can think of a stack as a single environment, such as `dev`, `staging`, or `prod`, or an entire project.
 
-One of the main reasons users adopt Terragrunt is how it can help manage the complexity of managing multiple units across multiple environments.
+One of the main reasons users adopt Terragrunt is that it can help manage the complexity of managing multiple units across multiple environments.
 
 e.g. Let's say we wanted to update both our `foo` and `bar` environments simultaneously.
 
 In the directory above `foo` and `bar`, run the following:
 
 ```bash
-$ terragrunt run-all apply -auto-approve
+$ terragrunt run-all apply
 08:42:00.150 INFO   The stack at . will be processed in the following order for command apply:
 Group 1
 - Module ./bar
@@ -309,12 +309,14 @@ This is where that additional verbosity in Terragrunt logging is really handy. Y
 Similar to the `tofu` CLI, there is a prompt to confirm that you are sure you want to run the command in each unit when performing a command that's potentially destructive. You can skip this prompt by using the `--terragrunt-non-interactive` flag, just as you would with `-auto-approve` in OpenTofu.
 
 ```bash
-terragrunt run-all --terragrunt-non-interactive apply -auto-approve
+terragrunt run-all --terragrunt-non-interactive apply
 ```
 
 ### Step 6: Use Terragrunt to manage your DAG
 
-In the context of Terragrunt, a Directed Acyclic Graph (DAG) that represents the graph units in your stack, determined by their dependencies. Terragrunt uses the DAG to determine the order in which it performs runs across your stack.
+In the context of Terragrunt, a Directed Acyclic Graph (DAG) is a data structure that represents the relationship between units in your stack, as determined by their dependencies.
+
+Don't worry if that doesn't make sense right now. The important thing to know is that Terragrunt uses the DAG to determine the order in which it performs runs across your stack. Once you see how Terragrunt uses the DAG to determine the order in which to run commands across your stack, you'll understand why this is important.
 
 For example, let's say that the `content` of the `bar` unit depended on the `content` of the `foo` unit. You can express this dependency first by adding an `output` block to the `shared` module:
 
@@ -358,16 +360,30 @@ Group 2
 08:57:09.936 ERROR  [bar] Module ./bar has finished with an error
 08:57:09.936 ERROR  error occurred:
 
-* ./foo/terragrunt.hcl is a dependency of ./bar/terragrunt.hcl but detected no outputs. Either the target module has not been applied yet, or the module has no outputs. If this is expected, set the skip_outputs flag to true on the dependency block.
+* ./foo/terragrunt.hcl is a dependency of ./bar/terragrunt.hcl but detected no outputs. Either the target module has not been applied yet, or the module has no outputs.
 
-08:57:09.936 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
+  If this dependency is accessed before the outputs are ready (which can happen during the planning phase of an unapplied stack), consider using mock_outputs:
+
+  dependency "foo" {
+      config_path = "../foo"
+
+      mock_outputs = {
+          foo_output = "mock-foo-output"
+      }
+  }
+
+  For more info, see:
+  https://terragrunt.gruntwork.io/docs/features/stacks/#unapplied-dependency-and-mock-outputs
+
+  If you do not require outputs from your dependency, consider using the dependencies block instead:
+  https://terragrunt.gruntwork.io/docs/reference/config-blocks-and-attributes/#dependencies
 ```
 
 Oh no! We got an error. This happens because the way in which dependencies are resolved by default in Terragrunt is to run `terragrunt output` within the dependency for use in the dependent unit. In this case, the `foo` unit has not been applied yet, so there are no outputs to fetch.
 
-You should notice, however, that Terragrunt has already figured out the order in which to run the `plan` command across the units in your stack. This is what we mean when we say that Terragrunt uses a DAG to determine the order in which to run commands across your stack. Terragrunt analyzes the dependencies across your units, and determines the order for runs so that outputs are ready to be used as inputs in dependent units.
+You should notice, however, that Terragrunt has already figured out the order in which to run the `plan` command across the units in your stack. This is what we mean when we say that Terragrunt uses a DAG to determine the order of runs in your stack. Terragrunt analyzes the dependencies in your stack, and determines an order for runs so that outputs are ready to be used as inputs in dependent units.
 
-If you instead decided to run `terragrunt run-all apply -auto-approve`, you would instead see Terragrunt complete the `apply` in the `foo` unit first, and then complete the `apply` in the `bar` unit, as it's aware that the `bar` unit might need some outputs from the `foo` unit.
+If you decided to run `terragrunt run-all apply` instead, you would instead see Terragrunt complete the `apply` in the `foo` unit first, and then complete the `apply` in the `bar` unit, as it's aware that the `bar` unit might need some outputs from the `foo` unit.
 
 ### Step 7: Use mocks to handle unavailable outputs
 
@@ -426,7 +442,7 @@ Group 2
 If you're concerned about the `mock_outputs` attribute resulting in invalid configurations, note that during an apply, the outputs of `foo` will be known, and Terragrunt won't use `mock_outputs` to resolve the outputs of `foo`.
 
 ```bash
-$ terragrunt run-all --terragrunt-non-interactive apply -auto-approve
+$ terragrunt run-all --terragrunt-non-interactive apply
 
 ...
 
@@ -447,7 +463,7 @@ $ terragrunt run-all --terragrunt-non-interactive apply -auto-approve
 ...
 ```
 
-You can also be explicit about the fact that you only want to use `mock_outputs` during the `plan` phase by specifying that in your `mock_outputs` configuration:
+You can also be explicit about the fact that you only want to use `mock_outputs` during the `plan` phase by specifying that in your `dependency` configuration:
 
 ```hcl
 # bar/terragrunt.hcl
