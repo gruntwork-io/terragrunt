@@ -617,6 +617,7 @@ jobs:
       - checkout
       - run:
           name: Building Terragrunt without Go proxy
+          no_output_timeout: 20m
           command: |
             GOPROXY=direct build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X github.com/gruntwork-io/go-commons/version.Version=$CIRCLE_TAG -extldflags '-static'"
 
