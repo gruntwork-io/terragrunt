@@ -228,7 +228,7 @@ require (
 	github.com/muesli/termenv v0.15.3-0.20240618155329-98d742f6907a // indirect
 	github.com/oklog/run v1.1.0 // indirect
 	github.com/owenrumney/go-sarif v1.1.1 // indirect
-	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
+	github.com/planetscale/vtprotobuf v0.6.1-0.20241121165744-79df5c4772f2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pterm/pterm v0.12.80 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
