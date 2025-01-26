@@ -17,6 +17,7 @@ const (
 
 	RootFileNameFlagName  = "root-file-name"
 	NoIncludeRootFlagName = "no-include-root"
+	OutputFolderFlagName  = "output-folder"
 	VarFlagName           = "var"
 	VarFileFlagName       = "var-file"
 )
@@ -52,6 +53,12 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			EnvVars:     tgPrefix.EnvVars(NoIncludeRootFlagName),
 			Destination: &opts.ScaffoldNoIncludeRoot,
 			Usage:       "Do not include root unit in scaffolding done by catalog.",
+		}),
+
+		flags.NewFlag(&cli.GenericFlag[string]{
+			Name:        OutputFolderFlagName,
+			Destination: &opts.ScaffoldOutputFolder,
+			Usage:       "Output folder for scaffold output.",
 		}),
 
 		flags.NewFlag(&cli.SliceFlag[string]{

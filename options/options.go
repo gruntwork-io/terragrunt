@@ -311,6 +311,9 @@ type TerragruntOptions struct {
 	// Name of the root Terragrunt configuration file, if used.
 	ScaffoldRootFileName string
 
+	// Path to folder of scaffold output
+	ScaffoldOutputFolder string
+
 	// Root directory for graph command.
 	GraphRoot string
 
