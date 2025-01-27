@@ -270,6 +270,11 @@ require (
 )
 
 replace (
+
+	// atomicgo.dev started to return 404
+	atomicgo.dev/cursor => github.com/atomicgo/cursor v0.2.0
+	atomicgo.dev/keyboard => github.com/atomicgo/keyboard v0.2.9
+	atomicgo.dev/schedule => github.com/atomicgo/schedule v0.1.0
 	// Many functions of terraform was converted to internal to avoid use as a library after v0.15.3. This means that we
 	// can't use terraform as a library after v0.15.3, so we pull that in here.
 	github.com/hashicorp/terraform => github.com/hashicorp/terraform v0.15.3
