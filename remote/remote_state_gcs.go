@@ -177,12 +177,12 @@ func (initializer GCSInitializer) buildInitializerCacheKey(gcsConfig *RemoteStat
 // Initialize the remote state GCS bucket specified in the given config. This function will validate the config
 // parameters, create the GCS bucket if it doesn't already exist, and check that versioning is enabled.
 func (initializer GCSInitializer) Initialize(ctx context.Context, remoteState *RemoteState, terragruntOptions *options.TerragruntOptions) error {
-	gcsConfigExtended, err := parseExtendedGCSConfig(remoteState.Config)
+	gcsConfigExtended, err := ParseExtendedGCSConfig(remoteState.Config)
 	if err != nil {
 		return err
 	}
 
-	if err := validateGCSConfig(gcsConfigExtended); err != nil {
+	if err := ValidateGCSConfig(gcsConfigExtended); err != nil {
 		return err
 	}
 
@@ -254,8 +254,8 @@ func parseGCSConfig(config map[string]interface{}) (*RemoteStateConfigGCS, error
 	return &gcsConfig, nil
 }
 
-// Parse the given map into a GCS config
-func parseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteStateConfigGCS, error) {
+// ParseExtendedGCSConfig parses the given map into a GCS config.
+func ParseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteStateConfigGCS, error) {
 	var (
 		gcsConfig      RemoteStateConfigGCS
 		extendedConfig ExtendedRemoteStateConfigGCS
@@ -274,12 +274,51 @@ func parseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteState
 	return &extendedConfig, nil
 }
 
-// Validate all the parameters of the given GCS remote state configuration
-func validateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS) error {
-	var config = extendedConfig.remoteStateConfigGCS
+// ValidateGCSConfig validates the configuration for GCS remote state.
+func ValidateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS) error {
+	config := extendedConfig.remoteStateConfigGCS
 
+	// If skip_bucket_creation is true, bypass all validation
+	// This allows using existing buckets without restrictions
+	if extendedConfig.SkipBucketCreation {
+		return nil
+	}
+
+	// Bucket is always a required configuration parameter
 	if config.Bucket == "" {
 		return errors.New(MissingRequiredGCSRemoteStateConfig("bucket"))
+	}
+
+	// If both project and location are provided, the configuration is valid
+	if extendedConfig.Project != "" && extendedConfig.Location != "" {
+		return nil
+	}
+
+	// Create a GCS client to check bucket existence
+	gcsClient, err := CreateGCSClient(config)
+	if err != nil {
+		return fmt.Errorf("error creating GCS client: %w", err)
+	}
+
+	defer func() {
+		if closeErr := gcsClient.Close(); closeErr != nil {
+			log.Warnf("Error closing GCS client: %v", closeErr)
+		}
+	}()
+
+	// Check if the bucket exists
+	bucketExists := DoesGCSBucketExist(gcsClient, &config)
+	if bucketExists {
+		return nil
+	}
+
+	// At this point, the bucket doesn't exist and we need both project and location
+	if extendedConfig.Project == "" {
+		return errors.New(MissingRequiredGCSRemoteStateConfig("project"))
+	}
+
+	if extendedConfig.Location == "" {
+		return errors.New(MissingRequiredGCSRemoteStateConfig("location"))
 	}
 
 	return nil
@@ -424,7 +463,7 @@ func CreateGCSBucket(gcsClient *storage.Client, config *ExtendedRemoteStateConfi
 	}
 
 	if err := bucket.Create(ctx, projectID, bucketAttrs); err != nil {
-		return errors.Errorf("error creating GCS bucket %s: %w", config.remoteStateConfigGCS.Bucket, err)
+		return fmt.Errorf("error creating GCS bucket %s: %w", config.remoteStateConfigGCS.Bucket, err)
 	}
 
 	return nil
@@ -452,7 +491,7 @@ func WaitUntilGCSBucketExists(gcsClient *storage.Client, config *RemoteStateConf
 
 // DoesGCSBucketExist returns true if the GCS bucket specified in the given config exists and the current user has the
 // ability to access it.
-func DoesGCSBucketExist(gcsClient *storage.Client, config *RemoteStateConfigGCS) bool {
+var DoesGCSBucketExist = func(gcsClient *storage.Client, config *RemoteStateConfigGCS) bool {
 	ctx := context.Background()
 
 	// Creates a Bucket instance.
@@ -476,7 +515,7 @@ func DoesGCSBucketExist(gcsClient *storage.Client, config *RemoteStateConfigGCS)
 }
 
 // CreateGCSClient creates an authenticated client for GCS
-func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, error) {
+var CreateGCSClient = func(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, error) {
 	ctx := context.Background()
 
 	var opts []option.ClientOption
