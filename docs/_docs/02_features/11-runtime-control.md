@@ -164,6 +164,70 @@ You can use this block to prevent certain units from running in certain environm
 
 Note that, just like with the other blocks mentioned so far, you can use a combination of configurations mentioned here to ensure that Terragrunt behaves exactly as you need it to at runtime.
 
+A more practical use of the `exclude` block would be to control which environments are run in `run-all` commands.
+
+For example:
+
+```hcl
+# dev/root.hcl
+feature "dev" {
+  default = true
+}
+
+exclude {
+    if = !feature.dev.value
+    actions = ["all_except_output"]
+}
+```
+
+```hcl
+# stage/root.hcl
+feature "stage" {
+  default = false
+}
+
+exclude {
+    if = !feature.stage.value
+    actions = ["all_except_output"]
+}
+```
+
+```hcl
+# prod/root.hcl
+feature "prod" {
+  default = false
+}
+
+exclude {
+    if = !feature.prod.value
+    actions = ["all_except_output"]
+}
+```
+
+In this example, the `dev`, `stage` and `prod` directories have their own root configurations that are included by all units in their respective environments. The assumption of a configuration like this is that each environment is fully self-contained, and that the team has a desire to always update `dev` units, but wants to opt-in changes to `stage` and `prod` units.
+
+In this setup, any `run-all` command like the following:
+
+```bash
+terragrunt run-all plan
+```
+
+Will exclude all units in both the `stage` and `prod` directories, as the `feature` block in each of those directories is set to `false` by default. As a result, the only units that are run are those in the `dev` directory.
+
+When a user wants to opt-in updates for the `stage` environment, they could do something like this:
+
+```bash
+terragrunt run-all --feature stage=true plan
+```
+
+They can even mix and match feature flags to opt-in/out of multiple environments at once:
+
+```bash
+terragrunt run-all --feature dev=false --feature stage=true --feature prod=true plan
+```
+
+This allows for a great deal of flexibility in how you programmatically control the behavior of Terragrunt at runtime.
+
 ### Exclusion from the Run Queue
 
 The `exclude` block will only exclude the unit from the run queue, which is only relevant in the context of a `run-all` command.
