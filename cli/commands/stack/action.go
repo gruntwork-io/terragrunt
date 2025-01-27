@@ -61,6 +61,14 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 // RunOutput stack output.
 func RunOutput(ctx context.Context, opts *options.TerragruntOptions) error {
 
+	stacksEnabled := opts.Experiments[experiment.Stacks]
+	if !stacksEnabled.Enabled {
+		return errors.New("stacks experiment is not enabled use --experiment stacks to enable it")
+	}
+	opts.WorkingDir = filepath.Join(opts.WorkingDir, stackDir)
+	opts.TerraformCommand = "output"
+	opts.OriginalTerraformCommand = "output"
+
 	return nil
 }
 
