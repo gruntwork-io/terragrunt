@@ -169,8 +169,10 @@ func validateGCSBucketExistsAndIsLabeled(t *testing.T, location string, bucketNa
 	gcsClient, err := remote.CreateGCSClient(remoteStateConfig)
 	require.NoError(t, err, "Error creating GCS client")
 
+	bucketHandle := gcsClient.Bucket(bucketName)
+
 	// verify the bucket exists
-	assert.True(t, remote.DoesGCSBucketExist(gcsClient, &remoteStateConfig), "Terragrunt failed to create remote state GCS bucket %s", bucketName)
+	assert.True(t, remote.DoesGCSBucketExist(context.TODO(), bucketHandle), "Terragrunt failed to create remote state GCS bucket %s", bucketName)
 
 	// verify the bucket location
 	bucket := gcsClient.Bucket(bucketName)
