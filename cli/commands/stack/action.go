@@ -69,6 +69,9 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions) error {
 	opts.TerraformCommand = "output"
 	opts.OriginalTerraformCommand = "output"
 
+	if err := runall.Run(ctx, opts); err != nil {
+		return errors.New(err)
+	}
 	return nil
 }
 
