@@ -3,9 +3,11 @@
 package remote_test
 
 import (
+	"context"
 	"testing"
 
 	"cloud.google.com/go/storage"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/stretchr/testify/assert"
@@ -133,6 +135,8 @@ func TestGcpConfigValuesEqual(t *testing.T) {
 }
 
 func TestValidateGCSConfig(t *testing.T) {
+	t.Parallel()
+
 	testCases := map[string]struct {
 		config           map[string]interface{}
 		expectedError    bool
@@ -212,21 +216,17 @@ func TestValidateGCSConfig(t *testing.T) {
 		},
 	}
 
-	// Mock the DoesGCSBucketExist function to simulate bucket existence
-	originalDoesGCSBucketExist := remote.DoesGCSBucketExist
-	defer func() { remote.DoesGCSBucketExist = originalDoesGCSBucketExist }()
-
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			// Set up the mock bucket existence check
-			remote.DoesGCSBucketExist = func(gcsClient *storage.Client, config *remote.RemoteStateConfigGCS) bool {
-				return tc.mockBucketExists
-			}
+			t.Parallel()
+
+			// Set up the mock bucket handle for existence check
+			mockBucketHandle := &mockBucketHandle{doesExist: tc.mockBucketExists}
 
 			extendedConfig, err := remote.ParseExtendedGCSConfig(tc.config)
 			require.NoError(t, err)
 
-			err = remote.ValidateGCSConfig(extendedConfig)
+			err = remote.ValidateGCSConfigWithHandle(mockBucketHandle, extendedConfig)
 
 			if tc.expectedError {
 				require.Error(t, err)
@@ -235,4 +235,24 @@ func TestValidateGCSConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+type mockBucketHandle struct {
+	doesExist bool
+}
+
+func (m *mockBucketHandle) Attrs(ctx context.Context) (*storage.BucketAttrs, error) {
+	if m.doesExist {
+		return &storage.BucketAttrs{}, nil
+	}
+
+	return nil, errors.New("bucket does not exist")
+}
+
+func (m *mockBucketHandle) Objects(ctx context.Context, q *storage.Query) *storage.ObjectIterator {
+	if m.doesExist {
+		return &storage.ObjectIterator{}
+	}
+
+	return &storage.ObjectIterator{}
 }
