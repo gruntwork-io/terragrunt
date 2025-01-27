@@ -95,7 +95,7 @@ require (
 	golang.org/x/term v0.28.0
 	golang.org/x/text v0.21.0
 	google.golang.org/grpc v1.68.1
-	google.golang.org/protobuf v1.35.2
+	google.golang.org/protobuf v1.36.4
 	gopkg.in/ini.v1 v1.67.0
 )
 
