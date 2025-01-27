@@ -110,14 +110,16 @@ func (initializer GCSInitializer) NeedsInitialization(remoteState *RemoteState, 
 		return false, err
 	}
 
-	gcsClient, err := CreateGCSClient(*gcsConfig)
+	ctx := context.Background()
+
+	gcsClient, err := CreateGCSClient(ctx, *gcsConfig)
 	if err != nil {
 		return false, err
 	}
 
 	bucketHandle := gcsClient.Bucket(gcsConfig.Bucket)
 
-	if !DoesGCSBucketExist(context.Background(), bucketHandle) {
+	if !DoesGCSBucketExist(ctx, bucketHandle) {
 		return true, nil
 	}
 
@@ -185,7 +187,7 @@ func (initializer GCSInitializer) Initialize(ctx context.Context, remoteState *R
 	}
 
 	if !gcsConfigExtended.SkipBucketCreation {
-		if err := ValidateGCSConfig(gcsConfigExtended); err != nil {
+		if err := ValidateGCSConfig(ctx, gcsConfigExtended); err != nil {
 			return err
 		}
 	}
@@ -207,7 +209,7 @@ func (initializer GCSInitializer) Initialize(ctx context.Context, remoteState *R
 		}
 
 		// TODO: Remove lint suppression
-		gcsClient, err := CreateGCSClient(gcsConfig) //nolint:contextcheck
+		gcsClient, err := CreateGCSClient(ctx, gcsConfig) //nolint:contextcheck
 		if err != nil {
 			return err
 		}
@@ -279,7 +281,7 @@ func ParseExtendedGCSConfig(config map[string]interface{}) (*ExtendedRemoteState
 }
 
 // ValidateGCSConfig validates the configuration for GCS remote state.
-func ValidateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS) error {
+func ValidateGCSConfig(ctx context.Context, extendedConfig *ExtendedRemoteStateConfigGCS) error {
 	config := extendedConfig.remoteStateConfigGCS
 
 	// Bucket is always a required configuration parameter when not skipping bucket creation
@@ -290,7 +292,7 @@ func ValidateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS) error {
 	}
 
 	// Create a GCS client to check bucket existence
-	gcsClient, err := CreateGCSClient(config)
+	gcsClient, err := CreateGCSClient(ctx, config)
 	if err != nil {
 		return fmt.Errorf("error creating GCS client: %w", err)
 	}
@@ -303,7 +305,7 @@ func ValidateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS) error {
 
 	bucketHandle := gcsClient.Bucket(config.Bucket)
 
-	if err := ValidateGCSConfigWithHandle(bucketHandle, extendedConfig); err != nil {
+	if err := ValidateGCSConfigWithHandle(ctx, bucketHandle, extendedConfig); err != nil {
 		return err
 	}
 
@@ -311,7 +313,7 @@ func ValidateGCSConfig(extendedConfig *ExtendedRemoteStateConfigGCS) error {
 }
 
 // ValidateGCSConfigWithHandle validates the configuration for GCS remote state.
-func ValidateGCSConfigWithHandle(bucketHandle BucketHandle, extendedConfig *ExtendedRemoteStateConfigGCS) error {
+func ValidateGCSConfigWithHandle(ctx context.Context, bucketHandle BucketHandle, extendedConfig *ExtendedRemoteStateConfigGCS) error {
 	config := extendedConfig.remoteStateConfigGCS
 
 	// Bucket is always a required configuration parameter
@@ -325,7 +327,7 @@ func ValidateGCSConfigWithHandle(bucketHandle BucketHandle, extendedConfig *Exte
 	}
 
 	// Check if the bucket exists
-	bucketExists := DoesGCSBucketExist(context.Background(), bucketHandle)
+	bucketExists := DoesGCSBucketExist(ctx, bucketHandle)
 	if bucketExists {
 		return nil
 	}
@@ -536,9 +538,7 @@ type BucketHandle interface {
 }
 
 // CreateGCSClient creates an authenticated client for GCS
-func CreateGCSClient(gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, error) {
-	ctx := context.Background()
-
+func CreateGCSClient(ctx context.Context, gcsConfigRemote RemoteStateConfigGCS) (*storage.Client, error) {
 	var opts []option.ClientOption
 
 	if gcsConfigRemote.Credentials != "" {

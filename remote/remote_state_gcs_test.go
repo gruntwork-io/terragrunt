@@ -226,7 +226,7 @@ func TestValidateGCSConfig(t *testing.T) {
 			extendedConfig, err := remote.ParseExtendedGCSConfig(tc.config)
 			require.NoError(t, err)
 
-			err = remote.ValidateGCSConfigWithHandle(mockBucketHandle, extendedConfig)
+			err = remote.ValidateGCSConfigWithHandle(context.TODO(), mockBucketHandle, extendedConfig)
 
 			if tc.expectedError {
 				require.Error(t, err)
