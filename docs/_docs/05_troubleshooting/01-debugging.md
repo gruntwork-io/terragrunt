@@ -139,7 +139,8 @@ the sun.
 In this example we've seen how debug options can help us root cause issues
 in dependency and local variable resolution.
 
-<!-- See
-https://github.com/gruntwork-io/terragrunt/blob/eb692a83bee285b0baaaf4b271c66230f99b6358/docs/_docs/02_features/debugging.md
-for thoughts on other potential features to implement.
--->
+## Additional OpenTofu/Terraform Debugging
+
+If you're still having trouble, you may want to try adjusting the `TF_LOG` environment variables to instruct OpenTofu/Terraform to emit more detailed logs.
+
+You can learn more about OpenTofu/Terraform debug logging [here](https://opentofu.org/docs/internals/debugging/).
