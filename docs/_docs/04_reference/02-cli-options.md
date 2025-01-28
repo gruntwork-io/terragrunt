@@ -1065,7 +1065,7 @@ When passed in, the `*-all` commands continue processing components even if a de
 **Environment Variable**: `TERRAGRUNT_AUTH_PROVIDER_CMD`<br/>
 **Requires an argument**: `--terragrunt-auth-provider-cmd "command [arguments]"`<br/>
 
-The command and arguments used to obtain authentication credentials dynamically. If specified, Terragrunt runs this command for every working directory before running the underlying IAC for a `terragrunt.hcl` file. This enables the use of `run_cmd()` in `terragrunt.hcl` files which need AWS to be authenticated for them to run. This is different from [`terragrunt-iam-role`](#terragrunt-iam-role), [`terragrunt-iam-assume-role`](#terragrunt-iam-assume-role) etc, wherein the AWS authentication happens _after_ the `terragrunt.hcl` files has been processed.
+The command and arguments used to obtain authentication credentials dynamically. If specified, Terragrunt runs this command whenever it might need authentication. This includes HCL parsing, where it might be useful to authenticate with a cloud provider _before_ running HCL functions like [`get_aws_account_id`](/docs/reference/built-in-functions/#get_aws_account_id) where authentication has to already have taken place. It can also be useful for HCL functions like [`run_cmd`](/docs/reference/built-in-functions/#run_cmd) where it may be useful to be authenticated before calling the function.
 
 The output must be valid JSON of the following schema:
 
