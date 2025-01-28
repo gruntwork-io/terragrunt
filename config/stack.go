@@ -3,12 +3,17 @@ package config
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/gruntwork-io/terragrunt/config/hclparse"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
+)
+
+const (
+	stackDir = ".terragrunt-stack"
 )
 
 // StackConfigFile represents the structure of terragrunt.stack.hcl stack file.
@@ -22,6 +27,29 @@ type Unit struct {
 	Name   string `hcl:",label"`
 	Source string `hcl:"source,attr"`
 	Path   string `hcl:"path,attr"`
+}
+
+// ReadOutputs reads the outputs from the unit.
+func (u *Unit) ReadOutputs(ctx context.Context, opts *options.TerragruntOptions) (map[string]cty.Value, error) {
+	baseDir := filepath.Join(opts.WorkingDir, stackDir)
+	unitPath := filepath.Join(baseDir, u.Path)
+	configPath := filepath.Join(unitPath, DefaultTerragruntConfigPath)
+	opts.Logger.Debugf("Getting output from unit %s in %s", u.Name, unitPath)
+
+	parser := NewParsingContext(ctx, opts)
+
+	jsonBytes, err := getOutputJSONWithCaching(parser, configPath)
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	outputMap, err := TerraformOutputJSONToCtyValueMap(configPath, jsonBytes)
+	if err != nil {
+		return nil, errors.New(err)
+	}
+
+	return outputMap, nil
+
 }
 
 // ReadStackConfigFile reads the terragrunt.stack.hcl file.

@@ -2,9 +2,10 @@ package stack
 
 import (
 	"context"
-
 	"path/filepath"
 	"strings"
+
+	"github.com/gruntwork-io/terragrunt/config"
 
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 
@@ -60,5 +61,22 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions) error {
 		return errors.New("stacks experiment is not enabled use --experiment stacks to enable it")
 	}
 
-	return generateOutput(ctx, opts)
+	outputs, err := generateOutput(ctx, opts)
+	if err != nil {
+		return errors.New(err)
+	}
+	// iterate over outputs and print them in format <unit>.<key> = <value>
+
+	for unit, values := range outputs {
+		for key, value := range values {
+			valueStr, err := config.CtyValueAsString(value)
+			if err != nil {
+				opts.Logger.Warnf("Error fetching output from unit %s with key: %s", unit, key)
+				continue
+			}
+			opts.Logger.Infof("%s.%s = %s", unit, key, valueStr)
+		}
+	}
+
+	return nil
 }
