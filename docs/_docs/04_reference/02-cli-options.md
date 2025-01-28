@@ -1100,7 +1100,7 @@ The simplest approach to leverage this flag is to write a script that fetches de
 echo -n '{"envs": {"KEY": "a secret"}}'
 ```
 
-You can use any technology you'd like, however, as long as Terragrunt can execute it. The expected pattern for using this flag is to populate the values dynamically using a secret store, etc.
+You can use any technology for the authentication provider you'd like, however, as long as Terragrunt can execute it. The expected pattern for using this flag is to author a script/program that will dynamically fetch secret values from a secret store, etc. then emit them to STDOUT for consumption by Terragrunt.
 
 Note that more specific configurations (e.g. `awsCredentials`) take precedence over less specific configurations (e.g. `envs`).
 
