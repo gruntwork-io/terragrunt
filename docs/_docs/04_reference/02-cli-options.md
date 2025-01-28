@@ -1090,7 +1090,7 @@ The output must be valid JSON of the following schema:
 
 This allows Terragrunt to acquire different credentials at runtime without changing any `terragrunt.hcl` configuration. You can use this flag to set arbitrary credentials for continuous integration, authentication with providers other than AWS and more.
 
-As long as the standard output of the command passed to `terragrunt-auth-provider-cmd` results in JSON matching the schema above, corresponding environment variables will be set before Terragrunt begins IAC execution for a `terragrunt.hcl` file.
+As long as the standard output of the command passed to `terragrunt-auth-provider-cmd` results in JSON matching the schema above, corresponding environment variables will be set (and/or roles assumed) before Terragrunt begins parsing an `terragrunt.hcl` file or running an OpenTofu/Terraform command.
 
 The simplest approach to leverage this flag is to write a script that fetches desired credentials, and emits them to STDOUT in the JSON format listed above:
 
