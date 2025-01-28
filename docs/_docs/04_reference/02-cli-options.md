@@ -1121,7 +1121,7 @@ Other credential configurations will be supported in the future, but until then,
 Assume the specified IAM role ARN for running OpenTofu/Terraform or AWS commands. This is a convenient way to use Terragrunt
 and OpenTofu/Terraform with multiple AWS accounts. 
 
-When using this option, the AWS authentication happens _after_ the `terragrunt.hcl` files have been processed. Therefore, `run_cmd()` calls in `terragrunt.hcl` files which need AWS to be authenticated for them to run will fail. If you need this, use [`terragrunt-auth-provider-cmd`](#terragrunt-auth-provider-cmd) instead.
+When using this option, AWS authentication takes place right before an OpenTofu/Terraform run. This takes place after `terragrunt.hcl` files are fully parsed, so HCL functions like [`get_aws_account_id`](/docs/reference/built-in-functions/#get_aws_account_id) and [`run_cmd`](/docs/reference/built-in-functions/#run_cmd) will not run after assuming the role. If you need roles to be assumed prior to parsing Terragrunt configurations, use [`terragrunt-auth-provider-cmd`](#terragrunt-auth-provider-cmd) instead.
 
 ### terragrunt-iam-assume-role-duration
 
