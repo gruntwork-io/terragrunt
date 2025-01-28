@@ -1147,7 +1147,7 @@ Used as the session name for the STS session which assumes the role defined in `
 
 Used as the web identity token for assuming a role temporarily using the AWS Security Token Service (STS) with the [AssumeRoleWithWebIdentity](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html) API.
 
-When using this option, the AWS authentication happens _after_ the `terragrunt.hcl` files have been processed. Therefore, `run_cmd()` calls in `terragrunt.hcl` files which need AWS to be authenticated for them to run will fail. If you need this, use [`terragrunt-auth-provider-cmd`](#terragrunt-auth-provider-cmd) instead.
+When using this option, AWS authentication takes place right before an OpenTofu/Terraform run. This takes place after `terragrunt.hcl` files are fully parsed, so HCL functions like [`get_aws_account_id`](/docs/reference/built-in-functions/#get_aws_account_id) and [`run_cmd`](/docs/reference/built-in-functions/#run_cmd) will not run after assuming the role. If you need roles to be assumed prior to parsing Terragrunt configurations, use [`terragrunt-auth-provider-cmd`](#terragrunt-auth-provider-cmd) instead.
 
 ### terragrunt-excludes-file
 
