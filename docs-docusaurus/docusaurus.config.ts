@@ -37,10 +37,12 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/gruntwork-io/terragrunt/tree/main/',
+          // TODO: Set this to the following URL instead once the docs are
+          // published in the `docs` directory.
+          // 'https://github.com/gruntwork-io/terragrunt/tree/main/',
+          editUrl: (params: { docPath: string }) => {
+            return `https://github.com/gruntwork-io/terragrunt/tree/main/docs-docusaurus/docs/${params.docPath}`;
+          }
         },
       } satisfies Preset.Options,
     ],
@@ -58,9 +60,21 @@ const config: Config = {
       items: [ // FIXME: Resolve this.
         {
           type: 'docSidebar',
-          sidebarId: 'tutorialSidebar',
+          sidebarId: 'gettingStartedSidebar',
           position: 'left',
-          label: 'Tutorial',
+          label: 'Getting Started',
+        },
+        {
+          type: 'docSidebar',
+          sidebarId: 'featuresSidebar',
+          position: 'left',
+          label: 'Features',
+        },
+        {
+          type: 'docSidebar',
+          sidebarId: 'referenceSidebar',
+          position: 'left',
+          label: 'Reference',
         },
         { // FIXME: Make these images.
           href: 'https://github.com/gruntwork-io/terragrunt',
@@ -116,6 +130,10 @@ const config: Config = {
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
+      additionalLanguages: [
+        'hcl',
+        'bash',
+      ],
     },
   } satisfies Preset.ThemeConfig,
 };
