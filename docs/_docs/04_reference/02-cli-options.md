@@ -35,67 +35,68 @@ This page documents the CLI commands and options available with Terragrunt:
   - [graph](#graph)
   - [stack](#stack)
 - [CLI options](#cli-options)
-  - [terragrunt-check](#terragrunt-check)
   - [terragrunt-config](#terragrunt-config)
-  - [terragrunt-debug](#terragrunt-debug)
-  - [terragrunt-diff](#terragrunt-diff)
-  - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
-  - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
-  - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
+  - [terragrunt-tfpath](#terragrunt-tfpath)
+  - [terragrunt-no-auto-init](#terragrunt-no-auto-init)
+  - [terragrunt-no-auto-approve](#terragrunt-no-auto-approve)
+  - [terragrunt-no-auto-retry](#terragrunt-no-auto-retry)
+  - [terragrunt-non-interactive](#terragrunt-non-interactive)
+  - [terragrunt-working-dir](#terragrunt-working-dir)
   - [terragrunt-download-dir](#terragrunt-download-dir)
-  - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
+  - [terragrunt-source](#terragrunt-source)
+  - [terragrunt-source-map](#terragrunt-source-map)
+  - [terragrunt-source-update](#terragrunt-source-update)
+  - [terragrunt-ignore-dependency-errors](#terragrunt-ignore-dependency-errors)
+  - [terragrunt-auth-provider-cmd](#terragrunt-auth-provider-cmd)
+  - [terragrunt-iam-role](#terragrunt-iam-role)
+  - [terragrunt-iam-assume-role-duration](#terragrunt-iam-assume-role-duration)
+  - [terragrunt-iam-assume-role-session-name](#terragrunt-iam-assume-role-session-name)
+  - [terragrunt-iam-web-identity-token](#terragrunt-iam-web-identity-token)
   - [terragrunt-excludes-file](#terragrunt-excludes-file)
-  - [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
-  - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
-  - [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout)
+  - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
+  - [terragrunt-include-dir](#terragrunt-include-dir)
+  - [terragrunt-strict-include](#terragrunt-strict-include)
+  - [terragrunt-strict-validate](#terragrunt-strict-validate)
+  - [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
+  - [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
+  - [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
+  - [terragrunt-parallelism](#terragrunt-parallelism)
+  - [terragrunt-debug](#terragrunt-debug)
+  - [terragrunt-log-level](#terragrunt-log-level)
+  - [terragrunt-log-format](#terragrunt-log-format)
+  - [terragrunt-log-custom-format](#terragrunt-log-custom-format)
+  - [terragrunt-log-disable](#terragrunt-log-disable)
+  - [terragrunt-log-show-abs-paths](#terragrunt-log-show-abs-paths)
+  - [terragrunt-no-color](#terragrunt-no-color)
+  - [terragrunt-check](#terragrunt-check)
+  - [terragrunt-diff](#terragrunt-diff)
   - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
   - [terragrunt-hclfmt-stdin](#terragrunt-hclfmt-stdin)
   - [terragrunt-hclvalidate-json](#terragrunt-hclvalidate-json)
   - [terragrunt-hclvalidate-show-config-path](#terragrunt-hclvalidate-show-config-path)
-  - [terragrunt-iam-assume-role-duration](#terragrunt-iam-assume-role-duration)
-  - [terragrunt-iam-assume-role-session-name](#terragrunt-iam-assume-role-session-name)
-  - [terragrunt-iam-role](#terragrunt-iam-role)
-  - [terragrunt-iam-web-identity-token](#terragrunt-iam-web-identity-token)
-  - [terragrunt-ignore-dependency-errors](#terragrunt-ignore-dependency-errors)
-  - [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
-  - [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
-  - [terragrunt-include-dir](#terragrunt-include-dir)
-  - [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
-  - [terragrunt-include-module-prefix](#terragrunt-include-module-prefix) (DEPRECATED: use [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout))
-  - [terragrunt-json-disable-dependent-modules](#terragrunt-json-disable-dependent-modules)
-  - [terragrunt-json-log](#terragrunt-json-log) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-  - [terragrunt-json-out-dir](#terragrunt-json-out-dir)
-  - [terragrunt-json-out](#terragrunt-json-out)
-  - [terragrunt-log-custom-format](#terragrunt-log-custom-format)
-  - [terragrunt-log-disable](#terragrunt-log-disable)
-  - [terragrunt-log-format](#terragrunt-log-format)
-  - [terragrunt-log-level](#terragrunt-log-level)
-  - [terragrunt-log-show-abs-paths](#terragrunt-log-show-abs-paths)
-  - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
-  - [terragrunt-no-auto-approve](#terragrunt-no-auto-approve)
-  - [terragrunt-no-auto-init](#terragrunt-no-auto-init)
-  - [terragrunt-no-auto-retry](#terragrunt-no-auto-retry)
-  - [terragrunt-no-color](#terragrunt-no-color)
-  - [terragrunt-no-destroy-dependencies-check](#terragrunt-no-destroy-dependencies-check)
-  - [terragrunt-non-interactive](#terragrunt-non-interactive)
-  - [terragrunt-out-dir](#terragrunt-out-dir)
   - [terragrunt-override-attr](#terragrunt-override-attr)
-  - [terragrunt-parallelism](#terragrunt-parallelism)
+  - [terragrunt-json-out](#terragrunt-json-out)
+  - [terragrunt-json-disable-dependent-modules](#terragrunt-json-disable-dependent-modules)
+  - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
+  - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
+  - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
+  - [terragrunt-include-module-prefix](#terragrunt-include-module-prefix) (DEPRECATED: use [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout))
+  - [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
+  - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
+  - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
+  - [terragrunt-json-log](#terragrunt-json-log) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
+  - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
+  - [terragrunt-provider-cache](#terragrunt-provider-cache)
   - [terragrunt-provider-cache-dir](#terragrunt-provider-cache-dir)
   - [terragrunt-provider-cache-hostname](#terragrunt-provider-cache-hostname)
   - [terragrunt-provider-cache-port](#terragrunt-provider-cache-port)
-  - [terragrunt-provider-cache-registry-names](#terragrunt-provider-cache-registry-names)
   - [terragrunt-provider-cache-token](#terragrunt-provider-cache-token)
-  - [terragrunt-provider-cache](#terragrunt-provider-cache)
-  - [terragrunt-source-map](#terragrunt-source-map)
-  - [terragrunt-source-update](#terragrunt-source-update)
-  - [terragrunt-source](#terragrunt-source)
-  - [terragrunt-strict-include](#terragrunt-strict-include)
-  - [terragrunt-strict-validate](#terragrunt-strict-validate)
-  - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-  - [terragrunt-tfpath](#terragrunt-tfpath)
-  - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
-  - [terragrunt-working-dir](#terragrunt-working-dir)
+  - [terragrunt-provider-cache-registry-names](#terragrunt-provider-cache-registry-names)
+  - [terragrunt-out-dir](#terragrunt-out-dir)
+  - [terragrunt-json-out-dir](#terragrunt-json-out-dir)
+  - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
+  - [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout)
+  - [terragrunt-no-destroy-dependencies-check](#terragrunt-no-destroy-dependencies-check)
   - [feature](#feature)
   - [experiment](#experiment)
   - [experiment-mode](#experiment-mode)
@@ -124,6 +125,7 @@ Terragrunt supports the following CLI commands:
 - [scaffold](#scaffold)
 - [catalog](#catalog)
 - [graph](#graph)
+- [stack](#stack)
 
 ### All OpenTofu/Terraform built-in commands
 
@@ -385,7 +387,7 @@ To enable strict mode, you can pass the `--terragrunt-strict-validate` flag like
 > terragrunt validate-inputs --terragrunt-strict-validate
 ```
 
-When running in strict mode, `validate-inputs` will return an error if there are unused inputs.
+When running in strict mode, `validate-inputs` will return an error if there are unused inputs or undefined required inputs.
 
 This command will exit with an error if terragrunt detects any unused inputs or undefined required inputs.
 
@@ -823,85 +825,72 @@ This ensures that all units are up-to-date before running the requested operatio
 Terragrunt forwards all options to OpenTofu/Terraform. The only exceptions are `--version` and arguments that start with the
 prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available options are:
 
-- [CLI commands](#cli-commands)
-  - [All OpenTofu/Terraform built-in commands](#all-opentofuterraform-built-in-commands)
-  - [run-all](#run-all)
-  - [plan-all (DEPRECATED: use run-all)](#plan-all-deprecated-use-run-all)
-  - [apply-all (DEPRECATED: use run-all)](#apply-all-deprecated-use-run-all)
-  - [output-all (DEPRECATED: use run-all)](#output-all-deprecated-use-run-all)
-  - [destroy-all (DEPRECATED: use run-all)](#destroy-all-deprecated-use-run-all)
-  - [validate-all (DEPRECATED: use run-all)](#validate-all-deprecated-use-run-all)
-  - [terragrunt-info](#terragrunt-info)
-  - [validate-inputs](#validate-inputs)
-  - [graph-dependencies](#graph-dependencies)
-  - [hclfmt](#hclfmt)
-  - [aws-provider-patch](#aws-provider-patch)
-  - [render-json](#render-json)
-  - [output-module-groups](#output-module-groups)
-  - [scaffold](#scaffold)
-  - [catalog](#catalog)
-  - [graph](#graph)
-- [CLI options](#cli-options)
-  - [terragrunt-config](#terragrunt-config)
-  - [terragrunt-tfpath](#terragrunt-tfpath)
-  - [terragrunt-no-auto-init](#terragrunt-no-auto-init)
-  - [terragrunt-no-auto-approve](#terragrunt-no-auto-approve)
-  - [terragrunt-no-auto-retry](#terragrunt-no-auto-retry)
-  - [terragrunt-non-interactive](#terragrunt-non-interactive)
-  - [terragrunt-working-dir](#terragrunt-working-dir)
-  - [terragrunt-download-dir](#terragrunt-download-dir)
-  - [terragrunt-source](#terragrunt-source)
-  - [terragrunt-source-map](#terragrunt-source-map)
-  - [terragrunt-source-update](#terragrunt-source-update)
-  - [terragrunt-ignore-dependency-errors](#terragrunt-ignore-dependency-errors)
-  - [terragrunt-iam-role](#terragrunt-iam-role)
-  - [terragrunt-iam-assume-role-duration](#terragrunt-iam-assume-role-duration)
-  - [terragrunt-iam-assume-role-session-name](#terragrunt-iam-assume-role-session-name)
-  - [terragrunt-excludes-file](#terragrunt-excludes-file)
-  - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
-  - [terragrunt-include-dir](#terragrunt-include-dir)
-  - [terragrunt-strict-include](#terragrunt-strict-include)
-  - [terragrunt-strict-validate](#terragrunt-strict-validate)
-  - [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
-  - [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
-  - [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
-  - [terragrunt-parallelism](#terragrunt-parallelism)
-  - [terragrunt-debug](#terragrunt-debug)
-  - [terragrunt-log-level](#terragrunt-log-level)
-  - [terragrunt-log-format](#terragrunt-log-format)
-  - [terragrunt-log-custom-format](#terragrunt-log-custom-format)
-  - [terragrunt-log-disable](#terragrunt-log-disable)
-  - [terragrunt-log-show-abs-paths](#terragrunt-log-show-abs-paths)
-  - [terragrunt-no-color](#terragrunt-no-color)
-  - [terragrunt-check](#terragrunt-check)
-  - [terragrunt-diff](#terragrunt-diff)
-  - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
-  - [terragrunt-hclfmt-stdin](#terragrunt-hclfmt-stdin)
-  - [terragrunt-hclvalidate-json](#terragrunt-hclvalidate-json)
-  - [terragrunt-hclvalidate-show-config-path](#terragrunt-hclvalidate-show-config-path)
-  - [terragrunt-override-attr](#terragrunt-override-attr)
-  - [terragrunt-json-out](#terragrunt-json-out)
-  - [terragrunt-json-disable-dependent-modules](#terragrunt-json-disable-dependent-modules)
-  - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
-  - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
-  - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
-  - [terragrunt-include-module-prefix](#terragrunt-include-module-prefix) (DEPRECATED: use [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout))
-  - [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
-  - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
-  - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
-  - [terragrunt-json-log](#terragrunt-json-log) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-  - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-  - [terragrunt-provider-cache](#terragrunt-provider-cache)
-  - [terragrunt-provider-cache-dir](#terragrunt-provider-cache-dir)
-  - [terragrunt-provider-cache-hostname](#terragrunt-provider-cache-hostname)
-  - [terragrunt-provider-cache-port](#terragrunt-provider-cache-port)
-  - [terragrunt-provider-cache-token](#terragrunt-provider-cache-token)
-  - [terragrunt-provider-cache-registry-names](#terragrunt-provider-cache-registry-names)
-  - [terragrunt-out-dir](#terragrunt-out-dir)
-  - [terragrunt-json-out-dir](#terragrunt-json-out-dir)
-  - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-  - [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout)
-  - [terragrunt-no-destroy-dependencies-check](#terragrunt-no-destroy-dependencies-check)
+- [terragrunt-config](#terragrunt-config)
+- [terragrunt-tfpath](#terragrunt-tfpath)
+- [terragrunt-no-auto-init](#terragrunt-no-auto-init)
+- [terragrunt-no-auto-approve](#terragrunt-no-auto-approve)
+- [terragrunt-no-auto-retry](#terragrunt-no-auto-retry)
+- [terragrunt-non-interactive](#terragrunt-non-interactive)
+- [terragrunt-working-dir](#terragrunt-working-dir)
+- [terragrunt-download-dir](#terragrunt-download-dir)
+- [terragrunt-source](#terragrunt-source)
+- [terragrunt-source-map](#terragrunt-source-map)
+- [terragrunt-source-update](#terragrunt-source-update)
+- [terragrunt-ignore-dependency-errors](#terragrunt-ignore-dependency-errors)
+- [terragrunt-iam-role](#terragrunt-iam-role)
+- [terragrunt-iam-assume-role-duration](#terragrunt-iam-assume-role-duration)
+- [terragrunt-iam-assume-role-session-name](#terragrunt-iam-assume-role-session-name)
+- [terragrunt-iam-web-identity-token](#terragrunt-iam-web-identity-token)
+- [terragrunt-excludes-file](#terragrunt-excludes-file)
+- [terragrunt-exclude-dir](#terragrunt-exclude-dir)
+- [terragrunt-include-dir](#terragrunt-include-dir)
+- [terragrunt-strict-include](#terragrunt-strict-include)
+- [terragrunt-strict-validate](#terragrunt-strict-validate)
+- [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
+- [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
+- [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
+- [terragrunt-parallelism](#terragrunt-parallelism)
+- [terragrunt-debug](#terragrunt-debug)
+- [terragrunt-log-level](#terragrunt-log-level)
+- [terragrunt-log-format](#terragrunt-log-format)
+- [terragrunt-log-custom-format](#terragrunt-log-custom-format)
+- [terragrunt-log-disable](#terragrunt-log-disable)
+- [terragrunt-log-show-abs-paths](#terragrunt-log-show-abs-paths)
+- [terragrunt-no-color](#terragrunt-no-color)
+- [terragrunt-check](#terragrunt-check)
+- [terragrunt-diff](#terragrunt-diff)
+- [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
+- [terragrunt-hclfmt-stdin](#terragrunt-hclfmt-stdin)
+- [terragrunt-hclvalidate-json](#terragrunt-hclvalidate-json)
+- [terragrunt-hclvalidate-show-config-path](#terragrunt-hclvalidate-show-config-path)
+- [terragrunt-override-attr](#terragrunt-override-attr)
+- [terragrunt-json-out](#terragrunt-json-out)
+- [terragrunt-json-disable-dependent-modules](#terragrunt-json-disable-dependent-modules)
+- [terragrunt-modules-that-include](#terragrunt-modules-that-include)
+- [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
+- [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
+- [terragrunt-include-module-prefix](#terragrunt-include-module-prefix) (DEPRECATED: use [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout))
+- [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
+- [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
+- [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
+- [terragrunt-json-log](#terragrunt-json-log) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
+- [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
+- [terragrunt-provider-cache](#terragrunt-provider-cache)
+- [terragrunt-provider-cache-dir](#terragrunt-provider-cache-dir)
+- [terragrunt-provider-cache-hostname](#terragrunt-provider-cache-hostname)
+- [terragrunt-provider-cache-port](#terragrunt-provider-cache-port)
+- [terragrunt-provider-cache-token](#terragrunt-provider-cache-token)
+- [terragrunt-provider-cache-registry-names](#terragrunt-provider-cache-registry-names)
+- [terragrunt-out-dir](#terragrunt-out-dir)
+- [terragrunt-json-out-dir](#terragrunt-json-out-dir)
+- [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
+- [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout)
+- [terragrunt-no-destroy-dependencies-check](#terragrunt-no-destroy-dependencies-check)
+- [feature](#feature)
+- [experiment](#experiment)
+- [experiment-mode](#experiment-mode)
+- [strict-control](#strict-control)
+- [strict-mode](#strict-mode)
 
 ### terragrunt-config
 
@@ -1068,7 +1057,60 @@ When passed in, delete the contents of the temporary folder before downloading O
 **CLI Arg**: `--terragrunt-ignore-dependency-errors`<br/>
 **Environment Variable**: `TERRAGRUNT_IGNORE_DEPENDENCY_ERRORS`<br/>
 
-When passed in, the `*-all` commands continue processing components even if a dependency fails
+When passed in, the `*-all` commands continue processing components even if a dependency fails.
+
+### terragrunt-auth-provider-cmd
+
+**CLI Arg**: `--terragrunt-auth-provider-cmd`<br/>
+**Environment Variable**: `TERRAGRUNT_AUTH_PROVIDER_CMD`<br/>
+**Requires an argument**: `--terragrunt-auth-provider-cmd "command [arguments]"`<br/>
+
+The command and arguments used to obtain authentication credentials dynamically. If specified, Terragrunt runs this command whenever it might need authentication. This includes HCL parsing, where it might be useful to authenticate with a cloud provider _before_ running HCL functions like [`get_aws_account_id`](/docs/reference/built-in-functions/#get_aws_account_id) where authentication has to already have taken place. It can also be useful for HCL functions like [`run_cmd`](/docs/reference/built-in-functions/#run_cmd) where it may be useful to be authenticated before calling the function.
+
+The output must be valid JSON of the following schema:
+
+```json
+{
+  "awsCredentials": {
+    "ACCESS_KEY_ID": "",
+    "SECRET_ACCESS_KEY": "",
+    "SESSION_TOKEN": ""
+  },
+  "awsRole": {
+    "roleARN": "",
+    "sessionName": "",
+    "duration": 0,
+    "webIdentityToken": ""
+  },
+  "envs": {
+    "ANY_KEY": ""
+  }
+}
+```
+
+This allows Terragrunt to acquire different credentials at runtime without changing any `terragrunt.hcl` configuration. You can use this flag to set arbitrary credentials for continuous integration, authentication with providers other than AWS and more.
+
+As long as the standard output of the command passed to `terragrunt-auth-provider-cmd` results in JSON matching the schema above, corresponding environment variables will be set (and/or roles assumed) before Terragrunt begins parsing an `terragrunt.hcl` file or running an OpenTofu/Terraform command.
+
+The simplest approach to leverage this flag is to write a script that fetches desired credentials, and emits them to STDOUT in the JSON format listed above:
+
+```bash
+#!/usr/bin/env bash
+
+echo -n '{"envs": {"KEY": "a secret"}}'
+```
+
+You can use any technology for the authentication provider you'd like, however, as long as Terragrunt can execute it. The expected pattern for using this flag is to author a script/program that will dynamically fetch secret values from a secret store, etc. then emit them to STDOUT for consumption by Terragrunt.
+
+Note that more specific configurations (e.g. `awsCredentials`) take precedence over less specific configurations (e.g. `envs`).
+
+If you would like to set credentials for AWS with this method, you are encouraged to use `awsCredentials` instead of `envs`, as these keys will be validated to conform to the officially supported environment variables expected by the AWS SDK.
+
+Similarly, if you would like Terragrunt to assume an AWS role on your behalf, you are encouraged to use the `awsRole` configuration instead of `envs`.
+
+Other credential configurations will be supported in the future, but until then, if your provider authenticates via environment variables, you can use the `envs` field to fetch credentials dynamically from a secret store, etc before Terragrunt executes any IAC.
+
+**Note**: The `awsRole` configuration is only used when the `awsCredentials` configuration is not present. If both are present, the `awsCredentials` configuration will take precedence.
 
 ### terragrunt-iam-role
 
@@ -1076,8 +1118,10 @@ When passed in, the `*-all` commands continue processing components even if a de
 **Environment Variable**: `TERRAGRUNT_IAM_ROLE`<br/>
 **Requires an argument**: `--terragrunt-iam-role "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"`<br/>
 
-Assume the specified IAM role ARN before running OpenTofu/Terraform or AWS commands. This is a convenient way to use Terragrunt
-and OpenTofu/Terraform with multiple AWS accounts.
+Assume the specified IAM role ARN for running OpenTofu/Terraform or AWS commands. This is a convenient way to use Terragrunt
+and OpenTofu/Terraform with multiple AWS accounts. 
+
+When using this option, AWS authentication takes place right before an OpenTofu/Terraform run. This takes place after `terragrunt.hcl` files are fully parsed, so HCL functions like [`get_aws_account_id`](/docs/reference/built-in-functions/#get_aws_account_id) and [`run_cmd`](/docs/reference/built-in-functions/#run_cmd) will not run after assuming the role. If you need roles to be assumed prior to parsing Terragrunt configurations, use [`terragrunt-auth-provider-cmd`](#terragrunt-auth-provider-cmd) instead.
 
 ### terragrunt-iam-assume-role-duration
 
@@ -1102,6 +1146,8 @@ Used as the session name for the STS session which assumes the role defined in `
 **Requires an argument**: `--terragrunt-iam-web-identity-token [/path/to/web-identity-token | web-identity-token-value]`<br/>
 
 Used as the web identity token for assuming a role temporarily using the AWS Security Token Service (STS) with the [AssumeRoleWithWebIdentity](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html) API.
+
+When using this option, AWS authentication takes place right before an OpenTofu/Terraform run. This takes place after `terragrunt.hcl` files are fully parsed, so HCL functions like [`get_aws_account_id`](/docs/reference/built-in-functions/#get_aws_account_id) and [`run_cmd`](/docs/reference/built-in-functions/#run_cmd) will not run after assuming the role. If you need roles to be assumed prior to parsing Terragrunt configurations, use [`terragrunt-auth-provider-cmd`](#terragrunt-auth-provider-cmd) instead.
 
 ### terragrunt-excludes-file
 
@@ -1671,59 +1717,6 @@ Specify the plan output directory for the `*-all` commands. Useful to save plans
 - [run-all](#run-all)
 
 Specify the output directory for the `*-all` commands to store plans in JSON format. Useful to read plans programmatically.
-
-### terragrunt-auth-provider-cmd
-
-**CLI Arg**: `--terragrunt-auth-provider-cmd`<br/>
-**Environment Variable**: `TERRAGRUNT_AUTH_PROVIDER_CMD`<br/>
-**Requires an argument**: `--terragrunt-auth-provider-cmd "command [arguments]"`<br/>
-
-The command and arguments used to obtain authentication credentials dynamically. If specified, Terragrunt runs this command for every working directory before running the underlying IAC for a `terragrunt.hcl` file.
-
-The output must be valid JSON of the following schema:
-
-```json
-{
-  "awsCredentials": {
-    "ACCESS_KEY_ID": "",
-    "SECRET_ACCESS_KEY": "",
-    "SESSION_TOKEN": ""
-  },
-  "awsRole": {
-    "roleARN": "",
-    "sessionName": "",
-    "duration": 0,
-    "webIdentityToken": ""
-  },
-  "envs": {
-    "ANY_KEY": ""
-  }
-}
-```
-
-This allows Terragrunt to acquire different credentials at runtime without changing any `terragrunt.hcl` configuration. You can use this flag to set arbitrary credentials for continuous integration, authentication with providers other than AWS and more.
-
-As long as the standard output of the command passed to `terragrunt-auth-provider-cmd` results in JSON matching the schema above, corresponding environment variables will be set before Terragrunt begins IAC execution for a `terragrunt.hcl` file.
-
-The simplest approach to leverage this flag is to write a script that fetches desired credentials, and emits them to STDOUT in the JSON format listed above:
-
-```bash
-#!/usr/bin/env bash
-
-echo -n '{"envs": {"KEY": "a secret"}}'
-```
-
-You can use any technology you'd like, however, as long as Terragrunt can execute it. The expected pattern for using this flag is to populate the values dynamically using a secret store, etc.
-
-Note that more specific configurations (e.g. `awsCredentials`) take precedence over less specific configurations (e.g. `envs`).
-
-If you would like to set credentials for AWS with this method, you are encouraged to use `awsCredentials` instead of `envs`, as these keys will be validated to conform to the officially supported environment variables expected by the AWS SDK.
-
-Similarly, if you would like Terragrunt to assume an AWS role on your behalf, you are encouraged to use the `awsRole` configuration instead of `envs`.
-
-Other credential configurations will be supported in the future, but until then, if your provider authenticates via environment variables, you can use the `envs` field to fetch credentials dynamically from a secret store, etc before Terragrunt executes any IAC.
-
-**Note**: The `awsRole` configuration is only used when the `awsCredentials` configuration is not present. If both are present, the `awsCredentials` configuration will take precedence.
 
 ### terragrunt-disable-log-formatting
 
