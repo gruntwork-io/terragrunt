@@ -211,14 +211,14 @@ func readVersionFile(terraformSource *terraform.Source) (string, error) {
 	return util.ReadFileAsString(terraformSource.VersionFile)
 }
 
-// updateGetters returns the customized go-getter interfaces that Terragrunt relies on. Specifically:
+// UpdateGetters returns the customized go-getter interfaces that Terragrunt relies on. Specifically:
 //   - Local file path getter is updated to copy the files instead of creating symlinks, which is what go-getter defaults
 //     to.
 //   - Include the customized getter for fetching sources from the Terraform Registry.
 //
 // This creates a closure that returns a function so that we have access to the terragrunt configuration, which is
 // necessary for customizing the behavior of the file getter.
-func updateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) func(*getter.Client) error {
+func UpdateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) func(*getter.Client) error {
 	return func(client *getter.Client) error {
 		// We copy all the default getters from the go-getter library, but replace the "file" getter. We shallow clone the
 		// getter map here rather than using getter.Getters directly because (a) we shouldn't change the original,
@@ -270,7 +270,7 @@ func downloadSource(terraformSource *terraform.Source, terragruntOptions *option
 		canonicalSourceURL,
 		terraformSource.DownloadDir)
 
-	if err := getter.GetAny(terraformSource.DownloadDir, terraformSource.CanonicalSourceURL.String(), updateGetters(terragruntOptions, terragruntConfig)); err != nil {
+	if err := getter.GetAny(terraformSource.DownloadDir, terraformSource.CanonicalSourceURL.String(), UpdateGetters(terragruntOptions, terragruntConfig)); err != nil {
 		return errors.New(err)
 	}
 

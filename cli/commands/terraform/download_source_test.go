@@ -24,6 +24,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/util"
+	"github.com/hashicorp/go-getter"
 )
 
 func TestAlreadyHaveLatestCodeLocalFilePathWithNoModifiedFiles(t *testing.T) {
@@ -501,4 +502,61 @@ func copyFolder(t *testing.T, src string, dest string) {
 
 	err := util.CopyFolderContents(logger, filepath.FromSlash(src), filepath.FromSlash(dest), ".terragrunt-test", nil, nil)
 	require.NoError(t, err)
+}
+
+// TestUpdateGettersExcludeFromCopy verifies the correct behavior of updateGetters with ExcludeFromCopy configuration
+func TestUpdateGettersExcludeFromCopy(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name                 string
+		terragruntConfig     *config.TerragruntConfig
+		expectedExcludeFiles []string
+	}{
+		{
+			name: "Nil ExcludeFromCopy",
+			terragruntConfig: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					ExcludeFromCopy: nil,
+				},
+			},
+			expectedExcludeFiles: nil,
+		},
+		{
+			name: "Non-Nil ExcludeFromCopy",
+			terragruntConfig: &config.TerragruntConfig{
+				Terraform: &config.TerraformConfig{
+					ExcludeFromCopy: &[]string{"*.tfstate", "excluded_dir/"},
+				},
+			},
+			expectedExcludeFiles: []string{"*.tfstate", "excluded_dir/"},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc // create a local copy of the test case to avoid race conditions
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create mock TerragruntOptions
+			terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
+			require.NoError(t, err)
+
+			// Create a go-getter client
+			client := &getter.Client{}
+
+			// Call updateGetters
+			updateGettersFunc := terraform.UpdateGetters(terragruntOptions, tc.terragruntConfig)
+			err = updateGettersFunc(client)
+			require.NoError(t, err)
+
+			// Find the file getter
+			fileGetter, ok := client.Getters["file"].(*terraform.FileCopyGetter)
+			require.True(t, ok, "File getter should be of type FileCopyGetter")
+
+			// Verify ExcludeFromCopy
+			assert.Equal(t, tc.expectedExcludeFiles, fileGetter.ExcludeFromCopy,
+				"ExcludeFromCopy should match expected value")
+		})
+	}
 }
