@@ -180,10 +180,9 @@ func TestTerragruntValidateInputsWithStrictModeDisabledAndUnusedInputs(t *testin
 func TestRenderJSONConfig(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := os.MkdirTemp("", "terragrunt-render-json-*")
-	require.NoError(t, err)
+	tmpDir := t.TempDir()
+
 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
-	defer os.RemoveAll(tmpDir)
 
 	helpers.CleanupTerraformFolder(t, fixtureRenderJSONMainModulePath)
 	helpers.CleanupTerraformFolder(t, fixtureRenderJSONDepModulePath)
@@ -292,10 +291,9 @@ func TestRenderJSONConfig(t *testing.T) {
 func TestRenderJSONConfigWithIncludesDependenciesAndLocals(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := os.MkdirTemp("", "terragrunt-render-json-*")
-	require.NoError(t, err)
+	tmpDir := t.TempDir()
+
 	jsonOut := filepath.Join(tmpDir, "terragrunt_rendered.json")
-	defer os.RemoveAll(tmpDir)
 
 	tmpEnvPath := helpers.CopyEnvironment(t, fixtureRenderJSONRegression)
 	workDir := filepath.Join(tmpEnvPath, fixtureRenderJSONRegression)

@@ -206,20 +206,20 @@ func TestFileManifest(t *testing.T) {
 	files := []string{"file1", "file2"}
 	var testfiles = make([]string, 0, len(files))
 
-	// create temp dir
-	dir, err := os.MkdirTemp("", ".terragrunt-test-dir")
-	require.NoError(t, err)
+	// create temp tmpDir
+	tmpDir := t.TempDir()
+
 	for _, file := range files {
 		// create temp files in the dir
-		f, err := os.CreateTemp(dir, file)
+		f, err := os.CreateTemp(tmpDir, file)
 		require.NoError(t, err)
 		testfiles = append(testfiles, f.Name())
 	}
 	// will later test if the file already doesn't exist
-	testfiles = append(testfiles, path.Join(dir, "ephemeral-file-that-doesnt-exist.txt"))
+	testfiles = append(testfiles, path.Join(tmpDir, "ephemeral-file-that-doesnt-exist.txt"))
 
 	// create a manifest
-	manifest := util.NewFileManifest(log.New(), dir, ".terragrunt-test-manifest")
+	manifest := util.NewFileManifest(log.New(), tmpDir, ".terragrunt-test-manifest")
 	require.NoError(t, manifest.Create())
 	// check the file manifest has been created
 	assert.FileExists(t, filepath.Join(manifest.ManifestFolder, manifest.ManifestFile))
@@ -227,7 +227,7 @@ func TestFileManifest(t *testing.T) {
 		require.NoError(t, manifest.AddFile(file))
 	}
 	// check for a non-existent directory as well
-	assert.NoError(t, manifest.AddDirectory(path.Join(dir, "ephemeral-directory-that-doesnt-exist")))
+	assert.NoError(t, manifest.AddDirectory(path.Join(tmpDir, "ephemeral-directory-that-doesnt-exist")))
 
 	assert.NoError(t, manifest.Clean())
 	// test if the files have been deleted
