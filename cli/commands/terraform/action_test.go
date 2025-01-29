@@ -480,12 +480,12 @@ func mockOptions(t *testing.T, terragruntConfigPath string, workingDir string, t
 func createTempFile(t *testing.T) string {
 	t.Helper()
 
-	tmpDir, err := os.CreateTemp(t.TempDir(), "")
+	tmpFile, err := os.CreateTemp(t.TempDir(), "")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %s\n", err.Error())
 	}
 
-	return filepath.ToSlash(tmpDir.Name())
+	return filepath.ToSlash(tmpFile.Name())
 }
 
 func TestShouldCopyLockFile(t *testing.T) {
