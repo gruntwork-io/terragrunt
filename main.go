@@ -19,18 +19,19 @@ import (
 func main() {
 	var exitCode tf.DetailedExitCode
 
-	ctx := context.Background()
-	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
-
 	opts := options.NewTerragruntOptions()
 
 	// Immediately parse the `TG_LOG_LEVEL` environment variable, e.g. to set the TRACE level.
-	if err := flags.NewLogLevelFlag(opts).Apply(new(flag.FlagSet)); err != nil {
+	if err := flags.NewLogLevelFlag(opts, nil).Apply(new(flag.FlagSet)); err != nil {
 		opts.Logger.Error(err.Error())
 		os.Exit(1)
 	}
 
 	defer errors.Recover(checkForErrorsAndExit(opts.Logger, exitCode.Get()))
+
+	ctx := context.Background()
+	ctx = tf.ContextWithDetailedExitCode(ctx, &exitCode)
+	ctx = log.ContextWithLogger(ctx, opts.Logger)
 
 	app := cli.NewApp(opts)
 	err := app.RunContext(ctx, os.Args)
@@ -45,7 +46,10 @@ func checkForErrorsAndExit(logger log.Logger, exitCode int) func(error) {
 			os.Exit(exitCode)
 		} else {
 			logger.Error(err.Error())
-			logger.Trace(errors.ErrorStack(err))
+
+			if errStack := errors.ErrorStack(err); errStack != "" {
+				logger.Trace(errStack)
+			}
 
 			// exit with the underlying error code
 			exitCoder, exitCodeErr := util.GetExitCode(err)

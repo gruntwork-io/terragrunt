@@ -184,26 +184,22 @@ func testGenericFlagApply[T cli.GenericType](t *testing.T, flag *cli.GenericFlag
 
 	var (
 		actualValue          T
-		destDefined          bool
 		expectedDefaultValue string
 	)
 
-	if flag.Destination == nil {
-		destDefined = true
-		flag.Destination = &actualValue
-	} else {
-		expectedDefaultValue = fmt.Sprintf("%v", *flag.Destination)
+	if val := flag.Destination; val != nil {
+		expectedDefaultValue = fmt.Sprintf("%v", *val)
 	}
 
-	flag.LookupEnvFunc = func(key string) (string, bool) {
+	flag.LookupEnvFunc = func(key string) []string {
 		if envs == nil {
-			return "", false
+			return nil
 		}
 
 		if val, ok := envs[key]; ok {
-			return val, true
+			return []string{val}
 		}
-		return "", false
+		return nil
 	}
 
 	flagSet := libflag.NewFlagSet("test-cmd", libflag.ContinueOnError)
@@ -215,20 +211,19 @@ func testGenericFlagApply[T cli.GenericType](t *testing.T, flag *cli.GenericFlag
 	}
 
 	if expectedErr != nil {
+		require.Error(t, err)
 		require.ErrorContains(t, expectedErr, err.Error())
 		return
 	}
 	require.NoError(t, err)
 
-	if !destDefined {
-		actualValue = (flag.Value().Get()).(T)
-	}
+	actualValue = (flag.Value().Get()).(T)
 
 	assert.Equal(t, expectedValue, actualValue)
 	assert.Equal(t, fmt.Sprintf("%v", expectedValue), flag.GetValue(), "GetValue()")
 
 	assert.Equal(t, len(args) > 0 || len(envs) > 0, flag.Value().IsSet(), "IsSet()")
-	assert.Equal(t, expectedDefaultValue, flag.Value().GetDefaultText(), "GetDefaultText()")
+	assert.Equal(t, expectedDefaultValue, flag.GetInitialTextValue(), "GetDefaultText()")
 
 	assert.False(t, flag.Value().IsBoolFlag(), "IsBoolFlag()")
 	assert.True(t, flag.TakesValue(), "TakesValue()")

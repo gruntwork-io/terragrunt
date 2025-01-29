@@ -134,7 +134,7 @@ func (p *stacksFileProvider) Get(dst string, u *url.URL) error {
 	file, err := os.Stat(src)
 
 	if err != nil {
-		return errors.New(fmt.Errorf("source path error: %w", err))
+		return errors.Errorf("source path error: %w", err)
 	}
 
 	if file.IsDir() {

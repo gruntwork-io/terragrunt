@@ -2,6 +2,7 @@
 package stack
 
 import (
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -13,7 +14,7 @@ const (
 )
 
 // NewFlags builds the flags for stack.
-func NewFlags(_ *options.TerragruntOptions) cli.Flags {
+func NewFlags(_ *options.TerragruntOptions, _ flags.Prefix) cli.Flags {
 	return cli.Flags{}
 }
 
@@ -23,7 +24,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Name:                 CommandName,
 		Usage:                "Terragrunt stack commands.",
 		ErrorOnUndefinedFlag: true,
-		Flags:                NewFlags(opts).Sort(),
+		Flags:                NewFlags(opts, nil).Sort(),
 		Subcommands: cli.Commands{
 			&cli.Command{
 				Name:  "generate",
@@ -34,8 +35,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				},
 			},
 		},
-		Action: func(ctx *cli.Context) error {
-			return cli.ShowSubcommandHelp(ctx, generate)
-		},
+		Action: cli.ShowCommandHelp,
 	}
 }

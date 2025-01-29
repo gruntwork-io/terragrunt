@@ -81,6 +81,18 @@ func (args Args) Tail() Args {
 	return ret
 }
 
+// Remove returns `args` with the `name` element removed.
+func (args Args) Remove(name string) Args {
+	for i := range args {
+		if args[i] == name {
+			args := Args(args.Slice())
+			return append(args[:i], args[i+1:]...)
+		}
+	}
+
+	return args
+}
+
 // Len returns the length of the wrapped slice
 func (args Args) Len() int {
 	return len(args)
@@ -127,28 +139,33 @@ func (args Args) Normalize(acts ...NormalizeActsType) Args {
 	return strArgs
 }
 
-// CommandName returns the first value if it starts without a dash `-`,
-// otherwise that means the args do not consist any command and an empty string is returned.
-func (args Args) CommandName() string {
-	name := args.First()
+// CommandNameN returns the nth argument from `args` that starts without a dash `-`.
+func (args Args) CommandNameN(n int) string {
+	var found int
 
-	if !strings.HasPrefix(name, "-") {
-		return name
+	for _, arg := range args {
+		if !strings.HasPrefix(arg, "-") {
+			if found == n {
+				return arg
+			}
+
+			found++
+		}
 	}
 
 	return ""
 }
 
-// SubCommandName returns the second value if it starts without a dash `-`,
+// CommandName returns the first arg that starts without a dash `-`,
+// otherwise that means the args do not consist any command and an empty string is returned.
+func (args Args) CommandName() string {
+	return args.CommandNameN(0)
+}
+
+// SubCommandName returns the second arg that starts without a dash `-`,
 // otherwise that means the args do not consist a subcommand and an empty string is returned.
 func (args Args) SubCommandName() string {
-	name := args.Second()
-
-	if !strings.HasPrefix(name, "-") {
-		return name
-	}
-
-	return ""
+	return args.CommandNameN(1)
 }
 
 // Contains returns true if args contains the given `target` arg.

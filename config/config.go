@@ -778,7 +778,7 @@ func ParseConfigFile(ctx *ParsingContext, configPath string, includeFromChild *I
 
 		fileInfo, err := os.Stat(configPath)
 		if err != nil {
-			return err
+			return errors.New(err)
 		}
 
 		var (

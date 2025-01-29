@@ -111,7 +111,7 @@ func findCatalogConfig(ctx context.Context, opts *options.TerragruntOptions) (st
 		default: // continue
 		}
 
-		newConfigPath, err := FindInParentFolders(NewParsingContext(ctx, opts), []string{configName})
+		newConfigPath, err := FindInParentFolders(NewParsingContext(ctx, opts), []string{configName}) //nolint:contextcheck
 		if err != nil {
 			var parentFileNotFoundError ParentFileNotFoundError
 			if ok := errors.As(err, &parentFileNotFoundError); ok {

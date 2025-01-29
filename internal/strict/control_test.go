@@ -6,12 +6,14 @@ package strict_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -20,58 +22,58 @@ import (
 )
 
 const (
-	testOngoingAName   strict.ControlName = "test-ongoing-a"
-	testOngoingBName   strict.ControlName = "test-ongoing-b"
-	testOngoingCName   strict.ControlName = "test-ongoing-c"
-	testCompletedAName strict.ControlName = "test-completed-a"
-	testCompletedBName strict.ControlName = "test-completed-b"
-	testCompletedCName strict.ControlName = "test-completed-c"
+	testOngoingAName   = "test-ongoing-a"
+	testOngoingBName   = "test-ongoing-b"
+	testOngoingCName   = "test-ongoing-c"
+	testCompletedAName = "test-completed-a"
+	testCompletedBName = "test-completed-b"
+	testCompletedCName = "test-completed-c"
 )
 
 var (
-	testOngoingA = func() *strict.Control {
-		return &strict.Control{
-			Name:     testOngoingAName,
-			ErrorFmt: "%[1]s error ongoing a %[2]s - %[3]s.",
-			WarnFmt:  "%[1]s warning ongoing a %[2]s.",
+	testOngoingA = func() *controls.Control {
+		return &controls.Control{
+			Name:    testOngoingAName,
+			Error:   errors.New("a error ongoing"),
+			Warning: "a warning ongoing",
 		}
 	}
-	testOngoingB = func() *strict.Control {
-		return &strict.Control{
-			Name:     testOngoingBName,
-			ErrorFmt: "error ongoing b",
-			WarnFmt:  "warning ongoing b",
+	testOngoingB = func() *controls.Control {
+		return &controls.Control{
+			Name:    testOngoingBName,
+			Error:   errors.New("error ongoing b"),
+			Warning: "warning ongoing b",
 		}
 	}
-	testOngoingC = func() *strict.Control {
-		return &strict.Control{
-			Name:     testOngoingCName,
-			ErrorFmt: "%s error ongoing c %s - %s.",
-			WarnFmt:  "%s warning ongoing c %s - %s.",
+	testOngoingC = func() *controls.Control {
+		return &controls.Control{
+			Name:    testOngoingCName,
+			Error:   errors.New("error ongoing c"),
+			Warning: "warning ongoing c",
 		}
 	}
-	testCompletedA = func() *strict.Control {
-		return &strict.Control{
-			Name:     testCompletedAName,
-			Status:   strict.StatusCompleted,
-			ErrorFmt: "no matter",
-			WarnFmt:  "no matter",
+	testCompletedA = func() *controls.Control {
+		return &controls.Control{
+			Name:    testCompletedAName,
+			Status:  strict.CompletedStatus,
+			Error:   errors.New("no matter"),
+			Warning: "no matter",
 		}
 	}
-	testCompletedB = func() *strict.Control {
-		return &strict.Control{
-			Name:     testCompletedBName,
-			Status:   strict.StatusCompleted,
-			ErrorFmt: "no matter",
-			WarnFmt:  "no matter",
+	testCompletedB = func() *controls.Control {
+		return &controls.Control{
+			Name:    testCompletedBName,
+			Status:  strict.CompletedStatus,
+			Error:   errors.New("no matter"),
+			Warning: "no matter",
 		}
 	}
-	testCompletedC = func() *strict.Control {
-		return &strict.Control{
-			Name:     testCompletedCName,
-			Status:   strict.StatusCompleted,
-			ErrorFmt: "no matter",
-			WarnFmt:  "no matter",
+	testCompletedC = func() *controls.Control {
+		return &controls.Control{
+			Name:    testCompletedCName,
+			Status:  strict.CompletedStatus,
+			Error:   errors.New("no matter"),
+			Warning: "no matter",
 		}
 	}
 )
@@ -99,13 +101,13 @@ func TestEnableControl(t *testing.T) {
 	t.Parallel()
 
 	type testEnableControl struct {
-		controlName strict.ControlName
+		controlName string
 		expectedErr error
 	}
 
 	testCases := []struct {
 		enableControls          []testEnableControl
-		expectedEnabledControls []strict.ControlName
+		expectedEnabledControls []string
 		expectedCompletedMsg    string
 	}{
 		{
@@ -128,11 +130,11 @@ func TestEnableControl(t *testing.T) {
 				},
 				{
 					"invalid",
-					strict.NewInvalidControlNameError([]string{string(testOngoingAName), string(testOngoingBName), string(testOngoingCName)}),
+					strict.NewInvalidControlNameError([]string{testOngoingAName, testOngoingBName, testOngoingCName}),
 				},
 			},
-			[]strict.ControlName{testOngoingAName, testOngoingCName, testCompletedAName, testCompletedCName},
-			strict.NewCompletedControlsError([]string{string(testCompletedAName), string(testCompletedCName)}).Error(),
+			[]string{testOngoingAName, testOngoingCName, testCompletedAName, testCompletedCName},
+			fmt.Sprintf(strict.CompletedControlsFmt, strict.ControlNames([]string{testCompletedAName, testCompletedCName})),
 		},
 		{
 			[]testEnableControl{
@@ -145,12 +147,12 @@ func TestEnableControl(t *testing.T) {
 					nil,
 				},
 			},
-			[]strict.ControlName{testOngoingBName, testCompletedBName},
-			strict.NewCompletedControlsError([]string{string(testCompletedBName)}).Error(),
+			[]string{testOngoingBName, testCompletedBName},
+			fmt.Sprintf(strict.CompletedControlsFmt, strict.ControlNames([]string{testCompletedBName})),
 		},
 		{
 			[]testEnableControl{},
-			[]strict.ControlName{},
+			[]string{},
 			"",
 		},
 	}
@@ -163,7 +165,7 @@ func TestEnableControl(t *testing.T) {
 
 			for _, testEnableControl := range testCase.enableControls {
 
-				err := controls.EnableControl(string(testEnableControl.controlName))
+				err := controls.EnableControl(testEnableControl.controlName)
 
 				if testEnableControl.expectedErr != nil {
 					require.EqualError(t, err, testEnableControl.expectedErr.Error())
@@ -174,11 +176,11 @@ func TestEnableControl(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			var actualEnabledControls []strict.ControlName
+			var actualEnabledControls []string
 
 			for _, control := range controls {
-				if control.Enabled {
-					actualEnabledControls = append(actualEnabledControls, control.Name)
+				if control.GetEnabled() {
+					actualEnabledControls = append(actualEnabledControls, control.GetName())
 				}
 			}
 
@@ -186,7 +188,7 @@ func TestEnableControl(t *testing.T) {
 
 			logger, output := newTestLogger()
 
-			controls.NotifyCompletedControls(logger)
+			controls.LogEnabled(logger)
 
 			if testCase.expectedCompletedMsg == "" {
 				assert.Empty(t, output.String())
@@ -204,15 +206,15 @@ func TestEnableStrictMode(t *testing.T) {
 
 	testCases := []struct {
 		enableStrictMode        bool
-		expectedEnabledControls []strict.ControlName
+		expectedEnabledControls []string
 	}{
 		{
 			true,
-			[]strict.ControlName{testOngoingAName, testOngoingBName, testOngoingCName},
+			[]string{testOngoingAName, testOngoingBName, testOngoingCName},
 		},
 		{
 			false,
-			[]strict.ControlName{},
+			[]string{},
 		},
 	}
 
@@ -223,14 +225,14 @@ func TestEnableStrictMode(t *testing.T) {
 			controls := newTestControls()
 
 			if testCase.enableStrictMode {
-				controls.EnableStrictMode()
+				controls.FilterByStatus(strict.ActiveStatus).Enable()
 			}
 
-			var actualEnabledControls []strict.ControlName
+			var actualEnabledControls []string
 
 			for _, control := range controls {
-				if control.Enabled {
-					actualEnabledControls = append(actualEnabledControls, control.Name)
+				if control.GetEnabled() {
+					actualEnabledControls = append(actualEnabledControls, control.GetName())
 				}
 			}
 
@@ -238,7 +240,7 @@ func TestEnableStrictMode(t *testing.T) {
 
 			logger, output := newTestLogger()
 
-			controls.NotifyCompletedControls(logger)
+			controls.LogEnabled(logger)
 			assert.Empty(t, output.String())
 		})
 	}
@@ -248,72 +250,65 @@ func TestEvaluateControl(t *testing.T) {
 	t.Parallel()
 
 	type testEvaluateControl struct {
-		controlName strict.ControlName
-		args        []any
+		name        string
 		expectedErr error
 	}
 
 	testCases := []struct {
-		enableControls   []strict.ControlName
+		enableControls   []string
 		evaluateControls []testEvaluateControl
 		expectedWarns    []string
 	}{
 		{
-			[]strict.ControlName{testOngoingAName, testOngoingBName},
+			[]string{testOngoingAName, testOngoingBName},
 			[]testEvaluateControl{
 				{
 					testOngoingAName,
-					[]any{"foo", "bar", "baz"},
-					errors.Errorf(testOngoingA().ErrorFmt, "foo", "bar", "baz"),
+					testOngoingA().Error,
 				},
 			},
 			[]string{""},
 		},
 		{
-			[]strict.ControlName{testOngoingBName},
+			[]string{testOngoingBName},
 			[]testEvaluateControl{
 				{
 					testOngoingBName,
-					nil,
-					errors.New(testOngoingB().ErrorFmt),
+					testOngoingB().Error,
 				},
 			},
 			[]string{""},
 		},
 		{
 			// Testing output warning message once.
-			[]strict.ControlName{testOngoingBName},
+			[]string{testOngoingBName},
 			[]testEvaluateControl{
 				{
 					testOngoingAName,
-					[]any{"foo", "bar", "baz"},
 					nil,
 				},
 				{
 					testOngoingAName,
-					[]any{"foo", "bar", "baz"},
 					nil,
 				},
 			},
-			[]string{fmt.Sprintf(testOngoingA().WarnFmt, "foo", "bar", "baz")},
+			[]string{testOngoingA().Warning},
 		},
 		{
-			[]strict.ControlName{testCompletedAName},
+			[]string{testCompletedAName},
 			[]testEvaluateControl{
 				{
 					testOngoingAName,
-					[]any{"foo", "bar", "baz"},
 					nil,
 				},
 			},
-			[]string{fmt.Sprintf(testOngoingA().WarnFmt, "foo", "bar", "baz")},
+			[]string{testOngoingA().Warning},
 		},
 		{
-			[]strict.ControlName{testCompletedAName},
+			[]string{testCompletedAName},
 			[]testEvaluateControl{
 				{
 					testCompletedAName,
-					nil,
 					nil,
 				},
 			},
@@ -328,15 +323,18 @@ func TestEvaluateControl(t *testing.T) {
 			logger, output := newTestLogger()
 			controls := newTestControls()
 
+			ctx := context.Background()
+			ctx = log.ContextWithLogger(ctx, logger)
+
 			for _, name := range testCase.enableControls {
-				controls.EnableControl(string(name))
+				err := controls.EnableControl(name)
+				require.NoError(t, err)
 			}
 
-			for _, evaluateControl := range testCase.evaluateControls {
-				err := controls.Evaluate(logger, evaluateControl.controlName, evaluateControl.args...)
-
-				if evaluateControl.expectedErr != nil {
-					require.EqualError(t, err, evaluateControl.expectedErr.Error())
+			for _, control := range testCase.evaluateControls {
+				err := controls.Find(control.name).Evaluate(ctx)
+				if control.expectedErr != nil {
+					require.EqualError(t, err, control.expectedErr.Error())
 					assert.Empty(t, output.String())
 
 					return

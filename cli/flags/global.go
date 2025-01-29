@@ -3,15 +3,16 @@ package flags
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/gruntwork-io/go-commons/collections"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
-	"github.com/gruntwork-io/terragrunt/tf"
 )
 
 const (
@@ -44,48 +45,63 @@ const (
 
 	// Deprecated flags.
 
-	TerragruntDisableLogFormattingFlagName = DeprecatedFlagNamePrefix + "disable-log-formatting"
-	TerragruntJSONLogFlagName              = DeprecatedFlagNamePrefix + "json-log"
+	DisableLogFormattingFlagName = "disable-log-formatting"
+	JSONLogFlagName              = "json-log"
+	TfLogJSONFlagName            = "tf-logs-to-json"
 )
 
 // NewGlobalFlags creates and returns flags common to all commands.
-func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
+func NewGlobalFlags(opts *options.TerragruntOptions, prefix Prefix) cli.Flags {
+	tgPrefix := prefix.Prepend(TgPrefix)
+	terragruntPrefix := prefix.Prepend(TerragruntPrefix)
+	cliRedesignControl := StrictControls(opts.StrictControls, controls.CLIRedesign)
+	legacyLogsControl := StrictControls(opts.StrictControls, controls.LegacyLogs)
+
 	flags := cli.Flags{
-		NewLogLevelFlag(opts),
-		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
+		NewLogLevelFlag(opts, prefix),
+
+		NewFlag(&cli.GenericFlag[string]{
 			Name:        WorkingDirFlagName,
-			EnvVars:     EnvVars(WorkingDirFlagName),
+			EnvVars:     tgPrefix.EnvVars(WorkingDirFlagName),
 			Destination: &opts.WorkingDir,
 			Usage:       "The path to the directory of Terragrunt configurations. Default is current directory.",
-		}),
-		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
+		},
+			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+
+		NewFlag(&cli.BoolFlag{
 			Name:    LogDisableFlagName,
-			EnvVars: EnvVars(LogDisableFlagName),
+			EnvVars: tgPrefix.EnvVars(LogDisableFlagName),
 			Usage:   "Disable logging.",
 			Setter: func(val bool) error {
 				opts.Logger.Formatter().SetDisabledOutput(val)
 				opts.ForwardTFStdout = true
 				return nil
 			},
-		}),
-		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
+		},
+			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+
+		NewFlag(&cli.BoolFlag{
 			Name:        ShowLogAbsPathsFlagName,
-			EnvVars:     EnvVars(ShowLogAbsPathsFlagName),
+			EnvVars:     tgPrefix.EnvVars(ShowLogAbsPathsFlagName),
 			Destination: &opts.LogShowAbsPaths,
 			Usage:       "Show absolute paths in logs.",
-		}),
-		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
+		},
+			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+
+		NewFlag(&cli.BoolFlag{
 			Name:    NoColorFlagName,
-			EnvVars: EnvVars(NoColorFlagName),
+			EnvVars: tgPrefix.EnvVars(NoColorFlagName),
 			Usage:   "Disable color output.",
 			Setter: func(val bool) error {
 				opts.Logger.Formatter().SetDisabledColors(val)
 				return nil
 			},
-		}),
-		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
+		},
+			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+
+		NewFlag(&cli.GenericFlag[string]{
 			Name:    LogFormatFlagName,
-			EnvVars: EnvVars(LogFormatFlagName),
+			EnvVars: tgPrefix.EnvVars(LogFormatFlagName),
 			Usage:   "Set the log format.",
 			Setter:  opts.Logger.Formatter().SetFormat,
 			Action: func(_ *cli.Context, val string) error {
@@ -98,35 +114,62 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 
 				return nil
 			},
-		}),
-		GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
+		},
+			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl),
+			WithDeprecatedFlag(&cli.BoolFlag{
+				Name:        terragruntPrefix.FlagName(DisableLogFormattingFlagName),
+				EnvVars:     terragruntPrefix.EnvVars(DisableLogFormattingFlagName),
+				Destination: &opts.DisableLogFormatting,
+				Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
+				Hidden:      true,
+			}, NewValue(format.KeyValueFormatName), legacyLogsControl),
+			WithDeprecatedFlag(&cli.BoolFlag{
+				Name:        terragruntPrefix.FlagName(JSONLogFlagName),
+				EnvVars:     terragruntPrefix.EnvVars(JSONLogFlagName),
+				Destination: &opts.JSONLogFormat,
+				Usage:       "If specified, Terragrunt will output its logs in JSON format.",
+				Hidden:      true,
+			}, NewValue(format.JSONFormatName), legacyLogsControl),
+			WithDeprecatedFlag(&cli.BoolFlag{
+				Name:    terragruntPrefix.FlagName(TfLogJSONFlagName),
+				EnvVars: terragruntPrefix.EnvVars(TfLogJSONFlagName),
+				Usage:   "If specified, Terragrunt will wrap Terraform stdout and stderr in JSON.",
+				Hidden:  true,
+			}, NewValue(format.JSONFormatName), legacyLogsControl)),
+
+		NewFlag(&cli.GenericFlag[string]{
 			Name:    LogCustomFormatFlagName,
-			EnvVars: EnvVars(LogCustomFormatFlagName),
+			EnvVars: tgPrefix.EnvVars(LogCustomFormatFlagName),
 			Usage:   "Set the custom log formatting.",
 			Setter:  opts.Logger.Formatter().SetCustomFormat,
-		}),
-		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
+		},
+			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+
+		NewFlag(&cli.BoolFlag{
 			Name:        NonInteractiveFlagName,
-			EnvVars:     EnvVars(NonInteractiveFlagName),
+			EnvVars:     tgPrefix.EnvVars(NonInteractiveFlagName),
 			Destination: &opts.NonInteractive,
 			Usage:       `Assume "yes" for all prompts.`,
-		}),
+		},
+			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
 
-		// Experiment Mode flags
+		// Experiment Mode flags.
 
-		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
+		NewFlag(&cli.BoolFlag{
 			Name:    ExperimentModeFlagName,
-			EnvVars: EnvVars(ExperimentModeFlagName),
+			EnvVars: tgPrefix.EnvVars(ExperimentModeFlagName),
 			Usage:   "Enables experiment mode for Terragrunt. For more information, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
 			Setter: func(_ bool) error {
 				opts.Experiments.ExperimentMode()
 
 				return nil
 			},
-		}),
-		SliceWithDeprecatedFlag(opts, &cli.SliceFlag[string]{
+		},
+			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+
+		NewFlag(&cli.SliceFlag[string]{
 			Name:    ExperimentFlagName,
-			EnvVars: EnvVars(ExperimentFlagName),
+			EnvVars: tgPrefix.EnvVars(ExperimentFlagName),
 			Usage:   "Enables specific experiments. For a list of available experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
 			Setter:  opts.Experiments.EnableExperiment,
 			Action: func(_ *cli.Context, val []string) error {
@@ -134,74 +177,42 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 
 				return nil
 			},
-		}),
+		},
+			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
 
 		// Strict Mode flags.
 
-		BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
+		NewFlag(&cli.BoolFlag{
 			Name:    StrictModeFlagName,
-			EnvVars: EnvVars(StrictModeFlagName),
-			Usage:   "Enables strict mode for Terragrunt. For more information, see https://terragrunt.gruntwork.io/docs/reference/strict-mode .",
+			EnvVars: tgPrefix.EnvVars(StrictModeFlagName),
+			Usage:   "Enables strict mode for Terragrunt. For more information, run 'terragrunt info strict'.",
 			Setter: func(_ bool) error {
-				opts.StrictControls.EnableStrictMode()
+				opts.StrictControls.FilterByStatus(strict.ActiveStatus).Enable()
 
 				return nil
 			},
-		}),
-		SliceWithDeprecatedFlag(opts, &cli.SliceFlag[string]{
+			Action: func(_ *cli.Context, _ bool) error {
+				opts.StrictControls.LogEnabled(opts.Logger)
+
+				return nil
+			},
+		},
+			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+
+		NewFlag(&cli.SliceFlag[string]{
 			Name:    StrictControlFlagName,
-			EnvVars: EnvVars(StrictControlFlagName),
-			Usage:   "Enables specific strict controls. For a list of available controls, see https://terragrunt.gruntwork.io/docs/reference/strict-mode .",
-			Setter:  opts.StrictControls.EnableControl,
+			EnvVars: tgPrefix.EnvVars(StrictControlFlagName),
+			Usage:   "Enables specific strict controls. For a list of available controls, run 'terragrunt info strict'.",
+			Setter: func(val string) error {
+				return opts.StrictControls.EnableControl(val)
+			},
 			Action: func(_ *cli.Context, _ []string) error {
-				opts.StrictControls.NotifyCompletedControls(opts.Logger)
-
-				return nil
-			},
-		}),
-
-		// Deprecated flags.
-
-		&cli.BoolFlag{
-			Name:        TerragruntDisableLogFormattingFlagName,
-			EnvVars:     EnvVars(TerragruntDisableLogFormattingFlagName),
-			Destination: &opts.DisableLogFormatting,
-			Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
-			Hidden:      true,
-			Action: func(_ *cli.Context, _ bool) error {
-				if err := opts.Logger.Formatter().SetFormat(format.KeyValueFormatName); err != nil {
-					return err
-				}
-
-				newFlagName := LogCustomFormatFlagName + "=" + format.KeyValueFormatName
-
-				if err := opts.StrictControls.Evaluate(opts.Logger, strict.DeprecatedFlags, TerragruntDisableLogFormattingFlagName, newFlagName); err != nil {
-					return cli.NewExitError(err, cli.ExitCodeGeneralError)
-				}
+				opts.StrictControls.LogEnabled(opts.Logger)
 
 				return nil
 			},
 		},
-		&cli.BoolFlag{
-			Name:        TerragruntJSONLogFlagName,
-			EnvVars:     EnvVars(TerragruntJSONLogFlagName),
-			Destination: &opts.JSONLogFormat,
-			Usage:       "If specified, Terragrunt will output its logs in JSON format.",
-			Hidden:      true,
-			Action: func(_ *cli.Context, _ bool) error {
-				if err := opts.Logger.Formatter().SetFormat(format.JSONFormatName); err != nil {
-					return err
-				}
-
-				newFlagName := LogCustomFormatFlagName + "=" + format.JSONFormatName
-
-				if err := opts.StrictControls.Evaluate(opts.Logger, strict.DeprecatedFlags, TerragruntJSONLogFlagName, newFlagName); err != nil {
-					return cli.NewExitError(err, cli.ExitCodeGeneralError)
-				}
-
-				return nil
-			},
-		},
+			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
 	}
 
 	flags = flags.Sort()
@@ -210,10 +221,14 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 	return flags
 }
 
-func NewLogLevelFlag(opts *options.TerragruntOptions) cli.Flag {
-	return GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
+func NewLogLevelFlag(opts *options.TerragruntOptions, prefix Prefix) cli.Flag {
+	tgPrefix := prefix.Prepend(TgPrefix)
+	terragruntPrefix := prefix.Prepend(TerragruntPrefix)
+	cliRedesignControl := StrictControls(opts.StrictControls, controls.CLIRedesign)
+
+	return NewFlag(&cli.GenericFlag[string]{
 		Name:        LogLevelFlagName,
-		EnvVars:     EnvVars(LogLevelFlagName),
+		EnvVars:     tgPrefix.EnvVars(LogLevelFlagName),
 		DefaultText: opts.Logger.Level().String(),
 		Setter:      opts.Logger.SetLevel,
 		Usage:       fmt.Sprintf("Sets the logging level for Terragrunt. Supported levels: %s.", log.AllLevels),
@@ -232,7 +247,7 @@ func NewLogLevelFlag(opts *options.TerragruntOptions) cli.Flag {
 
 			return nil
 		},
-	})
+	}, WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl))
 }
 
 func NewHelpVersionFlags(opts *options.TerragruntOptions) cli.Flags {
@@ -257,23 +272,46 @@ func NewHelpVersionFlags(opts *options.TerragruntOptions) cli.Flags {
 }
 
 func HelpAction(ctx *cli.Context, opts *options.TerragruntOptions) error {
-	// If the app command is specified, show help for the command
-	if cmdName := ctx.Args().CommandName(); cmdName != "" {
-		err := cli.ShowSubcommandHelp(ctx, cmdName)
+	var (
+		args = ctx.Args()
+		cmds = ctx.App.Commands
+	)
 
-		// If the command name is not found, it is most likely a terraform command, show Terraform help.
-		var invalidCommandNameError cli.InvalidCommandNameError
-		if ok := errors.As(err, &invalidCommandNameError); ok {
-			terraformHelpCmd := append([]string{cmdName, "-help"}, ctx.Args().Tail()...)
-
-			return cli.NewExitError(tf.RunCommand(ctx, opts, terraformHelpCmd...), cli.ExitCodeSuccess)
-		}
-
-		return err
+	if ctx.App.DefaultCommand != nil {
+		cmds = append(cmds, ctx.App.DefaultCommand.Subcommands...)
 	}
 
-	// In other cases, show the App help.
-	return cli.ShowAppHelp(ctx)
+	if opts.Logger.Level() >= log.DebugLevel {
+		// https: //github.com/urfave/cli/blob/f035ffaa3749afda2cd26fb824aa940747297ef1/help.go#L401
+		if err := os.Setenv("CLI_TEMPLATE_ERROR_DEBUG", "1"); err != nil {
+			return errors.New(err)
+		}
+	}
+
+	if args.CommandName() == "" {
+		return cli.ShowAppHelp(ctx)
+	}
+
+	const maxIterations = 1000
+
+	for range maxIterations {
+		cmdName := args.CommandName()
+
+		cmd := cmds.Get(cmdName)
+		if cmd == nil {
+			break
+		}
+
+		args = args.Remove(cmdName)
+		cmds = cmd.Subcommands
+		ctx = ctx.NewCommandContext(cmd, args)
+	}
+
+	if ctx.Command != nil {
+		return cli.NewExitError(cli.ShowCommandHelp(ctx), cli.ExitCodeGeneralError)
+	}
+
+	return cli.NewExitError(errors.New(cli.InvalidCommandNameError(args.First())), cli.ExitCodeGeneralError)
 }
 
 func VersionAction(ctx *cli.Context, _ *options.TerragruntOptions) error {

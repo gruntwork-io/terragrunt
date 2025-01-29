@@ -5,6 +5,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -14,31 +15,36 @@ const (
 	OutFlagName                     = "out"
 	WithMetadataFlagName            = "with-metadata"
 	DisableDependentModulesFlagName = "disable-dependent-modules"
-
-	TerragruntJSONOutFlagName                 = flags.DeprecatedFlagNamePrefix + "json-out"
-	TerragruntDisableDependentModulesFlagName = flags.DeprecatedFlagNamePrefix + "json-disable-dependent-modules"
 )
 
-func NewFlags(opts *options.TerragruntOptions) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
+	cliRedesignControl := flags.StrictControlsByGroup(opts.StrictControls, CommandName, controls.CLIRedesign)
+
 	return cli.Flags{
-		flags.GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
+		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        OutFlagName,
-			EnvVars:     flags.EnvVars(OutFlagName),
+			EnvVars:     tgPrefix.EnvVars(OutFlagName),
 			Destination: &opts.JSONOut,
 			Usage:       "The file path that terragrunt should use when rendering the terragrunt.hcl config as json.",
-		}, TerragruntJSONOutFlagName),
-		&cli.BoolFlag{
+		},
+			flags.WithDeprecatedPrefix(terragruntPrefix.Append("json"), cliRedesignControl)),
+
+		flags.NewFlag(&cli.BoolFlag{
 			Name:        WithMetadataFlagName,
-			EnvVars:     flags.EnvVars(WithMetadataFlagName),
+			EnvVars:     tgPrefix.EnvVars(WithMetadataFlagName),
 			Destination: &opts.RenderJSONWithMetadata,
 			Usage:       "Add metadata to the rendered JSON file.",
-		},
-		flags.BoolWithDeprecatedFlag(opts, &cli.BoolFlag{
+		}),
+
+		flags.NewFlag(&cli.BoolFlag{
 			Name:        DisableDependentModulesFlagName,
-			EnvVars:     flags.EnvVars(DisableDependentModulesFlagName),
+			EnvVars:     tgPrefix.EnvVars(DisableDependentModulesFlagName),
 			Destination: &opts.JSONDisableDependentModules,
 			Usage:       "Disable identification of dependent modules rendering json config.",
-		}, TerragruntDisableDependentModulesFlagName),
+		},
+			flags.WithDeprecatedPrefix(terragruntPrefix.Append("json"), cliRedesignControl)),
 	}
 }
 
@@ -47,7 +53,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Name:        CommandName,
 		Usage:       "Render the final terragrunt config, with all variables, includes, and functions resolved, as json.",
 		Description: "This is useful for enforcing policies using static analysis tools like Open Policy Agent, or for debugging your terragrunt config.",
-		Flags:       append(run.NewFlags(opts), NewFlags(opts)...).Sort(),
+		Flags:       append(run.NewFlags(opts, nil), NewFlags(opts, nil)...).Sort(),
 		Action:      func(ctx *cli.Context) error { return Run(ctx, opts.OptionsFromContext(ctx)) },
 	}
 }

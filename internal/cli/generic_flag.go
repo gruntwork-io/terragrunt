@@ -42,39 +42,15 @@ type GenericFlag[T GenericType] struct {
 
 // Apply applies Flag settings to the given flag set.
 func (flag *GenericFlag[T]) Apply(set *libflag.FlagSet) error {
-	if flag.Destination == nil {
-		flag.Destination = new(T)
+	valueType := &genericVar[T]{dest: flag.Destination}
+	value := newGenericValue(valueType, flag.Setter)
+
+	flag.FlagValue = &flagValue{
+		value:            value,
+		initialTextValue: value.String(),
 	}
 
-	var (
-		err      error
-		envVar   string
-		envValue *string
-	)
-
-	valType := newGenericType(flag.Destination, flag.Setter)
-
-	for _, envVar = range flag.EnvVars {
-		if val := flag.LookupEnv(envVar); val != nil {
-			envValue = val
-
-			break
-		}
-	}
-
-	if flag.FlagValue, err = newGenericValue(valType, envValue); err != nil {
-		if envValue != nil {
-			return errors.Errorf("invalid value %q for env var %s: %w", *envValue, envVar, err)
-		}
-
-		return err
-	}
-
-	for _, name := range flag.Names() {
-		set.Var(flag.FlagValue, name, flag.Usage)
-	}
-
-	return nil
+	return ApplyFlag(flag, set)
 }
 
 // GetHidden returns true if the flag should be hidden from the help.
@@ -87,7 +63,7 @@ func (flag *GenericFlag[T]) GetUsage() string {
 	return flag.Usage
 }
 
-// GetEnvVars returns the env vars for this flag.
+// GetEnvVars implements `cli.Flag` interface.
 func (flag *GenericFlag[T]) GetEnvVars() []string {
 	return flag.EnvVars
 }
@@ -95,7 +71,7 @@ func (flag *GenericFlag[T]) GetEnvVars() []string {
 // GetDefaultText returns the flags value as string representation and an empty string if the flag takes no value at all.
 func (flag *GenericFlag[T]) GetDefaultText() string {
 	if flag.DefaultText == "" && flag.FlagValue != nil {
-		return flag.FlagValue.GetDefaultText()
+		return flag.FlagValue.GetInitialTextValue()
 	}
 
 	return flag.DefaultText
@@ -113,104 +89,76 @@ func (flag *GenericFlag[T]) Names() []string {
 
 // RunAction implements ActionableFlag.RunAction
 func (flag *GenericFlag[T]) RunAction(ctx *Context) error {
+	dest := flag.Destination
+	if dest == nil {
+		dest = new(T)
+	}
+
 	if flag.Action != nil {
-		return flag.Action(ctx, *flag.Destination)
+		return flag.Action(ctx, *dest)
 	}
 
 	return nil
 }
 
+var _ = Value(new(genericValue[string]))
+
 // -- generic Value
 type genericValue[T comparable] struct {
-	value         FlagType[T]
-	defaultText   string
-	hasBeenSet    bool
-	envHasBeenSet bool
+	setter FlagSetterFunc[T]
+	value  FlagVariable[T]
 }
 
-func newGenericValue[T comparable](value FlagType[T], envValue *string) (FlagValue, error) {
-	defaultText := value.String()
-
-	var envHasBeenSet bool
-
-	if envValue != nil {
-		if err := value.Set(*envValue); err != nil {
-			return nil, err
-		}
-
-		envHasBeenSet = true
-	}
-
+func newGenericValue[T comparable](value FlagVariable[T], setter FlagSetterFunc[T]) *genericValue[T] {
 	return &genericValue[T]{
-		value:         value,
-		defaultText:   defaultText,
-		envHasBeenSet: envHasBeenSet,
-	}, nil
+		setter: setter,
+		value:  value,
+	}
 }
+
+func (flag *genericValue[T]) Reset() {}
 
 func (flag *genericValue[T]) Set(str string) error {
-	if flag.hasBeenSet {
-		return errors.Errorf("setting the flag multiple times")
+	if err := flag.value.Set(str); err != nil {
+		return err
 	}
 
-	flag.hasBeenSet = true
+	if flag.setter != nil {
+		return flag.setter(flag.Get().(T))
+	}
 
-	return flag.value.Set(str)
+	return nil
 }
 
 func (flag *genericValue[T]) Get() any {
 	return flag.value.Get()
 }
 
-func (flag *genericValue[T]) IsBoolFlag() bool {
-	_, ok := flag.Get().(bool)
-	return ok
-}
-
-func (flag *genericValue[T]) IsSet() bool {
-	return flag.hasBeenSet || flag.envHasBeenSet
-}
-
 func (flag *genericValue[T]) String() string {
-	if flag.value == nil {
-		return ""
-	}
-
 	return flag.value.String()
 }
 
-func (flag *genericValue[T]) GetDefaultText() string {
-	if val, ok := flag.Get().(bool); ok && !val {
-		return ""
-	}
-
-	return flag.defaultText
-}
+var _ = FlagVariable[string](new(genericVar[string]))
 
 // -- generic Type
-type genericType[T comparable] struct {
-	dest   *T
-	setter FlagSetterFunc[T]
+type genericVar[T comparable] struct {
+	dest *T
 }
 
-func newGenericType[T comparable](dest *T, setter FlagSetterFunc[T]) *genericType[T] {
-	return &genericType[T]{
-		dest:   dest,
-		setter: setter,
-	}
-}
-
-func (val *genericType[T]) Clone(dest *T) FlagType[T] {
-	var nilPtr *T
-	if dest == nilPtr {
+func (val *genericVar[T]) Clone(dest *T) FlagVariable[T] {
+	if dest == nil {
 		dest = new(T)
 	}
 
-	return &genericType[T]{dest: dest}
+	return &genericVar[T]{dest: dest}
 }
 
-func (val *genericType[T]) Set(str string) error {
-	switch dest := (interface{})(val.dest).(type) {
+func (val *genericVar[T]) Set(str string) error {
+	if val.dest == nil {
+		val.dest = new(T)
+	}
+
+	switch dest := (any)(val.dest).(type) {
 	case *string:
 		*dest = str
 
@@ -250,18 +198,20 @@ func (val *genericType[T]) Set(str string) error {
 		return errors.Errorf("flag type %T is undefined", dest)
 	}
 
-	if val.setter != nil {
-		return val.setter(*val.dest)
-	}
-
 	return nil
 }
 
-func (val *genericType[T]) Get() any { return *val.dest }
+func (val *genericVar[T]) Get() any {
+	if val.dest == nil {
+		return *new(T)
+	}
+
+	return *val.dest
+}
 
 // String returns a readable representation of this value
-func (val *genericType[T]) String() string {
-	if *val.dest == *new(T) {
+func (val *genericVar[T]) String() string {
+	if val.dest == nil {
 		return ""
 	}
 

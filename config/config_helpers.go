@@ -27,8 +27,9 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/locks"
-	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
+	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/shell"
 	"github.com/gruntwork-io/terragrunt/tf"
 	"github.com/gruntwork-io/terragrunt/util"
@@ -448,7 +449,7 @@ func FindInParentFolders(
 	previousDir = filepath.ToSlash(previousDir)
 
 	if fileToFindParam == "" || fileToFindParam == DefaultTerragruntConfigPath {
-		if err := ctx.TerragruntOptions.StrictControls.Evaluate(ctx.TerragruntOptions.Logger, strict.RootTerragruntHCL); err != nil {
+		if err := ctx.TerragruntOptions.StrictControls.FilterByNames(controls.RootTerragruntHCL).Evaluate(log.ContextWithLogger(ctx, ctx.TerragruntOptions.Logger)); err != nil {
 			return "", cli.NewExitError(err, cli.ExitCodeGeneralError)
 		}
 	}

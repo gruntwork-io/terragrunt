@@ -21,7 +21,7 @@ VERSION: {{.App.Version}}{{if len .App.Authors}}{{end}}
 AUTHOR: {{range .App.Authors}}{{.}}{{end}} {{end}}
 `
 
-const CommandHelpTemplate = `Usage: {{if .Command.UsageText}}{{wrap .Command.UsageText 3}}{{else}}{{.App.Name}} {{.Command.HelpName}}{{if .Command.VisibleSubcommands}} <command>{{end}}{{if .Command.VisibleFlags}} [options]{{end}}{{end}}{{$description := .Command.Usage}}{{if .Command.Description}}{{$description = .Command.Description}}{{end}}{{if $description}}
+const CommandHelpTemplate = `Usage: {{if .Command.UsageText}}{{wrap .Command.UsageText 3}}{{else}}{{range $parent := parentCommands . }}{{$parent.HelpName}} {{end}}{{.Command.HelpName}}{{if .Command.VisibleSubcommands}} <command>{{end}}{{if .Command.VisibleFlags}} [options]{{end}}{{end}}{{$description := .Command.Usage}}{{if .Command.Description}}{{$description = .Command.Description}}{{end}}{{if $description}}
 
    {{wrap $description 3}}{{end}}{{if .Command.Examples}}
 

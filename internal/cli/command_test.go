@@ -2,12 +2,12 @@ package cli_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	urfaveCli "github.com/urfave/cli/v2"
@@ -92,15 +92,15 @@ func TestCommandRun(t *testing.T) {
 				cli.Command{
 					Flags:  cli.Flags{&cli.BoolFlag{Name: "foo"}},
 					Before: action(1, nil),
-					Action: action(2, []string{"--bar", "cmd-bar", "one", "-two"}),
-					After:  action(3, nil),
+					Action: skip,
+					After:  action(5, nil),
 					Subcommands: cli.Commands{
 						&cli.Command{
 							Name:   "cmd-bar",
 							Flags:  cli.Flags{&cli.BoolFlag{Name: "bar"}},
-							Before: skip,
-							After:  skip,
-							Action: skip,
+							Before: action(2, nil),
+							Action: action(3, []string{"one", "-two"}),
+							After:  action(4, nil),
 						},
 					},
 				},

@@ -29,7 +29,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 func runAwsProviderPatch(ctx context.Context, opts *options.TerragruntOptions, cfg *config.TerragruntConfig) error {
 	if len(opts.AwsProviderPatchOverrides) == 0 {
-		return errors.New(MissingOverrideAttrError(TerragruntOverrideAttrFlagName))
+		return errors.New(MissingOverrideAttrError(OverrideAttrFlagName))
 	}
 
 	terraformFilesInModules, err := findAllTerraformFilesInModules(opts)

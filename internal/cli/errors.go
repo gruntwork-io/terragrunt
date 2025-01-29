@@ -106,3 +106,9 @@ func (err InvalidValueError) Error() string {
 func (err InvalidValueError) Unwrap() error {
 	return err.underlyingError
 }
+
+type UndefinedFlagError string
+
+func (err UndefinedFlagError) Error() string {
+	return string(err)
+}

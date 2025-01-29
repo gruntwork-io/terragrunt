@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
@@ -71,7 +72,7 @@ func TestArgsCommandName(t *testing.T) {
 
 	args := mockArgs()[1:]
 	actual = args.CommandName()
-	expected = ""
+	expected = "two"
 	assert.Equal(t, expected, actual)
 }
 
@@ -85,4 +86,38 @@ func TestArgsNormalize(t *testing.T) {
 	actual = mockArgs().Normalize(cli.DoubleDashFlag).Slice()
 	expected = []string{"one", "--foo", "two", "--bar", "value"}
 	assert.Equal(t, expected, actual)
+}
+
+func TestArgsRemove(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		args           cli.Args
+		expectedArgs   cli.Args
+		removeName     string
+		expectedResult cli.Args
+	}{
+		{
+			mockArgs(),
+			mockArgs(),
+			"two",
+			cli.Args{"one", "-foo", "--bar", "value"},
+		},
+		{
+			mockArgs(),
+			mockArgs(),
+			"one",
+			cli.Args{"-foo", "two", "--bar", "value"},
+		},
+	}
+
+	for i, testCase := range testCases {
+		t.Run(fmt.Sprintf("testCase-%d", i), func(t *testing.T) {
+			t.Parallel()
+
+			actual := testCase.args.Remove(testCase.removeName)
+			assert.Equal(t, testCase.expectedResult, actual)
+			assert.Equal(t, testCase.expectedArgs, testCase.args)
+		})
+	}
 }

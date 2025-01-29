@@ -740,6 +740,8 @@ func RunTerragruntCommandWithContext(t *testing.T, ctx context.Context, command 
 	opts := options.NewTerragruntOptionsWithWriters(writer, errwriter)
 	app := cli.NewApp(opts) //nolint:contextcheck
 
+	ctx = log.ContextWithLogger(ctx, opts.Logger)
+
 	return app.RunContext(ctx, args)
 }
 

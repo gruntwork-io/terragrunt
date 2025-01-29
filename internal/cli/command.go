@@ -1,13 +1,15 @@
 package cli
 
 import (
+	"errors"
 	libflag "flag"
 	"io"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/urfave/cli/v2"
 )
+
+const errFlagUndefined = "flag provided but not defined:"
 
 type Command struct {
 	// Name is the command name.
@@ -36,6 +38,8 @@ type Command struct {
 	// cli.go uses text/template to render templates. You can
 	// render custom help text by setting this variable.
 	CustomHelpTemplate string
+	// CustomHelp is a func that is executed when help for a command needs to be displayed.
+	CustomHelp HelpFunc
 	// List of child commands
 	Subcommands Commands
 	// Treat all flags as normal arguments if true
@@ -106,7 +110,7 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 	ctx = ctx.NewCommandContext(cmd, args)
 
 	subCmdName := ctx.Args().CommandName()
-	subCmdArgs := ctx.Args().Tail()
+	subCmdArgs := ctx.Args().Remove(subCmdName)
 	subCmd := cmd.Subcommand(subCmdName)
 
 	if ctx.shellComplete {
@@ -155,10 +159,12 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 }
 
 func (cmd *Command) parseFlags(args Args) ([]string, error) {
-	var undefArgs []string
+	var undefArgs Args
 
-	flagSet, err := cmd.newFlagSet(libflag.ContinueOnError)
-	if err != nil {
+	flagSet := libflag.NewFlagSet(cmd.Name, libflag.ContinueOnError)
+	flagSet.SetOutput(io.Discard)
+
+	if err := cmd.Flags.Apply(flagSet); err != nil {
 		return nil, err
 	}
 
@@ -168,10 +174,14 @@ func (cmd *Command) parseFlags(args Args) ([]string, error) {
 
 	args, builtinCmd := args.Split(BuiltinCmdSep)
 
+	var err error
+
 	for {
 		args, err = cmd.flagSetParse(flagSet, args)
 		if err != nil {
-			return nil, err
+			if !errors.As(err, new(UndefinedFlagError)) || cmd.Subcommands.Get(undefArgs.Get(0)) == nil {
+				return nil, err
+			}
 		}
 
 		if len(args) == 0 {
@@ -190,42 +200,31 @@ func (cmd *Command) parseFlags(args Args) ([]string, error) {
 	return undefArgs, nil
 }
 
-func (cmd *Command) newFlagSet(errorHandling libflag.ErrorHandling) (*libflag.FlagSet, error) {
-	flagSet := libflag.NewFlagSet(cmd.Name, errorHandling)
-	flagSet.SetOutput(io.Discard)
-
-	for _, flag := range cmd.Flags {
-		if err := flag.Apply(flagSet); err != nil {
-			return nil, err
-		}
-	}
-
-	return flagSet, nil
-}
-
-func (cmd *Command) flagSetParse(flagSet *libflag.FlagSet, args []string) ([]string, error) {
-	var undefArgs []string
+func (cmd *Command) flagSetParse(flagSet *libflag.FlagSet, args Args) ([]string, error) {
+	var (
+		undefArgs []string
+		err       error
+	)
 
 	if len(args) == 0 {
 		return undefArgs, nil
 	}
 
 	for {
-		err := flagSet.Parse(args)
+		// check if the error is due to an undefArgs flag
+		var undefArg string
+
+		err = flagSet.Parse(args)
 		if err == nil {
 			break
 		}
 
-		// check if the error is due to an undefArgs flag
-		var undefArg string
-
-		errStr := err.Error()
-
-		if cmd.ErrorOnUndefinedFlag || !strings.HasPrefix(errStr, errFlagUndefined) {
-			return nil, errors.New(err)
+		if errStr := err.Error(); strings.HasPrefix(errStr, errFlagUndefined) {
+			err = UndefinedFlagError(errStr)
+			undefArg = strings.Trim(strings.TrimPrefix(errStr, errFlagUndefined), " -")
+		} else {
+			break
 		}
-
-		undefArg = strings.Trim(strings.TrimPrefix(errStr, errFlagUndefined), " -")
 
 		// cut off the args
 		var notFoundMatch bool
@@ -242,6 +241,10 @@ func (cmd *Command) flagSetParse(flagSet *libflag.FlagSet, args []string) ([]str
 			}
 		}
 
+		if cmd.ErrorOnUndefinedFlag {
+			break
+		}
+
 		// This should be an impossible to reach code path, but in case the arg
 		// splitting failed to happen, this will prevent infinite loops
 		if !notFoundMatch {
@@ -251,7 +254,7 @@ func (cmd *Command) flagSetParse(flagSet *libflag.FlagSet, args []string) ([]str
 
 	undefArgs = append(undefArgs, flagSet.Args()...)
 
-	return undefArgs, nil
+	return undefArgs, err
 }
 
 func (cmd *Command) WrapAction(fn func(ctx *Context, action ActionFunc) error) *Command {

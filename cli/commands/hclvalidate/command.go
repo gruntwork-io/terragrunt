@@ -7,6 +7,7 @@ package hclvalidate
 import (
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -15,35 +16,40 @@ const (
 
 	ShowConfigPathFlagName = "show-config-path"
 	JSONFlagName           = "json"
-
-	TerragruntHclvalidateShowConfigPathFlagName = flags.DeprecatedFlagNamePrefix + CommandName + "-show-config-path"
-	TerragruntHclvalidateJSONFlagName           = flags.DeprecatedFlagNamePrefix + CommandName + "-json"
 )
 
-func NewFlags(opts *Options) cli.Flags {
+func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
+	cliRedesignControl := flags.StrictControlsByGroup(opts.StrictControls, CommandName, controls.CLIRedesign)
+
 	return cli.Flags{
-		flags.BoolWithDeprecatedFlag(opts.TerragruntOptions, &cli.BoolFlag{
+		flags.NewFlag(&cli.BoolFlag{
 			Name:        ShowConfigPathFlagName,
-			EnvVars:     flags.EnvVars(ShowConfigPathFlagName),
+			EnvVars:     tgPrefix.EnvVars(ShowConfigPathFlagName),
 			Usage:       "Show a list of files with invalid configuration.",
 			Destination: &opts.ShowConfigPath,
-		}, TerragruntHclvalidateShowConfigPathFlagName),
-		flags.BoolWithDeprecatedFlag(opts.TerragruntOptions, &cli.BoolFlag{
+		},
+			flags.WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+
+		flags.NewFlag(&cli.BoolFlag{
 			Name:        JSONFlagName,
-			EnvVars:     flags.EnvVars(JSONFlagName),
+			EnvVars:     tgPrefix.EnvVars(JSONFlagName),
 			Destination: &opts.JSONOutput,
 			Usage:       "Output the result in JSON format.",
-		}, TerragruntHclvalidateJSONFlagName),
+		},
+			flags.WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
 	}
 }
 
 func NewCommand(generalOpts *options.TerragruntOptions) *cli.Command {
 	opts := NewOptions(generalOpts)
+	prefix := flags.Prefix{CommandName}
 
 	return &cli.Command{
 		Name:                 CommandName,
 		Usage:                "Find all hcl files from the config stack and validate them.",
-		Flags:                NewFlags(opts).Sort(),
+		Flags:                NewFlags(opts, prefix).Sort(),
 		ErrorOnUndefinedFlag: true,
 		Action:               func(ctx *cli.Context) error { return Run(ctx, opts) },
 	}

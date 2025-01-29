@@ -1,7 +1,6 @@
 package cli_test
 
 import (
-	"errors"
 	libflag "flag"
 	"fmt"
 	"io"
@@ -9,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
@@ -99,7 +99,7 @@ func TestBoolFlagApply(t *testing.T) {
 			nil,
 			map[string]string{"FOO": "monkey"},
 			false,
-			errors.New(`invalid boolean value "monkey" for env var FOO: must be one of: "0", "1", "f", "t", "false", "true"`),
+			errors.New(`invalid value "monkey" for env var FOO: must be one of: "0", "1", "f", "t", "false", "true"`),
 		},
 	}
 
@@ -119,26 +119,22 @@ func testBoolFlagApply(t *testing.T, flag *cli.BoolFlag, args []string, envs map
 
 	var (
 		actualValue          bool
-		destDefined          bool
 		expectedDefaultValue string
 	)
 
-	if flag.Destination == nil {
-		destDefined = true
-		flag.Destination = &actualValue
-	} else if val := *flag.Destination; val && !flag.Negative {
-		expectedDefaultValue = strconv.FormatBool(val)
+	if val := flag.Destination; val != nil {
+		expectedDefaultValue = strconv.FormatBool(*val)
 	}
 
-	flag.LookupEnvFunc = func(key string) (string, bool) {
+	flag.LookupEnvFunc = func(key string) []string {
 		if envs == nil {
-			return "", false
+			return nil
 		}
 
 		if val, ok := envs[key]; ok {
-			return val, true
+			return []string{val}
 		}
-		return "", false
+		return nil
 	}
 
 	flagSet := libflag.NewFlagSet("test-cmd", libflag.ContinueOnError)
@@ -150,14 +146,13 @@ func testBoolFlagApply(t *testing.T, flag *cli.BoolFlag, args []string, envs map
 	}
 
 	if expectedErr != nil {
+		require.Error(t, err)
 		require.ErrorContains(t, expectedErr, err.Error())
 		return
 	}
 	require.NoError(t, err)
 
-	if !destDefined {
-		actualValue = (flag.Value().Get()).(bool)
-	}
+	actualValue = (flag.Value().Get()).(bool)
 
 	assert.Equal(t, expectedValue, actualValue)
 	if actualValue {
@@ -167,7 +162,7 @@ func testBoolFlagApply(t *testing.T, flag *cli.BoolFlag, args []string, envs map
 	maps.DeleteFunc(envs, func(k, v string) bool { return v == "" })
 
 	assert.Equal(t, len(args) > 0 || len(envs) > 0, flag.Value().IsSet(), "IsSet()")
-	assert.Equal(t, expectedDefaultValue, flag.Value().GetDefaultText(), "GetDefaultText()")
+	assert.Equal(t, expectedDefaultValue, flag.GetDefaultText(), "GetDefaultText()")
 
 	assert.True(t, flag.Value().IsBoolFlag(), "IsBoolFlag()")
 	assert.False(t, flag.TakesValue(), "TakesValue()")

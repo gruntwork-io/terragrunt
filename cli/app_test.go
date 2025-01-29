@@ -18,7 +18,7 @@ import (
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/config"
-	cliPkg "github.com/gruntwork-io/terragrunt/internal/cli"
+	clipkg "github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -32,6 +32,8 @@ var defaultLogLevel = log.DebugLevel
 
 func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 	t.Parallel()
+
+	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 
 	workingDir, err := os.Getwd()
 	if err != nil {
@@ -65,7 +67,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 
 		{
 			[]string{"--foo", "apply", "--bar"},
-			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"-foo", "apply", "-bar"}, false, "", false, false, defaultLogLevel, false),
+			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{"apply", "-foo", "-bar"}, false, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
@@ -76,7 +78,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			[]string{doubleDashed(run.TerragruntIncludeExternalDependenciesFlagName)},
+			[]string{doubleDashed(terragruntPrefix.FlagName(run.IncludeExternalDependenciesFlagName))},
 			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, true, defaultLogLevel, false),
 			nil,
 		},
@@ -112,13 +114,13 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			[]string{doubleDashed(run.TerragruntIgnoreExternalDependenciesFlagName)},
+			[]string{doubleDashed(terragruntPrefix.FlagName(run.IgnoreExternalDependenciesFlagName))},
 			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
-			[]string{doubleDashed(run.TerragruntIAMRoleFlagName), "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"},
+			[]string{doubleDashed(terragruntPrefix.FlagName(run.IAMRoleFlagName)), "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"},
 			mockOptionsWithIamRole(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"),
 			nil,
 		},
@@ -136,7 +138,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			[]string{doubleDashed(run.TerragruntIAMWebIdentityTokenFlagName), "web-identity-token"},
+			[]string{doubleDashed(terragruntPrefix.FlagName(run.IAMWebIdentityTokenFlagName)), "web-identity-token"},
 			mockOptionsWithIamWebIdentityToken(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, "web-identity-token"),
 			nil,
 		},
@@ -315,7 +317,7 @@ func TestFilterTerragruntArgs(t *testing.T) {
 			t.Parallel()
 			opts := options.NewTerragruntOptions()
 			actualOptions, _ := runAppTest(testCase.args, opts)
-			assert.Equal(t, testCase.expected, actualOptions.TerraformCliArgs, "For args %v", testCase.args)
+			assert.Equal(t, testCase.expected, []string(actualOptions.TerraformCliArgs), "For args %v", testCase.args)
 		})
 	}
 }
@@ -354,7 +356,9 @@ func TestParseMultiStringArg(t *testing.T) {
 func TestParseMutliStringKeyValueArg(t *testing.T) {
 	t.Parallel()
 
-	flagName := doubleDashed(awsproviderpatch.TerragruntOverrideAttrFlagName)
+	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
+
+	flagName := doubleDashed(terragruntPrefix.FlagName(awsproviderpatch.OverrideAttrFlagName))
 
 	testCases := []struct {
 		args         []string
@@ -367,7 +371,7 @@ func TestParseMutliStringKeyValueArg(t *testing.T) {
 		{[]string{awsproviderpatch.CommandName, "--other", "arg"}, map[string]string{"default": "value"}, map[string]string{"default": "value"}, nil},
 		{[]string{awsproviderpatch.CommandName, flagName, "key=value"}, map[string]string{"default": "value"}, map[string]string{"key": "value"}, nil},
 		{[]string{awsproviderpatch.CommandName, flagName, "key1=value1", flagName, "key2=value2", flagName, "key3=value3"}, map[string]string{"default": "value"}, map[string]string{"key1": "value1", "key2": "value2", "key3": "value3"}, nil},
-		{[]string{awsproviderpatch.CommandName, flagName, "invalidvalue"}, map[string]string{"default": "value"}, nil, cliPkg.NewInvalidKeyValueError(cliPkg.MapFlagKeyValSep, "invalidvalue")},
+		{[]string{awsproviderpatch.CommandName, flagName, "invalidvalue"}, map[string]string{"default": "value"}, nil, clipkg.NewInvalidKeyValueError(clipkg.MapFlagKeyValSep, "invalidvalue")},
 	}
 
 	for _, testCase := range testCases {
@@ -413,6 +417,8 @@ func TestTerragruntVersion(t *testing.T) {
 func TestTerragruntHelp(t *testing.T) {
 	t.Parallel()
 
+	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
+
 	opts := options.NewTerragruntOptions()
 	app := cli.NewApp(opts)
 
@@ -421,9 +427,9 @@ func TestTerragruntHelp(t *testing.T) {
 		expected    string
 		notExpected string
 	}{
-		{[]string{"terragrunt", "--help"}, app.UsageText, awsproviderpatch.TerragruntOverrideAttrFlagName},
-		{[]string{"terragrunt", "-help"}, app.UsageText, awsproviderpatch.TerragruntOverrideAttrFlagName},
-		{[]string{"terragrunt", "-h"}, app.UsageText, awsproviderpatch.TerragruntOverrideAttrFlagName},
+		{[]string{"terragrunt", "--help"}, app.UsageText, terragruntPrefix.FlagName(awsproviderpatch.OverrideAttrFlagName)},
+		{[]string{"terragrunt", "-help"}, app.UsageText, terragruntPrefix.FlagName(awsproviderpatch.OverrideAttrFlagName)},
+		{[]string{"terragrunt", "-h"}, app.UsageText, terragruntPrefix.FlagName(awsproviderpatch.OverrideAttrFlagName)},
 		{[]string{"terragrunt", awsproviderpatch.CommandName, "-h"}, run.ConfigFlagName, hclfmt.CommandName},
 		{[]string{"terragrunt", commands.CommandNamePlanAll, "--help"}, runall.CommandName, ""},
 	}
@@ -486,24 +492,26 @@ func TestTerraformHelp_wrongHelpFlag(t *testing.T) {
 	require.Error(t, err)
 }
 
+func setCommandAction(action clipkg.ActionFunc, cmds ...*clipkg.Command) {
+	for _, cmd := range cmds {
+		cmd.Action = action
+		setCommandAction(action, cmd.Subcommands...)
+	}
+}
+
 func runAppTest(args []string, opts *options.TerragruntOptions) (*options.TerragruntOptions, error) {
-	emptyAction := func(ctx *cliPkg.Context) error { return nil }
+	emptyAction := func(ctx *clipkg.Context) error { return nil }
 
 	terragruntCommands := cli.TerragruntCommands(opts)
-	for _, command := range terragruntCommands {
-		command.Action = emptyAction
-		for _, cmd := range command.Subcommands {
-			cmd.Action = emptyAction
-		}
-	}
+	setCommandAction(emptyAction, terragruntCommands...)
 
 	defaultCommand := defaultCmd.NewCommand(opts)
-	defaultCommand.Action = emptyAction
+	setCommandAction(emptyAction, defaultCommand)
 
-	app := cliPkg.NewApp()
+	app := clipkg.NewApp()
 	app.Writer = &bytes.Buffer{}
 	app.ErrWriter = &bytes.Buffer{}
-	app.Flags = append(flags.NewGlobalFlags(opts), run.NewFlags(opts)...)
+	app.Flags = append(flags.NewGlobalFlags(opts, nil), run.NewFlags(opts, nil)...)
 	app.Commands = append(
 		commands.NewDeprecatedCommands(opts),
 		terragruntCommands...).WrapAction(cli.WrapWithTelemetry(opts))

@@ -33,23 +33,29 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
 const (
 	CommandName = "aws-provider-patch"
 
-	TerragruntOverrideAttrFlagName = "override-attr"
+	OverrideAttrFlagName = "override-attr"
 )
 
-func NewFlags(opts *options.TerragruntOptions) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
+	cliRedesignControl := flags.StrictControlsByGroup(opts.StrictControls, CommandName, controls.CLIRedesign)
+
 	return cli.Flags{
-		flags.MapWithDeprecatedFlag(opts, &cli.MapFlag[string, string]{
-			Name:        TerragruntOverrideAttrFlagName,
-			EnvVars:     flags.EnvVars(TerragruntOverrideAttrFlagName),
+		flags.NewFlag(&cli.MapFlag[string, string]{
+			Name:        OverrideAttrFlagName,
+			EnvVars:     tgPrefix.EnvVars(OverrideAttrFlagName),
 			Destination: &opts.AwsProviderPatchOverrides,
 			Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",
-		}),
+		},
+			flags.WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
 	}
 }
 
@@ -57,7 +63,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:   CommandName,
 		Usage:  "Overwrite settings on nested AWS providers to work around a Terraform bug (issue #13018).",
-		Flags:  append(run.NewFlags(opts), NewFlags(opts)...).Sort(),
+		Flags:  append(run.NewFlags(opts, nil), NewFlags(opts, nil)...).Sort(),
 		Action: func(ctx *cli.Context) error { return Run(ctx, opts.OptionsFromContext(ctx)) },
 	}
 }

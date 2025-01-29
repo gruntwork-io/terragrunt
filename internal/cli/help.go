@@ -3,6 +3,7 @@ package cli
 import (
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/exp/slices"
 )
 
 var (
@@ -38,6 +39,10 @@ func ShowAppHelp(ctx *Context) error {
 
 // ShowCommandHelp prints command help for the given `ctx`.
 func ShowCommandHelp(ctx *Context) error {
+	if ctx.Command.CustomHelp != nil {
+		return ctx.Command.CustomHelp(ctx)
+	}
+
 	tpl := ctx.Command.CustomHelpTemplate
 	if tpl == "" {
 		tpl = CommandHelpTemplate
@@ -51,22 +56,11 @@ func ShowCommandHelp(ctx *Context) error {
 		ctx.Command.HelpName = ctx.Command.Name
 	}
 
-	ctx = ctx.NewCommandContext(ctx.Command, ctx.Args().Tail())
-
-	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, nil)
+	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, map[string]any{
+		"parentCommands": parentCommands,
+	})
 
 	return NewExitError(nil, ExitCodeSuccess)
-}
-
-// ShowSubcommandHelp prints help for the given `cmdName` subcommand.
-func ShowSubcommandHelp(ctx *Context, cmdName string) error {
-	for _, cmd := range ctx.Command.Subcommands {
-		if cmd.HasName(cmdName) {
-			return ShowCommandHelp(ctx.NewCommandContext(cmd, nil))
-		}
-	}
-
-	return InvalidCommandNameError(cmdName)
 }
 
 func ShowVersion(ctx *Context) error {
@@ -82,4 +76,22 @@ func ShowVersion(ctx *Context) error {
 	cli.HelpPrinterCustom(ctx.App.Writer, tpl, ctx, nil)
 
 	return NewExitError(nil, ExitCodeSuccess)
+}
+
+func parentCommands(ctx *Context) Commands {
+	var cmds Commands
+
+	for parent := ctx.Parent(); parent != nil; parent = parent.Parent() {
+		if cmd := parent.Command; cmd != nil {
+			if cmd.HelpName == "" {
+				cmd.HelpName = cmd.Name
+			}
+
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	slices.Reverse(cmds)
+
+	return cmds
 }

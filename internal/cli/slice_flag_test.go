@@ -174,15 +174,15 @@ func testSliceFlagApply[T cli.SliceFlagType](t *testing.T, flag *cli.SliceFlag[T
 		expectedDefaultValue = *flag.Destination
 	}
 
-	flag.LookupEnvFunc = func(key string) (string, bool) {
+	flag.LookupEnvFunc = func(key string) []string {
 		if envs == nil {
-			return "", false
+			return nil
 		}
 
 		if val, ok := envs[key]; ok {
-			return val, true
+			return flag.Splitter(val, flag.EnvVarSep)
 		}
-		return "", false
+		return nil
 	}
 
 	flagSet := libflag.NewFlagSet("test-cmd", libflag.ContinueOnError)
@@ -215,7 +215,7 @@ func testSliceFlagApply[T cli.SliceFlagType](t *testing.T, flag *cli.SliceFlag[T
 	assert.Equal(t, expectedStringValueFn(expectedValue), flag.GetValue(), "GetValue()")
 
 	assert.Equal(t, len(args) > 0 || len(envs) > 0, flag.Value().IsSet(), "IsSet()")
-	assert.Equal(t, expectedStringValueFn(expectedDefaultValue), flag.Value().GetDefaultText(), "GetDefaultText()")
+	assert.Equal(t, expectedStringValueFn(expectedDefaultValue), flag.GetDefaultText(), "GetDefaultText()")
 
 	assert.False(t, flag.Value().IsBoolFlag(), "IsBoolFlag()")
 	assert.True(t, flag.TakesValue(), "TakesValue()")

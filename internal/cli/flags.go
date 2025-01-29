@@ -1,14 +1,23 @@
 package cli
 
 import (
+	libflag "flag"
 	"sort"
 
 	"github.com/gruntwork-io/go-commons/collections"
 )
 
-const errFlagUndefined = "flag provided but not defined:"
-
 type Flags []Flag
+
+func (flags Flags) Apply(flagSet *libflag.FlagSet) error {
+	for _, flag := range flags {
+		if err := flag.Apply(flagSet); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
 
 // Get returns a Flag by the given name.
 func (flags Flags) Get(name string) Flag {

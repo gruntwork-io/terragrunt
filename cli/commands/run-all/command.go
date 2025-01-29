@@ -14,6 +14,7 @@ import (
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -31,24 +32,31 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Description: "The command will recursively find terragrunt modules in the current directory tree and run the terraform command in dependency order (unless the command is destroy, in which case the command is run in reverse dependency order).",
 		Subcommands: subCommands(opts).SkipRunning(),
 		Action:      action(opts),
-		Flags:       append(run.NewFlags(opts), NewFlags(opts)...).Sort(),
+		Flags:       append(run.NewFlags(opts, nil), NewFlags(opts, nil)...).Sort(),
 	}
 }
 
-func NewFlags(opts *options.TerragruntOptions) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
+	cliRedesignControl := flags.StrictControlsByGroup(opts.StrictControls, CommandName, controls.CLIRedesign)
+
 	return cli.Flags{
-		flags.GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
+		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        OutDirFlagName,
-			EnvVars:     flags.EnvVars(OutDirFlagName),
+			EnvVars:     tgPrefix.EnvVars(OutDirFlagName),
 			Destination: &opts.OutputFolder,
 			Usage:       "Directory to store plan files.",
-		}),
-		flags.GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
+		},
+			flags.WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+
+		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        JSONOutDirFlagName,
-			EnvVars:     flags.EnvVars(JSONOutDirFlagName),
+			EnvVars:     tgPrefix.EnvVars(JSONOutDirFlagName),
 			Destination: &opts.JSONOutputFolder,
 			Usage:       "Directory to store json plan files.",
-		}),
+		},
+			flags.WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
 	}
 }
 

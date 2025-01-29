@@ -26,6 +26,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/codegen"
 	"github.com/gruntwork-io/terragrunt/config"
 	"github.com/gruntwork-io/terragrunt/configstack"
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
@@ -310,7 +311,7 @@ func runTerragruntWithConfig(ctx context.Context, originalTerragruntOptions *opt
 		return target.runCallback(ctx, terragruntOptions, terragruntConfig)
 	}
 
-	if util.FirstArg(terragruntOptions.TerraformCliArgs) == tf.CommandNameInit {
+	if terragruntOptions.TerraformCliArgs.First() == tf.CommandNameInit {
 		if err := prepareInitCommand(ctx, terragruntOptions, terragruntConfig); err != nil {
 			return err
 		}
@@ -408,7 +409,7 @@ func confirmActionWithDependentModules(ctx context.Context, terragruntOptions *o
 // There are lots of details at [hashicorp/terraform#27264](https://github.com/hashicorp/terraform/issues/27264#issuecomment-743389837)
 // The `providers lock` sub command enables you to ensure that the lock file is
 // fully populated.
-func ShouldCopyLockFile(args []string, terraformConfig *config.TerraformConfig) bool {
+func ShouldCopyLockFile(args cli.Args, terraformConfig *config.TerraformConfig) bool {
 	// If the user has explicitly set CopyTerraformLockFile to false, then we should not copy the lock file on any command
 	// This is useful for users who want to manage the lock file themselves outside the working directory
 	// if the user has not set CopyTerraformLockFile or if they have explicitly defined it to true,
@@ -417,11 +418,11 @@ func ShouldCopyLockFile(args []string, terraformConfig *config.TerraformConfig) 
 		return false
 	}
 
-	if util.FirstArg(args) == tf.CommandNameInit {
+	if args.First() == tf.CommandNameInit {
 		return true
 	}
 
-	if util.FirstArg(args) == tf.CommandNameProviders && util.SecondArg(args) == tf.CommandNameLock {
+	if args.First() == tf.CommandNameProviders && args.Second() == tf.CommandNameLock {
 		return true
 	}
 
@@ -606,7 +607,7 @@ func prepareNonInitCommand(ctx context.Context, originalTerragruntOptions *optio
 
 // Determines if 'terraform init' needs to be executed
 func needsInit(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) (bool, error) {
-	if util.ListContainsElement(TerraformCommandsThatDoNotNeedInit, util.FirstArg(terragruntOptions.TerraformCliArgs)) {
+	if util.ListContainsElement(TerraformCommandsThatDoNotNeedInit, terragruntOptions.TerraformCliArgs.First()) {
 		return false, nil
 	}
 
@@ -650,7 +651,7 @@ func providersNeedInit(terragruntOptions *options.TerragruntOptions) bool {
 // and the "updated" terragrunt options that will contain the updated 'WorkingDir' into which the code has been downloaded
 func runTerraformInit(ctx context.Context, originalTerragruntOptions *options.TerragruntOptions, terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	// Prevent Auto-Init if the user has disabled it
-	if util.FirstArg(terragruntOptions.TerraformCliArgs) != tf.CommandNameInit && !terragruntOptions.AutoInit {
+	if terragruntOptions.TerraformCliArgs.First() != tf.CommandNameInit && !terragruntOptions.AutoInit {
 		terragruntOptions.Logger.Warnf("Detected that init is needed, but Auto-Init is disabled. Continuing with further actions, but subsequent terraform commands may fail.")
 		return nil
 	}
@@ -685,7 +686,7 @@ func prepareInitOptions(terragruntOptions *options.TerragruntOptions) (*options.
 	initOptions.Headless = true
 
 	initOutputForCommands := []string{tf.CommandNamePlan, tf.CommandNameApply}
-	terraformCommand := util.FirstArg(terragruntOptions.TerraformCliArgs)
+	terraformCommand := terragruntOptions.TerraformCliArgs.First()
 
 	if !collections.ListContainsElement(initOutputForCommands, terraformCommand) {
 		// Since some command can return a json string, it is necessary to suppress output to stdout of the `terraform init` command.
@@ -722,7 +723,7 @@ func modulesNeedInit(terragruntOptions *options.TerragruntOptions) (bool, error)
 func remoteStateNeedsInit(remoteState *remote.RemoteState, terragruntOptions *options.TerragruntOptions) (bool, error) {
 	// We only configure remote state for the commands that use the tfstate files. We do not configure it for
 	// commands such as "get" or "version".
-	if remoteState != nil && util.ListContainsElement(TerraformCommandsThatUseState, util.FirstArg(terragruntOptions.TerraformCliArgs)) {
+	if remoteState != nil && util.ListContainsElement(TerraformCommandsThatUseState, terragruntOptions.TerraformCliArgs.First()) {
 		return remoteState.NeedsInit(terragruntOptions)
 	}
 
@@ -734,7 +735,7 @@ func remoteStateNeedsInit(remoteState *remote.RemoteState, terragruntOptions *op
 // checkProtectedModule checks if module is protected via the "prevent_destroy" flag
 func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) error {
 	var destroyFlag = false
-	if util.FirstArg(terragruntOptions.TerraformCliArgs) == tf.CommandNameDestroy {
+	if terragruntOptions.TerraformCliArgs.First() == tf.CommandNameDestroy {
 		destroyFlag = true
 	}
 
@@ -755,12 +756,12 @@ func checkProtectedModule(terragruntOptions *options.TerragruntOptions, terragru
 
 func FilterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) []string {
 	out := []string{}
-	cmd := util.FirstArg(terragruntOptions.TerraformCliArgs)
+	cmd := terragruntOptions.TerraformCliArgs.First()
 
 	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
 		for _, argCmd := range arg.Commands {
 			if cmd == argCmd {
-				lastArg := util.LastArg(terragruntOptions.TerraformCliArgs)
+				lastArg := terragruntOptions.TerraformCliArgs.Last()
 				skipVars := (cmd == tf.CommandNameApply || cmd == tf.CommandNameDestroy) && util.IsFile(lastArg)
 
 				// The following is a fix for GH-493.
@@ -795,7 +796,7 @@ func FilterTerraformExtraArgs(terragruntOptions *options.TerragruntOptions, terr
 
 func filterTerraformEnvVarsFromExtraArgs(terragruntOptions *options.TerragruntOptions, terragruntConfig *config.TerragruntConfig) map[string]string {
 	out := map[string]string{}
-	cmd := util.FirstArg(terragruntOptions.TerraformCliArgs)
+	cmd := terragruntOptions.TerraformCliArgs.First()
 
 	for _, arg := range terragruntConfig.Terraform.ExtraArgs {
 		if arg.EnvVars == nil {

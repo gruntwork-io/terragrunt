@@ -52,3 +52,11 @@ func (ctx *Context) Value(key any) any {
 func (ctx *Context) Args() Args {
 	return ctx.args
 }
+
+func (ctx *Context) Flag(name string) Flag {
+	if ctx.Command != nil {
+		return ctx.Command.Flags.Get(name)
+	}
+
+	return nil
+}

@@ -1,11 +1,9 @@
 package test_test
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/gruntwork-io/terragrunt/internal/errors"
-	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/test/helpers"
 	"github.com/gruntwork-io/terragrunt/util"
 	"github.com/stretchr/testify/assert"
@@ -30,7 +28,7 @@ func TestStrictMode(t *testing.T) {
 			name:           "plan-all",
 			controls:       []string{},
 			strictMode:     false,
-			expectedStderr: fmt.Sprintf(strict.NewControls().Find(strict.DeprecatedCommands).WarnFmt, "plan-all", "terragrunt run-all plan"),
+			expectedStderr: "`plan-all` commands is deprecated and will be removed in a future version. Use `terragrunt run-all plan` instead.",
 			expectedError:  nil,
 		},
 		{
@@ -38,7 +36,7 @@ func TestStrictMode(t *testing.T) {
 			controls:       []string{"deprecated-commands"},
 			strictMode:     false,
 			expectedStderr: "",
-			expectedError:  errors.Errorf(strict.NewControls().Find(strict.DeprecatedCommands).ErrorFmt, "plan-all", "terragrunt run-all plan"),
+			expectedError:  errors.New("`plan-all` commands is no longer supported. Use `terragrunt run-all plan` instead."),
 		},
 		{
 			name:           "plan-all with strict mode",
@@ -94,13 +92,13 @@ func TestRootTerragruntHCLStrictMode(t *testing.T) {
 		{
 			name:           "root terragrunt.hcl",
 			strictMode:     false,
-			expectedStderr: strict.NewControls().Find(strict.RootTerragruntHCL).WarnFmt,
+			expectedStderr: "Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern",
 		},
 		{
 			name:          "root terragrunt.hcl with root-terragrunt-hcl strict control",
 			controls:      []string{"root-terragrunt-hcl"},
 			strictMode:    false,
-			expectedError: errors.New(strict.NewControls().Find(strict.RootTerragruntHCL).ErrorFmt),
+			expectedError: errors.New("Using `terragrunt.hcl` as the root of Terragrunt configurations is an anti-pattern"),
 		},
 		// we cannot test `-strict-mode` flag, since we cannot know at which strict control TG will output the error.
 	}

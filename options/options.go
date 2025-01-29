@@ -12,10 +12,12 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/cloner"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format"
 	"github.com/gruntwork-io/terragrunt/pkg/log/format/placeholders"
@@ -125,7 +127,7 @@ type TerragruntOptions struct {
 	RunAllAutoApprove bool
 
 	// CLI args that are intended for Terraform (i.e. all the CLI args except the --terragrunt ones)
-	TerraformCliArgs []string
+	TerraformCliArgs cli.Args
 
 	// The working directory in which to run Terraform
 	WorkingDir string
@@ -500,7 +502,7 @@ func NewTerragruntOptionsWithWriters(stdout, stderr io.Writer) *TerragruntOption
 		JSONOutputFolder:           "",
 		FeatureFlags:               xsync.NewMapOf[string, string](),
 		ReadFiles:                  xsync.NewMapOf[string, []string](),
-		StrictControls:             strict.NewControls(),
+		StrictControls:             controls.New(),
 		Experiments:                experiment.NewExperiments(),
 	}
 }

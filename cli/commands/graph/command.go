@@ -14,6 +14,7 @@ import (
 	validateinputs "github.com/gruntwork-io/terragrunt/cli/commands/validate-inputs"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
+	"github.com/gruntwork-io/terragrunt/internal/strict/controls"
 	"github.com/gruntwork-io/terragrunt/options"
 )
 
@@ -23,14 +24,19 @@ const (
 	GraphRootFlagName = "graph-root"
 )
 
-func NewFlags(opts *options.TerragruntOptions) cli.Flags {
+func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
+	cliRedesignControl := flags.StrictControlsByGroup(opts.StrictControls, CommandName, controls.CLIRedesign)
+
 	return cli.Flags{
-		flags.GenericWithDeprecatedFlag(opts, &cli.GenericFlag[string]{
+		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        GraphRootFlagName,
-			EnvVars:     flags.EnvVars(GraphRootFlagName),
+			EnvVars:     tgPrefix.EnvVars(GraphRootFlagName),
 			Destination: &opts.GraphRoot,
 			Usage:       "Root directory from where to build graph dependencies.",
-		}),
+		},
+			flags.WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
 	}
 }
 
@@ -39,7 +45,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Name:                 CommandName,
 		Usage:                "Execute commands on the full graph of dependent modules for the current module, ensuring correct execution order.",
 		ErrorOnUndefinedFlag: true,
-		Flags:                append(run.NewFlags(opts), NewFlags(opts)...).Sort(),
+		Flags:                append(run.NewFlags(opts, nil), NewFlags(opts, nil)...).Sort(),
 		Subcommands:          subCommands(opts).SkipRunning(),
 		Action:               action(opts),
 	}

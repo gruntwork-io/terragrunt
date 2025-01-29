@@ -6,6 +6,9 @@ type CompleteFunc func(ctx *Context) error
 // ActionFunc is the action to execute when no commands/subcommands are specified.
 type ActionFunc func(ctx *Context) error
 
+// HelpFunc is the action to execute when help needs to be displayed.
+type HelpFunc func(ctx *Context) error
+
 // SplitterFunc is used to parse flags containing multiple values.
 type SplitterFunc func(s, sep string) []string
 

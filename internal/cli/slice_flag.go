@@ -2,9 +2,9 @@ package cli
 
 import (
 	libflag "flag"
+	"os"
 	"strings"
 
-	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/urfave/cli/v2"
 )
 
@@ -63,35 +63,26 @@ func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
 		flag.EnvVarSep = SliceFlagEnvVarSep
 	}
 
-	var (
-		err      error
-		envVar   string
-		envValue *string
-	)
+	if flag.LookupEnvFunc == nil {
+		flag.LookupEnvFunc = func(key string) []string {
+			if val, ok := os.LookupEnv(key); ok {
+				return flag.Splitter(val, flag.EnvVarSep)
+			}
 
-	valType := FlagType[T](new(genericType[T]))
-
-	for _, envVar = range flag.EnvVars {
-		if val := flag.LookupEnv(envVar); val != nil {
-			envValue = val
-
-			break
+			return nil
 		}
 	}
 
-	if flag.FlagValue, err = newSliceValue(valType, envValue, flag.EnvVarSep, flag.Splitter, flag.Destination, flag.Setter); err != nil {
-		if envValue != nil {
-			return errors.Errorf("invalid value %q for env var %s: %w", *envValue, envVar, err)
-		}
+	valueType := FlagVariable[T](new(genericVar[T]))
+	value := newSliceValue(valueType, flag.EnvVarSep, flag.Destination, flag.Setter)
 
-		return err
+	flag.FlagValue = &flagValue{
+		multipleSet:      true,
+		value:            value,
+		initialTextValue: value.String(),
 	}
 
-	for _, name := range flag.Names() {
-		set.Var(flag.FlagValue, name, flag.Usage)
-	}
-
-	return nil
+	return ApplyFlag(flag, set)
 }
 
 // GetHidden returns true if the flag should be hidden from the help.
@@ -104,7 +95,7 @@ func (flag *SliceFlag[T]) GetUsage() string {
 	return flag.Usage
 }
 
-// GetEnvVars returns the env vars for this flag.
+// GetEnvVars implements `cli.Flag` interface.
 func (flag *SliceFlag[T]) GetEnvVars() []string {
 	return flag.EnvVars
 }
@@ -112,7 +103,7 @@ func (flag *SliceFlag[T]) GetEnvVars() []string {
 // GetDefaultText returns the flags value as string representation and an empty string if the flag takes no value at all.
 func (flag *SliceFlag[T]) GetDefaultText() string {
 	if flag.DefaultText == "" && flag.FlagValue != nil {
-		return flag.FlagValue.GetDefaultText()
+		return flag.FlagValue.GetInitialTextValue()
 	}
 
 	return flag.DefaultText
@@ -137,58 +128,30 @@ func (flag *SliceFlag[T]) RunAction(ctx *Context) error {
 	return nil
 }
 
+var _ = Value(new(sliceValue[string]))
+
 // -- slice Value
 type sliceValue[T comparable] struct {
-	values        *[]T
-	setter        FlagSetterFunc[T]
-	valueType     FlagType[T]
-	defaultText   string
-	valSep        string
-	hasBeenSet    bool
-	envHasBeenSet bool
+	values    *[]T
+	valueType FlagVariable[T]
+	setter    FlagSetterFunc[T]
+	valSep    string
 }
 
-func newSliceValue[T comparable](valueType FlagType[T], envValue *string, valSep string, splitter SplitterFunc, dest *[]T, setter FlagSetterFunc[T]) (FlagValue, error) {
-	var nilPtr *[]T
-	if dest == nilPtr {
-		dest = new([]T)
-	}
-
-	defaultText := (&sliceValue[T]{values: dest, setter: setter, valueType: valueType, valSep: valSep}).String()
-
-	var envHasBeenSet bool
-
-	if envValue != nil && splitter != nil {
-		value := sliceValue[T]{values: dest, setter: setter, valueType: valueType}
-
-		vals := splitter(*envValue, valSep)
-		for _, val := range vals {
-			if err := value.Set(val); err != nil {
-				return nil, err
-			}
-
-			envHasBeenSet = true
-		}
-	}
-
+func newSliceValue[T comparable](valueType FlagVariable[T], valSep string, dest *[]T, setter FlagSetterFunc[T]) *sliceValue[T] {
 	return &sliceValue[T]{
-		values:        dest,
-		setter:        setter,
-		valueType:     valueType,
-		defaultText:   defaultText,
-		valSep:        valSep,
-		envHasBeenSet: envHasBeenSet,
-	}, nil
+		values:    dest,
+		valueType: valueType,
+		valSep:    valSep,
+		setter:    setter,
+	}
+}
+
+func (flag *sliceValue[T]) Reset() {
+	*flag.values = []T{}
 }
 
 func (flag *sliceValue[T]) Set(str string) error {
-	if !flag.hasBeenSet {
-		flag.hasBeenSet = true
-
-		// may contain a default value or an env var, so it needs to be cleared before the first setting.
-		*flag.values = []T{}
-	}
-
 	value := flag.valueType.Clone(new(T))
 	if err := value.Set(str); err != nil {
 		return err
@@ -201,22 +164,6 @@ func (flag *sliceValue[T]) Set(str string) error {
 	}
 
 	return nil
-}
-
-func (flag *sliceValue[T]) GetDefaultText() string {
-	if flag.IsBoolFlag() {
-		return ""
-	}
-
-	return flag.defaultText
-}
-
-func (flag *sliceValue[T]) IsBoolFlag() bool {
-	return false
-}
-
-func (flag *sliceValue[T]) IsSet() bool {
-	return flag.hasBeenSet || flag.envHasBeenSet
 }
 
 func (flag *sliceValue[T]) Get() any {

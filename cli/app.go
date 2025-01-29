@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gruntwork-io/terragrunt/cli/commands/info"
 	"github.com/gruntwork-io/terragrunt/cli/commands/stack"
 
 	"github.com/gruntwork-io/terragrunt/engine"
@@ -73,7 +74,7 @@ func NewApp(opts *options.TerragruntOptions) *App {
 	app.Version = version.GetVersion()
 	app.Writer = opts.Writer
 	app.ErrWriter = opts.ErrWriter
-	app.Flags = flags.NewGlobalFlags(opts)
+	app.Flags = flags.NewGlobalFlags(opts, nil)
 	app.Commands = TerragruntCommands(opts).WrapAction(WrapWithTelemetry(opts))
 	app.Before = beforeAction(opts)
 	app.DefaultCommand = defaultCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // if no terragrunt command is specified, run the default command
@@ -186,6 +187,7 @@ func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 		runCmd.NewCommand(opts),             // run
 		helpCmd.NewCommand(opts),            // help
 		versionCmd.NewCommand(opts),         // version
+		info.NewCommand(opts),               // info
 	}
 	cmds = append(cmds, commands.NewDeprecatedCommands(opts)...)
 
@@ -289,16 +291,16 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	switch cmdName {
 	case runCmd.CommandName, runall.CommandName, graph.CommandName, defaultCmd.CommandName:
 		cmdName = args.CommandName()
-
-		// `terraform apply -destroy` is an alias for `terraform destroy`.
-		// It is important to resolve the alias because the `run-all` relies on terraform command to determine the order, for `destroy` command is used the reverse order.
-		if cmdName == tf.CommandNameApply && util.ListContainsElement(args, tf.FlagNameDestroy) {
-			cmdName = tf.CommandNameDestroy
-			args = append([]string{tf.CommandNameDestroy}, args.Tail()...)
-			args = util.RemoveElementFromList(args, tf.FlagNameDestroy)
-		}
 	default:
 		args = append([]string{cmdName}, args...)
+	}
+
+	// `terraform apply -destroy` is an alias for `terraform destroy`.
+	// It is important to resolve the alias because the `run-all` relies on terraform command to determine the order, for `destroy` command is used the reverse order.
+	if cmdName == tf.CommandNameApply && util.ListContainsElement(args, tf.FlagNameDestroy) {
+		cmdName = tf.CommandNameDestroy
+		args = append([]string{tf.CommandNameDestroy}, args.Tail()...)
+		args = util.RemoveElementFromList(args, tf.FlagNameDestroy)
 	}
 
 	// Since Terragrunt and Terraform have the same `-no-color` flag,

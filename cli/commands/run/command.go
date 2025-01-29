@@ -8,7 +8,6 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
-	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/tf"
 )
@@ -28,11 +27,15 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			"# Run output with -json flag\nterragrunt run -- output -json\n# Shortcut:\n# terragrunt output -json",
 			"# Run a plan against a Stack of configurations in the current directory\nterragrunt run --all -- plan",
 		},
-		Flags:                NewFlags(opts),
+		Flags:                NewFlags(opts, nil),
 		ErrorOnUndefinedFlag: true,
 		Action: func(ctx *cli.Context) error {
 			if !opts.Experiments.Evaluate(experiment.CLIRedesign) {
 				return cli.NewExitError(errors.Errorf("requires that the %[1]s experiment is enabled. e.g. --experiment %[1]s", experiment.CLIRedesign), cli.ExitCodeGeneralError)
+			}
+
+			if len(ctx.Args()) == 0 {
+				return cli.ShowCommandHelp(ctx)
 			}
 
 			return Action(opts)(ctx)
@@ -42,10 +45,6 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 func Action(opts *options.TerragruntOptions) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
-		if len(ctx.Args()) == 0 {
-			return cli.ShowCommandHelp(ctx)
-		}
-
 		if opts.TerraformCommand == tf.CommandNameDestroy {
 			opts.CheckDependentModules = !opts.NoDestroyDependenciesCheck
 		}
@@ -56,12 +55,6 @@ func Action(opts *options.TerragruntOptions) cli.ActionFunc {
 			} else {
 				// We default to tofu if the terraform path does not end in Terraform
 				return cli.NewExitError(errors.New(WrongTofuCommand(opts.TerraformCommand)), cli.ExitCodeGeneralError)
-			}
-		}
-
-		if ctx.Command.Name != CommandName {
-			if err := opts.StrictControls.Evaluate(opts.Logger, strict.DeprecatedDefaultCommand, opts.TerraformCommand); err != nil {
-				return cli.NewExitError(err, cli.ExitCodeGeneralError)
 			}
 		}
 

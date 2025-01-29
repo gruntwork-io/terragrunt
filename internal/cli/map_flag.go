@@ -2,6 +2,7 @@ package cli
 
 import (
 	libflag "flag"
+	"os"
 	"strings"
 
 	"github.com/gruntwork-io/go-commons/collections"
@@ -42,7 +43,7 @@ type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 	Action FlagActionFunc[map[K]V]
 	// FlagSetterFunc represents function type that is called when the flag is specified.
 	// Executed during value parsing, in case of an error the returned error is wrapped with the flag or environment variable name.
-	Setter FlagSetterFunc[map[K]V]
+	Setter MapFlagSetterFunc[K, V]
 	// The names of the env variables that are parsed and assigned to `Destination` before the flag value.
 	EnvVars []string
 	// DisableEnvVar disables the creation of the environment variable by default.
@@ -63,7 +64,8 @@ type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 // Apply applies Flag settings to the given flag set.
 func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 	if flag.Destination == nil {
-		flag.Destination = new(map[K]V)
+		dest := make(map[K]V)
+		flag.Destination = &dest
 	}
 
 	if flag.Splitter == nil {
@@ -78,36 +80,28 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 		flag.KeyValSep = MapFlagKeyValSep
 	}
 
-	var (
-		err      error
-		envVar   string
-		envValue *string
-	)
+	if flag.LookupEnvFunc == nil {
+		flag.LookupEnvFunc = func(key string) []string {
+			if val, ok := os.LookupEnv(key); ok {
+				return flag.Splitter(val, flag.EnvVarSep)
+			}
 
-	keyType := FlagType[K](new(genericType[K]))
-	valType := FlagType[V](new(genericType[V]))
-
-	for _, envVar = range flag.EnvVars {
-		if val := flag.LookupEnv(envVar); val != nil {
-			envValue = val
-
-			break
+			return nil
 		}
 	}
 
-	if flag.FlagValue, err = newMapValue(keyType, valType, envValue, flag.EnvVarSep, flag.KeyValSep, flag.Splitter, flag.Destination, flag.Setter); err != nil {
-		if envValue != nil {
-			return errors.Errorf("invalid value %q for env var %s: %w", *envValue, envVar, err)
-		}
+	keyType := FlagVariable[K](new(genericVar[K]))
+	valType := FlagVariable[V](new(genericVar[V]))
 
-		return err
+	value := newMapValue(keyType, valType, flag.EnvVarSep, flag.KeyValSep, flag.Splitter, flag.Destination, flag.Setter)
+
+	flag.FlagValue = &flagValue{
+		multipleSet:      true,
+		value:            value,
+		initialTextValue: value.String(),
 	}
 
-	for _, name := range flag.Names() {
-		set.Var(flag.FlagValue, name, flag.Usage)
-	}
-
-	return nil
+	return ApplyFlag(flag, set)
 }
 
 // GetHidden returns true if the flag should be hidden from the help.
@@ -120,7 +114,7 @@ func (flag *MapFlag[K, V]) GetUsage() string {
 	return flag.Usage
 }
 
-// GetEnvVars returns the env vars for this flag.
+// GetEnvVars implements `cli.Flag` interface.
 func (flag *MapFlag[K, V]) GetEnvVars() []string {
 	return flag.EnvVars
 }
@@ -128,7 +122,7 @@ func (flag *MapFlag[K, V]) GetEnvVars() []string {
 // GetDefaultText returns the flags value as string representation and an empty string if the flag takes no value at all.
 func (flag *MapFlag[K, V]) GetDefaultText() string {
 	if flag.DefaultText == "" && flag.FlagValue != nil {
-		return flag.FlagValue.GetDefaultText()
+		return flag.FlagValue.GetInitialTextValue()
 	}
 
 	return flag.DefaultText
@@ -153,63 +147,34 @@ func (flag *MapFlag[K, V]) RunAction(ctx *Context) error {
 	return nil
 }
 
+var _ = Value(new(mapValue[string, string]))
+
 type mapValue[K, V comparable] struct {
 	values         *map[K]V
-	setter         FlagSetterFunc[map[K]V]
-	keyType        FlagType[K]
-	valType        FlagType[V]
-	defaultText    string
+	setter         MapFlagSetterFunc[K, V]
+	keyType        FlagVariable[K]
+	valType        FlagVariable[V]
 	argSep, valSep string
 	splitter       SplitterFunc
-	hasBeenSet     bool
-	envHasBeenSet  bool
 }
 
-func newMapValue[K, V comparable](keyType FlagType[K], valType FlagType[V], envValue *string, argSep, valSep string, splitter SplitterFunc, dest *map[K]V, setter FlagSetterFunc[map[K]V]) (FlagValue, error) {
-	var nilPtr *map[K]V
-	if dest == nilPtr {
-		val := make(map[K]V)
-		dest = &val
-	}
-
-	defaultText := (&mapValue[K, V]{values: dest, keyType: keyType, valType: valType, argSep: argSep, valSep: valSep, splitter: splitter}).String()
-
-	var envHasBeenSet bool
-
-	if envValue != nil && splitter != nil {
-		value := mapValue[K, V]{values: dest, setter: setter, keyType: keyType, valType: valType, argSep: argSep, valSep: valSep, splitter: splitter}
-
-		args := splitter(*envValue, argSep)
-		for _, arg := range args {
-			if err := value.Set(strings.TrimSpace(arg)); err != nil {
-				return nil, err
-			}
-
-			envHasBeenSet = true
-		}
-	}
-
+func newMapValue[K, V comparable](keyType FlagVariable[K], valType FlagVariable[V], argSep, valSep string, splitter SplitterFunc, dest *map[K]V, setter MapFlagSetterFunc[K, V]) *mapValue[K, V] {
 	return &mapValue[K, V]{
-		values:        dest,
-		setter:        setter,
-		keyType:       keyType,
-		valType:       valType,
-		defaultText:   defaultText,
-		argSep:        argSep,
-		valSep:        valSep,
-		splitter:      splitter,
-		envHasBeenSet: envHasBeenSet,
-	}, nil
+		values:   dest,
+		setter:   setter,
+		keyType:  keyType,
+		valType:  valType,
+		argSep:   argSep,
+		valSep:   valSep,
+		splitter: splitter,
+	}
+}
+
+func (flag *mapValue[K, V]) Reset() {
+	*flag.values = map[K]V{}
 }
 
 func (flag *mapValue[K, V]) Set(str string) error {
-	if !flag.hasBeenSet {
-		flag.hasBeenSet = true
-
-		// may contain a default value or an env var, so it needs to be cleared before the first setting.
-		*flag.values = map[K]V{}
-	}
-
 	parts := flag.splitter(str, flag.valSep)
 	if len(parts) != flatPatsCount {
 		return errors.New(NewInvalidKeyValueError(flag.valSep, str))
@@ -228,26 +193,10 @@ func (flag *mapValue[K, V]) Set(str string) error {
 	(*flag.values)[key.Get().(K)] = val.Get().(V)
 
 	if flag.setter != nil {
-		return flag.setter(map[K]V{key.Get().(K): val.Get().(V)})
+		return flag.setter(key.Get().(K), val.Get().(V))
 	}
 
 	return nil
-}
-
-func (flag *mapValue[K, V]) GetDefaultText() string {
-	if flag.IsBoolFlag() {
-		return ""
-	}
-
-	return flag.defaultText
-}
-
-func (flag *mapValue[K, V]) IsBoolFlag() bool {
-	return false
-}
-
-func (flag *mapValue[K, V]) IsSet() bool {
-	return flag.hasBeenSet || flag.envHasBeenSet
 }
 
 func (flag *mapValue[K, V]) Get() any {
