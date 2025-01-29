@@ -150,13 +150,12 @@ func TestWindowsScaffold(t *testing.T) {
 	t.Parallel()
 
 	// create temp dir
-	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
-	assert.NoError(t, err)
+	tmpDir := t.TempDir()
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql --terragrunt-working-dir %s", tmpDir))
 
 	// check that terragrunt.hcl was created
-	_, err = os.Stat(filepath.Join(tmpDir, "terragrunt.hcl"))
+	_, err := os.Stat(filepath.Join(tmpDir, "terragrunt.hcl"))
 	assert.NoError(t, err)
 }
 
@@ -164,13 +163,12 @@ func TestWindowsScaffoldRef(t *testing.T) {
 	t.Parallel()
 
 	// create temp dir
-	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
-	assert.NoError(t, err)
+	tmpDir := t.TempDir()
 
 	helpers.RunTerragrunt(t, fmt.Sprintf("terragrunt scaffold github.com/gruntwork-io/terragrunt-infrastructure-modules-example//modules/mysql?ref=v0.8.1 --terragrunt-working-dir %s", tmpDir))
 
 	// check that terragrunt.hcl was created
-	_, err = os.Stat(filepath.Join(tmpDir, "terragrunt.hcl"))
+	_, err := os.Stat(filepath.Join(tmpDir, "terragrunt.hcl"))
 	assert.NoError(t, err)
 }
 
@@ -184,10 +182,7 @@ func CopyEnvironmentToPath(t *testing.T, environmentPath, targetPath string) {
 }
 
 func CopyEnvironmentWithTflint(t *testing.T, environmentPath string) string {
-	tmpDir, err := os.MkdirTemp("", "terragrunt-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir due to error: %v", err)
-	}
+	tmpDir := t.TempDir()
 
 	t.Logf("Copying %s to %s", environmentPath, tmpDir)
 
