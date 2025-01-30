@@ -76,6 +76,24 @@ const config: Config = {
           position: 'left',
           label: 'Reference',
         },
+        {
+          type: 'docSidebar',
+          sidebarId: 'communitySidebar',
+          position: 'left',
+          label: 'Community',
+        },
+        {
+          type: 'docSidebar',
+          sidebarId: 'troubleshootingSidebar',
+          position: 'left',
+          label: 'Troubleshooting',
+        },
+        {
+          type: 'docSidebar',
+          sidebarId: 'migrationGuidesSidebar',
+          position: 'left',
+          label: 'Migration Guides',
+        },
         { // FIXME: Make these images.
           href: 'https://github.com/gruntwork-io/terragrunt',
           label: 'GitHub',
@@ -133,6 +151,7 @@ const config: Config = {
       additionalLanguages: [
         'hcl',
         'bash',
+        'powershell',
       ],
     },
   } satisfies Preset.ThemeConfig,
