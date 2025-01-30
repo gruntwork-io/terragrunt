@@ -8,10 +8,11 @@ import (
 
 const (
 	// CommandName stack command name.
-	CommandName = "stack"
-	generate    = "generate"
-	run         = "run"
-	output      = "output"
+	CommandName          = "stack"
+	generate             = "generate"
+	run                  = "run"
+	output               = "output"
+	OutputFormatFlagName = "format"
 )
 
 // NewFlags builds the flags for stack.
@@ -47,6 +48,14 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				Usage: "Run fetch stack output",
 				Action: func(ctx *cli.Context) error {
 					return RunOutput(ctx.Context, opts.OptionsFromContext(ctx))
+				},
+				Flags: cli.Flags{
+					// Stack flags
+					&cli.GenericFlag[string]{
+						Name:        OutputFormatFlagName,
+						Destination: &opts.StackOutputFormat,
+						Usage:       "Stack output format.",
+					},
 				},
 			},
 		},
