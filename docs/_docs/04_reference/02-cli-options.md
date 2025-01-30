@@ -86,7 +86,7 @@ Example:
 terragrunt run plan
 ```
 
-Note that the `run` command is a more explicit way to run OpenTofu/Terraform commands, and it is recommended to use it when you need to run OpenTofu/Terraform commands that don't have a shortcut in Terragrunt.
+Note that the `run` command is a more explicit way to run OpenTofu/Terraform commands, and it provides some flexible options that are not available with the shortcut commands.
 
 The `run` command also supports the following flags that can be used to drive runs in multiple units:
 
