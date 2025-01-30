@@ -74,9 +74,11 @@ The list of shortcuts Terragrunt supports are:
 - `test`
 - `validate`
 
-If you want to run a command that doesn't have a shortcut in Terragrunt, you can use the `run` command.
+If you want to run a command that doesn't have a shortcut in Terragrunt, you can use the [`run`](#run) command.
 
 #### run
+
+**[NOTE] The `run` command is experimental, usage requires the [`--experiment cli-redesign` flag](/docs/reference/experiments/#cli-redesign).**
 
 Run the provided OpenTofu/Terraform command against the unit in the current working directory.
 
@@ -102,6 +104,8 @@ terragrunt run -- plan -no-color
 ```
 
 #### exec
+
+**[NOTE] The `exec` command is experimental, usage requires the [`--experiment cli-redesign` flag](/docs/reference/experiments/#cli-redesign).**
 
 Execute an arbitrary command orchestrated by Terragrunt.
 
@@ -137,9 +141,7 @@ The command will recursively find terragrunt [units](/docs/getting-started/termi
 tree and run the OpenTofu/Terraform command in dependency order (unless the command is destroy,
 in which case the command is run in reverse dependency order).
 
-Make sure to read [Execute OpenTofu/Terraform
-commands on multiple modules at once](/docs/features/stacks) for
-context.
+Make sure to read about the [stacks feature](/docs/features/stacks) for context.
 
 Example:
 
@@ -152,22 +154,20 @@ This will recursively search the current working directory for any folders that 
 [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
 [`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
 
-**[WARNING] Use `run-all` with care if you have unapplied dependencies**.
-
-If you have a stack of Terragrunt units with dependencies between them—either via `dependency` blocks
-or `terraform_remote_state` data sources—and
-you've never deployed them, then commands like `run-all plan` will fail,
-as it will not be possible to resolve the `dependency` blocks
-or `terraform_remote_state` data sources!
-
-The solution for this is to take advantage of [mock outputs in dependency blocks](/docs/reference/config-blocks-and-attributes/#dependency).
-
 **[WARNING] Do not set [TF_PLUGIN_CACHE_DIR](https://opentofu.org/docs/cli/config/config-file/#provider-plugin-cache) when using `run-all`**
 
-Instead take advantage of the built-in [Provider Cache Server](https://terragrunt.gruntwork.io/docs/features/provider-cache/) that
+Instead take advantage of the built-in [Provider Cache Server](/docs/features/provider-cache-server/) that
 mitigates some of the limitations of using the OpenTofu/Terraform Provider Plugin Cache directly.
 
-Note that we are [working with the OpenTofu team to improve this behavior](https://github.com/opentofu/opentofu/issues/1483) so that you don't have to worry about this.
+We are [working with the OpenTofu team to improve this behavior](https://github.com/opentofu/opentofu/issues/1483) so that you don't have to worry about this in the future.
+
+**[NOTE] Use `run-all` with care if you have unapplied dependencies**.
+
+If you have a stack of Terragrunt units with dependencies between them—either via `dependency` blocks
+and you've never deployed them, then commands like `run-all plan` will fail,
+as it will not be possible to resolve outputs of `dependency` blocks without applying first.
+
+The solution for this is to take advantage of [mock outputs in dependency blocks](/docs/reference/config-blocks-and-attributes/#dependency).
 
 **[NOTE]** Using `run-all` with `apply` or `destroy` silently adds the `-auto-approve` flag to the command line
 arguments passed to OpenTofu/Terraform due to issues with shared `stdin` making individual approvals impossible.
@@ -183,9 +183,9 @@ The algorithm for determining the aggregate exit code is as follows:
 
 #### graph
 
-Run the provided OpenTofu/Terraform command against the graph of dependencies for the module in the current working directory. The graph consists of all modules that depend on the module in the current working directory via a `depends_on` or `dependencies` block, plus all the modules that depend on those modules, and all the modules that depend on those modules, and so on, recursively up the tree, up to the Git repository root, or the path specified via the optional `--graph-root` argument.
+Run the provided OpenTofu/Terraform command against the graph of dependencies for the unit in the current working directory. The graph consists of all units that depend on the unit in the current working directory via a `dependency` or `dependencies` blocks, plus all the units that depend on those units, and all the units that depend on those units, and so on, recursively up the tree, up to the Git repository root, or the path specified via the optional `--graph-root` argument.
 
-The Command will be executed following the order of dependencies: so it'll run on the module in the current working directory first, then on modules that depend on it directly, then on the modules that depend on those modules, and so on. Note that if the command is `destroy`, it will execute in the opposite order of the dependencies.
+The Command will be executed following the order of dependencies: so it'll run on the unit in the current working directory first, then on units that depend on it directly, then on the units that depend on those units, and so on. Note that if the command is `destroy`, it will execute in the opposite order of the dependencies.
 
 Example:
 Having below dependencies:
@@ -216,10 +216,10 @@ Group 5
 
 Notes:
 
-- `lambda` modules aren't included in the graph, because they are not dependent on `eks` module.
+- `lambda` units aren't included in the graph, because they are not dependent on `eks` unit.
 - execution is from bottom up based on dependencies
 
-Running `terragrunt graph destroy` in `eks` module will lead to the following execution order:
+Running `terragrunt graph destroy` in `eks` unit will lead to the following execution order:
 
 ```text
 Group 1
@@ -244,8 +244,8 @@ Group 5
 
 Notes:
 
-- execution is in reverse order, first are destroyed "top" modules and in the end `eks`
-- `lambda` modules aren't affected at all
+- execution is in reverse order, first are destroyed "top" units and in the end `eks`
+- `lambda` units aren't affected at all
 
 Running `terragrunt graph apply` in `services/eks-service-3`:
 
@@ -289,9 +289,11 @@ Notes:
 The `terragrunt stack` commands provide an interface for managing collections of Terragrunt units defined in `terragrunt.stack.hcl` files.
 These commands simplify the process of handling multiple infrastructure units by grouping them into a "stack", reducing code duplication and streamlining operations across environments.
 
+**[NOTE] `stack` commands are experimental, usage requires the [`--experiment stacks` flag](/docs/reference/experiments/#stacks).**
+
 #### stack generate
 
-The `terragrunt stack generate` command is used to generate a stack of `terragrunt.hcl` files based on the configuration provided in the `terragrunt.stack.hcl` file.
+The `stack generate` command is used to generate a stack of `terragrunt.hcl` files based on the configuration provided in the `terragrunt.stack.hcl` file.
 
 Given the following `terragrunt.stack.hcl` configuration:
 
@@ -330,7 +332,7 @@ Will create the following directory structure:
 
 #### stack run
 
-The `terragrunt stack run *` command enables users to execute IaC commands across all units defined in the `terragrunt.stack.hcl` file.
+The `stack run *` command allows users to execute IaC commands across all units defined in a `terragrunt.stack.hcl` file.
 This feature facilitates efficient orchestration of operations on multiple units, simplifying workflows for managing complex infrastructure stacks.
 
 **Examples:**
@@ -338,7 +340,7 @@ This feature facilitates efficient orchestration of operations on multiple units
 Run a plan on each unit:
 
 ```bash
- terragrunt stack run plan
+terragrunt stack run plan
 ```
 
 Apply changes for each unit:
@@ -356,7 +358,7 @@ terragrunt stack run destroy
 **Note:**
 
 Before executing the specified command, the `terragrunt stack run *` command will automatically generate the stack by creating
-the `.stack` directory using the `terragrunt.stack.hcl` configuration file.
+the `.terragrunt-stack` directory using the `terragrunt.stack.hcl` configuration file.
 This ensures that all units are up-to-date before running the requested operation.
 
 ### info
