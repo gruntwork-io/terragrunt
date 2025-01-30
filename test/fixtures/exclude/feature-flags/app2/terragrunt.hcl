@@ -5,5 +5,5 @@ include "flags" {
 exclude {
   if = feature.exclude2.value
   actions = ["all"]
-  exclude_dependencies = true
+  exclude_dependents = true
 }

@@ -1,5 +1,5 @@
 exclude {
   if = true
   actions = ["plan"]
-  exclude_dependencies = true
+  exclude_dependents = true
 }

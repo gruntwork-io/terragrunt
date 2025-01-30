@@ -1422,19 +1422,21 @@ Syntax:
 
 ```hcl
 exclude {
-    if = <boolean expression>           # Boolean expression to determine exclusion.
-    actions = ["<action>", ...]         # List of actions to exclude (e.g., "plan", "apply", "all", "all_except_output").
-    exclude_dependencies = <boolean>    # Boolean to determine if dependencies should also be excluded.
+    if = <boolean expression>         # Boolean expression to determine exclusion.
+    actions = ["<action>", ...]       # List of actions to exclude (e.g., "plan", "apply", "all", "all_except_output").
+    exclude_dependents = <boolean>    # Boolean to determine if dependents should also be excluded.
 }
 ```
 
 Attributes:
 
-| Attribute              | Type         | Description                                                                                                             |
-|------------------------|--------------|-------------------------------------------------------------------------------------------------------------------------|
-| `if`                   | boolean      | Condition to dynamically determine whether the unit should be excluded.                                                 |
-| `actions`              | list(string) | Specifies which actions to exclude when the condition is met. Options: `plan`, `apply`, `all`, `all_except_output` etc. |
-| `exclude_dependencies` | boolean      | Indicates whether the dependencies of the excluded unit should also be excluded (default: `false`).                     |
+| Attribute            | Type         | Description                                                                                                             |
+|----------------------|--------------|-------------------------------------------------------------------------------------------------------------------------|
+| `if`                 | boolean      | Condition to dynamically determine whether the unit should be excluded.                                                 |
+| `actions`            | list(string) | Specifies which actions to exclude when the condition is met. Options: `plan`, `apply`, `all`, `all_except_output` etc. |
+| `exclude_dependents` | boolean      | Indicates whether the dependents of the excluded unit should also be excluded (default: `false`).                     |
+
+**Note**: An earlier implementation of this block used the attribute `exclude_dependencies` to control whether units that dependend on the excluded unit should also be excluded. This attribute has been deprecated in favor of `exclude_dependents`, as the new name better reflects the behavior of the attribute. Both attributes are functionally equivalent. If both are defined, `exclude_dependents` takes precedence.
 
 Examples:
 
@@ -1442,7 +1444,7 @@ Examples:
 exclude {
     if = feature.feature_name.value # Dynamically exclude based on a feature flag.
     actions = ["plan", "apply"]     # Exclude `plan` and `apply` actions.
-    exclude_dependencies = false    # Do not exclude dependencies.
+    exclude_dependents = false      # Do not exclude dependents.
 }
 ```
 
@@ -1453,7 +1455,7 @@ evaluates to `true`. Dependencies are not excluded.
 exclude {
     if = feature.is_dev_environment.value # Exclude only for development environments.
     actions = ["all"]                     # Exclude all actions.
-    exclude_dependencies = true           # Exclude dependencies along with the unit.
+    exclude_dependents = true             # Exclude dependents along with the unit.
 }
 ```
 
@@ -1464,7 +1466,7 @@ feature `is_dev_environment` evaluates to `true`.
 exclude {
     if = true                       # Explicitly exclude.
     actions = ["all_except_output"] # Allow `output` actions nonetheless.
-    exclude_dependencies = false    # Dependencies remain active.
+    exclude_dependents = false      # Dependencies remain active.
 }
 ```
 

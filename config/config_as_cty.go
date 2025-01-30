@@ -481,9 +481,9 @@ type ctyEngineConfig struct {
 
 // ctyExclude exclude representation for cty.
 type ctyExclude struct {
-	If                  bool     `cty:"if"`
-	Actions             []string `cty:"actions"`
-	ExcludeDependencies bool     `cty:"exclude_dependencies"`
+	If                bool     `cty:"if"`
+	Actions           []string `cty:"actions"`
+	ExcludeDependents bool     `cty:"exclude_dependents"`
 }
 
 // Serialize CatalogConfig to a cty Value, but with maps instead of lists for the blocks.
@@ -535,15 +535,24 @@ func excludeConfigAsCty(config *ExcludeConfig) (cty.Value, error) {
 		return cty.NilVal, nil
 	}
 
-	excludeDependencies := false
+	excludeDependents := false
+
+	// NOTE: This is a bit of a hack to handle the rename
+	// of the exclude_dependencies field to exclude_dependents.
+	// We don't really need to ever make this a breaking change,
+	// so we can just check both fields.
 	if config.ExcludeDependencies != nil {
-		excludeDependencies = *config.ExcludeDependencies
+		excludeDependents = *config.ExcludeDependents
+	}
+
+	if config.ExcludeDependents != nil {
+		excludeDependents = *config.ExcludeDependents
 	}
 
 	configCty := ctyExclude{
-		If:                  config.If,
-		Actions:             config.Actions,
-		ExcludeDependencies: excludeDependencies,
+		If:                config.If,
+		Actions:           config.Actions,
+		ExcludeDependents: excludeDependents,
 	}
 
 	return goTypeToCty(configCty)

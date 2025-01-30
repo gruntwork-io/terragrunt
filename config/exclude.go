@@ -16,13 +16,14 @@ const (
 )
 
 // bool values to be used as booleans.
-var boolFlagValues = []string{"if", "exclude_dependencies"}
+var boolFlagValues = []string{"if", "exclude_dependents"}
 
 // ExcludeConfig configurations for hcl files.
 type ExcludeConfig struct {
 	If                  bool     `cty:"if" hcl:"if,attr" json:"if"`
 	Actions             []string `cty:"actions" hcl:"actions,attr" json:"actions"`
 	ExcludeDependencies *bool    `cty:"exclude_dependencies" hcl:"exclude_dependencies,attr" json:"exclude_dependencies"`
+	ExcludeDependents   *bool    `cty:"exclude_dependents" hcl:"exclude_dependents,attr" json:"exclude_dependents"`
 }
 
 // IsActionListed checks if the action is listed in the exclude block.

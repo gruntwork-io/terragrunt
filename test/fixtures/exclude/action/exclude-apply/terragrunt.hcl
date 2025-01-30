@@ -1,5 +1,5 @@
 exclude {
   if = true
   actions = ["apply"]
-  exclude_dependencies = true
+  exclude_dependents = true
 }

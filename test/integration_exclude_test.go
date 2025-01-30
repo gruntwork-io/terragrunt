@@ -123,13 +123,13 @@ func TestExcludeDependencies(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testExcludeDependencies)
 	rootPath := util.JoinPath(tmpEnvPath, testExcludeDependencies)
 
-	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --feature exclude=false --feature exclude_dependencies=false --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --feature exclude=false --feature exclude_dependents=false --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.NoError(t, err)
 
 	assert.Contains(t, stderr, "dep")
 	assert.Contains(t, stderr, "app1")
 
-	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --feature exclude=true --feature exclude_dependencies=false --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	_, stderr, err = helpers.RunTerragruntCommandWithOutput(t, "terragrunt run-all apply -auto-approve --feature exclude=true --feature exclude_dependents=false --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 
 	require.NoError(t, err)
 

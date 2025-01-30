@@ -3,14 +3,14 @@ feature "exclude" {
     default = false
 }
 
-feature "exclude_dependencies" {
+feature "exclude_dependents" {
   default = false
 }
 
 exclude {
   if = feature.exclude.value
   actions = ["all"]
-  exclude_dependencies = feature.exclude_dependencies.value
+  exclude_dependents = feature.exclude_dependents.value
 }
 
 dependency "dep" {
