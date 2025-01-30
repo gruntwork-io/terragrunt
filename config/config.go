@@ -256,6 +256,7 @@ type remoteStateConfigFile struct {
 	DisableDependencyOptimization *bool                      `hcl:"disable_dependency_optimization,attr"`
 	Generate                      *remoteStateConfigGenerate `hcl:"generate,attr"`
 	Config                        cty.Value                  `hcl:"config,attr"`
+	Encryption                    *cty.Value                 `hcl:"encryption,attr"`
 }
 
 func (remoteState *remoteStateConfigFile) String() string {
@@ -281,6 +282,17 @@ func (remoteState *remoteStateConfigFile) toConfig() (*remote.RemoteState, error
 	}
 
 	config.Config = remoteStateConfig
+
+	if remoteState.Encryption != nil && !remoteState.Encryption.IsNull() {
+		remoteStateEncryption, err := ParseCtyValueToMap(*remoteState.Encryption)
+		if err != nil {
+			return nil, err
+		}
+
+		config.Encryption = remoteStateEncryption
+	} else {
+		config.Encryption = nil
+	}
 
 	if remoteState.DisableInit != nil {
 		config.DisableInit = *remoteState.DisableInit

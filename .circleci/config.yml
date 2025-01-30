@@ -86,6 +86,14 @@ run_integration_test: &run_integration_test
     run-go-tests --packages "$(go list ./... | grep /test | tr '\n' ' ')" | tee logs/test-results.log
   no_output_timeout: 30m
 
+run_integration_tofu_only_test: &run_integration_tofu_only_test
+  name: Run tofu-only integration tests
+  command: |
+    run-go-tests --packages "-tags tofu -run ^TestTofu ./..." | tee logs/test-results.log
+  no_output_timeout: 30m
+  environment:
+    TERRAGRUNT_TFPATH: tofu
+
 run_integration_gcp_test: &run_integration_gcp_test
   name: Run integration tests GCP
   command: |
@@ -134,7 +142,7 @@ run_markdownlint: &run_markdownlint
 codespell: &codespell
   name: Run codespell
   command: |
-    pip install codespell
+    pip install codespell==2.4.0
     codespell .
 
 win_install_golang: &win_install_golang
@@ -316,6 +324,27 @@ jobs:
           <<: *run_integration_test
           environment:
             TERRAGRUNT_TFPATH: tofu
+      - run:
+          <<: *run_terratest_log_parser
+      - store_artifacts:
+          path: logs
+      - store_test_results:
+          path: logs
+
+  integration_test_tofu_only:
+    resource_class: medium
+    <<: *defaults
+    <<: *env
+    steps:
+      - checkout
+      - run:
+          <<: *install_tofu
+      - run:
+          <<: *install_tflint
+      - run:
+          <<: *setup_test_environment
+      - run:
+          <<: *run_integration_tofu_only_test
       - run:
           <<: *run_terratest_log_parser
       - store_artifacts:
@@ -588,6 +617,7 @@ jobs:
       - checkout
       - run:
           name: Building Terragrunt without Go proxy
+          no_output_timeout: 20m
           command: |
             GOPROXY=direct build-go-binaries --app-name terragrunt --dest-path bin --ld-flags "-X github.com/gruntwork-io/go-commons/version.Version=$CIRCLE_TAG -extldflags '-static'"
 
@@ -725,6 +755,14 @@ workflows:
             - GCP__automated-tests
             - GITHUB__PAT__gruntwork-ci
       - integration_test_tofu:
+          filters:
+            tags:
+              only: /^v.*/
+          context:
+            - AWS__PHXDEVOPS__circle-ci-test
+            - GCP__automated-tests
+            - GITHUB__PAT__gruntwork-ci
+      - integration_test_tofu_only:
           filters:
             tags:
               only: /^v.*/

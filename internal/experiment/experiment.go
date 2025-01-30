@@ -2,7 +2,7 @@
 // By default experiment mode is disabled, but when enabled, experimental features can be enabled.
 // These features are not yet stable and may change in the future.
 //
-// Note that any behavior outlined here should be documented in /docs/_docs/04_reference/experiment-mode.md
+// Note that any behavior outlined here should be documented in /docs/_docs/04_reference/experiments.md
 //
 // That is how users will know what to expect when they enable experiment mode, and how to customize it.
 package experiment

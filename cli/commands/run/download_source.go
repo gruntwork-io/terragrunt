@@ -233,7 +233,7 @@ func updateGetters(terragruntOptions *options.TerragruntOptions, terragruntConfi
 				}
 
 				if terragruntConfig.Terraform != nil && terragruntConfig.Terraform.ExcludeFromCopy != nil {
-					includeInCopy = *terragruntConfig.Terraform.ExcludeFromCopy
+					excludeFromCopy = *terragruntConfig.Terraform.ExcludeFromCopy
 				}
 
 				client.Getters[getterName] = &FileCopyGetter{

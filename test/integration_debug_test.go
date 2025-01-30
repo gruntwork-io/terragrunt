@@ -218,6 +218,7 @@ func TestRenderJSONConfig(t *testing.T) {
 					"path": "foo.tfstate",
 				},
 				"disable_init":                    false,
+				"encryption":                      nil,
 				"disable_dependency_optimization": false,
 			},
 			remoteState.(map[string]interface{}),

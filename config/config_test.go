@@ -29,8 +29,9 @@ func TestParseTerragruntConfigRemoteStateMinimalConfig(t *testing.T) {
 
 	cfg := `
 remote_state {
-  backend = "s3"
-  config  = {}
+  backend 	  = "s3"
+  config  	  = {}
+  encryption  = {}
 }
 `
 
@@ -45,6 +46,7 @@ remote_state {
 	if assert.NotNil(t, terragruntConfig.RemoteState) {
 		assert.Equal(t, "s3", terragruntConfig.RemoteState.Backend)
 		assert.Empty(t, terragruntConfig.RemoteState.Config)
+		assert.Empty(t, terragruntConfig.RemoteState.Encryption)
 	}
 }
 
@@ -123,6 +125,10 @@ remote_state {
   		key = "terraform.tfstate"
   		region = "us-east-1"
 	}
+	encryption = {
+		key_provider = "pbkdf2"
+		passphrase = "correct-horse-battery-staple"
+	}
 }
 `
 
@@ -143,6 +149,8 @@ remote_state {
 		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
 		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
 		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+		assert.Equal(t, "pbkdf2", terragruntConfig.RemoteState.Encryption["key_provider"])
+		assert.Equal(t, "correct-horse-battery-staple", terragruntConfig.RemoteState.Encryption["passphrase"])
 	}
 }
 
@@ -158,6 +166,10 @@ func TestParseTerragruntJsonConfigRemoteStateFullConfig(t *testing.T) {
 			"bucket": "my-bucket",
 			"key": "terraform.tfstate",
 			"region":"us-east-1"
+		},
+		"encryption":{
+			"key_provider": "pbkdf2",
+			"passphrase": "correct-horse-battery-staple"
 		}
 	}
 }
@@ -179,6 +191,8 @@ func TestParseTerragruntJsonConfigRemoteStateFullConfig(t *testing.T) {
 		assert.Equal(t, "my-bucket", terragruntConfig.RemoteState.Config["bucket"])
 		assert.Equal(t, "terraform.tfstate", terragruntConfig.RemoteState.Config["key"])
 		assert.Equal(t, "us-east-1", terragruntConfig.RemoteState.Config["region"])
+		assert.Equal(t, "pbkdf2", terragruntConfig.RemoteState.Encryption["key_provider"])
+		assert.Equal(t, "correct-horse-battery-staple", terragruntConfig.RemoteState.Encryption["passphrase"])
 	}
 }
 

@@ -315,6 +315,7 @@ func TestRenderJsonMetadataIncludes(t *testing.T) {
 				"key":    "path/to/my/key",
 				"region": "us-east-1",
 			},
+			"encryption": nil,
 		},
 	}
 
@@ -460,6 +461,7 @@ func TestRenderJsonMetadataTerraform(t *testing.T) {
 				"key":    "path/to/my/key",
 				"region": "us-east-1",
 			},
+			"encryption":                      nil,
 			"disable_dependency_optimization": false,
 			"disable_init":                    false,
 			"generate":                        nil,

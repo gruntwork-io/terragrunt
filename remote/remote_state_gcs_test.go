@@ -3,8 +3,11 @@
 package remote_test
 
 import (
+	"context"
 	"testing"
 
+	"cloud.google.com/go/storage"
+	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/remote"
 	"github.com/stretchr/testify/assert"
@@ -129,4 +132,127 @@ func TestGcpConfigValuesEqual(t *testing.T) {
 			assert.Equal(t, testCase.config, config)
 		})
 	}
+}
+
+func TestValidateGCSConfig(t *testing.T) {
+	t.Parallel()
+
+	testCases := map[string]struct {
+		config           map[string]interface{}
+		expectedError    bool
+		mockBucketExists bool // Simulate whether the bucket exists
+	}{
+		"Valid_config_with_project_and_location": {
+			config: map[string]interface{}{
+				"bucket":   "test-bucket",
+				"project":  "test-project",
+				"location": "us-central1",
+			},
+			expectedError:    false,
+			mockBucketExists: false,
+		},
+		"Valid_config_with_skip_bucket_creation": {
+			config: map[string]interface{}{
+				"bucket":               "test-bucket",
+				"skip_bucket_creation": true,
+			},
+			expectedError:    false,
+			mockBucketExists: false,
+		},
+		"Missing_bucket": {
+			config: map[string]interface{}{
+				"project":  "test-project",
+				"location": "us-central1",
+			},
+			expectedError:    true,
+			mockBucketExists: false,
+		},
+		"Missing_project_when_bucket_does_not_exist": {
+			config: map[string]interface{}{
+				"bucket":   "test-bucket",
+				"location": "us-central1",
+			},
+			expectedError:    true,
+			mockBucketExists: false,
+		},
+		"Missing_location_when_bucket_does_not_exist": {
+			config: map[string]interface{}{
+				"bucket":  "test-bucket",
+				"project": "test-project",
+			},
+			expectedError:    true,
+			mockBucketExists: false,
+		},
+		"Existing_bucket_without_project_and_location_when_skip_bucket_creation_is_true": {
+			config: map[string]interface{}{
+				"bucket":               "test-bucket",
+				"skip_bucket_creation": true,
+			},
+			expectedError:    false,
+			mockBucketExists: true,
+		},
+		"Existing_bucket_without_project_and_location_when_bucket_exists": {
+			config: map[string]interface{}{
+				"bucket": "test-bucket",
+			},
+			expectedError:    false,
+			mockBucketExists: true,
+		},
+		"Missing_project_when_bucket_exists": {
+			config: map[string]interface{}{
+				"bucket":   "test-bucket",
+				"location": "us-central1",
+			},
+			expectedError:    false,
+			mockBucketExists: true,
+		},
+		"Missing_location_when_bucket_exists": {
+			config: map[string]interface{}{
+				"bucket":  "test-bucket",
+				"project": "test-project",
+			},
+			expectedError:    false,
+			mockBucketExists: true,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			// Set up the mock bucket handle for existence check
+			mockBucketHandle := &mockBucketHandle{doesExist: tc.mockBucketExists}
+
+			extendedConfig, err := remote.ParseExtendedGCSConfig(tc.config)
+			require.NoError(t, err)
+
+			err = remote.ValidateGCSConfigWithHandle(context.TODO(), mockBucketHandle, extendedConfig)
+
+			if tc.expectedError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+type mockBucketHandle struct {
+	doesExist bool
+}
+
+func (m *mockBucketHandle) Attrs(ctx context.Context) (*storage.BucketAttrs, error) {
+	if m.doesExist {
+		return &storage.BucketAttrs{}, nil
+	}
+
+	return nil, errors.New("bucket does not exist")
+}
+
+func (m *mockBucketHandle) Objects(ctx context.Context, q *storage.Query) *storage.ObjectIterator {
+	if m.doesExist {
+		return &storage.ObjectIterator{}
+	}
+
+	return &storage.ObjectIterator{}
 }
