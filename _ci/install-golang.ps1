@@ -8,9 +8,12 @@ try {
     # Enable long paths in Git configuration
     Write-Output "Enabling long paths in Git..."
     git config --system core.longpaths true
+    git config --global core.longpaths true
+    git config --local core.longpaths true
 
     # Enable long paths in Windows Registry
     Write-Output "Enabling long paths in Windows Registry..."
+    reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /t REG_DWORD /f /v "AllowDevelopmentWithoutDevLicense" /d "1"
     $regPath = "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem"
     Set-ItemProperty -Path $regPath -Name "LongPathsEnabled" -Value 1 -Type DWord
 
