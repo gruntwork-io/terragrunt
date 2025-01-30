@@ -537,11 +537,9 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Create mock TerragruntOptions
 			terragruntOptions, err := options.NewTerragruntOptionsForTest("./test")
 			require.NoError(t, err)
 
-			// Create a go-getter client
 			client := &getter.Client{}
 
 			// Call updateGetters
