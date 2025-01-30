@@ -98,7 +98,7 @@ You may, at times, need to explicitly separate the flags used for Terragrunt fro
 Example:
 
 ```bash
-terragrunt run plan -- -no-color
+terragrunt run -- plan -no-color
 ```
 
 #### exec
