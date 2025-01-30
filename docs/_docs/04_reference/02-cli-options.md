@@ -78,6 +78,8 @@ If you want to run a command that doesn't have a shortcut in Terragrunt, you can
 
 #### run
 
+**[NOTE] The `run` command is experimental, usage requires the [`--experiment cli-redesign` flag](/docs/reference/experiments/#cli-redesign).**
+
 Run the provided OpenTofu/Terraform command against the unit in the current working directory.
 
 Example:
@@ -102,6 +104,8 @@ terragrunt run -- plan -no-color
 ```
 
 #### exec
+
+**[NOTE] The `exec` command is experimental, usage requires the [`--experiment cli-redesign` flag](/docs/reference/experiments/#cli-redesign).**
 
 Execute an arbitrary command orchestrated by Terragrunt.
 
@@ -289,9 +293,11 @@ Notes:
 The `terragrunt stack` commands provide an interface for managing collections of Terragrunt units defined in `terragrunt.stack.hcl` files.
 These commands simplify the process of handling multiple infrastructure units by grouping them into a "stack", reducing code duplication and streamlining operations across environments.
 
+**[NOTE] `stack` commands are experimental, usage requires the [`--experiment stacks` flag](/docs/reference/experiments/#stacks).**
+
 #### stack generate
 
-The `terragrunt stack generate` command is used to generate a stack of `terragrunt.hcl` files based on the configuration provided in the `terragrunt.stack.hcl` file.
+The `stack generate` command is used to generate a stack of `terragrunt.hcl` files based on the configuration provided in the `terragrunt.stack.hcl` file.
 
 Given the following `terragrunt.stack.hcl` configuration:
 
@@ -330,7 +336,7 @@ Will create the following directory structure:
 
 #### stack run
 
-The `terragrunt stack run *` command enables users to execute IaC commands across all units defined in the `terragrunt.stack.hcl` file.
+The `stack run *` command allows users to execute IaC commands across all units defined in a `terragrunt.stack.hcl` file.
 This feature facilitates efficient orchestration of operations on multiple units, simplifying workflows for managing complex infrastructure stacks.
 
 **Examples:**
@@ -338,7 +344,7 @@ This feature facilitates efficient orchestration of operations on multiple units
 Run a plan on each unit:
 
 ```bash
- terragrunt stack run plan
+terragrunt stack run plan
 ```
 
 Apply changes for each unit:
@@ -356,7 +362,7 @@ terragrunt stack run destroy
 **Note:**
 
 Before executing the specified command, the `terragrunt stack run *` command will automatically generate the stack by creating
-the `.stack` directory using the `terragrunt.stack.hcl` configuration file.
+the `.terragrunt-stack` directory using the `terragrunt.stack.hcl` configuration file.
 This ensures that all units are up-to-date before running the requested operation.
 
 ### info
