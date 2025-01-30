@@ -50,24 +50,31 @@ The commands used for managing Terragrunt configuration itself are:
 
 #### OpenTofu shortcuts
 
-Terragrunt is an orchestration tool for OpenTofu/Terraform, so with the exception of a few special commands defined in these docs,
-Terragrunt forwards all other commands to OpenTofu/Terraform.
+Terragrunt is an orchestration tool for OpenTofu/Terraform, so with a couple exceptions, you can generally use it as a drop-in replacement for OpenTofu/Terraform. Terragrunt has a shortcut for most OpenTofu commands, you can usually just replace `tofu` or `terraform` with `terragrunt` and it will do what you expect.
 
-For example, when you run `terragrunt apply`, Terragrunt executes `tofu apply`/`terraform apply`.
-
-Examples:
+For example:
 
 ```bash
-terragrunt plan
+# This will run `tofu/terraform apply` for you.
 terragrunt apply
-terragrunt output
-terragrunt destroy
-# etc
 ```
 
-Run `tofu/terraform --help` to get the full list of available OpenTofu/Terraform commands respectively.
+The list of shortcuts Terragrunt supports are:
 
-**[WARNING] The [CLI Redesign](https://github.com/gruntwork-io/terragrunt/issues/3445) is currently underway, and that will result in some changes to the shortcuts available in Terragrunt. In the future, you may need to use the `run` command to execute OpenTofu/Terraform commands that don't have a shortcut. For more information read [the migration guide](/docs/migrate/cli-redesign/).**
+- `apply`
+- `destroy`
+- `force-unlock`
+- `import`
+- `init`
+- `output`
+- `plan`
+- `refresh`
+- `show`
+- `state`
+- `test`
+- `validate`
+
+If you want to run a command that doesn't have a shortcut in Terragrunt, you can use the `run` command.
 
 #### run
 
