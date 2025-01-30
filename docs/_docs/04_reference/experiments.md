@@ -68,19 +68,19 @@ The following strict mode controls are available:
 - [stacks](#stacks)
 - [cli-redesign](#cli-redesign)
 
-### symlinks
+### `symlinks`
 
 Support symlink resolution for Terragrunt units.
 
-#### What it does
+#### `symlinks` - What it does
 
 By default, Terragrunt will ignore symlinks when determining which units it should run. By enabling this experiment, Terragrunt will resolve symlinks and add them to the list of units being run.
 
-#### How to provide feedback
+#### `symlinks` - How to provide feedback
 
 Provide your feedback on the [Experiment: Symlinks](https://github.com/gruntwork-io/terragrunt/discussions/3671) discussion.
 
-#### Criteria for stabilization
+#### `symlinks` - Criteria for stabilization
 
 To stabilize this feature, the following need to be resolved, at a minimum:
 
@@ -89,15 +89,15 @@ To stabilize this feature, the following need to be resolved, at a minimum:
 - [ ] Ensure that MacOS integration tests still work. See [#3616](https://github.com/gruntwork-io/terragrunt/issues/3616).
   - [ ] Add integration tests for MacOS in CI.
 
-### stacks
+### `stacks`
 
 Support for Terragrunt stacks.
 
-#### What it does
+#### `stacks` - What it does
 
 Enable `stack` command to manage Terragrunt stacks.
 
-#### How to provide feedback
+#### `stacks` - How to provide feedback
 
 Share your experience with the `stack` command in the [Stacks](https://github.com/gruntwork-io/terragrunt/issues/3313) RFC.
 Feedback is crucial for ensuring the feature meets real-world use cases. Please include:
@@ -105,11 +105,11 @@ Feedback is crucial for ensuring the feature meets real-world use cases. Please 
 - Any bugs or issues encountered (including logs or stack traces if possible).
 - Suggestions for additional improvements or enhancements.
 
-#### Criteria for stabilization
+#### `stacks` - Criteria for stabilization
 
 To transition the `stacks` feature to a stable release, the following must be addressed:
 
-- [x] Add support for `stack run *` command
+- [x] Add support for `stack run *` command.
 - [ ] Add support for `stack output` commands to extend stack-level operations.
 - [ ] Integration testing for recursive stack handling across typical workflows, ensuring smooth transitions during `plan`, `apply`, and `destroy` operations.
 - [ ] Confirm compatibility with parallelism flags (e.g., `--parallel`), especially for stacks with dependencies.
@@ -118,3 +118,39 @@ To transition the `stacks` feature to a stable release, the following must be ad
 ### cli-redesign
 
 Support for the new Terragrunt CLI design.
+
+#### `cli-redesign` - What it does
+
+Enable features from the CLI Redesign RFC.
+
+This includes:
+
+- Addition of the `run` command.
+- Addition of the `exec` command.
+
+#### `cli-redesign` - How to provide feedback
+
+Share your experience with these features in the [CLI Redesign](https://github.com/gruntwork-io/terragrunt/issues/3445) RFC.
+Feedback is crucial for ensuring the feature meets real-world use cases. Please include:
+
+- Any bugs or issues encountered (including logs or stack traces if possible).
+- Suggestions for additional improvements or enhancements.
+
+#### `cli-redesign` - Criteria for stabilization
+
+To transition `cli-redesign` features to a stable release, the following must be addressed:
+
+- [ ] Add support for `run` command.
+  - [x] Add support for basic usage of the `run` command (e.g., `terragrunt run plan`, `terragrunt run -- plan -no-color`).
+  - [ ] Add support for the `--all` flag.
+  - [ ] Add support for the `--graph` flag.
+- [x] Add support for `exec` command.
+- [x] Rename legacy `--terragrunt-` prefixed flags so that they no longer need the prefix.
+- [ ] Add the `hcl` command, replacing commands like `hclfmt`, `hclvalidate` and `validate-inputs`.
+- [x] Add OpenTofu commands as explicit shortcuts in the CLI instead of forwarding all unknown commands to OpenTofu/Terraform.
+- [ ] Add support for the `backend` command.
+- [ ] Add support for the `render` command.
+- [ ] Add support for the `info` command.
+- [ ] Add support for the `dag` command.
+- [ ] Add support for the `find` command.
+- [ ] Add support for the `list` command.
