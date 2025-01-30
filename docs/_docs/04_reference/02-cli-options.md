@@ -12,126 +12,42 @@ nav_title_link: /docs/
 slug: cli-options
 ---
 
-This page documents the CLI commands and options available with Terragrunt:
+## Commands
 
-- [CLI commands](#cli-commands)
-  - [All OpenTofu/Terraform built-in commands](#all-opentofuterraform-built-in-commands)
+The main commands available in Terragrunt are:
+
+- [Main commands](#main-commands)
+  - [OpenTofu shortcuts](#opentofu-shortcuts)
+  - [run](#run)
+  - [exec](#exec)
   - [run-all](#run-all)
-  - [plan-all (DEPRECATED: use run-all)](#plan-all-deprecated-use-run-all)
-  - [apply-all (DEPRECATED: use run-all)](#apply-all-deprecated-use-run-all)
-  - [output-all (DEPRECATED: use run-all)](#output-all-deprecated-use-run-all)
-  - [destroy-all (DEPRECATED: use run-all)](#destroy-all-deprecated-use-run-all)
-  - [validate-all (DEPRECATED: use run-all)](#validate-all-deprecated-use-run-all)
-  - [terragrunt-info](#terragrunt-info)
-  - [validate-inputs](#validate-inputs)
+  - [graph](#graph)
+
+The commands relevant to managing an IaC catalog are:
+
+- [Catalog commands](#catalog-commands)
+  - [catalog](#catalog)
+  - [scaffold](#scaffold)
+
+The commands used for managing Terragrunt configuration itself are:
+
+- [Configuration commands](#configuration-commands)
   - [graph-dependencies](#graph-dependencies)
   - [hclfmt](#hclfmt)
   - [hclvalidate](#hclvalidate)
-  - [aws-provider-patch](#aws-provider-patch)
-  - [render-json](#render-json)
   - [output-module-groups](#output-module-groups)
-  - [scaffold](#scaffold)
-  - [catalog](#catalog)
-  - [graph](#graph)
-  - [stack](#stack)
-- [CLI options](#cli-options)
-  - [terragrunt-config](#terragrunt-config)
-  - [terragrunt-tfpath](#terragrunt-tfpath)
-  - [terragrunt-no-auto-init](#terragrunt-no-auto-init)
-  - [terragrunt-no-auto-approve](#terragrunt-no-auto-approve)
-  - [terragrunt-no-auto-retry](#terragrunt-no-auto-retry)
-  - [terragrunt-non-interactive](#terragrunt-non-interactive)
-  - [terragrunt-working-dir](#terragrunt-working-dir)
-  - [terragrunt-download-dir](#terragrunt-download-dir)
-  - [terragrunt-source](#terragrunt-source)
-  - [terragrunt-source-map](#terragrunt-source-map)
-  - [terragrunt-source-update](#terragrunt-source-update)
-  - [terragrunt-ignore-dependency-errors](#terragrunt-ignore-dependency-errors)
-  - [terragrunt-auth-provider-cmd](#terragrunt-auth-provider-cmd)
-  - [terragrunt-iam-role](#terragrunt-iam-role)
-  - [terragrunt-iam-assume-role-duration](#terragrunt-iam-assume-role-duration)
-  - [terragrunt-iam-assume-role-session-name](#terragrunt-iam-assume-role-session-name)
-  - [terragrunt-iam-web-identity-token](#terragrunt-iam-web-identity-token)
-  - [terragrunt-excludes-file](#terragrunt-excludes-file)
-  - [terragrunt-exclude-dir](#terragrunt-exclude-dir)
-  - [terragrunt-include-dir](#terragrunt-include-dir)
-  - [terragrunt-strict-include](#terragrunt-strict-include)
-  - [terragrunt-strict-validate](#terragrunt-strict-validate)
-  - [terragrunt-ignore-dependency-order](#terragrunt-ignore-dependency-order)
-  - [terragrunt-ignore-external-dependencies](#terragrunt-ignore-external-dependencies)
-  - [terragrunt-include-external-dependencies](#terragrunt-include-external-dependencies)
-  - [terragrunt-parallelism](#terragrunt-parallelism)
-  - [terragrunt-debug](#terragrunt-debug)
-  - [terragrunt-log-level](#terragrunt-log-level)
-  - [terragrunt-log-format](#terragrunt-log-format)
-  - [terragrunt-log-custom-format](#terragrunt-log-custom-format)
-  - [terragrunt-log-disable](#terragrunt-log-disable)
-  - [terragrunt-log-show-abs-paths](#terragrunt-log-show-abs-paths)
-  - [terragrunt-no-color](#terragrunt-no-color)
-  - [terragrunt-check](#terragrunt-check)
-  - [terragrunt-diff](#terragrunt-diff)
-  - [terragrunt-hclfmt-file](#terragrunt-hclfmt-file)
-  - [terragrunt-hclfmt-stdin](#terragrunt-hclfmt-stdin)
-  - [terragrunt-hclvalidate-json](#terragrunt-hclvalidate-json)
-  - [terragrunt-hclvalidate-show-config-path](#terragrunt-hclvalidate-show-config-path)
-  - [terragrunt-override-attr](#terragrunt-override-attr)
-  - [terragrunt-json-out](#terragrunt-json-out)
-  - [terragrunt-json-disable-dependent-modules](#terragrunt-json-disable-dependent-modules)
-  - [terragrunt-modules-that-include](#terragrunt-modules-that-include)
-  - [terragrunt-fetch-dependency-output-from-state](#terragrunt-fetch-dependency-output-from-state)
-  - [terragrunt-use-partial-parse-config-cache](#terragrunt-use-partial-parse-config-cache)
-  - [terragrunt-include-module-prefix](#terragrunt-include-module-prefix) (DEPRECATED: use [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout))
-  - [terragrunt-fail-on-state-bucket-creation](#terragrunt-fail-on-state-bucket-creation)
-  - [terragrunt-disable-bucket-update](#terragrunt-disable-bucket-update)
-  - [terragrunt-disable-command-validation](#terragrunt-disable-command-validation)
-  - [terragrunt-json-log](#terragrunt-json-log) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-  - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-  - [terragrunt-provider-cache](#terragrunt-provider-cache)
-  - [terragrunt-provider-cache-dir](#terragrunt-provider-cache-dir)
-  - [terragrunt-provider-cache-hostname](#terragrunt-provider-cache-hostname)
-  - [terragrunt-provider-cache-port](#terragrunt-provider-cache-port)
-  - [terragrunt-provider-cache-token](#terragrunt-provider-cache-token)
-  - [terragrunt-provider-cache-registry-names](#terragrunt-provider-cache-registry-names)
-  - [terragrunt-out-dir](#terragrunt-out-dir)
-  - [terragrunt-json-out-dir](#terragrunt-json-out-dir)
-  - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting) (DEPRECATED: use [terragrunt-log-format](#terragrunt-log-format))
-  - [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout)
-  - [terragrunt-no-destroy-dependencies-check](#terragrunt-no-destroy-dependencies-check)
-  - [feature](#feature)
-  - [experiment](#experiment)
-  - [experiment-mode](#experiment-mode)
-  - [strict-control](#strict-control)
-  - [strict-mode](#strict-mode)
+  - [render-json](#render-json)
+  - [terragrunt-info](#terragrunt-info)
+  - [validate-inputs](#validate-inputs)
 
-## CLI commands
+### Main commands
 
-Terragrunt supports the following CLI commands:
+#### OpenTofu shortcuts
 
-- [All OpenTofu/Terraform built-in commands](#all-opentofuterraform-built-in-commands)
-- [run-all](#run-all)
-- [plan-all (DEPRECATED: use run-all)](#plan-all-deprecated-use-run-all)
-- [apply-all (DEPRECATED: use run-all)](#apply-all-deprecated-use-run-all)
-- [output-all (DEPRECATED: use run-all)](#output-all-deprecated-use-run-all)
-- [destroy-all (DEPRECATED: use run-all)](#destroy-all-deprecated-use-run-all)
-- [validate-all (DEPRECATED: use run-all)](#validate-all-deprecated-use-run-all)
-- [terragrunt-info](#terragrunt-info)
-- [validate-inputs](#validate-inputs)
-- [graph-dependencies](#graph-dependencies)
-- [hclfmt](#hclfmt)
-- [hclvalidate](#hclvalidate)
-- [aws-provider-patch](#aws-provider-patch)
-- [render-json](#render-json)
-- [output-module-groups](#output-module-groups)
-- [scaffold](#scaffold)
-- [catalog](#catalog)
-- [graph](#graph)
-- [stack](#stack)
+Terragrunt is an orchestration tool for OpenTofu/Terraform, so with the exception of a few special commands defined in these docs,
+Terragrunt forwards all other commands to OpenTofu/Terraform.
 
-### All OpenTofu/Terraform built-in commands
-
-Terragrunt is an orchestration tool for OpenTofu/Terraform, so except for a few of the special commands defined in these docs,
-Terragrunt forwards all other commands to OpenTofu/Terraform. For example, when you run `terragrunt apply`, Terragrunt executes
-`tofu apply`/`terraform apply`.
+For example, when you run `terragrunt apply`, Terragrunt executes `tofu apply`/`terraform apply`.
 
 Examples:
 
@@ -143,9 +59,65 @@ terragrunt destroy
 # etc
 ```
 
-Run `terraform --help` to get the full list.
+Run `tofu/terraform --help` to get the full list of available OpenTofu/Terraform commands respectively.
 
-### run-all
+**[WARNING] The [CLI Redesign](https://github.com/gruntwork-io/terragrunt/issues/3445) is currently underway, and that will result in some changes to the shortcuts available in Terragrunt. In the future, you may need to use the `run` command to execute OpenTofu/Terraform commands that don't have a shortcut. For more information read [the migration guide](/docs/migrate/cli-redesign/).**
+
+#### run
+
+Run the provided OpenTofu/Terraform command against the unit in the current working directory.
+
+Example:
+
+```bash
+terragrunt run plan
+```
+
+Note that the `run` command is a more explicit way to run OpenTofu/Terraform commands, and it is recommended to use it when you need to run OpenTofu/Terraform commands that don't have a shortcut in Terragrunt.
+
+The `run` command also supports the following flags that can be used to drive runs in multiple units:
+
+- [`--all`](#all): Run the provided OpenTofu/Terraform command against all units in the current stack. This is equivalent to the deprecated `run-all` command.
+- [`--graph`](#graph): Run the provided OpenTofu/Terraform command against the graph of dependencies for the unit in the current working directory. This is equivalent to the deprecated `graph` command.
+
+You may, at times, need to explicitly separate the flags used for Terragrunt from those used for OpenTofu/Terraform. In those circumstances, you can use the argument `--` to separate the Terragrunt flags from the OpenTofu/Terraform flags.
+
+Example:
+
+```bash
+terragrunt run plan -- -no-color
+```
+
+#### exec
+
+Execute an arbitrary command orchestrated by Terragrunt.
+
+In contrast to the `run` command, which will always invoke OpenTofu/Terraform, the `exec` command allows for execution of any arbitrary command via Terragrunt.
+
+This can be useful, as it allows you full control over the process that is being orchestrated by Terragrunt, while taking advantage of Terragrunt's features such as dependency resolution, inputs, and more.
+
+Example:
+
+```bash
+terragrunt exec -- echo "Hello, Terragrunt!"
+```
+
+When using `exec`, you will have almost the exact same context that you have when using `run`, including inputs.
+
+Example:
+
+```hcl
+inputs = {
+  message = "Hello, Terragrunt!"
+}
+```
+
+```bash
+$ terragrunt exec -- env | grep 'TF_VAR_message'
+TF_VAR_message=Hello, Terragrunt!
+```
+
+#### run-all
 
 Runs the provided OpenTofu/Terraform command against a [stack](/docs/getting-started/terminology/#stack).
 The command will recursively find terragrunt [units](/docs/getting-started/terminology/#unit) in the current directory
@@ -750,7 +722,7 @@ Notes:
 The `terragrunt stack` commands provide an interface for managing collections of Terragrunt units defined in `terragrunt.stack.hcl` files.
 These commands simplify the process of handling multiple infrastructure units by grouping them into a "stack", reducing code duplication and streamlining operations across environments.
 
-#### generate
+#### stack generate
 
 The `terragrunt stack generate` command is used to generate a stack of `terragrunt.hcl` files based on the configuration provided in the `terragrunt.stack.hcl` file.
 
@@ -789,7 +761,7 @@ Will create the following directory structure:
     └── terragrunt.hcl
 ```
 
-#### run
+#### stack run
 
 The `terragrunt stack run *` command enables users to execute IaC commands across all units defined in the `terragrunt.stack.hcl` file.
 This feature facilitates efficient orchestration of operations on multiple units, simplifying workflows for managing complex infrastructure stacks.
@@ -1589,15 +1561,6 @@ These configurations are generally safe to cache, but due to the nature of HCL b
 
 Once this flag has been tested thoroughly, we will consider making it the default behavior.
 
-### terragrunt-include-module-prefix
-
-DEPRECATED: Since this behavior has become by default, this flag has been removed. In order to get raw Terraform/OpenTofu output, use [terragrunt-forward-tf-stdout](#terragrunt-forward-tf-stdout).
-
-**CLI Arg**: `--terragrunt-include-module-prefix`<br/>
-**Environment Variable**: `TERRAGRUNT_INCLUDE_MODULE_PREFIX` (set to `true`)<br/>
-
-When this flag is set output from OpenTofu/Terraform sub-commands is prefixed with module path.
-
 ### terragrunt-fail-on-state-bucket-creation
 
 **CLI Arg**: `--terragrunt-fail-on-state-bucket-creation`<br/>
@@ -1618,25 +1581,6 @@ When this flag is set, Terragrunt does not update the remote state bucket, which
 **Environment Variable**: `TERRAGRUNT_DISABLE_COMMAND_VALIDATION` (set to `true`)<br/>
 
 When this flag is set, Terragrunt will not validate the terraform command, which can be useful when need to use non-existent commands in hooks.
-
-### terragrunt-json-log
-
-DEPRECATED: Use [terragrunt-log-format](#terragrunt-log-format).
-
-**CLI Arg**: `--terragrunt-json-log`<br/>
-**Environment Variable**: `TERRAGRUNT_JSON_LOG` (set to `true`)<br/>
-
-When this flag is set, Terragrunt will output its logs in JSON format.
-
-### terragrunt-tf-logs-to-json
-
-DEPRECATED: Use [terragrunt-log-format](#terragrunt-log-format). OpenTofu/Terraform `stdout` and `stderr` is wrapped in JSON by default with `--terragurnt-log-format json` flag if `--terragrunt-forward-tf-stdout` flag is not specified.
-In other words, the previous behavior with the `--terragrunt-json-log --terragrunt-tf-logs-to-json` flags is now equivalent to `--terragrunt-log-format json` and the previous behavior with the `--terragrunt-json-log` is now equivalent to `--terragrunt-log-format json --terragrunt-forward-tf-stdout`.
-
-**CLI Arg**: `--terragrunt-tf-logs-to-json`<br/>
-**Environment Variable**: `TERRAGRUNT_TF_JSON_LOG` (set to `true`)<br/>
-
-When this flag is set, Terragrunt will wrap OpenTofu/Terraform `stdout` and `stderr` in JSON log messages. Works only with `--terragrunt-json-log` flag.
 
 ### terragrunt-provider-cache
 
@@ -1717,35 +1661,6 @@ Specify the plan output directory for the `*-all` commands. Useful to save plans
 - [run-all](#run-all)
 
 Specify the output directory for the `*-all` commands to store plans in JSON format. Useful to read plans programmatically.
-
-### terragrunt-disable-log-formatting
-
-DEPRECATED: Use [terragrunt-log-format](#terragrunt-log-format).
-
-**CLI Arg**: `--terragrunt-disable-log-formatting`<br/>
-**Environment Variable**: `TERRAGRUNT_DISABLE_LOG_FORMATTING`<br/>
-
-If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.
-
-The example of what the log looks like without the `--terragrunt-disable-log-formatting` flag specified:
-
-```bash
-14:19:25.081 INFO   [app] Running command: tofu plan -input=false
-14:19:25.174 STDOUT [app] tofu: OpenTofu used the selected providers to generate the following execution
-14:19:25.174 STDOUT [app] tofu: plan. Resource actions are indicated with the following symbols:
-14:19:25.174 STDOUT [app] tofu:   + create
-14:19:25.174 STDOUT [app] tofu: OpenTofu will perform the following actions:
-```
-
-The example of what the log looks like with the `--terragrunt-forward-tf-stdout` flag specified:
-
-```bash
-time=2024-08-23T11:47:18+03:00 level=info prefix=app msg=Running command: tofu plan -input=false
-time=2024-08-23T11:47:18+03:00 level=stdout prefix=app binary=tofu msg=OpenTofu used the selected providers to generate the following execution
-time=2024-08-23T11:47:18+03:00 level=stdout prefix=app binary=tofu msg=plan. Resource actions are indicated with the following symbols:
-time=2024-08-23T11:47:18+03:00 level=stdout prefix=app binary=tofu msg=  + create
-time=2024-08-23T11:47:18+03:00 level=stdout prefix=app binary=tofu msg=OpenTofu will perform the following actions:
-```
 
 ### terragrunt-forward-tf-stdout
 
@@ -1869,3 +1784,203 @@ For more information, see the [Strict Mode](/docs/reference/strict-mode) documen
 Enable all strict controls that opt-in future breaking changes in Terragrunt.
 
 For more information, see the [Strict Mode](/docs/reference/strict-mode) documentation.
+
+## Deprecated
+
+### Deprecated Commands
+
+The following are deprecated commands that are no longer recommended for use. They are still available for backwards compatibility, but will be removed in a future release.
+
+- [Deprecated Commands](#deprecated-commands)
+  - [plan-all (DEPRECATED: use run-all)](#plan-all)
+  - [apply-all (DEPRECATED: use run-all)](#apply-all)
+  - [output-all (DEPRECATED: use run-all)](#output-all)
+  - [destroy-all (DEPRECATED: use run-all)](#destroy-all)
+  - [validate-all (DEPRECATED: use run-all)](#validate-all)
+
+#### plan-all
+
+**DEPRECATED: Use `run-all plan` instead.**
+
+Display the plans of a `stack` by running `terragrunt plan` in each subfolder. Make sure to read [Execute OpenTofu/Terraform
+commands on multiple modules at once](/docs/features/stacks) for
+context.
+
+Example:
+
+```bash
+terragrunt run-all plan
+```
+
+This will recursively search the current working directory for any folders that contain Terragrunt modules and run
+`plan` in each one, concurrently, while respecting ordering defined via
+[`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
+
+**[WARNING] `run-all plan` is currently broken for certain use cases**. If you have a stack of Terragrunt modules with
+dependencies between them—either via `dependency` blocks or `terraform_remote_state` data sources—and you've never
+deployed them, then `run-all plan` will fail as it will not be possible to resolve the `dependency` blocks or
+`terraform_remote_state` data sources! Please [see here for more
+information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-497888756).
+
+#### apply-all
+
+**DEPRECATED: Use `run-all apply` instead.**
+
+Apply a `stack` by running `terragrunt apply` in each subfolder. Make sure to read [Execute OpenTofu/Terraform
+commands on multiple modules at once](/docs/features/stacks) for
+context.
+
+Example:
+
+```bash
+terragrunt apply-all
+```
+
+This will recursively search the current working directory for any folders that contain Terragrunt modules and run
+`apply` in each one, concurrently, while respecting ordering defined via
+[`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
+
+**[NOTE]** Using `apply-all` silently adds the `-auto-approve` flag to the command line arguments passed to OpenTofu/Terraform
+due to issues with shared `stdin` making individual approvals impossible. Please [see here for more
+information](https://github.com/gruntwork-io/terragrunt/issues/386#issuecomment-358306268)
+
+#### output-all
+
+**DEPRECATED: Use `run-all output` instead.**
+
+Display the outputs of a `stack` by running `terragrunt output` in each subfolder. Make sure to read [Execute OpenTofu/Terraform
+commands on multiple modules at once](/docs/features/stacks) for
+context.
+
+Example:
+
+```bash
+terragrunt output-all
+```
+
+This will recursively search the current working directory for any folders that contain Terragrunt modules and run
+`output` in each one, concurrently, while respecting ordering defined via
+[`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
+
+**[WARNING] `output-all` is currently broken for certain use cases**. If you have a stack of Terragrunt modules with
+dependencies between them—either via `dependency` blocks or `terraform_remote_state` data sources—and you've never
+deployed them, then `output-all` will fail as it will not be possible to resolve the `dependency` blocks or
+`terraform_remote_state` data sources! Please [see here for more
+information](https://github.com/gruntwork-io/terragrunt/issues/720#issuecomment-497888756).
+
+#### destroy-all
+
+**DEPRECATED: Use `run-all destroy` instead.**
+
+Destroy a `stack` by running `terragrunt destroy` in each subfolder. Make sure to read [Execute OpenTofu/Terraform
+commands on multiple modules at once](/docs/features/stacks) for
+context.
+
+Example:
+
+```bash
+terragrunt destroy-all
+```
+
+This will recursively search the current working directory for any folders that contain Terragrunt modules and run
+`destroy` in each one, concurrently, while respecting ordering defined via
+[`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
+
+**[NOTE]** Using `destroy-all` silently adds the `-auto-approve` flag to the command line arguments passed to OpenTofu/Terraform
+due to issues with shared `stdin` making individual approvals impossible. Please [see here for more
+information](https://github.com/gruntwork-io/terragrunt/issues/386#issuecomment-358306268)
+
+#### validate-all
+
+**DEPRECATED: Use `run-all validate` instead.**
+
+Validate `stack` by running `terragrunt validate` in each subfolder. Make sure to read [Execute OpenTofu/Terraform
+commands on multiple modules at once](/docs/features/stacks) for
+context.
+
+Example:
+
+```bash
+terragrunt validate-all
+```
+
+This will recursively search the current working directory for any folders that contain Terragrunt modules and run
+`validate` in each one, concurrently, while respecting ordering defined via
+[`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
+[`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks.
+
+### Deprecated Flags
+
+The following are deprecated flags that are no longer recommended for use. They are still available for backwards compatibility, but will be removed in a future release.
+
+- [Deprecated Flags](#deprecated-flags)
+  - [terragrunt-include-module-prefix](#terragrunt-include-module-prefix)
+  - [terragrunt-json-log](#terragrunt-json-log)
+  - [terragrunt-tf-logs-to-json](#terragrunt-tf-logs-to-json) (DEPRECATED: use [log-format](#log-format))
+  - [terragrunt-disable-log-formatting](#terragrunt-disable-log-formatting) (DEPRECATED: use [log-format](#log-format))
+
+#### terragrunt-include-module-prefix
+
+**DEPRECATED: Since this behavior has become the default, this flag has been removed. In order to get raw Terraform/OpenTofu output, use [tf-forward-stdout](#tf-forward-stdout).**
+
+**CLI Arg**: `--terragrunt-include-module-prefix`<br/>
+**Environment Variable**: `TERRAGRUNT_INCLUDE_MODULE_PREFIX` (set to `true`)<br/>
+
+When this flag is set output from OpenTofu/Terraform sub-commands is prefixed with module path.
+
+#### terragrunt-json-log
+
+**DEPRECATED: Use [log-format](#log-format).**
+
+**CLI Arg**: `--terragrunt-json-log`<br/>
+**Environment Variable**: `TERRAGRUNT_JSON_LOG` (set to `true`)<br/>
+
+When this flag is set, Terragrunt will output its logs in JSON format.
+
+#### terragrunt-tf-logs-to-json
+
+**DEPRECATED: Use [log-format](#log-format).**
+
+**OpenTofu/Terraform `stdout` and `stderr` are wrapped in JSON by default when using the `--terragrunt-log-format json` flag if the `--tf-forward-stdout` flag is not specified.**
+
+**In other words, the behavior when using the deprecated `--terragrunt-json-log --terragrunt-tf-logs-to-json` flags is now equivalent to `--log-format json` and the previous behavior with the `--terragrunt-json-log` is now equivalent to `--log-format json --tf-forward-stdout`.**
+
+**CLI Arg**: `--terragrunt-tf-logs-to-json`<br/>
+**Environment Variable**: `TERRAGRUNT_TF_JSON_LOG` (set to `true`)<br/>
+
+When this flag is set, Terragrunt will wrap OpenTofu/Terraform `stdout` and `stderr` in JSON log messages. Works only with `--terragrunt-json-log` flag.
+
+#### terragrunt-disable-log-formatting
+
+**DEPRECATED: Use [log-format](#log-format).**
+
+**CLI Arg**: `--terragrunt-disable-log-formatting`<br/>
+**Environment Variable**: `TERRAGRUNT_DISABLE_LOG_FORMATTING`<br/>
+**CLI Arg Alias**: `` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
+**Environment Variable Alias**: `` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
+
+If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.
+
+The example of what the log looks like without the `--terragrunt-disable-log-formatting` flag specified:
+
+```bash
+14:19:25.081 INFO   [app] Running command: tofu plan -input=false
+14:19:25.174 STDOUT [app] tofu: OpenTofu used the selected providers to generate the following execution
+14:19:25.174 STDOUT [app] tofu: plan. Resource actions are indicated with the following symbols:
+14:19:25.174 STDOUT [app] tofu:   + create
+14:19:25.174 STDOUT [app] tofu: OpenTofu will perform the following actions:
+```
+
+The example of what the log looks like with the `--tf-forward-stdout` flag specified:
+
+```bash
+time=2024-08-23T11:47:18+03:00 level=info prefix=app msg=Running command: tofu plan -input=false
+time=2024-08-23T11:47:18+03:00 level=stdout prefix=app binary=tofu msg=OpenTofu used the selected providers to generate the following execution
+time=2024-08-23T11:47:18+03:00 level=stdout prefix=app binary=tofu msg=plan. Resource actions are indicated with the following symbols:
+time=2024-08-23T11:47:18+03:00 level=stdout prefix=app binary=tofu msg=  + create
+time=2024-08-23T11:47:18+03:00 level=stdout prefix=app binary=tofu msg=OpenTofu will perform the following actions:
+```
