@@ -12,15 +12,67 @@ export default defineConfig({
 			},
 			sidebar: [
 				{
-					label: 'Guides',
+					label: 'Getting Started',
 					items: [
-						// Each item here is one entry in the navigation menu.
-						{ label: 'Example Guide', slug: 'guides/example' },
+						{ label: 'Quick Start', slug: 'getting-started/quick-start' },
+						{ label: 'Installation', slug: 'getting-started/install' },
+					],
+				},
+				{
+					label: 'Features',
+					items: [
+						{
+							label: 'Units', slug: 'features/units',
+						},
+						{
+							label: 'Catalog', slug: 'features/catalog',
+						},
+					],
+				},
+				{
+					label: 'Community',
+					items: [
+						{
+							label: 'Contributing', slug: 'community/contributing',
+						},
+						{
+							label: 'Support', slug: 'community/support',
+						},
 					],
 				},
 				{
 					label: 'Reference',
-					autogenerate: { directory: 'reference' },
+					items: [
+						{
+							label: 'CLI', items: [
+								{
+									label: 'Commands', autogenerate: { directory: 'reference/cli/commands' }
+								},
+							],
+						},
+					],
+				},
+				{
+					label: 'Troubleshooting',
+					items: [
+						{
+							label: 'Debugging', slug: 'troubleshooting/debugging',
+						},
+						{
+							label: 'OpenTelemetry', slug: 'troubleshooting/open-telemetry',
+						},
+					],
+				},
+				{
+					label: 'Migrate',
+					items: [
+						{
+							label: 'Migrating from root terragrunt.hcl', slug: 'migration-guides/migrating-from-root-terragrunt-hcl',
+						},
+						{
+							label: 'Upgrading to Terragrunt 0.19.x', slug: 'migration-guides/upgrading-to-terragrunt-0-19-x',
+						},
+					],
 				},
 			],
 		}),
