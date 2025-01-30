@@ -383,6 +383,7 @@ Might produce output such as:
   "WorkingDir": "/example/path"
 }
 ```
+
 ### Catalog commands
 
 #### catalog
@@ -980,7 +981,7 @@ When passed in, delete the contents of the temporary folder before downloading O
 Assume the specified IAM role ARN before running OpenTofu/Terraform or AWS commands. This is a convenient way to use Terragrunt
 and OpenTofu/Terraform with multiple AWS accounts.
 
-When using this option, AWS authentication takes place right before an OpenTofu/Terraform run. This takes place after `terragrunt.hcl` files are fully parsed, so HCL functions like [`get_aws_account_id`](/docs/reference/built-in-functions/#get_aws_account_id) and [`run_cmd`](/docs/reference/built-in-functions/#run_cmd) will not run after assuming the role. If you need roles to be assumed prior to parsing Terragrunt configurations, use [`auth-provider-cmd`](#terragrunt-auth-provider-cmd) instead.
+When using this option, AWS authentication takes place right before an OpenTofu/Terraform run. This takes place after `terragrunt.hcl` files are fully parsed, so HCL functions like [`get_aws_account_id`](/docs/reference/built-in-functions/#get_aws_account_id) and [`run_cmd`](/docs/reference/built-in-functions/#run_cmd) will not run after assuming the role. If you need roles to be assumed prior to parsing Terragrunt configurations, use [`auth-provider-cmd`](#auth-provider-cmd) instead.
 
 ### iam-assume-role-duration
 
@@ -1116,6 +1117,15 @@ included directories with `queue-include-dir`.
 When passed in, include any external dependencies when running `*-all` without asking. Note that an external
 dependency is a dependency that is outside the current terragrunt working directory, and is not respective to the
 included directories with `queue-include-dir`.
+
+### strict-validate
+
+**CLI Arg**: `--strict-validate`<br/>
+**CLI Arg Alias**: `--terragrunt-strict-validate` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
+**Environment Variable**: `TG_STRICT_VALIDATE`<br/>
+**Environment Variable Alias**: `TERRAGRUNT_STRICT_VALIDATE` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
+
+When passed in, and running `terragrunt validate-inputs`, enables strict mode for the `validate-inputs` command. When strict mode is enabled, an error will be returned if any variables required by the underlying OpenTofu/Terraform configuration are not passed in, OR if any unused variables are passed in. By default, `terragrunt validate-inputs` runs in relaxed mode. In relaxed mode, an error is only returned when a variable required by the underlying OpenTofu/Terraform configuration is not passed in.
 
 ### parallelism
 
@@ -1317,13 +1327,13 @@ When passed in, output a list of files with invalid configuration.
 When `--disable-dependent-modules` is set, the process of identifying dependent modules will be disabled during JSON rendering.
 This lead to a faster rendering process, but the output will not include any dependent units.
 
-### json-out
+### out
 
-**CLI Arg**: `--json-out`<br/>
+**CLI Arg**: `--out`<br/>
 **CLI Arg Alias**: `--terragrunt-json-out` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Environment Variable**: `TG_RENDER_JSON_JSON_OUT` (set to `true`)<br/>
+**Environment Variable**: `TG_RENDER_JSON_OUT` (set to `true`)<br/>
 **Environment Variable Alias**: `TERRAGRUNT_JSON_OUT` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Requires an argument**: `--json-out /path/to/terragrunt_rendered.json`<br/>
+**Requires an argument**: `--out /path/to/terragrunt_rendered.json`<br/>
 **Commands**:
 
 - [render-json](#render-json)
@@ -1950,49 +1960,49 @@ The following are deprecated flags that are no longer recommended for use. They 
   - [tf-logs-to-json](#terragrunt-tf-logs-to-json) (DEPRECATED: use [log-format](#log-format))
   - [disable-log-formatting](#terragrunt-disable-log-formatting) (DEPRECATED: use [log-format](#log-format))
 
-#### include-module-prefix
+#### terragrunt-include-module-prefix
 
 **DEPRECATED: Since this behavior has become the default, this flag has been removed. In order to get raw Terraform/OpenTofu output, use [tf-forward-stdout](#tf-forward-stdout).**
 
-**CLI Arg**: `--include-module-prefix`<br/>
+**CLI Arg**: `--terragrunt-include-module-prefix`<br/>
 **Environment Variable**: `TERRAGRUNT_INCLUDE_MODULE_PREFIX` (set to `true`)<br/>
 
 When this flag is set output from OpenTofu/Terraform sub-commands is prefixed with module path.
 
-#### json-log
+#### terragrunt-json-log
 
 **DEPRECATED: Use [log-format](#log-format).**
 
-**CLI Arg**: `--json-log`<br/>
+**CLI Arg**: `--terragrunt-json-log`<br/>
 **Environment Variable**: `TERRAGRUNT_JSON_LOG` (set to `true`)<br/>
 
 When this flag is set, Terragrunt will output its logs in JSON format.
 
-#### tf-logs-to-json
+#### terragrunt-tf-logs-to-json
 
 **DEPRECATED: Use [log-format](#log-format).**
 
-**OpenTofu/Terraform `stdout` and `stderr` are wrapped in JSON by default when using the `--log-format json` flag if the `--tf-forward-stdout` flag is not specified.**
+**OpenTofu/Terraform `stdout` and `stderr` are wrapped in JSON by default when using the `--log-format json` flag if the `--terragrunt-tf-forward-stdout` flag is not specified.**
 
-**In other words, the behavior when using the deprecated `--json-log --terragrunt-tf-logs-to-json` flags is now equivalent to `--log-format json` and the previous behavior with the `--terragrunt-json-log` is now equivalent to `--log-format json --tf-forward-stdout`.**
+**In other words, the behavior when using the deprecated `--json-log --terragrunt-tf-logs-to-json` flags is now equivalent to `--log-format json` and the previous behavior with the `--terragrunt-json-log` is now equivalent to `--log-format json --terragrunt-tf-forward-stdout`.**
 
 **CLI Arg**: `--tf-logs-to-json`<br/>
 **Environment Variable**: `TERRAGRUNT_TF_JSON_LOG` (set to `true`)<br/>
 
 When this flag is set, Terragrunt will wrap OpenTofu/Terraform `stdout` and `stderr` in JSON log messages. Works only with `--json-log` flag.
 
-#### disable-log-formatting
+#### terragrunt-disable-log-formatting
 
 **DEPRECATED: Use [log-format](#log-format).**
 
-**CLI Arg**: `--disable-log-formatting`<br/>
+**CLI Arg**: `--terragrunt-disable-log-formatting`<br/>
 **Environment Variable**: `TERRAGRUNT_DISABLE_LOG_FORMATTING`<br/>
 **CLI Arg Alias**: `` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Environment Variable Alias**: `` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 
 If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.
 
-The example of what the log looks like without the `--disable-log-formatting` flag specified:
+The example of what the log looks like without the `--terragrunt-disable-log-formatting` flag specified:
 
 ```bash
 14:19:25.081 INFO   [app] Running command: tofu plan -input=false
