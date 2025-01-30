@@ -534,7 +534,6 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // create a local copy of the test case to avoid race conditions
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
