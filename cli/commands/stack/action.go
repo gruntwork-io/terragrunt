@@ -2,6 +2,7 @@ package stack
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -65,7 +66,9 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions) error {
 	if err != nil {
 		return errors.New(err)
 	}
-	// iterate over outputs and print them in format <unit>.<key> = <value>
+	// write outputs
+
+	writer := opts.Writer
 
 	for unit, values := range outputs {
 		for key, value := range values {
@@ -74,7 +77,11 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions) error {
 				opts.Logger.Warnf("Error fetching output from unit %s with key: %s", unit, key)
 				continue
 			}
-			opts.Logger.Infof("%s.%s = %s", unit, key, valueStr)
+			line := fmt.Sprintf("%s.%s = %s\n", unit, key, valueStr)
+			_, err = writer.Write([]byte(line))
+			if err != nil {
+				return errors.New(err)
+			}
 		}
 	}
 
