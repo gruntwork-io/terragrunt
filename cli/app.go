@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/os/signal"
 	"github.com/gruntwork-io/terragrunt/telemetry"
 	"github.com/gruntwork-io/terragrunt/tf"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -359,7 +360,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	if opts.TerragruntConfigPath == "" {
 		opts.TerragruntConfigPath = config.GetDefaultConfigPath(opts.WorkingDir)
 	} else if !filepath.IsAbs(opts.TerragruntConfigPath) &&
-		(cliCtx.Command.Name == runCmd.CommandName || cliCtx.Command.Name == defaultCmd.CommandName) {
+		(cliCtx.Command.Name == runCmd.CommandName || slices.Contains(tf.CommandNames, cliCtx.Command.Name)) {
 		opts.TerragruntConfigPath = util.JoinPath(opts.WorkingDir, opts.TerragruntConfigPath)
 	}
 
