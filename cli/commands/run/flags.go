@@ -232,7 +232,10 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.IAMRoleOptions.WebIdentityToken,
 			Usage:       "For AssumeRoleWithWebIdentity, the WebIdentity token.",
 		},
-			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(IAMWebIdentityTokenFlagName), cliRedesignControl)),
+			flags.WithDeprecatedNamesEnvVars(
+				terragruntPrefix.FlagNames(IAMWebIdentityTokenFlagName),
+				terragruntPrefix.EnvVars(IAMAssumeRoleWebIdentityTokenFlagName),
+				cliRedesignControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        QueueIgnoreErrorsFlagName,

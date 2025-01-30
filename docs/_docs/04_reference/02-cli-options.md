@@ -1053,7 +1053,7 @@ excluded during execution of the commands. If a relative path is specified, it s
 module, not its dependencies.
 
 Please note that the glob curly braces expansion is not taken in account using environment variable unlike of its equivalent as a parameter on the command line.
-You should consider using `TERRAGRUNT_EXCLUDE_DIR="foo/module,bar/module"` instead of `TERRAGRUNT_EXCLUDE_DIR="{foo,bar}/module"`.
+You should consider using `TG_QUEUE_EXCLUDE_DIR="foo/module,bar/module"` instead of `TG_QUEUE_EXCLUDE_DIR="{foo,bar}/module"`.
 
 ### queue-include-dir
 
@@ -1070,7 +1070,7 @@ dependent modules) will be included during execution of the commands. If a relat
 relative from `--working-dir`. Flag can be specified multiple times.
 
 Please note that the glob curly braces expansion is not taken in account using environment variable unlike of its equivalent as a parameter on the command line.
-You should consider using `TERRAGRUNT_INCLUDE_DIR="foo/module,bar/module"` instead of `TERRAGRUNT_INCLUDE_DIR="{foo,bar}/module"`.
+You should consider using `TG_QUEUE_INCLUDE_DIR="foo/module,bar/module"` instead of `TG_QUEUE_INCLUDE_DIR="{foo,bar}/module"`.
 
 ### queue-strict-include
 
@@ -1218,7 +1218,7 @@ NOTE: This option also disables OpenTofu/Terraform output colors by propagating 
 
 **CLI Arg**: `--check`<br/>
 **CLI Arg Alias**: `--terragrunt-check` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Environment Variable**: `TG_CHECK` (set to `true`)<br/>
+**Environment Variable**: `TG_HCLFMT_CHECK` (set to `true`)<br/>
 **Environment Variable Alias**: `TERRAGRUNT_CHECK` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Commands**:
 
@@ -1231,7 +1231,7 @@ command to exit with exit code 1 if there are any files that are not formatted.
 
 **CLI Arg**: `--diff`<br/>
 **CLI Arg Alias**: `--terragrunt-diff` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Environment Variable**: `TG_DIFF` (set to `true`)<br/>
+**Environment Variable**: `TG_HCLFMT_DIFF` (set to `true`)<br/>
 **Environment Variable Alias**: `TERRAGRUNT_DIFF` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Commands**:
 
@@ -1243,7 +1243,7 @@ When passed in, running `hclfmt` will print diff between original and modified f
 
 **CLI Arg**: `--file`<br/>
 **CLI Arg Alias**: `--terragrunt-hclfmt-file` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Environment Variable**: `TG_FILE` (set to `true`)<br/>
+**Environment Variable**: `TG_HCLFMT_FILE` (set to `true`)<br/>
 **Environment Variable Alias**: `TERRAGRUNT_HCLFMT_FILE` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Requires an argument**: `--file /path/to/terragrunt.hcl`<br/>
 **Commands**:
@@ -1256,7 +1256,7 @@ When passed in, run `hclfmt` only on the specified file.
 
 **CLI Arg**: `--exclude-dir`<br/>
 **CLI Arg Alias**: `--terragrunt-hclfmt-exclude-dir` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Environment Variable**: `TG_EXCLUDE_DIR`<br/>
+**Environment Variable**: `TG_HCLFMT_EXCLUDE_DIR`<br/>
 **Environment Variable Alias**: `TERRAGRUNT_HCLFMT_EXCLUDE_DIR` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Requires an argument**: `--exclude-dir /path/to/dir`<br/>
 **Commands**:
@@ -1270,7 +1270,7 @@ When passed in, `hclfmt` will ignore files in the specified directories.
 
 **CLI Arg**: `--stdin`<br/>
 **CLI Arg Alias**: `--terragrunt-hclfmt-stdin` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Environment Variable**: `TG_STDIN` (set to `true`)<br/>
+**Environment Variable**: `TG_HCLFMT_STDIN` (set to `true`)<br/>
 **Environment Variable Alias**: `TERRAGRUNT_HCLFMT_STDIN` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Commands**:
 
@@ -1282,7 +1282,7 @@ When passed in, run `hclfmt` only on hcl passed to `stdin`, result is printed to
 
 **CLI Arg**: `--json`<br/>
 **CLI Arg Alias**: `--terragrunt-hclvalidate-json` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Environment Variable**: `TG_JSON` (set to `true`)<br/>
+**Environment Variable**: `TG_HCLVALIDATE_JSON` (set to `true`)<br/>
 **Environment Variable Alias**: `TERRAGRUNT_HCLVALIDATE_JSON` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Commands**:
 
@@ -1294,7 +1294,7 @@ When passed in, render the output in the JSON format.
 
 **CLI Arg**: `--show-config-path`<br/>
 **CLI Arg Alias**: `--terragrunt-hclvalidate-show-config-path` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Environment Variable**: `TG_SHOW_CONFIG_PATH` (set to `true`)<br/>
+**Environment Variable**: `TG_HCLVALIDATE_SHOW_CONFIG_PATH` (set to `true`)<br/>
 **Environment Variable Alias**: `TERRAGRUNT_HCLVALIDATE_SHOW_CONFIG_PATH` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
 **Commands**:
 
@@ -1306,15 +1306,27 @@ When passed in, output a list of files with invalid configuration.
 
 **CLI Arg**: `--disable-dependent-modules`<br/>
 **CLI Arg Alias**: `--terragrunt-json-disable-dependent-modules` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Environment Variable**: `TG_DISABLE_DEPENDENT_MODULES` (set to `true`)<br/>
+**Environment Variable**: `TG_RENDER_JSON_DISABLE_DEPENDENT_MODULES` (set to `true`)<br/>
 **Environment Variable Alias**: `TERRAGRUNT_JSON_DISABLE_DEPENDENT_MODULES` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
-**Requires an argument**: `--disable-dependent-modules`<br/>
 **Commands**:
 
 - [render-json](#render-json)
 
 When `--disable-dependent-modules` is set, the process of identifying dependent modules will be disabled during JSON rendering.
 This lead to a faster rendering process, but the output will not include any dependent units.
+
+### json-out
+
+**CLI Arg**: `--json-out`<br/>
+**CLI Arg Alias**: `--terragrunt-json-out` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
+**Environment Variable**: `TG_RENDER_JSON_JSON_OUT` (set to `true`)<br/>
+**Environment Variable Alias**: `TERRAGRUNT_JSON_OUT` (deprecated: [See migration guide](/docs/migrate/cli-redesign/))<br/>
+**Requires an argument**: `--json-out /path/to/terragrunt_rendered.json`<br/>
+**Commands**:
+
+- [render-json](#render-json)
+
+When passed in, render the json representation in this file.
 
 ### units-that-include
 
