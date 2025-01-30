@@ -698,6 +698,7 @@ func (opts *TerragruntOptions) Clone(terragruntConfigPath string) (*TerragruntOp
 		ScaffoldRootFileName:   opts.ScaffoldRootFileName,
 		Headless:               opts.Headless,
 		LogDisableErrorSummary: opts.LogDisableErrorSummary,
+		StackOutputFormat:      opts.StackOutputFormat,
 	}, nil
 }
 
