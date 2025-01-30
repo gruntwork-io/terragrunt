@@ -586,7 +586,7 @@ This will recursively search the current working directory for any folders that 
 the dependency graph based on [`dependency`](/docs/reference/config-blocks-and-attributes/#dependency) and
 [`dependencies`](/docs/reference/config-blocks-and-attributes/#dependencies) blocks and output the graph as a JSON list of list (unless the sub-command is destroy, in which case the command will output the reverse dependency order).
 
-This can be be useful in several scenarios, such as in CICD, when determining apply order or searching for all files to apply with CLI options
+This can be be useful in several scenarios, such as in CICD, when determining apply order or searching for all files to apply with CLI flags
 such as [`--terragrunt-modules-that-include`](#terragrunt-modules-that-include)
 
 This may produce output such as:
@@ -792,10 +792,7 @@ Before executing the specified command, the `terragrunt stack run *` command wil
 the `.terragrunt-stack` directory using the `terragrunt.stack.hcl` configuration file.
 This ensures that all units are up-to-date before running the requested operation.
 
-## CLI options
-
-Terragrunt forwards all options to OpenTofu/Terraform. The only exceptions are `--version` and arguments that start with the
-prefix `--terragrunt-` (e.g., `--terragrunt-config`). The currently available options are:
+## CLI flags
 
 - [terragrunt-config](#terragrunt-config)
 - [terragrunt-tfpath](#terragrunt-tfpath)
