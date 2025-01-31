@@ -1,9 +1,0 @@
-import {Content, components} from '../md/install.mdx';
-
----
-const response = await fetch('https://api.github.com/repos/gruntwork-io/terragrunt/releases/latest');
-const data = await response.json();
-const version = data.tag_name || 'v0.72.5';
----
-
-<Content components={{...components, version={version}}} />
