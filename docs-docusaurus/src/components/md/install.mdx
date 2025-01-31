@@ -1,4 +1,5 @@
 import InstallTabs from '@site/src/components/InstallTabs';
+import CodeBlock from '@theme/CodeBlock';
 
 # Install
 
@@ -75,16 +76,18 @@ You can use a tool manager to install and manage Terragrunt versions.
 
 * **mise**: You can install Terragrunt using [mise](https://mise.jdx.dev)
 
-  ```bash
-  mise install terragrunt {props.version}
-  ```
+  <CodeBlock
+    language="bash">
+    {`mise install terragrunt ${props.version}`}
+  </CodeBlock>
 
 * **asdf**: You can install Terragrunt using [asdf](https://asdf-vm.com)
 
-  ```bash
-  asdf plugin add terragrunt
-  asdf install terragrunt {props.version}
-  ```
+  <CodeBlock
+    language="bash">
+    {`asdf plugin add terragrunt
+  asdf install terragrunt ${props.version}`}
+  </CodeBlock>
 
 Both of these tools allow you to pin the version of Terragrunt you are using in a `.tool-versions` (and `.mise.toml` for mise) file in your project directory.
 
