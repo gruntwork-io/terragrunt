@@ -3,6 +3,8 @@ title: Debugging
 description: Debugging Terragrunt and OpenTofu/Terraform
 ---
 
+import { FileTree } from '@astrojs/starlight/components';
+
 Terragrunt and OpenTofu/Terraform usually play well together in helping you
 write DRY, reusable infrastructure. But how do we figure out what
 went wrong in the rare case that they _don't_ play well?
@@ -42,17 +44,19 @@ Consider this file structure for a fictional production environment where we
 have configured an application to deploy as many tasks as there are minimum
 number of machines in some cluster.
 
-```tree
-└── live
-    └── prod
-        └── app
-        |   ├── vars.tf
-        |   ├── main.tf
-        |   ├── outputs.tf
-        |   └── terragrunt.hcl
-        └── ecs-cluster
-            └── outputs.tf
-```
+<FileTree>
+
+- live
+  - prod
+    - app
+      - vars.tf
+      - main.tf
+      - outputs.tf
+      - terragrunt.hcl
+    - ecs-cluster
+      - outputs.tf
+
+</FileTree>
 
 The files contain this text (`app/main.tf` and `ecs-cluster/outputs.tf` omitted
 for brevity):
