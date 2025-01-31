@@ -541,12 +541,12 @@ func TestUpdateGettersExcludeFromCopy(t *testing.T) {
 			client := &getter.Client{}
 
 			// Call updateGetters
-			updateGettersFunc := terraform.UpdateGetters(terragruntOptions, tc.terragruntConfig)
+			updateGettersFunc := run.UpdateGetters(terragruntOptions, tc.terragruntConfig)
 			err = updateGettersFunc(client)
 			require.NoError(t, err)
 
 			// Find the file getter
-			fileGetter, ok := client.Getters["file"].(*terraform.FileCopyGetter)
+			fileGetter, ok := client.Getters["file"].(*run.FileCopyGetter)
 			require.True(t, ok, "File getter should be of type FileCopyGetter")
 
 			// Verify ExcludeFromCopy
