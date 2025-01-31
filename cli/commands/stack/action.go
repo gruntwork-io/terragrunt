@@ -49,10 +49,6 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 	// prepare options for execution
 	// navigate to stack directory
 	opts.WorkingDir = filepath.Join(opts.WorkingDir, stackDir)
-	// remove 0 element from args
-	opts.TerraformCliArgs = opts.TerraformCliArgs[1:]
-	opts.TerraformCommand = opts.TerraformCliArgs[0]
-	opts.OriginalTerraformCommand = strings.Join(opts.TerraformCliArgs, " ")
 
 	return runall.Run(ctx, opts)
 }
