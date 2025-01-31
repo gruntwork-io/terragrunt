@@ -41,11 +41,13 @@ const (
 	CommandName = "aws-provider-patch"
 
 	OverrideAttrFlagName = "override-attr"
+
+	DeprecatedOverrideAttrFlagName = "override-attr"
 )
 
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
-	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
+	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	cliRedesignControl := flags.StrictControlsByGroup(opts.StrictControls, CommandName, controls.CLIRedesign)
 
 	return cli.Flags{
@@ -55,7 +57,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.AwsProviderPatchOverrides,
 			Usage:       "A key=value attribute to override in a provider block as part of the aws-provider-patch command. May be specified multiple times.",
 		},
-			flags.WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+			flags.WithDeprecatedName(terragruntPrefix.FlagName(DeprecatedOverrideAttrFlagName), cliRedesignControl)),
 	}
 }
 

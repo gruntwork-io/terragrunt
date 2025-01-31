@@ -16,11 +16,14 @@ const (
 
 	ShowConfigPathFlagName = "show-config-path"
 	JSONFlagName           = "json"
+
+	DeprecatedHclvalidateShowConfigPathFlagName = "hclvalidate-show-config-path"
+	DeprecatedHclvalidateJSONFlagName           = "hclvalidate-json"
 )
 
 func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
-	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
+	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	cliRedesignControl := flags.StrictControlsByGroup(opts.StrictControls, CommandName, controls.CLIRedesign)
 
 	return cli.Flags{
@@ -30,7 +33,7 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Usage:       "Show a list of files with invalid configuration.",
 			Destination: &opts.ShowConfigPath,
 		},
-			flags.WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedHclvalidateShowConfigPathFlagName), cliRedesignControl)),
 
 		flags.NewFlag(&cli.BoolFlag{
 			Name:        JSONFlagName,
@@ -38,7 +41,7 @@ func NewFlags(opts *Options, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.JSONOutput,
 			Usage:       "Output the result in JSON format.",
 		},
-			flags.WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedHclvalidateJSONFlagName), cliRedesignControl)),
 	}
 }
 

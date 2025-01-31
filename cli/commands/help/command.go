@@ -2,7 +2,7 @@
 package help
 
 import (
-	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/global"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -17,7 +17,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Usage:  "Show help.",
 		Hidden: true,
 		Action: func(ctx *cli.Context) error {
-			return flags.HelpAction(ctx, opts)
+			return global.HelpAction(ctx, opts)
 		},
 	}
 }

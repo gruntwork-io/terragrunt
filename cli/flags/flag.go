@@ -1,3 +1,4 @@
+// Package flags provides tools that are used by all commands to create deprecation flags with strict controls.
 package flags
 
 import (

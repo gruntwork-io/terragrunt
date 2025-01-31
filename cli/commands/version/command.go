@@ -2,7 +2,7 @@
 package version
 
 import (
-	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/global"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/options"
 )
@@ -17,7 +17,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Usage:  "Show terragrunt version.",
 		Hidden: true,
 		Action: func(ctx *cli.Context) error {
-			return cli.NewExitError(flags.VersionAction(ctx, opts), 0)
+			return cli.NewExitError(global.VersionAction(ctx, opts), 0)
 		},
 	}
 }

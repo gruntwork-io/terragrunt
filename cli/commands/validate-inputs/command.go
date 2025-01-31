@@ -14,11 +14,13 @@ const (
 	CommandName = "validate-inputs"
 
 	StrictValidateFlagName = "strict-validate"
+
+	DeprecatedStrictValidateFlagName = "strict-validate"
 )
 
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
-	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
+	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	cliRedesignControl := flags.StrictControlsByGroup(opts.StrictControls, CommandName, controls.CLIRedesign)
 
 	return cli.Flags{
@@ -28,7 +30,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.ValidateStrict,
 			Usage:       "Sets strict mode for the validate-inputs command. By default, strict mode is off. When this flag is passed, strict mode is turned on. When strict mode is turned off, the validate-inputs command will only return an error if required inputs are missing from all input sources (env vars, var files, etc). When strict mode is turned on, an error will be returned if required inputs are missing OR if unused variables are passed to Terragrunt.",
 		},
-			flags.WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedStrictValidateFlagName), cliRedesignControl)),
 	}
 }
 

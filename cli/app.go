@@ -27,7 +27,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclvalidate"
 	helpCmd "github.com/gruntwork-io/terragrunt/cli/commands/help"
 	versionCmd "github.com/gruntwork-io/terragrunt/cli/commands/version"
-	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/global"
 
 	"github.com/gruntwork-io/terragrunt/cli/commands/scaffold"
 
@@ -75,7 +75,7 @@ func NewApp(opts *options.TerragruntOptions) *App {
 	app.Version = version.GetVersion()
 	app.Writer = opts.Writer
 	app.ErrWriter = opts.ErrWriter
-	app.Flags = flags.NewGlobalFlags(opts, nil)
+	app.Flags = global.NewFlags(opts, nil)
 	app.Commands = TerragruntCommands(opts).WrapAction(WrapWithTelemetry(opts))
 	app.Before = beforeAction(opts)
 	app.DefaultCommand = defaultCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // if no terragrunt command is specified, run the default command
@@ -154,7 +154,7 @@ func removeNoColorFlagDuplicates(args []string) []string {
 	)
 
 	for _, arg := range args {
-		if strings.HasSuffix(arg, "-"+flags.NoColorFlagName) {
+		if strings.HasSuffix(arg, "-"+global.NoColorFlagName) {
 			if foundNoColor {
 				continue
 			}

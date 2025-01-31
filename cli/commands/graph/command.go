@@ -22,11 +22,13 @@ const (
 	CommandName = "graph"
 
 	GraphRootFlagName = "graph-root"
+
+	DeprecatedGraphRootFlagName = "graph-root"
 )
 
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
-	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
+	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	cliRedesignControl := flags.StrictControlsByGroup(opts.StrictControls, CommandName, controls.CLIRedesign)
 
 	return cli.Flags{
@@ -36,7 +38,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.GraphRoot,
 			Usage:       "Root directory from where to build graph dependencies.",
 		},
-			flags.WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+			flags.WithDeprecatedName(terragruntPrefix.FlagName(DeprecatedGraphRootFlagName), cliRedesignControl)),
 	}
 }
 

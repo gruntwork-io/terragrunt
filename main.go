@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/gruntwork-io/terragrunt/cli"
-	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/global"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/options"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
@@ -22,7 +22,7 @@ func main() {
 	opts := options.NewTerragruntOptions()
 
 	// Immediately parse the `TG_LOG_LEVEL` environment variable, e.g. to set the TRACE level.
-	if err := flags.NewLogLevelFlag(opts, nil).Apply(new(flag.FlagSet)); err != nil {
+	if err := global.NewLogLevelFlag(opts, nil).Apply(new(flag.FlagSet)); err != nil {
 		opts.Logger.Error(err.Error())
 		os.Exit(1)
 	}

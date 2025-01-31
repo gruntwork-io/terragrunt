@@ -23,6 +23,9 @@ const (
 
 	OutDirFlagName     = "out-dir"
 	JSONOutDirFlagName = "json-out-dir"
+
+	DeprecatedOutDirFlagName     = "out-dir"
+	DeprecatedJSONOutDirFlagName = "json-out-dir"
 )
 
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
@@ -38,7 +41,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
-	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
+	terragruntPrefix := flags.Prefix{flags.TerragruntPrefix}
 	cliRedesignControl := flags.StrictControlsByGroup(opts.StrictControls, CommandName, controls.CLIRedesign)
 
 	return cli.Flags{
@@ -48,7 +51,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.OutputFolder,
 			Usage:       "Directory to store plan files.",
 		},
-			flags.WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedOutDirFlagName), cliRedesignControl)),
 
 		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        JSONOutDirFlagName,
@@ -56,7 +59,7 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 			Destination: &opts.JSONOutputFolder,
 			Usage:       "Directory to store json plan files.",
 		},
-			flags.WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedJSONOutDirFlagName), cliRedesignControl)),
 	}
 }
 

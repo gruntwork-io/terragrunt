@@ -1,11 +1,12 @@
-// Package flags provides Terragrunt command flags.
-package flags
+// Package global provides CLI global flags.
+package global
 
 import (
 	"fmt"
 	"os"
 
 	"github.com/gruntwork-io/go-commons/collections"
+	"github.com/gruntwork-io/terragrunt/cli/flags"
 	"github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
 	"github.com/gruntwork-io/terragrunt/internal/strict"
@@ -43,32 +44,43 @@ const (
 	HelpFlagName    = "help"
 	VersionFlagName = "version"
 
+	// Renamed flags.
+
+	DeprecatedLogLevelFlagName        = "log-level"
+	DeprecatedLogDisableFlagName      = "log-disable"
+	DeprecatedShowLogAbsPathsFlagName = "log-show-abs-paths"
+	DeprecatedLogFormatFlagName       = "log-format"
+	DeprecatedLogCustomFormatFlagName = "log-custom-format"
+	DeprecatedNoColorFlagName         = "no-color"
+	DeprecatedNonInteractiveFlagName  = "non-interactive"
+	DeprecatedWorkingDirFlagName      = "working-dir"
+
 	// Deprecated flags.
 
-	DisableLogFormattingFlagName = "disable-log-formatting"
-	JSONLogFlagName              = "json-log"
-	TfLogJSONFlagName            = "tf-logs-to-json"
+	DeprecatedDisableLogFormattingFlagName = "disable-log-formatting"
+	DeprecatedJSONLogFlagName              = "json-log"
+	DeprecatedTfLogJSONFlagName            = "tf-logs-to-json"
 )
 
-// NewGlobalFlags creates and returns flags common to all commands.
-func NewGlobalFlags(opts *options.TerragruntOptions, prefix Prefix) cli.Flags {
-	tgPrefix := prefix.Prepend(TgPrefix)
-	terragruntPrefix := prefix.Prepend(TerragruntPrefix)
-	cliRedesignControl := StrictControls(opts.StrictControls, controls.CLIRedesign)
-	legacyLogsControl := StrictControls(opts.StrictControls, controls.LegacyLogs)
+// NewFlags creates and returns flags common to all commands.
+func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
+	cliRedesignControl := flags.StrictControls(opts.StrictControls, controls.CLIRedesign)
+	legacyLogsControl := flags.StrictControls(opts.StrictControls, controls.LegacyLogs)
 
 	flags := cli.Flags{
 		NewLogLevelFlag(opts, prefix),
 
-		NewFlag(&cli.GenericFlag[string]{
+		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:        WorkingDirFlagName,
 			EnvVars:     tgPrefix.EnvVars(WorkingDirFlagName),
 			Destination: &opts.WorkingDir,
 			Usage:       "The path to the directory of Terragrunt configurations. Default is current directory.",
 		},
-			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedWorkingDirFlagName), cliRedesignControl)),
 
-		NewFlag(&cli.BoolFlag{
+		flags.NewFlag(&cli.BoolFlag{
 			Name:    LogDisableFlagName,
 			EnvVars: tgPrefix.EnvVars(LogDisableFlagName),
 			Usage:   "Disable logging.",
@@ -78,17 +90,17 @@ func NewGlobalFlags(opts *options.TerragruntOptions, prefix Prefix) cli.Flags {
 				return nil
 			},
 		},
-			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedLogDisableFlagName), cliRedesignControl)),
 
-		NewFlag(&cli.BoolFlag{
+		flags.NewFlag(&cli.BoolFlag{
 			Name:        ShowLogAbsPathsFlagName,
 			EnvVars:     tgPrefix.EnvVars(ShowLogAbsPathsFlagName),
 			Destination: &opts.LogShowAbsPaths,
 			Usage:       "Show absolute paths in logs.",
 		},
-			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedShowLogAbsPathsFlagName), cliRedesignControl)),
 
-		NewFlag(&cli.BoolFlag{
+		flags.NewFlag(&cli.BoolFlag{
 			Name:    NoColorFlagName,
 			EnvVars: tgPrefix.EnvVars(NoColorFlagName),
 			Usage:   "Disable color output.",
@@ -97,9 +109,9 @@ func NewGlobalFlags(opts *options.TerragruntOptions, prefix Prefix) cli.Flags {
 				return nil
 			},
 		},
-			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedNoColorFlagName), cliRedesignControl)),
 
-		NewFlag(&cli.GenericFlag[string]{
+		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:    LogFormatFlagName,
 			EnvVars: tgPrefix.EnvVars(LogFormatFlagName),
 			Usage:   "Set the log format.",
@@ -115,47 +127,47 @@ func NewGlobalFlags(opts *options.TerragruntOptions, prefix Prefix) cli.Flags {
 				return nil
 			},
 		},
-			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl),
-			WithDeprecatedFlag(&cli.BoolFlag{
-				Name:        terragruntPrefix.FlagName(DisableLogFormattingFlagName),
-				EnvVars:     terragruntPrefix.EnvVars(DisableLogFormattingFlagName),
+			flags.WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl),
+			flags.WithDeprecatedFlag(&cli.BoolFlag{
+				Name:        terragruntPrefix.FlagName(DeprecatedDisableLogFormattingFlagName),
+				EnvVars:     terragruntPrefix.EnvVars(DeprecatedDisableLogFormattingFlagName),
 				Destination: &opts.DisableLogFormatting,
 				Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
 				Hidden:      true,
-			}, NewValue(format.KeyValueFormatName), legacyLogsControl),
-			WithDeprecatedFlag(&cli.BoolFlag{
-				Name:        terragruntPrefix.FlagName(JSONLogFlagName),
-				EnvVars:     terragruntPrefix.EnvVars(JSONLogFlagName),
+			}, flags.NewValue(format.KeyValueFormatName), legacyLogsControl),
+			flags.WithDeprecatedFlag(&cli.BoolFlag{
+				Name:        terragruntPrefix.FlagName(DeprecatedJSONLogFlagName),
+				EnvVars:     terragruntPrefix.EnvVars(DeprecatedJSONLogFlagName),
 				Destination: &opts.JSONLogFormat,
 				Usage:       "If specified, Terragrunt will output its logs in JSON format.",
 				Hidden:      true,
-			}, NewValue(format.JSONFormatName), legacyLogsControl),
-			WithDeprecatedFlag(&cli.BoolFlag{
-				Name:    terragruntPrefix.FlagName(TfLogJSONFlagName),
-				EnvVars: terragruntPrefix.EnvVars(TfLogJSONFlagName),
+			}, flags.NewValue(format.JSONFormatName), legacyLogsControl),
+			flags.WithDeprecatedFlag(&cli.BoolFlag{
+				Name:    terragruntPrefix.FlagName(DeprecatedTfLogJSONFlagName),
+				EnvVars: terragruntPrefix.EnvVars(DeprecatedTfLogJSONFlagName),
 				Usage:   "If specified, Terragrunt will wrap Terraform stdout and stderr in JSON.",
 				Hidden:  true,
-			}, NewValue(format.JSONFormatName), legacyLogsControl)),
+			}, flags.NewValue(format.JSONFormatName), legacyLogsControl)),
 
-		NewFlag(&cli.GenericFlag[string]{
+		flags.NewFlag(&cli.GenericFlag[string]{
 			Name:    LogCustomFormatFlagName,
 			EnvVars: tgPrefix.EnvVars(LogCustomFormatFlagName),
 			Usage:   "Set the custom log formatting.",
 			Setter:  opts.Logger.Formatter().SetCustomFormat,
 		},
-			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedLogCustomFormatFlagName), cliRedesignControl)),
 
-		NewFlag(&cli.BoolFlag{
+		flags.NewFlag(&cli.BoolFlag{
 			Name:        NonInteractiveFlagName,
 			EnvVars:     tgPrefix.EnvVars(NonInteractiveFlagName),
 			Destination: &opts.NonInteractive,
 			Usage:       `Assume "yes" for all prompts.`,
 		},
-			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedNonInteractiveFlagName), cliRedesignControl)),
 
 		// Experiment Mode flags.
 
-		NewFlag(&cli.BoolFlag{
+		flags.NewFlag(&cli.BoolFlag{
 			Name:    ExperimentModeFlagName,
 			EnvVars: tgPrefix.EnvVars(ExperimentModeFlagName),
 			Usage:   "Enables experiment mode for Terragrunt. For more information, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
@@ -164,10 +176,9 @@ func NewGlobalFlags(opts *options.TerragruntOptions, prefix Prefix) cli.Flags {
 
 				return nil
 			},
-		},
-			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+		}),
 
-		NewFlag(&cli.SliceFlag[string]{
+		flags.NewFlag(&cli.SliceFlag[string]{
 			Name:    ExperimentFlagName,
 			EnvVars: tgPrefix.EnvVars(ExperimentFlagName),
 			Usage:   "Enables specific experiments. For a list of available experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
@@ -177,12 +188,11 @@ func NewGlobalFlags(opts *options.TerragruntOptions, prefix Prefix) cli.Flags {
 
 				return nil
 			},
-		},
-			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+		}),
 
 		// Strict Mode flags.
 
-		NewFlag(&cli.BoolFlag{
+		flags.NewFlag(&cli.BoolFlag{
 			Name:    StrictModeFlagName,
 			EnvVars: tgPrefix.EnvVars(StrictModeFlagName),
 			Usage:   "Enables strict mode for Terragrunt. For more information, run 'terragrunt info strict'.",
@@ -196,10 +206,9 @@ func NewGlobalFlags(opts *options.TerragruntOptions, prefix Prefix) cli.Flags {
 
 				return nil
 			},
-		},
-			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+		}),
 
-		NewFlag(&cli.SliceFlag[string]{
+		flags.NewFlag(&cli.SliceFlag[string]{
 			Name:    StrictControlFlagName,
 			EnvVars: tgPrefix.EnvVars(StrictControlFlagName),
 			Usage:   "Enables specific strict controls. For a list of available controls, run 'terragrunt info strict'.",
@@ -211,8 +220,7 @@ func NewGlobalFlags(opts *options.TerragruntOptions, prefix Prefix) cli.Flags {
 
 				return nil
 			},
-		},
-			WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl)),
+		}),
 	}
 
 	flags = flags.Sort()
@@ -221,12 +229,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions, prefix Prefix) cli.Flags {
 	return flags
 }
 
-func NewLogLevelFlag(opts *options.TerragruntOptions, prefix Prefix) cli.Flag {
-	tgPrefix := prefix.Prepend(TgPrefix)
-	terragruntPrefix := prefix.Prepend(TerragruntPrefix)
-	cliRedesignControl := StrictControls(opts.StrictControls, controls.CLIRedesign)
+func NewLogLevelFlag(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flag {
+	tgPrefix := prefix.Prepend(flags.TgPrefix)
+	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
+	cliRedesignControl := flags.StrictControls(opts.StrictControls, controls.CLIRedesign)
 
-	return NewFlag(&cli.GenericFlag[string]{
+	return flags.NewFlag(&cli.GenericFlag[string]{
 		Name:        LogLevelFlagName,
 		EnvVars:     tgPrefix.EnvVars(LogLevelFlagName),
 		DefaultText: opts.Logger.Level().String(),
@@ -247,7 +255,7 @@ func NewLogLevelFlag(opts *options.TerragruntOptions, prefix Prefix) cli.Flag {
 
 			return nil
 		},
-	}, WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl))
+	}, flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedLogLevelFlagName), cliRedesignControl))
 }
 
 func NewHelpVersionFlags(opts *options.TerragruntOptions) cli.Flags {

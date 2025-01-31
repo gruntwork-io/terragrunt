@@ -17,6 +17,7 @@ import (
 	"github.com/gruntwork-io/terragrunt/cli/commands/run"
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 	"github.com/gruntwork-io/terragrunt/cli/flags"
+	"github.com/gruntwork-io/terragrunt/cli/flags/global"
 	"github.com/gruntwork-io/terragrunt/config"
 	clipkg "github.com/gruntwork-io/terragrunt/internal/cli"
 	"github.com/gruntwork-io/terragrunt/internal/errors"
@@ -72,13 +73,13 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			[]string{doubleDashed(flags.NonInteractiveFlagName)},
+			[]string{doubleDashed(global.NonInteractiveFlagName)},
 			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, true, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
-			[]string{doubleDashed(terragruntPrefix.FlagName(run.IncludeExternalDependenciesFlagName))},
+			[]string{doubleDashed(terragruntPrefix.FlagName(run.DeprecatedIncludeExternalDependenciesFlagName))},
 			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, true, defaultLogLevel, false),
 			nil,
 		},
@@ -90,7 +91,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			[]string{doubleDashed(flags.WorkingDirFlagName), "/some/path"},
+			[]string{doubleDashed(global.WorkingDirFlagName), "/some/path"},
 			mockOptions(t, util.JoinPath("/some/path", config.DefaultTerragruntConfigPath), "/some/path", []string{}, false, "", false, false, defaultLogLevel, false),
 			nil,
 		},
@@ -114,13 +115,13 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			[]string{doubleDashed(terragruntPrefix.FlagName(run.IgnoreExternalDependenciesFlagName))},
+			[]string{doubleDashed(terragruntPrefix.FlagName(run.DeprecatedIgnoreExternalDependenciesFlagName))},
 			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		{
-			[]string{doubleDashed(terragruntPrefix.FlagName(run.IAMRoleFlagName)), "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"},
+			[]string{doubleDashed(terragruntPrefix.FlagName(run.DeprecatedIAMRoleFlagName)), "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"},
 			mockOptionsWithIamRole(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"),
 			nil,
 		},
@@ -138,7 +139,7 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			[]string{doubleDashed(terragruntPrefix.FlagName(run.IAMWebIdentityTokenFlagName)), "web-identity-token"},
+			[]string{doubleDashed(terragruntPrefix.FlagName(run.DeprecatedIAMWebIdentityTokenFlagName)), "web-identity-token"},
 			mockOptionsWithIamWebIdentityToken(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, "web-identity-token"),
 			nil,
 		},
@@ -150,14 +151,14 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			[]string{"--foo", doubleDashed(run.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath, "bar", doubleDashed(flags.NonInteractiveFlagName), "--baz", doubleDashed(flags.WorkingDirFlagName), "/some/path", doubleDashed(run.SourceFlagName), "github.com/foo/bar//baz?ref=1.0.3"},
+			[]string{"--foo", doubleDashed(run.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath, "bar", doubleDashed(global.NonInteractiveFlagName), "--baz", doubleDashed(global.WorkingDirFlagName), "/some/path", doubleDashed(run.SourceFlagName), "github.com/foo/bar//baz?ref=1.0.3"},
 			mockOptions(t, "/some/path/"+config.DefaultTerragruntConfigPath, "/some/path", []string{"-foo", "bar", "-baz"}, true, "github.com/foo/bar//baz?ref=1.0.3", false, false, defaultLogLevel, false),
 			nil,
 		},
 
 		// Adding the --terragrunt-log-level flag should result in DebugLevel configured
 		{
-			[]string{doubleDashed(flags.LogLevelFlagName), "debug"},
+			[]string{doubleDashed(global.LogLevelFlagName), "debug"},
 			mockOptions(t, util.JoinPath(workingDir, config.DefaultTerragruntConfigPath), workingDir, []string{}, false, "", false, false, log.DebugLevel, false),
 			nil,
 		},
@@ -168,9 +169,9 @@ func TestParseTerragruntOptionsFromArgs(t *testing.T) {
 		},
 
 		{
-			[]string{doubleDashed(flags.WorkingDirFlagName)},
+			[]string{doubleDashed(global.WorkingDirFlagName)},
 			nil,
-			argMissingValueError(flags.WorkingDirFlagName),
+			argMissingValueError(global.WorkingDirFlagName),
 		},
 
 		{
@@ -305,9 +306,9 @@ func TestFilterTerragruntArgs(t *testing.T) {
 		{[]string{}, []string{}},
 		{[]string{"foo", "--bar"}, []string{"foo", "-bar"}},
 		{[]string{"foo", doubleDashed(run.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath}, []string{"foo"}},
-		{[]string{"foo", doubleDashed(flags.NonInteractiveFlagName)}, []string{"foo"}},
+		{[]string{"foo", doubleDashed(global.NonInteractiveFlagName)}, []string{"foo"}},
 		{[]string{"foo", doubleDashed(run.InputsDebugFlagName)}, []string{"foo"}},
-		{[]string{"foo", doubleDashed(flags.NonInteractiveFlagName), "-bar", doubleDashed(flags.WorkingDirFlagName), "/some/path", "--baz", doubleDashed(run.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath}, []string{"foo", "-bar", "-baz"}},
+		{[]string{"foo", doubleDashed(global.NonInteractiveFlagName), "-bar", doubleDashed(global.WorkingDirFlagName), "/some/path", "--baz", doubleDashed(run.ConfigFlagName), "/some/path/" + config.DefaultTerragruntConfigPath}, []string{"foo", "-bar", "-baz"}},
 		{[]string{commands.CommandNameApplyAll, "foo", "bar"}, []string{tf.CommandNameApply, "foo", "bar"}},
 		{[]string{commands.CommandNameDestroyAll, "foo", "-foo", "--bar"}, []string{tf.CommandNameDestroy, "foo", "-foo", "-bar"}},
 	}
@@ -511,7 +512,7 @@ func runAppTest(args []string, opts *options.TerragruntOptions) (*options.Terrag
 	app := clipkg.NewApp()
 	app.Writer = &bytes.Buffer{}
 	app.ErrWriter = &bytes.Buffer{}
-	app.Flags = append(flags.NewGlobalFlags(opts, nil), run.NewFlags(opts, nil)...)
+	app.Flags = append(global.NewFlags(opts, nil), run.NewFlags(opts, nil)...)
 	app.Commands = append(
 		commands.NewDeprecatedCommands(opts),
 		terragruntCommands...).WrapAction(cli.WrapWithTelemetry(opts))
