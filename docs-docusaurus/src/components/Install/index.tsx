@@ -1,4 +1,4 @@
-import { React, useState, useEffect } from 'react';
+import { React } from 'react';
 import CodeBlock from '@theme/CodeBlock';
 
 export default function Install({ os, arch, version }) {
@@ -9,7 +9,7 @@ export default function Install({ os, arch, version }) {
 					language="powershell">
 					{`$os = "windows"
 $arch = "amd64"
-$version = "v0.72.5"
+$version = "${version}"
 $binaryName = "terragrunt_\${os}_\${arch}.exe"
 
 try {
@@ -54,7 +54,7 @@ finally {
 
 OS="${os}"
 ARCH="${arch}"
-VERSION="v0.72.5"
+VERSION="${version}"
 BINARY_NAME="terragrunt_\${OS}_\${ARCH}"
 
 # Download the binary

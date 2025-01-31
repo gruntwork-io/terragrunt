@@ -1,24 +1,9 @@
-import { React, useState, useEffect } from 'react';
+import { React } from 'react';
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import Install from '../Install';
 
-export default function InstallTabs() {
-	const [version, setVersion] = useState('v0.72.5');
-
-	useEffect(() => {
-		fetch('https://api.github.com/repos/gruntwork-io/terragrunt/releases/latest')
-			.then((response) => response.json())
-			.then((data) => {
-				setVersion(data.tag_name);
-			})
-			.catch((error) => {
-				console.error('Error:', error);
-			});
-		console.log('Fetching the latest version of Terragrunt...');
-		console.log('Latest version:', version);
-	}, []);
-
+export default function InstallTabs({ version }) {
 	return (
 		<Tabs groupId="operating-systems">
 			<TabItem value="linux-amd64" label="Linux (x86)">
