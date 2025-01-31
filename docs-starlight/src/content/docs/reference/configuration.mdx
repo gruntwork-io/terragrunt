@@ -3,11 +3,13 @@ title: Configuration
 description: Learn how to configure Terragrunt
 ---
 
+import { FileTree } from '@astrojs/starlight/components';
+
 Terragrunt configuration is defined in a `terragrunt.hcl` file. This uses the same HCL syntax as OpenTofu/Terraform itself.
 
 Here’s an example:
 
-``` hcl
+```hcl
 include "root" {
   path = find_in_parent_folders("root.hcl")
 }
@@ -81,20 +83,22 @@ You can rewrite the HCL files to a canonical format using the `hclfmt` command b
 
 By default, this command will recursively search for hcl files and format all of them under a given directory tree. Consider the following file structure:
 
-```tree
-root
-├── terragrunt.hcl
-├── prod
-│   └── terragrunt.hcl
-├── dev
-│   └── terragrunt.hcl
-└── qa
-    ├── terragrunt.hcl
-    └── services
-        ├── services.hcl
-        └── service01
-            └── terragrunt.hcl
-```
+<FileTree>
+
+- root
+  - terragrunt.hcl
+  - prod
+    - terragrunt.hcl
+  - dev
+    - terragrunt.hcl
+  - qa
+    - terragrunt.hcl
+    - services
+      - services.hcl
+      - service01
+        - terragrunt.hcl
+
+</FileTree>
 
 If you run `terragrunt hclfmt` at the `root`, this will update:
 
