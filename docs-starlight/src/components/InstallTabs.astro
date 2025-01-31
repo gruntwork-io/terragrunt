@@ -1,169 +1,40 @@
 ---
-import { Tabs, TabItem } from '@astrojs/starlight/components';
-import { Code } from '@astrojs/starlight/components';
+import { Tabs } from '@astrojs/starlight/components';
+import InstallTab from './InstallTab.astro';
+
+const tabs = [
+	{
+		os: 'linux',
+		arch: 'amd64',
+		label: 'Linux (x86)',
+	},
+	{
+		os: 'darwin',
+		arch: 'arm64',
+		label: 'macOS (ARM)',
+	},
+	{
+		os: 'windows',
+		arch: 'amd64',
+		label: 'Windows',
+	},
+	{
+		os: 'linux',
+		arch: 'arm64',
+		label: 'Linux (ARM)',
+	},
+	{
+		os: 'darwin',
+		arch: 'x86',
+		label: 'macOS (x86)',
+	},
+];
+
+const { version } = Astro.props;
 ---
 
 <Tabs syncKey="operating-systems">
-<TabItem label="Linux (x86)">
-<Code
-  lang="bash"
-  code={`
-set -euo pipefail
-
-OS="linux"
-ARCH="amd64"
-VERSION="v0.72.5"
-BINARY_NAME="terragrunt_\${OS}_\${ARCH}"
-
-# Download the binary
-curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/$VERSION/$BINARY_NAME" -o "$BINARY_NAME"
-
-# Generate the checksum
-CHECKSUM="$(sha256sum "$BINARY_NAME" | awk '{print $1}')"
-
-# Download the checksum file
-curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/$VERSION/SHA256SUMS" -o SHA256SUMS
-
-# Grab the expected checksum
-EXPECTED_CHECKSUM="$(grep "$BINARY_NAME" <SHA256SUMS | awk '{print $1}')"
-
-# Compare the checksums
-if [ "$CHECKSUM" == "$EXPECTED_CHECKSUM" ]; then
- echo "Checksums match!"
-else
- echo "Checksums do not match!"
-fi`}
-  frame='terminal'
-	>
-	</Code>
-</TabItem>
-<TabItem label="macOS (ARM)">
-<Code
-  lang="bash"
-  code={`set -euo pipefail
-
-OS="darwin"
-ARCH="arm64"
-VERSION="v0.72.5"
-BINARY_NAME="terragrunt_\${OS}_\${ARCH}"
-
-# Download the binary
-curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/$VERSION/$BINARY_NAME" -o "$BINARY_NAME"
-
-# Generate the checksum
-CHECKSUM="$(shasum -a 256 "$BINARY_NAME" | awk '{print $1}')"
-
-# Download the checksum file
-curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/$VERSION/SHA256SUMS" -o SHA256SUMS
-
-# Grab the expected checksum
-EXPECTED_CHECKSUM="$(grep "$BINARY_NAME" <SHA256SUMS | awk '{print $1}')"
-
-# Compare the checksums
-if [ "$CHECKSUM" == "$EXPECTED_CHECKSUM" ]; then
- echo "Checksums match!"
-else
- echo "Checksums do not match!"
-fi`}
-  frame='terminal'
-	>
-	</Code>
-    </TabItem>
-    <TabItem label="Windows">
-<Code
-  lang="powershell"
-  code={`$os = "windows"
-$arch = "amd64"
-$version = "v0.72.5"
-$binaryName = "terragrunt_\${os}_\${arch}.exe"
-try {
-    $ProgressPreference = 'SilentlyContinue'
-    # Download binary and checksum
-    $baseUrl = "https://github.com/gruntwork-io/terragrunt/releases/download/$version"
-    Write-Host "Downloading Terragrunt $version..."
-    Invoke-WebRequest -Uri "$baseUrl/$binaryName" -OutFile $binaryName -UseBasicParsing
-    Invoke-WebRequest -Uri "$baseUrl/SHA256SUMS" -OutFile "SHA256SUMS" -UseBasicParsing
-    $actualChecksum = (Get-FileHash -Algorithm SHA256 $binaryName).Hash.ToLower()
-    $expectedChecksum = (Get-Content "SHA256SUMS" | Select-String -Pattern $binaryName).Line.Split()[0].ToLower()
-    if ($actualChecksum -ne $expectedChecksum) {
-        Write-Error "Checksum verification failed"
-        exit 1
-    }
-    Write-Host "Terragrunt $version has been downloaded and verified successfully"
-}
-catch {
-    Write-Error "Failed to download: $_"
-    exit 1
-}
-finally {
-    $ProgressPreference = 'Continue'
-}
-`}
-  frame='terminal'
-	>
-	</Code>
-</TabItem>
-    <TabItem label="Linux (ARM)">
-<Code
-  lang="bash"
-  code={`set -euo pipefail
-
-OS="linux"
-ARCH="arm64"
-VERSION="v0.72.5"
-BINARY_NAME="terragrunt_\${OS}_\${ARCH}"
-
-# Download the binary
-curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/$VERSION/$BINARY_NAME" -o "$BINARY_NAME"
-
-# Generate the checksum
-CHECKSUM="$(sha256sum "$BINARY_NAME" | awk '{print $1}')"
-
-# Download the checksum file
-curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/$VERSION/SHA256SUMS" -o SHA256SUMS
-
-# Grab the expected checksum
-EXPECTED_CHECKSUM="$(grep "$BINARY_NAME" <SHA256SUMS | awk '{print $1}')"
-
-# Compare the checksums
-if [ "$CHECKSUM" == "$EXPECTED_CHECKSUM" ]; then
- echo "Checksums match!"
-else
- echo "Checksums do not match!"
-fi`}
-  frame='terminal'
-	>
-	</Code>
-</TabItem>
-<TabItem label="macOS (x86)">
-<Code
-  lang="bash"
-  code={`set -euo pipefail
-OS="darwin"
-ARCH="arm64"
-VERSION="v0.72.5"
-BINARY_NAME="terragrunt_\${OS}_\${ARCH}"
-
-# Download the binary
-curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/$VERSION/$BINARY_NAME" -o "$BINARY_NAME"
-
-# Generate the checksum
-CHECKSUM="$(shasum -a 256 "$BINARY_NAME" | awk '{print $1}')"
-
-# Download the checksum file
-curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/$VERSION/SHA256SUMS" -o SHA256SUMS
-
-# Grab the expected checksum
-EXPECTED_CHECKSUM="$(grep "$BINARY_NAME" <SHA256SUMS | awk '{print $1}')"
-
-# Compare the checksums
-if [ "$CHECKSUM" == "$EXPECTED_CHECKSUM" ]; then
- echo "Checksums match!"
-else
- echo "Checksums do not match!"
-fi`}
-  frame='terminal'
-	>
-	</Code>
-</TabItem>
+{tabs.map(({ os, arch, label }) => (
+	<InstallTab os={os} arch={arch} label={label} version={version} />
+))}
 </Tabs>

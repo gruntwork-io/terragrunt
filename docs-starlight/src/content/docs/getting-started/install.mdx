@@ -4,6 +4,10 @@ description: Install Terragrunt!
 ---
 
 import InstallTabs from '@components/InstallTabs.astro'
+import { Code } from '@astrojs/starlight/components'
+export const response = await fetch('https://api.github.com/repos/gruntwork-io/terragrunt/releases/latest');
+export const data = await response.json();
+export const version = data.tag_name || 'v0.72.5';
 
 ## Download from releases page
 
@@ -28,7 +32,7 @@ To verify the integrity of the file, do the following:
 
 ### Convenience Scripts
 
-<InstallTabs />
+<InstallTabs version={version} />
 
 ## Install via a package manager
 
@@ -78,16 +82,21 @@ You can use a tool manager to install and manage Terragrunt versions.
 
 * **mise**: You can install Terragrunt using [mise](https://mise.jdx.dev)
 
-  ```bash
-  mise install terragrunt <version>
-  ```
+  <Code
+    lang="bash"
+    code={`mise install terragrunt ${version}`}
+    frame="terminal"
+  >
+  </Code>
 
 * **asdf**: You can install Terragrunt using [asdf](https://asdf-vm.com)
 
-  ```bash
-  asdf plugin add terragrunt
-  asdf install terragrunt <version>
-  ```
+  <Code
+    lang="bash"
+    code={`asdf plugin add terragrunt\nasdf install terragrunt ${version}`}
+    frame="terminal"
+  >
+  </Code>
 
 Both of these tools allow you to pin the version of Terragrunt you are using in a `.tool-versions` (and `.mise.toml` for mise) file in your project directory.
 
