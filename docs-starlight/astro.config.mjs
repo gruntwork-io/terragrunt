@@ -7,9 +7,7 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			title: 'Terragrunt',
-			social: {
-				github: 'https://github.com/gruntwork-io/terragrunt',
-			},
+			social: { github: 'https://github.com/gruntwork-io/terragrunt' },
 			sidebar: [
 				{
 					label: 'Getting Started',
@@ -21,33 +19,26 @@ export default defineConfig({
 				{
 					label: 'Features',
 					items: [
-						{
-							label: 'Units', slug: 'features/units',
-						},
-						{
-							label: 'Catalog', slug: 'features/catalog',
-						},
+						{ label: 'Units', slug: 'features/units' },
+						{ label: 'Catalog', slug: 'features/catalog' },
 					],
 				},
 				{
 					label: 'Community',
 					items: [
-						{
-							label: 'Contributing', slug: 'community/contributing',
-						},
-						{
-							label: 'Support', slug: 'community/support',
-						},
+						{ label: 'Contributing', slug: 'community/contributing' },
+						{ label: 'Support', slug: 'community/support' },
 					],
 				},
 				{
 					label: 'Reference',
 					items: [
 						{
+							label: 'Configuration', slug: 'reference/configuration',
+						},
+						{
 							label: 'CLI', items: [
-								{
-									label: 'Commands', autogenerate: { directory: 'reference/cli/commands' }
-								},
+								{ label: 'Commands', autogenerate: { directory: 'reference/cli/commands' } },
 							],
 						},
 					],
@@ -55,23 +46,15 @@ export default defineConfig({
 				{
 					label: 'Troubleshooting',
 					items: [
-						{
-							label: 'Debugging', slug: 'troubleshooting/debugging',
-						},
-						{
-							label: 'OpenTelemetry', slug: 'troubleshooting/open-telemetry',
-						},
+						{ label: 'Debugging', slug: 'troubleshooting/debugging' },
+						{ label: 'OpenTelemetry', slug: 'troubleshooting/open-telemetry' },
 					],
 				},
 				{
 					label: 'Migrate',
 					items: [
-						{
-							label: 'Migrating from root terragrunt.hcl', slug: 'migration-guides/migrating-from-root-terragrunt-hcl',
-						},
-						{
-							label: 'Upgrading to Terragrunt 0.19.x', slug: 'migration-guides/upgrading-to-terragrunt-0-19-x',
-						},
+						{ label: 'Migrating from root terragrunt.hcl', slug: 'migration-guides/migrating-from-root-terragrunt-hcl' },
+						{ label: 'Upgrading to Terragrunt 0.19.x', slug: 'migration-guides/upgrading-to-terragrunt-0-19-x' },
 					],
 				},
 			],
