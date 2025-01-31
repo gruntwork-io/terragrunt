@@ -54,6 +54,10 @@ const (
 	DeprecatedNoColorFlagName         = "no-color"
 	DeprecatedNonInteractiveFlagName  = "non-interactive"
 	DeprecatedWorkingDirFlagName      = "working-dir"
+	DeprecatedStrictModeFlagName      = "strict-mode"
+	DeprecatedStrictControlFlagName   = "strict-control"
+	DeprecatedExperimentModeFlagName  = "experiment-mode"
+	DeprecatedExperimentFlagName      = "experiment"
 
 	// Deprecated flags.
 
@@ -176,7 +180,8 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 
 				return nil
 			},
-		}),
+		},
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedExperimentModeFlagName), cliRedesignControl)),
 
 		flags.NewFlag(&cli.SliceFlag[string]{
 			Name:    ExperimentFlagName,
@@ -188,7 +193,8 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 
 				return nil
 			},
-		}),
+		},
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedExperimentFlagName), cliRedesignControl)),
 
 		// Strict Mode flags.
 
@@ -206,7 +212,8 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 
 				return nil
 			},
-		}),
+		},
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedStrictModeFlagName), cliRedesignControl)),
 
 		flags.NewFlag(&cli.SliceFlag[string]{
 			Name:    StrictControlFlagName,
@@ -220,7 +227,8 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 
 				return nil
 			},
-		}),
+		},
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedStrictControlFlagName), cliRedesignControl)),
 	}
 
 	flags = flags.Sort()
