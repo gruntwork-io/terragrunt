@@ -46,6 +46,11 @@ The commands used for managing Terragrunt configuration itself are:
   - [info](#terragrunt-info)
   - [validate-inputs](#validate-inputs)
 
+The commands used for displaying information about Terragrunt settings:
+
+- [Info commands](#info-commands)
+  - [strict](#strict-command)
+
 ### Main commands
 
 #### OpenTofu shortcuts
@@ -2020,4 +2025,24 @@ time=2024-08-23T11:47:18+03:00 level=stdout prefix=app binary=tofu msg=OpenTofu 
 time=2024-08-23T11:47:18+03:00 level=stdout prefix=app binary=tofu msg=plan. Resource actions are indicated with the following symbols:
 time=2024-08-23T11:47:18+03:00 level=stdout prefix=app binary=tofu msg=  + create
 time=2024-08-23T11:47:18+03:00 level=stdout prefix=app binary=tofu msg=OpenTofu will perform the following actions:
+```
+
+### Info commands
+
+#### Strict command
+
+Displays current strict controls.
+
+Example:
+
+```bash
+terragrunt info strict
+```
+
+You can also view detailed information on a specific control by specifying its name in the command line.
+
+Example:
+
+```bash
+terragrunt info strict deprecated-flags
 ```
