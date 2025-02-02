@@ -8,12 +8,13 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 )
 
-// Writer is the base layer for command views, encapsulating a set of I/O streams, a colorize implementation, and implementing a human friendly view for diagnostics.
+// Writer is the base layer for command views, encapsulating a set of I/O streams and implementing a human friendly view for strict controls.
 type Writer struct {
 	io.Writer
 	render Render
 }
 
+// NewWriter returns a new `Writer` instance.
 func NewWriter(writer io.Writer, render Render) *Writer {
 	return &Writer{
 		Writer: writer,
@@ -21,6 +22,7 @@ func NewWriter(writer io.Writer, render Render) *Writer {
 	}
 }
 
+// List renders the given list of controls.
 func (writer *Writer) List(controls strict.Controls) error {
 	output, err := writer.render.List(controls)
 	if err != nil {
@@ -30,6 +32,7 @@ func (writer *Writer) List(controls strict.Controls) error {
 	return writer.output(output)
 }
 
+// DetailControl renders the detailed information about the control, including its subcontrols.
 func (writer *Writer) DetailControl(control strict.Control) error {
 	output, err := writer.render.DetailControl(control)
 	if err != nil {

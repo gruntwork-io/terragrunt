@@ -18,6 +18,7 @@ const (
 
 var _ = strict.Control(new(DeprecatedEnvVar))
 
+// DeprecatedEnvVar is strict control for deprecated environment variables.
 type DeprecatedEnvVar struct {
 	*Control
 	ErrorFmt   string
@@ -27,6 +28,9 @@ type DeprecatedEnvVar struct {
 	newFlag       cli.Flag
 }
 
+// NewDeprecatedEnvVar returns a new `DeprecatedEnvVar` instance.
+// Since we don't know which env vars can be used at the time of definition,
+// we take the first env var from the list `GetEnvVars()` for the name and description to display it in `info strict`.
 func NewDeprecatedEnvVar(depreacedFlag, newFlag cli.Flag, newValue string) *DeprecatedEnvVar {
 	var (
 		depreacedName = util.FirstElement(util.RemoveEmptyElements(depreacedFlag.GetEnvVars()))
@@ -50,6 +54,7 @@ func NewDeprecatedEnvVar(depreacedFlag, newFlag cli.Flag, newValue string) *Depr
 	}
 }
 
+// Evaluate implements `strict.Control` interface.
 func (ctrl *DeprecatedEnvVar) Evaluate(ctx context.Context) error {
 	var (
 		valueName = ctrl.depreacedFlag.Value().GetName()

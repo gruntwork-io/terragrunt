@@ -7,7 +7,8 @@ const (
 	ActiveStatus Status = iota
 	// CompletedStatus is the Status of a Control that is completed.
 	CompletedStatus
-	// SuspendedStatus is the Status of a Control that is suspended, it does nothing and is left only to avoid returning the `InvalidControlNameError` Error.
+	// SuspendedStatus is the Status of a Control that is suspended.
+	// It does nothing and is assigned to a control only to avoid returning the `InvalidControlNameError`.
 	SuspendedStatus
 )
 
@@ -17,14 +18,18 @@ var statusNames = map[Status]string{
 	SuspendedStatus: "Suspended",
 }
 
+// Statuses are a set of Statuses.
 type Statuses []Status
 
+// Contains returns true if the `statuses` slice contains the given `status`.
 func (statuses Statuses) Contains(status Status) bool {
 	return slices.Contains(statuses, status)
 }
 
+// Status represetns the status of the Control.
 type Status byte
 
+// String implements `fmt.Stringer` interface.
 func (status Status) String() string {
 	if name, ok := statusNames[status]; ok {
 		return name

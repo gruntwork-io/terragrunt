@@ -18,6 +18,7 @@ const (
 
 var _ = strict.Control(new(DeprecatedFlagName))
 
+// DeprecatedFlagName is strict control for deprecated flag names.
 type DeprecatedFlagName struct {
 	*Control
 	ErrorFmt   string
@@ -27,6 +28,9 @@ type DeprecatedFlagName struct {
 	newFlag       cli.Flag
 }
 
+// NewDeprecatedFlagName returns a new `DeprecatedFlagName` instance.
+// Since we don't know which names can be used at the time of definition,
+// we take the first name from the list `Names()` for the name and description to display it in `info strict`.
 func NewDeprecatedFlagName(depreacedFlag, newFlag cli.Flag, newValue string) *DeprecatedFlagName {
 	var (
 		depreacedName = util.FirstElement(util.RemoveEmptyElements(depreacedFlag.Names()))
@@ -49,6 +53,7 @@ func NewDeprecatedFlagName(depreacedFlag, newFlag cli.Flag, newValue string) *De
 	}
 }
 
+// Evaluate implements `strict.Control` interface.
 func (ctrl *DeprecatedFlagName) Evaluate(ctx context.Context) error {
 	var (
 		valueName = ctrl.depreacedFlag.Value().GetName()

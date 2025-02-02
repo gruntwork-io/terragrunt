@@ -12,10 +12,10 @@ var _ = cli.Flag(new(Flag))
 // Flag is a wrapper for `cli.Flag` that avoids displaying deprecated flags in help, but registers their flag names and environment variables.
 type Flag struct {
 	cli.Flag
-	envVars         []string
-	deprecatedFlags []*DeprecatedFlag
+	deprecatedFlags DeprecatedFlags
 }
 
+// NewFlag returns a new Flag instance.
 func NewFlag(main cli.Flag, opts ...Option) *Flag {
 	flag := &Flag{
 		Flag: main,
@@ -39,19 +39,11 @@ func (main *Flag) TakesValue() bool {
 	return !ok || !val
 }
 
-// GetEnvVars implements `cli.Flag` interface.
-func (main *Flag) GetEnvVars() []string {
-	if len(main.envVars) > 0 {
-		return main.envVars
-	}
-
-	return main.Flag.GetEnvVars()
-}
-
+// Value implements `cli.Flag` interface.
 func (main *Flag) Value() cli.FlagValue {
-	for _, depreactedFlag := range main.deprecatedFlags {
-		if depreactedFlagValue := depreactedFlag.Value(); depreactedFlagValue.IsSet() && depreactedFlag.newValueFn != nil {
-			newValue := depreactedFlag.newValueFn(depreactedFlagValue)
+	for _, deprecatedFlag := range main.deprecatedFlags {
+		if deprecatedFlagValue := deprecatedFlag.Value(); deprecatedFlagValue.IsSet() && deprecatedFlag.newValueFn != nil {
+			newValue := deprecatedFlag.newValueFn(deprecatedFlagValue)
 			main.Flag.Value().Set(newValue) //nolint:errcheck
 		}
 	}
@@ -59,6 +51,7 @@ func (main *Flag) Value() cli.FlagValue {
 	return main.Flag.Value()
 }
 
+// Apply implements `cli.Flag` interface.
 func (main *Flag) Apply(set *flag.FlagSet) error {
 	if err := main.Flag.Apply(set); err != nil {
 		return err
@@ -81,6 +74,7 @@ func (main *Flag) Apply(set *flag.FlagSet) error {
 	return nil
 }
 
+// RunAction implements `cli.Flag` interface.
 func (main *Flag) RunAction(ctx *cli.Context) error {
 	for _, deprecated := range main.deprecatedFlags {
 		if err := deprecated.controls.Evaluate(ctx); err != nil {
@@ -97,63 +91,4 @@ func (main *Flag) RunAction(ctx *cli.Context) error {
 	}
 
 	return main.Flag.RunAction(ctx)
-}
-
-type Option func(*Flag)
-
-func WithDeprecatedFlag(deprecatedFlag cli.Flag, newValueFn NewValueFunc, applyControlsFn ApplyStrictControlsFunc) Option {
-	return func(main *Flag) {
-		deprecatedFlag := &DeprecatedFlag{
-			Flag:       deprecatedFlag,
-			newValueFn: newValueFn,
-		}
-		deprecatedFlag.SetStrictControls(main, applyControlsFn)
-
-		main.deprecatedFlags = append(main.deprecatedFlags, deprecatedFlag)
-	}
-}
-
-func WithDeprecatedPrefix(prefix Prefix, applyControlsFn ApplyStrictControlsFunc) Option {
-	return func(main *Flag) {
-		deprecatedFlag := &DeprecatedFlag{
-			Flag:    main.Flag,
-			names:   prefix.FlagNames(main.Flag.Names()...),
-			envVars: prefix.EnvVars(main.Flag.Names()...),
-		}
-		deprecatedFlag.SetStrictControls(main, applyControlsFn)
-
-		main.deprecatedFlags = append(main.deprecatedFlags, deprecatedFlag)
-	}
-}
-
-func WithDeprecatedNames(flagNames []string, applyControlsFn ApplyStrictControlsFunc) Option {
-	return func(main *Flag) {
-		deprecatedFlag := &DeprecatedFlag{
-			Flag:    main.Flag,
-			names:   Prefix{}.FlagNames(flagNames...),
-			envVars: Prefix{}.EnvVars(flagNames...),
-		}
-		deprecatedFlag.SetStrictControls(main, applyControlsFn)
-
-		main.deprecatedFlags = append(main.deprecatedFlags, deprecatedFlag)
-	}
-}
-
-func WithDeprecatedName(flagName string, applyControlsFn ApplyStrictControlsFunc) Option {
-	return func(main *Flag) {
-		WithDeprecatedNames([]string{flagName}, applyControlsFn)(main)
-	}
-}
-
-func WithDeprecatedNamesEnvVars(flagNames, envVars []string, applyControlsFn ApplyStrictControlsFunc) Option {
-	return func(main *Flag) {
-		deprecatedFlag := &DeprecatedFlag{
-			Flag:    main.Flag,
-			names:   flagNames,
-			envVars: envVars,
-		}
-		deprecatedFlag.SetStrictControls(main, applyControlsFn)
-
-		main.deprecatedFlags = append(main.deprecatedFlags, deprecatedFlag)
-	}
 }

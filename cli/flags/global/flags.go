@@ -66,7 +66,7 @@ const (
 	DeprecatedTfLogJSONFlagName            = "tf-logs-to-json"
 )
 
-// NewFlags creates and returns flags common to all commands.
+// NewFlags creates and returns global flags common for all commands.
 func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 	tgPrefix := prefix.Prepend(flags.TgPrefix)
 	terragruntPrefix := prefix.Prepend(flags.TerragruntPrefix)
@@ -131,26 +131,23 @@ func NewFlags(opts *options.TerragruntOptions, prefix flags.Prefix) cli.Flags {
 				return nil
 			},
 		},
-			flags.WithDeprecatedPrefix(terragruntPrefix, cliRedesignControl),
+			flags.WithDeprecatedNames(terragruntPrefix.FlagNames(DeprecatedLogFormatFlagName), cliRedesignControl),
 			flags.WithDeprecatedFlag(&cli.BoolFlag{
 				Name:        terragruntPrefix.FlagName(DeprecatedDisableLogFormattingFlagName),
 				EnvVars:     terragruntPrefix.EnvVars(DeprecatedDisableLogFormattingFlagName),
 				Destination: &opts.DisableLogFormatting,
 				Usage:       "If specified, logs will be displayed in key/value format. By default, logs are formatted in a human readable format.",
-				Hidden:      true,
 			}, flags.NewValue(format.KeyValueFormatName), legacyLogsControl),
 			flags.WithDeprecatedFlag(&cli.BoolFlag{
 				Name:        terragruntPrefix.FlagName(DeprecatedJSONLogFlagName),
 				EnvVars:     terragruntPrefix.EnvVars(DeprecatedJSONLogFlagName),
 				Destination: &opts.JSONLogFormat,
 				Usage:       "If specified, Terragrunt will output its logs in JSON format.",
-				Hidden:      true,
 			}, flags.NewValue(format.JSONFormatName), legacyLogsControl),
 			flags.WithDeprecatedFlag(&cli.BoolFlag{
 				Name:    terragruntPrefix.FlagName(DeprecatedTfLogJSONFlagName),
 				EnvVars: terragruntPrefix.EnvVars(DeprecatedTfLogJSONFlagName),
 				Usage:   "If specified, Terragrunt will wrap Terraform stdout and stderr in JSON.",
-				Hidden:  true,
 			}, flags.NewValue(format.JSONFormatName), legacyLogsControl)),
 
 		flags.NewFlag(&cli.GenericFlag[string]{

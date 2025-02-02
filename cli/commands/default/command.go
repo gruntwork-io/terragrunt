@@ -52,7 +52,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 func NewSubcommands(opts *options.TerragruntOptions) cli.Commands {
 	var (
 		subcommands  = make(cli.Commands, len(tf.CommandNames))
-		strictGroups = opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.CLIRedesign)
+		strictGroups = opts.StrictControls.FilterByNames(controls.DeprecatedCommands, controls.DeprecatedDefaultCommand)
 	)
 
 	for i, name := range tf.CommandNames {

@@ -11,6 +11,7 @@ const (
 	RunAllCommandsCategoryName  = "`*-all` commands"
 )
 
+// NewDeprecatedCommand declares the deprecated command.
 func NewDeprecatedCommand(command, newCommand string) *Control {
 	return &Control{
 		Name:        command,

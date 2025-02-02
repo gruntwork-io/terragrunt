@@ -17,35 +17,44 @@ func (names ControlNames) String() string {
 	return strings.Join(names, ", ")
 }
 
-// Control represents a Control that can be Enabled or disabled in strict mode.
+// Control represents an interface that can be enabled or disabled in strict mode.
 // When the Control is Enabled, Terragrunt will behave in a way that is not backwards compatible.
 type Control interface {
-	// GetName is the GetName of the Control.
+	// GetName returns the name of the strict control.
 	GetName() string
 
+	// GetDescription returns the description of the strict control.
 	GetDescription() string
 
-	// Status of the strict Control.
+	// GetStatus returns the status of the strict control.
 	GetStatus() Status
 
+	// Enable enables the control.
 	Enable()
 
+	// GetEnabled returns true if the control is enabled.
 	GetEnabled() bool
 
+	// GetCategory returns category of the strict control.
 	GetCategory() *Category
 
+	// SetCategory sets the category.
 	SetCategory(category *Category)
 
+	// GetSubcontrols returns all subcontrols.
 	GetSubcontrols() Controls
 
+	// AddSubcontrols adds the given `newCtrls` as subcontrols.
 	AddSubcontrols(newCtrls ...Control)
 
+	// Evaluate evaluates the struct control.
 	Evaluate(ctx context.Context) error
 }
 
+// Controls are multiple of Controls.
 type Controls []Control
 
-// Names returns all strict Control names.
+// Names returns names of all `ctrls`.
 func (ctrls Controls) Names() ControlNames {
 	var names ControlNames
 
@@ -60,6 +69,7 @@ func (ctrls Controls) Names() ControlNames {
 	return names
 }
 
+// FilterByStatus filters `ctrls` by given statuses.
 func (ctrls Controls) FilterByStatus(statuses ...Status) Controls {
 	var filtered Controls
 
@@ -72,6 +82,7 @@ func (ctrls Controls) FilterByStatus(statuses ...Status) Controls {
 	return filtered
 }
 
+// FilterByEnabled filters `ctrls` by `Enabled: true` field.
 func (ctrls Controls) FilterByEnabled() Controls {
 	var filtered Controls
 
@@ -84,6 +95,7 @@ func (ctrls Controls) FilterByEnabled() Controls {
 	return filtered
 }
 
+// FilterByNames filters `ctrls` by the given `names`.
 func (ctrls Controls) FilterByNames(names ...string) Controls {
 	var filtered Controls
 
@@ -96,6 +108,7 @@ func (ctrls Controls) FilterByNames(names ...string) Controls {
 	return filtered
 }
 
+// FilterByCategories filters `ctrls` by the given `categories`.
 func (ctrls Controls) FilterByCategories(categories ...*Category) Controls {
 	var filtered Controls
 
@@ -108,6 +121,7 @@ func (ctrls Controls) FilterByCategories(categories ...*Category) Controls {
 	return filtered
 }
 
+// GetCategories returns a unique list of the `ctrls` categories.
 func (ctrls Controls) GetCategories() Categories {
 	var categories Categories
 
@@ -120,12 +134,14 @@ func (ctrls Controls) GetCategories() Categories {
 	return categories
 }
 
+// SetCategory sets the given category for all `ctrls`.
 func (ctrls Controls) SetCategory(category *Category) {
 	for _, ctrl := range ctrls {
 		ctrl.SetCategory(category)
 	}
 }
 
+// Enable recursively enables all `ctrls`.
 func (ctrls Controls) Enable() {
 	for _, ctrl := range ctrls {
 		ctrl.Enable()
@@ -133,7 +149,7 @@ func (ctrls Controls) Enable() {
 	}
 }
 
-// EnableControl validates that the specified Control name is valid and enables this Control.
+// EnableControl validates that the specified control name is valid and enables `ctrl`.
 func (ctrls Controls) EnableControl(name string) error {
 	foundControls := ctrls.FilterByNames(name)
 
@@ -172,12 +188,14 @@ func (ctrls Controls) Evaluate(ctx context.Context) error {
 	return nil
 }
 
+// AddSubcontrols adds the given `newCtrls` as subcontrols into all `ctrls`.
 func (ctrls Controls) AddSubcontrols(newCtrls ...Control) {
 	for _, ctrl := range ctrls {
 		ctrl.AddSubcontrols(newCtrls...)
 	}
 }
 
+// GetSubcontrols returns all subcontrols from all `ctrls`.
 func (ctrls Controls) GetSubcontrols() Controls {
 	var found Controls
 
@@ -202,6 +220,7 @@ func (ctrls Controls) AddSubcontrolsToCategory(categoryName string, controls ...
 	}
 }
 
+// Find search control by given `name`, returns nil if not found.
 func (ctrls Controls) Find(name string) Control {
 	for _, ctrl := range ctrls {
 		if ctrl != nil && ctrl.GetName() == name {
@@ -212,10 +231,12 @@ func (ctrls Controls) Find(name string) Control {
 	return nil
 }
 
+// Len implements `sort.Interface` interface.
 func (ctrls Controls) Len() int {
 	return len(ctrls)
 }
 
+// Less implements `sort.Interface` interface.
 func (ctrls Controls) Less(i, j int) bool {
 	if len((ctrls)[j].GetName()) == 0 {
 		return false
@@ -230,10 +251,12 @@ func (ctrls Controls) Less(i, j int) bool {
 	return (ctrls)[i].GetStatus() < (ctrls)[j].GetStatus()
 }
 
+// Swap implements `sort.Interface` interface.
 func (ctrls Controls) Swap(i, j int) {
 	(ctrls)[i], (ctrls)[j] = (ctrls)[j], (ctrls)[i]
 }
 
+// Sort returns `ctrls` in sorted order by `Name` and `Status`.
 func (ctrls Controls) Sort() Controls {
 	sort.Sort(ctrls)
 

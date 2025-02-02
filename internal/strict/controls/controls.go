@@ -15,6 +15,8 @@ const (
 
 	CLIRedesign = "cli-redesign"
 
+	DeprecatedDefaultCommand = "deprecated-default-command"
+
 	// DeprecatedCommands is the control that prevents the use of deprecated commands.
 	DeprecatedCommands = "deprecated-commands"
 
@@ -67,6 +69,11 @@ func New() strict.Controls {
 		&Control{
 			Name:        CLIRedesign,
 			Description: "Prevents old design CLI flags/commands from being used.",
+			Category:    stageCategory,
+		},
+		&Control{
+			Name:        DeprecatedDefaultCommand,
+			Description: "Prevents default commands from being used.",
 			Category:    stageCategory,
 		},
 		&Control{

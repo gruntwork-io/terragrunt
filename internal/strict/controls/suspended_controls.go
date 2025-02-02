@@ -4,6 +4,8 @@ import (
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 )
 
+// NewSuspendedControls is a list of suspended controls that are no longer used,
+// but are present to avoid returning `InvalidControlNameError`.
 func NewSuspendedControls() strict.Controls {
 	return strict.Controls{
 		&Control{
