@@ -1,6 +1,7 @@
 ---
 title: Contributing
 description: Contributing to Terragrunt
+slug: docs/community/contributing
 ---
 
 ## Contribution Guidelines

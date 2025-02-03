@@ -1,6 +1,9 @@
 ---
 title: OpenTofu shortcuts
 description: Terragrunt shortcuts for OpenTofu/Terraform
+slug: docs/reference/cli/commands/opentofu-shortcuts
+sidebar:
+  order: 1
 ---
 
 Terragrunt is an orchestration tool for OpenTofu/Terraform, so you can generally expect that a command you can run with `tofu`/ `terraform` you can also run with `terragrunt`.

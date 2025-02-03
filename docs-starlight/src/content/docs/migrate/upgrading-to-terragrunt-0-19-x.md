@@ -1,6 +1,7 @@
 ---
 title: Upgrading to Terragrunt 0.19.x
 description: A Terragrunt 0.19 migration guide
+slug: docs/migrate/upgrading-to-terragrunt-0-19-x
 ---
 
 ## Background

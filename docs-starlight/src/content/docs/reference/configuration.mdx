@@ -1,6 +1,7 @@
 ---
 title: Configuration
 description: Learn how to configure Terragrunt
+slug: docs/reference/configuration
 ---
 
 import { FileTree } from '@astrojs/starlight/components';
@@ -13,6 +14,7 @@ Here’s an example:
 include "root" {
   path = find_in_parent_folders("root.hcl")
 }
+
 dependencies {
   paths = ["../vpc", "../mysql", "../redis"]
 }
@@ -34,12 +36,12 @@ Terragrunt figures out the path to its config file according to the following ru
 
 Refer to the following pages for a complete reference of supported features in the terragrunt configuration file:
 
-- [Config blocks and attributes]({{site.baseurl}}/docs/reference/config-blocks-and-attributes/)
-- [Built-in functions]({{site.baseurl}}/docs/reference/built-in-functions/)
+- [Config blocks and attributes](/docs/reference/config-blocks-and-attributes/)
+- [Built-in functions](/docs/reference/built-in-functions/)
 
 ## Configuration parsing order
 
-It is important to be aware of the terragrunt configuration parsing order when using features like [locals]({{site.baseurl}}/docs/features/locals/#locals) and [dependency outputs]({{site.baseurl}}/docs/features/stacks#passing-outputs-between-units), where you can reference attributes of other blocks in the config in your `inputs`. For example, because `locals` are evaluated before `dependency` blocks, you can not bind outputs from `dependency` into `locals`. On the other hand, for the same reason, you can use `locals` in the `dependency` blocks.
+It is important to be aware of the terragrunt configuration parsing order when using features like [locals](/docs/features/locals/#locals) and [dependency outputs](/docs/features/stacks#passing-outputs-between-units), where you can reference attributes of other blocks in the config in your `inputs`. For example, because `locals` are evaluated before `dependency` blocks, you can not bind outputs from `dependency` into `locals`. On the other hand, for the same reason, you can use `locals` in the `dependency` blocks.
 
 Currently terragrunt parses the config in the following order:
 

@@ -1,6 +1,7 @@
 ---
 title: OpenTelemetry
 description: A guide to using OpenTelemetry with Terragrunt
+slug: docs/troubleshooting/open-telemetry
 ---
 
 Terragrunt can be configured to emit telemetry in [OpenTelemetry](https://opentelemetry.io/) format, traces and metrics.

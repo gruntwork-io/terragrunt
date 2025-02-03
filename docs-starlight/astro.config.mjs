@@ -7,57 +7,48 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			title: 'Terragrunt',
-			social: { github: 'https://github.com/gruntwork-io/terragrunt' },
+			social: {
+				github: 'https://github.com/gruntwork-io/terragrunt',
+				discord: 'https://discord.gg/SPu4Degs5f',
+			},
 			sidebar: [
 				{
 					label: 'Getting Started',
-					items: [
-						{ label: 'Quick Start', slug: 'getting-started/quick-start' },
-						{ label: 'Installation', slug: 'getting-started/install' },
-					],
+					autogenerate: { directory: 'getting-started' },
 				},
 				{
 					label: 'Features',
-					items: [
-						{ label: 'Units', slug: 'features/units' },
-						{ label: 'Catalog', slug: 'features/catalog' },
-					],
+					autogenerate: { directory: 'features' },
 				},
 				{
 					label: 'Community',
-					items: [
-						{ label: 'Contributing', slug: 'community/contributing' },
-						{ label: 'Support', slug: 'community/support' },
-					],
+					autogenerate: { directory: 'community' },
 				},
 				{
 					label: 'Reference',
 					items: [
 						{
-							label: 'Configuration', slug: 'reference/configuration',
+							label: 'Configuration', slug: 'docs/reference/configuration',
 						},
 						{
-							label: 'CLI', items: [
-								{ label: 'Commands', autogenerate: { directory: 'reference/cli/commands' } },
+							label: 'CLI', collapsed: true, items: [
+								{ label: 'Commands', autogenerate: { directory: 'reference/cli/commands', collapsed: true } },
 							],
 						},
 					],
 				},
 				{
 					label: 'Troubleshooting',
-					items: [
-						{ label: 'Debugging', slug: 'troubleshooting/debugging' },
-						{ label: 'OpenTelemetry', slug: 'troubleshooting/open-telemetry' },
-					],
+					autogenerate: { directory: 'troubleshooting' },
 				},
 				{
 					label: 'Migrate',
-					items: [
-						{ label: 'Migrating from root terragrunt.hcl', slug: 'migration-guides/migrating-from-root-terragrunt-hcl' },
-						{ label: 'Upgrading to Terragrunt 0.19.x', slug: 'migration-guides/upgrading-to-terragrunt-0-19-x' },
-					],
+					autogenerate: { directory: 'migrate' },
 				},
 			],
 		}),
 	],
+	redirects: {
+		'/getting-started': '/quick-start',
+	},
 });

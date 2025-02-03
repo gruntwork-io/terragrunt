@@ -1,6 +1,7 @@
 ---
 title: Support
 description: Get help with Terragrunt
+slug: docs/community/support
 ---
 
 ## Github Discussions

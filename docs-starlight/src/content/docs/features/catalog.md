@@ -1,6 +1,7 @@
 ---
 title: Catalog
 description: A reference page in my new Starlight docs site.
+slug: docs/features/catalog
 ---
 
 Launch the user interface for searching and managing your module catalog.
