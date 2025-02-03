@@ -9,11 +9,15 @@ import (
 const (
 	// CommandName stack command name.
 	CommandName          = "stack"
-	generate             = "generate"
-	run                  = "run"
-	output               = "output"
 	OutputFormatFlagName = "format"
 	OutputFormatEnvName  = "TERRAGRUNT_STACK_OUTPUT_FORMAT"
+
+	generate = "generate"
+	run      = "run"
+	output   = "output"
+
+	rawOutputFormat  = "raw"
+	jsonOutputFormat = "json"
 )
 
 // NewFlags builds the flags for stack.
@@ -25,7 +29,7 @@ func NewFlags(opts *options.TerragruntOptions) cli.Flags {
 			EnvVar: OutputFormatEnvName,
 
 			Destination: &opts.StackOutputFormat,
-			Usage:       "Stack output format.",
+			Usage:       "Stack output format. Valid values are: json, raw",
 		},
 	}
 }

@@ -2,11 +2,8 @@ package stack
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"strings"
-
-	"github.com/gruntwork-io/terragrunt/config"
 
 	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
 
@@ -70,19 +67,23 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions) error {
 
 	writer := opts.Writer
 
-	for unit, values := range outputs {
-		for key, value := range values {
-			valueStr, err := config.CtyValueAsString(value)
-			if err != nil {
-				opts.Logger.Warnf("Error fetching output from unit %s with key: %s", unit, key)
-				continue
-			}
-			line := fmt.Sprintf("%s.%s = %s\n", unit, key, valueStr)
-			_, err = writer.Write([]byte(line))
-			if err != nil {
-				return errors.New(err)
-			}
+	switch opts.StackOutputFormat {
+
+	default:
+		if err := printOutputs(opts, writer, outputs, false); err != nil {
+			return errors.New(err)
 		}
+
+	case rawOutputFormat:
+		if err := printOutputs(opts, writer, outputs, true); err != nil {
+			return errors.New(err)
+		}
+
+	case jsonOutputFormat:
+		if err := printJsonOutput(opts, writer, outputs); err != nil {
+			return errors.New(err)
+		}
+
 	}
 
 	return nil

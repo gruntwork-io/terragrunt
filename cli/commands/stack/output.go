@@ -2,6 +2,8 @@ package stack
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"path/filepath"
 
 	"github.com/zclconf/go-cty/cty"
@@ -31,4 +33,33 @@ func generateOutput(ctx context.Context, opts *options.TerragruntOptions) (map[s
 	}
 
 	return unitOutputs, nil
+}
+
+func printOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value, raw bool) error {
+	for unit, values := range outputs {
+		for key, value := range values {
+			valueStr, err := getValueString(value, raw)
+			if err != nil {
+				opts.Logger.Warnf("Error fetching output from unit %s with key: %s", unit, key)
+				continue
+			}
+			line := fmt.Sprintf("%s.%s = %s\n", unit, key, valueStr)
+			if _, err := writer.Write([]byte(line)); err != nil {
+				return errors.New(err)
+			}
+		}
+	}
+	return nil
+}
+
+func printJsonOutput(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value) error {
+
+	return nil
+}
+
+func getValueString(value cty.Value, raw bool) (string, error) {
+	if raw && value.Type() == cty.String {
+		return value.AsString(), nil
+	}
+	return config.CtyValueAsString(value)
 }
