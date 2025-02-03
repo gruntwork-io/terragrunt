@@ -403,7 +403,7 @@ func TestTerragruntStderr(t *testing.T) {
 
 	helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr")
 
-	assert.Contains(t, string(showStderr.Bytes()), "ERROR MESSAGE")
+	assert.Contains(t, showStderr.String(), "ERROR MESSAGE")
 }
 
 func TestTerragruntStderrSuppress(t *testing.T) {
@@ -421,5 +421,5 @@ func TestTerragruntStderrSuppress(t *testing.T) {
 
 	helpers.LogBufferContentsLineByLine(t, showStderr, "show stderr")
 
-	assert.NotContains(t, string(showStderr.Bytes()), "ERROR MESSAGE")
+	assert.NotContains(t, showStderr.String(), "ERROR MESSAGE")
 }
