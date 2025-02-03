@@ -1,10 +1,14 @@
 package stack
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"path/filepath"
+
+	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -52,7 +56,31 @@ func printOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map
 	return nil
 }
 
-func printJsonOutput(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value) error {
+func printJsonOutput(
+	opts *options.TerragruntOptions,
+	writer io.Writer,
+	outputs map[string]map[string]cty.Value,
+) error {
+	outer := make(map[string]cty.Value)
+	for unit, values := range outputs {
+		outer[unit] = cty.ObjectVal(values)
+	}
+
+	topVal := cty.ObjectVal(outer)
+
+	rawJSON, err := ctyjson.Marshal(topVal, topVal.Type())
+	if err != nil {
+		return errors.New(err)
+	}
+
+	var pretty bytes.Buffer
+	if err := json.Indent(&pretty, rawJSON, "", "  "); err != nil {
+		return errors.New(err)
+	}
+
+	if _, err := writer.Write(pretty.Bytes()); err != nil {
+		return errors.New(err)
+	}
 
 	return nil
 }
