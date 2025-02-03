@@ -1195,8 +1195,8 @@ github.com/gruntwork-io/boilerplate v0.6.0 h1:77NJLgryLJXdvpCdBbHmVyPDviKBHJezmt
 github.com/gruntwork-io/boilerplate v0.6.0/go.mod h1:lEt8kd3r7TJa61CGiHcDRYANbAoSvPCeGwZQ+RqwBPc=
 github.com/gruntwork-io/go-commons v0.17.2 h1:14dsCJ7M5Vv2X3BIPKeG9Kdy6vTMGhM8L4WZazxfTuY=
 github.com/gruntwork-io/go-commons v0.17.2/go.mod h1:zs7Q2AbUKuTarBPy19CIxJVUX/rBamfW8IwuWKniWkE=
-github.com/gruntwork-io/terragrunt-engine-go v0.0.7 h1:Svy1GYbNLangAZE/9nNnTh3M1SmPHJ5mSZ5d6ri6Z+s=
-github.com/gruntwork-io/terragrunt-engine-go v0.0.7/go.mod h1:/TqqveuTKhsNlzUyR/vC2UHcXV+TqmsHlPvyDKYnux8=
+github.com/gruntwork-io/terragrunt-engine-go v0.0.8 h1:RxDHZmn/YkA7pCG6MbVmKYpwDnxM0S61q0lI/OFhieU=
+github.com/gruntwork-io/terragrunt-engine-go v0.0.8/go.mod h1:bTa03zNWYV5gmM5mwoxwbQR4GoCy1LX3rFDsbSp5o2o=
 github.com/gruntwork-io/terratest v0.47.2 h1:t6iWwsqJH7Gx0RwXleU/vjc+2c0JXRMdj3DxYXTBssQ=
 github.com/gruntwork-io/terratest v0.47.2/go.mod h1:LnYX8BN5WxUMpDr8rtD39oToSL4CBERWSCusbJ0d/64=
 github.com/hashicorp/aws-sdk-go-base v0.6.0/go.mod h1:2fRjWDv3jJBeN6mVWFHV6hFTNeFBx2gpDLQaZNxUVAY=
@@ -2401,8 +2401,8 @@ google.golang.org/genproto v0.0.0-20250124145028-65684f501c47 h1:SI8Hf7K4+uVYchX
 google.golang.org/genproto v0.0.0-20250124145028-65684f501c47/go.mod h1:qbZzneIOXSq+KFAFut9krLfRLZiFLzZL5u2t8SV83EE=
 google.golang.org/genproto/googleapis/api v0.0.0-20250124145028-65684f501c47 h1:5iw9XJTD4thFidQmFVvx0wi4g5yOHk76rNRUxz1ZG5g=
 google.golang.org/genproto/googleapis/api v0.0.0-20250124145028-65684f501c47/go.mod h1:AfA77qWLcidQWywD0YgqfpJzf50w2VjzBml3TybHeJU=
-google.golang.org/genproto/googleapis/rpc v0.0.0-20250124145028-65684f501c47 h1:91mG8dNTpkC0uChJUQ9zCiRqx3GEEFOWaRZ0mI6Oj2I=
-google.golang.org/genproto/googleapis/rpc v0.0.0-20250124145028-65684f501c47/go.mod h1:+2Yz8+CLJbIfL9z73EW45avw8Lmge3xVElCP9zEKi50=
+google.golang.org/genproto/googleapis/rpc v0.0.0-20250127172529-29210b9bc287 h1:J1H9f+LEdWAfHcez/4cvaVBox7cOYT+IU6rgqj5x++8=
+google.golang.org/genproto/googleapis/rpc v0.0.0-20250127172529-29210b9bc287/go.mod h1:8BS3B93F/U1juMFq9+EDk+qOT5CO1R9IzXxG3PTqiRk=
 google.golang.org/grpc v1.8.0/go.mod h1:yo6s7OP7yaDglbqo1J04qKzAhqBH6lvTonzMVmEdcZw=
 google.golang.org/grpc v1.19.0/go.mod h1:mqu4LbDTu4XGKhr4mRzUsmM4RtVoemTSY81AxZiDr8c=
 google.golang.org/grpc v1.20.1/go.mod h1:10oTOabMzJvdu6/UiuZezV6QK5dSlG84ov/aaiqXj38=
