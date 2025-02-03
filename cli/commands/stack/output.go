@@ -63,7 +63,7 @@ func printOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map
 	return nil
 }
 
-func printJsonOutput(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value) error {
+func printJsonOutput(writer io.Writer, outputs map[string]map[string]cty.Value) error {
 	outer := make(map[string]cty.Value)
 	for unit, values := range outputs {
 		outer[unit] = cty.ObjectVal(values)
