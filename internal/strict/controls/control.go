@@ -6,7 +6,6 @@ import (
 
 	"github.com/gruntwork-io/terragrunt/internal/strict"
 	"github.com/gruntwork-io/terragrunt/pkg/log"
-	"golang.org/x/exp/slices"
 )
 
 var _ = strict.Control(new(Control))
@@ -90,11 +89,7 @@ func (ctrl *Control) GetSubcontrols() strict.Controls {
 
 // AddSubcontrols implements `strict.Control` interface.
 func (ctrl *Control) AddSubcontrols(newCtrls ...strict.Control) {
-	for _, newCtrl := range newCtrls {
-		if !slices.Contains(ctrl.Subcontrols.Names(), newCtrl.GetName()) {
-			ctrl.Subcontrols = append(ctrl.Subcontrols, newCtrls...)
-		}
-	}
+	ctrl.Subcontrols = append(ctrl.Subcontrols, newCtrls...)
 }
 
 // Evaluate implements `strict.Control` interface.
@@ -115,6 +110,10 @@ func (ctrl *Control) Evaluate(ctx context.Context) error {
 		ctrl.OnceWarn.Do(func() {
 			logger.Warn(ctrl.Warning)
 		})
+	}
+
+	if ctrl.Subcontrols == nil {
+		return nil
 	}
 
 	return ctrl.Subcontrols.Evaluate(ctx)

@@ -82,6 +82,19 @@ func (ctrls Controls) FilterByStatus(statuses ...Status) Controls {
 	return filtered
 }
 
+// RemoveDuplicates removes controls with duplicate names.
+func (ctrls Controls) RemoveDuplicates() Controls {
+	var filtered Controls
+
+	for _, ctrl := range ctrls {
+		if !slices.Contains(filtered.Names(), ctrl.GetName()) {
+			filtered = append(filtered, ctrl)
+		}
+	}
+
+	return filtered
+}
+
 // FilterByEnabled filters `ctrls` by `Enabled: true` field.
 func (ctrls Controls) FilterByEnabled() Controls {
 	var filtered Controls
@@ -151,15 +164,16 @@ func (ctrls Controls) Enable() {
 
 // EnableControl validates that the specified control name is valid and enables `ctrl`.
 func (ctrls Controls) EnableControl(name string) error {
-	foundControls := ctrls.FilterByNames(name)
+	for _, ctrl := range ctrls {
+		if ctrl.GetName() == name {
+			ctrl.Enable()
+			ctrl.GetSubcontrols().Enable()
 
-	if len(foundControls) == 0 {
-		return NewInvalidControlNameError(ctrls.FilterByStatus(ActiveStatus).Names())
+			return nil
+		}
 	}
 
-	foundControls.Enable()
-
-	return nil
+	return NewInvalidControlNameError(ctrls.FilterByStatus(ActiveStatus).Names())
 }
 
 // LogEnabled logs the control names that are enabled and have completed Status.
@@ -216,7 +230,7 @@ func (ctrls Controls) AddSubcontrolsToCategory(categoryName string, controls ...
 
 		Controls(controls).SetCategory(category)
 
-		ctrls.AddSubcontrols(controls...)
+		ctrl.AddSubcontrols(controls...)
 	}
 }
 

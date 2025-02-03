@@ -22,18 +22,40 @@ import (
 )
 
 const (
-	testOngoingAName   = "test-ongoing-a"
-	testOngoingBName   = "test-ongoing-b"
-	testOngoingCName   = "test-ongoing-c"
-	testCompletedAName = "test-completed-a"
-	testCompletedBName = "test-completed-b"
-	testCompletedCName = "test-completed-c"
+	testParentAName     = "test-parent-a"
+	testOngoingAName    = "test-ongoing-a"
+	testOngoingSubAName = "test-ongoing-sub-a"
+	testOngoingBName    = "test-ongoing-b"
+	testOngoingCName    = "test-ongoing-c"
+	testCompletedAName  = "test-completed-a"
+	testCompletedBName  = "test-completed-b"
+	testCompletedCName  = "test-completed-c"
 )
 
 var (
+	testOngoingSubA = func() *controls.Control {
+		return &controls.Control{
+			Name:    testOngoingSubAName,
+			Error:   errors.New("a error ongoing"),
+			Warning: "sub a warning ongoing",
+		}
+	}
+
+	testParentA = func() *controls.Control {
+		return &controls.Control{
+			Name: testParentAName,
+			Subcontrols: strict.Controls{
+				testOngoingSubA(),
+			},
+		}
+	}
+
 	testOngoingA = func() *controls.Control {
 		return &controls.Control{
-			Name:    testOngoingAName,
+			Name: testOngoingAName,
+			Subcontrols: strict.Controls{
+				testOngoingSubA(),
+			},
 			Error:   errors.New("a error ongoing"),
 			Warning: "a warning ongoing",
 		}
@@ -88,6 +110,7 @@ func newTestLogger() (log.Logger, *bytes.Buffer) {
 
 func newTestControls() strict.Controls {
 	return strict.Controls{
+		testParentA(),
 		testOngoingA(),
 		testOngoingB(),
 		testOngoingC(),
@@ -130,10 +153,10 @@ func TestEnableControl(t *testing.T) {
 				},
 				{
 					"invalid",
-					strict.NewInvalidControlNameError([]string{testOngoingAName, testOngoingBName, testOngoingCName}),
+					strict.NewInvalidControlNameError([]string{testOngoingAName, testOngoingBName, testOngoingCName, testParentAName}),
 				},
 			},
-			[]string{testOngoingAName, testOngoingCName, testCompletedAName, testCompletedCName},
+			[]string{testOngoingAName, testOngoingSubAName, testOngoingCName, testCompletedAName, testCompletedCName},
 			fmt.Sprintf(strict.CompletedControlsFmt, strict.ControlNames([]string{testCompletedAName, testCompletedCName})),
 		},
 		{
@@ -153,6 +176,16 @@ func TestEnableControl(t *testing.T) {
 		{
 			[]testEnableControl{},
 			[]string{},
+			"",
+		},
+		{
+			[]testEnableControl{
+				{
+					testParentAName,
+					nil,
+				},
+			},
+			[]string{testParentAName, testOngoingSubAName},
 			"",
 		},
 	}
@@ -182,6 +215,12 @@ func TestEnableControl(t *testing.T) {
 				if control.GetEnabled() {
 					actualEnabledControls = append(actualEnabledControls, control.GetName())
 				}
+				for _, subcontrol := range control.GetSubcontrols() {
+					if subcontrol.GetEnabled() {
+						actualEnabledControls = append(actualEnabledControls, subcontrol.GetName())
+					}
+				}
+
 			}
 
 			assert.ElementsMatch(t, testCase.expectedEnabledControls, actualEnabledControls)
@@ -292,7 +331,7 @@ func TestEvaluateControl(t *testing.T) {
 					nil,
 				},
 			},
-			[]string{testOngoingA().Warning},
+			[]string{testOngoingA().Warning, testOngoingSubA().Warning},
 		},
 		{
 			[]string{testCompletedAName},
@@ -302,7 +341,7 @@ func TestEvaluateControl(t *testing.T) {
 					nil,
 				},
 			},
-			[]string{testOngoingA().Warning},
+			[]string{testOngoingA().Warning, testOngoingSubA().Warning},
 		},
 		{
 			[]string{testCompletedAName},

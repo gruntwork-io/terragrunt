@@ -19,7 +19,7 @@ const listTemplate = `
    {{ end }}
 `
 const detailControlTemplate = `
-   {{ $controls := .control.GetSubcontrols }}{{ $categories := $controls.GetCategories.Sort }}{{ range $index, $category := $categories }}{{ if $index }}
+   {{ $controls := .control.GetSubcontrols.RemoveDuplicates }}{{ $categories := $controls.GetCategories.Sort }}{{ range $index, $category := $categories }}{{ if $index }}
    {{ end }}{{ $category.Name }}:
    {{ $categoryControls := $controls.FilterByCategories $category }}{{ template "rangeSubcontrolsTemplate" $categoryControls }}
    {{ end }}{{ $noCategoryControls := $controls.FilterByCategories }}{{ if and $categories $noCategoryControls }}
