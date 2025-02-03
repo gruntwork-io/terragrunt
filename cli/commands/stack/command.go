@@ -61,7 +61,11 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 				Name:  output,
 				Usage: "Run fetch stack output",
 				Action: func(ctx *cli.Context) error {
-					return RunOutput(ctx.Context, opts.OptionsFromContext(ctx))
+					prefix := ""
+					if val := ctx.Args().Get(0); val != "" {
+						prefix = val
+					}
+					return RunOutput(ctx.Context, opts.OptionsFromContext(ctx), prefix)
 				},
 			},
 		},

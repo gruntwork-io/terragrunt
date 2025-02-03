@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
@@ -39,15 +40,21 @@ func generateOutput(ctx context.Context, opts *options.TerragruntOptions) (map[s
 	return unitOutputs, nil
 }
 
-func printOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value, raw bool) error {
+func printOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value, raw bool, prefix string) error {
 	for unit, values := range outputs {
 		for key, value := range values {
-			valueStr, err := getValueString(value, raw)
-			if err != nil {
-				opts.Logger.Warnf("Error fetching output from unit %s with key: %s", unit, key)
+			combined := unit + "." + key
+			if prefix != "" && !strings.HasPrefix(combined, prefix) {
 				continue
 			}
-			line := fmt.Sprintf("%s.%s = %s\n", unit, key, valueStr)
+
+			valueStr, err := getValueString(value, raw)
+			if err != nil {
+				opts.Logger.Warnf("Error fetching output for '%s' (unit=%s, key=%s): %v", combined, unit, key, err)
+				continue
+			}
+
+			line := fmt.Sprintf("%s = %s\n", combined, valueStr)
 			if _, err := writer.Write([]byte(line)); err != nil {
 				return errors.New(err)
 			}

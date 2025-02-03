@@ -52,13 +52,14 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 }
 
 // RunOutput stack output.
-func RunOutput(ctx context.Context, opts *options.TerragruntOptions) error {
+func RunOutput(ctx context.Context, opts *options.TerragruntOptions, prefix string) error {
 
 	stacksEnabled := opts.Experiments[experiment.Stacks]
 	if !stacksEnabled.Enabled {
 		return errors.New("stacks experiment is not enabled use --experiment stacks to enable it")
 	}
 
+	// collect outputs
 	outputs, err := generateOutput(ctx, opts)
 	if err != nil {
 		return errors.New(err)
@@ -70,12 +71,12 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions) error {
 	switch opts.StackOutputFormat {
 
 	default:
-		if err := printOutputs(opts, writer, outputs, false); err != nil {
+		if err := printOutputs(opts, writer, outputs, false, prefix); err != nil {
 			return errors.New(err)
 		}
 
 	case rawOutputFormat:
-		if err := printOutputs(opts, writer, outputs, true); err != nil {
+		if err := printOutputs(opts, writer, outputs, true, prefix); err != nil {
 			return errors.New(err)
 		}
 
