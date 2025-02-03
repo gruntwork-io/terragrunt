@@ -57,7 +57,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.2.4
 	github.com/charmbracelet/glamour v0.8.0
 	github.com/charmbracelet/lipgloss v1.0.0
-	github.com/getsops/sops/v3 v3.9.3
+	github.com/getsops/sops/v3 v3.9.4
 	github.com/gitsight/go-vcsurl v1.0.1
 	github.com/gofrs/flock v0.12.1
 	github.com/google/uuid v1.6.0

@@ -977,8 +977,8 @@ github.com/gabriel-vasile/mimetype v1.4.8 h1:FfZ3gj38NjllZIeJAmMhr+qKL8Wu+nOoI3G
 github.com/gabriel-vasile/mimetype v1.4.8/go.mod h1:ByKUIKGjh1ODkGM1asKUbQZOLGrPjydw3hYPU2YU9t8=
 github.com/getsops/gopgagent v0.0.0-20241224165529-7044f28e491e h1:y/1nzrdF+RPds4lfoEpNhjfmzlgZtPqyO3jMzrqDQws=
 github.com/getsops/gopgagent v0.0.0-20241224165529-7044f28e491e/go.mod h1:awFzISqLJoZLm+i9QQ4SgMNHDqljH6jWV0B36V5MrUM=
-github.com/getsops/sops/v3 v3.9.3 h1:4j1/hZiYkHamyPd9k/mjfCXCxY4mCiUHKp3m4uTkDa4=
-github.com/getsops/sops/v3 v3.9.3/go.mod h1:lk9QjoLCBWtZAaf74HCROFee7HoUOoY5S3PzCyNzzwg=
+github.com/getsops/sops/v3 v3.9.4 h1:f5JQRkXrK1SWM/D7HD8gCFLrUPZIEP+XUHs0byaNaqk=
+github.com/getsops/sops/v3 v3.9.4/go.mod h1:zI9m7ji9gsegGA/4pWMT3EGkDdbeTiafgL9mAxz1weE=
 github.com/ghodss/yaml v0.0.0-20150909031657-73d445a93680/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
 github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=
 github.com/gitsight/go-vcsurl v1.0.1 h1:wkijKsbVg9R2IBP97U7wOANeIW9WJJKkBwS9XqllzWo=
