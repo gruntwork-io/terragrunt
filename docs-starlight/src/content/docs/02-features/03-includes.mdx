@@ -17,6 +17,7 @@ that all units have a consistent configuration, and to avoid repeating the same 
 For example, you might have a **root** Terragrunt configuration that defines the remote state and provider configurations for all your units:
 
 ```hcl
+# root.hcl
 remote_state {
   backend = "s3"
   config = {
@@ -45,6 +46,7 @@ You can then include this in each of your **unit** `terragrunt.hcl` files using 
 infrastructure module you need to deploy:
 
 ```hcl
+# app/terragrunt.hcl
 include "root" {
   path = find_in_parent_folders("root.hcl")
 }
@@ -98,6 +100,7 @@ To solve this, you can use [multiple include blocks]({{site.baseurl}}/docs/refer
 Suppose your `qa/app/terragrunt.hcl` configuration looks like the following:
 
 ```hcl
+# qa/app/terragrunt.hcl
 include "root" {
   path = find_in_parent_folders("root.hcl")
 }
@@ -165,6 +168,7 @@ folder doesn't contain deployable configurations, and so that it is lexically so
 In our example, the contents of `_env/app.hcl` would look like the following:
 
 ```hcl
+# _env/app.hcl
 terraform {
   source = "github.com/<org>/modules.git//app?ref=v0.1.0"
 }
@@ -190,6 +194,7 @@ this alongside the root configuration by using multiple `include` blocks, signif
 environment configuration:
 
 ```hcl
+# qa/app/terragrunt.hcl
 include "root" {
   path = find_in_parent_folders("root.hcl")
 }
@@ -212,6 +217,7 @@ In our example, note that the `_env/app.hcl` file hardcodes the `app` module ver
 pasted below for convenience):
 
 ```hcl
+# _env/app.hcl
 terraform {
   source = "github.com/<org>/modules.git//app?ref=v0.1.0"
 }
@@ -224,6 +230,7 @@ What if we want to deploy a different version for each environment? One way you 
 the following:
 
 ```hcl
+# qa/app/terragrunt.hcl
 include "root" {
   path = find_in_parent_folders("root.hcl")
 }
@@ -247,6 +254,7 @@ to reference data defined in the parent configurations. To do this, we will refa
 the source URL as a local variable instead of defining it into the `terraform` block:
 
 ```hcl
+# _env/app.hcl
 locals {
   source_base_url = "github.com/<org>/modules.git//app"
 }
@@ -259,6 +267,7 @@ the data defined in the included configuration. Using that, we can construct the
 repeat the module source:
 
 ```hcl
+# qa/app/terragrunt.hcl
 include "root" {
   path = find_in_parent_folders("root.hcl")
 }
@@ -287,6 +296,7 @@ are being used?
 In our example, the unit configuration defines the `env` input in its configuration (pasted below for convenience):
 
 ```hcl
+# qa/app/terragrunt.hcl
 # ... other blocks omitted for brevity ...
 
 inputs = {
@@ -300,6 +310,7 @@ prior to passing to OpenTofu/Terraform?
 One way to do this is to define the override parameters in the child config instead of the parent:
 
 ```hcl
+# qa/app/terragrunt.hcl
 # ... other blocks omitted for brevity ...
 
 include "env" {
@@ -357,6 +368,7 @@ To show this, let's introduce a new `env.hcl` configuration in each environment:
 The `env.hcl` configuration will look like the following:
 
 ```hcl
+# qa/env.hcl
 locals {
   env = "qa" # this will be prod in the prod folder, and stage in the stage folder.
 }
@@ -365,6 +377,7 @@ locals {
 We can then read the `env.hcl` file in the included `_env/app.hcl` file and use the `env` local:
 
 ```hcl
+# _env/app.hcl
 locals {
   # Load the relevant env.hcl file based on where the including unit is.
   # This works because find_in_parent_folders always runs in the context of the unit.
@@ -399,6 +412,7 @@ while `qa/env.hcl` is read when Terragrunt is run in the `qa/app` unit.
 Now we can clean up the child config to eliminate the `env` input variable since that is loaded in the `env.hcl` context:
 
 ```hcl
+# qa/app/terragrunt.hcl
 include "root" {
   path = find_in_parent_folders("root.hcl")
 }

@@ -144,6 +144,7 @@ You can use the `dependency` block to extract those outputs and use them as `inp
 For example, suppose the `vpc` unit outputs the ID under the name `vpc_id`. To access that output, you would specify in `mysql/terragrunt.hcl`:
 
 ```hcl
+# mysql/terragrunt.hcl
 dependency "vpc" {
   config_path = "../vpc"
 }
@@ -160,6 +161,7 @@ You can also specify multiple `dependency` blocks to access the outputs of multi
 For example, in the above folder structure, you might want to reference the `domain` output of the `redis` and `mysql` units for use as `inputs` in the `backend-app` unit. To access those outputs, you would specify the following in `backend-app/terragrunt.hcl`:
 
 ```hcl
+# backend-app/terragrunt.hcl
 dependency "mysql" {
   config_path = "../mysql"
 }
@@ -203,6 +205,7 @@ For example, in the previous scenario with a `mysql` unit and `vpc` unit, suppos
 You can specify that in `mysql/terragrunt.hcl`:
 
 ```hcl
+# mysql/terragrunt.hcl
 dependency "vpc" {
   config_path = "../vpc"
 
@@ -223,6 +226,7 @@ What if you wanted to restrict this behavior to only the `validate` command? For
 You can use the `mock_outputs_allowed_terraform_commands` attribute to indicate that the `mock_outputs` should only be used when running those OpenTofu/Terraform commands. So to restrict the `mock_outputs` to only when `validate` is being run, you can modify the above `terragrunt.hcl` file to:
 
 ```hcl
+# mysql/terragrunt.hcl
 dependency "vpc" {
   config_path = "../vpc"
 
@@ -243,6 +247,7 @@ Note that indicating `validate` means that the `mock_outputs` will be used eithe
 You can also use `skip_outputs` on the `dependency` block to specify the dependency without pulling in the outputs:
 
 ```hcl
+# mysql/terragrunt.hcl
 dependency "vpc" {
   config_path = "../vpc"
 
@@ -255,6 +260,7 @@ When `skip_outputs` is used with `mock_outputs`, mocked outputs will be returned
 This can be useful when you disable backend initialization (`remote_state.disable_init`) in CI for example.
 
 ```hcl
+# mysql/terragrunt.hcl
 dependency "vpc" {
   config_path = "../vpc"
 
@@ -269,6 +275,7 @@ dependency "vpc" {
 You can also use `mock_outputs_merge_strategy_with_state` on the `dependency` block to merge mocked outputs and real outputs:
 
 ```hcl
+# mysql/terragrunt.hcl
 dependency "vpc" {
   config_path = "../vpc"
 
@@ -318,6 +325,7 @@ Let’s assume you have the following dependencies between OpenTofu/Terraform un
 You can express these dependencies in your `terragrunt.hcl` config files using a `dependencies` block. For example, in `backend-app/terragrunt.hcl` you would specify:
 
 ``` hcl
+# backend-app/terragrunt.hcl
 dependencies {
   paths = ["../vpc", "../mysql", "../redis"]
 }
@@ -326,6 +334,7 @@ dependencies {
 Similarly, in `frontend-app/terragrunt.hcl`, you would specify:
 
 ``` hcl
+# frontend-app/terragrunt.hcl
 dependencies {
   paths = ["../vpc", "../backend-app"]
 }
@@ -478,7 +487,7 @@ terragrunt run-all plan --terragrunt-json-out-dir /tmp/json
 
 
 ```bash
-$ terragrunt run-all plan --terragrunt-out-dir /tmp/all --terragrunt-json-out-dir /tmp/all
+terragrunt run-all plan --terragrunt-out-dir /tmp/all --terragrunt-json-out-dir /tmp/all
 ```
 
 <FileTree>

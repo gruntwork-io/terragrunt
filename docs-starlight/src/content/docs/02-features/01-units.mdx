@@ -71,7 +71,8 @@ Terragrunt has the ability to download remote OpenTofu/Terraform configurations.
 
 This repo contains typical OpenTofu/Terraform code, with one difference: anything in your code that should be different between environments should be exposed as an input variable. For example, the `app` module might expose the following variables:
 
-``` hcl
+```hcl
+# variables.tf
 variable "instance_count" {
   description = "How many servers to run"
 }
@@ -113,11 +114,13 @@ In a separate repo, called, for example, `live`, you define the code for all of 
 
 Notice how there are no OpenTofu/Terraform configurations (`.tf` files) in any of the folders. Instead, each `terragrunt.hcl` file specifies a `terraform { …​ }` block that specifies from where to download the OpenTofu/Terraform code, as well as the environment-specific values for the input variables in that OpenTofu/Terraform code. For example, `stage/app/terragrunt.hcl` may look like this:
 
-``` hcl
+```hcl
+# terragrunt.hcl
 terraform {
   # Deploy version v0.0.3 in stage
   source = "git::git@github.com:foo/modules.git//app?ref=v0.0.3"
 }
+
 inputs = {
   instance_count = 3
   instance_type  = "t4g.micro"
@@ -128,11 +131,13 @@ _(Note: the double slash (`//`) in the `source` parameter is intentional and req
 
 And `prod/app/terragrunt.hcl` may look like this:
 
-``` hcl
+```hcl
+# terragrunt.hcl
 terraform {
   # Deploy version v0.0.1 in prod
   source = "git::git@github.com:foo/modules.git//app?ref=v0.0.1"
 }
+
 inputs = {
   instance_count = 10
   instance_type  = "m8g.large"
@@ -212,7 +217,9 @@ In particular:
     ```
 
 - **Terragrunt configuration**: When using file paths directly in your Terragrunt configuration (`terragrunt.hcl`), such as in an `extra_arguments` block, you can’t use hard-coded absolute file paths, or it won’t work on your teammates' computers. Therefore, you should utilize the Terragrunt built-in function `get_terragrunt_dir()` to use a relative file path:
+
     ``` hcl
+    # terragrunt.hcl
     terraform {
       source = "git::git@github.com:foo/modules.git//frontend-app?ref=v0.0.3"
       extra_arguments "custom_vars" {
@@ -236,7 +243,9 @@ In particular:
 ## Using Terragrunt with private Git repos
 
 The easiest way to use Terragrunt with private Git repos is to use SSH authentication. Configure your Git account so you can use it with SSH (see the [guide for GitHub here](https://help.github.com/articles/connecting-to-github-with-ssh/)) and use the SSH URL for your repo:
+
 ``` hcl
+# terragrunt.hcl
 terraform {
   source = "git@github.com:foo/modules.git//path/to/module?ref=v0.0.1"
 }
@@ -244,6 +253,7 @@ terraform {
 
 Look up the Git repo for your repository to find the proper format.
 Note: In automated pipelines, you may need to run the following command for your Git repository prior to calling `terragrunt` to ensure that the ssh host is registered locally, e.g.:
+
 ```bash
 ssh -T -oStrictHostKeyChecking=accept-new git@github.com || true
 ```
@@ -300,10 +310,11 @@ repo:
 
 Each `env.hcl` file (the one at the environment level, e.g `prod/env.hcl`) should define a
 `generate` block to generate the AWS provider configuration to assume the role for that environment. For example,
-if you wanted to assume the role `arn:aws:iam::0123456789:role/terragrunt` in all the modules for the prod account, you
-would put the following in `prod/terragrunt.hcl`:
+if you wanted to assume the role `arn:aws:iam::0123456789:role/terragrunt` in all the units for the prod account, you
+would put the following in `prod/env.hcl`:
 
 ```hcl
+# prod/env.hcl
 generate "provider" {
   path = "provider.tf"
   if_exists = "overwrite_terragrunt"
@@ -320,10 +331,11 @@ EOF
 This instructs Terragrunt to create the file `provider.tf` in the working directory where Terragrunt calls `tofu`/`terraform`
 before it runs any of the OpenTofu/Terraform commands (e.g `plan`, `apply`, `validate`, etc). This allows you to inject this
 provider configuration for any unit that includes the `env.hcl` file.
-To include this in the child configurations (e.g `mysql/terragrunt.hcl`), you would update all the units to
+To include this in the child configurations (e.g `app/terragrunt.hcl`), you would update all the units to
 include this configuration using the `include` block:
 
 ```hcl
+# prod/app/terragrunt.hcl
 include "env" {
   path = find_in_parent_folders("env.hcl")
 }
