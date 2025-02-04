@@ -10,6 +10,7 @@ const (
 	// CommandName stack command name.
 	CommandName = "stack"
 	generate    = "generate"
+	run         = "run"
 )
 
 // NewFlags builds the flags for stack.
@@ -26,11 +27,18 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Flags:                  NewFlags(opts).Sort(),
 		Subcommands: cli.Commands{
 			&cli.Command{
-				Name:  "generate",
-				Usage: "Generate the stack file.",
+				Name:  generate,
+				Usage: "Generate a stack from a terragrunt.stack.hcl file",
 				Action: func(ctx *cli.Context) error {
 					return RunGenerate(ctx.Context, opts.OptionsFromContext(ctx))
 
+				},
+			},
+			&cli.Command{
+				Name:  run,
+				Usage: "Run a command on the stack generated from the current directory",
+				Action: func(ctx *cli.Context) error {
+					return Run(ctx.Context, opts.OptionsFromContext(ctx))
 				},
 			},
 		},

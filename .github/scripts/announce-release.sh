@@ -10,7 +10,21 @@ USERNAME="${USERNAME:?Required environment variable USERNAME}"
 AVATAR_URL="${AVATAR_URL:?Required environment variable AVATAR_URL}"
 
 if RELEASE_JSON=$(gh -R "$REPO" release view "$TAG_NAME" --json body --json url --json name); then
+	RELEASE_NOTES_LENGTH=$(jq '.body | length' <<<"$RELEASE_JSON")
+
 	RELEASE_NOTES=$(jq '.body' <<<"$RELEASE_JSON")
+
+	# This math is a little weird.
+	# We have a budget of 200 characters for everything we add around the release notes.
+	# We also lower the budget by 3 characters for the ellipsis we add at the end when truncating.
+	# So, it's 2000 characters for the release notes,
+	# minus 200 characters for everything else,
+	# minus 3 characters for the ellipsis
+	# = 1797 characters.
+	if [ "$RELEASE_NOTES_LENGTH" -gt 1800 ]; then
+		echo "Release notes are too long ($RELEASE_NOTES_LENGTH characters), truncating to 1797 characters, truncating the last line, then appending '…'"
+		RELEASE_NOTES=$(jq '.body |= .[:1797]' <<<"$RELEASE_JSON" | jq '.body | split("\r\n") | del(.[-1]) | join("\r\n")' | jq '. + "\r\n…"')
+	fi
 
 	PAYLOAD=$(
 		jq \
@@ -22,6 +36,8 @@ if RELEASE_JSON=$(gh -R "$REPO" release view "$TAG_NAME" --json body --json url 
 
 	tmpfile=$(mktemp)
 	jq '.content = "'"<@&$ROLE_ID> $(jq -r '.name' <<<"$RELEASE_JSON")\n"'>>> " + .content + "'"\n\n**[View release on GitHub]($(jq -r '.url' <<<"$RELEASE_JSON"))**"'"' <<<"$PAYLOAD" >"$tmpfile"
+
+	jq '.content' <"$tmpfile"
 
 	curl -X POST \
 		--data-binary "@$tmpfile" \

@@ -20,13 +20,13 @@ func TestUpdateUnknownCtyValValues(t *testing.T) {
 		{
 			cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{
 				"items": cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{
-					"firstname": cty.StringVal("joo"),
+					"firstname": cty.StringVal("test"),
 					"lastname":  cty.UnknownVal(cty.String),
 				})}),
 			})}),
 			cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{
 				"items": cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{
-					"firstname": cty.StringVal("joo"),
+					"firstname": cty.StringVal("test"),
 					"lastname":  cty.StringVal(""),
 				})}),
 			})}),

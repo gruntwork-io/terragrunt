@@ -540,12 +540,12 @@ func NewGlobalFlags(opts *options.TerragruntOptions) cli.Flags {
 			Name:        TerragruntExperimentModeFlagName,
 			EnvVar:      TerragruntExperimentModeEnvName,
 			Destination: &opts.ExperimentMode,
-			Usage:       "Enables experiment mode for Terragrunt. For more information, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
+			Usage:       "Enables experiment mode for Terragrunt. For more information, see https://terragrunt.gruntwork.io/docs/reference/experiments/ .",
 		},
 		&cli.SliceFlag[string]{
 			Name:   TerragruntExperimentFlagName,
 			EnvVar: TerragruntExperimentEnvName,
-			Usage:  "Enables specific experiments. For a list of available experiments, see https://terragrunt.gruntwork.io/docs/reference/experiment-mode .",
+			Usage:  "Enables specific experiments. For a list of available experiments, see https://terragrunt.gruntwork.io/docs/reference/experiments/ .",
 			Action: func(ctx *cli.Context, val []string) error {
 				experiments := experiment.NewExperiments()
 				warning, err := experiments.ValidateExperimentNames(val)

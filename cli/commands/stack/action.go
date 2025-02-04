@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	runall "github.com/gruntwork-io/terragrunt/cli/commands/run-all"
+
 	"github.com/gruntwork-io/terragrunt/internal/experiment"
 
 	"github.com/gruntwork-io/terragrunt/config"
@@ -19,7 +21,7 @@ import (
 )
 
 const (
-	stackCacheDir    = ".terragrunt-stack"
+	stackDir         = ".terragrunt-stack"
 	defaultStackFile = "terragrunt.stack.hcl"
 	dirPerm          = 0755
 )
@@ -34,8 +36,31 @@ func RunGenerate(ctx context.Context, opts *options.TerragruntOptions) error {
 	return generateStack(ctx, opts)
 }
 
+// Run execute stack command.
+func Run(ctx context.Context, opts *options.TerragruntOptions) error {
+	stacksEnabled := opts.Experiments[experiment.Stacks]
+	if !stacksEnabled.Enabled {
+		return errors.New("stacks experiment is not enabled use --experiment stacks to enable it")
+	}
+
+	if err := RunGenerate(ctx, opts); err != nil {
+		return err
+	}
+
+	// prepare options for execution
+	// navigate to stack directory
+	opts.WorkingDir = filepath.Join(opts.WorkingDir, stackDir)
+	// remove 0 element from args
+	opts.TerraformCliArgs = opts.TerraformCliArgs[1:]
+	opts.TerraformCommand = opts.TerraformCliArgs[0]
+	opts.OriginalTerraformCommand = strings.Join(opts.TerraformCliArgs, " ")
+
+	return runall.Run(ctx, opts)
+}
+
 func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
+	opts.Logger.Infof("Generating stack from %s", opts.TerragruntStackConfigPath)
 	stackFile, err := config.ReadStackConfigFile(ctx, opts)
 
 	if err != nil {
@@ -48,13 +73,16 @@ func generateStack(ctx context.Context, opts *options.TerragruntOptions) error {
 
 	return nil
 }
+
 func processStackFile(ctx context.Context, opts *options.TerragruntOptions, stackFile *config.StackConfigFile) error {
-	baseDir := filepath.Join(opts.WorkingDir, stackCacheDir)
+	baseDir := filepath.Join(opts.WorkingDir, stackDir)
 	if err := os.MkdirAll(baseDir, dirPerm); err != nil {
 		return errors.New(fmt.Errorf("failed to create base directory: %w", err))
 	}
 
 	for _, unit := range stackFile.Units {
+		opts.Logger.Infof("Processing unit %s", unit.Name)
+
 		destPath := filepath.Join(baseDir, unit.Path)
 		dest, err := filepath.Abs(destPath)
 
