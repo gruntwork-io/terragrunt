@@ -1,0 +1,163 @@
+---
+title: Install
+description: Install Terragrunt!
+slug: docs/getting-started/install
+sidebar:
+  order: 3
+---
+
+import InstallTabs from '@components/InstallTabs.astro'
+import { Code } from '@astrojs/starlight/components'
+export const response = await fetch('https://api.github.com/repos/gruntwork-io/terragrunt/releases/latest');
+export const data = await response.json();
+export const version = data.tag_name || 'v0.72.5';
+
+## Download from releases page
+
+1. Go to the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases).
+2. Download the binary for your operating system: e.g., if you're on a Mac, download `terragrunt_darwin_amd64`; if you're on Windows, download `terragrunt_windows_amd64.exe`, etc.
+3. Optionally, follow the instructions below on [verifying the checksum](#verifying-the-checksum).
+4. Rename the downloaded file to `terragrunt`.
+5. Add execute permissions to the binary: e.g., On Linux and Mac: `chmod u+x terragrunt`.
+6. Put the binary somewhere on your `PATH`: e.g., On Linux and Mac: `mv terragrunt /usr/local/bin/terragrunt`.
+
+### Verifying the checksum
+
+When you download the binary from the releases page, you can also use the checksum file to verify the integrity of the binary. This can be useful for ensuring that you have an intact binary and that it has not been tampered with.
+
+To verify the integrity of the file, do the following:
+
+1. Have the binary downloaded, and accessible.
+2. Generate the SHA256 checksum of the binary.
+3. Download the `SHA256SUMS` file from the releases page.
+4. Find the expected checksum for the binary you downloaded.
+5. If the checksums match, the binary is intact and has not been tampered with.
+
+### Convenience Scripts
+
+<InstallTabs version={version} />
+
+## Install via a package manager
+
+Note that all the different package managers are third party. The third party Terragrunt packages may not be updated with the latest version, but are often close. Please check your version against the latest available on the [Releases Page](https://github.com/gruntwork-io/terragrunt/releases).
+If you  want the latest version, the recommended installation option is to [download from the releases page](https://github.com/gruntwork-io/terragrunt/releases).
+
+* **Windows**: You can install Terragrunt on Windows using [Chocolatey](https://chocolatey.org/)
+
+  ```bash
+  choco install terragrunt
+  ```
+
+* **macOS**: You can install Terragrunt on macOS using [Homebrew](https://brew.sh/):
+
+  ```bash
+  brew install terragrunt
+  ```
+
+* **Linux (Homebrew)**: Most Linux users can use [Homebrew](https://docs.brew.sh/Homebrew-on-Linux):
+
+  ```bash
+  brew install terragrunt
+  ```
+* **Linux (Pacman)**: Arch Linux users can use [pacman](https://archlinux.org/packages/extra/x86_64/terragrunt/):
+
+  ```bash
+  pacman -S terragrunt
+  ```
+
+* **Linux (Gentoo)**: Gentoo users can use [emerge](https://repology.org/project/terragrunt/versions):
+
+  ```bash
+  emerge -a app-admin/terragrunt-bin
+  ```
+
+* **FreeBSD**: You can install Terragrunt on FreeBSD using [Pkg](https://www.freebsd.org/cgi/man.cgi?pkg(7)): 
+
+  ```bash
+  pkg install terragrunt
+  ```
+
+## Install via tool manager
+
+A best practice when using Terragrunt is to pin the version you are using to ensure that you, your colleagues and your CI/CD pipelines are all using the same version. This also allows you to easily upgrade to new versions and rollback to previous versions if needed.
+
+You can use a tool manager to install and manage Terragrunt versions.
+
+* **mise**: You can install Terragrunt using [mise](https://mise.jdx.dev)
+
+  <Code
+    lang="bash"
+    code={`mise install terragrunt ${version}`}
+    frame="terminal"
+  >
+  </Code>
+
+* **asdf**: You can install Terragrunt using [asdf](https://asdf-vm.com)
+
+  <Code
+    lang="bash"
+    code={`asdf plugin add terragrunt\nasdf install terragrunt ${version}`}
+    frame="terminal"
+  >
+  </Code>
+
+Both of these tools allow you to pin the version of Terragrunt you are using in a `.tool-versions` (and `.mise.toml` for mise) file in your project directory.
+
+Colleagues and CI/CD pipelines can then install the associated tool manager, and run using the pinned version.
+
+Note that the tools Terragrunt integrates with, such as OpenTofu and Terraform, can also be managed by these tool managers, so you can also pin the versions of those tools in the same file.
+
+Also note that the asdf plugin that `asdf` relies on is maintained by a third party:
+
+https://github.com/ohmer/asdf-terragrunt
+
+Gruntwork makes no guarantees about the safety or reliability of third-party plugins.
+
+The asdf plugin relied upon by `mise` is maintained by Gruntwork, as requested by the community:
+
+https://github.com/gruntwork-io/asdf-terragrunt
+
+## Building from source
+
+If you'd like to build from source, you can use `go` to build Terragrunt yourself, and install it:
+
+```shell
+git clone https://github.com/gruntwork-io/terragrunt.git
+cd terragrunt
+# Feel free to checkout a particular tag, etc if you want here.
+go install
+```
+
+## Enable tab completion
+
+If you use either Bash or Zsh, you can enable tab completion for Terragrunt commands. To enable autocomplete, first ensure that a config file exists for your chosen shell.
+
+For Bash shell.
+
+```shell
+touch ~/.bashrc
+```
+
+For Zsh shell.
+
+```shell
+touch ~/.zshrc
+```
+
+Then install the autocomplete package.
+
+``` shell
+terragrunt --install-autocomplete
+```
+
+Once the autocomplete support is installed, you will need to restart your shell.
+
+## Terragrunt GitHub Action
+
+Terragrunt is also available as a GitHub Action.
+
+Instructions on how to use it can be found at [https://github.com/gruntwork-io/terragrunt-action](https://github.com/gruntwork-io/terragrunt-action).
+
+## Gruntwork Pipelines
+
+Gruntwork offers a commercial CI/CD solution for Terragrunt called [Pipelines](https://www.gruntwork.io/platform/pipelines). Pipelines is a fully managed CI/CD service that is designed to work seamlessly with Terragrunt. It provides an out of the box solution for running Terragrunt in CI/CD without the need to setup and maintain your own CI/CD infrastructure.
