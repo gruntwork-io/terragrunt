@@ -41,9 +41,6 @@ type App struct {
 	After ActionFunc
 	// The action to execute when no subcommands are specified
 	Action ActionFunc
-	// DefaultCommand is the (optional)  command
-	// to run if no command names are passed as CLI arguments.
-	DefaultCommand *Command
 	// OsExiter is the function used when the app exits. If not set defaults to os.Exit.
 	OsExiter func(code int)
 
@@ -164,18 +161,19 @@ func (app *App) VisibleCommands() []*cli.Command {
 
 func (app *App) newRootCommand() *Command {
 	return &Command{
-		Name:        app.Name,
-		Before:      app.Before,
-		After:       app.After,
-		Action:      app.Action,
-		Usage:       app.Usage,
-		UsageText:   app.UsageText,
-		Description: app.Description,
-		Examples:    app.Examples,
-		Flags:       app.Flags,
-		Subcommands: app.Commands,
-		Complete:    app.Complete,
-		IsRoot:      true,
+		Name:                 app.Name,
+		Before:               app.Before,
+		After:                app.After,
+		Action:               app.Action,
+		Usage:                app.Usage,
+		UsageText:            app.UsageText,
+		Description:          app.Description,
+		Examples:             app.Examples,
+		Flags:                app.Flags,
+		Subcommands:          app.Commands,
+		Complete:             app.Complete,
+		IsRoot:               true,
+		ErrorOnUndefinedFlag: true,
 	}
 }
 

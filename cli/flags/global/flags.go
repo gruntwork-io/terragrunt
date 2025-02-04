@@ -290,10 +290,6 @@ func HelpAction(ctx *cli.Context, opts *options.TerragruntOptions) error {
 		cmds = ctx.App.Commands
 	)
 
-	if ctx.App.DefaultCommand != nil {
-		cmds = append(cmds, ctx.App.DefaultCommand.Subcommands...)
-	}
-
 	if opts.Logger.Level() >= log.DebugLevel {
 		// https: //github.com/urfave/cli/blob/f035ffaa3749afda2cd26fb824aa940747297ef1/help.go#L401
 		if err := os.Setenv("CLI_TEMPLATE_ERROR_DEBUG", "1"); err != nil {

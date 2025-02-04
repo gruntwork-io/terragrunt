@@ -144,11 +144,6 @@ func (cmd *Command) Run(ctx *Context, args Args) (err error) {
 		return subCmd.Run(ctx, subCmdArgs)
 	}
 
-	if cmd.IsRoot && ctx.App.DefaultCommand != nil {
-		err = ctx.App.DefaultCommand.Run(ctx, args)
-		return err
-	}
-
 	if cmd.Action != nil {
 		if err = cmd.Action(ctx); err != nil {
 			return ctx.App.handleExitCoder(ctx, err)
@@ -179,7 +174,8 @@ func (cmd *Command) parseFlags(args Args) ([]string, error) {
 	for {
 		args, err = cmd.flagSetParse(flagSet, args)
 		if err != nil {
-			if !errors.As(err, new(UndefinedFlagError)) || cmd.Subcommands.Get(undefArgs.Get(0)) == nil {
+			if !errors.As(err, new(UndefinedFlagError)) ||
+				(cmd.Subcommands.Get(undefArgs.Get(0)) == nil) {
 				return nil, err
 			}
 		}

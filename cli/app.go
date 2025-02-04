@@ -78,7 +78,6 @@ func NewApp(opts *options.TerragruntOptions) *App {
 	app.Flags = global.NewFlags(opts, nil)
 	app.Commands = TerragruntCommands(opts).WrapAction(WrapWithTelemetry(opts))
 	app.Before = beforeAction(opts)
-	app.DefaultCommand = defaultCmd.NewCommand(opts).WrapAction(WrapWithTelemetry(opts)) // if no terragrunt command is specified, run the default command
 	app.OsExiter = OSExiter
 	app.ExitErrHandler = ExitErrHandler
 

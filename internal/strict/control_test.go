@@ -249,7 +249,7 @@ func TestEnableStrictMode(t *testing.T) {
 	}{
 		{
 			true,
-			[]string{testOngoingAName, testOngoingBName, testOngoingCName},
+			[]string{testParentAName, testOngoingSubAName, testOngoingAName, testOngoingSubAName, testOngoingBName, testOngoingCName},
 		},
 		{
 			false,
@@ -272,6 +272,11 @@ func TestEnableStrictMode(t *testing.T) {
 			for _, control := range controls {
 				if control.GetEnabled() {
 					actualEnabledControls = append(actualEnabledControls, control.GetName())
+				}
+				for _, subcontrol := range control.GetSubcontrols() {
+					if subcontrol.GetEnabled() {
+						actualEnabledControls = append(actualEnabledControls, subcontrol.GetName())
+					}
 				}
 			}
 
