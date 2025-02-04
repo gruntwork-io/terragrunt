@@ -40,7 +40,6 @@ import (
 	"github.com/gruntwork-io/go-commons/env"
 	awsproviderpatch "github.com/gruntwork-io/terragrunt/cli/commands/aws-provider-patch"
 	"github.com/gruntwork-io/terragrunt/cli/commands/catalog"
-	defaultCmd "github.com/gruntwork-io/terragrunt/cli/commands/default"
 	execCmd "github.com/gruntwork-io/terragrunt/cli/commands/exec"
 	graphdependencies "github.com/gruntwork-io/terragrunt/cli/commands/graph-dependencies"
 	"github.com/gruntwork-io/terragrunt/cli/commands/hclfmt"
@@ -189,12 +188,10 @@ func TerragruntCommands(opts *options.TerragruntOptions) cli.Commands {
 		versionCmd.NewCommand(opts),         // version
 		info.NewCommand(opts),               // info
 	}
+	cmds = append(cmds, commands.NewShortcutsCommands(opts)...)
 	cmds = append(cmds, commands.NewDeprecatedCommands(opts)...)
 
 	sort.Sort(cmds)
-
-	// add default command `*` after sorting to put the command at the end of the list in the help.
-	cmds.Add(defaultCmd.NewCommand(opts))
 
 	return cmds
 }
@@ -289,7 +286,7 @@ func initialSetup(cliCtx *cli.Context, opts *options.TerragruntOptions) error {
 	cmdName := cliCtx.Command.Name
 
 	switch cmdName {
-	case runCmd.CommandName, runall.CommandName, graph.CommandName, defaultCmd.CommandName:
+	case runCmd.CommandName, runall.CommandName, graph.CommandName:
 		cmdName = args.CommandName()
 	default:
 		args = append([]string{cmdName}, args...)

@@ -95,6 +95,33 @@ var (
 		CommandNameForceUnlock,
 		CommandNameState,
 	}
+
+	CommandUsages = map[string]string{
+		CommandNameApply:       "Create or update infrastructure.",
+		CommandNameConsole:     "Try Terraform expressions at an interactive command prompt.",
+		CommandNameDestroy:     "Destroy previously-created infrastructure.",
+		CommandNameFmt:         "Reformat your configuration in the standard style.",
+		CommandNameGet:         "Install or upgrade remote Terraform modules.",
+		CommandNameGraph:       "Generate a Graphviz graph of the steps in an operation.",
+		CommandNameImport:      "Associate existing infrastructure with a Terraform resource.",
+		CommandNameInit:        "Prepare your working directory for other commands.",
+		CommandNameLogin:       "Obtain and save credentials for a remote host.",
+		CommandNameLogout:      "Remove locally-stored credentials for a remote host.",
+		CommandNameMetadate:    "Metadata related commands.",
+		CommandNameOutput:      "Show output values from your root module.",
+		CommandNamePlan:        "Show changes required by the current configuration.",
+		CommandNameProviders:   "Show the providers required for this configuration.",
+		CommandNameRefresh:     "Update the state to match remote systems.",
+		CommandNameShow:        "Show the current state or a saved plan.",
+		CommandNameTaint:       "Mark a resource instance as not fully functional.",
+		CommandNameTest:        "Execute integration tests for Terraform modules.",
+		CommandNameVersion:     "Show the current Terraform version.",
+		CommandNameValidate:    "Check whether the configuration is valid.",
+		CommandNameUntaint:     "Remove the 'tainted' state from a resource instance.",
+		CommandNameWorkspace:   "Workspace management.",
+		CommandNameForceUnlock: "Release a stuck lock on the current workspace.",
+		CommandNameState:       "Advanced state management.",
+	}
 )
 
 // ModuleVariables will return all the variables defined in the downloaded terraform modules, taking into

@@ -29,6 +29,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		},
 		Flags:                NewFlags(opts, nil),
 		ErrorOnUndefinedFlag: true,
+		Subcommands:          NewSubcommands(opts),
 		Action: func(ctx *cli.Context) error {
 			if !opts.Experiments.Evaluate(experiment.CLIRedesign) {
 				return cli.NewExitError(errors.Errorf("requires that the %[1]s experiment is enabled. e.g. --experiment %[1]s", experiment.CLIRedesign), cli.ExitCodeGeneralError)
@@ -40,6 +41,35 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 
 			return Action(opts)(ctx)
 		},
+	}
+}
+
+func NewSubcommands(opts *options.TerragruntOptions) cli.Commands {
+	var subcommands = make(cli.Commands, len(tf.CommandNames))
+
+	for i, name := range tf.CommandNames {
+		usage, visible := tf.CommandUsages[name]
+
+		subcommands[i] = &cli.Command{
+			Name:       name,
+			Usage:      usage,
+			Hidden:     !visible,
+			CustomHelp: ShowTFHelp(opts),
+			Action: func(ctx *cli.Context) error {
+				return Action(opts)(ctx)
+			},
+		}
+	}
+
+	return subcommands
+}
+
+// ShowTFHelp prints TF help for the given `ctx.Command` command.
+func ShowTFHelp(opts *options.TerragruntOptions) cli.HelpFunc {
+	return func(ctx *cli.Context) error {
+		terraformHelpCmd := append([]string{tf.FlagNameHelpLong, ctx.Command.Name}, ctx.Args()...)
+
+		return tf.RunCommand(ctx, opts, terraformHelpCmd...)
 	}
 }
 
