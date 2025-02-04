@@ -1,6 +1,6 @@
 ---
 title: Catalog
-description: A reference page in my new Starlight docs site.
+description: Learn how to search and use your module catalog with Terragrunt.
 slug: docs/features/catalog
 ---
 
