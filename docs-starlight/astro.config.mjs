@@ -7,6 +7,9 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			title: 'Terragrunt',
+			logo: {
+				src: '/src/assets/logo.svg',
+			},
 			social: {
 				github: 'https://github.com/gruntwork-io/terragrunt',
 				discord: 'https://discord.gg/SPu4Degs5f',
