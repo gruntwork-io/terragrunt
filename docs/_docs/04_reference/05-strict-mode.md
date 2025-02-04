@@ -119,6 +119,8 @@ The following strict mode controls are available:
 - [skip-dependencies-inputs](#skip-dependencies-inputs)
 - [root-terragrunt-hcl](#root-terragrunt-hcl)
 - [terragrunt-prefix-flags](#terragrunt-prefix-flags)
+- [terragrunt-prefix-env-vars](#terragrunt-prefix-env-vars)
+- [default-command](#default-command)
 
 ### spin-up
 
