@@ -21,11 +21,11 @@ export default defineConfig({
 				},
 				{
 					label: 'Features',
-					autogenerate: { directory: '02-features' },
+					autogenerate: { directory: '02-features', collapsed: true },
 				},
 				{
 					label: 'Community',
-					autogenerate: { directory: '03-community' },
+					autogenerate: { directory: '03-community', collapsed: true },
 				},
 				{
 					label: 'Reference',
@@ -42,11 +42,11 @@ export default defineConfig({
 				},
 				{
 					label: 'Troubleshooting',
-					autogenerate: { directory: '05-troubleshooting' },
+					autogenerate: { directory: '05-troubleshooting', collapsed: true },
 				},
 				{
 					label: 'Migrate',
-					autogenerate: { directory: '06-migrate' },
+					autogenerate: { directory: '06-migrate', collapsed: true },
 				},
 			],
 		}),
