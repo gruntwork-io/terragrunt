@@ -14,15 +14,15 @@ export default defineConfig({
 			sidebar: [
 				{
 					label: 'Getting Started',
-					autogenerate: { directory: 'getting-started' },
+					autogenerate: { directory: '01-getting-started' },
 				},
 				{
 					label: 'Features',
-					autogenerate: { directory: 'features' },
+					autogenerate: { directory: '02-features' },
 				},
 				{
 					label: 'Community',
-					autogenerate: { directory: 'community' },
+					autogenerate: { directory: '03-community' },
 				},
 				{
 					label: 'Reference',
@@ -32,23 +32,20 @@ export default defineConfig({
 						},
 						{
 							label: 'CLI', collapsed: true, items: [
-								{ label: 'Commands', autogenerate: { directory: 'reference/cli/commands', collapsed: true } },
+								{ label: 'Commands', autogenerate: { directory: '04-reference/cli/commands', collapsed: true } },
 							],
 						},
 					],
 				},
 				{
 					label: 'Troubleshooting',
-					autogenerate: { directory: 'troubleshooting' },
+					autogenerate: { directory: '05-troubleshooting' },
 				},
 				{
 					label: 'Migrate',
-					autogenerate: { directory: 'migrate' },
+					autogenerate: { directory: '06-migrate' },
 				},
 			],
 		}),
 	],
-	redirects: {
-		'/getting-started': '/quick-start',
-	},
 });
