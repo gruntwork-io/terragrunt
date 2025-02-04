@@ -52,7 +52,7 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 }
 
 // RunOutput stack output.
-func RunOutput(ctx context.Context, opts *options.TerragruntOptions, prefix string) error {
+func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index string) error {
 
 	stacksEnabled := opts.Experiments[experiment.Stacks]
 	if !stacksEnabled.Enabled {
@@ -71,12 +71,12 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions, prefix stri
 	switch opts.StackOutputFormat {
 
 	default:
-		if err := printOutputs(opts, writer, outputs, false, prefix); err != nil {
+		if err := printOutputs(opts, writer, outputs, false, index); err != nil {
 			return errors.New(err)
 		}
 
 	case rawOutputFormat:
-		if err := printOutputs(opts, writer, outputs, true, prefix); err != nil {
+		if err := printOutputs(opts, writer, outputs, true, index); err != nil {
 			return errors.New(err)
 		}
 

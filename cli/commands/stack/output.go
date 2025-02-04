@@ -40,11 +40,11 @@ func generateOutput(ctx context.Context, opts *options.TerragruntOptions) (map[s
 	return unitOutputs, nil
 }
 
-func printOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value, raw bool, prefix string) error {
+func printOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value, raw bool, index string) error {
 	for unit, values := range outputs {
 		for key, value := range values {
 			combined := unit + "." + key
-			if prefix != "" && !strings.HasPrefix(combined, prefix) {
+			if index != "" && !strings.HasPrefix(combined, index) {
 				continue
 			}
 
