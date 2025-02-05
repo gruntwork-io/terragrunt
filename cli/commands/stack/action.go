@@ -76,7 +76,7 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index strin
 		}
 
 	case rawOutputFormat:
-		if err := printOutputs(opts, writer, outputs, index); err != nil {
+		if err := printRawOutputs(opts, writer, outputs, index); err != nil {
 			return errors.New(err)
 		}
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
@@ -40,8 +41,37 @@ func generateOutput(ctx context.Context, opts *options.TerragruntOptions) (map[s
 	return unitOutputs, nil
 }
 
+func printRawOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value, index string) error {
+	for unit, values := range outputs {
+		for key, value := range values {
+			combined := unit + "." + key
+			if index != "" && !strings.HasPrefix(combined, index) {
+				continue
+			}
+
+			valueStr, err := getValueString(value)
+			if err != nil {
+				opts.Logger.Warnf("Error fetching output for '%s' (unit=%s, key=%s): %v", combined, unit, key, err)
+				continue
+			}
+
+			line := fmt.Sprintf("%s = %s\n", combined, valueStr)
+			if _, err := writer.Write([]byte(line)); err != nil {
+				return errors.New(err)
+			}
+		}
+	}
+	return nil
+}
+
+func getValueString(value cty.Value) (string, error) {
+	if value.Type() == cty.String {
+		return value.AsString(), nil
+	}
+	return config.CtyValueAsString(value)
+}
+
 func printOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
-	// Create an HCL file
 	f := hclwrite.NewEmptyFile()
 	rootBody := f.Body()
 
