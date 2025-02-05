@@ -40,27 +40,26 @@ func generateOutput(ctx context.Context, opts *options.TerragruntOptions) (map[s
 
 	return unitOutputs, nil
 }
+func printRawOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
+	filteredOutputs := filterOutputs(outputs, outputIndex)
 
-func printRawOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value, index string) error {
-	for unit, values := range outputs {
-		for key, value := range values {
-			combined := unit + "." + key
-			if index != "" && !strings.HasPrefix(combined, index) {
-				continue
-			}
+	if filteredOutputs == nil {
+		return nil
+	}
 
-			valueStr, err := getValueString(value)
-			if err != nil {
-				opts.Logger.Warnf("Error fetching output for '%s' (unit=%s, key=%s): %v", combined, unit, key, err)
-				continue
-			}
+	for key, value := range filteredOutputs {
+		valueStr, err := getValueString(value)
+		if err != nil {
+			opts.Logger.Warnf("Error fetching output for '%s': %v", key, err)
+			continue
+		}
 
-			line := fmt.Sprintf("%s = %s\n", combined, valueStr)
-			if _, err := writer.Write([]byte(line)); err != nil {
-				return errors.New(err)
-			}
+		line := fmt.Sprintf("%s = %s\n", key, valueStr)
+		if _, err := writer.Write([]byte(line)); err != nil {
+			return errors.New(err)
 		}
 	}
+
 	return nil
 }
 
@@ -72,22 +71,20 @@ func getValueString(value cty.Value) (string, error) {
 }
 
 func printOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
+	filteredOutputs := filterOutputs(outputs, outputIndex)
+
+	if filteredOutputs == nil {
+		return nil
+	}
+
 	f := hclwrite.NewEmptyFile()
 	rootBody := f.Body()
 
-	for unit, values := range outputs {
-		for key, value := range values {
-			attrKey := unit + "." + key
-			if outputIndex != "" && !strings.HasPrefix(attrKey, outputIndex) {
-				continue
-			}
-
-			tokens := hclwrite.TokensForValue(value)
-			rootBody.SetAttributeRaw(attrKey, tokens)
-		}
+	for key, value := range filteredOutputs {
+		tokens := hclwrite.TokensForValue(value)
+		rootBody.SetAttributeRaw(key, tokens)
 	}
 
-	// Write the HCL output to the writer
 	if _, err := writer.Write(f.Bytes()); err != nil {
 		return errors.New(err)
 	}
@@ -96,16 +93,10 @@ func printOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map
 }
 
 func printJsonOutput(writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
-	filteredOutputs := make(map[string]cty.Value)
+	filteredOutputs := filterOutputs(outputs, outputIndex)
 
-	for unit, values := range outputs {
-		for key, value := range values {
-			attrKey := unit + "." + key
-			if outputIndex != "" && !strings.HasPrefix(attrKey, outputIndex) {
-				continue
-			}
-			filteredOutputs[attrKey] = value
-		}
+	if filteredOutputs == nil {
+		return nil
 	}
 
 	topVal := cty.ObjectVal(filteredOutputs)
@@ -124,4 +115,39 @@ func printJsonOutput(writer io.Writer, outputs map[string]map[string]cty.Value, 
 	}
 
 	return nil
+}
+
+func filterOutputs(outputs map[string]map[string]cty.Value, outputIndex string) map[string]cty.Value {
+	if outputIndex == "" {
+		flattened := make(map[string]cty.Value)
+		for unit, values := range outputs {
+			flattened[unit] = cty.ObjectVal(values)
+		}
+		return flattened
+	}
+
+	keys := strings.Split(outputIndex, ".")
+	currentMap := make(map[string]cty.Value)
+	for unit, values := range outputs {
+		if !strings.HasPrefix(outputIndex, unit) {
+			continue
+		}
+
+		value := cty.ObjectVal(values)
+		for _, key := range keys[1:] {
+			if value.Type().IsObjectType() {
+				mapVal := value.AsValueMap()
+				if v, exists := mapVal[key]; exists {
+					value = v
+				} else {
+					return nil
+				}
+			} else {
+				return nil
+			}
+		}
+		currentMap[outputIndex] = value
+	}
+
+	return currentMap
 }
