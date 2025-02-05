@@ -71,12 +71,12 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index strin
 	switch opts.StackOutputFormat {
 
 	default:
-		if err := printOutputs(opts, writer, outputs, false, index); err != nil {
+		if err := printOutputs(opts, writer, outputs, index); err != nil {
 			return errors.New(err)
 		}
 
 	case rawOutputFormat:
-		if err := printOutputs(opts, writer, outputs, true, index); err != nil {
+		if err := printOutputs(opts, writer, outputs, index); err != nil {
 			return errors.New(err)
 		}
 

@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/hcl/v2/hclwrite"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/zclconf/go-cty/cty"
@@ -39,28 +39,47 @@ func generateOutput(ctx context.Context, opts *options.TerragruntOptions) (map[s
 
 	return unitOutputs, nil
 }
+func printOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
+	// Create an HCL file
+	f := hclwrite.NewEmptyFile()
+	rootBody := f.Body()
 
-func printOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value, raw bool, outputIndex string) error {
 	for unit, values := range outputs {
-		for key, value := range values {
-			combined := unit + "." + key
-			if outputIndex != "" && !strings.HasPrefix(combined, outputIndex) {
-				continue
-			}
+		if outputIndex != "" && !strings.HasPrefix(unit, outputIndex) {
+			continue
+		}
 
-			valueStr, err := getValueString(value, raw)
-			if err != nil {
-				opts.Logger.Warnf("Error fetching output for '%s' (unit=%s, key=%s): %v", combined, unit, key, err)
-				continue
+		if len(values) == 1 {
+			// Render as individual attributes for specific key requests
+			for key, value := range values {
+				attrKey := unit + "." + key
+				tokens := hclwrite.TokensForValue(value)
+				rootBody.SetAttributeRaw(attrKey, tokens)
 			}
-
-			line := fmt.Sprintf("%s = %s\n", combined, valueStr)
-			if _, err := writer.Write([]byte(line)); err != nil {
-				return errors.New(err)
+		} else {
+			// Render as a nested object for broader requests
+			block := rootBody.AppendNewBlock(unit, nil)
+			body := block.Body()
+			for key, value := range values {
+				tokens := hclwrite.TokensForValue(value)
+				body.SetAttributeRaw(key, tokens)
 			}
 		}
 	}
+
+	// Write the HCL output to the writer
+	if _, err := writer.Write(f.Bytes()); err != nil {
+		return errors.New(err)
+	}
+
 	return nil
+}
+
+func getValueString(value cty.Value, raw bool) (string, error) {
+	if raw && value.Type() == cty.String {
+		return value.AsString(), nil
+	}
+	return config.CtyValueAsString(value)
 }
 
 func printJsonOutput(writer io.Writer, outputs map[string]map[string]cty.Value) error {
@@ -86,11 +105,4 @@ func printJsonOutput(writer io.Writer, outputs map[string]map[string]cty.Value) 
 	}
 
 	return nil
-}
-
-func getValueString(value cty.Value, raw bool) (string, error) {
-	if raw && value.Type() == cty.String {
-		return value.AsString(), nil
-	}
-	return config.CtyValueAsString(value)
 }
