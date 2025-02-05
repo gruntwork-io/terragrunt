@@ -29,6 +29,13 @@ in production in a future Terragrunt release.
 If you are unsure about the impact of enabling strict controls, you can enable them for specific controls to
 gradually increase your confidence in the future compatibility of your Terragrunt usage.
 
+For example:
+
+```bash
+$ terragrunt plan-all --strict-control deprecated-commands
+15:26:23.685 ERROR  The `plan-all` command is no longer supported. Use `terragrunt run-all plan` instead.
+```
+
 ## Controlling Strict Mode
 
 The simplest way to enable strict mode is to set the [strict-mode](/docs/reference/cli-options/#strict-mode) flag.
@@ -243,3 +250,17 @@ Throw an error when using the deprecated Terragrunt configuration.
 **Controls**:
 
 - [skip-dependencies-inputs](#skip-dependencies-inputs)
+
+### legacy-run-all-commands
+
+Throw an error when using any of the legacy commands replaced by `run-all`.
+
+**Controls**:
+
+- [plan-all](#plan-all)
+- [apply-all](#apply-all)
+- [destroy-all](#destroy-all)
+- [output-all](#output-all)
+- [validate-all](#validate-all)
+- [spin-up](#spin-up)
+- [tear-down](#tear-down)
