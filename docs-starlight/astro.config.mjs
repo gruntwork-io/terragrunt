@@ -36,6 +36,8 @@ export default defineConfig({
 								{ label: 'Commands', autogenerate: { directory: '04-reference/02-cli/commands', collapsed: true } },
 							],
 						},
+						{ label: 'Strict Controls', slug: 'docs/reference/configuration/strict-controls' },
+						{ label: 'Experiments', slug: 'docs/reference/configuration/experiments' },
 					],
 				},
 				{
