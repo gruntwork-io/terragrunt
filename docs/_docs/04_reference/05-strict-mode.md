@@ -251,7 +251,7 @@ Throw an error when using the deprecated Terragrunt configuration.
 
 - [skip-dependencies-inputs](#skip-dependencies-inputs)
 
-### legacy-run-all-commands
+### legacy-all-commands
 
 Throw an error when using any of the legacy commands replaced by `run-all`.
 
