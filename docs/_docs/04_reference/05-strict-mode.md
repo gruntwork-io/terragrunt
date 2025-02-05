@@ -243,7 +243,7 @@ Throw an error when using the deprecated environment variables.
 
 - [terragrunt-prefix-env-vars](#terragrunt-prefix-env-vars)
 
-### deprecated-config
+### deprecated-configs
 
 Throw an error when using the deprecated Terragrunt configuration.
 
