@@ -95,14 +95,20 @@ func printOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map
 	return nil
 }
 
-func printJsonOutput(writer io.Writer, outputs map[string]map[string]cty.Value) error {
-	outer := make(map[string]cty.Value)
+func printJsonOutput(writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
+	filteredOutputs := make(map[string]cty.Value)
+
 	for unit, values := range outputs {
-		outer[unit] = cty.ObjectVal(values)
+		for key, value := range values {
+			attrKey := unit + "." + key
+			if outputIndex != "" && !strings.HasPrefix(attrKey, outputIndex) {
+				continue
+			}
+			filteredOutputs[attrKey] = value
+		}
 	}
 
-	topVal := cty.ObjectVal(outer)
-
+	topVal := cty.ObjectVal(filteredOutputs)
 	rawJSON, err := ctyjson.Marshal(topVal, topVal.Type())
 	if err != nil {
 		return errors.New(err)

@@ -81,7 +81,7 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index strin
 		}
 
 	case jsonOutputFormat:
-		if err := printJsonOutput(writer, outputs); err != nil {
+		if err := printJsonOutput(writer, outputs, index); err != nil {
 			return errors.New(err)
 		}
 
