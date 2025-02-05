@@ -30,12 +30,10 @@ export default defineConfig({
 				{
 					label: 'Reference',
 					items: [
-						{
-							label: 'Configuration', slug: 'docs/reference/configuration',
-						},
+						{ label: 'Configuration', autogenerate: { directory: '04-reference/01-configuration', collapsed: true } },
 						{
 							label: 'CLI', collapsed: true, items: [
-								{ label: 'Commands', autogenerate: { directory: '04-reference/cli/commands', collapsed: true } },
+								{ label: 'Commands', autogenerate: { directory: '04-reference/02-cli/commands', collapsed: true } },
 							],
 						},
 					],
