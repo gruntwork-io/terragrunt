@@ -2,32 +2,14 @@
 title: Contributing
 description: Contributing to Terragrunt
 slug: docs/community/contributing
+sidebar:
+  order: 1
 ---
 
 ## Contribution Guidelines
 
 Contributions to Terragrunt are very welcome! We follow a fairly standard [pull request
 process](https://help.github.com/articles/about-pull-requests/) for contributions, subject to the following guidelines:
-
-- [Contribution Guidelines](#contribution-guidelines)
-  - [File a GitHub issue or write an RFC](#file-a-github-issue-or-write-an-rfc)
-  - [Update the documentation](#update-the-documentation)
-  - [Update the tests](#update-the-tests)
-  - [Update the code](#update-the-code)
-  - [Create a pull request](#create-a-pull-request)
-  - [Merge and release](#merge-and-release)
-- [Developing Terragrunt](#developing-terragrunt)
-  - [Running locally](#running-locally)
-  - [Dependencies](#dependencies)
-  - [Linting](#linting)
-  - [Running tests](#running-tests)
-  - [Debug logging](#debug-logging)
-  - [Error handling](#error-handling)
-  - [Formatting](#formatting)
-- [Terragrunt Releases](#terragrunt-releases)
-  - [When to Cut a New Release](#when-to-cut-a-new-release)
-  - [How to Create a New Release](#how-to-create-a-new-release)
-  - [Pre-releases](#pre-releases)
 
 ### File a GitHub issue or write an RFC
 
@@ -50,9 +32,10 @@ Development](http://tom.preston-werner.com/2010/08/23/readme-driven-development.
 stays up to date and allows you to think through the problem at a high level before you get lost in the weeds of
 coding.
 
-The documentation is built with Jekyll and hosted on the Github Pages from `docs` folder on `main` branch. Check out
-[Terragrunt website](https://github.com/gruntwork-io/terragrunt/tree/main/docs#working-with-the-documentation) to
-learn more about working with the documentation.
+The documentation is built with [Starlight](https://github.com/withastro/starlight) and
+hosted on [Vercel](https://vercel.com/) from the `docs-starlight` folder on `main` branch. Read this
+[README.md](https://github.com/gruntwork-io/terragrunt/tree/main/docs-starlight#terragrunt-docs-starlight-rewrite) to
+learn more about making updates to the docs.
 
 ### Update the tests
 
