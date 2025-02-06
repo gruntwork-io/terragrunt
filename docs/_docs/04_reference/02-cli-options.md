@@ -368,7 +368,7 @@ This ensures that all units are up-to-date before running the requested operatio
 
 ### info
 
-Emits limited terragrunt state on `stdout` in a JSON format and exits.
+Emits limited terragrunt information to stdout in JSON format.
 
 Example:
 
