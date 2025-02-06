@@ -8,7 +8,7 @@ sidebar:
 
 Terragrunt supports operating in a mode referred to as "Experiment Mode".
 
-Experiment Mode is a set of controls that can be enabled to opt-in to experimental features before they're stable.
+Experiment Mode is a set of controls that can be enabled to opt in to experimental features before they're stable.
 These features are subject to change and may be removed or altered at any time.
 They generally provide early access to new features or changes that are being considered for inclusion in future releases.
 
@@ -38,7 +38,7 @@ TERRAGRUNT_EXPERIMENT_MODE='true' terragrunt plan
 ```
 
 Instead of enabling experiment mode, you can also enable specific experiments by setting the [experiment](/docs/reference/cli-options/#experiment)
-flag to a value that's specific to a experiment.
+flag to a value that's specific to an experiment.
 This can allow you to experiment with a specific unstable feature that you think might be useful to you.
 
 ```bash
@@ -51,9 +51,17 @@ Again, you can also use the environment variable, which can be more useful in CI
 TERRAGRUNT_EXPERIMENT='symlinks' terragrunt plan
 ```
 
-You can also enable multiple experiments at once with a comma delimited list.
+You can also enable multiple experiments at once.
 
-**TODO**: Will add an example here once there's more than one officially supported experiment. The existing experiments are scattered throughout configuration, so they need to be pulled into this system first.
+```bash
+terragrunt --experiment symlinks --experiment stacks plan
+```
+
+Including the environment variable:
+
+```bash
+TERRAGRUNT_EXPERIMENT='symlinks,stacks' terragrunt plan
+```
 
 ## Active Experiments
 
@@ -80,8 +88,8 @@ To stabilize this feature, the following need to be resolved, at a minimum:
 
 - [ ] Ensure that symlink support continues to work for users referencing symlinks in flags. See [#3622](https://github.com/gruntwork-io/terragrunt/issues/3622).
   - [ ] Add integration tests for all filesystem flags to confirm support with symlinks (or document the fact that they cannot be supported).
-- [ ] Ensure that MacOS integration tests still work. See [#3616](https://github.com/gruntwork-io/terragrunt/issues/3616).
-  - [ ] Add integration tests for MacOS in CI.
+- [ ] Ensure that macOS integration tests still work. See [#3616](https://github.com/gruntwork-io/terragrunt/issues/3616).
+  - [ ] Add integration tests for macOS in CI.
 
 ### stacks
 
