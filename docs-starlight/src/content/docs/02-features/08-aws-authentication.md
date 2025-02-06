@@ -1,6 +1,6 @@
 ---
 title: AWS Authentication
-description: Learn how the Terragrunt handles AWS authentication.
+description: Learn how Terragrunt handles AWS authentication.
 slug: docs/features/aws-authentication
 sidebar:
   order: 8
@@ -22,11 +22,11 @@ There are a few ways to assume IAM roles when using AWS CLI tools, such as OpenT
 
    The downside to using profiles is that they can vary between users. One user might have a profile named `dev` that assumes a role in the `dev` account, while another user might have a profile named `development` that assumes the same role. This can lead to confusion and errors when sharing code between users. It also results in a requirement that all users have profiles set up on their local machines.
 
-   Finally, this also presents a problem in CI/CD pipelines, where you typically don't want to store AWS credentials in plaintext on disk in order to have your CI/CD runner assume a role via a profile.
+   Finally, this also presents a problem in CI/CD pipelines, where you typically avoid storing AWS credentials on disk so they are less likely to leak.
 
 2. Another option is to use the [AWS CLI](https://aws.amazon.com/cli/). As a standard operating procedure, users are required to assume a role _before_ invoking OpenTofu/Terraform by running something like `aws sts assume-role --role-arn <ROLE>`, use the output of that command to set the appropriate environment variables, and the tool is run with those temporary credentials stored as environment variables.
 
-   The downside to this approach is that it requires that users know this process and remember to do it correctly every time they want to use OpenTofu/Terraform. It's also a tedious process, and requires performing several steps to do it right.
+   The downside to this approach is that it requires that users know this process and remember to do it correctly every time they want to use OpenTofu/Terraform. It's also a tedious process, and requires several steps to complete correctly.
 
    Worse yet, it requires that users repeat this process often, as the credentials you get back from the `assume-role` command expire. This is especially problematic if the OpenTofu/Terraform run is expected to take longer than the role assumption duration, and can expire mid-run.
 
@@ -140,7 +140,7 @@ When Terragrunt executes this script, it will expect a response in stdout that o
 }
 ```
 
-All of the top-level objects are optional, and you can provide multiple.
+All top-level objects are optional, and you can provide multiple.
 
 - `awsCredentials` is the standard AWS credential object, which can be used to set the `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and (optionally) `AWS_SESSION_TOKEN` environment variables before running OpenTofu/Terraform.
 - `awsRole` is the role assumption object, which can be used to dynamically perform role assumption on the `roleARN` role with the `sessionName` session name, for a `duration` of time, and with a `webIdentityToken` if needed. Terragrunt will automatically refresh this role assumption when the duration expires.
@@ -246,7 +246,7 @@ Note that these permissions might be too broad for your circumstances, however. 
 
 As you can see, the permissions are getting locked down, and the risk you run by adopting these permissions is that you might not realize that you need certain permissions until you run into an error. It's generally a best practice to start with permissions that are too narrow, and expand them as necessary.
 
-Additionally, while Terragrunt _can_ provision the S3 bucket and DynamoDB table it uses for S3 state storage, it doesn't _need_ to. You can create these resources outside of Terragrunt, then grant Terragrunt permissions to interact with them (but not create them). A policy that allows this would look like the following:
+Additionally, while Terragrunt _can_ provision the S3 bucket and DynamoDB table it uses for S3 state storage, it doesn't _need_ to. You can create these resources manually, then grant Terragrunt permissions to interact with them (but not create them). A policy that allows this would look like the following:
 
 ```json
 # permissions.json

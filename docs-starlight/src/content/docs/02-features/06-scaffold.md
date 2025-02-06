@@ -68,7 +68,7 @@ Important notes:
 Terragrunt has a basic template built-in for rendering `terragrunt.hcl` files, but you can provide your own templates to customize what code is generated! Scaffolding is done via [boilerplate](https://github.com/gruntwork-io/boilerplate), and Terragrunt allows you to specify custom boilerplate templates via two mechanisms:
 
 1. You can specify a custom boilerplate template to use as the second argument of the `scaffold` command.
-1. You can define a custom boilerplate template in a `.boilerplate` subfolder of your module.
+2. You can define a custom boilerplate template in a `.boilerplate` subfolder of your module.
 
 If you define input variables in your boilerplate template, Terragrunt will prompt users for the values. Those values can also be passed in via `--var` and `--var-file` arguments.
 There are also a set of variables that Terragrunt will automatically expose to your boilerplate templates for rendering:
@@ -95,7 +95,7 @@ Optional variables which can be passed to `scaffold` command:
 
 \* **NOTE**: `RootFileName` is set to `terragrunt.hcl` by default to ensure backwards compatibility, but the pattern of using a `terragrunt.hcl` file at the root of Terragrunt projects has since been deprecated.
 
-   When the [root-terragrunt-hcl](/docs/reference/strict-mode/#root-terragrunt-hcl) strict control is enabled, the default configuration file will cahnge to `root.hcl`, which is considered a better practice. For more details, see [Migrating from root `terragrunt.hcl`](/docs/migrate/migrating-from-root-terragrunt-hcl).
+   When the [root-terragrunt-hcl](/docs/reference/strict-mode/#root-terragrunt-hcl) strict control is enabled, the default configuration file will change to `root.hcl`, which is considered a better practice. For more details, see [Migrating from root `terragrunt.hcl`](/docs/migrate/migrating-from-root-terragrunt-hcl).
 
 ### Convenience flags
 
@@ -126,7 +126,7 @@ terraform {
 }
 ```
 
-Scaffold new project using a template inside a git repo:
+Scaffold new project using a template from a Git repository:
 
 ```bash
 terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/scaffold/module-with-template
@@ -135,7 +135,7 @@ terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/scaffo
 
 **NOTE**: Scaffolding infrastructure from an external repository might introduce security or stability risks. Always review code from trusted external sources before running it.
 
-Scaffold new project using external template:
+Scaffold new project using an external template:
 
 ```bash
 terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/inputs git@github.com:gruntwork-io/terragrunt.git//test/fixtures/scaffold/external-template

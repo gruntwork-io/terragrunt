@@ -110,7 +110,7 @@ The next time you run `terragrunt`, it will automatically configure all the sett
 
 The `terragrunt.hcl` files above use two Terragrunt built-in functions:
 
-- `find_in_parent_folders()`: This function returns the absolute path to the first file it finds in the parent folders above the current unit named something. In the example above, the call to `find_in_parent_folders("root.hcl")` in `mysql/terragrunt.hcl` will return `/your-root-folder/root.hcl`. This way, you don’t have to hard code the `path` parameter in every module.
+- `find_in_parent_folders()`: This function returns the absolute path to the first file it finds in the parent folders above the current unit named something. In the example above, the call to `find_in_parent_folders("root.hcl")` in `mysql/terragrunt.hcl` will return `/your-root-folder/root.hcl`. This way, you don’t have to hard code the `path` parameter in every unit.
 
 - `path_relative_to_include()`: This function returns the relative path between the unit and the path specified in its `include` block. We typically use this in a root `root.hcl` file so that each unit stores its OpenTofu/Terraform state at a different `key`. For example, the `mysql` unit will have its `key` parameter resolve to `mysql/tofu.tfstate` and the `frontend-app` module will have its `key` parameter resolve to `frontend-app/tofu.tfstate`.
 
@@ -123,7 +123,7 @@ this introduces a bootstrapping problem: how do you create and manage the underl
 state? For example, when using the [s3 backend](https://opentofu.org/docs/language/settings/backends/s3/), OpenTofu/Terraform
 expects the S3 bucket to already exist for it to upload the state objects.
 
-Ideally you can manage the S3 bucket using OpenTofu/Terraform, but what about the state object for the module managing the S3
+Ideally, you can manage the S3 bucket using OpenTofu/Terraform, but what about the state object for the module managing the S3
 bucket? How do you create the S3 bucket, before you run `tofu`/`terraform`, if you need to run `tofu`/`terraform` to create the
 bucket?
 
@@ -153,7 +153,7 @@ When you run `terragrunt` with a `remote_state` configuration, it will automatic
 
 - **DynamoDB table**: If you are using the [S3 backend](https://opentofu.org/docs/language/settings/backends/s3) for remote state storage and/or you specify a `dynamodb_table` (a [DynamoDB table used for locking](https://opentofu.org/docs/language/settings/backends/s3/#dynamodb-state-locking)) in `remote_state.config`, Terragrunt will create them automatically if they don't already exist. They will be created with [server-side encryption](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html) enabled, and the DynamoDB table will use the primary key `LockID`.
 
-  You may configure custom endpoint for the AWS DynamoDB API using `remote_state.config.dynamodb_endpoint`.
+  You may configure a custom endpoint for the AWS DynamoDB API using `remote_state.config.dynamodb_endpoint`.
 
   In addition, you can let terragrunt tag the DynamoDB table with custom tags that you specify in `remote_state.config.dynamodb_table_tags`.
 
@@ -275,7 +275,7 @@ remote_state {
 
 If you experience an error for any of these configurations, confirm you are using Terraform v0.12.0 or greater.
 
-Further, the config options `gcs_bucket_labels`, `skip_bucket_versioning` and `enable_bucket_policy_only` are only valid for the backend `gcs`. They are used by terragrunt and are **not** passed on to terraform. See section [Create remote state resources automatically](#create-remote-state-resources-automatically).
+Further, the config options `gcs_bucket_labels`, `skip_bucket_versioning` and `enable_bucket_policy_only` are only valid for the backend `gcs`. They are used by Terragrunt and are **not** passed on to OpenTofu/Terraform. See "[Create remote state resources automatically](#create-remote-state-resources-automatically)" for more details.
 
 ## Further reading
 
