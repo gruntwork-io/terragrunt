@@ -150,7 +150,7 @@ You can also see what to expect in your filesystem at each step [here](https://g
    
    ```hcl
    # foo/main.tf
-   variable "content" {}
+   variable "content" 
    
    resource "local_file" "file" {
      content  = var.content
@@ -199,7 +199,7 @@ You can also see what to expect in your filesystem at each step [here](https://g
    
    ```hcl
    # foo/main.tf
-   variable "content" {}
+   variable "content" 
    
    module "shared" {
      source = "../shared"
@@ -209,7 +209,7 @@ You can also see what to expect in your filesystem at each step [here](https://g
    ```
    ```hcl
    # bar/main.tf
-   variable "content" {}
+   variable "content" 
    
    module "shared" {
      source = "../shared"

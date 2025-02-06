@@ -386,7 +386,7 @@ This function will error if the file is not located in a Git repository.
 
 ## get_terragrunt_dir
 
-`get_terragrunt_dir()` returns the directory where the Terragrunt configuration file (by default `terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote OpenTofu/Terraform configurations]({{site.baseurl}}/docs/features/units/#remote-opentofuterraform-modules) and you want those paths relative to your Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
+`get_terragrunt_dir()` returns the directory where the Terragrunt configuration file (by default `terragrunt.hcl`) lives. This is useful when you need to use relative paths with [remote OpenTofu/Terraform configurations](/docs/features/units/#remote-opentofuterraform-modules) and you want those paths relative to your Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
 
 For example, imagine you have the following file structure:
 
@@ -455,7 +455,7 @@ terraform {
 
 ## get_parent_terragrunt_dir
 
-`get_parent_terragrunt_dir()` returns the absolute directory where the Terragrunt parent configuration file lives (regardless of what it's called). This is useful when you need to use relative paths with [remote OpenTofu/Terraform configurations]({{site.baseurl}}/docs/features/units/#remote-opentofuterraform-modules) and you want those paths relative to your parent Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
+`get_parent_terragrunt_dir()` returns the absolute directory where the Terragrunt parent configuration file lives (regardless of what it's called). This is useful when you need to use relative paths with [remote OpenTofu/Terraform configurations](/docs/features/units/#remote-opentofuterraform-modules) and you want those paths relative to your parent Terragrunt configuration file and not relative to the temporary directory where Terragrunt downloads the code.
 
 This function is very similar to [get_terragrunt_dir()](#get_terragrunt_dir) except it returns the root instead of the leaf of your terragrunt configurations.
 
@@ -525,7 +525,7 @@ terraform {
 
 ## get_terraform_commands_that_need_vars
 
-`get_terraform_commands_that_need_vars()` returns the list of OpenTofu/Terraform commands that accept `-var` and `-var-file` parameters. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/extra-arguments/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_vars()` returns the list of OpenTofu/Terraform commands that accept `-var` and `-var-file` parameters. This function is used when defining [extra_arguments](/docs/features/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 # terragrunt.hcl
@@ -556,7 +556,7 @@ terraform {
 
 ## get_terraform_commands_that_need_locking
 
-`get_terraform_commands_that_need_locking()` returns the list of terraform commands that accept the `-lock-timeout` parameter. This function is used when defining [extra_arguments]({{site.baseurl}}/docs/features/extra-arguments/#multiple-extra_arguments-blocks).
+`get_terraform_commands_that_need_locking()` returns the list of terraform commands that accept the `-lock-timeout` parameter. This function is used when defining [extra_arguments](/docs/features/extra-arguments/#multiple-extra_arguments-blocks).
 
 ```hcl
 # terragrunt.hcl
@@ -813,11 +813,11 @@ This function also takes in an optional second parameter which will be returned 
 # terragrunt.hcl
 
 locals {
-  common_vars = read_terragrunt_config(find_in_parent_folders("i-dont-exist.hcl", "i-dont-exist.hcl"), {inputs = {}})
+  common_vars = read_terragrunt_config(find_in_parent_folders("i-dont-exist.hcl", "i-dont-exist.hcl"), {inputs = })
 }
 
 inputs = merge(
-  local.common_vars.inputs, # This will be {}
+  local.common_vars.inputs, # This will be 
   {
     # additional inputs
   }
@@ -883,11 +883,11 @@ If you absolutely need to fallback to a default value you can make use of the Op
 # terragrunt.hcl
 
 locals {
-  secret_vars = try(jsondecode(sops_decrypt_file(find_in_parent_folders("no-secrets-here.json"))), {})
+  secret_vars = try(jsondecode(sops_decrypt_file(find_in_parent_folders("no-secrets-here.json"))), )
 }
 
 inputs = merge(
-  local.secret_vars, # This will be {}
+  local.secret_vars, # This will be 
   {
     # additional inputs
   }
