@@ -88,7 +88,7 @@ And running:
 terragrunt apply
 ```
 
-Is roughly equivalent to running:
+This is roughly equivalent to running:
 
 ```bash
 TF_VAR_instance_type="t2.micro" \
@@ -175,7 +175,7 @@ explicitly redefined in the current's module `terragrunt.hcl` file.
 
 ## iam_role
 
-The `iam_role` attribute can be used to specify an IAM role that Terragrunt should assume prior to invoking OpenTofu/Terraform.
+The `iam_role` attribute can be used to specify an IAM role that Terragrunt should assume before invoking OpenTofu/Terraform.
 
 The precedence is as follows: `--terragrunt-iam-role` command line option → `TERRAGRUNT_IAM_ROLE` env variable →
 `iam_role` attribute of the `terragrunt.hcl` file in the module directory → `iam_role` attribute of the included
@@ -196,7 +196,7 @@ iam_role = "arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME"
 
 ## iam_assume_role_duration
 
-The `iam_assume_role_duration` attribute can be used to specify the STS session duration, in seconds, for the IAM role that Terragrunt should assume prior to invoking OpenTofu/Terraform.
+The `iam_assume_role_duration` attribute can be used to specify the STS session duration, in seconds, for the IAM role that Terragrunt should assume before invoking OpenTofu/Terraform.
 
 The precedence is as follows: `--terragrunt-iam-assume-role-duration` command line option → `TERRAGRUNT_IAM_ASSUME_ROLE_DURATION` env variable →
 `iam_assume_role_duration` attribute of the `terragrunt.hcl` file in the module directory → `iam_assume_role_duration` attribute of the included
@@ -274,7 +274,7 @@ The precedence is as follows: `--terragrunt-tfpath` command line option → `TER
 ## terraform_version_constraint
 
 The terragrunt `terraform_version_constraint` string overrides the default minimum supported version of OpenTofu/Terraform.
-Terragrunt usually only officially supports the latest version of OpenTofu/Terraform, however in some cases an old version of OpenTofu/Terraform is needed.
+Terragrunt usually only officially supports the latest version of OpenTofu/Terraform, however, in some cases an older version of OpenTofu/Terraform is needed.
 
 Example:
 
