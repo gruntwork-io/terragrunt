@@ -14,6 +14,8 @@
  - [ ] **Content parity with current docs site**
  - [ ] **Redesign reference to use cards**
  - [ ] **Setup redirects for all old URLs**
+ - [ ] **Automate keeping versions updated**
+   - [ ] **Automate IaC Engine version lookup in docs**
 
 ## User Experience
  - [ ] **User feedback collection**
