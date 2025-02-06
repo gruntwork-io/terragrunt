@@ -66,7 +66,7 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index strin
 
 	switch opts.StackOutputFormat {
 	default:
-		if err := printOutputs(writer, outputs, index); err != nil {
+		if err := PrintOutputs(writer, outputs, index); err != nil {
 			return errors.New(err)
 		}
 
@@ -76,7 +76,7 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index strin
 		}
 
 	case jsonOutputFormat:
-		if err := printJSONOutput(writer, outputs, index); err != nil {
+		if err := PrintJSONOutput(writer, outputs, index); err != nil {
 			return errors.New(err)
 		}
 	}

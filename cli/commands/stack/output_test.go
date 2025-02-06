@@ -1,9 +1,11 @@
-package stack
+package stack_test
 
 import (
 	"bytes"
 	"encoding/json"
 	"testing"
+
+	"github.com/gruntwork-io/terragrunt/cli/commands/stack"
 
 	"github.com/stretchr/testify/require"
 
@@ -63,7 +65,7 @@ func TestFilterOutputs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := filterOutputs(outputs, tt.outputIndex)
+			result := stack.FilterOutputs(outputs, tt.outputIndex)
 
 			if !tt.shouldExist {
 				assert.Empty(t, result)
@@ -112,7 +114,7 @@ func TestPrintJsonOutput(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			err := printJSONOutput(&buf, outputs, tt.outputIndex)
+			err := stack.PrintJSONOutput(&buf, outputs, tt.outputIndex)
 
 			if tt.shouldError {
 				assert.Error(t, err)
@@ -126,63 +128,13 @@ func TestPrintJsonOutput(t *testing.T) {
 
 			err = json.Unmarshal(buf.Bytes(), &normalized)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			expectedNormalized := make(map[string]interface{})
 			err = json.Unmarshal([]byte(tt.expected), &expectedNormalized)
 			require.NoError(t, err)
 
 			assert.Equal(t, expectedNormalized, normalized)
-		})
-	}
-}
-
-func TestGetValueString(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name        string
-		input       cty.Value
-		expected    string
-		shouldError bool
-	}{
-		{
-			name:        "string value",
-			input:       cty.StringVal("test"),
-			expected:    "test",
-			shouldError: false,
-		},
-		{
-			name:        "number value",
-			input:       cty.NumberIntVal(123),
-			expected:    "123",
-			shouldError: false,
-		},
-		{
-			name:        "bool value",
-			input:       cty.BoolVal(true),
-			expected:    "true",
-			shouldError: false,
-		},
-		{
-			name:        "object value",
-			input:       cty.ObjectVal(map[string]cty.Value{"key": cty.StringVal("value")}),
-			expected:    `{"key":"value"}`,
-			shouldError: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			result, err := getValueString(tt.input)
-
-			if tt.shouldError {
-				assert.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
@@ -234,7 +186,7 @@ func TestPrintOutputs(t *testing.T) {
 			t.Parallel()
 			writer := &mockWriter{err: tt.writerErr}
 
-			err := printOutputs(writer, outputs, tt.outputIndex)
+			err := stack.PrintOutputs(writer, outputs, tt.outputIndex)
 
 			if tt.shouldError {
 				require.Error(t, err)

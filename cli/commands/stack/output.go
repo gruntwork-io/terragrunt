@@ -45,7 +45,7 @@ func generateOutput(ctx context.Context, opts *options.TerragruntOptions) (map[s
 	return unitOutputs, nil
 }
 func printRawOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
-	filteredOutputs := filterOutputs(outputs, outputIndex)
+	filteredOutputs := FilterOutputs(outputs, outputIndex)
 
 	if filteredOutputs == nil {
 		return nil
@@ -75,8 +75,8 @@ func getValueString(value cty.Value) (string, error) {
 	return config.CtyValueAsString(value)
 }
 
-func printOutputs(writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
-	filteredOutputs := filterOutputs(outputs, outputIndex)
+func PrintOutputs(writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
+	filteredOutputs := FilterOutputs(outputs, outputIndex)
 
 	if filteredOutputs == nil {
 		return nil
@@ -97,8 +97,8 @@ func printOutputs(writer io.Writer, outputs map[string]map[string]cty.Value, out
 	return nil
 }
 
-func printJSONOutput(writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
-	filteredOutputs := filterOutputs(outputs, outputIndex)
+func PrintJSONOutput(writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
+	filteredOutputs := FilterOutputs(outputs, outputIndex)
 
 	if filteredOutputs == nil {
 		return nil
@@ -123,7 +123,7 @@ func printJSONOutput(writer io.Writer, outputs map[string]map[string]cty.Value, 
 	return nil
 }
 
-func filterOutputs(outputs map[string]map[string]cty.Value, outputIndex string) map[string]cty.Value {
+func FilterOutputs(outputs map[string]map[string]cty.Value, outputIndex string) map[string]cty.Value {
 	if outputIndex == "" {
 		flattened := make(map[string]cty.Value)
 		for unit, values := range outputs {
