@@ -61,7 +61,7 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 			tgArgs, cmdArgs := ctx.Args().Split(cli.BuiltinCmdSep)
 
 			// Use unspecified arguments from the terragrunt command if the user
-			// specified the target command without `--`, e.g. `terragrunt plan ls`.
+			// specified the target command without `--`, e.g. `terragrunt exec ls`.
 			if len(cmdArgs) == 0 {
 				cmdArgs = tgArgs
 			}
