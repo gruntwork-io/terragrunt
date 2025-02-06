@@ -12,6 +12,8 @@ Here are some of the tasks that need to be completed:
 
 ## Content
  - [ ] **Content parity with current docs site**
+   - [x] **Parity for all docs except CLI reference**
+   - [ ] **Parity for CLI reference**
  - [ ] **Redesign reference to use cards**
  - [ ] **Setup redirects for all old URLs**
  - [ ] **Automate keeping versions updated**
