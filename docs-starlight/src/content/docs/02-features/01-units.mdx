@@ -262,7 +262,7 @@ ssh -T -oStrictHostKeyChecking=accept-new git@github.com || true
 
 In an ideal world, all that units do would be to run versioned, immutable OpenTofu/Terraform modules with environment-specific inputs.
 In the real world, however, certain scenarios arise when you have to inject additional configurations to the immutable OpenTofu/Terraform
-modules you use. This is where [generate blocks](/docs/reference/hcl/blocks#generate) come in handy.
+modules you use. This is where [generate blocks](/docs/reference/hcl/blocks#generate) prove useful.
 When you define a `generate` block, Terragrunt will do the following before any run:
 1. Fetch any module referenced in a source URL in the `terraform` block into the `.terragrunt-cache` folder (if there is none, it will run in the current working directory).
 2. Generate the file specified in the `generate` block into the directory where Terragrunt will run OpenTofu/Terraform.
