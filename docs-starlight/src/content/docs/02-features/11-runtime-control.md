@@ -213,7 +213,7 @@ terragrunt run-all plan
 
 Will exclude all units in both the `stage` and `prod` directories, as the `feature` block in each of those directories is set to `false` by default. As a result, the only units that are run are those in the `dev` directory.
 
-When a user wants to opt-in updates for the `stage` environment, they could do something like this:
+When a user wants to opt in to updates for the `stage` environment, they could do something like this:
 
 ```bash
 terragrunt run-all --feature stage=true plan
