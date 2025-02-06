@@ -168,7 +168,7 @@ We are [working with the OpenTofu team to improve this behavior](https://github.
 
 **[NOTE] Use `run-all` with care if you have unapplied dependencies**.
 
-If you have a stack of Terragrunt units with dependencies between them—either via `dependency` blocks
+If you have a stack of Terragrunt units with dependencies between them via `dependency` blocks
 and you've never deployed them, then commands like `run-all plan` will fail,
 as it won't be possible to resolve outputs of `dependency` blocks without applying them first.
 
