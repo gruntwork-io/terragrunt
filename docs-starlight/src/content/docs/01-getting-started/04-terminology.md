@@ -24,7 +24,7 @@ Terragrunt is a flexible orchestration tool that allows Infrastructure as Code w
 
 It differs from many other IaC tools in that it is designed to be an orchestrator for OpenTofu/Terraform execution, rather than primarily provisioning infrastructure itself. Terragrunt users write OpenTofu/Terraform code to define high-level patterns of infrastructure that they want to create, then use Terragrunt to dynamically apply those generic patterns in particular ways.
 
-Because of this separation of concerns, most of what Terragrunt does is designed to extend the capabilities of OpenTofu/Terraform, rather than replace them. Most of the [features](/docs#features) of Terragrunt are designed to make it easier to manage large infrastructure estates, or to provide additional capabilities that are inconvenient or impossible to achieve with OpenTofu/Terraform alone.
+Because of this separation of concerns, most of what Terragrunt does is designed to extend the capabilities of OpenTofu/Terraform, rather than replace them. Most of the [features](/docs/features/units) of Terragrunt are designed to make it easier to manage large infrastructure estates, or to provide additional capabilities that are inconvenient or impossible to achieve with OpenTofu/Terraform alone.
 
 ### OpenTofu
 
@@ -44,7 +44,7 @@ Units typically represent a minimal useful piece of infrastructure that should b
 
 e.g. A unit might represent a single VPC, a single database, or a single server.
 
-While not a requirement, a general tendency experienced when working with Terragrunt is that units tend to decrease in size. This is because Terragrunt makes it easy to segment pieces of infrastructure into their own state, and to have them interact with each other through the use of [dependency blocks](/docs/reference/config-blocks-and-attributes#dependency). Smaller units are quicker to update, easier to reason about and safer to work with.
+While not a requirement, a general tendency experienced when working with Terragrunt is that units tend to decrease in size. This is because Terragrunt makes it easy to segment pieces of infrastructure into their own state, and to have them interact with each other through the use of [dependency blocks](/docs/reference/configuration/configuration-blocks/#dependency). Smaller units are quicker to update, easier to reason about and safer to work with.
 
 A common pattern used in the repository structure for Terragrunt projects is to have a single `terragrunt.hcl` file located at the root of the repository, and multiple subdirectories each containing their own `terragrunt.hcl` file. This is typically done to promote code-reuse, as it allows for any configuration common to all units to be defined in the root `terragrunt.hcl` file, and for unit-specific configuration to be defined in child directories. In this pattern, the root `terragrunt.hcl` file is not considered a unit, while all the child directories containing `terragrunt.hcl` files are.
 

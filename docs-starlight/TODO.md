@@ -22,4 +22,6 @@ Here are some of the tasks that need to be completed:
 ## User Experience
  - [ ] **User feedback collection**
  - [ ] **Broken link checking**
+   - [x] **Automate broken link checking**
+   - [ ] **Require link checking**
  - [ ] **Jekyll site banner indicating new site**

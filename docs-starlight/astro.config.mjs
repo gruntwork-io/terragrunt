@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import starlightLinksValidator from 'starlight-links-validator';
 
 // https://astro.build/config
 export default defineConfig({
@@ -52,6 +53,10 @@ export default defineConfig({
 					autogenerate: { directory: '06-migrate', collapsed: true },
 				},
 			],
+			// NOTE: We don't currently check links by default because the CLI
+			// Redesign isn't done yet. Once those pages are built out, we'll require
+			// links to be checked for all builds.
+			plugins: process.env.CHECK_LINKS ? [starlightLinksValidator()] : [],
 		}),
 	],
 });
