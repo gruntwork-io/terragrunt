@@ -81,7 +81,7 @@ $ terragrunt apply-all --strict-control plan-all --strict-control apply-all
 15:26:46.564 ERROR  Unable to determine underlying exit code, so Terragrunt will exit with error code 1
 ```
 
-You can also enable multiple strict controls at once when using the environment variable by using a comma delimited list.
+You can also enable multiple strict controls at once when using the environment variable by using a comma-delimited list.
 
 ```bash
 $ TERRAGRUNT_STRICT_CONTROL='plan-all,apply-all' bash -c 'terragrunt plan-all; terragrunt apply-all'
