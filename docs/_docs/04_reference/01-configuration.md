@@ -121,7 +121,7 @@ If you run `terragrunt hclfmt` at the `root`, this will update:
 
 You can set `--diff` option. `terragrunt hclfmt --diff` will output the diff in a unified format which can be redirected to your favourite diff tool. `diff` utility must be presented in PATH.
 
-Additionally, there’s a flag `--check`. `terragrunt hclfmt --check` will only verify if the files are correctly formatted **without rewriting** them. The command will return exit status 1 if any matching files are improperly formatted, or 0 if all matching `.hcl` files are correctly formatted.
+Additionally, there’s a flag `--check`. `terragrunt hclfmt --check` will only verify if the files are correctly formatted **without rewriting** them. The command will return the exit status 1 if any matching files are improperly formatted, or 0 if all matching `.hcl` files are correctly formatted.
 
 You can exclude directories from the formatting process by using the `--exclude-dir` flag. For example, `terragrunt hclfmt --exclude-dir=qa/services`.
 
