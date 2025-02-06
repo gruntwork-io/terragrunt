@@ -19,6 +19,7 @@ const (
 	testFixtureStacksLocalsError = "fixtures/stacks/locals-error"
 	testFixtureStacksRemote      = "fixtures/stacks/remote"
 	testFixtureStacksInputs      = "fixtures/stacks/inputs"
+	testFixtureStacksOutputs     = "fixtures/stacks/outputs"
 )
 
 func TestStacksGenerateBasic(t *testing.T) {
@@ -153,6 +154,23 @@ func TestStacksDestroy(t *testing.T) {
 
 	assert.Contains(t, stdout, "Plan: 0 to add, 0 to change, 1 to destroy")
 	assert.Contains(t, stdout, "local_file.file: Destroying...")
+}
+
+func TestStackOutputs(t *testing.T) {
+	t.Parallel()
+
+	helpers.CleanupTerraformFolder(t, testFixtureStacksOutputs)
+	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureStacksOutputs)
+	rootPath := util.JoinPath(tmpEnvPath, testFixtureStacksOutputs)
+
+	helpers.RunTerragrunt(t, "terragrunt stack run apply --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	stdout, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt stack output --experiment stacks --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "custom_value2 = \"value2\"")
+	assert.Contains(t, stdout, "custom_value1 = \"value1\"")
+	assert.Contains(t, stdout, "name      = \"name1\"")
 }
 
 // check if the stack directory is created and contains files.
