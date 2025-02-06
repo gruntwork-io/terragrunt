@@ -38,7 +38,7 @@ func (u *Unit) ReadOutputs(ctx context.Context, opts *options.TerragruntOptions)
 
 	parserCtx := NewParsingContext(ctx, opts)
 
-	jsonBytes, err := getOutputJSONWithCaching(parserCtx, configPath)
+	jsonBytes, err := getOutputJSONWithCaching(parserCtx, configPath) //nolint: contextcheck
 
 	if err != nil {
 		return nil, errors.New(err)
