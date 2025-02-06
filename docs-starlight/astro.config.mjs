@@ -36,8 +36,10 @@ export default defineConfig({
 								{ label: 'Commands', autogenerate: { directory: '04-reference/02-cli/commands', collapsed: true } },
 							],
 						},
-						{ label: 'Strict Controls', slug: 'docs/reference/configuration/strict-controls' },
-						{ label: 'Experiments', slug: 'docs/reference/configuration/experiments' },
+						{ label: 'Strict Controls', slug: 'docs/reference/strict-controls' },
+						{ label: 'Experiments', slug: 'docs/reference/experiments' },
+						{ label: 'Supported Versions', slug: 'docs/reference/supported-versions' },
+						{ label: 'Lock File Handling', slug: 'docs/reference/lock-file-handling' },
 					],
 				},
 				{
