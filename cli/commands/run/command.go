@@ -25,7 +25,9 @@ func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 		Examples: []string{
 			"# Run a plan\nterragrunt run -- plan\n# Shortcut:\n# terragrunt plan",
 			"# Run output with -json flag\nterragrunt run -- output -json\n# Shortcut:\n# terragrunt output -json",
-			"# Run a plan against a Stack of configurations in the current directory\nterragrunt run --all -- plan",
+			// TODO: Add this example back when we support `run --all` again.
+			//
+			// "# Run a plan against a Stack of configurations in the current directory\nterragrunt run --all -- plan",
 		},
 		Flags:                NewFlags(opts, nil),
 		ErrorOnUndefinedFlag: true,

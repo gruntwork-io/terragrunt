@@ -1,21 +1,16 @@
 ---
-layout: collection-browser-doc
 title: Configuration
-category: reference
-excerpt: >-
-  Learn how to configure Terragrunt.
-tags: ["config", "formatting"]
-order: 401
-nav_title: Documentation
-nav_title_link: /docs/
-slug: configuration
+description: Learn how to configure Terragrunt
+slug: docs/reference/configuration
 ---
+
+import { FileTree } from '@astrojs/starlight/components';
 
 Terragrunt configuration is defined in a `terragrunt.hcl` file. This uses the same HCL syntax as OpenTofu/Terraform itself.
 
 Here’s an example:
 
-``` hcl
+```hcl
 include "root" {
   path = find_in_parent_folders("root.hcl")
 }
@@ -29,9 +24,9 @@ Terragrunt also supports [JSON-serialized HCL](https://github.com/hashicorp/hcl/
 
 Terragrunt figures out the path to its config file according to the following rules:
 
-1. The value of the `--config` command-line option, if specified.
+1. The value of the `--terragrunt-config` command-line option, if specified.
 
-2. The value of the `TG_CONFIG` environment variable, if defined.
+2. The value of the `TERRAGRUNT_CONFIG` environment variable, if defined.
 
 3. A `terragrunt.hcl` file in the current working directory, if it exists.
 
@@ -41,12 +36,12 @@ Terragrunt figures out the path to its config file according to the following ru
 
 Refer to the following pages for a complete reference of supported features in the terragrunt configuration file:
 
-- [Config blocks and attributes]({{site.baseurl}}/docs/reference/config-blocks-and-attributes/)
-- [Built-in functions]({{site.baseurl}}/docs/reference/built-in-functions/)
+- [Config blocks and attributes](/docs/reference/config-blocks-and-attributes/)
+- [Built-in functions](/docs/reference/built-in-functions/)
 
 ## Configuration parsing order
 
-It is important to be aware of the terragrunt configuration parsing order when using features like [locals]({{site.baseurl}}/docs/features/locals/#locals) and [dependency outputs]({{site.baseurl}}/docs/features/stacks#passing-outputs-between-units), where you can reference attributes of other blocks in the config in your `inputs`. For example, because `locals` are evaluated before `dependency` blocks, you can not bind outputs from `dependency` into `locals`. On the other hand, for the same reason, you can use `locals` in the `dependency` blocks.
+It is important to be aware of the terragrunt configuration parsing order when using features like [locals](/docs/features/locals/#locals) and [dependency outputs](/docs/features/stacks#passing-outputs-between-units), where you can reference attributes of other blocks in the config in your `inputs`. For example, because `locals` are evaluated before `dependency` blocks, you can not bind outputs from `dependency` into `locals`. On the other hand, for the same reason, you can use `locals` in the `dependency` blocks.
 
 Currently terragrunt parses the config in the following order:
 
@@ -90,20 +85,22 @@ You can rewrite the HCL files to a canonical format using the `hclfmt` command b
 
 By default, this command will recursively search for hcl files and format all of them under a given directory tree. Consider the following file structure:
 
-```tree
-root
-├── terragrunt.hcl
-├── prod
-│   └── terragrunt.hcl
-├── dev
-│   └── terragrunt.hcl
-└── qa
-    ├── terragrunt.hcl
-    └── services
-        ├── services.hcl
-        └── service01
-            └── terragrunt.hcl
-```
+<FileTree>
+
+- root
+  - terragrunt.hcl
+  - prod
+    - terragrunt.hcl
+  - dev
+    - terragrunt.hcl
+  - qa
+    - terragrunt.hcl
+    - services
+      - services.hcl
+      - service01
+        - terragrunt.hcl
+
+</FileTree>
 
 If you run `terragrunt hclfmt` at the `root`, this will update:
 
@@ -119,12 +116,12 @@ If you run `terragrunt hclfmt` at the `root`, this will update:
 
 - `root/qa/services/service01/terragrunt.hcl`
 
-You can set `--diff` option. `terragrunt hclfmt --diff` will output the diff in a unified format which can be redirected to your favourite diff tool. The `diff` utility must be present in your `PATH`.
+You can set `--terragrunt-diff` option. `terragrunt hclfmt --terragrunt-diff` will output the diff in a unified format which can be redirected to your favourite diff tool. `diff` utility must be presented in PATH.
 
-Additionally, there’s a flag `--check`. `terragrunt hclfmt --check` will only verify if the files are correctly formatted **without rewriting** them. The command will return the exit status 1 if any matching files are improperly formatted, or 0 if all matching `.hcl` files are correctly formatted.
+Additionally, there’s a flag `--terragrunt-check`. `terragrunt hclfmt --terragrunt-check` will only verify if the files are correctly formatted **without rewriting** them. The command will return exit status 1 if any matching files are improperly formatted, or 0 if all matching `.hcl` files are correctly formatted.
 
-You can exclude directories from the formatting process by using the `--exclude-dir` flag. For example, `terragrunt hclfmt --exclude-dir=qa/services`.
+You can exclude directories from the formatting process by using the `--terragrunt-hclfmt-exclude-dir` flag. For example, `terragrunt hclfmt --terragrunt-hclfmt-exclude-dir=qa/services`.
 
-If you want to format a single file, you can use the `--file` flag. For example, `terragrunt hclfmt --file qa/services/services.hcl`.
+If you want to format a single file, you can use the `--terragrunt-hclfmt-file` flag. For example, `terragrunt hclfmt --terragrunt-hclfmt-file qa/services/services.hcl`.
 
-If you want to format HCL from stdin and print the result to stdout, you can use the `--stdin` flag. For example, `echo 'module "foo" {}' | terragrunt hclfmt --stdin`.
+If you want to format HCL from stdin and print the result to stdout, you can use the `--terragrunt-hclfmt-stdin` flag. For example, `echo 'module "foo" {}' | terragrunt hclfmt --terragrunt-hclfmt-stdin`.

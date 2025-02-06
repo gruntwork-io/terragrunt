@@ -1,0 +1,6 @@
+name: catalog
+usage: Launch the user interface for searching and managing your module catalog.
+description: |
+  Launch the user interface for searching and managing your module catalog.
+  The catalog is a collection of modules that you can use to build your infrastructure.
+  You can search for modules, view their documentation, and add them as units to your project.

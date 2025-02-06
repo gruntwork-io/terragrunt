@@ -1,0 +1,35 @@
+---
+title: Terragrunt
+description: The flexible Infrastructure as Code orchestrator that allows OpenTofu/Terraform to scale.
+template: splash
+hero:
+  tagline: Flexible orchestrator to scale IaC.
+  image:
+    file: ../../assets/logo.svg
+  actions:
+    - text: Quick Start
+      link: /docs/getting-started/quick-start
+      icon: right-arrow
+    - text: Reference
+      link: /docs/reference/cli/commands/opentofu-shortcuts
+      icon: open-book
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Next steps
+
+<CardGrid stagger>
+	<Card title="Update content" icon="pencil">
+		Edit `src/content/docs/index.mdx` to see this page change.
+	</Card>
+	<Card title="Add new content" icon="add-document">
+		Add Markdown or MDX files to `src/content/docs` to create new pages.
+	</Card>
+	<Card title="Configure your site" icon="setting">
+		Edit your `sidebar` and other config in `astro.config.mjs`.
+	</Card>
+	<Card title="Read the docs" icon="open-book">
+		Learn more in [the Starlight Docs](https://starlight.astro.build/).
+	</Card>
+</CardGrid>

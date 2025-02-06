@@ -1,0 +1,40 @@
+---
+import { Tabs } from '@astrojs/starlight/components';
+import InstallTab from './InstallTab.astro';
+
+const tabs = [
+	{
+		os: 'linux',
+		arch: 'amd64',
+		label: 'Linux (x86)',
+	},
+	{
+		os: 'darwin',
+		arch: 'arm64',
+		label: 'macOS (ARM)',
+	},
+	{
+		os: 'windows',
+		arch: 'amd64',
+		label: 'Windows',
+	},
+	{
+		os: 'linux',
+		arch: 'arm64',
+		label: 'Linux (ARM)',
+	},
+	{
+		os: 'darwin',
+		arch: 'x86',
+		label: 'macOS (x86)',
+	},
+];
+
+const { version } = Astro.props;
+---
+
+<Tabs syncKey="operating-systems">
+{tabs.map(({ os, arch, label }) => (
+	<InstallTab os={os} arch={arch} label={label} version={version} />
+))}
+</Tabs>

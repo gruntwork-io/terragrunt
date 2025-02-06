@@ -78,10 +78,6 @@ func (flag *DeprecatedFlag) SetStrictControls(mainFlag *Flag, regControlsFn Regi
 	regControlsFn(flagNameControl, envVarControl)
 }
 
-// NewValueFunc represents a function that returns a new value for the current flag if a stale flag is called.
-// Used when the current flag and the deprecated flag have different types. For example, the string `log-format` current flag
-// need to be assigned the `json` value when the bool `terragrunt-json-log` is specified.
-
 // NewValueFunc represents a function that returns a new value for the current flag if a deprecated flag is called.
 // Used when the current flag and the deprecated flag are of different types. For example, the string `log-format` flag
 // must be set to `json` when deprecated bool `terragrunt-json-log` flag is used. More examples:

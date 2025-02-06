@@ -98,7 +98,7 @@ func WithDeprecatedPrefix(prefix Prefix, regControlsFn RegisterStrictControlsFun
 // The given `flagNames` names will assign both names (converting to lowercase,dash)
 // and env vars (converting to uppercase,underscore). For example:
 //
-// WithDeprecatedNames([]string{"NO_COLOR", "working-dir"}, nil))
+// WithDeprecatedNames([]string{"NO_COLOR", "working-dir"}, nil)
 //
 // The deprecated flag will have "no-color","working-dir" names and "NO_COLOR","WORKING_DIR" env vars.
 func WithDeprecatedNames(flagNames []string, regControlsFn RegisterStrictControlsFunc) Option {

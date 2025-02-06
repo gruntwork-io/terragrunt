@@ -449,7 +449,11 @@ func FindInParentFolders(
 	previousDir = filepath.ToSlash(previousDir)
 
 	if fileToFindParam == "" || fileToFindParam == DefaultTerragruntConfigPath {
-		if err := ctx.TerragruntOptions.StrictControls.FilterByNames(controls.RootTerragruntHCL).Evaluate(log.ContextWithLogger(ctx, ctx.TerragruntOptions.Logger)); err != nil {
+		allControls := ctx.TerragruntOptions.StrictControls
+		rootTGHCLControl := allControls.FilterByNames(controls.RootTerragruntHCL)
+		logger := log.ContextWithLogger(ctx, ctx.TerragruntOptions.Logger)
+
+		if err := rootTGHCLControl.Evaluate(logger); err != nil {
 			return "", cli.NewExitError(err, cli.ExitCodeGeneralError)
 		}
 	}

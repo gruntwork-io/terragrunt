@@ -1,0 +1,5 @@
+name: run-all
+usage: Run a terraform command against a stack by running the specified command in each subfolder.
+description: |
+  Discover terragrunt units in the current directory tree and run the specified command in dependency order (with the exception of the destroy command, where the order is reversed).
+

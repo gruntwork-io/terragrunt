@@ -168,9 +168,9 @@ We are [working with the OpenTofu team to improve this behavior](https://github.
 
 **[NOTE] Use `run-all` with care if you have unapplied dependencies**.
 
-If you have a stack of Terragrunt units with dependencies between them—either via `dependency` blocks
+If you have a stack of Terragrunt units with dependencies between them via `dependency` blocks
 and you've never deployed them, then commands like `run-all plan` will fail,
-as it will not be possible to resolve outputs of `dependency` blocks without applying first.
+as it won't be possible to resolve outputs of `dependency` blocks without applying them first.
 
 The solution for this is to take advantage of [mock outputs in dependency blocks](/docs/reference/config-blocks-and-attributes/#dependency).
 
@@ -190,7 +190,7 @@ The algorithm for determining the aggregate exit code is as follows:
 
 Run the provided OpenTofu/Terraform command against the graph of dependencies for the unit in the current working directory. The graph consists of all units that depend on the unit in the current working directory via a `dependency` or `dependencies` blocks, plus all the units that depend on those units, and all the units that depend on those units, and so on, recursively up the tree, up to the Git repository root, or the path specified via the optional `--graph-root` argument.
 
-The Command will be executed following the order of dependencies: so it'll run on the unit in the current working directory first, then on units that depend on it directly, then on the units that depend on those units, and so on. Note that if the command is `destroy`, it will execute in the opposite order of the dependencies.
+The Command will be executed following the order of dependencies: so it'll run on the unit in the current working directory first, then on units that depend on it directly, then on the units that depend on those units, and so on. Note that if the command is `destroy`, it will run in the opposite order (the final dependents, then their dependencies, etc. up to the unit you ran the command in).
 
 Example:
 Having below dependencies:
@@ -368,7 +368,7 @@ This ensures that all units are up-to-date before running the requested operatio
 
 ### info
 
-Emits limited terragrunt state on `stdout` in a JSON format and exits.
+Emits limited terragrunt information to stdout in JSON format.
 
 Example:
 
