@@ -1,7 +1,7 @@
 ---
 title: Configuration Blocks
 description: Learn about Terragrunt HCL configuration blocks
-slug: docs/reference/configuration/configuration-blocks
+slug: docs/reference/hcl/configuration-blocks
 sidebar:
   order: 2
 ---
@@ -44,7 +44,7 @@ The `terraform` block supports the following arguments:
     [terraform-aws-modules/iam](https://registry.terraform.io/modules/terraform-aws-modules/iam/aws/latest), you can
     use the following: `tfr:///terraform-aws-modules/iam/aws//modules/iam-policy?version=4.3.0`.
   - Refer to [A note about using modules from the
-    registry](/docs/getting-started/quick-start#a-note-about-using-modules-from-the-registry) for more
+    registry]({{site.baseurl}}/docs/getting-started/quick-start#a-note-about-using-modules-from-the-registry) for more
     information about using modules from the Terraform Registry with Terragrunt.
 
 - `include_in_copy` (attribute): A list of glob patterns (e.g., `["*.txt"]`) that should always be copied into the
@@ -69,11 +69,11 @@ The `terraform` block supports the following arguments:
 
 - `copy_terraform_lock_file` (attribute): In certain use cases, you don't want to check the terraform provider lock
   file into your source repository from your working directory as described in
-  [Lock File Handling](/docs/features/lock-file-handling/). This attribute allows you to disable the copy
+  [Lock File Handling]({{site.baseurl}}/docs/features/lock-file-handling/). This attribute allows you to disable the copy
   of the generated or existing `.terraform.lock.hcl` from the temp folder into the working directory. Default is `true`.
 
 - `extra_arguments` (block): Nested blocks used to specify extra CLI arguments to pass to the `tofu`/`terraform` binary. Learn more
-  about its usage in the [Keep your CLI flags DRY](/docs/features/extra-arguments) use case overview. Supports
+  about its usage in the [Keep your CLI flags DRY]({{site.baseurl}}/docs/features/extra-arguments) use case overview. Supports
   the following arguments:
 
   - `arguments` (required) : A list of CLI arguments to pass to `tofu`/`terraform`.
@@ -483,7 +483,7 @@ include "root" {
 ```hcl
 # child/main.tf
 terraform {
-  backend "s3" 
+  backend "s3" {}
 }
 ```
 
@@ -536,7 +536,7 @@ include "root" {
 ```hcl
 # child/main.tf
 terraform {
-  backend "gcs" 
+  backend "gcs" {}
 }
 ```
 
@@ -603,14 +603,14 @@ section](/docs/features/state-backend/#generating-remote-state-settings-with-ter
 "Keep your remote state configuration DRY" use case overview.
 
 You can have more than one `include` block, but each one must have a unique label. It is recommended to always label
-your `include` blocks. Bare includes (`include` block with no label - e.g., `include `) are currently supported for
+your `include` blocks. Bare includes (`include` block with no label - e.g., `include {}`) are currently supported for
 backward compatibility, but is deprecated usage and support may be removed in the future.
 
 `include` blocks support the following arguments:
 
 - `name` (label): You can define multiple `include` blocks in a single terragrunt config. Each include block
   must be labeled with a unique name to differentiate it from the other includes. e.g., if you had a block `include
-"remote" `, you can reference the relevant exposed data with the expression `include.remote`.
+"remote" {}`, you can reference the relevant exposed data with the expression `include.remote`.
 - `path` (attribute): Specifies the path to a Terragrunt configuration file (the `parent` config) that should be merged
   with this configuration (the `child` config).
 - `expose` (attribute, optional): Specifies whether or not the included config should be parsed and exposed as a
@@ -670,7 +670,7 @@ inputs = {
 ```hcl
 # child/main.tf
 terraform {
-  backend "s3" 
+  backend "s3" {}
 }
 ```
 
@@ -729,7 +729,7 @@ inputs = {
 ```hcl
 # child/main.tf
 terraform {
-  backend "s3" 
+  backend "s3" {}
 }
 ```
 
