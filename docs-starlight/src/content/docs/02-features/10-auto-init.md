@@ -15,16 +15,16 @@ When Auto-Init is enabled (the default), terragrunt will automatically call [`to
 - The `.terragrunt-init-required` file is in the downloaded module directory (`.terragrunt-cache/aaa/bbb/modules/<module>`).
 - The modules or remote state used by a module have changed since the previous call to `init`.
 
-As [mentioned]({{site.baseurl}}/docs/features/extra-arguments/#extra_arguments-for-init), `extra_arguments` can be configured to allow customization of the `terraform init` command.
+As [mentioned](/docs/features/extra-arguments/#extra_arguments-for-init), `extra_arguments` can be configured to allow customization of the `tofu init` command.
 
-Note that there might be cases where terragrunt does not properly detect that `terraform init` needs be called. In this case, OpenTofu/Terraform can fail. Running `terragrunt init` again in these circumstances can correct the issue.
+Note that there might be cases where Terragrunt does not detect that `tofu init` needs to be called. In such cases, OpenTofu/Terraform may fail, and re-running `terragrunt init` can resolve the issue.
 
 ## Disabling Auto-Init
 
 In some cases, it might be desirable to disable Auto-Init.
 
-For example, you might want to specify a different `-plugin-dir` option to `terraform init` (and don't want to have it set in `extra_arguments`).
+For example, you might want to specify a different `-plugin-dir` option to `tofu init` (and don't want to have it set in `extra_arguments`).
 
 To disable Auto-Init, use the `--terragrunt-no-auto-init` command line option or set the `TERRAGRUNT_NO_AUTO_INIT` environment variable to `true`.
 
-Disabling Auto-Init means that you *must* explicitly call `terragrunt init` prior to any other Terragrunt commands for a particular configuration. If Auto-Init is disabled, and Terragrunt detects that `init` needs to be called, Terragrunt will throw an error.
+Disabling Auto-Init requires you to explicitly run `terragrunt init` before executing any other Terragrunt commands for that configuration. If Auto-Init is disabled and Terragrunt detects that `init` should have been run, it will throw an error.
