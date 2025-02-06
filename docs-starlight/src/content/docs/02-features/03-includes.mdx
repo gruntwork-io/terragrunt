@@ -226,7 +226,7 @@ terraform {
 ```
 
 What if we want to deploy a different version for each environment? One way you can do this is by redefining the
-`terraform` block in the unit. For example, if you want to deploy `v0.2.0` in the `qa` environment, you can do
+`terraform` block in the unit. For instance, to deploy `v0.2.0` in the `qa` environment, you can perform
 the following:
 
 ```hcl
@@ -290,7 +290,7 @@ inputs = {
 ## Using `read_terragrunt_config`
 
 In the previous two sections, we covered using `include` to merge Terragrunt configurations through static merges
-with unit configuration. What if you want included configurations to be dynamic in the context of unit where they
+with unit configuration. What if you want included configurations to be dynamic in the context of the unit where they
 are being used?
 
 In our example, the unit configuration defines the `env` input in its configuration (pasted below for convenience):
@@ -305,7 +305,7 @@ inputs = {
 ```
 
 What if some inputs depend on this `env` input? For example, what if we want to append the `env` to the `name` input
-prior to passing to OpenTofu/Terraform?
+before passing to OpenTofu/Terraform?
 
 One way to do this is to define the override parameters in the child config instead of the parent:
 
@@ -326,7 +326,7 @@ inputs = {
 
 While this works, you could lose all the DRY advantages of the include block if you have many configurations that depend
 on the `env` input. Instead, you can use `read_terragrunt_config` to load additional context when including configurations
-by taking advantage of the folder structure, and define the env based logic in the included configuration.
+by taking advantage of the folder structure, and define the env-based logic in the included configuration.
 
 To show this, let's introduce a new `env.hcl` configuration in each environment:
 
@@ -409,7 +409,7 @@ With this configuration, the `env_vars` local is set based on the location of th
 For example, when Terragrunt is run in the context of the `prod/app` unit, `prod/env.hcl` is read,
 while `qa/env.hcl` is read when Terragrunt is run in the `qa/app` unit.
 
-Now we can clean up the child config to eliminate the `env` input variable since that is loaded in the `env.hcl` context:
+Now we can clean up the child config to eliminate the `env` input variable, since that is loaded in the `env.hcl` context:
 
 ```hcl
 # qa/app/terragrunt.hcl
@@ -481,7 +481,7 @@ terragrunt run-all apply --terragrunt-queue-include-units-reading _env/app.hcl -
 ```
 
 This allows you to have flexibility in how changes are rolled out. For example, you can add extra validation stages
-in-between the roll out to each environment, or add in manual approval between the stages.
+in-between the roll-out to each environment, or add in manual approval between the stages.
 
 **NOTE**: If you identify an issue with rolling out the change in a downstream environment, and want to abort, you will
 need to make sure that that environment uses the older version of the common configuration. This is because the common
