@@ -14,7 +14,7 @@ The most secure way to manage AWS infrastructure is to segment infrastructure be
 
 When working with multiple AWS accounts, a best practice is to temporarily assume roles within those AWS accounts to perform actions using mechanisms like [IAM Identity Center](https://aws.amazon.com/iam/identity-center/) or [OIDC](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_oidc.html). When using these technologies, users don't need any static users or credentials. All access is temporary, and permissions are determined by the role they assume.
 
-These technologies allow you to securely assume least privilege access to a target AWS account, and perform actions that can only impact that AWS account, limiting blast radius.
+These technologies allow you to securely (and temporarily) acquire secrets for least privilege access to a target AWS account, and perform actions that can only impact that AWS account, limiting blast radius.
 
 There are a few ways to assume IAM roles when using AWS CLI tools, such as OpenTofu/Terraform:
 
@@ -32,7 +32,7 @@ There are a few ways to assume IAM roles when using AWS CLI tools, such as OpenT
 
 3. A final option is to modify your AWS provider with the [assume_role configuration](https://www.terraform.io/docs/providers/aws/#assume-role) and your S3 backend with the [role_arn parameter](https://opentofu.org/docs/language/settings/backends/s3/#assume-role-configuration).
 
-   The downside to managing your role assumption with the AWS provider is that all runs have to be performed with the same IAM role. This can be problematic if you have different users that assume different roles, depending on their need for elevated access, and as a best practice, the role assumed by CI/CD pipelines should be different from the role assumed by developers.
+   The downside to managing your role assumption with the AWS provider is that all runs have to be performed with the same IAM role. This can be problematic if you have different users who assume different roles, depending on their need for elevated access, and as a best practice, the role assumed by CI/CD pipelines should be different from the role assumed by developers.
 
    The _way_ in which these roles are assumed also differ, as developers might use a web-based SSO portal to acquire temporary credentials, while CI/CD pipelines might use OIDC and assume a role using a web identity token.
 
