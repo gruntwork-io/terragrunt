@@ -40,7 +40,7 @@ terraform {
 In this example configuration, whenever Terragrunt runs `tofu apply` or `tofu plan` (or the `terraform` equivalent), three things will happen:
 
 - Before Terragrunt runs `tofu`/`terraform`, it will output `Running OpenTofu` to the console.
-- After Terragrunt runs `tofu`/`terraform`, it will output `Finished running OpenTofu`, regardless of whether or not the
+- After Terragrunt runs `tofu`/`terraform`, it will output `Finished running OpenTofu`, regardless of whether the
   command failed.
 - If an error occurs during the `tofu apply` command, Terragrunt will output `Error Hook executed`.
 
