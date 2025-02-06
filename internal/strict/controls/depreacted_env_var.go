@@ -33,8 +33,8 @@ type DeprecatedEnvVar struct {
 // we take the first env var from the list `GetEnvVars()` for the name and description to display it in `info strict`.
 func NewDeprecatedEnvVar(depreacedFlag, newFlag cli.Flag, newValue string) *DeprecatedEnvVar {
 	var (
-		depreacedName = util.FirstElement(util.RemoveEmptyElements(depreacedFlag.GetEnvVars()))
-		newName       = util.FirstElement(util.RemoveEmptyElements(newFlag.GetEnvVars()))
+		deprecatedName = util.FirstElement(util.RemoveEmptyElements(depreacedFlag.GetEnvVars()))
+		newName        = util.FirstElement(util.RemoveEmptyElements(newFlag.GetEnvVars()))
 	)
 
 	if newValue != "" {
@@ -43,7 +43,7 @@ func NewDeprecatedEnvVar(depreacedFlag, newFlag cli.Flag, newValue string) *Depr
 
 	return &DeprecatedEnvVar{
 		Control: &Control{
-			Name:        depreacedName,
+			Name:        deprecatedName,
 			Description: "replaced with: " + newName,
 		},
 		ErrorFmt:   "`%s` env var is no longer supported. Use `%s` instead.",

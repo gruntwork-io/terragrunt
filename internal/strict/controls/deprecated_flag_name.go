@@ -33,8 +33,8 @@ type DeprecatedFlagName struct {
 // we take the first name from the list `Names()` for the name and description to display it in `info strict`.
 func NewDeprecatedFlagName(depreacedFlag, newFlag cli.Flag, newValue string) *DeprecatedFlagName {
 	var (
-		depreacedName = util.FirstElement(util.RemoveEmptyElements(depreacedFlag.Names()))
-		newName       = util.FirstElement(util.RemoveEmptyElements(newFlag.Names()))
+		deprecatedName = util.FirstElement(util.RemoveEmptyElements(depreacedFlag.Names()))
+		newName        = util.FirstElement(util.RemoveEmptyElements(newFlag.Names()))
 	)
 
 	if newValue != "" {
@@ -43,7 +43,7 @@ func NewDeprecatedFlagName(depreacedFlag, newFlag cli.Flag, newValue string) *De
 
 	return &DeprecatedFlagName{
 		Control: &Control{
-			Name:        depreacedName,
+			Name:        deprecatedName,
 			Description: "replaced with: " + newName,
 		},
 		ErrorFmt:      "`--%s` flag is no longer supported. Use `--%s` instead.",
