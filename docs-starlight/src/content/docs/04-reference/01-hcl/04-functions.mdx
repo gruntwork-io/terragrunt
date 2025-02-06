@@ -813,11 +813,11 @@ This function also takes in an optional second parameter which will be returned 
 # terragrunt.hcl
 
 locals {
-  common_vars = read_terragrunt_config(find_in_parent_folders("i-dont-exist.hcl", "i-dont-exist.hcl"), {inputs = })
+  common_vars = read_terragrunt_config(find_in_parent_folders("i-dont-exist.hcl", "i-dont-exist.hcl"), {inputs = {}})
 }
 
 inputs = merge(
-  local.common_vars.inputs, # This will be 
+  local.common_vars.inputs, # This will be {}
   {
     # additional inputs
   }
@@ -883,11 +883,11 @@ If you absolutely need to fallback to a default value you can make use of the Op
 # terragrunt.hcl
 
 locals {
-  secret_vars = try(jsondecode(sops_decrypt_file(find_in_parent_folders("no-secrets-here.json"))), )
+  secret_vars = try(jsondecode(sops_decrypt_file(find_in_parent_folders("no-secrets-here.json"))), {})
 }
 
 inputs = merge(
-  local.secret_vars, # This will be 
+  local.secret_vars, # This will be {}
   {
     # additional inputs
   }

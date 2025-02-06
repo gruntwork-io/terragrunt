@@ -25,7 +25,7 @@ find . -type d -name ".terragrunt-cache"
 If you are **SURE** you want to delete all the folders that come up in the previous command, you can recursively delete all of them as follows:
 
 ``` bash
-find . -type d -name ".terragrunt-cache" -prune -exec rm -rf  \;
+find . -type d -name ".terragrunt-cache" -prune -exec rm -rf {} \;
 ```
 
 Also consider setting the `TERRAGRUNT_DOWNLOAD` environment variable if you wish to place the cache directories somewhere else.
