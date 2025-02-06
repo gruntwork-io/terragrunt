@@ -40,6 +40,7 @@ export default defineConfig({
 						{ label: 'Experiments', slug: 'docs/reference/experiments' },
 						{ label: 'Supported Versions', slug: 'docs/reference/supported-versions' },
 						{ label: 'Lock File Handling', slug: 'docs/reference/lock-file-handling' },
+						{ label: 'Terragrunt Cache', slug: 'docs/reference/terragrunt-cache' },
 					],
 				},
 				{

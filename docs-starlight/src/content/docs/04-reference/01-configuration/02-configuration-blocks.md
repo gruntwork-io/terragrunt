@@ -18,7 +18,7 @@ before or after calling OpenTofu/Terraform.
 
 The `terraform` block supports the following arguments:
 
-- `source` (attribute): Specifies where to find OpenTofu/Terraform configuration files. This parameter supports the exact same syntax as the
+- `source` (attribute): Specifies where to find OpenTofu/Terraform configuration files. This parameter supports the same syntax as the
   [module source](https://opentofu.org/docs/language/modules/sources/) parameter for OpenTofu/Terraform `module` blocks **except
   for the Terraform registry** (see below note), including local file paths, Git URLs, and Git URLS with `ref`
   parameters. Terragrunt will download all the code in the repo (i.e. the part before the double-slash `//`) so that
@@ -94,7 +94,7 @@ The `terraform` block supports the following arguments:
   - `execute` (required) : A list of command and arguments that should be run as the hook. For example, if `execute` is set as
     `["echo", "Foo"]`, the command `echo Foo` will be run.
   - `working_dir` (optional) : The path to set as the working directory of the hook. Terragrunt will switch directory
-    to this path prior to running the hook command. Defaults to the terragrunt configuration directory for
+    to this path before running the hook command. Defaults to the terragrunt configuration directory for
     `terragrunt-read-config` and `init-from-module` hooks, and the OpenTofu/Terraform module directory for other command hooks.
   - `run_on_error` (optional) : If set to true, this hook will run even if a previous hook hit an error, or in the
     case of "after" hooks, if the OpenTofu/Terraform command hit an error. Default is false.
