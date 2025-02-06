@@ -19,7 +19,7 @@ const (
 func NewCommand(opts *options.TerragruntOptions) *cli.Command {
 	return &cli.Command{
 		Name:        CommandName,
-		Usage:       "Run an OpenTofu/Terraform command. Shortcuts for common `run` commands are provided below.",
+		Usage:       "Run an OpenTofu/Terraform command.",
 		UsageText:   "terragrunt run [options] -- <tofu/terraform command>",
 		Description: "Run a command, passing arguments to an orchestrated tofu/terraform binary.\n\nThis is the explicit, and most flexible form of running an IaC command with Terragrunt. Shortcuts can be found in \"terragrunt --help\" for common use-cases.",
 		Examples: []string{
