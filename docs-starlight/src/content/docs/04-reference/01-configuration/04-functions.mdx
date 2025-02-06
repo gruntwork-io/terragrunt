@@ -31,7 +31,7 @@ remote_state {
 }
 ```
 
-Note: Any `file*` functions (`file`, `fileexists`, `filebase64`, etc) are relative to the directory containing the `terragrunt.hcl` file they’re used in.
+Note: Any `file*` functions (`file`, `fileexists`, `filebase64`, etc.) are relative to the directory containing the `terragrunt.hcl` file they’re used in.
 
 Given the following structure:
 
@@ -62,7 +62,7 @@ If there is a specific function you would like to see supported directly in Terr
 
 ## find_in_parent_folders
 
-`find_in_parent_folders` searches up the directory tree from the current `terragrunt.hcl` file and returns the absolute path to the first file in a parent folder with a given name or exits with an error if no such file is found. This is primarily useful in an `include` block to automatically find the path to a parent Terragrunt configuration:
+`find_in_parent_folders` searches up the directory tree from the current `terragrunt.hcl` file, and returns the absolute path to the first file in a parent folder with a given name, or exits with an error if no such file is found. This is primarily useful in an `include` block to automatically find the path to a parent Terragrunt configuration:
 
 ```hcl
 # some/folder/terragrunt.hcl
@@ -82,7 +82,7 @@ include "root" {
 }
 ```
 
-You can also pass an optional second `fallback` parameter which causes the function to return the fallback value (instead of exiting with an error) if the file in the `name` parameter cannot be found:
+You can also pass an optional second `fallback` parameter, which causes the function to return the fallback value (instead of exiting with an error) if the file in the `name` parameter cannot be found:
 
 ```hcl
 # some/folder/terragrunt.hcl
@@ -229,7 +229,7 @@ terraform {
 
 The resulting `source` will be `../../sources//mysql` for `mysql` module and `../../../sources//secrets/mysql` for `secrets/mysql` module.
 
-Another use case would be to add extra argument to include the `common.tfvars` file for all subdirectories:
+Another use case would be to add an extra argument to include the `common.tfvars` file for all subdirectories:
 
 ```hcl
 # root.hcl
@@ -398,7 +398,7 @@ For example, imagine you have the following file structure:
 
 </FileTree>
 
-Inside of `tofu-code/frontend-app/terragrunt.hcl` you might try to write code that looks like this:
+Inside `tofu-code/frontend-app/terragrunt.hcl` you might try to write code that looks like this:
 
 ```hcl
 # tofu-code/frontend-app/terragrunt.hcl
@@ -762,7 +762,7 @@ carrot
 
 **Notes:**
 
-- Output contains only once `carrot` and `potato`, because other invocations got cached, caching works for all sections
+- Output contains only contains one instance of `carrot` and `potato`, because other invocations got cached; caching works for all sections
 - Output contains multiple times `uuid1` and `uuid2` because during HCL evaluation each `run_cmd` in `locals` is evaluated multiple times and random argument generated from `uuid()` save cached value under different key each time
 - Output contains multiple times `uuid3`, +1 more output comparing to `uuid1` and `uuid2` - because `uuid3` is declared in locals and inputs which add one more evaluation
 - Output contains only once `uuid4` since it is declared only once in `inputs`, `inputs` is not evaluated twice
@@ -908,9 +908,9 @@ Some example use cases are:
 
 ## read_tfvars_file
 
-`read_tfvars_file(file_path)` reads a `.tfvars` or `.tfvars.json` file and returns a map of the variables defined in it.
+`read_tfvars_file(file_path)` reads a `.tfvars` or `.tfvars.json` file and returns a map of the variables defined in it. 
 
-This is useful for reading variables from a `.tfvars` file and merging them into the inputs or to use them in a `locals` block:
+This is useful for reading variables from a `.tfvars` file, merging them into the inputs, or using them in a `locals` block:
 
 ```hcl
 # terragrunt.hcl
@@ -952,7 +952,7 @@ remote_state {
 
 ## mark_as_read
 
-`mark_as_read(file_path)` marks a file as read, so that it can be picked up for inclusion by the [queue-include-units-reading](/docs/reference/cli-options/#terragrunt-queue-include-units-reading) flag.
+`mark_as_read(file_path)` marks a file as read so that it can be picked up for inclusion by the [queue-include-units-reading](/docs/reference/cli-options/#terragrunt-queue-include-units-reading) flag.
 
 This is useful for situations when you want to mark a file as read, but are not reading it using a native Terragrunt HCL function.
 
@@ -973,7 +973,7 @@ inputs = {
 By using `mark_as_read` on `file-read-by-tofu.txt`, you can ensure that the `terragrunt.hcl` file passing in the `file-read-by-tofu.txt` file as an input will be included in
 any `run-all` run where the flag `--queue-include-units-reading file-read-by-tofu.txt` is set.
 
-The same technique can be used to mark a file as read when reading a file using code in `run_cmd`, etc.
+The same technique can be used to mark a file as read when a file is read using code in `run_cmd`.
 
 **NOTE**: Due to the way that Terragrunt parses configurations during a `run-all`, functions will only properly mark files as read
 if they are used in the `locals` block. Reading a file directly in the `inputs` block will not mark the file as read, as the `inputs`
