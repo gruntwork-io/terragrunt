@@ -8,7 +8,7 @@ sidebar:
 
 Terragrunt scaffolding can generate files for you automatically using [boilerplate](https://github.com/gruntwork-io/boilerplate) templates.
 
-Currently, one boilerplate template is supported out-of-the-box, which you can use to generate a best-practices `terragrunt.hcl` that configures a OpenTofu/Terraform module for deployment:
+Currently, one boilerplate template is supported out-of-the-box, which you can use to generate a best-practices `terragrunt.hcl` that configures an OpenTofu/Terraform module for deployment:
 
 ```bash
 terragrunt scaffold <MODULE_URL> [TEMPLATE_URL] [--var] [--var-file] [--no-include-root] [--root-file-name]
@@ -16,10 +16,10 @@ terragrunt scaffold <MODULE_URL> [TEMPLATE_URL] [--var] [--var-file] [--no-inclu
 
 Description:
 
-- `MODULE_URL` - URL to a OpenTofu/Terraform module. Can be a local file path, git URL, registry URL, or any other [module source URL](https://developer.hashicorp.com/terraform/language/modules/sources).
-- `TEMPLATE_URL` - Optional URL to a custom boilerplate template to use to generate HCL files. Can be a local file path, git URL, registry URL, or any other [module source URL](https://developer.hashicorp.com/terraform/language/modules/sources). If not specified, Terragrunt will:
+- `MODULE_URL` - URL to an OpenTofu/Terraform module. Can be a local file path, git URL, registry URL, or any other [module source URL](https://developer.hashicorp.com/terraform/language/modules/sources).
+- `TEMPLATE_URL` - Optional URL to a custom boilerplate template to generate HCL files. Can be a local file path, git URL, registry URL, or any other [module source URL](https://developer.hashicorp.com/terraform/language/modules/sources). If not specified, Terragrunt will:
   - Look for a `.boilerplate` folder in the module at `MODULE_URL`, and if found, use the boilerplate template in that folder.
-  - Failing to find that, Terragrunt will use a boilerplate template that is built-in, which creates a best-practices `terragrunt.hcl` for deploying a single OpenTofu/Terraform module.
+  - Failing to find that, Terragrunt will use a default boilerplate template that is built-in, which creates a best-practices `terragrunt.hcl` for deploying a single OpenTofu/Terraform module.
 
 For example, here's how you can generate a `terragrunt.hcl` file to configure an [example MySQL OpenTofu/Terraform module](https://github.com/gruntwork-io/terragrunt-infrastructure-modules-example/tree/master/mysql) for deployment:
 
@@ -83,7 +83,7 @@ The elements in the `requiredVariables` and `optionalVariables` lists are struct
 - `Description` - variable description
 - `Type` - variable type (string, number, bool, list, map, object) [Type Constants](https://developer.hashicorp.com/packer/docs/templates/hcl_templates/variables#type-constraints)
 - `DefaultValue` - variable default value
-- `DefaultValuePlaceholder` - default value placeholder, string = "", number = 0 etc.
+- `DefaultValuePlaceholder` - default value placeholder (e.g. `""` for a string or `0` for a number)
 
 Optional variables which can be passed to `scaffold` command:
 
@@ -95,7 +95,7 @@ Optional variables which can be passed to `scaffold` command:
 
 \* **NOTE**: `RootFileName` is set to `terragrunt.hcl` by default to ensure backwards compatibility, but the pattern of using a `terragrunt.hcl` file at the root of Terragrunt projects has since been deprecated.
 
-   Setting the [Strict Control](/docs/reference/strict-mode/#root-terragrunt-hcl) that enforces moving away from this practice will change the default to `root.hcl`, which is a better practice. For more information, read [Migrating from root `terragrunt.hcl`](/docs/migrate/migrating-from-root-terragrunt-hcl).
+   Setting the [root-terragrunt-hcl](/docs/reference/strict-mode/#root-terragrunt-hcl) strict control enforces moving away from this practice will change the default to `root.hcl`, which is a better practice. For more information, read [Migrating from root `terragrunt.hcl`](/docs/migrate/migrating-from-root-terragrunt-hcl).
 
 ### Convenience flags
 
@@ -104,7 +104,7 @@ Optional variables which can be passed to `scaffold` command:
 
 \* **NOTE**: `RootFileName` is set to `terragrunt.hcl` by default to ensure backwards compatibility, but the pattern of using a `terragrunt.hcl` file at the root of Terragrunt projects has since been deprecated.
 
-   Setting the [Strict Control](/docs/reference/strict-mode/#root-terragrunt-hcl) that enforces moving away from this practice will change the default to `root.hcl`, which is a better practice. For more information, read [Migrating from root `terragrunt.hcl`](/docs/migrate/migrating-from-root-terragrunt-hcl).
+   See the note above on the [root-terragrunt-hcl](/docs/reference/strict-mode/#root-terragrunt-hcl) strict control for more information.
 
 ## Examples
 
@@ -126,12 +126,14 @@ terraform {
 }
 ```
 
-Scaffold new project using template inside of git repo:
+Scaffold new project using a template inside a git repo:
 
 ```bash
 terragrunt scaffold github.com/gruntwork-io/terragrunt.git//test/fixtures/scaffold/module-with-template
 # will be used template from .boilerplate directory to generate terragrunt.hcl
 ```
+
+**NOTE**: Scaffolding infrastructure from an external repository might introduce security or stability risks. Always review code from trusted external sources before running it.
 
 Scaffold new project using external template:
 
