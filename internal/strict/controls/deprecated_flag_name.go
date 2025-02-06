@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	MovedGlobalFlagsCategoryNameFmt = "Moved global flags to `%s` command"
+	MovedGlobalFlagsCategoryNameFmt = "Global flags moved to `%s` command"
 	GlobalFlagsCategoryName         = "Global flags"
 	CommandFlagsCategoryNameFmt     = "`%s` command flags"
 )
