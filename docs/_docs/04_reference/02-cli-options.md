@@ -170,7 +170,7 @@ We are [working with the OpenTofu team to improve this behavior](https://github.
 
 If you have a stack of Terragrunt units with dependencies between them—either via `dependency` blocks
 and you've never deployed them, then commands like `run-all plan` will fail,
-as it will not be possible to resolve outputs of `dependency` blocks without applying first.
+as it won't be possible to resolve outputs of `dependency` blocks without applying them first.
 
 The solution for this is to take advantage of [mock outputs in dependency blocks](/docs/reference/config-blocks-and-attributes/#dependency).
 
