@@ -533,7 +533,7 @@ func TestTerragruntProduceTelemetryInCasOfError(t *testing.T) {
 	tmpEnvPath := helpers.CopyEnvironment(t, testFixtureHooksBeforeAndAfterPath)
 	rootPath := util.JoinPath(tmpEnvPath, testFixtureHooksBeforeAndAfterPath)
 
-	output, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt no-existing-command -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
+	output, _, err := helpers.RunTerragruntCommandWithOutput(t, "terragrunt plan no-existing-command -auto-approve --terragrunt-non-interactive --terragrunt-working-dir "+rootPath)
 	require.Error(t, err)
 
 	assert.Contains(t, output, "\"SpanContext\":{\"TraceID\":\"b2ff2d54551433d53dd807a6c94e81d1\"")

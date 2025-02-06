@@ -51,6 +51,10 @@ type SliceFlag[T SliceFlagType] struct {
 
 // Apply applies Flag settings to the given flag set.
 func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
+	if flag.FlagValue != nil {
+		return ApplyFlag(flag, set)
+	}
+
 	if flag.Destination == nil {
 		flag.Destination = new([]T)
 	}
@@ -76,12 +80,10 @@ func (flag *SliceFlag[T]) Apply(set *libflag.FlagSet) error {
 	valueType := FlagVariable[T](new(genericVar[T]))
 	value := newSliceValue(valueType, flag.EnvVarSep, flag.Destination, flag.Setter)
 
-	if flag.FlagValue == nil {
-		flag.FlagValue = &flagValue{
-			multipleSet:      true,
-			value:            value,
-			initialTextValue: value.String(),
-		}
+	flag.FlagValue = &flagValue{
+		multipleSet:      true,
+		value:            value,
+		initialTextValue: value.String(),
 	}
 
 	return ApplyFlag(flag, set)

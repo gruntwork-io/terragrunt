@@ -63,6 +63,14 @@ type MapFlag[K MapFlagKeyType, V MapFlagValueType] struct {
 
 // Apply applies Flag settings to the given flag set.
 func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
+	if flag.FlagValue != nil {
+		return ApplyFlag(flag, set)
+	}
+
+	if flag.FlagValue != nil {
+		return ApplyFlag(flag, set)
+	}
+
 	if flag.Destination == nil {
 		dest := make(map[K]V)
 		flag.Destination = &dest
@@ -95,12 +103,10 @@ func (flag *MapFlag[K, V]) Apply(set *libflag.FlagSet) error {
 
 	value := newMapValue(keyType, valType, flag.EnvVarSep, flag.KeyValSep, flag.Splitter, flag.Destination, flag.Setter)
 
-	if flag.FlagValue == nil {
-		flag.FlagValue = &flagValue{
-			multipleSet:      true,
-			value:            value,
-			initialTextValue: value.String(),
-		}
+	flag.FlagValue = &flagValue{
+		multipleSet:      true,
+		value:            value,
+		initialTextValue: value.String(),
 	}
 
 	return ApplyFlag(flag, set)

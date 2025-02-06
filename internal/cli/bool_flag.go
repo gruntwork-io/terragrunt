@@ -39,14 +39,16 @@ type BoolFlag struct {
 
 // Apply applies Flag settings to the given flag set.
 func (flag *BoolFlag) Apply(set *libflag.FlagSet) error {
+	if flag.FlagValue != nil {
+		return ApplyFlag(flag, set)
+	}
+
 	valueType := newBoolVar(flag.Destination, flag.Negative)
 	value := newGenericValue(valueType, flag.Setter)
 
-	if flag.FlagValue == nil {
-		flag.FlagValue = &flagValue{
-			value:            value,
-			initialTextValue: value.String(),
-		}
+	flag.FlagValue = &flagValue{
+		value:            value,
+		initialTextValue: value.String(),
 	}
 
 	return ApplyFlag(flag, set)

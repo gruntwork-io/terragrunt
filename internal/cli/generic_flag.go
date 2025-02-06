@@ -42,14 +42,16 @@ type GenericFlag[T GenericType] struct {
 
 // Apply applies Flag settings to the given flag set.
 func (flag *GenericFlag[T]) Apply(set *libflag.FlagSet) error {
-	if flag.FlagValue == nil {
-		valueType := &genericVar[T]{dest: flag.Destination}
-		value := newGenericValue(valueType, flag.Setter)
+	if flag.FlagValue != nil {
+		return ApplyFlag(flag, set)
+	}
 
-		flag.FlagValue = &flagValue{
-			value:            value,
-			initialTextValue: value.String(),
-		}
+	valueType := &genericVar[T]{dest: flag.Destination}
+	value := newGenericValue(valueType, flag.Setter)
+
+	flag.FlagValue = &flagValue{
+		value:            value,
+		initialTextValue: value.String(),
 	}
 
 	return ApplyFlag(flag, set)

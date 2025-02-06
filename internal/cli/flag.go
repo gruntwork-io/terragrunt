@@ -65,6 +65,9 @@ type FlagValue interface {
 	// optional interface to indicate boolean flags that can be
 	// supplied without "=value" text
 	IsBoolFlag() bool
+
+	// MultipleSet returns true if the flag allows multiple assignments, such as slice/map.
+	MultipleSet() bool
 }
 
 type Flag interface {
@@ -142,6 +145,10 @@ type flagValue struct {
 	hasBeenSet       bool
 	envHasBeenSet    bool
 	initialTextValue string
+}
+
+func (flag *flagValue) MultipleSet() bool {
+	return flag.multipleSet
 }
 
 func (flag *flagValue) IsBoolFlag() bool {
@@ -244,7 +251,7 @@ func (flag *flag) SplitValue(val string) []string {
 func ApplyFlag(flag Flag, set *libflag.FlagSet) error {
 	for _, name := range flag.GetEnvVars() {
 		for _, val := range flag.LookupEnv(name) {
-			if val == "" || flag.Value().IsEnvSet() {
+			if val == "" || (flag.Value().IsEnvSet() && !flag.Value().MultipleSet()) {
 				continue
 			}
 
