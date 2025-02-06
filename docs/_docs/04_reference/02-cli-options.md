@@ -843,7 +843,6 @@ Terragrunt provides multiple output formats for easier parsing and integration w
 | `json`    | Returns structured JSON output, making it ideal for automation and integrations with other tools.     |
 | `raw`     | Outputs key-value pairs in a compact, JSON-like format. Useful for quick inspection of stack outputs. |
 
-
 ## CLI options
 
 Terragrunt forwards all options to OpenTofu/Terraform. The only exceptions are `--version` and arguments that start with the
