@@ -14,7 +14,7 @@ To use [OpenTofu/Terraform lock files](https://opentofu.org/docs/language/files/
 need to:
 
 1. Run Terragrunt as usual (e.g., run `terragrunt plan`, `terragrunt apply`, etc.).
-1. Check the `.terraform.lock.hcl` file, which will end up sitting next to your `terragrunt.hcl`, into version control.
+1. Check the `.terraform.lock.hcl` file into version control.
 
 Everything else with OpenTofu/Terraform and Terragrunt should work as expected. To learn the details of how this works, read on!
 
@@ -27,7 +27,7 @@ Everything else with OpenTofu/Terraform and Terragrunt should work as expected. 
 which gets created or updated every time you run `tofu init`/`terraform init`. The file is typically generated into your working
 directory (i.e., the folder in which you ran `tofu init`/`terraform init`) and is called `.terraform.lock.hcl`.
 It captures the versions of all the OpenTofu/Terraform providers you're using. Normally, you want to check this file into
-version control so that when your team members run OpenTofu/Terraform, they get the exact same provider versions.
+version control so that when your team members run OpenTofu/Terraform, they get the identical provider versions.
 
 ### The problem with mixing remote OpenTofu/Terraform configurations in Terragrunt and lock files
 
@@ -104,7 +104,7 @@ to check the updates into version control too.
 ### Disabling the copy of the generated lock file
 
 In certain use cases, like when using a remote module containing a lock file within it, you probably
-don't want Terragrunt to also copy the lock file into your working directory. In these scenarios you, can opt-out of copying
+don't want Terragrunt to also copy the lock file into your working directory. In these scenarios, you can opt-out of copying
 the `.terraform.lock.hcl` file by using `copy_terraform_lock_file = false` in the `terraform` configuration block as follows:
 
 ```hcl
