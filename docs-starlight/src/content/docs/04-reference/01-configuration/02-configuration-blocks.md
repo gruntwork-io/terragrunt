@@ -1103,7 +1103,7 @@ locals {
   region_yml = yamldecode(file(find_in_parent_folders("region.yml")))
 
   # Access the region from the loaded file
-  region = local.region_json.region
+  region = local.region_yml.region
 }
 
 inputs = {

@@ -6,7 +6,7 @@ sidebar:
   order: 9
 ---
 
-_Before Hooks_, _After Hooks_ and _Error Hooks_ are a feature of terragrunt that make it possible to define custom actions that will be called before or after running an `tofu`/`terraform` command.
+_Before Hooks_, _After Hooks_ and _Error Hooks_ are a feature of terragrunt that make it possible to define custom actions that will be called before/after running an `tofu`/`terraform` command.
 
 They allow you to _orchestrate_ certain operations around IaC updates so that you have a consistent way to run custom code before or after running OpenTofu/Terraform.
 
@@ -170,7 +170,7 @@ aws ecr get-login-password --region us-east-1 | docker login --username AWS --pa
 docker push "$IMAGE_TAG"
 ```
 
-The hard-coding of values in the script could be replaced with context as shown in the previous section.
+The hard-coding of values in the script could be replaced with context, as shown in the previous section.
 
 Similarly, you may want to smoke-test newly deployed infrastructure after running `tofu apply`.
 
@@ -297,7 +297,7 @@ _Public rulesets_
 
 _Private rulesets_
 
-If you want to run a the `tflint` hook with custom rulesets defined in a private repository, you will need to export a valid `GITHUB_TOKEN` token.
+If you want to run the `tflint` hook with custom rulesets defined in a private repository, you will need to export a valid `GITHUB_TOKEN` token.
 
 ### Troubleshooting
 
