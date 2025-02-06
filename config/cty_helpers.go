@@ -411,8 +411,8 @@ func CtyToStruct(ctyValue cty.Value, target interface{}) error {
 
 // CtyValueAsString converts a cty.Value to a string.
 func CtyValueAsString(val cty.Value) (string, error) {
-
 	jsonBytes, err := ctyjson.Marshal(val, val.Type())
+
 	if err != nil {
 		return "", err
 	}

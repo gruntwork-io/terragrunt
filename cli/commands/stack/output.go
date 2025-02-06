@@ -24,17 +24,21 @@ func generateOutput(ctx context.Context, opts *options.TerragruntOptions) (map[s
 	opts.TerragruntStackConfigPath = filepath.Join(opts.WorkingDir, defaultStackFile)
 	opts.Logger.Debugf("Generating output from %s", opts.TerragruntStackConfigPath)
 	stackFile, err := config.ReadStackConfigFile(ctx, opts)
+
 	if err != nil {
 		return nil, errors.New(err)
 	}
+
 	unitOutputs := make(map[string]map[string]cty.Value)
 	// process each unit and get outputs
 	for _, unit := range stackFile.Units {
 		opts.Logger.Debugf("Processing unit %s", unit.Name)
 		output, err := unit.ReadOutputs(ctx, opts)
+
 		if err != nil {
 			return nil, errors.New(err)
 		}
+
 		unitOutputs[unit.Name] = output
 	}
 
@@ -67,10 +71,11 @@ func getValueString(value cty.Value) (string, error) {
 	if value.Type() == cty.String {
 		return value.AsString(), nil
 	}
+
 	return config.CtyValueAsString(value)
 }
 
-func printOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
+func printOutputs(writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
 	filteredOutputs := filterOutputs(outputs, outputIndex)
 
 	if filteredOutputs == nil {
@@ -92,7 +97,7 @@ func printOutputs(opts *options.TerragruntOptions, writer io.Writer, outputs map
 	return nil
 }
 
-func printJsonOutput(writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
+func printJSONOutput(writer io.Writer, outputs map[string]map[string]cty.Value, outputIndex string) error {
 	filteredOutputs := filterOutputs(outputs, outputIndex)
 
 	if filteredOutputs == nil {
@@ -101,6 +106,7 @@ func printJsonOutput(writer io.Writer, outputs map[string]map[string]cty.Value, 
 
 	topVal := cty.ObjectVal(filteredOutputs)
 	rawJSON, err := ctyjson.Marshal(topVal, topVal.Type())
+
 	if err != nil {
 		return errors.New(err)
 	}
@@ -123,11 +129,13 @@ func filterOutputs(outputs map[string]map[string]cty.Value, outputIndex string) 
 		for unit, values := range outputs {
 			flattened[unit] = cty.ObjectVal(values)
 		}
+
 		return flattened
 	}
 
 	keys := strings.Split(outputIndex, ".")
 	currentMap := make(map[string]cty.Value)
+
 	for unit, values := range outputs {
 		if !strings.HasPrefix(outputIndex, unit) {
 			continue
@@ -146,6 +154,7 @@ func filterOutputs(outputs map[string]map[string]cty.Value, outputIndex string) 
 				return nil
 			}
 		}
+
 		currentMap[outputIndex] = value
 	}
 

@@ -36,20 +36,21 @@ func (u *Unit) ReadOutputs(ctx context.Context, opts *options.TerragruntOptions)
 	configPath := filepath.Join(unitPath, DefaultTerragruntConfigPath)
 	opts.Logger.Debugf("Getting output from unit %s in %s", u.Name, unitPath)
 
-	parser := NewParsingContext(ctx, opts)
+	parserCtx := NewParsingContext(ctx, opts)
 
-	jsonBytes, err := getOutputJSONWithCaching(parser, configPath)
+	jsonBytes, err := getOutputJSONWithCaching(parserCtx, configPath)
+
 	if err != nil {
 		return nil, errors.New(err)
 	}
 
 	outputMap, err := TerraformOutputJSONToCtyValueMap(configPath, jsonBytes)
+
 	if err != nil {
 		return nil, errors.New(err)
 	}
 
 	return outputMap, nil
-
 }
 
 // ReadStackConfigFile reads the terragrunt.stack.hcl file.

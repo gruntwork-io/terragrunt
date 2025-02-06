@@ -86,9 +86,11 @@ func (feature *FeatureFlag) DefaultAsString() (string, error) {
 	if feature.Default == nil {
 		return "", nil
 	}
+
 	if feature.Default.Type() == cty.String {
 		return feature.Default.AsString(), nil
 	}
+
 	return CtyValueAsString(*feature.Default)
 }
 

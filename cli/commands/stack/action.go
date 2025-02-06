@@ -50,7 +50,6 @@ func Run(ctx context.Context, opts *options.TerragruntOptions) error {
 
 // RunOutput stack output.
 func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index string) error {
-
 	stacksEnabled := opts.Experiments[experiment.Stacks]
 	if !stacksEnabled.Enabled {
 		return errors.New("stacks experiment is not enabled use --experiment stacks to enable it")
@@ -66,9 +65,8 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index strin
 	writer := opts.Writer
 
 	switch opts.StackOutputFormat {
-
 	default:
-		if err := printOutputs(opts, writer, outputs, index); err != nil {
+		if err := printOutputs(writer, outputs, index); err != nil {
 			return errors.New(err)
 		}
 
@@ -78,10 +76,9 @@ func RunOutput(ctx context.Context, opts *options.TerragruntOptions, index strin
 		}
 
 	case jsonOutputFormat:
-		if err := printJsonOutput(writer, outputs, index); err != nil {
+		if err := printJSONOutput(writer, outputs, index); err != nil {
 			return errors.New(err)
 		}
-
 	}
 
 	return nil

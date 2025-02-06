@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/zclconf/go-cty/cty"
-
-	"github.com/gruntwork-io/terragrunt/options"
 )
 
 func TestFilterOutputs(t *testing.T) {
+	t.Parallel()
 	outputs := map[string]map[string]cty.Value{
 		"unit1": {
 			"output1": cty.StringVal("value1"),
@@ -69,7 +70,7 @@ func TestFilterOutputs(t *testing.T) {
 				return
 			}
 
-			assert.Equal(t, tt.expectedLen, len(result))
+			assert.Len(t, result, tt.expectedLen)
 			if tt.expectedKey != "" {
 				_, exists := result[tt.expectedKey]
 				assert.True(t, exists)
@@ -79,6 +80,7 @@ func TestFilterOutputs(t *testing.T) {
 }
 
 func TestPrintJsonOutput(t *testing.T) {
+	t.Parallel()
 	outputs := map[string]map[string]cty.Value{
 		"unit1": {
 			"str": cty.StringVal("test"),
@@ -110,22 +112,25 @@ func TestPrintJsonOutput(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			err := printJsonOutput(&buf, outputs, tt.outputIndex)
+			err := printJSONOutput(&buf, outputs, tt.outputIndex)
 
 			if tt.shouldError {
 				assert.Error(t, err)
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
+
 			// Normalize the JSON for comparison
 			var normalized map[string]interface{}
+
 			err = json.Unmarshal(buf.Bytes(), &normalized)
+
 			assert.NoError(t, err)
 
 			expectedNormalized := make(map[string]interface{})
 			err = json.Unmarshal([]byte(tt.expected), &expectedNormalized)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			assert.Equal(t, expectedNormalized, normalized)
 		})
@@ -133,6 +138,7 @@ func TestPrintJsonOutput(t *testing.T) {
 }
 
 func TestGetValueString(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		input       cty.Value
@@ -175,7 +181,7 @@ func TestGetValueString(t *testing.T) {
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -196,6 +202,7 @@ func (m *mockWriter) Write(p []byte) (n int, err error) {
 }
 
 func TestPrintOutputs(t *testing.T) {
+	t.Parallel()
 	outputs := map[string]map[string]cty.Value{
 		"unit1": {
 			"output1": cty.StringVal("value1"),
@@ -226,14 +233,13 @@ func TestPrintOutputs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			writer := &mockWriter{err: tt.writerErr}
-			opts := &options.TerragruntOptions{}
 
-			err := printOutputs(opts, writer, outputs, tt.outputIndex)
+			err := printOutputs(writer, outputs, tt.outputIndex)
 
 			if tt.shouldError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotEmpty(t, writer.written)
 			}
 		})
